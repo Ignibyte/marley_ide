@@ -1208,3 +1208,14 @@ the checkout it lives in (git's answer for the file, compared by `--git-common-d
 linked worktree by its own ledger. "Changed" is the work tree, the index and untracked files
 against the upstream fork point, listed with `-z`. The owned set must stay disjoint from
 upstream, which gate:16 checks, so "owned" can never exempt a Zed file.
+
+## AD-claude-437-marley-identity-is-app-name-and-the-dev-channel-001
+*decided at: #437 (workbench shell W1) · status: shipped*
+
+The fork's identity in two Zed touchpoints: `paths::APP_NAME = "Marley"` (every config, data,
+cache and log directory derives from it) and the `marley` binary (`default-run` and the main
+`[[bin]]`, tied to `APP_NAME` by `main.rs`'s compile-time assert). The rest of Zed's identity
+(the Secret Service label, the updater, the app id, the `zed://` scheme, the CLI) is keyed by the
+release channel, and the channel stays `dev`, guarded by a `paths` test, until TICKET-445 gives
+Marley its own. Packaging names (the crash label, the clap name, bundles, desktop entries) wait
+for that ticket too.

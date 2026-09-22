@@ -43,6 +43,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   discovery file's modes, the cargo-mutants attributes stripped, the serial-test dependency
   replaced by a process-wide lock in the real-PTY tests. Not yet wired into the app.
 
+### Changed
+
+- **The fork is Marley** (#437, 2026-09-22). `paths::APP_NAME` is `"Marley"` and the app
+  binary is `marley`, so the fork keeps its settings, database, logs and cache in
+  `~/.config/marley`, `~/.local/share/marley` and `~/.cache/marley` and never touches a stock
+  Zed install's. Chad's Zed settings were copied into Marley's config once. A `paths` test
+  keeps the release channel at `dev`: on any other channel the fork would share stock Zed's
+  keyring items, updater and app id, which TICKET-445 will give Marley its own.
+
 ### Fixed
 
 - **`normalize_path` on macOS** (#436). Its worktree strip used `\+`, a GNU sed extension that

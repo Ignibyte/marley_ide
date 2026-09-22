@@ -45,6 +45,8 @@ first column.
 | `.config/typos.toml` | `extend-exclude` entries for Marley's reference docs | They transcribe Warp and gpui-era text verbatim | Re-add the block |
 | `.gitignore` | `.mcp.json`, `/mutants.out`, `/mutants.out.old`, `/mutants.diff` | Local MCP config carries bearers; the mutation gate writes these | Re-add the block |
 | `README.md` | The two `> [!IMPORTANT]` review lines at the top | Zed's `.rules` self-review rule | Temporary. Chad removes them; an agent never does |
+| `crates/paths/src/paths.rs` | `APP_NAME` is `"Marley"`; unit tests check that the config, data and state directories end in `marley` and that `crates/zed/RELEASE_CHANNEL` stays `dev` | The fork keeps its settings, database and logs apart from a stock Zed install; `APP_NAME` is Zed's documented switch for forks. On any channel but `dev` the fork would share stock Zed's keyring items, updater and app id, so the channel stays `dev` until TICKET-445 gives Marley its own | Keep `"Marley"` and the `dev` channel. If upstream moves or renames `APP_NAME`, carry the value and the tests there |
+| `crates/zed/Cargo.toml` | `default-run` and the main `[[bin]]` are `marley` | `main.rs` asserts at compile time that the binary's name matches `APP_NAME` | Re-apply both names over upstream's; leave its other bins alone |
 
 ## At an upstream merge
 

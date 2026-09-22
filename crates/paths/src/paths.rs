@@ -15,7 +15,8 @@ pub const EDITORCONFIG_NAME: &str = ".editorconfig";
 /// and state directory paths.
 ///
 /// Forks should change this to avoid colliding with Zed's user data.
-pub const APP_NAME: &str = "Zed";
+// Marley: the fork keeps its settings, database and logs apart from a stock Zed install.
+pub const APP_NAME: &str = "Marley";
 
 /// Lowercased form of [`APP_NAME`], for use in XDG-style paths on
 /// Linux/FreeBSD and the macOS `~/.config` fallback.
@@ -634,4 +635,27 @@ pub fn global_gitignore_path() -> Option<PathBuf> {
     GLOBAL_GITIGNORE_PATH
         .get_or_init(::ignore::gitignore::gitconfig_excludes_path)
         .clone()
+}
+
+// Marley: the fork's identity checks. Its directories must never be stock Zed's, and on any
+// release channel but dev it would share stock Zed's keyring items, updater and app id
+// (TICKET-445), so the channel stays dev until Marley has its own.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_app_keeps_its_own_directories() {
+        for directory in [config_dir(), data_dir(), state_dir()] {
+            let name = directory
+                .file_name()
+                .map(|name| name.to_string_lossy().to_lowercase());
+            assert_eq!(name.as_deref(), Some("marley"), "{}", directory.display());
+        }
+    }
+
+    #[test]
+    fn the_release_channel_stays_dev() {
+        assert_eq!(include_str!("../../zed/RELEASE_CHANNEL").trim(), "dev");
+    }
 }

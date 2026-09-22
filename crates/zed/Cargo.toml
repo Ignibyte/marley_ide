@@ -6,7 +6,8 @@ version = "1.22.0"
 publish.workspace = true
 license = "GPL-3.0-or-later"
 authors = ["Zed Team <hi@zed.dev>"]
-default-run = "zed"
+# Marley: the binary is named for the app; main.rs asserts it matches paths::APP_NAME.
+default-run = "marley"
 
 [lints]
 workspace = true
@@ -54,7 +55,8 @@ visual-tests = [
 ]
 
 [[bin]]
-name = "zed"
+# Marley: see default-run above.
+name = "marley"
 path = "src/main.rs"
 
 [[bin]]

@@ -1,7 +1,7 @@
 ---
 pipeline_id: c3bbb51e-b78c-4bce-be39-e820813882f6
-ticket: docs/planning/tickets/open/TICKET-437-marley-app-identity.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active for Phase 2 Design
+ticket: docs/planning/tickets/closed/TICKET-437-marley-app-identity.md
+status: Phase 5 — Complete PASS
 title: Marley's own app identity (APP_NAME, the binary, Chad's settings copied once)
 type: chore
 slice: workbench shell W1
@@ -69,11 +69,12 @@ UI-AFFECTING (light): the running app's config and theme come from the copied se
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
 | REQ-001 | WHEN the workspace is built, the app binary shall be `target/debug/marley` and `cargo run` shall start it | build + `ls`, live drive |
-| REQ-002 | WHILE Marley runs on Linux, its config, data and state directories shall be `~/.config/marley`, `~/.local/share/marley` and `~/.local/state/marley` | unit test on the derived paths; live check of the created dirs |
+| REQ-002 | WHILE Marley runs on Linux, its config, data and state directories shall be `~/.config/marley`, `~/.local/share/marley` and `~/.local/state/marley`, and its cache `~/.cache/marley` | unit test on the derived paths; live check of the directories the app creates (config, data, cache; nothing calls `state_dir()` today) |
 | REQ-003 | WHILE Marley runs, it shall not create or modify files under `~/.config/zed` or `~/.local/share/zed` | live drive: mtimes before and after |
 | REQ-004 | WHEN W1 completes, `~/.config/marley/settings.json` shall hold Chad's current Zed settings, with `~/.config/zed/settings.json` unchanged | `cmp` the two files; stock mtime unchanged |
 | REQ-005 | The two hunks shall carry `Marley:` comments and rows in the ledger | gate:16 green; `rg "Marley:"` |
 | REQ-006 | The workspace shall still build and the touched crates' tests shall pass | `script/gates.sh --diff` |
+| REQ-007 | `crates/zed/RELEASE_CHANNEL` shall stay `dev` until Marley has its own keyring label, update source and app id (TICKET-445) | a `paths` unit test that reads the file |
 
 ## Phase Plan
 - **P2 Design** — the exact hunks, the unit test's platform guard, the copy commands.

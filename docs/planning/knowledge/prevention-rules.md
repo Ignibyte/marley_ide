@@ -2099,3 +2099,13 @@ When a rule lives in a gate whose run the commit hook does not require for every
 in every doc that it holds only when the gate runs. Check what the commit ships (the index, and
 the work tree for `commit -a`), not only the work tree. And list paths from git with `-z`
 whenever they are compared with strings from elsewhere; the quoted default never matches.
+
+## PR-claude-a-zed-fork-identity-is-more-than-app-name-001
+*severity: medium · from: pipeline 437*
+
+`paths::APP_NAME` separates a Zed fork's directories, but not the rest of its identity. The
+release channel keys the Secret Service items (a fixed label on every channel but `dev`), the
+auto-updater (which on a non-`dev` channel downloads stock Zed and installs it over the stock
+app) and the app id; the `zed://` scheme belongs to whichever Zed registered it with the desktop.
+When a fork changes its name, keep it on `dev` or give it its own keyring label, update source,
+app id and scheme in the same change, and guard the channel with a test while it depends on it.

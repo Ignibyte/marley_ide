@@ -16,7 +16,7 @@ One task per test in the Phase 2 Regression Test Plan, plus "run gate". Resolve 
 2. **Run them and report ACTUAL results** — paste the real output:
    - `cargo nextest run -p <every touched crate>` (+ `cargo test --doc -p <marley crates>` for doctests). Never the whole workspace for a scoped change; one cargo at a time.
 3. **Drive the LIVE app for any UI-affecting change (MANDATORY — do NOT defer to the user).** If the change touches a render or input path (a pane, a panel, the terminal, a keystroke or mouse handler, an affordance), you MUST verify it on the running app yourself:
-   - build and run it: `cargo run` (the `zed` binary; a debug build is fine), open a project, and REPRODUCE the exact interaction the ticket changes (type real commands, press keys, click).
+   - build and run it: `cargo run` (the `marley` binary since #437; a debug build is fine), open a project, and REPRODUCE the exact interaction the ticket changes (type real commands, press keys, click).
    - capture it: a screenshot through the `dev-box-desktop` skill (the box runs Hyprland on Wayland), and **READ the PNG** — assert the behavior actually renders (the block header shows, the pill flips, the pane appears). Paste what you saw.
    - the driven tests from step 1 are the durable half; the live drive is the proof the pixels agree. A green unit test never proves a pane *works*.
    Library crates with NO UI surface are N/A (say so). If the app genuinely cannot be driven (no display session), state that explicitly and why — never silently skip.

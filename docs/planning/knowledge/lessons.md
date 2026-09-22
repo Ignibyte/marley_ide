@@ -1710,3 +1710,29 @@ the archive of the doc pair is refused; the checklists live in the notes instead
 apply:** do not end a turn mid-phase. Wait for background critics inside the turn (the agent
 listing, or a bounded wait on something observable), and finish the phase, or reach `/commit`
 or an archived pipeline, before stopping.
+
+## L-claude-437-a-debug-marley-starts-inside-the-checkout-001
+*category: validate · topic: live drives of the app on the dev box · from: pipeline 437*
+
+A debug build reads its assets from the checkout at run time and finds the checkout by a `.git`
+above the executable or the working directory (`util::dev_repo_root`). On this box the build
+lands in `/mnt/fast/target`, outside the checkout, so a debug `marley` started from `$HOME` (any
+Hyprland launch) panics at `settings::init` with "dev asset loading requires running from within
+the checkout". Worse, the panic comes after the installation id is written, so the next launch
+counts as an existing install and `agent_ui` backfills Zed's editor layout into the user's
+`settings.json`. **How to apply:** start every drive with the checkout as the working directory
+(`hl.exec_cmd("sh -c 'cd /srv/stacks/marley_ide && exec /mnt/fast/target/debug/marley ...'")`),
+capture its output, and `cmp` the settings file after the first launch.
+
+## L-claude-437-the-headless-live-drive-recipe-001
+*category: validate · topic: live drives without touching Chad's screen · from: pipeline 437*
+
+What worked for a GUI drive on this Hyprland 0.56 (Lua config, where `hyprctl dispatch exec
+"[rules] cmd"` no longer parses): `rusty headless up`; a temporary rule
+`hyprctl eval 'hl.window_rule({ match = { class = "dev.zed.Zed-Dev" }, workspace = "3 silent" })'`
+for the headless output's workspace; `hyprctl eval 'hl.exec_cmd("...")'` to launch; poll
+`hyprctl clients -j` for the class (Marley's is `dev.zed.Zed-Dev`, stock Zed's `dev.zed.Zed`);
+`rusty headless shot <name> <dir>` and read the PNG; SIGTERM the process; `hyprctl reload`
+to drop the rule, which would otherwise hide Chad's own Marley windows; `rusty headless down`.
+A process's inotify watches (`/proc/<pid>/fdinfo`) show which config directories it really
+reads when the screen cannot tell two settings files apart.

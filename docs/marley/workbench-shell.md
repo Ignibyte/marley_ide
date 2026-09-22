@@ -347,8 +347,9 @@ exists.
 
 **Status (2026-09-22):** the baseline landed with #443, which put the port on
 `marley/workbench-shell` behind a green `--diff` gate. W0 shipped as #436: the ledger is
-enforced at the write, in gate:16 and at every commit. W1 to W6 are TICKET-437 to
-TICKET-442, queued in that order.
+enforced at the write, in gate:16 and at every commit. W1 shipped as #437: the fork runs as
+`marley` with its own directories (a debug build must start inside the checkout; see
+TICKET-445). W2 to W6 are TICKET-438 to TICKET-442, queued in that order.
 
 | Slice | Delivers | Size |
 |---|---|---|
