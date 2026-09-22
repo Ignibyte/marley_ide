@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-436](open/TICKET-436-zed-touchpoint-ledger.md) | chore | W0 · the Zed touchpoint ledger enforced: gate:16 and a write hook |
 | [TICKET-437](open/TICKET-437-marley-app-identity.md) | chore | W1 · Marley's own app identity: `APP_NAME`, the binary, Chad's settings copied once |
 | [TICKET-438](open/TICKET-438-marley-layout-and-rail.md) | feature | W2 · the Marley layout switch and the first rail: projects, center terminals, New Terminal |
 | [TICKET-439](open/TICKET-439-rail-zed-threads.md) | feature | W3 · Zed agent threads in the rail |

@@ -234,7 +234,8 @@ zed_ledger_g() { zed_ledger_check "$(upstream_base)"; }
 # ACCEPTED-UNTESTABLE (the explicit, documented exclude — §0): the raw PTY shim
 # marley_terminal/src/pty_os.rs (four OS calls, exercised end to end by the
 # real-PTY integration test) and marley_mcp/src/transport.rs (the loopback
-# std::net listener + threads, verified on the live wire). Every testable line
+# std::net listener + threads, driven by its loopback tests; the IO-error arms
+# a loopback peer cannot provoke keep it here). Every testable line
 # of every Marley crate stays in the 100% denominator.
 rust_cov() {
   need cargo-llvm-cov "cargo install cargo-llvm-cov" || return 1

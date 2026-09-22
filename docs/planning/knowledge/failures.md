@@ -1624,3 +1624,25 @@ left out `--in-place` and `--jobs`, so the finding was right and the check still
 Only the gate's own invocation found it. Fixed: DIFF drops `--jobs`, since in place is one job
 by construction. Class: prove a gate change with the gate's exact command line, not a
 reconstruction of it.
+
+## F-claude-436-a-a-path-hook-judged-files-by-the-sessions-directory-001
+*severity: high · category: hooks · pipeline 436*
+
+The first draft of `enforce-zed-ledger.sh` decided whether a file was in this repository by
+comparing its path with `PROJECT_ROOT`, the git root of the session's working directory. Claude
+Code runs command hooks in the session's current directory, which follows a Bash `cd` and
+EnterWorktree, so from `/`, a scratchpad, another repository or a linked worktree every write to
+a Zed file in the main checkout passed. A regex strip of `.claude/worktrees/<name>/` also broke on
+names with a `/`. Found by the #436 path critic. Fixed: the hook asks git about the file itself
+(`rev-parse --show-toplevel` and `--show-prefix` from the nearest existing directory) and gates
+it only when its `--git-common-dir` is this repository's, against that checkout's own ledger.
+
+## F-claude-436-b-a-gate-only-rule-was-not-checked-at-commit-001
+*severity: medium · category: hooks / gate integrity · pipeline 436*
+
+gate:16's ledger check ran only when `script/gates.sh` ran. The commit hook demands a receipt
+only when `.rs` files change, and the receipt fingerprints neither the ledger nor a non-Rust Zed
+file, so a keymap or asset change made with Bash could be committed without its row; gate:16
+also read the work tree while a commit ships the index. Three docs still said gate:16 catches
+any such change. Found by the #436 gate critic. Fixed: `enforce-commit-gate.sh` runs the ledger
+check on every `git commit`, and the check lists the index, the work tree and untracked files.

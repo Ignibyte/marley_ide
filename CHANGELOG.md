@@ -27,6 +27,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 - **The three-prong plan** (`docs/marley/three-prong-plan.md`, 2026-09-18): the block
   terminal on Zed's terminal, the control plane over rustal-brain, the rustal-harness runtime
   and Rusty, and the browser service.
+- **The Zed touchpoint ledger, enforced** (#436, 2026-09-22). Every change outside the
+  Marley-owned paths needs its row in `docs/marley/zed-touchpoints.md`, checked in three
+  places. gate:16 in `script/gates.sh` fails on a changed path with no row, a row whose path no
+  longer differs from the upstream fork point, a duplicate row or a row for an owned path, and
+  an owned set that would claim an upstream file. `enforce-zed-ledger.sh` blocks a Write or
+  Edit to a Zed path until its row exists, judging each file by the checkout it lives in.
+  `enforce-commit-gate.sh` runs the same check at every commit, Rust or not. CONSTITUTION §0,
+  §14 and §21 name the ledger; `upstream_base` moved into `lib-hook-helpers.sh` so the gate and
+  the commit hook share it.
 - **Five Marley crates ported as workspace members** (2026-09-18): `marley_terminal` (the
   block model, DCS hook codec and PTY session; `SessionId` folded in from the old
   `marley_core`), `marley_fleet`, `marley_mcp`, `marley_agent`, `marley_remote`. Adapted to
@@ -36,6 +45,9 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **`normalize_path` on macOS** (#436). Its worktree strip used `\+`, a GNU sed extension that
+  BSD sed reads as a literal `+`, so the phase gate misread paths inside
+  `.claude/worktrees/<name>/` on macOS. It uses the POSIX `\{1,\}`.
 - **The quality gate over the ported tree** (#443, 2026-09-22). No `script/gates.sh --diff`
   run could have gone green in the fork. Its mutation step passed `--jobs` beside `--in-place`,
   which cargo-mutants rejects as a usage error. Without `-p`, it would also have mutated only

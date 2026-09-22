@@ -1195,3 +1195,16 @@ names. **Both** pass `--no-config` and clear `CARGO_MUTANTS_OUTPUT`,
 in any spelling, `cfg_attr` included, and the receipt fingerprint covers `.cargo/config.toml`
 and `.cargo/mutants.toml`. An equivalent or unreachable mutant is answered by re-expressing the
 code (the removed `content_length > 0` guard, the merged `cfg` twins of `spawn`), never by a skip.
+
+## AD-claude-436-one-owned-set-three-enforcers-001
+*decided at: #436 (workbench shell W0) · status: shipped*
+
+The ledger of changes outside the Marley-owned paths is enforced from one definition in
+`.claude/hooks/lib-hook-helpers.sh` (`marley_owned_path`, `zed_ledger_check`, `upstream_base`)
+at three moments: the write (`enforce-zed-ledger.sh`, a Write or Edit), the gate (gate:16, every
+mode), and the commit (`enforce-commit-gate.sh`, every commit, Rust or not). A row is an exact
+path, a backticked path opening the first column of the Touchpoints table. A file is judged by
+the checkout it lives in (git's answer for the file, compared by `--git-common-dir`), and each
+linked worktree by its own ledger. "Changed" is the work tree, the index and untracked files
+against the upstream fork point, listed with `-z`. The owned set must stay disjoint from
+upstream, which gate:16 checks, so "owned" can never exempt a Zed file.

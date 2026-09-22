@@ -414,6 +414,11 @@ When you change a canonical command that a hook/gate also DETECTS (e.g. swapping
 ## PR-claude-diff-gate-mutation-tests-touched-shim-fn-001
 *severity: medium*
 
+> **Superseded in the fork (2026-09-22, TICKET-436).** The advice below is gpui-era. The fork's
+> gate:12 bans `mutants::skip` in any form (`AD-claude-443-mutation-topology-and-no-masks-001`):
+> a shim function that a diff touches is tested (a gpui driven test, a loopback or real-PTY
+> test) or re-expressed so that its logic lives in a tested pure function.
+
 In the `--diff` gate, cargo-mutants tests a function the moment ANY line of it enters the diff — even a long-committed app.rs shim function that was never previously mutated. So when you edit an untestable live-gpui-state shim fn (one that reads Window/Context/live grids), add `#[cfg_attr(test, mutants::skip)]` in the SAME change if it lacks one, matching the established app.rs convention (~79 siblings). This is not a floor-drop per §0: keep all real DECISION logic in the pure crates (marley_agent/agent_view) where it stays coverage+mutation-tested at 100%; the shim fn is pure orchestration over live state. Symptom if you forget: gate:5 reports one surviving mutant `replace <RootView::fn> with ()` while coverage is still 100%.
 
 ## PR-claude-diff-gate-stage-new-crate-before-mutation-001
@@ -2075,3 +2080,22 @@ A test that spawns a child which ignores termination signals gives that child a 
 once it is ready, never a fixed sleep. PTY children call `setsid`, so neither nextest's
 process-group kill nor the leader's hang-up reaches them when the test process dies first.
 After any mutation or test run with such a test, `pgrep -af` for its command line.
+
+## PR-claude-a-path-hook-resolves-the-files-own-repo-001
+*severity: high · prevents: F-claude-436-a-a-path-hook-judged-files-by-the-sessions-directory-001*
+
+A hook that classifies a file path resolves the repository from the file, never from the
+session's working directory: walk up to the nearest existing directory and ask git
+(`git -C <dir> rev-parse --show-toplevel --show-prefix`), compare repositories by
+`--path-format=absolute --git-common-dir` so linked worktrees count as the same repository, and
+read per-checkout state (a ledger, ignore rules) from that checkout. Test it from `/`, from a
+scratch directory and from a linked worktree, not only from the repository root.
+
+## PR-claude-a-rule-the-gate-checks-is-also-checked-at-commit-001
+*severity: medium · prevents: F-claude-436-b-a-gate-only-rule-was-not-checked-at-commit-001*
+
+When a rule lives in a gate whose run the commit hook does not require for every kind of change
+(here, the receipt only for `.rs`), put the rule's check in the commit hook too, or say plainly
+in every doc that it holds only when the gate runs. Check what the commit ships (the index, and
+the work tree for `commit -a`), not only the work tree. And list paths from git with `-z`
+whenever they are compared with strings from elsewhere; the quoted default never matches.

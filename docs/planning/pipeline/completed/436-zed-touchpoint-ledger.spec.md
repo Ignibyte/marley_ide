@@ -1,7 +1,7 @@
 ---
 pipeline_id: d2a4f467-26e9-4f96-a4bd-0b2cb1403962
-ticket: docs/planning/tickets/open/TICKET-436-zed-touchpoint-ledger.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active for Phase 2 Design
+ticket: docs/planning/tickets/closed/TICKET-436-zed-touchpoint-ledger.md
+status: Phase 5 — Complete PASS
 title: The Zed touchpoint ledger, enforced (gate:16 + a write hook)
 type: chore
 slice: workbench shell W0
@@ -25,6 +25,8 @@ row, a hook blocks the write before it happens, and the constitution names the l
 - `.claude/hooks/enforce-zed-ledger.sh` (PreToolUse, `Write|Edit`): blocks a write to a repo
   path outside the Marley-owned set when the ledger does not name it; wired in
   `.claude/settings.json`.
+- `.claude/hooks/enforce-commit-gate.sh`: the same check at every `git commit`, Rust or not
+  (added at inspect: the receipt covers neither the ledger nor a non-Rust Zed file).
 - `CONSTITUTION.md`: §0 lists gate:16; §14's upstream discipline names the ledger and the
   hook; §21 point 2 replaces "a short note under `docs/marley/`" with the ledger row. Its own
   commit, per the amendment rule.
@@ -78,6 +80,8 @@ N/A — no UI delta: a gate, a hook and constitution text; nothing the app rende
 | REQ-006 | The Marley-owned set shall have exactly one definition, shared by gate:16 and the hook | review: both source `marley_owned_path` from `lib-hook-helpers.sh` |
 | REQ-007 | CONSTITUTION §0 shall list gate:16, and §14 and §21 shall name `docs/marley/zed-touchpoints.md` | grep the three sections |
 | REQ-008 | gate:11 (shellcheck) shall pass over the new hook and the gate changes | `script/gates.sh --fast` gate:11 PASS |
+| REQ-009 | WHEN a `git commit` is attempted while a changed path outside the Marley-owned set has no ledger row, `enforce-commit-gate.sh` shall block it and name the path, whether or not the commit carries Rust | hook smoke in a throwaway worktree: a non-Rust Zed edit, exit 2; with its row, exit 0 |
+| REQ-010 | The write hook shall judge a path by the checkout the file lives in, whatever the session's working directory, and a linked worktree by its own ledger | hook smoke from `/`, the scratchpad, a worktree and the repo; a row in a worktree's ledger allows that worktree only |
 
 ## Phase Plan
 - **P2 Design** — the helper signatures, the gate's diff listing (tracked and untracked, rename

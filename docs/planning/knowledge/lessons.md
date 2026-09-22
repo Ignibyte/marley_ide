@@ -1688,3 +1688,25 @@ that step's exact argument vector (`--list` appended when a real run is too long
 tool's own message; when a step reports a bare exit code, rerun its command line by hand before
 guessing. Budget a real `script/gates.sh --diff` into every ticket that edits the gate.
 
+
+## L-claude-436-a-new-hook-is-live-in-the-same-session-001
+*category: validate · topic: Claude Code hooks · from: pipeline 436*
+
+A hook added to `.claude/settings.json` took effect in the session that added it: a probe Edit
+to `docs/README.md` minutes later was blocked with the new hook's message. I expected the
+opposite, remembering that Claude Code snapshots hooks at startup. A hook's script, as opposed
+to its registration, is re-read on every call in any case, so an edit to an existing hook's
+file is live at once. **How to apply:** prove a new or changed hook with one harmless probe
+through the real harness (an Edit whose effect you can revert, or a Bash command whose text
+the hook matches, built at run time), not only with crafted JSON; and expect a hook you wire
+up to start judging your own next tool call.
+
+## L-claude-436-no-taskcreate-means-no-mid-phase-stop-001
+*category: process · topic: the phase hooks in a harness without TaskCreate · from: pipeline 436*
+
+`enforce-phase-tasks.sh` blocks Stop inside a phase until TaskCreate was called and every task
+resolved. This harness offers no TaskCreate, so a Stop anywhere between `/pipeline:plan` and
+the archive of the doc pair is refused; the checklists live in the notes instead. **How to
+apply:** do not end a turn mid-phase. Wait for background critics inside the turn (the agent
+listing, or a bounded wait on something observable), and finish the phase, or reach `/commit`
+or an archived pipeline, before stopping.
