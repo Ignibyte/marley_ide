@@ -5,7 +5,8 @@
 # CONSTITUTION §0/§15: script/gates.sh is the truth gate. This hook makes it
 # binding — a `git commit` that includes Rust source is BLOCKED unless
 # script/gates.sh left a RECEIPT (.git/ignibyte-gate-receipt) proving a FULL
-# or DIFF green ran on the EXACT current worktree (FAST writes none).
+# or DIFF green ran on the EXACT current worktree (FAST writes none). Every
+# commit, Rust or not, must also pass gate:16's ledger check (CONSTITUTION §14).
 #
 # The receipt is a CONTENT FINGERPRINT (gate_state_hash), not a transcript
 # string. That closes the holes a string-match would have:
@@ -40,6 +41,19 @@ if grep -qE -- '(--dry-run|--help|(^|[[:space:]])-h([[:space:]]|$))' <<<"$CMD"; 
 fi
 
 cd "$PROJECT_ROOT" 2>/dev/null || exit 0
+# Every commit, Rust or not, is checked against the Zed touchpoint ledger
+# (CONSTITUTION §14): gate:16's own check over the index and the work tree
+# about to be committed. The receipt below covers neither the ledger nor a
+# non-Rust Zed file, so this is the check that makes a Bash edit unrecordable.
+if ! LEDGER_REPORT=$(zed_ledger_check "$(upstream_base)"); then
+    { echo ""
+      echo "COMMIT BLOCKED — the tree differs from upstream Zed in ways $ZED_LEDGER does not record (gate:16)."
+      echo "$LEDGER_REPORT"
+      echo "CONSTITUTION §14: give each changed Zed path its row (path · what changed · why · on merge),"
+      echo "and remove the rows of changes that are gone."
+    } >&2
+    exit 2
+fi
 # Only gate when Rust SOURCE is in the change set (staged, unstaged, or an
 # untracked file — `--untracked-files=all` lists a new crate's files instead of
 # collapsing them to one directory entry, which would let a fresh crate skip the

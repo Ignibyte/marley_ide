@@ -21,7 +21,7 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 normalize_path() {
     echo "$1" \
         | sed "s|^${PROJECT_ROOT}/||" \
-        | sed 's|^\.claude/worktrees/[A-Za-z0-9._-]\+/||'
+        | sed 's|^\.claude/worktrees/[A-Za-z0-9._-]\{1,\}/||'
 }
 
 # --- Gate receipt fingerprint ------------------------------------------------
@@ -186,4 +186,122 @@ is_pipeline_session() {
     local t="$1"; [ -f "$t" ] || return 1
     [ -n "$(detect_active_command "$t")" ] && return 0
     [ -n "$(get_active_pipeline_doc)" ]
+}
+
+# --- The Zed touchpoint ledger (CONSTITUTION §14, docs/marley/zed-touchpoints.md) ---
+# The ONE definition of the Marley-owned paths and of the ledger check, shared by
+# gate:16 (script/gates.sh), enforce-zed-ledger.sh (every Write or Edit) and
+# enforce-commit-gate.sh (every git commit). Every other path in the tree is
+# upstream Zed's: a change to it needs a row in the ledger's Touchpoints table.
+# The ledger's prose list documents marley_owned_path; this file is the authority.
+ZED_LEDGER="docs/marley/zed-touchpoints.md"
+
+# The upstream fork point: the merge-base with a fetched `upstream/main`, else
+# MARLEY_UPSTREAM_BASE when set (a value that names no commit fails closed), else
+# the commit this fork was cut from, moved at each upstream merge (the ledger's
+# merge checklist). Prints nothing when none resolves.
+UPSTREAM_BASE_FALLBACK="78648aaf7d"
+upstream_base() {
+    git -C "$PROJECT_ROOT" merge-base upstream/main HEAD 2>/dev/null \
+        || git -C "$PROJECT_ROOT" rev-parse --verify "${MARLEY_UPSTREAM_BASE:-$UPSTREAM_BASE_FALLBACK}^{commit}" 2>/dev/null \
+        || true
+}
+
+marley_owned_path() {
+    case "$1" in
+        crates/marley_*|docs/marley/*|docs/planning/*|docs/marley_architecture/*|\
+        docs/specs/*|docs/warp_architecture/*|docs/zed_architecture/*|\
+        docs/decisions/*|docs/tickets/*|.claude/*|script/gates.sh|\
+        CONSTITUTION.md|CHANGELOG.md|deny.toml|.gitleaks.toml|.cargo/audit.toml|\
+        .mcp.json.example)
+            return 0 ;;
+    esac
+    return 1
+}
+
+# The paths the Touchpoints table of the ledger under ROOT (default: this
+# checkout) names, one per line: the backticked path that opens a row's first
+# column. Paths quoted anywhere else in the ledger are not rows.
+zed_ledger_rows() {
+    local ledger="${1:-$PROJECT_ROOT}/${ZED_LEDGER}" tick
+    [ -f "$ledger" ] || return 0
+    tick=$(printf '\140')
+    awk '/^## Touchpoints[[:space:]]*$/{t=1;next} t&&/^## /{t=0} t' "$ledger" \
+        | sed -nE "s/^[|][[:space:]]*${tick}([^${tick}]+)${tick}.*/\\1/p"
+}
+
+# 0 when the newline-separated LIST contains ITEM as a whole line. Pure bash: no
+# pipe for an early-exiting grep to break under pipefail
+# (PR-claude-no-quiet-grep-tail-in-pipefail-hooks-001).
+line_in_list() {
+    case $'\n'"$2"$'\n' in
+        *$'\n'"$1"$'\n'*) return 0 ;;
+    esac
+    return 1
+}
+
+# Every path of the checkout at ROOT that differs from BASE, one per line: the
+# work tree and the index against BASE (a commit ships the index, `commit -a` the
+# work tree), plus untracked files that are not ignored. NUL-separated from git,
+# so no name comes back quoted; a name with a newline in it is the one case this
+# cannot carry. Fails when any git command fails, whatever the caller's options.
+zed_changed_paths() {
+    local base="$1" root="$2"
+    (
+        set -o pipefail
+        {
+            git -C "$root" diff --name-only --no-renames -z "$base" -- . \
+                && git -C "$root" diff --cached --name-only --no-renames -z "$base" -- . \
+                && git -C "$root" ls-files -z --others --exclude-standard
+        } | tr '\0' '\n' | LC_ALL=C sort -u
+    )
+}
+
+# gate:16's check of the checkout at ROOT (default: this one) against the
+# upstream commit BASE. Reports every changed path outside the Marley-owned set
+# that has no row, every row whose path no longer differs, rows for owned paths,
+# duplicate rows, and upstream files the owned set claims (it must stay disjoint
+# from upstream, or "owned" would exempt a Zed file); returns 1 if it reported
+# anything.
+zed_ledger_check() {
+    local base="$1" root="${2:-$PROJECT_ROOT}" changed rows upstream p
+    local missing="" stale="" owned_rows="" duplicates="" owned_upstream=""
+    [ -n "$base" ] || {
+        echo "zed-ledger: upstream fork point unknown (fetch the upstream remote or set MARLEY_UPSTREAM_BASE)"
+        return 1
+    }
+    if ! [ -f "$root/$ZED_LEDGER" ] || ! grep -qE '^## Touchpoints[[:space:]]*$' "$root/$ZED_LEDGER"; then
+        echo "zed-ledger: $root/$ZED_LEDGER has no '## Touchpoints' section"
+        return 1
+    fi
+    changed=$(zed_changed_paths "$base" "$root") \
+        || { echo "zed-ledger: git could not list the changes since $base"; return 1; }
+    upstream=$(set -o pipefail; git -C "$root" ls-tree -r --name-only -z "$base" | tr '\0' '\n') \
+        || { echo "zed-ledger: git could not list the files of $base"; return 1; }
+    rows=$(zed_ledger_rows "$root")
+    duplicates=$(printf '%s\n' "$rows" | LC_ALL=C sort | uniq -d)
+    while IFS= read -r p; do
+        [ -n "$p" ] || continue
+        marley_owned_path "$p" && continue
+        line_in_list "$p" "$rows" || missing="${missing}  ${p}"$'\n'
+    done <<< "$changed"
+    while IFS= read -r p; do
+        [ -n "$p" ] || continue
+        marley_owned_path "$p" && owned_rows="${owned_rows}  ${p}"$'\n'
+        line_in_list "$p" "$changed" || stale="${stale}  ${p}"$'\n'
+    done <<< "$rows"
+    while IFS= read -r p; do
+        [ -n "$p" ] || continue
+        marley_owned_path "$p" && owned_upstream="${owned_upstream}  ${p}"$'\n'
+    done <<< "$upstream"
+    if [ -n "$missing$stale$owned_rows$duplicates$owned_upstream" ]; then
+        [ -n "$missing" ] && { echo "zed-ledger: changed outside the Marley-owned paths with no row in ${ZED_LEDGER}:"; printf '%s' "$missing"; }
+        [ -n "$stale" ] && { echo "zed-ledger: rows in ${ZED_LEDGER} whose path no longer differs from upstream (remove the row):"; printf '%s' "$stale"; }
+        [ -n "$owned_rows" ] && { echo "zed-ledger: rows in ${ZED_LEDGER} for Marley-owned paths, which are never listed:"; printf '%s' "$owned_rows"; }
+        [ -n "$duplicates" ] && { echo "zed-ledger: paths with more than one row in ${ZED_LEDGER}:"; printf '%s\n' "$duplicates" | sed 's/^/  /'; }
+        [ -n "$owned_upstream" ] && { echo "zed-ledger: upstream files that marley_owned_path claims (narrow the owned set):"; printf '%s' "$owned_upstream"; }
+        return 1
+    fi
+    echo "zed-ledger: every touchpoint recorded ($(printf '%s\n' "$rows" | grep -c . || true) rows)"
+    return 0
 }

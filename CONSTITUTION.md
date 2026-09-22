@@ -39,6 +39,7 @@ gate:11 shell lint     shellcheck (.claude/hooks + script/gates.sh)
 gate:12 no-suppress    grep meta-gate (allow/expect must justify; blanket banned)
 gate:13 source-bans    grep meta-gate (mem::transmute; unsafe without // SAFETY:)
 gate:14 docs           rustdoc -D warnings on the Marley crates + no actionable TODO in Marley docs
+gate:16 zed ledger     every changed path outside the Marley-owned set has its row in docs/marley/zed-touchpoints.md
 
 HEAVY (FULL + --diff; --fast skips)
 gate:4  coverage       cargo llvm-cov nextest -p <marley crates> --fail-under-lines 100
@@ -96,6 +97,15 @@ is added to that list with a reason, never hidden in a regex.
   `docs/tickets/`, `.claude/`); `docs/planning/` is working scratch and
   `docs/warp_architecture/` transcribes Warp's own markers. The gpui-era brand scrub is
   retired: this repo is Zed.
+- `gate:16` compares the work tree, the index and the untracked files with the upstream
+  fork point (`upstream_base` in `.claude/hooks/lib-hook-helpers.sh`: the merge-base with a
+  fetched `upstream/main`, else `MARLEY_UPSTREAM_BASE` when set, where a value that names no
+  commit fails closed, else the recorded fork commit). It fails on a changed path outside the
+  Marley-owned set that has no row in `docs/marley/zed-touchpoints.md`, on a row whose path
+  no longer differs, on duplicate rows and rows for owned paths, and on any upstream file the
+  owned set would claim. The owned set is `marley_owned_path` in the same file, shared with
+  the write hook, and `enforce-commit-gate.sh` runs the same check at every `git commit`, Rust
+  or not (§14).
 - `gate:15` (the macOS accessibility and screenshot harness) is retired; UI proof is §7.
 - not yet ported: architecture-layering / taint analysis.
 
@@ -210,6 +220,12 @@ writes. Tests are not optional and not skippable because a change "looks simple"
 - A change to a Zed crate is the smallest diff that works, added behind a new module, a new
   event variant, a new panel or a setting; never a reformat, a rename sweep or a style pass
   over upstream code. Rebasing on upstream must stay cheap.
+- Every change outside the Marley-owned paths gets its row in
+  `docs/marley/zed-touchpoints.md` in the same change (what changed, why, what to do at a
+  merge), and a code hunk carries a `// Marley: <why>` comment. `enforce-zed-ledger.sh`
+  blocks a Write or Edit to such a path until the row exists, and the same check in
+  `enforce-commit-gate.sh` refuses a commit that still lacks one, so a change made any other
+  way is caught too (gate:16, §0).
 - A change Marley needs in a dependency Zed forks (the alacritty fork) lives on a Marley
   branch of that fork, one file wide where possible, pinned by rev in `Cargo.toml`.
 - Marley-owned crates keep the `marley_` prefix and `MIT OR Apache-2.0` (§20).
@@ -347,8 +363,9 @@ do both:**
    changeset. A no-`.rs` change is exempt.
 2. **Update the architecture docs**: the prong's section of `docs/marley/three-prong-plan.md`
    (slice status), the per-crate notes under `docs/marley_architecture/` for a Marley crate,
-   and a short note under `docs/marley/` for a change inside a Zed crate (which crate, what
-   was added, why it is additive). This half is a **required, inspect-verified** Phase-5 step.
+   and, for a change outside the Marley-owned paths, a check that its row in
+   `docs/marley/zed-touchpoints.md` still describes what shipped (the row itself is written
+   before the change, §14). This half is a **required, inspect-verified** Phase-5 step.
 
 Skipping either is a charter violation. The CHANGELOG keeps the *what/why* of every change;
 the architecture docs keep the *shape* of the system.
@@ -359,7 +376,7 @@ the architecture docs keep the *shape* of the system.
 
 These rules change deliberately, not mid-pipeline to dodge a gate. To amend: state the
 section, the change, and the reason in a commit that touches only this file (and any hook
-that enforces the changed rule). Raising a floor or tightening a convention needs no
+or gate that enforces the changed rule). Raising a floor or tightening a convention needs no
 ceremony; loosening one needs a recorded reason. The 2026-09-18 port from the gpui-era repo
 is the standing example: gate:15 retired, gate:9 moved to cargo-shear, gates 7, 8, 10 and 14
 re-scoped to what a fork can honestly gate, each with its reason in §0.

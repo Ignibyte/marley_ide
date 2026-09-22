@@ -16,10 +16,11 @@
 # and coverage covers the touched Marley crates. Upstream Zed code is held to
 # Zed's own bar (fmt, ./script/clippy, its tests), not to the Marley floors.
 #
-# Gate numbering follows CONSTITUTION §0 (1-14; gate:15, the macOS visual/AX
-# harness, retired with the fork):
+# Gate numbering follows CONSTITUTION §0 (1-14 and 16; gate:15, the macOS
+# visual/AX harness, retired with the fork):
 #   STATIC (always): 1 fmt · 2 clippy · 3 tests · 7 audit · 8 deny · 9 shear
 #                    10 gitleaks · 11 shellcheck · 12 no-suppress · 13 SAST · 14 docs
+#                    16 zed-ledger
 #   HEAVY  (FULL/DIFF): 4 coverage · 5 mutation · 6 miri
 #
 # Modes:
@@ -67,15 +68,8 @@ run_gate() {
 need() { command -v "$1" >/dev/null 2>&1 || { echo "MISSING TOOL: $1 — $2" >&2; return 1; }; }
 
 # ── The scope: Marley crates + the crates the change touched ────────────────
-# The upstream fork point, for the advisory and secrets policies (§0). The
-# `upstream` remote is authoritative when fetched; the fallback is the commit
-# this fork was cut from, refreshed at each upstream merge.
-UPSTREAM_BASE_FALLBACK="78648aaf7d"
-upstream_base() {
-  git merge-base upstream/main HEAD 2>/dev/null \
-    || git rev-parse --verify "${MARLEY_UPSTREAM_BASE:-$UPSTREAM_BASE_FALLBACK}^{commit}" 2>/dev/null \
-    || true
-}
+# The upstream fork point (`upstream_base`, used by gate:10 and gate:16) is
+# defined in lib-hook-helpers.sh, so the commit hook resolves the same commit.
 
 marley_packages() {
   local d
@@ -228,6 +222,13 @@ docs_g() {
   [ -z "$hits" ] || { echo "actionable TODO/FIXME/XXX markers in committed Marley docs:"; echo "$hits"; return 1; }
   return 0
 }
+
+# ── 16. the Zed touchpoint ledger (CONSTITUTION §0/§14) ─────────────────────
+# Every path outside the Marley-owned set that differs from the upstream fork
+# point needs its row in docs/marley/zed-touchpoints.md, and every row's path
+# must still differ. The owned set and the check live in lib-hook-helpers.sh,
+# shared with enforce-zed-ledger.sh; an unknown fork point fails closed.
+zed_ledger_g() { zed_ledger_check "$(upstream_base)"; }
 
 # ── 4. rust line coverage floor (FULL: the Marley crates; DIFF: the touched ones)
 # ACCEPTED-UNTESTABLE (the explicit, documented exclude — §0): the raw PTY shim
@@ -393,6 +394,7 @@ run_gate "gate:11 shellcheck" shellcheck_g
 run_gate "gate:12 no-suppressions" no_suppr_g
 run_gate "gate:13 source-bans (SAST)" source_bans_g
 run_gate "gate:14 docs (rustdoc -D warnings + doc-todos)" docs_g
+run_gate "gate:16 zed-ledger" zed_ledger_g
 
 # ── HEAVY gates (FULL + DIFF; FAST skips) ────────────────────────────────────
 if [ "$MODE" = "fast" ]; then
