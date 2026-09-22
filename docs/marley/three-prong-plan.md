@@ -1,0 +1,314 @@
+# Marley on Zed: the three-prong plan
+
+*Written 2026-09-18 in the fork at `/srv/stacks/marley_ide`. Sources: the Zed terminal
+crates as they are today, the design record in `/srv/stacks/marley/docs` (the Warp
+deconstruction, the fleet control plane, the orchestration shell, the embedded-browser model
+and its 2026-08-11 amendment), `rustal-harness/docs`, `rustal-brain/docs/architecture`,
+and Rusty's `ROADMAP.md` and `docs/architecture.md`. A plan, not a spec; each slice gets its
+own ticket when it starts.*
+
+Marley is the Zed fork. Zed supplies the editor, language intelligence, project model,
+settings, themes, the agent panel with MCP and ACP, and a terminal. The three prongs are what
+Zed does not supply and what Marley was always about:
+
+| Prong | One line | Ported crates it builds on |
+|---|---|---|
+| 1. The terminal | A Warp-class block terminal inside Zed's terminal, not beside it | `marley_terminal` |
+| 2. The control plane | Marley as the mechanism shell for rustal-brain, the harness runtime and Rusty | `marley_fleet`, `marley_mcp`, `marley_agent`, `marley_remote` |
+| 3. The browser | One Chromium, run as a service, rendered in a pane and driven over CDP by both the human and the agent | none yet |
+
+The prongs share one spine: everything an agent can see or do goes through a typed seam
+(a Block, a Session event, a CDP node), never through screen scraping. That was the lesson of
+the fleet evidence night and it holds for all three.
+
+## Where the fork stands
+
+- Upstream Zed `main` at `78648aaf7d`, no divergence except the five ported crates under
+  `crates/marley_*` (compiled, 246 tests, clippy and fmt clean, not yet used by the app).
+- Zed's terminal (`crates/terminal`, `crates/terminal_view`) is a flat alacritty grid. It has
+  no command boundaries, no shell integration, and learns the running command and cwd by
+  polling the process table. Its only per-command status is `TaskStatus` for spawned tasks,
+  shown as a tab icon and a summary line appended to scrollback.
+- The parser runs on alacritty's own "PTY reader" thread inside the fork
+  `zed-industries/alacritty` (rev `4c12966`). vte 0.15 swallows every DCS sequence and every
+  unknown OSC before the `Term` handler sees it, so shell hooks cannot be caught without
+  touching that layer.
+- Zed already gives agents MCP servers by URL with headers (`context_servers` in settings)
+  and runs Claude, Codex, Gemini and OpenCode as external agents over ACP. Prong 2 does not
+  need to rebuild either.
+
+## Prong 1: the block terminal
+
+### The bar
+
+What "Warp-like" means, taken from the Warp deconstruction and from what Marley had already
+shipped at parity:
+
+1. Every command is a Block: the command line, its framed output, an exit-status pill,
+   the cwd and git branch it ran in, its duration, and a Running state while it runs.
+2. Block boundaries come from the shell, not from heuristics. Marley's shell hooks
+   (`init`, `preexec`, `precmd`, `bootstrapped`) carry the command text, exit code, pwd,
+   branch and subshell identity as a DCS payload with a tested codec.
+3. Block actions: copy command, copy output, rerun, jump between blocks, collapse, select a
+   block, and open the first `file:line:col` in the failed block's output at the block's own
+   cwd (Zed today resolves paths against whatever cwd the process has when you click).
+4. The prompt is an editor: multi-line editing, history ghost text, completions, syntax
+   colouring of the command line, and raw passthrough the moment a program owns the
+   terminal (alternate screen, a running command, bracketed paste, application cursor keys).
+5. Tasks and runnables land as Blocks with a status pill, not as a tab with an icon.
+6. Agents read Blocks as data (prong 2), never scrollback text.
+
+Out of scope on purpose: Warp Drive, notebooks, block sharing, Warp's cloud AI, any login.
+
+### Design decisions
+
+**D1. Catch shell hooks in the alacritty fork's event loop, not with a second PTY engine.**
+`marley_terminal` as ported owns its own PTY and its own headless `Term`; wiring it whole
+would run two terminal engines per pane. Instead, Marley carries its own branch of the
+alacritty fork (branched from Zed's rev, rebased when Zed bumps it) with one change:
+`event_loop.rs` runs the DCS scanner from `marley_terminal::dcs` over each read buffer,
+feeds the passthrough bytes to the parser as before, and at each complete hook snapshots the
+grid position (history size, cursor line, and a new monotonic evicted-lines counter on the
+grid) and emits `Event::ShellHook { final_byte, payload, position }`. Zed's
+`TerminalBackendEvent` gains the mirror variant. Decoding and the block state machine stay in
+`marley_terminal` (`dcs.rs`, `apply.rs`, `block.rs`); `session.rs` and `pty_os.rs` shrink to
+the mock-tested hook logic or go. Fallback if the fork branch proves painful: a filtering
+reader wrapped around the PTY that strips hooks and reports them on the next wakeup, at the
+cost of exact positions.
+
+**D2. Blocks are ranges over the one scrollback, anchored by absolute line.**
+A `BlockList` on `Terminal` maps absolute lines (evicted count plus scrollback position) to
+block metadata. When the history is full, evicted lines shift positions; the counter keeps
+older anchors valid until their output is gone, at which point the block keeps its metadata
+and is marked output-evicted. Reflow on resize is the known weak spot; the mitigation to
+evaluate is tagging the prompt's first cell with a synthetic OSC 8 hyperlink id that
+survives reflow and lets the block re-find its start.
+
+**D3. Render in two stages.** Stage one draws block decorations without changing the row
+model: a gutter bar per block, a status pill at the block's top right, a background wash on
+the running or failed block, hover actions. Stage two inserts native header rows above each
+block and hides the shell's PS1 (the Warp look), which needs a display-row map in
+`TerminalElement` like the editor's block map. Stage one ships first because it touches no
+scroll math.
+
+**D4. The prompt editor is a Zed `Editor`.** Between `precmd` and `preexec` the terminal is
+at a prompt; keys route to an auto-height `Editor` docked at the bottom of the terminal
+view, Enter writes the line plus CR to the PTY, and the same key ladder Marley proved
+(alt screen, running command, bracketed paste, app cursor) sends everything else raw.
+
+**D5. Shell integration ships with Marley.** `assets/shell_integration/` carries the zsh,
+bash and fish hooks and Zed's spawn path injects them the way Warp and Kitty do: `ZDOTDIR`
+for zsh, `--rcfile` for bash, `XDG_DATA_DIRS` for fish, with the user's own rc still
+sourced. Marley's DCS format stays; emitting OSC 133 alongside it is cheap and worth doing
+for other terminals.
+
+**D6. Tasks and runnables spawn Blocks.** `TaskState` stays for Zed's own task machinery,
+but a task's spawn spec rides as Block metadata, the summary line is replaced by the
+status pill, `HideStrategy` becomes collapse-on-success, and rerun re-spawns the block's
+stored spec. Failed Blocks feed the diagnostics panel through the `file:line:col` scan
+Marley shipped as `#433`.
+
+### Slices
+
+| Slice | Delivers | Size |
+|---|---|---|
+| T0 | The fork branch with `Event::ShellHook`; `BlockList` on `Terminal`; the hook scripts; a `blocks()` accessor; unit tests on recorded byte streams | M |
+| T1 | Stage-one rendering: gutter, pill, wash, hover copy/rerun; block navigation keys | M |
+| T2 | Block-scoped path links (resolve against the block's cwd) and jump-to-first-failure | S |
+| T3 | The prompt editor with history ghost text and the raw-passthrough ladder | L |
+| T4 | Tasks and runnables as Blocks; failed Blocks into diagnostics | M |
+| T5 | Stage-two rendering: native header rows, PS1 hidden, Warp density | L |
+| T6 | Completions in the prompt (paths, history, tasks) and command-line colouring | M |
+
+Acceptance for T0 is the Marley integration test moved onto Zed's terminal: a real shell
+emits the hook stream and a Finished block with exit 0 and the output "hi" appears.
+
+### Risks
+
+- The fork branch is a standing rebase cost each time Zed bumps alacritty. One file, small.
+- Reflow versus anchors (D2). Decide after T0 with real resize traces.
+- Two input models in one view (D4) is where Warp itself is hardest to get right; T3 needs
+  the driven-keystroke tests Marley used, ported to Zed's `TestAppContext`.
+
+## Prong 2: the control plane (rustal, the harness, Rusty)
+
+### The cast, updated
+
+The orchestration-shell design named Forge as the brain. Forge is gone; the roles now land on
+real services on this box:
+
+| Role | Service | What it holds | How Marley reaches it |
+|---|---|---|---|
+| Work-state authority | rustal-brain (Postgres, MCP route with a project bearer, `rw` CLI) | tickets, sprints, runs, phases, gates, evidence, knowledge | MCP as a context server for agents; a native adapter for the work objects |
+| Session substrate | rustal-harness `rh` runtime (owned tmux server, Unix socket, protocol v1) | workspaces, windows, panes, actor identities and incarnations, managed input with observer and controller claims, snapshot plus event subscriptions, durable messages, Codex sessions, evidence imports | a Rust client of its socket protocol |
+| Personal brain and agent host | Rusty (`rusty-mcp` on `127.0.0.1:4174/mcp`, 85 tools; `rusty agent` sessions as transient user units with an NDJSON socket) | brain pages, tasks, memories, skills, secrets, the brain loop; Claude sessions that outlive any window | MCP for agents; the agent socket for transcripts and turn state |
+| Judgment | the manager agent (Claude or Codex) | policy: dispatch, review, halt decisions | drives Marley over Marley's own MCP server |
+| Mechanism shell | Marley | rendering, receipted verbs, hosting | this prong |
+
+Two corrections to the old design fall out of reading the harness:
+
+- Seat liveness comes from the harness, not from the brain. The harness already declares
+  actor states (starting, idle, running, waiting, blocked, exited, failed, unknown) with a
+  source, timestamp and sequence, and streams them with a consistent snapshot join. That is
+  the `seat_events` feed the fleet design was waiting on, delivered by a different service
+  than expected. The brain contributes labels (ticket, phase, gate) to the same seats.
+- The harness has its own native-client milestone (M6, a mixed-pane client over its tmux
+  terminals; a TUI `rh view` exists). Marley is the natural home for that client. The harness
+  is paused at the owner's request since 2026-09-14, so Marley consumes the protocol as it
+  is and files anything missing as a harness ticket rather than patching around it.
+
+### Design decisions
+
+**D7. `marley_fleet` is the envelope for all three sources.** The reducer already folds a
+generic event stream into a snapshot with attention and staleness. Each service gets a
+projection: harness actor events and messages, Rusty agent-session events, brain run and
+phase events as opaque labels. Marley never learns what a ticket is.
+
+**D8. One adapter crate per service, all pure-core plus a masked transport, the house
+pattern.** `marley_harness` (the `rh` protocol client: subscribe with resume, managed-input
+controller claims with generations, message send and receive with delivery ids),
+`marley_rusty` (the agent-socket client: attach, replay, send, status), and
+`marley_brain` (MCP client for the brain's tools and resources, reusing Zed's
+`context_server` transport rather than a new one).
+
+**D9. Marley's own MCP server grows the tool families the docs already reserve.** On top of
+`fleet.snapshot` and `session.surface_to_human`: `terminal.blocks`, `terminal.read`,
+`terminal.run` (grant-gated), `session.send`, `session.read`, `session.answer`,
+`editor.open`, `editor.goto`, `editor.diff`, and later the browser family. The discovery
+file lands in the workspace's `.mcp.json` shape so Claude Code and Rusty's agent host pick
+it up. Deny-by-default grants stay; the settings live in Zed's settings tree.
+
+**D10. Terminal passthrough for a harness seat is a Zed terminal in display-only mode fed by
+the harness capture stream, promoted to a controller by claiming input.** Zed's
+`TerminalType::DisplayOnly` plus `write_output` is exactly the seam: bytes from the harness
+archive and live stream go in, and a claimed controller generation turns key input into
+harness managed-input writes. Blocks work on these terminals too once the seat's shell runs
+the same hooks.
+
+**D11. Rusty stays Rusty.** Marley does not rebuild the knowledge workspace. It embeds
+Rusty's sessions in the fleet rail, points agents at `rusty-mcp`, and uses the brain loop
+tools for its own decisions. Whether Rusty's agent host and the harness runtime converge is
+an open decision for the owner, not something Marley forces.
+
+### Slices
+
+| Slice | Delivers | Size |
+|---|---|---|
+| C0 | `marley_mcp` started by the app with the terminal read tools and the discovery file; an agent can list a pane's blocks | M |
+| C1 | `marley_harness` read side: subscribe, snapshot, events into `marley_fleet`; a fleet rail panel with state chips, question cards and staleness | L |
+| C2 | Rusty sessions in the same rail through `marley_rusty`; brain-loop and Rusty tools in the default `context_servers` | M |
+| C3 | Harness passthrough terminals (D10), observer first, controller claim second | L |
+| C4 | Dispatch: `session.send` and `session.answer` over Marley's MCP, harness messages with delivery states rendered as chips | M |
+| C5 | Work objects: brain tickets, runs and gate evidence as labels on seats and as a native pane; `rw` phase state in the status bar | M |
+
+### Risks
+
+- The harness protocol is version 1 and its owner paused work; Marley may hit a missing
+  verb (peer messaging is listed as future). File it, do not fork.
+- The brain's transitional `brain_pk_` bearer must never enter a log, a prompt or a file
+  other than the operator's config; the never-logged-bearer rule from `marley_mcp` applies.
+- Three services means three failure modes to render honestly: unconfigured, misconfigured,
+  reconnecting. Marley already has the pure state machines for this; keep them.
+
+## Prong 3: the browser service
+
+### What "browser service" means here
+
+Chad's 2026-08-11 amendment settled the target: one Chromium serves both the human's view
+and the agent's eyes, because "the agent describes what the user is looking at" only works
+when both are attached to the same session, cookies and DOM. The 2026-06-27 CEF study
+showed real Chromium fidelity is achievable and priced the maintenance tax. The shipped
+WKWebView pane was macOS-only and is not part of the Linux fork.
+
+Reading "service" literally fixes the architecture: Chromium runs as its own user unit,
+the way Rusty runs agent hosts and the harness runs its runtime, with a dedicated profile
+and `--remote-debugging-port` on loopback. Marley attaches over CDP to render it; the
+Playwright MCP, Claude Code, or Marley's own tool family attach to the same endpoint to
+drive it. The browser outlives the IDE window, Chad's real Chrome is never touched (the
+standing ops rule), and "the agent sees what you see" is true by construction.
+
+### Design decisions
+
+**D12. CDP screencast into a gpui image, not a native child window.** `Page.startScreencast`
+frames decode to `RenderImage`s drawn with `img()`; gpui overlays layer above the page for
+free, which deletes the hide-shim coupling the WKWebView pane needed. Input goes back
+through `Input.dispatchMouseEvent`, `Input.dispatchKeyEvent` and `Input.insertText`.
+The workspace already depends on `async-tungstenite` and `image`. CEF off-screen rendering
+stays the named revisit if screencast latency or fidelity fails the spike.
+
+**D13. `marley_browser` is a pure protocol core plus masked adapters.** The CDP client
+(JSON-RPC over WebSocket, target and session management), frame coordinate math
+(device pixel ratio, page scale, scroll offset from frame metadata), locator ranking, the
+annotation model and the ring-buffer trace are pure and unit-tested; the socket, the decoder
+and the gpui element are adapters.
+
+**D14. The three pillars from the amendment are the product, in this order.**
+A: the element picker (`Overlay.setInspectMode`, a durable locator bundle with role, name,
+listeners and their source locations, and the Marley-only move of opening the listener's
+source file in the editor). B: the annotation layer rendered natively and anchored in page
+coordinates. C: the flight recorder, a rolling structured trace of input, frames, console
+and network that "record this" saves retroactively.
+
+**D15. Security is designed in the first slice.** Loopback only, a per-boot token on the
+debugging endpoint where Chromium allows it, a navigation allowlist per project, no
+`Runtime.evaluate` to arbitrary origins without a grant, and redaction of headers and
+tokens in traces before they are written.
+
+### Slices
+
+| Slice | Delivers | Size |
+|---|---|---|
+| B0 | The spike: Chromium as a user unit, `marley_browser` connect and screencast, a pane that shows a page and takes clicks and keys; measure latency and IME | M |
+| B1 | Native chrome: URL bar, back and forward, reload, tabs as targets; persistence by marker (re-derive, never store a URL on the wire) | M |
+| B2 | The `browser.*` tool family on Marley's MCP server, granted per class; the same endpoint documented for the Playwright MCP | M |
+| B3 | Pillar A, the element picker, including source-location to editor | L |
+| B4 | Pillar B, annotations | M |
+| B5 | Pillar C, the flight recorder | L |
+
+The spike must answer the five questions the amendment listed: IME over CDP, interactive
+latency, overlay visibility in frames, cross-origin iframes, and coordinate composition.
+
+### Risks
+
+- IME and composition over CDP is the hardest unproven piece; the WKWebView route had it for
+  free and this route rebuilds it.
+- Screencast is frame-streamed; fine for browsing and agent work, wrong for video. Accepted.
+- Chromium as a service is a new packaging surface on Omarchy (a user unit, a profile
+  directory, an update path). Rusty's install script is the template.
+
+## Cross-cutting
+
+- **Licensing.** The fork is GPL-3.0-or-later where Zed is; the `marley_*` crates keep
+  `MIT OR Apache-2.0` and stay distinct from upstream code; the brain and the manager agent
+  are separate programs speaking MCP, so the AGPL section 13 concern from the Warp study never
+  reaches them; CDP, Chromium and the harness protocol are permissive or Ignibyte's own.
+- **Gates.** Zed's `./script/clippy`, tests and fmt on every change. The Marley pure-core
+  discipline (logic in gpui-free modules, adapters thin) continues in the new crates because
+  it is what makes them testable inside Zed's suite. The old repo's coverage and mutation
+  gates came over with the workflow port (2026-09-18) and hold the Marley crates to 100%,
+  with mutation unmasked; #443 made them run correctly in the fork.
+- **Upstream merges.** Keep every change additive: new crates, new events, new panels, one
+  fork branch of alacritty. Touching `terminal_element.rs` for stage-two rendering is the
+  one place merge conflicts are likely; isolate it behind a `blocks` module. Every change
+  outside Marley-owned paths gets a row in [zed-touchpoints.md](zed-touchpoints.md).
+- **Order across prongs.** The workbench shell comes before all three
+  ([workbench-shell.md](workbench-shell.md), Chad's call on 2026-09-22), because Blocks,
+  fleet rows and the browser pane all render into it. Then T0 and T1 (nothing else has value
+  until Blocks exist),
+  then C0 (agents get Blocks as data), then B0 and C1 in parallel (both are read-only and
+  independent), then T2 to T4, C2 to C4, B1 to B2, and the long tails T5, T6, C5, B3 to B5.
+- **Tickets.** Each slice becomes a ticket in this repo when it starts; decisions get
+  recorded in the brain with `brain_decide`, as this plan is.
+
+## Open decisions for Chad
+
+1. The alacritty fork branch: an `Ignibyte/alacritty` fork of Zed's fork, or a patch
+   carried in this repo through `[patch]`.
+2. Stage two of the terminal (native headers, PS1 hidden) as the Warp look, or stop at stage
+   one and keep the shell's own prompt visible.
+3. Whether Rusty's agent host and the harness runtime should converge, and which one Marley
+   treats as the seat substrate of record.
+4. Chromium packaging: a Marley-owned user unit, or one shared with the Playwright MCP.
+5. The written three-prong plan Chad referred to for the browser was not found in Rusty's
+   repo, the ops handbook, or the brain under any wording; if it lives elsewhere, merge it
+   into prong 3 here.

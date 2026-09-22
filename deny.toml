@@ -1,0 +1,49 @@
+# cargo-deny config for the Marley fork (gate:8). Licenses follow Zed's own accepted
+# list (script/licenses/zed-licenses.toml); first-party crates are `publish = false`
+# and skipped. Advisories are gate:7's job (cargo-audit) and are not duplicated here.
+# Every ignore or extra allowance carries its reason (CONSTITUTION §0).
+
+[licenses]
+version = 2
+private = { ignore = true }
+allow = [
+  "Apache-2.0",
+  "MIT",
+  "MIT-0",
+  "Apache-2.0 WITH LLVM-exception",
+  "MPL-2.0",
+  "BSD-3-Clause",
+  "BSD-2-Clause",
+  "ISC",
+  "CC0-1.0",
+  "NCSA",
+  "Unicode-3.0",
+  "OpenSSL",
+  "Zlib",
+  "BSL-1.0",
+  "bzip2-1.0.6",
+  "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.9
+
+[bans]
+multiple-versions = "allow"
+wildcards = "allow"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+# The git sources upstream Zed pins at the fork point (its own forks and a few
+# upstream projects), plus Ignibyte's forks. A new git dependency from any other
+# organization is a reviewed addition here, never a silent pin.
+[sources.allow-org]
+github = [
+  "zed-industries",
+  "Ignibyte",
+  "tree-sitter",
+  "proptest-rs",
+  "smol-rs",
+  "RustAudio",
+  "camdencheek",
+]

@@ -1,3 +1,15 @@
+# Marley
+
+This repository is Marley, Ignibyte's fork of Zed (upstream: zed-industries/zed). Two rule
+sets apply at once: everything below, which is Zed's and governs all Rust in the tree, and
+`CONSTITUTION.md`, which governs how work moves (the `/work` → `/pipeline:*` → `/commit`
+pipeline, its hooks under `.claude/`, and `script/gates.sh`). When both speak, the stricter
+one wins. The forward plan is `docs/marley/three-prong-plan.md`; tickets, the knowledge
+ledgers and the pipeline archive live under `docs/planning/`; the docs map is
+`docs/marley/README.md`. Marley-owned code is `crates/marley_*`; a change inside a Zed crate
+is additive and small so upstream merges stay cheap. One cargo command at a time on the dev
+box: the target directory is shared by every project on it.
+
 # Rust coding guidelines
 
 * Prioritize code correctness and clarity. Speed and efficiency are secondary priorities unless otherwise specified.

@@ -1,0 +1,9 @@
+# gitleaks config (gate:7). Inherit ALL default secret-detection rules.
+# `useDefault = true` is load-bearing: without it the default rules are dropped
+# and the gate would detect nothing.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Non-secrets that trip default rules: Warp's PUBLIC Firebase web API key (designed to ship in clients; security is via Firebase rules, not key secrecy), transcribed verbatim from Warp's OSS client into the warp_architecture reference docs."
+regexes = ['''AIzaSyBdy3O3S9hrdayLJxJ7mriBR4qgUaUygAs''']

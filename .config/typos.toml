@@ -4,6 +4,15 @@ ignore-hidden = false
 extend-exclude = [
     ".git/",
 
+    # Marley's design record and pipeline archive: transcribed reference material
+    # (Warp, the gpui-era app) and append-only ledgers, kept verbatim.
+    "docs/planning/",
+    "docs/specs/",
+    "docs/marley_architecture/",
+    "docs/warp_architecture/",
+    "docs/zed_architecture/",
+    "docs/marley/history/",
+
     # Typewriter model names used for agent branch names aren't typos.
     "crates/agent_ui/src/branch_names.rs",
 

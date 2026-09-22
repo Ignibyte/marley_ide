@@ -10767,6 +10767,44 @@ dependencies = [
 ]
 
 [[package]]
+name = "marley_agent"
+version = "0.1.0"
+
+[[package]]
+name = "marley_fleet"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "marley_mcp"
+version = "0.1.0"
+dependencies = [
+ "marley_fleet",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "marley_remote"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "marley_terminal"
+version = "0.1.0"
+dependencies = [
+ "alacritty_terminal",
+ "rustix",
+ "tempfile",
+]
+
+[[package]]
 name = "matchers"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

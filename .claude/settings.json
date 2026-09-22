@@ -1,0 +1,63 @@
+{
+  "_comment": "Marley pipeline enforcement (see CONSTITUTION.md). PreToolUse gates code writes by phase and blocks `git commit` of code without a green gate, a CHANGELOG entry, or a filled spec reference; Stop gates leaving a phase on tasks/tests/format/doc-status. Gates arm on pipeline intent (an active phase or an active doc), never on normal chat. Hook commands anchor to ${CLAUDE_PROJECT_DIR} (fallback .) so they resolve regardless of the session shell cwd.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/enforce-commit-gate.sh\"",
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/enforce-changelog.sh\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/enforce-warp-reference.sh\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/enforce-phase-gate.sh\"",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/enforce-pipeline-completion.sh\"",
+            "timeout": 20
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/enforce-phase-tasks.sh\"",
+            "timeout": 20
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/enforce-tests-ran.sh\"",
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/enforce-quality.sh\"",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}

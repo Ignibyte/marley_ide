@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "rusty": {
+      "type": "http",
+      "url": "http://127.0.0.1:4174/mcp"
+    },
+    "playwright": {
+      "type": "http",
+      "url": "http://PLAYWRIGHT_HOST:3100/mcp"
+    }
+  }
+}

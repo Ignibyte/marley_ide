@@ -1,0 +1,1105 @@
+{
+  "ai": {
+    "dependents": [
+      "cloud_object_models",
+      "onboarding",
+      "warp"
+    ],
+    "deps": [
+      "computer_use",
+      "http_client",
+      "languages",
+      "persistence",
+      "repo_metadata",
+      "string-offset",
+      "syntax_tree",
+      "virtual-fs",
+      "warp_core",
+      "warp_graphql",
+      "warp_terminal",
+      "warp_util",
+      "warpui_core",
+      "warpui_extras",
+      "watcher"
+    ],
+    "dir": "crates/ai"
+  },
+  "app-installation-detection": {
+    "dependents": [
+      "integration",
+      "warp"
+    ],
+    "deps": [
+      "command"
+    ],
+    "dir": "crates/app-installation-detection"
+  },
+  "asset_cache": {
+    "dependents": [
+      "ui_components",
+      "warp",
+      "warp_editor",
+      "warpui"
+    ],
+    "deps": [
+      "warpui_core"
+    ],
+    "dir": "crates/asset_cache"
+  },
+  "asset_macro": {
+    "dependents": [
+      "warp"
+    ],
+    "deps": [
+      "warp_util"
+    ],
+    "dir": "crates/asset_macro"
+  },
+  "channel_versions": {
+    "dependents": [
+      "warp",
+      "warp_terminal"
+    ],
+    "deps": [],
+    "dir": "crates/channel_versions"
+  },
+  "cloud_object_client": {
+    "dependents": [
+      "warp",
+      "warp_server_client"
+    ],
+    "deps": [
+      "cloud_object_models",
+      "cloud_objects",
+      "warp_core",
+      "warp_graphql"
+    ],
+    "dir": "crates/cloud_object_client"
+  },
+  "cloud_object_models": {
+    "dependents": [
+      "cloud_object_client",
+      "mcp",
+      "warp",
+      "warp_server_client"
+    ],
+    "deps": [
+      "ai",
+      "cloud_object_persistence",
+      "cloud_objects",
+      "handlebars",
+      "persistence",
+      "settings",
+      "settings_value",
+      "warp_cli",
+      "warp_core",
+      "warp_graphql",
+      "warp_util"
+    ],
+    "dir": "crates/cloud_object_models"
+  },
+  "cloud_object_persistence": {
+    "dependents": [
+      "cloud_object_models",
+      "warp"
+    ],
+    "deps": [
+      "cloud_objects",
+      "persistence",
+      "warp_core",
+      "warp_graphql"
+    ],
+    "dir": "crates/cloud_object_persistence"
+  },
+  "cloud_objects": {
+    "dependents": [
+      "cloud_object_client",
+      "cloud_object_models",
+      "cloud_object_persistence",
+      "warp",
+      "warp_server_client"
+    ],
+    "deps": [
+      "settings_value",
+      "warp_core",
+      "warp_graphql",
+      "warp_server_auth",
+      "warpui_core"
+    ],
+    "dir": "crates/cloud_objects"
+  },
+  "command": {
+    "dependents": [
+      "app-installation-detection",
+      "command-signatures-v2",
+      "computer_use",
+      "integration",
+      "local_control",
+      "lsp",
+      "node_runtime",
+      "remote_server",
+      "warp",
+      "warp_channel_config",
+      "warp_completer",
+      "warp_isolation_platform",
+      "warp_ripgrep",
+      "warp_server_client",
+      "warp_util",
+      "warpui",
+      "warpui_core"
+    ],
+    "deps": [],
+    "dir": "crates/command"
+  },
+  "command-signatures-v2": {
+    "dependents": [
+      "warp"
+    ],
+    "deps": [
+      "command"
+    ],
+    "dir": "crates/command-signatures-v2"
+  },
+  "computer_use": {
+    "dependents": [
+      "ai",
+      "warp"
+    ],
+    "deps": [
+      "command",
+      "warpui_core"
+    ],
+    "dir": "crates/computer_use"
+  },
+  "field_mask": {
+    "dependents": [
+      "warp"
+    ],
+    "deps": [],
+    "dir": "crates/field_mask"
+  },
+  "firebase": {
+    "dependents": [
+      "warp",
+      "warp_server_client"
+    ],
+    "deps": [],
+    "dir": "crates/firebase"
+  },
+  "fuzzy_match": {
+    "dependents": [
+      "warp",
+      "warp_completer"
+    ],
+    "deps": [],
+    "dir": "crates/fuzzy_match"
+  },
+  "handlebars": {
+    "dependents": [
+      "cloud_object_models",
+      "warp"
+    ],
+    "deps": [],
+    "dir": "crates/handlebars"
+  },
+  "http_client": {
+    "dependents": [
+      "ai",
+      "lsp",
+      "node_runtime",
+      "warp",
+      "warp_graphql",
+      "warp_server_client"
+    ],
+    "deps": [
+      "prevent_sleep",
+      "warp_core"
+    ],
+    "dir": "crates/http_client"
+  },
+  "http_server": {
+    "dependents": [
+      "warp"
+    ],
+    "deps": [
+      "warp_core",
+      "warpui_core"
+    ],
+    "dir": "crates/http_server"
+  },
+  "input_classifier": {
+    "dependents": [
+      "warp"
+    ],
+    "deps": [
+      "natural_language_detection",
+      "warp_completer",
+      "warp_features"
+    ],
+    "dir": "crates/input_classifier"
+  },
+  "integration": {
+    "dependents": [],
+    "deps": [
+      "app-installation-detection",
+      "command",
+      "settings",
+      "sum_tree",
+      "warp",
+      "warp_cli",
+      "warp_core",
+      "warpui",
+      "warpui_core",
+      "warpui_extras"
+    ],
+    "dir": "crates/integration"
+  },
+  "ipc": {
+    "dependents": [
+      "warp"
+    ],
+    "deps": [
+      "warpui_core"
+    ],
+    "dir": "crates/ipc"
+  },
+  "ipynb_parser": {
+    "dependents": [
+      "warp_editor"
+    ],
+    "deps": [
+      "markdown_parser"
+    ],
+    "dir": "crates/ipynb_parser"
+  },
+  "jsonrpc": {
+    "dependents": [
+      "lsp"
+    ],
+    "deps": [
+      "warpui_core"
+    ],
+    "dir": "crates/jsonrpc"
+  },
+  "languages": {
+    "dependents": [
+      "ai",
+      "syntax_tree",
+      "warp"
+    ],
+    "deps": [
+      "warp_editor",
+      "warp_util"
+    ],
+    "dir": "crates/languages"
+  },
+  "local_control": {
+    "dependents": [
+      "warp",
+      "warp_cli"
+    ],
+    "deps": [
+      "command"
+    ],
+    "dir": "crates/local_control"
+  },
+  "lsp": {
+    "dependents": [
+      "warp"
+    ],
+    "deps": [
+      "command",
+      "http_client",
+      "jsonrpc",
+      "node_runtime",
+      "repo_metadata",
+      "simple_logger",
+      "warp_core",
+      "warp_util",
+      "warpui_core"
+    ],
+    "dir": "crates/lsp"
+  },
+  "managed_secrets_wasm": {
+    "dependents": [],
+    "deps": [
+      "warp_managed_secrets"
+    ],
+    "dir": "crates/managed_secrets_wasm"
+  },
+  "markdown_parser": {
+    "dependents": [
+      "ipynb_parser",
+      "warp",
+      "warp_editor",
+      "warpui",
+      "warpui_core"
+    ],
+    "deps": [],
+    "dir": "crates/markdown_parser"
+  },
+  "mcp": {
+    "dependents": [
+      "warp"
+    ],
+    "deps": [
+      "cloud_object_models",
+      "simple_logger",
+      "warp_core",
+      "warpui",
+      "warpui_extras"
+    ],
+    "dir": "crates/mcp"
+  },
+  "natural_language_detection": {
+    "dependents": [
+      "input_classifier",
+      "warp"
+    ],
+    "deps": [],
+    "dir": "crates/natural_language_detection"
+  },
+  "node_runtime": {
+    "dependents": [
+      "lsp"
+    ],
+    "deps": [
+      "command",
+      "http_client",
+      "warp_core"
+    ],
+    "dir": "crates/node_runtime"
+  },
+  "onboarding": {
+    "dependents": [
+      "warp"
+    ],
+    "deps": [
+      "ai",
+      "ui_components",
+      "warp_core",
+      "warp_logging",
+      "warpui",
+      "warpui_core"
+    ],
+    "dir": "crates/onboarding"
+  },
+  "persistence": {
+    "dependents": [
+      "ai",
+      "cloud_object_models",
+      "cloud_object_persistence",
+      "warp",
+      "warp_graphql"
+    ],
+    "deps": [],
+    "dir": "crates/persistence"
+  },
+  "prevent_sleep": {
+    "dependents": [
+      "http_client"
+    ],
+    "deps": [],
+    "dir": "crates/prevent_sleep"
+  },
+  "remote_server": {
+    "dependents": [
+      "warp",
+      "warp_files"
+    ],
+    "deps": [
+      "command",
+      "repo_metadata",
+      "warp_core",
+      "warp_util",
+      "warpui_core"
+    ],
+    "dir": "crates/remote_server"
+  },
+  "repo_metadata": {
+    "dependents": [
+      "ai",
+      "lsp",
+      "remote_server",
+      "warp",
+      "warp_files"
+    ],
+    "deps": [
+      "virtual-fs",
+      "warp_core",
+      "warp_util",
+      "warpui",
+      "warpui_core",
+      "watcher"
+    ],
+    "dir": "crates/repo_metadata"
+  },
+  "serve-wasm": {
+    "dependents": [],
+    "deps": [],
+    "dir": "crates/serve-wasm"
+  },
+  "settings": {
+    "dependents": [
+      "cloud_object_models",
+      "integration",
+      "warp",
+      "warp_core"
+    ],
+    "deps": [
+      "settings_value",
+      "warp_features",
+      "warpui_core",
+      "warpui_extras"
+    ],
+    "dir": "crates/settings"
+  },
+  "settings_value": {
+    "dependents": [
+      "cloud_object_models",
+      "cloud_objects",
+      "settings",
+      "warp",
+      "warp_core",
+      "warp_server_client",
+      "warpui_core"
+    ],
+    "deps": [
+      "settings_value_derive"
+    ],
+    "dir": "crates/settings_value"
+  },
+  "settings_value_derive": {
+    "dependents": [
+      "settings_value"
+    ],
+    "deps": [],
+    "dir": "crates/settings_value_derive"
+  },
+  "simple_logger": {
+    "dependents": [
+      "lsp",
+      "mcp",
+      "warp"
+    ],
+    "deps": [
+      "warp_core",
+      "warpui_core"
+    ],
+    "dir": "crates/simple_logger"
+  },
+  "string-offset": {
+    "dependents": [
+      "ai",
+      "syntax_tree",
+      "vim",
+      "warp",
+      "warp_completer",
+      "warp_core",
+      "warp_editor",
+      "warp_ripgrep",
+      "warp_search_core",
+      "warp_terminal",
+      "warp_tui",
+      "warpui_core"
+    ],
+    "deps": [],
+    "dir": "crates/string-offset"
+  },
+  "sum_tree": {
+    "dependents": [
+      "integration",
+      "warp",
+      "warp_editor",
+      "warpui",
+      "warpui_core"
+    ],
+    "deps": [],
+    "dir": "crates/sum_tree"
+  },
+  "syntax_tree": {
+    "dependents": [
+      "ai",
+      "warp"
+    ],
+    "deps": [
+      "languages",
+      "string-offset",
+      "warp_editor",
+      "warp_util",
+      "warpui",
+      "warpui_core"
+    ],
+    "dir": "crates/syntax_tree"
+  },
+  "ui_components": {
+    "dependents": [
+      "onboarding",
+      "warp"
+    ],
+    "deps": [
+      "asset_cache",
+      "warp_core",
+      "warpui",
+      "warpui_core"
+    ],
+    "dir": "crates/ui_components"
+  },
+  "vim": {
+    "dependents": [
+      "warp",
+      "warp_editor"
+    ],
+    "deps": [
+      "string-offset",
+      "warp_core",
+      "warpui_core"
+    ],
+    "dir": "crates/vim"
+  },
+  "virtual-fs": {
+    "dependents": [
+      "ai",
+      "repo_metadata",
+      "warp",
+      "warpui"
+    ],
+    "deps": [],
+    "dir": "crates/virtual_fs"
+  },
+  "voice_input": {
+    "dependents": [
+      "warp"
+    ],
+    "deps": [
+      "warpui_core"
+    ],
+    "dir": "crates/voice_input"
+  },
+  "warp": {
+    "dependents": [
+      "integration",
+      "warp_tui"
+    ],
+    "deps": [
+      "ai",
+      "app-installation-detection",
+      "asset_cache",
+      "asset_macro",
+      "channel_versions",
+      "cloud_object_client",
+      "cloud_object_models",
+      "cloud_object_persistence",
+      "cloud_objects",
+      "command",
+      "command-signatures-v2",
+      "computer_use",
+      "field_mask",
+      "firebase",
+      "fuzzy_match",
+      "handlebars",
+      "http_client",
+      "http_server",
+      "input_classifier",
+      "ipc",
+      "languages",
+      "local_control",
+      "lsp",
+      "markdown_parser",
+      "mcp",
+      "natural_language_detection",
+      "onboarding",
+      "persistence",
+      "remote_server",
+      "repo_metadata",
+      "settings",
+      "settings_value",
+      "simple_logger",
+      "string-offset",
+      "sum_tree",
+      "syntax_tree",
+      "ui_components",
+      "vim",
+      "virtual-fs",
+      "voice_input",
+      "warp_assets",
+      "warp_channel_config",
+      "warp_cli",
+      "warp_completer",
+      "warp_core",
+      "warp_editor",
+      "warp_files",
+      "warp_graphql",
+      "warp_isolation_platform",
+      "warp_js",
+      "warp_logging",
+      "warp_managed_secrets",
+      "warp_multi_agent_client",
+      "warp_ripgrep",
+      "warp_search_core",
+      "warp_server_auth",
+      "warp_server_client",
+      "warp_terminal",
+      "warp_util",
+      "warp_web_event_bus",
+      "warpui",
+      "warpui_core",
+      "warpui_extras",
+      "watcher",
+      "websocket"
+    ],
+    "dir": "app"
+  },
+  "warp_assets": {
+    "dependents": [
+      "warp"
+    ],
+    "deps": [
+      "warpui_core"
+    ],
+    "dir": "crates/warp_assets"
+  },
+  "warp_channel_config": {
+    "dependents": [
+      "warp",
+      "warp_tui"
+    ],
+    "deps": [
+      "command",
+      "warp_core"
+    ],
+    "dir": "crates/warp_channel_config"
+  },
+  "warp_cli": {
+    "dependents": [
+      "cloud_object_models",
+      "integration",
+      "warp",
+      "warp_completer",
+      "warp_ripgrep"
+    ],
+    "deps": [
+      "local_control",
+      "warp_core",
+      "warp_util"
+    ],
+    "dir": "crates/warp_cli"
+  },
+  "warp_completer": {
+    "dependents": [
+      "input_classifier",
+      "warp",
+      "warp_terminal"
+    ],
+    "deps": [
+      "command",
+      "fuzzy_match",
+      "string-offset",
+      "warp_cli",
+      "warp_core",
+      "warp_js",
+      "warp_util",
+      "warpui_core"
+    ],
+    "dir": "crates/warp_completer"
+  },
+  "warp_core": {
+    "dependents": [
+      "ai",
+      "cloud_object_client",
+      "cloud_object_models",
+      "cloud_object_persistence",
+      "cloud_objects",
+      "http_client",
+      "http_server",
+      "integration",
+      "lsp",
+      "mcp",
+      "node_runtime",
+      "onboarding",
+      "remote_server",
+      "repo_metadata",
+      "simple_logger",
+      "ui_components",
+      "vim",
+      "warp",
+      "warp_channel_config",
+      "warp_cli",
+      "warp_completer",
+      "warp_editor",
+      "warp_files",
+      "warp_graphql",
+      "warp_isolation_platform",
+      "warp_logging",
+      "warp_managed_secrets",
+      "warp_multi_agent_client",
+      "warp_search_core",
+      "warp_server_auth",
+      "warp_server_client",
+      "warp_terminal",
+      "warp_tui"
+    ],
+    "deps": [
+      "settings",
+      "settings_value",
+      "string-offset",
+      "warp_features",
+      "warp_util",
+      "warpui_core",
+      "warpui_extras",
+      "websocket"
+    ],
+    "dir": "crates/warp_core"
+  },
+  "warp_editor": {
+    "dependents": [
+      "languages",
+      "syntax_tree",
+      "warp",
+      "warp_tui"
+    ],
+    "deps": [
+      "asset_cache",
+      "ipynb_parser",
+      "markdown_parser",
+      "string-offset",
+      "sum_tree",
+      "vim",
+      "warp_core",
+      "warp_util",
+      "warpui",
+      "warpui_core"
+    ],
+    "dir": "crates/editor"
+  },
+  "warp_features": {
+    "dependents": [
+      "input_classifier",
+      "settings",
+      "warp_core"
+    ],
+    "deps": [],
+    "dir": "crates/warp_features"
+  },
+  "warp_files": {
+    "dependents": [
+      "warp"
+    ],
+    "deps": [
+      "remote_server",
+      "repo_metadata",
+      "warp_core",
+      "warp_util",
+      "warpui_core",
+      "watcher"
+    ],
+    "dir": "crates/warp_files"
+  },
+  "warp_graphql": {
+    "dependents": [
+      "ai",
+      "cloud_object_client",
+      "cloud_object_models",
+      "cloud_object_persistence",
+      "cloud_objects",
+      "warp",
+      "warp_managed_secrets",
+      "warp_server_auth",
+      "warp_server_client"
+    ],
+    "deps": [
+      "http_client",
+      "persistence",
+      "warp_core",
+      "warp_graphql_schema",
+      "websocket"
+    ],
+    "dir": "crates/graphql"
+  },
+  "warp_graphql_schema": {
+    "dependents": [
+      "warp_graphql"
+    ],
+    "deps": [],
+    "dir": "crates/warp_graphql_schema"
+  },
+  "warp_isolation_platform": {
+    "dependents": [
+      "warp",
+      "warp_managed_secrets",
+      "warp_server_client"
+    ],
+    "deps": [
+      "command",
+      "warp_core"
+    ],
+    "dir": "crates/isolation_platform"
+  },
+  "warp_js": {
+    "dependents": [
+      "warp",
+      "warp_completer"
+    ],
+    "deps": [],
+    "dir": "crates/warp_js"
+  },
+  "warp_logging": {
+    "dependents": [
+      "onboarding",
+      "warp"
+    ],
+    "deps": [
+      "warp_core",
+      "warp_web_event_bus"
+    ],
+    "dir": "crates/warp_logging"
+  },
+  "warp_managed_secrets": {
+    "dependents": [
+      "managed_secrets_wasm",
+      "warp",
+      "warp_server_auth"
+    ],
+    "deps": [
+      "warp_core",
+      "warp_graphql",
+      "warp_isolation_platform",
+      "warpui_core"
+    ],
+    "dir": "crates/managed_secrets"
+  },
+  "warp_multi_agent_client": {
+    "dependents": [
+      "warp"
+    ],
+    "deps": [
+      "warp_core",
+      "warp_server_client"
+    ],
+    "dir": "crates/warp_multi_agent_client"
+  },
+  "warp_ripgrep": {
+    "dependents": [
+      "warp"
+    ],
+    "deps": [
+      "command",
+      "string-offset",
+      "warp_cli"
+    ],
+    "dir": "crates/warp_ripgrep"
+  },
+  "warp_search_core": {
+    "dependents": [
+      "warp"
+    ],
+    "deps": [
+      "string-offset",
+      "warp_core",
+      "warpui_core"
+    ],
+    "dir": "crates/warp_search_core"
+  },
+  "warp_server_auth": {
+    "dependents": [
+      "cloud_objects",
+      "warp",
+      "warp_server_client"
+    ],
+    "deps": [
+      "warp_core",
+      "warp_graphql",
+      "warp_managed_secrets",
+      "warpui_core",
+      "warpui_extras"
+    ],
+    "dir": "crates/warp_server_auth"
+  },
+  "warp_server_client": {
+    "dependents": [
+      "warp",
+      "warp_multi_agent_client"
+    ],
+    "deps": [
+      "cloud_object_client",
+      "cloud_object_models",
+      "cloud_objects",
+      "command",
+      "firebase",
+      "http_client",
+      "settings_value",
+      "warp_core",
+      "warp_graphql",
+      "warp_isolation_platform",
+      "warp_server_auth",
+      "warpui_core",
+      "websocket"
+    ],
+    "dir": "crates/warp_server_client"
+  },
+  "warp_terminal": {
+    "dependents": [
+      "ai",
+      "warp"
+    ],
+    "deps": [
+      "channel_versions",
+      "string-offset",
+      "warp_completer",
+      "warp_core",
+      "warp_util",
+      "warpui_core"
+    ],
+    "dir": "crates/warp_terminal"
+  },
+  "warp_tui": {
+    "dependents": [],
+    "deps": [
+      "string-offset",
+      "warp",
+      "warp_channel_config",
+      "warp_core",
+      "warp_editor",
+      "warpui_core"
+    ],
+    "dir": "crates/warp_tui"
+  },
+  "warp_util": {
+    "dependents": [
+      "ai",
+      "asset_macro",
+      "cloud_object_models",
+      "languages",
+      "lsp",
+      "remote_server",
+      "repo_metadata",
+      "syntax_tree",
+      "warp",
+      "warp_cli",
+      "warp_completer",
+      "warp_core",
+      "warp_editor",
+      "warp_files",
+      "warp_terminal",
+      "warpui_core"
+    ],
+    "deps": [
+      "command",
+      "warpui_core"
+    ],
+    "dir": "crates/warp_util"
+  },
+  "warp_web_event_bus": {
+    "dependents": [
+      "warp",
+      "warp_logging"
+    ],
+    "deps": [],
+    "dir": "crates/warp_web_event_bus"
+  },
+  "warpui": {
+    "dependents": [
+      "integration",
+      "mcp",
+      "onboarding",
+      "repo_metadata",
+      "syntax_tree",
+      "ui_components",
+      "warp",
+      "warp_editor"
+    ],
+    "deps": [
+      "asset_cache",
+      "command",
+      "markdown_parser",
+      "sum_tree",
+      "virtual-fs",
+      "warpui_core"
+    ],
+    "dir": "crates/warpui"
+  },
+  "warpui_core": {
+    "dependents": [
+      "ai",
+      "asset_cache",
+      "cloud_objects",
+      "computer_use",
+      "http_server",
+      "integration",
+      "ipc",
+      "jsonrpc",
+      "lsp",
+      "onboarding",
+      "remote_server",
+      "repo_metadata",
+      "settings",
+      "simple_logger",
+      "syntax_tree",
+      "ui_components",
+      "vim",
+      "voice_input",
+      "warp",
+      "warp_assets",
+      "warp_completer",
+      "warp_core",
+      "warp_editor",
+      "warp_files",
+      "warp_managed_secrets",
+      "warp_search_core",
+      "warp_server_auth",
+      "warp_server_client",
+      "warp_terminal",
+      "warp_tui",
+      "warp_util",
+      "warpui",
+      "warpui_extras",
+      "watcher"
+    ],
+    "deps": [
+      "command",
+      "markdown_parser",
+      "settings_value",
+      "string-offset",
+      "sum_tree",
+      "warp_util"
+    ],
+    "dir": "crates/warpui_core"
+  },
+  "warpui_extras": {
+    "dependents": [
+      "ai",
+      "integration",
+      "mcp",
+      "settings",
+      "warp",
+      "warp_core",
+      "warp_server_auth"
+    ],
+    "deps": [
+      "warpui_core"
+    ],
+    "dir": "crates/warpui_extras"
+  },
+  "watcher": {
+    "dependents": [
+      "ai",
+      "repo_metadata",
+      "warp",
+      "warp_files"
+    ],
+    "deps": [
+      "warpui_core"
+    ],
+    "dir": "crates/watcher"
+  },
+  "websocket": {
+    "dependents": [
+      "warp",
+      "warp_core",
+      "warp_graphql",
+      "warp_server_client"
+    ],
+    "deps": [],
+    "dir": "crates/websocket"
+  }
+}

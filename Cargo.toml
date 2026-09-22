@@ -136,6 +136,11 @@ members = [
     "crates/lsp_locations",
     "crates/markdown",
     "crates/markdown_preview",
+    "crates/marley_agent",
+    "crates/marley_fleet",
+    "crates/marley_mcp",
+    "crates/marley_remote",
+    "crates/marley_terminal",
     "crates/menu",
     "crates/mermaid_render",
     "crates/migrator",
@@ -404,6 +409,7 @@ lsp_command_selector = { path = "crates/lsp_command_selector" }
 lsp_locations = { path = "crates/lsp_locations" }
 markdown = { path = "crates/markdown" }
 markdown_preview = { path = "crates/markdown_preview" }
+marley_fleet = { path = "crates/marley_fleet" }
 menu = { path = "crates/menu" }
 mermaid_render = { path = "crates/mermaid_render" }
 migrator = { path = "crates/migrator" }
