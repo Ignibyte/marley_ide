@@ -207,6 +207,83 @@ async fn a_project_added_without_being_shown_is_listed_and_opens(cx: &mut TestAp
     );
 }
 
+/// Makes the folder `root` and opens it in `workspace`'s project, after the folders it has.
+async fn add_folder(workspace: &Entity<Workspace>, root: &str, cx: &mut VisualTestContext) {
+    let project = workspace.read_with(cx, |workspace, _| workspace.project().clone());
+    let fs = project.read_with(cx, |project, _| project.fs().as_fake());
+    fs.insert_tree(root, json!({ "src": {} })).await;
+    project
+        .update(cx, |project, cx| {
+            project.find_or_create_worktree(root, true, cx)
+        })
+        .await
+        .expect("the folder opens");
+    cx.run_until_parked();
+}
+
+/// Closes the folder `root` in `workspace`'s project.
+fn remove_folder(workspace: &Entity<Workspace>, root: &str, cx: &mut VisualTestContext) {
+    let project = workspace.read_with(cx, |workspace, _| workspace.project().clone());
+    project.update(cx, |project, cx| {
+        let worktree = project
+            .worktrees(cx)
+            .find(|worktree| *worktree.read(cx).abs_path() == *Path::new(root))
+            .map(|worktree| worktree.read(cx).id())
+            .expect("the folder is open");
+        project.remove_worktree(worktree, cx);
+    });
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+async fn a_project_that_loses_its_last_folder_leaves_the_rail(cx: &mut TestAppContext) {
+    let (_, _, beta, rail, cx) = open_rail(cx).await;
+    remove_folder(&beta, path!("/beta"), cx);
+    assert_eq!(names(&rail, cx), ["alpha"]);
+}
+
+#[gpui::test]
+async fn a_folder_added_or_removed_renames_the_row_and_keeps_its_rows_recency(
+    cx: &mut TestAppContext,
+) {
+    let (_, [alpha, _], [logs, build, server], rail, cx) = open_rail_with_history(cx).await;
+    let most_recent_first = Some(vec![
+        Selection::Terminal(id(&server)),
+        Selection::Terminal(id(&build)),
+        Selection::Terminal(id(&logs)),
+    ]);
+    let listed = |cx: &mut VisualTestContext| {
+        toggle_switcher(false, cx);
+        let listed = switcher_state(&rail, cx).map(|(listed, _)| listed);
+        dispatch(Cancel, cx);
+        listed
+    };
+    add_folder(&alpha, path!("/gamma"), cx).await;
+    assert_eq!(names(&rail, cx), ["beta", "alpha, gamma"]);
+    assert_eq!(listed(cx), most_recent_first);
+    remove_folder(&alpha, path!("/gamma"), cx);
+    assert_eq!(names(&rail, cx), ["beta", "alpha"]);
+    assert_eq!(listed(cx), most_recent_first);
+}
+
+#[test]
+fn only_a_change_of_folders_rebuilds_the_rail() {
+    let worktree = project::WorktreeId::from_usize(1);
+    for event in [
+        project::Event::WorktreeAdded(worktree),
+        project::Event::WorktreeRemoved(worktree),
+        project::Event::WorktreeOrderChanged,
+        project::Event::WorktreePathsChanged {
+            old_worktree_paths: project::WorktreePaths::default(),
+        },
+    ] {
+        assert!(changes_the_folders(&event), "{event:?}");
+    }
+    for event in [project::Event::ActivateProjectPanel, project::Event::Closed] {
+        assert!(!changes_the_folders(&event), "{event:?}");
+    }
+}
+
 #[gpui::test]
 async fn the_chevron_folds_a_projects_terminals_away_and_back(cx: &mut TestAppContext) {
     let (multi_workspace, _, beta, rail, cx) = open_rail(cx).await;
@@ -666,24 +743,10 @@ async fn enter_shows_the_highlighted_project(cx: &mut TestAppContext) {
 
 #[gpui::test]
 async fn enter_with_no_row_highlighted_does_nothing(cx: &mut TestAppContext) {
-    let (multi_workspace, alpha, beta, rail, cx) = open_rail(cx).await;
+    let (multi_workspace, _, beta, rail, cx) = open_rail(cx).await;
     // With its last folder gone, the displayed workspace leaves its project's row, so no row is
     // the window's.
-    beta.update(cx, |beta, cx| {
-        let project = beta.project().clone();
-        let worktree = project
-            .read(cx)
-            .worktrees(cx)
-            .next()
-            .map(|worktree| worktree.read(cx).id());
-        if let Some(worktree) = worktree {
-            project.update(cx, |project, cx| project.remove_worktree(worktree, cx));
-        }
-    });
-    cx.run_until_parked();
-    // The removal alone does not rebuild the rail (TICKET-458); the next change in the window
-    // does.
-    add_terminal(&alpha, false, cx);
+    remove_folder(&beta, path!("/beta"), cx);
     assert_eq!(names(&rail, cx), ["alpha"]);
     focus_rail(&rail, cx);
     assert_eq!(selected(&rail, cx), Selection::None);

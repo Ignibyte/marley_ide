@@ -157,7 +157,12 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   - each Agent Panel's events, and focus entering or leaving it;
   - each live thread's status, title and confirmation events, but not streamed output;
   - each project's agent servers;
-  - the metadata store.
+  - the metadata store;
+  - each project's folders (#458): `WorktreeAdded`, `WorktreeRemoved`, `WorktreeOrderChanged`
+    and `WorktreePathsChanged`, as Zed's Threads Sidebar follows them, and no other project
+    event. The rebuild is deferred (`defer_in`): the project reports a folder before the
+    `MultiWorkspace` rekeys its group, and a rebuild in between would find the project in no
+    group and forget its rows' recency and attention dots.
 
   The subscriptions carry the window, since focus is read at every rebuild.
 ## Agent CLIs (#440)
@@ -322,10 +327,8 @@ has its own test in `crates/zed/src/zed.rs`, `test_reload_keymaps_binds_the_marl
 - `ctrl-tab` in a center pane stays Zed's tab switcher, over that pane's items. The rail's
   switcher shows no preview while cycling, and its recency lives in memory only. Next and
   Previous Project and Thread still reach the trait's no-op defaults (#459).
-- A project whose last folder is removed keeps its row until another change rebuilds the rail
-  (#458).
 - The thread rows, the agent rows, the routing, the terminal keys, the New Agent key, the
-  rail's persistence, its keys and reorder, its filter, its switcher and the first terminal
-  have not been seen live: the drives for #439 and #440 would have moved Chad's windows off his
+  rail's persistence, its keys and reorder, its filter, its switcher, the first terminal and a
+  project's folder changes have not been seen live: the drives for #439 and #440 would have moved Chad's windows off his
   monitor, and the later ones need input or a relaunch. They are owed to the next headless
   capture.

@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #458 (bug, workbench shell)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet (found in #453's Code phase)
+- **Pipeline doc:** ../../pipeline/completed/458-rail-follows-folder-changes.spec.md
 - **Source ticket:** ../../pipeline/completed/453-rail-keyboard-and-reorder.notes.md (Phase 2)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Removing the last folder from the displayed project leaves its row in the rail until some other

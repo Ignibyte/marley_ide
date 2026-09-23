@@ -27,7 +27,7 @@ use marley_rail::{
 use menu::{
     Cancel, Confirm, SelectChild, SelectFirst, SelectLast, SelectNext, SelectParent, SelectPrevious,
 };
-use project::{AgentId, AgentServerStore, AgentServersUpdated, ProjectGroupKey};
+use project::{AgentId, AgentServerStore, AgentServersUpdated, Project, ProjectGroupKey};
 use recent_projects::sidebar_recent_projects::SidebarRecentProjects;
 use terminal::Terminal;
 use terminal_view::{RenameTerminal, TerminalView, terminal_panel::TerminalPanel};
@@ -105,6 +105,9 @@ pub struct Rail {
     zed_sidebar_state: Option<String>,
     add_project_menu: PopoverMenuHandle<SidebarRecentProjects>,
     workspace_subscriptions: HashMap<EntityId, Subscription>,
+    /// Per project: its folders, which decide its row, the row's name and its terminals'
+    /// subtitles.
+    project_subscriptions: HashMap<EntityId, Subscription>,
     terminal_subscriptions: HashMap<EntityId, [Subscription; 2]>,
     /// Per Agent Panel: its events, and focus entering and leaving it.
     panel_subscriptions: HashMap<EntityId, [Subscription; 3]>,
@@ -250,6 +253,7 @@ impl Rail {
             zed_sidebar_state: None,
             add_project_menu: PopoverMenuHandle::default(),
             workspace_subscriptions: HashMap::default(),
+            project_subscriptions: HashMap::default(),
             terminal_subscriptions: HashMap::default(),
             panel_subscriptions: HashMap::default(),
             thread_subscriptions: HashMap::default(),
@@ -381,6 +385,7 @@ impl Rail {
     fn sync_subscriptions(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Watched {
             workspaces,
+            projects,
             views,
             panels,
             threads,
@@ -406,6 +411,10 @@ impl Rail {
                 )
             },
         );
+        self.project_subscriptions =
+            resubscribe(&mut self.project_subscriptions, &projects, |project| {
+                Self::follow_folders(project, window, cx)
+            });
         self.terminal_subscriptions =
             resubscribe(&mut self.terminal_subscriptions, &views, |view| {
                 [
@@ -472,6 +481,26 @@ impl Rail {
                     rail.refresh(window, cx);
                 }));
         }
+    }
+
+    /// Rebuilds the rail after each change to `project`'s folders.
+    fn follow_folders(
+        project: &Entity<Project>,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Subscription {
+        cx.subscribe_in(
+            project,
+            window,
+            |_, _, event: &project::Event, window, cx| {
+                // The project reports a folder before the `MultiWorkspace` rekeys the project's
+                // group. A rebuild in between would find the project in no group and forget its
+                // rows' recency and attention dots.
+                if changes_the_folders(event) {
+                    cx.defer_in(window, Self::refresh);
+                }
+            },
+        )
     }
 
     /// Shows `workspace` in the window. The rows hold their entities weakly, so the project may
@@ -1283,6 +1312,7 @@ impl Rail {
 #[derive(Default)]
 struct Watched {
     workspaces: Vec<Entity<Workspace>>,
+    projects: Vec<Entity<Project>>,
     views: Vec<Entity<TerminalView>>,
     panels: Vec<Entity<AgentPanel>>,
     threads: Vec<Entity<AcpThread>>,
@@ -1305,19 +1335,17 @@ impl Watched {
             .iter()
             .flat_map(|panel| live_threads(panel, cx))
             .collect();
-        let agent_servers = workspaces
+        let projects: Vec<Entity<Project>> = workspaces
             .iter()
-            .map(|workspace| {
-                workspace
-                    .read(cx)
-                    .project()
-                    .read(cx)
-                    .agent_server_store()
-                    .clone()
-            })
+            .map(|workspace| workspace.read(cx).project().clone())
+            .collect();
+        let agent_servers = projects
+            .iter()
+            .map(|project| project.read(cx).agent_server_store().clone())
             .collect();
         Self {
             workspaces,
+            projects,
             views,
             panels,
             threads,
@@ -1431,6 +1459,18 @@ const fn changes_the_row(event: &AcpThreadEvent) -> bool {
             | AcpThreadEvent::Error
             | AcpThreadEvent::LoadError(_)
             | AcpThreadEvent::Refusal
+    )
+}
+
+/// The events after which a project's folders differ: one added, removed or moved, or the paths
+/// its group is keyed by. A busy project emits many others, and none of them changes a row.
+const fn changes_the_folders(event: &project::Event) -> bool {
+    matches!(
+        event,
+        project::Event::WorktreeAdded(_)
+            | project::Event::WorktreeRemoved(_)
+            | project::Event::WorktreeOrderChanged
+            | project::Event::WorktreePathsChanged { .. }
     )
 }
 

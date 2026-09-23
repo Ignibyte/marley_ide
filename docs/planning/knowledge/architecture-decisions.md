@@ -1505,3 +1505,20 @@ Rejected:
 - keeping the memory across restarts;
 - remembering only when the move made the Agent Panel the dock's shown panel. That condition
   would forget the panel when the Agent Panel arrived hidden and was shown later.
+
+## AD-claude-458-the-rail-follows-each-projects-folders-with-a-deferred-rebuild-001
+*decided at: 2026-09-23 · status: shipped*
+
+The rail subscribes to each listed workspace's project, as Zed's Threads Sidebar does, and
+rebuilds on the four events that change its folders: `WorktreeAdded`, `WorktreeRemoved`,
+`WorktreeOrderChanged` and `WorktreePathsChanged`. Every other project event is ignored, so a
+busy project (diagnostics, language servers, scanned entries) never rebuilds the rail. The
+rebuild is deferred, so it reads the `MultiWorkspace` after the project's group is rekeyed.
+
+Rejected:
+- a touchpoint that makes `MultiWorkspace::handle_project_group_key_change` notify on an empty
+  key. It fixes only the last folder going, and changes Zed's own behavior to do it;
+- a rebuild inside the handler, which runs while the project is in no group;
+- following `WorktreePathsChanged` alone. It is safe only while the `MultiWorkspace`'s
+  subscription runs before the rail's, which the order they are made in gives and nothing
+  enforces, and a reorder never emits it.

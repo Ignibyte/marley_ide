@@ -183,6 +183,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **The rail follows a project's folders** (#458, 2026-09-23). A project whose last folder you
+  removed kept its row in the rail until something else in the window changed. Now the row goes
+  at once. Adding, removing or reordering a project's folders updates its row straight away,
+  down to each terminal's path, which reads against the project's first folder.
 - **The docks across a layout round trip** (#456, 2026-09-23). A switch to the Marley layout and
   back could leave the right dock closed, with the panel it showed lost: the Agent Panel took
   that dock over on the way in and closed it on the way out. Now the dock gets back the panel it

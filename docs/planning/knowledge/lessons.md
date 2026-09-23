@@ -2115,3 +2115,23 @@ What #456 relied on (`crates/marley_workbench/src/marley_workbench.rs`, `layout_
   (`serialize_workspace`, 200 ms) has not fired by then, so the settled state is the one saved.
 - A test that removes the deferred step reproduces the original bug. That is the negative check
   that proves the fix, and it is cheap because the defer is one line.
+
+## L-claude-458-a-projects-folder-events-come-before-its-group-is-rekeyed-001
+*category: code · topic: reading the `MultiWorkspace`'s groups after a folder change · from: pipeline 458*
+
+What #458 found (`crates/marley_workbench/src/rail.rs`, `follow_folders`):
+- A folder added to or removed from a project is reported twice, in this order:
+  `project::Event::WorktreeAdded` or `WorktreeRemoved`, then `WorktreePathsChanged`
+  (`Project::on_worktree_store_event`, then `emit_group_key_changed_if_needed`).
+- The `MultiWorkspace` rekeys the project's group on the second event only. Between the two,
+  the workspace's own `project_group_key` has changed and the stored group's key has not, so
+  `MultiWorkspace::project_groups` lists that group with no workspace in it.
+- Code that reads the groups on the first event finds the project nowhere. In the rail that
+  dropped the project's rows for one rebuild, and the bookkeeping that forgets rows once they
+  are gone forgot their switcher recency and their threads' attention dots.
+- Defer the read with `cx.defer_in`. The Defer effect queues behind the second event, so it
+  runs after the rekey, whatever order the subscriptions were made in. Zed's Threads Sidebar
+  is safe the same way: `schedule_update_entries` spawns its update.
+- The negative check is one line: refresh in the handler instead of deferring.
+  `a_folder_added_or_removed_renames_the_row_and_keeps_its_rows_recency` then fails on the
+  switcher's order.

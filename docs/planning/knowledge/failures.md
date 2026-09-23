@@ -1737,8 +1737,9 @@ and notifies. Removing a project's last folder reaches neither: the workspace's
 (`multi_workspace.rs:615-628`). The project's row stayed in the rail until another change
 rebuilt it. Zed's Threads Sidebar subscribes to each project's worktree events
 (`sidebar.rs:1005-1031`). Found in the Code phase while writing the test for Enter with no row
-highlighted, which reaches that state only after another change in the window. Open:
-TICKET-458.
+highlighted, which reaches that state only after another change in the window. Fixed in #458:
+the rail follows each project's folder events
+(`AD-claude-458-the-rail-follows-each-projects-folders-with-a-deferred-rebuild-001`).
 
 ## F-claude-454-recency-noted-a-terminal-the-user-never-went-to-001
 *severity: medium · category: behavior · pipeline 454*

@@ -383,9 +383,10 @@ Agent Panel opens a switcher over the window's terminals and threads, most recen
 first, through the rail's `toggle_thread_switcher`; the center panes keep Zed's tab switcher.
 W6f shipped as #455: a folder opened fresh in the Marley layout starts with a terminal at its
 root, told apart from a restored project by one Zed touchpoint in `new_local`. W6g shipped as
-#456: a layout round trip gives each dock back the panel the Agent Panel took over. TICKET-459
-gives Next and Previous Project and Thread the rail's meaning. TICKET-458 makes the rail follow a project's
-folders, and the rail's smaller internals wait in `docs/planning/intake/rail-internals.md`.
+#456: a layout round trip gives each dock back the panel the Agent Panel took over. #458
+fixed the rail to follow a project's folders, so a project whose last folder goes leaves it at
+once. TICKET-459 gives Next and Previous Project and Thread the rail's meaning, and the rail's
+smaller internals wait in `docs/planning/intake/rail-internals.md`.
 
 | Slice | Delivers | Size |
 |---|---|---|
