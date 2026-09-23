@@ -2135,3 +2135,12 @@ Zed's code to learn what to call; it never carries a Zed function body over with
 changed. Write from the called functions' signatures and docs, in the crate's own shape, and
 when the result still reads like the upstream body, restructure it. The inspect phase's
 provenance lens compares new Marley code against the Zed files it was modelled on.
+
+## PR-claude-a-new-gate-check-is-proven-red-by-a-planted-fault-001
+*severity: medium · prevents: F-claude-447-a-warning-check-read-quiet-cargo-output-001*
+
+Every new gate check gets a negative smoke. Plant the fault the check exists to catch, run the
+check's own code (the function from `script/gates.sh`, not a reconstruction of it), and see it
+go red; remove the fault and see it go green. A check whose input a flag or a filter can empty,
+such as `--quiet`, a filter on a diagnostic's source span, or a tool that reads only the files
+git lists, passes on a clean tree whether it works or not. Only the planted red proves it.

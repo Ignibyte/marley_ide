@@ -1,0 +1,67 @@
+# =============================================================================
+# .semgrep.yml — custom SAST rules for the Marley crates (gate:20)
+# =============================================================================
+#
+# Run by script/gates.sh gate:20, on the pinned semgrep 1.156.0:
+#   semgrep --config .semgrep.yml --error --quiet --strict --metrics=off \
+#     --no-git-ignore crates/marley_*
+# `--error` fails the run on any finding, whatever its severity; `--strict` makes a
+# file semgrep cannot parse a failure instead of a silent hole; `--no-git-ignore`
+# scans files git does not track yet. Semgrep's built-in ignore list skips `tests/`
+# directories, which neither rule needs.
+#
+# Carried over from Chad's rustal gate (.semgrep.yml there), and only the rules
+# nothing else covers: clippy bans `dbg!` and `todo!`, gate:14 bans TODO markers,
+# and gitleaks finds secrets.
+# =============================================================================
+
+rules:
+  # A library returns an error and leaves the decision to exit to its binary.
+  - id: process-exit-in-library
+    patterns:
+      - pattern-either:
+          - pattern: std::process::exit(...)
+          - pattern: process::exit(...)
+    paths:
+      include:
+        - src/
+      exclude:
+        - "**/src/main.rs"
+        - "**/src/bin/"
+    message: >
+      std::process::exit() in library code. A library returns a typed error
+      (CONSTITUTION §14) and the binary decides whether to exit.
+    languages: [rust]
+    severity: ERROR
+    metadata:
+      category: correctness
+
+  # A program name that is not a source literal must justify itself at the site.
+  - id: command-injection-risk
+    patterns:
+      # The qualified spelling also matches a bare `Command::new(..)`; the UFCS
+      # form is a second spelling of the same call.
+      - pattern-either:
+          - pattern: |
+              std::process::Command::new($ARG)
+          - pattern: |
+              <std::process::Command>::new($ARG)
+          - pattern: |
+              tokio::process::Command::new($ARG)
+      # A source literal is not injectable, and `env!` is a compile-time literal.
+      - pattern-not: |
+          std::process::Command::new("...")
+      - pattern-not: |
+          std::process::Command::new(env!("..."))
+      - pattern-not: |
+          tokio::process::Command::new("...")
+      - pattern-not: |
+          tokio::process::Command::new(env!("..."))
+    message: >
+      std::process::Command built from a program name that is not a string
+      literal. Check that no user input reaches it; pass parameters through
+      .arg() on a fixed program instead.
+    languages: [rust]
+    severity: ERROR
+    metadata:
+      category: security

@@ -8,7 +8,7 @@
 //! async runtime, no third-party MCP SDK (D-OPEN-SDK: hand-rolled — the L1 surface is `initialize` + 5
 //! methods + 1 notification, and adopting `rmcp` would inject tokio+axum into a gpui app).
 //!
-//! The `marley_fleet` (#367) types ARE the schema (D2 — one seam, three consumers). marley_mcp OWNS the
+//! The `marley_fleet` (#367) types ARE the schema (D2 — one seam, three consumers). `marley_mcp` OWNS the
 //! permission [`GrantTable`] (S1): #371's settings round-trip deserializes INTO it, so this crate ships
 //! and tests on fixture grants with no dependency on #371.
 
@@ -17,7 +17,7 @@ mod config;
 pub mod discovery;
 mod dispatch;
 mod expose;
-mod jsonrpc;
+pub mod jsonrpc;
 mod permission;
 mod registry;
 mod resource;
@@ -51,9 +51,12 @@ use marley_fleet::FleetSnapshot;
 /// The MCP protocol revision this server speaks (the 2025-06-18 MCP spec revision).
 pub const MCP_PROTOCOL_VERSION: &str = "2025-06-18";
 
-/// Read-only context for handling ONE request: the current fleet snapshot, the permission grants, and the
-/// app's `(session-id, pane-handle)` surface index (the handle is an opaque `u64` = the app's `PaneId.0`,
-/// so marley_mcp never depends on marley_app).
+/// Read-only context for handling ONE request.
+///
+/// The current fleet snapshot, the permission grants, and the app's `(session-id, pane-handle)`
+/// surface index (the handle is an opaque `u64` = the app's `PaneId.0`, so `marley_mcp` never
+/// depends on `marley_app`).
+#[derive(Debug)]
 pub struct RequestCtx<'a> {
     /// The current fleet snapshot (what `fleet.snapshot` / the resource serve).
     pub snapshot: &'a FleetSnapshot,

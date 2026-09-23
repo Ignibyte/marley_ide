@@ -1,8 +1,10 @@
 //! The discovery-file IO (#375, cluster B) — `mcp-endpoint.json` (`{url, bearer}`) that a manager's
-//! `.mcp.json` reads to reach this server. Deliberately NOT masked (unlike the rest of the transport/host
-//! glue): file-PERMISSION correctness IS this ticket's payload, so the helpers take a dir param (the house
-//! `*_in(dir)` testable-IO idiom) and are proven by tempdir metadata-mode asserts. The bearer is a secret,
-//! so the file is owner-only (0600) and is removed on clean shutdown so a stale bearer never lingers.
+//! `.mcp.json` reads to reach this server.
+//!
+//! Deliberately NOT masked (unlike the rest of the transport/host glue): file-PERMISSION
+//! correctness IS this ticket's payload, so the helpers take a dir param (the house `*_in(dir)`
+//! testable-IO idiom) and are proven by tempdir metadata-mode asserts. The bearer is a secret, so
+//! the file is owner-only (0600) and is removed on clean shutdown so a stale bearer never lingers.
 
 use std::fs::{self, OpenOptions};
 use std::io;
@@ -13,17 +15,23 @@ use std::path::Path;
 /// The discovery file's fixed name within the config dir.
 const DISCOVERY_FILE: &str = "mcp-endpoint.json";
 
-/// Write `json` to `<dir>/mcp-endpoint.json` owner-only (0600). A fresh file is created 0600; a
-/// pre-existing looser file is corrected via an fchmod on the OPEN HANDLE (`OpenOptions::mode` only applies
-/// on create) BEFORE the new bearer bytes are written — so the fresh bearer never exists in a
-/// world-readable file (REQ-005). fchmod-ing the handle (not re-resolving the path) is symlink/TOCTOU-immune.
+/// Write `json` to `<dir>/mcp-endpoint.json` owner-only (0600).
+///
+/// A fresh file is created 0600; a pre-existing looser file is corrected via an fchmod on the OPEN
+/// HANDLE (`OpenOptions::mode` only applies on create) BEFORE the new bearer bytes are written — so
+/// the fresh bearer never exists in a world-readable file (REQ-005). fchmod-ing the handle (not
+/// re-resolving the path) is symlink/TOCTOU-immune.
+///
+/// # Errors
+///
+/// Any IO error opening, re-moding or writing the file.
 pub fn write_discovery_file_in(dir: &Path, json: &str) -> io::Result<()> {
     let path = dir.join(DISCOVERY_FILE);
     let mut options = OpenOptions::new();
-    options.write(true).create(true).truncate(true);
+    let options = options.write(true).create(true).truncate(true);
     // Applies on create (the fresh-file path). Only Unix has file modes.
     #[cfg(unix)]
-    options.mode(0o600);
+    let options = options.mode(0o600);
     let mut file = options.open(&path)?;
     // fchmod the opened fd — corrects a pre-existing looser mode, and does so on the fd we hold (immune to
     // a symlink/racing-swap of the path). Happens BEFORE the write, so the bearer only ever lands at 0600.
@@ -34,6 +42,10 @@ pub fn write_discovery_file_in(dir: &Path, json: &str) -> io::Result<()> {
 
 /// Remove `<dir>/mcp-endpoint.json` (clean shutdown, REQ-006) so a stale bearer doesn't linger. Idempotent:
 /// an absent file is `Ok(())`, not an error.
+///
+/// # Errors
+///
+/// Any IO error removing the file other than its absence.
 pub fn remove_discovery_file_in(dir: &Path) -> io::Result<()> {
     match fs::remove_file(dir.join(DISCOVERY_FILE)) {
         Ok(()) => Ok(()),

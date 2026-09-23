@@ -7,16 +7,20 @@ use std::fmt;
 
 use crate::auth::ct_eq;
 
-/// The maximum number of concurrent sessions. A local-DoS bound (the #370 cap-before-alloc lesson applied
-/// to sessions), NOT an LRU cache — at the cap a new session is REFUSED, never evicting a live one (D4).
+/// The maximum number of concurrent sessions.
+///
+/// A local-DoS bound (the #370 cap-before-alloc lesson applied to sessions), NOT an LRU cache — at
+/// the cap a new session is REFUSED, never evicting a live one (D4).
 pub const SESSION_CAP: usize = 8;
 
-/// How long a session may sit IDLE (no validated use) before the sweep expires it (#379). Closes the
-/// #375 wedge: a client that initializes but never opens a stream and never returns would otherwise
-/// hold its slot until restart. 30 minutes — generous against every legitimate cadence (the fleet
-/// pump re-reads on every notification; even a quiet standing stream re-validates on reconnect), tiny
-/// against a wedge that previously lasted forever. Expiry ≠ eviction: D4 stands (a LIVE session is
-/// never evicted for capacity; only IDLE-past-TTL ones age out).
+/// How long a session may sit IDLE (no validated use) before the sweep expires it (#379).
+///
+/// Closes the #375 wedge: a client that initializes but never opens a stream and never returns
+/// would otherwise hold its slot until restart. 30 minutes — generous against every legitimate
+/// cadence (the fleet pump re-reads on every notification; even a quiet standing stream
+/// re-validates on reconnect), tiny against a wedge that previously lasted forever. Expiry ≠
+/// eviction: D4 stands (a LIVE session is never evicted for capacity; only IDLE-past-TTL ones age
+/// out).
 pub const SESSION_TTL_MS: u64 = 1_800_000;
 
 /// A new session could not be admitted — the registry is at [`SESSION_CAP`]. The caller refuses the
@@ -49,8 +53,11 @@ impl fmt::Debug for SessionRegistry {
 }
 
 impl SessionRegistry {
-    /// Admit `id` as a live session stamped last-seen `now` (#379), or `Err(SessionFull)` when already
-    /// at [`SESSION_CAP`] (reject-new, never evict — D4).
+    /// Admit `id` as a live session stamped last-seen `now` (#379).
+    ///
+    /// # Errors
+    ///
+    /// `Err(SessionFull)` when already at [`SESSION_CAP`] (reject-new, never evict — D4).
     pub fn assign(&mut self, id: String, now: u64) -> Result<(), SessionFull> {
         if self.entries.len() >= SESSION_CAP {
             return Err(SessionFull);
@@ -64,6 +71,7 @@ impl SessionRegistry {
 
     /// Whether `id` is a live session. Constant-time over ALL entries (no short-circuit on a match — D8),
     /// so the compare doesn't leak which/whether an id matched.
+    #[must_use]
     pub fn validate(&self, id: &str) -> bool {
         let mut found = false;
         for stored in &self.entries {
@@ -74,7 +82,7 @@ impl SessionRegistry {
 
     /// Refresh `id`'s last-seen to `now` (#379) — called by the gate on every validated use, so only a
     /// genuinely IDLE session ages out. Constant-time shape over all entries (no early exit — D8); the
-    /// per-entry branch is on the ct_eq RESULT (content-CT preserved), runs only post-`Proceed` (the
+    /// per-entry branch is on the `ct_eq` RESULT (content-CT preserved), runs only post-`Proceed` (the
     /// caller already holds a valid id), and the only signal is the caller's OWN slot position — not a
     /// secret; mirrors `terminate`'s retain shape.
     pub fn touch(&mut self, id: &str, now: u64) {
@@ -103,12 +111,14 @@ impl SessionRegistry {
     }
 
     /// The number of live sessions.
-    pub fn len(&self) -> usize {
+    #[must_use]
+    pub const fn len(&self) -> usize {
         self.entries.len()
     }
 
     /// Whether the registry holds no sessions.
-    pub fn is_empty(&self) -> bool {
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 }
@@ -127,13 +137,16 @@ pub enum SessionDecision {
     Reject(u16),
 }
 
-/// Decide the session action for a request (MCP spec §Session Management). `is_initialize` is whether the
-/// JSON-RPC body is an `initialize` request; `session_header` is the presented `Mcp-Session-Id` (already
-/// parsed). Ordering: DELETE is handled first (terminate/refuse), then a POST `initialize` (assign), then
-/// every other request requires a valid session (missing → 400, unknown → 404). An `initialize` is a POST
-/// (its response header carries the new id) — a non-POST body claiming `initialize` is NOT treated as one
-/// (it would mint a session the response could never echo, orphaning a slot), so it falls through to the
+/// Decide the session action for a request (MCP spec §Session Management).
+///
+/// `is_initialize` is whether the JSON-RPC body is an `initialize` request; `session_header` is the
+/// presented `Mcp-Session-Id` (already parsed). Ordering: DELETE is handled first
+/// (terminate/refuse), then a POST `initialize` (assign), then every other request requires a valid
+/// session (missing → 400, unknown → 404). An `initialize` is a POST (its response header carries
+/// the new id) — a non-POST body claiming `initialize` is NOT treated as one (it would mint a
+/// session the response could never echo, orphaning a slot), so it falls through to the
 /// valid-session requirement.
+#[must_use]
 pub fn session_decision(
     http_method: &str,
     is_initialize: bool,
@@ -157,13 +170,16 @@ pub fn session_decision(
     }
 }
 
-/// The #379 gate ORCHESTRATOR the transport calls: sweep the idle sessions, decide, and touch on a
-/// validated use — one seam, so `session_decision`/`validate` keep their #375 signatures (and their
-/// call sites) untouched. Sweep-BEFORE-decide is what makes "expired ≡ unknown" true by construction:
-/// an expired id is simply ABSENT when the gate runs, so the SHIPPED 404 arm answers — no new
-/// decision arm, no wire change, nothing for a client to distinguish (#373's reconnect already
-/// recovers via `SessionExpired`). The touch fires only on `Proceed` (a `Terminate` removes the
-/// entry anyway; an `Initialize` stamps its own fresh entry via `assign`).
+/// The #379 gate ORCHESTRATOR the transport calls.
+///
+/// It sweeps the idle sessions, decides, and touches on a validated use — one seam, so
+/// `session_decision`/`validate` keep their #375 signatures (and their call sites) untouched.
+///
+/// Sweep-BEFORE-decide is what makes "expired ≡ unknown" true by construction: an expired id is
+/// simply ABSENT when the gate runs, so the SHIPPED 404 arm answers — no new decision arm, no wire
+/// change, nothing for a client to distinguish (#373's reconnect already recovers via
+/// `SessionExpired`). The touch fires only on `Proceed` (a `Terminate` removes the entry anyway; an
+/// `Initialize` stamps its own fresh entry via `assign`).
 pub fn session_gate(
     http_method: &str,
     is_initialize: bool,
@@ -171,12 +187,12 @@ pub fn session_gate(
     registry: &mut SessionRegistry,
     now: u64,
 ) -> SessionDecision {
-    registry.sweep(now);
+    let _swept = registry.sweep(now);
     let decision = session_decision(http_method, is_initialize, session_header, registry);
-    if decision == SessionDecision::Proceed {
-        if let Some(id) = session_header {
-            registry.touch(id, now);
-        }
+    if decision == SessionDecision::Proceed
+        && let Some(id) = session_header
+    {
+        registry.touch(id, now);
     }
     decision
 }

@@ -1,6 +1,8 @@
-//! Read-time staleness + attention derivation. NO clock lives here — `now_ms` and `stale_after_ms` are
-//! always injected, so a snapshot's attention is a pure function of (snapshot, now, threshold) and the
-//! snapshot itself stays replay-deterministic.
+//! Read-time staleness + attention derivation.
+//!
+//! NO clock lives here — `now_ms` and `stale_after_ms` are always injected, so a snapshot's
+//! attention is a pure function of (snapshot, now, threshold) and the snapshot itself stays
+//! replay-deterministic.
 
 use crate::reducer::FleetSnapshot;
 use crate::session::{Session, State};
@@ -26,14 +28,16 @@ pub struct Attention<'a> {
     pub reason: AttentionReason,
 }
 
-/// Is this seat stale? — not `Done`, and silent for at least `stale_after_ms`. A `Done` seat's silence
-/// is legitimate and never flags. `saturating_sub` tolerates a minor `now < last_event` clock skew
-/// without panicking.
+/// Is this seat stale? — not `Done`, and silent for at least `stale_after_ms`.
+///
+/// A `Done` seat's silence is legitimate and never flags. `saturating_sub` tolerates a minor `now <
+/// last_event` clock skew without panicking.
 ///
 /// `stale_after_ms` is a caller-owned threshold (no default is baked in — see the spec's
 /// D-OPEN-STALE-DEFAULT). Note the degenerate `stale_after_ms == 0` flags EVERY non-`Done` seat
 /// (silence of "at least 0ms" is always true); the consumer (e.g. #369's rail) is responsible for a
 /// sensible positive value.
+#[must_use]
 pub fn is_stale(session: &Session, now_ms: u64, stale_after_ms: u64) -> bool {
     session.state != State::Done && now_ms.saturating_sub(session.last_event_ms) >= stale_after_ms
 }
@@ -54,7 +58,7 @@ fn reason_for(session: &Session, now_ms: u64, stale_after_ms: u64) -> Option<Att
 /// The rank used to order the attention set: `Error` before `Question` before `Stale`. This MUST stay
 /// in sync with `reason_for`'s branch priority (they currently agree); `AttentionReason` deliberately
 /// does not derive `Ord`, so this fn is the single source of the sort order.
-fn rank(reason: AttentionReason) -> u8 {
+const fn rank(reason: AttentionReason) -> u8 {
     match reason {
         AttentionReason::Error => 0,
         AttentionReason::Question => 1,
@@ -63,8 +67,10 @@ fn rank(reason: AttentionReason) -> u8 {
 }
 
 /// The seats needing attention, each at its single highest reason, ordered `Error` → `Question` →
-/// `Stale` with ties in snapshot (first-seen) order. `slice::sort_by_key` is a stable sort, so
-/// within-reason first-seen order is preserved.
+/// `Stale` with ties in snapshot (first-seen) order.
+///
+/// `slice::sort_by_key` is a stable sort, so within-reason first-seen order is preserved.
+#[must_use]
 pub fn attention<'a>(
     snapshot: &'a FleetSnapshot,
     now_ms: u64,

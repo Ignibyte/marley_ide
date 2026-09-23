@@ -101,9 +101,12 @@ pub enum Row {
     Terminal(TerminalRow),
 }
 
-/// The one selected row. The displayed workspace's active terminal wins when its row is visible;
-/// otherwise the displayed workspace's project header does, so a window showing a project always
-/// has exactly one selected row and a stale focus never selects a row that is not there.
+/// The one selected row.
+///
+/// The displayed workspace's active terminal wins when its row is visible; otherwise the displayed
+/// workspace's project header does, so a window showing a project always has exactly one selected
+/// row and a stale focus never selects a row that is not there.
+#[must_use]
 pub fn selection(snapshot: &RailSnapshot) -> Selection {
     let Some((index, project)) = snapshot
         .focus
@@ -123,6 +126,7 @@ pub fn selection(snapshot: &RailSnapshot) -> Selection {
 }
 
 /// The rows, in display order: each project's header, then its terminals when it is expanded.
+#[must_use]
 pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
     let selected = selection(snapshot);
     let mut rows = Vec::new();
@@ -151,6 +155,7 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
 }
 
 /// Whether any listed terminal rang its bell, collapsed or not: the rail's notification flag.
+#[must_use]
 pub fn has_attention(snapshot: &RailSnapshot) -> bool {
     snapshot
         .projects
@@ -158,29 +163,31 @@ pub fn has_attention(snapshot: &RailSnapshot) -> bool {
         .any(|project| project.terminals.iter().any(|terminal| terminal.bell))
 }
 
-/// The second line of a terminal row: its working directory relative to the project root, or
-/// with the home directory written as `~` when it is outside the project. `None` at the root
-/// itself, where the project header already says where the terminal is, and when the directory
-/// is unknown: a terminal that cannot tell reports no path or an empty one.
+/// The second line of a terminal row: its working directory relative to the project root, or with
+/// the home directory written as `~` when it is outside the project.
+///
+/// `None` at the root itself, where the project header already says where the terminal is, and when
+/// the directory is unknown: a terminal that cannot tell reports no path or an empty one.
+#[must_use]
 pub fn working_directory_label(
     working_directory: Option<&Path>,
     project_root: Option<&Path>,
     home: Option<&Path>,
 ) -> Option<String> {
     let working_directory = working_directory.filter(|path| !path.as_os_str().is_empty())?;
-    if let Some(root) = project_root {
-        if let Ok(relative) = working_directory.strip_prefix(root) {
-            return (!relative.as_os_str().is_empty()).then(|| relative.display().to_string());
-        }
+    if let Some(root) = project_root
+        && let Ok(relative) = working_directory.strip_prefix(root)
+    {
+        return (!relative.as_os_str().is_empty()).then(|| relative.display().to_string());
     }
-    if let Some(home) = home {
-        if let Ok(relative) = working_directory.strip_prefix(home) {
-            return Some(if relative.as_os_str().is_empty() {
-                "~".to_string()
-            } else {
-                format!("~/{}", relative.display())
-            });
-        }
+    if let Some(home) = home
+        && let Ok(relative) = working_directory.strip_prefix(home)
+    {
+        return Some(if relative.as_os_str().is_empty() {
+            "~".to_string()
+        } else {
+            format!("~/{}", relative.display())
+        });
     }
     Some(working_directory.display().to_string())
 }
@@ -380,7 +387,7 @@ mod tests {
             for project in [None, Some(0), Some(1), Some(5)] {
                 for terminal in [None, Some(1), Some(2), Some(3), Some(42)] {
                     let rows = rail_rows(&window(two_projects(expanded), project, terminal));
-                    let expected = usize::from(matches!(project, Some(0) | Some(1)));
+                    let expected = usize::from(matches!(project, Some(0 | 1)));
                     assert_eq!(
                         selected_rows(&rows),
                         expected,

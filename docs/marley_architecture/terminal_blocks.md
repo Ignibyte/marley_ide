@@ -151,11 +151,17 @@ read/write, `rustix::termios::tcsetwinsize` (the winsize ioctl), `Pty::next_chil
 exit code). The crate is **`unsafe`-free**.
 
 **In the fork (#443, 2026-09-22).** The `mutants::skip` masks did not survive the port, and the
-fork's mutation gate runs unmasked, so `pty_os.rs` is mutated like every other file. Six added
-real-PTY integration tests kill its mutants: the program and its arguments, the working
-directory, the environment, the window size, the SIGKILL escalation for a child that ignores
-SIGHUP, and descriptor cleanup after a reap. The file stays on gate:4's coverage exclude list
-for its OS-error arms. The real-PTY tests share a process-wide lock in place of `#[serial]`.
+end-of-sprint mutation run (`script/mutation.sh`) is unmasked, so `pty_os.rs` is mutated like
+every other file. Six added real-PTY integration tests kill its mutants: the program and its
+arguments, the working directory, the environment, the window size, the SIGKILL escalation for
+a child that ignores SIGHUP, and descriptor cleanup after a reap. The file stays on gate:4's
+coverage exclude list for its OS-error arms. The real-PTY tests share a process-wide lock in
+place of `#[serial]`.
+
+**Since #447.** The shim is a child module of `session`, the one module that calls it:
+`#[path = "pty_os.rs"]` keeps the file where gate:4's exclude and these notes name it, and its
+items are `pub(super)`. The reap signal logs any failure except ESRCH, the child having
+already exited. The pump logs a shell hook it drops for arriving before `InitShell`.
 
 ## Key decisions
 - **UI-agnostic** (no gpui) — the render is `app_shell`/a panel (M1.B/M2).

@@ -37,7 +37,8 @@ gate", and resolve them all before Stop. Without it, keep the checklist in the n
 4. **Run the gate:** `script/gates.sh --diff`, the static gates on the scope plus coverage on
    the touched Marley crates and miri. Fix every red at the source: no baselines, no
    suppressions, no lowered floor (§0). The green writes the receipt the commit needs. A
-   no-`.rs` change runs `--fast`. The FULL gate is the periodic audit over every Marley crate.
+   no-`.rs` change runs `--fast`. `script/gates.sh --full` is the periodic audit over every
+   Marley crate.
 5. **Pre-existing failures** go in the notes as "pre-existing — not in scope"; don't fix
    unrelated breakage unless asked.
 

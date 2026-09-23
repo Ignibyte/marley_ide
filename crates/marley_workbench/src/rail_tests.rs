@@ -73,7 +73,7 @@ async fn open_rail(
         .read(|cx| rail_of(&multi_workspace, cx))
         .expect("the Marley layout registers the rail");
     rail.update(cx, |rail, _| {
-        rail.terminal_factory = display_only_terminal_in
+        rail.terminal_factory = display_only_terminal_in;
     });
     let alpha = workspaces[0].clone();
     let beta = workspaces[1].clone();
@@ -100,7 +100,7 @@ fn add_terminal(
         (terminal, view)
     });
     pane.update_in(cx, |pane, window, cx| {
-        pane.add_item(Box::new(view.clone()), true, focus, None, window, cx)
+        pane.add_item(Box::new(view.clone()), true, focus, None, window, cx);
     });
     cx.run_until_parked();
     (terminal, view)
@@ -130,7 +130,7 @@ fn selected(rail: &Entity<Rail>, cx: &VisualTestContext) -> Selection {
 }
 
 fn has_notifications(rail: &Entity<Rail>, cx: &VisualTestContext) -> bool {
-    rail.read_with(cx, |rail, cx| rail.has_notifications(cx))
+    rail.read_with(cx, Sidebar::has_notifications)
 }
 
 fn id(view: &Entity<TerminalView>) -> u64 {
@@ -170,6 +170,18 @@ async fn the_rail_lists_each_project_with_its_center_terminals(cx: &mut TestAppC
     ] {
         assert!(cx.debug_bounds(selector).is_some(), "{selector}");
     }
+}
+
+#[gpui::test]
+async fn the_rail_debugs_as_its_width_and_rows(cx: &mut TestAppContext) {
+    let (_, _, _, rail, cx) = open_rail(cx).await;
+    let debug = rail.read_with(cx, |rail, _| format!("{rail:?}"));
+    let rows = rail.read_with(cx, |rail, _| format!("{:?}", rail.snapshot.rail));
+    let width = format!("{DEFAULT_WIDTH:?}");
+    assert_eq!(
+        debug,
+        format!("Rail {{ width: {width}, rows: {rows}, .. }}")
+    );
 }
 
 #[gpui::test]
@@ -225,7 +237,7 @@ async fn a_project_added_without_being_shown_is_listed_and_opens(cx: &mut TestAp
 async fn the_chevron_folds_a_projects_terminals_away_and_back(cx: &mut TestAppContext) {
     let (multi_workspace, _, beta, rail, cx) = open_rail(cx).await;
     let (_, terminal) = add_terminal(&beta, true, cx);
-    let key = beta.read_with(cx, |beta, cx| beta.project_group_key(cx));
+    let key = beta.read_with(cx, Workspace::project_group_key);
     let expanded = |cx: &VisualTestContext| {
         multi_workspace.read_with(cx, |multi_workspace, _| {
             multi_workspace
@@ -333,7 +345,7 @@ async fn a_bell_while_the_rail_is_closed_lights_the_sidebar_toggle(cx: &mut Test
     let (multi_workspace, alpha, _, _, cx) = open_rail(cx).await;
     let (terminal, _) = add_terminal(&alpha, false, cx);
     multi_workspace.update_in(cx, |multi_workspace, window, cx| {
-        multi_workspace.close_sidebar(window, cx)
+        multi_workspace.close_sidebar(window, cx);
     });
     cx.run_until_parked();
     terminal.update(cx, |_, cx| cx.emit(terminal::Event::Bell));
@@ -361,7 +373,7 @@ async fn closing_a_terminal_takes_its_row_away(cx: &mut TestAppContext) {
 #[gpui::test]
 async fn the_rail_keeps_its_width_in_bounds_and_sits_on_the_left(cx: &mut TestAppContext) {
     let (_, _, _, rail, cx) = open_rail(cx).await;
-    assert_eq!(rail.read_with(cx, |rail, cx| rail.width(cx)), px(260.));
+    assert_eq!(rail.read_with(cx, Sidebar::width), px(260.));
     for (requested, expected) in [
         (Some(px(300.)), px(300.)),
         (Some(px(10.)), px(180.)),
@@ -369,7 +381,7 @@ async fn the_rail_keeps_its_width_in_bounds_and_sits_on_the_left(cx: &mut TestAp
         (None, px(260.)),
     ] {
         rail.update(cx, |rail, cx| rail.set_width(requested, cx));
-        assert_eq!(rail.read_with(cx, |rail, cx| rail.width(cx)), expected);
+        assert_eq!(rail.read_with(cx, Sidebar::width), expected);
     }
     rail.read_with(cx, |rail, cx| {
         assert_eq!(rail.side(cx), SidebarSide::Left);
@@ -381,7 +393,7 @@ async fn the_rail_keeps_its_width_in_bounds_and_sits_on_the_left(cx: &mut TestAp
 async fn zeds_saved_sidebar_state_is_kept_unread_for_zed(cx: &mut TestAppContext) {
     let (_, _, _, rail, cx) = open_rail(cx).await;
     rail.update_in(cx, |rail, window, cx| {
-        rail.restore_serialized_state(ZED_SIDEBAR_STATE, window, cx)
+        rail.restore_serialized_state(ZED_SIDEBAR_STATE, window, cx);
     });
     rail.read_with(cx, |rail, cx| {
         assert_eq!(rail.width(cx), px(260.));

@@ -24,6 +24,12 @@ use crate::styled::{StyledLine, coalesce_row, trim_trailing_blank_rows};
 
 pub use crate::apply::ApplyHookError;
 
+// The shim is a child of `session`, the one module that calls it; `#[path]` keeps the file where
+// the coverage gate's exclusion and the docs name it.
+#[cfg(unix)]
+#[path = "pty_os.rs"]
+mod pty_os;
+
 /// The read buffer size for one `pump` read.
 const READ_BUF: usize = 4096;
 /// How many consecutive `WouldBlock`/`Interrupted` reads `pump` tolerates (each with a ~1 ms
@@ -37,7 +43,7 @@ const EIO: i32 = 5;
 /// rule) for the child-exit event after the master read returns `EIO`. On Linux the slave fds die
 /// WITH the child, so the read-side `EIO` routinely arrives BEFORE the SIGCHLD byte lands in the
 /// edge-triggered self-pipe (#423; alacritty's event loop handles the same race by looping back
-/// for the inevitable `Exited` — event_loop.rs, Apache-2.0, adopted). Within the grace the pump
+/// for the inevitable `Exited` — `event_loop.rs`, Apache-2.0, adopted). Within the grace the pump
 /// reports quietly-no-events; a master death with NO child exit still surfaces
 /// [`SessionError::Disconnected`] once the grace expires.
 const EIO_EXIT_GRACE: Duration = Duration::from_secs(1);
@@ -82,7 +88,7 @@ pub(crate) const REAP_DEADLINE_MS: u64 = 2000;
 /// This replaces the unbounded `waitpid` that `alacritty_terminal`'s `Pty::Drop` blocks on: by the
 /// time that `Drop` runs, the child is already dead + reaped (so its `child.wait()` returns at once),
 /// or the give-up path has leaked the `Pty` so that `Drop` never runs.
-pub(crate) fn reap_step(stage: ReapStage, waited_ms: u64, exited: bool) -> ReapAction {
+pub(crate) const fn reap_step(stage: ReapStage, waited_ms: u64, exited: bool) -> ReapAction {
     if exited {
         return ReapAction::Done;
     }
@@ -206,6 +212,17 @@ pub struct TerminalSession {
     eio_since: Option<Instant>,
 }
 
+// The PTY channel, the parser and the render grid have no useful `Debug`; the session's id is
+// what tells two sessions apart.
+impl std::fmt::Debug for TerminalSession {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TerminalSession")
+            .field("session_id", &self.model.session_id())
+            .finish_non_exhaustive()
+    }
+}
+
 impl TerminalSession {
     /// Spawn a shell on a fresh PTY (R12): allocate the session's [`SessionId`], start the shell
     /// from `options`, and return the handle. The raw spawn (and its failure mapping) lives in the
@@ -214,12 +231,17 @@ impl TerminalSession {
     ///
     /// One function with the platform split inside it, not two `cfg`-gated functions: a mutation
     /// tool mutates both copies, and the one compiled out on this platform could never be killed.
-    pub fn spawn(options: SessionOptions) -> Result<Self, SessionError> {
+    ///
+    /// # Errors
+    ///
+    /// [`SessionError::Spawn`] when the PTY cannot be opened or the shell cannot be started, and
+    /// always on a platform without the `pty_os` shim.
+    pub fn spawn(options: &SessionOptions) -> Result<Self, SessionError> {
         #[cfg(unix)]
         {
             let cols = options.cols;
             let rows = options.rows;
-            let channel = crate::pty_os::spawn(&options)?;
+            let channel = pty_os::spawn(options)?;
             Ok(Self::with_channel(
                 Box::new(channel),
                 SessionId::next(),
@@ -229,7 +251,7 @@ impl TerminalSession {
         }
         #[cfg(not(unix))]
         {
-            drop(options);
+            let _ = options;
             Err(SessionError::Spawn)
         }
     }
@@ -242,7 +264,7 @@ impl TerminalSession {
         cols: u16,
         rows: u16,
     ) -> Self {
-        TerminalSession {
+        Self {
             channel,
             model: SessionModel::new(session_id),
             scanner: DcsScanner::default(),
@@ -259,16 +281,22 @@ impl TerminalSession {
     /// grace EXPIRES (→ `Disconnected`) without sleeping through the real ceiling.
     #[cfg(test)]
     pub(crate) fn expire_eio_grace_for_test(&mut self) {
-        self.eio_since = Some(Instant::now() - EIO_EXIT_GRACE - Duration::from_millis(1));
+        self.eio_since = Some(
+            Instant::now()
+                .checked_sub(EIO_EXIT_GRACE + Duration::from_millis(1))
+                .expect("the monotonic clock has run longer than the EIO grace"),
+        );
     }
 
     /// The session's process-unique [`SessionId`].
-    pub fn session_id(&self) -> SessionId {
+    #[must_use]
+    pub const fn session_id(&self) -> SessionId {
         self.model.session_id()
     }
 
     /// Whether a full-screen program has switched to the alternate screen (R26) — the app renders
     /// the live grid + streams raw keystrokes while this holds.
+    #[must_use]
     pub fn is_alt_screen(&self) -> bool {
         self.term.mode().contains(TermMode::ALT_SCREEN)
     }
@@ -276,6 +304,7 @@ impl TerminalSession {
     /// Whether a foreground command is running (R26) — a `Running` block exists, opened by the shell's
     /// Preexec and finished by the next Precmd. While it holds, the running child owns the terminal,
     /// so the app streams every keystroke to the PTY instead of feeding its local line editor.
+    #[must_use]
     pub fn is_command_running(&self) -> bool {
         self.blocks().current().is_some()
     }
@@ -283,6 +312,7 @@ impl TerminalSession {
     /// Whether a program has enabled bracketed paste (DECSET 2004) (R26) — the app wraps a clipboard
     /// paste in the `ESC[200~`…`ESC[201~` markers while this holds, so a multi-line paste is literal
     /// data. Mirrors [`is_alt_screen`](Self::is_alt_screen).
+    #[must_use]
     pub fn is_bracketed_paste(&self) -> bool {
         self.term.mode().contains(TermMode::BRACKETED_PASTE)
     }
@@ -290,6 +320,7 @@ impl TerminalSession {
     /// Whether a program has enabled application cursor-key mode (DECSET 1 / DECCKM) (R26 / #286) —
     /// the app encodes arrows and the alt-scroll wheel fallback as SS3 (`ESC O A`) instead of the
     /// legacy CSI (`ESC [ A`) while this holds. Mirrors [`is_alt_screen`](Self::is_alt_screen).
+    #[must_use]
     pub fn is_app_cursor(&self) -> bool {
         self.term.mode().contains(TermMode::APP_CURSOR)
     }
@@ -297,6 +328,7 @@ impl TerminalSession {
     /// The mouse-tracking mode snapshot (M17 #280) — the DECSET flags alacritty parses,
     /// packaged gpui-free for the app's grid handlers + the pure [`crate::mouse_report`]
     /// encoder. One mode read; mirrors the [`is_alt_screen`](Self::is_alt_screen) idiom.
+    #[must_use]
     pub fn mouse_modes(&self) -> crate::mouse::MouseModes {
         let mode = self.term.mode();
         crate::mouse::MouseModes {
@@ -312,17 +344,21 @@ impl TerminalSession {
 
     /// The live grid as styled rows (R26) — what the app paints in alt-screen mode (vim/top/less),
     /// reusing the same coalesced-run model as the Block output.
+    #[must_use]
     pub fn grid_styled_rows(&self) -> Vec<StyledLine> {
         term_to_styled_rows(&self.term)
     }
 
     /// Write every byte of `bytes` to the PTY leader, re-queueing the unwritten remainder of a
-    /// partial write until the whole buffer lands (R13). A disconnect — a `BrokenPipe`/`EIO` error
-    /// or a zero-length write (EOF symmetry with `pump`) — yields [`SessionError::Disconnected`]
-    /// (R15); any other failure, or a stall that exhausts the `PUMP_RETRY_BUDGET` consecutive
-    /// retries, yields [`SessionError::Write`]. A successful partial write refreshes the budget, so
-    /// only a channel making no progress can exhaust it (unreachable on the real PTY, but it keeps a
-    /// degenerate channel from looping forever).
+    /// partial write until the whole buffer lands (R13). A successful partial write refreshes the
+    /// retry budget, so only a channel making no progress can exhaust it (unreachable on the real
+    /// PTY, but it keeps a degenerate channel from looping forever).
+    ///
+    /// # Errors
+    ///
+    /// A disconnect — a `BrokenPipe`/`EIO` error or a zero-length write (EOF symmetry with
+    /// `pump`) — yields [`SessionError::Disconnected`] (R15); any other failure, or a stall that
+    /// exhausts the `PUMP_RETRY_BUDGET` consecutive retries, yields [`SessionError::Write`].
     pub fn write_bytes(&mut self, bytes: &[u8]) -> Result<(), SessionError> {
         // #423: once the child's exit has been OBSERVED (pump surfaced ChildExited), writes fail
         // by STATE — Linux masters accept post-close writes (flip-buffer, no reader), so the
@@ -356,6 +392,10 @@ impl TerminalSession {
     }
 
     /// Write `command` followed by carriage-return then line-feed (`\r\n`) to the PTY leader (R14).
+    ///
+    /// # Errors
+    ///
+    /// As [`write_bytes`](Self::write_bytes).
     pub fn write_command(&mut self, command: &str) -> Result<(), SessionError> {
         let mut bytes = command.as_bytes().to_vec();
         bytes.push(b'\r');
@@ -363,8 +403,11 @@ impl TerminalSession {
         self.write_bytes(&bytes)
     }
 
-    /// Resize the PTY window and the render grid to `cols`×`rows` (R17). A failed winsize ioctl
-    /// yields [`SessionError::Resize`].
+    /// Resize the PTY window and the render grid to `cols`×`rows` (R17).
+    ///
+    /// # Errors
+    ///
+    /// A failed winsize ioctl yields [`SessionError::Resize`].
     pub fn resize(&mut self, cols: u16, rows: u16) -> Result<(), SessionError> {
         self.channel
             .set_winsize(cols, rows)
@@ -383,6 +426,9 @@ impl TerminalSession {
     ///
     /// Returns a [`SessionEvent::Wakeup`] when bytes were read, and a
     /// [`SessionEvent::ChildExited`] once the child has exited (finishing the running block first).
+    ///
+    /// # Errors
+    ///
     /// A fatal read with no accompanying child-exit yields [`SessionError::Disconnected`] —
     /// immediately for a non-`EIO` failure; for `EIO` only after the `EIO_EXIT_GRACE` deadline
     /// with no exit event (#423: on Linux the master's `EIO` routinely beats the SIGCHLD byte,
@@ -464,6 +510,11 @@ impl TerminalSession {
     }
 
     /// Apply one decoded [`DcsHook`] directly to the model (R3–R7, R11, R21, R22).
+    ///
+    /// # Errors
+    ///
+    /// [`ApplyHookError::MissingSession`] when a `Preexec` or `Precmd` arrives before any
+    /// `InitShell` registered the session; the blocks are left unchanged.
     pub fn apply_hook(&mut self, hook: DcsHook) -> Result<(), ApplyHookError> {
         self.model.apply_hook(hook)
     }
@@ -471,7 +522,8 @@ impl TerminalSession {
     /// #433: the monotone block-lifecycle epoch — bumps once per block BORN
     /// (Preexec) and once per block FINISHED (Precmd or child exit). The
     /// problems producer's change gate: compare, never count.
-    pub fn block_epoch(&self) -> u64 {
+    #[must_use]
+    pub const fn block_epoch(&self) -> u64 {
         self.model.block_epoch()
     }
 
@@ -488,12 +540,17 @@ impl TerminalSession {
     }
 
     /// The session's per-command blocks.
-    pub fn blocks(&self) -> &BlockList {
+    #[must_use]
+    pub const fn blocks(&self) -> &BlockList {
         self.model.blocks()
     }
 
     /// #433 (cross-crate TEST SCAFFOLDING — hidden): see
     /// [`SessionModel::seed_finished_block_for_test`].
+    ///
+    /// # Errors
+    ///
+    /// Whatever the model's seed refuses (see there).
     #[doc(hidden)]
     pub fn seed_finished_block_for_test(
         &mut self,
@@ -501,14 +558,15 @@ impl TerminalSession {
         pwd: Option<&str>,
         exit: Option<i32>,
         output: &str,
-    ) {
+    ) -> Result<(), ApplyHookError> {
         self.model
-            .seed_finished_block_for_test(command, pwd, exit, output);
+            .seed_finished_block_for_test(command, pwd, exit, output)
     }
 
     /// The prompt context staged for the LIVE prompt (the cwd/git the next command will run in), or
     /// `None` when no precmd has reported it yet. Renders the input-row context segments (R43).
-    pub fn current_prompt(&self) -> Option<&PromptInfo> {
+    #[must_use]
+    pub const fn current_prompt(&self) -> Option<&PromptInfo> {
         self.model.current_prompt()
     }
 
@@ -516,7 +574,9 @@ impl TerminalSession {
     /// PTY's `Drop` runs the BOUNDED reap (TICKET-348 — `SIGHUP`→`SIGKILL`→give-up on the
     /// `reap_step` deadlines), so this returns within those bounds even against a child that
     /// ignores `SIGHUP`.
-    pub fn shutdown(self) {}
+    pub fn shutdown(self) {
+        drop(self);
+    }
 
     /// Feed one read chunk through the scanner and process its [`DcsEvent`] stream IN ORDER: render
     /// each passthrough run into the current block, and decode + apply each completed DCS hook where
@@ -539,11 +599,11 @@ impl TerminalSession {
                             &self.term,
                         )));
                 }
-                DcsEvent::Hook(raw) => {
-                    let Some(encoding) = encoding_for_dcs_terminator(raw.final_byte) else {
+                DcsEvent::Hook(frame) => {
+                    let Some(encoding) = encoding_for_dcs_terminator(frame.final_byte) else {
                         continue;
                     };
-                    let Ok(hook) = decode_hook(encoding, &raw.payload) else {
+                    let Ok(hook) = decode_hook(encoding, &frame.payload) else {
                         continue;
                     };
                     if matches!(hook, DcsHook::Preexec(_)) {
@@ -559,7 +619,10 @@ impl TerminalSession {
                             full_term_to_styled_rows(&self.term),
                         ));
                     }
-                    let _ = self.model.apply_hook(hook);
+                    if let Err(error) = self.model.apply_hook(hook) {
+                        // R11: a hook before the shell's `InitShell` leaves the blocks unchanged.
+                        log::debug!("marley_terminal: dropped a shell hook: {error:?}");
+                    }
                 }
             }
         }
@@ -607,10 +670,9 @@ fn build_term(cols: u16, rows: u16) -> Term<VoidListener> {
 fn term_to_styled_rows(term: &Term<VoidListener>) -> Vec<StyledLine> {
     let grid = term.grid();
     let cols = grid.columns();
-    let lines = grid.screen_lines();
-    let mut rows = Vec::with_capacity(lines);
-    for line in 0..lines {
-        let row = &grid[Line(line as i32)];
+    let mut rows = Vec::with_capacity(grid.screen_lines());
+    for line in 0..i32::try_from(grid.screen_lines()).unwrap_or(i32::MAX) {
+        let row = &grid[Line(line)];
         let cells = (0..cols).map(|col| {
             let cell = &row[Column(col)];
             (
@@ -634,9 +696,10 @@ fn term_to_styled_rows(term: &Term<VoidListener>) -> Vec<StyledLine> {
 fn full_term_to_styled_rows(term: &Term<VoidListener>) -> Vec<StyledLine> {
     let grid = term.grid();
     let cols = grid.columns();
-    let screen = grid.screen_lines() as i32;
-    let history = grid.history_size() as i32; // scrolled-off lines (saturating; underflow-proof)
-    let mut rows = Vec::with_capacity((history + screen) as usize);
+    let screen = i32::try_from(grid.screen_lines()).unwrap_or(i32::MAX);
+    // Scrolled-off lines (saturating; underflow-proof).
+    let history = i32::try_from(grid.history_size()).unwrap_or(i32::MAX);
+    let mut rows = Vec::with_capacity(grid.history_size() + grid.screen_lines());
     for line in -history..screen {
         let row = &grid[Line(line)];
         let cells = (0..cols).map(|col| {
@@ -682,7 +745,7 @@ mod tests {
 
     impl MockPtyChannel {
         fn new() -> Self {
-            MockPtyChannel {
+            Self {
                 reads: VecDeque::new(),
                 writes: VecDeque::new(),
                 winsize: VecDeque::new(),
@@ -709,7 +772,7 @@ mod tests {
 
     impl PtyChannel for MockPtyChannel {
         fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-            self.read_count.fetch_add(1, Ordering::Relaxed);
+            let _previous = self.read_count.fetch_add(1, Ordering::Relaxed);
             match self.reads.pop_front() {
                 Some(Ok(bytes)) => {
                     assert!(bytes.len() <= buf.len(), "mock read must fit the buffer");
@@ -753,6 +816,16 @@ mod tests {
     /// Build a `TerminalSession` (80×24, `SessionId::from(1)`) around `mock`.
     fn session(mock: MockPtyChannel) -> TerminalSession {
         TerminalSession::with_channel(Box::new(mock), SessionId::from(1), 80, 24)
+    }
+
+    #[test]
+    fn debug_names_the_session_by_its_id() {
+        let s = session(MockPtyChannel::new());
+        let id = s.session_id();
+        assert_eq!(
+            format!("{s:?}"),
+            format!("TerminalSession {{ session_id: {id:?}, .. }}")
+        );
     }
 
     /// The block at execution position `n` (the `BlockIndex` field is private to `block`).
@@ -803,7 +876,7 @@ mod tests {
         // slicing, the `while !remaining.is_empty()` guard, and write_bytes -> Ok(())).
         let mut mock = MockPtyChannel::new();
         mock.writes.extend([Ok(3), Ok(2), Ok(5)]);
-        let recorded = mock.recorded_writes.clone();
+        let recorded = Arc::clone(&mock.recorded_writes);
         let mut s = session(mock);
         assert_eq!(s.write_bytes(b"ABCDEFGHIJ"), Ok(()));
         assert_eq!(&*recorded.lock().unwrap(), b"ABCDEFGHIJ");
@@ -817,7 +890,7 @@ mod tests {
         let mut mock = MockPtyChannel::new();
         mock.writes
             .extend([Err(io::Error::from(io::ErrorKind::WouldBlock)), Ok(2)]);
-        let recorded = mock.recorded_writes.clone();
+        let recorded = Arc::clone(&mock.recorded_writes);
         let mut s = session(mock);
         assert_eq!(s.write_bytes(b"AB"), Ok(()));
         assert_eq!(&*recorded.lock().unwrap(), b"AB");
@@ -867,7 +940,7 @@ mod tests {
     fn write_command_appends_crlf() {
         // write_command("ls") writes exactly b"ls\r\n" (R14).
         let mock = MockPtyChannel::new();
-        let recorded = mock.recorded_writes.clone();
+        let recorded = Arc::clone(&mock.recorded_writes);
         let mut s = session(mock);
         assert_eq!(s.write_command("ls"), Ok(()));
         assert_eq!(&*recorded.lock().unwrap(), b"ls\r\n");
@@ -879,7 +952,8 @@ mod tests {
     fn seed_delegate_mints_block_and_epoch_on_the_session() {
         let mock = MockPtyChannel::new();
         let mut s = session(mock);
-        s.seed_finished_block_for_test("make", Some("/w"), Some(2), "src/a.rs:2: err");
+        s.seed_finished_block_for_test("make", Some("/w"), Some(2), "src/a.rs:2: err")
+            .unwrap();
         assert_eq!(s.block_epoch(), 2, "born + finished through the delegate");
         let b = s.blocks().iter().next().expect("the seeded block");
         assert_eq!(b.command, "make");
@@ -895,7 +969,8 @@ mod tests {
     fn stage_run_tag_delegate_binds_through_the_session() {
         let mut s = session(MockPtyChannel::new());
         s.stage_run_tag("main".to_string(), "cargo run".to_string());
-        s.seed_finished_block_for_test("cargo run", None, Some(1), "err");
+        s.seed_finished_block_for_test("cargo run", None, Some(1), "err")
+            .unwrap();
         assert_eq!(
             s.blocks().iter().next().and_then(|b| b.run_tag.as_deref()),
             Some("main")
@@ -966,7 +1041,7 @@ mod tests {
         let mut mock = MockPtyChannel::new();
         mock.push_read(&chunk);
         let mut s = session(mock);
-        s.pump().unwrap();
+        let _events = s.pump().unwrap();
         assert_eq!(s.blocks().len(), 2);
         assert_eq!(block_at(&s, 0).output_text(), "first");
         assert_eq!(block_at(&s, 1).output_text(), "second");
@@ -986,7 +1061,7 @@ mod tests {
         let mut mock = MockPtyChannel::new();
         mock.push_read(&chunk);
         let mut s = session(mock);
-        s.pump().unwrap();
+        let _events = s.pump().unwrap();
         assert_eq!(s.blocks().current().unwrap().output_text(), "abc\ndef");
     }
 
@@ -1010,7 +1085,7 @@ mod tests {
         let mut mock = MockPtyChannel::new();
         mock.push_read(&chunk);
         let mut s = session(mock);
-        s.pump().unwrap();
+        let _events = s.pump().unwrap();
         let text = block_at(&s, 0).output_text();
         let lines: Vec<&str> = text.lines().collect();
         assert_eq!(
@@ -1036,7 +1111,7 @@ mod tests {
         let mut mock = MockPtyChannel::new();
         mock.push_read(&chunk);
         let mut s = session(mock);
-        s.pump().unwrap();
+        let _events = s.pump().unwrap();
         assert_eq!(block_at(&s, 0).output_text(), "one\ntwo\nthree");
     }
 
@@ -1054,7 +1129,7 @@ mod tests {
         let mut mock = MockPtyChannel::new();
         mock.push_read(&chunk);
         let mut s = session(mock);
-        s.pump().unwrap();
+        let _events = s.pump().unwrap();
         let out = s.blocks().current().unwrap().output_styled();
         assert_eq!(
             out.len(),
@@ -1115,6 +1190,17 @@ mod tests {
         let mut s = session(mock);
         assert_eq!(s.pump(), Ok(vec![SessionEvent::Wakeup]));
         assert_eq!(s.blocks().len(), 0);
+    }
+
+    #[test]
+    fn pump_drops_a_hook_that_arrives_before_init_shell() {
+        // R11 through the byte path: a `Preexec` with no `InitShell` before it opens no block.
+        let mut mock = MockPtyChannel::new();
+        mock.push_read(&dcs_plain("preexec;command=make"));
+        let mut s = session(mock);
+        assert_eq!(s.pump(), Ok(vec![SessionEvent::Wakeup]));
+        assert_eq!(s.blocks().len(), 0);
+        assert_eq!(s.block_epoch(), 0);
     }
 
     #[test]
@@ -1208,7 +1294,9 @@ mod tests {
     fn eio_grace_expiry_boundary() {
         // The pure boundary a live Instant can never hold still for: elapsed == GRACE counts as
         // EXPIRED (kills the `>=`-vs-`>` mutant deterministically; the neighbors kill the rest).
-        assert!(!eio_grace_expired(EIO_EXIT_GRACE - Duration::from_nanos(1)));
+        assert!(!eio_grace_expired(
+            EIO_EXIT_GRACE.saturating_sub(Duration::from_nanos(1))
+        ));
         assert!(eio_grace_expired(EIO_EXIT_GRACE));
         assert!(eio_grace_expired(EIO_EXIT_GRACE + Duration::from_nanos(1)));
     }
@@ -1262,7 +1350,7 @@ mod tests {
         // records + succeeds — the Linux-master shape), so only the state check can refuse.
         let mut mock = MockPtyChannel::new();
         mock.child_exit.push_back(Some(ExitCode(Some(0))));
-        let recorded = mock.recorded_writes.clone();
+        let recorded = Arc::clone(&mock.recorded_writes);
         let mut s = session(mock);
         assert_eq!(
             s.pump(),
@@ -1336,12 +1424,12 @@ mod tests {
         .concat();
         let mut mock = MockPtyChannel::new();
         mock.push_read(&chunk);
-        let read_count = mock.read_count.clone();
+        let read_count = Arc::clone(&mock.read_count);
         let mut s = session(mock);
-        s.pump().unwrap();
+        let _events = s.pump().unwrap();
         let after_pump = read_count.load(Ordering::Relaxed);
         for _ in 0..5 {
-            let _ = block_at(&s, 0).output_text();
+            let _text = block_at(&s, 0).output_text();
         }
         assert_eq!(read_count.load(Ordering::Relaxed), after_pump);
     }
@@ -1370,7 +1458,7 @@ mod tests {
         mock.push_read(b"\x1b[?1049h");
         let mut s = session(mock);
         assert!(!s.is_alt_screen()); // starts on the primary screen (false)
-        s.pump().unwrap();
+        let _events = s.pump().unwrap();
         assert!(s.is_alt_screen()); // entered the alternate screen (true) — kills contains/flag mutants
     }
 
@@ -1386,7 +1474,7 @@ mod tests {
             !s.mouse_modes().tracking(),
             "no tracking before the DECSETs"
         );
-        s.pump().unwrap();
+        let _events = s.pump().unwrap();
         let m = s.mouse_modes();
         assert!(
             m.click && m.sgr && m.alt_scroll,
@@ -1409,7 +1497,7 @@ mod tests {
         let mut s = session(mock);
         assert!(!s.is_app_cursor(), "cursor keys are normal by default");
         assert!(!s.mouse_modes().app_cursor);
-        s.pump().unwrap();
+        let _events = s.pump().unwrap();
         assert!(s.is_app_cursor(), "DECSET 1 flips application-cursor on");
         assert!(
             s.mouse_modes().app_cursor,
@@ -1425,7 +1513,7 @@ mod tests {
         mock.push_read(b"\x1b[?2004h");
         let mut s = session(mock);
         assert!(!s.is_bracketed_paste()); // off by default
-        s.pump().unwrap();
+        let _events = s.pump().unwrap();
         assert!(s.is_bracketed_paste()); // on after DECSET 2004 — kills contains/flag mutants
     }
 
@@ -1438,7 +1526,7 @@ mod tests {
             mock.push_read(chunk);
             mock.push_read_err(io::ErrorKind::WouldBlock);
             let mut s = session(mock);
-            s.pump().unwrap();
+            let _events = s.pump().unwrap();
             s.is_command_running()
         }
         // A fresh session — no command has ever run → not running (kills the `-> true` mutant).
@@ -1471,7 +1559,7 @@ mod tests {
         mock.push_read(&chunk);
         mock.push_read_err(io::ErrorKind::WouldBlock);
         let mut s = session(mock);
-        s.pump().unwrap();
+        let _events = s.pump().unwrap();
         assert!(s.current_prompt().is_some());
     }
 
@@ -1481,7 +1569,7 @@ mod tests {
         let mut mock = MockPtyChannel::new();
         mock.push_read(b"hi");
         let mut s = session(mock);
-        s.pump().unwrap();
+        let _events = s.pump().unwrap();
         let rows = s.grid_styled_rows();
         // The first row's concatenated run text is "hi" (kills grid_styled_rows -> vec![]).
         let first: String = rows[0].iter().map(|r| r.text.as_str()).collect();
@@ -1501,7 +1589,7 @@ mod tests {
         let mut mock = MockPtyChannel::new();
         mock.push_read(&osc8);
         let mut s = session(mock);
-        s.pump().unwrap();
+        let _events = s.pump().unwrap();
         // The run rendering "click" carries the explicit hyperlink URI; a plain char would carry None.
         let link_run = s
             .grid_styled_rows()
@@ -1529,7 +1617,7 @@ mod tests {
         let mut mock = MockPtyChannel::new();
         mock.push_read(&chunk);
         let mut s = session(mock);
-        s.pump().unwrap();
+        let _events = s.pump().unwrap();
         let link_run = block_at(&s, 0)
             .output_styled()
             .iter()
@@ -1543,7 +1631,7 @@ mod tests {
     #[test]
     fn ctrl_c_writes_the_interrupt_byte() {
         let mock = MockPtyChannel::new();
-        let recorded = mock.recorded_writes.clone();
+        let recorded = Arc::clone(&mock.recorded_writes);
         let mut s = session(mock);
         let bytes = crate::keys::encode_key(
             crate::keys::KeyInput {

@@ -12,15 +12,16 @@ use crate::permission::GrantTable;
 
 /// The serde default for `enabled`: a hand-edited entry that OMITS the key is ENABLED. A bare
 /// `#[serde(default)]` on a `bool` would give `false` and flip the meaning of an omitted key (D6).
-fn default_enabled() -> bool {
+const fn default_enabled() -> bool {
     true
 }
 
-/// One configured MCP server (`[[mcp.servers]]`): a name, a transport (stdio `command`/`args` OR http
-/// `url`), an `enabled` flag, and the tool-class grants a consumer applies. Every non-identity field is
-/// `#[serde(default)]` so a hand-edited entry that omits one loads with its default rather than dropping
-/// every saved server (the #204 lesson). Vocabulary matches the `.mcp.json` convention (D3); no
-/// credential/header field (D4).
+/// One configured MCP server (`[[mcp.servers]]`): a name, a transport (stdio `command`/`args` OR
+/// http `url`), an `enabled` flag, and the tool-class grants a consumer applies.
+///
+/// Every non-identity field is `#[serde(default)]` so a hand-edited entry that omits one loads with
+/// its default rather than dropping every saved server (the #204 lesson). Vocabulary matches the
+/// `.mcp.json` convention (D3); no credential/header field (D4).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct McpServerConfig {
     /// The server's name (identity).
@@ -50,7 +51,7 @@ impl Default for McpServerConfig {
     /// all-optional-keys-absent decode (D6). A derived `Default` would give `enabled: false`, diverging
     /// from the hand-edit semantics; a test pins the equality.
     fn default() -> Self {
-        McpServerConfig {
+        Self {
             name: String::new(),
             command: None,
             args: Vec::new(),
@@ -92,10 +93,10 @@ pub enum McpConfigError {
 impl fmt::Display for McpConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            McpConfigError::NoTransport => {
+            Self::NoTransport => {
                 write!(f, "mcp server entry has neither `command` nor `url`")
             }
-            McpConfigError::BothTransports => {
+            Self::BothTransports => {
                 write!(f, "mcp server entry has BOTH `command` and `url`")
             }
         }
@@ -105,8 +106,13 @@ impl fmt::Display for McpConfigError {
 impl std::error::Error for McpConfigError {}
 
 impl McpServerConfig {
-    /// Resolve this entry's transport (D2/REQ-003/004): `command` alone → `Stdio`, `url` alone → `Http`,
-    /// neither → `NoTransport`, both → `BothTransports`. Typed, per-entry, never a panic.
+    /// Resolve this entry's transport (D2/REQ-003/004): `command` alone → `Stdio`, `url` alone →
+    /// `Http`. Typed, per-entry, never a panic.
+    ///
+    /// # Errors
+    ///
+    /// [`McpConfigError::NoTransport`] when the entry names neither a command nor a URL, and
+    /// [`McpConfigError::BothTransports`] when it names both.
     pub fn transport(&self) -> Result<McpTransport, McpConfigError> {
         match (&self.command, &self.url) {
             (Some(command), None) => Ok(McpTransport::Stdio {
@@ -119,8 +125,9 @@ impl McpServerConfig {
         }
     }
 
-    /// The permission grants this server's `allow_write` classes confer (D7/REQ-007) — the marley_mcp
+    /// The permission grants this server's `allow_write` classes confer (D7/REQ-007) — the `marley_mcp`
     /// [`GrantTable`] #370 enforces. `allow` (read classes) is carried but not consumed (read tier is loose).
+    #[must_use]
     pub fn grants(&self) -> GrantTable {
         GrantTable::from_classes(self.allow_write.iter().cloned())
     }

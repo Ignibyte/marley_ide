@@ -70,15 +70,21 @@ pub enum Route {
 }
 
 /// The C0 control byte for `Ctrl+key` (R25): `(c as u8) & 0x1f` — e.g. Ctrl-C → 3, Ctrl-D → 4,
-/// Ctrl-Z → 26. `& 0x1f` already masks the ASCII case bit, so there is deliberately no
-/// `to_ascii_uppercase` (it would be a no-op — an unkillable/equivalent mutant).
-pub fn ctrl_byte(c: char) -> u8 {
+/// Ctrl-Z → 26.
+///
+/// `& 0x1f` already masks the ASCII case bit, so there is deliberately no `to_ascii_uppercase` (it
+/// would be a no-op — an unkillable/equivalent mutant).
+#[must_use]
+pub const fn ctrl_byte(c: char) -> u8 {
     (c as u8) & 0x1f
 }
 
 /// Encode a key event to the bytes a terminal program expects (R25): a printable char → its UTF-8
-/// (ESC-prefixed when `alt`); `Ctrl+key` → the C0 control byte; named keys → their VT/CSI sequences.
+/// (ESC-prefixed when `alt`); `Ctrl+key` → the C0 control byte; named keys → their VT/CSI
+/// sequences.
+///
 /// `app_cursor` (#286 — DECCKM) switches an UNMODIFIED cursor key from the legacy CSI form to SS3.
+#[must_use]
 pub fn encode_key(input: KeyInput, app_cursor: bool) -> Vec<u8> {
     // The cursor keys carry the held modifiers as an xterm CSI parameter (R25); an unmodified
     // cursor key additionally switches CSI→SS3 under application cursor-key mode (#286).
@@ -120,7 +126,7 @@ pub fn encode_key(input: KeyInput, app_cursor: bool) -> Vec<u8> {
 /// +Alt(2) +Ctrl(4)` (2 = Shift, 5 = Ctrl, 8 = all). The powers of two keep the modifiers
 /// independent.
 fn modifier_param(shift: bool, alt: bool, ctrl: bool) -> u8 {
-    1 + shift as u8 + 2 * alt as u8 + 4 * ctrl as u8
+    1 + u8::from(shift) + 2 * u8::from(alt) + 4 * u8::from(ctrl)
 }
 
 /// A cursor key's bytes (R25 / #286): `ESC[1;<param><final>` when a modifier is held (`param > 1`
@@ -170,11 +176,15 @@ fn encode_fkey(n: u8) -> Vec<u8> {
     }
 }
 
-/// The PTY bytes for a clipboard paste (R25): WHEN a program has bracketed paste enabled, wrap the
-/// text in the `ESC[200~`…`ESC[201~` markers so a multi-line paste arrives as literal DATA — each
-/// newline is not submitted as a command. Every embedded `ESC[201~` is stripped first, so a pasted
-/// end-marker cannot close the bracket early and run the tail as commands (a paste-injection guard).
-/// WHEN bracketed paste is off, the raw UTF-8 bytes.
+/// The PTY bytes for a clipboard paste (R25).
+///
+/// WHEN a program has bracketed paste enabled, wrap the text in the `ESC[200~`…`ESC[201~` markers
+/// so a multi-line paste arrives as literal DATA — each newline is not submitted as a command.
+///
+/// Every embedded `ESC[201~` is stripped first, so a pasted end-marker cannot close the bracket
+/// early and run the tail as commands (a paste-injection guard). WHEN bracketed paste is off, the
+/// raw UTF-8 bytes.
+#[must_use]
 pub fn paste_bytes(text: &str, bracketed: bool) -> Vec<u8> {
     if bracketed {
         // Strip every embedded end-marker so a pasted `ESC[201~` cannot close the bracket early. A
@@ -195,11 +205,14 @@ pub fn paste_bytes(text: &str, bracketed: bool) -> Vec<u8> {
     }
 }
 
-/// Decide where a keystroke goes (R26): every key streams raw while the alternate screen is active (a
-/// full-screen program like vim/top) OR a foreground command is running (an inline interactive
-/// program — an arrow-key menu, `read` — owns the terminal) OR a control key is held (so Ctrl-C/D/Z
-/// reach the shell); otherwise it feeds the local cooked line editor.
-pub fn input_route(alt_screen: bool, ctrl: bool, command_running: bool) -> Route {
+/// Decide where a keystroke goes (R26).
+///
+/// Every key streams raw while the alternate screen is active (a full-screen program like vim/top)
+/// OR a foreground command is running (an inline interactive program — an arrow-key menu, `read` —
+/// owns the terminal) OR a control key is held (so Ctrl-C/D/Z reach the shell); otherwise it feeds
+/// the local cooked line editor.
+#[must_use]
+pub const fn input_route(alt_screen: bool, ctrl: bool, command_running: bool) -> Route {
     if alt_screen || command_running || ctrl {
         Route::Raw
     } else {

@@ -1263,3 +1263,36 @@ per change: `script/mutation.sh` runs it over the Marley crates at the end of a 
 rustal keeps its own mutation audit outside `bin/gate.sh`. Every other Rust quality tool
 stays in the gate. Loosened on a recorded reason, as the amendment rule asks: the per-change
 MSI 100 floor and the mandatory critic phase.
+
+## AD-claude-447-the-marley-crates-carry-rustals-lint-table-001
+*decided at: 2026-09-22 (Chad's goal: "mimic the quality gates on rustal") · status: shipped*
+
+Each Marley crate carries rustal's lint table in its own manifest:
+- clippy's pedantic, nursery and cargo groups at warn, which `-D warnings` makes binding;
+- a deny list with `missing_docs`, `missing_debug_implementations`, `unsafe_code`,
+  `unwrap_used`, `expect_used`, the doc-section lints and Zed's own denies;
+- `let_underscore_must_use`, added so Zed's `.rules` ban on `let _ =` for a fallible call is
+  mechanical.
+
+The table lives in each manifest because cargo gives a crate either the workspace's table or
+its own, and Zed's crates keep Zed's. The seven tables differ only in crate-specific allows,
+each with a comment in its manifest: the three cargo lints that read Zed's manifests, and
+`future_not_send` and `unused_results` in the gpui crate. Test code may unwrap and expect
+(`clippy.toml`); library code may not. In a private module, `unreachable_pub` against
+`redundant_pub_crate` is settled by structure (`pub(super)` two or more levels deep, a `pub`
+module when siblings reach it), never by an `#[allow(unreachable_pub)]`. The alternative, Zed's
+workspace lints alone, let 679 findings stand in the ported crates: unwraps on response paths,
+discarded fallible results, missing docs and casts that wrap.
+
+## AD-claude-447-a-gate-run-names-its-mode-and-revokes-the-old-receipt-001
+*decided at: 2026-09-22 · status: shipped*
+
+`script/gates.sh` takes `--full`, `--diff` or `--fast` and nothing else; a missing or unknown
+mode is a usage error before any gate runs, so no run is FULL by accident. A receipt-bearing run
+removes the old receipt before its first gate. A tree that passed once and fails now cannot then
+commit on the older green. The new receipt binds the fingerprint taken at the start, and the run
+fails when the gated files at the end differ, so the receipt always names the tree the gates
+ran on. After a static red the heavy gates report BLOCKED instead of running: coverage over a
+tree that fails clippy proves nothing. The new checks take the numbers 17 to 20; retired
+numbers (5 and 15) stay retired so old notes keep their meaning. All of it is carried over
+from rustal's `bin/gate.sh`, scoped to the Marley crates.

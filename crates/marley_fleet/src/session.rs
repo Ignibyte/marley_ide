@@ -4,9 +4,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-/// The generic lifecycle state of a seat — the CLOSED vocabulary (orchestration-shell §3). `Error` is
-/// first-class and distinct from `Idle`: a crashed seat is stopped-and-silent, never "at rest" (the
-/// dead-vs-idle blindness the evidence night named).
+/// The generic lifecycle state of a seat — the CLOSED vocabulary (orchestration-shell §3).
+///
+/// `Error` is first-class and distinct from `Idle`: a crashed seat is stopped-and-silent, never "at
+/// rest" (the dead-vs-idle blindness the evidence night named).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum State {
@@ -89,10 +90,10 @@ mod tests {
 
     fn labeled() -> BTreeMap<String, String> {
         // Opaque values only — proves labels ride through uninterpreted (D1/D4).
-        let mut m = BTreeMap::new();
-        m.insert("ticket".to_string(), "1696".to_string());
-        m.insert("capabilities.mode".to_string(), "bypass".to_string());
-        m
+        BTreeMap::from([
+            ("ticket".to_string(), "1696".to_string()),
+            ("capabilities.mode".to_string(), "bypass".to_string()),
+        ])
     }
 
     // REQ-013: a Session round-trips for every state, every transport (incl. None), question ±,

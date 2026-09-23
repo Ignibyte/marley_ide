@@ -1679,3 +1679,14 @@ path that the file had already imported gave it away. The Phase 2 notes said "wr
 The code was glue the API forces, but the crate's license label holds only if nothing GPL is in
 it. Found by the #438 upstream-discipline critic. Fixed: rewritten from the public contracts
 (`compute_disambiguation_details`, `ProjectGroupKey::display_name`) in the rail's own shape.
+
+## F-claude-447-a-warning-check-read-quiet-cargo-output-001
+*severity: medium · category: quality gate · pipeline 447*
+
+gate:14's new check fails the run when the doc build prints a `warning:` line, and the first
+version ran `cargo doc --quiet`. `--quiet` makes cargo drop its own warnings, such as an unused
+manifest key or an output filename collision, so the only warnings left for the check to see
+were rustdoc's, which `-D warnings` already turns into errors. The check could not fail. Found
+in the Test phase while writing its negative smoke, which plants an unused manifest key, before
+the gate shipped. Fixed: gate:14 runs `cargo doc` without `--quiet`, and the planted key now
+turns it red.

@@ -21,6 +21,7 @@ pub enum ApplyHookError {
 }
 
 /// The in-memory session state the hook machine drives.
+#[derive(Debug)]
 pub struct SessionModel {
     session_id: SessionId,
     registry: HashMap<ShellSessionId, SessionId>,
@@ -35,7 +36,7 @@ pub struct SessionModel {
     /// construction). `InitShell` discards it with the staged prompt
     /// (R7/R22) — a spawn racing a fresh shell's init loses its tag and
     /// births a PLAIN block (fail-safe; the first successful Preexec is
-    /// always preceded by the registering InitShell).
+    /// always preceded by the registering `InitShell`).
     staged_run_tag: Option<(String, String)>,
     blocks: BlockList,
     bootstrapped: Option<bool>,
@@ -58,7 +59,7 @@ pub struct SessionModel {
 impl SessionModel {
     /// A fresh model for `session_id`, with an empty registry, no staged prompt, and no blocks.
     pub(crate) fn new(session_id: SessionId) -> Self {
-        SessionModel {
+        Self {
             session_id,
             registry: HashMap::new(),
             staged_prompt: None,
@@ -70,7 +71,7 @@ impl SessionModel {
     }
 
     /// #433: the monotone block-lifecycle epoch (see the field doc).
-    pub(crate) fn block_epoch(&self) -> u64 {
+    pub(crate) const fn block_epoch(&self) -> u64 {
         self.block_epoch
     }
 
@@ -99,7 +100,7 @@ impl SessionModel {
     pub(crate) fn apply_hook(&mut self, hook: DcsHook) -> Result<(), ApplyHookError> {
         match hook {
             DcsHook::InitShell { shell_session_id } => {
-                self.registry.insert(shell_session_id, self.session_id);
+                let _previous = self.registry.insert(shell_session_id, self.session_id);
                 self.staged_prompt = None;
                 self.staged_run_tag = None;
                 Ok(())
@@ -165,7 +166,7 @@ impl SessionModel {
     }
 
     /// The session's blocks.
-    pub(crate) fn blocks(&self) -> &BlockList {
+    pub(crate) const fn blocks(&self) -> &BlockList {
         &self.blocks
     }
 
@@ -175,6 +176,11 @@ impl SessionModel {
     /// Precmd finishes with `exit`), so app-level drives get deterministic
     /// failed blocks without a PTY. Rides [`Self::apply_hook`] verbatim —
     /// the epoch bumps exactly as live traffic would (+2 per seeded block).
+    ///
+    /// # Errors
+    ///
+    /// Whatever [`Self::apply_hook`] refuses. The session is registered before the first hook, so
+    /// its `MissingSession` refusal does not arise here.
     #[doc(hidden)]
     pub fn seed_finished_block_for_test(
         &mut self,
@@ -182,7 +188,7 @@ impl SessionModel {
         pwd: Option<&str>,
         exit: Option<i32>,
         output: &str,
-    ) {
+    ) -> Result<(), ApplyHookError> {
         use crate::block::ExitCode;
         use crate::dcs::{PrecmdValue, PreexecValue};
         if self.registry.is_empty() {
@@ -190,21 +196,22 @@ impl SessionModel {
             // wipes staged state (R7/R22), which would silently eat a tag a
             // drive staged for the FIRST seeded block of a fresh session
             // (inspect MED). Epoch-neutral either way (InitShell never bumps).
-            self.registry
+            let _previous = self
+                .registry
                 .insert(ShellSessionId(u64::MAX), self.session_id);
         }
         // Stage the pwd the next block will be born with (finishes nothing —
         // no running block yet on this path — so no spurious bump).
-        let _ = self.apply_hook(DcsHook::Precmd(PrecmdValue {
+        self.apply_hook(DcsHook::Precmd(PrecmdValue {
             exit_code: ExitCode(None),
             prompt: PromptInfo {
                 pwd: pwd.map(str::to_string),
                 ..PromptInfo::default()
             },
-        }));
-        let _ = self.apply_hook(DcsHook::Preexec(PreexecValue {
+        }))?;
+        self.apply_hook(DcsHook::Preexec(PreexecValue {
             command: command.to_string(),
-        }));
+        }))?;
         self.set_current_output(
             output
                 .lines()
@@ -223,26 +230,27 @@ impl SessionModel {
                 })
                 .collect(),
         );
-        let _ = self.apply_hook(DcsHook::Precmd(PrecmdValue {
+        self.apply_hook(DcsHook::Precmd(PrecmdValue {
             exit_code: ExitCode(exit),
             prompt: PromptInfo::default(),
-        }));
+        }))
     }
 
     /// The prompt context a `Precmd` staged for the LIVE prompt (before the next command's `Preexec`
     /// consumes it) — `None` until the first precmd, and again after a command starts. Used to render
     /// the cwd/git segments on the input row (R43).
-    pub(crate) fn current_prompt(&self) -> Option<&PromptInfo> {
+    pub(crate) const fn current_prompt(&self) -> Option<&PromptInfo> {
         self.staged_prompt.as_ref()
     }
 
     /// The session's [`crate::SessionId`].
-    pub(crate) fn session_id(&self) -> SessionId {
+    pub(crate) const fn session_id(&self) -> SessionId {
         self.session_id
     }
 
     /// Whether a `Bootstrapped` hook has been applied, and the subshell flag it reported.
-    pub fn bootstrapped(&self) -> Option<bool> {
+    #[must_use]
+    pub const fn bootstrapped(&self) -> Option<bool> {
         self.bootstrapped
     }
 }
@@ -330,9 +338,11 @@ mod tests {
     fn seed_after_stage_lands_the_tag_on_the_first_seeded_block() {
         let mut m = model();
         m.stage_run_tag("test:x".into(), "cargo test x".into());
-        m.seed_finished_block_for_test("cargo test x", Some("/w"), Some(101), "boom");
+        m.seed_finished_block_for_test("cargo test x", Some("/w"), Some(101), "boom")
+            .unwrap();
         assert_eq!(block_at(&m, 0).run_tag.as_deref(), Some("test:x"));
-        m.seed_finished_block_for_test("cargo test x", Some("/w"), Some(0), "");
+        m.seed_finished_block_for_test("cargo test x", Some("/w"), Some(0), "")
+            .unwrap();
         assert_eq!(block_at(&m, 1).run_tag, None, "take-once");
         // Both seeds completed through the real machine regardless of tags.
         assert_eq!(m.blocks().len(), 2);
@@ -617,7 +627,8 @@ mod tests {
             Some("/proj"),
             Some(101),
             "error: boom\nsrc/lib.rs:3:1: expected `;`",
-        );
+        )
+        .unwrap();
         assert_eq!(
             m.block_epoch(),
             2,
@@ -630,7 +641,8 @@ mod tests {
         assert_eq!(b.state, BlockState::Finished);
         assert_eq!(b.output_text(), "error: boom\nsrc/lib.rs:3:1: expected `;`");
         // A second seed reuses the registration; epochs keep climbing.
-        m.seed_finished_block_for_test("cargo build", Some("/proj"), Some(0), "");
+        m.seed_finished_block_for_test("cargo build", Some("/proj"), Some(0), "")
+            .unwrap();
         assert_eq!(m.block_epoch(), 4);
         assert_eq!(block_at(&m, 1).exit_code, ExitCode(Some(0)));
     }

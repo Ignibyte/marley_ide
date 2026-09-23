@@ -96,6 +96,7 @@ pub enum BlockCopy {
 impl Block {
     /// The text a block-copy action copies (R29): the command line, or the plain output
     /// (`output_text`, so a block-action copy agrees with a drag-copy of the same output).
+    #[must_use]
     pub fn copy_text(&self, what: BlockCopy) -> String {
         match what {
             BlockCopy::Command => self.command.clone(),
@@ -106,6 +107,7 @@ impl Block {
     /// The command to re-run this block (R30): `Some(command)` IFF the block has FINISHED and its
     /// command is non-empty; `None` for a still-running/pending block or an empty command (not
     /// re-runnable). The app resends it (`write_command`) only when the session is idle (#40).
+    #[must_use]
     pub fn rerun_command(&self) -> Option<String> {
         if self.state == BlockState::Finished && !self.command.is_empty() {
             Some(self.command.clone())
@@ -117,6 +119,7 @@ impl Block {
     /// The block's rendered output as a single plain string (R19): each line's run texts
     /// concatenated, the lines joined by `\n`, trailing blank lines trimmed. Byte-identical to the
     /// pre-color model — the styled runs are flattened here. No PTY read.
+    #[must_use]
     pub fn output_text(&self) -> String {
         self.output
             .iter()
@@ -129,6 +132,7 @@ impl Block {
 
     /// The block's rendered output as styled lines (R20b) — the per-run fg/bg/flags the render
     /// paints. `output_text` is the plain projection of the same data.
+    #[must_use]
     pub fn output_styled(&self) -> &[StyledLine] {
         &self.output
     }
@@ -149,16 +153,19 @@ pub struct BlockList {
 
 impl BlockList {
     /// The number of blocks.
-    pub fn len(&self) -> usize {
+    #[must_use]
+    pub const fn len(&self) -> usize {
         self.blocks.len()
     }
 
     /// Whether the list holds no blocks.
-    pub fn is_empty(&self) -> bool {
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
         self.blocks.is_empty()
     }
 
     /// The block at `index`, or `None` if no block has that index.
+    #[must_use]
     pub fn get(&self, index: BlockIndex) -> Option<&Block> {
         self.blocks.get(index.0)
     }
@@ -166,12 +173,14 @@ impl BlockList {
     /// The most recent re-runnable command (R30) — the LAST block, in execution order, whose
     /// [`Block::rerun_command`] is `Some` (Finished + non-empty). Drives cmd-R; `None` when no
     /// finished command exists.
+    #[must_use]
     pub fn last_rerunnable(&self) -> Option<String> {
-        self.blocks.iter().rev().find_map(|b| b.rerun_command())
+        self.blocks.iter().rev().find_map(Block::rerun_command)
     }
 
     /// The current block — the most recently opened block IFF it is still `Running` (R2); `None`
     /// once it has finished.
+    #[must_use]
     pub fn current(&self) -> Option<&Block> {
         self.blocks
             .last()

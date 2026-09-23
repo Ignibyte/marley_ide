@@ -77,7 +77,8 @@ pub enum DecodeError {
 
 /// Map a DCS terminator (selector) byte to the [`DcsEncoding`] it names, or `None` for an unknown
 /// terminator (R20).
-pub fn encoding_for_dcs_terminator(terminator: u8) -> Option<DcsEncoding> {
+#[must_use]
+pub const fn encoding_for_dcs_terminator(terminator: u8) -> Option<DcsEncoding> {
     match terminator {
         b'h' => Some(DcsEncoding::Hex),
         b'p' => Some(DcsEncoding::Plain),
@@ -91,9 +92,13 @@ pub fn encoding_for_dcs_terminator(terminator: u8) -> Option<DcsEncoding> {
 /// `AnsiCQuoted` payloads are split into `name;key=value;…` on UNESCAPED separators FIRST and
 /// each piece is un-escaped separately (R24) — so `\;` (or a `\xHH` decoding to a separator)
 /// stays inside its field's value. `Hex`/`Plain` payloads keep the legacy order: decode the whole
-/// payload, then split the decoded text. A codec/UTF-8 failure or a missing/malformed required
-/// field yields [`DecodeError::UndecodablePayload`]; a well-formed payload naming no known hook
-/// yields [`DecodeError::UnknownHook`]. Stateless — it mutates no model.
+/// payload, then split the decoded text. Stateless — it mutates no model.
+///
+/// # Errors
+///
+/// A codec/UTF-8 failure or a missing/malformed required field yields
+/// [`DecodeError::UndecodablePayload`]; a well-formed payload naming no known hook yields
+/// [`DecodeError::UnknownHook`].
 pub fn decode_hook(encoding: DcsEncoding, payload: &[u8]) -> Result<DcsHook, DecodeError> {
     let (name, fields) = match encoding {
         DcsEncoding::AnsiCQuoted => {
@@ -188,7 +193,7 @@ pub fn decode_hook(encoding: DcsEncoding, payload: &[u8]) -> Result<DcsHook, Dec
 }
 
 /// Decode a single hex nibble, or `None` if `b` is not a hex digit.
-fn hex_val(b: u8) -> Option<u8> {
+const fn hex_val(b: u8) -> Option<u8> {
     match b {
         b'0'..=b'9' => Some(b - b'0'),
         b'a'..=b'f' => Some(b - b'a' + 10),
@@ -203,7 +208,7 @@ fn hex_decode(bytes: &[u8]) -> Result<Vec<u8>, DecodeError> {
         return Err(DecodeError::UndecodablePayload);
     }
     let mut out = Vec::with_capacity(bytes.len() / 2);
-    for pair in bytes.chunks_exact(2) {
+    for pair in bytes.as_chunks::<2>().0 {
         let hi = hex_val(pair[0]).ok_or(DecodeError::UndecodablePayload)?;
         let lo = hex_val(pair[1]).ok_or(DecodeError::UndecodablePayload)?;
         out.push((hi << 4) + lo);
@@ -270,7 +275,7 @@ fn split_unescaped(bytes: &[u8], sep: u8) -> Vec<&[u8]> {
 
 /// The index of the first UNESCAPED `sep` in still-escaped bytes (same escape-unit rule as
 /// [`split_unescaped`]), or `None` if every occurrence is escaped or absent (R24).
-fn find_unescaped(bytes: &[u8], sep: u8) -> Option<usize> {
+const fn find_unescaped(bytes: &[u8], sep: u8) -> Option<usize> {
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'\\' {

@@ -23,8 +23,8 @@ Plan → Code → Test → Complete: `/pipeline:plan` → `/pipeline:code` → `
 
 ## Standards
 
-The bar is CONSTITUTION §0: Zed's own gates for Zed's crates; the full Marley bar (100% line
-coverage and the meta-gates) for `crates/marley_*`. Mutation testing runs once at the end of a
+The bar is CONSTITUTION §0: Zed's own gates for Zed's crates; the full Marley bar (rustal's
+lint table, 100% line coverage and the meta-gates) for `crates/marley_*`. Mutation testing runs once at the end of a
 sprint (`script/mutation.sh`), not per change. Prose follows the
 `no-ai-slop` skill. Changes inside Zed's crates are additive and small so upstream merges
 stay cheap.

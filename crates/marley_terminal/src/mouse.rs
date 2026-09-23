@@ -1,11 +1,15 @@
-//! PURE — xterm mouse-tracking encoding (M17 #280, the `keys.rs`/`encode_key` symmetry): when
-//! a TUI has requested tracking (DECSET 1000/1002/1003, negotiated up to SGR 1006), the app's
-//! grid events encode here and stream to the PTY. The reference is the public xterm ctlseqs
-//! specification; the DECSET flags themselves are parsed by `alacritty_terminal` into
-//! `TermMode` — the session snapshots them into the gpui-free [`MouseModes`].
+//! PURE — xterm mouse-tracking encoding (M17 #280, the `keys.rs`/`encode_key` symmetry).
+//!
+//! When a TUI has requested tracking (DECSET 1000/1002/1003, negotiated up to SGR 1006), the
+//! app's grid events encode here and stream to the PTY.
+//!
+//! The reference is the public xterm ctlseqs specification; the DECSET flags themselves are parsed
+//! by `alacritty_terminal` into `TermMode` — the session snapshots them into the gpui-free
+//! [`MouseModes`].
 
 /// A gpui-free snapshot of the terminal's mouse-related mode flags.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[allow(clippy::struct_excessive_bools)] // one flag per terminal mode, as the terminal reports them
 pub struct MouseModes {
     /// DECSET 1000 — report press/release.
     pub click: bool,
@@ -26,7 +30,8 @@ pub struct MouseModes {
 
 impl MouseModes {
     /// Whether ANY tracking mode is on (the report gate).
-    pub fn tracking(self) -> bool {
+    #[must_use]
+    pub const fn tracking(self) -> bool {
         self.click || self.drag || self.motion
     }
 }
@@ -58,7 +63,7 @@ pub struct MouseMods {
     pub ctrl: bool,
 }
 
-fn mod_bits(mods: MouseMods) -> u8 {
+const fn mod_bits(mods: MouseMods) -> u8 {
     (if mods.shift { 4 } else { 0 })
         + (if mods.alt { 8 } else { 0 })
         + (if mods.ctrl { 16 } else { 0 })
@@ -76,12 +81,13 @@ fn mod_bits(mods: MouseMods) -> u8 {
 /// - legacy X10 otherwise: `ESC [ M` + three bytes offset by 32, coords clamped at 223
 ///   (the byte-encoding ceiling); a release sends button code 3 per the spec;
 /// - buttons: base 0/1/2, +32 for drags, 64/65 for the wheel; modifier bits +4/+8/+16.
+#[must_use]
 pub fn mouse_report(
     modes: MouseModes,
     event: MouseEvent,
     col: u16,
     row: u16,
-    mods: MouseMods,
+    modifiers: MouseMods,
 ) -> Option<Vec<u8>> {
     if !modes.tracking() {
         // The alternate-scroll fallback: the wheel becomes arrow keys for full-screen
@@ -102,11 +108,11 @@ pub fn mouse_report(
         return None;
     }
     let (code, release) = match event {
-        MouseEvent::Press(b) => (b + mod_bits(mods), false),
-        MouseEvent::Release(b) => (b + mod_bits(mods), true),
-        MouseEvent::Drag(b) => (b + 32 + mod_bits(mods), false),
-        MouseEvent::WheelUp => (64 + mod_bits(mods), false),
-        MouseEvent::WheelDown => (65 + mod_bits(mods), false),
+        MouseEvent::Press(b) => (b + mod_bits(modifiers), false),
+        MouseEvent::Release(b) => (b + mod_bits(modifiers), true),
+        MouseEvent::Drag(b) => (b + 32 + mod_bits(modifiers), false),
+        MouseEvent::WheelUp => (64 + mod_bits(modifiers), false),
+        MouseEvent::WheelDown => (65 + mod_bits(modifiers), false),
     };
     if modes.sgr {
         let suffix = if release { 'm' } else { 'M' };
@@ -114,7 +120,11 @@ pub fn mouse_report(
     }
     // Legacy X10: the release byte is code 3 (button identity is lost by design); wheel
     // sends press-only like SGR. Coordinates clamp at 223 (255 - 32).
-    let x10_code = if release { 3 + mod_bits(mods) } else { code };
+    let x10_code = if release {
+        3 + mod_bits(modifiers)
+    } else {
+        code
+    };
     let x = col.min(223) as u8;
     let y = row.min(223) as u8;
     Some(vec![0x1b, b'[', b'M', 32 + x10_code, 32 + x, 32 + y])

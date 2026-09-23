@@ -6,6 +6,11 @@ MIT OR Apache-2.0. It links Zed's GPL crates (`workspace`, `sidebar`, `terminal_
 `recent_projects` and others), so it builds and ships only as part of the fork
 (AD-claude-438-marley-crates-may-link-zeds-gpl-crates-001).
 
+Its lint table is rustal's (CONSTITUTION §14, #447), with two allows that gpui calls for:
+`future_not_send`, since gpui's test and async contexts are not `Send`, and `unused_results`,
+since gpui's registration calls return `&mut App` for chaining and `.log_err()` returns an
+`Option`.
+
 ## The switch (`src/marley_workbench.rs`)
 
 - `MarleySettings` reads `marley.layout`: `zed` by default, or `marley`. The settings block is

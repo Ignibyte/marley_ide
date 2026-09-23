@@ -5,6 +5,7 @@
 //! end-to-end coverage; one best-effort DCS round-trip drives a scripted hook stream through a real
 //! shell. All hold `PTY_LOCK` — they share process/SIGCHLD state.
 #![cfg(unix)]
+#![allow(clippy::expect_used)] // a helper's failed expect fails its test, as a #[test] body's does
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -16,7 +17,7 @@ static PTY_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 fn serialized() -> std::sync::MutexGuard<'static, ()> {
     PTY_LOCK
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// Spawn `/bin/sh` on a fresh 80×24 PTY rooted in a throwaway temp dir. Returns the session and the
@@ -31,7 +32,7 @@ fn spawn_sh() -> (TerminalSession, tempfile::TempDir) {
         cols: 80,
         rows: 24,
     };
-    let session = TerminalSession::spawn(options).expect("spawn /bin/sh on a PTY");
+    let session = TerminalSession::spawn(&options).expect("spawn /bin/sh on a PTY");
     (session, dir)
 }
 
@@ -45,13 +46,13 @@ fn spawn_program(
     let dir = tempfile::tempdir().expect("tempdir");
     let options = SessionOptions {
         shell: PathBuf::from(program),
-        args: args.iter().map(|arg| arg.to_string()).collect(),
+        args: args.iter().map(ToString::to_string).collect(),
         cwd: dir.path().to_path_buf(),
         env: vec![],
         cols,
         rows,
     };
-    let session = TerminalSession::spawn(options).expect("spawn a program on a PTY");
+    let session = TerminalSession::spawn(&options).expect("spawn a program on a PTY");
     (session, dir)
 }
 
@@ -102,8 +103,9 @@ fn pump_until<T>(
 fn spawn_real_pty_succeeds() {
     let _serialized = serialized();
     let (session, _dir) = spawn_sh();
-    // A real spawn returns a usable handle with a process-unique id.
-    let _ = session.session_id();
+    // A real spawn returns a usable handle: its grid has the requested size and nothing runs yet.
+    assert_eq!(session.grid_styled_rows().len(), 24);
+    assert!(!session.is_command_running());
     session.shutdown();
 }
 
@@ -116,7 +118,7 @@ fn child_exit_reports_exact_code() {
     let code = pump_until(&mut session, Duration::from_secs(5), |_s, events| {
         events.iter().find_map(|e| match e {
             SessionEvent::ChildExited(code) => Some(*code),
-            _ => None,
+            SessionEvent::Wakeup => None,
         })
     });
     assert_eq!(
@@ -216,7 +218,7 @@ fn dcs_hook_stream_produces_a_block() {
     let _serialized = serialized();
     let (mut session, _dir) = spawn_sh();
     // Let the shell print its initial prompt.
-    pump_until(
+    let _prompt = pump_until(
         &mut session,
         Duration::from_millis(500),
         |_s, _e| None::<()>,
@@ -254,7 +256,7 @@ fn spawn_runs_the_given_program_and_arguments() {
     let code = pump_until(&mut session, Duration::from_secs(5), |_s, events| {
         events.iter().find_map(|e| match e {
             SessionEvent::ChildExited(code) => Some(*code),
-            _ => None,
+            SessionEvent::Wakeup => None,
         })
     });
     assert_eq!(
@@ -321,10 +323,12 @@ fn teardown_kills_a_child_that_ignores_hangup() {
         screen_text(&session)
     );
     let (done, finished) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
+    // Detached on purpose: the test waits on `finished` with a deadline, so a hung shutdown
+    // fails the test instead of hanging it.
+    drop(std::thread::spawn(move || {
         session.shutdown();
         done.send(()).expect("the test is still waiting");
-    });
+    }));
     assert!(
         finished.recv_timeout(Duration::from_secs(8)).is_ok(),
         "teardown must SIGKILL a child that ignores SIGHUP within the two reap deadlines"
@@ -369,7 +373,7 @@ fn spawn_passes_the_given_environment() {
         cols: 120,
         rows: 24,
     };
-    let mut session = TerminalSession::spawn(options).expect("spawn /bin/sh on a PTY");
+    let mut session = TerminalSession::spawn(&options).expect("spawn /bin/sh on a PTY");
     // Print the value through a second variable so the echoed command line never contains it.
     session
         .write_command("probe=$MARLEY_PTY_PROBE; echo \"seen:$probe\"")

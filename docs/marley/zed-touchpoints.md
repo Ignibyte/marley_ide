@@ -11,8 +11,8 @@ at every upstream merge.
 **Marley-owned paths**, never listed below: `crates/marley_*`, `docs/marley/`,
 `docs/planning/`, `docs/marley_architecture/`, `docs/specs/`, `docs/warp_architecture/`,
 `docs/zed_architecture/`, `docs/decisions/`, `docs/tickets/`, `.claude/`, `script/gates.sh`,
-`CONSTITUTION.md`, `CHANGELOG.md`, `deny.toml`, `.gitleaks.toml`, `.cargo/audit.toml`,
-`.mcp.json.example`.
+`script/mutation.sh`, `CONSTITUTION.md`, `CHANGELOG.md`, `deny.toml`, `.gitleaks.toml`,
+`.semgrep.yml`, `.cargo/audit.toml`, `.mcp.json.example`.
 
 ## Rules
 
@@ -43,6 +43,7 @@ first column.
 | `Cargo.lock` | Entries for the Marley crates and their dependencies, and `zed`'s dependency on `marley_workbench` | Generated | Regenerate; never hand-merge |
 | `.rules` | A "Marley" section above Zed's rules | Every agent session reads it first | Keep the section on top; take upstream's rules below it verbatim |
 | `.config/typos.toml` | `extend-exclude` entries for Marley's reference docs | They transcribe Warp and gpui-era text verbatim | Re-add the block |
+| `clippy.toml` | `allow-unwrap-in-tests` and `allow-expect-in-tests` | The Marley crates deny `unwrap_used` and `expect_used` outside tests (rustal's lint table, #447); Zed's crates enable neither lint, so the keys change nothing for them | Keep the two keys; take upstream's other settings verbatim |
 | `.gitignore` | `.mcp.json`, `/mutants.out`, `/mutants.out.old`, `/mutants.diff` | Local MCP config carries bearers; the end-of-sprint mutation run (`script/mutation.sh`) writes the rest | Re-add the block |
 | `README.md` | The two `> [!IMPORTANT]` review lines at the top | Zed's `.rules` self-review rule | Temporary. Chad removes them; an agent never does |
 | `crates/paths/src/paths.rs` | `APP_NAME` is `"Marley"`; unit tests check that the config, data and state directories end in `marley` and that `crates/zed/RELEASE_CHANNEL` stays `dev` | The fork keeps its settings, database and logs apart from a stock Zed install; `APP_NAME` is Zed's documented switch for forks. On any channel but `dev` the fork would share stock Zed's keyring items, updater and app id, so the channel stays `dev` until TICKET-445 gives Marley its own | Keep `"Marley"` and the `dev` channel. If upstream moves or renames `APP_NAME`, carry the value and the tests there |

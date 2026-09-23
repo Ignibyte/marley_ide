@@ -1,6 +1,8 @@
-//! The dispatch delivery-state machine — the mailbox contract that "never failed" (fleet-control-plane
-//! §2/§5), as monotone-join types. `Deposited < Claimed < Started`; an observation only ever advances,
-//! so a duplicate and a missed intermediate are both safe (Layer-2-ready).
+//! The dispatch delivery-state machine — the mailbox contract that "never failed"
+//! (fleet-control-plane §2/§5), as monotone-join types.
+//!
+//! `Deposited < Claimed < Started`; an observation only ever advances, so a duplicate and a missed
+//! intermediate are both safe (Layer-2-ready).
 
 use serde::{Deserialize, Serialize};
 
@@ -30,7 +32,8 @@ impl DeliveryState {
     /// Observe a (possibly duplicate or out-of-order) delivery-state. Advances to `observed` iff it is
     /// strictly further along than `self` — a skipped intermediate is legal (`Deposited → Started`). An
     /// observation at or behind `self` is an idempotent no-op reported as not advanced.
-    pub fn observe(self, observed: DeliveryState) -> DeliveryAdvance {
+    #[must_use]
+    pub fn observe(self, observed: Self) -> DeliveryAdvance {
         if observed > self {
             DeliveryAdvance {
                 state: observed,

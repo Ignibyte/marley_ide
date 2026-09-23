@@ -58,6 +58,7 @@ pub struct SurfaceRequest {
 }
 
 /// A request to answer a seat's standing question (`session.answer`, #377 — L2 gated-writes ①).
+///
 /// `choice` is the picked option string VERBATIM (never an index — indices renumber if the question
 /// re-renders; the string is what the human saw). `prompt` is the answered question's prompt — the
 /// question IDENTITY, so the brain can REFUSE an answer that arrives after the question changed (a
@@ -96,7 +97,7 @@ mod tests {
 
     fn rt<T>(v: &T)
     where
-        T: serde::Serialize + serde::de::DeserializeOwned + PartialEq + std::fmt::Debug,
+        T: Serialize + serde::de::DeserializeOwned + PartialEq + std::fmt::Debug,
     {
         let json = serde_json::to_string(v).unwrap();
         let back: T = serde_json::from_str(&json).unwrap();

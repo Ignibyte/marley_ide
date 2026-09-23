@@ -1,4 +1,4 @@
-//! The permission model (D5, §10 binding) — PURE, deny-by-default. marley_mcp OWNS `GrantTable` (the S1
+//! The permission model (D5, §10 binding) — PURE, deny-by-default. `marley_mcp` OWNS `GrantTable` (the S1
 //! resolution of the #370↔#371 build-order trap): the server is the source of truth for what a grant IS;
 //! #371's `[[mcp.*]]` settings round-trip merely DESERIALIZES into this type, so #370 ships + tests on
 //! fixture grants with no dependency on #371 landing first.
@@ -6,9 +6,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
-/// The set of granted WRITE tool-classes (deny-by-default: a class not listed is denied). Read tools need
-/// no grant. `#[serde(default)]` so a hand-edited settings file missing the key deserializes to "no
-/// grants" (the safe default) rather than failing.
+/// The set of granted WRITE tool-classes (deny-by-default: a class not listed is denied).
+///
+/// Read tools need no grant. `#[serde(default)]` so a hand-edited settings file missing the key
+/// deserializes to "no grants" (the safe default) rather than failing.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GrantTable {
     /// Explicitly-granted write tool-classes (e.g. `"session.write"`).
@@ -19,7 +20,7 @@ pub struct GrantTable {
 impl GrantTable {
     /// Build a grant table from a set of class names (test + settings convenience).
     pub fn from_classes<I: IntoIterator<Item = S>, S: Into<String>>(classes: I) -> Self {
-        GrantTable {
+        Self {
             write_classes: classes.into_iter().map(Into::into).collect(),
         }
     }
@@ -43,9 +44,13 @@ pub enum Decision {
     Deny(String),
 }
 
-/// Decide one call (D5). Read tier → always `Allow` (loose, zero configuration). Write tier → `Allow`
-/// ONLY when its non-empty `grant_class` is explicitly present in `grants`; everything else → `Deny`.
-/// Deny-by-default by construction: the only `Allow` arm for a write requires the class to be listed.
+/// Decide one call (D5).
+///
+/// Read tier → always `Allow` (loose, zero configuration). Write tier → `Allow` ONLY when its
+/// non-empty `grant_class` is explicitly present in `grants`; everything else → `Deny`.
+/// Deny-by-default by construction: the only `Allow` arm for a write requires the class to be
+/// listed.
+#[must_use]
 pub fn decide(tier: Tier, grant_class: &str, grants: &GrantTable) -> Decision {
     match tier {
         Tier::Read => Decision::Allow,

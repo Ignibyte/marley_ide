@@ -36,8 +36,6 @@ pub mod mouse;
 pub mod session;
 pub mod styled;
 
-#[cfg(unix)]
-mod pty_os;
 mod session_id;
 
 pub use block::{

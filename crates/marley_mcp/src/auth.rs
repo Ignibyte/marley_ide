@@ -1,21 +1,27 @@
 //! Pre-dispatch security guards (D1/D9, the MCP Streamable-HTTP Security Warning): bind loopback only,
 //! validate `Origin`, require the bearer. All PURE — the transport shim runs these BEFORE any dispatch.
 
-/// Whether an authority (`host` or `host:port`, IPv6 bracketed) names a loopback host — the ONLY address
-/// the server binds and the only `Origin` it accepts. The server mirror of the retired forge sidecar
-/// client's `is_loopback_authority` (#411): `localhost`, `127.0.0.0/8`, `::1` qualify.
+/// Whether an authority (`host` or `host:port`, IPv6 bracketed) names a loopback host — the ONLY
+/// address the server binds and the only `Origin` it accepts.
+///
+/// The server mirror of the retired forge sidecar client's `is_loopback_authority` (#411):
+/// `localhost`, `127.0.0.0/8`, `::1` qualify.
+#[must_use]
 pub fn is_loopback(authority: &str) -> bool {
-    let host = match authority.strip_prefix('[') {
-        Some(rest) => rest.split(']').next().unwrap_or(rest), // [::1]:9 → ::1
-        None => authority
-            .rsplit_once(':')
-            .map_or(authority, |(host, _)| host), // 127.0.0.1:9 → 127.0.0.1
-    };
+    let host = authority.strip_prefix('[').map_or_else(
+        // 127.0.0.1:9 → 127.0.0.1
+        || {
+            authority
+                .rsplit_once(':')
+                .map_or(authority, |(host, _)| host)
+        },
+        // [::1]:9 → ::1
+        |rest| rest.split(']').next().unwrap_or(rest),
+    );
     host == "localhost"
         || host
             .parse::<std::net::IpAddr>()
-            .map(|ip| ip.is_loopback())
-            .unwrap_or(false)
+            .is_ok_and(|ip| ip.is_loopback())
 }
 
 /// The authority (`host[:port]`) of an `Origin` header value like `http://127.0.0.1:9`. `None` if it has
@@ -25,21 +31,25 @@ fn origin_authority(origin: &str) -> Option<&str> {
     Some(rest.split(['/', '?', '#']).next().unwrap_or(rest))
 }
 
-/// Whether a request's `Origin` is allowed. A NON-browser MCP client (e.g. the manager's Claude Code
-/// harness) sends no `Origin` — allowed. A browser Origin is allowed ONLY if it names a loopback host;
-/// a cross-site / non-loopback Origin is REFUSED (the DNS-rebinding protection the spec mandates).
+/// Whether a request's `Origin` is allowed.
+///
+/// A NON-browser MCP client (e.g. the manager's Claude Code harness) sends no `Origin` — allowed. A
+/// browser Origin is allowed ONLY if it names a loopback host; a cross-site / non-loopback Origin
+/// is REFUSED (the DNS-rebinding protection the spec mandates).
+#[must_use]
 pub fn origin_allowed(origin: Option<&str>) -> bool {
-    match origin {
-        None => true,
-        Some(origin) => origin_authority(origin).map(is_loopback).unwrap_or(false),
-    }
+    origin.is_none_or(|origin| origin_authority(origin).is_some_and(is_loopback))
 }
 
-/// A length-independent-of-content byte comparison (#375, D5): length-check, then XOR-accumulate over
-/// EVERY byte with no early content-dependent exit, so the compare time doesn't leak how many leading
-/// bytes matched. Used for the bearer AND session ids. On a loopback-only server this is defense-in-depth
-/// (a local timing side-channel is a stretch), not a hot vulnerability — hence a 10-line pure fn, not a
+/// A byte comparison whose time does not depend on the content (#375, D5).
+///
+/// It checks the length, then XOR-accumulates over EVERY byte with no early content-dependent
+/// exit, so the compare time doesn't leak how many leading bytes matched.
+///
+/// Used for the bearer AND session ids. On a loopback-only server this is defense-in-depth (a local
+/// timing side-channel is a stretch), not a hot vulnerability — hence a 10-line pure fn, not a
 /// `subtle`-style dependency. A length mismatch is a fast `false` (the length is not the secret).
+#[must_use]
 pub fn ct_eq(a: &str, b: &str) -> bool {
     let (a, b) = (a.as_bytes(), b.as_bytes());
     if a.len() != b.len() {
@@ -52,10 +62,13 @@ pub fn ct_eq(a: &str, b: &str) -> bool {
     diff == 0
 }
 
-/// Whether the presented bearer token matches the expected one. The expected token is never empty (an
-/// empty expected would make an absent/empty presented spuriously "match" — refuse that outright). The
-/// token compared here is already stripped of the `Bearer ` prefix by the transport shim. The match is
-/// [`ct_eq`] (constant-time-ish — D5), not `==`.
+/// Whether the presented bearer token matches the expected one.
+///
+/// The expected token is never empty (an empty expected would make an absent/empty presented
+/// spuriously "match" — refuse that outright). The token compared here is already stripped of the
+/// `Bearer ` prefix by the transport shim. The match is [`ct_eq`] (constant-time-ish — D5), not
+/// `==`.
+#[must_use]
 pub fn bearer_ok(presented: Option<&str>, expected: &str) -> bool {
     !expected.is_empty() && presented.is_some_and(|p| ct_eq(p, expected))
 }

@@ -37,7 +37,7 @@ RUNNER_HITS=$(echo "$CMDS" | grep -E "${RUNNER_AT}(cargo (test|nextest|llvm-cov)
 
 if ! $RUST_OK; then
     { echo ""; echo "STOP BLOCKED — /pipeline:test but tests did not execute:"; echo ""
-      echo "  VIOLATION: Rust tests never ran. Run: cargo nextest run -p <the touched crates>  (or script/gates.sh)."
+      echo "  VIOLATION: Rust tests never ran. Run: cargo nextest run -p <the touched crates>  (or script/gates.sh --diff)."
       echo ""; echo "CONSTITUTION §15: if it didn't happen in the transcript, it didn't happen."; } >&2
     exit 2
 fi

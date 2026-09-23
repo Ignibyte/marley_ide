@@ -27,11 +27,12 @@ normalize_path() {
 # --- Gate receipt fingerprint ------------------------------------------------
 # Content fingerprint of all gated + gate-DEFINING files: HEAD + the worktree
 # content of every tracked-or-untracked `crates/**/*.rs` (CONSTITUTION §3
-# application code, Zed's crates included) AND the files that define the bar
-# itself — `script/gates.sh`, `.claude/hooks/*.sh`, `clippy.toml`, `deny.toml`,
-# `.gitleaks.toml`, `.cargo/audit.toml`, `.cargo/config.toml`, the Cargo
-# manifests + lockfile, the toolchain pin, the nextest config — so a post-green
-# *weakening of the gate*
+# application code, Zed's crates included), every file under `crates/marley_*`,
+# AND the files that define the bar itself — `script/gates.sh`,
+# `.claude/hooks/*.sh`, `clippy.toml`, `rustfmt.toml`, `deny.toml`,
+# `.gitleaks.toml`, `.semgrep.yml`, `.config/typos.toml`, `.cargo/audit.toml`,
+# `.cargo/config.toml`, the Cargo manifests + lockfile, the toolchain pin, the
+# nextest config — so a post-green *weakening of the gate*
 # invalidates the receipt just as a code edit does. script/gates.sh writes this
 # to .git/ignibyte-gate-receipt on a FULL/DIFF green; enforce-commit-gate.sh
 # recomputes it at `git commit` and allows the commit only if they match, so a
@@ -45,9 +46,9 @@ normalize_path() {
 gate_state_hash() {
     local root="${PROJECT_ROOT:-$(pwd)}" paths hashes n_paths n_hashes
     paths=$({
-        git -C "$root" ls-files -z -- crates script/gates.sh .claude/hooks clippy.toml deny.toml .gitleaks.toml .cargo/audit.toml .cargo/config.toml Cargo.toml Cargo.lock rust-toolchain.toml .config/nextest.toml 2>/dev/null
-        git -C "$root" ls-files -z --others --exclude-standard -- crates script/gates.sh .claude/hooks clippy.toml deny.toml .gitleaks.toml .cargo/audit.toml .cargo/config.toml Cargo.toml Cargo.lock rust-toolchain.toml .config/nextest.toml 2>/dev/null
-    } | LC_ALL=C sort -z -u | grep -zE '\.(rs|sh|toml|lock)$' | tr '\0' '\n')
+        git -C "$root" ls-files -z -- crates script/gates.sh .claude/hooks clippy.toml rustfmt.toml deny.toml .gitleaks.toml .semgrep.yml .config/typos.toml .cargo/audit.toml .cargo/config.toml Cargo.toml Cargo.lock rust-toolchain.toml .config/nextest.toml 2>/dev/null
+        git -C "$root" ls-files -z --others --exclude-standard -- crates script/gates.sh .claude/hooks clippy.toml rustfmt.toml deny.toml .gitleaks.toml .semgrep.yml .config/typos.toml .cargo/audit.toml .cargo/config.toml Cargo.toml Cargo.lock rust-toolchain.toml .config/nextest.toml 2>/dev/null
+    } | LC_ALL=C sort -z -u | grep -zE '^crates/marley_|\.(rs|sh|toml|lock)$|^\.semgrep\.yml$' | tr '\0' '\n')
     # One git process hashes every file; a path list and a hash list of different
     # lengths means git failed on something, and a fingerprint that covers less
     # than the tree is worse than none — so the failure returns a sentinel that
@@ -212,8 +213,8 @@ marley_owned_path() {
         crates/marley_*|docs/marley/*|docs/planning/*|docs/marley_architecture/*|\
         docs/specs/*|docs/warp_architecture/*|docs/zed_architecture/*|\
         docs/decisions/*|docs/tickets/*|.claude/*|script/gates.sh|script/mutation.sh|\
-        CONSTITUTION.md|CHANGELOG.md|deny.toml|.gitleaks.toml|.cargo/audit.toml|\
-        .mcp.json.example)
+        CONSTITUTION.md|CHANGELOG.md|deny.toml|.gitleaks.toml|.semgrep.yml|\
+        .cargo/audit.toml|.mcp.json.example)
             return 0 ;;
     esac
     return 1

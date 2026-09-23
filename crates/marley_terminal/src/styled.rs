@@ -30,12 +30,16 @@ pub struct StyledRun {
 /// One screen line: its coalesced runs, left to right (empty when the line is blank).
 pub type StyledLine = Vec<StyledRun>;
 
-/// Coalesce a row's cells into maximal runs sharing the same `(fg, bg, flags, hyperlink)`, then
-/// trailing-trim so the joined run text equals the row's `trim_end()` — keeping
-/// [`Block::output_text`](crate::block::Block::output_text) byte-identical to the pre-color model
-/// (R20b): a hyperlink change splits one run into two but never changes the joined text. A fully
-/// blank line coalesces to an empty `Vec`. Each cell carries its OSC 8 hyperlink URI (`None` for a
-/// non-hyperlinked cell) so a run breaks on a hyperlink change too, not just a style change (#214).
+/// Coalesce a row's cells into maximal runs sharing the same `(fg, bg, flags, hyperlink)`.
+///
+/// The runs are then trailing-trimmed so the joined run text equals the row's `trim_end()`,
+/// keeping [`Block::output_text`](crate::block::Block::output_text) byte-identical to the
+/// pre-color model (R20b): a hyperlink change splits one run into two but never changes the
+/// joined text.
+///
+/// A fully blank line coalesces to an empty `Vec`. Each cell carries its OSC 8 hyperlink URI
+/// (`None` for a non-hyperlinked cell) so a run breaks on a hyperlink change too, not just a style
+/// change (#214).
 pub fn coalesce_row(
     cells: impl IntoIterator<Item = (char, Color, Color, Flags, Option<String>)>,
 ) -> StyledLine {
@@ -48,7 +52,7 @@ pub fn coalesce_row(
                     && run.flags == flags
                     && run.hyperlink == hyperlink =>
             {
-                run.text.push(c)
+                run.text.push(c);
             }
             _ => runs.push(StyledRun {
                 text: c.to_string(),
@@ -64,7 +68,7 @@ pub fn coalesce_row(
     while let Some(last) = runs.last_mut() {
         let trimmed = last.text.trim_end();
         if trimmed.is_empty() {
-            runs.pop();
+            let _blank = runs.pop();
         } else if trimmed.len() != last.text.len() {
             last.text.truncate(trimmed.len());
             break;
@@ -75,18 +79,20 @@ pub fn coalesce_row(
     runs
 }
 
-/// Drop the TRAILING all-blank rows from a block's captured output (R19). The grid snapshot is
-/// screen-height, so a short command leaves many empty rows below its output; trimming them keeps a
-/// block only as tall as its real output, so command blocks STACK as scrollback instead of one
-/// full-screen block per command. Interior blank rows are KEPT (only the trailing empties are
-/// dropped); an all-blank or empty input yields `[]`. NOT applied to the alt-screen grid
-/// (`grid_styled_rows`), where a full-screen program owns its whole screen.
+/// Drop the TRAILING all-blank rows from a block's captured output (R19).
+///
+/// The grid snapshot is screen-height, so a short command leaves many empty rows below its output;
+/// trimming them keeps a block only as tall as its real output, so command blocks STACK as
+/// scrollback instead of one full-screen block per command. Interior blank rows are KEPT (only the
+/// trailing empties are dropped); an all-blank or empty input yields `[]`. NOT applied to the
+/// alt-screen grid (`grid_styled_rows`), where a full-screen program owns its whole screen.
+#[must_use]
 pub fn trim_trailing_blank_rows(mut rows: Vec<StyledLine>) -> Vec<StyledLine> {
     while rows
         .last()
         .is_some_and(|row| row.iter().all(|run| run.text.trim().is_empty()))
     {
-        rows.pop();
+        let _blank = rows.pop();
     }
     rows
 }

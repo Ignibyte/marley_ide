@@ -11,20 +11,21 @@ pub struct SessionId(u64);
 impl SessionId {
     /// Allocate the next process-unique session id — strictly greater than every id
     /// previously returned by `next` in this process.
-    pub fn next() -> SessionId {
+    pub fn next() -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(0);
-        SessionId(NEXT.fetch_add(1, Ordering::Relaxed))
+        Self(NEXT.fetch_add(1, Ordering::Relaxed))
     }
 
     /// The wrapped `u64`, returned unchanged.
-    pub fn as_u64(self) -> u64 {
+    #[must_use]
+    pub const fn as_u64(self) -> u64 {
         self.0
     }
 }
 
 impl From<u64> for SessionId {
     fn from(value: u64) -> Self {
-        SessionId(value)
+        Self(value)
     }
 }
 
@@ -42,7 +43,7 @@ mod tests {
     // R1: transparent u64 newtype; as_u64 returns the wrapped value.
     #[test]
     fn r1_repr_transparent_and_as_u64() {
-        assert_eq!(std::mem::size_of::<SessionId>(), std::mem::size_of::<u64>());
+        assert_eq!(size_of::<SessionId>(), size_of::<u64>());
         assert_eq!(SessionId::from(7).as_u64(), 7);
     }
 
@@ -70,7 +71,7 @@ mod tests {
         assert_eq!(a, b);
         assert_eq!(a.as_u64(), 5); // a still usable after the copy
         let mut set = HashSet::new();
-        set.insert(a);
+        assert!(set.insert(a));
         assert!(set.contains(&b));
     }
 }

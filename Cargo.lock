@@ -10782,6 +10782,7 @@ dependencies = [
 name = "marley_mcp"
 version = "0.1.0"
 dependencies = [
+ "log",
  "marley_fleet",
  "serde",
  "serde_json",
@@ -10804,6 +10805,7 @@ name = "marley_terminal"
 version = "0.1.0"
 dependencies = [
  "alacritty_terminal",
+ "log",
  "rustix",
  "tempfile",
 ]

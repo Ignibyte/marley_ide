@@ -20,11 +20,12 @@ the fork is the design record under `docs/marley_architecture/`, `docs/specs/` a
 ## §0 — Quality Gates (binding)
 
 The canonical gate is **`script/gates.sh`**, the single source of truth for "is this change
-shippable?". It must pass green in the Test phase, in one of two commit-valid modes: **FULL**
-(the heavy gates over every Marley-owned crate; the periodic audit) or **`--diff`** (the
-heavy gates only on what the change touched; the per-change loop). Both write the receipt the
-commit hook requires (§15). `--fast` runs the static gates only, prints `GATE GREEN [fast]`,
-writes no receipt, and can never satisfy a commit of Rust source.
+shippable?". It must pass green in the Test phase, in one of two commit-valid modes:
+**`--full`** (the heavy gates over every Marley-owned crate; the periodic audit) or
+**`--diff`** (the heavy gates only on what the change touched; the per-change loop). Both
+write the receipt the commit hook requires (§15). `--fast` runs the static gates only, prints
+`GATE GREEN [fast]`, writes no receipt, and can never satisfy a commit of Rust source. The
+mode is always named: none, or an unknown one, is a usage error (exit 2) and runs no gate.
 
 ```
 STATIC (always; --fast runs exactly these)
@@ -35,16 +36,25 @@ gate:7  audit          cargo audit             (fork-point advisories listed, ne
 gate:8  supply chain   cargo deny check licenses bans sources
 gate:9  unused deps    cargo shear --locked --deny-warnings          (Zed's own tool)
 gate:10 secrets        gitleaks: commits since the upstream fork point + Marley-owned dirs
-gate:11 shell lint     shellcheck (.claude/hooks + script/gates.sh)
+gate:11 shell lint     shellcheck (.claude/hooks + script/gates.sh + script/mutation.sh)
 gate:12 no-suppress    grep meta-gate (allow/expect must justify; blanket banned)
-gate:13 source-bans    grep meta-gate (mem::transmute; unsafe without // SAFETY:)
-gate:14 docs           rustdoc -D warnings on the Marley crates + no actionable TODO in Marley docs
+gate:13 source-bans    grep meta-gate (transmute, bare or through mem::; unsafe without a
+                       // SAFETY: on its line or the line above)
+gate:14 docs           rustdoc -D warnings on the Marley crates, and no `warning:` line printed;
+                       no actionable TODO in the Marley crates' Rust source or Marley docs
 gate:16 zed ledger     every changed path outside the Marley-owned set has its row in docs/marley/zed-touchpoints.md
+gate:17 manifests      cargo sort --check + taplo fmt --check on the Marley manifests
+gate:18 spelling       typos --config .config/typos.toml              (the repository, as Zed's CI)
+gate:19 empty suites   cargo nextest list -p <marley crates>: every suite but a binary's has a test
+gate:20 semgrep        semgrep 1.156.0 --config .semgrep.yml --error --strict on the Marley crates
 
-HEAVY (FULL + --diff; --fast skips)
+HEAVY (--full + --diff; --fast skips; BLOCKED, not run, after a static red)
 gate:4  coverage       cargo llvm-cov nextest -p <marley crates> --fail-under-lines 100
 gate:6  miri           cargo +nightly miri  (conditional on unsafe in a Marley crate)
 ```
+
+Retired numbers are not reused: gate:5 (mutation, below) and gate:15 (the gpui-era macOS
+harness).
 
 **Mutation testing is not a gate.** It was gate:5 until 2026-09-22, when Chad took it out of
 the per-change loop because it was too slow to run on every change. `script/mutation.sh`
@@ -80,11 +90,14 @@ is added to that list with a reason, never hidden in a regex.
 
 **Honest known-scope (the ratchet roadmap).** Recorded gaps, each a ratchet item:
 
-- clippy runs Zed's workspace lints (`[workspace.lints]` in `Cargo.toml`); pedantic and
-  nursery are not enabled.
-- `gate:3` runs `--no-tests=warn`: a crate with no tests yet is a visible warning; the binding
-  "every behavior is tested" enforcement is gate:4 on the Marley crates plus the driven
-  tests §7 requires for UI paths.
+- clippy runs rustal's lint table on the Marley crates (pedantic, nursery and cargo, with
+  its deny list; §14) and Zed's workspace lints (`[workspace.lints]` in `Cargo.toml`) on
+  Zed's crates. Zed's dylint lints (`tooling/lints`) are not run yet: they need
+  `cargo-dylint` and the nightly toolchain their package pins.
+- `gate:3` runs `--no-tests=warn` over the scope, so a Zed crate with no tests is a visible
+  warning; gate:19 fails a Marley test suite with none. The binding "every behavior is
+  tested" enforcement is gate:4 on the Marley crates plus the driven tests §7 requires for
+  UI paths.
 - `gate:7`: advisories already present at the upstream fork point belong to upstream's
   dependency tree. They are listed per id in `.cargo/audit.toml` with the fork commit they
   were inherited at, and the list is regenerated at every upstream merge. A NEW advisory
@@ -95,9 +108,10 @@ is added to that list with a reason, never hidden in a regex.
   the Marley crates are `MIT OR Apache-2.0` (§20).
 - `gate:10` scans the commits since the upstream fork point plus the working tree of the
   Marley-owned directories; upstream's history is upstream's.
-- `gate:14` scans Marley-authored docs only (`CONSTITUTION.md`, `docs/marley/`,
-  `docs/marley_architecture/`, `docs/specs/`, `docs/decisions/`, `docs/zed_architecture/`,
-  `docs/tickets/`, `.claude/`); `docs/planning/` is working scratch and
+- `gate:14` scans the Marley crates' Rust source and Marley-authored docs only
+  (`CONSTITUTION.md`, `docs/marley/`, `docs/marley_architecture/`, `docs/specs/`,
+  `docs/decisions/`, `docs/zed_architecture/`, `docs/tickets/`, `.claude/`);
+  `docs/planning/` is working scratch and
   `docs/warp_architecture/` transcribes Warp's own markers. The gpui-era brand scrub is
   retired: this repo is Zed.
 - `gate:16` compares the work tree, the index and the untracked files with the upstream
@@ -112,12 +126,15 @@ is added to that list with a reason, never hidden in a regex.
 - `gate:15` (the macOS accessibility and screenshot harness) is retired; UI proof is §7.
 - not yet ported: architecture-layering / taint analysis.
 
-On a FULL or `--diff` green the gate writes a worktree-bound receipt
-(`.git/ignibyte-gate-receipt`) that `enforce-commit-gate.sh` validates at commit (§15).
+A `--full` or `--diff` run removes the earlier receipt when it starts, and on a green writes
+a worktree-bound receipt (`.git/ignibyte-gate-receipt`) that `enforce-commit-gate.sh`
+validates at commit (§15). The receipt carries the fingerprint taken when the run started,
+and the run fails instead of writing one when the gated files changed while it ran.
 
-Tools: `cargo install cargo-audit cargo-deny cargo-shear cargo-llvm-cov cargo-nextest`,
-`rustup component add llvm-tools-preview`, and `gitleaks shellcheck jq typos` from the
-distro; `cargo-mutants` only for the end-of-sprint `script/mutation.sh`. Run the gate in the
+Tools: `cargo install cargo-audit cargo-deny cargo-shear cargo-llvm-cov cargo-nextest
+cargo-sort taplo-cli typos-cli`, `rustup component add llvm-tools-preview`, semgrep 1.156.0
+(`pipx install semgrep==1.156.0`), and `gitleaks shellcheck jq` from the distro;
+`cargo-mutants` only for the end-of-sprint `script/mutation.sh`. Run the gate in the
 Test phase; fix every red at the source. One cargo command at a time on this box: the target
 directory is shared by every project on it.
 
@@ -204,6 +221,15 @@ writes. Tests are not optional and not skippable because a change "looks simple"
 - Matches the surrounding code's idiom; `cargo fmt` is law (gate:1). clippy clean at
   `-D warnings`, `--all-targets` (gate:2). An `#[allow]` needs a trailing `//` justification
   (gate:12).
+- Each Marley crate carries rustal's lint table in its own manifest: cargo gives a crate
+  either the workspace's table or its own, so the seven tables repeat one another, and Zed's
+  crates keep Zed's. Test code may `unwrap()` and `expect()` (the `clippy.toml` test
+  allowances); library code may not. A crate-specific allow sits in that crate's table with
+  a comment saying why (the gpui crate allows `future_not_send` and `unused_results`).
+- `unreachable_pub` and `redundant_pub_crate` pull against each other in a private module.
+  An item only its parent reaches is `pub(super)` in a module two or more levels deep; a
+  module its siblings reach is declared `pub`; `#[allow(unreachable_pub)]` is never the
+  answer.
 - Newtypes own their invariants with **private** fields; cross-crate shared types have a
   single owner (`docs/specs/standards/seam-contracts.md` for the Marley crates) and are never
   re-declared downstream.
@@ -251,9 +277,11 @@ phase with unresolved tasks or an un-advanced doc status, leaving `/pipeline:tes
 running tests, committing code without a green gate. They do **not** try to defeat
 deliberate fabrication: the `status:` line and the test calls are self-reported. The one
 hard, evidence-based gate is **`script/gates.sh` at commit**: `enforce-commit-gate.sh` blocks
-a `git commit` that includes Rust source unless a FULL/`--diff` gate run left a *receipt*
-(`.git/ignibyte-gate-receipt`, a content fingerprint of every `crates/**/*.rs` in the tree)
-that still matches the worktree being committed. The receipt is written only by a real
+a `git commit` that includes Rust source unless a `--full`/`--diff` gate run left a
+*receipt* (`.git/ignibyte-gate-receipt`, a content fingerprint of every `crates/**/*.rs` and
+every file under `crates/marley_*` in the tree) that still matches the worktree being
+committed. Each such run removes the earlier receipt before its first gate, so a tree that
+passed once and fails later cannot commit on the older green. The receipt is written only by a real
 FULL/`--diff` green, so the verdict cannot be forged by printing or quoting `GATE GREEN`;
 any edit after the green, by Write, Edit or a Bash heredoc, changes the fingerprint and
 re-blocks. A **second** commit-time hook, `enforce-changelog.sh`, blocks a Rust-source commit
@@ -261,9 +289,9 @@ that lacks a `CHANGELOG.md` entry (§21). A change that touches **no** `.rs` is 
 the receipt; its gate is enforced by pipeline discipline (the static gates at
 `/pipeline:test`). The receipt fingerprint binds not just `crates/**/*.rs` but the
 **gate-defining files** themselves (`script/gates.sh`, `.claude/hooks/**`, `clippy.toml`,
-`deny.toml`, `.gitleaks.toml`, `.cargo/audit.toml`, the Cargo manifests and lockfile, the
-toolchain pin, the nextest config), so weakening the gate after a green invalidates the
-receipt.
+`rustfmt.toml`, `deny.toml`, `.gitleaks.toml`, `.semgrep.yml`, `.config/typos.toml`,
+`.cargo/audit.toml`, the Cargo manifests and lockfile, the toolchain pin, the nextest
+config), so weakening the gate after a green invalidates the receipt.
 
 ---
 

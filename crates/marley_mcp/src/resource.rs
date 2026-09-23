@@ -13,6 +13,7 @@ use serde_json::{Value, json};
 pub const FLEET_RESOURCE_URI: &str = "fleet://snapshot";
 
 /// The `resources/list` result: the one subscribable fleet resource.
+#[must_use]
 pub fn resources_list() -> Value {
     json!({
         "resources": [
@@ -26,8 +27,12 @@ pub fn resources_list() -> Value {
     })
 }
 
-/// The `resources/read` result for `uri` (D3): the fleet resource serves the SAME serialization as the
-/// `fleet.snapshot` tool. An unknown uri → `Err((RESOURCE_NOT_FOUND, msg))`.
+/// The `resources/read` result for `uri` (D3): the fleet resource serves the SAME serialization as
+/// the `fleet.snapshot` tool.
+///
+/// # Errors
+///
+/// An unknown uri → `Err((RESOURCE_NOT_FOUND, msg))`.
 pub fn resource_read(snapshot: &FleetSnapshot, uri: &str) -> Result<Value, (i64, String)> {
     if uri != FLEET_RESOURCE_URI {
         return Err((
@@ -46,6 +51,7 @@ pub fn resource_read(snapshot: &FleetSnapshot, uri: &str) -> Result<Value, (i64,
 
 /// Build the `notifications/resources/updated` message for `uri` (D3) — the standing-stream push a
 /// subscribed client gets on a snapshot change. A notification carries no `id`.
+#[must_use]
 pub fn resource_updated_notification(uri: &str) -> String {
     json!({
         "jsonrpc": "2.0",

@@ -21,7 +21,7 @@ use crate::session::{PtyChannel, ReapAction, ReapStage, SessionError, SessionOpt
 /// let it drop normally (its `wait()` returns at once and it closes the fds); on the pathological
 /// give-up path we `mem::forget` it to skip that blocking `Drop` (leaking to avoid the hang —
 /// TICKET-348 D5). It is `Some` for the channel's whole life except after a give-up leak.
-pub(crate) struct OsPtyChannel {
+pub(super) struct OsPtyChannel {
     pty: Option<tty::Pty>,
     io: File,
     /// Set once [`poll_child_exit`](OsPtyChannel::poll_child_exit) has seen the child exit. The
@@ -35,7 +35,7 @@ pub(crate) struct OsPtyChannel {
 
 /// Spawn `options.shell` on a fresh `cols`×`rows` PTY (R12), holding the `Pty` so its output is not
 /// discarded before the first read. Any failure maps to [`SessionError::Spawn`].
-pub(crate) fn spawn(options: &SessionOptions) -> Result<OsPtyChannel, SessionError> {
+pub(super) fn spawn(options: &SessionOptions) -> Result<OsPtyChannel, SessionError> {
     let pty_options = Options {
         shell: Some(Shell::new(
             options.shell.to_string_lossy().into_owned(),
@@ -83,7 +83,7 @@ impl PtyChannel for OsPtyChannel {
     }
 
     fn poll_child_exit(&mut self) -> Option<ExitCode> {
-        let event = self.pty.as_mut().and_then(|pty| pty.next_child_event());
+        let event = self.pty.as_mut().and_then(EventedPty::next_child_event);
         if event.is_some() {
             // Remember the exit: the poll is edge-triggered, so this is the ONLY time we will see it.
             self.child_reaped = true;
@@ -103,7 +103,7 @@ impl Drop for OsPtyChannel {
         // the reap signals and the give-up log. `pty` is `Some` here (only a give-up leak sets it
         // `None`, and that is the last thing this `Drop` does).
         let raw = match self.pty.as_ref() {
-            Some(pty) => pty.child().id() as i32,
+            Some(pty) => pty.child().id().cast_signed(),
             None => return,
         };
         // If the child was already reaped during normal pumping, its exit is invisible to the
@@ -114,8 +114,13 @@ impl Drop for OsPtyChannel {
         } else {
             let pid = rustix::process::Pid::from_raw(raw);
             let signal = |sig| {
-                if let Some(p) = pid {
-                    let _ = rustix::process::kill_process(p, sig);
+                // ESRCH: the child exited between the reap check and this signal, and the poll
+                // below sees that exit. Any other failure is worth a line in the log.
+                if let Some(p) = pid
+                    && let Err(error) = rustix::process::kill_process(p, sig)
+                    && error != rustix::io::Errno::SRCH
+                {
+                    log::warn!("marley_terminal: signalling the shell failed: {error}");
                 }
             };
             // Stage 1 — hang up the controlling terminal, then poll for exit under the first deadline.
@@ -124,7 +129,8 @@ impl Drop for OsPtyChannel {
             let mut started = Instant::now();
             loop {
                 let exited = self.poll_child_exit().is_some();
-                match reap_step(stage, started.elapsed().as_millis() as u64, exited) {
+                let elapsed = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+                match reap_step(stage, elapsed, exited) {
                     ReapAction::Done => break true,
                     ReapAction::Wait => std::thread::sleep(Duration::from_millis(20)),
                     ReapAction::SendKill => {
@@ -141,7 +147,7 @@ impl Drop for OsPtyChannel {
             // the `Pty` so alacritty's `Pty::Drop` — whose `child.wait()` would block forever — never
             // runs. Leak the child + its fds deliberately: a zombie is recoverable, a hang is not.
             std::mem::forget(self.pty.take());
-            eprintln!(
+            log::warn!(
                 "terminal_blocks: PTY child {raw} survived SIGKILL past the reap deadline — \
                  leaking to avoid a teardown hang (TICKET-348 D5)"
             );

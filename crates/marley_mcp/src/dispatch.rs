@@ -42,11 +42,13 @@ pub fn handle_message(ctx: &RequestCtx, subs: &mut Subscriptions, message: &str)
 }
 
 /// The outbound notifications for a snapshot change (REQ-003): a subscribed connection gets a
-/// `notifications/resources/updated` for the fleet resource; an unsubscribed one gets nothing. This is the
-/// L2-ready per-connection model; L1's single-resource transport treats an open SSE stream AS the
-/// subscription (`transport::serve_sse_stream` feeds `fleet: true`), so the gate is exercised here at the
-/// pure seam and is ready for the per-session store L2 adds.
-pub fn snapshot_changed(subs: &Subscriptions) -> Vec<Outgoing> {
+/// `notifications/resources/updated` for the fleet resource; an unsubscribed one gets nothing.
+///
+/// This is the L2-ready per-connection model; L1's single-resource transport treats an open SSE
+/// stream AS the subscription (`transport::serve_sse_stream` feeds `fleet: true`), so the gate is
+/// exercised here at the pure seam and is ready for the per-session store L2 adds.
+#[must_use]
+pub fn snapshot_changed(subs: Subscriptions) -> Vec<Outgoing> {
     if subs.fleet {
         vec![Outgoing::Notification(
             resource::resource_updated_notification(resource::FLEET_RESOURCE_URI),
@@ -156,24 +158,21 @@ fn surface_to_human(ctx: &RequestCtx, arguments: &Value, id: &Value) -> Handled 
             ));
         }
     };
-    match tools::resolve_surface(&request.id, ctx.surface_index) {
-        Some(handle) => {
-            let receipt = tools::surface_receipt(true, &request.id);
-            Handled {
-                outgoing: vec![Outgoing::Response(jsonrpc::result_response(
-                    id,
-                    tools::surface_result(&receipt),
-                ))],
-                effect: Some(Effect::SurfacePane(handle)),
-            }
-        }
-        None => {
-            let receipt = tools::surface_receipt(false, &request.id);
-            respond(jsonrpc::result_response(
+    if let Some(handle) = tools::resolve_surface(&request.id, ctx.surface_index) {
+        let receipt = tools::surface_receipt(true, &request.id);
+        Handled {
+            outgoing: vec![Outgoing::Response(jsonrpc::result_response(
                 id,
                 tools::surface_result(&receipt),
-            ))
+            ))],
+            effect: Some(Effect::SurfacePane(handle)),
         }
+    } else {
+        let receipt = tools::surface_receipt(false, &request.id);
+        respond(jsonrpc::result_response(
+            id,
+            tools::surface_result(&receipt),
+        ))
     }
 }
 
@@ -194,7 +193,7 @@ mod tests {
                 ts_ms: 1,
                 title: "a".into(),
                 state: State::Working,
-                labels: Default::default(),
+                labels: std::collections::BTreeMap::new(),
                 transport: None,
             }],
         )
@@ -362,7 +361,7 @@ mod tests {
             surface_index: &[],
         };
         let mut subs = Subscriptions::default();
-        handle_message(
+        let _subscribed = handle_message(
             &ctx,
             &mut subs,
             &format!(
@@ -443,9 +442,9 @@ mod tests {
 
     #[test]
     fn snapshot_changed_gates_on_subscription() {
-        assert_eq!(snapshot_changed(&Subscriptions { fleet: true }).len(), 1);
-        assert!(snapshot_changed(&Subscriptions::default()).is_empty());
-        let notifications = snapshot_changed(&Subscriptions { fleet: true });
+        assert_eq!(snapshot_changed(Subscriptions { fleet: true }).len(), 1);
+        assert!(snapshot_changed(Subscriptions::default()).is_empty());
+        let notifications = snapshot_changed(Subscriptions { fleet: true });
         assert!(matches!(notifications[0], Outgoing::Notification(_)));
         let n = body(&notifications[0]);
         assert_eq!(n["params"]["uri"], resource::FLEET_RESOURCE_URI);

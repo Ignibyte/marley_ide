@@ -1795,3 +1795,59 @@ new state draws, without refreshing again. A mutant that drops the notify, or in
 guard around it, then fails on the missing selector. `debug_selector` exists only in test
 builds. A flag another entity reads is tested with the view closed as well
 (PR-claude-state-another-entity-reads-is-kept-outside-render-001).
+
+## L-claude-447-clippys-cargo-group-reads-the-whole-workspace-001
+*category: code · topic: lint tables in Zed's workspace · from: pipeline 447*
+
+clippy's `cargo` group reads every manifest in the workspace, not only the crate it lints. In
+Zed's workspace, `cargo_common_metadata`, `negative_feature_names` and
+`redundant_feature_names` report Zed's packages (`html_to_markdown`'s metadata) and Zed's
+`test-support` convention from any Marley crate's run, so the Marley tables allow those three
+with a comment. Their diagnostics carry no source span. A count that filters clippy's JSON by
+the primary span's file showed zero while the deny-level run failed, and it missed a hit whose
+primary span sat in gpui's `actions!` macro as well. Count with the gate's own command at deny
+level (L-claude-443-run-the-gate-not-a-reconstruction-001).
+
+## L-claude-447-semgreps-rust-parser-and-its-file-list-001
+*category: gate · topic: semgrep 1.156 on Rust · from: pipeline 447*
+
+Two traps. semgrep's Rust parser reads `&raw.payload`, where `raw` is a binding, as the start of
+a raw borrow (`&raw const`) and gives up on the rest of the expression; `--strict` makes that a
+red (exit 3), and renaming the binding fixes it. And semgrep scans only the files git lists, so a
+new untracked file goes unscanned unless the run passes `--no-git-ignore`. With explicit
+`crates/marley_*` targets nothing else is swept in. `SEMGREP_ENABLE_VERSION_CHECK=0` and
+`--metrics=off` keep the gate off the network.
+
+## L-claude-447-gpui-code-under-rustals-lints-001
+*category: code · topic: pedantic and nursery in a gpui crate · from: pipeline 447*
+
+What worked in `marley_workbench`:
+- `actions!` passes per-action attributes through, so `#[derive(Eq)]` on each action answers
+  `derive_partial_eq_without_eq` without an allow.
+- `#[gpui::test]` accepts `cx: &TestAppContext`: it matches the reference's last path segment
+  and passes `&mut`. So `needless_pass_by_ref_mut` is fixed in the test's signature.
+- `cx.on_action(..).on_action(..).observe_global::<S>(..).detach()` leaves no `&mut App`
+  unused.
+
+Two lints do not fit gpui and are allowed in the manifest, each with its reason:
+`future_not_send`, because gpui's contexts are not `Send`, and `unused_results`, because of the
+`&mut App` chaining returns and `.log_err()`'s `Option`. For `unreachable_pub` against
+`redundant_pub_crate`: clippy treats `pub(super)` as `pub(crate)` in a module one level deep,
+so a shim only one module calls became that module's child, through `#[path]` to keep its file
+where it was.
+
+## L-claude-447-smoke-a-gate-by-extracting-its-functions-001
+*category: validate · topic: proving gate changes · from: pipeline 447*
+
+`script/gates.sh` runs every gate when invoked, so a smoke of one check cannot call the script.
+What worked in #447:
+- Extract each function by name with awk: a multi-line body ends at a lone `}`, a one-liner at
+  `; }`. Then `eval` it along with the variables it reads.
+- Plant the fault in an untracked file, or in a tracked one backed up first.
+- Check the exit status, then restore.
+- Compare `git diff | sha256sum` and the untracked list before and after.
+
+Forty-two smokes ran in a few minutes against the shipped code. Two things to know when a real
+run uses a planted file as its red: an untracked `.rs` that no module declares also trips
+cargo-shear's unlinked-file check, and a whole static pass is under a minute once the build is
+warm.

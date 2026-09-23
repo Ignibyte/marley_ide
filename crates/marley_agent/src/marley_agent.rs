@@ -11,13 +11,16 @@
 pub enum AgentKind {
     /// Anthropic's Claude Code CLI (`claude`).
     Claude,
-    /// OpenAI's Codex CLI (`codex`).
+    /// `OpenAI`'s Codex CLI (`codex`).
     Codex,
 }
 
-/// Classify a command line as an agent CLI by its leading program (with any directory path stripped);
-/// arguments are ignored, so `claude --resume` and `/usr/bin/claude` both resolve to [`AgentKind::Claude`].
-/// Returns `None` for a non-agent command or an empty/whitespace-only one.
+/// Classify a command line as an agent CLI by its leading program.
+///
+/// A directory path on the program is stripped and arguments are ignored, so `claude --resume` and
+/// `/usr/bin/claude` both resolve to [`AgentKind::Claude`]. Returns `None` for a non-agent command
+/// or an empty/whitespace-only one.
+#[must_use]
 pub fn agent_kind_of(command: &str) -> Option<AgentKind> {
     let token = command.split_whitespace().next()?;
     let program = token.rsplit('/').next().unwrap_or(token);
@@ -29,15 +32,19 @@ pub fn agent_kind_of(command: &str) -> Option<AgentKind> {
 }
 
 /// The CLI program to spawn for an agent kind — the inverse of [`agent_kind_of`].
-pub fn launch_command(kind: AgentKind) -> &'static str {
+#[must_use]
+pub const fn launch_command(kind: AgentKind) -> &'static str {
     match kind {
         AgentKind::Claude => "claude",
         AgentKind::Codex => "codex",
     }
 }
 
-/// The PTY bytes to send a composed line to a running agent — the line plus a trailing `\r` (Enter for
-/// the foreground program). A running agent WANTS this raw write (unlike a bare cooked prompt, #59/#65).
+/// The PTY bytes to send a composed line to a running agent — the line plus a trailing `\r` (Enter
+/// for the foreground program).
+///
+/// A running agent WANTS this raw write (unlike a bare cooked prompt, #59/#65).
+#[must_use]
 pub fn send_payload(line: &str) -> Vec<u8> {
     format!("{line}\r").into_bytes()
 }
@@ -59,11 +66,14 @@ pub enum AgentStatus {
 /// rather than [`AgentStatus::Working`] (#79).
 pub const WAITING_TICKS: u32 = 60;
 
-/// Project a pane's flags into an [`AgentStatus`]: an EXITED agent is [`AgentStatus::Exited`] (checked
-/// FIRST, so a stale `active` never overrides it); an inactive one is [`AgentStatus::Idle`]; an active one
-/// that has been quiet for `quiet_ticks >= WAITING_TICKS` is [`AgentStatus::Waiting`] (probably at its
-/// prompt); otherwise it is [`AgentStatus::Working`] (#79).
-pub fn agent_status_from(exited: bool, active: bool, quiet_ticks: u32) -> AgentStatus {
+/// Project a pane's flags into an [`AgentStatus`].
+///
+/// An EXITED agent is [`AgentStatus::Exited`] (checked FIRST, so a stale `active` never overrides
+/// it); an inactive one is [`AgentStatus::Idle`]; an active one that has been quiet for
+/// `quiet_ticks >= WAITING_TICKS` is [`AgentStatus::Waiting`] (probably at its prompt); otherwise
+/// it is [`AgentStatus::Working`] (#79).
+#[must_use]
+pub const fn agent_status_from(exited: bool, active: bool, quiet_ticks: u32) -> AgentStatus {
     if exited {
         AgentStatus::Exited
     } else if !active {
@@ -100,8 +110,9 @@ pub struct AgentRun {
 
 impl AgentRun {
     /// A fresh agent run — the given `kind` and `label`, starting [`AgentStatus::Idle`], no output yet.
-    pub fn new(kind: AgentKind, label: String) -> AgentRun {
-        AgentRun {
+    #[must_use]
+    pub const fn new(kind: AgentKind, label: String) -> Self {
+        Self {
             kind,
             label,
             status: AgentStatus::Idle,

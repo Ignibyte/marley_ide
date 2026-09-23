@@ -19,9 +19,12 @@ pub struct SshTarget {
     pub port: Option<u16>,
 }
 
-/// Parse a `[user@]host[:port]` target (including bracketed IPv6 like `[::1]:22`). Returns `None` when the
-/// input is empty, the user before `@` is empty, the port is empty / non-numeric / doesn't fit a `u16`,
-/// the host is empty, or the host is a BARE (unbracketed) IPv6 — bracket IPv6 hosts as `[::1]`.
+/// Parse a `[user@]host[:port]` target (including bracketed IPv6 like `[::1]:22`).
+///
+/// Returns `None` when the input is empty, the user before `@` is empty, the port is empty /
+/// non-numeric / doesn't fit a `u16`, the host is empty, or the host is a BARE (unbracketed) IPv6 —
+/// bracket IPv6 hosts as `[::1]`.
+#[must_use]
 pub fn parse_ssh_target(s: &str) -> Option<SshTarget> {
     let s = s.trim();
     if s.is_empty() {
@@ -55,12 +58,11 @@ pub fn parse_ssh_target(s: &str) -> Option<SshTarget> {
 fn parse_host_port(s: &str) -> Option<(&str, Option<u16>)> {
     if let Some(rest) = s.strip_prefix('[') {
         let (host, after) = rest.split_once(']')?;
-        match after {
-            "" => Some((host, None)),
-            _ => {
-                let port = after.strip_prefix(':')?;
-                Some((host, Some(parse_port(port)?)))
-            }
+        if after.is_empty() {
+            Some((host, None))
+        } else {
+            let port = after.strip_prefix(':')?;
+            Some((host, Some(parse_port(port)?)))
         }
     } else if let Some((host, port)) = s.rsplit_once(':') {
         if host.contains(':') {
@@ -77,10 +79,13 @@ fn parse_port(s: &str) -> Option<u16> {
     if s.is_empty() { None } else { s.parse().ok() }
 }
 
-/// Build the `ssh` argv for `target`: `["ssh", ("-p", port)?, "--", [user@]host]`. An argv (never a shell
-/// string) so nothing can inject a shell command; the `--` stops `ssh` option parsing so a leading-dash
-/// destination (even on a hand-built [`SshTarget`] that skipped [`parse_ssh_target`]) can NEVER be
-/// re-parsed as an `ssh` option (option-smuggling — the CVE-2017-1000117 class).
+/// Build the `ssh` argv for `target`: `["ssh", ("-p", port)?, "--", [user@]host]`.
+///
+/// An argv (never a shell string) so nothing can inject a shell command; the `--` stops `ssh`
+/// option parsing so a leading-dash destination (even on a hand-built [`SshTarget`] that skipped
+/// [`parse_ssh_target`]) can NEVER be re-parsed as an `ssh` option (option-smuggling — the
+/// CVE-2017-1000117 class).
+#[must_use]
 pub fn ssh_command(target: &SshTarget) -> Vec<String> {
     let mut argv = vec!["ssh".to_string()];
     if let Some(port) = target.port {
@@ -88,23 +93,26 @@ pub fn ssh_command(target: &SshTarget) -> Vec<String> {
         argv.push(port.to_string());
     }
     argv.push("--".to_string());
-    argv.push(match &target.user {
-        Some(user) => format!("{user}@{}", target.host),
-        None => target.host.clone(),
-    });
+    argv.push(target.user.as_ref().map_or_else(
+        || target.host.clone(),
+        |user| format!("{user}@{}", target.host),
+    ));
     argv
 }
 
 /// Whether a remote (ssh) pane is still connected (#86).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RemoteStatus {
+    /// The `ssh` process is running.
     Connected,
+    /// The `ssh` process has exited.
     Disconnected,
 }
 
 /// Project a remote pane's status from whether its `ssh` process has exited (#86) — an exited ssh
 /// (network drop, remote logout, or a clean `exit`) reads as `Disconnected`.
-pub fn remote_status_from(exited: bool) -> RemoteStatus {
+#[must_use]
+pub const fn remote_status_from(exited: bool) -> RemoteStatus {
     if exited {
         RemoteStatus::Disconnected
     } else {
@@ -113,16 +121,19 @@ pub fn remote_status_from(exited: bool) -> RemoteStatus {
 }
 
 /// The status glyph for a remote pane: `⇄` connected, `✗` disconnected (#86).
-pub fn remote_status_glyph(status: RemoteStatus) -> &'static str {
+#[must_use]
+pub const fn remote_status_glyph(status: RemoteStatus) -> &'static str {
     match status {
         RemoteStatus::Connected => "\u{21c4}",    // ⇄
         RemoteStatus::Disconnected => "\u{2717}", // ✗
     }
 }
 
-/// The pane badge for a remote (ssh) session (#85, #86): `{status-glyph} {host}` — `⇄ localhost` while
-/// connected, `✗ localhost` once the ssh has exited. Marks a pane as remote + names the host + shows the
-/// connection state, mirroring the agent badge.
+/// The pane badge for a remote (ssh) session (#85, #86): `{status-glyph} {host}` — `⇄ localhost`
+/// while connected, `✗ localhost` once the ssh has exited.
+///
+/// Marks a pane as remote + names the host + shows the connection state, mirroring the agent badge.
+#[must_use]
 pub fn remote_badge(host: &str, status: RemoteStatus) -> String {
     format!("{} {host}", remote_status_glyph(status))
 }
@@ -145,9 +156,12 @@ pub struct RemoteAction {
     pub target: SshTarget,
 }
 
-/// Build the command-palette connect actions from the saved `hosts` (#87): each host with a VALID target
-/// yields a `connect: {name} → {target}` action; a host whose target fails [`parse_ssh_target`] (empty,
-/// leading-dash, bare IPv6, bad port, …) is DROPPED — a bad config entry is skipped, never a panic.
+/// Build the command-palette connect actions from the saved `hosts` (#87).
+///
+/// Each host with a VALID target yields a `connect: {name} → {target}` action; a host whose target
+/// fails [`parse_ssh_target`] (empty, leading-dash, bare IPv6, bad port, …) is DROPPED — a bad
+/// config entry is skipped, never a panic.
+#[must_use]
 pub fn remote_palette_actions(hosts: &[RemoteHost]) -> Vec<RemoteAction> {
     hosts
         .iter()

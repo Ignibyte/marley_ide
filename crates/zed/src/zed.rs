@@ -540,7 +540,7 @@ pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
                 .update(cx, |_, window, cx| {
                     // Marley: the layout setting decides which sidebar the window gets (Zed's own,
                     // or the Marley rail).
-                    marley_workbench::register_sidebar(multi_workspace_handle.clone(), window, cx);
+                    marley_workbench::register_sidebar(&multi_workspace_handle, window, cx);
                 })
                 .ok();
         });

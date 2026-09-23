@@ -27,7 +27,7 @@ if ! cargo fmt --manifest-path Cargo.toml --all --check >/dev/null 2>&1; then
     { echo ""; echo "STOP BLOCKED — Rust formatting is not clean (gate:1)."
       echo "CONSTITUTION §0: no baselines, source-fix only. Run:"
       echo "  cargo fmt --manifest-path Cargo.toml --all"
-      echo "Then re-run the gate:  script/gates.sh"; } >&2
+      echo "Then re-run the gate:  script/gates.sh --diff"; } >&2
     exit 2
 fi
 exit 0

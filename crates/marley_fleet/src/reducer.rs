@@ -1,14 +1,17 @@
-//! The generic event stream + the pure, idempotent fold that reduces it to a [`FleetSnapshot`]. The
-//! reducer never reads a clock and never panics — an event naming an unknown seat auto-vivifies a
-//! placeholder rather than dropping it (a live seat made invisible is the cardinal failure).
+//! The generic event stream + the pure, idempotent fold that reduces it to a [`FleetSnapshot`].
+//!
+//! The reducer never reads a clock and never panics — an event naming an unknown seat auto-vivifies
+//! a placeholder rather than dropping it (a live seat made invisible is the cardinal failure).
 
 use crate::session::{Question, Session, State, Transport};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// A generic event in the seat stream — the adapter projects a project's wire feed (e.g. UCSOS
-/// `seat_events`) into these. Every arm carries the `id` it addresses and the `ts_ms` epoch-millis at
-/// which it occurred. Closed v1 set.
+/// `seat_events`) into these.
+///
+/// Every arm carries the `id` it addresses and the `ts_ms` epoch-millis at which it occurred.
+/// Closed v1 set.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SessionEvent {
@@ -78,26 +81,28 @@ pub enum SessionEvent {
 
 impl SessionEvent {
     /// The seat id this event addresses.
+    #[must_use]
     pub fn id(&self) -> &str {
         match self {
-            SessionEvent::Upsert { id, .. }
-            | SessionEvent::StateChange { id, .. }
-            | SessionEvent::QuestionRaised { id, .. }
-            | SessionEvent::QuestionCleared { id, .. }
-            | SessionEvent::Heartbeat { id, .. }
-            | SessionEvent::Ended { id, .. } => id,
+            Self::Upsert { id, .. }
+            | Self::StateChange { id, .. }
+            | Self::QuestionRaised { id, .. }
+            | Self::QuestionCleared { id, .. }
+            | Self::Heartbeat { id, .. }
+            | Self::Ended { id, .. } => id,
         }
     }
 
     /// The epoch-millis at which this event occurred.
-    pub fn ts_ms(&self) -> u64 {
+    #[must_use]
+    pub const fn ts_ms(&self) -> u64 {
         match self {
-            SessionEvent::Upsert { ts_ms, .. }
-            | SessionEvent::StateChange { ts_ms, .. }
-            | SessionEvent::QuestionRaised { ts_ms, .. }
-            | SessionEvent::QuestionCleared { ts_ms, .. }
-            | SessionEvent::Heartbeat { ts_ms, .. }
-            | SessionEvent::Ended { ts_ms, .. } => *ts_ms,
+            Self::Upsert { ts_ms, .. }
+            | Self::StateChange { ts_ms, .. }
+            | Self::QuestionRaised { ts_ms, .. }
+            | Self::QuestionCleared { ts_ms, .. }
+            | Self::Heartbeat { ts_ms, .. }
+            | Self::Ended { ts_ms, .. } => *ts_ms,
         }
     }
 }
@@ -120,11 +125,13 @@ pub struct FleetSnapshot {
 
 impl FleetSnapshot {
     /// The seats, in first-seen order.
+    #[must_use]
     pub fn seats(&self) -> &[Session] {
         &self.seats
     }
 
     /// The seat with the given id, if present.
+    #[must_use]
     pub fn get(&self, id: &str) -> Option<&Session> {
         self.seats.iter().find(|s| s.id == id)
     }
@@ -139,22 +146,21 @@ impl FleetSnapshot {
 /// so a cursor'd catch-up that overlaps already-applied events converges to the same snapshot.
 pub fn apply(snapshot: &mut FleetSnapshot, event: &SessionEvent) {
     let id = event.id();
-    let idx = match snapshot.index_of(id) {
-        Some(i) => i,
-        None => {
-            // Auto-vivify: never drop an event for an unknown seat — a live seat made invisible is the
-            // cardinal failure. A placeholder carries no render hint yet (transport `None`).
-            snapshot.seats.push(Session {
-                id: id.to_string(),
-                title: id.to_string(),
-                state: State::Starting,
-                question: None,
-                labels: BTreeMap::new(),
-                last_event_ms: 0,
-                transport: None,
-            });
-            snapshot.seats.len() - 1
-        }
+    let idx = if let Some(i) = snapshot.index_of(id) {
+        i
+    } else {
+        // Auto-vivify: never drop an event for an unknown seat — a live seat made invisible is the
+        // cardinal failure. A placeholder carries no render hint yet (transport `None`).
+        snapshot.seats.push(Session {
+            id: id.to_string(),
+            title: id.to_string(),
+            state: State::Starting,
+            question: None,
+            labels: BTreeMap::new(),
+            last_event_ms: 0,
+            transport: None,
+        });
+        snapshot.seats.len() - 1
     };
     let seat = &mut snapshot.seats[idx];
 
@@ -166,7 +172,7 @@ pub fn apply(snapshot: &mut FleetSnapshot, event: &SessionEvent) {
             transport,
             ..
         } => {
-            seat.title = title.clone();
+            seat.title.clone_from(title);
             seat.state = *state;
             seat.labels = labels.clone();
             seat.transport = *transport;
@@ -201,9 +207,11 @@ pub fn apply(snapshot: &mut FleetSnapshot, event: &SessionEvent) {
     seat.last_event_ms = seat.last_event_ms.max(event.ts_ms());
 }
 
-/// Fold an ordered event stream into `snapshot`, returning the result. Deterministic (a pure function
-/// of the starting snapshot and the stream) and replay-safe (re-folding an already-applied suffix in
-/// full is a no-op).
+/// Fold an ordered event stream into `snapshot`, returning the result.
+///
+/// Deterministic (a pure function of the starting snapshot and the stream) and replay-safe
+/// (re-folding an already-applied suffix in full is a no-op).
+#[must_use]
 pub fn reduce(mut snapshot: FleetSnapshot, events: &[SessionEvent]) -> FleetSnapshot {
     for event in events {
         apply(&mut snapshot, event);
@@ -535,8 +543,7 @@ mod tests {
     // (the accessor asserts kill id→""/"xyzzy" and ts_ms→0/1).
     #[test]
     fn t367_req013_session_event_round_trip_all_kinds() {
-        let mut labels = BTreeMap::new();
-        labels.insert("phase".to_string(), "implement".to_string());
+        let labels = BTreeMap::from([("phase".to_string(), "implement".to_string())]);
         let events = vec![
             upsert("a", 1, State::Working),
             SessionEvent::Upsert {

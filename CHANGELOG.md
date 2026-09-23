@@ -13,6 +13,22 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Rustal's quality gates on the Marley crates** (#447, 2026-09-22). Each of the seven
+  `crates/marley_*` manifests carries rustal's lint table, and all 679 hits it raised are
+  fixed. The table sets clippy's pedantic, nursery and cargo groups to warn and denies
+  `missing_docs`, `missing_debug_implementations`, `unsafe_code`, `unwrap_used`,
+  `expect_used` and the doc-section lints, plus `let_underscore_must_use`, which enforces Zed's
+  rule against `let _ =` on a fallible call. Test code may still unwrap and expect
+  (`clippy.toml`). Four new gates:
+  - gate:17 runs cargo-sort and taplo on the Marley manifests;
+  - gate:18 runs typos, as Zed's CI does;
+  - gate:19 fails a Marley test suite that holds no tests;
+  - gate:20 runs semgrep 1.156.0 with `.semgrep.yml`'s two rules: `std::process::exit` in a
+    library, and a `Command::new` whose program is not a string literal.
+
+  gate:13 accepts a `// SAFETY:` comment on the line above the `unsafe` and catches a bare
+  `transmute(`. gate:14 fails on any `warning:` the doc build prints and on a TODO marker in
+  Marley Rust source. The Marley crates' doctests run.
 - **The Marley layout and its first rail** (#438, 2026-09-22). A `marley.layout` setting
   (`zed`, the default, or `marley`), written by the actions `marley: use marley layout` and
   `marley: use zed layout`. In the Marley layout each window's sidebar is the rail: every
@@ -57,6 +73,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **`script/gates.sh` takes an explicit mode** (#447, 2026-09-22): `--full`, `--diff` or
+  `--fast`. A run with no mode, or an unknown one, is a usage error (exit 2) and runs no gate.
+  A `--full` or `--diff` run removes the earlier receipt when it starts, reports the heavy
+  gates BLOCKED after a static red, and writes a receipt only when the gated files at the end
+  are the ones it started on. The fingerprint also covers `rustfmt.toml`, `.config/typos.toml`,
+  `.semgrep.yml` and every file under `crates/marley_*`.
 - **The workflow is four phases** (2026-09-22, Chad's call): Plan → Code → Test → Complete,
   run as `/pipeline:plan`, `/pipeline:code`, `/pipeline:test` and `/pipeline:complete`. Plan
   takes in `/work`'s pre-flight and recall and the old design phase; Code ends with a review
@@ -82,6 +104,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Errors the ported Marley crates dropped** (#444, folded into #447). The MCP transport now
+  logs a failed connection thread, a connection's IO error, and a focus effect the app can no
+  longer take. The terminal logs a shell hook that arrives before `InitShell`, and any failure
+  of the reap signal except ESRCH. The test seed returns its hook errors instead of dropping
+  them.
 - **`normalize_path` on macOS** (#436). Its worktree strip used `\+`, a GNU sed extension that
   BSD sed reads as a literal `+`, so the phase gate misread paths inside
   `.claude/worktrees/<name>/` on macOS. It uses the POSIX `\{1,\}`.

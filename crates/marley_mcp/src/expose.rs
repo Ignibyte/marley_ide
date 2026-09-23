@@ -2,17 +2,18 @@
 //! on Marley's OWN loopback expose server (#370). Distinct from `[[mcp.servers]]` (config.rs — the
 //! client/entry array): Marley IS the server, so there is no transport to resolve, only a grant table —
 //! which is why it is a singleton `[mcp.expose]` table, not a `[[mcp.servers]]` row (a transport-less "us"
-//! row would resolve to `McpConfigError::NoTransport`, D1). `grants()` builds the marley_mcp [`GrantTable`]
+//! row would resolve to `McpConfigError::NoTransport`, D1). `grants()` builds the `marley_mcp` [`GrantTable`]
 //! #370 enforces, closing #371's S3 loop: operator config now reaches the LIVE permission check.
 
 use serde::{Deserialize, Serialize};
 
 use crate::permission::GrantTable;
 
-/// The `[mcp.expose]` config — the grants for Marley's own expose server. Both fields `#[serde(default)]`,
-/// `derive(Default)` == the all-keys-absent decode (D2 — no `enabled`-true trap like `McpServerConfig`;
-/// still pinned by a test). MINIMAL by design: no `enabled` (serving is verb-gated), no port/bind
-/// (loopback + OS-assigned port fixed by #370).
+/// The `[mcp.expose]` config — the grants for Marley's own expose server.
+///
+/// Both fields `#[serde(default)]`, `derive(Default)` == the all-keys-absent decode (D2 — no
+/// `enabled`-true trap like `McpServerConfig`; still pinned by a test). MINIMAL by design: no
+/// `enabled` (serving is verb-gated), no port/bind (loopback + OS-assigned port fixed by #370).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExposeConfig {
     /// Allowed READ tool classes — carried opaquely (D3; #370's read tier is loose, so not consumed).
@@ -29,6 +30,7 @@ impl ExposeConfig {
     /// carried but not consumed (the read tier is loose). An ABSENT `[mcp.expose]` decodes to
     /// `ExposeConfig::default()`, whose `grants()` equals `GrantTable::default()` — so an unconfigured
     /// Marley serves exactly as the pre-#374 hardcoded default (deny-by-default), byte-for-byte (D5).
+    #[must_use]
     pub fn grants(&self) -> GrantTable {
         GrantTable::from_classes(self.allow_write.iter().cloned())
     }

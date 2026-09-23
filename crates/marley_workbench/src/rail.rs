@@ -38,15 +38,17 @@ const MAX_WIDTH: Pixels = px(600.);
 /// Makes the `Terminal` behind a new center terminal, started in the given directory. Production
 /// uses `Project::create_terminal_shell` itself, so no line of this crate spawns a shell; tests
 /// hand in a display-only terminal.
-pub(crate) type TerminalFactory = fn(
+type TerminalFactory = fn(
     &mut Project,
     Option<PathBuf>,
     &mut Context<Project>,
 ) -> Task<anyhow::Result<Entity<Terminal>>>;
 
 /// Zed's own sidebar and whether it was open, kept by the rail that replaced it.
-pub(crate) type KeptSidebar = (Entity<sidebar::Sidebar>, bool);
+pub type KeptSidebar = (Entity<sidebar::Sidebar>, bool);
 
+/// The Marley layout's sidebar: each project group, with the terminals in its center panes under
+/// it.
 pub struct Rail {
     multi_workspace: WeakEntity<MultiWorkspace>,
     focus_handle: FocusHandle,
@@ -66,6 +68,15 @@ pub struct Rail {
     workspace_subscriptions: HashMap<EntityId, Subscription>,
     terminal_subscriptions: HashMap<EntityId, [Subscription; 2]>,
     _multi_workspace_subscriptions: [Subscription; 2],
+}
+
+impl std::fmt::Debug for Rail {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Rail")
+            .field("width", &self.width)
+            .field("rows", &self.snapshot.rail)
+            .finish_non_exhaustive()
+    }
 }
 
 /// The entities behind a project row, held weakly: a closed tab must not outlive its terminal.
@@ -91,19 +102,19 @@ struct Snapshot {
 impl Rail {
     /// A rail for `multi_workspace`, keeping Zed's sidebar when it replaces one.
     pub fn new(
-        multi_workspace: Entity<MultiWorkspace>,
+        multi_workspace: &Entity<MultiWorkspace>,
         zed_sidebar: Option<KeptSidebar>,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let subscriptions = [
             cx.subscribe_in(
-                &multi_workspace,
+                multi_workspace,
                 window,
                 |rail, _, _: &MultiWorkspaceEvent, _, cx| rail.refresh(cx),
             ),
             // Re-keying a project group notifies without an event.
-            cx.observe(&multi_workspace, |rail, _, cx| rail.refresh(cx)),
+            cx.observe(multi_workspace, |rail, _, cx| rail.refresh(cx)),
         ];
         // The `MultiWorkspace` may be mid-update while its sidebar is built, so the first read
         // waits for the end of this effect cycle.
@@ -125,7 +136,7 @@ impl Rail {
 
     /// Hands Zed's sidebar back for the switch to the Zed layout: the one the rail kept, and the
     /// state to restore into a fresh one when it kept none.
-    pub(crate) fn take_zed_sidebar(&mut self) -> (Option<KeptSidebar>, Option<String>) {
+    pub(crate) const fn take_zed_sidebar(&mut self) -> (Option<KeptSidebar>, Option<String>) {
         (self.zed_sidebar.take(), self.zed_sidebar_state.take())
     }
 
@@ -167,7 +178,7 @@ impl Rail {
                 .remove(&workspace.entity_id())
                 .unwrap_or_else(|| {
                     cx.subscribe(workspace, |rail, _, _: &workspace::Event, cx| {
-                        rail.refresh(cx)
+                        rail.refresh(cx);
                     })
                 });
             workspace_subscriptions.insert(workspace.entity_id(), subscription);
@@ -200,13 +211,13 @@ impl Rail {
         let workspace = workspace.upgrade().context("the project was closed")?;
         self.multi_workspace
             .update(cx, |multi_workspace, cx| {
-                multi_workspace.activate(workspace.clone(), None, window, cx)
+                multi_workspace.activate(workspace.clone(), None, window, cx);
             })
             .map(|()| workspace)
     }
 
     fn activate_terminal(
-        &mut self,
+        &self,
         workspace: &WeakEntity<Workspace>,
         view: &WeakEntity<TerminalView>,
         window: &mut Window,
@@ -217,14 +228,14 @@ impl Rail {
         workspace.update(cx, |workspace, cx| {
             workspace.activate_item(&view, true, true, window, cx)
         });
-        view.update(cx, |view, cx| view.clear_bell(cx));
+        view.update(cx, TerminalView::clear_bell);
         Ok(())
     }
 
     /// Opens a terminal in `workspace`'s center, where Zed's own New Terminal would start one: the
     /// workspace's own project directory (a linked worktree's, not its main repository's).
     fn new_terminal(
-        &mut self,
+        &self,
         workspace: &WeakEntity<Workspace>,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -259,7 +270,7 @@ impl Rail {
         self.refresh(cx);
     }
 
-    fn render_header(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_header(&self, window: &Window, cx: &Context<Self>) -> impl IntoElement {
         let header = h_flex()
             .h(platform_title_bar_height(window))
             .w_full()
@@ -325,14 +336,13 @@ impl Rail {
     }
 
     fn render_project_row(
-        &self,
         row: ProjectRow,
         group: &GroupEntry,
-        cx: &mut Context<Self>,
+        cx: &Context<Self>,
     ) -> impl IntoElement {
         // Element ids follow the workspace, not the row's position, so an open menu stays with
         // its project when another group is inserted above it.
-        let id = group.workspace.entity_id().as_u64() as usize;
+        let id = group.workspace.entity_id();
         let index = row.index;
         let workspace = group.workspace.clone();
         let key = group.key.clone();
@@ -347,7 +357,7 @@ impl Rail {
                             .child(
                                 Disclosure::new(("marley-rail-disclosure", id), row.expanded)
                                     .on_click(cx.listener(move |rail, _, _, cx| {
-                                        rail.toggle_expanded(&key, cx)
+                                        rail.toggle_expanded(&key, cx);
                                     })),
                             ),
                     )
@@ -364,7 +374,7 @@ impl Rail {
                                         .child(Indicator::dot().color(Color::Accent)),
                                 )
                             })
-                            .child(self.render_project_menu(index, id, group, cx)),
+                            .child(Self::render_project_menu(index, id, group, cx)),
                     )
                     .on_click(cx.listener(move |rail, _, window, cx| {
                         rail.activate_workspace(&workspace, window, cx).log_err();
@@ -373,11 +383,10 @@ impl Rail {
     }
 
     fn render_project_menu(
-        &self,
         index: usize,
-        id: usize,
+        id: EntityId,
         group: &GroupEntry,
-        cx: &mut Context<Self>,
+        cx: &Context<Self>,
     ) -> impl IntoElement {
         let rail = cx.entity().downgrade();
         let workspace = group.workspace.clone();
@@ -408,10 +417,9 @@ impl Rail {
     }
 
     fn render_terminal_row(
-        &self,
         row: TerminalRow,
         terminal: &TerminalEntry,
-        cx: &mut Context<Self>,
+        cx: &Context<Self>,
     ) -> impl IntoElement {
         let workspace = terminal.workspace.clone();
         let view = terminal.view.clone();
@@ -419,7 +427,7 @@ impl Rail {
         div()
             .debug_selector(move || format!("marley-rail-terminal-{id}"))
             .child(
-                ListItem::new(("marley-rail-terminal", id as usize))
+                ListItem::new(("marley-rail-terminal", id))
                     .toggle_state(row.selected)
                     .indent_level(1)
                     .start_slot(
@@ -574,7 +582,7 @@ impl Sidebar for Rail {
 
     // `SidebarSide`'s default is the left, the rail's side.
     fn side(&self, _cx: &App) -> SidebarSide {
-        Default::default()
+        SidebarSide::default()
     }
 
     // The rail lists no threads yet, so Zed must not treat thread notifications as seen.
@@ -609,10 +617,9 @@ impl Render for Rail {
                     .snapshot
                     .groups
                     .get(row.index)
-                    .map(|group| self.render_project_row(row, group, cx).into_any_element()),
+                    .map(|group| Self::render_project_row(row, group, cx).into_any_element()),
                 Row::Terminal(row) => self.snapshot.terminals.get(&row.id).map(|terminal| {
-                    self.render_terminal_row(row, terminal, cx)
-                        .into_any_element()
+                    Self::render_terminal_row(row, terminal, cx).into_any_element()
                 }),
             })
             .collect();

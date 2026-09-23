@@ -6,7 +6,7 @@
 //! crate and is undone when the setting goes back to `zed` (`docs/marley/workbench-shell.md`).
 
 #[cfg(test)]
-mod marley_workbench_tests;
+pub mod marley_workbench_tests;
 mod rail;
 
 use fs::Fs;
@@ -20,14 +20,16 @@ use settings::{
 use util::ResultExt as _;
 use workspace::{MultiWorkspace, Sidebar as _};
 
-pub use rail::Rail;
+pub use rail::{KeptSidebar, Rail};
 
 actions!(
     marley,
     [
         /// Switches every window to the Marley layout: a rail of projects with their terminals.
+        #[derive(Eq)]
         UseMarleyLayout,
         /// Switches every window back to Zed's own layout.
+        #[derive(Eq)]
         UseZedLayout,
     ]
 );
@@ -82,17 +84,19 @@ pub fn init(cx: &mut App) {
     let layout = state.applied;
     cx.set_global(state);
     apply_defaults(layout, cx);
-    cx.observe_global::<SettingsStore>(layout_setting_changed)
+    cx.on_action(|_: &UseMarleyLayout, cx: &mut App| write_layout(MarleyLayout::Marley, cx))
+        .on_action(|_: &UseZedLayout, cx: &mut App| write_layout(MarleyLayout::Zed, cx))
+        .observe_global::<SettingsStore>(layout_setting_changed)
         .detach();
-    cx.on_action(|_: &UseMarleyLayout, cx: &mut App| write_layout(MarleyLayout::Marley, cx));
-    cx.on_action(|_: &UseZedLayout, cx: &mut App| write_layout(MarleyLayout::Zed, cx));
 }
 
-/// Builds and registers the sidebar the current layout calls for. `crates/zed` calls this where it
-/// used to build Zed's sidebar, inside the same deferred callback, so window restore still finds a
-/// registered sidebar; the settings observer calls it for every window when the layout changes.
+/// Builds and registers the sidebar the current layout calls for.
+///
+/// `crates/zed` calls this where it used to build Zed's sidebar, inside the same deferred callback,
+/// so window restore still finds a registered sidebar; the settings observer calls it for every
+/// window when the layout changes.
 pub fn register_sidebar(
-    multi_workspace: Entity<MultiWorkspace>,
+    multi_workspace: &Entity<MultiWorkspace>,
     window: &mut Window,
     cx: &mut App,
 ) {
@@ -100,7 +104,7 @@ pub fn register_sidebar(
         let multi_workspace = multi_workspace.read(cx);
         let sidebar = multi_workspace.sidebar();
         (
-            sidebar.map(|sidebar| sidebar.to_any()),
+            sidebar.map(workspace::SidebarHandle::to_any),
             sidebar.is_some_and(|sidebar| sidebar.focus_handle(cx).contains_focused(window, cx)),
         )
     };
@@ -117,7 +121,7 @@ pub fn register_sidebar(
                     cx.new(|cx| sidebar::Sidebar::new(multi_workspace.clone(), window, cx));
                 if let Some(state) = state {
                     sidebar.update(cx, |sidebar, cx| {
-                        sidebar.restore_serialized_state(&state, window, cx)
+                        sidebar.restore_serialized_state(&state, window, cx);
                     });
                 }
                 (sidebar, multi_workspace.read(cx).sidebar_open())
@@ -141,7 +145,7 @@ pub fn register_sidebar(
             let kept = current
                 .and_then(|view| view.downcast::<sidebar::Sidebar>().ok())
                 .map(|sidebar| (sidebar, multi_workspace.read(cx).sidebar_open()));
-            let rail = cx.new(|cx| Rail::new(multi_workspace.clone(), kept, window, cx));
+            let rail = cx.new(|cx| Rail::new(multi_workspace, kept, window, cx));
             let focus_handle = rail.focus_handle(cx);
             multi_workspace.update(cx, |multi_workspace, cx| {
                 multi_workspace.register_sidebar(rail, cx);
@@ -162,7 +166,7 @@ pub fn register_sidebar(
     }
 }
 
-fn write_layout(layout: MarleyLayout, cx: &mut App) {
+fn write_layout(layout: MarleyLayout, cx: &App) {
     if MarleySettings::get_global(cx).layout == layout {
         return;
     }
@@ -186,7 +190,7 @@ fn layout_setting_changed(cx: &mut App) {
         window
             .update(cx, |_, window, cx| {
                 if let Some(Some(multi_workspace)) = window.root::<MultiWorkspace>() {
-                    register_sidebar(multi_workspace, window, cx);
+                    register_sidebar(&multi_workspace, window, cx);
                 }
             })
             .log_err();

@@ -14,7 +14,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 | [TICKET-440](open/TICKET-440-rail-agent-clis.md) | feature | W4 · agent CLIs in rail terminals |
 | [TICKET-441](open/TICKET-441-marley-terminal-routing.md) | feature | W5 · terminal routing and keys in the Marley layout |
 | [TICKET-442](open/TICKET-442-rail-polish.md) | feature | W6 · rail persistence and polish |
-| [TICKET-444](open/TICKET-444-ported-discarded-results.md) | chore | port hygiene · handle the eight results the ported Marley crates discard with `let _ =` |
+| [TICKET-448](open/TICKET-448-zed-dylint-lints.md) | chore | quality gates · Zed's dylint lints (`tooling/lints`) on the Marley crates, as gate:21 |
 
 ## Deliberate (picked explicitly, never auto-next)
 

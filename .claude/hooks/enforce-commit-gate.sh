@@ -76,7 +76,7 @@ fi
   echo "the source — no baselines, no suppressions, no lowering a floor."
   if [ -f "$RECEIPT" ]; then
     echo "(a receipt exists but its fingerprint no longer matches — code changed since the"
-    echo " gate ran; re-run script/gates.sh.)"
+    echo " gate ran; re-run script/gates.sh --diff.)"
   fi
 } >&2
 exit 2

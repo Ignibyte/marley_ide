@@ -1,12 +1,16 @@
 //! Pure JSON-RPC 2.0 envelope for the MCP server: parse an incoming request, build result/error
-//! responses. The server mirror of the retired forge sidecar client's `jsonrpc_from_http`/`tool_text`
-//! (#411 — that crate PARSED responses + BUILT requests as a client; this one PARSES requests +
-//! BUILDS responses).
+//! responses.
+//!
+//! The server mirror of the retired forge sidecar client's `jsonrpc_from_http`/`tool_text` (#411 —
+//! that crate PARSED responses + BUILT requests as a client; this one PARSES requests + BUILDS
+//! responses).
 
 use serde_json::Value;
 
-/// JSON-RPC / MCP error codes — the subset L1 emits.
+// JSON-RPC / MCP error codes — the subset L1 emits.
+/// The message is not valid JSON.
 pub const PARSE_ERROR: i64 = -32700;
+/// The message is not a JSON-RPC request object.
 pub const INVALID_REQUEST: i64 = -32600;
 /// Unknown method.
 pub const METHOD_NOT_FOUND: i64 = -32601;
@@ -16,7 +20,7 @@ pub const INVALID_PARAMS: i64 = -32602;
 pub const RESOURCE_NOT_FOUND: i64 = -32002;
 
 /// A parsed JSON-RPC message. A message with NO `id` is a notification (it gets no response).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RpcRequest {
     /// The request id, or `None` for a notification.
     pub id: Option<Value>,
@@ -29,28 +33,35 @@ pub struct RpcRequest {
 impl RpcRequest {
     /// The id to echo in a response, defaulting to `null` (a notification is never responded to, but a
     /// malformed request whose id we couldn't read still answers with `id: null`, per the spec).
+    #[must_use]
     pub fn response_id(&self) -> Value {
         self.id.clone().unwrap_or(Value::Null)
     }
 
     /// Whether this message expects a response (a request has an id; a notification does not).
-    pub fn is_request(&self) -> bool {
+    #[must_use]
+    pub const fn is_request(&self) -> bool {
         self.id.is_some()
     }
 }
 
-/// Parse a single JSON-RPC message. `Err((code, message))` is a ready-to-send error tuple (the caller
-/// answers with `id: null`), used only for a genuinely unparsable / non-object / method-less message.
+/// Parse a single JSON-RPC message.
+///
+/// # Errors
+///
+/// A ready-to-send `(code, message)` tuple (the caller answers with `id: null`), only for a
+/// message that is not JSON ([`PARSE_ERROR`]), not an object, or has no method
+/// ([`INVALID_REQUEST`]).
 pub fn parse_request(message: &str) -> Result<RpcRequest, (i64, String)> {
     let value: Value = serde_json::from_str(message)
         .map_err(|err| (PARSE_ERROR, format!("parse error: {err}")))?;
     let object = value
         .as_object()
-        .ok_or((INVALID_REQUEST, "request is not a JSON object".to_string()))?;
+        .ok_or_else(|| (INVALID_REQUEST, "request is not a JSON object".to_string()))?;
     let method = object
         .get("method")
         .and_then(Value::as_str)
-        .ok_or((INVALID_REQUEST, "missing method".to_string()))?
+        .ok_or_else(|| (INVALID_REQUEST, "missing method".to_string()))?
         .to_string();
     // Absent id → notification (None); present (even null) → a request expecting a response.
     let id = object.get("id").cloned();
@@ -59,11 +70,15 @@ pub fn parse_request(message: &str) -> Result<RpcRequest, (i64, String)> {
 }
 
 /// Build a JSON-RPC success response for `id` carrying `result`.
+#[must_use]
 pub fn result_response(id: &Value, result: Value) -> String {
-    serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": result }).to_string()
+    let mut response = serde_json::json!({ "jsonrpc": "2.0", "id": id });
+    response["result"] = result;
+    response.to_string()
 }
 
 /// Build a JSON-RPC error response for `id` with `code`/`message`.
+#[must_use]
 pub fn error_response(id: &Value, code: i64, message: &str) -> String {
     serde_json::json!({
         "jsonrpc": "2.0",

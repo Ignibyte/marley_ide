@@ -7,11 +7,14 @@ use std::fmt;
 
 /// Format 16 bytes of entropy as a 128-bit token: exactly 32 lowercase hex chars, no separators. The
 /// single formatting path for the bearer and session ids (D8).
+#[must_use]
 pub fn hex128(bytes: [u8; 16]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
     let mut out = String::with_capacity(32);
     for byte in bytes {
-        // `{:02x}` — two lowercase hex digits per byte, zero-padded (so a leading zero byte keeps width).
-        out.push_str(&format!("{byte:02x}"));
+        // Two lowercase hex digits per byte, high nibble first, so a leading zero byte keeps width.
+        out.push(char::from(DIGITS[usize::from(byte >> 4)]));
+        out.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
     }
     out
 }
@@ -29,10 +32,15 @@ impl fmt::Display for EntropyError {
 
 impl std::error::Error for EntropyError {}
 
-/// Mint a token from an entropy read: `Some(bytes)` (a successful `/dev/urandom` read) → the hex token;
-/// `None` (the read failed) → `Err(EntropyError)`, so the caller refuses to start (D2). The masked shim
-/// maps the `io::Result<[u8; 16]>` to `Option` (via `.ok()`) before calling this — keeping the decision
-/// pure and testable with an injected failure.
+/// Mint a token from an entropy read: `Some(bytes)` (a successful `/dev/urandom` read) → the hex
+/// token.
+///
+/// # Errors
+///
+/// `None` (the read failed) → `Err(EntropyError)`, so the caller refuses to start (D2).
+///
+/// The masked shim maps the `io::Result<[u8; 16]>` to `Option` (via `.ok()`) before calling this —
+/// keeping the decision pure and testable with an injected failure.
 pub fn mint_secret(entropy: Option<[u8; 16]>) -> Result<String, EntropyError> {
     entropy.map(hex128).ok_or(EntropyError)
 }

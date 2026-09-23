@@ -12,16 +12,17 @@ use serde_json::{Value, json};
 pub enum Family {
     /// The fleet read family.
     Fleet,
-    /// The session write family (surface_to_human, and Layer-2 verbs later).
+    /// The session write family (`surface_to_human`, and Layer-2 verbs later).
     Session,
 }
 
 impl Family {
     /// The wire prefix for this family.
-    pub fn as_str(self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
         match self {
-            Family::Fleet => "fleet",
-            Family::Session => "session",
+            Self::Fleet => "fleet",
+            Self::Session => "session",
         }
     }
 }
@@ -44,12 +45,14 @@ pub struct ToolSpec {
 
 impl ToolSpec {
     /// The wire tool name `family.verb` (D4 — the one place family+verb are joined).
+    #[must_use]
     pub fn name(&self) -> String {
         tool_name(self.family, self.verb)
     }
 }
 
 /// Compose a wire tool name from a family + verb (`fleet` + `snapshot` → `fleet.snapshot`).
+#[must_use]
 pub fn tool_name(family: Family, verb: &str) -> String {
     format!("{}.{}", family.as_str(), verb)
 }
@@ -58,7 +61,7 @@ pub fn tool_name(family: Family, verb: &str) -> String {
 /// descriptions from this, so the wire list can never drift from what `lookup`/`dispatch` know (the D4
 /// charter; the inspect-caught duplication is gone). Adding `editor`/`browser` = a new row here + its
 /// `tool_schemas` arm + its `dispatch` arm.
-pub const REGISTRY: &[ToolSpec] = &[
+const REGISTRY: &[ToolSpec] = &[
     ToolSpec {
         family: Family::Fleet,
         verb: "snapshot",
@@ -76,11 +79,13 @@ pub const REGISTRY: &[ToolSpec] = &[
 ];
 
 /// The L1 tool table (the const `REGISTRY`).
-pub fn registry() -> &'static [ToolSpec] {
+#[must_use]
+pub const fn registry() -> &'static [ToolSpec] {
     REGISTRY
 }
 
 /// Look up a tool by its wire name (`None` = unknown tool).
+#[must_use]
 pub fn lookup(wire_name: &str) -> Option<ToolSpec> {
     REGISTRY
         .iter()
@@ -88,9 +93,12 @@ pub fn lookup(wire_name: &str) -> Option<ToolSpec> {
         .find(|spec| spec.name() == wire_name)
 }
 
-/// The `tools/list` result (REQ-001) — DERIVED from `REGISTRY`: name + description from the spec, the
-/// per-tool input/output schemas from `tool_schemas`. One source of truth, no hand-repeated parallel
-/// table → no drift (a row added to `REGISTRY` is automatically listed).
+/// The `tools/list` result (REQ-001) — DERIVED from `REGISTRY`: name + description from the spec,
+/// the per-tool input/output schemas from `tool_schemas`.
+///
+/// One source of truth, no hand-repeated parallel table → no drift (a row added to `REGISTRY` is
+/// automatically listed).
+#[must_use]
 pub fn tools_list() -> Value {
     let tools: Vec<Value> = REGISTRY
         .iter()

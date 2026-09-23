@@ -7,9 +7,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 /// A tools/call result envelope: the typed `structuredContent` + the back-compat `text` block, with
-/// `isError` set for a business refusal (D6). MCP requires `content`; `structuredContent` is the typed
-/// channel that conforms to the tool's `outputSchema`.
-pub fn tool_result(structured: Value, is_error: bool) -> Value {
+/// `isError` set for a business refusal (D6).
+///
+/// MCP requires `content`; `structuredContent` is the typed channel that conforms to the tool's
+/// `outputSchema`.
+#[must_use]
+pub fn tool_result(structured: &Value, is_error: bool) -> Value {
     let text = structured.to_string();
     json!({
         "content": [ { "type": "text", "text": text } ],
@@ -18,23 +21,30 @@ pub fn tool_result(structured: Value, is_error: bool) -> Value {
     })
 }
 
-/// The `fleet.snapshot` result (D2/REQ-002): the CURRENT `FleetSnapshot` serialized as `structuredContent`
-/// (+ text), never an error. `to_value` on a plain data struct (string keys, no floats) is infallible;
-/// `unwrap_or_default` is the never-taken fallback (§14 — no panic on any path, no uncovered closure).
+/// The `fleet.snapshot` result (D2/REQ-002): the CURRENT `FleetSnapshot` serialized as
+/// `structuredContent` (+ text), never an error.
+///
+/// `to_value` on a plain data struct (string keys, no floats) is infallible; `unwrap_or_default` is
+/// the never-taken fallback (§14 — no panic on any path, no uncovered closure).
+#[must_use]
 pub fn fleet_snapshot_result(snapshot: &FleetSnapshot) -> Value {
     let structured = serde_json::to_value(snapshot).unwrap_or_default();
-    tool_result(structured, false)
+    tool_result(&structured, false)
 }
 
 /// A tool-execution error result (D6) — `isError:true` carrying the reason. Used for permission denials
 /// and any known-tool business refusal (unknown session id, etc.).
+#[must_use]
 pub fn tool_error(reason: &str) -> Value {
-    tool_result(json!({ "result": "refused", "reason": reason }), true)
+    tool_result(&json!({ "result": "refused", "reason": reason }), true)
 }
 
-/// Resolve a session id to its shell surface handle — an OPAQUE `u64` (the app's `PaneId.0`, so marley_mcp
-/// never depends on marley_app). `None` when no LOCAL surface hosts that id (D-OPEN-SURFACE-V1: L1 can
-/// only surface a session the shell hosts; a remote/demo-only seat refuses). Exact-match; app owns the index.
+/// Resolve a session id to its shell surface handle — an OPAQUE `u64` (the app's `PaneId.0`, so
+/// `marley_mcp` never depends on `marley_app`).
+///
+/// `None` when no LOCAL surface hosts that id (D-OPEN-SURFACE-V1: L1 can only surface a session the
+/// shell hosts; a remote/demo-only seat refuses). Exact-match; app owns the index.
+#[must_use]
 pub fn resolve_surface(id: &str, index: &[(String, u64)]) -> Option<u64> {
     index
         .iter()
@@ -49,9 +59,12 @@ pub struct SurfaceAck {
     pub surfaced: String,
 }
 
-/// Build the `surface_to_human` receipt (D7): `Accepted` when the id RESOLVED to a hosted pane (the focus
-/// effect is then applied best-effort on the UI thread — a lost race afterward is not reflected back);
-/// `Refused` otherwise (the #367 first-class refusal → D6 `isError`). Never panics.
+/// Build the `surface_to_human` receipt (D7).
+///
+/// `Accepted` when the id RESOLVED to a hosted pane (the focus effect is then applied best-effort
+/// on the UI thread — a lost race afterward is not reflected back); `Refused` otherwise (the #367
+/// first-class refusal → D6 `isError`). Never panics.
+#[must_use]
 pub fn surface_receipt(focused: bool, id: &str) -> Receipt<SurfaceAck> {
     if focused {
         Receipt::Accepted {
@@ -67,11 +80,12 @@ pub fn surface_receipt(focused: bool, id: &str) -> Receipt<SurfaceAck> {
 }
 
 /// Wrap a surface receipt as a tools/call result: `Refused` → `isError:true` (D6); `Accepted` → normal.
+#[must_use]
 pub fn surface_result(receipt: &Receipt<SurfaceAck>) -> Value {
     let is_error = matches!(receipt, Receipt::Refused { .. });
     // `to_value` on the plain receipt is infallible; `unwrap_or_default` is the never-taken fallback.
     let structured = serde_json::to_value(receipt).unwrap_or_default();
-    tool_result(structured, is_error)
+    tool_result(&structured, is_error)
 }
 
 #[cfg(test)]
@@ -87,7 +101,7 @@ mod tests {
                 ts_ms: 1,
                 title: "a".into(),
                 state: State::Working,
-                labels: Default::default(),
+                labels: std::collections::BTreeMap::new(),
                 transport: None,
             }],
         )

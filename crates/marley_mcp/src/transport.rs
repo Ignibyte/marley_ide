@@ -1,10 +1,11 @@
 //! The transport shim (D-OPEN-SDK / D-OPEN-LISTEN) — the loopback Streamable-HTTP listener, the
-//! per-connection threads, the standing SSE stream, and the discovery-file writer. Every decision it makes
-//! — parse a request, run the auth guards, route, build a response/notification — is delegated to the
-//! PURE core (`handle_message`, `auth`, `jsonrpc`). The plumbing itself is proven by the tests at the foot
-//! of this file, which drive a real server over a loopback socket (the fork's mutation gate has no
-//! exclusions). Coverage still lists this file as ACCEPTED-UNTESTABLE for the IO-error arms a loopback
-//! peer cannot provoke.
+//! per-connection threads, the standing SSE stream, and the discovery-file writer.
+//!
+//! Every decision it makes — parse a request, run the auth guards, route, build a
+//! response/notification — is delegated to the PURE core (`handle_message`, `auth`, `jsonrpc`). The
+//! plumbing itself is proven by the tests at the foot of this file, which drive a real server over
+//! a loopback socket (the fork's mutation gate has no exclusions). Coverage still lists this file
+//! as ACCEPTED-UNTESTABLE for the IO-error arms a loopback peer cannot provoke.
 //!
 //! Security (D1/D9): binds `127.0.0.1:0` ONLY (never 0.0.0.0), validates `Origin`, requires the per-boot
 //! bearer on every request, and NEVER logs the bearer.
@@ -23,9 +24,10 @@ use crate::{
     snapshot_changed,
 };
 
-/// The shared server state the app updates each pump tick: the current snapshot, the permission grants,
-/// and the `(session-id, pane-handle)` surface index. Guarded by a `Mutex`; a `Condvar` wakes the SSE
-/// threads when the snapshot version bumps.
+/// The shared server state the app updates each pump tick: the current snapshot, the permission
+/// grants, and the `(session-id, pane-handle)` surface index.
+///
+/// Guarded by a `Mutex`; a `Condvar` wakes the SSE threads when the snapshot version bumps.
 #[derive(Debug, Default)]
 pub struct ServerData {
     /// The current fleet snapshot the read tools + resource serve.
@@ -61,11 +63,13 @@ impl std::fmt::Debug for ServerHandle {
 
 impl ServerHandle {
     /// The server's loopback URL.
+    #[must_use]
     pub fn url(&self) -> &str {
         &self.url
     }
 
     /// The per-boot bearer (for the discovery file only — never log it).
+    #[must_use]
     pub fn bearer(&self) -> &str {
         &self.bearer
     }
@@ -76,8 +80,9 @@ impl ServerHandle {
 fn now_epoch_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|elapsed| elapsed.as_millis() as u64)
-        .unwrap_or(0)
+        .map_or(0, |elapsed| {
+            u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
+        })
 }
 
 /// Read 16 bytes of OS CSPRNG from `/dev/urandom` (#375, D1) — the bearer + every session id are minted
@@ -93,32 +98,48 @@ fn read_entropy() -> Option<[u8; 16]> {
 }
 
 /// Bind a loopback listener on an OS-assigned port and start the accept loop on a background thread.
+///
 /// Returns the [`ServerHandle`] (url + a CSPRNG bearer) for the discovery file. The `shared` state is read
 /// on each request; `effects` carries `surface_to_human` focus requests to the UI thread. Refuses to start
 /// (typed `io::Error`, no weaker fallback — D2) when OS entropy is unavailable.
+///
+/// # Errors
+///
+/// Any IO error binding the listener or starting its thread, and an `io::Error` wrapping
+/// [`EntropyError`](crate::EntropyError) when OS entropy is unavailable.
 pub fn spawn(shared: Shared, effects: Sender<Effect>) -> std::io::Result<ServerHandle> {
     let listener = TcpListener::bind("127.0.0.1:0")?;
     let addr = listener.local_addr()?;
     let bearer = mint_secret(read_entropy()).map_err(std::io::Error::other)?;
     let url = format!("http://{addr}/mcp");
     let bearer_for_thread = bearer.clone();
-    std::thread::Builder::new()
-        .name("marley-mcp-server".into())
-        .spawn(move || accept_loop(listener, shared, effects, bearer_for_thread))?;
+    // The accept loop runs for the life of the process; dropping its handle detaches it.
+    drop(
+        std::thread::Builder::new()
+            .name("marley-mcp-server".into())
+            .spawn(move || accept_loop(&listener, &shared, &effects, &bearer_for_thread))?,
+    );
     Ok(ServerHandle { url, bearer })
 }
 
 /// Accept connections, one thread per connection (blocking IO — the search/syntax-worker idiom).
-fn accept_loop(listener: TcpListener, shared: Shared, effects: Sender<Effect>, bearer: String) {
+fn accept_loop(listener: &TcpListener, shared: &Shared, effects: &Sender<Effect>, bearer: &str) {
     for stream in listener.incoming().flatten() {
-        let shared = Arc::clone(&shared);
+        let shared = Arc::clone(shared);
         let effects = effects.clone();
-        let bearer = bearer.clone();
-        let _ = std::thread::Builder::new()
+        let bearer = bearer.to_string();
+        let spawned = std::thread::Builder::new()
             .name("marley-mcp-conn".into())
             .spawn(move || {
-                let _ = serve_connection(stream, shared, effects, bearer);
+                if let Err(error) = serve_connection(stream, &shared, &effects, &bearer) {
+                    // Mostly a client that hung up mid-exchange; the connection is over either way.
+                    log::debug!("marley_mcp: a connection ended in an IO error: {error}");
+                }
             });
+        if let Err(error) = spawned {
+            // The OS refused a thread: this client gets no reply, and the server keeps accepting.
+            log::warn!("marley_mcp: no thread for a connection: {error}");
+        }
     }
 }
 
@@ -126,9 +147,9 @@ fn accept_loop(listener: TcpListener, shared: Shared, effects: Sender<Effect>, b
 /// `handle_message`) or hold a GET open as the standing SSE notification stream.
 fn serve_connection(
     mut stream: std::net::TcpStream,
-    shared: Shared,
-    effects: Sender<Effect>,
-    bearer: String,
+    shared: &Shared,
+    effects: &Sender<Effect>,
+    bearer: &str,
 ) -> std::io::Result<()> {
     let mut reader = BufReader::new(stream.try_clone()?);
     let Some(request) = read_http_request(&mut reader)? else {
@@ -137,19 +158,19 @@ fn serve_connection(
     // Auth guards (D1/D9) — refuse BEFORE any dispatch. Order: cap (in read_http_request) → Origin →
     // bearer → session → dispatch (#375 REQ-012 — an unauthenticated request never touches the registry).
     if !auth::origin_allowed(request.origin.as_deref())
-        || !auth::bearer_ok(request.bearer.as_deref(), &bearer)
+        || !auth::bearer_ok(request.bearer.as_deref(), bearer)
     {
         return write_status(&mut stream, 403, "Forbidden");
     }
     // Session gate (#375, MCP §Session Management) — POST-auth. Decide + mutate the registry under ONE
     // lock, then release before touching the socket. An `initialize` mints + assigns a fresh id (echoed on
     // the response); a valid session proceeds; a DELETE terminates; a missing/unknown id is refused.
-    let is_initialize = parse_request(&request.body)
-        .map(|req| req.method == "initialize")
-        .unwrap_or(false);
+    let is_initialize = parse_request(&request.body).is_ok_and(|req| req.method == "initialize");
     let session_id = {
-        let (data, _cv) = &*shared;
-        let mut guard = data.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let (data, _cv) = &**shared;
+        let mut guard = data
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // One timeline value per request (#379): the gate's sweep and the Initialize arm's assign
         // stamp share the same `now`.
         let now = now_epoch_ms();
@@ -166,7 +187,7 @@ fn serve_connection(
             }
             SessionDecision::Terminate => {
                 if let Some(id) = request.session.as_deref() {
-                    guard.sessions.terminate(id);
+                    let _was_live = guard.sessions.terminate(id);
                 }
                 drop(guard);
                 return write_status(&mut stream, 200, "OK");
@@ -188,18 +209,25 @@ fn serve_connection(
     };
     if request.method == "POST" {
         let handled = {
-            let (data, _cv) = &*shared;
-            let guard = data.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            let (data, _cv) = &**shared;
+            let guard = data
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let ctx = RequestCtx {
                 snapshot: &guard.snapshot,
                 grants: &guard.grants,
                 surface_index: &guard.surface_index,
             };
             let mut subs = Subscriptions::default();
-            handle_message(&ctx, &mut subs, &request.body)
+            let handled = handle_message(&ctx, &mut subs, &request.body);
+            drop(guard);
+            handled
         };
-        if let Some(effect) = handled.effect {
-            let _ = effects.send(effect);
+        if let Some(effect) = handled.effect
+            && let Err(error) = effects.send(effect)
+        {
+            // The app's receiver is gone, so it is shutting down and has no pane to focus.
+            log::debug!("marley_mcp: the app dropped a surface effect: {error}");
         }
         let mut wrote_response = false;
         for message in handled.outgoing {
@@ -220,7 +248,7 @@ fn serve_connection(
         // GET → the standing SSE stream (reached only for a valid session — the gate refused otherwise).
         // Its session is reclaimed when the stream drops, so a client that reconnects (re-initializing, per
         // the MCP spec + Marley's own #373 pump) does not leak its old slot toward the cap.
-        serve_sse_stream(stream, shared, request.session)
+        serve_sse_stream(stream, shared, request.session.as_deref())
     }
 }
 
@@ -228,13 +256,15 @@ fn serve_connection(
 fn reap_session(shared: &Shared, session: Option<&str>) {
     if let Some(id) = session {
         let (data, _cv) = &**shared;
-        let mut guard = data.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        guard.sessions.terminate(id);
+        let mut guard = data
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _was_live = guard.sessions.terminate(id);
     }
 }
 
 /// The reason phrase for a session-gate refusal status.
-fn status_reason(code: u16) -> &'static str {
+const fn status_reason(code: u16) -> &'static str {
     match code {
         400 => "Bad Request",
         404 => "Not Found",
@@ -252,39 +282,44 @@ fn status_reason(code: u16) -> &'static str {
 /// `resources/subscribe` over POST returns success as an advisory ack.
 fn serve_sse_stream(
     mut stream: std::net::TcpStream,
-    shared: Shared,
-    session: Option<String>,
+    shared: &Shared,
+    session: Option<&str>,
 ) -> std::io::Result<()> {
-    let (data, condvar) = &*shared;
+    let (data, condvar) = &**shared;
     // Read the version before the head goes out: a change that lands while the head is being
     // written still gets its push, where reading it after would drop that push.
-    let mut last_seen = { data.lock().unwrap_or_else(|p| p.into_inner()).version };
+    let mut last_seen = {
+        data.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .version
+    };
     if stream
         .write_all(
             b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n",
         )
         .is_err()
     {
-        reap_session(&shared, session.as_deref());
+        reap_session(shared, session);
         return Ok(());
     }
     let subs = Subscriptions { fleet: true }; // L1: opening the stream = subscribing to the one resource
     loop {
-        let guard = data.lock().unwrap_or_else(|p| p.into_inner());
+        let guard = data
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let guard = condvar
             .wait_while(guard, |d| d.version == last_seen)
-            .unwrap_or_else(|p| p.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         last_seen = guard.version;
         drop(guard);
-        for message in snapshot_changed(&subs) {
-            if let Outgoing::Notification(body) = message {
-                if stream
+        for message in snapshot_changed(subs) {
+            if let Outgoing::Notification(body) = message
+                && stream
                     .write_all(format!("event: message\r\ndata: {body}\r\n\r\n").as_bytes())
                     .is_err()
-                {
-                    reap_session(&shared, session.as_deref()); // client hung up → free its session slot
-                    return Ok(());
-                }
+            {
+                reap_session(shared, session); // client hung up → free its session slot
+                return Ok(());
             }
         }
     }
@@ -295,7 +330,9 @@ fn serve_sse_stream(
 pub fn signal_change(shared: &Shared) {
     let (data, condvar) = &**shared;
     {
-        let mut guard = data.lock().unwrap_or_else(|p| p.into_inner());
+        let mut guard = data
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         guard.version = guard.version.wrapping_add(1);
     }
     condvar.notify_all();
@@ -310,6 +347,13 @@ struct HttpRequest {
     session: Option<String>,
     body: String,
 }
+
+/// The largest request body the server reads (1 MiB; an MCP request is small).
+///
+/// Inspect fix (pre-auth DoS): never allocate an attacker-chosen `Content-Length`. A hostile
+/// (unauthenticated, loopback) request with a huge length would otherwise `vec![0u8; N]` → an OOM
+/// process abort taking down the whole app, so anything over this cap is a bad request.
+const MAX_BODY_BYTES: usize = 1 << 20;
 
 /// Read + parse an HTTP/1.1 request: the request line, the headers we care about (`Origin`,
 /// `Authorization`, `Content-Length`), and the body.
@@ -345,10 +389,6 @@ fn read_http_request(
             content_length = value.parse().unwrap_or(0);
         }
     }
-    // Inspect fix (pre-auth DoS): never allocate an attacker-chosen `Content-Length`. A hostile
-    // (unauthenticated, loopback) request with a huge length would otherwise `vec![0u8; N]` → an OOM
-    // process abort taking down the whole app. Reject anything over a sane cap as a bad request.
-    const MAX_BODY_BYTES: usize = 1 << 20; // 1 MiB — an MCP request is small
     if content_length > MAX_BODY_BYTES {
         return Ok(None); // → 400 Bad Request; no allocation
     }
@@ -383,10 +423,8 @@ fn write_sse_response(
 ) -> std::io::Result<()> {
     let payload = format!("event: message\r\ndata: {body}\r\n\r\n");
     // The `Mcp-Session-Id` header is emitted only on the initialize response (#375); other responses omit it.
-    let session_header = match session_id {
-        Some(id) => format!("Mcp-Session-Id: {id}\r\n"),
-        None => String::new(),
-    };
+    let session_header =
+        session_id.map_or_else(String::new, |id| format!("Mcp-Session-Id: {id}\r\n"));
     write!(
         stream,
         "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\n{session_header}Content-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -404,8 +442,10 @@ fn write_status(stream: &mut std::net::TcpStream, code: u16, reason: &str) -> st
 }
 
 /// Build the discovery-file JSON `{url, bearer}` a manager's `.mcp.json` reads to reach this server.
+///
 /// (Writing it to disk is the app glue's job — kept here as a pure builder so its shape is testable if
 /// ever needed; the bearer lands ONLY in this gitignored runtime file, never a log.)
+#[must_use]
 pub fn discovery_json(url: &str, bearer: &str) -> String {
     serde_json::json!({ "type": "http", "url": url, "headers": { "Authorization": format!("Bearer {bearer}") } })
         .to_string()
@@ -420,6 +460,7 @@ mod tests {
     use super::*;
     use crate::permission::GrantTable;
     use serde_json::Value;
+    use std::fmt::Write as _;
     use std::net::{Shutdown, TcpStream};
     use std::sync::mpsc::{self, Receiver};
     use std::time::{Duration, Instant};
@@ -479,9 +520,10 @@ mod tests {
         fn request(&self, method: &str, headers: &[(&str, &str)], body: &str) -> String {
             let mut raw = format!("{method} /mcp HTTP/1.1\r\nHost: localhost\r\n");
             for (name, value) in headers {
-                raw.push_str(&format!("{name}: {value}\r\n"));
+                write!(raw, "{name}: {value}\r\n").expect("formatting into a String");
             }
-            raw.push_str(&format!("Content-Length: {}\r\n\r\n{body}", body.len()));
+            write!(raw, "Content-Length: {}\r\n\r\n{body}", body.len())
+                .expect("formatting into a String");
             self.exchange(raw.as_bytes())
         }
 
@@ -507,7 +549,7 @@ mod tests {
         fn session_is_live(&self, session: &str) -> bool {
             let (data, _) = &*self.shared;
             data.lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .sessions
                 .validate(session)
         }
@@ -713,7 +755,7 @@ mod tests {
     fn a_session_past_the_cap_is_refused() {
         let server = start();
         for _ in 0..crate::SESSION_CAP {
-            server.initialize();
+            let _session = server.initialize();
         }
         let reply = server.post(None, INITIALIZE);
         assert_eq!(status_line(&reply), "HTTP/1.1 503 Service Unavailable");
@@ -724,7 +766,9 @@ mod tests {
         let server = start();
         {
             let (data, _) = &*server.shared;
-            let mut data = data.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            let mut data = data
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             data.grants = GrantTable::from_classes(["session.write"]);
             data.surface_index = vec![("dev-1/a".to_string(), 7)];
         }
@@ -854,7 +898,7 @@ mod tests {
         let (data, _) = &*server.shared;
         let version = data
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .version;
         assert_eq!(version, 2);
     }

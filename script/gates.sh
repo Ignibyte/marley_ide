@@ -16,20 +16,23 @@
 # Marley floors. Mutation testing is not a gate: script/mutation.sh runs it once
 # at the end of a sprint (Chad, 2026-09-22).
 #
-# Gate numbering follows CONSTITUTION §0 (1-14 and 16; gate:15, the macOS
-# visual/AX harness, retired with the fork):
+# Gate numbering follows CONSTITUTION §0. Retired numbers are not reused: gate:5,
+# mutation, left the gate on 2026-09-22 for script/mutation.sh, and gate:15, the
+# macOS visual/AX harness, retired with the fork.
 #   STATIC (always): 1 fmt · 2 clippy · 3 tests · 7 audit · 8 deny · 9 shear
 #                    10 gitleaks · 11 shellcheck · 12 no-suppress · 13 SAST · 14 docs
-#                    16 zed-ledger
-#   HEAVY  (FULL/DIFF): 4 coverage · 6 miri
-#   (gate:5, mutation, left the gate on 2026-09-22 for script/mutation.sh)
+#                    16 zed-ledger · 17 manifests · 18 spelling · 19 empty suites
+#                    20 semgrep
+#   HEAVY  (FULL/DIFF): 4 coverage · 6 miri — reported BLOCKED, not run, after a
+#                    static red
 #
-# Modes:
-#   script/gates.sh         FULL — heavy gates over every Marley crate. Receipt.
+# Modes (one is required; none, or an unknown one, is a usage error: exit 2):
+#   script/gates.sh --full  FULL — heavy gates over every Marley crate. Receipt.
 #   script/gates.sh --diff  DIFF — heavy gates on what the change touched. Receipt.
 #   script/gates.sh --fast  FAST — static gates only (no heavy, no receipt).
-#   GATE_FAST=1 also selects FAST. Either FULL or DIFF green satisfies the
-#   commit hook.
+# A FULL or DIFF run removes the earlier receipt when it starts and writes a new
+# one only when the gated files at the end are the ones it started on. Either a
+# FULL or a DIFF green satisfies the commit hook.
 #
 # Knobs (env): MARLEY_UPSTREAM_BASE names the upstream fork-point commit when
 # the `upstream` remote is not fetched.
@@ -38,6 +41,26 @@
 set -uo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
 MANIFEST="Cargo.toml"
+
+usage() {
+  cat >&2 <<'USAGE'
+Usage: script/gates.sh --full|--diff|--fast
+  --full  every gate, the heavy ones over every Marley crate; writes the commit receipt
+  --diff  every gate, the heavy ones over the touched Marley crates; writes the commit receipt
+  --fast  the static gates only; writes no receipt
+USAGE
+}
+
+# The mode is settled before any gate or cargo command runs.
+MODE=""
+if [ "$#" -eq 1 ]; then
+  case "$1" in
+    --full) MODE="full" ;;
+    --diff) MODE="diff" ;;
+    --fast) MODE="fast" ;;
+  esac
+fi
+[ -n "$MODE" ] || { usage; exit 2; }
 
 # shellcheck source=.claude/hooks/lib-hook-helpers.sh
 . ./.claude/hooks/lib-hook-helpers.sh 2>/dev/null \
@@ -49,9 +72,18 @@ RUST_COV_FLOOR=100
 RUST_COV_MIN="${RUST_COV_MIN:-$RUST_COV_FLOOR}"
 if awk -v c="$RUST_COV_MIN" -v f="$RUST_COV_FLOOR" 'BEGIN{exit !(c+0 < f+0)}'; then echo "note: RUST_COV_MIN below the §0 minimum $RUST_COV_FLOOR — clamped." >&2; RUST_COV_MIN=$RUST_COV_FLOOR; fi
 
-MODE="full"
-case "${1:-}" in --fast|fast) MODE="fast" ;; --diff|diff) MODE="diff" ;; esac
-[ "${GATE_FAST:-0}" = "1" ] && MODE="fast"
+# A FULL or DIFF run revokes the earlier receipt before any gate runs: a tree that
+# passed once and fails now must not commit on the older green. The new receipt
+# binds the fingerprint taken here.
+GATE_START_HASH=""
+RECEIPT=""
+if [ "$MODE" != "fast" ]; then
+  GITDIR=$(git rev-parse --git-dir 2>/dev/null) || { echo "FATAL: cannot resolve the git directory" >&2; exit 2; }
+  RECEIPT="$GITDIR/ignibyte-gate-receipt"
+  rm -f -- "$RECEIPT" || { echo "FATAL: cannot remove the earlier receipt $RECEIPT" >&2; exit 2; }
+  [ ! -e "$RECEIPT" ] || { echo "FATAL: the earlier receipt $RECEIPT is still there" >&2; exit 2; }
+  GATE_START_HASH=$(gate_state_hash) || GATE_START_HASH=""
+fi
 
 PASS=0; FAIL=0
 RESULTS=()
@@ -188,37 +220,79 @@ no_suppr_g() {
   return 0
 }
 
-# ── 13. source bans (SAST) — mem::transmute; unsafe without // SAFETY: ───────
+# ── 13. source bans (SAST) — transmute; unsafe without // SAFETY: ───────────
+# A `// SAFETY:` comment counts on the `unsafe` line itself or on the line above
+# it, where rustfmt and the house style put it.
+TRANSMUTE_RE='mem::transmute|(^|[^_[:alnum:]])transmute[[:space:]]*(\(|::<)'
+UNSAFE_RE='(^|[^_[:alnum:]])unsafe[^_[:alnum:]]'
+
+# Lines of FILES that say `unsafe` with no `SAFETY:` on them or on the line above.
+unjustified_unsafe() {
+  awk -v re="$UNSAFE_RE" '
+    FNR == 1 { previous = "" }
+    $0 ~ re && $0 !~ /SAFETY:/ && previous !~ /SAFETY:/ { print FILENAME ":" FNR ":" $0 }
+    { previous = $0 }
+  ' "$@"
+}
+
+# The same for the lines a tracked edit under crates/ adds, read with one line of
+# context so the line above an added `unsafe` is known.
+added_unjustified_unsafe() {
+  git diff HEAD -U1 -- crates 2>/dev/null | awk -v re="$UNSAFE_RE" '
+    /^(\+\+\+|---) / || /^@@/ { previous = ""; next }
+    /^-/ { next }
+    {
+      line = substr($0, 2)
+      if ($0 ~ /^\+/ && line ~ re && line !~ /SAFETY:/ && previous !~ /SAFETY:/) print line
+      previous = line
+    }
+  '
+}
+
 source_bans_g() {
-  local targets trans unsafes added_trans added_unsafe
+  local targets trans unsafes added_trans added_unsafe files
   targets=$(scan_files)
   # shellcheck disable=SC2086
-  trans=$(grep -rnE 'mem::transmute' $targets 2>/dev/null || true)
+  trans=$(grep -rnE "$TRANSMUTE_RE" $targets 2>/dev/null || true)
   # shellcheck disable=SC2086
-  unsafes=$(grep -rnE '(^|[^_[:alnum:]])unsafe[^_[:alnum:]]' $targets 2>/dev/null | grep -v 'SAFETY:' || true)
-  added_trans=$(added_lines | grep -E 'mem::transmute' || true)
-  added_unsafe=$(added_lines | grep -E '(^|[^_[:alnum:]])unsafe[^_[:alnum:]]' | grep -v 'SAFETY:' || true)
+  files=$(grep -rlE "$UNSAFE_RE" $targets 2>/dev/null || true)
+  unsafes=""
+  # shellcheck disable=SC2086
+  [ -z "$files" ] || unsafes=$(unjustified_unsafe $files)
+  added_trans=$(added_lines | grep -E "$TRANSMUTE_RE" || true)
+  added_unsafe=$(added_unjustified_unsafe)
   if [ -n "$trans$unsafes$added_trans$added_unsafe" ]; then
     echo "banned source primitives (CONSTITUTION §0/§14):"
-    [ -n "$trans$added_trans" ]    && { echo "— mem::transmute:"; echo "$trans"; echo "$added_trans"; }
+    [ -n "$trans$added_trans" ]    && { echo "— transmute:"; echo "$trans"; echo "$added_trans"; }
     [ -n "$unsafes$added_unsafe" ] && { echo "— unsafe without a // SAFETY: justification:"; echo "$unsafes"; echo "$added_unsafe"; }
     return 1
   fi
   return 0
 }
 
-# ── 14. docs — rustdoc -D warnings on the Marley crates + doc-todos ──────────
-# The doc-todos half bans ACTIONABLE markers (`TODO:` `FIXME(` `XXX!`) in the
-# Marley-AUTHORED committed docs. docs/planning/ is working scratch,
-# docs/warp_architecture/ transcribes Warp's own markers, docs/marley/history/
-# is the gpui-era changelog verbatim, and docs/src/ is Zed's user manual.
+# ── 14. docs — rustdoc on the Marley crates, warning-free; doc-todos ─────────
+# `-D warnings` denies rustdoc's lints, but cargo and rustdoc print warnings no
+# lint level reaches, so a printed `warning:` line fails the gate as well (no
+# `--quiet`: it silences cargo's own warnings, an unused manifest key among them). The
+# todos half bans ACTIONABLE markers (`TODO:` `FIXME(` `XXX!`) in the Marley
+# crates' Rust source and in the Marley-AUTHORED committed docs. docs/planning/
+# is working scratch, docs/warp_architecture/ transcribes Warp's own markers,
+# docs/marley/history/ is the gpui-era changelog verbatim, and docs/src/ is
+# Zed's user manual.
 docs_g() {
-  RUSTDOCFLAGS="-D warnings" cargo doc --manifest-path "$MANIFEST" --no-deps --quiet "${MARLEY_PKG_ARGS[@]}" || return 1
-  local hits
-  hits=$(grep -rnE '(TODO|FIXME|XXX)[:(!]' --include='*.md' \
-           CONSTITUTION.md docs/marley docs/marley_architecture docs/specs docs/zed_architecture docs/decisions docs/tickets .claude 2>/dev/null \
-         | grep -vE '^docs/marley/history/' || true)
-  [ -z "$hits" ] || { echo "actionable TODO/FIXME/XXX markers in committed Marley docs:"; echo "$hits"; return 1; }
+  local out status hits
+  out=$(RUSTDOCFLAGS="-D warnings" cargo doc --manifest-path "$MANIFEST" --no-deps "${MARLEY_PKG_ARGS[@]}" 2>&1)
+  status=$?
+  [ -z "$out" ] || printf '%s\n' "$out"
+  [ "$status" -eq 0 ] || return 1
+  if grep -qE '^warning:' <<<"$out"; then echo "cargo doc printed a warning (above)"; return 1; fi
+  hits=$({
+    grep -rnE '(TODO|FIXME|XXX)[:(!]' --include='*.md' \
+      CONSTITUTION.md docs/marley docs/marley_architecture docs/specs docs/zed_architecture docs/decisions docs/tickets .claude 2>/dev/null \
+      | grep -vE '^docs/marley/history/'
+    grep -rnE '(TODO|FIXME|XXX)[:(!]' --include='*.rs' crates/marley_* 2>/dev/null
+  } || true)
+  [ -z "$hits" ] || { echo "actionable TODO/FIXME/XXX markers in the Marley crates or their committed docs:"; echo "$hits"; return 1; }
   return 0
 }
 
@@ -228,6 +302,64 @@ docs_g() {
 # must still differ. The owned set and the check live in lib-hook-helpers.sh,
 # shared with enforce-zed-ledger.sh; an unknown fork point fails closed.
 zed_ledger_g() { zed_ledger_check "$(upstream_base)"; }
+
+# The Marley crates' directories, one argument each.
+marley_dirs() { local p; for p in $MARLEY_PKGS; do printf '%s\n' "crates/$p"; done; }
+
+# ── 17. manifests — cargo-sort and taplo over the Marley manifests ───────────
+manifests_g() {
+  need cargo-sort "cargo install cargo-sort" || return 1
+  need taplo "cargo install taplo-cli" || return 1
+  local -a dirs=() manifests=()
+  local d
+  while IFS= read -r d; do dirs+=( "$d" ); manifests+=( "$d/Cargo.toml" ); done < <(marley_dirs)
+  cargo sort --check "${dirs[@]}" || return 1
+  RUST_LOG=warn taplo fmt --check "${manifests[@]}" || return 1
+}
+
+# ── 18. spelling — typos over the repository, with Zed's config, as Zed's CI runs it
+typos_g() { need typos "cargo install typos-cli" || return 1; typos --config .config/typos.toml; }
+
+# ── 19. empty suites — every Marley test suite but a binary's holds a test ───
+# A suite that compiles with no test in it passes gate:3 while testing nothing.
+# $1 is the JSON `cargo nextest list --message-format json` prints.
+suites_have_tests() {
+  local listing="$1" empty
+  [ -n "$listing" ] || { echo "cargo nextest list printed nothing"; return 1; }
+  jq -e '(."rust-suites" | type == "object" and length > 0)
+         and all(."rust-suites"[]; (.testcases | type == "object"))' <<<"$listing" >/dev/null 2>&1 \
+    || { echo "cargo nextest list printed no test suites, or a listing this gate cannot read"; return 1; }
+  empty=$(jq -r '."rust-suites" | to_entries[]
+                 | select((.key | contains("::bin/") | not) and (.value.testcases | length) == 0)
+                 | .key' <<<"$listing") \
+    || { echo "the nextest listing could not be read for empty suites"; return 1; }
+  [ -z "$empty" ] || { echo "test suites with no tests:"; sed 's/^/  /' <<<"$empty"; return 1; }
+  return 0
+}
+
+empty_suites_g() {
+  need cargo-nextest "cargo install cargo-nextest" || return 1
+  local listing
+  listing=$(cargo nextest list --manifest-path "$MANIFEST" "${MARLEY_PKG_ARGS[@]}" --message-format json) || return 1
+  suites_have_tests "$listing"
+}
+
+# ── 20. semgrep — the rules in .semgrep.yml that clippy and gitleaks do not cover
+# The pin is the engine the rules were proven on. The version check and metrics
+# stay off, so the gate makes no network call, and `--no-git-ignore` scans a new
+# file before it is tracked (semgrep otherwise reads only what git lists).
+SEMGREP_PIN="1.156.0"
+semgrep_g() {
+  need semgrep "pipx install semgrep==$SEMGREP_PIN" || return 1
+  local version
+  version=$(SEMGREP_ENABLE_VERSION_CHECK=0 semgrep --version 2>/dev/null | tail -n1)
+  [ "$version" = "$SEMGREP_PIN" ] || { echo "semgrep ${version:-(no version)} is not the pinned $SEMGREP_PIN"; return 1; }
+  local -a dirs=()
+  local d
+  while IFS= read -r d; do dirs+=( "$d" ); done < <(marley_dirs)
+  SEMGREP_ENABLE_VERSION_CHECK=0 semgrep --config .semgrep.yml --error --quiet --strict --metrics=off \
+    --no-git-ignore "${dirs[@]}"
+}
 
 # ── 4. rust line coverage floor (FULL: the Marley crates; DIFF: the touched ones)
 # ACCEPTED-UNTESTABLE (the explicit, documented exclude — §0): the raw PTY shim
@@ -284,23 +416,39 @@ run_gate "gate:10 gitleaks (secrets)" secrets_g
 run_gate "gate:11 shellcheck" shellcheck_g
 run_gate "gate:12 no-suppressions" no_suppr_g
 run_gate "gate:13 source-bans (SAST)" source_bans_g
-run_gate "gate:14 docs (rustdoc -D warnings + doc-todos)" docs_g
+run_gate "gate:14 docs (rustdoc, warning-free + todos)" docs_g
 run_gate "gate:16 zed-ledger" zed_ledger_g
+run_gate "gate:17 manifests (cargo-sort + taplo)" manifests_g
+run_gate "gate:18 spelling (typos)" typos_g
+run_gate "gate:19 empty suites (nextest list)" empty_suites_g
+run_gate "gate:20 semgrep (.semgrep.yml)" semgrep_g
 
-# ── HEAVY gates (FULL + DIFF; FAST skips) ────────────────────────────────────
+# ── HEAVY gates (FULL + DIFF; FAST skips; a static red blocks them) ──────────
 if [ "$MODE" = "fast" ]; then
-  RESULTS+=("SKIP  gate:4,6 coverage+miri (--fast) — run the FULL or --diff gate before committing")
+  RESULTS+=("SKIP  gate:4,6 coverage+miri (--fast) — run the gate with --diff or --full before committing")
+elif [ "$FAIL" -gt 0 ]; then
+  RESULTS+=("BLOCKED gate:4  rust coverage — a static gate is red")
+  RESULTS+=("BLOCKED gate:6  miri — a static gate is red")
 else
   run_gate "gate:4  rust coverage (>= ${RUST_COV_MIN}% lines)" rust_cov
   run_gate "gate:6  miri (unsafe crates)" miri_g
 fi
+
+# The receipt binds the tree the gates ran on, so a change made during the run
+# fails the run instead of being receipted untested.
+tree_unchanged_g() {
+  [ -n "$GATE_START_HASH" ] || { echo "the fingerprint could not be taken when the run started"; return 1; }
+  [ "$(gate_state_hash)" = "$GATE_START_HASH" ] \
+    || { echo "the gated files changed during the run; run the gate again on the settled tree"; return 1; }
+}
+[ "$MODE" = "fast" ] || run_gate "receipt: the tree the gates ran on" tree_unchanged_g
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 printf '\n\033[1m══ gate summary (%s) ══\033[0m\n' "$MODE"
 for r in "${RESULTS[@]}"; do
   case "$r" in
     PASS*) printf '  \033[32m%s\033[0m\n' "$r" ;;
-    FAIL*) printf '  \033[31m%s\033[0m\n' "$r" ;;
+    FAIL*|BLOCKED*) printf '  \033[31m%s\033[0m\n' "$r" ;;
     *)     printf '  %s\n' "$r" ;;
   esac
 done
@@ -313,6 +461,5 @@ echo "GATE GREEN [$MODE]"
 # enforce-commit-gate.sh reads it back and blocks `git commit` of Rust source
 # unless the fingerprint still matches. FAST never writes one.
 if [ "$MODE" != "fast" ]; then
-  GITDIR=$(git rev-parse --git-dir 2>/dev/null || true)
-  if [ -n "$GITDIR" ]; then gate_state_hash > "$GITDIR/ignibyte-gate-receipt" || echo "note: receipt not written (fingerprint failed)" >&2; fi
+  printf '%s\n' "$GATE_START_HASH" > "$RECEIPT" || { echo "FATAL: the receipt could not be written" >&2; exit 1; }
 fi

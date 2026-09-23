@@ -1,6 +1,7 @@
 //! Driven tests for the layout switch, and the harness the rail's tests share.
 
 use std::path::Path;
+use std::sync::Arc;
 
 use agent_settings::AgentSettings;
 use fs::FakeFs;
@@ -19,7 +20,7 @@ pub(crate) const ZED_SIDEBAR_STATE: &str =
     r#"{"width":321.0,"width_set_by_user":true,"active_view":"ThreadList"}"#;
 
 /// The settings, database, theme and editor every window here needs.
-pub(crate) fn init_test(cx: &mut TestAppContext) {
+pub(crate) fn init_test(cx: &TestAppContext) {
     cx.update(|cx| {
         let settings_store = SettingsStore::test(cx);
         cx.set_global(settings_store);
@@ -31,7 +32,7 @@ pub(crate) fn init_test(cx: &mut TestAppContext) {
 }
 
 /// What `sidebar::Sidebar::new` reads, for the tests that build Zed's sidebar.
-fn init_zed_sidebar(cx: &mut TestAppContext) {
+fn init_zed_sidebar(cx: &TestAppContext) {
     cx.update(|cx| {
         agent::ThreadStore::init_global(cx);
         agent_ui::thread_metadata_store::ThreadMetadataStore::init_global(cx);
@@ -41,14 +42,14 @@ fn init_zed_sidebar(cx: &mut TestAppContext) {
     });
 }
 
-fn update_user_settings(cx: &mut TestAppContext, update: impl FnOnce(&mut SettingsContent)) {
+fn update_user_settings(cx: &TestAppContext, update: impl FnOnce(&mut SettingsContent)) {
     cx.update(|cx| {
-        SettingsStore::update_global(cx, |store, cx| store.update_user_settings(cx, update))
+        SettingsStore::update_global(cx, |store, cx| store.update_user_settings(cx, update));
     });
     cx.run_until_parked();
 }
 
-pub(crate) fn set_layout(layout: MarleyLayout, cx: &mut TestAppContext) {
+pub(crate) fn set_layout(layout: MarleyLayout, cx: &TestAppContext) {
     update_user_settings(cx, |content| {
         content.marley = Some(MarleySettingsContent {
             layout: Some(layout),
@@ -70,7 +71,7 @@ pub(crate) async fn open_projects<'a>(
     let mut projects = Vec::new();
     for root in roots {
         fs.insert_tree(root, json!({ "src": {} })).await;
-        projects.push(Project::test(fs.clone(), [Path::new(root)], cx).await);
+        projects.push(Project::test(Arc::<FakeFs>::clone(&fs), [Path::new(root)], cx).await);
     }
     cx.update(|cx| <dyn Fs>::set_global(fs, cx));
     let mut projects = projects.into_iter();
@@ -93,7 +94,6 @@ pub(crate) async fn open_projects<'a>(
 
 /// Registers the layout's sidebar the way `crates/zed` does when a window opens.
 pub(crate) fn register(multi_workspace: &Entity<MultiWorkspace>, cx: &mut VisualTestContext) {
-    let multi_workspace = multi_workspace.clone();
     cx.update(|window, cx| register_sidebar(multi_workspace, window, cx));
     cx.run_until_parked();
 }
@@ -186,9 +186,9 @@ async fn switching_back_hands_each_window_its_own_zed_sidebar(cx: &mut TestAppCo
     let sidebar = cx
         .read(|cx| zed_sidebar_of(&multi_workspace, cx))
         .expect("Zed's sidebar");
-    multi_workspace.update(cx, |multi_workspace, cx| multi_workspace.open_sidebar(cx));
+    multi_workspace.update(cx, MultiWorkspace::open_sidebar);
     sidebar.update(cx, |sidebar, cx| sidebar.set_width(Some(px(321.)), cx));
-    let state = sidebar.read_with(cx, |sidebar, cx| sidebar.serialized_state(cx));
+    let state = sidebar.read_with(cx, workspace::Sidebar::serialized_state);
 
     set_layout(MarleyLayout::Marley, cx);
     let rail = cx
@@ -196,7 +196,7 @@ async fn switching_back_hands_each_window_its_own_zed_sidebar(cx: &mut TestAppCo
         .expect("the rail");
     // While the rail stands in, the window keeps saving Zed's sidebar's state.
     assert_eq!(
-        rail.read_with(cx, |rail, cx| rail.serialized_state(cx)),
+        rail.read_with(cx, workspace::Sidebar::serialized_state),
         state
     );
 
@@ -240,7 +240,7 @@ async fn a_window_opened_in_the_marley_layout_gives_zeds_sidebar_its_saved_state
         .read(|cx| rail_of(&multi_workspace, cx))
         .expect("the rail");
     rail.update_in(cx, |rail, window, cx| {
-        rail.restore_serialized_state(ZED_SIDEBAR_STATE, window, cx)
+        rail.restore_serialized_state(ZED_SIDEBAR_STATE, window, cx);
     });
     set_layout(MarleyLayout::Zed, cx);
     cx.read(|cx| {
@@ -259,7 +259,7 @@ async fn a_swap_keeps_focus_in_the_sidebar(cx: &mut TestAppContext) {
     let sidebar = cx
         .read(|cx| zed_sidebar_of(&multi_workspace, cx))
         .expect("Zed's sidebar");
-    multi_workspace.update(cx, |multi_workspace, cx| multi_workspace.open_sidebar(cx));
+    multi_workspace.update(cx, MultiWorkspace::open_sidebar);
     cx.run_until_parked();
     cx.update(|window, cx| sidebar.focus_handle(cx).focus(window, cx));
     set_layout(MarleyLayout::Marley, cx);
@@ -285,7 +285,7 @@ async fn with_ai_off_the_rail_is_registered_but_left_closed(cx: &mut TestAppCont
 }
 
 #[gpui::test]
-fn the_marley_layout_moves_two_defaults_and_user_values_still_win(cx: &mut TestAppContext) {
+fn the_marley_layout_moves_two_defaults_and_user_values_still_win(cx: &TestAppContext) {
     init_test(cx);
     cx.update(init);
     set_layout(MarleyLayout::Marley, cx);
@@ -298,7 +298,7 @@ fn the_marley_layout_moves_two_defaults_and_user_values_still_win(cx: &mut TestA
 }
 
 #[gpui::test]
-fn a_second_init_keeps_zeds_own_defaults(cx: &mut TestAppContext) {
+fn a_second_init_keeps_zeds_own_defaults(cx: &TestAppContext) {
     init_test(cx);
     cx.update(init);
     set_layout(MarleyLayout::Marley, cx);
@@ -308,10 +308,10 @@ fn a_second_init_keeps_zeds_own_defaults(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-async fn the_layout_actions_write_the_choice_to_the_settings_file(cx: &mut TestAppContext) {
+async fn the_layout_actions_write_the_choice_to_the_settings_file(cx: &TestAppContext) {
     init_test(cx);
     let fs = FakeFs::new(cx.executor());
-    cx.update(|cx| <dyn Fs>::set_global(fs.clone(), cx));
+    cx.update(|cx| <dyn Fs>::set_global(Arc::<FakeFs>::clone(&fs), cx));
     cx.update(init);
 
     cx.update(|cx| cx.dispatch_action(&UseMarleyLayout));
@@ -325,7 +325,7 @@ async fn the_layout_actions_write_the_choice_to_the_settings_file(cx: &mut TestA
     cx.read(|cx| assert_eq!(MarleySettings::get_global(cx).layout, MarleyLayout::Zed));
 
     // Asking for the layout already in use leaves the file alone.
-    fs.remove_file(paths::settings_file(), Default::default())
+    fs.remove_file(paths::settings_file(), fs::RemoveOptions::default())
         .await
         .expect("the settings file");
     cx.update(|cx| cx.dispatch_action(&UseZedLayout));
