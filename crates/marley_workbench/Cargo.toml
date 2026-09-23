@@ -1,0 +1,48 @@
+[package]
+name = "marley_workbench"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license = "MIT OR Apache-2.0"
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/marley_workbench.rs"
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+fs.workspace = true
+gpui.workspace = true
+marley_rail.workspace = true
+platform_title_bar.workspace = true
+project.workspace = true
+recent_projects.workspace = true
+settings.workspace = true
+sidebar.workspace = true
+terminal.workspace = true
+terminal_view.workspace = true
+ui.workspace = true
+util.workspace = true
+workspace.workspace = true
+
+[dev-dependencies]
+agent = { workspace = true, features = ["test-support"] }
+agent_settings.workspace = true
+agent_ui = { workspace = true, features = ["test-support"] }
+db = { workspace = true, features = ["test-support"] }
+editor.workspace = true
+fs = { workspace = true, features = ["test-support"] }
+gpui = { workspace = true, features = ["test-support"] }
+language_model = { workspace = true, features = ["test-support"] }
+paths.workspace = true
+project = { workspace = true, features = ["test-support"] }
+prompt_store.workspace = true
+recent_projects = { workspace = true, features = ["test-support"] }
+serde_json.workspace = true
+settings = { workspace = true, features = ["test-support"] }
+theme.workspace = true
+theme_settings.workspace = true
+workspace = { workspace = true, features = ["test-support"] }

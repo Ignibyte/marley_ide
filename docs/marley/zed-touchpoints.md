@@ -39,14 +39,18 @@ first column.
 
 | Path | What changed | Why | On merge |
 |---|---|---|---|
-| `Cargo.toml` | Five `crates/marley_*` workspace members; `marley_fleet` in `[workspace.dependencies]` | The Marley crates build in Zed's workspace | Re-add the members in sorted order. Keep a `[workspace.dependencies]` entry only for a crate something depends on, or cargo-shear fails |
-| `Cargo.lock` | Entries for the Marley crates and their dependencies | Generated | Regenerate; never hand-merge |
+| `Cargo.toml` | Seven `crates/marley_*` workspace members; `marley_fleet`, `marley_rail` and `marley_workbench` in `[workspace.dependencies]` | The Marley crates build in Zed's workspace | Re-add the members in sorted order. Keep a `[workspace.dependencies]` entry only for a crate something depends on, or cargo-shear fails |
+| `Cargo.lock` | Entries for the Marley crates and their dependencies, and `zed`'s dependency on `marley_workbench` | Generated | Regenerate; never hand-merge |
 | `.rules` | A "Marley" section above Zed's rules | Every agent session reads it first | Keep the section on top; take upstream's rules below it verbatim |
 | `.config/typos.toml` | `extend-exclude` entries for Marley's reference docs | They transcribe Warp and gpui-era text verbatim | Re-add the block |
 | `.gitignore` | `.mcp.json`, `/mutants.out`, `/mutants.out.old`, `/mutants.diff` | Local MCP config carries bearers; the mutation gate writes these | Re-add the block |
 | `README.md` | The two `> [!IMPORTANT]` review lines at the top | Zed's `.rules` self-review rule | Temporary. Chad removes them; an agent never does |
 | `crates/paths/src/paths.rs` | `APP_NAME` is `"Marley"`; unit tests check that the config, data and state directories end in `marley` and that `crates/zed/RELEASE_CHANNEL` stays `dev` | The fork keeps its settings, database and logs apart from a stock Zed install; `APP_NAME` is Zed's documented switch for forks. On any channel but `dev` the fork would share stock Zed's keyring items, updater and app id, so the channel stays `dev` until TICKET-445 gives Marley its own | Keep `"Marley"` and the `dev` channel. If upstream moves or renames `APP_NAME`, carry the value and the tests there |
-| `crates/zed/Cargo.toml` | `default-run` and the main `[[bin]]` are `marley` | `main.rs` asserts at compile time that the binary's name matches `APP_NAME` | Re-apply both names over upstream's; leave its other bins alone |
+| `crates/zed/Cargo.toml` | `default-run` and the main `[[bin]]` are `marley`; the `marley_workbench` dependency | `main.rs` asserts at compile time that the binary's name matches `APP_NAME`; the app crate installs the Marley layout | Re-apply both names over upstream's and keep the dependency; leave its other bins alone |
+| `crates/settings_content/src/marley.rs` | New file: `MarleySettingsContent { layout }` and `MarleyLayout { Zed, Marley }` | The `marley` settings block; the settings derive macros only resolve inside this crate | Keep the file; if upstream reorganizes the content modules, move it with them |
+| `crates/settings_content/src/settings_content.rs` | The `marley` module and `pub use`, the `marley` field on `SettingsContent`, and `marley` in `flattened_deserialize!` | The key has to exist for the settings schema and the merge | Re-add the three pieces |
+| `crates/settings/src/vscode_import.rs` | `marley: None` in the exhaustive `SettingsContent` literal | The literal names every field | Re-add the line |
+| `crates/zed/src/zed.rs` | `marley_workbench::init(cx)` as the first line of `initialize_workspace`; the deferred callback that built Zed's sidebar calls `marley_workbench::register_sidebar`, and the `sidebar::Sidebar` import it no longer needs is gone; `"marley"` in `test_action_namespaces` | `initialize_workspace` runs once at startup before any window opens, and zed's own tests run it too, so the layout switch is installed before any window builds its sidebar; the layout setting decides which sidebar a window gets; the namespace test lists every action namespace, `marley` included | Diff upstream's version of that callback against the Zed arm of `register_sidebar` in `crates/marley_workbench/src/marley_workbench.rs` and carry every upstream change there, then point the callback at `register_sidebar` again; keep the `init` call first in `initialize_workspace` and the namespace in the list |
 
 ## At an upstream merge
 
@@ -57,4 +61,6 @@ first column.
 4. Re-check the traps [workbench-shell.md](workbench-shell.md) depends on: the `sidebar`
    crate's actions are still bound in the default keymaps (D1), `reload_keymaps` still clears
    bindings added at init (D7), and `test_action_namespaces` in `crates/zed/src/zed.rs` still
-   lists every action namespace.
+   lists every action namespace. Also `rg "register_sidebar\(" crates` (a new upstream caller
+   bypasses the layout switch) and read the `workspace::Sidebar` trait for new default methods,
+   which the rail would take on silently.

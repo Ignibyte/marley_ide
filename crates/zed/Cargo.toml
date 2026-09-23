@@ -164,6 +164,8 @@ log.workspace = true
 lsp_locations.workspace = true
 markdown.workspace = true
 markdown_preview.workspace = true
+# Marley: the Marley layout switch and its rail.
+marley_workbench.workspace = true
 menu.workspace = true
 migrator.workspace = true
 mimalloc = { version = "0.1", optional = true }

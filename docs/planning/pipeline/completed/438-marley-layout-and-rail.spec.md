@@ -1,7 +1,7 @@
 ---
 pipeline_id: 48974663-8cf1-4cb3-89cb-5ab08c6dd49d
-ticket: docs/planning/tickets/open/TICKET-438-marley-layout-and-rail.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active for Phase 2 Design
+ticket: docs/planning/tickets/closed/TICKET-438-marley-layout-and-rail.md
+status: Phase 5 — Complete PASS
 title: The Marley layout switch and the first rail (projects, center terminals, New Terminal)
 type: feature
 slice: workbench shell W2
@@ -23,7 +23,7 @@ from a visible `+`, and highlights exactly one row.
 - **The crate:** `crates/marley_workbench` (`MIT OR Apache-2.0`, `[lib] path =
   "src/marley_workbench.rs"`):
   - `MarleySettings` (a `Settings` impl; `layout` defaults to `Zed`);
-  - actions `marley_workbench::{UseMarleyLayout, UseZedLayout}` that write `marley.layout` to
+  - actions `marley::{UseMarleyLayout, UseZedLayout}` that write `marley.layout` to
     the user settings file;
   - `register_sidebar(multi_workspace, window, cx)`, which builds the rail or Zed's
     `sidebar::Sidebar` for the current layout, and a settings observer that swaps every
@@ -34,17 +34,20 @@ from a visible `+`, and highlights exactly one row.
   - the rail opened when a window is created in the Marley layout;
   - `Rail`, a `workspace::Sidebar`: a header of the title bar's height with the window
     controls and an Add Project `+` (the recent-projects popover); one row per project group
-    with its display name, branch and collapse chevron; one row per center `TerminalView` of
+    with its display name and collapse chevron; one row per center `TerminalView` of
     the group's workspaces with its title, a cwd subtitle and a bell dot; a project `+` menu
     with New Terminal; click to switch; exactly one selected row;
   - a pure, gpui-free row module that turns a window snapshot into rows and the selection.
 - **Wiring (Zed touchpoints):** the member and `[workspace.dependencies]` entry in
-  `Cargo.toml`; the dependency in `crates/zed/Cargo.toml`; `marley_workbench::init` in
-  `crates/zed/src/main.rs`; sidebar construction in `crates/zed/src/zed.rs:536-546` handed to
-  `marley_workbench::register_sidebar`; `"marley_workbench"` in `test_action_namespaces`.
+  `Cargo.toml`; the dependency in `crates/zed/Cargo.toml`; `marley_workbench::init` as the
+  first line of `initialize_workspace` and sidebar construction in
+  `crates/zed/src/zed.rs:536-546` handed to `marley_workbench::register_sidebar`, both in
+  `crates/zed/src/zed.rs`; `"marley"` in `test_action_namespaces`.
 - Ledger rows and `Marley:` comments for every touchpoint.
 
 ### Out (explicitly deferred)
+- The git branch on a project header, and listing project groups that have no open workspace
+  (#442, which also adds the git-store refresh the branch needs).
 - Zed thread rows and New Agent Thread (#439); agent CLIs (#440).
 - Routing tasks, New Terminal and Open in Terminal to the center, the Marley keymap, and a
   terminal on project open (#441).
@@ -116,8 +119,8 @@ UI-AFFECTING.
   selector (the displayed workspace's active terminal, else its project header).
 - D7 — `is_threads_list_view_active` returns `false` in this ticket (the rail shows no threads
   yet, so Zed must not suppress thread notifications).
-- D8 — Defaults are patched in memory and restored from the embedded `default.json`; user
-  values always win.
+- D8 — Defaults are patched in memory; Zed's own values are read from the store before the
+  first patch and put back when the layout returns to `zed`; user values always win.
 
 ## Acceptance Criteria (EARS)
 | # | EARS requirement (`shall`) | Verify |
@@ -133,7 +136,7 @@ UI-AFFECTING.
 | REQ-009 | WHEN a terminal row is clicked, its workspace shall become the displayed workspace and that terminal shall become the active, focused item | driven test |
 | REQ-010 | WHEN New Terminal is chosen from a project's `+`, a terminal whose working directory is the project root shall open in that project's center pane and appear as a row | driven test |
 | REQ-011 | The rail shall mark exactly one row selected: the displayed workspace's active terminal if it has one, else that workspace's project header | unit tests on the selector over mixed sequences |
-| REQ-012 | WHEN a terminal rings its bell while unfocused, its row shall show an attention dot and `has_notifications` shall be true until the bell clears | driven test |
+| REQ-012 | WHEN a listed terminal rings its bell, its row shall show an attention dot and `has_notifications` shall be true until that bell clears (a keystroke in the terminal, as Zed's tab indicator does, or activating its row) | driven test |
 | REQ-013 | WHEN a terminal item closes, its row shall leave the rail | driven test |
 | REQ-014 | The rail's `is_threads_list_view_active` shall return `false` | unit test |
 | REQ-015 | WHEN the rail restores a serialized blob it cannot parse (Zed's sidebar's), it shall keep its defaults and raise no error | unit test |

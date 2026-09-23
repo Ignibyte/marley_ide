@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-438](open/TICKET-438-marley-layout-and-rail.md) | feature | W2 · the Marley layout switch and the first rail: projects, center terminals, New Terminal |
 | [TICKET-439](open/TICKET-439-rail-zed-threads.md) | feature | W3 · Zed agent threads in the rail |
 | [TICKET-440](open/TICKET-440-rail-agent-clis.md) | feature | W4 · agent CLIs in rail terminals |
 | [TICKET-441](open/TICKET-441-marley-terminal-routing.md) | feature | W5 · terminal routing and keys in the Marley layout |
@@ -21,6 +20,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | Why it waits |
 |---|---|---|
+| [TICKET-446](open/TICKET-446-marley-crate-license-files.md) | chore | licensing: `LICENSE-APACHE` and `LICENSE-MIT` in every Marley crate; waits for Chad's copyright line for the MIT text |
 | [TICKET-445](open/TICKET-445-marley-release-identity.md) | chore | packaging: Marley's own keyring label, updater, app id and URL scheme; waits until Marley ships a package or needs a non-`dev` build (the `dev` channel keeps it safe until then) |
 | [TICKET-417](open/TICKET-417-318-after-capture-battery.md) | chore | gpui-era, macOS harness; obsolete in the Zed fork (the overlays it captured no longer exist) — close or re-scope when the block terminal's overlays land |
 | [TICKET-271](open/TICKET-271-headless-pixel-capture-gpui.md) | chore | gpui-era; the fork builds gpui from the tree, so the wait is over — re-scope as "headless pixel captures for validate" when a UI slice needs it |

@@ -1,0 +1,13 @@
+[package]
+name = "marley_rail"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license = "MIT OR Apache-2.0"
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/marley_rail.rs"
+doctest = false

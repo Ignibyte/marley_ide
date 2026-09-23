@@ -1219,3 +1219,34 @@ cache and log directory derives from it) and the `marley` binary (`default-run` 
 release channel, and the channel stays `dev`, guarded by a `paths` test, until TICKET-445 gives
 Marley its own. Packaging names (the crash label, the clap name, bundles, desktop entries) wait
 for that ticket too.
+
+## AD-claude-438-the-marley-layout-swaps-the-sidebar-and-two-defaults-001
+*decided at: #438 (workbench shell W2) · status: shipped*
+
+The Marley layout is a setting, `marley.layout` in a `marley` block of the settings content,
+and per window a different `workspace::Sidebar`. `marley_workbench::register_sidebar` builds
+Zed's sidebar or the rail; it is called from the one place Zed built its sidebar and from a
+settings observer for every window, and no Zed code learns that the layout exists. Two
+defaults move with it, `terminal.button: false` and `agent.dock: right`, patched below the
+user's settings with `update_default_settings`, so the user's own values win in both layouts.
+The rail keeps the Zed sidebar it replaces alive, with its open state, and answers the
+window's persistence with that sidebar's state, so a switch loses neither the sidebar's state
+nor the work it has running (F-claude-438-b-a-layout-swap-dropped-zeds-sidebar-and-its-state-001).
+Everything that decides what the rail shows lives in the pure `marley_rail`. Considered and
+dropped: a flag in Zed's key-value store, invisible to `settings.json` and profiles; dropping
+and rebuilding Zed's sidebar on each switch, which lost its state and cancelled its tasks; a
+builder that `zed.rs` passes in, which grows the Zed hunk while the kept sidebar needs the
+concrete type anyway.
+
+## AD-claude-438-marley-crates-may-link-zeds-gpl-crates-001
+*decided at: #438 (workbench shell W2) · status: shipped*
+
+`marley_workbench` is the first Marley crate that depends on Zed's GPL-3.0-or-later crates
+(eleven of them, `workspace` and `sidebar` among them). It keeps the Marley license, MIT OR
+Apache-2.0, as CONSTITUTION §20 and the three-prong plan require: its code is written from
+Zed's public contracts and never carries a Zed body over
+(PR-claude-a-marley-crate-writes-from-the-contract-not-the-gpl-body-001), and both licenses
+are compatible with GPLv3. The consequence is that the crate builds and ships only as part of
+the fork. Anything that must stay reusable outside it goes in a crate with no Zed
+dependencies, as `marley_rail` does for the rail's row model. `deny.toml` is unaffected,
+since it skips unpublished workspace crates. The crates' license files wait on TICKET-446.

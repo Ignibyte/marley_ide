@@ -13,6 +13,18 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Marley layout and its first rail** (#438, 2026-09-22). A `marley.layout` setting
+  (`zed`, the default, or `marley`), written by the actions `marley: use marley layout` and
+  `marley: use zed layout`. In the Marley layout each window's sidebar is the rail: every
+  project, the terminals in its center panes under it, a `+` menu with New Terminal (started
+  in the project's own directory), one selected row that follows what the window shows, a bell
+  dot on a terminal's row and on a folded project's header, and an Add Project button. The
+  layout also hides the bottom Terminal Panel's button and docks the Agent Panel on the right,
+  as defaults a user value still overrides. Changing the setting swaps the sidebar in every
+  open window without a restart, and switching back hands each window its own Zed sidebar,
+  open or closed as it was, with its width and view. With AI off no sidebar is drawn, as in
+  Zed. Two new crates: `marley_rail`, the row model (pure, gpui-free), and `marley_workbench`,
+  the setting, the switch and the rail.
 - **The workflow process, ported from the gpui-era repo** (2026-09-18). `CONSTITUTION.md`
   rewritten for the fork; the pipeline commands (`/work`, `/spec`, `/pipeline:*`, `/commit`)
   and the enforcement hooks under `.claude/`; `script/gates.sh` scoped to the Marley crates

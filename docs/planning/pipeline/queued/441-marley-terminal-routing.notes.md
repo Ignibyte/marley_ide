@@ -15,3 +15,12 @@
   `cx.bind_keys` at init cannot work.
 - **Human confirmation:** Chad's goal authorizes autonomous execution through commit
   (2026-09-22). No `TaskCreate` in this harness; checklists live here.
+
+## Carried from #438's inspect (2026-09-22)
+- Zed's Panel Layout presets misread the Marley layout: with `agent.dock` patched to the right,
+  the title bar's menu shows "Custom", and choosing Classic there writes the four other panels
+  to the left but not `agent.dock` (the patched default already says right), so back in the Zed
+  layout every panel sits left; choosing Agentic writes `agent.dock: left`, which then overrides
+  the Marley layout for good (`agent_settings.rs:92-111`, `:338-396`; `title_bar.rs:1289-1292`).
+  Hide `UseClassicLayout` and `UseAgenticLayout` while the layout is `marley`, the way
+  `title_bar.rs:190-203` hides them with AI off.

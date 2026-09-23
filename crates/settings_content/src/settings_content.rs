@@ -5,6 +5,7 @@ mod extension;
 mod fallible_options;
 mod language;
 mod language_model;
+mod marley; // Marley: the `marley` settings block.
 pub mod merge_from;
 mod project;
 mod serde_helper;
@@ -21,6 +22,7 @@ pub use extension::*;
 pub use fallible_options::*;
 pub use language::*;
 pub use language_model::*;
+pub use marley::*; // Marley: the `marley` settings block.
 pub use merge_from::MergeFrom as MergeFromTrait;
 pub use project::*;
 use serde::de::DeserializeOwned;
@@ -244,6 +246,10 @@ pub struct SettingsContent {
     /// The settings for the markdown preview.
     pub markdown_preview: Option<MarkdownPreviewSettingsContent>,
 
+    // Marley: the fork's own settings block.
+    /// Settings for Marley, the fork of Zed this build is.
+    pub marley: Option<MarleySettingsContent>,
+
     pub repl: Option<ReplSettingsContent>,
 
     /// Whether or not to enable Helix mode.
@@ -405,6 +411,8 @@ fallible_options::flattened_deserialize!(SettingsContent {
         call_hierarchy, command_palette, file_finder, git_panel, tabs, tab_bar, status_bar, preview_tabs, agent,
         agent_servers, audio, auto_update, base_keymap, collaboration_panel, debugger, diagnostics,
         git,
+        // Marley: the fork's settings block.
+        marley,
         global_lsp_settings, image_viewer, markdown_preview, repl, helix_mode, hide_mouse,
         journal, log, line_indicator_format, language_models, outline_panel, project_panel,
         node, proxy, reduce_motion, server_url, credentials_url, session, telemetry, terminal,

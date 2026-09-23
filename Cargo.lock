@@ -10789,6 +10789,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "marley_rail"
+version = "0.1.0"
+
+[[package]]
 name = "marley_remote"
 version = "0.1.0"
 dependencies = [
@@ -10802,6 +10806,37 @@ dependencies = [
  "alacritty_terminal",
  "rustix",
  "tempfile",
+]
+
+[[package]]
+name = "marley_workbench"
+version = "0.1.0"
+dependencies = [
+ "agent",
+ "agent_settings",
+ "agent_ui",
+ "anyhow",
+ "db",
+ "editor",
+ "fs",
+ "gpui",
+ "language_model",
+ "marley_rail",
+ "paths",
+ "platform_title_bar",
+ "project",
+ "prompt_store",
+ "recent_projects",
+ "serde_json",
+ "settings",
+ "sidebar",
+ "terminal",
+ "terminal_view",
+ "theme",
+ "theme_settings",
+ "ui",
+ "util",
+ "workspace",
 ]
 
 [[package]]
@@ -22983,6 +23018,7 @@ dependencies = [
  "lsp_locations",
  "markdown",
  "markdown_preview",
+ "marley_workbench",
  "menu",
  "migrator",
  "mimalloc",

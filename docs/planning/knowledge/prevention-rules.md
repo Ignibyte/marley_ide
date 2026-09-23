@@ -2109,3 +2109,29 @@ auto-updater (which on a non-`dev` channel downloads stock Zed and installs it o
 app) and the app id; the `zed://` scheme belongs to whichever Zed registered it with the desktop.
 When a fork changes its name, keep it on `dev` or give it its own keyring label, update source,
 app id and scheme in the same change, and guard the channel with a test while it depends on it.
+
+## PR-claude-state-another-entity-reads-is-kept-outside-render-001
+*severity: high · prevents: F-claude-438-a-a-sidebar-flag-read-a-value-only-render-wrote-001*
+
+Anything another entity reads from a view (a `Sidebar` or `Panel` trait method, a flag the
+status bar polls) is computed where the view learns of the change, in its event handlers, and
+stored; `render` only draws it. A view that is hidden is not rendered, and hidden is often the
+very state in which the reader asks. Test such a flag with the view closed.
+
+## PR-claude-a-swapped-out-zed-entity-is-kept-not-dropped-001
+*severity: medium · prevents: F-claude-438-b-a-layout-swap-dropped-zeds-sidebar-and-its-state-001*
+
+When Marley replaces a Zed view at runtime (a sidebar, a panel, a dock item), keep the replaced
+entity alive and hand it back when the swap reverses, rather than dropping it and building a new
+one. The replaced view may own running tasks and state that Zed persists through it; while the
+stand-in is registered, it answers the persistence hooks (`serialized_state`) with the kept
+view's state. Test the round trip, closed and open, and across a restart.
+
+## PR-claude-a-marley-crate-writes-from-the-contract-not-the-gpl-body-001
+*severity: medium · prevents: F-claude-438-c-a-marley-helper-paraphrased-gpl-code-001*
+
+A Marley crate (MIT OR Apache-2.0) may call any public function of a GPL Zed crate, and may read
+Zed's code to learn what to call; it never carries a Zed function body over with its names
+changed. Write from the called functions' signatures and docs, in the crate's own shape, and
+when the result still reads like the upstream body, restructure it. The inspect phase's
+provenance lens compares new Marley code against the Zed files it was modelled on.

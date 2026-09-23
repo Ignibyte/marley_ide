@@ -122,8 +122,10 @@ key-value store, would hide the choice from `settings.json` and from settings pr
 
 **Switching is live.** On a change of `marley.layout` the crate:
 
-- registers the other sidebar in every window with `register_sidebar`, building Zed's with
-  its public constructor;
+- registers the other sidebar in every window with `register_sidebar`. The rail keeps Zed's
+  sidebar alive while it stands in and hands it back, open or closed as it was, on the switch
+  to Zed; a window that opened in the Marley layout gets a new one from Zed's public
+  constructor, given the saved state the rail kept for it;
 - applies the Marley default values or puts Zed's back (D6);
 - does nothing else, because the terminal provider, the action capture and the Marley keys
   read the layout on every call.
@@ -259,7 +261,8 @@ need an `Item` wrapper of the crate's own that is not serializable.
 
 Entering the Marley layout patches Zed's defaults in memory with
 `SettingsStore::update_default_settings` (`settings_store.rs:919-927`); leaving it writes
-Zed's values back from the embedded `default.json`. The file itself stays upstream's, and the
+back Zed's values, which `marley_workbench::init` reads from the default settings before
+anything patches them. The file itself stays upstream's, and the
 patch sits below the user's settings, so anything Chad sets still wins. The values:
 `terminal.button: false`, and `agent.dock: "right"` so the left column holds only the rail.
 The project and git panels stay on the right, where Zed already puts them.
@@ -304,11 +307,11 @@ context on an unmodified key yields to the PTY
   it is closed (`multi_workspace.rs:2098-2140`). `toggle_thread_switcher` becomes a switcher
   over terminals and threads in W6.
 - The rail header is the title bar's height and draws the window controls itself.
-- The width follows a default until Chad drags it; a dragged width persists in
-  `serialized_state`. After a layout switch the saved blob belongs to the other sidebar, so
-  each side ignores a blob it cannot parse. Zed's logs a parse error when it does
-  (`sidebar.rs:7868-7890`); writing the width under Zed's field names would keep one width
-  across both layouts and quiet that log.
+- The width follows a default until Chad drags it. While the rail stands in, the window's
+  saved sidebar state stays Zed's: the rail answers `serialized_state` with the state of the
+  Zed sidebar it keeps, or with the blob a window restored into it, unread (#438). The rail's
+  own width is not saved yet; #442 adds it to that blob under Zed's field names, so one
+  width holds across both layouts.
 
 ## Zed touchpoints this plan adds
 
@@ -320,9 +323,9 @@ Each lands as a row in [zed-touchpoints.md](zed-touchpoints.md) in the same chan
 | W1 | `crates/zed/Cargo.toml:9`, `:57` | `default-run` and the binary name become `marley`; `main.rs:10-16` asserts they match `APP_NAME` |
 | W2 | `crates/settings_content/src/settings_content.rs`, new `marley.rs` beside it | the `marley` settings block (D0) |
 | W2 | `crates/settings/src/vscode_import.rs:183-245` | `marley: None` in the literal that lists every field |
-| W2 | `Cargo.toml` | the `crates/marley_workbench` member |
+| W2 | `Cargo.toml` | the `crates/marley_rail` and `crates/marley_workbench` members |
 | W2 | `crates/zed/Cargo.toml` | depend on `marley_workbench` |
-| W2 | `crates/zed/src/main.rs` | `marley_workbench::init(app_state.clone(), cx);` after `which_key::init` (`:791`) |
+| W2 | `crates/zed/src/zed.rs`, `initialize_workspace` | `marley_workbench::init(cx)` as its first line, before any window opens (a hunk inside `fn main` would give the DIFF gate a mutant no test reaches) |
 | W2 | `crates/zed/src/zed.rs:536-546` | sidebar construction handed to `marley_workbench` (D1) |
 | W2 | `crates/zed/src/zed.rs`, `test_action_namespaces` | the crate's action namespace in the expected list (`:5889-5984`); the test fails once a crate with new actions is linked |
 | W5 | `crates/zed/src/zed.rs`, `load_default_keymap` | bind the Marley keymap after `specific-overrides` (`:2369-2376`) |
@@ -349,7 +352,9 @@ exists.
 `marley/workbench-shell` behind a green `--diff` gate. W0 shipped as #436: the ledger is
 enforced at the write, in gate:16 and at every commit. W1 shipped as #437: the fork runs as
 `marley` with its own directories (a debug build must start inside the checkout; see
-TICKET-445). W2 to W6 are TICKET-438 to TICKET-442, queued in that order.
+TICKET-445). W2 shipped as #438: `marley.layout` switches every window between Zed's sidebar
+and the rail, live, and the rail lists each project with its center terminals. W3 to W6 are
+TICKET-439 to TICKET-442, queued in that order.
 
 | Slice | Delivers | Size |
 |---|---|---|
@@ -369,13 +374,14 @@ and C1's fleet rows become a rail section.
 - Restoring center terminals may lose rows. The workspace and the Terminal Panel each clean
   the shared `terminals` table with only their own item ids (`workspace.rs:7961-7982`,
   `terminal_panel.rs:359-378`), so each can delete the other's saved directories. Rows come
-  back when a terminal's cwd changes, so it may only bite on a quick quit. W2 tests a restart
-  with both kinds open before trusting it. If it is real, the fix is small and belongs
+  back when a terminal's cwd changes, so it may only bite on a quick quit. #442 tests a
+  restart with both kinds open before trusting it. If it is real, the fix is small and belongs
   upstream too.
 - Swapping sidebars at runtime is new ground: `register_sidebar` replaces the handle but keeps
-  the old sidebar's two subscriptions in `_subscriptions` (`multi_workspace.rs:387-399`). They
-  go quiet once the old sidebar drops, so the cost is two dead subscriptions per switch. W2's
-  driven tests switch back and forth and check that focus, width and notifications survive.
+  the old sidebar's two subscriptions in `_subscriptions` (`multi_workspace.rs:387-399`). A
+  dropped rail's pair goes quiet, but Zed's sidebar stays alive while the rail stands in, so
+  each round trip adds a live duplicate pair on it (#442). W2's driven tests switch back and
+  forth and check that focus, width, open state and notifications survive.
 - `crates/zed/src/zed.rs` saw 42 upstream commits in the 90 days before the fork and
   `default.json` 52. Every touch there stays one anchored hunk.
 - The rail is a gpui crate under the Marley floors (100% lines, MSI 100). Its mutants link

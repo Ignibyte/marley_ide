@@ -210,6 +210,8 @@ impl VsCodeSettings {
             hide_mouse: None,
             image_viewer: None,
             markdown_preview: None,
+            // Marley: VS Code has nothing to import into the fork's own block.
+            marley: None,
             journal: None,
             language_models: None,
             line_indicator_format: None,

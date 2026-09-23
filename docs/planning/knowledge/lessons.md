@@ -1736,3 +1736,62 @@ for the headless output's workspace; `hyprctl eval 'hl.exec_cmd("...")'` to laun
 to drop the rule, which would otherwise hide Chad's own Marley windows; `rusty headless down`.
 A process's inotify watches (`/proc/<pid>/fdinfo`) show which config directories it really
 reads when the screen cannot tell two settings files apart.
+
+## L-claude-438-the-headless-output-borrows-one-of-chads-workspaces-001
+*category: validate · topic: live drives without touching Chad's screen · from: pipeline 438*
+
+`rusty headless up` gives HEADLESS-2 one of Chad's existing workspaces, not an empty one: on
+2026-09-22 it took workspace 3 with three of his windows on it, and a
+`hl.workspace_rule({ workspace = "9", monitor = "HEADLESS-2", default = true })` set before
+`up` did not change that. The `3 silent` rule in L-claude-437-the-headless-live-drive-recipe-001
+therefore tiles Marley among his windows, and a capture can show them: after a layout switch
+the maximize had moved to one of his windows, and that capture had to be deleted. Maximize
+Marley, and before every capture check in `hyprctl clients -j` that Marley is the workspace's
+fullscreen window; delete any capture that shows something else. Three more traps. A
+window-targeted dispatch such as `hl.dsp.window.fullscreen({ mode = "maximized", window =
+"address:..." })` focuses that window, so hand focus straight back with `hl.dsp.focus({ window
+= "address:<his window>" })`. Omarchy sets `misc:focus_on_activate = true`; turn it off for the
+drive with `hl.config({ misc = { focus_on_activate = false } })`, and `hyprctl reload` restores
+it. The dev channel skips the single-instance check, so a second `marley <path>` starts a
+second app (it hung) instead of adding the path to the running window. A drive that needs keys
+or clicks needs a compositor of its own (none is installed: no sway, cage or weston) or Chad
+away from the desk; while he is at it, send no input.
+
+## L-claude-438-the-coverage-floor-counts-lines-per-function-001
+*category: validate · topic: gate:4 line coverage · from: pipeline 438*
+
+gate:4 reads llvm's line summary, which adds up each function's own lines. A line on which
+some function has only a region that never ran is missed there, even when the file view and
+the lcov `DA` records show it covered and `--show-missing-lines` lists nothing. In #438 that
+was a `?` alone on the line after a multi-line closure argument (`})?;`). `cargo llvm-cov
+report --json` gives each function's regions; the missed line is the one where a function's
+only regions have count 0. llvm also reports as missed the closing-brace line of an `if let`
+on a weak handle's `upgrade()` whose fall-through no test reaches, when it ends a function or
+closure. The fixes that read naturally: end the chain with `.map(|()| value)` instead of `?`,
+and let a handler take the weak handle and return a `Result` its caller logs, as Zed's
+sidebar does with `weak.update(..)`. The coverage table listed neither `#[path]` test module
+(`rail_tests.rs`, `marley_workbench_tests.rs`), so their lines are outside the floor.
+
+## L-claude-438-recent-projects-needs-its-test-support-in-tests-001
+*category: validate · topic: feature unification in test builds · from: pipeline 438*
+
+A crate that links `recent_projects` and turns on `project`'s or `workspace`'s `test-support`
+in its dev-dependencies must turn on `recent_projects`' as well
+(`recent_projects = { workspace = true, features = ["test-support"] }`). `project`'s test
+support enables `remote/test-support`, which adds a `Mock` variant to
+`RemoteConnectionOptions`, and `remote_connection` matches it only under its own
+`test-support`, which `recent_projects/test-support` enables. Without it, `cargo check
+--tests` fails inside `remote_connection` with a non-exhaustive match. cargo-shear accepts a
+dev-dependency entry that only adds features to a normal dependency.
+
+## L-claude-438-prove-a-views-own-notify-with-a-selector-001
+*category: validate · topic: gpui driven tests · from: pipeline 438*
+
+To test that a view redraws because of its own `cx.notify()` and not because something else
+dirtied the window: draw a clean frame (`window.refresh()`, then park), change its state
+through an event that notifies nothing else (a terminal bell: `TerminalView` sets `has_bell`
+and emits `Wakeup` without a notify), then read `cx.debug_bounds(..)` for an element only the
+new state draws, without refreshing again. A mutant that drops the notify, or inverts the
+guard around it, then fails on the missing selector. `debug_selector` exists only in test
+builds. A flag another entity reads is tested with the view closed as well
+(PR-claude-state-another-entity-reads-is-kept-outside-render-001).

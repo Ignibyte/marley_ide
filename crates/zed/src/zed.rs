@@ -76,7 +76,7 @@ use settings::{
     SettingsFile, SettingsStore, VIM_KEYMAP_PATH, initial_local_debug_tasks_content,
     initial_project_settings_content, initial_tasks_content, update_settings_file,
 };
-use sidebar::Sidebar;
+// Marley: Zed's `sidebar::Sidebar` is built by `marley_workbench::register_sidebar` now.
 #[cfg(debug_assertions)]
 use workspace::workspace_error::{ErrorAction, ErrorSeverity, WorkspaceError};
 
@@ -426,6 +426,8 @@ pub fn build_window_options(display_uuid: Option<Uuid>, cx: &mut App) -> WindowO
 }
 
 pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
+    // Marley: the layout switch, installed before any window builds its sidebar.
+    marley_workbench::init(cx);
     let mut _on_close_subscription = bind_on_window_closed(cx);
     cx.observe_global::<SettingsStore>(move |cx| {
         // A 1.92 regression causes unused-assignment to trigger on this variable.
@@ -536,11 +538,9 @@ pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
         cx.defer(move |cx| {
             window_handle
                 .update(cx, |_, window, cx| {
-                    let sidebar =
-                        cx.new(|cx| Sidebar::new(multi_workspace_handle.clone(), window, cx));
-                    multi_workspace_handle.update(cx, |multi_workspace, cx| {
-                        multi_workspace.register_sidebar(sidebar, cx);
-                    });
+                    // Marley: the layout setting decides which sidebar the window gets (Zed's own,
+                    // or the Marley rail).
+                    marley_workbench::register_sidebar(multi_workspace_handle.clone(), window, cx);
                 })
                 .ok();
         });
@@ -5938,6 +5938,8 @@ mod tests {
                 "lsp_command_selector",
                 "lsp_tool",
                 "markdown",
+                // Marley: the layout switch's actions.
+                "marley",
                 "menu",
                 "multi_workspace",
                 "new_process_modal",

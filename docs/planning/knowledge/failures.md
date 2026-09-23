@@ -1646,3 +1646,36 @@ file, so a keymap or asset change made with Bash could be committed without its 
 also read the work tree while a commit ships the index. Three docs still said gate:16 catches
 any such change. Found by the #436 gate critic. Fixed: `enforce-commit-gate.sh` runs the ledger
 check on every `git commit`, and the check lists the index, the work tree and untracked files.
+
+## F-claude-438-a-a-sidebar-flag-read-a-value-only-render-wrote-001
+*severity: high · category: gpui / workspace sidebar · pipeline 438*
+
+The rail's `Sidebar::has_notifications` read a snapshot that only `Rail::render` assigned. The
+`MultiWorkspace` draws the sidebar only while it is open, and the status bar asks
+`has_notifications` for its toggle's dot only while the sidebar is closed. So in the one state
+where Zed read the flag, nothing refreshed it: a bell never lit the toggle, and a dot showing at
+close stayed after the bell cleared. The planned bell test ran with the rail open and would have
+passed. Found by the #438 correctness critic. Fixed: `refresh`, which runs on every event the
+rail hears, builds and stores the snapshot, `render` draws from it, and the flag reads it.
+
+## F-claude-438-b-a-layout-swap-dropped-zeds-sidebar-and-its-state-001
+*severity: medium · category: workspace sidebar / persistence · pipeline 438*
+
+The first layout switch built a new sidebar on every swap and dropped the old one. Switching to
+the Marley layout serialized the window at once with the rail registered, whose
+`serialized_state` was the trait default `None`, so Zed's saved sidebar width and History view
+left the database; the swap back built a fresh Zed sidebar, never restored it, and reopened it
+because the rail had forced the sidebar open. Dropping Zed's sidebar also cancelled the tasks it
+owned, such as restoring an archived thread's worktree midway. Found by the #438 state critic.
+Fixed: the rail keeps Zed's sidebar entity with its open flag, answers `serialized_state` from
+it, and hands it back on the swap to Zed.
+
+## F-claude-438-c-a-marley-helper-paraphrased-gpl-code-001
+*severity: medium · category: provenance · pipeline 438*
+
+`display_names` in the rail, an MIT OR Apache-2.0 crate, followed `sidebar.rs:1451-1462` (GPL)
+statement for statement with the names changed; a fully written `std::collections::HashMap`
+path that the file had already imported gave it away. The Phase 2 notes said "written fresh".
+The code was glue the API forces, but the crate's license label holds only if nothing GPL is in
+it. Found by the #438 upstream-discipline critic. Fixed: rewritten from the public contracts
+(`compute_disambiguation_details`, `ProjectGroupKey::display_name`) in the rail's own shape.
