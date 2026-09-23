@@ -312,7 +312,7 @@ binding in a Terminal context on an unmodified key yields to the PTY
   lists.
 - `cycle_project` and `cycle_thread` walk projects and rows. The `MultiWorkspace` forwards
   `NextProject`, `PreviousProject`, `NextThread` and `PreviousThread` to the sidebar even while
-  it is closed (`multi_workspace.rs:2098-2140`); the rail's pair is TICKET-459.
+  it is closed (`multi_workspace.rs:2105-2140`); the rail's pair shipped in #459.
   `toggle_thread_switcher` is the rail's switcher over terminals and threads since #454.
 - The rail header is the title bar's height and draws the window controls itself.
 - The width follows a default until Chad drags it. While the rail stands in, the window's
@@ -385,8 +385,9 @@ W6f shipped as #455: a folder opened fresh in the Marley layout starts with a te
 root, told apart from a restored project by one Zed touchpoint in `new_local`. W6g shipped as
 #456: a layout round trip gives each dock back the panel the Agent Panel took over. #458
 fixed the rail to follow a project's folders, so a project whose last folder goes leaves it at
-once. TICKET-459 gives Next and Previous Project and Thread the rail's meaning, and the rail's
-smaller internals wait in `docs/planning/intake/rail-internals.md`.
+once. #459, split from W6e, gave Next and Previous Project and Thread the rail's meaning: they go
+round its shown projects, and its shown terminals and threads, from the row it highlights. The
+rail's smaller internals wait in `docs/planning/intake/rail-internals.md`.
 
 | Slice | Delivers | Size |
 |---|---|---|
@@ -396,7 +397,7 @@ smaller internals wait in `docs/planning/intake/rail-internals.md`.
 | W3 | Zed threads in the rail: thread rows, status and attention dots, New Agent Thread, opening a thread in the right-hand Agent Panel | M |
 | W4 | Agents in terminals: New Agent, agent recognition and status | M |
 | W5 | Terminal routing in the Marley layout: the task provider and the action capture (#441), then the terminal keys (#449, W5b) and New Agent from the keyboard through the Marley keymap (#450, W5c); a terminal on project open moved to W6 | M |
-| W6 | Persistence and polish, split at promotion: closed-rail memory and one width (#442, W6a); Zed's layout presets (#451, W6b); rename and close (#452, W6c); keyboard navigation and reorder (#453, W6d); the switcher (#454, W6e); a first terminal (#455, W6f); the docks across a layout round trip (#456, W6g); the filter (#457, W6h) | M |
+| W6 | Persistence and polish, split at promotion: closed-rail memory and one width (#442, W6a); Zed's layout presets (#451, W6b); rename and close (#452, W6c); keyboard navigation and reorder (#453, W6d); the switcher (#454, W6e); a first terminal (#455, W6f); the docks across a layout round trip (#456, W6g); the filter (#457, W6h); Next and Previous Project and Thread (#459, from W6e) | M |
 
 Then the prongs continue in this shell: T0 and T1 draw Blocks inside the rail's terminals,
 and C1's fleet rows become a rail section.

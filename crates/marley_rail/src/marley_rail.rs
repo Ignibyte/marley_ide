@@ -401,6 +401,49 @@ pub fn last_row(snapshot: &RailSnapshot) -> Selection {
     shown(snapshot).pop().unwrap_or(Selection::None)
 }
 
+/// Zed's Next and Previous Project in the rail.
+///
+/// The shown project header after the selected row's project, or before it, wrapping at the
+/// ends. With nothing selected it is the first header going forward and the last going back.
+#[must_use]
+pub fn cycle_project(snapshot: &RailSnapshot, forward: bool) -> Selection {
+    let project = parent(snapshot, &selection(snapshot));
+    cycle(snapshot, &project, forward, |row| {
+        matches!(row, Selection::Project(_))
+    })
+}
+
+/// Zed's Next and Previous Thread in the rail, which reach terminals and threads alike.
+///
+/// The shown terminal or thread row after the selected row, or before it, passing over project
+/// headers and wrapping at the ends. With nothing selected it is the first such row going
+/// forward and the last going back.
+#[must_use]
+pub fn cycle_row(snapshot: &RailSnapshot, forward: bool) -> Selection {
+    cycle(snapshot, &selection(snapshot), forward, |row| {
+        matches!(row, Selection::Terminal(_) | Selection::Thread(_))
+    })
+}
+
+/// The first shown row after `from`, or before it, that `wanted` takes, going once round the
+/// rail: past the last row comes the first, and `from` itself comes last. When `from` is not
+/// shown, the search starts at the first row going forward and at the last going back.
+fn cycle(
+    snapshot: &RailSnapshot,
+    from: &Selection,
+    forward: bool,
+    wanted: impl Fn(&Selection) -> bool,
+) -> Selection {
+    let mut rows = shown(snapshot);
+    if !forward {
+        rows.reverse();
+    }
+    if let Some(at) = rows.iter().position(|row| row == from) {
+        rows.rotate_left(at + 1);
+    }
+    rows.into_iter().find(wanted).unwrap_or(Selection::None)
+}
+
 /// The project header a row sits under; a header is its own.
 #[must_use]
 pub fn parent(snapshot: &RailSnapshot, selection: &Selection) -> Selection {
@@ -1204,6 +1247,103 @@ mod tests {
         assert_eq!(step(&empty, true), Selection::None);
         assert_eq!(first_row(&empty), Selection::None);
         assert_eq!(last_row(&empty), Selection::None);
+    }
+
+    /// `two_projects_with_threads`, then `zed` with terminal 5 and no thread.
+    fn three_projects(first_expanded: bool) -> Vec<ProjectSnapshot> {
+        let mut projects = two_projects_with_threads(first_expanded);
+        projects.push(project("zed", true, vec![terminal(5, false)]));
+        projects
+    }
+
+    #[test]
+    fn next_and_previous_project_go_round_the_shown_headers() {
+        let mut snapshot = window(three_projects(true), Some(0), None);
+        let headers = [
+            Selection::Project(0),
+            Selection::Project(1),
+            Selection::Project(2),
+        ];
+        for (at, header) in headers.iter().enumerate() {
+            snapshot.focus.cursor = Some(header.clone());
+            assert_eq!(cycle_project(&snapshot, true), headers[(at + 1) % 3]);
+            assert_eq!(cycle_project(&snapshot, false), headers[(at + 2) % 3]);
+        }
+        // A row goes from its project's header, so going back leaves its project.
+        snapshot.focus.cursor = Some(Selection::Thread("b".to_string()));
+        assert_eq!(cycle_project(&snapshot, true), Selection::Project(1));
+        assert_eq!(cycle_project(&snapshot, false), Selection::Project(2));
+    }
+
+    #[test]
+    fn next_and_previous_thread_go_round_the_terminals_and_threads() {
+        let mut snapshot = window(three_projects(true), Some(0), None);
+        let rows = [
+            Selection::Terminal(1),
+            Selection::Thread("a".to_string()),
+            Selection::Thread("b".to_string()),
+            Selection::Terminal(3),
+            Selection::Thread("c".to_string()),
+            Selection::Terminal(5),
+        ];
+        for (at, row) in rows.iter().enumerate() {
+            snapshot.focus.cursor = Some(row.clone());
+            assert_eq!(cycle_row(&snapshot, true), rows[(at + 1) % 6]);
+            assert_eq!(cycle_row(&snapshot, false), rows[(at + 5) % 6]);
+        }
+        // From a header: the first row under it going forward, the last row above it going
+        // back, and from the first header round to the last row.
+        snapshot.focus.cursor = Some(Selection::Project(1));
+        assert_eq!(cycle_row(&snapshot, true), Selection::Terminal(3));
+        assert_eq!(
+            cycle_row(&snapshot, false),
+            Selection::Thread("b".to_string())
+        );
+        snapshot.focus.cursor = Some(Selection::Project(0));
+        assert_eq!(cycle_row(&snapshot, false), Selection::Terminal(5));
+    }
+
+    #[test]
+    fn cycling_passes_over_what_the_fold_and_the_filter_hide() {
+        // `marley` is folded: its rows are passed over, and its header is still reached.
+        let folded = with_cursor(
+            window(three_projects(false), Some(2), Some(5)),
+            Selection::Terminal(5),
+        );
+        assert_eq!(cycle_row(&folded, true), Selection::Terminal(3));
+        assert_eq!(cycle_project(&folded, true), Selection::Project(0));
+        // The filter shows only the threads, and so hides `zed`, which has none.
+        let threads = with_cursor(
+            filtered(window(three_projects(true), Some(0), None), "thread"),
+            Selection::Thread("c".to_string()),
+        );
+        assert_eq!(
+            cycle_row(&threads, true),
+            Selection::Thread("a".to_string())
+        );
+        assert_eq!(cycle_project(&threads, true), Selection::Project(0));
+    }
+
+    #[test]
+    fn cycling_from_nothing_starts_at_an_end_and_finds_nothing_in_an_empty_rail() {
+        let nothing = window(three_projects(true), None, None);
+        assert_eq!(cycle_project(&nothing, true), Selection::Project(0));
+        assert_eq!(cycle_project(&nothing, false), Selection::Project(2));
+        assert_eq!(cycle_row(&nothing, true), Selection::Terminal(1));
+        assert_eq!(cycle_row(&nothing, false), Selection::Terminal(5));
+        // A lone project or row reaches itself; a rail of headers has no row to reach.
+        let lone = window(
+            vec![project("marley", true, vec![terminal(1, false)])],
+            Some(0),
+            Some(1),
+        );
+        assert_eq!(cycle_project(&lone, true), Selection::Project(0));
+        assert_eq!(cycle_row(&lone, true), Selection::Terminal(1));
+        let headers = window(vec![project("marley", true, Vec::new())], Some(0), None);
+        assert_eq!(cycle_row(&headers, false), Selection::None);
+        let empty = RailSnapshot::default();
+        assert_eq!(cycle_project(&empty, true), Selection::None);
+        assert_eq!(cycle_row(&empty, true), Selection::None);
     }
 
     #[test]

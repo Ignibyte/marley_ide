@@ -14,7 +14,7 @@ use project::{AgentRegistryStore, Project};
 use serde_json::json;
 use settings::MarleyLayout;
 use util::{path, path_list::PathList};
-use workspace::SaveIntent;
+use workspace::{NextProject, NextThread, PreviousProject, PreviousThread, SaveIntent};
 use zed_actions::agents_sidebar::ToggleThreadSwitcher;
 
 use super::*;
@@ -1371,6 +1371,121 @@ async fn the_header_still_draws_in_fullscreen(cx: &mut TestAppContext) {
     cx.run_until_parked();
     cx.update(|window, _| assert!(window.is_fullscreen()));
     assert!(cx.debug_bounds("marley-rail-add-project").is_some());
+}
+
+// ── #459: Next and Previous Project and Thread ───────────────────────────────
+
+fn displayed(
+    multi_workspace: &Entity<MultiWorkspace>,
+    cx: &VisualTestContext,
+) -> Entity<Workspace> {
+    multi_workspace.read_with(cx, |multi_workspace, _| multi_workspace.workspace().clone())
+}
+
+fn focused(view: &Entity<TerminalView>, cx: &mut VisualTestContext) -> bool {
+    cx.update(|window, cx| view.focus_handle(cx).contains_focused(window, cx))
+}
+
+/// A window over alpha, beta and gamma in the Marley layout, with the rail open. The rail lists
+/// gamma, beta, alpha, and the window shows gamma.
+async fn open_rail_over_three(
+    cx: &mut TestAppContext,
+) -> (
+    Entity<MultiWorkspace>,
+    Vec<Entity<Workspace>>,
+    Entity<Rail>,
+    &mut VisualTestContext,
+) {
+    init_test(cx);
+    set_layout(MarleyLayout::Marley, cx);
+    let (multi_workspace, workspaces, cx) =
+        open_projects(&[path!("/alpha"), path!("/beta"), path!("/gamma")], cx).await;
+    register(&multi_workspace, cx);
+    let rail = cx
+        .read(|cx| rail_of(&multi_workspace, cx))
+        .expect("the Marley layout registers the rail");
+    assert_eq!(names(&rail, cx), ["gamma", "beta", "alpha"]);
+    (multi_workspace, workspaces, rail, cx)
+}
+
+#[gpui::test]
+async fn next_and_previous_project_go_round_the_rails_projects(cx: &mut TestAppContext) {
+    let (multi_workspace, workspaces, _, cx) = open_rail_over_three(cx).await;
+    let [alpha, beta, gamma] = [&workspaces[0], &workspaces[1], &workspaces[2]];
+    assert_eq!(&displayed(&multi_workspace, cx), gamma);
+    for expected in [beta, alpha, gamma] {
+        dispatch(NextProject, cx);
+        assert_eq!(&displayed(&multi_workspace, cx), expected);
+    }
+    for expected in [alpha, beta, gamma] {
+        dispatch(PreviousProject, cx);
+        assert_eq!(&displayed(&multi_workspace, cx), expected);
+    }
+}
+
+#[gpui::test]
+async fn in_the_rail_next_project_goes_from_the_keyboards_row(cx: &mut TestAppContext) {
+    let (multi_workspace, workspaces, rail, cx) = open_rail_over_three(cx).await;
+    focus_rail(&rail, cx);
+    dispatch(SelectNext, cx);
+    assert_eq!(selected(&rail, cx), Selection::Project(1), "beta's header");
+    dispatch(NextProject, cx);
+    assert_eq!(
+        displayed(&multi_workspace, cx),
+        workspaces[0],
+        "alpha, after beta"
+    );
+}
+
+#[gpui::test]
+async fn next_and_previous_thread_go_round_the_rows_and_focus_each(cx: &mut TestAppContext) {
+    let (multi_workspace, alpha, beta, _, cx) = open_rail(cx).await;
+    let server = add_named_terminal(&beta, "server", cx);
+    let logs = add_named_terminal(&alpha, "logs", cx);
+    let build = add_named_terminal(&alpha, "build", cx);
+    // The rail: beta's header and server, then alpha's header, logs and build.
+    click(terminal_selector(&server), cx);
+    for (expected, workspace) in [(&logs, &alpha), (&build, &alpha), (&server, &beta)] {
+        dispatch(NextThread, cx);
+        assert_eq!(&displayed(&multi_workspace, cx), workspace);
+        assert!(focused(expected, cx));
+    }
+    for (expected, workspace) in [(&build, &alpha), (&logs, &alpha), (&server, &beta)] {
+        dispatch(PreviousThread, cx);
+        assert_eq!(&displayed(&multi_workspace, cx), workspace);
+        assert!(focused(expected, cx));
+    }
+}
+
+#[gpui::test]
+async fn next_thread_passes_over_a_folded_projects_rows(cx: &mut TestAppContext) {
+    let (_, alpha, beta, _, cx) = open_rail(cx).await;
+    add_named_terminal(&beta, "server", cx);
+    let logs = add_named_terminal(&alpha, "logs", cx);
+    let build = add_named_terminal(&alpha, "build", cx);
+    click("marley-rail-disclosure-0", cx);
+    click(terminal_selector(&build), cx);
+    dispatch(NextThread, cx);
+    assert!(
+        focused(&logs, cx),
+        "round the end, past beta's folded server"
+    );
+}
+
+#[gpui::test]
+async fn the_actions_work_with_the_rail_closed(cx: &mut TestAppContext) {
+    let (multi_workspace, alpha, beta, _, cx) = open_rail(cx).await;
+    let server = add_named_terminal(&beta, "server", cx);
+    let logs = add_named_terminal(&alpha, "logs", cx);
+    click(terminal_selector(&server), cx);
+    multi_workspace.update_in(cx, |multi_workspace, window, cx| {
+        multi_workspace.close_sidebar(window, cx);
+    });
+    cx.run_until_parked();
+    dispatch(NextThread, cx);
+    assert!(focused(&logs, cx));
+    dispatch(NextProject, cx);
+    assert_eq!(displayed(&multi_workspace, cx), beta);
 }
 
 // ── W3: Zed agent threads in the rail ────────────────────────────────────────

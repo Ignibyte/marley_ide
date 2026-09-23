@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Next and Previous Project and Thread in the Marley layout** (#459, 2026-09-23). The
+  command palette's Next Project, Previous Project, Next Thread and Previous Thread did nothing
+  in the Marley layout. Now Next and Previous Project show the project after or before the one
+  the rail highlights, and Next and Previous Thread open the terminal or thread row after or
+  before it, with focus, as a click on that row does. They go round at the ends, pass over what
+  a fold or the filter hides, and work with the rail closed.
 - **A first terminal for a new project** (#455, 2026-09-23). A folder you open for the first
   time in the Marley layout starts with a terminal at its root, with focus. A project you have
   opened before comes back as you left it, with its saved terminals or none, and never an extra

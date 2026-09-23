@@ -115,6 +115,11 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
     window's focus, in `shown_at`, pruned to the rows that exist. The switcher's own focus is no
     row, so opening it notes nothing. `thread_item` and `terminal_icon` draw the rail's rows
     and the switcher's alike.
+- **Next and Previous Project and Thread (#459).** The `MultiWorkspace` forwards Zed's four
+  actions to `Sidebar::cycle_project` and `cycle_thread`, open or closed, through
+  `SidebarHandle`'s `window.defer`. The rail asks `marley_rail::cycle_project` or `cycle_row`
+  for the row and opens it through `open_row`, as a click does. Activation takes focus out of
+  the rail, so the next action starts from the row the window then shows.
 - The header is the title bar's height and draws the window controls the title bar leaves to a
   left-hand sidebar. Its Add Project button opens Zed's recent-projects popover.
 - The handlers take the rows' weak handles and return a `Result`, which the click sites log.
@@ -325,10 +330,11 @@ has its own test in `crates/zed/src/zed.rs`, `test_reload_keymaps_binds_the_marl
 - A first terminal comes only with a folder opened fresh. A project opened before, in either
   layout, reopens as it was saved, and switching a window to the Marley layout seeds nothing.
 - `ctrl-tab` in a center pane stays Zed's tab switcher, over that pane's items. The rail's
-  switcher shows no preview while cycling, and its recency lives in memory only. Next and
-  Previous Project and Thread still reach the trait's no-op defaults (#459).
+  switcher shows no preview while cycling, and its recency lives in memory only.
+- Vim's `ThreadsSidebar` bindings (`] p`, `[ p` and the rest) do not reach the rail, whose key
+  context is `MarleyRail`.
 - The thread rows, the agent rows, the routing, the terminal keys, the New Agent key, the
-  rail's persistence, its keys and reorder, its filter, its switcher, the first terminal and a
-  project's folder changes have not been seen live: the drives for #439 and #440 would have moved Chad's windows off his
-  monitor, and the later ones need input or a relaunch. They are owed to the next headless
-  capture.
+  rail's persistence, its keys and reorder, its filter, its switcher, the first terminal, a
+  project's folder changes and Next and Previous Project and Thread have not been seen live:
+  the drives for #439 and #440 would have moved Chad's windows off his monitor, and the later
+  ones need input or a relaunch. They are owed to the next headless capture.

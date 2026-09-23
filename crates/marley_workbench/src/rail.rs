@@ -1888,6 +1888,18 @@ impl Sidebar for Rail {
         });
     }
 
+    // Runs deferred, outside the `MultiWorkspace`'s update, so the project can be shown here.
+    fn cycle_project(&mut self, forward: bool, window: &mut Window, cx: &mut Context<Self>) {
+        let project = marley_rail::cycle_project(&self.snapshot.rail, forward);
+        self.open_row(project, window, cx).log_err();
+    }
+
+    // Runs deferred, as `cycle_project` does.
+    fn cycle_thread(&mut self, forward: bool, window: &mut Window, cx: &mut Context<Self>) {
+        let row = marley_rail::cycle_row(&self.snapshot.rail, forward);
+        self.open_row(row, window, cx).log_err();
+    }
+
     // The window's saved sidebar state stays Zed's sidebar's while the rail stands in for it,
     // with the rail's own fields added. This runs inside the `MultiWorkspace`'s update, so it
     // reads the rail's fields and never the `MultiWorkspace`.

@@ -36,6 +36,13 @@ Apache-2.0; its one dependency is the equally pure `marley_agent`.
   it starts at the first going forward and the last going back. `parent` is a terminal's or a
   thread's project header, and a header is its own. `first_match` is the first shown row whose
   own name or title matched, where the keyboard's row goes as the filter changes (#457).
+- **`cycle_project` and `cycle_row`** are Zed's Next and Previous Project and Thread (#459).
+  Both go round the shown rows from the selected one, wrapping at the ends, and with nothing
+  selected start at the first going forward and the last going back. `cycle_project` starts
+  from the selected row's project header and reaches only headers. `cycle_row` reaches only
+  terminals and threads, so from a header it goes to the first row under it, or back to the
+  last row above it. A lone row reaches itself; with none of the kind shown, nothing is
+  reached.
 - **`window_row`** is the terminal or thread row that holds the window's focus: the focused
   Agent Panel's thread, else the active terminal while it holds focus (#454). The rail notes
   each change of it for the switcher's order.
@@ -68,6 +75,6 @@ filter matched.
 
 ## Tests
 
-`src/marley_rail.rs`, twenty-nine unit tests, including exactly one selected row over every
+`src/marley_rail.rs`, thirty-three unit tests, including exactly one selected row over every
 combination of fold, displayed project, active terminal and focused thread in a two-project
 window, and `step` over every shown row of one in both directions.

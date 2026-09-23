@@ -1522,3 +1522,26 @@ Rejected:
 - following `WorktreePathsChanged` alone. It is safe only while the `MultiWorkspace`'s
   subscription runs before the rail's, which the order they are made in gives and nothing
   enforces, and a reorder never emits it.
+
+## AD-claude-459-the-rails-cycle-actions-go-round-its-shown-rows-from-the-highlight-001
+*decided at: 2026-09-23 · status: shipped*
+
+Zed's Next and Previous Project and Thread reach the rail through `Sidebar::cycle_project` and
+`cycle_thread`. The rail decides the target in `marley_rail` (`cycle_project`, `cycle_row`) and
+opens it through `open_row`, the handler a click, Enter and the switcher use.
+- The walk starts from the row the rail highlights (`selection`): the keyboard's row while the
+  rail holds focus, else the row the window shows. Each action moves the highlight by one, as
+  up and down do.
+- It goes round the rows the rail shows, so a fold and the filter decide what it reaches, as
+  in Zed's sidebar. Next and Previous Thread reach terminals and threads alike, as Zed's do.
+- With nothing highlighted, Next goes to the first row and Previous to the last, as the rail's
+  up and down keys do.
+
+Rejected:
+- starting from the Agent Panel's current thread while an editor has focus, as Zed does. The
+  rail highlights a thread only while the panel holds focus, and the actions follow the
+  highlight;
+- unfolding the project Next or Previous Project reaches, as Zed's sidebar expands its target
+  group. In the rail a folded project shows in the center all the same, and the fold is the
+  user's choice;
+- Zed's start at the first row in both directions when nothing is current.

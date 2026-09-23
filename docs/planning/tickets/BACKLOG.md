@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-459](open/TICKET-459-rail-cycle-actions.md) | feature | Zed's Next and Previous Project and Thread in the Marley layout |
 | [TICKET-448](open/TICKET-448-zed-dylint-lints.md) | chore | quality gates · Zed's dylint lints (`tooling/lints`) on the Marley crates, as gate:21 |
 
 ## Deliberate (picked explicitly, never auto-next)

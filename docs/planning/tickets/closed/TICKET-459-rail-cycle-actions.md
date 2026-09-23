@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #459 (feature, workbench shell)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet (split from #454 at its promotion)
+- **Pipeline doc:** ../../pipeline/completed/459-rail-cycle-actions.spec.md
 - **Source ticket:** ../../pipeline/completed/454-rail-switcher.spec.md (Out) · ../../../marley/workbench-shell.md (D8)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Zed's `multi_workspace::NextProject`, `PreviousProject`, `NextThread` and `PreviousThread`
