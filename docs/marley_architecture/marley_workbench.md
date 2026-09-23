@@ -304,6 +304,18 @@ alike.
 - The Marley keymap binds them to `secondary-up` and `secondary-down` in `Terminal`, keys Zed's
   defaults leave unbound there (AD-claude-449's rule for the Marley keymap).
 
+## The agent bar (`src/agent_bar.rs`, #477)
+
+- `init` sets Zed's `terminal_view::MarleyTerminalFooter` to the bar's renderer, which every
+  `TerminalView` calls below its grid with a `MarleyFooterContext`; the view's root is a flex
+  column, so the bar takes its rows from the grid.
+- `contents` is what the bar shows: the agent from `foreground_process_command_name` through
+  `marley_agent::agent_kind_of`, the folder from `working_directory`, and the branch of the
+  innermost repository in the project's git store that holds the folder (`branch_for`). No agent,
+  no bar.
+- The bar draws `agents::cli_icon` and the agent's name at the left, and the folder (`~` for
+  home) and branch at the right; #478 to #481 add its buttons.
+
 ## Tests
 
 `src/marley_workbench_tests.rs` (the switch, the keymap loader, persistence and the docks across

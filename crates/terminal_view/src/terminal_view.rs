@@ -126,6 +126,24 @@ pub struct BlockContext<'a, 'b> {
     pub dimensions: TerminalBounds,
 }
 
+// Marley: what a footer below a terminal is drawn from (#477).
+pub struct MarleyFooterContext<'a> {
+    pub view: WeakEntity<TerminalView>,
+    pub terminal: &'a Entity<Terminal>,
+    pub project: &'a WeakEntity<Project>,
+    pub workspace: &'a WeakEntity<Workspace>,
+    pub focus_handle: &'a FocusHandle,
+}
+
+// Marley: draws an element below each terminal, or none; Marley's workbench sets it, so the
+// footer's code stays in Marley's crates (#477).
+#[derive(Clone)]
+pub struct MarleyTerminalFooter(
+    pub Arc<dyn Fn(&MarleyFooterContext, &mut Window, &mut App) -> Option<AnyElement>>,
+);
+
+impl gpui::Global for MarleyTerminalFooter {}
+
 ///A terminal view, maintains the PTY's file handles and communicates with the terminal
 pub struct TerminalView {
     terminal: Entity<Terminal>,
@@ -1352,10 +1370,28 @@ impl Render for TerminalView {
 
         let focused = self.focus_handle.is_focused(window);
 
+        // Marley: the footer below the terminal, such as the agent bar (#477).
+        let marley_footer = cx
+            .try_global::<MarleyTerminalFooter>()
+            .cloned()
+            .and_then(|footer| {
+                let context = MarleyFooterContext {
+                    view: terminal_view_handle.downgrade(),
+                    terminal: &self.terminal,
+                    project: &self.project,
+                    workspace: &self.workspace,
+                    focus_handle: &self.focus_handle,
+                };
+                (footer.0)(&context, window, cx)
+            });
+
         div()
             .id("terminal-view")
             .size_full()
             .relative()
+            // Marley: a column, so the footer takes its rows from the grid (#477).
+            .flex()
+            .flex_col()
             .track_focus(&self.focus_handle(cx))
             .key_context(self.dispatch_context(cx))
             .on_action(cx.listener(TerminalView::send_text))
@@ -1434,6 +1470,8 @@ impl Render for TerminalView {
                         )
                     }),
             )
+            // Marley: #477.
+            .children(marley_footer)
             .children(self.context_menu.as_ref().map(|(menu, position, _)| {
                 deferred(
                     anchored()

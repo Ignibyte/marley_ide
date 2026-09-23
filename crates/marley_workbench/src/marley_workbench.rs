@@ -20,6 +20,7 @@
     )
 )]
 
+pub mod agent_bar;
 pub mod agents;
 pub mod blocks;
 #[cfg(test)]
@@ -156,6 +157,7 @@ pub fn init(cx: &mut App) {
     routing::init(cx);
     agents::init(cx);
     blocks::init(cx);
+    agent_bar::init(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action_renderer(|div, _, _, cx| {
             div.capture_action(cx.listener(layout_preset::<UseClassicLayout>))

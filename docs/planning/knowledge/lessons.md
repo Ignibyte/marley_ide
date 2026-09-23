@@ -2370,3 +2370,13 @@ project or a project with no terminal left. `OPEN=<path>` opens a path as `marle
 and a folder with no saved state gets a first terminal in the Marley layout, which a seed's
 terminal settings then shape. Zed shows its trust prompt for an unknown folder over the top of
 the window; the terminal's rows stay visible under it.
+
+## L-claude-477-a-quiet-foreground-process-is-seen-only-after-output-001
+*category: validate · topic: terminal tests · from: pipeline 477*
+
+`Terminal::foreground_process_command_name` reads the process info that a `Wakeup` refreshes,
+and a `Wakeup` comes with output. A process that takes the foreground and prints nothing, such as
+a stand-in `claude` linked to `sleep`, is not seen until something else is written. In a driven
+test, send a key the tty echoes (a space) until the process shows; in a live capture, make the
+stand-in print, as a real agent redraws its screen. Start the stand-in by name from a PATH entry,
+or with `exec -a claude`: the command name comes from argv, and a path in argv[0] gives none.

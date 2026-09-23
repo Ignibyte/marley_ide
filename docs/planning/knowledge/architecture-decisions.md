@@ -1800,3 +1800,16 @@ Scrolled back by d rows, the shift is d rows smaller, so the history appears abo
 The alternate screen, and views that are not standalone, are drawn as before. Rejected: shell
 tricks (newlines at startup, a cursor move before each prompt), which change the grid and so
 the lines blocks anchor to; Marley's own docked command editor, which is T3.
+
+## AD-claude-477-a-footer-hook-in-zeds-terminal-view-and-the-bar-in-marleys-crate-001
+*decided at: 2026-09-23 · status: shipped*
+
+Anything Marley draws under a terminal goes through one hook in Zed's `TerminalView`: the global
+`MarleyTerminalFooter`, a renderer that `render` calls with a `MarleyFooterContext` (the view's
+weak handle, its terminal, project, workspace and focus handle). The view's root is a flex
+column, so a footer takes its rows from the grid and the PTY is resized to the rows left. The
+agent bar is Marley's code in `marley_workbench::agent_bar`, which sets the hook at `init`; it
+shows while the foreground process is a known CLI agent, as Warp's toolbelt does. The branch
+comes from Zed's git store, the innermost repository holding the agent's folder. Rejected: the
+bar inside `terminal_view` (Marley's code in a Zed crate); an overlay on the terminal's last
+rows (it would hide the agent's own footer); a bar for every terminal (a setting, if wanted).

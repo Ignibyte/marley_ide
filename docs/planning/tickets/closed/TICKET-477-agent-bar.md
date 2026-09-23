@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #477 (feature, prong 1: T7a)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/477-agent-bar.spec.md
+- **Pipeline doc:** ../../pipeline/completed/477-agent-bar.spec.md
 - **Source ticket:** ../../../marley/three-prong-plan.md (T7)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 When a CLI agent such as Claude Code runs in a Warp session, a bar appears under it with the

@@ -1,7 +1,7 @@
 ---
 pipeline_id: 2e424288-7e27-4718-8e1f-bff780439fcf
 ticket: docs/planning/tickets/open/TICKET-477-agent-bar.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote
+status: Phase 4 — Complete PASS
 title: The agent bar, with the folder and branch
 type: feature
 slice: prong 1 T7a

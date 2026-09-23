@@ -13,6 +13,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The agent bar** (#477, 2026-09-23). While Claude Code, Codex, Gemini CLI or OpenCode runs
+  in a terminal, a bar shows under it with the agent's name at the left and, at the right, the
+  folder it works in and that folder's git branch, as Warp shows them. The terminal gives up a
+  row to it while the agent runs, and gets the row back when the agent exits.
 - **The prompt at the bottom of the terminal** (#476, 2026-09-23). While a terminal's screen
   has room to spare, as in a new terminal or one you have just cleared, Marley draws its content
   against the bottom of the pane instead of the top. The prompt sits on the last row and each
