@@ -1,0 +1,11 @@
+// The Marley keymap: bindings for Marley actions that no Zed action stands behind. It loads
+// after Zed's default keymaps and before the user's (`load_keymap`), so a binding here wins over
+// Zed's defaults at the same context depth and loses to the user's own.
+[
+  {
+    "context": "Workspace",
+    "bindings": {
+      "secondary-alt-n": "marley::NewAgent"
+    }
+  }
+]

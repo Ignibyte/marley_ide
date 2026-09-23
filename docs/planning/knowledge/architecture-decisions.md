@@ -1359,3 +1359,18 @@ center terminal used last, or a new one. workbench-shell D7's Marley keymap, wit
 in `load_default_keymap`, waits for a key with no Zed action behind it, the first being the New
 Agent chord (TICKET-450). Rejected: the keymap D7 planned for these keys, which would have
 missed the palette and the menus and cost a Zed touchpoint for keys Zed already binds.
+
+## AD-claude-450-new-agent-is-a-picker-behind-the-marley-keymap-001
+*decided at: 2026-09-23 · status: shipped*
+
+Starting an agent from the keyboard is `marley::NewAgent`, a picker in the workspace's modal
+layer, bound to `secondary-alt-n` by the Marley keymap. The picker lists Zed's agents, then the
+installed agent CLIs, marked "Thread" or "Terminal", and starts the choice in the active
+project. It works in both layouts and without the rail open, which the rail's `+` menu cannot.
+The rail and the picker share one module, `marley_workbench::agents`: the choices, the two
+launches, and one seam, `Launcher`, for the search path and the terminal factory. The Marley
+keymap is a JSON file in the crate. `load_keymap`, called last in Zed's `load_default_keymap`,
+binds it tagged as a default source, so each reload binds it again, it beats Zed's defaults at
+equal depth and loses to the user's keymap. The chord was swept against every context of every
+keymap Zed ships. Rejected: opening the rail's `+` menu from the key (no rail in the Zed layout
+or while it is closed), and binding at init (every reload clears it).

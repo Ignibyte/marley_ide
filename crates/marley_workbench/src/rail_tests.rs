@@ -6,52 +6,17 @@ use std::path::Path;
 use fs::FakeFs;
 use gpui::{Global, Modifiers, TestAppContext, VisualTestContext};
 use marley_rail::Selection;
+use project::{AgentRegistryStore, Project};
 use serde_json::json;
 use settings::MarleyLayout;
-use terminal::{
-    TerminalBuilder,
-    terminal_settings::{AlternateScroll, CursorShape},
-};
-use util::{path, path_list::PathList, paths::PathStyle};
+use util::{path, path_list::PathList};
 use workspace::SaveIntent;
 
 use super::*;
 use crate::marley_workbench_tests::{
-    ZED_SIDEBAR_STATE, init_test, open_projects, rail_of, register, set_layout,
+    RequestedDirectories, ZED_SIDEBAR_STATE, display_only_terminal, init_test, open_projects,
+    rail_of, register, set_layout, use_display_only_terminals,
 };
-
-/// Where the rail asked [`display_only_terminal_in`] to start each terminal.
-#[derive(Default)]
-struct RequestedDirectories(Vec<Option<PathBuf>>);
-
-impl Global for RequestedDirectories {}
-
-/// The rail's terminal factory in these tests: it notes the directory it was given and makes a
-/// display-only terminal, with no shell behind it.
-fn display_only_terminal_in(
-    _: &mut Project,
-    directory: Option<PathBuf>,
-    cx: &mut Context<Project>,
-) -> Task<anyhow::Result<Entity<Terminal>>> {
-    cx.default_global::<RequestedDirectories>()
-        .0
-        .push(directory);
-    Task::ready(Ok(display_only_terminal(cx)))
-}
-
-fn display_only_terminal(cx: &mut App) -> Entity<Terminal> {
-    cx.new(|cx| {
-        TerminalBuilder::new_display_only(
-            CursorShape::default(),
-            AlternateScroll::On,
-            None,
-            0,
-            cx.background_executor(),
-            PathStyle::local(),
-        )
-        .subscribe(cx)
-    })
-}
 
 /// A window over `alpha` and `beta` in the Marley layout, with `beta` displayed and the rail
 /// open, making display-only terminals. The rail lists `beta` first.
@@ -72,9 +37,7 @@ async fn open_rail(
     let rail = cx
         .read(|cx| rail_of(&multi_workspace, cx))
         .expect("the Marley layout registers the rail");
-    rail.update(cx, |rail, _| {
-        rail.terminal_factory = display_only_terminal_in;
-    });
+    use_display_only_terminals(cx);
     let alpha = workspaces[0].clone();
     let beta = workspaces[1].clone();
     (multi_workspace, alpha, beta, rail, cx)
@@ -432,12 +395,10 @@ mod threads {
     use agent_ui::test_support::{
         active_session_id, active_thread_id, open_thread_with_connection, send_message,
     };
-    use gpui::UpdateGlobal as _;
     use project::WorktreePaths;
-    use settings::SettingsStore;
 
     use super::*;
-    use crate::marley_workbench_tests::init_agent_test;
+    use crate::marley_workbench_tests::{add_agent_panel, configure_agents, init_agent_test};
 
     /// A window over `alpha` and `beta` in the Marley layout with an Agent Panel in each, `beta`
     /// displayed. The rail lists `beta` first.
@@ -462,17 +423,6 @@ mod threads {
             .read(|cx| rail_of(&multi_workspace, cx))
             .expect("the Marley layout registers the rail");
         (multi_workspace, [alpha, beta], panels, rail, cx)
-    }
-
-    fn add_agent_panel(
-        workspace: &Entity<Workspace>,
-        cx: &mut VisualTestContext,
-    ) -> Entity<AgentPanel> {
-        workspace.update_in(cx, |workspace, window, cx| {
-            let panel = cx.new(|cx| AgentPanel::test_new(workspace, window, cx));
-            workspace.add_panel(panel.clone(), window, cx);
-            panel
-        })
     }
 
     /// Each project's name with its thread rows, in the rail's order: title, status and
@@ -575,31 +525,6 @@ mod threads {
         open_thread_with_connection(panel, connection.clone(), cx);
         send_message(panel, cx);
         key_of(panel, cx)
-    }
-
-    /// Replaces the user settings with the Marley layout and one custom agent per name.
-    fn configure_agents(names: &[&str], cx: &mut VisualTestContext) {
-        let servers: serde_json::Map<String, serde_json::Value> = names
-            .iter()
-            .map(|name| {
-                (
-                    (*name).to_string(),
-                    json!({ "type": "custom", "command": name }),
-                )
-            })
-            .collect();
-        let settings = json!({ "marley": { "layout": "marley" }, "agent_servers": servers });
-        cx.update(|_, cx| {
-            SettingsStore::update_global(cx, |store, cx| {
-                let parsed = store.set_user_settings(&settings.to_string(), cx);
-                assert!(
-                    !matches!(parsed.parse_status, settings::ParseStatus::Failed { .. }),
-                    "{:?}",
-                    parsed.parse_status
-                );
-            });
-        });
-        cx.run_until_parked();
     }
 
     /// Opens a project's `+` menu and its New Agent Thread submenu from the keyboard: the
@@ -964,11 +889,10 @@ mod threads {
 
 #[cfg(unix)]
 mod agents {
-    use std::os::unix::fs::PermissionsExt as _;
-
     use marley_agent::{AgentKind, AgentStatus, WAITING_AFTER};
 
     use super::*;
+    use crate::marley_workbench_tests::{programs_in, search_agents_in};
 
     /// The command each test terminal's foreground process runs, by terminal: a display-only
     /// terminal has no process of its own.
@@ -994,19 +918,6 @@ mod agents {
         });
         terminal.update(cx, |_, cx| cx.emit(terminal::Event::TitleChanged));
         cx.run_until_parked();
-    }
-
-    /// A search path holding a program for each name, executable or not.
-    fn search_path(programs: &[(&str, bool)]) -> tempfile::TempDir {
-        let dir = tempfile::tempdir().expect("a temporary directory");
-        for (name, executable) in programs {
-            let path = dir.path().join(name);
-            std::fs::write(&path, "#!/bin/sh\n").expect("the program is written");
-            let mode = if *executable { 0o755 } else { 0o644 };
-            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode))
-                .expect("the mode is set");
-        }
-        dir
     }
 
     fn agent_of(
@@ -1045,10 +956,8 @@ mod agents {
     #[gpui::test]
     async fn the_plus_menu_lists_the_agent_clis_on_the_search_path(cx: &mut TestAppContext) {
         let (_, _, _, rail, cx) = open_rail(cx).await;
-        let installed = search_path(&[("claude", true), ("codex", true), ("gemini", false)]);
-        rail.update(cx, |rail, _| {
-            rail.agent_search_path = Some(installed.path().as_os_str().to_owned());
-        });
+        let installed = programs_in(&[("claude", true), ("codex", true), ("gemini", false)]);
+        search_agents_in(installed.path(), cx);
         click("marley-rail-project-menu-1", cx);
         cx.update(|window, _| window.refresh());
         assert!(cx.debug_bounds("MENU_ITEM-Claude Code").is_some());
@@ -1060,11 +969,10 @@ mod agents {
         assert!(cx.debug_bounds("MENU_ITEM-OpenCode").is_none());
 
         // With nothing installed the section is absent.
-        let empty = search_path(&[]);
-        rail.update(cx, |rail, cx| {
-            rail.agent_search_path = Some(empty.path().as_os_str().to_owned());
-            cx.notify();
-        });
+        let empty = programs_in(&[]);
+        search_agents_in(empty.path(), cx);
+        // The menu reads the search path when the rail draws.
+        rail.update(cx, |_, cx| cx.notify());
         // Opening another project's menu closes the first with an outside click.
         click("marley-rail-project-menu-0", cx);
         cx.update(|window, _| window.refresh());
@@ -1074,11 +982,9 @@ mod agents {
 
     #[gpui::test]
     async fn an_agent_cli_starts_in_a_new_terminal_in_its_project(cx: &mut TestAppContext) {
-        let (multi_workspace, alpha, _, rail, cx) = open_rail(cx).await;
-        let installed = search_path(&[("claude", true)]);
-        rail.update(cx, |rail, _| {
-            rail.agent_search_path = Some(installed.path().as_os_str().to_owned());
-        });
+        let (multi_workspace, alpha, _, _, cx) = open_rail(cx).await;
+        let installed = programs_in(&[("claude", true)]);
+        search_agents_in(installed.path(), cx);
         click("marley-rail-project-menu-1", cx);
         click("MENU_ITEM-Claude Code", cx);
         cx.read(|cx| {
@@ -1173,13 +1079,5 @@ mod agents {
         terminal.update(cx, |_, cx| cx.emit(terminal::Event::Bell));
         cx.run_until_parked();
         assert_eq!(status(cx), Some(AgentStatus::Waiting));
-    }
-
-    #[test]
-    fn each_agent_cli_draws_its_own_icon() {
-        assert_eq!(agent_icon_name(AgentKind::Claude), IconName::AiClaude);
-        assert_eq!(agent_icon_name(AgentKind::Codex), IconName::AiOpenAi);
-        assert_eq!(agent_icon_name(AgentKind::Gemini), IconName::AiGemini);
-        assert_eq!(agent_icon_name(AgentKind::OpenCode), IconName::AiOpenCode);
     }
 }

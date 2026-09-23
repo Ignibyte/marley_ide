@@ -5,6 +5,7 @@
 //! and the bottom Terminal Panel's button is hidden. Everything the layout changes lives in this
 //! crate and is undone when the setting goes back to `zed` (`docs/marley/workbench-shell.md`).
 
+pub mod agents;
 #[cfg(test)]
 pub mod marley_workbench_tests;
 mod rail;
@@ -16,7 +17,8 @@ use gpui::{
     UpdateGlobal as _, Window, actions,
 };
 use settings::{
-    DockPosition, MarleyLayout, RegisterSetting, Settings, SettingsContent, SettingsStore,
+    DockPosition, KeybindSource, KeymapFile, KeymapFileLoadResult, MarleyLayout, RegisterSetting,
+    Settings, SettingsContent, SettingsStore,
 };
 use util::ResultExt as _;
 use workspace::{MultiWorkspace, Sidebar as _};
@@ -32,8 +34,15 @@ actions!(
         /// Switches every window back to Zed's own layout.
         #[derive(Eq)]
         UseZedLayout,
+        /// Opens the New Agent picker: Zed's agents and the installed agent CLIs, started in
+        /// this project.
+        #[derive(Eq)]
+        NewAgent,
     ]
 );
+
+/// The Marley keymap, bound after Zed's defaults by [`load_keymap`].
+const KEYMAP: &str = include_str!("../keymap.json");
 
 /// The resolved `marley` settings block.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, RegisterSetting)]
@@ -86,10 +95,39 @@ pub fn init(cx: &mut App) {
     cx.set_global(state);
     apply_defaults(layout, cx);
     routing::init(cx);
+    agents::init(cx);
     cx.on_action(|_: &UseMarleyLayout, cx: &mut App| write_layout(MarleyLayout::Marley, cx))
         .on_action(|_: &UseZedLayout, cx: &mut App| write_layout(MarleyLayout::Zed, cx))
         .observe_global::<SettingsStore>(layout_setting_changed)
         .detach();
+}
+
+/// Binds the Marley keymap as a default source.
+///
+/// `crates/zed` calls this at the end of `load_default_keymap`, which every keymap reload runs
+/// again before binding the user's keymap: the Marley bindings beat Zed's defaults at the same
+/// context depth and lose to the user's.
+pub fn load_keymap(cx: &mut App) {
+    load_keymap_from(KEYMAP, cx).log_err();
+}
+
+/// Parses `keymap` and binds all of it, tagged as a default source, or none of it when any part
+/// fails to load.
+fn load_keymap_from(keymap: &str, cx: &mut App) -> anyhow::Result<()> {
+    let mut bindings = match KeymapFile::load(keymap, cx) {
+        KeymapFileLoadResult::Success { key_bindings } => key_bindings,
+        KeymapFileLoadResult::SomeFailedToLoad { error_message, .. } => {
+            anyhow::bail!("the Marley keymap did not load: {error_message}")
+        }
+        KeymapFileLoadResult::JsonParseFailure { error } => {
+            return Err(error.context("the Marley keymap is not valid JSON"));
+        }
+    };
+    for binding in &mut bindings {
+        binding.set_meta(KeybindSource::Default.meta());
+    }
+    cx.bind_keys(bindings);
+    Ok(())
 }
 
 /// Builds and registers the sidebar the current layout calls for.

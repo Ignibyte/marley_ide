@@ -1962,3 +1962,23 @@ What worked in #449 (`crates/marley_workbench/src/routing_tests.rs`):
   Terminal Panel's is 2.
 - `use super::*` brings an underscore import's methods into scope but not its name. A test
   that names the trait in a bound (`V: Focusable`) imports it itself.
+
+## L-claude-450-driving-a-picker-and-a-keymap-in-a-marley-test-001
+*category: validate · topic: modal pickers and keymap loading in a Marley crate · from: pipeline 450*
+
+What worked in #450 (`crates/marley_workbench/src/agents_tests.rs`):
+- A modal takes focus in a deferred callback (`modal_layer.rs:199-200`), so after the action
+  that opens it and `run_until_parked`, `menu::Confirm` and `menu::SelectNext` dispatched from
+  the focused element reach the picker as Enter and the arrow keys would.
+- `Picker::set_query` takes `&mut App` while the picker is read, so clone the inner
+  `Entity<Picker<_>>` out of the modal first, then `update_in` it.
+- A loader that takes the keymap text as a parameter (`load_keymap_from`) lets a unit test
+  reach its failure arms: text that is not JSON, and a keymap naming an unknown action, which
+  `KeymapFile::load` reports while still returning the bindings that did load.
+- A user's own binding is a `cx.bind_keys` after the Marley keymap, on a test action with a
+  `cx.on_action` handler that records the press: the test then sees the user's action run,
+  not only the picker staying shut.
+- `crates/zed`'s keymap tests check a hook in `load_default_keymap` with `init_keymap_test`,
+  `load_default_keymap`, `cx.clear_key_bindings` and `reload_keymaps(cx, Vec::new())`.
+- An agent row or entry drawn with an SVG icon needs `AgentRegistryStore::init_test_global`
+  with an agent whose metadata carries `icon_path`, as #439's registry test does.

@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-450](open/TICKET-450-new-agent-from-the-keyboard.md) | feature | W5c · New Agent from the keyboard: a picker and a chord, through the Marley keymap (D7) |
 | [TICKET-442](open/TICKET-442-rail-polish.md) | feature | W6 · rail persistence and polish |
 | [TICKET-448](open/TICKET-448-zed-dylint-lints.md) | chore | quality gates · Zed's dylint lints (`tooling/lints`) on the Marley crates, as gate:21 |
 

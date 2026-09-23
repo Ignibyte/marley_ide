@@ -1,19 +1,93 @@
 //! Driven tests for the layout switch, and the harness the rail's tests share.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use agent_settings::AgentSettings;
 use fs::FakeFs;
-use gpui::{TestAppContext, VisualTestContext, px};
+use gpui::{Context, Task, TestAppContext, VisualTestContext, px};
 use project::Project;
 use serde_json::json;
 use settings::MarleySettingsContent;
-use terminal::terminal_settings::TerminalSettings;
+use terminal::terminal_settings::{AlternateScroll, CursorShape, TerminalSettings};
+use terminal::{Terminal, TerminalBuilder};
 use util::path;
+use util::paths::PathStyle;
 use workspace::Sidebar as _;
 
 use super::*;
+
+/// Where the tests' terminal factory, [`display_only_terminal_in`], was asked to start each
+/// terminal.
+#[derive(Default)]
+pub(crate) struct RequestedDirectories(pub(crate) Vec<Option<PathBuf>>);
+
+impl Global for RequestedDirectories {}
+
+/// The tests' terminal factory: it notes the directory it was given and makes a display-only
+/// terminal, with no shell behind it, so no test starts a real program.
+pub(crate) fn display_only_terminal_in(
+    _: &mut Project,
+    directory: Option<PathBuf>,
+    cx: &mut Context<Project>,
+) -> Task<anyhow::Result<Entity<Terminal>>> {
+    cx.default_global::<RequestedDirectories>()
+        .0
+        .push(directory);
+    Task::ready(Ok(display_only_terminal(cx)))
+}
+
+pub(crate) fn display_only_terminal(cx: &mut App) -> Entity<Terminal> {
+    cx.new(|cx| {
+        TerminalBuilder::new_display_only(
+            CursorShape::default(),
+            AlternateScroll::On,
+            None,
+            0,
+            cx.background_executor(),
+            PathStyle::local(),
+        )
+        .subscribe(cx)
+    })
+}
+
+/// Makes every terminal the rail or the New Agent picker starts a display-only one.
+pub(crate) fn use_display_only_terminals(cx: &mut VisualTestContext) {
+    cx.update(|_, cx| {
+        let launcher = agents::Launcher {
+            terminal_factory: display_only_terminal_in,
+            ..agents::launcher(cx)
+        };
+        cx.set_global(launcher);
+    });
+}
+
+/// Points the search for agent CLIs at `directory`.
+pub(crate) fn search_agents_in(directory: &Path, cx: &mut VisualTestContext) {
+    cx.update(|_, cx| {
+        let launcher = agents::Launcher {
+            search_path: Some(directory.as_os_str().to_owned()),
+            ..agents::launcher(cx)
+        };
+        cx.set_global(launcher);
+    });
+}
+
+/// A directory holding a program for each name, executable or not.
+#[cfg(unix)]
+pub(crate) fn programs_in(programs: &[(&str, bool)]) -> tempfile::TempDir {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    for (name, executable) in programs {
+        let path = dir.path().join(name);
+        std::fs::write(&path, "#!/bin/sh\n").expect("the program is written");
+        let mode = if *executable { 0o755 } else { 0o644 };
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode))
+            .expect("the mode is set");
+    }
+    dir
+}
 
 /// Zed's sidebar state for a sidebar the user dragged to 321 px.
 pub(crate) const ZED_SIDEBAR_STATE: &str =
@@ -56,6 +130,43 @@ pub(crate) fn init_agent_test(cx: &mut TestAppContext) {
         prompt_store::init(cx);
         terminal_view::init(cx);
     });
+}
+
+/// An Agent Panel in `workspace`, as `crates/zed` adds one.
+pub(crate) fn add_agent_panel(
+    workspace: &Entity<workspace::Workspace>,
+    cx: &mut VisualTestContext,
+) -> Entity<agent_ui::AgentPanel> {
+    workspace.update_in(cx, |workspace, window, cx| {
+        let panel = cx.new(|cx| agent_ui::AgentPanel::test_new(workspace, window, cx));
+        workspace.add_panel(panel.clone(), window, cx);
+        panel
+    })
+}
+
+/// Replaces the user settings with the Marley layout and one custom agent per name.
+pub(crate) fn configure_agents(names: &[&str], cx: &mut VisualTestContext) {
+    let servers: serde_json::Map<String, serde_json::Value> = names
+        .iter()
+        .map(|name| {
+            (
+                (*name).to_string(),
+                json!({ "type": "custom", "command": name }),
+            )
+        })
+        .collect();
+    let settings = json!({ "marley": { "layout": "marley" }, "agent_servers": servers });
+    cx.update(|_, cx| {
+        SettingsStore::update_global(cx, |store, cx| {
+            let parsed = store.set_user_settings(&settings.to_string(), cx);
+            assert!(
+                !matches!(parsed.parse_status, settings::ParseStatus::Failed { .. }),
+                "{:?}",
+                parsed.parse_status
+            );
+        });
+    });
+    cx.run_until_parked();
 }
 
 /// What `sidebar::Sidebar::new` reads, for the tests that build Zed's sidebar.
@@ -358,4 +469,45 @@ async fn the_layout_actions_write_the_choice_to_the_settings_file(cx: &TestAppCo
     cx.update(|cx| cx.dispatch_action(&UseZedLayout));
     cx.run_until_parked();
     assert!(!fs.is_file(paths::settings_file()).await);
+}
+
+/// The source of each binding for `marley::NewAgent`.
+fn new_agent_bindings(cx: &App) -> Vec<Option<gpui::KeyBindingMetaIndex>> {
+    let keymap = cx.key_bindings();
+    let keymap = keymap.borrow();
+    keymap
+        .bindings()
+        .filter(|binding| binding.action().name() == "marley::NewAgent")
+        .map(gpui::KeyBinding::meta)
+        .collect()
+}
+
+#[gpui::test]
+fn the_marley_keymap_binds_new_agent_as_a_default(cx: &TestAppContext) {
+    init_test(cx);
+    cx.update(|cx| {
+        load_keymap_from(KEYMAP, cx).expect("the Marley keymap loads");
+        assert_eq!(
+            new_agent_bindings(cx),
+            [Some(KeybindSource::Default.meta())],
+            "bound once, as a default source, below the user's keymap"
+        );
+    });
+}
+
+#[gpui::test]
+fn a_marley_keymap_that_fails_to_load_binds_nothing(cx: &TestAppContext) {
+    init_test(cx);
+    cx.update(|cx| {
+        assert!(load_keymap_from("not a keymap", cx).is_err());
+        let unknown = r#"[{ "context": "Workspace", "bindings": {
+            "ctrl-alt-m": "marley::NoSuchAction",
+            "ctrl-alt-n": "marley::NewAgent"
+        } }]"#;
+        assert!(load_keymap_from(unknown, cx).is_err());
+        assert!(
+            new_agent_bindings(cx).is_empty(),
+            "not even the binding that did load"
+        );
+    });
 }

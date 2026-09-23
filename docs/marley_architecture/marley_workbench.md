@@ -1,8 +1,9 @@
 # `marley_workbench`
 
 The Marley layout, written in the fork for the workbench shell's W2 (#438): the
-`marley.layout` setting, the switch between Zed's sidebar and the rail, the rail itself, and
-since W5 (#441) the terminal routing.
+`marley.layout` setting, the switch between Zed's sidebar and the rail, the rail itself, since
+W5 (#441, #449) the terminal routing, and since W5c (#450) the New Agent picker and the Marley
+keymap.
 MIT OR Apache-2.0. It links Zed's GPL crates (`workspace`, `sidebar`, `terminal_view`,
 `recent_projects` and others), so it builds and ships only as part of the fork
 (AD-claude-438-marley-crates-may-link-zeds-gpl-crates-001).
@@ -48,8 +49,8 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   a terminal row has the title, the working directory and a bell dot. A header click shows the
   project. A terminal row click shows its project, activates and focuses the terminal and
   clears its bell. New Terminal starts where Zed's own would
-  (`terminal_view::default_working_directory`), through `Project::create_terminal_shell`; the
-  tests replace that factory with a display-only terminal.
+  (`terminal_view::default_working_directory`), through the terminal factory of
+  `agents::Launcher`: `Project::create_terminal_shell`, unless a test sets a display-only one.
 - The header is the title bar's height and draws the window controls the title bar leaves to a
   left-hand sidebar. Its Add Project button opens Zed's recent-projects popover.
 - The handlers take the rows' weak handles and return a `Result`, which the click sites log.
@@ -96,10 +97,11 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   refreshes the rail once `WAITING_AFTER` has passed, on the executor clock. Both maps are
   pruned to the open terminals.
 - **The `+` menu.** After New Agent Thread, an "Agent CLIs" header lists each CLI
-  `which::which_in` finds on the rail's search path, the process's `PATH` unless a test sets
-  another. Choosing one opens a center terminal where New Terminal would. Once the shell's
-  startup handshake completes, or after 5 s, `write_init_command_after_startup` writes the
-  program's name and Enter. An error reaches a prompt.
+  `which::which_in` finds on the launcher's search path, the process's `PATH` unless a test
+  sets another. Choosing one runs `agents::start_cli` in that project: a center terminal where
+  New Terminal would, and once the shell's startup handshake completes, or after 5 s,
+  `write_init_command_after_startup` writes the program's name and Enter. An error reaches a
+  prompt.
 
 - **`is_threads_list_view_active` stays `false`.** `true` would make Zed treat every thread
   in the window as seen while the rail is open. That would silence the OS pop-ups and sounds
@@ -149,11 +151,38 @@ layout at each call, so a switch reinstalls nothing.
   Catching the actions rather than rebinding the keys routes Zed's bindings, a user's own, the
   palette and the menus alike, with no keymap and no Zed change.
 
+## Agents and the New Agent key (#450)
+
+`src/agents.rs` holds what Marley can start and how, for the rail's `+` menu and the picker
+alike.
+
+- **The choices.** `thread_agents`: the Zed Agent, then the project's agent servers by name,
+  each with `thread_icon`. `installed_clis`: `marley_agent`'s CLIs that the search path holds,
+  each with `cli_icon`.
+- **The launches.** `start_thread` opens a thread of the agent in the workspace's Agent Panel,
+  focused. `start_cli` opens a center terminal and writes the program's name once the shell is
+  ready. Both act on the workspace they are given; the rail shows its workspace first.
+- **The seam.** `Launcher`, a global holding the search path and the terminal factory, read
+  through `launcher(cx)`: the process's `PATH` and `Project::create_terminal_shell` unless a
+  test sets its own, so no test starts a real agent.
+- **The picker.** `marley::NewAgent` opens a `Picker` in the workspace's modal layer with Zed's
+  agents, then the CLIs, each marked "Thread" or "Terminal", since Claude Code can be both.
+  Typing filters them fuzzily; an empty query keeps their order. Choosing one starts it in the
+  workspace the picker opened in; an error reaches a prompt. With AI disabled the action opens
+  nothing.
+- **The key.** `keymap.json` binds `secondary-alt-n` (`ctrl-alt-n`, `cmd-alt-n` on macOS) to
+  `marley::NewAgent` in the Workspace context. `load_keymap`, called last in `crates/zed`'s
+  `load_default_keymap`, binds it tagged `KeybindSource::Default`, so every keymap reload binds
+  it again, it wins over Zed's defaults at the same depth, and a user binding on the same keys
+  wins over it. A keymap that fails to load binds nothing and is logged. No Zed default uses
+  the chord in any context; JetBrains's base keymap does, and wins inside its editors.
+
 ## Tests
 
-`src/marley_workbench_tests.rs` (the switch, 11 tests) and `src/rail_tests.rs` (the rail, 16,
-11 thread tests in `rail::tests::threads`, and 5 agent-CLI tests in `rail::tests::agents`,
-which search a temporary directory for programs and read the new terminal's write log): driven gpui tests on `MultiWorkspace::test_new`
+`src/marley_workbench_tests.rs` (the switch and the keymap loader, 13 tests) and
+`src/rail_tests.rs` (the rail, 16, 11 thread tests in `rail::tests::threads`, and 4 agent-CLI
+tests in `rail::tests::agents`, which search a temporary directory for programs and read the
+new terminal's write log): driven gpui tests on `MultiWorkspace::test_new`
 over a FakeFs, clicking elements found by debug selector. The thread tests run on
 `init_agent_test`, which layers Zed's agent test setup (`agent_ui::test_support`, with a
 thread database per test) over the window. They put an `AgentPanel::test_new` in each project
@@ -167,6 +196,14 @@ and the routing's has to replace it. Actions are dispatched from the focused cen
 the workspace's root. The toggle tests stand `workspace::item::test::TestItem` in for an editor
 and a `TestPanel` in for another bottom panel. One binds Zed's real Linux default keymap
 (`KeymapFile::load_asset_allow_partial_failure`) and presses the keys.
+
+`src/agents_tests.rs` (the picker, 9 tests) opens the picker by dispatching `marley::NewAgent`
+from the center pane and drives it with `menu::SelectNext` and `menu::Confirm`, over a project
+with an Agent Panel, two custom agents (one named and drawn by the registry) and two fake CLIs
+in a temporary directory. The harness in `marley_workbench_tests.rs` holds what both test
+files use: the display-only terminal factory, `programs_in`, `search_agents_in`,
+`use_display_only_terminals`, `add_agent_panel` and `configure_agents`. The keymap's hook
+has its own test in `crates/zed/src/zed.rs`, `test_reload_keymaps_binds_the_marley_keymap`.
 
 ## Known limits
 

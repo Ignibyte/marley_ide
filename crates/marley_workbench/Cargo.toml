@@ -14,9 +14,11 @@ agent_ui.workspace = true
 anyhow.workspace = true
 fs.workspace = true
 futures.workspace = true
+fuzzy.workspace = true
 gpui.workspace = true
 marley_agent.workspace = true
 marley_rail.workspace = true
+picker.workspace = true
 platform_title_bar.workspace = true
 project.workspace = true
 recent_projects.workspace = true
@@ -43,6 +45,7 @@ editor.workspace = true
 fs = { workspace = true, features = ["test-support"] }
 gpui = { workspace = true, features = ["test-support"] }
 language_model = { workspace = true, features = ["test-support"] }
+menu.workspace = true
 paths.workspace = true
 project = { workspace = true, features = ["test-support"] }
 prompt_store.workspace = true

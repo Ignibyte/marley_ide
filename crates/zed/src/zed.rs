@@ -2374,6 +2374,10 @@ pub fn load_default_keymap(cx: &mut App) {
         )
         .unwrap(),
     );
+
+    // Marley: the Marley keymap, after every default keymap and before the user's, which
+    // `reload_keymaps` binds next.
+    marley_workbench::load_keymap(cx);
 }
 
 /// Namespaces of actions that are part of an AI feature. When the user opts out
@@ -6469,6 +6473,27 @@ mod tests {
             shown_notifications, 0,
             "fixing the global tasks file should dismiss the notification"
         );
+    }
+
+    // Marley: a keymap reload clears every binding, and `load_default_keymap` binds the Marley
+    // keymap again.
+    #[gpui::test]
+    fn test_reload_keymaps_binds_the_marley_keymap(cx: &mut TestAppContext) {
+        init_keymap_test(cx);
+        let new_agent_is_bound = |cx: &gpui::App| {
+            cx.key_bindings()
+                .borrow()
+                .bindings()
+                .any(|binding| binding.action().name() == "marley::NewAgent")
+        };
+        cx.update(|cx| {
+            load_default_keymap(cx);
+            assert!(new_agent_is_bound(cx));
+            cx.clear_key_bindings();
+            assert!(!new_agent_is_bound(cx));
+            reload_keymaps(cx, Vec::new());
+            assert!(new_agent_is_bound(cx));
+        });
     }
 
     #[gpui::test]

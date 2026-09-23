@@ -236,7 +236,8 @@ Every project header carries a `+` that opens:
   thread shows up as a row under the project.
 
 The rail header carries Add Project (the recent-projects popover). An empty window shows
-`ProjectEmptyState`.
+`ProjectEmptyState`. From the keyboard, `ctrl-alt-n` opens the same agents and CLIs in a picker
+for the active project, in either layout (#450).
 
 ### D5. Agents in terminals
 
@@ -297,7 +298,8 @@ The terminal keys need none of it (#449). Zed's defaults bind `` ctrl-` `` to
 `workspace::ToggleBottomDock`, all in the Workspace context, and the crate catches those
 actions in the capture phase, as it catches New Terminal. That also routes the palette, the
 menus and a user's own bindings to them, which new bindings would miss. The Marley keymap is for
-a key with no Zed action behind it, the first being the New Agent chord (TICKET-450). A
+a key with no Zed action behind it. Its first binding, since #450, is `secondary-alt-n` to
+`marley::NewAgent` in the Workspace context, a chord no Zed default uses in any context. A
 binding in a Terminal context on an unmodified key yields to the PTY
 (`PR-claude-unmodified-terminal-chords-yield-to-the-pty-001`).
 
@@ -334,7 +336,7 @@ Each lands as a row in [zed-touchpoints.md](zed-touchpoints.md) in the same chan
 | W2 | `crates/zed/src/zed.rs`, `initialize_workspace` | `marley_workbench::init(cx)` as its first line, before any window opens (a hunk inside `fn main` would give the DIFF gate a mutant no test reaches) |
 | W2 | `crates/zed/src/zed.rs:536-546` | sidebar construction handed to `marley_workbench` (D1) |
 | W2 | `crates/zed/src/zed.rs`, `test_action_namespaces` | the crate's action namespace in the expected list (`:5889-5984`); the test fails once a crate with new actions is linked |
-| W5c | `crates/zed/src/zed.rs`, `load_default_keymap` | bind the Marley keymap after `specific-overrides` (`:2369-2376`) |
+| W5c | `crates/zed/src/zed.rs`, `load_default_keymap` | bind the Marley keymap after `specific-overrides` (`:2378-2380`), with a test beside Zed's keymap tests |
 
 Defaults, task routing and terminal routing need none (D2, D6). Deferred until Chad wants
 them: a Marley entry in the title bar's Panel Layout menu (`title_bar.rs`), the AI gate
@@ -367,8 +369,9 @@ OpenCode shows as an agent row with the CLI's title and a working or waiting sta
 project's `+` starts any installed CLI in one click. W5 shipped as #441: in the Marley layout
 tasks, New Terminal and Open in Terminal open center terminals, and nothing opens the bottom
 panel. W5b shipped as #449: `` ctrl-` ``, `ctrl-~` and `ctrl-j` work on the center terminals,
-by catching Zed's actions rather than rebinding keys. The Marley keymap and a New Agent chord
-are TICKET-450 (W5c); W6 is TICKET-442, queued after it.
+by catching Zed's actions rather than rebinding keys. W5c shipped as #450: `ctrl-alt-n` opens
+a New Agent picker over Zed's agents and the installed CLIs, bound through the Marley keymap.
+W6 is TICKET-442, queued next.
 
 | Slice | Delivers | Size |
 |---|---|---|
@@ -377,7 +380,7 @@ are TICKET-450 (W5c); W6 is TICKET-442, queued after it.
 | W2 | The switch and a first rail: the `marley` settings block, the two layout actions, live sidebar swapping, the Marley defaults, and a rail with project headers, center terminals, click to switch, New Terminal, single selection and window controls; driven gpui tests and a live drive | L |
 | W3 | Zed threads in the rail: thread rows, status and attention dots, New Agent Thread, opening a thread in the right-hand Agent Panel | M |
 | W4 | Agents in terminals: New Agent, agent recognition and status | M |
-| W5 | Terminal routing in the Marley layout: the task provider and the action capture (#441), then the terminal keys (#449, W5b). The Marley keymap and a New Agent chord follow as W5c (#450); a terminal on project open moved to W6 | M |
+| W5 | Terminal routing in the Marley layout: the task provider and the action capture (#441), then the terminal keys (#449, W5b) and New Agent from the keyboard through the Marley keymap (#450, W5c); a terminal on project open moved to W6 | M |
 | W6 | Persistence and polish: closed-rail memory, rename, close, keyboard navigation, filter, the switcher, project reorder | M |
 
 Then the prongs continue in this shell: T0 and T1 draw Blocks inside the rail's terminals,

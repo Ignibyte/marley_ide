@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **New Agent from the keyboard** (#450, 2026-09-23). `ctrl-alt-n` (`cmd-alt-n` on macOS)
+  opens a New Agent picker in either layout: the Zed Agent and each configured external agent,
+  then each agent CLI installed on the `PATH`, every entry marked "Thread" or "Terminal".
+  Typing filters the list. A Zed agent starts a new thread, focused, in the project's Agent
+  Panel; a CLI starts in a new center terminal once its shell is ready, as the rail's `+` menu
+  starts one. The key comes from Marley's own keymap, which Zed's keymap loading binds after
+  its defaults, so it holds across keymap reloads and a binding of your own on the same keys
+  wins. With AI disabled the key opens nothing.
 - **Terminal keys in the Marley layout** (#449, 2026-09-23). In the Marley layout
   `` ctrl-` `` switches between the code and the project's terminals: from an editor it
   focuses the terminal used last, or opens one, and from a terminal it goes back to the editor

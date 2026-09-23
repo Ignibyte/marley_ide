@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #450 (feature, workbench shell W5c)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet (not specced; split from #449 at its promotion)
+- **Pipeline doc:** ../../pipeline/completed/450-new-agent-from-the-keyboard.spec.md
 - **Source ticket:** ../../pipeline/completed/449-terminal-keys.spec.md (Out) · ../../../marley/workbench-shell.md (D4, D7)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Chad could not find how to start an agent; W4's `+` menu answers that for the mouse. A New
@@ -19,4 +19,5 @@ every context it can reach (`PR-claude-new-chord-shadowed-by-hardcoded-key-001`)
 ## Acceptance
 In either layout the chord opens the picker, and a choice starts that agent in the active
 project: a CLI in a new center terminal, a Zed agent as a new thread in the Agent Panel. The
-binding survives a keymap reload and loses to a user binding on the same keys.
+binding survives a keymap reload and loses to a user binding on the same keys. Full EARS in
+the completed spec. Shipped 2026-09-23.

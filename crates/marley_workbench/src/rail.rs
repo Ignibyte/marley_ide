@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use acp_thread::{AcpThread, AcpThreadEvent};
 use agent_ui::thread_metadata_store::{ThreadId, ThreadMetadata, ThreadMetadataStore};
-use agent_ui::{Agent, AgentPanel, AgentPanelEvent, AgentThreadSource, NewExternalAgentThread};
+use agent_ui::{Agent, AgentPanel, AgentPanelEvent, AgentThreadSource};
 use anyhow::Context as _;
 use gpui::{
     Anchor, AnyElement, App, Context, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
@@ -22,9 +22,7 @@ use marley_rail::{
     Focus, ProjectRow, ProjectSnapshot, RailSnapshot, Row, TerminalAgent, TerminalRow,
     TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus,
 };
-use project::{
-    AgentId, AgentRegistryStore, AgentServerStore, AgentServersUpdated, Project, ProjectGroupKey,
-};
+use project::{AgentId, AgentServerStore, AgentServersUpdated, ProjectGroupKey};
 use recent_projects::sidebar_recent_projects::SidebarRecentProjects;
 use terminal::Terminal;
 use terminal_view::{TerminalView, terminal_panel::TerminalPanel};
@@ -42,26 +40,15 @@ use workspace::{
     notifications::DetachAndPromptErr as _,
 };
 
+use crate::agents::{self, AgentIcon};
+
 const DEFAULT_WIDTH: Pixels = px(260.);
 const MIN_WIDTH: Pixels = px(180.);
 const MAX_WIDTH: Pixels = px(600.);
 
-/// Makes the `Terminal` behind a new center terminal, started in the given directory. Production
-/// uses `Project::create_terminal_shell` itself, so no line of this crate spawns a shell; tests
-/// hand in a display-only terminal.
-type TerminalFactory = fn(
-    &mut Project,
-    Option<PathBuf>,
-    &mut Context<Project>,
-) -> Task<anyhow::Result<Entity<Terminal>>>;
-
 /// Reads the command a terminal's foreground process runs. Production asks the PTY; a test's
 /// display-only terminal has no process, so tests hand in their own.
 type ForegroundCommand = fn(&Entity<Terminal>, &App) -> Option<String>;
-
-/// How long an agent's launch waits for the shell to say it is ready, as Zed's terminal threads
-/// wait, before writing the command anyway.
-const AGENT_STARTUP_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Zed's own sidebar and whether it was open, kept by the rail that replaced it.
 pub type KeptSidebar = (Entity<sidebar::Sidebar>, bool);
@@ -72,10 +59,7 @@ pub struct Rail {
     multi_workspace: WeakEntity<MultiWorkspace>,
     focus_handle: FocusHandle,
     width: Pixels,
-    terminal_factory: TerminalFactory,
     foreground_command: ForegroundCommand,
-    /// Where the `+` menu looks for agent CLIs: the process's `PATH`, which tests replace.
-    agent_search_path: Option<OsString>,
     /// When each terminal last wrote output, on the executor's clock.
     terminal_output: HashMap<EntityId, Instant>,
     /// Per agent terminal: a refresh due once its output has been quiet for `WAITING_AFTER`,
@@ -140,13 +124,6 @@ struct ThreadEntry {
     icon: AgentIcon,
 }
 
-/// An agent's icon: one of Zed's, or an agent server's own SVG.
-#[derive(Clone)]
-enum AgentIcon {
-    Named(IconName),
-    Svg(SharedString),
-}
-
 /// The window, read once: the pure snapshot, plus the entities the handlers act on.
 #[derive(Default)]
 struct Snapshot {
@@ -186,9 +163,7 @@ impl Rail {
             multi_workspace: multi_workspace.downgrade(),
             focus_handle: cx.focus_handle(),
             width: DEFAULT_WIDTH,
-            terminal_factory: Project::create_terminal_shell,
             foreground_command: |terminal, cx| terminal.read(cx).foreground_process_command_name(),
-            agent_search_path: std::env::var_os("PATH"),
             terminal_output: HashMap::default(),
             quiet_timers: HashMap::default(),
             snapshot: Snapshot::default(),
@@ -417,7 +392,7 @@ impl Rail {
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
         let workspace = self.activate_workspace(workspace, window, cx)?;
-        let factory = self.terminal_factory;
+        let factory = agents::launcher(cx).terminal_factory;
         workspace.update(cx, |workspace, cx| {
             let directory = terminal_view::default_working_directory(workspace, cx);
             TerminalPanel::add_center_terminal(workspace, window, cx, move |project, cx| {
@@ -433,9 +408,7 @@ impl Rail {
         Ok(())
     }
 
-    /// Starts `kind` in a new center terminal of `workspace`, where New Terminal would start
-    /// one. The command goes in once the shell says it is ready, as Zed's terminal threads start
-    /// theirs, and it is only the agent's program name.
+    /// Shows `workspace` and starts `kind` in a new center terminal there.
     fn new_agent(
         &self,
         workspace: &WeakEntity<Workspace>,
@@ -444,41 +417,8 @@ impl Rail {
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
         let workspace = self.activate_workspace(workspace, window, cx)?;
-        let factory = self.terminal_factory;
-        let terminal = workspace.update(cx, |workspace, cx| {
-            let directory = terminal_view::default_working_directory(workspace, cx);
-            TerminalPanel::add_center_terminal(workspace, window, cx, move |project, cx| {
-                factory(project, directory, cx)
-            })
-        });
-        workspace.update(cx, |_, cx| {
-            cx.spawn_in(window, async move |_, cx| {
-                let terminal = terminal.await?;
-                let handshake = |terminal: &mut Terminal, _: &mut Context<Terminal>| {
-                    terminal.start_init_command_startup_handshake()
-                };
-                let startup = terminal.update(cx, handshake)?;
-                let timeout = cx.background_executor().timer(AGENT_STARTUP_TIMEOUT);
-                // A terminal without a PTY is ready at once; the timeout covers a shell that
-                // never echoes the handshake's marker.
-                futures::future::select(startup, timeout).await;
-                let input = marley_agent::launch_input(kind);
-                let launch = |terminal: &mut Terminal, cx: &mut Context<Terminal>| {
-                    terminal.write_init_command_after_startup(input, cx)
-                };
-                let written = terminal.update(cx, launch)?;
-                anyhow::ensure!(
-                    written,
-                    "the terminal took other input before the agent started"
-                );
-                anyhow::Ok(())
-            })
-            .detach_and_prompt_err(
-                "Could not start the agent",
-                window,
-                cx,
-                |_, _, _| None,
-            );
+        workspace.update(cx, |workspace, cx| {
+            agents::start_cli(workspace, kind, window, cx);
         });
         Ok(())
     }
@@ -524,8 +464,7 @@ impl Rail {
         })
     }
 
-    /// Starts a thread for `agent` in `workspace`'s Agent Panel. The panel is called directly:
-    /// a dispatched action would reach whichever workspace the window shows.
+    /// Shows `workspace` and starts a thread of `agent` in its Agent Panel.
     fn new_agent_thread(
         &self,
         workspace: &WeakEntity<Workspace>,
@@ -533,19 +472,9 @@ impl Rail {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
-        // The action's one field is private, so it is built the way a keymap builds it.
-        let action: NewExternalAgentThread =
-            serde_json::from_value(serde_json::json!({ "agent": agent.0 }))?;
         let workspace = self.activate_workspace(workspace, window, cx)?;
         workspace.update(cx, |workspace, cx| {
-            let panel = workspace
-                .panel::<AgentPanel>(cx)
-                .context("the project has no Agent Panel")?;
-            panel.update(cx, |panel, cx| {
-                panel.new_external_agent_thread(&action, window, cx);
-            });
-            workspace.focus_panel::<AgentPanel>(window, cx);
-            anyhow::Ok(())
+            agents::start_thread(workspace, agent, window, cx)
         })
     }
 
@@ -747,7 +676,7 @@ impl Rail {
     ) -> ContextMenu {
         let choices = workspace
             .upgrade()
-            .map(|workspace| agent_choices(workspace.read(cx).project(), cx))
+            .map(|workspace| agents::thread_agents(workspace.read(cx).project(), cx))
             .unwrap_or_default();
         choices.into_iter().fold(menu, |menu, (agent, name, icon)| {
             let rail = rail.clone();
@@ -775,7 +704,7 @@ impl Rail {
         workspace: &WeakEntity<Workspace>,
         search_path: Option<&OsStr>,
     ) -> ContextMenu {
-        let agents = agents_on_path(search_path);
+        let agents = agents::installed_clis(search_path);
         if agents.is_empty() {
             return menu;
         }
@@ -786,7 +715,7 @@ impl Rail {
                 let workspace = workspace.clone();
                 menu.item(
                     ContextMenuEntry::new(kind.display_name())
-                        .icon(agent_icon_name(kind))
+                        .icon(agents::cli_icon(kind))
                         .icon_color(Color::Muted)
                         .handler(move |window, cx| {
                             rail.update(cx, |rail, cx| {
@@ -852,7 +781,7 @@ impl Rail {
                             })
                             .child(
                                 Icon::new(row.agent.map_or(IconName::Terminal, |agent| {
-                                    agent_icon_name(agent.kind)
+                                    agents::cli_icon(agent.kind)
                                 }))
                                 .size(IconSize::Small)
                                 .color(Color::Muted),
@@ -947,24 +876,6 @@ fn resubscribe<E: 'static, S>(
             (entity.entity_id(), subscriptions)
         })
         .collect()
-}
-
-/// The known agent CLIs `search_path` holds an executable for, in menu order.
-fn agents_on_path(search_path: Option<&OsStr>) -> Vec<AgentKind> {
-    AgentKind::ALL
-        .into_iter()
-        .filter(|kind| which::which_in(kind.program(), search_path, "/").is_ok())
-        .collect()
-}
-
-/// The icon an agent CLI's row and menu entry draw.
-const fn agent_icon_name(kind: AgentKind) -> IconName {
-    match kind {
-        AgentKind::Claude => IconName::AiClaude,
-        AgentKind::Codex => IconName::AiOpenAi,
-        AgentKind::Gemini => IconName::AiGemini,
-        AgentKind::OpenCode => IconName::AiOpenCode,
-    }
 }
 
 /// The status Zed's thread row draws for a rail status.
@@ -1098,53 +1009,9 @@ fn group_threads(
                     agent: Agent::from(row.agent_id.clone()),
                     work_dirs: row.folder_paths().clone(),
                     title: row.title(),
-                    icon: agent_icon(&row.agent_id, workspace.read(cx).project(), cx),
+                    icon: agents::thread_icon(&row.agent_id, workspace.read(cx).project(), cx),
                 },
             )
-        })
-        .collect()
-}
-
-/// An agent's icon, looked up as the Agent Panel's menu looks it up.
-fn agent_icon(agent: &AgentId, project: &Entity<Project>, cx: &App) -> AgentIcon {
-    if Agent::from(agent.clone()) == Agent::NativeAgent {
-        return AgentIcon::Named(IconName::ZedAgent);
-    }
-    project
-        .read(cx)
-        .agent_server_store()
-        .read(cx)
-        .agent_icon(agent)
-        .or_else(|| {
-            AgentRegistryStore::try_global(cx)
-                .and_then(|registry| registry.read(cx).agent(agent)?.icon_path().cloned())
-        })
-        .map_or(AgentIcon::Named(IconName::Sparkle), AgentIcon::Svg)
-}
-
-/// The agents a new thread can run: the Zed Agent first, then the project's agent servers sorted
-/// by display name without regard to case, each with its name and icon.
-fn agent_choices(project: &Entity<Project>, cx: &App) -> Vec<(AgentId, SharedString, AgentIcon)> {
-    let servers = project.read(cx).agent_server_store().read(cx);
-    let registry = AgentRegistryStore::try_global(cx);
-    let registry = registry.as_ref().map(|registry| registry.read(cx));
-    let mut external: Vec<(AgentId, SharedString)> = servers
-        .external_agents()
-        .map(|agent| {
-            let name = servers
-                .agent_display_name(agent)
-                .or_else(|| Some(registry?.agent(agent)?.name().clone()))
-                .unwrap_or_else(|| agent.0.clone());
-            (agent.clone(), name)
-        })
-        .collect();
-    external.sort_by_key(|(_, name)| name.to_lowercase());
-    let zed_agent = Agent::NativeAgent.id();
-    std::iter::once((zed_agent, SharedString::from("Zed Agent")))
-        .chain(external)
-        .map(|(agent, name)| {
-            let icon = agent_icon(&agent, project, cx);
-            (agent, name, icon)
         })
         .collect()
 }
@@ -1388,12 +1255,12 @@ impl Sidebar for Rail {
 
 impl Render for Rail {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let search_path = agents::launcher(cx).search_path;
         let rows: Vec<AnyElement> = marley_rail::rail_rows(&self.snapshot.rail)
             .into_iter()
             .filter_map(|row| match row {
                 Row::Project(row) => self.snapshot.groups.get(row.index).map(|group| {
-                    Self::render_project_row(row, group, self.agent_search_path.clone(), cx)
-                        .into_any_element()
+                    Self::render_project_row(row, group, search_path.clone(), cx).into_any_element()
                 }),
                 Row::Terminal(row) => self.snapshot.terminals.get(&row.id).map(|terminal| {
                     Self::render_terminal_row(row, terminal, cx).into_any_element()
