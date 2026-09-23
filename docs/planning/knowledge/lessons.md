@@ -2135,3 +2135,33 @@ What #458 found (`crates/marley_workbench/src/rail.rs`, `follow_folders`):
 - The negative check is one line: refresh in the handler instead of deferring.
   `a_folder_added_or_removed_renames_the_row_and_keeps_its_rows_recency` then fails on the
   switcher's order.
+
+## L-claude-448-running-zeds-dylint-library-on-the-fork-001
+*category: tooling · topic: Zed's `tooling/lints` as a Marley gate · from: pipeline 448*
+
+What #448 needed to know (`script/gates.sh`, gate:21):
+- **Install.** `cargo install cargo-dylint dylint-link --locked` (6.0.4), and `rustup
+  toolchain install` from `tooling/lints`, which reads its toolchain file
+  (`nightly-2026-03-21` with `rustc-dev`, `rust-src`, `llvm-tools-preview`). The first
+  `cargo dylint` builds the library and a driver for that nightly (about a minute).
+- **The tree builds on the older nightly.** The root pins 1.98.1 and the library 1.96-nightly.
+  Nothing in the workspace sets `rust-version`, and a cold check of the 691 crates the Marley
+  crates reach took 1m 52s on the dev box, with no compile error. Recheck this when upstream
+  bumps either pin.
+- **Where it builds.** The check keeps `$CARGO_TARGET_DIR/dylint/target/<toolchain>` and the
+  library `$CARGO_TARGET_DIR/dylint/libraries`, apart from the normal target directory.
+- **Scoping without reading output.** The library's lints warn, and Zed's crates hold about
+  600 hits. `#![cfg_attr(dylint_lib = "lints", deny(...))]` in a crate root makes them errors
+  only there and only under the driver. A normal build never sets the cfg, and the Marley
+  manifests allow `unexpected_cfgs`. dylint's own crates use the same idiom.
+- **The cache follows the library.** dylint 6.0.4's driver adds each loaded library to the
+  crate's dep-info and hashes the libraries' contents into rustc's tracked options
+  (`dylint_driver/src/untracked_state.rs`), so a rebuilt library re-runs the check without a
+  clean.
+- **rustfmt and a same-line justification.** An inner attribute with a trailing `//`
+  comment, such as `#![allow(clippy::expect_used)] // why`, must stay the last inner
+  attribute. With another inner attribute after it, rustfmt moves the comment to its own
+  line, and gate:12 then fails the `allow`, since it reads the justification on the same line.
+- **Guarding a cargo command.** Guard with `pgrep -x cargo`. `pgrep -f "cargo (… |install)"`
+  matched the shell running the guarded `cargo install`, so the guard reported busy and
+  skipped the install.

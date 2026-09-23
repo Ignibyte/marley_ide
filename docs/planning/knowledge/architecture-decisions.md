@@ -1545,3 +1545,21 @@ Rejected:
   group. In the rail a folded project shows in the center all the same, and the fold is the
   user's choice;
 - Zed's start at the first row in both directions when nothing is current.
+
+## AD-claude-448-zeds-dylint-lints-are-errors-in-the-marley-crates-only-001
+*decided at: 2026-09-23 · status: shipped*
+
+gate:21 runs Zed's dylint library (`tooling/lints`) as upstream ships it, at its pinned
+nightly, with the README's `cargo dylint --all`, over every Marley crate with all targets, in
+every mode. Each Marley crate root (and `marley_terminal`'s integration test root) denies the
+library's seven lints under the driver's `dylint_lib` cfg, so a hit in Marley code fails the
+check, and the verdict is cargo's exit code (§0). Zed's crates keep the library's warn level,
+Zed's own bar.
+
+Rejected:
+- `DYLINT_RUSTFLAGS="-D …"`: it would fail on the roughly 600 hits in Zed's crates;
+- reading the check's JSON for Marley paths: §0 takes no verdict from a tool's output;
+- bumping the library's nightly to the root's 1.98.1: the tree builds on the pinned one, and a
+  bump would be a touchpoint and a `clippy_utils` pin to keep in step.
+
+A lint the library adds warns in the Marley crates until the roots' lists name it.

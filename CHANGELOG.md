@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Zed's dylint lints on the Marley crates** (#448, 2026-09-23). gate:21 runs Zed's own lint
+  library, `tooling/lints`, over the seven Marley crates with `cargo dylint`, on the nightly the
+  library pins. Its lints catch gpui mistakes clippy cannot see: an entity updated or notified
+  while a view renders, blocking IO where a synchronous context runs, an async block with no
+  await, and string and map misuses. Each Marley crate root makes them errors under the dylint
+  driver, so a hit fails the gate, and Zed's own crates keep them as warnings. The twelve hits
+  it raised, all `SharedString`s built from string literals, now use
+  `SharedString::new_static`. The receipt's fingerprint covers `tooling/lints`.
 - **Next and Previous Project and Thread in the Marley layout** (#459, 2026-09-23). The
   command palette's Next Project, Previous Project, Next Thread and Previous Thread did nothing
   in the Marley layout. Now Next and Previous Project show the project after or before the one

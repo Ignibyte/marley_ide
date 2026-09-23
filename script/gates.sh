@@ -22,7 +22,7 @@
 #   STATIC (always): 1 fmt · 2 clippy · 3 tests · 7 audit · 8 deny · 9 shear
 #                    10 gitleaks · 11 shellcheck · 12 no-suppress · 13 SAST · 14 docs
 #                    16 zed-ledger · 17 manifests · 18 spelling · 19 empty suites
-#                    20 semgrep
+#                    20 semgrep · 21 dylint
 #   HEAVY  (FULL/DIFF): 4 coverage · 6 miri — reported BLOCKED, not run, after a
 #                    static red
 #
@@ -361,6 +361,20 @@ semgrep_g() {
     --no-git-ignore "${dirs[@]}"
 }
 
+# ── 21. dylint — Zed's own lints (tooling/lints) on the Marley crates ─────────
+# The library catches what clippy cannot see in gpui code: an entity updated or notified
+# while a view renders, blocking IO where a synchronous context runs, an async block with no
+# await, and string and map misuses. Its lints warn, and Zed's crates keep them there. Each
+# Marley crate root denies them under the driver's `dylint_lib` cfg, so a Marley hit fails
+# the check and the verdict stays cargo's exit code. A lint the library adds warns until it
+# joins those lists. The library builds on the nightly its package pins, and the check keeps
+# its own target directory under $CARGO_TARGET_DIR/dylint.
+dylint_g() {
+  need cargo-dylint "cargo install cargo-dylint dylint-link --locked" || return 1
+  need dylint-link "cargo install cargo-dylint dylint-link --locked" || return 1
+  cargo dylint --all -- --all-targets "${MARLEY_PKG_ARGS[@]}"
+}
+
 # ── 4. rust line coverage floor (FULL: the Marley crates; DIFF: the touched ones)
 # ACCEPTED-UNTESTABLE (the explicit, documented exclude — §0): the raw PTY shim
 # marley_terminal/src/pty_os.rs (four OS calls, exercised end to end by the
@@ -422,6 +436,7 @@ run_gate "gate:17 manifests (cargo-sort + taplo)" manifests_g
 run_gate "gate:18 spelling (typos)" typos_g
 run_gate "gate:19 empty suites (nextest list)" empty_suites_g
 run_gate "gate:20 semgrep (.semgrep.yml)" semgrep_g
+run_gate "gate:21 dylint (Zed's lints, Marley crates)" dylint_g
 
 # ── HEAVY gates (FULL + DIFF; FAST skips; a static red blocks them) ──────────
 if [ "$MODE" = "fast" ]; then

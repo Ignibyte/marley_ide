@@ -6,6 +6,21 @@
 //! nothing can inject a shell command; and a leading-dash host/user is rejected (and the argv carries a
 //! `--` before the destination) so it can never be re-parsed as an `ssh` OPTION (option-smuggling).
 
+// gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
+// Zed's crates keep them at warn (CONSTITUTION §0).
+#![cfg_attr(
+    dylint_lib = "lints",
+    deny(
+        async_block_without_await,
+        blocking_io_on_foreground,
+        entity_update_in_render,
+        map_lookup_then_insert,
+        notify_in_render,
+        owned_string_into_shared,
+        shared_string_from_str_literal
+    )
+)]
+
 use serde::{Deserialize, Serialize};
 
 /// A parsed ssh destination: `[user@]host[:port]`.

@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #448 (chore, quality gates)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet (not specced)
+- **Pipeline doc:** ../../pipeline/completed/448-zed-dylint-lints.spec.md
 - **Source ticket:** the Out list of #447 (`../../pipeline/completed/447-rustal-quality-gates.spec.md`)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Zed keeps a dylint library in `tooling/lints` whose lints catch the gpui mistakes clippy

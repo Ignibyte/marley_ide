@@ -4,6 +4,20 @@
 //! deterministic lifecycle tests (spawn, child-exit, write-after-disconnect, resize) carry the
 //! end-to-end coverage; one best-effort DCS round-trip drives a scripted hook stream through a real
 //! shell. All hold `PTY_LOCK` — they share process/SIGCHLD state.
+// gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
+// Zed's crates keep them at warn (CONSTITUTION §0).
+#![cfg_attr(
+    dylint_lib = "lints",
+    deny(
+        async_block_without_await,
+        blocking_io_on_foreground,
+        entity_update_in_render,
+        map_lookup_then_insert,
+        notify_in_render,
+        owned_string_into_shared,
+        shared_string_from_str_literal
+    )
+)]
 #![cfg(unix)]
 #![allow(clippy::expect_used)] // a helper's failed expect fails its test, as a #[test] body's does
 

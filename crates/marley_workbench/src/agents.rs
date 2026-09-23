@@ -139,7 +139,7 @@ pub fn thread_agents(
         .collect();
     external.sort_by_key(|(_, name)| name.to_lowercase());
     let zed_agent = Agent::NativeAgent.id();
-    std::iter::once((zed_agent, SharedString::from("Zed Agent")))
+    std::iter::once((zed_agent, SharedString::new_static("Zed Agent")))
         .chain(external)
         .map(|(agent, name)| {
             let icon = thread_icon(&agent, project, cx);

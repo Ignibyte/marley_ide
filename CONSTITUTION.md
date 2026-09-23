@@ -47,6 +47,8 @@ gate:17 manifests      cargo sort --check + taplo fmt --check on the Marley mani
 gate:18 spelling       typos --config .config/typos.toml              (the repository, as Zed's CI)
 gate:19 empty suites   cargo nextest list -p <marley crates>: every suite but a binary's has a test
 gate:20 semgrep        semgrep 1.156.0 --config .semgrep.yml --error --strict on the Marley crates
+gate:21 dylint         cargo dylint --all -- --all-targets -p <marley crates>: Zed's tooling/lints,
+                       denied in each Marley crate root under the driver's dylint_lib cfg
 
 HEAVY (--full + --diff; --fast skips; BLOCKED, not run, after a static red)
 gate:4  coverage       cargo llvm-cov nextest -p <marley crates> --fail-under-lines 100
@@ -92,8 +94,9 @@ is added to that list with a reason, never hidden in a regex.
 
 - clippy runs rustal's lint table on the Marley crates (pedantic, nursery and cargo, with
   its deny list; §14) and Zed's workspace lints (`[workspace.lints]` in `Cargo.toml`) on
-  Zed's crates. Zed's dylint lints (`tooling/lints`) are not run yet: they need
-  `cargo-dylint` and the nightly toolchain their package pins.
+  Zed's crates. gate:21 runs Zed's dylint lints (`tooling/lints`) on the Marley crates, where
+  each crate root makes them errors; on Zed's crates they stay at the library's warn level.
+  A lint the library adds warns in the Marley crates until it joins the roots' lists.
 - `gate:3` runs `--no-tests=warn` over the scope, so a Zed crate with no tests is a visible
   warning; gate:19 fails a Marley test suite with none. The binding "every behavior is
   tested" enforcement is gate:4 on the Marley crates plus the driven tests §7 requires for
@@ -133,7 +136,10 @@ and the run fails instead of writing one when the gated files changed while it r
 
 Tools: `cargo install cargo-audit cargo-deny cargo-shear cargo-llvm-cov cargo-nextest
 cargo-sort taplo-cli typos-cli`, `rustup component add llvm-tools-preview`, semgrep 1.156.0
-(`pipx install semgrep==1.156.0`), and `gitleaks shellcheck jq` from the distro;
+(`pipx install semgrep==1.156.0`), and `gitleaks shellcheck jq` from the distro; for gate:21,
+`cargo install cargo-dylint dylint-link --locked` (6.0.4) and, from `tooling/lints`,
+`rustup toolchain install` (its pinned nightly with `rustc-dev`, `rust-src` and
+`llvm-tools-preview`);
 `cargo-mutants` only for the end-of-sprint `script/mutation.sh`. Run the gate in the
 Test phase; fix every red at the source. One cargo command at a time on this box: the target
 directory is shared by every project on it.
@@ -291,7 +297,8 @@ the receipt; its gate is enforced by pipeline discipline (the static gates at
 **gate-defining files** themselves (`script/gates.sh`, `.claude/hooks/**`, `clippy.toml`,
 `rustfmt.toml`, `deny.toml`, `.gitleaks.toml`, `.semgrep.yml`, `.config/typos.toml`,
 `.cargo/audit.toml`, the Cargo manifests and lockfile, the toolchain pin, the nextest
-config), so weakening the gate after a green invalidates the receipt.
+config, and `tooling/lints`, gate:21's library and its nightly pin), so weakening the gate
+after a green invalidates the receipt.
 
 ---
 
