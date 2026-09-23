@@ -150,6 +150,12 @@ cargo-sort taplo-cli typos-cli`, `rustup component add llvm-tools-preview`, semg
 Test phase; fix every red at the source. One cargo command at a time on this box: the target
 directory is shared by every project on it.
 
+**The toolchain** is the latest stable, pinned in `rust-toolchain.toml` (1.98.1 since
+2026-09-01). When a new stable ships (`rustup check`), a chore moves the pin with a
+`script/gates.sh --full` run and fixes any new lint at the source; the box's default `stable`
+is updated with it, while no cargo runs (#472). `tooling/lints` keeps Zed's nightly pin: the
+lint library builds against that nightly's compiler internals.
+
 ---
 
 ## §3 — Phase Gates (binding)

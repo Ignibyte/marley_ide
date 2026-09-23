@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #472 (chore, the toolchain)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet
+- **Pipeline doc:** ../../pipeline/completed/472-rust-toolchain-current.spec.md
 - **Source ticket:** Chad, 2026-09-23: "Also we should try to upgrade rust to the latest version?"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Marley already pins the latest stable: `rust-toolchain.toml` names 1.98.1, which `rustup check`
