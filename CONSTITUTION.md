@@ -97,6 +97,9 @@ is added to that list with a reason, never hidden in a regex.
   Zed's crates. gate:21 runs Zed's dylint lints (`tooling/lints`) on the Marley crates, where
   each crate root makes them errors; on Zed's crates they stay at the library's warn level.
   A lint the library adds warns in the Marley crates until it joins the roots' lists.
+- `vendor/` holds upstream crates Marley changes (`vendor/README.md`). They build outside Zed's
+  workspace, so no gate judges their upstream code, and their own tests do not run in the gate
+  yet; #462, the first Marley hunk in one, adds that.
 - `gate:3` runs `--no-tests=warn` over the scope, so a Zed crate with no tests is a visible
   warning; gate:19 fails a Marley test suite with none. The binding "every behavior is
   tested" enforcement is gate:4 on the Marley crates plus the driven tests §7 requires for
@@ -297,8 +300,9 @@ the receipt; its gate is enforced by pipeline discipline (the static gates at
 **gate-defining files** themselves (`script/gates.sh`, `.claude/hooks/**`, `clippy.toml`,
 `rustfmt.toml`, `deny.toml`, `.gitleaks.toml`, `.semgrep.yml`, `.config/typos.toml`,
 `.cargo/audit.toml`, the Cargo manifests and lockfile, the toolchain pin, the nextest
-config, and `tooling/lints`, gate:21's library and its nightly pin), so weakening the gate
-after a green invalidates the receipt.
+config, `tooling/lints`, gate:21's library and its nightly pin, and `vendor/`, the upstream
+crates the build takes through `[patch]`), so weakening the gate after a green invalidates the
+receipt.
 
 ---
 

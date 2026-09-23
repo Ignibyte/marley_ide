@@ -10,6 +10,8 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
+| [TICKET-462](open/TICKET-462-shell-hooks-into-zeds-terminal.md) | feature | prong 1 T0b · shell hooks through the vendored event loop into Zed's terminal, and its anchored blocks |
+| [TICKET-463](open/TICKET-463-shell-integration-scripts.md) | feature | prong 1 T0c · shell integration for zsh, bash and fish, injected at spawn |
 
 ## Deliberate (picked explicitly, never auto-next)
 

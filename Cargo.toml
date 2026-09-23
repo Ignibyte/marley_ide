@@ -273,6 +273,9 @@ members = [
     "tooling/xtask",
 ]
 default-members = ["crates/zed"]
+# Marley: the upstream crates Marley carries (`vendor/README.md`) build only as patched
+# dependencies, so Zed's formatting and lints never judge their upstream code.
+exclude = ["vendor"]
 
 [workspace.package]
 publish = false
@@ -1037,6 +1040,11 @@ webrtc-sys = { git = "https://github.com/zed-industries/livekit-rust-sdks", rev 
 # per-crate scratch dirs are sufficient. Upstream issue:
 # https://github.com/dtolnay/cxx/issues/1752
 scratch = { path = "tooling/corgi/patches/scratch" }
+
+# Marley: the block terminal catches shell hooks in alacritty's event loop (three-prong plan
+# D1), so the build takes Marley's copy of the crate at the rev pinned above.
+[patch."https://github.com/zed-industries/alacritty"]
+alacritty_terminal = { path = "vendor/alacritty_terminal" }
 
 [profile.dev]
 split-debuginfo = "unpacked"

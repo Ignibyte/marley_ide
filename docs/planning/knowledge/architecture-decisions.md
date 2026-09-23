@@ -1583,3 +1583,23 @@ Rejected:
   something other than the default;
 - pinning the Zed layout test by test in `crates/zed`, which every upstream merge would have
   to repeat.
+
+## AD-claude-461-upstream-crates-marley-changes-live-in-vendor-001
+*decided at: 2026-09-23 · status: shipped · Chad's call on the location*
+
+An upstream crate Marley has to change is copied into `vendor/<crate>` at the rev Zed pins, and
+the root `Cargo.toml` points the build at the copy with a URL-keyed `[patch]` table.
+`alacritty_terminal` is the first (#461), for the block terminal's event-loop hook (the
+three-prong plan's D1).
+- The copy stays out of Zed's workspace (`exclude = ["vendor"]`). As a member, `cargo fmt
+  --all`, clippy, cargo-shear and dylint would hold upstream code to Zed's and Marley's bars,
+  and alacritty's formatting settings are not Zed's.
+- `vendor/` is Marley-owned for the ledger, and `vendor/README.md` records each copy's source,
+  what is left out, and every Marley hunk, marked `Marley:` in the file.
+- `vendor/` is in the receipt fingerprint.
+
+Rejected:
+- an `Ignibyte/alacritty` fork of Zed's fork: a second repository to manage, and a push for
+  every change;
+- a membership in Zed's workspace, for the reasons above;
+- carrying `tests/ref`: 46 MB of recordings, and the only spelling hits the crate has.

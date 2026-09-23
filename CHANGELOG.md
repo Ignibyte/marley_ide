@@ -163,6 +163,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Marley carries its own copy of Zed's `alacritty_terminal`** (#461, 2026-09-23). The
+  terminal library Zed builds on now comes from `vendor/alacritty_terminal`, an unchanged copy
+  of the version Zed pins, so the block terminal can change its event loop in this repository
+  (#462). Nothing behaves differently yet.
 - **Marley starts in the Marley layout** (#460, 2026-09-23). A fresh install, and anyone who
   never chose a layout, now opens with the rail of projects and their terminals on the left
   and the terminals in the center. Before, the fork started in Zed's layout until you ran

@@ -64,8 +64,9 @@ Out of scope on purpose: Warp Drive, notebooks, block sharing, Warp's cloud AI, 
 
 **D1. Catch shell hooks in the alacritty fork's event loop, not with a second PTY engine.**
 `marley_terminal` as ported owns its own PTY and its own headless `Term`; wiring it whole
-would run two terminal engines per pane. Instead, Marley carries its own branch of the
-alacritty fork (branched from Zed's rev, rebased when Zed bumps it) with one change:
+would run two terminal engines per pane. Instead, Marley carries its own copy of the crate
+at Zed's rev, `vendor/alacritty_terminal` in this repository (#461; Chad chose one repository
+over a fork of its own on 2026-09-23), re-synced when Zed bumps the rev, with one change:
 `event_loop.rs` runs the DCS scanner from `marley_terminal::dcs` over each read buffer,
 feeds the passthrough bytes to the parser as before, and at each complete hook snapshots the
 grid position (history size, cursor line, and a new monotonic evicted-lines counter on the
@@ -112,7 +113,7 @@ Marley shipped as `#433`.
 
 | Slice | Delivers | Size |
 |---|---|---|
-| T0 | The fork branch with `Event::ShellHook`; `BlockList` on `Terminal`; the hook scripts; a `blocks()` accessor; unit tests on recorded byte streams | M |
+| T0 | Split at its promotion: the vendored `alacritty_terminal` (#461, T0a, shipped); `Event::ShellHook` from the event loop, the anchored `BlockList` on `Terminal` and a `blocks()` accessor, with unit tests on recorded byte streams (#462, T0b); the hook scripts and their injection (#463, T0c) | M |
 | T1 | Stage-one rendering: gutter, pill, wash, hover copy/rerun; block navigation keys | M |
 | T2 | Block-scoped path links (resolve against the block's cwd) and jump-to-first-failure | S |
 | T3 | The prompt editor with history ghost text and the raw-passthrough ladder | L |
@@ -125,7 +126,8 @@ emits the hook stream and a Finished block with exit 0 and the output "hi" appea
 
 ### Risks
 
-- The fork branch is a standing rebase cost each time Zed bumps alacritty. One file, small.
+- The vendored copy is a standing re-sync cost each time Zed bumps alacritty
+  (`vendor/README.md`). One file changes, and the diff is small.
 - Reflow versus anchors (D2). Decide after T0 with real resize traces.
 - Two input models in one view (D4) is where Warp itself is hardest to get right; T3 needs
   the driven-keystroke tests Marley used, ported to Zed's `TestAppContext`.
@@ -303,8 +305,9 @@ latency, overlay visibility in frames, cross-origin iframes, and coordinate comp
 
 ## Open decisions for Chad
 
-1. The alacritty fork branch: an `Ignibyte/alacritty` fork of Zed's fork, or a patch
-   carried in this repo through `[patch]`.
+1. ~~The alacritty fork branch: an `Ignibyte/alacritty` fork of Zed's fork, or a patch
+   carried in this repo through `[patch]`.~~ Decided 2026-09-23: the copy lives in this
+   repository, `vendor/alacritty_terminal` (#461).
 2. Stage two of the terminal (native headers, PS1 hidden) as the Warp look, or stop at stage
    one and keep the shell's own prompt visible.
 3. Whether Rusty's agent host and the harness runtime should converge, and which one Marley

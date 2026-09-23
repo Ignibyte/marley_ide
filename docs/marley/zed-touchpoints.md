@@ -12,7 +12,8 @@ at every upstream merge.
 `docs/planning/`, `docs/marley_architecture/`, `docs/specs/`, `docs/warp_architecture/`,
 `docs/zed_architecture/`, `docs/decisions/`, `docs/tickets/`, `.claude/`, `script/gates.sh`,
 `script/mutation.sh`, `CONSTITUTION.md`, `CHANGELOG.md`, `deny.toml`, `.gitleaks.toml`,
-`.semgrep.yml`, `.cargo/audit.toml`, `.mcp.json.example`.
+`.semgrep.yml`, `.cargo/audit.toml`, `.mcp.json.example`, and `vendor/`, the upstream crates
+Marley carries, whose source, base and hunks `vendor/README.md` records (#461).
 
 ## Rules
 
@@ -39,7 +40,7 @@ first column.
 
 | Path | What changed | Why | On merge |
 |---|---|---|---|
-| `Cargo.toml` | Seven `crates/marley_*` workspace members; `marley_agent`, `marley_fleet`, `marley_rail` and `marley_workbench` in `[workspace.dependencies]` | The Marley crates build in Zed's workspace | Re-add the members in sorted order. Keep a `[workspace.dependencies]` entry only for a crate something depends on, or cargo-shear fails |
+| `Cargo.toml` | Seven `crates/marley_*` workspace members; `marley_agent`, `marley_fleet`, `marley_rail` and `marley_workbench` in `[workspace.dependencies]`; `exclude = ["vendor"]` in `[workspace]` and a `[patch."https://github.com/zed-industries/alacritty"]` table pointing `alacritty_terminal` at `vendor/alacritty_terminal` (#461) | The Marley crates build in Zed's workspace; the block terminal changes alacritty's event loop (three-prong plan D1), so the build takes Marley's copy, kept out of the workspace so Zed's and Marley's lints and formatting never judge upstream alacritty code | Re-add the members in sorted order. Keep a `[workspace.dependencies]` entry only for a crate something depends on, or cargo-shear fails. Keep the exclude and the patch; when upstream moves the `alacritty_terminal` rev, re-vendor at the new rev as `vendor/README.md` says before merging |
 | `Cargo.lock` | Entries for the Marley crates and their dependencies, and `zed`'s dependency on `marley_workbench` | Generated | Regenerate; never hand-merge |
 | `.rules` | A "Marley" section above Zed's rules | Every agent session reads it first | Keep the section on top; take upstream's rules below it verbatim |
 | `.config/typos.toml` | `extend-exclude` entries for Marley's reference docs | They transcribe Warp and gpui-era text verbatim | Re-add the block |

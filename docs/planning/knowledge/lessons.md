@@ -2184,3 +2184,21 @@ What #448 needed to know (`script/gates.sh`, gate:21):
 - While Chad has this repository open in Marley, its rust-analyzer runs `cargo check
   --workspace` after edits to the tree, as flycheck. Check `pgrep -x cargo` and wait for it
   before the next cargo command.
+
+## L-claude-461-carrying-an-upstream-crate-in-vendor-001
+*category: tooling · topic: vendoring a git dependency · from: pipeline 461*
+
+What #461 learned vendoring `alacritty_terminal`:
+- **Cargo takes a patch into an excluded directory.** `[patch."https://github.com/zed-industries/alacritty"]`
+  with a path under `vendor/`, plus `exclude = ["vendor"]`: `cargo tree` resolves the copy,
+  and `Cargo.lock` drops only the entry's `source` line.
+- **Workspace-inherited fields break.** `edition.workspace = true` and
+  `rust-version.workspace = true` refer to the upstream workspace, which is not copied, and
+  Zed's `[workspace.package]` has no `rust-version`. Spell out upstream's values.
+- **Licence symlinks.** Upstream's crate directory keeps `LICENSE-APACHE` as a symlink to the
+  repository root; copy the real file.
+- **Standalone runs write a lockfile.** `cargo test --manifest-path vendor/<crate>/Cargo.toml`
+  writes `vendor/<crate>/Cargo.lock`. An untracked lockfile under `vendor/` changes the receipt
+  fingerprint, so commit it before any gate step runs such tests.
+- **Leave recordings upstream.** alacritty's `tests/ref` is 46 MB, and all the crate's `typos`
+  hits are in it.
