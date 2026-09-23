@@ -1,7 +1,7 @@
 # `marley_rail`
 
 The Marley rail's row model, written in the fork for the workbench shell's W2 (#438) and grown
-with agent threads in W3 (#439) and agent CLIs in W4 (#440). Pure and gpui-free, MIT OR
+with agent threads in W3 (#439), agent CLIs in W4 (#440) and the keyboard's row in W6d (#453). Pure and gpui-free, MIT OR
 Apache-2.0; its one dependency is the equally pure `marley_agent`.
 
 ## What it decides
@@ -11,16 +11,21 @@ Apache-2.0; its one dependency is the equally pure `marley_agent`.
   expanded, its center terminals as `TerminalSnapshot`s (id, title, subtitle, bell, and the
   agent CLI in the foreground with its status, if any), and its
   agent threads as `ThreadSnapshot`s (key, title, status, attention), in the order the collector
-  gives. `focus` holds the displayed workspace's group index, its active terminal's id, and
-  the thread its Agent Panel shows while the panel holds focus.
+  gives. `focus` holds the displayed workspace's group index, its active terminal's id, the
+  thread its Agent Panel shows while the panel holds focus, and `cursor`, the row the keyboard
+  is on while the rail holds focus.
 - **`rail_rows`** gives the rows in display order: each project's header, then, when it is
   expanded, its terminals and then its threads. It marks the one selected row and a header's
   attention flag, which is set when a folded project hides something that needs the user: a
   terminal's bell, or a thread's dot or wait.
-- **`selection`** picks that row: the focused Agent Panel's thread when its row is visible,
-  else the displayed workspace's active terminal when its row is visible, else that
-  workspace's project header, else nothing (the window shows no project the rail lists). A
-  stale focus never selects a row that is not there.
+- **`selection`** picks that row: the keyboard's row when it is shown, else the focused Agent
+  Panel's thread when its row is visible, else the displayed workspace's active terminal when
+  its row is visible, else that workspace's project header, else nothing (the window shows no
+  project the rail lists). A stale focus never selects a row that is not there.
+- **`step`, `first_row`, `last_row` and `parent`** move the keyboard's row (#453). `step` goes
+  to the next or previous shown row and stays on the last or the first; with nothing selected
+  it starts at the first going forward and the last going back. `parent` is a terminal's or a
+  thread's project header, and a header is its own.
 - **`has_attention`** is the rail's notification flag: any listed terminal's bell, or thread
   dot or wait, folded or not.
 - **`thread_status`** ranks what a live conversation reports: a pending confirmation over an
@@ -41,10 +46,11 @@ its tests.
 ## Consumers
 
 `marley_workbench`'s `Rail` builds the snapshot from the live window, stores it, and draws the
-rows this crate returns. It keeps no ordering or selection state of its own.
+rows this crate returns. It keeps no ordering state of its own, and one piece of selection
+state: the keyboard's row, which it hands in as `Focus::cursor` while it holds focus.
 
 ## Tests
 
-`src/marley_rail.rs`, sixteen unit tests, including exactly one selected row over every
+`src/marley_rail.rs`, twenty unit tests, including exactly one selected row over every
 combination of fold, displayed project, active terminal and focused thread in a two-project
-window.
+window, and `step` over every shown row of one in both directions.

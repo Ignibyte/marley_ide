@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The rail from the keyboard, and project reorder** (#453, 2026-09-23). Focus the rail with
+  `ctrl-alt-;` (`cmd-alt-;` on macOS) and walk it: up and down move the highlight, Home and End
+  jump to the first and last row, Enter opens the highlighted row as a click does, left folds a
+  project or climbs from a row to its project, and right unfolds it. These are Zed's own list
+  keys, so your bindings for them apply in the rail too. The highlight goes back to the row the
+  window shows when focus leaves the rail. A project header's right-click menu moves the
+  project up or down.
 - **Rename and close terminals from the rail** (#452, 2026-09-23). Right-click a terminal row
   for Rename and Close, or double-click it to rename; a close button shows on the row under
   the pointer. Rename brings the terminal up and edits its name in its tab, as the tab's own

@@ -473,7 +473,7 @@ fn title_of(
 fn finish_rename(name: &str, cx: &mut VisualTestContext) {
     cx.simulate_input(name);
     cx.update(|window, _| window.refresh());
-    cx.dispatch_action(menu::Confirm);
+    cx.dispatch_action(Confirm);
     cx.run_until_parked();
 }
 
@@ -560,6 +560,223 @@ async fn a_rows_menu_closes_its_terminal(cx: &mut TestAppContext) {
     click("MENU_ITEM-Close", cx);
     assert!(!is_open(&beta, &terminal, cx));
     assert_eq!(title_of(&rail, &terminal, cx), None);
+}
+
+/// Focuses the rail and draws it, as the sidebar's focus action does.
+fn focus_rail(rail: &Entity<Rail>, cx: &mut VisualTestContext) {
+    rail.update_in(cx, |rail, window, cx| {
+        rail.focus_handle(cx).focus(window, cx);
+    });
+    cx.run_until_parked();
+    cx.update(|window, _| window.refresh());
+}
+
+/// Dispatches `action` from whatever has focus.
+fn dispatch(action: impl gpui::Action, cx: &mut VisualTestContext) {
+    cx.update(|window, _| window.refresh());
+    cx.dispatch_action(action);
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+async fn the_arrow_keys_walk_the_rails_rows(cx: &mut TestAppContext) {
+    let (_, alpha, beta, rail, cx) = open_rail(cx).await;
+    let (_, alpha_terminal) = add_terminal(&alpha, false, cx);
+    let (_, beta_terminal) = add_terminal(&beta, true, cx);
+    // The rail lists beta first: its header, its terminal, then alpha's header and terminal.
+    focus_rail(&rail, cx);
+    assert_eq!(selected(&rail, cx), Selection::Terminal(id(&beta_terminal)));
+    dispatch(SelectNext, cx);
+    assert_eq!(selected(&rail, cx), Selection::Project(1));
+    dispatch(SelectNext, cx);
+    assert_eq!(
+        selected(&rail, cx),
+        Selection::Terminal(id(&alpha_terminal))
+    );
+    dispatch(SelectNext, cx);
+    assert_eq!(
+        selected(&rail, cx),
+        Selection::Terminal(id(&alpha_terminal)),
+        "the last stays"
+    );
+    dispatch(SelectPrevious, cx);
+    assert_eq!(selected(&rail, cx), Selection::Project(1));
+    dispatch(SelectFirst, cx);
+    assert_eq!(selected(&rail, cx), Selection::Project(0));
+    dispatch(SelectLast, cx);
+    assert_eq!(
+        selected(&rail, cx),
+        Selection::Terminal(id(&alpha_terminal))
+    );
+}
+
+#[gpui::test]
+async fn enter_opens_the_highlighted_terminal(cx: &mut TestAppContext) {
+    let (multi_workspace, alpha, beta, rail, cx) = open_rail(cx).await;
+    let (_, alpha_terminal) = add_terminal(&alpha, false, cx);
+    add_terminal(&beta, true, cx);
+    focus_rail(&rail, cx);
+    dispatch(SelectLast, cx);
+    dispatch(Confirm, cx);
+    cx.read(|cx| assert_eq!(multi_workspace.read(cx).workspace(), &alpha));
+    let focused =
+        cx.update(|window, cx| alpha_terminal.focus_handle(cx).contains_focused(window, cx));
+    assert!(focused, "the terminal takes focus");
+    // With focus out of the rail, the highlight is the window's row again.
+    assert_eq!(
+        selected(&rail, cx),
+        Selection::Terminal(id(&alpha_terminal))
+    );
+}
+
+#[gpui::test]
+async fn the_keyboards_row_goes_when_focus_leaves_the_rail(cx: &mut TestAppContext) {
+    let (_, _, beta, rail, cx) = open_rail(cx).await;
+    let (_, terminal) = add_terminal(&beta, true, cx);
+    focus_rail(&rail, cx);
+    dispatch(SelectLast, cx);
+    assert_eq!(selected(&rail, cx), Selection::Project(1));
+    cx.update(|window, cx| terminal.focus_handle(cx).focus(window, cx));
+    cx.run_until_parked();
+    assert_eq!(selected(&rail, cx), Selection::Terminal(id(&terminal)));
+    // Back in the rail, the keyboard starts from the highlighted row, not the old one.
+    focus_rail(&rail, cx);
+    dispatch(SelectPrevious, cx);
+    assert_eq!(selected(&rail, cx), Selection::Project(0));
+}
+
+#[gpui::test]
+async fn enter_shows_the_highlighted_project(cx: &mut TestAppContext) {
+    let (multi_workspace, alpha, _, rail, cx) = open_rail(cx).await;
+    focus_rail(&rail, cx);
+    dispatch(SelectNext, cx);
+    assert_eq!(selected(&rail, cx), Selection::Project(1));
+    dispatch(Confirm, cx);
+    cx.read(|cx| assert_eq!(multi_workspace.read(cx).workspace(), &alpha));
+    assert_eq!(selected(&rail, cx), Selection::Project(1));
+}
+
+#[gpui::test]
+async fn enter_with_no_row_highlighted_does_nothing(cx: &mut TestAppContext) {
+    let (multi_workspace, alpha, beta, rail, cx) = open_rail(cx).await;
+    // With its last folder gone, the displayed workspace leaves its project's row, so no row is
+    // the window's.
+    beta.update(cx, |beta, cx| {
+        let project = beta.project().clone();
+        let worktree = project
+            .read(cx)
+            .worktrees(cx)
+            .next()
+            .map(|worktree| worktree.read(cx).id());
+        if let Some(worktree) = worktree {
+            project.update(cx, |project, cx| project.remove_worktree(worktree, cx));
+        }
+    });
+    cx.run_until_parked();
+    // The removal alone does not rebuild the rail (TICKET-458); the next change in the window
+    // does.
+    add_terminal(&alpha, false, cx);
+    assert_eq!(names(&rail, cx), ["alpha"]);
+    focus_rail(&rail, cx);
+    assert_eq!(selected(&rail, cx), Selection::None);
+    dispatch(Confirm, cx);
+    cx.read(|cx| assert_eq!(multi_workspace.read(cx).workspace(), &beta));
+}
+
+#[gpui::test]
+async fn left_and_right_fold_unfold_and_climb(cx: &mut TestAppContext) {
+    let (_, _, beta, rail, cx) = open_rail(cx).await;
+    let (_, terminal) = add_terminal(&beta, true, cx);
+    focus_rail(&rail, cx);
+    assert_eq!(selected(&rail, cx), Selection::Terminal(id(&terminal)));
+    dispatch(SelectParent, cx);
+    assert_eq!(
+        selected(&rail, cx),
+        Selection::Project(0),
+        "left climbs to the header"
+    );
+    dispatch(SelectParent, cx);
+    assert!(
+        !listing(&rail, cx)[0].1.contains(&id(&terminal)),
+        "left folds the project"
+    );
+    dispatch(SelectParent, cx);
+    assert!(
+        listing(&rail, cx)[0].1.is_empty(),
+        "a folded project stays folded"
+    );
+    dispatch(SelectChild, cx);
+    assert_eq!(
+        listing(&rail, cx)[0].1,
+        vec![id(&terminal)],
+        "right unfolds it"
+    );
+    dispatch(SelectChild, cx);
+    assert_eq!(
+        listing(&rail, cx)[0].1,
+        vec![id(&terminal)],
+        "an open project stays open"
+    );
+}
+
+#[gpui::test]
+async fn a_project_headers_menu_moves_it_up_and_down(cx: &mut TestAppContext) {
+    let (_, _, _, rail, cx) = open_rail(cx).await;
+    assert_eq!(names(&rail, cx), ["beta", "alpha"]);
+    right_click("marley-rail-project-0", cx);
+    click("MENU_ITEM-Move Project Down", cx);
+    assert_eq!(names(&rail, cx), ["alpha", "beta"]);
+    right_click("marley-rail-project-1", cx);
+    click("MENU_ITEM-Move Project Up", cx);
+    assert_eq!(names(&rail, cx), ["beta", "alpha"]);
+    // At the ends the moves that would leave the list are disabled.
+    right_click("marley-rail-project-0", cx);
+    click("MENU_ITEM-Move Project Up", cx);
+    assert_eq!(names(&rail, cx), ["beta", "alpha"]);
+}
+
+// Zed's default keys differ by platform; these are Linux's.
+#[cfg(target_os = "linux")]
+#[gpui::test]
+async fn zeds_default_keys_walk_and_open_the_rail(cx: &mut TestAppContext) {
+    let (multi_workspace, alpha, beta, rail, cx) = open_rail(cx).await;
+    let (_, alpha_terminal) = add_terminal(&alpha, false, cx);
+    add_terminal(&beta, true, cx);
+    cx.update(|_, cx| {
+        let bindings = settings::KeymapFile::load_asset_allow_partial_failure(
+            settings::DEFAULT_KEYMAP_PATH,
+            cx,
+        )
+        .expect("Zed's default keymap loads");
+        cx.bind_keys(bindings);
+    });
+    // Zed's Focus Workspace Sidebar key reaches the rail from the focused terminal.
+    let before = cx.update(|window, cx| rail.focus_handle(cx).contains_focused(window, cx));
+    cx.update(|window, _| window.refresh());
+    cx.simulate_keystrokes("ctrl-alt-;");
+    cx.run_until_parked();
+    let after = cx.update(|window, cx| rail.focus_handle(cx).contains_focused(window, cx));
+    assert!(!before && after, "the key focuses the rail");
+    for key in ["down", "down", "up", "down"] {
+        cx.update(|window, _| window.refresh());
+        cx.simulate_keystrokes(key);
+        cx.run_until_parked();
+    }
+    assert_eq!(
+        selected(&rail, cx),
+        Selection::Terminal(id(&alpha_terminal))
+    );
+    // Left and right are bound only in the `menu` key context.
+    cx.update(|window, _| window.refresh());
+    cx.simulate_keystrokes("left");
+    cx.run_until_parked();
+    assert_eq!(selected(&rail, cx), Selection::Project(1));
+    for key in ["left", "right", "down", "enter"] {
+        cx.update(|window, _| window.refresh());
+        cx.simulate_keystrokes(key);
+        cx.run_until_parked();
+    }
+    cx.read(|cx| assert_eq!(multi_workspace.read(cx).workspace(), &alpha));
 }
 
 #[gpui::test]
@@ -872,6 +1089,30 @@ mod threads {
             cx.update(|window, cx| alpha_panel.focus_handle(cx).contains_focused(window, cx));
         assert!(focused, "the Agent Panel takes focus");
         assert_eq!(selected(&rail, cx), Selection::Thread(key));
+    }
+
+    #[gpui::test]
+    async fn enter_opens_the_highlighted_thread(cx: &mut TestAppContext) {
+        let (multi_workspace, [alpha, _], [alpha_panel, _], rail, cx) =
+            open_rail_with_agents(cx).await;
+        let connection = StubAgentConnection::new();
+        let key = start_thread(&alpha_panel, &connection, cx);
+        connection.end_turn(
+            active_session_id(&alpha_panel, cx),
+            acp::StopReason::EndTurn,
+        );
+        cx.run_until_parked();
+        // The rail lists beta's header, then alpha's header and its thread.
+        focus_rail(&rail, cx);
+        dispatch(SelectFirst, cx);
+        dispatch(SelectLast, cx);
+        assert_eq!(selected(&rail, cx), Selection::Thread(key.clone()));
+        dispatch(Confirm, cx);
+        cx.read(|cx| assert_eq!(multi_workspace.read(cx).workspace(), &alpha));
+        assert_eq!(key_of(&alpha_panel, cx), key);
+        let focused =
+            cx.update(|window, cx| alpha_panel.focus_handle(cx).contains_focused(window, cx));
+        assert!(focused, "the Agent Panel takes focus");
     }
 
     #[gpui::test]

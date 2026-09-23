@@ -2029,3 +2029,20 @@ What worked in #452 (`crates/marley_workbench/src/rail_tests.rs`):
   over the row (`simulate_mouse_move`) before clicking it, as a user must.
 - Zed's inline tab rename finishes from a test with `simulate_input` into the focused rename
   editor, a fresh frame, and `menu::Confirm`.
+
+## L-claude-453-a-key-context-test-must-press-a-key-only-that-context-binds-001
+*category: validate · topic: testing a key context against Zed's default keymap · from: pipeline 453*
+
+What #453 found (`crates/marley_workbench/src/rail_tests.rs`,
+`zeds_default_keys_walk_and_open_the_rail`):
+- Zed's default keymap binds up, down, Home, End, Page Up, Page Down, Enter and Escape to
+  `menu::*` with no context (`assets/keymaps/default-linux.json:3-22`), so they reach any
+  focused element that handles those actions. Left and right (`menu::SelectParent`,
+  `SelectChild`) are bound only in the `menu` context (`:51-56`).
+- The first keystroke test pressed up, down and Enter, and still passed with `menu` taken out
+  of the rail's key context: it proved the handlers, not the context. Pressing left and right
+  made it fail without `menu`.
+- Take the context out and watch a keystroke test fail before trusting it, as
+  `PR-claude-a-negative-assert-must-prove-the-machinery-ran-001` asks of a negative assert. An
+  assertion whose expected value is also what the unchanged code gives cannot fail either: the
+  first REQ-004 check expected the window's row, which was also the keyboard's.

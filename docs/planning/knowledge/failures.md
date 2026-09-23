@@ -1726,3 +1726,16 @@ panicked: "cannot read marley_workbench::rail::Rail while it is already being up
 in the Code phase by the new driven test, which restores through Zed's own
 `apply_restored_multiworkspace_state`. Fixed: the close defers with `window.defer`, which runs
 with no entity leased, and captures only the `MultiWorkspace`'s weak handle.
+
+## F-claude-453-the-rail-missed-a-projects-last-folder-going-001
+*severity: low · category: behavior · pipeline 453*
+
+The rail rebuilds on each workspace's `workspace::Event` and on the `MultiWorkspace`'s events
+and notifies. Removing a project's last folder reaches neither: the workspace's
+`project::Event::WorktreeRemoved` arm emits no event (`workspace.rs:1759-1763`), and
+`MultiWorkspace::handle_project_group_key_change` returns early on an empty key without a notify
+(`multi_workspace.rs:615-628`). The project's row stayed in the rail until another change
+rebuilt it. Zed's Threads Sidebar subscribes to each project's worktree events
+(`sidebar.rs:1005-1031`). Found in the Code phase while writing the test for Enter with no row
+highlighted, which reaches that state only after another change in the window. Open:
+TICKET-458.

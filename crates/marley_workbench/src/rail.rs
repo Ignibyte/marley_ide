@@ -19,8 +19,11 @@ use gpui::{
 };
 use marley_agent::{AgentKind, WAITING_AFTER};
 use marley_rail::{
-    Focus, ProjectRow, ProjectSnapshot, RailSnapshot, Row, TerminalAgent, TerminalRow,
+    Focus, ProjectRow, ProjectSnapshot, RailSnapshot, Row, Selection, TerminalAgent, TerminalRow,
     TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus,
+};
+use menu::{
+    Confirm, SelectChild, SelectFirst, SelectLast, SelectNext, SelectParent, SelectPrevious,
 };
 use project::{AgentId, AgentServerStore, AgentServersUpdated, ProjectGroupKey};
 use recent_projects::sidebar_recent_projects::SidebarRecentProjects;
@@ -63,6 +66,8 @@ pub struct Rail {
     width_set_by_user: bool,
     /// Whether the user closed the rail, which the window's saved state keeps.
     closed: bool,
+    /// The row the keyboard is on while the rail holds focus.
+    cursor: Option<Selection>,
     foreground_command: ForegroundCommand,
     /// When each terminal last wrote output, on the executor's clock.
     terminal_output: HashMap<EntityId, Instant>,
@@ -95,6 +100,7 @@ pub struct Rail {
     /// The threads whose attention dot is lit.
     noted_threads: HashSet<String>,
     _multi_workspace_subscriptions: [Subscription; 2],
+    _focus_out: Subscription,
 }
 
 impl std::fmt::Debug for Rail {
@@ -175,14 +181,21 @@ impl Rail {
         // The `MultiWorkspace` may be mid-update while its sidebar is built, so the first read
         // waits for the end of this effect cycle.
         cx.defer_in(window, Self::refresh);
+        let focus_handle = cx.focus_handle();
+        // The keyboard's row is the selection only while the rail holds focus.
+        let focus_out = cx.on_focus_out(&focus_handle, window, |rail, _, window, cx| {
+            rail.cursor = None;
+            rail.refresh(window, cx);
+        });
         Self {
             multi_workspace: multi_workspace.downgrade(),
-            focus_handle: cx.focus_handle(),
+            focus_handle,
             width: saved
                 .width
                 .map_or(DEFAULT_WIDTH, |width| px(width).clamp(MIN_WIDTH, MAX_WIDTH)),
             width_set_by_user: saved.width.is_some(),
             closed: false,
+            cursor: None,
             foreground_command: |terminal, cx| terminal.read(cx).foreground_process_command_name(),
             terminal_output: HashMap::default(),
             quiet_timers: HashMap::default(),
@@ -199,6 +212,7 @@ impl Rail {
             thread_statuses: HashMap::default(),
             noted_threads: HashSet::default(),
             _multi_workspace_subscriptions: subscriptions,
+            _focus_out: focus_out,
         }
     }
 
@@ -243,6 +257,9 @@ impl Rail {
             })
             .unwrap_or_default();
         self.note_ended_runs(&mut snapshot);
+        if self.focus_handle.contains_focused(window, cx) {
+            snapshot.rail.focus.cursor.clone_from(&self.cursor);
+        }
         if snapshot.rail != self.snapshot.rail {
             cx.notify();
         }
@@ -553,6 +570,108 @@ impl Rail {
         })
     }
 
+    /// Puts the keyboard's row where `to` says, from the rail as it stands.
+    fn move_cursor(
+        &mut self,
+        to: impl FnOnce(&RailSnapshot) -> Selection,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.cursor = Some(to(&self.snapshot.rail));
+        self.refresh(window, cx);
+    }
+
+    fn select_next(&mut self, _: &SelectNext, window: &mut Window, cx: &mut Context<Self>) {
+        self.move_cursor(|rail| marley_rail::step(rail, true), window, cx);
+    }
+
+    fn select_previous(&mut self, _: &SelectPrevious, window: &mut Window, cx: &mut Context<Self>) {
+        self.move_cursor(|rail| marley_rail::step(rail, false), window, cx);
+    }
+
+    fn select_first(&mut self, _: &SelectFirst, window: &mut Window, cx: &mut Context<Self>) {
+        self.move_cursor(marley_rail::first_row, window, cx);
+    }
+
+    fn select_last(&mut self, _: &SelectLast, window: &mut Window, cx: &mut Context<Self>) {
+        self.move_cursor(marley_rail::last_row, window, cx);
+    }
+
+    /// Left: folds an open project, or climbs from a row to its project's header.
+    fn select_parent(&mut self, _: &SelectParent, window: &mut Window, cx: &mut Context<Self>) {
+        let selected = marley_rail::selection(&self.snapshot.rail);
+        match selected {
+            Selection::Project(index) => self.fold(index, true, window, cx),
+            row => self.move_cursor(|rail| marley_rail::parent(rail, &row), window, cx),
+        }
+    }
+
+    /// Right: unfolds a folded project.
+    fn select_child(&mut self, _: &SelectChild, window: &mut Window, cx: &mut Context<Self>) {
+        if let Selection::Project(index) = marley_rail::selection(&self.snapshot.rail) {
+            self.fold(index, false, window, cx);
+        }
+    }
+
+    /// Folds or unfolds the project at `index`, when it is not that way already.
+    fn fold(&mut self, index: usize, fold: bool, window: &mut Window, cx: &mut Context<Self>) {
+        let expanded = self
+            .snapshot
+            .rail
+            .projects
+            .get(index)
+            .is_some_and(|project| project.expanded);
+        if let Some(group) = self.snapshot.groups.get(index)
+            && expanded == fold
+        {
+            let key = group.key.clone();
+            self.toggle_expanded(&key, window, cx);
+        }
+    }
+
+    /// Enter: what a click on the keyboard's row does.
+    fn confirm(&mut self, _: &Confirm, window: &mut Window, cx: &mut Context<Self>) {
+        let opened = match marley_rail::selection(&self.snapshot.rail) {
+            Selection::None => Ok(()),
+            Selection::Project(index) => {
+                let group = self.snapshot.groups.get(index);
+                let workspace = group.map(|group| group.workspace.clone());
+                workspace.map_or(Ok(()), |workspace| {
+                    self.activate_workspace(&workspace, window, cx).map(drop)
+                })
+            }
+            Selection::Terminal(id) => {
+                let terminal = self.snapshot.terminals.get(&id);
+                let terminal =
+                    terminal.map(|terminal| (terminal.workspace.clone(), terminal.view.clone()));
+                terminal.map_or(Ok(()), |(workspace, view)| {
+                    self.activate_terminal(&workspace, &view, window, cx)
+                })
+            }
+            Selection::Thread(key) => self.open_thread(&key, window, cx),
+        };
+        opened.log_err();
+    }
+
+    /// Moves a project one place up or down in the window, as Zed's own reorder does.
+    fn move_project(
+        &mut self,
+        key: &ProjectGroupKey,
+        up: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let moved = self.multi_workspace.update(cx, |multi_workspace, cx| {
+            if up {
+                multi_workspace.move_project_group_up(key, cx)
+            } else {
+                multi_workspace.move_project_group_down(key, cx)
+            }
+        });
+        moved.log_err();
+        self.refresh(window, cx);
+    }
+
     fn toggle_expanded(
         &mut self,
         key: &ProjectGroupKey,
@@ -639,6 +758,7 @@ impl Rail {
     fn render_project_row(
         row: ProjectRow,
         group: &GroupEntry,
+        last: bool,
         agent_search_path: Option<OsString>,
         cx: &Context<Self>,
     ) -> impl IntoElement {
@@ -648,46 +768,70 @@ impl Rail {
         let index = row.index;
         let workspace = group.workspace.clone();
         let key = group.key.clone();
-        div()
-            .debug_selector(move || format!("marley-rail-project-{index}"))
-            .child(
-                ListItem::new(("marley-rail-project", id))
-                    .toggle_state(row.selected)
-                    .start_slot(
-                        div()
-                            .debug_selector(move || format!("marley-rail-disclosure-{index}"))
-                            .child(
-                                Disclosure::new(("marley-rail-disclosure", id), row.expanded)
-                                    .on_click(cx.listener(move |rail, _, window, cx| {
-                                        rail.toggle_expanded(&key, window, cx);
-                                    })),
-                            ),
-                    )
-                    .child(Label::new(row.name).size(LabelSize::Small))
-                    .end_slot(
-                        h_flex()
-                            .gap_1()
-                            .when(row.attention, |slot| {
-                                slot.child(
-                                    div()
-                                        .debug_selector(move || {
-                                            format!("marley-rail-attention-{index}")
-                                        })
-                                        .child(Indicator::dot().color(Color::Accent)),
-                                )
-                            })
-                            .child(Self::render_project_menu(
-                                index,
-                                id,
-                                group,
-                                agent_search_path,
-                                cx,
-                            )),
-                    )
-                    .on_click(cx.listener(move |rail, _, window, cx| {
-                        rail.activate_workspace(&workspace, window, cx).log_err();
-                    })),
+        let rail = cx.entity().downgrade();
+        let menu_key = group.key.clone();
+        let header = ListItem::new(("marley-rail-project", id))
+            .toggle_state(row.selected)
+            .start_slot(
+                div()
+                    .debug_selector(move || format!("marley-rail-disclosure-{index}"))
+                    .child(
+                        Disclosure::new(("marley-rail-disclosure", id), row.expanded).on_click(
+                            cx.listener(move |rail, _, window, cx| {
+                                rail.toggle_expanded(&key, window, cx);
+                            }),
+                        ),
+                    ),
             )
+            .child(Label::new(row.name).size(LabelSize::Small))
+            .end_slot(
+                h_flex()
+                    .gap_1()
+                    .when(row.attention, |slot| {
+                        slot.child(
+                            div()
+                                .debug_selector(move || format!("marley-rail-attention-{index}"))
+                                .child(Indicator::dot().color(Color::Accent)),
+                        )
+                    })
+                    .child(Self::render_project_menu(
+                        index,
+                        id,
+                        group,
+                        agent_search_path,
+                        cx,
+                    )),
+            )
+            .on_click(cx.listener(move |rail, _, window, cx| {
+                rail.activate_workspace(&workspace, window, cx).log_err();
+            }));
+        right_click_menu(("marley-rail-project-context", id))
+            .trigger(move |_, _, _| {
+                div()
+                    .debug_selector(move || format!("marley-rail-project-{index}"))
+                    .child(header)
+            })
+            .menu(move |window, cx| {
+                let (rail, key) = (rail.clone(), menu_key.clone());
+                ContextMenu::build(window, cx, move |menu, _, _| {
+                    [
+                        ("Move Project Up", true, index == 0),
+                        ("Move Project Down", false, last),
+                    ]
+                    .into_iter()
+                    .fold(menu, |menu, (label, up, at_the_end)| {
+                        let (rail, key) = (rail.clone(), key.clone());
+                        menu.item(ContextMenuEntry::new(label).disabled(at_the_end).handler(
+                            move |window, cx| {
+                                rail.update(cx, |rail, cx| {
+                                    rail.move_project(&key, up, window, cx);
+                                })
+                                .log_err();
+                            },
+                        ))
+                    })
+                })
+            })
     }
 
     fn render_project_menu(
@@ -1329,6 +1473,7 @@ fn build_snapshot(
         .clone()
         .filter(|_| AgentPanel::is_visible(displayed, cx));
     snapshot.rail.focus = Focus {
+        cursor: None,
         project: groups
             .iter()
             .position(|group| group.workspaces.contains(displayed)),
@@ -1455,7 +1600,9 @@ impl Render for Rail {
             .into_iter()
             .filter_map(|row| match row {
                 Row::Project(row) => self.snapshot.groups.get(row.index).map(|group| {
-                    Self::render_project_row(row, group, search_path.clone(), cx).into_any_element()
+                    let last = row.index + 1 == self.snapshot.groups.len();
+                    Self::render_project_row(row, group, last, search_path.clone(), cx)
+                        .into_any_element()
                 }),
                 Row::Terminal(row) => self.snapshot.terminals.get(&row.id).map(|terminal| {
                     Self::render_terminal_row(row, terminal, cx).into_any_element()
@@ -1469,8 +1616,16 @@ impl Render for Rail {
             .collect();
         v_flex()
             .id("marley-rail")
-            .key_context("MarleyRail")
+            // Zed binds left and right for lists only in the `menu` context.
+            .key_context("MarleyRail menu")
             .track_focus(&self.focus_handle)
+            .on_action(cx.listener(Self::select_next))
+            .on_action(cx.listener(Self::select_previous))
+            .on_action(cx.listener(Self::select_first))
+            .on_action(cx.listener(Self::select_last))
+            .on_action(cx.listener(Self::select_parent))
+            .on_action(cx.listener(Self::select_child))
+            .on_action(cx.listener(Self::confirm))
             .size_full()
             .bg(cx.theme().colors().panel_background)
             .child(self.render_header(window, cx))

@@ -62,6 +62,16 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   `TerminalView::rename_terminal`, which edits the name in the tab and keeps it through
   `set_custom_title`. Close goes through the pane (`close_item_by_id`, `SaveIntent::Close`), so
   Zed asks first while a task runs. A custom title beats an agent CLI's own on its row.
+- **Keys and reorder (#453).** The key context is `MarleyRail menu`, and the rail answers Zed's
+  `menu::SelectNext`, `SelectPrevious`, `SelectFirst`, `SelectLast`, `SelectParent`,
+  `SelectChild` and `Confirm`. Zed binds up, down, Home, End and Enter to them with no context,
+  and left and right in `menu`, so the rail binds no key. Each moves `cursor`, the keyboard's
+  row, which `refresh` hands to `marley_rail` while the rail holds focus; a focus-out
+  subscription drops it. Left folds an open project or climbs to its header, right unfolds, and
+  Enter runs the row's click handler. A project header's right-click menu has Move Project Up
+  and Move Project Down (`MultiWorkspace::move_project_group_up`, `move_project_group_down`),
+  disabled at the ends. Zed's `multi_workspace::FocusWorkspaceSidebar` (`ctrl-alt-;`) focuses
+  the rail as it does Zed's sidebar.
 - The header is the title bar's height and draws the window controls the title bar leaves to a
   left-hand sidebar. Its Add Project button opens Zed's recent-projects popover.
 - The handlers take the rows' weak handles and return a `Result`, which the click sites log.
@@ -203,10 +213,12 @@ alike.
 ## Tests
 
 `src/marley_workbench_tests.rs` (the switch, the keymap loader and persistence, 20 tests) and
-`src/rail_tests.rs` (the rail, 23, 11 thread tests in `rail::tests::threads`, and 5 agent-CLI
+`src/rail_tests.rs` (the rail, 31, 12 thread tests in `rail::tests::threads`, and 5 agent-CLI
 tests in `rail::tests::agents`, which search a temporary directory for programs and read the
 new terminal's write log): driven gpui tests on `MultiWorkspace::test_new`
-over a FakeFs, clicking elements found by debug selector. The thread tests run on
+over a FakeFs, clicking elements found by debug selector. The keyboard tests dispatch the
+`menu` actions from the focused rail; one binds Zed's Linux default keymap and presses
+`ctrl-alt-;`, the arrows and Enter. The thread tests run on
 `init_agent_test`, which layers Zed's agent test setup (`agent_ui::test_support`, with a
 thread database per test) over the window. They put an `AgentPanel::test_new` in each project
 and drive threads through `acp_thread::StubAgentConnection`: a turn that stays open until
@@ -245,9 +257,10 @@ has its own test in `crates/zed/src/zed.rs`, `test_reload_keymaps_binds_the_marl
   layout saves a partial state before its restore finishes (`docs/planning/intake/rail-internals.md`).
 - A restored window builds its rail open and closes it once the restore is over, through
   `close_sidebar`, which records Zed's "Sidebar Toggled" event; Zed has no silent close.
-- Keyboard navigation with the filter and reorder, and the switcher, are W6d and W6e (#453,
-  #454).
-- The thread rows, the agent rows, the routing, the terminal keys, the New Agent key and the
-  rail's persistence have not been seen live: the drives for #439 and #440 would have moved
-  Chad's windows off his monitor, and the later ones need input or a relaunch. They are owed to
-  the next headless capture.
+- The filter and the switcher are W6h and W6e (#457, #454).
+- A project whose last folder is removed keeps its row until another change rebuilds the rail
+  (#458).
+- The thread rows, the agent rows, the routing, the terminal keys, the New Agent key, the
+  rail's persistence and its keys and reorder have not been seen live: the drives for #439 and
+  #440 would have moved Chad's windows off his monitor, and the later ones need input or a
+  relaunch. They are owed to the next headless capture.

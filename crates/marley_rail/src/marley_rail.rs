@@ -123,6 +123,8 @@ pub struct Focus {
     pub terminal: Option<u64>,
     /// The thread the displayed workspace's Agent Panel shows, while the panel holds focus.
     pub thread: Option<String>,
+    /// The row the keyboard is on, while the rail holds focus.
+    pub cursor: Option<Selection>,
 }
 
 /// The window, as the rail sees it.
@@ -212,12 +214,18 @@ pub enum Row {
 
 /// The one selected row.
 ///
-/// While the displayed workspace's Agent Panel holds focus, the thread it shows wins when that
-/// thread's row is visible. Otherwise the active terminal wins when its row is visible, and
-/// otherwise the displayed workspace's project header does, so a window showing a project always
-/// has exactly one selected row and a stale focus never selects a row that is not there.
+/// While the rail holds focus, the keyboard's row wins when it is shown. While the displayed
+/// workspace's Agent Panel holds focus, the thread it shows wins when that thread's row is
+/// visible. Otherwise the active terminal wins when its row is visible, and otherwise the
+/// displayed workspace's project header does, so a window showing a project always has exactly
+/// one selected row and a stale focus never selects a row that is not there.
 #[must_use]
 pub fn selection(snapshot: &RailSnapshot) -> Selection {
+    if let Some(cursor) = &snapshot.focus.cursor
+        && shown(snapshot).contains(cursor)
+    {
+        return cursor.clone();
+    }
     let Some((index, project)) = snapshot
         .focus
         .project
@@ -238,6 +246,79 @@ pub fn selection(snapshot: &RailSnapshot) -> Selection {
         }
     }
     Selection::Project(index)
+}
+
+/// Every shown row, as the selection it would be, in the rail's order.
+fn shown(snapshot: &RailSnapshot) -> Vec<Selection> {
+    let mut rows = Vec::new();
+    for (index, project) in snapshot.projects.iter().enumerate() {
+        rows.push(Selection::Project(index));
+        if project.expanded {
+            rows.extend(
+                project
+                    .terminals
+                    .iter()
+                    .map(|terminal| Selection::Terminal(terminal.id)),
+            );
+            rows.extend(
+                project
+                    .threads
+                    .iter()
+                    .map(|thread| Selection::Thread(thread.key.clone())),
+            );
+        }
+    }
+    rows
+}
+
+/// The shown row after the selected one, or before it, staying on the last or the first. With
+/// nothing selected it is the first row going forward and the last going back.
+#[must_use]
+pub fn step(snapshot: &RailSnapshot, forward: bool) -> Selection {
+    let rows = shown(snapshot);
+    let current = selection(snapshot);
+    let next = match rows.iter().position(|row| *row == current) {
+        Some(at) if forward => rows.get(at + 1).or_else(|| rows.get(at)),
+        Some(at) => at
+            .checked_sub(1)
+            .and_then(|before| rows.get(before))
+            .or_else(|| rows.get(at)),
+        None if forward => rows.first(),
+        None => rows.last(),
+    };
+    next.cloned().unwrap_or(Selection::None)
+}
+
+/// The first shown row.
+#[must_use]
+pub fn first_row(snapshot: &RailSnapshot) -> Selection {
+    shown(snapshot)
+        .into_iter()
+        .next()
+        .unwrap_or(Selection::None)
+}
+
+/// The last shown row.
+#[must_use]
+pub fn last_row(snapshot: &RailSnapshot) -> Selection {
+    shown(snapshot).pop().unwrap_or(Selection::None)
+}
+
+/// The project header a row sits under; a header is its own.
+#[must_use]
+pub fn parent(snapshot: &RailSnapshot, selection: &Selection) -> Selection {
+    let owner = match selection {
+        Selection::None | Selection::Project(_) => return selection.clone(),
+        Selection::Terminal(id) => snapshot
+            .projects
+            .iter()
+            .position(|project| project.terminals.iter().any(|terminal| terminal.id == *id)),
+        Selection::Thread(key) => snapshot
+            .projects
+            .iter()
+            .position(|project| project.threads.iter().any(|thread| thread.key == *key)),
+    };
+    owner.map_or(Selection::None, Selection::Project)
 }
 
 /// The rows, in display order: each project's header, then its terminals and its threads when it
@@ -375,6 +456,7 @@ mod tests {
                 project,
                 terminal,
                 thread: None,
+                cursor: None,
             },
         }
     }
@@ -856,6 +938,83 @@ mod tests {
                 }
             }
         }
+    }
+
+    fn with_cursor(mut snapshot: RailSnapshot, cursor: Selection) -> RailSnapshot {
+        snapshot.focus.cursor = Some(cursor);
+        snapshot
+    }
+
+    #[test]
+    fn the_keyboards_row_is_selected_while_it_is_shown() {
+        let snapshot = with_cursor(
+            window(two_projects_with_threads(true), Some(0), Some(1)),
+            Selection::Thread("b".to_string()),
+        );
+        assert_eq!(selection(&snapshot), Selection::Thread("b".to_string()));
+        assert_eq!(selected_rows(&rail_rows(&snapshot)), 1);
+        // A cursor on a folded project's row is not shown, so the usual rule holds.
+        let folded = with_cursor(
+            window(two_projects_with_threads(false), Some(1), Some(3)),
+            Selection::Thread("b".to_string()),
+        );
+        assert_eq!(selection(&folded), Selection::Terminal(3));
+    }
+
+    #[test]
+    fn step_walks_the_shown_rows_and_stays_at_the_ends() {
+        let mut snapshot = window(two_projects_with_threads(true), Some(0), None);
+        let order = [
+            Selection::Project(0),
+            Selection::Terminal(1),
+            Selection::Thread("a".to_string()),
+            Selection::Thread("b".to_string()),
+            Selection::Project(1),
+            Selection::Terminal(3),
+            Selection::Thread("c".to_string()),
+        ];
+        for pair in order.windows(2) {
+            snapshot.focus.cursor = Some(pair[0].clone());
+            assert_eq!(step(&snapshot, true), pair[1]);
+            snapshot.focus.cursor = Some(pair[1].clone());
+            assert_eq!(step(&snapshot, false), pair[0]);
+        }
+        snapshot.focus.cursor = Some(order[6].clone());
+        assert_eq!(step(&snapshot, true), order[6], "stays on the last");
+        snapshot.focus.cursor = Some(order[0].clone());
+        assert_eq!(step(&snapshot, false), order[0], "stays on the first");
+        assert_eq!(first_row(&snapshot), order[0]);
+        assert_eq!(last_row(&snapshot), order[6]);
+    }
+
+    #[test]
+    fn step_starts_at_an_end_when_nothing_is_selected() {
+        let nothing = window(two_projects(false), None, None);
+        assert_eq!(step(&nothing, true), Selection::Project(0));
+        assert_eq!(step(&nothing, false), Selection::Terminal(3));
+        let empty = RailSnapshot::default();
+        assert_eq!(step(&empty, true), Selection::None);
+        assert_eq!(first_row(&empty), Selection::None);
+        assert_eq!(last_row(&empty), Selection::None);
+    }
+
+    #[test]
+    fn a_rows_parent_is_its_projects_header() {
+        let snapshot = window(two_projects_with_threads(true), Some(0), None);
+        assert_eq!(
+            parent(&snapshot, &Selection::Terminal(3)),
+            Selection::Project(1)
+        );
+        assert_eq!(
+            parent(&snapshot, &Selection::Thread("a".to_string())),
+            Selection::Project(0)
+        );
+        assert_eq!(
+            parent(&snapshot, &Selection::Project(1)),
+            Selection::Project(1)
+        );
+        assert_eq!(parent(&snapshot, &Selection::None), Selection::None);
+        assert_eq!(parent(&snapshot, &Selection::Terminal(99)), Selection::None);
     }
 
     #[test]

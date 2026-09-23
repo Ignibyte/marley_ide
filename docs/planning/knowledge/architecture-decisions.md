@@ -1412,3 +1412,18 @@ row offers both from a right-click menu, a double-click renames, and a close but
 bell's slot on hover. A custom title outranks an agent CLI's own on its row, since the user
 named it. Rejected: an editor inside the row (a second rename with its own persistence, keys
 and focus handling), and closing the item directly (it would skip Zed's prompts).
+
+## AD-claude-453-the-rails-keys-are-zeds-list-actions-001
+*decided at: 2026-09-23 · status: shipped*
+
+The rail answers Zed's own list actions and binds no key of its own: `menu::SelectNext`,
+`SelectPrevious`, `SelectFirst`, `SelectLast`, `SelectParent`, `SelectChild` and `Confirm`. Zed
+binds up, down, Home, End and Enter to them with no context, and left and right only in the
+`menu` context, so the rail's key context is `MarleyRail menu`, as the Threads Sidebar's is.
+While the rail holds focus, the row the keyboard is on is the rail's one selection:
+`Focus::cursor` in `marley_rail`, which `selection` prefers while that row is shown. The cursor
+starts from the highlighted row, stops at the ends, and is dropped when focus leaves the rail.
+Enter runs the row's click handler. A project header's right-click menu reorders through
+`MultiWorkspace::move_project_group_up` and `move_project_group_down`. Rejected: Marley bindings
+for keys Zed already binds (a keymap entry and a shadow sweep for each), a keyboard highlight
+beside the selection (two highlighted rows), and wrapping at the ends.
