@@ -2200,3 +2200,13 @@ with their code removed:
 Each assertion expected a value the broken code also produced. Pick inputs on which the right
 and the wrong code disagree, record each negative check in the notes, and restore the file by
 checksum afterwards.
+
+## PR-claude-a-gate-step-starts-from-no-output-an-earlier-run-left-001
+*severity: medium · prevents: F-claude-465-gate4-counted-lines-from-a-stale-executable-001*
+
+A gate step that reads a build directory shared across runs (`/mnt/fast/target` and its
+`llvm-cov-target` serve every run and every project on this box) must not take in outputs an
+earlier run left: remove them before it runs, or pass the tool only what this run built. A
+tool's own clean may cover only the packages it runs; read what it reads before trusting it,
+as cargo-llvm-cov's `object_files` showed in #469. The negative smoke plants an output from
+older source and watches the step stay true to the tree.

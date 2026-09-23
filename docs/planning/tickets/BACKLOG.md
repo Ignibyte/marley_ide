@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-469](open/TICKET-469-coverage-reads-stale-executables.md) | chore | the gate · gate:4 reads other crates' stale test executables from the coverage target, and an old one reported missed lines on doc comments (#465) |
 
 ## Deliberate (picked explicitly, never auto-next)
 

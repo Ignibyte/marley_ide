@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #469 (chore, the gate)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet
+- **Pipeline doc:** ../../pipeline/completed/469-coverage-reads-only-this-runs-executables.spec.md
 - **Source ticket:** ../../pipeline/completed/465-zsh-shell-integration.notes.md (Phase 3)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 gate:4 runs `cargo llvm-cov nextest` on the touched Marley packages. cargo-llvm-cov cleans those

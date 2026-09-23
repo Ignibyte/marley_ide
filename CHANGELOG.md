@@ -239,6 +239,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **The coverage gate reads only what its run built** (#469, 2026-09-23). gate:4's coverage
+  tool read every test executable left in its target directory, and one that an earlier run
+  built from older source reported 45 missed lines on doc comments in #465. The step now
+  removes the test executables before it runs; libraries stay built, so it relinks only the
+  tests it runs.
 - **A shell's title no longer shows Marley's rcfile** (#467, 2026-09-23). Since #463 every
   bash tab and every terminal row in the rail read `bash --rcfile …/marley.bash`, because Zed
   titles a shell with its arguments and Marley adds that one to load its integration. The title

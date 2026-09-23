@@ -400,6 +400,16 @@ rust_cov() {
   else
     pkgs=( "${MARLEY_PKG_ARGS[@]}" )
   fi
+  # cargo-llvm-cov reads every workspace test executable in its target directory, but cleans
+  # only the packages it runs. One an earlier run left can hold an older build of a crate this
+  # run covers, whose line map then reports missed lines (#469). Only the executables go: the
+  # run relinks the tests it needs, and every library stays built.
+  local cov_deps
+  cov_deps="$(cargo metadata --manifest-path "$MANIFEST" --format-version 1 --no-deps 2>/dev/null \
+    | jq -r .target_directory)/llvm-cov-target/debug/deps"
+  if [ -d "$cov_deps" ]; then
+    find "$cov_deps" -maxdepth 1 -type f -perm -u=x ! -name '*.*' -delete
+  fi
   cargo llvm-cov nextest --manifest-path "$MANIFEST" "${pkgs[@]}" --no-tests=warn \
     --ignore-filename-regex 'marley_terminal/src/pty_os\.rs|marley_mcp/src/transport\.rs' \
     --fail-under-lines "$RUST_COV_MIN"

@@ -53,7 +53,8 @@ gate:21 dylint         cargo dylint --all -- --all-targets -p <marley crates>: Z
                        denied in each Marley crate root under the driver's dylint_lib cfg
 
 HEAVY (--full + --diff; --fast skips; BLOCKED, not run, after a static red)
-gate:4  coverage       cargo llvm-cov nextest -p <marley crates> --fail-under-lines 100
+gate:4  coverage       cargo llvm-cov nextest -p <marley crates> --fail-under-lines 100, from
+                       no test executable earlier runs left in llvm-cov-target (#469)
 gate:6  miri           cargo +nightly miri  (conditional on unsafe in a Marley crate)
 ```
 
