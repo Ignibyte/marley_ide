@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #456 (bug, workbench shell W6g)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet (split from #451 at its promotion)
+- **Pipeline doc:** ../../pipeline/completed/456-docks-across-a-layout-switch.spec.md
 - **Source ticket:** ../../pipeline/completed/451-marley-layout-presets.spec.md (Out) · ../../../marley/workbench-shell.md
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 A layout switch moves the Agent Panel between docks (Zed's `agent.dock` is left, the Marley

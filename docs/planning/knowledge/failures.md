@@ -1753,3 +1753,17 @@ never chose. Found in the Code phase by
 Fixed: the window's row counts a terminal only while it holds the window's focus
 (`Focus::terminal_focused`), as a thread already needed the panel's focus. The planned guard
 against noting while the switcher is open then protected nothing, and was removed.
+
+## F-claude-456-a-layout-round-trip-closed-the-right-dock-and-lost-its-panel-001
+*severity: medium · category: behavior · pipeline 456 (found in #438 inspect S9)*
+
+The Marley layout switch only patches `agent.dock`, and each dock's own settings observer moves
+the Agent Panel. When the Agent Panel was visible, the dock it entered opened on it and forgot
+the panel it showed (`crates/workspace/src/dock.rs:638-705`); the dock it left closed with no
+active panel (`:895-926`). With the right dock open on another panel and the Agent Panel open on
+the left, a switch to the Marley layout and back left the right dock closed, its panel lost,
+and that state was then saved. Found by #438's inspect, and carried through #442 and #451.
+Fixed: the switch notes every dock before the move, and afterwards gives the dock the Agent
+Panel leaves the panel it showed before the trip, while the Agent Panel was still what that dock
+showed. `a_round_trip_leaves_each_dock_as_it_was` fails without the fix
+(`left: … (false, None)`).

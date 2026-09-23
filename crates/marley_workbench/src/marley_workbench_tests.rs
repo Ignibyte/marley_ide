@@ -14,6 +14,7 @@ use terminal::{Terminal, TerminalBuilder};
 use util::path;
 use util::paths::PathStyle;
 use workspace::Sidebar as _;
+use workspace::dock::test::TestPanel;
 
 use super::*;
 
@@ -136,9 +137,9 @@ pub(crate) fn init_agent_test(cx: &mut TestAppContext) {
 pub(crate) fn add_agent_panel(
     workspace: &Entity<Workspace>,
     cx: &mut VisualTestContext,
-) -> Entity<agent_ui::AgentPanel> {
+) -> Entity<AgentPanel> {
     workspace.update_in(cx, |workspace, window, cx| {
-        let panel = cx.new(|cx| agent_ui::AgentPanel::test_new(workspace, window, cx));
+        let panel = cx.new(|cx| AgentPanel::test_new(workspace, window, cx));
         workspace.add_panel(panel.clone(), window, cx);
         panel
     })
@@ -800,4 +801,167 @@ async fn in_the_zed_layout_the_presets_reach_zed(cx: &mut TestAppContext) {
     dispatch_from_center(&workspace, UseAgenticLayout, cx);
     assert_eq!(presets_ran(cx), ["classic", "agentic"]);
     assert!(!preset_toast_shown(&workspace, cx));
+}
+
+// ── W6g: the docks across a layout round trip ────────────────────────────────
+
+/// A window in the Zed layout with the Agent Panel open in the left dock and a test panel open in
+/// the right, as a user leaves them, and a second test panel behind the first.
+async fn open_with_docks(
+    cx: &mut TestAppContext,
+) -> (
+    Entity<Workspace>,
+    Entity<AgentPanel>,
+    [Entity<TestPanel>; 2],
+    &mut VisualTestContext,
+) {
+    init_agent_test(cx);
+    init_zed_sidebar(cx);
+    cx.update(init);
+    let (multi_workspace, workspaces, cx) = open_projects(&[path!("/alpha")], cx).await;
+    let workspace = workspaces[0].clone();
+    let agent_panel = add_agent_panel(&workspace, cx);
+    let test_panels = workspace.update_in(cx, |workspace, window, cx| {
+        let panels = [5, 6].map(|priority| {
+            cx.new(|cx| TestPanel::new(workspace::dock::DockPosition::Right, priority, cx))
+        });
+        for panel in &panels {
+            workspace.add_panel(panel.clone(), window, cx);
+        }
+        workspace.focus_panel::<TestPanel>(window, cx);
+        workspace.focus_panel::<AgentPanel>(window, cx);
+        panels
+    });
+    register(&multi_workspace, cx);
+    (workspace, agent_panel, test_panels, cx)
+}
+
+/// Each dock, left, bottom and right: whether it is open, and the panel it shows.
+fn docks(workspace: &Entity<Workspace>, cx: &VisualTestContext) -> [(bool, Option<EntityId>); 3] {
+    workspace.read_with(cx, |workspace, cx| {
+        workspace.all_docks().map(|dock| {
+            let dock = dock.read(cx);
+            (
+                dock.is_open(),
+                dock.active_panel().map(|panel| panel.panel_id()),
+            )
+        })
+    })
+}
+
+fn right_dock(
+    workspace: &Entity<Workspace>,
+    cx: &mut VisualTestContext,
+    change: impl FnOnce(&mut Dock, &mut Window, &mut Context<Dock>),
+) {
+    workspace.update_in(cx, |workspace, window, cx| {
+        workspace
+            .right_dock()
+            .update(cx, |dock, cx| change(dock, window, cx));
+    });
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+async fn a_round_trip_leaves_each_dock_as_it_was(cx: &mut TestAppContext) {
+    let (workspace, agent_panel, [test_panel, _], cx) = open_with_docks(cx).await;
+    let before = docks(&workspace, cx);
+    assert_eq!(
+        before,
+        [
+            (true, Some(agent_panel.entity_id())),
+            (false, None),
+            (true, Some(test_panel.entity_id())),
+        ]
+    );
+    set_layout(MarleyLayout::Marley, cx);
+    assert_eq!(
+        docks(&workspace, cx)[2],
+        (true, Some(agent_panel.entity_id())),
+        "the Agent Panel took over the right dock"
+    );
+    set_layout(MarleyLayout::Zed, cx);
+    assert_eq!(docks(&workspace, cx), before);
+}
+
+#[gpui::test]
+async fn a_dock_closed_before_the_trip_comes_back_closed_on_its_panel(cx: &mut TestAppContext) {
+    let (workspace, _, [test_panel, _], cx) = open_with_docks(cx).await;
+    right_dock(&workspace, cx, |dock, window, cx| {
+        dock.set_open(false, window, cx);
+    });
+    set_layout(MarleyLayout::Marley, cx);
+    set_layout(MarleyLayout::Zed, cx);
+    assert_eq!(
+        docks(&workspace, cx)[2],
+        (false, Some(test_panel.entity_id()))
+    );
+}
+
+#[gpui::test]
+async fn a_panel_chosen_during_the_trip_stays_chosen(cx: &mut TestAppContext) {
+    let (workspace, _, [_, other], cx) = open_with_docks(cx).await;
+    set_layout(MarleyLayout::Marley, cx);
+    // The dock lists the Agent Panel, then the two test panels.
+    right_dock(&workspace, cx, |dock, window, cx| {
+        dock.activate_panel(2, window, cx);
+    });
+    assert_eq!(docks(&workspace, cx)[2], (true, Some(other.entity_id())));
+    set_layout(MarleyLayout::Zed, cx);
+    assert_eq!(docks(&workspace, cx)[2], (true, Some(other.entity_id())));
+}
+
+#[gpui::test]
+async fn a_dock_closed_during_the_trip_stays_closed(cx: &mut TestAppContext) {
+    let (workspace, _, [test_panel, _], cx) = open_with_docks(cx).await;
+    set_layout(MarleyLayout::Marley, cx);
+    right_dock(&workspace, cx, |dock, window, cx| {
+        dock.set_open(false, window, cx);
+    });
+    set_layout(MarleyLayout::Zed, cx);
+    assert_eq!(
+        docks(&workspace, cx)[2],
+        (false, Some(test_panel.entity_id()))
+    );
+}
+
+#[gpui::test]
+async fn a_dock_the_agent_panel_was_shown_in_later_gets_its_panel_back(cx: &mut TestAppContext) {
+    let (workspace, agent_panel, [test_panel, _], cx) = open_with_docks(cx).await;
+    workspace.update_in(cx, |workspace, window, cx| {
+        workspace
+            .left_dock()
+            .update(cx, |dock, cx| dock.set_open(false, window, cx));
+    });
+    cx.run_until_parked();
+    // The Agent Panel arrives hidden, then the user shows it in its new dock.
+    set_layout(MarleyLayout::Marley, cx);
+    right_dock(&workspace, cx, |dock, window, cx| {
+        dock.activate_panel(0, window, cx);
+    });
+    assert_eq!(
+        docks(&workspace, cx)[2],
+        (true, Some(agent_panel.entity_id()))
+    );
+    set_layout(MarleyLayout::Zed, cx);
+    assert_eq!(
+        docks(&workspace, cx)[2],
+        (true, Some(test_panel.entity_id()))
+    );
+}
+
+#[gpui::test]
+async fn a_hidden_agent_panel_moves_without_moving_anything_else(cx: &mut TestAppContext) {
+    let (workspace, _, [test_panel, _], cx) = open_with_docks(cx).await;
+    workspace.update_in(cx, |workspace, window, cx| {
+        workspace
+            .left_dock()
+            .update(cx, |dock, cx| dock.set_open(false, window, cx));
+    });
+    cx.run_until_parked();
+    let right = (true, Some(test_panel.entity_id()));
+    set_layout(MarleyLayout::Marley, cx);
+    assert_eq!(docks(&workspace, cx)[2], right);
+    set_layout(MarleyLayout::Zed, cx);
+    assert_eq!(docks(&workspace, cx)[2], right);
 }

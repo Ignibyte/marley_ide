@@ -11,10 +11,14 @@ pub mod marley_workbench_tests;
 mod rail;
 pub mod routing;
 
+use std::collections::{HashMap, HashSet};
+
+use agent_ui::AgentPanel;
 use fs::Fs;
 use gpui::{
-    App, AppContext as _, BorrowAppContext as _, Context, Entity, Focusable as _, Global,
-    InteractiveElement as _, ReadGlobal as _, UpdateGlobal as _, Window, actions,
+    AnyWindowHandle, App, AppContext as _, BorrowAppContext as _, Context, Entity, EntityId,
+    Focusable as _, Global, InteractiveElement as _, ReadGlobal as _, UpdateGlobal as _,
+    WeakEntity, Window, actions,
 };
 use settings::{
     DockPosition, KeybindSource, KeymapFile, KeymapFileLoadResult, MarleyLayout, RegisterSetting,
@@ -22,6 +26,7 @@ use settings::{
 };
 use title_bar::{UseAgenticLayout, UseClassicLayout};
 use util::ResultExt as _;
+use workspace::dock::{Dock, Panel as _};
 use workspace::notifications::NotificationId;
 use workspace::{MultiWorkspace, Sidebar as _, Toast, Workspace};
 
@@ -73,6 +78,34 @@ struct LayoutState {
     applied: MarleyLayout,
     zed_terminal_button: Option<bool>,
     zed_agent_dock: Option<DockPosition>,
+    /// Per workspace, the panel the Agent Panel took over in each dock, in `Workspace::all_docks`
+    /// order, when a switch moved it there; the switch that moves it away gives the panel back.
+    displaced: HashMap<EntityId, [Option<DockShown>; 3]>,
+}
+
+/// A dock as a layout switch found it: open or not, and its active panel's persistent name.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct DockShown {
+    open: bool,
+    panel: Option<&'static str>,
+}
+
+impl DockShown {
+    fn of(dock: &Dock) -> Self {
+        Self {
+            open: dock.is_open(),
+            panel: dock.active_panel().map(|panel| panel.persistent_name()),
+        }
+    }
+}
+
+/// A workspace's docks in `Workspace::all_docks` order, before a layout switch moved the Agent
+/// Panel, and the dock that held it.
+struct DocksBefore {
+    window: AnyWindowHandle,
+    workspace: WeakEntity<Workspace>,
+    docks: [DockShown; 3],
+    agent: Option<usize>,
 }
 
 impl Global for LayoutState {}
@@ -92,6 +125,7 @@ pub fn init(cx: &mut App) {
             .as_ref()
             .and_then(|terminal| terminal.button),
         zed_agent_dock: defaults.agent.as_ref().and_then(|agent| agent.dock),
+        displaced: HashMap::default(),
     };
     let layout = state.applied;
     cx.set_global(state);
@@ -262,6 +296,9 @@ fn layout_setting_changed(cx: &mut App) {
     if !changed {
         return;
     }
+    // Zed's docks move the Agent Panel in their own observers, which run after this one, so the
+    // docks are noted before they move and settled once they have.
+    let before = docks_before(cx);
     apply_defaults(layout, cx);
     for window in cx.windows() {
         window
@@ -271,6 +308,97 @@ fn layout_setting_changed(cx: &mut App) {
                 }
             })
             .log_err();
+    }
+    cx.defer(move |cx| settle_docks(before, cx));
+}
+
+/// Every workspace's docks, before a layout switch moves the Agent Panel.
+fn docks_before(cx: &App) -> Vec<DocksBefore> {
+    cx.windows()
+        .into_iter()
+        .filter_map(|window| Some((window, window.downcast::<MultiWorkspace>()?.read(cx).ok()?)))
+        .flat_map(|(window, multi_workspace)| {
+            multi_workspace.workspaces().map(move |workspace| {
+                let docks = workspace.read(cx).all_docks();
+                DocksBefore {
+                    window,
+                    workspace: workspace.downgrade(),
+                    docks: docks.map(|dock| DockShown::of(dock.read(cx))),
+                    agent: docks
+                        .iter()
+                        .position(|dock| dock.read(cx).has_agent_panel(cx)),
+                }
+            })
+        })
+        .collect()
+}
+
+/// Once a layout switch has moved the Agent Panel, each workspace's docks as they were: see
+/// [`settle_workspace`].
+fn settle_docks(before: Vec<DocksBefore>, cx: &mut App) {
+    let live: Vec<(Entity<Workspace>, DocksBefore)> = before
+        .into_iter()
+        .filter_map(|docks| Some((docks.workspace.upgrade()?, docks)))
+        .collect();
+    let workspaces: HashSet<EntityId> = live
+        .iter()
+        .map(|(workspace, _)| workspace.entity_id())
+        .collect();
+    for (workspace, docks) in &live {
+        docks
+            .window
+            .update(cx, |_, window, cx| {
+                settle_workspace(workspace, docks, window, cx);
+            })
+            .log_err();
+    }
+    cx.update_global::<LayoutState, _>(|state, _| {
+        state.displaced.retain(|workspace, slots| {
+            workspaces.contains(workspace) && slots.iter().any(Option::is_some)
+        });
+    });
+}
+
+/// Zed's move opens the dock the Agent Panel enters on it, when it was visible, and forgets the
+/// panel that dock showed; it closes the dock it leaves. So the dock it entered remembers the
+/// panel it showed, and the dock it left gets back what it remembers while the Agent Panel was
+/// still what it showed: a panel the user chose there in between stands, and so does a close.
+fn settle_workspace(
+    workspace: &Entity<Workspace>,
+    before: &DocksBefore,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let docks = workspace.read(cx).all_docks().map(Entity::clone);
+    let after = docks
+        .iter()
+        .position(|dock| dock.read(cx).has_agent_panel(cx));
+    let Some((from, to)) = before.agent.zip(after).filter(|(from, to)| from != to) else {
+        return;
+    };
+    let agent = Some(AgentPanel::persistent_name());
+    let entered = before.docks[to];
+    let key = workspace.entity_id();
+    let memory = cx.update_global::<LayoutState, _>(|state, _| {
+        let slots = state.displaced.entry(key).or_default();
+        if entered.panel.is_some_and(|panel| Some(panel) != agent) {
+            slots[to] = Some(entered);
+        }
+        slots[from].take()
+    });
+    if let Some(memory) = memory
+        && before.docks[from].panel == agent
+    {
+        let open = memory.open && before.docks[from].open;
+        docks[from].update(cx, |dock, cx| {
+            if let Some(index) = memory
+                .panel
+                .and_then(|panel| dock.panel_index_for_persistent_name(panel, cx))
+            {
+                dock.activate_panel(index, window, cx);
+            }
+            dock.set_open(open, window, cx);
+        });
     }
 }
 

@@ -34,6 +34,18 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
     cleared.
 - In the Marley layout the defaults are `terminal.button: false` and `agent.dock: right`,
   patched below the user's settings, so a user value wins in both layouts.
+- **The docks across a switch (#456).** Zed's docks move the Agent Panel in their own settings
+  observers.
+  - A dock the Agent Panel enters while visible opens on it and forgets the panel it showed;
+    the dock it leaves closes when it was the one shown.
+  - The switch's observer runs first, so it notes every workspace's docks before the move
+    (`docks_before`), then settles them in a `cx.defer` after it (`settle_docks`). The dock the
+    Agent Panel entered remembers the panel it showed and whether it was open, by persistent
+    name, per workspace, in `LayoutState::displaced`.
+  - The dock it leaves gets that panel back, open only if it was open both before the trip and
+    as the Agent Panel left. This happens only while the Agent Panel was still the panel it
+    showed, so a panel the user chose there in between stands, and so does a close.
+  - The restore runs before the move's throttled save, so the saved state is the restored one.
 - **Zed's layout presets (#451).** `workspace::UseClassicLayout` and `workspace::UseAgenticLayout`
   (from `title_bar`) rewrite the docks the Marley layout sets, `agent.dock` among them. In the
   Marley layout capture-phase listeners on each workspace's root stop them and show a toast
@@ -253,7 +265,8 @@ alike.
 
 ## Tests
 
-`src/marley_workbench_tests.rs` (the switch, the keymap loader and persistence, 20 tests) and
+`src/marley_workbench_tests.rs` (the switch, the keymap loader, persistence and the docks across
+a switch, 29 tests) and
 `src/rail_tests.rs` (the rail, 49, 14 thread tests in `rail::tests::threads`, and 5 agent-CLI
 tests in `rail::tests::agents`, which search a temporary directory for programs and read the
 new terminal's write log): driven gpui tests on `MultiWorkspace::test_new`
@@ -296,9 +309,10 @@ has its own test in `crates/zed/src/zed.rs`, `test_reload_keymaps_binds_the_marl
   (`ToggleLeftDock`, `ToggleRightDock`).
 - The settings UI shows the patched values as the defaults: in the Marley layout a stored
   `terminal.button: false` looks like the default and has no reset control.
-- A layout round trip with the Agent Panel open can close the right dock (#456). Each round
-  trip adds a subscription pair on the kept Zed sidebar, and a window restored in the Marley
-  layout saves a partial state before its restore finishes (`docs/planning/intake/rail-internals.md`).
+- Each layout round trip adds a subscription pair on the kept Zed sidebar, and a window
+  restored in the Marley layout saves a partial state before its restore finishes
+  (`docs/planning/intake/rail-internals.md`). The docks' memory of a round trip lives in memory
+  only, so a window saved in one layout and restored in the other starts without it.
 - A restored window builds its rail open and closes it once the restore is over, through
   `close_sidebar`, which records Zed's "Sidebar Toggled" event; Zed has no silent close.
 - The filter ignores case for ASCII letters only, as Zed's does, and vim's `/`, which reaches

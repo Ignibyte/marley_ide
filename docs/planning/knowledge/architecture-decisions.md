@@ -1484,3 +1484,24 @@ already in its window. Nothing is seeded on a layout switch, for a window with n
 - reading the workspace database from Marley, which races the project's first save;
 - seeding every project with no terminal, the gpui-era force-seed failure
   (`BF-claude-boot-restore-force-seeds-a-terminal-after-the-runtime-guard-dissolved-001`).
+
+## AD-claude-456-a-layout-round-trip-gives-each-dock-back-its-panel-001
+*decided at: 2026-09-23 · status: shipped*
+
+Zed's dock move stays as it is. The Marley layout switch keeps a memory around it from outside
+the `workspace` crate, with Zed's public dock API, and needs no touchpoint:
+- The switch's settings observer is registered at init, before any dock's, so it runs first.
+  It notes every workspace's docks before they move (open or not, and the active panel by
+  persistent name), then settles them in a `cx.defer`, after the move and before the move's
+  throttled save.
+- The dock the Agent Panel entered remembers the panel it showed and whether it was open, per
+  workspace, in `LayoutState::displaced`.
+- The dock the Agent Panel leaves gets that panel back, open only if it was open both before
+  the trip and as the Agent Panel left. This happens only while the Agent Panel was still the
+  panel it showed, so a panel the user chose there in between stands, and so does a close.
+
+Rejected:
+- a touchpoint in `dock.rs`, which upstream's own tests pin to the current closing behavior;
+- keeping the memory across restarts;
+- remembering only when the move made the Agent Panel the dock's shown panel. That condition
+  would forget the panel when the Agent Panel arrived hidden and was shown later.

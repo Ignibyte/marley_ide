@@ -382,8 +382,9 @@ Sidebar's matcher, and `ctrl-f` reaches it. W6e shipped as #454: `ctrl-tab` in t
 Agent Panel opens a switcher over the window's terminals and threads, most recently worked in
 first, through the rail's `toggle_thread_switcher`; the center panes keep Zed's tab switcher.
 W6f shipped as #455: a folder opened fresh in the Marley layout starts with a terminal at its
-root, told apart from a restored project by one Zed touchpoint in `new_local`. W6g is
-TICKET-456, and TICKET-459 gives Next and Previous Project and Thread the rail's meaning. TICKET-458 makes the rail follow a project's
+root, told apart from a restored project by one Zed touchpoint in `new_local`. W6g shipped as
+#456: a layout round trip gives each dock back the panel the Agent Panel took over. TICKET-459
+gives Next and Previous Project and Thread the rail's meaning. TICKET-458 makes the rail follow a project's
 folders, and the rail's smaller internals wait in `docs/planning/intake/rail-internals.md`.
 
 | Slice | Delivers | Size |

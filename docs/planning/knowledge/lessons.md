@@ -2101,3 +2101,17 @@ What worked in #455 (`crates/marley_workbench/src/routing_tests.rs`, the W6f sec
   added to the workspace before the restore finished. A terminal seeded at creation disappears
   (and its shell with it), so only a project saved with an empty center shows a seed that
   should not be there. Put the negative check there.
+
+## L-claude-456-acting-around-zeds-own-settings-observers-001
+*category: code · topic: reacting to what Zed's observers do on a settings change · from: pipeline 456*
+
+What #456 relied on (`crates/marley_workbench/src/marley_workbench.rs`, `layout_setting_changed`):
+- gpui runs a global's observers in the order they were registered. An observer registered in
+  `marley_workbench::init`, before any window opens, runs before every dock's or panel's
+  observer. So it sees their state before they react to a settings change, and a `cx.defer`
+  from it runs after they have.
+- That is how Marley can put its own step around a Zed behavior it cannot change without a
+  touchpoint: note the state first, then settle it in the defer. Zed's throttled save
+  (`serialize_workspace`, 200 ms) has not fired by then, so the settled state is the one saved.
+- A test that removes the deferred step reproduces the original bug. That is the negative check
+  that proves the fix, and it is cheap because the defer is one line.

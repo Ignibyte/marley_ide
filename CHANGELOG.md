@@ -183,6 +183,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **The docks across a layout round trip** (#456, 2026-09-23). A switch to the Marley layout and
+  back could leave the right dock closed, with the panel it showed lost: the Agent Panel took
+  that dock over on the way in and closed it on the way out. Now the dock gets back the panel it
+  showed, open or closed as it was. If you showed another panel there, or closed the dock,
+  during the trip, your choice stands.
 - **Zed's Panel Layout presets in the Marley layout** (#451, 2026-09-23). Choosing Classic or
   Agentic from the title bar's Panel Layout menu, or from the command palette, rewrote the
   docks the Marley layout sets, and Agentic moved the Agent Panel to the left for good. In the
