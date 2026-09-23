@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A `justfile` for the workflow** (#471, 2026-09-23). `just` lists the commands every change
+  runs: the gate in each mode, building the debug `marley`, a crate's tests, clippy and
+  formatting over named crates, and `just shot`, which captures Marley on a copy of your profile
+  on a hidden workspace without touching your screen. Each cargo recipe first waits for any
+  other cargo run on the machine to end. `script/gates.sh` stays the gate.
 - **Blocks drawn in the terminal** (#470, 2026-09-23). Every command Marley's shell integration
   reports is now visible as a block in the terminal: a thin bar in the left margin beside its
   rows, green when it succeeded, red when it failed and blue while it runs; a small pill at the

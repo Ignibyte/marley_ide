@@ -38,7 +38,7 @@ gate:8  supply chain   cargo deny check licenses bans sources
 gate:9  unused deps    cargo shear --locked --deny-warnings          (Zed's own tool)
 gate:10 secrets        gitleaks: commits since the upstream fork point + Marley-owned dirs
 gate:11 shell lint     shellcheck (.claude/hooks + script/gates.sh + script/mutation.sh +
-                       the shell integration Marley ships)
+                       script/live-shot.sh + the shell integration Marley ships)
 gate:12 no-suppress    grep meta-gate (allow/expect must justify; blanket banned)
 gate:13 source-bans    grep meta-gate (transmute, bare or through mem::; unsafe without a
                        // SAFETY: on its line or the line above)
@@ -142,7 +142,8 @@ and the run fails instead of writing one when the gated files changed while it r
 
 Tools: `cargo install cargo-audit cargo-deny cargo-shear cargo-llvm-cov cargo-nextest
 cargo-sort taplo-cli typos-cli`, `rustup component add llvm-tools-preview`, semgrep 1.156.0
-(`pipx install semgrep==1.156.0`), and `gitleaks shellcheck jq` from the distro; for gate:21,
+(`pipx install semgrep==1.156.0`), and `gitleaks shellcheck jq just` from the distro (`just`
+runs the `justfile`'s recipes over these commands, #471); for gate:21,
 `cargo install cargo-dylint dylint-link --locked` (6.0.4) and, from `tooling/lints`,
 `rustup toolchain install` (its pinned nightly with `rustc-dev`, `rust-src` and
 `llvm-tools-preview`);

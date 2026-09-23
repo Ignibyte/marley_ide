@@ -23,18 +23,18 @@ gate", and resolve them all before Stop. Without it, keep the checklist in the n
    `VisualTestContext`; executor timers, never `smol::Timer`). Cover the edge cases the Code
    review raised. A gate-is-test change (config, tooling, docs with no `.rs`) is verified by
    the gate's exit codes plus negative smokes instead (§7).
-2. **Run them** and paste the real result: `cargo nextest run -p <every touched crate>`, plus
-   `cargo test --doc -p <the Marley crates>` for doctests. One cargo command at a time.
+2. **Run them** and paste the real result: `cargo nextest run -p <every touched crate>` (`just
+   test <crates>`), plus `cargo test --doc -p <the Marley crates>` for doctests. One cargo
+   command at a time; the `justfile`'s cargo recipes wait for the box's other runs.
 3. **Drive the live app** for any change to a render or input path; never defer this to the
-   user. Build and run the `marley` binary from the checkout (a debug build is fine), reproduce
-   the interaction the ticket changes, capture it (the `dev-box-desktop` skill's headless
-   output), and read the PNG. The headless lessons apply
-   (L-claude-437-the-headless-live-drive-recipe-001,
-   L-claude-438-the-headless-output-borrows-one-of-chads-workspaces-001): send no keys or
-   clicks into Chad's session while he is at the desk, and delete any capture that shows
-   anything but Marley. What cannot be driven is recorded with the reason, never skipped
-   silently. A crate with no UI surface says N/A.
-4. **Run the gate:** `script/gates.sh --diff`, the static gates on the scope plus coverage on
+   user. Build the `marley` binary from the checkout (`just build`, a debug build), reproduce
+   the interaction the ticket changes, capture it, and read the PNG. `just shot <name>
+   [seed]` runs it on a copy of Chad's profile on a hidden workspace and shoots its window
+   (L-claude-467-capture-one-window-by-its-toplevel-001); a seed script edits the copy first.
+   Send no keys or clicks into Chad's session while he is at the desk, and delete any capture
+   that shows anything but Marley. What cannot be driven is recorded with the reason, never
+   skipped silently. A crate with no UI surface says N/A.
+4. **Run the gate:** `script/gates.sh --diff` (`just gate-diff`), the static gates on the scope plus coverage on
    the touched Marley crates and miri. Fix every red at the source: no baselines, no
    suppressions, no lowered floor (§0). The green writes the receipt the commit needs. A
    no-`.rs` change runs `--fast`. `script/gates.sh --full` is the periodic audit over every

@@ -32,12 +32,14 @@ RUNNER_AT='(^|[;&|(])[[:space:]]*'
 # the hook FALSE-BLOCKED a compliant session (reproduced at 49MB/9k commands;
 # short transcripts fit the pipe buffer, which is why this never fired before).
 # `grep -vc` consumes all input — deterministic, semantics identical.
-RUNNER_HITS=$(echo "$CMDS" | grep -E "${RUNNER_AT}(cargo (test|nextest|llvm-cov)|(\./)?script/gates\.sh)" | grep -vcE -- '--help|--version|--list' || true)
+# The justfile's recipes run the same commands (#471): `just gate-diff`, `gate-fast`,
+# `gate-full` run script/gates.sh, and `just test <crates>` runs nextest.
+RUNNER_HITS=$(echo "$CMDS" | grep -E "${RUNNER_AT}(cargo (test|nextest|llvm-cov)|(\./)?script/gates\.sh|just (gate-(diff|fast|full)|test)([[:space:]]|$))" | grep -vcE -- '--help|--version|--list' || true)
 [ "${RUNNER_HITS:-0}" -gt 0 ] && RUST_OK=true
 
 if ! $RUST_OK; then
     { echo ""; echo "STOP BLOCKED — /pipeline:test but tests did not execute:"; echo ""
-      echo "  VIOLATION: Rust tests never ran. Run: cargo nextest run -p <the touched crates>  (or script/gates.sh --diff)."
+      echo "  VIOLATION: Rust tests never ran. Run: cargo nextest run -p <the touched crates>  (or script/gates.sh --diff, or just gate-diff)."
       echo ""; echo "CONSTITUTION §15: if it didn't happen in the transcript, it didn't happen."; } >&2
     exit 2
 fi

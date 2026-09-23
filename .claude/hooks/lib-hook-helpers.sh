@@ -215,6 +215,7 @@ marley_owned_path() {
         crates/marley_*|docs/marley/*|docs/planning/*|docs/marley_architecture/*|\
         docs/specs/*|docs/warp_architecture/*|docs/zed_architecture/*|\
         docs/decisions/*|docs/tickets/*|.claude/*|script/gates.sh|script/mutation.sh|\
+        script/live-shot.sh|justfile|\
         CONSTITUTION.md|CHANGELOG.md|deny.toml|.gitleaks.toml|.semgrep.yml|\
         .cargo/audit.toml|.mcp.json.example|vendor/*)
             return 0 ;;

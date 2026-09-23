@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #471 (chore, the workflow)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet
+- **Pipeline doc:** ../../pipeline/completed/471-just-for-the-workflow.spec.md
 - **Source ticket:** Chad, 2026-09-23: "when given a chance we should install just and use it in
   replacement (or augment) the workflow where needed"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Install `just` on the dev box (Arch's `extra/just`, 1.58.0) and give the repository a `justfile`
