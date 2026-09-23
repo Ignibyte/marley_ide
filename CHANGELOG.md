@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Terminal keys in the Marley layout** (#449, 2026-09-23). In the Marley layout
+  `` ctrl-` `` switches between the code and the project's terminals: from an editor it
+  focuses the terminal used last, or opens one, and from a terminal it goes back to the editor
+  used last. `ctrl-j` does the same while it would otherwise show the Terminal Panel, and
+  `ctrl-~` opens a new center terminal, so none of Zed's terminal keys opens the bottom panel
+  any more. The command palette's Terminal Panel toggles and a user's own bindings for them
+  route the same way. In the Zed layout every key keeps Zed's behavior.
 - **Terminal routing in the Marley layout** (#441, 2026-09-22). In the Marley layout nothing
   opens the bottom Terminal Panel. Tasks run in center terminals, whether they start from the
   task modal, a runnable or a code lens. A rerun replaces the task's terminal as Zed's rules

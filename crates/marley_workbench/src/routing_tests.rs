@@ -4,12 +4,13 @@
 use std::time::Duration;
 
 use fs::FakeFs;
-use gpui::{Focusable as _, TestAppContext, VisualTestContext};
+use gpui::{AppContext as _, Focusable, TestAppContext, VisualTestContext};
 use project::Project;
 use settings::MarleyLayout;
 use task::{Shell, TaskId};
-use terminal_view::TerminalView;
 use workspace::MultiWorkspace;
+use workspace::dock::{DockPosition, test::TestPanel};
+use workspace::item::test::TestItem;
 
 use super::*;
 use crate::marley_workbench_tests::{init_test, init_zed_sidebar, set_layout};
@@ -88,6 +89,42 @@ fn dispatch_from_center(
     cx.update(|window, _| window.refresh());
     cx.dispatch_action(action);
     cx.run_until_parked();
+}
+
+/// Dispatches `action` from whatever has focus, as a key press there would.
+fn dispatch(action: impl gpui::Action, cx: &mut VisualTestContext) {
+    cx.update(|window, _| window.refresh());
+    cx.dispatch_action(action);
+    cx.run_until_parked();
+}
+
+/// Presses `keys` wherever the focus is.
+fn press(keys: &str, cx: &mut VisualTestContext) {
+    cx.update(|window, _| window.refresh());
+    cx.simulate_keystrokes(keys);
+    cx.run_until_parked();
+}
+
+/// A stand-in for an editor: a plain item, added to the center pane and focused.
+fn add_item(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> Entity<TestItem> {
+    workspace.update_in(cx, |workspace, window, cx| {
+        let item = cx.new(TestItem::new);
+        workspace.add_item_to_active_pane(Box::new(item.clone()), None, true, window, cx);
+        item
+    })
+}
+
+fn focused<V: Focusable>(view: &Entity<V>, cx: &mut VisualTestContext) -> bool {
+    cx.update(|window, cx| view.focus_handle(cx).contains_focused(window, cx))
+}
+
+fn center_views(
+    workspace: &Entity<Workspace>,
+    cx: &VisualTestContext,
+) -> Vec<Entity<TerminalView>> {
+    workspace.read_with(cx, |workspace, cx| {
+        workspace.items_of_type::<TerminalView>(cx).collect()
+    })
 }
 
 fn center_terminals(
@@ -253,4 +290,164 @@ async fn a_layout_switch_routes_the_next_terminal_and_task(cx: &mut TestAppConte
     assert!(succeeded(run(echo_task("in zed"), &workspace, cx).await));
     assert_eq!(center_terminals(&workspace, cx).len(), 3);
     assert_eq!(panel_terminals(&panel, cx), 1);
+}
+
+#[gpui::test]
+async fn toggle_in_the_marley_layout_opens_a_center_terminal_when_there_is_none(
+    cx: &mut TestAppContext,
+) {
+    let (workspace, panel, cx) = open_workspace(MarleyLayout::Marley, cx).await;
+    let item = add_item(&workspace, cx);
+    dispatch(Toggle, cx);
+    let views = center_views(&workspace, cx);
+    assert_eq!(views.len(), 1);
+    assert!(focused(&views[0], cx));
+    assert!(!focused(&item, cx));
+    assert_eq!(panel_terminals(&panel, cx), 0);
+    assert!(!bottom_dock_open(&workspace, cx));
+}
+
+#[gpui::test]
+async fn toggle_and_toggle_focus_switch_between_the_code_and_its_terminal(cx: &mut TestAppContext) {
+    let (workspace, panel, cx) = open_workspace(MarleyLayout::Marley, cx).await;
+    let item = add_item(&workspace, cx);
+    dispatch(Toggle, cx);
+    let terminal = center_views(&workspace, cx)[0].clone();
+    dispatch(Toggle, cx);
+    assert!(focused(&item, cx));
+    dispatch(Toggle, cx);
+    assert!(focused(&terminal, cx));
+    dispatch(ToggleFocus, cx);
+    assert!(focused(&item, cx));
+    dispatch(ToggleFocus, cx);
+    assert!(focused(&terminal, cx));
+    assert_eq!(
+        center_views(&workspace, cx).len(),
+        1,
+        "the terminal is reused"
+    );
+    assert_eq!(panel_terminals(&panel, cx), 0);
+    assert!(!bottom_dock_open(&workspace, cx));
+}
+
+#[gpui::test]
+async fn toggle_goes_back_to_the_terminal_used_last(cx: &mut TestAppContext) {
+    let (workspace, _, cx) = open_workspace(MarleyLayout::Marley, cx).await;
+    let item = add_item(&workspace, cx);
+    dispatch(Toggle, cx);
+    let first = center_views(&workspace, cx)[0].clone();
+    dispatch(NewTerminal::default(), cx);
+    let views = center_views(&workspace, cx);
+    assert_eq!(views.len(), 2);
+    assert!(!focused(&first, cx), "the second terminal has focus");
+
+    workspace.update_in(cx, |workspace, window, cx| {
+        workspace.activate_item(&first, true, true, window, cx);
+    });
+    dispatch(Toggle, cx);
+    assert!(focused(&item, cx));
+    dispatch(Toggle, cx);
+    assert!(focused(&first, cx));
+}
+
+#[gpui::test]
+async fn toggle_from_a_terminal_with_nothing_else_open_changes_nothing(cx: &mut TestAppContext) {
+    let (workspace, _, cx) = open_workspace(MarleyLayout::Marley, cx).await;
+    dispatch_from_center(&workspace, Toggle, cx);
+    let views = center_views(&workspace, cx);
+    assert_eq!(views.len(), 1);
+    assert!(focused(&views[0], cx));
+    dispatch(Toggle, cx);
+    assert_eq!(center_views(&workspace, cx), views);
+    assert!(focused(&views[0], cx));
+}
+
+#[gpui::test]
+async fn the_bottom_dock_toggle_in_the_marley_layout_toggles_center_terminals(
+    cx: &mut TestAppContext,
+) {
+    let (workspace, _, cx) = open_workspace(MarleyLayout::Marley, cx).await;
+    let item = add_item(&workspace, cx);
+    dispatch(ToggleBottomDock, cx);
+    let views = center_views(&workspace, cx);
+    assert_eq!(views.len(), 1);
+    assert!(focused(&views[0], cx));
+    assert!(!bottom_dock_open(&workspace, cx));
+    dispatch(ToggleBottomDock, cx);
+    assert!(focused(&item, cx));
+
+    // A dock that something opened anyway closes as upstream.
+    workspace.update_in(cx, |workspace, window, cx| {
+        workspace.focus_panel::<TerminalPanel>(window, cx);
+    });
+    cx.run_until_parked();
+    assert!(bottom_dock_open(&workspace, cx));
+    dispatch(ToggleBottomDock, cx);
+    assert!(!bottom_dock_open(&workspace, cx));
+    assert_eq!(center_views(&workspace, cx), views);
+}
+
+#[gpui::test]
+async fn the_bottom_dock_toggle_shows_another_active_bottom_panel_as_upstream(
+    cx: &mut TestAppContext,
+) {
+    let (workspace, _, cx) = open_workspace(MarleyLayout::Marley, cx).await;
+    add_item(&workspace, cx);
+    let other = workspace.update_in(cx, |workspace, window, cx| {
+        let other = cx.new(|cx| TestPanel::new(DockPosition::Bottom, 3, cx));
+        workspace.add_panel(other.clone(), window, cx);
+        workspace.focus_panel::<TestPanel>(window, cx);
+        other
+    });
+    dispatch(ToggleBottomDock, cx);
+    assert!(!bottom_dock_open(&workspace, cx));
+
+    dispatch(ToggleBottomDock, cx);
+    assert!(bottom_dock_open(&workspace, cx));
+    assert!(focused(&other, cx));
+    assert!(center_views(&workspace, cx).is_empty());
+}
+
+// Zed's default keys differ by platform; these are Linux's.
+#[cfg(target_os = "linux")]
+#[gpui::test]
+async fn zeds_default_keys_reach_the_center_terminals(cx: &mut TestAppContext) {
+    let (workspace, panel, cx) = open_workspace(MarleyLayout::Marley, cx).await;
+    cx.update(|_, cx| {
+        let bindings = settings::KeymapFile::load_asset_allow_partial_failure(
+            settings::DEFAULT_KEYMAP_PATH,
+            cx,
+        )
+        .expect("Zed's default keymap loads");
+        cx.bind_keys(bindings);
+    });
+    let item = add_item(&workspace, cx);
+    press("ctrl-`", cx);
+    let views = center_views(&workspace, cx);
+    assert_eq!(views.len(), 1);
+    assert!(focused(&views[0], cx));
+    press("ctrl-`", cx);
+    assert!(focused(&item, cx));
+    press("ctrl-~", cx);
+    assert_eq!(center_views(&workspace, cx).len(), 2);
+    press("ctrl-j", cx);
+    assert!(focused(&item, cx));
+    assert_eq!(panel_terminals(&panel, cx), 0);
+    assert!(!bottom_dock_open(&workspace, cx));
+}
+
+#[gpui::test]
+async fn in_the_zed_layout_the_toggles_open_the_terminal_panel(cx: &mut TestAppContext) {
+    let (workspace, panel, cx) = open_workspace(MarleyLayout::Zed, cx).await;
+    add_item(&workspace, cx);
+    dispatch(ToggleBottomDock, cx);
+    assert!(bottom_dock_open(&workspace, cx));
+    dispatch(ToggleBottomDock, cx);
+    assert!(!bottom_dock_open(&workspace, cx));
+    dispatch(Toggle, cx);
+    assert!(bottom_dock_open(&workspace, cx));
+    assert!(focused(&panel, cx));
+    dispatch(ToggleFocus, cx);
+    assert!(!focused(&panel, cx));
+    assert!(center_views(&workspace, cx).is_empty());
 }

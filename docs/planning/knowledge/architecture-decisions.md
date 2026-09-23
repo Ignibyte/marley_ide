@@ -1345,3 +1345,17 @@ at each call, so the Zed layout stays upstream's and a switch reinstalls nothing
 stays loaded, out of sight, since tasks and agent logins need it. Rejected: a hunk in each of
 the panel's handlers (a Zed diff per path), dropping the panel (a workspace with no provider
 fails every task silently), and keymap remaps (they miss menus and the command palette).
+
+## AD-claude-449-terminal-keys-catch-zeds-actions-and-the-keymap-waits-for-new-keys-001
+*decided at: 2026-09-23 · status: shipped*
+
+In the Marley layout the terminal keys work on center terminals because the crate catches the
+actions Zed's defaults bind them to (`terminal_panel::Toggle`, `ToggleFocus`, and a
+`workspace::ToggleBottomDock` that would show the Terminal Panel), not by rebinding the keys.
+The palette, the menus and a user's own bindings to those actions route the same way, and no
+keymap asset or Zed touchpoint is needed. All three run one toggle: from a focused center
+terminal, back to the center item used last that is not a terminal; from anywhere else, the
+center terminal used last, or a new one. workbench-shell D7's Marley keymap, with its one line
+in `load_default_keymap`, waits for a key with no Zed action behind it, the first being the New
+Agent chord (TICKET-450). Rejected: the keymap D7 planned for these keys, which would have
+missed the palette and the menus and cost a Zed touchpoint for keys Zed already binds.

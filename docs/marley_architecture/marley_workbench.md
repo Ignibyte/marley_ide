@@ -133,6 +133,21 @@ layout at each call, so a switch reinstalls nothing.
   local shell for `local: true`. An error reaches a prompt. Everything dispatched inside the
   workspace passes these listeners, the Terminal Panel's own `+` included when the panel is
   opened by hand.
+- **The toggles (#449).** Three more capture listeners take `terminal_panel::Toggle`
+  (`` ctrl-` ``), `terminal_panel::ToggleFocus` and `workspace::ToggleBottomDock` (`ctrl-j`)
+  in the Marley layout and run one toggle between the code and the center terminals:
+  - from a focused center terminal, the center item used last that is not a terminal, by the
+    panes' activation history, or nothing when there is none;
+  - from anywhere else, the center terminal used last (`recent_active_item_by_type`), or a
+    new one where New Terminal would start.
+
+  `ToggleBottomDock` is taken only while the bottom dock is closed and would show the
+  Terminal Panel: its active panel, or with none active, its first. Docks sort panels by
+  activation priority and the Terminal Panel's is the lowest of Zed's bottom panels. The check
+  reads the dock and asks no panel whether it is enabled, since the listener runs inside the
+  workspace's update. An open dock, or one whose active panel is another, goes to Zed.
+  Catching the actions rather than rebinding the keys routes Zed's bindings, a user's own, the
+  palette and the menus alike, with no keymap and no Zed change.
 
 ## Tests
 
@@ -145,24 +160,28 @@ thread database per test) over the window. They put an `AgentPanel::test_new` in
 and drive threads through `acp_thread::StubAgentConnection`: a turn that stays open until
 `end_turn`, or a tool call waiting on a permission.
 
-`src/routing_tests.rs` (the routing, 7 tests) runs real shells and tasks, as Zed's own panel
+`src/routing_tests.rs` (the routing, 15 tests) runs real shells and tasks, as Zed's own panel
 tests do, with the executor allowed to park. Each window loads the Terminal Panel through
 `TerminalPanel::load` and adds it, as `crates/zed` does, so Zed's provider is in place first
 and the routing's has to replace it. Actions are dispatched from the focused center pane, below
-the workspace's root.
+the workspace's root. The toggle tests stand `workspace::item::test::TestItem` in for an editor
+and a `TestPanel` in for another bottom panel. One binds Zed's real Linux default keymap
+(`KeymapFile::load_asset_allow_partial_failure`) and presses the keys.
 
 ## Known limits
 
 - Zed's Panel Layout presets misread the Marley layout until #442 hides them.
-- The Terminal Panel's own toggle (`` ctrl-` ``) still opens the panel until the Marley keymap
-  (#449) takes the key. Vim's `:!` and external agents' login terminals still open there too:
-  they call the panel directly.
+- Vim's `:!` and external agents' login terminals still open in the Terminal Panel: they call
+  the panel directly. While such a panel is open, `` ctrl-` `` still toggles the center
+  terminals, and `ctrl-j` closes the dock.
+- A Terminal Panel moved to a side dock by `terminal.dock` still opens with that dock's toggle
+  (`ToggleLeftDock`, `ToggleRightDock`).
 - The settings UI shows the patched values as the defaults: in the Marley layout a stored
   `terminal.button: false` looks like the default and has no reset control.
 - A layout round trip with the Agent Panel open can close the right dock; each round trip
   adds a subscription pair on the kept Zed sidebar; a window restored in the Marley layout
   saves a partial state before its restore finishes. All three are in #442's notes.
 - Keyboard navigation and the rail's own saved width and closed state are W6 (#442).
-- The thread rows, the agent rows and the routing have not been seen live: the drives for #439
-  and #440 would have moved Chad's windows off his monitor, and #440's and #441's need input.
-  They are owed to the next headless capture.
+- The thread rows, the agent rows, the routing and the terminal keys have not been seen live:
+  the drives for #439 and #440 would have moved Chad's windows off his monitor, and #440's,
+  #441's and #449's need input. They are owed to the next headless capture.

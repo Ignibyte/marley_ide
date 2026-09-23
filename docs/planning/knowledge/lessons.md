@@ -1943,3 +1943,22 @@ What worked in #441 (`crates/marley_workbench/src/routing_tests.rs`):
 - Test the second run, not only the first. Zed's reuse paths, such as a task's rerun, look for
   the old terminal wherever it is. #441's rerun gap passed seven tests and a green gate before a
   rerun test found it (F-claude-441-a-rerun-reopened-the-hidden-terminal-panel-001).
+
+## L-claude-449-driving-keys-and-docks-in-a-gpui-test-001
+*category: validate · topic: key and dock tests in a Marley crate · from: pipeline 449*
+
+What worked in #449 (`crates/marley_workbench/src/routing_tests.rs`):
+- `settings::KeymapFile::load_asset_allow_partial_failure(settings::DEFAULT_KEYMAP_PATH, cx)`
+  returns Zed's real default bindings whose actions the test binary links, so a crate's test
+  can bind them and press the keys users press. `DEFAULT_KEYMAP_PATH` is the platform's file,
+  so a test that presses Linux's keys is `#[cfg(target_os = "linux")]`.
+- Draw a frame (`window.refresh()`) before each dispatch or keystroke. Dispatch looks the
+  focused element up in the last rendered frame and falls back to the window's root when it
+  is not there (`crates/gpui/src/window.rs:6244-6252`), so after a focus change the action
+  would start above the workspace's listeners.
+- `workspace::item::test::TestItem` stands in for an editor in the center, and
+  `workspace::dock::test::TestPanel` for another panel in a dock. Docks sort panels by
+  activation priority (`dock.rs:784-795`), so a test panel's priority decides its index; the
+  Terminal Panel's is 2.
+- `use super::*` brings an underscore import's methods into scope but not its name. A test
+  that names the trait in a bound (`V: Focusable`) imports it itself.

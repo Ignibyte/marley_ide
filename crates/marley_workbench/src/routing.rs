@@ -1,37 +1,41 @@
 //! Terminal routing: in the Marley layout nothing opens the bottom Terminal Panel.
 //!
-//! Tasks run through a task provider of this crate's own, which sends them to center terminals,
-//! and `workspace::NewTerminal` and `workspace::OpenTerminal` are caught before the panel's own
-//! handlers see them. In the Zed layout all of it passes straight through, so the fork behaves
-//! as upstream.
+//! Tasks run through a task provider of this crate's own, which sends them to center terminals.
+//! `workspace::NewTerminal` and `workspace::OpenTerminal` are caught before the panel's own
+//! handlers see them, and so are the panel's toggles and the bottom dock's, which switch between
+//! the code and the center terminals instead. In the Zed layout all of it passes straight
+//! through, so the fork behaves as upstream.
 
 use std::path::PathBuf;
 use std::process::ExitStatus;
 
 use gpui::{
-    App, AsyncWindowContext, Context, Entity, EntityId, InteractiveElement as _, Task, WeakEntity,
-    Window,
+    App, AsyncWindowContext, Context, Entity, EntityId, Focusable as _, InteractiveElement as _,
+    Task, WeakEntity, Window,
 };
 use task::{RevealTarget, SpawnInTerminal};
 use terminal::Terminal;
 use terminal_view::TerminalView;
-use terminal_view::terminal_panel::TerminalPanel;
+use terminal_view::terminal_panel::{TerminalPanel, Toggle, ToggleFocus};
+use workspace::item::ItemHandle;
 use workspace::notifications::DetachAndPromptErr as _;
-use workspace::{NewTerminal, OpenTerminal, Pane, Workspace};
+use workspace::{NewTerminal, OpenTerminal, Pane, ToggleBottomDock, Workspace};
 
 use crate::marley_layout;
 
 /// Installs the routing on every workspace. [`crate::init`] calls it once, before any window opens.
 ///
-/// The two actions are caught at the workspace's root in the capture phase, and the task
-/// provider replaces the panel's once the panel is added, after the panel's own load has
-/// installed Zed's.
+/// The actions are caught at the workspace's root in the capture phase, and the task provider
+/// replaces the panel's once the panel is added, after the panel's own load has installed Zed's.
 pub fn init(cx: &App) {
     cx.observe_new(
         |workspace: &mut Workspace, _, cx: &mut Context<Workspace>| {
             workspace.register_action_renderer(|div, _, _, cx| {
                 div.capture_action(cx.listener(new_terminal))
                     .capture_action(cx.listener(open_terminal))
+                    .capture_action(cx.listener(toggle::<Toggle>))
+                    .capture_action(cx.listener(toggle::<ToggleFocus>))
+                    .capture_action(cx.listener(toggle_bottom_dock))
             });
             cx.subscribe_self(|workspace, event: &workspace::Event, _| {
                 if let workspace::Event::PanelAdded(panel) = event
@@ -172,6 +176,76 @@ fn open_terminal(
         let directory = Some(action.working_directory.clone());
         open_center_terminal(workspace, action.local, directory, window, cx);
     }
+}
+
+/// `terminal_panel::Toggle` (`` ctrl-` ``) and `terminal_panel::ToggleFocus`: in the Marley
+/// layout the center terminals' toggle; in the Zed layout the action goes on to the panel.
+fn toggle<A>(workspace: &mut Workspace, _: &A, window: &mut Window, cx: &mut Context<Workspace>) {
+    if marley_layout(cx) {
+        cx.stop_propagation();
+        toggle_terminal(workspace, window, cx);
+    }
+}
+
+/// `workspace::ToggleBottomDock` (`ctrl-j`): in the Marley layout, while the closed dock would
+/// show the Terminal Panel, the center terminals' toggle; otherwise the action goes on to Zed.
+fn toggle_bottom_dock(
+    workspace: &mut Workspace,
+    _: &ToggleBottomDock,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    if marley_layout(cx) && bottom_dock_would_show_terminal_panel(workspace, cx) {
+        cx.stop_propagation();
+        toggle_terminal(workspace, window, cx);
+    }
+}
+
+/// Whether toggling the bottom dock would show the Terminal Panel. A closed dock shows its active
+/// panel, or with none its first enabled one. The Terminal Panel sorts first among Zed's bottom
+/// panels, so the check takes the first as it is: asking the panels whether they are enabled
+/// could read the workspace this listener is updating.
+fn bottom_dock_would_show_terminal_panel(workspace: &Workspace, cx: &App) -> bool {
+    let dock = workspace.bottom_dock().read(cx);
+    let shown = dock.active_panel_index().unwrap_or(0);
+    !dock.is_open() && dock.panel_index_for_type::<TerminalPanel>() == Some(shown)
+}
+
+/// Switches between the code and the center terminals. From a focused center terminal it goes
+/// back to the center item used last that is not a terminal, if there is one; from anywhere
+/// else it focuses the center terminal used last, or opens one where New Terminal would.
+fn toggle_terminal(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
+    let in_terminal = workspace
+        .active_item_as::<TerminalView>(cx)
+        .is_some_and(|view| view.focus_handle(cx).contains_focused(window, cx));
+    if in_terminal {
+        if let Some(item) = last_item_besides_terminals(workspace, cx) {
+            workspace.activate_item(item.as_ref(), true, true, window, cx);
+        }
+    } else if let Some(terminal) = workspace.recent_active_item_by_type::<TerminalView>(cx) {
+        workspace.activate_item(&terminal, true, true, window, cx);
+    } else {
+        let directory = terminal_view::default_working_directory(workspace, cx);
+        open_center_terminal(workspace, false, directory, window, cx);
+    }
+}
+
+/// The center item used last that is not a terminal, by the panes' activation history.
+fn last_item_besides_terminals(workspace: &Workspace, cx: &App) -> Option<Box<dyn ItemHandle>> {
+    workspace
+        .panes()
+        .iter()
+        .flat_map(|pane| {
+            let pane = pane.read(cx);
+            pane.activation_history().iter().filter_map(move |entry| {
+                pane.items()
+                    .find(|item| item.item_id() == entry.entity_id)
+                    .filter(|item| item.downcast::<TerminalView>().is_none())
+                    .map(|item| (entry.timestamp, item.boxed_clone()))
+            })
+        })
+        .max_by_key(|(timestamp, _)| *timestamp)
+        .map(|(_, item)| item)
 }
 
 /// A local terminal ignores the directory, as the panel's own does.

@@ -5,7 +5,7 @@ status: Phase 4 — Complete PASS
 title: Terminal routing in the Marley layout
 type: feature
 slice: workbench shell W5
-references: [docs/marley/workbench-shell.md, docs/planning/pipeline/completed/438-marley-layout-and-rail.spec.md, docs/planning/tickets/open/TICKET-449-marley-keymap.md]
+references: [docs/marley/workbench-shell.md, docs/planning/pipeline/completed/438-marley-layout-and-rail.spec.md, docs/planning/tickets/open/TICKET-449-terminal-keys.md]
 ---
 
 ## Title

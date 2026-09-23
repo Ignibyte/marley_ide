@@ -185,8 +185,10 @@ Marley layout the crate keeps anything from opening it:
   catches both in the capture phase and opens a center terminal instead
   (`register_action_renderer`, `workspace.rs:8492-8498`; capture runs before bubble handlers,
   `crates/gpui/src/window.rs:6309-6330`).
-- **The toggle:** `terminal.button` is off (D6) and the Marley keymap takes over `` ctrl-` ``
-  (D7).
+- **The toggles:** `terminal.button` is off (D6), and the crate catches
+  `terminal_panel::Toggle`, `ToggleFocus` and a `workspace::ToggleBottomDock` that would show
+  the panel, as it catches New Terminal, and switches between the code and the center
+  terminals instead (#449, D7).
 
 Vim's `:!` still hard-codes the dock (`crates/vim/src/command.rs:2464-2486`). That stays.
 
@@ -290,11 +292,13 @@ with the public `KeymapFile::load` (`keymap_file.rs:258`), tagged as a default s
 bound from one line at the end of `load_default_keymap`. It beats Zed's defaults at equal
 context depth, loses to Chad's own keymap, and survives every reload.
 
-The bindings stay loaded in both layouts. They point at Marley actions, and each one does the
-Zed thing when the layout is Zed: `` ctrl-` `` focuses the project's last terminal or opens one
-(in the Zed layout, `terminal_panel::Toggle`), `ctrl-~` opens a center terminal (in the Zed
-layout, `workspace::NewTerminal`), and a chord opens New Agent. A binding in a Terminal
-context on an unmodified key yields to the PTY
+The terminal keys need none of it (#449). Zed's defaults bind `` ctrl-` `` to
+`terminal_panel::Toggle`, `ctrl-~` to `workspace::NewTerminal` and `ctrl-j` to
+`workspace::ToggleBottomDock`, all in the Workspace context, and the crate catches those
+actions in the capture phase, as it catches New Terminal. That also routes the palette, the
+menus and a user's own bindings to them, which new bindings would miss. The Marley keymap is for
+a key with no Zed action behind it, the first being the New Agent chord (TICKET-450). A
+binding in a Terminal context on an unmodified key yields to the PTY
 (`PR-claude-unmodified-terminal-chords-yield-to-the-pty-001`).
 
 ### D8. Trait details that bite
@@ -330,7 +334,7 @@ Each lands as a row in [zed-touchpoints.md](zed-touchpoints.md) in the same chan
 | W2 | `crates/zed/src/zed.rs`, `initialize_workspace` | `marley_workbench::init(cx)` as its first line, before any window opens (a hunk inside `fn main` would give the DIFF gate a mutant no test reaches) |
 | W2 | `crates/zed/src/zed.rs:536-546` | sidebar construction handed to `marley_workbench` (D1) |
 | W2 | `crates/zed/src/zed.rs`, `test_action_namespaces` | the crate's action namespace in the expected list (`:5889-5984`); the test fails once a crate with new actions is linked |
-| W5b | `crates/zed/src/zed.rs`, `load_default_keymap` | bind the Marley keymap after `specific-overrides` (`:2369-2376`) |
+| W5c | `crates/zed/src/zed.rs`, `load_default_keymap` | bind the Marley keymap after `specific-overrides` (`:2369-2376`) |
 
 Defaults, task routing and terminal routing need none (D2, D6). Deferred until Chad wants
 them: a Marley entry in the title bar's Panel Layout menu (`title_bar.rs`), the AI gate
@@ -362,8 +366,9 @@ configured agent. W4 shipped as #440: a terminal running Claude Code, Codex, Gem
 OpenCode shows as an agent row with the CLI's title and a working or waiting status, and the
 project's `+` starts any installed CLI in one click. W5 shipped as #441: in the Marley layout
 tasks, New Terminal and Open in Terminal open center terminals, and nothing opens the bottom
-panel. The Marley keymap, split from W5 at its promotion, is TICKET-449 (W5b); W6 is
-TICKET-442, queued after it.
+panel. W5b shipped as #449: `` ctrl-` ``, `ctrl-~` and `ctrl-j` work on the center terminals,
+by catching Zed's actions rather than rebinding keys. The Marley keymap and a New Agent chord
+are TICKET-450 (W5c); W6 is TICKET-442, queued after it.
 
 | Slice | Delivers | Size |
 |---|---|---|
@@ -372,7 +377,7 @@ TICKET-442, queued after it.
 | W2 | The switch and a first rail: the `marley` settings block, the two layout actions, live sidebar swapping, the Marley defaults, and a rail with project headers, center terminals, click to switch, New Terminal, single selection and window controls; driven gpui tests and a live drive | L |
 | W3 | Zed threads in the rail: thread rows, status and attention dots, New Agent Thread, opening a thread in the right-hand Agent Panel | M |
 | W4 | Agents in terminals: New Agent, agent recognition and status | M |
-| W5 | Terminal routing in the Marley layout: the task provider and the action capture (#441). The Marley keymap followed as W5b (#449); a terminal on project open moved to W6 | M |
+| W5 | Terminal routing in the Marley layout: the task provider and the action capture (#441), then the terminal keys (#449, W5b). The Marley keymap and a New Agent chord follow as W5c (#450); a terminal on project open moved to W6 | M |
 | W6 | Persistence and polish: closed-rail memory, rename, close, keyboard navigation, filter, the switcher, project reorder | M |
 
 Then the prongs continue in this shell: T0 and T1 draw Blocks inside the rail's terminals,
