@@ -3347,4 +3347,166 @@ mod tests {
             );
         });
     }
+
+    // Marley: a terminal view over a real PTY whose script prints Marley's shell-hook frames,
+    // shown in a test window (#470). The script then sleeps: a child that exits at once can
+    // leave its last bytes unread under load, as the event loop drains only once at exit.
+    #[cfg(unix)]
+    async fn marley_hook_terminal(
+        script: &str,
+        cx: &mut TestAppContext,
+    ) -> (Entity<Terminal>, &'static mut VisualTestContext) {
+        let (project, _, window_handle) = init_test_with_window(cx).await;
+        let program = "/bin/sh".to_string();
+        let args = vec!["-c".to_string(), format!("{script}; sleep 60")];
+        let builder = cx
+            .update(|cx| {
+                terminal::TerminalBuilder::new(
+                    None,
+                    terminal::TerminalMode::task(task::SpawnInTerminal {
+                        command: Some(program.clone()),
+                        args: args.clone(),
+                        ..Default::default()
+                    }),
+                    task::Shell::WithArguments {
+                        program,
+                        args,
+                        title_override: None,
+                    },
+                    Default::default(),
+                    Default::default(),
+                    terminal::terminal_settings::AlternateScroll::On,
+                    None,
+                    vec![],
+                    std::time::Duration::ZERO,
+                    false,
+                    0,
+                    cx,
+                    vec![],
+                    PathStyle::local(),
+                )
+            })
+            .await
+            .unwrap();
+        let terminal = cx.new(|cx| builder.subscribe(cx));
+        window_handle
+            .update(cx, |multi_workspace, window, cx| {
+                let workspace = multi_workspace.workspace().clone();
+                let pane = workspace.read(cx).active_pane().clone();
+                let view = cx.new(|cx| {
+                    TerminalView::new(
+                        terminal.clone(),
+                        workspace.downgrade(),
+                        None,
+                        project.downgrade(),
+                        window,
+                        cx,
+                    )
+                });
+                pane.update(cx, |pane, cx| {
+                    pane.add_item(Box::new(view), true, true, None, window, cx);
+                });
+            })
+            .unwrap();
+        let cx = VisualTestContext::from_window(window_handle.into(), cx).into_mut();
+        (terminal, cx)
+    }
+
+    // Marley: the frames of a command that succeeds and of one that fails, one row apart (#470).
+    #[cfg(unix)]
+    const MARLEY_TWO_BLOCKS: &str = r"printf '\033Ppinit;id=1\033\\\033Ppprecmd;exit=0\033\\$ true\r\n\033Pppreexec;command=true\033\\\033Ppprecmd;exit=0\033\\$ false\r\n\033Pppreexec;command=false\033\\oops\r\n\033Ppprecmd;exit=1\033\\$ '";
+
+    // Marley: draws frames until the terminal holds `count` finished blocks (#470).
+    #[cfg(unix)]
+    async fn marley_draw_until_finished(
+        terminal: &Entity<Terminal>,
+        count: usize,
+        cx: &mut VisualTestContext,
+    ) {
+        for _ in 0..300 {
+            cx.update(|window, _| window.refresh());
+            cx.run_until_parked();
+            let finished = terminal.read_with(cx, |terminal, _| {
+                terminal
+                    .blocks()
+                    .iter()
+                    .filter(|block| block.state == marley_terminal::BlockState::Finished)
+                    .count()
+            });
+            if finished >= count {
+                return;
+            }
+            cx.background_executor
+                .timer(std::time::Duration::from_millis(10))
+                .await;
+        }
+        panic!("the terminal kept fewer than {count} finished blocks");
+    }
+
+    // Marley: each block whose first row is on screen draws its status pill at the right end
+    // of that row (#470).
+    #[cfg(unix)]
+    #[gpui::test]
+    async fn marley_blocks_draw_their_pills_on_their_first_rows(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        // Output first, so the blocks sit below lines that have left the screen for the
+        // scrollback, and their rows depend on it.
+        let script = format!("seq 1 200; {MARLEY_TWO_BLOCKS}");
+        let (terminal, cx) = marley_hook_terminal(&script, cx).await;
+        marley_draw_until_finished(&terminal, 2, cx).await;
+        cx.update(|window, _| window.refresh());
+        let history = terminal.read_with(cx, |terminal, _| {
+            let content = terminal.last_content();
+            content.total_lines - content.screen_lines
+        });
+        assert!(history > 0, "the output scrolled");
+        let first = cx
+            .debug_bounds("marley-block-pill-0")
+            .expect("the passing block's pill");
+        let second = cx
+            .debug_bounds("marley-block-pill-1")
+            .expect("the failing block's pill");
+        let grid = terminal.read_with(cx, |terminal, _| terminal.last_content().terminal_bounds);
+        // Each is centered in its block's first row, and the blocks start one row apart; the
+        // layout snaps each pill to a whole pixel.
+        let apart = second.center().y - first.center().y;
+        assert!(
+            (apart - grid.line_height()).abs() < px(1.),
+            "{apart:?} apart, rows of {:?}",
+            grid.line_height()
+        );
+        // Both end at the grid's right end, less the row's padding.
+        assert_eq!(first.right(), second.right());
+        let right = grid.bounds.origin.x + grid.width();
+        assert!(first.right() <= right && first.right() > right - px(8.));
+    }
+
+    // Marley: on the alternate screen no block is drawn (#470).
+    #[cfg(unix)]
+    #[gpui::test]
+    async fn marley_the_alternate_screen_draws_no_block(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let script = format!(r"{MARLEY_TWO_BLOCKS}; printf '\033[?1049h'");
+        let (terminal, cx) = marley_hook_terminal(&script, cx).await;
+        marley_draw_until_finished(&terminal, 2, cx).await;
+        for _ in 0..300 {
+            let alternate = terminal.read_with(cx, |terminal, _| {
+                terminal
+                    .last_content()
+                    .mode
+                    .contains(terminal::Modes::ALT_SCREEN)
+            });
+            if alternate {
+                break;
+            }
+            cx.background_executor
+                .timer(std::time::Duration::from_millis(10))
+                .await;
+            cx.update(|window, _| window.refresh());
+            cx.run_until_parked();
+        }
+        cx.update(|window, _| window.refresh());
+        assert!(cx.debug_bounds("marley-block-pill-0").is_none());
+        assert!(cx.debug_bounds("marley-block-pill-1").is_none());
+    }
 }

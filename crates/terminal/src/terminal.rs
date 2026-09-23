@@ -550,6 +550,9 @@ pub struct Content {
     pub scrolled_to_top: bool,
     pub scrolled_to_bottom: bool,
     pub bottom_row_occupied: bool,
+    // Marley: the absolute line of the screen's top row with nothing scrolled, evicted lines
+    // plus history, which a block's lines map to rows through (#470).
+    pub marley_screen_top: u64,
 }
 
 #[derive(Debug, Default, Clone, Eq, PartialEq)]
@@ -588,6 +591,8 @@ impl Default for Content {
             scrolled_to_top: false,
             scrolled_to_bottom: false,
             bottom_row_occupied: false,
+            // Marley: #470.
+            marley_screen_top: 0,
         }
     }
 }

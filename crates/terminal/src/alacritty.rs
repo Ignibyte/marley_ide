@@ -928,6 +928,8 @@ pub(super) fn make_content(term: &Term<ZedListener>, last_content: &Content) -> 
         scrolled_to_top: content.display_offset == term.history_size(),
         scrolled_to_bottom: content.display_offset == 0,
         bottom_row_occupied,
+        // Marley: the same frame of reference as a shell hook's absolute line (#470).
+        marley_screen_top: grid.evicted_lines() + grid.history_size() as u64,
     }
 }
 

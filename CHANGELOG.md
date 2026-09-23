@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Blocks drawn in the terminal** (#470, 2026-09-23). Every command Marley's shell integration
+  reports is now visible as a block in the terminal: a thin bar in the left margin beside its
+  rows, green when it succeeded, red when it failed and blue while it runs; a small pill at the
+  right end of its first row with a check, its exit code, or `running`; and a faint red or blue
+  tint over a failed or running block. The terminal's text and rows are unchanged. Nothing is
+  drawn while a full-screen program such as vim uses the alternate screen.
 - **Shell integration for zsh** (#465, 2026-09-23). An interactive zsh that Marley starts in a
   local terminal now loads Marley's integration, as bash has since #463, so every command you
   type in zsh becomes a block with its text, exit code and output. zsh starts with `ZDOTDIR`

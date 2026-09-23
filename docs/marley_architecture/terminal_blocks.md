@@ -117,7 +117,13 @@ real, reusable session. The Block model is the unit the **brain** later observes
 - `anchored.rs` (#464, written in the fork) — `AnchoredBlocks`, the same transitions for Zed's
   terminal, where a block records absolute lines instead of copying its output: `prompt_line`,
   `output_start` and `output_end` from each hook's position. Zed's `Terminal::block_output` reads the
-  lines from its grid while they are held.
+  lines from its grid while they are held. `visible_spans` (#470) maps the blocks to a viewport's
+  rows: a block starts at its prompt's line, else its output's, and ends before `output_end`, or
+  after the cursor's line while it runs. Zed's `TerminalElement` draws them in stage one (the
+  plan's D3): `Content::marley_screen_top` (evicted lines plus history) less `display_offset` is
+  the viewport's top; `marley_block_spans` gives no spans on the alternate screen; `paint` draws
+  a wash (running `info`, failed `error`, faint) after the cells' backgrounds, and a two-pixel
+  bar in the one-cell gutter and a pill at the right end of the first row after the text.
 - `shell_integration.rs` (#463, written in the fork): the embedded `shell_integration/marley.bash`,
   `install_in(dir)`, which writes it when its content changed, and `for_program`, which gives bash
   `--rcfile` and `MARLEY_SHELL_INTEGRATION=1`. Zed's `TerminalBuilder::new` applies it to a local

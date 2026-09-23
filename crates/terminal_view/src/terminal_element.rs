@@ -20,7 +20,7 @@ use terminal::{
 use theme::{ActiveTheme, Theme};
 use theme_settings::ThemeSettings;
 use ui::utils::ensure_minimum_contrast;
-use ui::{ParentElement, Tooltip};
+use ui::{LabelCommon as _, ParentElement, Tooltip};
 use util::ResultExt;
 use workspace::Workspace;
 
@@ -46,6 +46,9 @@ pub struct LayoutState {
     block_below_cursor_element: Option<AnyElement>,
     base_text_style: TextStyle,
     content_mode: ContentMode,
+    // Marley: the blocks on screen, and the pills of those whose first row is (#470).
+    marley_spans: Vec<marley_terminal::BlockSpan>,
+    marley_pills: Vec<AnyElement>,
 }
 
 /// Helper struct for converting terminal cursor points to displayed cursor points.
@@ -1579,6 +1582,30 @@ impl Element for TerminalElement {
                     None
                 };
 
+                // Marley: the blocks on screen, stage one of the three-prong plan's D3 (#470).
+                let marley_spans = {
+                    let terminal = self.terminal.read(cx);
+                    marley_block_spans(terminal.last_content(), terminal.blocks())
+                };
+                let marley_pills = marley_spans
+                    .iter()
+                    .filter(|span| span.starts_in_view)
+                    .filter_map(|span| {
+                        let mut pill = marley_pill(span, dimensions.line_height(), cx)?;
+                        let origin = dimensions.bounds.origin
+                            + point(px(0.), span.rows.start as f32 * dimensions.line_height())
+                            - point(px(0.), scroll_top);
+                        let available_space = size(
+                            AvailableSpace::Definite(dimensions.width()),
+                            AvailableSpace::Definite(dimensions.line_height()),
+                        );
+                        window.with_rem_size(rem_size, |window| {
+                            pill.prepaint_as_root(origin, available_space, window, cx);
+                        });
+                        Some(pill)
+                    })
+                    .collect();
+
                 LayoutState {
                     hitbox,
                     batched_text_runs,
@@ -1595,6 +1622,8 @@ impl Element for TerminalElement {
                     block_below_cursor_element,
                     base_text_style: text_style,
                     content_mode,
+                    marley_spans,
+                    marley_pills,
                 }
             },
         )
@@ -1651,6 +1680,8 @@ impl Element for TerminalElement {
             let original_cursor = layout.cursor.take();
             let hyperlink_tooltip = layout.hyperlink_tooltip.take();
             let block_below_cursor_element = layout.block_below_cursor_element.take();
+            // Marley: #470.
+            let mut marley_pills = mem::take(&mut layout.marley_pills);
             self.interactivity.paint(
                 global_id,
                 inspector_id,
@@ -1676,6 +1707,19 @@ impl Element for TerminalElement {
 
                     for rect in &layout.rects {
                         rect.paint(origin, &layout.dimensions, window);
+                    }
+
+                    // Marley: the wash over a running or failed block's rows (#470).
+                    for span in &layout.marley_spans {
+                        if let Some(color) = marley_wash(span, cx.theme().status()) {
+                            let rows = marley_rows_bounds(
+                                &span.rows,
+                                bounds.origin.x,
+                                origin,
+                                &layout.dimensions,
+                            );
+                            window.paint_quad(fill(rows, color));
+                        }
                     }
 
                     for (relative_highlighted_range, color) in &layout.relative_highlighted_ranges {
@@ -1708,6 +1752,22 @@ impl Element for TerminalElement {
                         block_element_rect.paint(origin, &layout.dimensions, window);
                     }
                     let text_paint_time = text_paint_start.elapsed();
+
+                    // Marley: each block's gutter bar, and the pills (#470).
+                    for span in &layout.marley_spans {
+                        let bar = marley_gutter_bounds(
+                            &span.rows,
+                            bounds.origin.x,
+                            origin,
+                            &layout.dimensions,
+                        );
+                        let color =
+                            marley_bar_color(span, cx.theme().status(), cx.theme().colors().border);
+                        window.paint_quad(fill(bar, color));
+                    }
+                    for pill in &mut marley_pills {
+                        pill.paint(window, cx);
+                    }
 
                     if let Some(text_to_mark) = &marked_text_cloned
                         && !text_to_mark.is_empty()
@@ -2027,11 +2087,247 @@ pub fn convert_color(fg: &Color, theme: &Theme) -> Hsla {
     }
 }
 
+// Marley: the blocks `content` shows, with the rows each covers, and none on the alternate
+// screen, whose rows are not the scrollback the blocks anchor to (#470).
+fn marley_block_spans(
+    content: &Content,
+    blocks: &[marley_terminal::AnchoredBlock],
+) -> Vec<marley_terminal::BlockSpan> {
+    if content.mode.contains(Modes::ALT_SCREEN) {
+        return Vec::new();
+    }
+    let top = content
+        .marley_screen_top
+        .saturating_sub(content.display_offset as u64);
+    let cursor_line =
+        content.marley_screen_top + u64::try_from(content.cursor.point.line).unwrap_or_default();
+    marley_terminal::visible_spans(blocks, top, content.screen_lines, cursor_line)
+}
+
+// Marley: the pixel bounds of a block's viewport rows, from the element's left edge, over the
+// gutter, to the grid's right end (#470).
+fn marley_rows_bounds(
+    rows: &std::ops::Range<usize>,
+    element_left: Pixels,
+    origin: GpuiPoint<Pixels>,
+    dimensions: &TerminalBounds,
+) -> Bounds<Pixels> {
+    Bounds::new(
+        point(
+            element_left,
+            origin.y + rows.start as f32 * dimensions.line_height(),
+        ),
+        size(
+            origin.x + dimensions.width() - element_left,
+            rows.len() as f32 * dimensions.line_height(),
+        ),
+    )
+}
+
+// Marley: a block's gutter bar, two pixels wide and centered in the gutter left of column 0,
+// over the block's rows (#470).
+fn marley_gutter_bounds(
+    rows: &std::ops::Range<usize>,
+    element_left: Pixels,
+    origin: GpuiPoint<Pixels>,
+    dimensions: &TerminalBounds,
+) -> Bounds<Pixels> {
+    let width = px(2.);
+    Bounds::new(
+        point(
+            element_left + (origin.x - element_left - width) / 2.,
+            origin.y + rows.start as f32 * dimensions.line_height(),
+        ),
+        size(width, rows.len() as f32 * dimensions.line_height()),
+    )
+}
+
+// Marley: the wash over a block's rows: a faint `info` while it runs, a faint `error` after a
+// failure, none otherwise (#470).
+fn marley_wash(span: &marley_terminal::BlockSpan, status: &theme::StatusColors) -> Option<Hsla> {
+    match (span.state, span.exit_code.0) {
+        (marley_terminal::BlockState::Running, _) => Some(status.info.opacity(0.06)),
+        (_, Some(code)) if code != 0 => Some(status.error.opacity(0.08)),
+        _ => None,
+    }
+}
+
+// Marley: a block's gutter bar color: `info` while it runs, `success` for exit 0, `error` for
+// another exit code, and `border` without one (#470).
+fn marley_bar_color(
+    span: &marley_terminal::BlockSpan,
+    status: &theme::StatusColors,
+    border: Hsla,
+) -> Hsla {
+    match (span.state, span.exit_code.0) {
+        (marley_terminal::BlockState::Running, _) => status.info,
+        (_, Some(0)) => status.success,
+        (_, Some(_)) => status.error,
+        (_, None) => border,
+    }
+}
+
+// Marley: a block's status pill, at the right end of the row it starts on: a check for exit 0,
+// the exit code for another, `running` while it runs, and none without an exit code (#470).
+fn marley_pill(
+    span: &marley_terminal::BlockSpan,
+    line_height: Pixels,
+    cx: &App,
+) -> Option<AnyElement> {
+    let theme = cx.theme();
+    let status = theme.status();
+    let (content, border) = match (span.state, span.exit_code.0) {
+        (marley_terminal::BlockState::Running, _) => (
+            ui::Label::new("running")
+                .size(ui::LabelSize::XSmall)
+                .color(ui::Color::Info)
+                .into_any_element(),
+            status.info,
+        ),
+        (_, Some(0)) => (
+            ui::Icon::new(ui::IconName::Check)
+                .size(ui::IconSize::XSmall)
+                .color(ui::Color::Success)
+                .into_any_element(),
+            status.success,
+        ),
+        (_, Some(code)) => (
+            ui::Label::new(format!("exit {code}"))
+                .size(ui::LabelSize::XSmall)
+                .color(ui::Color::Error)
+                .into_any_element(),
+            status.error,
+        ),
+        (_, None) => return None,
+    };
+    let index = span.index;
+    Some(
+        div()
+            .flex()
+            .w_full()
+            .h(line_height)
+            .justify_end()
+            .items_center()
+            .pr_1()
+            .child(
+                div()
+                    .debug_selector(move || format!("marley-block-pill-{index}"))
+                    .flex()
+                    .items_center()
+                    .px_1()
+                    .rounded_sm()
+                    .border_1()
+                    .border_color(border)
+                    .bg(theme.colors().terminal_background)
+                    .child(content),
+            )
+            .into_any_element(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use gpui::{AbsoluteLength, Hsla, font};
     use ui::utils::apca_contrast;
+
+    // Marley: a block span for the decoration tests (#470).
+    fn marley_span(
+        state: marley_terminal::BlockState,
+        exit: Option<i32>,
+    ) -> marley_terminal::BlockSpan {
+        marley_terminal::BlockSpan {
+            index: 0,
+            rows: 2..5,
+            starts_in_view: true,
+            state,
+            exit_code: marley_terminal::ExitCode(exit),
+        }
+    }
+
+    // Marley: the blocks a content shows, from its screen top less the scroll, and none on the
+    // alternate screen (#470).
+    #[test]
+    fn marley_the_blocks_on_screen_follow_the_scroll_and_not_the_alternate_screen() {
+        let blocks = [marley_terminal::AnchoredBlock {
+            index: 0,
+            command: "true".to_string(),
+            state: marley_terminal::BlockState::Finished,
+            exit_code: marley_terminal::ExitCode(Some(0)),
+            prompt: marley_terminal::PromptInfo::default(),
+            prompt_line: Some(40),
+            output_start: 41,
+            output_end: Some(42),
+        }];
+        let mut content = Content {
+            screen_lines: 10,
+            marley_screen_top: 45,
+            ..Content::default()
+        };
+        // The screen shows lines 45 to 54: the block is in the scrollback.
+        assert!(marley_block_spans(&content, &blocks).is_empty());
+        // Scrolled back by 8, it shows lines 37 to 46: the block's two rows from row 3.
+        content.display_offset = 8;
+        let spans = marley_block_spans(&content, &blocks);
+        assert_eq!(
+            spans
+                .iter()
+                .map(|span| span.rows.clone())
+                .collect::<Vec<_>>(),
+            [3..5]
+        );
+        content.mode = Modes::ALT_SCREEN;
+        assert!(marley_block_spans(&content, &blocks).is_empty());
+    }
+
+    // Marley: a block's wash spans the gutter and the grid over its rows, and its bar sits
+    // centered in the gutter over the same rows (#470).
+    #[test]
+    fn marley_a_blocks_decorations_cover_its_rows() {
+        // A 10px gutter from x 100, the grid from x 110, 20px rows from y 50.
+        let dimensions = TerminalBounds::new(
+            px(20.),
+            px(10.),
+            Bounds::new(point(px(110.), px(50.)), size(px(800.), px(400.))),
+        );
+        let origin = dimensions.bounds.origin;
+        assert_eq!(
+            marley_rows_bounds(&(2..5), px(100.), origin, &dimensions),
+            Bounds::new(point(px(100.), px(90.)), size(px(810.), px(60.)))
+        );
+        assert_eq!(
+            marley_gutter_bounds(&(2..5), px(100.), origin, &dimensions),
+            Bounds::new(point(px(104.), px(90.)), size(px(2.), px(60.)))
+        );
+    }
+
+    // Marley: the wash and the bar take the block's status colors (#470).
+    #[test]
+    fn marley_a_blocks_colors_follow_its_status() {
+        use marley_terminal::BlockState::{Finished, Running};
+        let status = theme::StatusColors::dark();
+        let border = Hsla::white();
+        let cases = [
+            (Running, None, Some(status.info.opacity(0.06)), status.info),
+            (Finished, Some(0), None, status.success),
+            (
+                Finished,
+                Some(2),
+                Some(status.error.opacity(0.08)),
+                status.error,
+            ),
+            (Finished, None, None, border),
+        ];
+        for (state, exit, wash, bar) in cases {
+            let span = marley_span(state, exit);
+            assert_eq!(marley_wash(&span, &status), wash, "{state:?} {exit:?}");
+            assert_eq!(
+                marley_bar_color(&span, &status, border),
+                bar,
+                "{state:?} {exit:?}"
+            );
+        }
+    }
 
     #[test]
     fn test_is_decorative_character() {

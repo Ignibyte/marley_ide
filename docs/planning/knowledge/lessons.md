@@ -2293,3 +2293,35 @@ whether a program is installed fails it. To check for a program, scan `PATH`
 (`std::env::split_paths(&path).any(|dir| dir.join(name).is_file())`); to run one, use `smol`.
 Run `cargo clippy -p <every touched crate> --all-targets -- -D warnings`, Zed's crates too,
 before the gate.
+
+## L-claude-470-the-alternate-grid-counts-its-own-evicted-lines-001
+*category: code · topic: blocks and the alternate screen · from: pipeline 470*
+
+While a program holds the alternate screen, `term.grid()` is the alternate grid, and the
+vendored `evicted_lines` counts the lines that grid scrolls away: entering it with
+`\e[?1049h` clears it, which scrolls it, so in #470's test its evicted count read 49 right away.
+Anything built from the active grid's evicted lines and history (`marley_screen_top`, a hook's
+absolute line) is in the alternate grid's frame of reference then, not the scrollback's. That is
+why blocks draw nothing on the alternate screen, and why a driven test of that guard passed
+without it: the blocks happened to map above the alternate viewport. Test such a guard at the
+function that holds it, with the content built by hand.
+
+## L-claude-470-a-script-edit-skips-the-ledger-hook-001
+*category: code · topic: the Zed ledger · from: pipeline 470*
+
+`enforce-zed-ledger.sh` runs on the Write and Edit tools. An edit made by a script through Bash
+(a `python3` patch, `sed -i`) never meets it, so a Zed path can change with no row; in #470 the
+driven tests went into `crates/terminal_view/src/terminal_view.rs` that way, and gate:16 caught
+it at the end. Before a scripted edit of a path outside the Marley-owned set, write its row, as
+the hook would have required.
+
+## L-claude-470-a-pty-test-child-that-exits-can-lose-its-last-bytes-001
+*category: validate · topic: PTY tests · from: pipeline 470*
+
+A PTY test whose script prints and exits at once can lose its last bytes under load: when the
+child exits, alacritty's event loop drains with a single `pty_read`, and a read error there ends
+the drain (`vendor/alacritty_terminal/src/event_loop.rs:266-277`). #470's pill test passed alone
+in 0.2 s and failed one run in three with its suite's neighbours, 32 seconds without the last
+frames. End such a script with `sleep 60` (the test drops the terminal, and the child with it):
+four runs under the same load passed. #464's `build_shell_hook_terminal` scripts still exit at
+once.

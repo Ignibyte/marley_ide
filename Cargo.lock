@@ -18442,6 +18442,7 @@ dependencies = [
  "itertools 0.14.0",
  "language",
  "log",
+ "marley_terminal",
  "menu",
  "pretty_assertions",
  "project",

@@ -14,6 +14,11 @@
 //!
 //! A `Preexec` or `Precmd` before any `InitShell` is refused, as the gpui era's `SessionModel`
 //! refuses it.
+//!
+//! [`visible_spans`] says which blocks a viewport shows and over which of its rows, for the
+//! terminal view to draw them (T1).
+
+use std::ops::Range;
 
 use crate::apply::ApplyHookError;
 use crate::block::{BlockState, ExitCode, PromptInfo};
@@ -117,6 +122,58 @@ impl AnchoredBlocks {
     }
 }
 
+/// Where a block sits in a viewport.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlockSpan {
+    /// The block's place among the terminal's blocks.
+    pub index: usize,
+    /// The viewport rows the block covers, counted from the top row, 0.
+    pub rows: Range<usize>,
+    /// Whether the block's first line is in the viewport.
+    pub starts_in_view: bool,
+    /// Whether the block is running or finished.
+    pub state: BlockState,
+    /// The block's exit code, if it has one.
+    pub exit_code: ExitCode,
+}
+
+/// The blocks a viewport shows, in order, each with the rows it covers there.
+///
+/// The viewport is `screen_lines` rows from the absolute line `top`. A block starts at its
+/// prompt's line, or at its output's when no prompt was seen; it ends before its `output_end`,
+/// or, while it runs, after the absolute line `cursor_line`, where its output is still being
+/// written. A block with no line in the viewport is left out.
+#[must_use]
+pub fn visible_spans(
+    blocks: &[AnchoredBlock],
+    top: u64,
+    screen_lines: usize,
+    cursor_line: u64,
+) -> Vec<BlockSpan> {
+    let bottom = top.saturating_add(u64::try_from(screen_lines).unwrap_or(u64::MAX));
+    let row = |line: u64| usize::try_from(line - top).ok();
+    blocks
+        .iter()
+        .filter_map(|block| {
+            let start = block.prompt_line.unwrap_or(block.output_start);
+            let end = block
+                .output_end
+                .unwrap_or_else(|| cursor_line.saturating_add(1));
+            let (first, last) = (start.max(top), end.min(bottom));
+            if first >= last {
+                return None;
+            }
+            Some(BlockSpan {
+                index: block.index,
+                rows: row(first)?..row(last)?,
+                starts_in_view: start >= top,
+                state: block.state,
+                exit_code: block.exit_code,
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -150,6 +207,83 @@ mod tests {
             pwd: Some(pwd.to_string()),
             ..PromptInfo::default()
         }
+    }
+
+    /// A block whose output starts at `output_start` and, once it finished, ends before
+    /// `output_end`.
+    fn spanned(
+        index: usize,
+        prompt_line: Option<u64>,
+        output_start: u64,
+        output_end: Option<u64>,
+    ) -> AnchoredBlock {
+        AnchoredBlock {
+            index,
+            command: format!("command {index}"),
+            state: if output_end.is_some() {
+                BlockState::Finished
+            } else {
+                BlockState::Running
+            },
+            exit_code: ExitCode(output_end.map(|_| 0)),
+            prompt: PromptInfo::default(),
+            prompt_line,
+            output_start,
+            output_end,
+        }
+    }
+
+    fn span(index: usize, rows: Range<usize>, starts_in_view: bool, finished: bool) -> BlockSpan {
+        BlockSpan {
+            index,
+            rows,
+            starts_in_view,
+            state: if finished {
+                BlockState::Finished
+            } else {
+                BlockState::Running
+            },
+            exit_code: ExitCode(finished.then_some(0)),
+        }
+    }
+
+    #[test]
+    fn a_viewport_shows_the_rows_of_each_block_it_holds() {
+        // A viewport of 10 rows from line 100.
+        let blocks = [
+            spanned(0, Some(80), 81, Some(90)),
+            spanned(1, Some(95), 97, Some(104)),
+            spanned(2, Some(104), 105, Some(108)),
+            spanned(3, None, 108, Some(112)),
+            spanned(4, Some(112), 113, None),
+        ];
+        assert_eq!(
+            visible_spans(&blocks, 100, 10, 115),
+            [
+                // Started above: its rows from the top, and its first line out of view.
+                span(1, 0..4, false, true),
+                span(2, 4..8, true, true),
+                // No prompt seen: it starts at its output.
+                span(3, 8..10, true, true),
+            ]
+        );
+        // The running block runs to the cursor's line; with the viewport lower it shows.
+        assert_eq!(
+            visible_spans(&blocks, 110, 10, 115),
+            [span(3, 0..2, false, true), span(4, 2..6, true, false)]
+        );
+    }
+
+    #[test]
+    fn a_block_with_no_line_in_the_viewport_is_left_out() {
+        let blocks = [
+            spanned(0, Some(10), 11, Some(20)),
+            spanned(1, None, 30, Some(30)),
+            spanned(2, Some(50), 51, Some(60)),
+        ];
+        // Above, empty, and below a viewport of lines 25 to 34.
+        assert!(visible_spans(&blocks, 25, 10, 40).is_empty());
+        assert!(visible_spans(&[], 0, 10, 0).is_empty());
     }
 
     #[test]

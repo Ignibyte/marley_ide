@@ -1718,3 +1718,23 @@ Rejected:
 
 A user with no zsh startup files no longer gets zsh's new-user menu in Marley's terminals,
 since Marley's `ZDOTDIR` holds a `.zshenv`.
+
+## AD-claude-470-stage-one-draws-blocks-over-zeds-rows-001
+*decided at: 2026-09-23 · status: shipped*
+
+Stage one of the plan's D3 draws each block over Zed's own terminal rows, with no change to the
+row model:
+- `marley_terminal::visible_spans` (pure) maps blocks to a viewport's rows from the viewport's
+  top as an absolute line, the frame of reference of the hooks' positions.
+- `Content::marley_screen_top` (evicted lines plus history) carries that frame to the element;
+  the top is it less `display_offset`, and a running block runs to the cursor's line.
+- `TerminalElement` paints a faint wash (running `info`, failed `error`) after the cells'
+  backgrounds, a two-pixel bar in the one-cell gutter Zed already leaves left of column 0, and a
+  pill (a check, `exit N`, `running`) at the right end of a block's first row, an `AnyElement`
+  laid out as Zed lays out its hyperlink tooltip.
+- Nothing draws on the alternate screen: `term.grid()` is then the alternate grid, whose lines
+  and evicted count are its own.
+
+Rejected: header rows above each block and a hidden prompt (stage two, T5, which needs a
+display-row map); a sticky pill for a block whose first row scrolled away (later); elapsed time
+(blocks record none yet).
