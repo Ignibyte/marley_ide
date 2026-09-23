@@ -117,12 +117,13 @@ Marley shipped as `#433`.
 | Slice | Delivers | Size |
 |---|---|---|
 | T0 | Split at its promotion: the vendored `alacritty_terminal` (#461, T0a, shipped); `Event::ShellHook` from the event loop, with unit tests on recorded byte streams (#462, T0b, shipped); the anchored `BlockList` on `Terminal` and a `blocks()` accessor (#464, shipped); the hook scripts and their injection, bash first (#463, T0c, shipped), then zsh (#465, shipped) and fish (#466) | M |
-| T1 | Stage-one rendering: gutter, pill, wash (#470, T1a, shipped); hover copy/rerun (#474, T1b, shipped); block navigation keys (#473, T1c, shipped) | M |
+| T1 | Stage-one rendering: gutter, pill, wash (#470, T1a, shipped); hover copy/rerun (#474, T1b, shipped); block navigation keys (#473, T1c, shipped); the content drawn against the bottom edge, so the prompt sits on the last row (#476, T1d) | M |
 | T2 | Block-scoped path links (resolve against the block's cwd) and jump-to-first-failure | S |
 | T3 | The prompt editor with history ghost text and the raw-passthrough ladder | L |
 | T4 | Tasks and runnables as Blocks; failed Blocks into diagnostics | M |
 | T5 | Stage-two rendering: native header rows, PS1 hidden, Warp density | L |
 | T6 | Completions in the prompt (paths, history, tasks) and command-line colouring | M |
+| T7 | CLI agents in the terminal, after Warp's agent toolbelt: the agent bar with the folder and branch (#477, T7a); desktop notifications from OSC 9 and 777 and a Claude Code plugin that sends them (#478, T7b); Attach File (#479, T7c); voice through Voxtype (#480, T7d); rich input, a Zed editor for the agent's prompt and the agent-first half of T3 (#481, T7e) | M |
 
 Acceptance for T0 is the Marley integration test moved onto Zed's terminal: a real shell
 emits the hook stream and a Finished block with exit 0 and the output "hi" appears.
