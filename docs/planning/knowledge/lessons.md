@@ -2046,3 +2046,22 @@ What #453 found (`crates/marley_workbench/src/rail_tests.rs`,
   `PR-claude-a-negative-assert-must-prove-the-machinery-ran-001` asks of a negative assert. An
   assertion whose expected value is also what the unchanged code gives cannot fail either: the
   first REQ-004 check expected the window's row, which was also the keyboard's.
+
+## L-claude-457-a-single-line-editor-hands-zeds-list-keys-to-its-container-001
+*category: code · topic: a text field inside a keyboard list · from: pipeline 457*
+
+What #457 relied on, and proved with Zed's keymap bound (`crates/marley_workbench/src/rail_tests.rs`,
+`ctrl_f_reaches_the_filter_and_zeds_keys_work_in_it`):
+- In a single-line `Editor`, `editor::MoveUp`, `editor::MoveDown` and `editor::Cancel`
+  propagate (`crates/editor/src/navigation.rs:52-55`, `crates/editor/src/editor.rs:3553`), and
+  gpui then tries the next binding for the key (`crates/gpui/src/window.rs:5944-5957`). Up, down
+  and Escape arrive as `menu::SelectPrevious`, `menu::SelectNext` and `menu::Cancel` on the
+  container's handlers, as in Zed's pickers. Enter needs nothing: only `Editor && mode == full`
+  binds it.
+- A container that handles `menu::Cancel` must `cx.propagate()` when it has nothing to do, or
+  it swallows what Escape reached before, here `workspace::Unfollow`.
+- `HighlightedLabel::new` takes UTF-8 byte offsets and debug-panics on one that is not a char
+  boundary (`crates/ui/src/components/label/highlighted_label.rs:17-32`). Compute the positions
+  on the exact string the row draws, and test with a multibyte character before the match.
+- A binding in a panel's context also fires from the popovers the panel opens, which keep it as
+  their dispatch parent (`window.rs:4338`). `!Picker` keeps a key out of a picker's field.

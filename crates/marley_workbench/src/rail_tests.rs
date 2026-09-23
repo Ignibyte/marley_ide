@@ -1,7 +1,9 @@
 //! Driven tests for the rail: its rows, the clicks and menus on them, the bell, and the answers
 //! the `MultiWorkspace` reads from it.
 
+use std::cell::Cell;
 use std::path::Path;
+use std::rc::Rc;
 
 use fs::FakeFs;
 use gpui::{
@@ -77,7 +79,12 @@ fn listing(rail: &Entity<Rail>, cx: &VisualTestContext) -> Vec<(String, Vec<u64>
     for row in rail.read_with(cx, |rail, _| marley_rail::rail_rows(&rail.snapshot.rail)) {
         match row {
             Row::Project(project) => listing.push((project.name, Vec::new())),
-            Row::Terminal(terminal) => listing[terminal.project].1.push(terminal.id),
+            // A terminal row follows its project's header; the filter may hide other projects.
+            Row::Terminal(terminal) => {
+                if let Some((_, terminals)) = listing.last_mut() {
+                    terminals.push(terminal.id);
+                }
+            }
             Row::Thread(_) => {}
         }
     }
@@ -779,6 +786,297 @@ async fn zeds_default_keys_walk_and_open_the_rail(cx: &mut TestAppContext) {
     cx.read(|cx| assert_eq!(multi_workspace.read(cx).workspace(), &alpha));
 }
 
+// ── W6h: the filter ──────────────────────────────────────────────────────────
+
+/// A display-only terminal in `workspace`'s center, with a name the user gave it.
+fn add_named_terminal(
+    workspace: &Entity<Workspace>,
+    title: &str,
+    cx: &mut VisualTestContext,
+) -> Entity<TerminalView> {
+    let (_, view) = add_terminal(workspace, false, cx);
+    view.update(cx, |view, cx| view.set_custom_title(Some(title.into()), cx));
+    cx.run_until_parked();
+    view
+}
+
+/// Focuses the rail's filter, draws it, and types `text` into it.
+fn type_in_filter(rail: &Entity<Rail>, text: &str, cx: &mut VisualTestContext) {
+    rail.update_in(cx, |rail, window, cx| {
+        window.focus(&rail.filter_editor.focus_handle(cx), cx);
+    });
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    cx.simulate_input(text);
+    cx.run_until_parked();
+}
+
+fn filter_text(rail: &Entity<Rail>, cx: &VisualTestContext) -> String {
+    rail.read_with(cx, |rail, cx| rail.filter_editor.read(cx).text(cx))
+}
+
+fn in_filter(rail: &Entity<Rail>, cx: &mut VisualTestContext) -> bool {
+    cx.update(|window, cx| {
+        rail.read(cx)
+            .filter_editor
+            .focus_handle(cx)
+            .is_focused(window)
+    })
+}
+
+fn on_the_rows(rail: &Entity<Rail>, cx: &mut VisualTestContext) -> bool {
+    cx.update(|window, cx| rail.read(cx).focus_handle.is_focused(window))
+}
+
+/// Whether a fresh frame draws something under `selector`.
+fn drawn(selector: &'static str, cx: &mut VisualTestContext) -> bool {
+    cx.update(|window, _| window.refresh());
+    cx.debug_bounds(selector).is_some()
+}
+
+fn highlight_of(
+    rail: &Entity<Rail>,
+    view: &Entity<TerminalView>,
+    cx: &VisualTestContext,
+) -> Option<Vec<usize>> {
+    rail.read_with(cx, |rail, _| {
+        marley_rail::rail_rows(&rail.snapshot.rail)
+            .into_iter()
+            .find_map(|row| match row {
+                Row::Terminal(row) if row.id == id(view) => Some(row.highlight),
+                _ => None,
+            })
+    })
+}
+
+fn clear_filter(rail: &Entity<Rail>, cx: &mut VisualTestContext) {
+    rail.update_in(cx, |rail, window, cx| rail.clear_filter(window, cx));
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+async fn typing_in_the_filter_narrows_the_rail(cx: &mut TestAppContext) {
+    let (_, alpha, beta, rail, cx) = open_rail(cx).await;
+    let build = add_named_terminal(&alpha, "build", cx);
+    add_named_terminal(&alpha, "logs", cx);
+    let server = add_named_terminal(&beta, "server", cx);
+    click("marley-rail-disclosure-1", cx);
+    let folded = vec![
+        ("beta".to_string(), vec![id(&server)]),
+        ("alpha".to_string(), Vec::new()),
+    ];
+    assert_eq!(listing(&rail, cx), folded);
+    // A title matches ignoring ASCII case, and a folded project shows the row that matched.
+    type_in_filter(&rail, "BUILD", cx);
+    assert_eq!(
+        listing(&rail, cx),
+        [("alpha".to_string(), vec![id(&build)])]
+    );
+    assert!(
+        !drawn("marley-rail-disclosure-1", cx),
+        "the chevron hides while filtering"
+    );
+    // A project's name shows every row under it.
+    clear_filter(&rail, cx);
+    type_in_filter(&rail, "bet", cx);
+    assert_eq!(
+        listing(&rail, cx),
+        [("beta".to_string(), vec![id(&server)])]
+    );
+    clear_filter(&rail, cx);
+    assert_eq!(listing(&rail, cx), folded, "the fold is as it was");
+    assert!(drawn("marley-rail-disclosure-1", cx));
+}
+
+#[gpui::test]
+async fn the_filter_highlights_what_it_matched(cx: &mut TestAppContext) {
+    let (_, alpha, _, rail, cx) = open_rail(cx).await;
+    let view = add_named_terminal(&alpha, "ünïcode build", cx);
+    assert_eq!(highlight_of(&rail, &view, cx), Some(Vec::new()));
+    type_in_filter(&rail, "build", cx);
+    assert_eq!(
+        highlight_of(&rail, &view, cx),
+        Some(vec![10, 11, 12, 13, 14])
+    );
+    // A position off a character boundary would panic as the label draws.
+    assert!(drawn(terminal_selector(&view), cx));
+    clear_filter(&rail, cx);
+    type_in_filter(&rail, "alp", cx);
+    let header = rail.read_with(cx, |rail, _| {
+        marley_rail::rail_rows(&rail.snapshot.rail)
+            .into_iter()
+            .find_map(|row| match row {
+                Row::Project(row) => Some(row.highlight),
+                Row::Terminal(_) | Row::Thread(_) => None,
+            })
+    });
+    assert_eq!(header, Some(vec![0, 1, 2]));
+    assert!(drawn("marley-rail-project-1", cx));
+}
+
+#[gpui::test]
+async fn a_filter_that_matches_nothing_says_so(cx: &mut TestAppContext) {
+    let (_, _, _, rail, cx) = open_rail(cx).await;
+    assert!(!drawn("marley-rail-no-matches", cx));
+    type_in_filter(&rail, "zzz", cx);
+    assert!(listing(&rail, cx).is_empty());
+    assert!(drawn("marley-rail-no-matches", cx));
+}
+
+#[gpui::test]
+async fn the_keyboard_starts_on_the_first_match_and_opens_it(cx: &mut TestAppContext) {
+    let (multi_workspace, alpha, beta, rail, cx) = open_rail(cx).await;
+    let logs = add_named_terminal(&alpha, "logs", cx);
+    add_named_terminal(&beta, "server", cx);
+    // The filter hides beta, the displayed project, and alpha's logs match first.
+    type_in_filter(&rail, "og", cx);
+    assert_eq!(selected(&rail, cx), Selection::Terminal(id(&logs)));
+    dispatch(SelectPrevious, cx);
+    assert_eq!(selected(&rail, cx), Selection::Project(1));
+    dispatch(SelectNext, cx);
+    assert_eq!(selected(&rail, cx), Selection::Terminal(id(&logs)));
+    assert!(in_filter(&rail, cx), "the filter keeps focus");
+    dispatch(Confirm, cx);
+    cx.read(|cx| assert_eq!(multi_workspace.read(cx).workspace(), &alpha));
+    let focused = cx.update(|window, cx| logs.focus_handle(cx).contains_focused(window, cx));
+    assert!(focused, "the terminal takes focus");
+    assert_eq!(
+        filter_text(&rail, cx),
+        "og",
+        "the filter stays until it is cleared"
+    );
+}
+
+#[gpui::test]
+async fn left_and_right_do_not_fold_while_filtering(cx: &mut TestAppContext) {
+    let (_, alpha, _, rail, cx) = open_rail(cx).await;
+    let build = add_named_terminal(&alpha, "build", cx);
+    // Left on the header of an open project the filter shows leaves it open.
+    type_in_filter(&rail, "alp", cx);
+    assert_eq!(selected(&rail, cx), Selection::Project(1));
+    dispatch(SelectParent, cx);
+    clear_filter(&rail, cx);
+    assert_eq!(
+        listing(&rail, cx)[1],
+        ("alpha".to_string(), vec![id(&build)])
+    );
+    // Right on a folded one leaves it folded.
+    click("marley-rail-disclosure-1", cx);
+    type_in_filter(&rail, "alp", cx);
+    assert_eq!(selected(&rail, cx), Selection::Project(1));
+    dispatch(SelectChild, cx);
+    clear_filter(&rail, cx);
+    assert_eq!(listing(&rail, cx)[1], ("alpha".to_string(), Vec::new()));
+}
+
+#[gpui::test]
+async fn escape_clears_the_filter_then_leaves_it(cx: &mut TestAppContext) {
+    let (_, alpha, beta, rail, cx) = open_rail(cx).await;
+    add_named_terminal(&alpha, "build", cx);
+    // A stand-in for what handles Escape above the rail.
+    let passed_on = Rc::new(Cell::new(false));
+    beta.update(cx, |workspace, _| {
+        let passed_on = Rc::clone(&passed_on);
+        workspace.register_action(move |_, _: &Cancel, _, _| passed_on.set(true));
+    });
+    type_in_filter(&rail, "bu", cx);
+    dispatch(Cancel, cx);
+    assert_eq!(filter_text(&rail, cx), "");
+    assert!(
+        in_filter(&rail, cx),
+        "the first Escape keeps focus in the filter"
+    );
+    dispatch(Cancel, cx);
+    assert!(on_the_rows(&rail, cx), "the second goes back to the rows");
+    // On the rows, Escape clears a filter first.
+    type_in_filter(&rail, "bu", cx);
+    focus_rail(&rail, cx);
+    dispatch(Cancel, cx);
+    assert_eq!(filter_text(&rail, cx), "");
+    assert!(!passed_on.get());
+    // With nothing to clear, Escape goes on as before.
+    dispatch(Cancel, cx);
+    assert!(passed_on.get());
+}
+
+#[gpui::test]
+async fn the_clear_button_empties_the_filter(cx: &mut TestAppContext) {
+    let (_, alpha, _, rail, cx) = open_rail(cx).await;
+    add_named_terminal(&alpha, "build", cx);
+    let every_row = listing(&rail, cx);
+    type_in_filter(&rail, "zzz", cx);
+    assert!(listing(&rail, cx).is_empty());
+    click("marley-rail-filter-clear", cx);
+    assert_eq!(filter_text(&rail, cx), "");
+    assert_eq!(listing(&rail, cx), every_row);
+    assert!(!drawn("marley-rail-filter-clear", cx));
+}
+
+/// Binds Zed's Linux default keymap, then the Marley keymap, as `load_default_keymap` does.
+#[cfg(target_os = "linux")]
+fn bind_the_default_keymaps(cx: &mut VisualTestContext) {
+    cx.update(|_, cx| {
+        let bindings = settings::KeymapFile::load_asset_allow_partial_failure(
+            settings::DEFAULT_KEYMAP_PATH,
+            cx,
+        )
+        .expect("Zed's default keymap loads");
+        cx.bind_keys(bindings);
+        crate::load_keymap_from(crate::KEYMAP, cx).expect("the Marley keymap loads");
+    });
+}
+
+#[cfg(target_os = "linux")]
+fn press(keystrokes: &str, cx: &mut VisualTestContext) {
+    cx.update(|window, _| window.refresh());
+    cx.simulate_keystrokes(keystrokes);
+    cx.run_until_parked();
+}
+
+// Zed's default keys differ by platform; these are Linux's.
+#[cfg(target_os = "linux")]
+#[gpui::test]
+async fn ctrl_f_reaches_the_filter_and_zeds_keys_work_in_it(cx: &mut TestAppContext) {
+    let (multi_workspace, alpha, beta, rail, cx) = open_rail(cx).await;
+    let logs = add_named_terminal(&alpha, "logs", cx);
+    add_named_terminal(&beta, "server", cx);
+    bind_the_default_keymaps(cx);
+    focus_rail(&rail, cx);
+    press("ctrl-f", cx);
+    assert!(in_filter(&rail, cx), "ctrl-f focuses the filter");
+    cx.simulate_input("s");
+    cx.run_until_parked();
+    // Up and down pass the single-line editor by, to the rail.
+    press("down", cx);
+    press("down", cx);
+    press("up", cx);
+    press("down", cx);
+    assert_eq!(selected(&rail, cx), Selection::Terminal(id(&logs)));
+    press("enter", cx);
+    cx.read(|cx| assert_eq!(multi_workspace.read(cx).workspace(), &alpha));
+    focus_rail(&rail, cx);
+    press("ctrl-f", cx);
+    press("escape", cx);
+    assert_eq!(filter_text(&rail, cx), "", "Escape clears the filter");
+    press("escape", cx);
+    assert!(on_the_rows(&rail, cx), "and then leaves it for the rows");
+}
+
+#[cfg(target_os = "linux")]
+#[gpui::test]
+async fn ctrl_f_in_the_add_project_picker_stays_there(cx: &mut TestAppContext) {
+    let (_, _, _, rail, cx) = open_rail(cx).await;
+    bind_the_default_keymaps(cx);
+    click("marley-rail-add-project", cx);
+    let picker_focused = |cx: &mut VisualTestContext| {
+        cx.update(|window, cx| rail.read(cx).add_project_menu.is_focused(window, cx))
+    };
+    assert!(picker_focused(cx), "the picker takes focus");
+    press("ctrl-f", cx);
+    assert!(picker_focused(cx));
+    assert!(!in_filter(&rail, cx));
+}
+
 #[gpui::test]
 async fn add_project_opens_the_recent_projects_popover(cx: &mut TestAppContext) {
     let (_, _, _, rail, cx) = open_rail(cx).await;
@@ -1113,6 +1411,54 @@ mod threads {
         let focused =
             cx.update(|window, cx| alpha_panel.focus_handle(cx).contains_focused(window, cx));
         assert!(focused, "the Agent Panel takes focus");
+    }
+
+    #[gpui::test]
+    async fn the_filter_matches_thread_titles(cx: &mut TestAppContext) {
+        let (_, _, _, rail, cx) = open_rail_with_agents(cx).await;
+        seed(
+            "Fix the build",
+            path!("/alpha"),
+            path!("/alpha"),
+            1,
+            false,
+            false,
+            cx,
+        );
+        seed(
+            "Write the docs",
+            path!("/alpha"),
+            path!("/alpha"),
+            2,
+            false,
+            false,
+            cx,
+        );
+        type_in_filter(&rail, "build", cx);
+        let shown: Vec<(String, Vec<usize>)> = rail.read_with(cx, |rail, _| {
+            marley_rail::rail_rows(&rail.snapshot.rail)
+                .into_iter()
+                .filter_map(|row| match row {
+                    Row::Thread(row) => Some((row.title, row.highlight)),
+                    Row::Project(_) | Row::Terminal(_) => None,
+                })
+                .collect()
+        });
+        assert_eq!(
+            shown,
+            [("Fix the build".to_string(), vec![8, 9, 10, 11, 12])]
+        );
+        let key = rail.read_with(cx, |rail, _| {
+            rail.snapshot
+                .rail
+                .projects
+                .iter()
+                .flat_map(|project| &project.threads)
+                .find(|thread| thread.title == "Fix the build")
+                .map(|thread| thread.key.clone())
+        });
+        let key = key.expect("the seeded thread is listed");
+        assert!(drawn(thread_selector(&key), cx));
     }
 
     #[gpui::test]

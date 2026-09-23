@@ -376,10 +376,11 @@ restarts, and one width holds in both layouts. W6b shipped as #451: in the Marle
 Panel Layout presets explain themselves instead of rewriting its docks. W6c shipped as #452: a
 terminal row renames and closes from its own menu, a double-click and a hover button, through
 Zed's tab rename and close. W6d shipped as #453: the rail walks and opens its rows with Zed's
-own list keys, and a project header's menu moves the project up or down. The filter split from
-it as W6h (TICKET-457), queued ahead of W6e to W6g (TICKET-454 to TICKET-456). TICKET-458 makes
-the rail follow a project's folders, and the rail's smaller internals wait in
-`docs/planning/intake/rail-internals.md`.
+own list keys, and a project header's menu moves the project up or down. W6h, split from it,
+shipped as #457: a filter under the rail's header narrows it as you type, with Zed's Threads
+Sidebar's matcher, and `ctrl-f` reaches it. W6e to W6g are TICKET-454 to TICKET-456, queued in
+that order. TICKET-458 makes the rail follow a project's folders, and the rail's smaller
+internals wait in `docs/planning/intake/rail-internals.md`.
 
 | Slice | Delivers | Size |
 |---|---|---|

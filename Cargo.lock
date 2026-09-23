@@ -10855,6 +10855,7 @@ dependencies = [
  "util",
  "which",
  "workspace",
+ "zed_actions",
 ]
 
 [[package]]

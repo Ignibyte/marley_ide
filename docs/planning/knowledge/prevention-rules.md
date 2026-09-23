@@ -2183,3 +2183,20 @@ pane reading its item, a panel reading its workspace), defer with `window.defer(
 `cx.defer(…)` on the `App`, capturing weak handles, so no entity is leased when it runs. Drive
 the deferral in a test through the Zed entry point that calls it, where a double lease
 panics.
+
+## PR-claude-break-the-code-a-driven-test-guards-before-trusting-it-001
+*severity: medium · prevents: L-claude-453-a-key-context-test-must-press-a-key-only-that-context-binds-001*
+
+Before a driven test counts as proof, break the code it guards once and watch the test fail:
+take the key context out, drop the guard, skip the call. Four tests in #453 and #457 passed
+with their code removed:
+- #453's keystroke test pressed only keys Zed binds with no context, so it passed without the
+  `menu` context;
+- #453's focus check expected the window's row, which was also the keyboard's;
+- #457's no-fold test pressed left and then right, so the second key undid the first one's
+  wrong fold;
+- #457's first-match test typed a query whose first match was also the window's row.
+
+Each assertion expected a value the broken code also produced. Pick inputs on which the right
+and the wrong code disagree, record each negative check in the notes, and restore the file by
+checksum afterwards.

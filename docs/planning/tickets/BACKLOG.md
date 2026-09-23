@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-457](open/TICKET-457-rail-filter.md) | feature | W6h · a filter for the rail |
 | [TICKET-454](open/TICKET-454-rail-switcher.md) | feature | W6e · a switcher over recent terminals and threads |
 | [TICKET-455](open/TICKET-455-a-first-terminal.md) | feature | W6f · a first terminal for a project shown with none, without doubling a restored one's |
 | [TICKET-456](open/TICKET-456-docks-across-a-layout-switch.md) | bug | W6g · each dock as it was across a layout round trip |

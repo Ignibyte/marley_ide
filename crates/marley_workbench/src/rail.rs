@@ -11,8 +11,10 @@ use std::time::{Duration, Instant};
 
 use acp_thread::{AcpThread, AcpThreadEvent};
 use agent_ui::thread_metadata_store::{ThreadId, ThreadMetadata, ThreadMetadataStore};
+use agent_ui::threads_archive_view::fuzzy_match_positions;
 use agent_ui::{Agent, AgentPanel, AgentPanelEvent, AgentThreadSource};
 use anyhow::Context as _;
+use editor::{Editor, EditorEvent};
 use gpui::{
     Anchor, AnyElement, App, ClickEvent, Context, Entity, EntityId, EventEmitter, FocusHandle,
     Focusable, Pixels, Render, Subscription, Task, WeakEntity, Window, px,
@@ -23,16 +25,17 @@ use marley_rail::{
     TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus,
 };
 use menu::{
-    Confirm, SelectChild, SelectFirst, SelectLast, SelectNext, SelectParent, SelectPrevious,
+    Cancel, Confirm, SelectChild, SelectFirst, SelectLast, SelectNext, SelectParent, SelectPrevious,
 };
 use project::{AgentId, AgentServerStore, AgentServersUpdated, ProjectGroupKey};
 use recent_projects::sidebar_recent_projects::SidebarRecentProjects;
 use terminal::Terminal;
 use terminal_view::{RenameTerminal, TerminalView, terminal_panel::TerminalPanel};
 use ui::{
-    AgentThreadStatus, ContextMenu, ContextMenuEntry, Disclosure, Icon, IconButton, IconName,
-    IconSize, Indicator, Label, LabelSize, ListItem, PopoverMenu, PopoverMenuHandle, ThreadItem,
-    Tooltip, prelude::*, right_click_menu, utils::platform_title_bar_height,
+    AgentThreadStatus, ContextMenu, ContextMenuEntry, Disclosure, HighlightedLabel, Icon,
+    IconButton, IconName, IconSize, Indicator, KeyBinding, Label, LabelSize, ListItem, PopoverMenu,
+    PopoverMenuHandle, ThreadItem, Tooltip, prelude::*, right_click_menu,
+    utils::platform_title_bar_height,
 };
 use util::ResultExt as _;
 use util::path_list::PathList;
@@ -42,6 +45,7 @@ use workspace::{
     item::{Item as _, ItemEvent},
     notifications::DetachAndPromptErr as _,
 };
+use zed_actions::agents_sidebar::FocusSidebarFilter;
 
 use crate::agents::{self, AgentIcon};
 
@@ -68,6 +72,8 @@ pub struct Rail {
     closed: bool,
     /// The row the keyboard is on while the rail holds focus.
     cursor: Option<Selection>,
+    /// The filter's field, under the header.
+    filter_editor: Entity<Editor>,
     foreground_command: ForegroundCommand,
     /// When each terminal last wrote output, on the executor's clock.
     terminal_output: HashMap<EntityId, Instant>,
@@ -101,6 +107,7 @@ pub struct Rail {
     noted_threads: HashSet<String>,
     _multi_workspace_subscriptions: [Subscription; 2],
     _focus_out: Subscription,
+    _filter_edits: Subscription,
 }
 
 impl std::fmt::Debug for Rail {
@@ -187,6 +194,20 @@ impl Rail {
             rail.cursor = None;
             rail.refresh(window, cx);
         });
+        let filter_editor = cx.new(|cx| {
+            let mut editor = Editor::single_line(window, cx);
+            editor.set_placeholder_text("Filter…", window, cx);
+            editor
+        });
+        let filter_edits = cx.subscribe_in(
+            &filter_editor,
+            window,
+            |rail, _, event: &EditorEvent, window, cx| {
+                if matches!(event, EditorEvent::BufferEdited) {
+                    rail.filter_edited(window, cx);
+                }
+            },
+        );
         Self {
             multi_workspace: multi_workspace.downgrade(),
             focus_handle,
@@ -196,6 +217,7 @@ impl Rail {
             width_set_by_user: saved.width.is_some(),
             closed: false,
             cursor: None,
+            filter_editor,
             foreground_command: |terminal, cx| terminal.read(cx).foreground_process_command_name(),
             terminal_output: HashMap::default(),
             quiet_timers: HashMap::default(),
@@ -213,6 +235,7 @@ impl Rail {
             noted_threads: HashSet::default(),
             _multi_workspace_subscriptions: subscriptions,
             _focus_out: focus_out,
+            _filter_edits: filter_edits,
         }
     }
 
@@ -243,6 +266,7 @@ impl Rail {
     /// redraws only when what the rail shows has changed.
     fn refresh(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.sync_subscriptions(window, cx);
+        let filter = self.filter_editor.read(cx).text(cx);
         let mut snapshot = self
             .multi_workspace
             .upgrade()
@@ -251,6 +275,7 @@ impl Rail {
                     &multi_workspace,
                     self.foreground_command,
                     &self.terminal_output,
+                    &filter,
                     window,
                     cx,
                 )
@@ -613,7 +638,8 @@ impl Rail {
         }
     }
 
-    /// Folds or unfolds the project at `index`, when it is not that way already.
+    /// Folds or unfolds the project at `index`, when it is not that way already and no filter
+    /// decides what shows.
     fn fold(&mut self, index: usize, fold: bool, window: &mut Window, cx: &mut Context<Self>) {
         let expanded = self
             .snapshot
@@ -623,9 +649,46 @@ impl Rail {
             .is_some_and(|project| project.expanded);
         if let Some(group) = self.snapshot.groups.get(index)
             && expanded == fold
+            && !self.snapshot.rail.filtering
         {
             let key = group.key.clone();
             self.toggle_expanded(&key, window, cx);
+        }
+    }
+
+    /// `ctrl-f`: the filter takes focus, as Zed's action gives its own sidebar's.
+    fn focus_filter(
+        &mut self,
+        _: &FocusSidebarFilter,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        window.focus(&self.filter_editor.focus_handle(cx), cx);
+    }
+
+    /// Escape, as Zed's Threads Sidebar has it: it clears the filter, and from an empty filter
+    /// goes back to the rows. With neither to do it passes on.
+    fn cancel(&mut self, _: &Cancel, window: &mut Window, cx: &mut Context<Self>) {
+        if self.snapshot.rail.filtering {
+            self.clear_filter(window, cx);
+        } else if self.filter_editor.focus_handle(cx).is_focused(window) {
+            window.focus(&self.focus_handle, cx);
+        } else {
+            cx.propagate();
+        }
+    }
+
+    fn clear_filter(&self, window: &mut Window, cx: &mut Context<Self>) {
+        self.filter_editor
+            .update(cx, |editor, cx| editor.set_text("", window, cx));
+    }
+
+    /// Each edit rereads the rail and puts the keyboard on the first row that matched, as Zed's
+    /// Threads Sidebar selects its first match.
+    fn filter_edited(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.refresh(window, cx);
+        if self.snapshot.rail.filtering {
+            self.move_cursor(marley_rail::first_match, window, cx);
         }
     }
 
@@ -726,6 +789,52 @@ impl Rail {
             .child(self.render_add_project())
     }
 
+    fn render_filter(&self, cx: &Context<Self>) -> impl IntoElement {
+        let filtering = self.snapshot.rail.filtering;
+        h_flex()
+            .w_full()
+            .flex_none()
+            .gap_1()
+            .px_2()
+            .py_1()
+            .border_b_1()
+            .border_color(cx.theme().colors().border)
+            .child(
+                Icon::new(IconName::MagnifyingGlass)
+                    .size(IconSize::Small)
+                    .color(Color::Muted),
+            )
+            .child(
+                div()
+                    .debug_selector(|| "marley-rail-filter".into())
+                    .min_w_0()
+                    .flex_1()
+                    .child(self.filter_editor.clone()),
+            )
+            .map(|field| {
+                if filtering {
+                    field.child(
+                        div()
+                            .debug_selector(|| "marley-rail-filter-clear".into())
+                            .child(
+                                IconButton::new("marley-rail-filter-clear", IconName::Close)
+                                    .icon_size(IconSize::Small)
+                                    .tooltip(Tooltip::text("Clear Filter"))
+                                    .on_click(cx.listener(|rail, _, window, cx| {
+                                        rail.clear_filter(window, cx);
+                                    })),
+                            ),
+                    )
+                } else {
+                    field.child(KeyBinding::for_action_in(
+                        &FocusSidebarFilter,
+                        &self.focus_handle,
+                        cx,
+                    ))
+                }
+            })
+    }
+
     fn render_add_project(&self) -> impl IntoElement {
         let multi_workspace = self.multi_workspace.clone();
         let focus_handle = self.focus_handle.clone();
@@ -759,6 +868,7 @@ impl Rail {
         row: ProjectRow,
         group: &GroupEntry,
         last: bool,
+        filtering: bool,
         agent_search_path: Option<OsString>,
         cx: &Context<Self>,
     ) -> impl IntoElement {
@@ -772,18 +882,21 @@ impl Rail {
         let menu_key = group.key.clone();
         let header = ListItem::new(("marley-rail-project", id))
             .toggle_state(row.selected)
-            .start_slot(
-                div()
-                    .debug_selector(move || format!("marley-rail-disclosure-{index}"))
-                    .child(
-                        Disclosure::new(("marley-rail-disclosure", id), row.expanded).on_click(
-                            cx.listener(move |rail, _, window, cx| {
-                                rail.toggle_expanded(&key, window, cx);
-                            }),
+            // While the filter decides which rows show, the header does not fold.
+            .when(!filtering, |header| {
+                header.start_slot(
+                    div()
+                        .debug_selector(move || format!("marley-rail-disclosure-{index}"))
+                        .child(
+                            Disclosure::new(("marley-rail-disclosure", id), row.expanded).on_click(
+                                cx.listener(move |rail, _, window, cx| {
+                                    rail.toggle_expanded(&key, window, cx);
+                                }),
+                            ),
                         ),
-                    ),
-            )
-            .child(Label::new(row.name).size(LabelSize::Small))
+                )
+            })
+            .child(row_label(row.name, row.highlight))
             .end_slot(
                 h_flex()
                     .gap_1()
@@ -958,6 +1071,7 @@ impl Rail {
             SharedString::from(format!("marley-rail-thread-{key}")),
             row.title,
         )
+        .highlight_positions(row.highlight)
         .status(status)
         .notified(row.attention)
         .selected(row.selected)
@@ -1019,7 +1133,7 @@ impl Rail {
             )
             .child(
                 v_flex()
-                    .child(Label::new(row.title).size(LabelSize::Small))
+                    .child(row_label(row.title, row.highlight))
                     // Always drawn, empty when unknown, so every terminal row has one height.
                     .child(
                         Label::new(row.subtitle.unwrap_or_default())
@@ -1306,6 +1420,7 @@ fn group_threads(
                     title: row.display_title().to_string(),
                     status: statuses.get(&row.thread_id).copied().unwrap_or_default(),
                     attention: false,
+                    matched: None,
                 },
                 ThreadEntry {
                     workspace: workspace.downgrade(),
@@ -1375,6 +1490,7 @@ fn terminal_snapshot(
         subtitle,
         bell,
         agent,
+        matched: None,
     }
 }
 
@@ -1393,6 +1509,7 @@ fn build_snapshot(
     multi_workspace: &Entity<MultiWorkspace>,
     foreground_command: ForegroundCommand,
     terminal_output: &HashMap<EntityId, Instant>,
+    filter: &str,
     window: &Window,
     cx: &App,
 ) -> Snapshot {
@@ -1426,7 +1543,7 @@ fn build_snapshot(
                 .find_map(|worktree| worktree.read(cx).root_dir());
             for view in member.read(cx).items_of_type::<TerminalView>(cx) {
                 let id = view.entity_id().as_u64();
-                let terminal = terminal_snapshot(
+                let mut terminal = terminal_snapshot(
                     &view,
                     root.as_deref(),
                     home,
@@ -1435,6 +1552,7 @@ fn build_snapshot(
                     now,
                     cx,
                 );
+                terminal.matched = filter_match(filter, &terminal.title);
                 if terminal.agent.is_some() {
                     snapshot.agent_terminals.insert(view.entity_id());
                 }
@@ -1449,15 +1567,18 @@ fn build_snapshot(
             }
         }
         let mut threads = Vec::new();
-        for (thread, entry) in group_threads(group, &workspace, cx) {
+        for (mut thread, entry) in group_threads(group, &workspace, cx) {
+            thread.matched = filter_match(filter, &thread.title);
             snapshot.threads.insert(thread.key.clone(), entry);
             threads.push(thread);
         }
+        let matched = filter_match(filter, &name);
         snapshot.rail.projects.push(ProjectSnapshot {
             name,
             expanded: group.expanded,
             terminals,
             threads,
+            matched,
         });
         snapshot.groups.push(GroupEntry {
             key: group.key.clone(),
@@ -1472,6 +1593,7 @@ fn build_snapshot(
     snapshot.shown_thread = panel_thread
         .clone()
         .filter(|_| AgentPanel::is_visible(displayed, cx));
+    snapshot.rail.filtering = !filter.is_empty();
     snapshot.rail.focus = Focus {
         cursor: None,
         project: groups
@@ -1489,6 +1611,25 @@ fn build_snapshot(
         }),
     };
     snapshot
+}
+
+/// Where the rail's filter matches `text`, by the matcher Zed's Threads Sidebar uses; `None`
+/// without a filter.
+fn filter_match(filter: &str, text: &str) -> Option<Vec<usize>> {
+    (!filter.is_empty())
+        .then(|| fuzzy_match_positions(filter, text))
+        .flatten()
+}
+
+/// A row's name or title, with the characters the filter matched highlighted.
+fn row_label(text: String, highlight: Vec<usize>) -> AnyElement {
+    if highlight.is_empty() {
+        Label::new(text).size(LabelSize::Small).into_any_element()
+    } else {
+        HighlightedLabel::new(text, highlight)
+            .size(LabelSize::Small)
+            .into_any_element()
+    }
 }
 
 /// The label for each group: its roots' last components, with parent components added where two
@@ -1601,7 +1742,8 @@ impl Render for Rail {
             .filter_map(|row| match row {
                 Row::Project(row) => self.snapshot.groups.get(row.index).map(|group| {
                     let last = row.index + 1 == self.snapshot.groups.len();
-                    Self::render_project_row(row, group, last, search_path.clone(), cx)
+                    let filtering = self.snapshot.rail.filtering;
+                    Self::render_project_row(row, group, last, filtering, search_path.clone(), cx)
                         .into_any_element()
                 }),
                 Row::Terminal(row) => self.snapshot.terminals.get(&row.id).map(|terminal| {
@@ -1626,9 +1768,12 @@ impl Render for Rail {
             .on_action(cx.listener(Self::select_parent))
             .on_action(cx.listener(Self::select_child))
             .on_action(cx.listener(Self::confirm))
+            .on_action(cx.listener(Self::focus_filter))
+            .on_action(cx.listener(Self::cancel))
             .size_full()
             .bg(cx.theme().colors().panel_background)
             .child(self.render_header(window, cx))
+            .child(self.render_filter(cx))
             .child(
                 v_flex()
                     .id("marley-rail-rows")
@@ -1636,6 +1781,19 @@ impl Render for Rail {
                     .overflow_y_scroll()
                     .p_1()
                     .gap_px()
+                    .when(rows.is_empty() && self.snapshot.rail.filtering, |list| {
+                        list.child(
+                            div()
+                                .debug_selector(|| "marley-rail-no-matches".into())
+                                .px_2()
+                                .py_1()
+                                .child(
+                                    Label::new("No matches")
+                                        .size(LabelSize::Small)
+                                        .color(Color::Muted),
+                                ),
+                        )
+                    })
                     .children(rows),
             )
     }

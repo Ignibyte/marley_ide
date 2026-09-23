@@ -1427,3 +1427,19 @@ Enter runs the row's click handler. A project header's right-click menu reorders
 `MultiWorkspace::move_project_group_up` and `move_project_group_down`. Rejected: Marley bindings
 for keys Zed already binds (a keymap entry and a shadow sweep for each), a keyboard highlight
 beside the selection (two highlighted rows), and wrapping at the ends.
+
+## AD-claude-457-the-rails-filter-is-zeds-sidebar-filter-001
+*decided at: 2026-09-23 · status: shipped*
+
+The rail's filter adopts Zed's Threads Sidebar filter. It takes Zed's matcher,
+`agent_ui::threads_archive_view::fuzzy_match_positions`, which despite its name is a substring
+match that ignores ASCII case. It takes Zed's rules: a project shows for its name or a row
+under it, a name match shows every row, and the fold is ignored. It takes Zed's action,
+`agents_sidebar::FocusSidebarFilter`, which the Marley keymap binds to `secondary-f` in
+`MarleyRail && !Picker`, and Zed's Escape. The gpui side matches the strings the rows draw and
+hands the positions to `marley_rail`, whose one walk decides what shows for the rows, the
+selection and the keyboard alike. Two things differ from Zed's sidebar: the rail's focus key
+still lands on the rows (#453), and each edit moves the keyboard's row to the first row that
+matched, header or not. Rejected: `fuzzy` or `fuzzy_nucleo` in `marley_rail` (both pull in
+gpui, and neither is what Zed's sidebar uses), a matcher written for Marley, a `marley::`
+action with the same meaning, and landing the focus key in the filter as Zed's sidebar does.

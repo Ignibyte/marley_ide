@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A filter for the rail** (#457, 2026-09-23). Press `ctrl-f` (`cmd-f` on macOS) in the rail,
+  or click the field under its header, and type. The rail keeps only the projects, terminals
+  and threads whose name or title contains what you typed, ignoring the case of ASCII letters,
+  and highlights the matching characters. A project whose name matches keeps everything under
+  it, folded or not. As you type, the first match is highlighted: up and down move from it and
+  Enter opens it. Escape clears the filter, and a second Escape takes you back to the rows. The
+  filter stays until you clear it, and "No matches" says when nothing matched.
 - **The rail from the keyboard, and project reorder** (#453, 2026-09-23). Focus the rail with
   `ctrl-alt-;` (`cmd-alt-;` on macOS) and walk it: up and down move the highlight, Home and End
   jump to the first and last row, Enter opens the highlighted row as a click does, left folds a

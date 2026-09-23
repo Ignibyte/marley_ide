@@ -1,11 +1,21 @@
-// The Marley keymap: bindings for Marley actions that no Zed action stands behind. It loads
-// after Zed's default keymaps and before the user's (`load_keymap`), so a binding here wins over
-// Zed's defaults at the same context depth and loses to the user's own.
+// The Marley keymap: keys Zed's own keymaps do not bind, for Marley's actions and for Zed's
+// actions in Marley's contexts. It loads after Zed's default keymaps and before the user's
+// (`load_keymap`), so a binding here wins over Zed's defaults at the same context depth and loses
+// to the user's own.
 [
   {
     "context": "Workspace",
     "bindings": {
       "secondary-alt-n": "marley::NewAgent"
+    }
+  },
+  {
+    // The rail's filter, as Zed's Threads Sidebar binds its own. The rail's context also reaches
+    // the popovers it opens, so `!Picker` leaves the key out of the add-project picker.
+    "context": "MarleyRail && !Picker",
+    "use_key_equivalents": true,
+    "bindings": {
+      "secondary-f": "agents_sidebar::FocusSidebarFilter"
     }
   }
 ]

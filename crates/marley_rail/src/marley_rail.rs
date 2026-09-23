@@ -2,8 +2,9 @@
 //! single row is selected.
 //!
 //! Pure and gpui-free, so every decision is unit-tested in milliseconds. The gpui side
-//! (`marley_workbench`) builds a [`RailSnapshot`] from the live window and renders the [`Row`]s
-//! this crate returns; it keeps no selection or ordering state of its own.
+//! (`marley_workbench`) builds a [`RailSnapshot`] from the live window, with the keyboard's row
+//! and what the filter matched, and renders the [`Row`]s this crate returns; it decides no
+//! ordering, visibility or selection of its own.
 
 use std::path::Path;
 
@@ -20,6 +21,9 @@ pub struct ProjectSnapshot {
     pub terminals: Vec<TerminalSnapshot>,
     /// The group's agent threads, in the order the rail lists them (newest first).
     pub threads: Vec<ThreadSnapshot>,
+    /// Where the filter matched the name, as the byte offsets of the matched characters; `None`
+    /// when it did not. Read only while [`RailSnapshot::filtering`].
+    pub matched: Option<Vec<usize>>,
 }
 
 /// One center terminal.
@@ -35,6 +39,8 @@ pub struct TerminalSnapshot {
     pub bell: bool,
     /// The agent CLI in the terminal's foreground, if one is.
     pub agent: Option<TerminalAgent>,
+    /// Where the filter matched the title, as for [`ProjectSnapshot::matched`].
+    pub matched: Option<Vec<usize>>,
 }
 
 /// An agent CLI running in a terminal, and what it is doing.
@@ -57,6 +63,8 @@ pub struct ThreadSnapshot {
     pub status: ThreadStatus,
     /// Whether a run ended while the thread was not shown and nothing has shown it since.
     pub attention: bool,
+    /// Where the filter matched the title, as for [`ProjectSnapshot::matched`].
+    pub matched: Option<Vec<usize>>,
 }
 
 /// What an agent thread is doing.
@@ -134,6 +142,8 @@ pub struct RailSnapshot {
     pub projects: Vec<ProjectSnapshot>,
     /// What the window shows.
     pub focus: Focus,
+    /// Whether the filter holds text, so the rail shows only what it matched.
+    pub filtering: bool,
 }
 
 /// The single selected row.
@@ -160,9 +170,11 @@ pub struct ProjectRow {
     pub expanded: bool,
     /// Whether this is the selected row.
     pub selected: bool,
-    /// Whether a row hidden by the collapse needs the user: a terminal's bell, or a thread's
-    /// attention dot or wait for a confirmation.
+    /// Whether a row the rail is not showing under it needs the user: a terminal's bell, or a
+    /// thread's attention dot or wait for a confirmation.
     pub attention: bool,
+    /// The byte offsets of the characters the filter matched, to highlight.
+    pub highlight: Vec<usize>,
 }
 
 /// A terminal row under its project.
@@ -182,6 +194,8 @@ pub struct TerminalRow {
     pub agent: Option<TerminalAgent>,
     /// Whether this is the selected row.
     pub selected: bool,
+    /// The byte offsets of the title's characters the filter matched, to highlight.
+    pub highlight: Vec<usize>,
 }
 
 /// An agent thread row under its project.
@@ -199,6 +213,8 @@ pub struct ThreadRow {
     pub attention: bool,
     /// Whether this is the selected row.
     pub selected: bool,
+    /// The byte offsets of the title's characters the filter matched, to highlight.
+    pub highlight: Vec<usize>,
 }
 
 /// One row of the rail.
@@ -215,60 +231,119 @@ pub enum Row {
 /// The one selected row.
 ///
 /// While the rail holds focus, the keyboard's row wins when it is shown. While the displayed
-/// workspace's Agent Panel holds focus, the thread it shows wins when that thread's row is
-/// visible. Otherwise the active terminal wins when its row is visible, and otherwise the
-/// displayed workspace's project header does, so a window showing a project always has exactly
-/// one selected row and a stale focus never selects a row that is not there.
+/// workspace's Agent Panel holds focus, the thread it shows wins when that thread's row is shown.
+/// Otherwise the active terminal wins when its row is shown, and otherwise the displayed
+/// workspace's project header does when the rail shows it. So a window whose project the rail
+/// shows has exactly one selected row, and a stale focus never selects a row that is not there.
 #[must_use]
 pub fn selection(snapshot: &RailSnapshot) -> Selection {
+    let rows = walk(snapshot);
     if let Some(cursor) = &snapshot.focus.cursor
-        && shown(snapshot).contains(cursor)
+        && rows.iter().any(|row| row.selection() == *cursor)
     {
         return cursor.clone();
     }
-    let Some((index, project)) = snapshot
-        .focus
-        .project
-        .and_then(|index| Some((index, snapshot.projects.get(index)?)))
-    else {
+    let Some(index) = snapshot.focus.project else {
         return Selection::None;
     };
-    if project.expanded {
-        if let Some(key) = &snapshot.focus.thread
-            && project.threads.iter().any(|thread| thread.key == *key)
-        {
-            return Selection::Thread(key.clone());
-        }
-        if let Some(id) = snapshot.focus.terminal
-            && project.terminals.iter().any(|terminal| terminal.id == id)
-        {
-            return Selection::Terminal(id);
+    let thread = snapshot.focus.thread.clone().map(Selection::Thread);
+    let terminal = snapshot.focus.terminal.map(Selection::Terminal);
+    [thread, terminal, Some(Selection::Project(index))]
+        .into_iter()
+        .flatten()
+        .find(|wanted| {
+            rows.iter()
+                .any(|row| row.project() == index && row.selection() == *wanted)
+        })
+        .unwrap_or(Selection::None)
+}
+
+/// A row the rail shows, before it is drawn, with the index of the project it sits under.
+#[derive(Clone, Copy)]
+enum Shown<'a> {
+    Project(usize, &'a ProjectSnapshot),
+    Terminal(usize, &'a TerminalSnapshot),
+    Thread(usize, &'a ThreadSnapshot),
+}
+
+impl<'a> Shown<'a> {
+    const fn project(self) -> usize {
+        match self {
+            Self::Project(index, _) | Self::Terminal(index, _) | Self::Thread(index, _) => index,
         }
     }
-    Selection::Project(index)
+
+    fn selection(self) -> Selection {
+        match self {
+            Self::Project(index, _) => Selection::Project(index),
+            Self::Terminal(_, terminal) => Selection::Terminal(terminal.id),
+            Self::Thread(_, thread) => Selection::Thread(thread.key.clone()),
+        }
+    }
+
+    /// Where the filter matched the row's own name or title.
+    fn matched(self) -> Option<&'a [usize]> {
+        match self {
+            Self::Project(_, project) => project.matched.as_deref(),
+            Self::Terminal(_, terminal) => terminal.matched.as_deref(),
+            Self::Thread(_, thread) => thread.matched.as_deref(),
+        }
+    }
+}
+
+/// Every row the rail shows, in its order: each shown project's header, then the terminals and
+/// the threads shown under it. The rows, the selection and the keyboard all read this one walk.
+fn walk(snapshot: &RailSnapshot) -> Vec<Shown<'_>> {
+    let mut rows = Vec::new();
+    for (index, project) in snapshot.projects.iter().enumerate() {
+        let terminals = project
+            .terminals
+            .iter()
+            .filter(|terminal| row_shows(snapshot, project, terminal.matched.as_deref()))
+            .map(|terminal| Shown::Terminal(index, terminal));
+        let threads = project
+            .threads
+            .iter()
+            .filter(|thread| row_shows(snapshot, project, thread.matched.as_deref()))
+            .map(|thread| Shown::Thread(index, thread));
+        let under: Vec<Shown<'_>> = terminals.chain(threads).collect();
+        // The filter shows a project for its own name or for a row under it.
+        if snapshot.filtering && project.matched.is_none() && under.is_empty() {
+            continue;
+        }
+        rows.push(Shown::Project(index, project));
+        rows.extend(under);
+    }
+    rows
+}
+
+/// Whether a terminal or thread row under `project` shows: under an expanded project without a
+/// filter, and with one when the project's name or the row's own text matched, whatever the fold.
+const fn row_shows(
+    snapshot: &RailSnapshot,
+    project: &ProjectSnapshot,
+    matched: Option<&[usize]>,
+) -> bool {
+    if snapshot.filtering {
+        project.matched.is_some() || matched.is_some()
+    } else {
+        project.expanded
+    }
 }
 
 /// Every shown row, as the selection it would be, in the rail's order.
 fn shown(snapshot: &RailSnapshot) -> Vec<Selection> {
-    let mut rows = Vec::new();
-    for (index, project) in snapshot.projects.iter().enumerate() {
-        rows.push(Selection::Project(index));
-        if project.expanded {
-            rows.extend(
-                project
-                    .terminals
-                    .iter()
-                    .map(|terminal| Selection::Terminal(terminal.id)),
-            );
-            rows.extend(
-                project
-                    .threads
-                    .iter()
-                    .map(|thread| Selection::Thread(thread.key.clone())),
-            );
-        }
-    }
-    rows
+    walk(snapshot).into_iter().map(Shown::selection).collect()
+}
+
+/// The first shown row whose own name or title the filter matched, where the keyboard's row goes
+/// as the filter changes; nothing without a filter, or when nothing matched.
+#[must_use]
+pub fn first_match(snapshot: &RailSnapshot) -> Selection {
+    walk(snapshot)
+        .into_iter()
+        .find(|row| snapshot.filtering && row.matched().is_some())
+        .map_or(Selection::None, Shown::selection)
 }
 
 /// The shown row after the selected one, or before it, staying on the last or the first. With
@@ -321,55 +396,78 @@ pub fn parent(snapshot: &RailSnapshot, selection: &Selection) -> Selection {
     owner.map_or(Selection::None, Selection::Project)
 }
 
-/// The rows, in display order: each project's header, then its terminals and its threads when it
-/// is expanded.
+/// The rows, in display order.
+///
+/// Each shown project's header comes first, then the terminals and the threads shown under it.
+/// Without a filter a folded project shows its header alone. With one, a project shows when its
+/// name or a row under it matched, with every row when its name did, and each row carries the
+/// matched characters.
 #[must_use]
 pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
     let selected = selection(snapshot);
-    let mut rows = Vec::new();
-    for (index, project) in snapshot.projects.iter().enumerate() {
-        rows.push(Row::Project(ProjectRow {
-            index,
-            name: project.name.clone(),
-            expanded: project.expanded,
-            selected: selected == Selection::Project(index),
-            attention: !project.expanded && project_needs_the_user(project),
-        }));
-        if project.expanded {
-            rows.extend(project.terminals.iter().map(|terminal| {
-                Row::Terminal(TerminalRow {
-                    project: index,
-                    id: terminal.id,
-                    title: terminal.title.clone(),
-                    subtitle: terminal.subtitle.clone(),
-                    bell: terminal.bell,
-                    agent: terminal.agent,
-                    selected: selected == Selection::Terminal(terminal.id),
-                })
-            }));
-            rows.extend(project.threads.iter().map(|thread| {
-                Row::Thread(ThreadRow {
-                    project: index,
-                    key: thread.key.clone(),
-                    title: thread.title.clone(),
-                    status: thread.status,
-                    attention: thread.attention,
-                    selected: matches!(&selected, Selection::Thread(key) if *key == thread.key),
-                })
-            }));
-        }
-    }
-    rows
+    let highlight = |matched: Option<&[usize]>| {
+        matched
+            .filter(|_| snapshot.filtering)
+            .map(<[usize]>::to_vec)
+            .unwrap_or_default()
+    };
+    walk(snapshot)
+        .into_iter()
+        .map(|row| match row {
+            Shown::Project(index, project) => Row::Project(ProjectRow {
+                index,
+                name: project.name.clone(),
+                expanded: project.expanded,
+                selected: selected == Selection::Project(index),
+                attention: hidden_rows_need_the_user(snapshot, project),
+                highlight: highlight(project.matched.as_deref()),
+            }),
+            Shown::Terminal(index, terminal) => Row::Terminal(TerminalRow {
+                project: index,
+                id: terminal.id,
+                title: terminal.title.clone(),
+                subtitle: terminal.subtitle.clone(),
+                bell: terminal.bell,
+                agent: terminal.agent,
+                selected: selected == Selection::Terminal(terminal.id),
+                highlight: highlight(terminal.matched.as_deref()),
+            }),
+            Shown::Thread(index, thread) => Row::Thread(ThreadRow {
+                project: index,
+                key: thread.key.clone(),
+                title: thread.title.clone(),
+                status: thread.status,
+                attention: thread.attention,
+                selected: matches!(&selected, Selection::Thread(key) if *key == thread.key),
+                highlight: highlight(thread.matched.as_deref()),
+            }),
+        })
+        .collect()
+}
+
+/// Whether a row under `project` that the rail is not showing needs the user.
+fn hidden_rows_need_the_user(snapshot: &RailSnapshot, project: &ProjectSnapshot) -> bool {
+    let hidden = |matched: Option<&[usize]>| !row_shows(snapshot, project, matched);
+    project
+        .terminals
+        .iter()
+        .any(|terminal| terminal.bell && hidden(terminal.matched.as_deref()))
+        || project
+            .threads
+            .iter()
+            .any(|thread| thread_needs_the_user(thread) && hidden(thread.matched.as_deref()))
+}
+
+/// Whether a thread needs the user: its attention dot, or a wait for a confirmation.
+fn thread_needs_the_user(thread: &ThreadSnapshot) -> bool {
+    thread.attention || thread.status == ThreadStatus::Waiting
 }
 
 /// Whether anything in the project needs the user: a terminal's bell, or a thread's attention
 /// dot or wait for a confirmation.
 fn project_needs_the_user(project: &ProjectSnapshot) -> bool {
     project.terminals.iter().any(|terminal| terminal.bell)
-        || project
-            .threads
-            .iter()
-            .any(|thread| thread.attention || thread.status == ThreadStatus::Waiting)
+        || project.threads.iter().any(thread_needs_the_user)
 }
 
 /// Whether anything listed needs the user, collapsed or not: the rail's notification flag.
@@ -419,6 +517,7 @@ mod tests {
             subtitle: None,
             bell,
             agent: None,
+            matched: None,
         }
     }
 
@@ -428,6 +527,7 @@ mod tests {
             expanded,
             terminals,
             threads: Vec::new(),
+            matched: None,
         }
     }
 
@@ -437,6 +537,7 @@ mod tests {
             title: format!("thread {key}"),
             status,
             attention,
+            matched: None,
         }
     }
 
@@ -458,6 +559,7 @@ mod tests {
                 thread: None,
                 cursor: None,
             },
+            filtering: false,
         }
     }
 
@@ -557,6 +659,7 @@ mod tests {
                     expanded: true,
                     selected: false,
                     attention: false,
+                    highlight: Vec::new(),
                 }),
                 Row::Terminal(TerminalRow {
                     project: 0,
@@ -566,6 +669,7 @@ mod tests {
                     bell: false,
                     agent: None,
                     selected: false,
+                    highlight: Vec::new(),
                 }),
                 Row::Terminal(TerminalRow {
                     project: 0,
@@ -575,6 +679,7 @@ mod tests {
                     bell: true,
                     agent: None,
                     selected: false,
+                    highlight: Vec::new(),
                 }),
                 Row::Project(ProjectRow {
                     index: 1,
@@ -582,6 +687,7 @@ mod tests {
                     expanded: true,
                     selected: false,
                     attention: false,
+                    highlight: Vec::new(),
                 }),
                 Row::Terminal(TerminalRow {
                     project: 1,
@@ -591,6 +697,7 @@ mod tests {
                     bell: false,
                     agent: None,
                     selected: true,
+                    highlight: Vec::new(),
                 }),
             ]
         );
@@ -608,6 +715,7 @@ mod tests {
                     expanded: false,
                     selected: true,
                     attention: true,
+                    highlight: Vec::new(),
                 }),
                 Row::Project(ProjectRow {
                     index: 1,
@@ -615,6 +723,7 @@ mod tests {
                     expanded: true,
                     selected: false,
                     attention: false,
+                    highlight: Vec::new(),
                 }),
                 Row::Terminal(TerminalRow {
                     project: 1,
@@ -624,6 +733,7 @@ mod tests {
                     bell: false,
                     agent: None,
                     selected: false,
+                    highlight: Vec::new(),
                 }),
             ]
         );
@@ -641,6 +751,7 @@ mod tests {
                 expanded: false,
                 selected: false,
                 attention: false,
+                highlight: Vec::new(),
             })]
         );
     }
@@ -742,6 +853,7 @@ mod tests {
                     expanded: true,
                     selected: false,
                     attention: false,
+                    highlight: Vec::new(),
                 }),
                 Row::Terminal(TerminalRow {
                     project: 0,
@@ -751,6 +863,7 @@ mod tests {
                     bell: false,
                     agent: None,
                     selected: false,
+                    highlight: Vec::new(),
                 }),
                 Row::Thread(ThreadRow {
                     project: 0,
@@ -759,6 +872,7 @@ mod tests {
                     status: ThreadStatus::Running,
                     attention: false,
                     selected: false,
+                    highlight: Vec::new(),
                 }),
                 Row::Thread(ThreadRow {
                     project: 0,
@@ -767,6 +881,7 @@ mod tests {
                     status: ThreadStatus::Done,
                     attention: false,
                     selected: false,
+                    highlight: Vec::new(),
                 }),
                 Row::Project(ProjectRow {
                     index: 1,
@@ -774,6 +889,7 @@ mod tests {
                     expanded: true,
                     selected: true,
                     attention: false,
+                    highlight: Vec::new(),
                 }),
                 Row::Terminal(TerminalRow {
                     project: 1,
@@ -783,6 +899,7 @@ mod tests {
                     bell: false,
                     agent: None,
                     selected: false,
+                    highlight: Vec::new(),
                 }),
                 Row::Thread(ThreadRow {
                     project: 1,
@@ -791,6 +908,7 @@ mod tests {
                     status: ThreadStatus::Done,
                     attention: false,
                     selected: false,
+                    highlight: Vec::new(),
                 }),
             ]
         );
@@ -1015,6 +1133,214 @@ mod tests {
         );
         assert_eq!(parent(&snapshot, &Selection::None), Selection::None);
         assert_eq!(parent(&snapshot, &Selection::Terminal(99)), Selection::None);
+    }
+
+    /// The snapshot as the rail builds it with `query` in the filter: each name and title that
+    /// contains it matched at the characters it covers.
+    fn filtered(mut snapshot: RailSnapshot, query: &str) -> RailSnapshot {
+        let matched = |text: &str| {
+            text.find(query).map(|start| {
+                text[start..start + query.len()]
+                    .char_indices()
+                    .map(|(offset, _)| start + offset)
+                    .collect()
+            })
+        };
+        snapshot.filtering = true;
+        for project in &mut snapshot.projects {
+            project.matched = matched(&project.name);
+            for terminal in &mut project.terminals {
+                terminal.matched = matched(&terminal.title);
+            }
+            for thread in &mut project.threads {
+                thread.matched = matched(&thread.title);
+            }
+        }
+        snapshot
+    }
+
+    /// The rows as lines: a header's name, or a terminal's or thread's title, indented.
+    fn outline(snapshot: &RailSnapshot) -> Vec<String> {
+        rail_rows(snapshot)
+            .into_iter()
+            .map(|row| match row {
+                Row::Project(row) => row.name,
+                Row::Terminal(row) => format!("  {}", row.title),
+                Row::Thread(row) => format!("  {}", row.title),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_filter_shows_every_row_of_a_project_whose_name_matched() {
+        // `marley` is folded, and the filter shows its rows anyway.
+        let snapshot = filtered(
+            window(two_projects_with_threads(false), Some(0), None),
+            "marl",
+        );
+        assert_eq!(
+            outline(&snapshot),
+            ["marley", "  terminal 1", "  thread a", "  thread b"]
+        );
+    }
+
+    #[test]
+    fn a_filter_shows_a_project_for_the_rows_under_it_that_matched() {
+        let snapshot = window(two_projects_with_threads(true), Some(0), None);
+        assert_eq!(
+            outline(&filtered(snapshot.clone(), "thread c")),
+            ["rusty", "  thread c"]
+        );
+        assert_eq!(
+            outline(&filtered(snapshot, "terminal 1")),
+            ["marley", "  terminal 1"]
+        );
+    }
+
+    #[test]
+    fn a_filter_that_matches_nothing_shows_and_selects_nothing() {
+        let snapshot = filtered(
+            with_cursor(
+                window(two_projects(true), Some(0), Some(1)),
+                Selection::Terminal(1),
+            ),
+            "zzz",
+        );
+        assert!(rail_rows(&snapshot).is_empty());
+        assert_eq!(selection(&snapshot), Selection::None);
+        assert_eq!(first_match(&snapshot), Selection::None);
+        assert_eq!(step(&snapshot, true), Selection::None);
+    }
+
+    #[test]
+    fn filtered_rows_carry_the_characters_that_matched() {
+        let snapshot = window(two_projects_with_threads(true), Some(0), None);
+        let highlights = |query: &str| -> Vec<(String, Vec<usize>)> {
+            rail_rows(&filtered(snapshot.clone(), query))
+                .into_iter()
+                .map(|row| match row {
+                    Row::Project(row) => (row.name, row.highlight),
+                    Row::Terminal(row) => (row.title, row.highlight),
+                    Row::Thread(row) => (row.title, row.highlight),
+                })
+                .collect()
+        };
+        assert_eq!(
+            highlights("ar"),
+            [
+                ("marley".to_string(), vec![1, 2]),
+                ("terminal 1".to_string(), vec![]),
+                ("thread a".to_string(), vec![]),
+                ("thread b".to_string(), vec![]),
+            ]
+        );
+        assert_eq!(
+            highlights("l 1"),
+            [
+                ("marley".to_string(), vec![]),
+                ("terminal 1".to_string(), vec![7, 8, 9]),
+            ]
+        );
+        assert_eq!(
+            highlights("d b"),
+            [
+                ("marley".to_string(), vec![]),
+                ("thread b".to_string(), vec![5, 6, 7]),
+            ]
+        );
+        // Without the filter nothing is highlighted, whatever the snapshot says matched.
+        let mut unfiltered = filtered(snapshot, "ar");
+        unfiltered.filtering = false;
+        for row in rail_rows(&unfiltered) {
+            let highlight = match row {
+                Row::Project(row) => row.highlight,
+                Row::Terminal(row) => row.highlight,
+                Row::Thread(row) => row.highlight,
+            };
+            assert!(highlight.is_empty());
+        }
+    }
+
+    #[test]
+    fn a_shown_header_carries_the_attention_of_the_rows_the_filter_hides() {
+        // `marley`'s terminal 2 rang its bell.
+        let snapshot = window(two_projects(true), None, None);
+        let attention = |query: &str| -> Vec<bool> {
+            rail_rows(&filtered(snapshot.clone(), query))
+                .into_iter()
+                .filter_map(|row| match row {
+                    Row::Project(row) => Some(row.attention),
+                    Row::Terminal(_) | Row::Thread(_) => None,
+                })
+                .collect()
+        };
+        assert_eq!(attention("terminal 1"), [true], "the bell's row is hidden");
+        assert_eq!(attention("marley"), [false], "the bell's row shows");
+        // A thread waiting on a confirmation counts too.
+        let waiting = window(
+            vec![with_threads(
+                project("waiting", true, vec![terminal(1, false)]),
+                vec![thread("w", ThreadStatus::Waiting, false)],
+            )],
+            None,
+            None,
+        );
+        assert!(matches!(
+            rail_rows(&filtered(waiting, "terminal")).first(),
+            Some(Row::Project(ProjectRow {
+                attention: true,
+                ..
+            }))
+        ));
+    }
+
+    #[test]
+    fn first_match_is_the_first_shown_row_that_matched() {
+        let snapshot = window(two_projects_with_threads(true), Some(1), Some(3));
+        assert_eq!(
+            first_match(&filtered(snapshot.clone(), "rusty")),
+            Selection::Project(1)
+        );
+        // `marley` shows for its threads, which matched, while its header did not.
+        assert_eq!(
+            first_match(&filtered(snapshot.clone(), "thread")),
+            Selection::Thread("a".to_string())
+        );
+        assert_eq!(
+            first_match(&filtered(snapshot.clone(), "terminal 3")),
+            Selection::Terminal(3)
+        );
+        assert_eq!(first_match(&snapshot), Selection::None, "no filter");
+    }
+
+    #[test]
+    fn the_selection_and_the_keyboard_keep_to_the_filtered_rows() {
+        // The window shows `rusty`'s terminal 3.
+        let snapshot = window(two_projects_with_threads(true), Some(1), Some(3));
+        // The filter hides the terminal, so its project's header is the selected row.
+        let threads = filtered(snapshot.clone(), "thread");
+        assert_eq!(selection(&threads), Selection::Project(1));
+        assert_eq!(
+            shown(&threads),
+            [
+                Selection::Project(0),
+                Selection::Thread("a".to_string()),
+                Selection::Thread("b".to_string()),
+                Selection::Project(1),
+                Selection::Thread("c".to_string()),
+            ]
+        );
+        // A focused panel's thread gives way to the terminal when the filter hides it.
+        let panel = filtered(panel_focused(snapshot.clone(), "c"), "terminal");
+        assert_eq!(selection(&panel), Selection::Terminal(3));
+        // The filter hides the project too: nothing is selected.
+        let marley = filtered(snapshot, "marley");
+        assert_eq!(selection(&marley), Selection::None);
+        // The keyboard walks only what shows, and a cursor on a hidden row gives way.
+        let walked = with_cursor(threads, Selection::Thread("b".to_string()));
+        assert_eq!(step(&walked, true), Selection::Project(1));
+        let hidden = with_cursor(marley, Selection::Terminal(3));
+        assert_eq!(step(&hidden, true), Selection::Project(0));
     }
 
     #[test]

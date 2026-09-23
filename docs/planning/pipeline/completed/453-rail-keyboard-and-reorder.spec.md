@@ -5,7 +5,7 @@ status: Phase 4 — Complete PASS
 title: Keyboard navigation and project reorder in the rail
 type: feature
 slice: workbench shell W6d
-references: [docs/marley/workbench-shell.md, docs/planning/pipeline/completed/452-rail-rename-and-close.spec.md, docs/planning/tickets/open/TICKET-457-rail-filter.md]
+references: [docs/marley/workbench-shell.md, docs/planning/pipeline/completed/452-rail-rename-and-close.spec.md, docs/planning/tickets/closed/TICKET-457-rail-filter.md]
 ---
 
 ## Title

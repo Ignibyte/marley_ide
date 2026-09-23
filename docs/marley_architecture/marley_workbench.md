@@ -72,6 +72,21 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   and Move Project Down (`MultiWorkspace::move_project_group_up`, `move_project_group_down`),
   disabled at the ends. Zed's `multi_workspace::FocusWorkspaceSidebar` (`ctrl-alt-;`) focuses
   the rail as it does Zed's sidebar.
+- **The filter (#457).** A single-line editor under the header ("Filter…") narrows the rail as
+  Zed's Threads Sidebar's filter does. `build_snapshot` matches each project's name and each
+  terminal's and thread's title with Zed's own `fuzzy_match_positions` (a substring match that
+  ignores ASCII case), and `marley_rail` decides what shows. A header's name and a terminal's
+  title draw with `HighlightedLabel`, a thread's with `ThreadItem::highlight_positions`.
+  - While filtering, the chevrons are left out and `fold` does nothing. "No matches" draws when
+    nothing is left. A clear button replaces the key hint (`KeyBinding::for_action_in`).
+  - Each edit (`EditorEvent::BufferEdited`) refreshes, then puts the cursor on
+    `marley_rail::first_match`.
+  - Keys: the Marley keymap binds `secondary-f` to Zed's `agents_sidebar::FocusSidebarFilter`
+    in `MarleyRail && !Picker`. In the field, up, down and Enter reach the rail's `menu`
+    handlers because the single-line editor propagates `editor::MoveUp`, `editor::MoveDown`
+    and `editor::Cancel`.
+  - `menu::Cancel` clears the filter, or from an empty field focuses the rows, and otherwise
+    propagates. The text is not saved.
 - The header is the title bar's height and draws the window controls the title bar leaves to a
   left-hand sidebar. Its Add Project button opens Zed's recent-projects popover.
 - The handlers take the rows' weak handles and return a `Result`, which the click sites log.
@@ -213,12 +228,14 @@ alike.
 ## Tests
 
 `src/marley_workbench_tests.rs` (the switch, the keymap loader and persistence, 20 tests) and
-`src/rail_tests.rs` (the rail, 31, 12 thread tests in `rail::tests::threads`, and 5 agent-CLI
+`src/rail_tests.rs` (the rail, 40, 13 thread tests in `rail::tests::threads`, and 5 agent-CLI
 tests in `rail::tests::agents`, which search a temporary directory for programs and read the
 new terminal's write log): driven gpui tests on `MultiWorkspace::test_new`
 over a FakeFs, clicking elements found by debug selector. The keyboard tests dispatch the
 `menu` actions from the focused rail; one binds Zed's Linux default keymap and presses
-`ctrl-alt-;`, the arrows and Enter. The thread tests run on
+`ctrl-alt-;`, the arrows and Enter. The filter tests type into the field with `simulate_input`;
+two bind Zed's keymap and the Marley keymap and press `ctrl-f`, in the rail and in the
+add-project picker. The thread tests run on
 `init_agent_test`, which layers Zed's agent test setup (`agent_ui::test_support`, with a
 thread database per test) over the window. They put an `AgentPanel::test_new` in each project
 and drive threads through `acp_thread::StubAgentConnection`: a turn that stays open until
@@ -257,10 +274,11 @@ has its own test in `crates/zed/src/zed.rs`, `test_reload_keymaps_binds_the_marl
   layout saves a partial state before its restore finishes (`docs/planning/intake/rail-internals.md`).
 - A restored window builds its rail open and closes it once the restore is over, through
   `close_sidebar`, which records Zed's "Sidebar Toggled" event; Zed has no silent close.
-- The filter and the switcher are W6h and W6e (#457, #454).
+- The switcher is W6e (#454). The filter ignores case for ASCII letters only, as Zed's does,
+  and vim's `/`, which reaches Zed's sidebar filter, does not reach the rail's.
 - A project whose last folder is removed keeps its row until another change rebuilds the rail
   (#458).
 - The thread rows, the agent rows, the routing, the terminal keys, the New Agent key, the
-  rail's persistence and its keys and reorder have not been seen live: the drives for #439 and
-  #440 would have moved Chad's windows off his monitor, and the later ones need input or a
-  relaunch. They are owed to the next headless capture.
+  rail's persistence, its keys and reorder, and its filter have not been seen live: the drives
+  for #439 and #440 would have moved Chad's windows off his monitor, and the later ones need
+  input or a relaunch. They are owed to the next headless capture.
