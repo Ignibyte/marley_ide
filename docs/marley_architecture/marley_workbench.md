@@ -54,8 +54,20 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
 - The header is the title bar's height and draws the window controls the title bar leaves to a
   left-hand sidebar. Its Add Project button opens Zed's recent-projects popover.
 - The handlers take the rows' weak handles and return a `Result`, which the click sites log.
-- While it stands in, it answers `serialized_state` with Zed's sidebar's state. It saves nothing
-  of its own yet (#442).
+- While it stands in, it answers `serialized_state` with Zed's sidebar's state, with fields of
+  its own added (#442): `width` and `width_set_by_user`, the names Zed's sidebar reads, and
+  `marley_rail_closed`, which Zed's ignores. Every other field is kept, so Zed's sidebar still
+  restores from the blob.
+  - **Closed-rail memory.** The observer the rail puts on the `MultiWorkspace` notes, while
+    AI is on, whether the sidebar is open; `serialize_now` reads the blob a turn after the
+    update that closed it. A restored blob that says closed closes the rail again once the
+    restore's update is over (`window.defer`), since the Marley layout builds every window's
+    rail open.
+  - **One width.** `set_width` forwards the rail's clamped width to the kept Zed sidebar; a
+    rail built over one starts at its width; a restored blob's user width sizes the rail;
+    `take_zed_sidebar` hands a fresh Zed sidebar the blob with the rail's width in it.
+  - `serialized_state` and `restore_serialized_state` run inside the `MultiWorkspace`'s update,
+    so they touch only the rail's fields and the kept Zed sidebar.
 
 ## Threads (#439)
 
@@ -179,8 +191,8 @@ alike.
 
 ## Tests
 
-`src/marley_workbench_tests.rs` (the switch and the keymap loader, 13 tests) and
-`src/rail_tests.rs` (the rail, 16, 11 thread tests in `rail::tests::threads`, and 4 agent-CLI
+`src/marley_workbench_tests.rs` (the switch, the keymap loader and persistence, 20 tests) and
+`src/rail_tests.rs` (the rail, 19, 11 thread tests in `rail::tests::threads`, and 4 agent-CLI
 tests in `rail::tests::agents`, which search a temporary directory for programs and read the
 new terminal's write log): driven gpui tests on `MultiWorkspace::test_new`
 over a FakeFs, clicking elements found by debug selector. The thread tests run on
@@ -207,7 +219,7 @@ has its own test in `crates/zed/src/zed.rs`, `test_reload_keymaps_binds_the_marl
 
 ## Known limits
 
-- Zed's Panel Layout presets misread the Marley layout until #442 hides them.
+- Zed's Panel Layout presets misread the Marley layout until #451 catches them.
 - Vim's `:!` and external agents' login terminals still open in the Terminal Panel: they call
   the panel directly. While such a panel is open, `` ctrl-` `` still toggles the center
   terminals, and `ctrl-j` closes the dock.
@@ -215,10 +227,14 @@ has its own test in `crates/zed/src/zed.rs`, `test_reload_keymaps_binds_the_marl
   (`ToggleLeftDock`, `ToggleRightDock`).
 - The settings UI shows the patched values as the defaults: in the Marley layout a stored
   `terminal.button: false` looks like the default and has no reset control.
-- A layout round trip with the Agent Panel open can close the right dock; each round trip
-  adds a subscription pair on the kept Zed sidebar; a window restored in the Marley layout
-  saves a partial state before its restore finishes. All three are in #442's notes.
-- Keyboard navigation and the rail's own saved width and closed state are W6 (#442).
-- The thread rows, the agent rows, the routing and the terminal keys have not been seen live:
-  the drives for #439 and #440 would have moved Chad's windows off his monitor, and #440's,
-  #441's and #449's need input. They are owed to the next headless capture.
+- A layout round trip with the Agent Panel open can close the right dock (#451). Each round
+  trip adds a subscription pair on the kept Zed sidebar, and a window restored in the Marley
+  layout saves a partial state before its restore finishes (`docs/planning/intake/rail-internals.md`).
+- A restored window builds its rail open and closes it once the restore is over, through
+  `close_sidebar`, which records Zed's "Sidebar Toggled" event; Zed has no silent close.
+- Rename and close, keyboard navigation with the filter and reorder, and the switcher are W6c
+  to W6e (#452 to #454).
+- The thread rows, the agent rows, the routing, the terminal keys, the New Agent key and the
+  rail's persistence have not been seen live: the drives for #439 and #440 would have moved
+  Chad's windows off his monitor, and the later ones need input or a relaunch. They are owed to
+  the next headless capture.

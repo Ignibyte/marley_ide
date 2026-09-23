@@ -10840,6 +10840,7 @@ dependencies = [
  "project",
  "prompt_store",
  "recent_projects",
+ "serde",
  "serde_json",
  "settings",
  "sidebar",

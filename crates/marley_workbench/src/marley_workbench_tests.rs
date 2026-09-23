@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use agent_settings::AgentSettings;
 use fs::FakeFs;
-use gpui::{Context, Task, TestAppContext, VisualTestContext, px};
+use gpui::{Context, Pixels, Task, TestAppContext, VisualTestContext, px};
 use project::Project;
 use serde_json::json;
 use settings::MarleySettingsContent;
@@ -230,6 +230,17 @@ pub(crate) async fn open_projects<'a>(
     (multi_workspace, workspaces, cx)
 }
 
+/// Asserts that the rail's blob `saved` holds every field of Zed's blob `zed`, unchanged, and
+/// says the rail is open.
+pub(crate) fn assert_keeps_zeds_fields(saved: &str, zed: &str) {
+    let saved: serde_json::Value = serde_json::from_str(saved).expect("the rail's blob is JSON");
+    let zed: serde_json::Value = serde_json::from_str(zed).expect("Zed's blob is JSON");
+    for (key, value) in zed.as_object().expect("Zed's blob is an object") {
+        assert_eq!(&saved[key], value, "Zed's `{key}`");
+    }
+    assert_eq!(saved["marley_rail_closed"], false);
+}
+
 /// Registers the layout's sidebar the way `crates/zed` does when a window opens.
 pub(crate) fn register(multi_workspace: &Entity<MultiWorkspace>, cx: &mut VisualTestContext) {
     cx.update(|window, cx| register_sidebar(multi_workspace, window, cx));
@@ -332,11 +343,12 @@ async fn switching_back_hands_each_window_its_own_zed_sidebar(cx: &mut TestAppCo
     let rail = cx
         .read(|cx| rail_of(&multi_workspace, cx))
         .expect("the rail");
-    // While the rail stands in, the window keeps saving Zed's sidebar's state.
-    assert_eq!(
-        rail.read_with(cx, workspace::Sidebar::serialized_state),
-        state
-    );
+    // While the rail stands in, the window keeps saving Zed's sidebar's state, with the rail's
+    // own field added.
+    let saved = rail
+        .read_with(cx, workspace::Sidebar::serialized_state)
+        .expect("the rail's blob");
+    assert_keeps_zeds_fields(&saved, &state.expect("Zed's blob"));
 
     set_layout(MarleyLayout::Zed, cx);
     cx.read(|cx| {
@@ -385,6 +397,192 @@ async fn a_window_opened_in_the_marley_layout_gives_zeds_sidebar_its_saved_state
         let sidebar = zed_sidebar_of(&multi_workspace, cx).expect("Zed's sidebar");
         assert_eq!(sidebar.read(cx).width(cx), px(321.));
     });
+}
+
+/// The blob the window's next save writes for its sidebar.
+fn sidebar_blob(multi_workspace: &Entity<MultiWorkspace>, cx: &VisualTestContext) -> String {
+    cx.read(|cx| {
+        multi_workspace
+            .read(cx)
+            .sidebar()
+            .and_then(|sidebar| sidebar.serialized_state(cx))
+            .expect("the sidebar saves a blob")
+    })
+}
+
+fn saved_closed(blob: &str) -> bool {
+    let saved: serde_json::Value = serde_json::from_str(blob).expect("JSON");
+    saved["marley_rail_closed"] == true
+}
+
+/// Restores the test's window from saved state the way Zed restores a window at startup.
+async fn restore_window(
+    sidebar_open: bool,
+    sidebar_state: Option<String>,
+    cx: &mut VisualTestContext,
+) {
+    let window = cx
+        .update(|window, _| window.window_handle())
+        .downcast::<MultiWorkspace>()
+        .expect("a multi-workspace window");
+    let state = workspace::MultiWorkspaceState {
+        active_workspace_id: None,
+        sidebar_open,
+        project_groups: Vec::new(),
+        sidebar_state,
+    };
+    let fs = cx.update(|_, cx| <dyn Fs>::global(cx));
+    let mut async_cx = cx.to_async();
+    workspace::apply_restored_multiworkspace_state(window, &state, fs, &mut async_cx).await;
+    cx.run_until_parked();
+}
+
+fn rail_width(multi_workspace: &Entity<MultiWorkspace>, cx: &VisualTestContext) -> Pixels {
+    cx.read(|cx| {
+        rail_of(multi_workspace, cx)
+            .expect("the rail")
+            .read(cx)
+            .width(cx)
+    })
+}
+
+fn set_rail_width(
+    multi_workspace: &Entity<MultiWorkspace>,
+    width: Pixels,
+    cx: &mut VisualTestContext,
+) {
+    let rail = cx
+        .read(|cx| rail_of(multi_workspace, cx))
+        .expect("the rail");
+    rail.update(cx, |rail, cx| rail.set_width(Some(width), cx));
+}
+
+#[gpui::test]
+async fn a_closed_rail_stays_closed_when_its_window_is_restored(cx: &mut TestAppContext) {
+    init_test(cx);
+    cx.update(init);
+    set_layout(MarleyLayout::Marley, cx);
+    let saved = {
+        let (multi_workspace, _, cx) = open_projects(&[path!("/alpha")], cx).await;
+        register(&multi_workspace, cx);
+        multi_workspace.update_in(cx, |multi_workspace, window, cx| {
+            multi_workspace.close_sidebar(window, cx);
+        });
+        cx.run_until_parked();
+        sidebar_blob(&multi_workspace, cx)
+    };
+    assert!(saved_closed(&saved));
+
+    // The next launch builds the window's rail open, then restores what was saved.
+    let (multi_workspace, _, cx) = open_projects(&[path!("/alpha")], cx).await;
+    register(&multi_workspace, cx);
+    cx.read(|cx| assert!(multi_workspace.read(cx).sidebar_open()));
+    restore_window(false, Some(saved), cx).await;
+    cx.read(|cx| assert!(!multi_workspace.read(cx).sidebar_open()));
+}
+
+#[gpui::test]
+async fn an_open_rail_stays_open_when_its_window_is_restored(cx: &mut TestAppContext) {
+    init_test(cx);
+    cx.update(init);
+    set_layout(MarleyLayout::Marley, cx);
+    let saved = {
+        let (multi_workspace, _, cx) = open_projects(&[path!("/alpha")], cx).await;
+        register(&multi_workspace, cx);
+        sidebar_blob(&multi_workspace, cx)
+    };
+    assert!(!saved_closed(&saved));
+    let (multi_workspace, _, cx) = open_projects(&[path!("/alpha")], cx).await;
+    register(&multi_workspace, cx);
+    restore_window(true, Some(saved), cx).await;
+    cx.read(|cx| assert!(multi_workspace.read(cx).sidebar_open()));
+}
+
+#[gpui::test]
+async fn with_ai_off_no_close_is_saved(cx: &mut TestAppContext) {
+    init_test(cx);
+    update_user_settings(cx, |content| {
+        content.agent.get_or_insert_default().enabled = Some(false);
+    });
+    cx.update(init);
+    set_layout(MarleyLayout::Marley, cx);
+    let (multi_workspace, _, cx) = open_projects(&[path!("/alpha")], cx).await;
+    register(&multi_workspace, cx);
+    multi_workspace.update_in(cx, |multi_workspace, window, cx| {
+        multi_workspace.close_sidebar(window, cx);
+    });
+    cx.run_until_parked();
+    assert!(!saved_closed(&sidebar_blob(&multi_workspace, cx)));
+}
+
+#[gpui::test]
+async fn the_rails_width_holds_through_a_switch_to_zed_and_back(cx: &mut TestAppContext) {
+    init_test(cx);
+    init_zed_sidebar(cx);
+    cx.update(init);
+    set_layout(MarleyLayout::Marley, cx);
+    let (multi_workspace, _, cx) = open_projects(&[path!("/alpha")], cx).await;
+    register(&multi_workspace, cx);
+    set_rail_width(&multi_workspace, px(400.), cx);
+
+    // The window opened in the Marley layout, so Zed's sidebar is built fresh from the blob.
+    set_layout(MarleyLayout::Zed, cx);
+    cx.read(|cx| {
+        let sidebar = zed_sidebar_of(&multi_workspace, cx).expect("Zed's sidebar");
+        assert_eq!(sidebar.read(cx).width(cx), px(400.));
+    });
+    set_layout(MarleyLayout::Marley, cx);
+    assert_eq!(rail_width(&multi_workspace, cx), px(400.));
+}
+
+#[gpui::test]
+async fn a_width_set_on_the_rail_carries_to_the_zed_sidebar_it_keeps(cx: &mut TestAppContext) {
+    init_test(cx);
+    init_zed_sidebar(cx);
+    cx.update(init);
+    let (multi_workspace, _, cx) = open_projects(&[path!("/alpha")], cx).await;
+    register(&multi_workspace, cx);
+    let sidebar = cx
+        .read(|cx| zed_sidebar_of(&multi_workspace, cx))
+        .expect("Zed's sidebar");
+    set_layout(MarleyLayout::Marley, cx);
+    set_rail_width(&multi_workspace, px(400.), cx);
+    cx.read(|cx| assert_eq!(sidebar.read(cx).width(cx), px(400.)));
+    set_layout(MarleyLayout::Zed, cx);
+    cx.read(|cx| {
+        let back = zed_sidebar_of(&multi_workspace, cx).expect("Zed's sidebar again");
+        assert_eq!(back.entity_id(), sidebar.entity_id());
+        assert_eq!(back.read(cx).width(cx), px(400.));
+    });
+}
+
+#[gpui::test]
+async fn a_restored_width_sizes_the_rail(cx: &mut TestAppContext) {
+    init_test(cx);
+    cx.update(init);
+    set_layout(MarleyLayout::Marley, cx);
+    let (multi_workspace, _, cx) = open_projects(&[path!("/alpha")], cx).await;
+    register(&multi_workspace, cx);
+    let saved = r#"{"width":333.0,"width_set_by_user":true}"#.to_string();
+    restore_window(true, Some(saved), cx).await;
+    assert_eq!(rail_width(&multi_workspace, cx), px(333.));
+}
+
+#[gpui::test]
+async fn a_rail_built_over_zeds_sidebar_starts_at_its_width(cx: &mut TestAppContext) {
+    init_test(cx);
+    init_zed_sidebar(cx);
+    cx.update(init);
+    let (multi_workspace, _, cx) = open_projects(&[path!("/alpha")], cx).await;
+    register(&multi_workspace, cx);
+    let sidebar = cx
+        .read(|cx| zed_sidebar_of(&multi_workspace, cx))
+        .expect("Zed's sidebar");
+    sidebar.update_in(cx, |sidebar, window, cx| {
+        sidebar.restore_serialized_state(ZED_SIDEBAR_STATE, window, cx);
+    });
+    set_layout(MarleyLayout::Marley, cx);
+    assert_eq!(rail_width(&multi_workspace, cx), px(321.));
 }
 
 #[gpui::test]

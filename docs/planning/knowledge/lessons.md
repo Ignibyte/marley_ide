@@ -1982,3 +1982,21 @@ What worked in #450 (`crates/marley_workbench/src/agents_tests.rs`):
   `load_default_keymap`, `cx.clear_key_bindings` and `reload_keymaps(cx, Vec::new())`.
 - An agent row or entry drawn with an SVG icon needs `AgentRegistryStore::init_test_global`
   with an agent whose metadata carries `icon_path`, as #439's registry test does.
+
+## L-claude-442-driving-a-window-restore-in-a-test-001
+*category: validate · topic: persistence tests in a Marley crate · from: pipeline 442*
+
+What worked in #442 (`crates/marley_workbench/src/marley_workbench_tests.rs`):
+- Zed's own restore path runs in a test: build a `workspace::MultiWorkspaceState` (its fields
+  are public) and await `workspace::apply_restored_multiworkspace_state` with the window's
+  handle (`window.window_handle().downcast::<MultiWorkspace>()`), `<dyn Fs>::global(cx)` and
+  `cx.to_async()`.
+- A second launch is a second window: `open_projects` again once the first window's
+  `VisualTestContext` borrow has ended, then `register` builds its sidebar as `crates/zed`
+  does, before the restore.
+- `MultiWorkspace::serialize` spawns, and `serialize_now` reads the sidebar's blob a turn
+  later, inside the `MultiWorkspace`'s update. A flag a sidebar sets from its observer on the
+  `MultiWorkspace` is therefore in the next save, and the sidebar must not read the
+  `MultiWorkspace` while producing the blob.
+- Test the blob as JSON (`serde_json::Value`), not as a string: field order and additions
+  break a byte-for-byte comparison without changing what either sidebar reads.

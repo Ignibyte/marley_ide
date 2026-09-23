@@ -1374,3 +1374,17 @@ binds it tagged as a default source, so each reload binds it again, it beats Zed
 equal depth and loses to the user's keymap. The chord was swept against every context of every
 keymap Zed ships. Rejected: opening the rail's `+` menu from the key (no rail in the Zed layout
 or while it is closed), and binding at init (every reload clears it).
+
+## AD-claude-442-the-rail-adds-its-fields-to-zeds-sidebar-blob-001
+*decided at: 2026-09-23 · status: shipped*
+
+The rail keeps its state in the window's saved sidebar blob, the one Zed's sidebar owns, by
+adding fields to it: `width` and `width_set_by_user` under Zed's names, and
+`marley_rail_closed`, which Zed's sidebar ignores. Every other field is kept, so Zed's sidebar
+restores from what the rail saved, and the rail from what Zed's saved. One width holds across
+both layouts: the rail forwards its width to the Zed sidebar it keeps and starts at that
+sidebar's width. A close is remembered in the rail's own field, since the `MultiWorkspace`'s
+`sidebar_open` only ever reopens on restore and the Marley layout builds each window's rail
+open. The restore closes the rail again once no entity is being updated. Rejected: a blob of
+the rail's own (the #438 failure: Zed's state leaves the database), and a Zed touchpoint for a
+silent close or a close-aware restore.

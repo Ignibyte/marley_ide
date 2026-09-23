@@ -59,6 +59,10 @@ pub struct Rail {
     multi_workspace: WeakEntity<MultiWorkspace>,
     focus_handle: FocusHandle,
     width: Pixels,
+    /// Whether `width` came from the user, which is when it is saved.
+    width_set_by_user: bool,
+    /// Whether the user closed the rail, which the window's saved state keeps.
+    closed: bool,
     foreground_command: ForegroundCommand,
     /// When each terminal last wrote output, on the executor's clock.
     terminal_output: HashMap<EntityId, Instant>,
@@ -72,8 +76,8 @@ pub struct Rail {
     /// Zed's sidebar, kept while the rail stands in for it, so the switch back loses neither its
     /// state nor the work it has running.
     zed_sidebar: Option<KeptSidebar>,
-    /// Zed's sidebar state restored into a window that opened in the Marley layout, kept unread
-    /// and written back unchanged.
+    /// Zed's sidebar state restored into a window that opened in the Marley layout. The rail
+    /// reads its own fields from it and writes it back with every other field kept.
     zed_sidebar_state: Option<String>,
     add_project_menu: PopoverMenuHandle<SidebarRecentProjects>,
     workspace_subscriptions: HashMap<EntityId, Subscription>,
@@ -151,18 +155,34 @@ impl Rail {
                 window,
                 |rail, _, _: &MultiWorkspaceEvent, window, cx| rail.refresh(window, cx),
             ),
-            // Re-keying a project group notifies without an event.
-            cx.observe_in(multi_workspace, window, |rail, _, window, cx| {
-                rail.refresh(window, cx);
-            }),
+            // Re-keying a project group notifies without an event, and so do opening and
+            // closing the sidebar.
+            cx.observe_in(
+                multi_workspace,
+                window,
+                |rail, multi_workspace, window, cx| {
+                    rail.note_open(&multi_workspace, cx);
+                    rail.refresh(window, cx);
+                },
+            ),
         ];
+        // Built over Zed's sidebar, the rail starts at its width: one width for both layouts.
+        let saved = zed_sidebar
+            .as_ref()
+            .and_then(|(sidebar, _)| sidebar.read(cx).serialized_state(cx))
+            .map(|blob| read_rail_state(&blob))
+            .unwrap_or_default();
         // The `MultiWorkspace` may be mid-update while its sidebar is built, so the first read
         // waits for the end of this effect cycle.
         cx.defer_in(window, Self::refresh);
         Self {
             multi_workspace: multi_workspace.downgrade(),
             focus_handle: cx.focus_handle(),
-            width: DEFAULT_WIDTH,
+            width: saved
+                .width
+                .map_or(DEFAULT_WIDTH, |width| px(width).clamp(MIN_WIDTH, MAX_WIDTH)),
+            width_set_by_user: saved.width.is_some(),
+            closed: false,
             foreground_command: |terminal, cx| terminal.read(cx).foreground_process_command_name(),
             terminal_output: HashMap::default(),
             quiet_timers: HashMap::default(),
@@ -183,9 +203,26 @@ impl Rail {
     }
 
     /// Hands Zed's sidebar back for the switch to the Zed layout: the one the rail kept, and the
-    /// state to restore into a fresh one when it kept none.
-    pub(crate) const fn take_zed_sidebar(&mut self) -> (Option<KeptSidebar>, Option<String>) {
-        (self.zed_sidebar.take(), self.zed_sidebar_state.take())
+    /// state to restore into a fresh one when it kept none, with the rail's width in it.
+    pub(crate) fn take_zed_sidebar(&mut self) -> (Option<KeptSidebar>, Option<String>) {
+        let state = write_rail_state(self.zed_sidebar_state.take().as_deref(), self.rail_state());
+        (self.zed_sidebar.take(), Some(state))
+    }
+
+    /// Notes whether the user has closed the rail. Nothing is noted while the sidebar cannot be
+    /// shown at all.
+    fn note_open(&mut self, multi_workspace: &Entity<MultiWorkspace>, cx: &App) {
+        let multi_workspace = multi_workspace.read(cx);
+        if multi_workspace.multi_workspace_enabled(cx) {
+            self.closed = !multi_workspace.sidebar_open();
+        }
+    }
+
+    fn rail_state(&self) -> RailState {
+        RailState {
+            width: self.width_set_by_user.then(|| f32::from(self.width)),
+            closed: self.closed,
+        }
     }
 
     /// Follows every workspace, terminal, Agent Panel and live thread, rereads the window, and
@@ -862,6 +899,49 @@ impl Watched {
 
 /// Keeps each entity's subscriptions, makes them for each new entity, and returns the map for
 /// what exists now; whatever the old map still holds is dropped, ending those subscriptions.
+/// What the rail keeps in the window's saved sidebar state, beside Zed's sidebar's fields.
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+struct RailState {
+    /// The width the user set, if any.
+    width: Option<f32>,
+    /// Whether the user closed the rail.
+    closed: bool,
+}
+
+/// The fields of a saved sidebar blob the rail reads. `width` and `width_set_by_user` are the
+/// names Zed's sidebar writes and reads; `marley_rail_closed` is the rail's own, which Zed's
+/// sidebar ignores.
+#[derive(Default, serde::Deserialize)]
+struct SavedRail {
+    #[serde(default)]
+    width: Option<f32>,
+    #[serde(default)]
+    width_set_by_user: bool,
+    #[serde(default)]
+    marley_rail_closed: bool,
+}
+
+/// The rail's fields in a saved sidebar blob. A blob that cannot be read holds nothing for it.
+fn read_rail_state(blob: &str) -> RailState {
+    let saved: SavedRail = serde_json::from_str(blob).unwrap_or_default();
+    RailState {
+        width: saved.width.filter(|_| saved.width_set_by_user),
+        closed: saved.marley_rail_closed,
+    }
+}
+
+/// `zed_state`, the Zed sidebar's saved blob, with the rail's fields written into it and every
+/// other field kept, so Zed's sidebar still restores its own state from it.
+fn write_rail_state(zed_state: Option<&str>, state: RailState) -> String {
+    let mut blob: serde_json::Map<String, serde_json::Value> = zed_state
+        .and_then(|zed_state| serde_json::from_str(zed_state).ok())
+        .unwrap_or_default();
+    blob.insert("width".into(), serde_json::json!(state.width));
+    blob.insert("width_set_by_user".into(), state.width.is_some().into());
+    blob.insert("marley_rail_closed".into(), state.closed.into());
+    serde_json::Value::Object(blob).to_string()
+}
+
 fn resubscribe<E: 'static, S>(
     old: &mut HashMap<EntityId, S>,
     entities: &[Entity<E>],
@@ -1215,8 +1295,15 @@ impl Sidebar for Rail {
     }
 
     fn set_width(&mut self, width: Option<Pixels>, cx: &mut Context<Self>) {
-        // The resize handle passes the raw pointer position.
+        // The resize handle passes the raw pointer position, and `None` to reset.
+        self.width_set_by_user = width.is_some();
         self.width = width.unwrap_or(DEFAULT_WIDTH).clamp(MIN_WIDTH, MAX_WIDTH);
+        // One width for both layouts: the Zed sidebar the rail keeps takes the rail's clamped
+        // width too, or the reset.
+        if let Some((sidebar, _)) = &self.zed_sidebar {
+            let width = width.map(|_| self.width);
+            sidebar.update(cx, |sidebar, cx| sidebar.set_width(width, cx));
+        }
         cx.notify();
     }
 
@@ -1235,21 +1322,44 @@ impl Sidebar for Rail {
         false
     }
 
-    // The window's saved sidebar state stays Zed's sidebar's while the rail stands in for it.
+    // The window's saved sidebar state stays Zed's sidebar's while the rail stands in for it,
+    // with the rail's own fields added. This runs inside the `MultiWorkspace`'s update, so it
+    // reads the rail's fields and never the `MultiWorkspace`.
     fn serialized_state(&self, cx: &App) -> Option<String> {
-        self.zed_sidebar
+        let zed_state = self
+            .zed_sidebar
             .as_ref()
             .and_then(|(sidebar, _)| sidebar.read(cx).serialized_state(cx))
-            .or_else(|| self.zed_sidebar_state.clone())
+            .or_else(|| self.zed_sidebar_state.clone());
+        Some(write_rail_state(zed_state.as_deref(), self.rail_state()))
     }
 
     fn restore_serialized_state(
         &mut self,
         state: &str,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
     ) {
         self.zed_sidebar_state = Some(state.to_string());
+        let saved = read_rail_state(state);
+        if let Some(width) = saved.width {
+            self.width = px(width).clamp(MIN_WIDTH, MAX_WIDTH);
+            self.width_set_by_user = true;
+        }
+        if saved.closed {
+            self.closed = true;
+            // The restore runs inside the `MultiWorkspace`'s update, and closing reads the rail,
+            // so the close waits until neither is being updated: a `defer_in` on the rail would
+            // still run inside the rail's own update.
+            let multi_workspace = self.multi_workspace.clone();
+            window.defer(cx, move |window, cx| {
+                let close = |multi_workspace: &mut MultiWorkspace,
+                             cx: &mut Context<MultiWorkspace>| {
+                    multi_workspace.close_sidebar(window, cx);
+                };
+                multi_workspace.update(cx, close).log_err();
+            });
+        }
     }
 }
 

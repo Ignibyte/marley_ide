@@ -2172,3 +2172,14 @@ callback calls may read or update that entity. That includes Zed code that only 
 to it, such as `TerminalPanel::spawn_task`. Defer the work to the window's next turn
 (`window.spawn`, then `update_in`). Drive the callback in a test through Zed's public entry
 point, the way Zed calls it, never by calling the method outside an update.
+
+## PR-claude-defer-in-does-not-leave-the-entitys-own-update-001
+*severity: high · prevents: F-claude-442-a-close-deferred-on-the-rail-ran-inside-the-rails-update-001*
+
+`cx.defer_in(window, |this, window, cx| …)` and `cx.defer(|this, cx| …)` on a `Context<T>` run
+their callback inside an update of `T`. They escape the update in progress, not `T`'s lease.
+When the deferred work makes other code read `T` (a `MultiWorkspace` reading its sidebar, a
+pane reading its item, a panel reading its workspace), defer with `window.defer(cx, …)` or
+`cx.defer(…)` on the `App`, capturing weak handles, so no entity is leased when it runs. Drive
+the deferral in a test through the Zed entry point that calls it, where a double lease
+panics.

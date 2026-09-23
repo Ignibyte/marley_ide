@@ -10,7 +10,10 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-442](open/TICKET-442-rail-polish.md) | feature | W6 · rail persistence and polish |
+| [TICKET-451](open/TICKET-451-marley-layout-fixes.md) | feature | W6b · Marley layout fixes: Zed's layout presets, the right dock across a switch, a first terminal |
+| [TICKET-452](open/TICKET-452-rail-rename-and-close.md) | feature | W6c · rename and close terminals from the rail |
+| [TICKET-453](open/TICKET-453-rail-keyboard-and-filter.md) | feature | W6d · keyboard navigation, a filter and project reorder in the rail |
+| [TICKET-454](open/TICKET-454-rail-switcher.md) | feature | W6e · a switcher over recent terminals and threads |
 | [TICKET-448](open/TICKET-448-zed-dylint-lints.md) | chore | quality gates · Zed's dylint lints (`tooling/lints`) on the Marley crates, as gate:21 |
 
 ## Deliberate (picked explicitly, never auto-next)

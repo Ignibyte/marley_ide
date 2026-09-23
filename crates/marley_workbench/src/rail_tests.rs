@@ -14,8 +14,8 @@ use workspace::SaveIntent;
 
 use super::*;
 use crate::marley_workbench_tests::{
-    RequestedDirectories, ZED_SIDEBAR_STATE, display_only_terminal, init_test, open_projects,
-    rail_of, register, set_layout, use_display_only_terminals,
+    RequestedDirectories, ZED_SIDEBAR_STATE, assert_keeps_zeds_fields, display_only_terminal,
+    init_test, open_projects, rail_of, register, set_layout, use_display_only_terminals,
 };
 
 /// A window over `alpha` and `beta` in the Marley layout, with `beta` displayed and the rail
@@ -354,18 +354,65 @@ async fn the_rail_keeps_its_width_in_bounds_and_sits_on_the_left(cx: &mut TestAp
 }
 
 #[gpui::test]
-async fn zeds_saved_sidebar_state_is_kept_unread_for_zed(cx: &mut TestAppContext) {
+async fn zeds_saved_sidebar_state_sizes_the_rail_and_is_kept_for_zed(cx: &mut TestAppContext) {
     let (_, _, _, rail, cx) = open_rail(cx).await;
     rail.update_in(cx, |rail, window, cx| {
         rail.restore_serialized_state(ZED_SIDEBAR_STATE, window, cx);
     });
     rail.read_with(cx, |rail, cx| {
-        assert_eq!(rail.width(cx), px(260.));
-        assert_eq!(
-            rail.serialized_state(cx).as_deref(),
-            Some(ZED_SIDEBAR_STATE)
-        );
+        assert_eq!(rail.width(cx), px(321.), "one width for both layouts");
+        let saved = rail.serialized_state(cx).expect("the rail's blob");
+        assert_keeps_zeds_fields(&saved, ZED_SIDEBAR_STATE);
     });
+}
+
+#[test]
+fn the_rail_writes_its_fields_into_zeds_blob_and_keeps_the_rest() {
+    let zed = r#"{"width":321.0,"width_set_by_user":true,"active_view":"History","later":1}"#;
+    let state = RailState {
+        width: Some(400.),
+        closed: true,
+    };
+    let blob = write_rail_state(Some(zed), state);
+    let saved: serde_json::Value = serde_json::from_str(&blob).expect("JSON");
+    assert_eq!(
+        saved,
+        json!({
+            "width": 400.0,
+            "width_set_by_user": true,
+            "active_view": "History",
+            "later": 1,
+            "marley_rail_closed": true,
+        })
+    );
+    assert_eq!(read_rail_state(&blob), state);
+}
+
+#[test]
+fn a_width_the_user_did_not_set_is_not_saved() {
+    let blob = write_rail_state(None, RailState::default());
+    let saved: serde_json::Value = serde_json::from_str(&blob).expect("JSON");
+    assert_eq!(
+        saved,
+        json!({ "width": null, "width_set_by_user": false, "marley_rail_closed": false })
+    );
+    // A width without Zed's flag is not the user's.
+    assert_eq!(read_rail_state(r#"{"width":300.0}"#), RailState::default());
+}
+
+#[test]
+fn an_unreadable_blob_holds_nothing_for_the_rail() {
+    assert_eq!(read_rail_state("not json"), RailState::default());
+    assert_eq!(read_rail_state("[1, 2]"), RailState::default());
+    // A base that is not an object is started afresh.
+    let closed = RailState {
+        width: None,
+        closed: true,
+    };
+    assert_eq!(
+        read_rail_state(&write_rail_state(Some("[1, 2]"), closed)),
+        closed
+    );
 }
 
 #[gpui::test]

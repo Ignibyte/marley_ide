@@ -13,6 +13,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The rail remembers being closed, and its width** (#442, 2026-09-23). A rail you close stays
+  closed when Marley restarts, where before every window rebuilt it open, and one left open
+  stays open. The rail's width is saved with the window, and one width holds in both layouts:
+  a width set on the rail carries to Zed's sidebar after a switch to the Zed layout, and back.
 - **New Agent from the keyboard** (#450, 2026-09-23). `ctrl-alt-n` (`cmd-alt-n` on macOS)
   opens a New Agent picker in either layout: the Zed Agent and each configured external agent,
   then each agent CLI installed on the `PATH`, every entry marked "Thread" or "Terminal".

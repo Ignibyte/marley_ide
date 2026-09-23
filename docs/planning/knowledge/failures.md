@@ -1714,3 +1714,15 @@ Found in the Complete phase, while checking the CHANGELOG's claim that Zed's rer
 in the center; no test had rerun a task. Fixed: in the Marley layout the provider first moves
 the task's terminals from the panel to the active pane (`workspace::move_item`), and the switch
 test reruns a task that last ran in the panel.
+
+## F-claude-442-a-close-deferred-on-the-rail-ran-inside-the-rails-update-001
+*severity: high · category: gpui re-entrancy · pipeline 442*
+
+The rail's `restore_serialized_state` runs inside the `MultiWorkspace`'s update, so the first
+version deferred the restore's close with `cx.defer_in(window, |rail, window, cx| …)`. That
+callback runs inside an update of the rail. `close_sidebar` reads its sidebar
+(`sidebar_side`, `multi_workspace.rs:331`), so every restore of a closed rail would have
+panicked: "cannot read marley_workbench::rail::Rail while it is already being updated". Found
+in the Code phase by the new driven test, which restores through Zed's own
+`apply_restored_multiworkspace_state`. Fixed: the close defers with `window.defer`, which runs
+with no entity leased, and captures only the `MultiWorkspace`'s weak handle.
