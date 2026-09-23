@@ -55,11 +55,48 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
 - While it stands in, it answers `serialized_state` with Zed's sidebar's state. It saves nothing
   of its own yet (#442).
 
+## Threads (#439)
+
+- **Rows.** Each group's threads come from `ThreadMetadataStore`:
+  - the group's main worktree paths;
+  - the same paths as folder paths, for rows from before main paths were kept;
+  - each member workspace's roots.
+
+  They are deduplicated by thread id and sorted newest first. Archived threads never show,
+  and a draft shows only while its panel shows it. Rows are drawn with Zed's `ui::ThreadItem`,
+  indented under the project.
+- **Status and attention.** Status comes from the live conversations in each member
+  workspace's Agent Panel, joined to rows by thread id; a thread with no live conversation
+  shows as done. The rail keeps each thread's last status, so a run that ended while the
+  thread was not shown lights its dot, until the thread is the displayed workspace's
+  visible Agent Panel thread.
+- **Clicks.** A thread row shows its project and opens the thread, focused, in that project's
+  Agent Panel (`load_agent_thread`, then `focus_panel`). New Agent Thread lists the Zed Agent,
+  then the project's agent servers by name, with the agent registry as the fallback for names
+  and icons. It calls the chosen project's panel directly, since a dispatched action would
+  reach the displayed project.
+- **What it follows.** Beyond W2's subscriptions:
+  - each Agent Panel's events, and focus entering or leaving it;
+  - each live thread's status, title and confirmation events, but not streamed output;
+  - each project's agent servers;
+  - the metadata store.
+
+  The subscriptions carry the window, since focus is read at every rebuild.
+- **`is_threads_list_view_active` stays `false`.** `true` would make Zed treat every thread
+  in the window as seen while the rail is open. That would silence the OS pop-ups and sounds
+  for the Agent Panel's terminal threads too, which the rail does not list, and swap the title
+  bar's project button
+  (AD-claude-439-the-rail-does-not-claim-zeds-threads-list-001).
+
 ## Tests
 
-`src/marley_workbench_tests.rs` (the switch, 11 tests) and `src/rail_tests.rs` (the rail, 15):
-driven gpui tests on `MultiWorkspace::test_new` over a FakeFs, clicking elements found by
-debug selector.
+`src/marley_workbench_tests.rs` (the switch, 11 tests) and `src/rail_tests.rs` (the rail, 16,
+and 11 thread tests in `rail::tests::threads`): driven gpui tests on `MultiWorkspace::test_new`
+over a FakeFs, clicking elements found by debug selector. The thread tests run on
+`init_agent_test`, which layers Zed's agent test setup (`agent_ui::test_support`, with a
+thread database per test) over the window. They put an `AgentPanel::test_new` in each project
+and drive threads through `acp_thread::StubAgentConnection`: a turn that stays open until
+`end_turn`, or a tool call waiting on a permission.
 
 ## Known limits
 
@@ -69,5 +106,7 @@ debug selector.
 - A layout round trip with the Agent Panel open can close the right dock; each round trip
   adds a subscription pair on the kept Zed sidebar; a window restored in the Marley layout
   saves a partial state before its restore finishes. All three are in #442's notes.
-- Threads, agents, routing, keyboard navigation and the rail's own saved width and closed
-  state are W3 to W6 (#439 to #442).
+- Agent CLIs in rail terminals, routing, keyboard navigation and the rail's own saved width and
+  closed state are W4 to W6 (#440 to #442).
+- The thread rows have not been seen live: #439's drive would have moved Chad's windows off his
+  monitor. Their look is owed to the next headless capture.

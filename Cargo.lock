@@ -10814,10 +10814,13 @@ dependencies = [
 name = "marley_workbench"
 version = "0.1.0"
 dependencies = [
+ "acp_thread",
  "agent",
+ "agent-client-protocol",
  "agent_settings",
  "agent_ui",
  "anyhow",
+ "chrono",
  "db",
  "editor",
  "fs",

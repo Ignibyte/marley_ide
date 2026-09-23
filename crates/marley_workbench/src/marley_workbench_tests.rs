@@ -31,6 +31,33 @@ pub(crate) fn init_test(cx: &TestAppContext) {
     });
 }
 
+/// The globals the thread tests need: Zed's agent test setup, which installs its own settings
+/// store and database, so it replaces `init_test` rather than following it, plus the stores the
+/// Agent Panel reads and a thread database of the test's own.
+pub(crate) fn init_agent_test(cx: &mut TestAppContext) {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static NEXT_DATABASE: AtomicUsize = AtomicUsize::new(0);
+    let database = NEXT_DATABASE.fetch_add(1, Ordering::SeqCst);
+    cx.update(|cx| {
+        cx.set_global(agent_ui::thread_metadata_store::TestMetadataDbName(
+            format!("MARLEY_RAIL_THREADS_{database}"),
+        ));
+        cx.set_global(
+            agent_ui::terminal_thread_metadata_store::TestTerminalMetadataDbName(format!(
+                "MARLEY_RAIL_TERMINAL_THREADS_{database}"
+            )),
+        );
+    });
+    agent_ui::test_support::init_test(cx);
+    cx.update(|cx| {
+        agent::ThreadStore::init_global(cx);
+        agent_ui::thread_metadata_store::ThreadMetadataStore::init_global(cx);
+        language_model::LanguageModelRegistry::test(cx);
+        prompt_store::init(cx);
+        terminal_view::init(cx);
+    });
+}
+
 /// What `sidebar::Sidebar::new` reads, for the tests that build Zed's sidebar.
 fn init_zed_sidebar(cx: &TestAppContext) {
     cx.update(|cx| {

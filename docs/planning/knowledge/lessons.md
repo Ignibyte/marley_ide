@@ -1851,3 +1851,52 @@ Forty-two smokes ran in a few minutes against the shipped code. Two things to kn
 run uses a planted file as its red: an untracked `.rs` that no module declares also trips
 cargo-shear's unlinked-file check, and a whole static pass is under a minute once the build is
 warm.
+
+## L-claude-439-a-popover-menu-takes-focus-only-on-a-platform-frame-001
+*category: validate · topic: gpui driven tests · from: pipeline 439*
+
+`PopoverMenu` focuses the menu it opens two frames later (`window.on_next_frame`, twice), and a
+test window runs next-frame callbacks only when the platform asks for a frame
+(`TestWindow::simulate_frame_request`, private to gpui). `run_until_parked` and
+`window.refresh()` never ask. So in a driven test the focus stays where it was, and
+`menu::SelectNext`, `SelectChild` or `Cancel`, dispatched after opening a popover, reach the old
+focus and do nothing. Drive a popover's menu with the pointer. Its entries carry
+`MENU_ITEM-<label>` debug selectors. A submenu's trigger carries none, but the row under a
+known entry can be hit by position, and a submenu anchors to its trigger's bounds from the
+frame before it draws, so draw twice before reading its entries.
+
+## L-claude-439-focus-lands-in-a-dock-panel-only-once-its-dock-is-open-001
+*category: validate · topic: gpui driven tests · from: pipeline 439*
+
+Focusing a panel's focus handle while its dock is closed does nothing that
+`contains_focused` sees: the panel is not drawn, so its handle is in no dispatch path, and the
+`on_focus_in` listeners on it do not fire. Open it the way a user does,
+`workspace.focus_panel::<P>(window, cx)`, which opens the dock and moves focus in.
+
+## L-claude-439-a-manifest-edit-makes-the-next-gate-rewrite-cargo-lock-001
+*category: gate · topic: the receipt's tree check (#447) · from: pipeline 439*
+
+After a dependency leaves or joins a manifest, the first cargo command anywhere rewrites
+`Cargo.lock`. When that command is the gate's own gate:2, the lockfile changes mid-run. The
+receipt step then fails every run that followed the edit, all the other gates green, because
+the tree at the end is not the one the run started on. Run one cargo command (a `cargo check`
+of the crate) after a manifest edit and before the gate, or expect the first gate run to fail
+there and run it again.
+
+## L-claude-439-the-agent-panel-test-recipe-001
+*category: validate · topic: driving Zed agent threads in a Marley test · from: pipeline 439*
+
+What worked in `marley_workbench`:
+- `init_agent_test` sets `TestMetadataDbName` and `TestTerminalMetadataDbName` to a name of
+  the test's own, then runs `agent_ui::test_support::init_test`. That installs its own
+  settings store and database, so it replaces the crate's `init_test` rather than following
+  it. After it come `ThreadStore`, `ThreadMetadataStore`, `LanguageModelRegistry::test`,
+  `prompt_store::init` and `terminal_view::init`.
+- Per workspace, `AgentPanel::test_new` and `add_panel`.
+- `StubAgentConnection` with no queued updates holds a turn open, so the thread runs until
+  `end_turn(session, StopReason::EndTurn)`. `with_permission_requests` plus a queued
+  `SessionUpdate::ToolCall` for the same id leaves the thread waiting for a confirmation.
+- Custom agents come from a user-settings string, `{"type": "custom", "command": "..."}` under
+  `agent_servers`. `AgentRegistryStore::init_test_global` supplies registry names and icons.
+- An agent id of `stub` resolves to `Agent::Stub` and its thread-local connection, so a menu
+  entry for a configured `stub` agent starts a real thread in the test.

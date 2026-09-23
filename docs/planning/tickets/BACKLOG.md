@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-439](open/TICKET-439-rail-zed-threads.md) | feature | W3 · Zed agent threads in the rail |
 | [TICKET-440](open/TICKET-440-rail-agent-clis.md) | feature | W4 · agent CLIs in rail terminals |
 | [TICKET-441](open/TICKET-441-marley-terminal-routing.md) | feature | W5 · terminal routing and keys in the Marley layout |
 | [TICKET-442](open/TICKET-442-rail-polish.md) | feature | W6 · rail persistence and polish |

@@ -13,6 +13,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Zed agent threads in the rail** (#439, 2026-09-22). In the Marley layout each project lists
+  its Zed agent threads under its terminals, newest first. A thread row shows its title, its
+  agent's icon and what it is doing: running, waiting for a confirmation, failed, or done. A
+  click shows the project and opens the thread, focused, in the Agent Panel on the right. The
+  project's `+` menu gains New Agent Thread, which lists the Zed Agent and every configured
+  external agent by name and starts one in that project. A run that ends while its thread is
+  not on screen lights the row's dot until the thread is shown, and a thread waiting for a
+  confirmation also lights the sidebar toggle's dot and a folded project's header. The
+  selected row follows focus: the Agent Panel's thread while the panel holds focus, otherwise
+  the active terminal. Zed's OS notifications for threads still fire, since the rail does not
+  yet list every kind of thread Zed would silence.
 - **Rustal's quality gates on the Marley crates** (#447, 2026-09-22). Each of the seven
   `crates/marley_*` manifests carries rustal's lint table, and all 679 hits it raised are
   fixed. The table sets clippy's pedantic, nursery and cargo groups to warn and denies

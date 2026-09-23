@@ -1,11 +1,14 @@
 //! The rail: the Marley layout's sidebar. Each project group, and under it the terminals in that
-//! group's center panes. It implements Zed's `workspace::Sidebar`, so the `MultiWorkspace` keeps
-//! the resize handle, open state, persistence and the toggle actions; the rows and the one selected
-//! row come from `marley_rail`.
+//! group's center panes and the group's agent threads. It implements Zed's `workspace::Sidebar`, so
+//! the `MultiWorkspace` keeps the resize handle, open state, persistence and the toggle actions;
+//! the rows and the one selected row come from `marley_rail`.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::PathBuf;
 
+use acp_thread::{AcpThread, AcpThreadEvent};
+use agent_ui::thread_metadata_store::{ThreadId, ThreadMetadata, ThreadMetadataStore};
+use agent_ui::{Agent, AgentPanel, AgentPanelEvent, AgentThreadSource, NewExternalAgentThread};
 use anyhow::Context as _;
 use gpui::{
     Anchor, AnyElement, App, Context, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
@@ -13,17 +16,21 @@ use gpui::{
 };
 use marley_rail::{
     Focus, ProjectRow, ProjectSnapshot, RailSnapshot, Row, TerminalRow, TerminalSnapshot,
+    ThreadRow, ThreadSnapshot, ThreadStatus,
 };
-use project::{Project, ProjectGroupKey};
+use project::{
+    AgentId, AgentRegistryStore, AgentServerStore, AgentServersUpdated, Project, ProjectGroupKey,
+};
 use recent_projects::sidebar_recent_projects::SidebarRecentProjects;
 use terminal::Terminal;
 use terminal_view::{TerminalView, terminal_panel::TerminalPanel};
 use ui::{
-    ContextMenu, Disclosure, Icon, IconButton, IconName, IconSize, Indicator, Label, LabelSize,
-    ListItem, PopoverMenu, PopoverMenuHandle, Tooltip, prelude::*,
-    utils::platform_title_bar_height,
+    AgentThreadStatus, ContextMenu, ContextMenuEntry, Disclosure, Icon, IconButton, IconName,
+    IconSize, Indicator, Label, LabelSize, ListItem, PopoverMenu, PopoverMenuHandle, ThreadItem,
+    Tooltip, prelude::*, utils::platform_title_bar_height,
 };
 use util::ResultExt as _;
+use util::path_list::PathList;
 use workspace::{
     MultiWorkspace, MultiWorkspaceEvent, ProjectGroup, Sidebar, SidebarEvent, SidebarSide,
     Workspace,
@@ -47,8 +54,8 @@ type TerminalFactory = fn(
 /// Zed's own sidebar and whether it was open, kept by the rail that replaced it.
 pub type KeptSidebar = (Entity<sidebar::Sidebar>, bool);
 
-/// The Marley layout's sidebar: each project group, with the terminals in its center panes under
-/// it.
+/// The Marley layout's sidebar: each project group, with the terminals in its center panes and
+/// its agent threads under it.
 pub struct Rail {
     multi_workspace: WeakEntity<MultiWorkspace>,
     focus_handle: FocusHandle,
@@ -67,6 +74,18 @@ pub struct Rail {
     add_project_menu: PopoverMenuHandle<SidebarRecentProjects>,
     workspace_subscriptions: HashMap<EntityId, Subscription>,
     terminal_subscriptions: HashMap<EntityId, [Subscription; 2]>,
+    /// Per Agent Panel: its events, and focus entering and leaving it.
+    panel_subscriptions: HashMap<EntityId, [Subscription; 3]>,
+    /// Per live thread: the events that can change its row.
+    thread_subscriptions: HashMap<EntityId, Subscription>,
+    /// Per project: its agent servers, which name the New Agent Thread entries.
+    agent_server_subscriptions: HashMap<EntityId, Subscription>,
+    /// The thread metadata store, once it exists: it notifies and emits nothing else.
+    thread_store_subscription: Option<Subscription>,
+    /// Each listed thread's status at the last rebuild, by key, so a run's end is seen.
+    thread_statuses: HashMap<String, ThreadStatus>,
+    /// The threads whose attention dot is lit.
+    noted_threads: HashSet<String>,
     _multi_workspace_subscriptions: [Subscription; 2],
 }
 
@@ -91,12 +110,32 @@ struct TerminalEntry {
     view: WeakEntity<TerminalView>,
 }
 
+/// What a thread row opens, and the icon it draws.
+struct ThreadEntry {
+    workspace: WeakEntity<Workspace>,
+    thread_id: ThreadId,
+    agent: Agent,
+    work_dirs: PathList,
+    title: Option<SharedString>,
+    icon: AgentIcon,
+}
+
+/// An agent's icon: one of Zed's, or an agent server's own SVG.
+#[derive(Clone)]
+enum AgentIcon {
+    Named(IconName),
+    Svg(SharedString),
+}
+
 /// The window, read once: the pure snapshot, plus the entities the handlers act on.
 #[derive(Default)]
 struct Snapshot {
     rail: RailSnapshot,
     groups: Vec<GroupEntry>,
     terminals: HashMap<u64, TerminalEntry>,
+    threads: HashMap<String, ThreadEntry>,
+    /// The thread the displayed workspace's visible Agent Panel shows, which is seen by now.
+    shown_thread: Option<String>,
 }
 
 impl Rail {
@@ -104,21 +143,23 @@ impl Rail {
     pub fn new(
         multi_workspace: &Entity<MultiWorkspace>,
         zed_sidebar: Option<KeptSidebar>,
-        window: &Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let subscriptions = [
             cx.subscribe_in(
                 multi_workspace,
                 window,
-                |rail, _, _: &MultiWorkspaceEvent, _, cx| rail.refresh(cx),
+                |rail, _, _: &MultiWorkspaceEvent, window, cx| rail.refresh(window, cx),
             ),
             // Re-keying a project group notifies without an event.
-            cx.observe(multi_workspace, |rail, _, cx| rail.refresh(cx)),
+            cx.observe_in(multi_workspace, window, |rail, _, window, cx| {
+                rail.refresh(window, cx);
+            }),
         ];
         // The `MultiWorkspace` may be mid-update while its sidebar is built, so the first read
         // waits for the end of this effect cycle.
-        cx.defer_in(window, |rail, _, cx| rail.refresh(cx));
+        cx.defer_in(window, Self::refresh);
         Self {
             multi_workspace: multi_workspace.downgrade(),
             focus_handle: cx.focus_handle(),
@@ -130,6 +171,12 @@ impl Rail {
             add_project_menu: PopoverMenuHandle::default(),
             workspace_subscriptions: HashMap::default(),
             terminal_subscriptions: HashMap::default(),
+            panel_subscriptions: HashMap::default(),
+            thread_subscriptions: HashMap::default(),
+            agent_server_subscriptions: HashMap::default(),
+            thread_store_subscription: None,
+            thread_statuses: HashMap::default(),
+            noted_threads: HashSet::default(),
             _multi_workspace_subscriptions: subscriptions,
         }
     }
@@ -140,64 +187,149 @@ impl Rail {
         (self.zed_sidebar.take(), self.zed_sidebar_state.take())
     }
 
-    /// Follows every workspace and every listed terminal, rereads the window, and redraws only
-    /// when what the rail shows has changed.
-    fn refresh(&mut self, cx: &mut Context<Self>) {
-        self.sync_subscriptions(cx);
-        let snapshot = self
+    /// Follows every workspace, terminal, Agent Panel and live thread, rereads the window, and
+    /// redraws only when what the rail shows has changed.
+    fn refresh(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.sync_subscriptions(window, cx);
+        let mut snapshot = self
             .multi_workspace
             .upgrade()
-            .map(|multi_workspace| build_snapshot(&multi_workspace, cx))
+            .map(|multi_workspace| build_snapshot(&multi_workspace, window, cx))
             .unwrap_or_default();
+        self.note_ended_runs(&mut snapshot);
         if snapshot.rail != self.snapshot.rail {
             cx.notify();
         }
         self.snapshot = snapshot;
     }
 
-    fn sync_subscriptions(&mut self, cx: &mut Context<Self>) {
-        let (workspaces, views) = self
+    /// Lights the dot of each thread whose run ended since the last rebuild while it was not
+    /// shown, and keeps it lit until the thread is shown.
+    fn note_ended_runs(&mut self, snapshot: &mut Snapshot) {
+        let shown = snapshot.shown_thread.as_deref();
+        let mut statuses = HashMap::default();
+        let mut noted = HashSet::default();
+        for thread in snapshot
+            .rail
+            .projects
+            .iter_mut()
+            .flat_map(|project| project.threads.iter_mut())
+        {
+            thread.attention = marley_rail::thread_attention(
+                self.thread_statuses.get(&thread.key).copied(),
+                thread.status,
+                shown == Some(thread.key.as_str()),
+                self.noted_threads.contains(&thread.key),
+            );
+            if thread.attention {
+                noted.insert(thread.key.clone());
+            }
+            statuses.insert(thread.key.clone(), thread.status);
+        }
+        self.thread_statuses = statuses;
+        self.noted_threads = noted;
+    }
+
+    fn sync_subscriptions(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let workspaces: Vec<Entity<Workspace>> = self
             .multi_workspace
             .upgrade()
-            .map(|multi_workspace| {
-                let workspaces: Vec<Entity<Workspace>> =
-                    multi_workspace.read(cx).workspaces().cloned().collect();
-                let views: Vec<Entity<TerminalView>> = workspaces
-                    .iter()
-                    .flat_map(|workspace| workspace.read(cx).items_of_type::<TerminalView>(cx))
-                    .collect();
-                (workspaces, views)
-            })
+            .map(|multi_workspace| multi_workspace.read(cx).workspaces().cloned().collect())
             .unwrap_or_default();
+        let views: Vec<Entity<TerminalView>> = workspaces
+            .iter()
+            .flat_map(|workspace| workspace.read(cx).items_of_type::<TerminalView>(cx))
+            .collect();
+        let panels: Vec<Entity<AgentPanel>> = workspaces
+            .iter()
+            .filter_map(|workspace| workspace.read(cx).panel::<AgentPanel>(cx))
+            .collect();
+        let threads: Vec<Entity<AcpThread>> = panels
+            .iter()
+            .flat_map(|panel| live_threads(panel, cx))
+            .collect();
+        let agent_servers: Vec<Entity<AgentServerStore>> = workspaces
+            .iter()
+            .map(|workspace| {
+                workspace
+                    .read(cx)
+                    .project()
+                    .read(cx)
+                    .agent_server_store()
+                    .clone()
+            })
+            .collect();
         // Rebuilt from what exists now: a restore replaces panes without reporting removals, and
         // whatever is left in the old maps is dropped, ending those subscriptions.
-        let mut workspace_subscriptions = HashMap::default();
-        for workspace in &workspaces {
-            let subscription = self
-                .workspace_subscriptions
-                .remove(&workspace.entity_id())
-                .unwrap_or_else(|| {
-                    cx.subscribe(workspace, |rail, _, _: &workspace::Event, cx| {
-                        rail.refresh(cx);
-                    })
-                });
-            workspace_subscriptions.insert(workspace.entity_id(), subscription);
+        self.workspace_subscriptions = resubscribe(
+            &mut self.workspace_subscriptions,
+            &workspaces,
+            |workspace| {
+                cx.subscribe_in(
+                    workspace,
+                    window,
+                    |rail, _, _: &workspace::Event, window, cx| rail.refresh(window, cx),
+                )
+            },
+        );
+        self.terminal_subscriptions =
+            resubscribe(&mut self.terminal_subscriptions, &views, |view| {
+                [
+                    cx.subscribe_in(view, window, |rail, _, _: &terminal::Event, window, cx| {
+                        rail.refresh(window, cx);
+                    }),
+                    cx.subscribe_in(view, window, |rail, _, _: &ItemEvent, window, cx| {
+                        rail.refresh(window, cx);
+                    }),
+                ]
+            });
+        self.panel_subscriptions = resubscribe(&mut self.panel_subscriptions, &panels, |panel| {
+            // The panel's own focus handle wraps whatever view it shows, so focus inside a
+            // thread counts as focus in the panel.
+            let focus_handle = panel.focus_handle(cx);
+            [
+                cx.subscribe_in(panel, window, |rail, _, _: &AgentPanelEvent, window, cx| {
+                    rail.refresh(window, cx);
+                }),
+                cx.on_focus_in(&focus_handle, window, Self::refresh),
+                cx.on_focus_out(&focus_handle, window, |rail, _, window, cx| {
+                    rail.refresh(window, cx);
+                }),
+            ]
+        });
+        self.thread_subscriptions =
+            resubscribe(&mut self.thread_subscriptions, &threads, |thread| {
+                cx.subscribe_in(
+                    thread,
+                    window,
+                    |rail, _, event: &AcpThreadEvent, window, cx| {
+                        if changes_the_row(event) {
+                            rail.refresh(window, cx);
+                        }
+                    },
+                )
+            });
+        self.agent_server_subscriptions = resubscribe(
+            &mut self.agent_server_subscriptions,
+            &agent_servers,
+            |store| {
+                cx.subscribe_in(
+                    store,
+                    window,
+                    |rail, _, _: &AgentServersUpdated, window, cx| {
+                        rail.refresh(window, cx);
+                    },
+                )
+            },
+        );
+        if self.thread_store_subscription.is_none()
+            && let Some(store) = ThreadMetadataStore::try_global(cx)
+        {
+            self.thread_store_subscription =
+                Some(cx.observe_in(&store, window, |rail, _, window, cx| {
+                    rail.refresh(window, cx);
+                }));
         }
-        self.workspace_subscriptions = workspace_subscriptions;
-        let mut terminal_subscriptions = HashMap::default();
-        for view in &views {
-            let subscriptions = self
-                .terminal_subscriptions
-                .remove(&view.entity_id())
-                .unwrap_or_else(|| {
-                    [
-                        cx.subscribe(view, |rail, _, _: &terminal::Event, cx| rail.refresh(cx)),
-                        cx.subscribe(view, |rail, _, _: &ItemEvent, cx| rail.refresh(cx)),
-                    ]
-                });
-            terminal_subscriptions.insert(view.entity_id(), subscriptions);
-        }
-        self.terminal_subscriptions = terminal_subscriptions;
     }
 
     /// Shows `workspace` in the window. The rows hold their entities weakly, so the project may
@@ -257,7 +389,78 @@ impl Rail {
         Ok(())
     }
 
-    fn toggle_expanded(&mut self, key: &ProjectGroupKey, cx: &mut Context<Self>) {
+    /// Shows a thread: displays its workspace and opens the thread, focused, in the workspace's
+    /// Agent Panel, which sits on the right in the Marley layout.
+    fn open_thread(
+        &self,
+        key: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let thread = self
+            .snapshot
+            .threads
+            .get(key)
+            .context("the thread is no longer listed")?;
+        let (thread_id, agent, work_dirs, title) = (
+            thread.thread_id,
+            thread.agent.clone(),
+            thread.work_dirs.clone(),
+            thread.title.clone(),
+        );
+        let workspace = self.activate_workspace(&thread.workspace, window, cx)?;
+        workspace.update(cx, |workspace, cx| {
+            let panel = workspace
+                .panel::<AgentPanel>(cx)
+                .context("the project has no Agent Panel")?;
+            panel.update(cx, |panel, cx| {
+                panel.load_agent_thread(
+                    agent,
+                    thread_id,
+                    Some(work_dirs),
+                    title,
+                    true,
+                    AgentThreadSource::Sidebar,
+                    window,
+                    cx,
+                );
+            });
+            workspace.focus_panel::<AgentPanel>(window, cx);
+            anyhow::Ok(())
+        })
+    }
+
+    /// Starts a thread for `agent` in `workspace`'s Agent Panel. The panel is called directly:
+    /// a dispatched action would reach whichever workspace the window shows.
+    fn new_agent_thread(
+        &self,
+        workspace: &WeakEntity<Workspace>,
+        agent: &AgentId,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        // The action's one field is private, so it is built the way a keymap builds it.
+        let action: NewExternalAgentThread =
+            serde_json::from_value(serde_json::json!({ "agent": agent.0 }))?;
+        let workspace = self.activate_workspace(workspace, window, cx)?;
+        workspace.update(cx, |workspace, cx| {
+            let panel = workspace
+                .panel::<AgentPanel>(cx)
+                .context("the project has no Agent Panel")?;
+            panel.update(cx, |panel, cx| {
+                panel.new_external_agent_thread(&action, window, cx);
+            });
+            workspace.focus_panel::<AgentPanel>(window, cx);
+            anyhow::Ok(())
+        })
+    }
+
+    fn toggle_expanded(
+        &mut self,
+        key: &ProjectGroupKey,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.multi_workspace
             .update(cx, |multi_workspace, cx| {
                 if let Some(group) = multi_workspace.group_state_by_key_mut(key) {
@@ -267,7 +470,7 @@ impl Rail {
             })
             .log_err();
         // Collapsing emits no event the rail hears.
-        self.refresh(cx);
+        self.refresh(window, cx);
     }
 
     fn render_header(&self, window: &Window, cx: &Context<Self>) -> impl IntoElement {
@@ -356,8 +559,8 @@ impl Rail {
                             .debug_selector(move || format!("marley-rail-disclosure-{index}"))
                             .child(
                                 Disclosure::new(("marley-rail-disclosure", id), row.expanded)
-                                    .on_click(cx.listener(move |rail, _, _, cx| {
-                                        rail.toggle_expanded(&key, cx);
+                                    .on_click(cx.listener(move |rail, _, window, cx| {
+                                        rail.toggle_expanded(&key, window, cx);
                                     })),
                             ),
                     )
@@ -403,17 +606,85 @@ impl Rail {
                         let rail = rail.clone();
                         let workspace = workspace.clone();
                         Some(ContextMenu::build(window, cx, move |menu, _, _| {
+                            let terminal_rail = rail.clone();
+                            let terminal_workspace = workspace.clone();
                             menu.entry("New Terminal", None, move |window, cx| {
-                                rail.update(cx, |rail, cx| {
-                                    rail.new_terminal(&workspace, window, cx)
-                                })
-                                .flatten()
-                                .log_err();
+                                terminal_rail
+                                    .update(cx, |rail, cx| {
+                                        rail.new_terminal(&terminal_workspace, window, cx)
+                                    })
+                                    .flatten()
+                                    .log_err();
+                            })
+                            .submenu("New Agent Thread", move |menu, _, cx| {
+                                Self::agent_menu(menu, &rail, &workspace, cx)
                             })
                         }))
                     })
                     .anchor(Anchor::TopRight),
             )
+    }
+
+    /// The New Agent Thread entries: the Zed Agent, then every agent the project's agent servers
+    /// list, as the Agent Panel's own menu names and orders them.
+    fn agent_menu(
+        menu: ContextMenu,
+        rail: &WeakEntity<Self>,
+        workspace: &WeakEntity<Workspace>,
+        cx: &App,
+    ) -> ContextMenu {
+        let choices = workspace
+            .upgrade()
+            .map(|workspace| agent_choices(workspace.read(cx).project(), cx))
+            .unwrap_or_default();
+        choices.into_iter().fold(menu, |menu, (agent, name, icon)| {
+            let rail = rail.clone();
+            let workspace = workspace.clone();
+            let entry = ContextMenuEntry::new(name);
+            let entry = match icon {
+                AgentIcon::Named(icon) => entry.icon(icon),
+                AgentIcon::Svg(path) => entry.custom_icon_svg(path),
+            };
+            menu.item(entry.icon_color(Color::Muted).handler(move |window, cx| {
+                rail.update(cx, |rail, cx| {
+                    rail.new_agent_thread(&workspace, &agent, window, cx)
+                })
+                .flatten()
+                .log_err();
+            }))
+        })
+    }
+
+    fn render_thread_row(
+        row: ThreadRow,
+        thread: &ThreadEntry,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
+        let key = row.key.clone();
+        let status = ui_status(row.status);
+        let item = ThreadItem::new(
+            SharedString::from(format!("marley-rail-thread-{key}")),
+            row.title,
+        )
+        .status(status)
+        .notified(row.attention)
+        .selected(row.selected)
+        .rounded(true)
+        .base_bg(cx.theme().colors().panel_background);
+        let item = match &thread.icon {
+            AgentIcon::Named(icon) => item.icon(*icon),
+            AgentIcon::Svg(path) => item.custom_icon_from_external_svg(path.clone()),
+        };
+        div()
+            .debug_selector({
+                let key = key.clone();
+                move || format!("marley-rail-thread-{key}")
+            })
+            // The terminal rows' indent, so a thread's icon lines up under its project.
+            .pl(px(12.))
+            .child(item.on_click(cx.listener(move |rail, _, window, cx| {
+                rail.open_thread(&key, window, cx).log_err();
+            })))
     }
 
     fn render_terminal_row(
@@ -461,9 +732,209 @@ impl Rail {
     }
 }
 
+/// Keeps each entity's subscriptions, makes them for each new entity, and returns the map for
+/// what exists now; whatever the old map still holds is dropped, ending those subscriptions.
+fn resubscribe<E: 'static, S>(
+    old: &mut HashMap<EntityId, S>,
+    entities: &[Entity<E>],
+    mut subscribe: impl FnMut(&Entity<E>) -> S,
+) -> HashMap<EntityId, S> {
+    entities
+        .iter()
+        .map(|entity| {
+            let subscriptions = old
+                .remove(&entity.entity_id())
+                .unwrap_or_else(|| subscribe(entity));
+            (entity.entity_id(), subscriptions)
+        })
+        .collect()
+}
+
+/// The status Zed's thread row draws for a rail status.
+const fn ui_status(status: ThreadStatus) -> AgentThreadStatus {
+    match status {
+        ThreadStatus::Done => AgentThreadStatus::Completed,
+        ThreadStatus::Running => AgentThreadStatus::Running,
+        ThreadStatus::Waiting => AgentThreadStatus::WaitingForConfirmation,
+        ThreadStatus::Error => AgentThreadStatus::Error,
+    }
+}
+
+/// The events after which a thread's row may read differently: its status, its title, or a
+/// confirmation asked or answered. Streamed output changes none of these.
+const fn changes_the_row(event: &AcpThreadEvent) -> bool {
+    matches!(
+        event,
+        AcpThreadEvent::StatusChanged
+            | AcpThreadEvent::TitleUpdated
+            | AcpThreadEvent::ToolAuthorizationRequested(_)
+            | AcpThreadEvent::ToolAuthorizationReceived(_)
+            | AcpThreadEvent::Stopped(_)
+            | AcpThreadEvent::Error
+            | AcpThreadEvent::LoadError(_)
+            | AcpThreadEvent::Refusal
+    )
+}
+
+/// The root thread of each conversation the panel holds, shown or kept in the background.
+fn live_threads(panel: &Entity<AgentPanel>, cx: &App) -> Vec<Entity<AcpThread>> {
+    panel
+        .read(cx)
+        .conversation_views()
+        .into_iter()
+        .filter_map(|conversation| {
+            let view = conversation.read(cx).root_thread_view()?;
+            Some(view.read(cx).thread.clone())
+        })
+        .collect()
+}
+
+/// The status of every thread the workspaces' panels hold, by thread id, and the thread each
+/// panel shows.
+fn live_statuses(
+    workspaces: &[Entity<Workspace>],
+    cx: &App,
+) -> (HashMap<ThreadId, ThreadStatus>, HashSet<ThreadId>) {
+    let mut statuses = HashMap::default();
+    let mut active = HashSet::default();
+    for panel in workspaces
+        .iter()
+        .filter_map(|workspace| workspace.read(cx).panel::<AgentPanel>(cx))
+    {
+        let panel = panel.read(cx);
+        active.extend(panel.active_thread_id(cx));
+        // A conversation still connecting has no thread yet, and nothing to report.
+        let loaded = panel
+            .conversation_views()
+            .into_iter()
+            .filter_map(|conversation| {
+                let view = conversation.read(cx).root_thread_view()?;
+                Some((conversation, view))
+            });
+        for (conversation, view) in loaded {
+            let conversation = conversation.read(cx);
+            let thread = view.read(cx).thread.read(cx);
+            statuses.insert(
+                conversation.parent_id(),
+                marley_rail::thread_status(
+                    conversation.root_thread_has_pending_tool_call(cx),
+                    thread.had_error(),
+                    thread.status() == acp_thread::ThreadStatus::Generating,
+                ),
+            );
+        }
+    }
+    (statuses, active)
+}
+
+/// A group's threads, newest first. The metadata store files a thread under the main worktree
+/// paths of the project it ran in; rows written before those were kept are found by their folder
+/// paths, and a row whose paths disagree with its group by its workspace's own roots. Drafts are
+/// listed only while their panel shows them, so a new thread appears at once.
+fn group_threads(
+    group: &ProjectGroup,
+    listed: &Entity<Workspace>,
+    cx: &App,
+) -> Vec<(ThreadSnapshot, ThreadEntry)> {
+    let Some(store) = ThreadMetadataStore::try_global(cx) else {
+        return Vec::new();
+    };
+    let store = store.read(cx);
+    let host = group.key.host();
+    let members: Vec<(PathList, &Entity<Workspace>)> = group
+        .workspaces
+        .iter()
+        .map(|workspace| (PathList::new(&workspace.read(cx).root_paths(cx)), workspace))
+        .collect();
+    let (statuses, active) = live_statuses(&group.workspaces, cx);
+    let mut seen: HashSet<ThreadId> = HashSet::default();
+    let mut rows: Vec<&ThreadMetadata> = store
+        .entries_for_main_worktree_path(group.key.path_list(), host.as_ref())
+        .chain(store.entries_for_path(group.key.path_list(), host.as_ref()))
+        .chain(
+            members
+                .iter()
+                .filter(|(paths, _)| !paths.paths().is_empty())
+                .flat_map(|(paths, _)| store.entries_for_path(paths, host.as_ref())),
+        )
+        .filter(|row| seen.insert(row.thread_id))
+        .filter(|row| !row.is_draft() || active.contains(&row.thread_id))
+        .collect();
+    rows.sort_by_key(|row| std::cmp::Reverse(row.interacted_at.unwrap_or(row.updated_at)));
+    rows.into_iter()
+        .map(|row| {
+            let workspace = members
+                .iter()
+                .find(|(paths, _)| paths == row.folder_paths())
+                .map_or(listed, |(_, workspace)| workspace);
+            let key = row.thread_id.to_key_string();
+            (
+                ThreadSnapshot {
+                    key,
+                    title: row.display_title().to_string(),
+                    status: statuses.get(&row.thread_id).copied().unwrap_or_default(),
+                    attention: false,
+                },
+                ThreadEntry {
+                    workspace: workspace.downgrade(),
+                    thread_id: row.thread_id,
+                    agent: Agent::from(row.agent_id.clone()),
+                    work_dirs: row.folder_paths().clone(),
+                    title: row.title(),
+                    icon: agent_icon(&row.agent_id, workspace.read(cx).project(), cx),
+                },
+            )
+        })
+        .collect()
+}
+
+/// An agent's icon, looked up as the Agent Panel's menu looks it up.
+fn agent_icon(agent: &AgentId, project: &Entity<Project>, cx: &App) -> AgentIcon {
+    if Agent::from(agent.clone()) == Agent::NativeAgent {
+        return AgentIcon::Named(IconName::ZedAgent);
+    }
+    project
+        .read(cx)
+        .agent_server_store()
+        .read(cx)
+        .agent_icon(agent)
+        .or_else(|| {
+            AgentRegistryStore::try_global(cx)
+                .and_then(|registry| registry.read(cx).agent(agent)?.icon_path().cloned())
+        })
+        .map_or(AgentIcon::Named(IconName::Sparkle), AgentIcon::Svg)
+}
+
+/// The agents a new thread can run: the Zed Agent first, then the project's agent servers sorted
+/// by display name without regard to case, each with its name and icon.
+fn agent_choices(project: &Entity<Project>, cx: &App) -> Vec<(AgentId, SharedString, AgentIcon)> {
+    let servers = project.read(cx).agent_server_store().read(cx);
+    let registry = AgentRegistryStore::try_global(cx);
+    let registry = registry.as_ref().map(|registry| registry.read(cx));
+    let mut external: Vec<(AgentId, SharedString)> = servers
+        .external_agents()
+        .map(|agent| {
+            let name = servers
+                .agent_display_name(agent)
+                .or_else(|| Some(registry?.agent(agent)?.name().clone()))
+                .unwrap_or_else(|| agent.0.clone());
+            (agent.clone(), name)
+        })
+        .collect();
+    external.sort_by_key(|(_, name)| name.to_lowercase());
+    let zed_agent = Agent::NativeAgent.id();
+    std::iter::once((zed_agent, SharedString::from("Zed Agent")))
+        .chain(external)
+        .map(|(agent, name)| {
+            let icon = agent_icon(&agent, project, cx);
+            (agent, name, icon)
+        })
+        .collect()
+}
+
 /// The window, read once. Only groups with an open workspace are listed; a group Zed keeps after
 /// its last workspace closed has nothing for the rail to switch to.
-fn build_snapshot(multi_workspace: &Entity<MultiWorkspace>, cx: &App) -> Snapshot {
+fn build_snapshot(multi_workspace: &Entity<MultiWorkspace>, window: &Window, cx: &App) -> Snapshot {
     let multi_workspace = multi_workspace.read(cx);
     let groups: Vec<ProjectGroup> = multi_workspace
         .project_groups(cx)
@@ -514,16 +985,30 @@ fn build_snapshot(multi_workspace: &Entity<MultiWorkspace>, cx: &App) -> Snapsho
                 );
             }
         }
+        let mut threads = Vec::new();
+        for (thread, entry) in group_threads(group, &workspace, cx) {
+            snapshot.threads.insert(thread.key.clone(), entry);
+            threads.push(thread);
+        }
         snapshot.rail.projects.push(ProjectSnapshot {
             name,
             expanded: group.expanded,
             terminals,
+            threads,
         });
         snapshot.groups.push(GroupEntry {
             key: group.key.clone(),
             workspace: workspace.downgrade(),
         });
     }
+    let panel = displayed.read(cx).panel::<AgentPanel>(cx);
+    let panel_thread = panel
+        .as_ref()
+        .and_then(|panel| panel.read(cx).active_thread_id(cx))
+        .map(|thread_id| thread_id.to_key_string());
+    snapshot.shown_thread = panel_thread
+        .clone()
+        .filter(|_| AgentPanel::is_visible(displayed, cx));
     snapshot.rail.focus = Focus {
         project: groups
             .iter()
@@ -533,6 +1018,11 @@ fn build_snapshot(multi_workspace: &Entity<MultiWorkspace>, cx: &App) -> Snapsho
             .active_item(cx)
             .and_then(|item| item.downcast::<TerminalView>())
             .map(|view| view.entity_id().as_u64()),
+        thread: panel_thread.filter(|_| {
+            panel
+                .as_ref()
+                .is_some_and(|panel| panel.focus_handle(cx).contains_focused(window, cx))
+        }),
     };
     snapshot
 }
@@ -585,7 +1075,8 @@ impl Sidebar for Rail {
         SidebarSide::default()
     }
 
-    // The rail lists no threads yet, so Zed must not treat thread notifications as seen.
+    // `true` would silence every thread's OS notification in the window while the rail is
+    // open, the Agent Panel's terminal threads included, which the rail does not list.
     fn is_threads_list_view_active(&self) -> bool {
         false
     }
@@ -621,6 +1112,11 @@ impl Render for Rail {
                 Row::Terminal(row) => self.snapshot.terminals.get(&row.id).map(|terminal| {
                     Self::render_terminal_row(row, terminal, cx).into_any_element()
                 }),
+                Row::Thread(row) => self
+                    .snapshot
+                    .threads
+                    .get(&row.key)
+                    .map(|thread| Self::render_thread_row(row, thread, cx).into_any_element()),
             })
             .collect();
         v_flex()

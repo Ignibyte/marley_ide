@@ -353,8 +353,10 @@ exists.
 enforced at the write, in gate:16 and at every commit. W1 shipped as #437: the fork runs as
 `marley` with its own directories (a debug build must start inside the checkout; see
 TICKET-445). W2 shipped as #438: `marley.layout` switches every window between Zed's sidebar
-and the rail, live, and the rail lists each project with its center terminals. W3 to W6 are
-TICKET-439 to TICKET-442, queued in that order.
+and the rail, live, and the rail lists each project with its center terminals. W3 shipped as
+#439: each project lists its Zed agent threads with live status and attention dots, a thread
+row opens the thread in the right-hand Agent Panel, and the project's `+` starts one for any
+configured agent. W4 to W6 are TICKET-440 to TICKET-442, queued in that order.
 
 | Slice | Delivers | Size |
 |---|---|---|

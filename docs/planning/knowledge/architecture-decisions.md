@@ -1296,3 +1296,26 @@ ran on. After a static red the heavy gates report BLOCKED instead of running: co
 tree that fails clippy proves nothing. The new checks take the numbers 17 to 20; retired
 numbers (5 and 15) stay retired so old notes keep their meaning. All of it is carried over
 from rustal's `bin/gate.sh`, scoped to the Marley crates.
+
+## AD-claude-439-the-rail-does-not-claim-zeds-threads-list-001
+*decided at: 2026-09-22 (W3 promotion, revising the queued D4) · status: shipped*
+
+The rail answers `is_threads_list_view_active` with `false`, though it lists threads. The trait
+defaults to `true`, and Zed reads `true` with an open sidebar as "every thread in this window
+is on screen":
+- no OS pop-up and no sound for any thread (`conversation_view.rs:2863-2987`);
+- none for the Agent Panel's terminal threads (`agent_panel.rs:2913-2932`);
+- the title bar's project button becomes the recent-projects popover (`title_bar.rs:812-835`).
+
+The rail does not list terminal threads, so claiming the list would let one finish with no
+signal anywhere. With `false`, a thread off screen still pops up beside its dot: noise, not a
+loss. Revisit when the rail lists every kind of thread Zed would silence.
+
+## AD-claude-439-focus-decides-between-a-terminal-row-and-a-thread-row-001
+*decided at: 2026-09-22 · status: shipped*
+
+A window can show a center terminal and an Agent Panel thread at once, and the rail has one
+selected row. The thread's row wins only while the displayed workspace's Agent Panel holds
+focus; otherwise the #438 order holds (the active terminal, then the project header). The
+selected row is then whatever the keyboard is typing into. The pure selector owns the order
+(`marley_rail::selection`), and the rail re-reads focus when it enters or leaves a panel.
