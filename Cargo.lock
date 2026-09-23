@@ -10792,6 +10792,9 @@ dependencies = [
 [[package]]
 name = "marley_rail"
 version = "0.1.0"
+dependencies = [
+ "marley_agent",
+]
 
 [[package]]
 name = "marley_remote"
@@ -10824,8 +10827,10 @@ dependencies = [
  "db",
  "editor",
  "fs",
+ "futures 0.3.34",
  "gpui",
  "language_model",
+ "marley_agent",
  "marley_rail",
  "paths",
  "platform_title_bar",
@@ -10835,12 +10840,14 @@ dependencies = [
  "serde_json",
  "settings",
  "sidebar",
+ "tempfile",
  "terminal",
  "terminal_view",
  "theme",
  "theme_settings",
  "ui",
  "util",
+ "which",
  "workspace",
 ]
 

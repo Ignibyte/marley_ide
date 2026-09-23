@@ -1319,3 +1319,15 @@ selected row. The thread's row wins only while the displayed workspace's Agent P
 focus; otherwise the #438 order holds (the active terminal, then the project header). The
 selected row is then whatever the keyboard is typing into. The pure selector owns the order
 (`marley_rail::selection`), and the rail re-reads focus when it enters or leaves a panel.
+
+## AD-claude-440-agent-clis-are-read-from-argv-and-started-in-one-click-001
+*decided at: 2026-09-22 · status: shipped*
+
+An agent CLI in a rail terminal is recognized by its foreground argv, never the process name:
+Claude Code's binary is named after its version. It is judged by its output. Waiting means a
+bell, or two seconds without output; a quiet spell shows only in the row's status line, since a
+dot for every pause would be noise, and the bell keeps its W2 dot. The project's `+` menu lists
+the installed CLIs as entries under an "Agent CLIs" header, not in a submenu, so starting one
+is a single click; the original complaint was not finding how to start an agent at all. The
+launch writes only a program name from `marley_agent`'s list, after the shell's startup
+handshake, so nothing but a known command reaches the shell.

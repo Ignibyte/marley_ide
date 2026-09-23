@@ -959,3 +959,227 @@ mod threads {
         }));
     }
 }
+
+// ── W4: agent CLIs in rail terminals ─────────────────────────────────────────
+
+#[cfg(unix)]
+mod agents {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    use marley_agent::{AgentKind, AgentStatus, WAITING_AFTER};
+
+    use super::*;
+
+    /// The command each test terminal's foreground process runs, by terminal: a display-only
+    /// terminal has no process of its own.
+    #[derive(Default)]
+    struct ForegroundCommands(HashMap<EntityId, String>);
+
+    impl Global for ForegroundCommands {}
+
+    fn fake_foreground(terminal: &Entity<Terminal>, cx: &App) -> Option<String> {
+        cx.try_global::<ForegroundCommands>()?
+            .0
+            .get(&terminal.entity_id())
+            .cloned()
+    }
+
+    /// Puts `command` in the terminal's foreground. A new foreground process retitles its
+    /// terminal, which is what makes the rail read it again.
+    fn set_foreground(terminal: &Entity<Terminal>, command: &str, cx: &mut VisualTestContext) {
+        cx.update(|_, cx| {
+            cx.default_global::<ForegroundCommands>()
+                .0
+                .insert(terminal.entity_id(), command.to_string());
+        });
+        terminal.update(cx, |_, cx| cx.emit(terminal::Event::TitleChanged));
+        cx.run_until_parked();
+    }
+
+    /// A search path holding a program for each name, executable or not.
+    fn search_path(programs: &[(&str, bool)]) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().expect("a temporary directory");
+        for (name, executable) in programs {
+            let path = dir.path().join(name);
+            std::fs::write(&path, "#!/bin/sh\n").expect("the program is written");
+            let mode = if *executable { 0o755 } else { 0o644 };
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode))
+                .expect("the mode is set");
+        }
+        dir
+    }
+
+    fn agent_of(
+        rail: &Entity<Rail>,
+        view: &Entity<TerminalView>,
+        cx: &VisualTestContext,
+    ) -> Option<TerminalAgent> {
+        rail.read_with(cx, |rail, _| {
+            rail.snapshot
+                .rail
+                .projects
+                .iter()
+                .flat_map(|project| &project.terminals)
+                .find(|terminal| terminal.id == id(view))
+                .and_then(|terminal| terminal.agent)
+        })
+    }
+
+    fn row_of(
+        rail: &Entity<Rail>,
+        view: &Entity<TerminalView>,
+        cx: &VisualTestContext,
+    ) -> (String, Option<String>) {
+        rail.read_with(cx, |rail, _| {
+            rail.snapshot
+                .rail
+                .projects
+                .iter()
+                .flat_map(|project| &project.terminals)
+                .find(|terminal| terminal.id == id(view))
+                .map(|terminal| (terminal.title.clone(), terminal.subtitle.clone()))
+                .expect("the terminal's row")
+        })
+    }
+
+    #[gpui::test]
+    async fn the_plus_menu_lists_the_agent_clis_on_the_search_path(cx: &mut TestAppContext) {
+        let (_, _, _, rail, cx) = open_rail(cx).await;
+        let installed = search_path(&[("claude", true), ("codex", true), ("gemini", false)]);
+        rail.update(cx, |rail, _| {
+            rail.agent_search_path = Some(installed.path().as_os_str().to_owned());
+        });
+        click("marley-rail-project-menu-1", cx);
+        cx.update(|window, _| window.refresh());
+        assert!(cx.debug_bounds("MENU_ITEM-Claude Code").is_some());
+        assert!(cx.debug_bounds("MENU_ITEM-Codex").is_some());
+        assert!(
+            cx.debug_bounds("MENU_ITEM-Gemini CLI").is_none(),
+            "a file that is not executable is no program"
+        );
+        assert!(cx.debug_bounds("MENU_ITEM-OpenCode").is_none());
+
+        // With nothing installed the section is absent.
+        let empty = search_path(&[]);
+        rail.update(cx, |rail, cx| {
+            rail.agent_search_path = Some(empty.path().as_os_str().to_owned());
+            cx.notify();
+        });
+        // Opening another project's menu closes the first with an outside click.
+        click("marley-rail-project-menu-0", cx);
+        cx.update(|window, _| window.refresh());
+        assert!(cx.debug_bounds("MENU_ITEM-New Terminal").is_some());
+        assert!(cx.debug_bounds("MENU_ITEM-Claude Code").is_none());
+    }
+
+    #[gpui::test]
+    async fn an_agent_cli_starts_in_a_new_terminal_in_its_project(cx: &mut TestAppContext) {
+        let (multi_workspace, alpha, _, rail, cx) = open_rail(cx).await;
+        let installed = search_path(&[("claude", true)]);
+        rail.update(cx, |rail, _| {
+            rail.agent_search_path = Some(installed.path().as_os_str().to_owned());
+        });
+        click("marley-rail-project-menu-1", cx);
+        click("MENU_ITEM-Claude Code", cx);
+        cx.read(|cx| {
+            assert_eq!(multi_workspace.read(cx).workspace(), &alpha);
+            assert_eq!(
+                cx.global::<RequestedDirectories>().0,
+                [Some(PathBuf::from(path!("/alpha")))]
+            );
+        });
+        let view = alpha
+            .read_with(cx, |alpha, cx| {
+                alpha
+                    .active_item(cx)
+                    .and_then(|item| item.downcast::<TerminalView>())
+            })
+            .expect("the new terminal is the active item");
+        let written = view.update(cx, |view, cx| {
+            view.terminal()
+                .update(cx, |terminal, _| terminal.take_pty_write_log())
+        });
+        assert_eq!(
+            written,
+            [b"claude\r".to_vec()],
+            "the program's name and Enter, only"
+        );
+    }
+
+    #[gpui::test]
+    async fn a_terminal_running_an_agent_cli_is_an_agent_row(cx: &mut TestAppContext) {
+        let (_, alpha, _, rail, cx) = open_rail(cx).await;
+        rail.update(cx, |rail, _| rail.foreground_command = fake_foreground);
+        let (terminal, view) = add_terminal(&alpha, false, cx);
+        assert_eq!(agent_of(&rail, &view, cx), None);
+
+        set_foreground(&terminal, "/home/me/.local/bin/claude --resume", cx);
+        let agent = agent_of(&rail, &view, cx).expect("an agent row");
+        assert_eq!(agent.kind, AgentKind::Claude);
+        // Without a title of its own, the row carries the agent's name.
+        assert_eq!(
+            row_of(&rail, &view, cx),
+            (
+                "Claude Code".to_string(),
+                Some(marley_agent::status_line(AgentKind::Claude, agent.status))
+            )
+        );
+        cx.update(|window, _| window.refresh());
+        let selector = format!("marley-rail-agent-{}", id(&view)).leak();
+        assert!(cx.debug_bounds(selector).is_some(), "the agent's icon");
+
+        // The title the CLI sets becomes the row's.
+        terminal.update(cx, |terminal, cx| {
+            terminal.breadcrumb_text = "✳ Fix the flaky test".to_string();
+            cx.emit(terminal::Event::BreadcrumbsChanged);
+        });
+        cx.run_until_parked();
+        assert_eq!(row_of(&rail, &view, cx).0, "✳ Fix the flaky test");
+
+        // Back at the shell, it is a plain terminal row again.
+        set_foreground(&terminal, "zsh", cx);
+        assert_eq!(agent_of(&rail, &view, cx), None);
+        cx.update(|window, _| window.refresh());
+        assert!(cx.debug_bounds(selector).is_none());
+    }
+
+    #[gpui::test]
+    async fn an_agent_works_while_output_flows_and_waits_when_it_stops(cx: &mut TestAppContext) {
+        let (_, alpha, _, rail, cx) = open_rail(cx).await;
+        rail.update(cx, |rail, _| rail.foreground_command = fake_foreground);
+        let (terminal, view) = add_terminal(&alpha, false, cx);
+        set_foreground(&terminal, "codex", cx);
+        let status = |cx: &VisualTestContext| agent_of(&rail, &view, cx).map(|agent| agent.status);
+        // Nothing written yet: quiet, so waiting.
+        assert_eq!(status(cx), Some(AgentStatus::Waiting));
+
+        terminal.update(cx, |_, cx| cx.emit(terminal::Event::Wakeup));
+        cx.run_until_parked();
+        assert_eq!(status(cx), Some(AgentStatus::Working));
+
+        cx.executor().advance_clock(WAITING_AFTER);
+        cx.run_until_parked();
+        assert_eq!(status(cx), Some(AgentStatus::Waiting));
+
+        // A terminal event that is not output rereads the row without counting as output.
+        view.update(cx, |_, cx| cx.emit(terminal::Event::SelectionsChanged));
+        cx.run_until_parked();
+        assert_eq!(status(cx), Some(AgentStatus::Waiting));
+
+        // Fresh output works again, and a bell reads as waiting at once.
+        terminal.update(cx, |_, cx| cx.emit(terminal::Event::Wakeup));
+        cx.run_until_parked();
+        assert_eq!(status(cx), Some(AgentStatus::Working));
+        terminal.update(cx, |_, cx| cx.emit(terminal::Event::Bell));
+        cx.run_until_parked();
+        assert_eq!(status(cx), Some(AgentStatus::Waiting));
+    }
+
+    #[test]
+    fn each_agent_cli_draws_its_own_icon() {
+        assert_eq!(agent_icon_name(AgentKind::Claude), IconName::AiClaude);
+        assert_eq!(agent_icon_name(AgentKind::Codex), IconName::AiOpenAi);
+        assert_eq!(agent_icon_name(AgentKind::Gemini), IconName::AiGemini);
+        assert_eq!(agent_icon_name(AgentKind::OpenCode), IconName::AiOpenCode);
+    }
+}

@@ -7,6 +7,8 @@
 
 use std::path::Path;
 
+use marley_agent::{AgentKind, AgentStatus};
+
 /// One project group as the rail sees it: Zed's project group flattened to what a row shows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectSnapshot {
@@ -31,6 +33,17 @@ pub struct TerminalSnapshot {
     pub subtitle: Option<String>,
     /// Whether the terminal rang its bell and nothing has cleared it yet.
     pub bell: bool,
+    /// The agent CLI in the terminal's foreground, if one is.
+    pub agent: Option<TerminalAgent>,
+}
+
+/// An agent CLI running in a terminal, and what it is doing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalAgent {
+    /// Which agent it is.
+    pub kind: AgentKind,
+    /// Whether it is working or waiting on the user.
+    pub status: AgentStatus,
 }
 
 /// One agent thread.
@@ -163,6 +176,8 @@ pub struct TerminalRow {
     pub subtitle: Option<String>,
     /// Whether the bell dot shows.
     pub bell: bool,
+    /// The agent CLI the terminal runs, which makes the row an agent row.
+    pub agent: Option<TerminalAgent>,
     /// Whether this is the selected row.
     pub selected: bool,
 }
@@ -247,6 +262,7 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                     title: terminal.title.clone(),
                     subtitle: terminal.subtitle.clone(),
                     bell: terminal.bell,
+                    agent: terminal.agent,
                     selected: selected == Selection::Terminal(terminal.id),
                 })
             }));
@@ -321,6 +337,7 @@ mod tests {
             title: format!("terminal {id}"),
             subtitle: None,
             bell,
+            agent: None,
         }
     }
 
@@ -465,6 +482,7 @@ mod tests {
                     title: "terminal 1".into(),
                     subtitle: None,
                     bell: false,
+                    agent: None,
                     selected: false,
                 }),
                 Row::Terminal(TerminalRow {
@@ -473,6 +491,7 @@ mod tests {
                     title: "terminal 2".into(),
                     subtitle: None,
                     bell: true,
+                    agent: None,
                     selected: false,
                 }),
                 Row::Project(ProjectRow {
@@ -488,6 +507,7 @@ mod tests {
                     title: "terminal 3".into(),
                     subtitle: None,
                     bell: false,
+                    agent: None,
                     selected: true,
                 }),
             ]
@@ -520,6 +540,7 @@ mod tests {
                     title: "terminal 3".into(),
                     subtitle: None,
                     bell: false,
+                    agent: None,
                     selected: false,
                 }),
             ]
@@ -646,6 +667,7 @@ mod tests {
                     title: "terminal 1".into(),
                     subtitle: None,
                     bell: false,
+                    agent: None,
                     selected: false,
                 }),
                 Row::Thread(ThreadRow {
@@ -677,6 +699,7 @@ mod tests {
                     title: "terminal 3".into(),
                     subtitle: None,
                     bell: false,
+                    agent: None,
                     selected: false,
                 }),
                 Row::Thread(ThreadRow {
@@ -833,6 +856,28 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn an_agent_terminals_row_carries_its_agent() {
+        let agent = TerminalAgent {
+            kind: AgentKind::Claude,
+            status: AgentStatus::Waiting,
+        };
+        let mut claude = terminal(7, false);
+        claude.agent = Some(agent);
+        let snapshot = window(
+            vec![project("marley", true, vec![claude])],
+            Some(0),
+            Some(7),
+        );
+        let rows = rail_rows(&snapshot);
+        assert!(
+            matches!(&rows[..], [Row::Project(_), Row::Terminal(row)] if row.agent == Some(agent) && row.selected),
+            "{rows:?}"
+        );
+        // An agent's quiet spell raises no attention; only a bell does.
+        assert!(!has_attention(&snapshot));
     }
 
     #[test]

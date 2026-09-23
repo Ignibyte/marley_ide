@@ -1,13 +1,15 @@
 # `marley_rail`
 
 The Marley rail's row model, written in the fork for the workbench shell's W2 (#438) and grown
-with agent threads in W3 (#439). Pure and gpui-free, MIT OR Apache-2.0, with no dependencies.
+with agent threads in W3 (#439) and agent CLIs in W4 (#440). Pure and gpui-free, MIT OR
+Apache-2.0; its one dependency is the equally pure `marley_agent`.
 
 ## What it decides
 
 - **Input:** a `RailSnapshot`, the window as the rail sees it. `projects` holds the project
   groups in the window's order. Each is a `ProjectSnapshot`: its display name, whether it is
-  expanded, its center terminals as `TerminalSnapshot`s (id, title, subtitle, bell), and its
+  expanded, its center terminals as `TerminalSnapshot`s (id, title, subtitle, bell, and the
+  agent CLI in the foreground with its status, if any), and its
   agent threads as `ThreadSnapshot`s (key, title, status, attention), in the order the collector
   gives. `focus` holds the displayed workspace's group index, its active terminal's id, and
   the thread its Agent Panel shows while the panel holds focus.
@@ -43,6 +45,6 @@ rows this crate returns. It keeps no ordering or selection state of its own.
 
 ## Tests
 
-`src/marley_rail.rs`, fifteen unit tests, including exactly one selected row over every
+`src/marley_rail.rs`, sixteen unit tests, including exactly one selected row over every
 combination of fold, displayed project, active terminal and focused thread in a two-project
 window.

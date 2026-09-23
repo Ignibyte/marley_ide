@@ -356,7 +356,10 @@ TICKET-445). W2 shipped as #438: `marley.layout` switches every window between Z
 and the rail, live, and the rail lists each project with its center terminals. W3 shipped as
 #439: each project lists its Zed agent threads with live status and attention dots, a thread
 row opens the thread in the right-hand Agent Panel, and the project's `+` starts one for any
-configured agent. W4 to W6 are TICKET-440 to TICKET-442, queued in that order.
+configured agent. W4 shipped as #440: a terminal running Claude Code, Codex, Gemini CLI or
+OpenCode shows as an agent row with the CLI's title and a working or waiting status, and the
+project's `+` starts any installed CLI in one click. W5 and W6 are TICKET-441 and TICKET-442,
+queued in that order.
 
 | Slice | Delivers | Size |
 |---|---|---|

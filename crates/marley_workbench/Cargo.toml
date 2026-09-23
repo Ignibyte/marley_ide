@@ -13,7 +13,9 @@ acp_thread.workspace = true
 agent_ui.workspace = true
 anyhow.workspace = true
 fs.workspace = true
+futures.workspace = true
 gpui.workspace = true
+marley_agent.workspace = true
 marley_rail.workspace = true
 platform_title_bar.workspace = true
 project.workspace = true
@@ -25,6 +27,7 @@ terminal.workspace = true
 terminal_view.workspace = true
 ui.workspace = true
 util.workspace = true
+which.workspace = true
 workspace.workspace = true
 
 [dev-dependencies]
@@ -44,6 +47,8 @@ project = { workspace = true, features = ["test-support"] }
 prompt_store.workspace = true
 recent_projects = { workspace = true, features = ["test-support"] }
 settings = { workspace = true, features = ["test-support"] }
+tempfile.workspace = true
+terminal = { workspace = true, features = ["test-support"] }
 theme.workspace = true
 theme_settings.workspace = true
 workspace = { workspace = true, features = ["test-support"] }

@@ -1900,3 +1900,22 @@ What worked in `marley_workbench`:
   `agent_servers`. `AgentRegistryStore::init_test_global` supplies registry names and icons.
 - An agent id of `stub` resolves to `Agent::Stub` and its thread-local connection, so a menu
   entry for a configured `stub` agent starts a real thread in the test.
+
+## L-claude-440-testing-agent-clis-without-a-pty-001
+*category: validate · topic: driving terminal agents in a gpui test · from: pipeline 440*
+
+A gpui test's terminals are display-only (`TerminalBuilder::new_display_only`), with no PTY and
+no process. What worked in #440:
+- `foreground_process_command_name` returns `None` for them, so recognition goes through a
+  seam, `fn(&Entity<Terminal>, &App) -> Option<String>`, and the test's version reads a
+  global keyed by the terminal's entity.
+- The PATH lookup goes through `which::which_in` over a search path the test points at a
+  `tempfile` directory. The files need the executable bit (`PermissionsExt::from_mode(0o755)`),
+  so the tests are `#[cfg(unix)]`.
+- `Terminal::take_pty_write_log` (test-support) returns every write, PTY or not, so a test can
+  assert exactly what a launch sent. `start_init_command_startup_handshake` finishes at once
+  without a PTY, so the launch runs its one code path.
+- `TerminalView` forwards `Wakeup` and turns a `Bell` into a `Wakeup` for its subscribers; a
+  `TitleChanged` or `BreadcrumbsChanged` reaches them as an `ItemEvent`. Emitting on the
+  `Terminal` entity is enough to drive the rail.
+- `cx.executor().advance_clock(WAITING_AFTER)` fires the quiet timer.

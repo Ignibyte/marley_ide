@@ -413,6 +413,7 @@ lsp_locations = { path = "crates/lsp_locations" }
 markdown = { path = "crates/markdown" }
 markdown_preview = { path = "crates/markdown_preview" }
 # Marley: the Marley crates other crates depend on.
+marley_agent = { path = "crates/marley_agent" }
 marley_fleet = { path = "crates/marley_fleet" }
 marley_rail = { path = "crates/marley_rail" }
 marley_workbench = { path = "crates/marley_workbench" }

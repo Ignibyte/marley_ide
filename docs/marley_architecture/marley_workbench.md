@@ -82,6 +82,24 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   - the metadata store.
 
   The subscriptions carry the window, since focus is read at every rebuild.
+## Agent CLIs (#440)
+
+- **Recognition.** A terminal whose foreground argv names a known agent CLI
+  (`marley_agent::agent_kind_of`) is an agent row. It carries the agent's icon and the title
+  the CLI sets over OSC, falling back to the agent's name, and its second line is
+  `status_line`: the agent and whether it is working or waiting. The foreground command comes
+  from `Terminal::foreground_process_command_name`, through a seam the tests replace, since a
+  display-only terminal has no process.
+- **Status.** The rail notes when each terminal last wrote output (a view's `Wakeup`, which
+  the view also sends for a bell). Each output re-arms an agent terminal's quiet timer, which
+  refreshes the rail once `WAITING_AFTER` has passed, on the executor clock. Both maps are
+  pruned to the open terminals.
+- **The `+` menu.** After New Agent Thread, an "Agent CLIs" header lists each CLI
+  `which::which_in` finds on the rail's search path, the process's `PATH` unless a test sets
+  another. Choosing one opens a center terminal where New Terminal would. Once the shell's
+  startup handshake completes, or after 5 s, `write_init_command_after_startup` writes the
+  program's name and Enter. An error reaches a prompt.
+
 - **`is_threads_list_view_active` stays `false`.** `true` would make Zed treat every thread
   in the window as seen while the rail is open. That would silence the OS pop-ups and sounds
   for the Agent Panel's terminal threads too, which the rail does not list, and swap the title
@@ -91,7 +109,8 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
 ## Tests
 
 `src/marley_workbench_tests.rs` (the switch, 11 tests) and `src/rail_tests.rs` (the rail, 16,
-and 11 thread tests in `rail::tests::threads`): driven gpui tests on `MultiWorkspace::test_new`
+11 thread tests in `rail::tests::threads`, and 5 agent-CLI tests in `rail::tests::agents`,
+which search a temporary directory for programs and read the new terminal's write log): driven gpui tests on `MultiWorkspace::test_new`
 over a FakeFs, clicking elements found by debug selector. The thread tests run on
 `init_agent_test`, which layers Zed's agent test setup (`agent_ui::test_support`, with a
 thread database per test) over the window. They put an `AgentPanel::test_new` in each project
@@ -106,7 +125,8 @@ and drive threads through `acp_thread::StubAgentConnection`: a turn that stays o
 - A layout round trip with the Agent Panel open can close the right dock; each round trip
   adds a subscription pair on the kept Zed sidebar; a window restored in the Marley layout
   saves a partial state before its restore finishes. All three are in #442's notes.
-- Agent CLIs in rail terminals, routing, keyboard navigation and the rail's own saved width and
-  closed state are W4 to W6 (#440 to #442).
-- The thread rows have not been seen live: #439's drive would have moved Chad's windows off his
-  monitor. Their look is owed to the next headless capture.
+- Routing, keyboard navigation and the rail's own saved width and closed state are W5 and W6
+  (#441, #442).
+- The thread rows and the agent rows have not been seen live: the drives for #439 and #440
+  would have moved Chad's windows off his monitor, and #440's needs clicks. Their look is owed
+  to the next headless capture.

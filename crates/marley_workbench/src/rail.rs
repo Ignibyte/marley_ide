@@ -1,10 +1,13 @@
 //! The rail: the Marley layout's sidebar. Each project group, and under it the terminals in that
-//! group's center panes and the group's agent threads. It implements Zed's `workspace::Sidebar`, so
-//! the `MultiWorkspace` keeps the resize handle, open state, persistence and the toggle actions;
-//! the rows and the one selected row come from `marley_rail`.
+//! group's center panes, with the agent CLIs running in them, and the group's agent threads. It
+//! implements Zed's `workspace::Sidebar`, so the `MultiWorkspace` keeps the resize handle, open
+//! state, persistence and the toggle actions; the rows and the one selected row come from
+//! `marley_rail`.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use acp_thread::{AcpThread, AcpThreadEvent};
 use agent_ui::thread_metadata_store::{ThreadId, ThreadMetadata, ThreadMetadataStore};
@@ -14,9 +17,10 @@ use gpui::{
     Anchor, AnyElement, App, Context, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
     Pixels, Render, Subscription, Task, WeakEntity, Window, px,
 };
+use marley_agent::{AgentKind, WAITING_AFTER};
 use marley_rail::{
-    Focus, ProjectRow, ProjectSnapshot, RailSnapshot, Row, TerminalRow, TerminalSnapshot,
-    ThreadRow, ThreadSnapshot, ThreadStatus,
+    Focus, ProjectRow, ProjectSnapshot, RailSnapshot, Row, TerminalAgent, TerminalRow,
+    TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus,
 };
 use project::{
     AgentId, AgentRegistryStore, AgentServerStore, AgentServersUpdated, Project, ProjectGroupKey,
@@ -51,6 +55,14 @@ type TerminalFactory = fn(
     &mut Context<Project>,
 ) -> Task<anyhow::Result<Entity<Terminal>>>;
 
+/// Reads the command a terminal's foreground process runs. Production asks the PTY; a test's
+/// display-only terminal has no process, so tests hand in their own.
+type ForegroundCommand = fn(&Entity<Terminal>, &App) -> Option<String>;
+
+/// How long an agent's launch waits for the shell to say it is ready, as Zed's terminal threads
+/// wait, before writing the command anyway.
+const AGENT_STARTUP_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// Zed's own sidebar and whether it was open, kept by the rail that replaced it.
 pub type KeptSidebar = (Entity<sidebar::Sidebar>, bool);
 
@@ -61,6 +73,14 @@ pub struct Rail {
     focus_handle: FocusHandle,
     width: Pixels,
     terminal_factory: TerminalFactory,
+    foreground_command: ForegroundCommand,
+    /// Where the `+` menu looks for agent CLIs: the process's `PATH`, which tests replace.
+    agent_search_path: Option<OsString>,
+    /// When each terminal last wrote output, on the executor's clock.
+    terminal_output: HashMap<EntityId, Instant>,
+    /// Per agent terminal: a refresh due once its output has been quiet for `WAITING_AFTER`,
+    /// replaced on each output.
+    quiet_timers: HashMap<EntityId, Task<()>>,
     /// The window as the rail last read it. `render` draws from this alone, so another entity's
     /// notify does not redraw the window, and an event that changes nothing shown does not either:
     /// workspaces and terminal views report every chunk of terminal output.
@@ -133,6 +153,8 @@ struct Snapshot {
     rail: RailSnapshot,
     groups: Vec<GroupEntry>,
     terminals: HashMap<u64, TerminalEntry>,
+    /// The terminal views an agent CLI is running in.
+    agent_terminals: HashSet<EntityId>,
     threads: HashMap<String, ThreadEntry>,
     /// The thread the displayed workspace's visible Agent Panel shows, which is seen by now.
     shown_thread: Option<String>,
@@ -165,6 +187,10 @@ impl Rail {
             focus_handle: cx.focus_handle(),
             width: DEFAULT_WIDTH,
             terminal_factory: Project::create_terminal_shell,
+            foreground_command: |terminal, cx| terminal.read(cx).foreground_process_command_name(),
+            agent_search_path: std::env::var_os("PATH"),
+            terminal_output: HashMap::default(),
+            quiet_timers: HashMap::default(),
             snapshot: Snapshot::default(),
             zed_sidebar,
             zed_sidebar_state: None,
@@ -194,7 +220,15 @@ impl Rail {
         let mut snapshot = self
             .multi_workspace
             .upgrade()
-            .map(|multi_workspace| build_snapshot(&multi_workspace, window, cx))
+            .map(|multi_workspace| {
+                build_snapshot(
+                    &multi_workspace,
+                    self.foreground_command,
+                    &self.terminal_output,
+                    window,
+                    cx,
+                )
+            })
             .unwrap_or_default();
         self.note_ended_runs(&mut snapshot);
         if snapshot.rail != self.snapshot.rail {
@@ -230,35 +264,37 @@ impl Rail {
         self.noted_threads = noted;
     }
 
+    /// Notes a terminal's output, and for an agent terminal re-arms the refresh that reads it as
+    /// waiting once the output stops.
+    fn note_output(&mut self, view: EntityId, window: &mut Window, cx: &mut Context<Self>) {
+        self.terminal_output
+            .insert(view, cx.background_executor().now());
+        self.refresh(window, cx);
+        if self.snapshot.agent_terminals.contains(&view) {
+            let quiet = cx.background_executor().timer(WAITING_AFTER);
+            let timer = cx.spawn_in(window, async move |rail, cx| {
+                quiet.await;
+                rail.update_in(cx, Self::refresh).log_err();
+            });
+            self.quiet_timers.insert(view, timer);
+        }
+    }
+
     fn sync_subscriptions(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let workspaces: Vec<Entity<Workspace>> = self
+        let Watched {
+            workspaces,
+            views,
+            panels,
+            threads,
+            agent_servers,
+        } = self
             .multi_workspace
             .upgrade()
-            .map(|multi_workspace| multi_workspace.read(cx).workspaces().cloned().collect())
+            .map(|multi_workspace| Watched::in_window(&multi_workspace, cx))
             .unwrap_or_default();
-        let views: Vec<Entity<TerminalView>> = workspaces
-            .iter()
-            .flat_map(|workspace| workspace.read(cx).items_of_type::<TerminalView>(cx))
-            .collect();
-        let panels: Vec<Entity<AgentPanel>> = workspaces
-            .iter()
-            .filter_map(|workspace| workspace.read(cx).panel::<AgentPanel>(cx))
-            .collect();
-        let threads: Vec<Entity<AcpThread>> = panels
-            .iter()
-            .flat_map(|panel| live_threads(panel, cx))
-            .collect();
-        let agent_servers: Vec<Entity<AgentServerStore>> = workspaces
-            .iter()
-            .map(|workspace| {
-                workspace
-                    .read(cx)
-                    .project()
-                    .read(cx)
-                    .agent_server_store()
-                    .clone()
-            })
-            .collect();
+        let open: HashSet<EntityId> = views.iter().map(Entity::entity_id).collect();
+        self.terminal_output.retain(|view, _| open.contains(view));
+        self.quiet_timers.retain(|view, _| open.contains(view));
         // Rebuilt from what exists now: a restore replaces panes without reporting removals, and
         // whatever is left in the old maps is dropped, ending those subscriptions.
         self.workspace_subscriptions = resubscribe(
@@ -275,9 +311,17 @@ impl Rail {
         self.terminal_subscriptions =
             resubscribe(&mut self.terminal_subscriptions, &views, |view| {
                 [
-                    cx.subscribe_in(view, window, |rail, _, _: &terminal::Event, window, cx| {
-                        rail.refresh(window, cx);
-                    }),
+                    cx.subscribe_in(
+                        view,
+                        window,
+                        |rail, view, event: &terminal::Event, window, cx| {
+                            if *event == terminal::Event::Wakeup {
+                                rail.note_output(view.entity_id(), window, cx);
+                            } else {
+                                rail.refresh(window, cx);
+                            }
+                        },
+                    ),
                     cx.subscribe_in(view, window, |rail, _, _: &ItemEvent, window, cx| {
                         rail.refresh(window, cx);
                     }),
@@ -381,6 +425,56 @@ impl Rail {
             })
             .detach_and_prompt_err(
                 "Could not open a terminal",
+                window,
+                cx,
+                |_, _, _| None,
+            );
+        });
+        Ok(())
+    }
+
+    /// Starts `kind` in a new center terminal of `workspace`, where New Terminal would start
+    /// one. The command goes in once the shell says it is ready, as Zed's terminal threads start
+    /// theirs, and it is only the agent's program name.
+    fn new_agent(
+        &self,
+        workspace: &WeakEntity<Workspace>,
+        kind: AgentKind,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let workspace = self.activate_workspace(workspace, window, cx)?;
+        let factory = self.terminal_factory;
+        let terminal = workspace.update(cx, |workspace, cx| {
+            let directory = terminal_view::default_working_directory(workspace, cx);
+            TerminalPanel::add_center_terminal(workspace, window, cx, move |project, cx| {
+                factory(project, directory, cx)
+            })
+        });
+        workspace.update(cx, |_, cx| {
+            cx.spawn_in(window, async move |_, cx| {
+                let terminal = terminal.await?;
+                let handshake = |terminal: &mut Terminal, _: &mut Context<Terminal>| {
+                    terminal.start_init_command_startup_handshake()
+                };
+                let startup = terminal.update(cx, handshake)?;
+                let timeout = cx.background_executor().timer(AGENT_STARTUP_TIMEOUT);
+                // A terminal without a PTY is ready at once; the timeout covers a shell that
+                // never echoes the handshake's marker.
+                futures::future::select(startup, timeout).await;
+                let input = marley_agent::launch_input(kind);
+                let launch = |terminal: &mut Terminal, cx: &mut Context<Terminal>| {
+                    terminal.write_init_command_after_startup(input, cx)
+                };
+                let written = terminal.update(cx, launch)?;
+                anyhow::ensure!(
+                    written,
+                    "the terminal took other input before the agent started"
+                );
+                anyhow::Ok(())
+            })
+            .detach_and_prompt_err(
+                "Could not start the agent",
                 window,
                 cx,
                 |_, _, _| None,
@@ -541,6 +635,7 @@ impl Rail {
     fn render_project_row(
         row: ProjectRow,
         group: &GroupEntry,
+        agent_search_path: Option<OsString>,
         cx: &Context<Self>,
     ) -> impl IntoElement {
         // Element ids follow the workspace, not the row's position, so an open menu stays with
@@ -577,7 +672,13 @@ impl Rail {
                                         .child(Indicator::dot().color(Color::Accent)),
                                 )
                             })
-                            .child(Self::render_project_menu(index, id, group, cx)),
+                            .child(Self::render_project_menu(
+                                index,
+                                id,
+                                group,
+                                agent_search_path,
+                                cx,
+                            )),
                     )
                     .on_click(cx.listener(move |rail, _, window, cx| {
                         rail.activate_workspace(&workspace, window, cx).log_err();
@@ -589,6 +690,7 @@ impl Rail {
         index: usize,
         id: EntityId,
         group: &GroupEntry,
+        agent_search_path: Option<OsString>,
         cx: &Context<Self>,
     ) -> impl IntoElement {
         let rail = cx.entity().downgrade();
@@ -605,20 +707,30 @@ impl Rail {
                     .menu(move |window, cx| {
                         let rail = rail.clone();
                         let workspace = workspace.clone();
+                        let agent_search_path = agent_search_path.clone();
                         Some(ContextMenu::build(window, cx, move |menu, _, _| {
                             let terminal_rail = rail.clone();
                             let terminal_workspace = workspace.clone();
-                            menu.entry("New Terminal", None, move |window, cx| {
-                                terminal_rail
-                                    .update(cx, |rail, cx| {
-                                        rail.new_terminal(&terminal_workspace, window, cx)
-                                    })
-                                    .flatten()
-                                    .log_err();
-                            })
-                            .submenu("New Agent Thread", move |menu, _, cx| {
-                                Self::agent_menu(menu, &rail, &workspace, cx)
-                            })
+                            let cli_rail = rail.clone();
+                            let cli_workspace = workspace.clone();
+                            let menu = menu
+                                .entry("New Terminal", None, move |window, cx| {
+                                    terminal_rail
+                                        .update(cx, |rail, cx| {
+                                            rail.new_terminal(&terminal_workspace, window, cx)
+                                        })
+                                        .flatten()
+                                        .log_err();
+                                })
+                                .submenu("New Agent Thread", move |menu, _, cx| {
+                                    Self::agent_menu(menu, &rail, &workspace, cx)
+                                });
+                            Self::agent_cli_entries(
+                                menu,
+                                &cli_rail,
+                                &cli_workspace,
+                                agent_search_path.as_deref(),
+                            )
                         }))
                     })
                     .anchor(Anchor::TopRight),
@@ -653,6 +765,38 @@ impl Rail {
                 .log_err();
             }))
         })
+    }
+
+    /// The agent CLIs the search path holds, one entry each under a header, after New Agent
+    /// Thread; nothing when none is installed.
+    fn agent_cli_entries(
+        menu: ContextMenu,
+        rail: &WeakEntity<Self>,
+        workspace: &WeakEntity<Workspace>,
+        search_path: Option<&OsStr>,
+    ) -> ContextMenu {
+        let agents = agents_on_path(search_path);
+        if agents.is_empty() {
+            return menu;
+        }
+        agents
+            .into_iter()
+            .fold(menu.separator().header("Agent CLIs"), |menu, kind| {
+                let rail = rail.clone();
+                let workspace = workspace.clone();
+                menu.item(
+                    ContextMenuEntry::new(kind.display_name())
+                        .icon(agent_icon_name(kind))
+                        .icon_color(Color::Muted)
+                        .handler(move |window, cx| {
+                            rail.update(cx, |rail, cx| {
+                                rail.new_agent(&workspace, kind, window, cx)
+                            })
+                            .flatten()
+                            .log_err();
+                        }),
+                )
+            })
     }
 
     fn render_thread_row(
@@ -702,9 +846,17 @@ impl Rail {
                     .toggle_state(row.selected)
                     .indent_level(1)
                     .start_slot(
-                        Icon::new(IconName::Terminal)
-                            .size(IconSize::Small)
-                            .color(Color::Muted),
+                        div()
+                            .when(row.agent.is_some(), |slot| {
+                                slot.debug_selector(move || format!("marley-rail-agent-{id}"))
+                            })
+                            .child(
+                                Icon::new(row.agent.map_or(IconName::Terminal, |agent| {
+                                    agent_icon_name(agent.kind)
+                                }))
+                                .size(IconSize::Small)
+                                .color(Color::Muted),
+                            ),
                     )
                     .child(
                         v_flex()
@@ -732,6 +884,53 @@ impl Rail {
     }
 }
 
+/// Everything in a window the rail follows.
+#[derive(Default)]
+struct Watched {
+    workspaces: Vec<Entity<Workspace>>,
+    views: Vec<Entity<TerminalView>>,
+    panels: Vec<Entity<AgentPanel>>,
+    threads: Vec<Entity<AcpThread>>,
+    agent_servers: Vec<Entity<AgentServerStore>>,
+}
+
+impl Watched {
+    fn in_window(multi_workspace: &Entity<MultiWorkspace>, cx: &App) -> Self {
+        let workspaces: Vec<Entity<Workspace>> =
+            multi_workspace.read(cx).workspaces().cloned().collect();
+        let views = workspaces
+            .iter()
+            .flat_map(|workspace| workspace.read(cx).items_of_type::<TerminalView>(cx))
+            .collect();
+        let panels: Vec<Entity<AgentPanel>> = workspaces
+            .iter()
+            .filter_map(|workspace| workspace.read(cx).panel::<AgentPanel>(cx))
+            .collect();
+        let threads = panels
+            .iter()
+            .flat_map(|panel| live_threads(panel, cx))
+            .collect();
+        let agent_servers = workspaces
+            .iter()
+            .map(|workspace| {
+                workspace
+                    .read(cx)
+                    .project()
+                    .read(cx)
+                    .agent_server_store()
+                    .clone()
+            })
+            .collect();
+        Self {
+            workspaces,
+            views,
+            panels,
+            threads,
+            agent_servers,
+        }
+    }
+}
+
 /// Keeps each entity's subscriptions, makes them for each new entity, and returns the map for
 /// what exists now; whatever the old map still holds is dropped, ending those subscriptions.
 fn resubscribe<E: 'static, S>(
@@ -748,6 +947,24 @@ fn resubscribe<E: 'static, S>(
             (entity.entity_id(), subscriptions)
         })
         .collect()
+}
+
+/// The known agent CLIs `search_path` holds an executable for, in menu order.
+fn agents_on_path(search_path: Option<&OsStr>) -> Vec<AgentKind> {
+    AgentKind::ALL
+        .into_iter()
+        .filter(|kind| which::which_in(kind.program(), search_path, "/").is_ok())
+        .collect()
+}
+
+/// The icon an agent CLI's row and menu entry draw.
+const fn agent_icon_name(kind: AgentKind) -> IconName {
+    match kind {
+        AgentKind::Claude => IconName::AiClaude,
+        AgentKind::Codex => IconName::AiOpenAi,
+        AgentKind::Gemini => IconName::AiGemini,
+        AgentKind::OpenCode => IconName::AiOpenCode,
+    }
 }
 
 /// The status Zed's thread row draws for a rail status.
@@ -932,9 +1149,77 @@ fn agent_choices(project: &Entity<Project>, cx: &App) -> Vec<(AgentId, SharedStr
         .collect()
 }
 
+/// One terminal's row: an agent row when a known agent CLI runs in its foreground, labelled with
+/// the CLI's own title and its status, else the terminal's title and working directory.
+fn terminal_snapshot(
+    view: &Entity<TerminalView>,
+    root: Option<&std::path::Path>,
+    home: &std::path::Path,
+    foreground_command: ForegroundCommand,
+    last_output: Option<Instant>,
+    now: Instant,
+    cx: &App,
+) -> TerminalSnapshot {
+    let terminal_view = view.read(cx);
+    let terminal = terminal_view.terminal();
+    let bell = terminal_view.has_bell();
+    // No output seen yet counts as quiet: the agent is at its prompt, as far as the rail knows.
+    let agent = foreground_command(terminal, cx)
+        .as_deref()
+        .and_then(marley_agent::agent_kind_of)
+        .map(|kind| {
+            let quiet_for =
+                last_output.map_or(Duration::MAX, |at| now.saturating_duration_since(at));
+            TerminalAgent {
+                kind,
+                status: marley_agent::agent_status(quiet_for, bell),
+            }
+        });
+    let (title, subtitle) = agent.map_or_else(
+        || {
+            (
+                terminal_view.tab_content_text(0, cx).to_string(),
+                marley_rail::working_directory_label(
+                    terminal.read(cx).working_directory().as_deref(),
+                    root,
+                    Some(home),
+                ),
+            )
+        },
+        |agent| {
+            (
+                agent_title(&terminal.read(cx).breadcrumb_text, agent.kind),
+                Some(marley_agent::status_line(agent.kind, agent.status)),
+            )
+        },
+    );
+    TerminalSnapshot {
+        id: view.entity_id().as_u64(),
+        title,
+        subtitle,
+        bell,
+        agent,
+    }
+}
+
+/// An agent row's title: the title the CLI set over OSC, else the agent's name.
+fn agent_title(breadcrumb: &str, kind: AgentKind) -> String {
+    if breadcrumb.trim().is_empty() {
+        kind.display_name().to_string()
+    } else {
+        breadcrumb.to_string()
+    }
+}
+
 /// The window, read once. Only groups with an open workspace are listed; a group Zed keeps after
 /// its last workspace closed has nothing for the rail to switch to.
-fn build_snapshot(multi_workspace: &Entity<MultiWorkspace>, window: &Window, cx: &App) -> Snapshot {
+fn build_snapshot(
+    multi_workspace: &Entity<MultiWorkspace>,
+    foreground_command: ForegroundCommand,
+    terminal_output: &HashMap<EntityId, Instant>,
+    window: &Window,
+    cx: &App,
+) -> Snapshot {
     let multi_workspace = multi_workspace.read(cx);
     let groups: Vec<ProjectGroup> = multi_workspace
         .project_groups(cx)
@@ -944,6 +1229,7 @@ fn build_snapshot(multi_workspace: &Entity<MultiWorkspace>, window: &Window, cx:
     let names = group_names(&groups);
     let displayed = multi_workspace.workspace();
     let home = util::paths::home_dir().as_path();
+    let now = cx.background_executor().now();
     let mut snapshot = Snapshot::default();
     let listed = groups.iter().zip(names).filter_map(|(group, name)| {
         let workspace = multi_workspace
@@ -964,18 +1250,19 @@ fn build_snapshot(multi_workspace: &Entity<MultiWorkspace>, window: &Window, cx:
                 .find_map(|worktree| worktree.read(cx).root_dir());
             for view in member.read(cx).items_of_type::<TerminalView>(cx) {
                 let id = view.entity_id().as_u64();
-                let terminal_view = view.read(cx);
-                let working_directory = terminal_view.terminal().read(cx).working_directory();
-                terminals.push(TerminalSnapshot {
-                    id,
-                    title: terminal_view.tab_content_text(0, cx).to_string(),
-                    subtitle: marley_rail::working_directory_label(
-                        working_directory.as_deref(),
-                        root.as_deref(),
-                        Some(home),
-                    ),
-                    bell: terminal_view.has_bell(),
-                });
+                let terminal = terminal_snapshot(
+                    &view,
+                    root.as_deref(),
+                    home,
+                    foreground_command,
+                    terminal_output.get(&view.entity_id()).copied(),
+                    now,
+                    cx,
+                );
+                if terminal.agent.is_some() {
+                    snapshot.agent_terminals.insert(view.entity_id());
+                }
+                terminals.push(terminal);
                 snapshot.terminals.insert(
                     id,
                     TerminalEntry {
@@ -1104,11 +1391,10 @@ impl Render for Rail {
         let rows: Vec<AnyElement> = marley_rail::rail_rows(&self.snapshot.rail)
             .into_iter()
             .filter_map(|row| match row {
-                Row::Project(row) => self
-                    .snapshot
-                    .groups
-                    .get(row.index)
-                    .map(|group| Self::render_project_row(row, group, cx).into_any_element()),
+                Row::Project(row) => self.snapshot.groups.get(row.index).map(|group| {
+                    Self::render_project_row(row, group, self.agent_search_path.clone(), cx)
+                        .into_any_element()
+                }),
                 Row::Terminal(row) => self.snapshot.terminals.get(&row.id).map(|terminal| {
                     Self::render_terminal_row(row, terminal, cx).into_any_element()
                 }),

@@ -39,7 +39,7 @@ first column.
 
 | Path | What changed | Why | On merge |
 |---|---|---|---|
-| `Cargo.toml` | Seven `crates/marley_*` workspace members; `marley_fleet`, `marley_rail` and `marley_workbench` in `[workspace.dependencies]` | The Marley crates build in Zed's workspace | Re-add the members in sorted order. Keep a `[workspace.dependencies]` entry only for a crate something depends on, or cargo-shear fails |
+| `Cargo.toml` | Seven `crates/marley_*` workspace members; `marley_agent`, `marley_fleet`, `marley_rail` and `marley_workbench` in `[workspace.dependencies]` | The Marley crates build in Zed's workspace | Re-add the members in sorted order. Keep a `[workspace.dependencies]` entry only for a crate something depends on, or cargo-shear fails |
 | `Cargo.lock` | Entries for the Marley crates and their dependencies, and `zed`'s dependency on `marley_workbench` | Generated | Regenerate; never hand-merge |
 | `.rules` | A "Marley" section above Zed's rules | Every agent session reads it first | Keep the section on top; take upstream's rules below it verbatim |
 | `.config/typos.toml` | `extend-exclude` entries for Marley's reference docs | They transcribe Warp and gpui-era text verbatim | Re-add the block |

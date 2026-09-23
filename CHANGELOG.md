@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Agent CLIs in rail terminals** (#440, 2026-09-22). The rail recognizes Claude Code, Codex,
+  Gemini CLI and OpenCode running in any terminal, however they were started. Such a row shows
+  the agent's icon and the title the CLI sets, and its second line reads the agent and whether
+  it is working or waiting: waiting once its output has been quiet for two seconds, or when it
+  rings the bell. When the agent exits, the row is a plain terminal row again. A project's `+`
+  menu lists the installed agent CLIs under an "Agent CLIs" header. One click opens a center
+  terminal in the project and starts the CLI there once the shell is ready, writing nothing
+  but the program's name.
 - **Zed agent threads in the rail** (#439, 2026-09-22). In the Marley layout each project lists
   its Zed agent threads under its terminals, newest first. A thread row shows its title, its
   agent's icon and what it is doing: running, waiting for a confirmation, failed, or done. A
@@ -84,6 +92,9 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **`marley_agent` is the fork's agent-CLI model** (#440). It knows four CLIs and judges an
+  agent's status from a quiet spell measured on gpui's clock. The gpui-era tick counters,
+  `AgentRun` and the idle and exited states are gone, since nothing used them.
 - **`script/gates.sh` takes an explicit mode** (#447, 2026-09-22): `--full`, `--diff` or
   `--fast`. A run with no mode, or an unknown one, is a usage error (exit 2) and runs no gate.
   A `--full` or `--diff` run removes the earlier receipt when it starts, reports the heavy

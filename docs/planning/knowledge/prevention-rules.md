@@ -2144,3 +2144,20 @@ check's own code (the function from `script/gates.sh`, not a reconstruction of i
 go red; remove the fault and see it go green. A check whose input a flag or a filter can empty,
 such as `--quiet`, a filter on a diagnostic's source span, or a tool that reads only the files
 git lists, passes on a clean tree whether it works or not. Only the planted red proves it.
+
+## PR-claude-bind-a-multi-line-closure-before-its-question-mark-001
+*severity: low · prevents: the gate:4 misses in #438 and #440 (L-claude-438-the-coverage-floor-counts-lines-per-function-001)*
+
+In a Marley crate, never end a multi-line closure argument with `})?;`. llvm's per-function line
+count reads that line as the `?`'s error path alone and reports it missed, even when the file
+view and `--show-missing-lines` show nothing. Bind the closure first, then call:
+
+```rust
+let launch = |terminal: &mut Terminal, cx: &mut Context<Terminal>| {
+    terminal.write_init_command_after_startup(input, cx)
+};
+let written = terminal.update(cx, launch)?;
+```
+
+The `?` then shares a line with code that ran. It bit #438 (`})?;` after an update on a weak
+handle) and #440 (two `terminal.update` calls in the agent launch).
