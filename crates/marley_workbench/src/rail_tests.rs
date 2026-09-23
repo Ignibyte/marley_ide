@@ -4,7 +4,9 @@
 use std::path::Path;
 
 use fs::FakeFs;
-use gpui::{Global, Modifiers, TestAppContext, VisualTestContext};
+use gpui::{
+    Global, Modifiers, MouseButton, MouseDownEvent, MouseUpEvent, TestAppContext, VisualTestContext,
+};
 use marley_rail::Selection;
 use project::{AgentRegistryStore, Project};
 use serde_json::json;
@@ -413,6 +415,151 @@ fn an_unreadable_blob_holds_nothing_for_the_rail() {
         read_rail_state(&write_rail_state(Some("[1, 2]"), closed)),
         closed
     );
+}
+
+/// Draws the window afresh and right-clicks the middle of what is drawn under `selector`.
+fn right_click(selector: &'static str, cx: &mut VisualTestContext) {
+    cx.update(|window, _| window.refresh());
+    let bounds = cx.debug_bounds(selector).expect("the element is drawn");
+    cx.simulate_mouse_down(bounds.center(), MouseButton::Right, Modifiers::none());
+    cx.simulate_mouse_up(bounds.center(), MouseButton::Right, Modifiers::none());
+    cx.run_until_parked();
+    // The menu is drawn on the frame after it opens.
+    cx.update(|window, _| window.refresh());
+}
+
+/// Draws the window afresh and double-clicks the middle of what is drawn under `selector`.
+fn double_click(selector: &'static str, cx: &mut VisualTestContext) {
+    cx.update(|window, _| window.refresh());
+    let position = cx
+        .debug_bounds(selector)
+        .expect("the element is drawn")
+        .center();
+    for click_count in [1, 2] {
+        cx.simulate_event(MouseDownEvent {
+            position,
+            modifiers: Modifiers::none(),
+            button: MouseButton::Left,
+            click_count,
+            first_mouse: false,
+        });
+        cx.simulate_event(MouseUpEvent {
+            position,
+            modifiers: Modifiers::none(),
+            button: MouseButton::Left,
+            click_count,
+        });
+    }
+    cx.run_until_parked();
+}
+
+fn title_of(
+    rail: &Entity<Rail>,
+    view: &Entity<TerminalView>,
+    cx: &VisualTestContext,
+) -> Option<String> {
+    rail.read_with(cx, |rail, _| {
+        rail.snapshot
+            .rail
+            .projects
+            .iter()
+            .flat_map(|project| &project.terminals)
+            .find(|terminal| terminal.id == id(view))
+            .map(|terminal| terminal.title.clone())
+    })
+}
+
+/// Types `name` into a terminal's rename and presses Enter.
+fn finish_rename(name: &str, cx: &mut VisualTestContext) {
+    cx.simulate_input(name);
+    cx.update(|window, _| window.refresh());
+    cx.dispatch_action(menu::Confirm);
+    cx.run_until_parked();
+}
+
+fn is_open(
+    workspace: &Entity<Workspace>,
+    view: &Entity<TerminalView>,
+    cx: &VisualTestContext,
+) -> bool {
+    workspace.read_with(cx, |workspace, cx| {
+        workspace
+            .items_of_type::<TerminalView>(cx)
+            .any(|open| open == *view)
+    })
+}
+
+#[gpui::test]
+async fn a_terminal_rows_menu_renames_it_through_its_tab(cx: &mut TestAppContext) {
+    let (_, alpha, beta, rail, cx) = open_rail(cx).await;
+    let (_, alpha_terminal) = add_terminal(&alpha, false, cx);
+    let (_, beta_terminal) = add_terminal(&beta, true, cx);
+    right_click(terminal_selector(&alpha_terminal), cx);
+    assert!(cx.debug_bounds("MENU_ITEM-Rename").is_some());
+    assert!(cx.debug_bounds("MENU_ITEM-Close").is_some());
+    click("MENU_ITEM-Rename", cx);
+    // The terminal is shown first, so the tab it renames is on screen.
+    cx.read(|cx| {
+        assert_eq!(
+            alpha.read(cx).active_item(cx).map(|item| item.item_id()),
+            Some(alpha_terminal.entity_id())
+        );
+    });
+    assert!(alpha_terminal.read_with(cx, |view, _| view.is_renaming()));
+    finish_rename("Build", cx);
+    assert_eq!(
+        alpha_terminal.read_with(cx, |view, _| view.custom_title().map(str::to_string)),
+        Some("Build".to_string())
+    );
+    assert_eq!(
+        title_of(&rail, &alpha_terminal, cx).as_deref(),
+        Some("Build")
+    );
+    assert!(!beta_terminal.read_with(cx, |view, _| view.is_renaming()));
+}
+
+#[gpui::test]
+async fn a_double_click_on_a_row_renames_its_terminal(cx: &mut TestAppContext) {
+    let (_, _, beta, rail, cx) = open_rail(cx).await;
+    let (_, terminal) = add_terminal(&beta, false, cx);
+    double_click(terminal_selector(&terminal), cx);
+    assert!(terminal.read_with(cx, |view, _| view.is_renaming()));
+    finish_rename("Tests", cx);
+    assert_eq!(title_of(&rail, &terminal, cx).as_deref(), Some("Tests"));
+}
+
+#[gpui::test]
+async fn a_rows_close_button_closes_its_terminal(cx: &mut TestAppContext) {
+    let (_, _, beta, rail, cx) = open_rail(cx).await;
+    let (_, kept) = add_terminal(&beta, false, cx);
+    let (_, closed) = add_terminal(&beta, true, cx);
+    cx.update(|window, _| window.refresh());
+    let row = cx
+        .debug_bounds(terminal_selector(&closed))
+        .expect("the row is drawn");
+    // The button shows while the pointer is over the row.
+    cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    click(
+        format!("marley-rail-terminal-close-{}", id(&closed)).leak(),
+        cx,
+    );
+    assert!(!is_open(&beta, &closed, cx));
+    assert!(is_open(&beta, &kept, cx));
+    assert_eq!(
+        title_of(&rail, &closed, cx),
+        None,
+        "its row leaves the rail"
+    );
+}
+
+#[gpui::test]
+async fn a_rows_menu_closes_its_terminal(cx: &mut TestAppContext) {
+    let (_, _, beta, rail, cx) = open_rail(cx).await;
+    let (_, terminal) = add_terminal(&beta, false, cx);
+    right_click(terminal_selector(&terminal), cx);
+    click("MENU_ITEM-Close", cx);
+    assert!(!is_open(&beta, &terminal, cx));
+    assert_eq!(title_of(&rail, &terminal, cx), None);
 }
 
 #[gpui::test]
@@ -1057,6 +1204,19 @@ mod agents {
             [b"claude\r".to_vec()],
             "the program's name and Enter, only"
         );
+    }
+
+    #[gpui::test]
+    async fn an_agent_row_shows_a_name_the_user_gave_its_terminal(cx: &mut TestAppContext) {
+        let (_, alpha, _, rail, cx) = open_rail(cx).await;
+        rail.update(cx, |rail, _| rail.foreground_command = fake_foreground);
+        let (terminal, view) = add_terminal(&alpha, false, cx);
+        set_foreground(&terminal, "claude", cx);
+        view.update(cx, |view, cx| {
+            view.set_custom_title(Some("Reviewer".into()), cx);
+        });
+        cx.run_until_parked();
+        assert_eq!(row_of(&rail, &view, cx).0, "Reviewer");
     }
 
     #[gpui::test]

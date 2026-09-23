@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #452 (feature, workbench shell W6c)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet (split from #442 at its promotion)
+- **Pipeline doc:** ../../pipeline/completed/452-rail-rename-and-close.spec.md
 - **Source ticket:** ../../pipeline/completed/442-rail-persistence.spec.md (Out) · ../../../marley/workbench-shell.md
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 A terminal row's context menu and a double-click rename the terminal through

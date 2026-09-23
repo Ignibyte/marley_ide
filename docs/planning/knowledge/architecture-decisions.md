@@ -1400,3 +1400,15 @@ bar's submenu stays as Zed draws it, since hiding it needs a `title_bar` touchpo
 an entry now explains itself; the palette entries route the same way. Rejected: a palette
 filter (the title bar re-applies its own on every settings change), silently swallowing the
 actions, and a `title_bar` touchpoint.
+
+## AD-claude-452-the-rail-starts-zeds-own-rename-and-close-001
+*decided at: 2026-09-23 · status: shipped*
+
+A terminal row renames and closes through Zed's own tab controls, which the rail only starts:
+Rename shows the terminal and runs `TerminalView::rename_terminal`, whose editor lives in the
+tab and whose result Zed persists; Close runs the pane's `close_item_by_id` with
+`SaveIntent::Close`, so Zed's prompt for a running task comes up as it does for the tab. The
+row offers both from a right-click menu, a double-click renames, and a close button takes the
+bell's slot on hover. A custom title outranks an agent CLI's own on its row, since the user
+named it. Rejected: an editor inside the row (a second rename with its own persistence, keys
+and focus handling), and closing the item directly (it would skip Zed's prompts).

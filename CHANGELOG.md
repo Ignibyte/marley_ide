@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Rename and close terminals from the rail** (#452, 2026-09-23). Right-click a terminal row
+  for Rename and Close, or double-click it to rename; a close button shows on the row under
+  the pointer. Rename brings the terminal up and edits its name in its tab, as the tab's own
+  Rename does, and the name is kept across restarts. Close closes the tab as Zed does, asking
+  first while a task runs in it. A terminal you renamed keeps your name on its row even while
+  an agent CLI runs in it.
 - **The rail remembers being closed, and its width** (#442, 2026-09-23). A rail you close stays
   closed when Marley restarts, where before every window rebuilt it open, and one left open
   stays open. The rail's width is saved with the window, and one width holds in both layouts:

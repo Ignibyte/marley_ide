@@ -2015,3 +2015,17 @@ What worked in #451 (`crates/marley_workbench/src/marley_workbench_tests.rs`):
 - A toast's primary button has no debug selector to click by. Hand `Toast::on_click` a named
   function rather than a closure, and have the test call that function; the wiring is then one
   line in the code under review.
+
+## L-claude-452-driving-a-rows-menu-hover-and-double-click-in-a-test-001
+*category: validate · topic: pointer tests on rail rows · from: pipeline 452*
+
+What worked in #452 (`crates/marley_workbench/src/rail_tests.rs`):
+- `ui::right_click_menu` opens on a right-button press: `simulate_mouse_down` and
+  `simulate_mouse_up` with `MouseButton::Right` at the row's bounds, then one more frame before
+  the menu's `MENU_ITEM-<label>` selectors are drawn.
+- A double-click is two `MouseDownEvent`/`MouseUpEvent` pairs with `click_count` 1 and 2 at one
+  position; `ClickEvent::click_count` then reads 2 on the second.
+- `ListItem::end_slot_on_hover` lays its element out while hidden, so a test moves the pointer
+  over the row (`simulate_mouse_move`) before clicking it, as a user must.
+- Zed's inline tab rename finishes from a test with `simulate_input` into the focused rename
+  editor, a fresh frame, and `menu::Confirm`.

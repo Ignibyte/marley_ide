@@ -373,9 +373,10 @@ by catching Zed's actions rather than rebinding keys. W5c shipped as #450: `ctrl
 a New Agent picker over Zed's agents and the installed CLIs, bound through the Marley keymap.
 W6 was split at its promotion. W6a shipped as #442: a closed rail stays closed across
 restarts, and one width holds in both layouts. W6b shipped as #451: in the Marley layout Zed's
-Panel Layout presets explain themselves instead of rewriting its docks. W6c to W6g are
-TICKET-452 to TICKET-456, queued in that order, and the rail's smaller internals wait in
-`docs/planning/intake/rail-internals.md`.
+Panel Layout presets explain themselves instead of rewriting its docks. W6c shipped as #452: a
+terminal row renames and closes from its own menu, a double-click and a hover button, through
+Zed's tab rename and close. W6d to W6g are TICKET-453 to TICKET-456, queued in that order, and
+the rail's smaller internals wait in `docs/planning/intake/rail-internals.md`.
 
 | Slice | Delivers | Size |
 |---|---|---|

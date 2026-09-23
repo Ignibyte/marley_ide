@@ -14,8 +14,8 @@ use agent_ui::thread_metadata_store::{ThreadId, ThreadMetadata, ThreadMetadataSt
 use agent_ui::{Agent, AgentPanel, AgentPanelEvent, AgentThreadSource};
 use anyhow::Context as _;
 use gpui::{
-    Anchor, AnyElement, App, Context, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
-    Pixels, Render, Subscription, Task, WeakEntity, Window, px,
+    Anchor, AnyElement, App, ClickEvent, Context, Entity, EntityId, EventEmitter, FocusHandle,
+    Focusable, Pixels, Render, Subscription, Task, WeakEntity, Window, px,
 };
 use marley_agent::{AgentKind, WAITING_AFTER};
 use marley_rail::{
@@ -25,17 +25,17 @@ use marley_rail::{
 use project::{AgentId, AgentServerStore, AgentServersUpdated, ProjectGroupKey};
 use recent_projects::sidebar_recent_projects::SidebarRecentProjects;
 use terminal::Terminal;
-use terminal_view::{TerminalView, terminal_panel::TerminalPanel};
+use terminal_view::{RenameTerminal, TerminalView, terminal_panel::TerminalPanel};
 use ui::{
     AgentThreadStatus, ContextMenu, ContextMenuEntry, Disclosure, Icon, IconButton, IconName,
     IconSize, Indicator, Label, LabelSize, ListItem, PopoverMenu, PopoverMenuHandle, ThreadItem,
-    Tooltip, prelude::*, utils::platform_title_bar_height,
+    Tooltip, prelude::*, right_click_menu, utils::platform_title_bar_height,
 };
 use util::ResultExt as _;
 use util::path_list::PathList;
 use workspace::{
-    MultiWorkspace, MultiWorkspaceEvent, ProjectGroup, Sidebar, SidebarEvent, SidebarSide,
-    Workspace,
+    MultiWorkspace, MultiWorkspaceEvent, ProjectGroup, SaveIntent, Sidebar, SidebarEvent,
+    SidebarSide, Workspace,
     item::{Item as _, ItemEvent},
     notifications::DetachAndPromptErr as _,
 };
@@ -417,6 +417,44 @@ impl Rail {
             workspace.activate_item(&view, true, true, window, cx)
         });
         view.update(cx, TerminalView::clear_bell);
+        Ok(())
+    }
+
+    /// Shows a terminal and starts Zed's rename on its tab, as the tab's own Rename does: the name
+    /// is edited in the tab and kept on Enter.
+    fn rename_terminal(
+        &self,
+        workspace: &WeakEntity<Workspace>,
+        view: &WeakEntity<TerminalView>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        self.activate_terminal(workspace, view, window, cx)?;
+        let view = view.upgrade().context("the terminal was closed")?;
+        view.update(cx, |view, cx| {
+            view.rename_terminal(&RenameTerminal, window, cx);
+        });
+        Ok(())
+    }
+
+    /// Closes a terminal through its pane, as its tab's close does: Zed asks first while a task
+    /// runs in it.
+    fn close_terminal(
+        workspace: &WeakEntity<Workspace>,
+        view: &WeakEntity<TerminalView>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> anyhow::Result<()> {
+        let view = view.upgrade().context("the terminal was closed")?;
+        let workspace = workspace.upgrade().context("the project was closed")?;
+        let pane = workspace
+            .read(cx)
+            .pane_for(&view)
+            .context("the terminal is in no pane")?;
+        let closing = pane.update(cx, |pane, cx| {
+            pane.close_item_by_id(view.entity_id(), SaveIntent::Close, window, cx)
+        });
+        closing.detach_and_prompt_err("Could not close the terminal", window, cx, |_, _, _| None);
         Ok(())
     }
 
@@ -802,51 +840,93 @@ impl Rail {
         terminal: &TerminalEntry,
         cx: &Context<Self>,
     ) -> impl IntoElement {
-        let workspace = terminal.workspace.clone();
-        let view = terminal.view.clone();
         let id = row.id;
-        div()
-            .debug_selector(move || format!("marley-rail-terminal-{id}"))
+        let (workspace, view) = (terminal.workspace.clone(), terminal.view.clone());
+        let (close_workspace, close_view) = (terminal.workspace.clone(), terminal.view.clone());
+        let close = div()
+            .debug_selector(move || format!("marley-rail-terminal-close-{id}"))
             .child(
-                ListItem::new(("marley-rail-terminal", id))
-                    .toggle_state(row.selected)
-                    .indent_level(1)
-                    .start_slot(
-                        div()
-                            .when(row.agent.is_some(), |slot| {
-                                slot.debug_selector(move || format!("marley-rail-agent-{id}"))
-                            })
-                            .child(
-                                Icon::new(row.agent.map_or(IconName::Terminal, |agent| {
-                                    agents::cli_icon(agent.kind)
-                                }))
-                                .size(IconSize::Small)
-                                .color(Color::Muted),
-                            ),
-                    )
-                    .child(
-                        v_flex()
-                            .child(Label::new(row.title).size(LabelSize::Small))
-                            // Always drawn, empty when unknown, so every terminal row has one
-                            // height.
-                            .child(
-                                Label::new(row.subtitle.unwrap_or_default())
-                                    .size(LabelSize::XSmall)
-                                    .color(Color::Muted),
-                            ),
-                    )
-                    .when(row.bell, |item| {
-                        item.end_slot(
-                            div()
-                                .debug_selector(move || format!("marley-rail-bell-{id}"))
-                                .child(Indicator::dot().color(Color::Accent)),
-                        )
-                    })
-                    .on_click(cx.listener(move |rail, _, window, cx| {
-                        rail.activate_terminal(&workspace, &view, window, cx)
-                            .log_err();
+                IconButton::new(("marley-rail-terminal-close", id), IconName::Close)
+                    .icon_size(IconSize::Small)
+                    .icon_color(Color::Muted)
+                    .tooltip(Tooltip::text("Close Terminal"))
+                    .on_click(cx.listener(move |_, _, window, cx| {
+                        // The row under the button would show the terminal it closes.
+                        cx.stop_propagation();
+                        Self::close_terminal(&close_workspace, &close_view, window, cx).log_err();
                     })),
+            );
+        let item = ListItem::new(("marley-rail-terminal", id))
+            .toggle_state(row.selected)
+            .indent_level(1)
+            .start_slot(
+                div()
+                    .when(row.agent.is_some(), |slot| {
+                        slot.debug_selector(move || format!("marley-rail-agent-{id}"))
+                    })
+                    .child(
+                        Icon::new(
+                            row.agent
+                                .map_or(IconName::Terminal, |agent| agents::cli_icon(agent.kind)),
+                        )
+                        .size(IconSize::Small)
+                        .color(Color::Muted),
+                    ),
             )
+            .child(
+                v_flex()
+                    .child(Label::new(row.title).size(LabelSize::Small))
+                    // Always drawn, empty when unknown, so every terminal row has one height.
+                    .child(
+                        Label::new(row.subtitle.unwrap_or_default())
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    ),
+            )
+            .when(row.bell, |item| {
+                item.end_slot(
+                    div()
+                        .debug_selector(move || format!("marley-rail-bell-{id}"))
+                        .child(Indicator::dot().color(Color::Accent)),
+                )
+            })
+            .end_slot_on_hover(close)
+            .on_click(cx.listener(move |rail, event: &ClickEvent, window, cx| {
+                // The second click of a double-click renames, as a tab's does.
+                if event.click_count() == 2 {
+                    rail.rename_terminal(&workspace, &view, window, cx)
+                        .log_err();
+                } else {
+                    rail.activate_terminal(&workspace, &view, window, cx)
+                        .log_err();
+                }
+            }));
+        let rail = cx.entity().downgrade();
+        let (menu_workspace, menu_view) = (terminal.workspace.clone(), terminal.view.clone());
+        right_click_menu(("marley-rail-terminal-menu", id))
+            .trigger(move |_, _, _| {
+                div()
+                    .debug_selector(move || format!("marley-rail-terminal-{id}"))
+                    .child(item)
+            })
+            .menu(move |window, cx| {
+                let (rename_rail, rename_workspace, rename_view) =
+                    (rail.clone(), menu_workspace.clone(), menu_view.clone());
+                let (close_workspace, close_view) = (menu_workspace.clone(), menu_view.clone());
+                ContextMenu::build(window, cx, move |menu, _, _| {
+                    menu.entry("Rename", None, move |window, cx| {
+                        rename_rail
+                            .update(cx, |rail, cx| {
+                                rail.rename_terminal(&rename_workspace, &rename_view, window, cx)
+                            })
+                            .flatten()
+                            .log_err();
+                    })
+                    .entry("Close", None, move |window, cx| {
+                        Self::close_terminal(&close_workspace, &close_view, window, cx).log_err();
+                    })
+                })
+            })
     }
 }
 
@@ -1134,8 +1214,13 @@ fn terminal_snapshot(
             )
         },
         |agent| {
+            // A name the user gave the terminal wins over the CLI's own title.
+            let title = terminal_view.custom_title().map_or_else(
+                || agent_title(&terminal.read(cx).breadcrumb_text, agent.kind),
+                ToString::to_string,
+            );
             (
-                agent_title(&terminal.read(cx).breadcrumb_text, agent.kind),
+                title,
                 Some(marley_agent::status_line(agent.kind, agent.status)),
             )
         },

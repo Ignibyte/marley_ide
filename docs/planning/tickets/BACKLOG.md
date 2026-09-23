@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-452](open/TICKET-452-rail-rename-and-close.md) | feature | W6c · rename and close terminals from the rail |
 | [TICKET-453](open/TICKET-453-rail-keyboard-and-filter.md) | feature | W6d · keyboard navigation, a filter and project reorder in the rail |
 | [TICKET-454](open/TICKET-454-rail-switcher.md) | feature | W6e · a switcher over recent terminals and threads |
 | [TICKET-455](open/TICKET-455-a-first-terminal.md) | feature | W6f · a first terminal for a project shown with none, without doubling a restored one's |

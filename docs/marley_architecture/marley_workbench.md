@@ -56,6 +56,12 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   clears its bell. New Terminal starts where Zed's own would
   (`terminal_view::default_working_directory`), through the terminal factory of
   `agents::Launcher`: `Project::create_terminal_shell`, unless a test sets a display-only one.
+- **Rename and close (#452).** A terminal row's right-click menu has Rename and Close, a
+  double-click renames, and a close button swaps in for the bell's slot under the pointer
+  (`end_slot_on_hover`). Rename shows the terminal, then runs Zed's own
+  `TerminalView::rename_terminal`, which edits the name in the tab and keeps it through
+  `set_custom_title`. Close goes through the pane (`close_item_by_id`, `SaveIntent::Close`), so
+  Zed asks first while a task runs. A custom title beats an agent CLI's own on its row.
 - The header is the title bar's height and draws the window controls the title bar leaves to a
   left-hand sidebar. Its Add Project button opens Zed's recent-projects popover.
 - The handlers take the rows' weak handles and return a `Result`, which the click sites log.
@@ -197,7 +203,7 @@ alike.
 ## Tests
 
 `src/marley_workbench_tests.rs` (the switch, the keymap loader and persistence, 20 tests) and
-`src/rail_tests.rs` (the rail, 19, 11 thread tests in `rail::tests::threads`, and 4 agent-CLI
+`src/rail_tests.rs` (the rail, 23, 11 thread tests in `rail::tests::threads`, and 5 agent-CLI
 tests in `rail::tests::agents`, which search a temporary directory for programs and read the
 new terminal's write log): driven gpui tests on `MultiWorkspace::test_new`
 over a FakeFs, clicking elements found by debug selector. The thread tests run on
@@ -239,8 +245,8 @@ has its own test in `crates/zed/src/zed.rs`, `test_reload_keymaps_binds_the_marl
   layout saves a partial state before its restore finishes (`docs/planning/intake/rail-internals.md`).
 - A restored window builds its rail open and closes it once the restore is over, through
   `close_sidebar`, which records Zed's "Sidebar Toggled" event; Zed has no silent close.
-- Rename and close, keyboard navigation with the filter and reorder, and the switcher are W6c
-  to W6e (#452 to #454).
+- Keyboard navigation with the filter and reorder, and the switcher, are W6d and W6e (#453,
+  #454).
 - The thread rows, the agent rows, the routing, the terminal keys, the New Agent key and the
   rail's persistence have not been seen live: the drives for #439 and #440 would have moved
   Chad's windows off his monitor, and the later ones need input or a relaunch. They are owed to
