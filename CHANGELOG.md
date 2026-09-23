@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Shell integration for bash** (#463, 2026-09-23). An interactive bash that Marley starts in a
+  local terminal now loads Marley's integration: it starts with `--rcfile` pointing at a script
+  Marley writes to its data directory. The script sources your own `~/.bashrc` first, then
+  reports each prompt and command to the terminal. Every command you type now becomes a block
+  with its text, exit code and output. Nothing draws the blocks yet (T1). Tasks, remote
+  terminals and shells you start with arguments of your own start as before, and zsh and fish
+  follow (#465, #466).
 - **Blocks in Zed's terminal** (#464, 2026-09-23). A terminal keeps each command that Marley's
   shell hooks report as a block: the command, whether it is running or finished, its exit code,
   the prompt it was typed at, and where its lines sit in the scrollback. A block's output is read

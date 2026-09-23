@@ -37,7 +37,8 @@ gate:7  audit          cargo audit             (fork-point advisories listed, ne
 gate:8  supply chain   cargo deny check licenses bans sources
 gate:9  unused deps    cargo shear --locked --deny-warnings          (Zed's own tool)
 gate:10 secrets        gitleaks: commits since the upstream fork point + Marley-owned dirs
-gate:11 shell lint     shellcheck (.claude/hooks + script/gates.sh + script/mutation.sh)
+gate:11 shell lint     shellcheck (.claude/hooks + script/gates.sh + script/mutation.sh +
+                       the shell integration Marley ships)
 gate:12 no-suppress    grep meta-gate (allow/expect must justify; blanket banned)
 gate:13 source-bans    grep meta-gate (transmute, bare or through mem::; unsafe without a
                        // SAFETY: on its line or the line above)

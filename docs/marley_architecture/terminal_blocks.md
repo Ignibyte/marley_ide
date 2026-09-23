@@ -118,6 +118,12 @@ real, reusable session. The Block model is the unit the **brain** later observes
   terminal, where a block records absolute lines instead of copying its output: `prompt_line`,
   `output_start` and `output_end` from each hook's position. Zed's `Terminal::block_output` reads the
   lines from its grid while they are held.
+- `shell_integration.rs` (#463, written in the fork): the embedded `shell_integration/marley.bash`,
+  `install_in(dir)`, which writes it when its content changed, and `for_program`, which gives bash
+  `--rcfile` and `MARLEY_SHELL_INTEGRATION=1`. Zed's `TerminalBuilder::new` applies it to a local
+  interactive `System` or `Program` shell (`marley_shell_integration` in `crates/terminal`). The
+  script sources `~/.bashrc`, then prepends `__marley_precmd` to `PROMPT_COMMAND` (keeping `$?`)
+  and appends `__marley_preexec` to `PS0`.
 - `session.rs` — `classify_write` + the `PtyChannel`-trait `TerminalSession` (`write_bytes` re-queue,
   `pump`, `resize`) — unit-tested via a `MockPtyChannel` (the logic is reachable headlessly).
   **M1.C (TICKET-023):** `pump` gained an IDLE FAST-PATH — a LEADING `WouldBlock` (nothing read this

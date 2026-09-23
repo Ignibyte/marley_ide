@@ -49,6 +49,7 @@ pub mod dcs;
 pub mod keys;
 pub mod mouse;
 pub mod session;
+pub mod shell_integration;
 pub mod styled;
 
 mod session_id;

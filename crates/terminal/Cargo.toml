@@ -32,6 +32,8 @@ libc.workspace = true
 log.workspace = true
 # Marley: the shell-hook decoder and the anchored blocks (#464).
 marley_terminal.workspace = true
+# Marley: where Marley's shell integration is written (#463).
+paths.workspace = true
 regex.workspace = true
 release_channel.workspace = true
 schemars.workspace = true
@@ -56,4 +58,6 @@ windows.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 rand.workspace = true
 settings = { workspace = true, features = ["test-support"] }
+# Marley: scratch homes for the shell-integration tests (#463).
+tempfile.workspace = true
 util_macros.workspace = true

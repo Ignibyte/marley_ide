@@ -1647,3 +1647,25 @@ scrollback. The block keeps its metadata.
 
 Rejected: copying each block's output as the gpui era did. It doubles memory against the
 scrollback, and stages the output twice.
+
+## AD-claude-463-bash-loads-marleys-hooks-through-rcfile-prompt-command-and-ps0-001
+*decided at: 2026-09-23 · status: shipped*
+
+A local interactive bash that Zed spawns, given as `Shell::System` or `Shell::Program`, starts as
+`bash --rcfile <data dir>/shell_integration/marley.bash`, with `MARLEY_SHELL_INTEGRATION=1`
+set. The decision is one hunk in `TerminalBuilder::new`, gated by no task, not remote and a
+PTY. The script is embedded in `marley_terminal` and written by the builder's background future
+when its content changed.
+- The script sources the user's `~/.bashrc` first, since `--rcfile` replaces it. System files
+  still run.
+- `__marley_precmd` goes first in `PROMPT_COMMAND`, as an array or a string, so it reads `$?`
+  before anything else and returns it.
+- `__marley_preexec` goes in `PS0`, which bash prints after reading a line and before running it,
+  so the frame lands in stream order ahead of the output. It takes the line from history
+  (`fc -ln -0`).
+- A shell the user starts with arguments of their own is left alone.
+
+Rejected:
+- a `DEBUG` trap for preexec: it fires per simple command, and inside `PROMPT_COMMAND` too;
+- the scripts under Zed's `assets/`, which would need ledger rows and carry Zed's license;
+- writing the scripts on every spawn, or at startup for every shell.

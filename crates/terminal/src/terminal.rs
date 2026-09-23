@@ -76,6 +76,34 @@ use crate::alacritty::{
 use crate::mappings::colors::to_vte_rgb;
 use crate::mappings::keys::to_esc_str;
 
+// Marley: the shell a local interactive terminal starts: the given one, or, when Marley has an
+// integration for its program, the program with Marley's arguments and environment (#463).
+#[cfg(unix)]
+fn marley_shell_integration(shell: Shell, env: &mut HashMap<String, String>) -> Shell {
+    let program = match &shell {
+        Shell::System => util::shell::get_system_shell(),
+        Shell::Program(program) => program.clone(),
+        Shell::WithArguments { .. } => return shell,
+    };
+    let dir = paths::data_dir().join("shell_integration");
+    let Some(integration) = marley_terminal::shell_integration::for_program(&program, &dir) else {
+        return shell;
+    };
+    if let Err(error) = marley_terminal::shell_integration::install_in(&dir) {
+        log::error!(
+            "could not write Marley's shell integration to {}: {error}",
+            dir.display()
+        );
+        return shell;
+    }
+    env.extend(integration.env);
+    Shell::WithArguments {
+        program,
+        args: integration.args,
+        title_override: None,
+    }
+}
+
 /// Process-wide flag set by headless hosts (e.g. the eval CLI) that have no
 /// controlling TTY. In such sandboxes PTY allocation and acquiring a
 /// controlling terminal fail with `ENOTTY`, so when this is set terminals run
@@ -1138,6 +1166,15 @@ impl TerminalBuilder {
             }
 
             insert_zed_terminal_env(&mut env, &version);
+
+            // Marley: a local interactive shell loads Marley's shell integration, so its prompts
+            // and commands become blocks (#463).
+            #[cfg(unix)]
+            let shell = if task.is_none() && !is_remote_terminal && !no_pty {
+                marley_shell_integration(shell, &mut env)
+            } else {
+                shell
+            };
 
             #[derive(Default)]
             struct ShellParams {
@@ -4158,6 +4195,126 @@ mod tests {
                 "shift+click should extend, not re-anchor, an existing selection"
             );
         });
+    }
+
+    // Marley: an interactive bash with Marley's shell integration, in a scratch home (#463).
+    #[cfg(unix)]
+    async fn build_marley_bash_terminal(cx: &mut TestAppContext, home: &Path) -> Entity<Terminal> {
+        let mut env = HashMap::default();
+        env.insert("HOME".to_string(), home.display().to_string());
+        let builder = cx
+            .update(|cx| {
+                TerminalBuilder::new(
+                    Some(home.to_path_buf()),
+                    TerminalMode::interactive(),
+                    task::Shell::Program("bash".to_string()),
+                    env,
+                    SettingsCursorShape::default(),
+                    AlternateScroll::On,
+                    None,
+                    vec![],
+                    Duration::ZERO,
+                    false,
+                    0,
+                    cx,
+                    vec![],
+                    PathStyle::local(),
+                )
+            })
+            .await
+            .unwrap();
+        cx.new(|cx| builder.subscribe(cx))
+    }
+
+    // Marley: waits for the finished block of `command` (#463).
+    #[cfg(unix)]
+    async fn finished_block_of(
+        terminal: &Entity<Terminal>,
+        command: &str,
+        cx: &mut TestAppContext,
+    ) -> marley_terminal::AnchoredBlock {
+        for _ in 0..300 {
+            let block = terminal.read_with(cx, |terminal, _| {
+                terminal
+                    .blocks()
+                    .iter()
+                    .find(|block| {
+                        block.command == command
+                            && block.state == marley_terminal::BlockState::Finished
+                    })
+                    .cloned()
+            });
+            if let Some(block) = block {
+                return block;
+            }
+            cx.background_executor
+                .timer(Duration::from_millis(10))
+                .await;
+        }
+        panic!("no finished block for {command:?}");
+    }
+
+    // Marley: #463.
+    #[cfg(unix)]
+    #[gpui::test]
+    async fn marley_bash_reports_each_typed_command_as_a_block(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let home = tempfile::tempdir().unwrap();
+        std::fs::write(
+            home.path().join(".bashrc"),
+            "echo MARKER_FROM_USER_BASHRC\n",
+        )
+        .unwrap();
+        let terminal = build_marley_bash_terminal(cx, home.path()).await;
+        // The user's own `.bashrc` still runs, before Marley's hooks.
+        assert_content_eventually(&terminal, "MARKER_FROM_USER_BASHRC", cx).await;
+
+        terminal.update(cx, |terminal, _| terminal.input(b"echo hi\r".to_vec()));
+        let block = finished_block_of(&terminal, "echo hi", cx).await;
+        assert_eq!(block.exit_code, marley_terminal::ExitCode(Some(0)));
+        let output = terminal.read_with(cx, |terminal, _| terminal.block_output(&block));
+        assert_eq!(output.as_deref(), Some("hi"));
+
+        terminal.update(cx, |terminal, _| terminal.input(b"false\r".to_vec()));
+        let block = finished_block_of(&terminal, "false", cx).await;
+        assert_eq!(block.exit_code, marley_terminal::ExitCode(Some(1)));
+
+        terminal.update(cx, |terminal, _| terminal.input(b"echo 'a;b'\r".to_vec()));
+        let block = finished_block_of(&terminal, "echo 'a;b'", cx).await;
+        let output = terminal.read_with(cx, |terminal, _| terminal.block_output(&block));
+        assert_eq!(output.as_deref(), Some("a;b"));
+    }
+
+    // Marley: which shells are rewritten to load Marley's integration (#463).
+    #[cfg(unix)]
+    #[test]
+    fn marley_shell_integration_rewrites_bash_and_leaves_other_shells() {
+        let mut env = HashMap::default();
+        let explicit = Shell::WithArguments {
+            program: "bash".to_string(),
+            args: vec!["-l".to_string()],
+            title_override: None,
+        };
+        assert_eq!(
+            marley_shell_integration(explicit.clone(), &mut env),
+            explicit
+        );
+        let zsh = Shell::Program("zsh".to_string());
+        assert_eq!(marley_shell_integration(zsh.clone(), &mut env), zsh);
+        assert!(env.is_empty());
+
+        let Shell::WithArguments { program, args, .. } =
+            marley_shell_integration(Shell::Program("bash".to_string()), &mut env)
+        else {
+            panic!("bash is started with Marley's integration");
+        };
+        assert_eq!(program, "bash");
+        assert_eq!(args[0], "--rcfile");
+        assert!(args[1].ends_with("shell_integration/marley.bash"));
+        assert_eq!(
+            env.get("MARLEY_SHELL_INTEGRATION").map(String::as_str),
+            Some("1")
+        );
     }
 
     // Marley: blocks from the shell hook frames a shell prints (#464).

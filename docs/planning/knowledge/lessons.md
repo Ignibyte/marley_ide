@@ -2213,3 +2213,17 @@ without printing 100,000 of them. #464's first eviction test printed 500 lines i
 history and found all 500 still held. Test eviction on a `Term` built from `pty_term_config(n,
 ..)` and fed with a `vte` processor instead, as `absolute_lines_text`'s test does, or build an
 interactive terminal.
+
+## L-claude-463-proving-a-shell-script-before-wiring-it-001
+*category: validate · topic: shell integration scripts · from: pipeline 463*
+
+- **Run the script under the real shell on a pseudo-terminal first**, before any Rust:
+  `printf 'echo hi\nfalse\nexit\n' | HOME=<scratch> script -qfc "bash --rcfile <script> -i"
+  /dev/null | cat -v`. The DCS frames show as `^[P…^[\` in order with the output. #463's
+  script was right the first time it met Zed's `TerminalBuilder`, because this run had already
+  checked each frame.
+- **bash's preexec seam without a `DEBUG` trap is `PS0`.** It is expanded and printed after a line
+  is read and before it runs, so `PS0+='$(fn)'` prints the frame ahead of the command's output.
+  Inside it, `fc -ln -0` gives the line just read, provided history kept it.
+- **A scratch `HOME` keeps a test off the user's `.bashrc`**, and a marker echoed from a scratch
+  `.bashrc` proves the user's file is still sourced through `--rcfile`.

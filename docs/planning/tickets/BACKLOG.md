@@ -10,12 +10,13 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-463](open/TICKET-463-shell-integration-scripts.md) | feature | prong 1 T0c · shell integration for zsh, bash and fish, injected at spawn |
+| [TICKET-465](open/TICKET-465-zsh-shell-integration.md) | feature | prong 1 T0c · shell integration for zsh, through `ZDOTDIR` |
 
 ## Deliberate (picked explicitly, never auto-next)
 
 | Ticket | Type | Why it waits |
 |---|---|---|
+| [TICKET-466](open/TICKET-466-fish-shell-integration.md) | feature | prong 1 T0c · shell integration for fish; waits for fish on a machine that can run its tests (the dev box has none) |
 | [TICKET-446](open/TICKET-446-marley-crate-license-files.md) | chore | licensing: `LICENSE-APACHE` and `LICENSE-MIT` in every Marley crate; waits for Chad's copyright line for the MIT text |
 | [TICKET-445](open/TICKET-445-marley-release-identity.md) | chore | packaging: Marley's own keyring label, updater, app id and URL scheme; waits until Marley ships a package or needs a non-`dev` build (the `dev` channel keeps it safe until then) |
 | [TICKET-417](open/TICKET-417-318-after-capture-battery.md) | chore | gpui-era, macOS harness; obsolete in the Zed fork (the overlays it captured no longer exist) — close or re-scope when the block terminal's overlays land |

@@ -1,0 +1,17 @@
+# TICKET-466 — Shell integration for fish
+
+- **Ticket:** LOCAL #466 (feature, prong 1: T0c, third shell)
+- **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
+- **Pipeline doc:** none yet (split from #463 at its plan)
+- **Source ticket:** ../../../marley/three-prong-plan.md (T0, D5)
+- **Status:** open
+
+## Summary
+fish gets Marley's integration by prepending a Marley directory to `XDG_DATA_DIRS`, whose
+`fish/vendor_conf.d/marley.fish` fish sources at startup. It is hooked on the `fish_preexec`,
+`fish_postexec` and `fish_prompt` events, at #463's injection point. fish is not installed on the
+dev box, so the ticket waits until it is, or until a machine with fish can run its tests.
+
+## Acceptance
+A real interactive fish spawned by Zed leaves a Finished block with exit 0 and output "hi" for a
+typed `echo hi`.
