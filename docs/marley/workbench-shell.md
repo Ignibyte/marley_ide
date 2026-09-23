@@ -384,10 +384,10 @@ and C1's fleet rows become a rail section.
   forth and check that focus, width, open state and notifications survive.
 - `crates/zed/src/zed.rs` saw 42 upstream commits in the 90 days before the fork and
   `default.json` 52. Every touch there stays one anchored hunk.
-- The rail is a gpui crate under the Marley floors (100% lines, MSI 100). Its mutants link
-  `workspace`, `terminal_view` and `agent_ui`, so they are slow, and a render mutant only
-  dies to a driven test that finds a row by debug selector and clicks it. Keeping the logic in
-  the pure row function keeps that count small.
+- The rail is a gpui crate under the Marley coverage floor (100% of lines). Its test binary
+  links `workspace`, `terminal_view` and `agent_ui`, so it builds slowly, and a render path is
+  covered only by a driven test that finds a row by debug selector and clicks it. Keeping the
+  logic in the pure row crate keeps those tests few.
 - An agent terminal comes back after a restart as a shell in its old directory, without the
   CLI. Warp behaves the same. Harness-backed seats fix it in prong 2.
 - If Chad sets `max_tabs`, idle center shells can be closed to make room

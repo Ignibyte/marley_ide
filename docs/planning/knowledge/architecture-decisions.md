@@ -1250,3 +1250,16 @@ are compatible with GPLv3. The consequence is that the crate builds and ships on
 the fork. Anything that must stay reusable outside it goes in a crate with no Zed
 dependencies, as `marley_rail` does for the rail's row model. `deny.toml` is unaffected,
 since it skips unpublished workspace crates. The crates' license files wait on TICKET-446.
+
+## AD-claude-the-workflow-is-four-phases-and-mutation-waits-for-the-end-001
+*decided at: 2026-09-22 (Chad's directive) · status: shipped*
+
+The Marley workflow is Plan → Code → Test → Complete and nothing else. Plan holds the
+pre-flight, the recall, the ticket, the spec and the design; Code holds the code and a review
+of its diff; Test holds the tests, the live drive and the DIFF gate; Complete holds the docs,
+the knowledge capture, the archive and the commit. The separate `/work`, design, inspect and
+`/commit` steps are gone. Mutation testing left the per-change gate because it was too slow
+per change: `script/mutation.sh` runs it over the Marley crates at the end of a sprint, as
+rustal keeps its own mutation audit outside `bin/gate.sh`. Every other Rust quality tool
+stays in the gate. Loosened on a recorded reason, as the amendment rule asks: the per-change
+MSI 100 floor and the mandatory critic phase.

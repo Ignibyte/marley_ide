@@ -17,7 +17,7 @@ pipeline_spec: <unassigned>
 <constraints, links, prior art>
 
 ## Promotion
-This is NOT an active pipeline doc — it is a candidate. Promote it via `/work`
-when ready: it becomes a ticket (`docs/planning/tickets/open/`) + an active
+This is NOT an active pipeline doc — it is a candidate. Promote it via
+`/pipeline:plan` when ready: it becomes a ticket (`docs/planning/tickets/open/`) + an active
 pipeline doc pair (`docs/planning/pipeline/active/`). On promotion, set
 `status: promoted` and fill `ticket:` + `pipeline_spec:`.

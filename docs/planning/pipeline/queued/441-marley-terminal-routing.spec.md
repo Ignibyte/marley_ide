@@ -1,7 +1,7 @@
 ---
 pipeline_id: 17b8633d-11d2-4b4b-944e-714d09fc12da
 ticket: docs/planning/tickets/open/TICKET-441-marley-terminal-routing.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active for Phase 2 Design
+status: QUEUED — Phase 1 Plan drafted; ready to promote to active
 title: Terminal routing and keys in the Marley layout
 type: feature
 slice: workbench shell W5
@@ -91,10 +91,10 @@ UI-AFFECTING.
 | REQ-008 | The keymap hook shall be one line with a `Marley:` comment and a ledger row, and the diff gate shall be green | review, gate:16, `script/gates.sh --diff` |
 
 ## Phase Plan
-- **P2 Design** — the provider wrapper, the capture handlers, the keymap asset and its loader,
-  the first-show hook, the reload test path.
-- **P3 Implement** — provider, capture, keymap, the zed.rs line, the auto terminal.
-- **P3.5 Inspect** — critics: capture-phase side effects on other panes, provider install
-  ordering, double terminals on first show, key collisions with Zed's defaults.
-- **P4 Validate** — tests, `script/gates.sh --diff`, the live drive.
-- **P5 Complete** — CHANGELOG, crate note, ledger, close, archive.
+- **P1 Plan** — the design: the provider wrapper, the capture handlers, the keymap asset and
+  its loader, the first-show hook, the reload test path.
+- **P2 Code** — provider, capture, keymap, the zed.rs line, the auto terminal; the review of
+  the diff checks capture-phase side effects on other panes, provider install ordering, double
+  terminals on first show and key collisions with Zed's defaults.
+- **P3 Test** — tests, `script/gates.sh --diff`, the live drive.
+- **P4 Complete** — CHANGELOG, crate note, ledger, close, archive, commit.

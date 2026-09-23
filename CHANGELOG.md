@@ -57,12 +57,28 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The workflow is four phases** (2026-09-22, Chad's call): Plan → Code → Test → Complete,
+  run as `/pipeline:plan`, `/pipeline:code`, `/pipeline:test` and `/pipeline:complete`. Plan
+  takes in `/work`'s pre-flight and recall and the old design phase; Code ends with a review
+  of its own diff in place of the inspect phase; Test is the old validate; Complete writes the
+  docs, captures the knowledge, closes the ticket, archives the pipeline and commits, which
+  `/commit` used to do. The phase hooks, the templates, CONSTITUTION §3, §7, §15, §18 and §21
+  and the queued specs follow the new phases. The task hook no longer blocks a Stop in a
+  harness that has no `TaskCreate`; it still blocks one that leaves a created task open.
 - **The fork is Marley** (#437, 2026-09-22). `paths::APP_NAME` is `"Marley"` and the app
   binary is `marley`, so the fork keeps its settings, database, logs and cache in
   `~/.config/marley`, `~/.local/share/marley` and `~/.cache/marley` and never touches a stock
   Zed install's. Chad's Zed settings were copied into Marley's config once. A `paths` test
   keeps the release channel at `dev`: on any other channel the fork would share stock Zed's
   keyring items, updater and app id, which TICKET-445 will give Marley its own.
+
+### Removed
+
+- **Mutation testing from the per-change gate** (2026-09-22). gate:5 and its MSI floor left
+  `script/gates.sh`, because mutation was too slow to run on every change. It now runs once at
+  the end of a sprint through `script/mutation.sh`, which keeps #443's copy-mode isolation (a
+  target directory per worker, `-p` for every crate, no masks). The mutation output and scratch
+  directories are gone; gate:12 still bans `mutants::skip` masks.
 
 ### Fixed
 

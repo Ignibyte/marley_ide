@@ -1,11 +1,11 @@
 ---
 pipeline_id: 357bfe50-ee46-4be2-8bf2-4a4854ed1745
 ticket: docs/planning/tickets/open/TICKET-439-rail-zed-threads.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active for Phase 2 Design
+status: QUEUED — Phase 1 Plan drafted; ready to promote to active
 title: Zed agent threads in the rail
 type: feature
 slice: workbench shell W3
-references: [docs/marley/workbench-shell.md, docs/planning/pipeline/queued/438-marley-layout-and-rail.spec.md]
+references: [docs/marley/workbench-shell.md, docs/planning/pipeline/completed/438-marley-layout-and-rail.spec.md]
 ---
 
 ## Title
@@ -93,10 +93,10 @@ UI-AFFECTING.
 | REQ-009 | The diff gate shall be green | `script/gates.sh --diff` |
 
 ## Phase Plan
-- **P2 Design** — the snapshot's thread fields, subscriptions, the status mapping, the menu
-  building, the selector's new arm, the test harness reuse from `agent_ui::test_support`.
-- **P3 Implement** — rows, menu, subscriptions, selection.
-- **P3.5 Inspect** — critics: status mapping gaps, notification suppression side effects,
-  entity re-entrancy when opening threads from a row handler.
-- **P4 Validate** — driven tests, `script/gates.sh --diff`, the live drive.
-- **P5 Complete** — CHANGELOG, crate note, ledger, close, archive.
+- **P1 Plan** — the design: the snapshot's thread fields, subscriptions, the status mapping, the
+  menu building, the selector's new arm, the test harness reuse from `agent_ui::test_support`.
+- **P2 Code** — rows, menu, subscriptions, selection; the review of the diff checks status
+  mapping gaps, notification suppression side effects and entity re-entrancy when opening
+  threads from a row handler.
+- **P3 Test** — driven tests, `script/gates.sh --diff`, the live drive.
+- **P4 Complete** — CHANGELOG, crate note, ledger, close, archive, commit.

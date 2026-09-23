@@ -23,9 +23,9 @@ gpui-free, MIT OR Apache-2.0, with no dependencies.
 
 ## Why a crate of its own
 
-Every decision the rail makes is here, unit-tested in milliseconds and killed by its own tests
-under mutation. The gpui side's mutants relink a test binary that carries Zed's agent crates,
-so the less logic lives there, the cheaper the gate.
+Every decision the rail makes is here, unit-tested in milliseconds. The gpui side's tests
+build a binary that carries Zed's agent crates, so the less logic lives there, the cheaper
+its tests.
 
 ## Consumers
 

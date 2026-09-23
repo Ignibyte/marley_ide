@@ -1,7 +1,7 @@
 ---
 pipeline_id: b2afe478-3f5c-47e4-b19a-8c6cc94f5bc6
 ticket: docs/planning/tickets/open/TICKET-442-rail-polish.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active for Phase 2 Design
+status: QUEUED — Phase 1 Plan drafted; ready to promote to active
 title: Rail persistence and polish
 type: feature
 slice: workbench shell W6
@@ -89,11 +89,10 @@ UI-AFFECTING.
 | REQ-009 | The diff gate shall be green | `script/gates.sh --diff` |
 
 ## Phase Plan
-- **P2 Design** — the blob schema, the rail's key context and bindings, the filter's place in
-  the row module, the switcher's data.
-- **P3 Implement** — each item above.
-- **P3.5 Inspect** — critics: restore re-entrancy, focus traps in the filter, keymap
-  collisions, blob compatibility with Zed's sidebar.
-- **P4 Validate** — tests, `script/gates.sh --diff`, the live drive.
-- **P5 Complete** — CHANGELOG, crate note, ledger, close, archive; the plan's slice table
-  marked done.
+- **P1 Plan** — the design: the blob schema, the rail's key context and bindings, the filter's
+  place in the row module, the switcher's data.
+- **P2 Code** — each item above; the review of the diff checks restore re-entrancy, focus
+  traps in the filter, keymap collisions and blob compatibility with Zed's sidebar.
+- **P3 Test** — tests, `script/gates.sh --diff`, the live drive.
+- **P4 Complete** — CHANGELOG, crate note, ledger, close, archive, commit; the plan's slice
+  table marked done.

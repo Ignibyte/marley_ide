@@ -1,7 +1,7 @@
 ---
 pipeline_id: 0aa03374-c7ef-4556-a807-1c1cd76ab571
 ticket: docs/planning/tickets/open/TICKET-440-rail-agent-clis.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active for Phase 2 Design
+status: QUEUED — Phase 1 Plan drafted; ready to promote to active
 title: Agent CLIs in rail terminals (New Agent, recognition, status)
 type: feature
 slice: workbench shell W4
@@ -60,7 +60,7 @@ UI-AFFECTING.
 - **Driven tests:** New Agent lists only CLIs present in a test `PATH`; a terminal whose
   foreground argv is `claude` turns into an agent row; a breadcrumb title becomes the label;
   status goes working, then waiting after the quiet interval on the executor clock, then
-  exited. The `marley_agent` additions get unit tests at MSI 100.
+  exited. The `marley_agent` additions get unit tests.
 - **Live drive:** New Agent > Claude Code in a real project, screenshot the agent row with
   Claude's title; let it finish a prompt, screenshot the waiting status; start `codex` by hand
   in another terminal and screenshot its row.
@@ -83,14 +83,14 @@ UI-AFFECTING.
 | REQ-004 | WHILE an agent terminal has a breadcrumb title, its row label shall be that title | driven test |
 | REQ-005 | WHILE output keeps arriving, an agent row shall read working; WHEN output stops for the quiet interval or the bell rings, it shall read waiting | driven test with `advance_clock` |
 | REQ-006 | WHEN the shell returns to the foreground, the agent row shall read exited and go back to a plain terminal row | driven test |
-| REQ-007 | `marley_agent`'s new kinds and timing function shall be at 100% lines and MSI 100 | `script/gates.sh --diff` |
+| REQ-007 | `marley_agent`'s new kinds and timing function shall be at 100% lines | `script/gates.sh --diff` |
 
 ## Phase Plan
-- **P2 Design** — the `marley_agent` additions, the PATH lookup, the handshake seam for tests,
-  the status inputs the snapshot carries.
-- **P3 Implement** — `marley_agent`, the menu, recognition, status.
-- **P3.5 Inspect** — critics: false agent detection, command injection through the launch
-  path (fixed argv only), clock handling in tests.
-- **P4 Validate** — tests, `script/gates.sh --diff`, the live drive.
-- **P5 Complete** — CHANGELOG, `docs/marley_architecture/marley_agent.md`, ledger, close,
-  archive.
+- **P1 Plan** — the design: the `marley_agent` additions, the PATH lookup, the handshake seam
+  for tests, the status inputs the snapshot carries.
+- **P2 Code** — `marley_agent`, the menu, recognition, status; the review of the diff checks
+  false agent detection, command injection through the launch path (fixed argv only) and
+  clock handling in tests.
+- **P3 Test** — tests, `script/gates.sh --diff`, the live drive.
+- **P4 Complete** — CHANGELOG, `docs/marley_architecture/marley_agent.md`, ledger, close,
+  archive, commit.

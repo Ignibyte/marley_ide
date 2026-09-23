@@ -284,9 +284,10 @@ latency, overlay visibility in frames, cross-origin iframes, and coordinate comp
   reaches them; CDP, Chromium and the harness protocol are permissive or Ignibyte's own.
 - **Gates.** Zed's `./script/clippy`, tests and fmt on every change. The Marley pure-core
   discipline (logic in gpui-free modules, adapters thin) continues in the new crates because
-  it is what makes them testable inside Zed's suite. The old repo's coverage and mutation
-  gates came over with the workflow port (2026-09-18) and hold the Marley crates to 100%,
-  with mutation unmasked; #443 made them run correctly in the fork.
+  it is what makes them testable inside Zed's suite. The old repo's coverage gate came over
+  with the workflow port (2026-09-18) and holds the Marley crates to 100% of lines. Mutation
+  testing left the per-change gate on 2026-09-22 and runs once at the end of a sprint
+  (`script/mutation.sh`).
 - **Upstream merges.** Keep every change additive: new crates, new events, new panels, one
   fork branch of alacritty. Touching `terminal_element.rs` for stage-two rendering is the
   one place merge conflicts are likely; isolate it behind a `blocks` module. Every change
