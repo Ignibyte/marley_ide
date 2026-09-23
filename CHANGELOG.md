@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Shell hooks found in the terminal's output** (#462, 2026-09-23). The terminal library
+  Marley carries now takes Marley's shell-hook frames out of a terminal's output before its
+  parser would drop them, and reports each one with the exact line it fell on, also when one
+  read carries a whole command, and as old lines leave the scrollback. Every other byte reaches
+  the parser as before, another program's control strings included. Nothing on screen changes
+  yet: Zed's terminal starts keeping blocks from these reports in #464. The scanner is a crate
+  of its own, `marley_dcs`, shared with `marley_terminal`.
 - **Zed's dylint lints on the Marley crates** (#448, 2026-09-23). gate:21 runs Zed's own lint
   library, `tooling/lints`, over the seven Marley crates with `cargo dylint`, on the nightly the
   library pins. Its lints catch gpui mistakes clippy cannot see: an entity updated or notified

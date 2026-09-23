@@ -319,6 +319,8 @@ impl From<AlacTermEvent> for TerminalBackendEvent {
             AlacTermEvent::Bell => Self::Bell,
             AlacTermEvent::Exit => Self::Exit,
             AlacTermEvent::ChildExit(status) => Self::ChildExit(status),
+            // Marley: a shell hook found in the PTY stream (#462).
+            AlacTermEvent::ShellHook(hook) => Self::ShellHook(hook),
         }
     }
 }

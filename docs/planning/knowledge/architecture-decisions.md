@@ -1603,3 +1603,28 @@ Rejected:
   every change;
 - a membership in Zed's workspace, for the reasons above;
 - carrying `tests/ref`: 46 MB of recordings, and the only spelling hits the crate has.
+
+## AD-claude-462-shell-hooks-leave-the-stream-in-the-event-loop-001
+*decided at: 2026-09-23 · status: shipped*
+
+Marley's shell hooks are taken out of the PTY stream in the vendored `alacritty_terminal`'s event
+loop, under the terminal lock, by `marley_hooks::advance_with_hooks`. Each passthrough run is
+parsed before the next hook's position is taken, so the hooks and the output keep their order
+in a coalesced read. Each hook is sent as `Event::ShellHook` with a raw `HookPosition` (lines
+evicted, history size, cursor line and column, alt screen), and `absolute_line()` counts from
+the first line the grid held.
+- The scanner is `marley_dcs`, a leaf crate, because `marley_terminal` depends on
+  `alacritty_terminal`.
+- Only Marley's selectors (`h`, `p`, `q`) leave the stream. Foreign DCS, cancelled frames and
+  oversize payloads reach vte as they came, so the parser behaves as before for everything
+  else.
+- The grid counts evicted lines (`scroll_up` past a full history, `update_history`,
+  `clear_history`), so absolute lines stay stable as the scrollback rolls. A reflowing resize
+  is not covered (the plan's D2).
+- Zed's `TerminalBackendEvent` mirrors the event and ignores it until #464.
+
+Rejected:
+- the filtering reader around the PTY (the plan's D1 fallback), which loses exact positions;
+- a scanner inside the vendored crate, outside Marley's coverage and lint gates;
+- taking every DCS out of the stream, as the gpui era's scanner did, which would change what
+  vte sees if it ever handles DCS.

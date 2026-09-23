@@ -151,7 +151,14 @@ where
             }
 
             // Parse the incoming bytes.
-            state.parser.advance(&mut **terminal, &buf[..unprocessed]);
+            // Marley: shell hook frames are taken out and reported where they fell.
+            crate::marley_hooks::advance_with_hooks(
+                &mut state.parser,
+                &mut state.hooks,
+                &mut **terminal,
+                &buf[..unprocessed],
+                &self.event_proxy,
+            );
 
             processed += unprocessed;
             unprocessed = 0;
@@ -402,6 +409,8 @@ pub struct State {
     write_list: VecDeque<Cow<'static, [u8]>>,
     writing: Option<Writing>,
     parser: ansi::Processor,
+    /// Marley: finds shell hook frames before the parser sees them.
+    hooks: marley_dcs::DcsScanner,
 }
 
 impl State {

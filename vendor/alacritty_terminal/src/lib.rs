@@ -15,6 +15,9 @@ pub mod thread;
 pub mod tty;
 pub mod vi_mode;
 
+// Marley: shell hooks found in the PTY stream (`vendor/README.md`).
+pub mod marley_hooks;
+
 pub use crate::grid::Grid;
 pub use crate::term::Term;
 pub use vte;

@@ -56,6 +56,9 @@ pub enum Event {
 
     /// Child process exited.
     ChildExit(ExitStatus),
+
+    /// Marley: a shell hook frame found in the PTY stream, and where it fell.
+    ShellHook(crate::marley_hooks::ShellHook),
 }
 
 impl Debug for Event {
@@ -74,6 +77,8 @@ impl Debug for Event {
             Event::Bell => write!(f, "Bell"),
             Event::Exit => write!(f, "Exit"),
             Event::ChildExit(status) => write!(f, "ChildExit({status:?})"),
+            // Marley: the shell hook event.
+            Event::ShellHook(hook) => write!(f, "ShellHook({hook:?})"),
         }
     }
 }

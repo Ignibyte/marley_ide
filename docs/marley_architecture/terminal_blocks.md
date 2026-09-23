@@ -23,9 +23,10 @@ real, reusable session. The Block model is the unit the **brain** later observes
 
 **PURE (100% coverage + mutation MSI 100):**
 - `dcs.rs` — the stateless DCS codec: `DcsEncoding{Hex,Plain,AnsiCQuoted}`, `DcsHook`,
-  `encoding_for_dcs_terminator`, `decode_hook` (the `UndecodablePayload`-vs-`UnknownHook` split) + the
-  **ordered `DcsScanner`** (emits a `Passthrough(bytes)`/`Hook(raw)` event stream in byte order — the
-  fix for the coalesced-read ordering race). **R24 (TICKET-022):** an `AnsiCQuoted` payload is split
+  `encoding_for_dcs_terminator`, `decode_hook` (the `UndecodablePayload`-vs-`UnknownHook` split) and
+  `decode_frame`. The **ordered `DcsScanner`** (a `Passthrough(bytes)`/`Hook(raw)` event stream in
+  byte order, the fix for the coalesced-read ordering race) moved to
+  [`marley_dcs`](marley_dcs.md) in #462, so the vendored `alacritty_terminal` can use it too. **R24 (TICKET-022):** an `AnsiCQuoted` payload is split
   into `name;key=value;…` on UNESCAPED separators (`split_unescaped`/`find_unescaped`,
   backslash-consumes-next) BEFORE per-piece `c_unescape` — so the rc's `\;` stays inside its field's
   value (`ls; pwd` round-trips; a `;`-containing `$PWD` can't truncate or inject phantom prompt

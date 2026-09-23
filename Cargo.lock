@@ -618,6 +618,7 @@ dependencies = [
  "home",
  "libc",
  "log",
+ "marley_dcs",
  "miow",
  "parking_lot",
  "piper",
@@ -10770,6 +10771,10 @@ name = "marley_agent"
 version = "0.1.0"
 
 [[package]]
+name = "marley_dcs"
+version = "0.1.0"
+
+[[package]]
 name = "marley_fleet"
 version = "0.1.0"
 dependencies = [
@@ -10808,6 +10813,7 @@ version = "0.1.0"
 dependencies = [
  "alacritty_terminal",
  "log",
+ "marley_dcs",
  "rustix",
  "tempfile",
 ]

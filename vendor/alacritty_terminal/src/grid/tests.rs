@@ -388,3 +388,32 @@ fn wrap_cell(c: char) -> Cell {
     cell.flags.insert(Flags::WRAPLINE);
     cell
 }
+
+// Marley: lines that fall off the top of the history are counted.
+#[test]
+fn evicted_lines_count_what_the_history_drops() {
+    let mut grid = Grid::<usize>::new(3, 1, 2);
+    let region = Line(0)..Line(3);
+    grid.scroll_up::<usize>(&region, 1);
+    assert_eq!((grid.history_size(), grid.evicted_lines()), (1, 0));
+    grid.scroll_up::<usize>(&region, 3);
+    assert_eq!((grid.history_size(), grid.evicted_lines()), (2, 2));
+    // A region below the top keeps its lines out of the history.
+    grid.scroll_up::<usize>(&(Line(1)..Line(3)), 1);
+    assert_eq!(grid.evicted_lines(), 2);
+    grid.update_history(1);
+    assert_eq!((grid.history_size(), grid.evicted_lines()), (1, 3));
+    grid.clear_history();
+    assert_eq!((grid.history_size(), grid.evicted_lines()), (0, 4));
+}
+
+// Marley: a grid saved before the counter existed loads with nothing evicted.
+#[cfg(feature = "serde")]
+#[test]
+fn a_grid_saved_without_the_counter_loads_with_nothing_evicted() {
+    let grid = Grid::<usize>::new(2, 1, 0);
+    let mut json = serde_json::to_value(&grid).unwrap();
+    json.as_object_mut().unwrap().remove("evicted_lines").unwrap();
+    let loaded: Grid<usize> = serde_json::from_value(json).unwrap();
+    assert_eq!(loaded.evicted_lines(), 0);
+}

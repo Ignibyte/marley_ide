@@ -57,7 +57,7 @@ pub use block::{
     ShellSessionId,
 };
 pub use dcs::{
-    DcsEncoding, DcsHook, DecodeError, PrecmdValue, PreexecValue, decode_hook,
+    DcsEncoding, DcsHook, DecodeError, PrecmdValue, PreexecValue, decode_frame, decode_hook,
     encoding_for_dcs_terminator,
 };
 pub use keys::{KeyCode, KeyInput, Route, ctrl_byte, encode_key, input_route, paste_bytes};

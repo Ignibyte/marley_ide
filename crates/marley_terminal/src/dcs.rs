@@ -1,4 +1,5 @@
-//! PURE — the stateless shell-hook codec and the incremental DCS byte scanner.
+//! PURE — the stateless shell-hook codec. The incremental scanner that finds the frames is
+//! `marley_dcs`'s, shared with the terminal emulator Marley carries.
 //!
 //! ## Wire format (clean-room, behavior-derived)
 //!
@@ -15,6 +16,8 @@
 //! and `Plain` payloads retain the legacy decode-then-split order and its naive-split limitation.
 //! Payload values must be UTF-8 once decoded (a raw-byte paste of invalid UTF-8 is rejected as
 //! `UndecodablePayload` — a known M1 limitation).
+
+use marley_dcs::RawDcs;
 
 use crate::block::{ExitCode, PromptInfo, ShellSessionId};
 
@@ -289,127 +292,17 @@ const fn find_unescaped(bytes: &[u8], sep: u8) -> Option<usize> {
     None
 }
 
-/// One extracted DCS control string: its selector (final byte) and raw, still-encoded payload.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RawDcs {
-    /// The selector / DCS final byte (fed to [`encoding_for_dcs_terminator`]).
-    pub(crate) final_byte: u8,
-    /// The raw payload bytes between the selector and the `ESC \` terminator.
-    pub(crate) payload: Vec<u8>,
-}
-
-/// One item in a [`DcsScanner::feed`] result, in byte order: either a run of passthrough (non-DCS)
-/// bytes to render, or a completed DCS control string (a hook). Emitting them as one ordered stream
-/// keeps a coalesced `[hook]output[hook]` read in its true order so output renders into the block
-/// the preceding hook opened, not a stale or not-yet-open one.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum DcsEvent {
-    /// A run of non-DCS bytes to feed to the renderer as terminal output.
-    Passthrough(Vec<u8>),
-    /// A completed DCS control string to decode and apply as a shell hook.
-    Hook(RawDcs),
-}
-
-/// The scanner's position within the `ESC P <selector> <payload> ESC \` grammar.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-enum ScanState {
-    /// Outside any DCS — bytes pass through.
-    #[default]
-    Ground,
-    /// Saw `ESC` in ground; deciding whether it introduces a DCS.
-    EscSeen,
-    /// Saw `ESC P`; the next byte is the selector.
-    Selector,
-    /// Collecting the payload.
-    Data,
-    /// Saw `ESC` inside the payload; deciding whether it is the `ESC \` terminator.
-    EscInData,
-}
-
-const ESC: u8 = 0x1b;
-/// The DCS introducer byte (`P`) that follows `ESC`.
-const DCS_INTRODUCER: u8 = b'P';
-/// The `\` that completes the `ESC \` string terminator.
-const ST_TAIL: u8 = b'\\';
-
-/// The incremental DCS extractor used by `pump`.
+/// Decode a hook frame the scanner found into a [`DcsHook`]: its selector names the encoding
+/// ([`encoding_for_dcs_terminator`]) and [`decode_hook`] reads the payload.
 ///
-/// [`DcsScanner::feed`] consumes a read chunk and returns the ordered [`DcsEvent`] stream it
-/// produces — [`DcsEvent::Passthrough`] runs of non-DCS bytes interleaved with the
-/// [`DcsEvent::Hook`] control strings exactly where each occurs in the byte stream. State persists
-/// across calls, so a hook split over several reads is reassembled.
-#[derive(Debug, Default)]
-pub(crate) struct DcsScanner {
-    state: ScanState,
-    final_byte: u8,
-    payload: Vec<u8>,
-}
-
-impl DcsScanner {
-    /// Feed `bytes`, returning the ordered [`DcsEvent`] stream: a [`DcsEvent::Passthrough`] for each
-    /// run of non-DCS bytes and a [`DcsEvent::Hook`] for each DCS control string completed within
-    /// this chunk, in the order they appear. A pending passthrough run is flushed right before each
-    /// hook and again at end-of-input, so the caller can apply hooks and render output in byte order.
-    pub(crate) fn feed(&mut self, bytes: &[u8]) -> Vec<DcsEvent> {
-        let mut events = Vec::new();
-        let mut pending = Vec::new();
-        for &b in bytes {
-            match self.state {
-                ScanState::Ground => {
-                    if b == ESC {
-                        self.state = ScanState::EscSeen;
-                    } else {
-                        pending.push(b);
-                    }
-                }
-                ScanState::EscSeen => {
-                    if b == DCS_INTRODUCER {
-                        self.state = ScanState::Selector;
-                    } else if b == ESC {
-                        pending.push(ESC);
-                    } else {
-                        pending.push(ESC);
-                        pending.push(b);
-                        self.state = ScanState::Ground;
-                    }
-                }
-                ScanState::Selector => {
-                    self.final_byte = b;
-                    self.payload.clear();
-                    self.state = ScanState::Data;
-                }
-                ScanState::Data => {
-                    if b == ESC {
-                        self.state = ScanState::EscInData;
-                    } else {
-                        self.payload.push(b);
-                    }
-                }
-                ScanState::EscInData => {
-                    if b == ST_TAIL {
-                        if !pending.is_empty() {
-                            events.push(DcsEvent::Passthrough(std::mem::take(&mut pending)));
-                        }
-                        events.push(DcsEvent::Hook(RawDcs {
-                            final_byte: self.final_byte,
-                            payload: std::mem::take(&mut self.payload),
-                        }));
-                        self.state = ScanState::Ground;
-                    } else if b == ESC {
-                        self.payload.push(ESC);
-                    } else {
-                        self.payload.push(ESC);
-                        self.payload.push(b);
-                        self.state = ScanState::Data;
-                    }
-                }
-            }
-        }
-        if !pending.is_empty() {
-            events.push(DcsEvent::Passthrough(pending));
-        }
-        events
-    }
+/// # Errors
+///
+/// A selector that names no encoding yields [`DecodeError::UndecodablePayload`]; otherwise the
+/// errors of [`decode_hook`].
+pub fn decode_frame(frame: &RawDcs) -> Result<DcsHook, DecodeError> {
+    let encoding =
+        encoding_for_dcs_terminator(frame.final_byte).ok_or(DecodeError::UndecodablePayload)?;
+    decode_hook(encoding, &frame.payload)
 }
 
 #[cfg(test)]
@@ -661,113 +554,6 @@ mod tests {
         );
     }
 
-    // ── DcsScanner::feed: passthrough/hook ordering across the grammar ───────
-    fn dcs(selector: u8, payload: &[u8]) -> Vec<u8> {
-        let mut v = vec![ESC, DCS_INTRODUCER, selector];
-        v.extend_from_slice(payload);
-        v.extend_from_slice(&[ESC, ST_TAIL]);
-        v
-    }
-
-    #[test]
-    fn feed_passthrough_only() {
-        // Plain bytes with no DCS → one Passthrough flushed at end-of-input. Kills the whole-fn
-        // `vec![]`, the Ground `b == ESC`→`!=`, and the end-of-input `delete !` (which would skip
-        // the final flush and return empty).
-        let mut sc = DcsScanner::default();
-        assert_eq!(sc.feed(b"hi"), vec![DcsEvent::Passthrough(b"hi".to_vec())]);
-    }
-
-    #[test]
-    fn feed_full_dcs() {
-        // A complete control string → exactly one Hook with the selector + raw payload. Kills the
-        // EscSeen `b == DCS_INTRODUCER`, the Data `b == ESC`, and the EscInData `b == ST_TAIL`
-        // transitions (each `==`→`!=` would fail to complete the hook).
-        let mut sc = DcsScanner::default();
-        assert_eq!(
-            sc.feed(&dcs(b'p', b"init;id=7")),
-            vec![DcsEvent::Hook(RawDcs {
-                final_byte: b'p',
-                payload: b"init;id=7".to_vec(),
-            })]
-        );
-    }
-
-    #[test]
-    fn feed_passthrough_then_hook_is_ordered() {
-        // `output[hook]` → [Passthrough, Hook] IN ORDER. Kills the `delete !` before the hook push
-        // (which would emit [Hook, Passthrough] instead — the coalesced-stream ordering bug).
-        let mut sc = DcsScanner::default();
-        let mut input = b"hi".to_vec();
-        input.extend_from_slice(&dcs(b'p', b"x"));
-        assert_eq!(
-            sc.feed(&input),
-            vec![
-                DcsEvent::Passthrough(b"hi".to_vec()),
-                DcsEvent::Hook(RawDcs {
-                    final_byte: b'p',
-                    payload: b"x".to_vec(),
-                }),
-            ]
-        );
-    }
-
-    #[test]
-    fn feed_hook_split_across_two_calls() {
-        // A DCS split mid-payload across two feed() calls is reassembled (state persists).
-        let full = dcs(b'p', b"abc");
-        let (head, tail) = full.split_at(5);
-        let mut sc = DcsScanner::default();
-        let mut events = sc.feed(head);
-        events.extend(sc.feed(tail));
-        assert_eq!(
-            events,
-            vec![DcsEvent::Hook(RawDcs {
-                final_byte: b'p',
-                payload: b"abc".to_vec(),
-            })]
-        );
-    }
-
-    #[test]
-    fn feed_esc_abort_flushes_passthrough() {
-        // `ESC` not followed by `P` aborts the DCS attempt: the ESC and the following byte pass
-        // through. Kills the EscSeen `else` branch.
-        let mut sc = DcsScanner::default();
-        assert_eq!(
-            sc.feed(b"\x1bAB"),
-            vec![DcsEvent::Passthrough(vec![ESC, b'A', b'B'])]
-        );
-    }
-
-    #[test]
-    fn feed_embedded_esc_in_payload() {
-        // An `ESC` inside the payload that is NOT the `ESC \` terminator (ESC X) is re-emitted into
-        // the payload and scanning continues (the EscInData `else` branch).
-        let mut sc = DcsScanner::default();
-        assert_eq!(
-            sc.feed(b"\x1bPpA\x1bX\x1b\\"),
-            vec![DcsEvent::Hook(RawDcs {
-                final_byte: b'p',
-                payload: vec![b'A', ESC, b'X'],
-            })]
-        );
-    }
-
-    #[test]
-    fn feed_double_esc_in_payload() {
-        // `ESC ESC` inside the payload pushes a single ESC and keeps waiting for the terminator
-        // (the EscInData `b == ESC` arm). Kills its `==`→`!=`.
-        let mut sc = DcsScanner::default();
-        assert_eq!(
-            sc.feed(b"\x1bPpA\x1b\x1b\\"),
-            vec![DcsEvent::Hook(RawDcs {
-                final_byte: b'p',
-                payload: vec![b'A', ESC],
-            })]
-        );
-    }
-
     // ── R24 — the unescaped-separator split happens BEFORE un-escaping ──────
     #[test]
     fn decode_ansic_escaped_separators_stay_in_value() {
@@ -910,21 +696,23 @@ mod tests {
         assert_eq!(find_unescaped(b"", b'='), None);
     }
 
+    // ── decode_frame: a scanned frame's selector picks its encoding ─────────
     #[test]
-    fn feed_double_esc_then_dcs() {
-        // A leading `ESC ESC` before a real DCS: the first ESC is emitted as passthrough, the
-        // scanner STAYS in EscSeen on the repeated ESC, then the `P` starts the real hook. Kills
-        // the EscSeen `b == ESC`→`!=` mutant (which would drop to Ground and miss the hook).
-        let mut sc = DcsScanner::default();
+    fn decode_frame_reads_the_selector_then_the_payload() {
+        let frame = RawDcs {
+            final_byte: b'p',
+            payload: b"preexec;command=ls".to_vec(),
+        };
         assert_eq!(
-            sc.feed(b"\x1b\x1bPpX\x1b\\"),
-            vec![
-                DcsEvent::Passthrough(vec![ESC]),
-                DcsEvent::Hook(RawDcs {
-                    final_byte: b'p',
-                    payload: vec![b'X'],
-                }),
-            ]
+            decode_frame(&frame),
+            Ok(DcsHook::Preexec(PreexecValue {
+                command: "ls".into(),
+            }))
         );
+        let unknown = RawDcs {
+            final_byte: b'z',
+            payload: b"preexec;command=ls".to_vec(),
+        };
+        assert_eq!(decode_frame(&unknown), Err(DecodeError::UndecodablePayload));
     }
 }

@@ -26,6 +26,8 @@ polling = "3.8.0"
 regex-automata = "0.4.3"
 unicode-width = "0.2.0"
 vte = { version = "0.15.0", default-features = false, features = ["std", "ansi"] }
+# Marley: the shell-hook scanner the event loop runs (`src/marley_hooks.rs`).
+marley_dcs = { path = "../../crates/marley_dcs" }
 serde = { version = "1", features = ["derive", "rc"], optional = true }
 
 [target.'cfg(unix)'.dependencies]

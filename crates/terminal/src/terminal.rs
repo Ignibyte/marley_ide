@@ -735,6 +735,8 @@ pub(crate) enum TerminalBackendEvent {
     Bell,
     Exit,
     ChildExit(ExitStatus),
+    // Marley: a shell hook found in the PTY stream (#462).
+    ShellHook(alacritty_terminal::marley_hooks::ShellHook),
 }
 
 impl fmt::Debug for TerminalBackendEvent {
@@ -753,6 +755,8 @@ impl fmt::Debug for TerminalBackendEvent {
             Self::Bell => f.write_str("Bell"),
             Self::Exit => f.write_str("Exit"),
             Self::ChildExit(status) => write!(f, "ChildExit({status})"),
+            // Marley: the shell hook event.
+            Self::ShellHook(hook) => write!(f, "ShellHook({hook:?})"),
         }
     }
 }
@@ -1696,6 +1700,8 @@ impl Terminal {
             TerminalBackendEvent::ChildExit(exit_status) => {
                 self.register_task_finished(Some(exit_status), cx);
             }
+            // Marley: shell hooks are ignored until the terminal keeps blocks (#464).
+            TerminalBackendEvent::ShellHook(_) => {}
         }
     }
 

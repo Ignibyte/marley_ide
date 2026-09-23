@@ -32,6 +32,7 @@ STATIC (always; --fast runs exactly these)
 gate:1  rustfmt        cargo fmt --all --check                             (whole workspace)
 gate:2  clippy         cargo clippy --all-targets --all-features -p <scope> -- -D warnings
 gate:3  tests          cargo nextest run -p <scope>  +  cargo test --doc -p <marley crates>
+                       +  cargo test --locked --manifest-path vendor/<crate>/Cargo.toml (each copy)
 gate:7  audit          cargo audit             (fork-point advisories listed, new ones fail)
 gate:8  supply chain   cargo deny check licenses bans sources
 gate:9  unused deps    cargo shear --locked --deny-warnings          (Zed's own tool)
@@ -98,8 +99,8 @@ is added to that list with a reason, never hidden in a regex.
   each crate root makes them errors; on Zed's crates they stay at the library's warn level.
   A lint the library adds warns in the Marley crates until it joins the roots' lists.
 - `vendor/` holds upstream crates Marley changes (`vendor/README.md`). They build outside Zed's
-  workspace, so no gate judges their upstream code, and their own tests do not run in the gate
-  yet; #462, the first Marley hunk in one, adds that.
+  workspace, so fmt, clippy and the Marley floors never judge their upstream code or the Marley
+  hunks in them; gate:3 runs each copy's own tests, the hunks' tests among them (#462).
 - `gate:3` runs `--no-tests=warn` over the scope, so a Zed crate with no tests is a visible
   warning; gate:19 fails a Marley test suite with none. The binding "every behavior is
   tested" enforcement is gate:4 on the Marley crates plus the driven tests §7 requires for

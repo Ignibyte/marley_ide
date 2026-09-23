@@ -120,6 +120,11 @@ pub struct Grid<T> {
     /// columns in that row.
     raw: Storage<T>,
 
+    /// Marley: lines dropped off the top of the history since the grid was made, so a line's
+    /// place counted from the first line the grid held stays fixed as the history rolls.
+    #[cfg_attr(feature = "serde", serde(default))]
+    evicted_lines: u64,
+
     /// Number of columns.
     columns: usize,
 
@@ -141,6 +146,7 @@ impl<T: GridCell + Default + PartialEq> Grid<T> {
     pub fn new(lines: usize, columns: usize, max_scroll_limit: usize) -> Grid<T> {
         Grid {
             raw: Storage::with_capacity(lines, columns),
+            evicted_lines: 0,
             max_scroll_limit,
             display_offset: 0,
             saved_cursor: Cursor::default(),
@@ -150,11 +156,19 @@ impl<T: GridCell + Default + PartialEq> Grid<T> {
         }
     }
 
+    /// Marley: lines dropped off the top of the history since the grid was made.
+    #[inline]
+    pub fn evicted_lines(&self) -> u64 {
+        self.evicted_lines
+    }
+
     /// Update the size of the scrollback history.
     pub fn update_history(&mut self, history_size: usize) {
         let current_history_size = self.history_size();
         if current_history_size > history_size {
             self.raw.shrink_lines(current_history_size - history_size);
+            // Marley: the lines a smaller history drops.
+            self.evicted_lines += (current_history_size - history_size) as u64;
         }
         self.display_offset = min(self.display_offset, history_size);
         self.max_scroll_limit = history_size;
@@ -270,6 +284,10 @@ impl<T: GridCell + Default + PartialEq> Grid<T> {
 
         // Only rotate the entire history if the active region starts at the top.
         if region.start == 0 {
+            // Marley: what the history cannot grow by falls off its top.
+            let room = self.max_scroll_limit.saturating_sub(self.history_size());
+            self.evicted_lines += positions.saturating_sub(room) as u64;
+
             // Create scrollback for the new lines.
             self.increase_scroll_limit(positions);
 
@@ -381,6 +399,9 @@ impl<T> Grid<T> {
 
     #[inline]
     pub fn clear_history(&mut self) {
+        // Marley: every history line is dropped.
+        self.evicted_lines += self.history_size() as u64;
+
         // Explicitly purge all lines from history.
         self.raw.shrink_lines(self.history_size());
 

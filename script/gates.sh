@@ -148,6 +148,14 @@ tests_g() {
   need cargo-nextest "cargo install cargo-nextest" || return 1
   cargo nextest run --manifest-path "$MANIFEST" "${SCOPE_PKG_ARGS[@]}" --no-tests=warn || return 1
   cargo test --manifest-path "$MANIFEST" "${MARLEY_PKG_ARGS[@]}" --doc || return 1
+  # The upstream crates Marley carries build outside the workspace, so their own tests, the
+  # Marley hunks' among them, run standalone against the lockfile each copy keeps
+  # (vendor/README.md).
+  local vendored
+  for vendored in vendor/*/Cargo.toml; do
+    [ -f "$vendored" ] || continue
+    cargo test --locked --manifest-path "$vendored" || return 1
+  done
 }
 
 # ── 7. security advisories (RUSTSEC) ─────────────────────────────────────────

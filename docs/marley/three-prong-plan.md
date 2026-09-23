@@ -67,7 +67,8 @@ Out of scope on purpose: Warp Drive, notebooks, block sharing, Warp's cloud AI, 
 would run two terminal engines per pane. Instead, Marley carries its own copy of the crate
 at Zed's rev, `vendor/alacritty_terminal` in this repository (#461; Chad chose one repository
 over a fork of its own on 2026-09-23), re-synced when Zed bumps the rev, with one change:
-`event_loop.rs` runs the DCS scanner from `marley_terminal::dcs` over each read buffer,
+`event_loop.rs` runs the DCS scanner from `marley_dcs` (a leaf crate since #462, since
+`marley_terminal` depends on alacritty) over each read buffer,
 feeds the passthrough bytes to the parser as before, and at each complete hook snapshots the
 grid position (history size, cursor line, and a new monotonic evicted-lines counter on the
 grid) and emits `Event::ShellHook { final_byte, payload, position }`. Zed's
@@ -113,7 +114,7 @@ Marley shipped as `#433`.
 
 | Slice | Delivers | Size |
 |---|---|---|
-| T0 | Split at its promotion: the vendored `alacritty_terminal` (#461, T0a, shipped); `Event::ShellHook` from the event loop, the anchored `BlockList` on `Terminal` and a `blocks()` accessor, with unit tests on recorded byte streams (#462, T0b); the hook scripts and their injection (#463, T0c) | M |
+| T0 | Split at its promotion: the vendored `alacritty_terminal` (#461, T0a, shipped); `Event::ShellHook` from the event loop, with unit tests on recorded byte streams (#462, T0b, shipped); the anchored `BlockList` on `Terminal` and a `blocks()` accessor (#464); the hook scripts and their injection (#463, T0c) | M |
 | T1 | Stage-one rendering: gutter, pill, wash, hover copy/rerun; block navigation keys | M |
 | T2 | Block-scoped path links (resolve against the block's cwd) and jump-to-first-failure | S |
 | T3 | The prompt editor with history ghost text and the raw-passthrough ladder | L |

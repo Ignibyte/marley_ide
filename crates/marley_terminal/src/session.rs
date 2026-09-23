@@ -19,7 +19,9 @@ use alacritty_terminal::vte::ansi::Processor;
 
 use crate::apply::SessionModel;
 use crate::block::{BlockList, ExitCode, PromptInfo};
-use crate::dcs::{DcsEvent, DcsHook, DcsScanner, decode_hook, encoding_for_dcs_terminator};
+use marley_dcs::{DcsEvent, DcsScanner};
+
+use crate::dcs::{DcsHook, decode_frame};
 use crate::styled::{StyledLine, coalesce_row, trim_trailing_blank_rows};
 
 pub use crate::apply::ApplyHookError;
@@ -600,10 +602,7 @@ impl TerminalSession {
                         )));
                 }
                 DcsEvent::Hook(frame) => {
-                    let Some(encoding) = encoding_for_dcs_terminator(frame.final_byte) else {
-                        continue;
-                    };
-                    let Ok(hook) = decode_hook(encoding, &frame.payload) else {
+                    let Ok(hook) = decode_frame(&frame) else {
                         continue;
                     };
                     if matches!(hook, DcsHook::Preexec(_)) {
