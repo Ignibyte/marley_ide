@@ -16,7 +16,8 @@
 //! refuses it.
 //!
 //! [`visible_spans`] says which blocks a viewport shows and over which of its rows, for the
-//! terminal view to draw them (T1).
+//! terminal view to draw them, and [`block_scroll`] where to scroll to show the previous or the
+//! next block (T1).
 
 use std::ops::Range;
 
@@ -174,6 +175,34 @@ pub fn visible_spans(
         .collect()
 }
 
+/// The scroll offset that shows the previous or the next block from a viewport's top.
+///
+/// The viewport's top is `display_offset` lines above `screen_top`, the absolute line of the
+/// live screen's top. Going back, the target is the last block starting above that line; going
+/// forward, the first starting below it. The offset puts the target's first line at the top:
+/// 0 when that line is on the live screen, and at most `history`. `None` when no block starts
+/// that way.
+#[must_use]
+pub fn block_scroll(
+    blocks: &[AnchoredBlock],
+    screen_top: u64,
+    display_offset: usize,
+    history: usize,
+    forward: bool,
+) -> Option<usize> {
+    let top = screen_top.saturating_sub(u64::try_from(display_offset).unwrap_or(u64::MAX));
+    let mut starts = blocks
+        .iter()
+        .map(|block| block.prompt_line.unwrap_or(block.output_start));
+    let target = if forward {
+        starts.find(|&start| start > top)?
+    } else {
+        starts.rev().find(|&start| start < top)?
+    };
+    let offset = usize::try_from(screen_top.saturating_sub(target)).unwrap_or(usize::MAX);
+    Some(offset.min(history))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -284,6 +313,39 @@ mod tests {
         // Above, empty, and below a viewport of lines 25 to 34.
         assert!(visible_spans(&blocks, 25, 10, 40).is_empty());
         assert!(visible_spans(&[], 0, 10, 0).is_empty());
+    }
+
+    #[test]
+    fn the_block_keys_scroll_to_each_blocks_start_from_the_viewports_top() {
+        // Blocks starting at lines 10, 40 and 70, and one with no prompt seen at 95; the live
+        // screen's top at line 100, with 90 lines of history above it.
+        let blocks = [
+            spanned(0, Some(10), 11, Some(40)),
+            spanned(1, Some(40), 41, Some(70)),
+            spanned(2, Some(70), 71, Some(95)),
+            spanned(3, None, 95, Some(96)),
+        ];
+        // From the live screen, back to the block at 95, then 70, 40 and 10.
+        assert_eq!(block_scroll(&blocks, 100, 0, 90, false), Some(5));
+        assert_eq!(block_scroll(&blocks, 100, 5, 90, false), Some(30));
+        assert_eq!(block_scroll(&blocks, 100, 60, 90, false), Some(90));
+        // And forward again; the last goes back to the live screen.
+        assert_eq!(block_scroll(&blocks, 100, 90, 90, true), Some(60));
+        assert_eq!(block_scroll(&blocks, 100, 30, 90, true), Some(5));
+        assert_eq!(block_scroll(&blocks, 100, 5, 90, true), None);
+        // A block whose start left the history is reached at the history's top.
+        assert_eq!(block_scroll(&blocks, 100, 60, 50, false), Some(50));
+    }
+
+    #[test]
+    fn with_no_block_that_way_the_block_keys_do_nothing() {
+        let blocks = [spanned(0, Some(100), 101, Some(103))];
+        // The only block starts on the live screen: nothing above, nothing below.
+        assert_eq!(block_scroll(&blocks, 100, 0, 40, false), None);
+        assert_eq!(block_scroll(&blocks, 100, 0, 40, true), None);
+        assert_eq!(block_scroll(&[], 100, 0, 40, true), None);
+        // A block below the viewport on the live screen is reached by going to the bottom.
+        assert_eq!(block_scroll(&blocks, 100, 20, 40, true), Some(0));
     }
 
     #[test]

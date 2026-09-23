@@ -10,6 +10,14 @@
     }
   },
   {
+    // The block keys, as Warp binds its own; Zed's terminal binds neither key (T1c).
+    "context": "Terminal",
+    "bindings": {
+      "secondary-up": "marley::PreviousBlock",
+      "secondary-down": "marley::NextBlock"
+    }
+  },
+  {
     // The rail's filter and switcher, as Zed's Threads Sidebar binds its own. The rail's context
     // also reaches the popovers it opens, so `!Picker` leaves the keys out of the add-project
     // picker.

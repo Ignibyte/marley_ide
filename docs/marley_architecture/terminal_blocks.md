@@ -124,6 +124,9 @@ real, reusable session. The Block model is the unit the **brain** later observes
   the viewport's top; `marley_block_spans` gives no spans on the alternate screen; `paint` draws
   a wash (running `info`, failed `error`, faint) after the cells' backgrounds, and a two-pixel
   bar in the one-cell gutter and a pill at the right end of the first row after the text.
+  `block_scroll` (#473) gives the scroll offset that puts the start of the last block above the
+  viewport's top, or of the first below it, at the top: 0 on the live screen, within the
+  history, `None` with no block that way; `marley_workbench::blocks` scrolls to it.
 - `shell_integration.rs` (#463, written in the fork): the embedded `shell_integration/marley.bash`,
   `install_in(dir)`, which writes it when its content changed, and `for_program`, which gives bash
   `--rcfile` and `MARLEY_SHELL_INTEGRATION=1`. Zed's `TerminalBuilder::new` applies it to a local

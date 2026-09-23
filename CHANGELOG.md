@@ -13,6 +13,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Keys to move between blocks** (#473, 2026-09-23). In a terminal, Ctrl-Up (Cmd-Up on macOS)
+  scrolls to the start of the block above the top of the view, and Ctrl-Down to the next one,
+  or back to the live screen from the last. Each press moves one block, however fast you press.
+  Zed's terminal bound neither key; a binding of your own still wins.
 - **A `justfile` for the workflow** (#471, 2026-09-23). `just` lists the commands every change
   runs: the gate in each mode, building the debug `marley`, a crate's tests, clippy and
   formatting over named crates, and `just shot`, which captures Marley on a copy of your profile

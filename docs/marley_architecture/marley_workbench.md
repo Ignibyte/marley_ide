@@ -292,6 +292,18 @@ alike.
   wins over it. A keymap that fails to load binds nothing and is logged. No Zed default uses
   the chord in any context; JetBrains's base keymap does, and wins inside its editors.
 
+## The block keys (`src/blocks.rs`, #473)
+
+- `marley::PreviousBlock` and `marley::NextBlock` are caught at each workspace's root with
+  `register_action_renderer`, as `routing` catches its actions, and act on the terminal view
+  that holds focus: the active item of a center pane or of a Terminal Panel pane. With none, they
+  do nothing.
+- The handler calls `Terminal::sync` first, so a key pressed before the next frame sees where
+  the one before it went, then scrolls to the bottom and up by `marley_terminal::block_scroll`'s
+  offset.
+- The Marley keymap binds them to `secondary-up` and `secondary-down` in `Terminal`, keys Zed's
+  defaults leave unbound there (AD-claude-449's rule for the Marley keymap).
+
 ## Tests
 
 `src/marley_workbench_tests.rs` (the switch, the keymap loader, persistence and the docks across

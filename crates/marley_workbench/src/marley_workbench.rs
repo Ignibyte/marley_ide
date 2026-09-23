@@ -21,6 +21,7 @@
 )]
 
 pub mod agents;
+pub mod blocks;
 #[cfg(test)]
 pub mod marley_workbench_tests;
 mod rail;
@@ -60,6 +61,12 @@ actions!(
         /// this project.
         #[derive(Eq)]
         NewAgent,
+        /// Scrolls the focused terminal to the start of the block before the one at its top.
+        #[derive(Eq)]
+        PreviousBlock,
+        /// Scrolls the focused terminal to the start of the next block, or to its live screen.
+        #[derive(Eq)]
+        NextBlock,
     ]
 );
 
@@ -148,6 +155,7 @@ pub fn init(cx: &mut App) {
     apply_defaults(layout, cx);
     routing::init(cx);
     agents::init(cx);
+    blocks::init(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action_renderer(|div, _, _, cx| {
             div.capture_action(cx.listener(layout_preset::<UseClassicLayout>))

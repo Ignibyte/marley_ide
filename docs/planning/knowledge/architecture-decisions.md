@@ -1738,3 +1738,16 @@ row model:
 Rejected: header rows above each block and a hidden prompt (stage two, T5, which needs a
 display-row map); a sticky pill for a block whose first row scrolled away (later); elapsed time
 (blocks record none yet).
+
+## AD-claude-473-the-block-keys-scroll-and-select-nothing-001
+*decided at: 2026-09-23 · status: shipped*
+
+The block keys scroll the focused terminal so a block's first line is at the top; they select
+nothing, since stage one keeps no selected block. "Previous" and "next" count from the
+viewport's top line (`marley_terminal::block_scroll`), and the next block on the live screen
+means the live screen. The actions live in `marley_workbench`, caught at the workspace's root,
+and change no Zed path; the Marley keymap binds `secondary-up` and `secondary-down` in
+`Terminal`, Warp's keys, which Zed's defaults leave unbound. The handler syncs the terminal
+before it reads, so every press moves one block. Rejected: handlers inside `TerminalView` (a
+Zed hunk for what the workspace's root can catch); a selected block (with stage two, or when
+hover actions need one).
