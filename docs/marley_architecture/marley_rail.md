@@ -52,7 +52,8 @@ Apache-2.0; its one dependency is the equally pure `marley_agent`.
 - **`has_attention`** is the rail's notification flag: any listed terminal's bell, or thread
   dot or wait, folded or not.
 - **`thread_status`** ranks what a live conversation reports: a pending confirmation over an
-  error over a running agent, else done.
+  error over a running agent, else done. **`ThreadStatus::label`** (#468) is the word a thread
+  row's second line gives each: `idle`, `working`, `waiting`, `failed`.
 - **`thread_attention`** says whether a thread's dot is lit after a rebuild. A run that just
   ended (running before, done or failed now) lights it unless the thread is shown, and it
   stays lit until the thread is shown.

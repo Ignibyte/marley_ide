@@ -96,6 +96,20 @@ pub enum ThreadStatus {
     Error,
 }
 
+impl ThreadStatus {
+    /// The word a thread row shows for the status, after the agent's name, as an agent CLI's
+    /// row shows its own (`marley_agent::status_line`).
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Done => "idle",
+            Self::Running => "working",
+            Self::Waiting => "waiting",
+            Self::Error => "failed",
+        }
+    }
+}
+
 /// A live thread's status from what its conversation reports.
 ///
 /// A pending confirmation outranks an error, which outranks a running agent: the user has to
@@ -944,6 +958,20 @@ mod tests {
         );
         assert!(has_attention(&late_bell));
         assert!(!has_attention(&RailSnapshot::default()));
+    }
+
+    #[test]
+    fn each_thread_status_has_its_word() {
+        assert_eq!(
+            [
+                ThreadStatus::Done,
+                ThreadStatus::Running,
+                ThreadStatus::Waiting,
+                ThreadStatus::Error,
+            ]
+            .map(ThreadStatus::label),
+            ["idle", "working", "waiting", "failed"]
+        );
     }
 
     #[test]

@@ -1669,3 +1669,27 @@ Rejected:
 - a `DEBUG` trap for preexec: it fires per simple command, and inside `PROMPT_COMMAND` too;
 - the scripts under Zed's `assets/`, which would need ledger rows and carry Zed's license;
 - writing the scripts on every spawn, or at startup for every shell.
+
+## AD-claude-468-the-rail-draws-its-own-rows-after-warps-tab-list-001
+*decided at: 2026-09-23 · status: shipped*
+
+The rail's rows follow Warp's vertical tab list, which Chad chose as the reference
+(`docs/warp_architecture/observed/468-warp-vertical-tabs-notes.md`), and Marley draws them itself
+in `rail.rs` instead of with Zed's `ListItem` and `ThreadItem`:
+- `row_frame` gives every row a 1px border, clear unless selected, so moving the selection moves
+  nothing; the selected row is a card, `ghost_element_selected` inside a `raised` border.
+- `row_card` draws terminal and thread rows at `h_11` with a `size_7` round icon container,
+  both in rems so they follow the UI font size, the title over an optional second line.
+- `raised`, the theme's text color at 10%, fills the icon circle and draws the selected border: a
+  step lighter than what it sits on in a dark theme, darker in a light one, as Warp's pane shows.
+- A shell's icon is `>_` in the buffer font; an agent CLI's and a thread's are the agent's.
+- A thread's second line is `<agent> · <status word>`, the voice of an agent CLI's row.
+- A project header is a muted section label with its chevron, dot and `+`; a `Divider` runs
+  above each project after the first row.
+
+Rejected:
+- `ListItem`: its outline is drawn only when set, so a border that follows the selection moves
+  the row by a pixel, and its slots take no round container.
+- `ThreadItem`: a fixed 16px icon slot and one line. It stays in the switcher.
+- A new icon in Zed's `icons` crate for `>_`: a Zed path for what the buffer font already draws.
+- Warp's `Ctrl <n>` hints: Marley binds no key to the n-th row.

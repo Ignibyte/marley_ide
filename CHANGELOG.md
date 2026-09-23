@@ -182,6 +182,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The rail looks like Warp's tab list** (#468, 2026-09-23). Terminal and thread rows are
+  taller, padded cards with their icon in a 28px circle: `>_` for a shell, the agent's own mark
+  for an agent. The title sits over a muted second line. The selected row is a card with a
+  border, and selecting another row moves nothing. A thread row's second line names its agent
+  and what it is doing ("Zed Agent · working"), as an agent CLI's row does. Project names read
+  as muted section labels, a line runs between projects, and the list and the filter have more
+  room.
 - **Marley carries its own copy of Zed's `alacritty_terminal`** (#461, 2026-09-23). The
   terminal library Zed builds on now comes from `vendor/alacritty_terminal`, an unchanged copy
   of the version Zed pins, so the block terminal can change its event loop in this repository

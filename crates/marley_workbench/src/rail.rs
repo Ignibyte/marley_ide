@@ -16,8 +16,9 @@ use agent_ui::{Agent, AgentPanel, AgentPanelEvent, AgentThreadSource};
 use anyhow::Context as _;
 use editor::{Editor, EditorEvent};
 use gpui::{
-    Anchor, AnyElement, AnyView, App, ClickEvent, Context, Entity, EntityId, EventEmitter,
-    FocusHandle, Focusable, Pixels, Render, Subscription, Task, WeakEntity, Window, px,
+    Anchor, AnyElement, AnyView, App, ClickEvent, Context, Div, ElementId, Entity, EntityId,
+    EventEmitter, FocusHandle, Focusable, Hsla, Pixels, Render, Stateful, Subscription, Task,
+    WeakEntity, Window, px,
 };
 use marley_agent::{AgentKind, WAITING_AFTER};
 use marley_rail::{
@@ -32,9 +33,9 @@ use recent_projects::sidebar_recent_projects::SidebarRecentProjects;
 use terminal::Terminal;
 use terminal_view::{RenameTerminal, TerminalView, terminal_panel::TerminalPanel};
 use ui::{
-    AgentThreadStatus, ContextMenu, ContextMenuEntry, Disclosure, HighlightedLabel, Icon,
-    IconButton, IconName, IconSize, Indicator, KeyBinding, Label, LabelSize, ListItem, PopoverMenu,
-    PopoverMenuHandle, ThreadItem, Tooltip, prelude::*, right_click_menu,
+    AgentThreadStatus, CommonAnimationExt as _, ContextMenu, ContextMenuEntry, Disclosure, Divider,
+    HighlightedLabel, Icon, IconButton, IconName, IconSize, Indicator, KeyBinding, Label,
+    LabelSize, PopoverMenu, PopoverMenuHandle, ThreadItem, Tooltip, prelude::*, right_click_menu,
     utils::platform_title_bar_height,
 };
 use util::ResultExt as _;
@@ -162,6 +163,8 @@ struct ThreadEntry {
     work_dirs: PathList,
     title: Option<SharedString>,
     icon: AgentIcon,
+    /// The agent's name, for the row's second line.
+    agent_name: SharedString,
 }
 
 /// The window, read once: the pure snapshot, plus the entities the handlers act on.
@@ -926,9 +929,9 @@ impl Rail {
         h_flex()
             .w_full()
             .flex_none()
-            .gap_1()
-            .px_2()
-            .py_1()
+            .gap_2()
+            .px_3()
+            .py_2()
             .border_b_1()
             .border_color(cx.theme().colors().border)
             .child(
@@ -1012,11 +1015,19 @@ impl Rail {
         let key = group.key.clone();
         let rail = cx.entity().downgrade();
         let menu_key = group.key.clone();
-        let header = ListItem::new(("marley-rail-project", id))
-            .toggle_state(row.selected)
+        // A project's name reads as a section label, as Warp's tab list labels its tabs.
+        let name_color = if row.selected {
+            Color::Default
+        } else {
+            Color::Muted
+        };
+        let header = row_frame(("marley-rail-project", id), row.selected, cx)
+            .h_8()
+            .gap_1()
+            .px_1()
             // While the filter decides which rows show, the header does not fold.
             .when(!filtering, |header| {
-                header.start_slot(
+                header.child(
                     div()
                         .debug_selector(move || format!("marley-rail-disclosure-{index}"))
                         .child(
@@ -1028,9 +1039,15 @@ impl Rail {
                         ),
                 )
             })
-            .child(row_label(row.name, row.highlight))
-            .end_slot(
+            .child(
+                div()
+                    .min_w_0()
+                    .flex_1()
+                    .child(row_label(row.name, row.highlight, name_color)),
+            )
+            .child(
                 h_flex()
+                    .flex_none()
                     .gap_1()
                     .when(row.attention, |slot| {
                         slot.child(
@@ -1198,22 +1215,30 @@ impl Rail {
         cx: &Context<Self>,
     ) -> impl IntoElement {
         let key = row.key.clone();
-        let item = thread_item(
+        let icon = match &thread.icon {
+            AgentIcon::Named(icon) => Icon::new(*icon),
+            AgentIcon::Svg(path) => Icon::from_external_svg(path.clone()),
+        };
+        let subtitle = thread_subtitle(&thread.agent_name, row.status);
+        let card = row_card(
             SharedString::from(format!("marley-rail-thread-{key}")),
-            row,
-            &thread.icon,
+            format!("marley-rail-thread-icon-{key}"),
+            row.selected,
+            icon.size(IconSize::Small)
+                .color(Color::Muted)
+                .into_any_element(),
+            row_label(row.title, row.highlight, Color::Default),
+            Some(subtitle),
+            cx,
         )
-        .base_bg(cx.theme().colors().panel_background);
+        .children(thread_status_mark(row.status, row.attention))
+        .on_click(cx.listener(move |rail, _, window, cx| {
+            rail.open_thread(&key, window, cx).log_err();
+        }));
         div()
-            .debug_selector({
-                let key = key.clone();
-                move || format!("marley-rail-thread-{key}")
-            })
-            // The terminal rows' indent, so a thread's icon lines up under its project.
-            .pl(px(12.))
-            .child(item.on_click(cx.listener(move |rail, _, window, cx| {
-                rail.open_thread(&key, window, cx).log_err();
-            })))
+            .debug_selector(move || format!("marley-rail-thread-{}", row.key))
+            .pl_2()
+            .child(card)
     }
 
     fn render_terminal_row(
@@ -1237,54 +1262,58 @@ impl Rail {
                         Self::close_terminal(&close_workspace, &close_view, window, cx).log_err();
                     })),
             );
-        let item = ListItem::new(("marley-rail-terminal", id))
-            .toggle_state(row.selected)
-            .indent_level(1)
-            .start_slot(
-                div()
-                    .when(row.agent.is_some(), |slot| {
-                        slot.debug_selector(move || format!("marley-rail-agent-{id}"))
-                    })
-                    .child(
-                        Icon::new(terminal_icon(&row))
-                            .size(IconSize::Small)
-                            .color(Color::Muted),
-                    ),
-            )
-            .child(
-                v_flex()
-                    .child(row_label(row.title, row.highlight))
-                    // Always drawn, empty when unknown, so every terminal row has one height.
-                    .child(
-                        Label::new(row.subtitle.unwrap_or_default())
-                            .size(LabelSize::XSmall)
-                            .color(Color::Muted),
-                    ),
-            )
-            .when(row.bell, |item| {
-                item.end_slot(
-                    div()
-                        .debug_selector(move || format!("marley-rail-bell-{id}"))
-                        .child(Indicator::dot().color(Color::Accent)),
-                )
+        let icon = div()
+            .when(row.agent.is_some(), |icon| {
+                icon.debug_selector(move || format!("marley-rail-agent-{id}"))
             })
-            .end_slot_on_hover(close)
-            .on_click(cx.listener(move |rail, event: &ClickEvent, window, cx| {
-                // The second click of a double-click renames, as a tab's does.
-                if event.click_count() == 2 {
-                    rail.rename_terminal(&workspace, &view, window, cx)
-                        .log_err();
-                } else {
-                    rail.activate_terminal(&workspace, &view, window, cx)
-                        .log_err();
-                }
-            }));
+            .child(rail_terminal_icon(&row, cx))
+            .into_any_element();
+        // The bell shows until the pointer is over the row, and the close button while it is.
+        let end = h_flex()
+            .flex_none()
+            .relative()
+            .child(h_flex().visible_on_hover(ROW_GROUP).child(close))
+            .when(row.bell, |end| {
+                end.child(
+                    h_flex()
+                        .absolute()
+                        .inset_0()
+                        .justify_center()
+                        .group_hover(ROW_GROUP, Styled::invisible)
+                        .child(
+                            div()
+                                .debug_selector(move || format!("marley-rail-bell-{id}"))
+                                .child(Indicator::dot().color(Color::Accent)),
+                        ),
+                )
+            });
+        let item = row_card(
+            ("marley-rail-terminal", id),
+            format!("marley-rail-terminal-icon-{id}"),
+            row.selected,
+            icon,
+            row_label(row.title, row.highlight, Color::Default),
+            row.subtitle,
+            cx,
+        )
+        .child(end)
+        .on_click(cx.listener(move |rail, event: &ClickEvent, window, cx| {
+            // The second click of a double-click renames, as a tab's does.
+            if event.click_count() == 2 {
+                rail.rename_terminal(&workspace, &view, window, cx)
+                    .log_err();
+            } else {
+                rail.activate_terminal(&workspace, &view, window, cx)
+                    .log_err();
+            }
+        }));
         let rail = cx.entity().downgrade();
         let (menu_workspace, menu_view) = (terminal.workspace.clone(), terminal.view.clone());
         right_click_menu(("marley-rail-terminal-menu", id))
             .trigger(move |_, _, _| {
                 div()
                     .debug_selector(move || format!("marley-rail-terminal-{id}"))
+                    .pl_2()
                     .child(item)
             })
             .menu(move |window, cx| {
@@ -1421,8 +1450,24 @@ fn terminal_icon(row: &TerminalRow) -> IconName {
         .map_or(IconName::Terminal, |agent| agents::cli_icon(agent.kind))
 }
 
-/// A thread's row as Zed's thread list draws it, with the agent's icon: the rail's rows and the
-/// switcher's.
+/// A terminal row's icon in the rail: its agent CLI's, or for a shell a prompt, `>_` in the
+/// buffer font, as Warp's tab list marks a shell. Zed's terminal icons draw the prompt in a box.
+fn rail_terminal_icon(row: &TerminalRow, cx: &App) -> AnyElement {
+    if row.agent.is_some() {
+        Icon::new(terminal_icon(row))
+            .size(IconSize::Small)
+            .color(Color::Muted)
+            .into_any_element()
+    } else {
+        Label::new(">_")
+            .size(LabelSize::Small)
+            .color(Color::Muted)
+            .buffer_font(cx)
+            .into_any_element()
+    }
+}
+
+/// A thread's row as Zed's thread list draws it, with the agent's icon: the switcher's rows.
 fn thread_item(id: SharedString, row: ThreadRow, icon: &AgentIcon) -> ThreadItem {
     let item = ThreadItem::new(id, row.title)
         .highlight_positions(row.highlight)
@@ -1581,6 +1626,11 @@ fn group_threads(
                     work_dirs: row.folder_paths().clone(),
                     title: row.title(),
                     icon: agents::thread_icon(&row.agent_id, workspace.read(cx).project(), cx),
+                    agent_name: agents::thread_agent_name(
+                        &row.agent_id,
+                        workspace.read(cx).project(),
+                        cx,
+                    ),
                 },
             )
         })
@@ -1778,13 +1828,134 @@ fn filter_match(filter: &str, text: &str) -> Option<Vec<usize>> {
 }
 
 /// A row's name or title, with the characters the filter matched highlighted.
-fn row_label(text: String, highlight: Vec<usize>) -> AnyElement {
+fn row_label(text: String, highlight: Vec<usize>, color: Color) -> AnyElement {
     if highlight.is_empty() {
-        Label::new(text).size(LabelSize::Small).into_any_element()
+        Label::new(text)
+            .size(LabelSize::Small)
+            .color(color)
+            .truncate()
+            .into_any_element()
     } else {
         HighlightedLabel::new(text, highlight)
             .size(LabelSize::Small)
+            .color(color)
+            .truncate()
             .into_any_element()
+    }
+}
+
+/// The hover group of a rail row, for what shows only while the pointer is over the row.
+const ROW_GROUP: &str = "marley-rail-row";
+
+/// A shade a step lighter than what it is drawn over, in a dark theme, and darker in a light
+/// one: the rows' icon circles and the selected row's border, as Warp's tab list draws them.
+fn raised(cx: &App) -> Hsla {
+    cx.theme().colors().text.opacity(0.1)
+}
+
+/// What every rail row is drawn in. The selected row is a card, a raised fill inside a border;
+/// the others keep the border, clear, so moving the selection moves nothing.
+fn row_frame(id: impl Into<ElementId>, selected: bool, cx: &App) -> Stateful<Div> {
+    let colors = cx.theme().colors();
+    let (border, fill, hover) = (
+        raised(cx),
+        colors.ghost_element_selected,
+        colors.ghost_element_hover,
+    );
+    h_flex()
+        .id(id)
+        .group(ROW_GROUP)
+        .w_full()
+        .flex_none()
+        .rounded_md()
+        .border_1()
+        .cursor_pointer()
+        .map(|row| {
+            if selected {
+                row.border_color(border).bg(fill)
+            } else {
+                row.border_color(gpui::transparent_black())
+                    .hover(|style| style.bg(hover))
+            }
+        })
+}
+
+/// A terminal's or a thread's row, laid out as Warp's tab list lays out a tab: a round icon, then
+/// the title over its second line when it has one, at one height either way. `icon_selector`
+/// names the icon's container for the driven tests. The caller adds the row's end and its clicks.
+fn row_card(
+    id: impl Into<ElementId>,
+    icon_selector: String,
+    selected: bool,
+    icon: AnyElement,
+    title: AnyElement,
+    subtitle: Option<String>,
+    cx: &App,
+) -> Stateful<Div> {
+    row_frame(id, selected, cx)
+        .h_11()
+        .gap_2p5()
+        .pl_2()
+        .pr_1p5()
+        .child(
+            h_flex()
+                .debug_selector(move || icon_selector)
+                .flex_none()
+                .size_7()
+                .justify_center()
+                .rounded_full()
+                .bg(raised(cx))
+                .child(icon),
+        )
+        .child(
+            v_flex()
+                .min_w_0()
+                .flex_1()
+                .child(title)
+                .when_some(subtitle, |text, subtitle| {
+                    text.child(
+                        Label::new(subtitle)
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted)
+                            .truncate(),
+                    )
+                }),
+        )
+}
+
+/// A thread row's second line: the agent, then what it is doing, as an agent CLI's terminal row
+/// reads (`marley_agent::status_line`).
+fn thread_subtitle(agent_name: &str, status: ThreadStatus) -> String {
+    format!("{agent_name} · {}", status.label())
+}
+
+/// What a thread row shows at its end, as Zed's thread row shows it: a spinner while the thread
+/// runs, a warning while it waits for a confirmation, an error mark after a failed run, and
+/// otherwise the attention dot, or nothing.
+fn thread_status_mark(status: ThreadStatus, attention: bool) -> Option<AnyElement> {
+    match status {
+        ThreadStatus::Running => Some(
+            Icon::new(IconName::LoadCircle)
+                .size(IconSize::Small)
+                .color(Color::Muted)
+                .with_rotate_animation(2)
+                .into_any_element(),
+        ),
+        ThreadStatus::Waiting => Some(
+            Icon::new(IconName::Warning)
+                .size(IconSize::XSmall)
+                .color(Color::Warning)
+                .into_any_element(),
+        ),
+        ThreadStatus::Error => Some(
+            Icon::new(IconName::Close)
+                .size(IconSize::Small)
+                .color(Color::Error)
+                .into_any_element(),
+        ),
+        ThreadStatus::Done => {
+            attention.then(|| Indicator::dot().color(Color::Accent).into_any_element())
+        }
     }
 }
 
@@ -1946,11 +2117,31 @@ impl Render for Rail {
         let search_path = agents::launcher(cx).search_path;
         let rows: Vec<AnyElement> = marley_rail::rail_rows(&self.snapshot.rail)
             .into_iter()
-            .filter_map(|row| match row {
+            .enumerate()
+            .filter_map(|(position, row)| match row {
                 Row::Project(row) => self.snapshot.groups.get(row.index).map(|group| {
                     let last = row.index + 1 == self.snapshot.groups.len();
                     let filtering = self.snapshot.rail.filtering;
-                    Self::render_project_row(row, group, last, filtering, search_path.clone(), cx)
+                    let index = row.index;
+                    v_flex()
+                        // A line between one project's rows and the next project, as Warp's
+                        // tab list draws one between its tabs.
+                        .when(position > 0, |project| {
+                            project.child(
+                                div()
+                                    .debug_selector(move || format!("marley-rail-divider-{index}"))
+                                    .py_1p5()
+                                    .child(Divider::horizontal()),
+                            )
+                        })
+                        .child(Self::render_project_row(
+                            row,
+                            group,
+                            last,
+                            filtering,
+                            search_path.clone(),
+                            cx,
+                        ))
                         .into_any_element()
                 }),
                 Row::Terminal(row) => self.snapshot.terminals.get(&row.id).map(|terminal| {
@@ -1986,8 +2177,9 @@ impl Render for Rail {
                     .id("marley-rail-rows")
                     .flex_1()
                     .overflow_y_scroll()
-                    .p_1()
-                    .gap_px()
+                    .px_2()
+                    .py_1p5()
+                    .gap_0p5()
                     .when(rows.is_empty() && self.snapshot.rail.filtering, |list| {
                         list.child(
                             div()

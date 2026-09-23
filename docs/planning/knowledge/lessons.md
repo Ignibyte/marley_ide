@@ -2250,3 +2250,14 @@ all through `hyprctl eval`:
 `--user-data-dir` on a copy of the profile, wait for the client, `grim -T`, SIGTERM the pid from
 `hyprctl clients -j`, `hyprctl reload`. `render_unfocused` is a window rule;
 `misc.render_unfocused` does not exist (`unknown config key`), and a failed eval exits 7.
+
+## L-claude-468-sample-the-capture-before-trusting-a-theme-token-001
+*category: code · topic: gpui styling in the rail · from: pipeline 468*
+
+Zed's theme tokens are named for their roles, and in One Dark several share a value:
+`border` (70,75,87) matches `ghost_element_selected` (69,74,86), and `element_background`
+(46,52,62) matches `panel_background` (47,52,62). A border in `border` around a selected row,
+or a fill in `element_background` on the panel, is therefore invisible. Read the pixels of the
+live capture (`magick <png> -format "%[pixel:p{x,y}]" info:`) for each layer before settling a
+color, and for "a step lighter than what it sits on" use the text color at a low alpha, which
+steps the right way in dark and light themes alike.

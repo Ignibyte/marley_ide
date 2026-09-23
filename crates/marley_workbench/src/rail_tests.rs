@@ -1488,6 +1488,122 @@ async fn the_actions_work_with_the_rail_closed(cx: &mut TestAppContext) {
     assert_eq!(displayed(&multi_workspace, cx), beta);
 }
 
+// ── #468: the rows after Warp's tab list ─────────────────────────────────────
+
+/// What `selector` draws, measured in a fresh frame.
+fn bounds_of(selector: &str, cx: &mut VisualTestContext) -> gpui::Bounds<Pixels> {
+    cx.update(|window, _| window.refresh());
+    cx.debug_bounds(selector.to_string().leak())
+        .unwrap_or_else(|| panic!("{selector} is drawn"))
+}
+
+/// `rems` at the window's rem size: the sizes the rows are drawn at.
+fn rems_in_pixels(rems: f32, cx: &mut VisualTestContext) -> Pixels {
+    cx.update(|window, _| gpui::rems(rems).to_pixels(window.rem_size()))
+}
+
+#[gpui::test]
+async fn a_terminal_row_is_a_fixed_height_with_a_round_icon(cx: &mut TestAppContext) {
+    let (_, _, beta, _, cx) = open_rail(cx).await;
+    let (_, view) = add_terminal(&beta, false, cx);
+    let row = bounds_of(&format!("marley-rail-terminal-{}", id(&view)), cx);
+    assert_eq!(row.size.height, rems_in_pixels(2.75, cx));
+    let icon = bounds_of(&format!("marley-rail-terminal-icon-{}", id(&view)), cx);
+    let across = rems_in_pixels(1.75, cx);
+    assert_eq!(icon.size, gpui::size(across, across));
+}
+
+#[gpui::test]
+async fn moving_the_selection_moves_no_row(cx: &mut TestAppContext) {
+    let (_, alpha, beta, rail, cx) = open_rail(cx).await;
+    let (_, first) = add_terminal(&beta, true, cx);
+    let (_, second) = add_terminal(&beta, false, cx);
+    let (_, other) = add_terminal(&alpha, false, cx);
+    let mut selectors: Vec<String> = [&first, &second, &other]
+        .into_iter()
+        .flat_map(|view| {
+            [
+                format!("marley-rail-terminal-{}", id(view)),
+                format!("marley-rail-terminal-icon-{}", id(view)),
+            ]
+        })
+        .collect();
+    for index in 0..2 {
+        selectors.push(format!("marley-rail-project-{index}"));
+        selectors.push(format!("marley-rail-disclosure-{index}"));
+    }
+    let layout = |cx: &mut VisualTestContext| {
+        selectors
+            .iter()
+            .map(|selector| bounds_of(selector, cx))
+            .collect::<Vec<_>>()
+    };
+    // The terminal added last is beta's active tab, so its row starts selected.
+    assert_eq!(selected(&rail, cx), Selection::Terminal(id(&second)));
+    let before = layout(cx);
+
+    click(terminal_selector(&first), cx);
+    assert_eq!(selected(&rail, cx), Selection::Terminal(id(&first)));
+    assert_eq!(layout(cx), before, "another terminal row selected");
+
+    focus_rail(&rail, cx);
+    dispatch(SelectFirst, cx);
+    assert!(matches!(selected(&rail, cx), Selection::Project(_)));
+    assert_eq!(layout(cx), before, "a project header selected");
+}
+
+#[gpui::test]
+async fn a_line_runs_between_projects_and_none_above_the_first(cx: &mut TestAppContext) {
+    let (_, _, _, rail, cx) = open_rail(cx).await;
+    cx.update(|window, _| window.refresh());
+    assert!(cx.debug_bounds("marley-rail-divider-0").is_none());
+    let first = bounds_of("marley-rail-project-0", cx);
+    let line = bounds_of("marley-rail-divider-1", cx);
+    let second = bounds_of("marley-rail-project-1", cx);
+    assert!(first.bottom() <= line.top() && line.bottom() <= second.top());
+
+    // The first project the filter leaves is the first row, with no line above it.
+    type_in_filter(&rail, "alpha", cx);
+    assert_eq!(names(&rail, cx), ["alpha"]);
+    cx.update(|window, _| window.refresh());
+    assert!(cx.debug_bounds("marley-rail-divider-1").is_none());
+}
+
+#[gpui::test]
+fn a_thread_row_marks_each_status_at_its_end(cx: &TestAppContext) {
+    cx.update(|_| {
+        for status in [
+            ThreadStatus::Running,
+            ThreadStatus::Waiting,
+            ThreadStatus::Error,
+        ] {
+            for attention in [false, true] {
+                assert!(
+                    thread_status_mark(status, attention).is_some(),
+                    "{status:?}"
+                );
+            }
+        }
+        assert!(
+            thread_status_mark(ThreadStatus::Done, true).is_some(),
+            "the attention dot"
+        );
+        assert!(thread_status_mark(ThreadStatus::Done, false).is_none());
+    });
+}
+
+#[test]
+fn a_thread_rows_second_line_names_its_agent_and_what_it_does() {
+    assert_eq!(
+        thread_subtitle("Zed Agent", ThreadStatus::Running),
+        "Zed Agent · working"
+    );
+    assert_eq!(
+        thread_subtitle("Claude Agent", ThreadStatus::Waiting),
+        "Claude Agent · waiting"
+    );
+}
+
 // ── W3: Zed agent threads in the rail ────────────────────────────────────────
 
 mod threads {
@@ -1738,6 +1854,44 @@ mod threads {
         for key in keys {
             assert!(cx.debug_bounds(thread_selector(&key)).is_some(), "{key}");
         }
+    }
+
+    // #468: a thread row is drawn as a terminal row is, and its second line names its agent.
+    #[gpui::test]
+    async fn a_thread_row_is_drawn_as_a_terminal_row_is(cx: &mut TestAppContext) {
+        let (_, [alpha, _], _, rail, cx) = open_rail_with_agents(cx).await;
+        let (_, view) = add_terminal(&alpha, false, cx);
+        seed(
+            "plan",
+            path!("/alpha"),
+            path!("/alpha"),
+            1,
+            false,
+            false,
+            cx,
+        );
+        let key = rail
+            .read_with(cx, |rail, _| rail.snapshot.threads.keys().next().cloned())
+            .expect("the seeded thread's row");
+        let terminal_row = bounds_of(&format!("marley-rail-terminal-{}", id(&view)), cx);
+        let thread_row = bounds_of(&format!("marley-rail-thread-{key}"), cx);
+        assert_eq!(thread_row.size.height, terminal_row.size.height);
+        let terminal_icon = bounds_of(&format!("marley-rail-terminal-icon-{}", id(&view)), cx);
+        let thread_icon = bounds_of(&format!("marley-rail-thread-icon-{key}"), cx);
+        assert_eq!(thread_icon.size, terminal_icon.size);
+        assert_eq!(
+            thread_icon.left(),
+            terminal_icon.left(),
+            "icons in one column"
+        );
+        // Nothing names the stub agent, so its id does.
+        let agent_name = rail.read_with(cx, |rail, _| {
+            rail.snapshot
+                .threads
+                .get(&key)
+                .map(|thread| thread.agent_name.clone())
+        });
+        assert_eq!(agent_name.as_deref(), Some("stub"));
     }
 
     #[gpui::test]
@@ -2019,7 +2173,7 @@ mod threads {
     #[gpui::test]
     async fn agents_take_their_name_and_icon_from_the_registry(cx: &mut TestAppContext) {
         use project::agent_registry_store::{RegistryAgentMetadata, RegistryNpxAgent};
-        let (_, _, _, rail, cx) = open_rail_with_agents(cx).await;
+        let (_, [alpha, _], _, rail, cx) = open_rail_with_agents(cx).await;
         cx.update(|_, cx| {
             AgentRegistryStore::init_test_global(
                 cx,
@@ -2082,6 +2236,27 @@ mod threads {
             cx.debug_bounds(thread_selector(&thread_id.to_key_string()))
                 .is_some()
         );
+        // The row's second line names the agent as the registry does (#468).
+        let agent_name = rail.read_with(cx, |rail, _| {
+            rail.snapshot
+                .threads
+                .get(&thread_id.to_key_string())
+                .map(|thread| thread.agent_name.clone())
+        });
+        assert_eq!(agent_name.as_deref(), Some("Zeta Code"));
+        // The switcher draws the thread with the registry's icon too.
+        add_terminal(&alpha, false, cx);
+        toggle_switcher(false, cx);
+        let listed = switcher_state(&rail, cx).map(|(listed, _)| listed);
+        assert!(
+            listed.is_some_and(
+                |listed| listed.contains(&Selection::Thread(thread_id.to_key_string()))
+            ),
+            "the switcher lists the thread"
+        );
+        cx.update(|window, _| window.refresh());
+        assert!(cx.debug_bounds("marley-switcher-entry-1").is_some());
+        dispatch(Cancel, cx);
         // The menu names the agent as the registry does.
         open_agent_submenu(1, cx);
         assert!(cx.debug_bounds("MENU_ITEM-Zeta Code").is_some());
@@ -2285,6 +2460,26 @@ mod agents {
         assert_eq!(agent_of(&rail, &view, cx), None);
         cx.update(|window, _| window.refresh());
         assert!(cx.debug_bounds(selector).is_none());
+    }
+
+    // #468: a second line changes neither a row's height nor its icon.
+    #[gpui::test]
+    async fn rows_with_and_without_a_second_line_share_one_height_and_icon(
+        cx: &mut TestAppContext,
+    ) {
+        let (_, alpha, _, rail, cx) = open_rail(cx).await;
+        rail.update(cx, |rail, _| rail.foreground_command = fake_foreground);
+        let (_, plain) = add_terminal(&alpha, false, cx);
+        let (terminal, agent) = add_terminal(&alpha, false, cx);
+        set_foreground(&terminal, "claude", cx);
+        assert_eq!(row_of(&rail, &plain, cx).1, None, "no second line");
+        assert!(row_of(&rail, &agent, cx).1.is_some(), "the agent's line");
+        let [plain_row, agent_row] = [&plain, &agent]
+            .map(|view| bounds_of(&format!("marley-rail-terminal-{}", id(view)), cx));
+        assert_eq!(plain_row.size.height, agent_row.size.height);
+        let [plain_icon, agent_icon] = [&plain, &agent]
+            .map(|view| bounds_of(&format!("marley-rail-terminal-icon-{}", id(view)), cx));
+        assert_eq!(plain_icon.size, agent_icon.size);
     }
 
     #[gpui::test]

@@ -70,9 +70,24 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   clears its bell. New Terminal starts where Zed's own would
   (`terminal_view::default_working_directory`), through the terminal factory of
   `agents::Launcher`: `Project::create_terminal_shell`, unless a test sets a display-only one.
+- **The rows' look (#468),** after Warp's vertical tab list
+  (`docs/warp_architecture/observed/468-warp-vertical-tabs-notes.md`). Marley draws the rows
+  itself, not with Zed's `ListItem` or `ThreadItem`:
+  - `row_frame`: every row keeps a 1px border, clear unless the row is selected, when it is a
+    card, `ghost_element_selected` inside a `raised` border, so the selection moves nothing.
+    `raised` is the theme's text color at 10%, a step lighter than what it sits on in a dark
+    theme and darker in a light one; `border` and `element_background` match the fills under
+    them in One Dark.
+  - `row_card`, for terminal and thread rows: `h_11`, a `size_7` round icon container in
+    `raised`, the title over the second line when there is one. A shell's icon is a `>_` in the
+    buffer font (`rail_terminal_icon`), since each of Zed's terminal icons boxes the prompt; an
+    agent CLI's is its own.
+  - A project header is `h_8`, its name in the small muted type of a section label unless
+    selected. A `Divider` runs above every project after the first row, in the project's
+    wrapper (`marley-rail-divider-{index}`).
 - **Rename and close (#452).** A terminal row's right-click menu has Rename and Close, a
   double-click renames, and a close button swaps in for the bell's slot under the pointer
-  (`end_slot_on_hover`). Rename shows the terminal, then runs Zed's own
+  (gpui's `visible_on_hover` and `group_hover` on the row's hover group, since #468). Rename shows the terminal, then runs Zed's own
   `TerminalView::rename_terminal`, which edits the name in the tab and keeps it through
   `set_custom_title`. Close goes through the pane (`close_item_by_id`, `SaveIntent::Close`), so
   Zed asks first while a task runs. A custom title beats an agent CLI's own on its row.
@@ -90,7 +105,7 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   Zed's Threads Sidebar's filter does. `build_snapshot` matches each project's name and each
   terminal's and thread's title with Zed's own `fuzzy_match_positions` (a substring match that
   ignores ASCII case), and `marley_rail` decides what shows. A header's name and a terminal's
-  title draw with `HighlightedLabel`, a thread's with `ThreadItem::highlight_positions`.
+  title and a thread's draw with `HighlightedLabel`.
   - While filtering, the chevrons are left out and `fold` does nothing. "No matches" draws when
     nothing is left. A clear button replaces the key hint (`KeyBinding::for_action_in`).
   - Each edit (`EditorEvent::BufferEdited`) refreshes, then puts the cursor on
@@ -115,8 +130,8 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
     focus-out cancels and leaves it.
   - Recency: `refresh` notes each change of `marley_rail::window_row`, the row that holds the
     window's focus, in `shown_at`, pruned to the rows that exist. The switcher's own focus is no
-    row, so opening it notes nothing. `thread_item` and `terminal_icon` draw the rail's rows
-    and the switcher's alike.
+    row, so opening it notes nothing. `thread_item` and `terminal_icon` draw the switcher's rows;
+    the rail's own are Marley's cards (#468, below).
 - **Next and Previous Project and Thread (#459).** The `MultiWorkspace` forwards Zed's four
   actions to `Sidebar::cycle_project` and `cycle_thread`, open or closed, through
   `SidebarHandle`'s `window.defer`. The rail asks `marley_rail::cycle_project` or `cycle_row`
@@ -148,8 +163,10 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   - each member workspace's roots.
 
   They are deduplicated by thread id and sorted newest first. Archived threads never show,
-  and a draft shows only while its panel shows it. Rows are drawn with Zed's `ui::ThreadItem`,
-  indented under the project.
+  and a draft shows only while its panel shows it. Rows are drawn as the terminal rows are
+  (#468): the agent's icon in the round container, the title, and a second line
+  `<agent> · <status>` (`agents::thread_agent_name`, `ThreadStatus::label`), with the status at
+  the row's end as Zed's `ThreadItem` draws it.
 - **Status and attention.** Status comes from the live conversations in each member
   workspace's Agent Panel, joined to rows by thread id; a thread with no live conversation
   shows as done. The rail keeps each thread's last status, so a run that ended while the

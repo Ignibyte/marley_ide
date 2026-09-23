@@ -35,3 +35,8 @@ aware, one char = one column in v1) — the single source of truth the render us
 mouse/#254 consume next. Captured non-invasively from a running Warp window (no interaction); clean-room —
 observed rendering behavior only, no Warp source read. (The visible content is this Marley work session; the
 grid + block caret are the reference, not the text.)
+
+### `468-warp-vertical-tabs-notes.md` — the vertical tab list (ticket #468)
+Warp's left pane: padded two-line rows with a 28px round icon, the selected row as a bordered card, a muted
+label per section and a line between sections. Notes only: the screenshot they were measured from shows Chad's
+sessions and stays off the repository. Observed rendering only; no Warp source read.

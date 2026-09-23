@@ -118,6 +118,21 @@ pub fn thread_icon(agent: &AgentId, project: &Entity<Project>, cx: &App) -> Agen
         .map_or(AgentIcon::Named(IconName::Sparkle), AgentIcon::Svg)
 }
 
+/// The name a thread of `agent` shows: the Zed Agent's, an agent server's display name, the
+/// registry's, or the agent's id.
+pub fn thread_agent_name(agent: &AgentId, project: &Entity<Project>, cx: &App) -> SharedString {
+    if Agent::from(agent.clone()) == Agent::NativeAgent {
+        return SharedString::new_static("Zed Agent");
+    }
+    let servers = project.read(cx).agent_server_store().read(cx);
+    let registry = AgentRegistryStore::try_global(cx);
+    let registry = registry.as_ref().map(|registry| registry.read(cx));
+    servers
+        .agent_display_name(agent)
+        .or_else(|| Some(registry?.agent(agent)?.name().clone()))
+        .unwrap_or_else(|| agent.0.clone())
+}
+
 /// The agents a new thread can run: the Zed Agent first, then the project's agent servers sorted
 /// by display name without regard to case, each with its name and icon.
 pub fn thread_agents(
@@ -125,21 +140,14 @@ pub fn thread_agents(
     cx: &App,
 ) -> Vec<(AgentId, SharedString, AgentIcon)> {
     let servers = project.read(cx).agent_server_store().read(cx);
-    let registry = AgentRegistryStore::try_global(cx);
-    let registry = registry.as_ref().map(|registry| registry.read(cx));
     let mut external: Vec<(AgentId, SharedString)> = servers
         .external_agents()
-        .map(|agent| {
-            let name = servers
-                .agent_display_name(agent)
-                .or_else(|| Some(registry?.agent(agent)?.name().clone()))
-                .unwrap_or_else(|| agent.0.clone());
-            (agent.clone(), name)
-        })
+        .map(|agent| (agent.clone(), thread_agent_name(agent, project, cx)))
         .collect();
     external.sort_by_key(|(_, name)| name.to_lowercase());
     let zed_agent = Agent::NativeAgent.id();
-    std::iter::once((zed_agent, SharedString::new_static("Zed Agent")))
+    let zed_name = thread_agent_name(&zed_agent, project, cx);
+    std::iter::once((zed_agent, zed_name))
         .chain(external)
         .map(|(agent, name)| {
             let icon = thread_icon(&agent, project, cx);
