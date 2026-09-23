@@ -10,12 +10,15 @@
     }
   },
   {
-    // The rail's filter, as Zed's Threads Sidebar binds its own. The rail's context also reaches
-    // the popovers it opens, so `!Picker` leaves the key out of the add-project picker.
+    // The rail's filter and switcher, as Zed's Threads Sidebar binds its own. The rail's context
+    // also reaches the popovers it opens, so `!Picker` leaves the keys out of the add-project
+    // picker.
     "context": "MarleyRail && !Picker",
     "use_key_equivalents": true,
     "bindings": {
-      "secondary-f": "agents_sidebar::FocusSidebarFilter"
+      "secondary-f": "agents_sidebar::FocusSidebarFilter",
+      "ctrl-tab": "agents_sidebar::ToggleThreadSwitcher",
+      "ctrl-shift-tab": ["agents_sidebar::ToggleThreadSwitcher", { "select_last": true }]
     }
   }
 ]

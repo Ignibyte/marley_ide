@@ -15,6 +15,7 @@ use serde_json::json;
 use settings::MarleyLayout;
 use util::{path, path_list::PathList};
 use workspace::SaveIntent;
+use zed_actions::agents_sidebar::ToggleThreadSwitcher;
 
 use super::*;
 use crate::marley_workbench_tests::{
@@ -1077,6 +1078,219 @@ async fn ctrl_f_in_the_add_project_picker_stays_there(cx: &mut TestAppContext) {
     assert!(!in_filter(&rail, cx));
 }
 
+// ── W6e: the switcher ────────────────────────────────────────────────────────
+
+/// The open switcher's rows, and the index of the selected one.
+fn switcher_state(rail: &Entity<Rail>, cx: &VisualTestContext) -> Option<(Vec<Selection>, usize)> {
+    rail.read_with(cx, |rail, cx| {
+        rail.switcher.as_ref().map(|open| {
+            let switcher = open.view.read(cx);
+            (switcher.listed(), switcher.selected_index())
+        })
+    })
+}
+
+fn switcher_selection(rail: &Entity<Rail>, cx: &VisualTestContext) -> Option<usize> {
+    switcher_state(rail, cx).map(|(_, selected)| selected)
+}
+
+fn toggle_switcher(select_last: bool, cx: &mut VisualTestContext) {
+    dispatch(ToggleThreadSwitcher { select_last }, cx);
+}
+
+fn active_terminal(workspace: &Entity<Workspace>, cx: &VisualTestContext) -> Option<EntityId> {
+    workspace.read_with(cx, |workspace, cx| {
+        workspace.active_item(cx).map(|item| item.item_id())
+    })
+}
+
+/// A window that showed `logs`, then `build` (both alpha's) and last `server` (beta's), with the
+/// rail focused.
+async fn open_rail_with_history(
+    cx: &mut TestAppContext,
+) -> (
+    Entity<MultiWorkspace>,
+    [Entity<Workspace>; 2],
+    [Entity<TerminalView>; 3],
+    Entity<Rail>,
+    &mut VisualTestContext,
+) {
+    let (multi_workspace, alpha, beta, rail, cx) = open_rail(cx).await;
+    let logs = add_named_terminal(&alpha, "logs", cx);
+    let build = add_named_terminal(&alpha, "build", cx);
+    let server = add_named_terminal(&beta, "server", cx);
+    for view in [&logs, &build, &server] {
+        click(terminal_selector(view), cx);
+    }
+    focus_rail(&rail, cx);
+    (
+        multi_workspace,
+        [alpha, beta],
+        [logs, build, server],
+        rail,
+        cx,
+    )
+}
+
+#[gpui::test]
+async fn the_switcher_opens_on_the_row_shown_before_the_current_one(cx: &mut TestAppContext) {
+    let (_, _, [logs, build, server], rail, cx) = open_rail_with_history(cx).await;
+    toggle_switcher(false, cx);
+    let most_recent_first = vec![
+        Selection::Terminal(id(&server)),
+        Selection::Terminal(id(&build)),
+        Selection::Terminal(id(&logs)),
+    ];
+    assert_eq!(switcher_state(&rail, cx), Some((most_recent_first, 1)));
+    assert!(drawn("marley-switcher-entry-1", cx), "the overlay draws it");
+    dispatch(Cancel, cx);
+    toggle_switcher(true, cx);
+    assert_eq!(switcher_selection(&rail, cx), Some(2), "or on the last");
+}
+
+#[gpui::test]
+async fn the_switcher_needs_two_rows(cx: &mut TestAppContext) {
+    let (_, alpha, _, rail, cx) = open_rail(cx).await;
+    add_named_terminal(&alpha, "logs", cx);
+    focus_rail(&rail, cx);
+    toggle_switcher(false, cx);
+    assert_eq!(switcher_state(&rail, cx), None);
+}
+
+#[gpui::test]
+async fn toggling_again_steps_through_the_switcher(cx: &mut TestAppContext) {
+    let (_, _, _, rail, cx) = open_rail_with_history(cx).await;
+    toggle_switcher(false, cx);
+    assert_eq!(switcher_selection(&rail, cx), Some(1));
+    toggle_switcher(false, cx);
+    assert_eq!(switcher_selection(&rail, cx), Some(2));
+    toggle_switcher(false, cx);
+    assert_eq!(
+        switcher_selection(&rail, cx),
+        Some(0),
+        "it wraps at the end"
+    );
+    toggle_switcher(true, cx);
+    assert_eq!(switcher_selection(&rail, cx), Some(2), "and at the start");
+}
+
+#[gpui::test]
+async fn two_presses_before_the_switcher_opens_step_it_once(cx: &mut TestAppContext) {
+    let (_, _, _, rail, cx) = open_rail_with_history(cx).await;
+    // Both reach the rail's hook before the first has opened the switcher.
+    cx.update(|window, cx| {
+        for _ in 0..2 {
+            window.dispatch_action(Box::new(ToggleThreadSwitcher::default()), cx);
+        }
+    });
+    cx.run_until_parked();
+    assert_eq!(switcher_selection(&rail, cx), Some(2));
+}
+
+#[gpui::test]
+async fn letting_go_of_ctrl_opens_the_selection(cx: &mut TestAppContext) {
+    let (multi_workspace, [alpha, _], [logs, _, _], rail, cx) = open_rail_with_history(cx).await;
+    cx.simulate_modifiers_change(Modifiers::control());
+    toggle_switcher(false, cx);
+    toggle_switcher(false, cx);
+    cx.simulate_modifiers_change(Modifiers::none());
+    assert_eq!(switcher_state(&rail, cx), None);
+    assert!(!drawn("marley-switcher-entry-0", cx), "the overlay is gone");
+    cx.read(|cx| assert_eq!(multi_workspace.read(cx).workspace(), &alpha));
+    assert_eq!(active_terminal(&alpha, cx), Some(logs.entity_id()));
+    let focused = cx.update(|window, cx| logs.focus_handle(cx).contains_focused(window, cx));
+    assert!(focused, "the terminal takes focus");
+}
+
+#[gpui::test]
+async fn enter_or_a_click_opens_an_entry(cx: &mut TestAppContext) {
+    let (multi_workspace, [alpha, _], [logs, build, _], rail, cx) =
+        open_rail_with_history(cx).await;
+    toggle_switcher(false, cx);
+    dispatch(Confirm, cx);
+    cx.read(|cx| assert_eq!(multi_workspace.read(cx).workspace(), &alpha));
+    assert_eq!(active_terminal(&alpha, cx), Some(build.entity_id()));
+    // `build` is now the most recent, then `server`, then `logs`.
+    focus_rail(&rail, cx);
+    toggle_switcher(false, cx);
+    click("marley-switcher-entry-2", cx);
+    assert_eq!(switcher_state(&rail, cx), None);
+    assert_eq!(active_terminal(&alpha, cx), Some(logs.entity_id()));
+}
+
+#[gpui::test]
+async fn escape_or_focus_elsewhere_closes_the_switcher_and_opens_nothing(cx: &mut TestAppContext) {
+    let (_, [_, beta], [_, _, server], rail, cx) = open_rail_with_history(cx).await;
+    let order = |cx: &mut VisualTestContext| {
+        toggle_switcher(false, cx);
+        let listed = switcher_state(&rail, cx).map(|(listed, _)| listed);
+        dispatch(Cancel, cx);
+        listed
+    };
+    let before = order(cx);
+    // Opened with no modifier held, a modifier's change confirms nothing.
+    toggle_switcher(false, cx);
+    cx.simulate_modifiers_change(Modifiers::control());
+    cx.simulate_modifiers_change(Modifiers::none());
+    assert!(switcher_state(&rail, cx).is_some());
+    dispatch(Cancel, cx);
+    assert_eq!(switcher_state(&rail, cx), None);
+    assert!(on_the_rows(&rail, cx), "Escape gives focus back");
+    assert_eq!(order(cx), before);
+    // Focus moving away closes it, and focus stays where it went.
+    toggle_switcher(false, cx);
+    cx.update(|window, cx| server.focus_handle(cx).focus(window, cx));
+    cx.run_until_parked();
+    assert_eq!(switcher_state(&rail, cx), None);
+    let in_server = cx.update(|window, cx| server.focus_handle(cx).contains_focused(window, cx));
+    assert!(in_server);
+    assert_eq!(active_terminal(&beta, cx), Some(server.entity_id()));
+    focus_rail(&rail, cx);
+    assert_eq!(order(cx), before, "nothing was opened");
+}
+
+#[gpui::test]
+async fn the_switcher_lists_every_row_whatever_the_fold_and_the_filter(cx: &mut TestAppContext) {
+    let (_, _, [logs, build, server], rail, cx) = open_rail_with_history(cx).await;
+    click("marley-rail-disclosure-1", cx);
+    type_in_filter(&rail, "server", cx);
+    focus_rail(&rail, cx);
+    toggle_switcher(false, cx);
+    assert_eq!(
+        switcher_state(&rail, cx).map(|(listed, _)| listed),
+        Some(vec![
+            Selection::Terminal(id(&server)),
+            Selection::Terminal(id(&build)),
+            Selection::Terminal(id(&logs)),
+        ])
+    );
+}
+
+// Zed's default keys differ by platform; these are Linux's.
+#[cfg(target_os = "linux")]
+#[gpui::test]
+async fn ctrl_tab_opens_the_switcher_from_the_rail_but_not_from_a_center_terminal(
+    cx: &mut TestAppContext,
+) {
+    let (multi_workspace, [alpha, _], [logs, _, _], rail, cx) = open_rail_with_history(cx).await;
+    bind_the_default_keymaps(cx);
+    focus_rail(&rail, cx);
+    cx.simulate_modifiers_change(Modifiers::control());
+    press("ctrl-tab", cx);
+    assert_eq!(switcher_selection(&rail, cx), Some(1));
+    // In the switcher, Zed's own `ThreadSwitcher` binding steps it.
+    press("ctrl-tab", cx);
+    assert_eq!(switcher_selection(&rail, cx), Some(2));
+    cx.simulate_modifiers_change(Modifiers::none());
+    cx.read(|cx| assert_eq!(multi_workspace.read(cx).workspace(), &alpha));
+    assert_eq!(active_terminal(&alpha, cx), Some(logs.entity_id()));
+    // With focus in that terminal, the key is Zed's tab switcher's.
+    cx.simulate_modifiers_change(Modifiers::control());
+    press("ctrl-tab", cx);
+    assert_eq!(switcher_state(&rail, cx), None);
+    cx.simulate_modifiers_change(Modifiers::none());
+}
+
 #[gpui::test]
 async fn add_project_opens_the_recent_projects_popover(cx: &mut TestAppContext) {
     let (_, _, _, rail, cx) = open_rail(cx).await;
@@ -1459,6 +1673,58 @@ mod threads {
         });
         let key = key.expect("the seeded thread is listed");
         assert!(drawn(thread_selector(&key), cx));
+    }
+
+    #[gpui::test]
+    async fn the_switcher_opens_a_thread_and_opening_it_notes_nothing(cx: &mut TestAppContext) {
+        let (multi_workspace, [alpha, beta], [alpha_panel, _], rail, cx) =
+            open_rail_with_agents(cx).await;
+        let (_, older) = add_terminal(&alpha, false, cx);
+        let (_, newer) = add_terminal(&beta, false, cx);
+        let connection = StubAgentConnection::new();
+        let key = start_thread(&alpha_panel, &connection, cx);
+        connection.end_turn(
+            active_session_id(&alpha_panel, cx),
+            acp::StopReason::EndTurn,
+        );
+        cx.run_until_parked();
+        // Shown in turn: alpha's terminal, beta's, then the thread, which leaves focus in alpha's
+        // Agent Panel over alpha's terminal.
+        click(terminal_selector(&older), cx);
+        click(terminal_selector(&newer), cx);
+        click(thread_selector(&key), cx);
+        let most_recent_first = vec![
+            Selection::Thread(key.clone()),
+            Selection::Terminal(id(&newer)),
+            Selection::Terminal(id(&older)),
+        ];
+        // From the Agent Panel, where Zed binds the key.
+        toggle_switcher(false, cx);
+        assert_eq!(
+            switcher_state(&rail, cx),
+            Some((most_recent_first.clone(), 1))
+        );
+        dispatch(Cancel, cx);
+        let in_panel =
+            cx.update(|window, cx| alpha_panel.focus_handle(cx).contains_focused(window, cx));
+        assert!(in_panel, "Escape gives focus back to the panel");
+        // Opening took focus off the panel, over alpha's terminal, and noted nothing.
+        toggle_switcher(false, cx);
+        assert_eq!(
+            switcher_state(&rail, cx).map(|(listed, _)| listed),
+            Some(most_recent_first)
+        );
+        dispatch(Cancel, cx);
+        // A thread entry opens in its project's Agent Panel.
+        click(terminal_selector(&newer), cx);
+        focus_rail(&rail, cx);
+        toggle_switcher(false, cx);
+        dispatch(Confirm, cx);
+        cx.read(|cx| assert_eq!(multi_workspace.read(cx).workspace(), &alpha));
+        assert_eq!(key_of(&alpha_panel, cx), key);
+        let in_panel =
+            cx.update(|window, cx| alpha_panel.focus_handle(cx).contains_focused(window, cx));
+        assert!(in_panel);
     }
 
     #[gpui::test]

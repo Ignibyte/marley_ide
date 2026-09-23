@@ -129,6 +129,8 @@ pub struct Focus {
     pub project: Option<usize>,
     /// The displayed workspace's active center item, when that item is a terminal.
     pub terminal: Option<u64>,
+    /// Whether that terminal holds the window's focus.
+    pub terminal_focused: bool,
     /// The thread the displayed workspace's Agent Panel shows, while the panel holds focus.
     pub thread: Option<String>,
     /// The row the keyboard is on, while the rail holds focus.
@@ -147,7 +149,7 @@ pub struct RailSnapshot {
 }
 
 /// The single selected row.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Selection {
     /// Nothing to select: the window shows no project the rail lists.
     None,
@@ -226,6 +228,26 @@ pub enum Row {
     Terminal(TerminalRow),
     /// An agent thread under its project, after the project's terminals.
     Thread(ThreadRow),
+}
+
+/// A row the switcher lists: a terminal or a thread, never a header.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SwitcherRow {
+    /// A terminal, unselected and unhighlighted.
+    Terminal(TerminalRow),
+    /// A thread, unselected and unhighlighted.
+    Thread(ThreadRow),
+}
+
+impl SwitcherRow {
+    /// The row the rail opens for it.
+    #[must_use]
+    pub fn selection(&self) -> Selection {
+        match self {
+            Self::Terminal(row) => Selection::Terminal(row.id),
+            Self::Thread(row) => Selection::Thread(row.key.clone()),
+        }
+    }
 }
 
 /// The one selected row.
@@ -445,6 +467,73 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
         .collect()
 }
 
+/// The terminal or thread row that holds the window's focus, the one the user is working in.
+///
+/// That is the focused Agent Panel's thread, else the displayed workspace's active terminal while
+/// it holds focus, each when the displayed project lists it. The fold and the filter do not
+/// matter.
+#[must_use]
+pub fn window_row(snapshot: &RailSnapshot) -> Option<Selection> {
+    let project = snapshot.projects.get(snapshot.focus.project?)?;
+    let thread = snapshot
+        .focus
+        .thread
+        .as_ref()
+        .filter(|key| project.threads.iter().any(|thread| thread.key == **key))
+        .map(|key| Selection::Thread(key.clone()));
+    thread.or_else(|| {
+        snapshot
+            .focus
+            .terminal
+            .filter(|id| {
+                snapshot.focus.terminal_focused
+                    && project.terminals.iter().any(|terminal| terminal.id == *id)
+            })
+            .map(Selection::Terminal)
+    })
+}
+
+/// Every terminal and thread for the switcher.
+///
+/// The rows the window showed come first, the most recent first by `shown_at`, which ranks each
+/// row by when the window last showed it; the rest follow in the rail's order. The fold and the
+/// filter do not matter.
+#[must_use]
+pub fn switcher_rows(
+    snapshot: &RailSnapshot,
+    shown_at: impl Fn(&Selection) -> Option<u64>,
+) -> Vec<SwitcherRow> {
+    let mut rows: Vec<SwitcherRow> = Vec::new();
+    for (index, project) in snapshot.projects.iter().enumerate() {
+        rows.extend(project.terminals.iter().map(|terminal| {
+            SwitcherRow::Terminal(TerminalRow {
+                project: index,
+                id: terminal.id,
+                title: terminal.title.clone(),
+                subtitle: terminal.subtitle.clone(),
+                bell: terminal.bell,
+                agent: terminal.agent,
+                selected: false,
+                highlight: Vec::new(),
+            })
+        }));
+        rows.extend(project.threads.iter().map(|thread| {
+            SwitcherRow::Thread(ThreadRow {
+                project: index,
+                key: thread.key.clone(),
+                title: thread.title.clone(),
+                status: thread.status,
+                attention: thread.attention,
+                selected: false,
+                highlight: Vec::new(),
+            })
+        }));
+    }
+    // A stable sort, so the rows never shown keep the rail's order after the others.
+    rows.sort_by_key(|row| std::cmp::Reverse(shown_at(&row.selection())));
+    rows
+}
+
 /// Whether a row under `project` that the rail is not showing needs the user.
 fn hidden_rows_need_the_user(snapshot: &RailSnapshot, project: &ProjectSnapshot) -> bool {
     let hidden = |matched: Option<&[usize]>| !row_shows(snapshot, project, matched);
@@ -556,6 +645,7 @@ mod tests {
             focus: Focus {
                 project,
                 terminal,
+                terminal_focused: false,
                 thread: None,
                 cursor: None,
             },
@@ -1341,6 +1431,95 @@ mod tests {
         assert_eq!(step(&walked, true), Selection::Project(1));
         let hidden = with_cursor(marley, Selection::Terminal(3));
         assert_eq!(step(&hidden, true), Selection::Project(0));
+    }
+
+    fn terminal_focused(mut snapshot: RailSnapshot) -> RailSnapshot {
+        snapshot.focus.terminal_focused = true;
+        snapshot
+    }
+
+    #[test]
+    fn the_window_row_is_the_focused_panels_thread_else_the_focused_terminal() {
+        let unfocused = window(two_projects_with_threads(true), Some(1), Some(3));
+        assert_eq!(
+            window_row(&unfocused),
+            None,
+            "the terminal does not hold focus"
+        );
+        let snapshot = terminal_focused(unfocused);
+        assert_eq!(window_row(&snapshot), Some(Selection::Terminal(3)));
+        assert_eq!(
+            window_row(&panel_focused(snapshot.clone(), "c")),
+            Some(Selection::Thread("c".to_string()))
+        );
+        // A thread or terminal the displayed project does not list is not the window's row.
+        assert_eq!(
+            window_row(&panel_focused(snapshot, "a")),
+            Some(Selection::Terminal(3))
+        );
+        assert_eq!(
+            window_row(&terminal_focused(window(
+                two_projects(true),
+                Some(1),
+                Some(1)
+            ))),
+            None
+        );
+        assert_eq!(
+            window_row(&terminal_focused(window(two_projects(true), None, Some(1)))),
+            None
+        );
+        // The fold and the filter do not change what the window shows.
+        let folded = terminal_focused(window(two_projects_with_threads(false), Some(0), Some(1)));
+        assert_eq!(
+            window_row(&filtered(folded, "zzz")),
+            Some(Selection::Terminal(1))
+        );
+    }
+
+    #[test]
+    fn the_switcher_lists_the_recently_shown_first_then_the_rails_order() {
+        let snapshot = filtered(
+            window(two_projects_with_threads(false), Some(1), Some(3)),
+            "zzz",
+        );
+        let order = |shown: &[Selection]| -> Vec<Selection> {
+            switcher_rows(&snapshot, |row| {
+                shown
+                    .iter()
+                    .position(|shown| shown == row)
+                    .map(|at| at as u64)
+            })
+            .iter()
+            .map(SwitcherRow::selection)
+            .collect()
+        };
+        // Nothing shown yet: every terminal and thread in the rail's order, whatever the fold
+        // and the filter, and no header.
+        let rail_order = vec![
+            Selection::Terminal(1),
+            Selection::Thread("a".to_string()),
+            Selection::Thread("b".to_string()),
+            Selection::Terminal(3),
+            Selection::Thread("c".to_string()),
+        ];
+        assert_eq!(order(&[]), rail_order);
+        let unmarked = switcher_rows(&snapshot, |_| None);
+        assert!(unmarked.iter().all(|row| match row {
+            SwitcherRow::Terminal(row) => !row.selected && row.highlight.is_empty(),
+            SwitcherRow::Thread(row) => !row.selected && row.highlight.is_empty(),
+        }));
+        // The window showed terminal 3, then thread b: b is the most recent.
+        assert_eq!(
+            order(&[Selection::Terminal(3), Selection::Thread("b".to_string())]),
+            [
+                Selection::Thread("b".to_string()),
+                Selection::Terminal(3),
+                Selection::Terminal(1),
+                Selection::Thread("a".to_string()),
+                Selection::Thread("c".to_string()),
+            ]
+        );
     }
 
     #[test]

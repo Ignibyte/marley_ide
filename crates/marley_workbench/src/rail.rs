@@ -16,13 +16,13 @@ use agent_ui::{Agent, AgentPanel, AgentPanelEvent, AgentThreadSource};
 use anyhow::Context as _;
 use editor::{Editor, EditorEvent};
 use gpui::{
-    Anchor, AnyElement, App, ClickEvent, Context, Entity, EntityId, EventEmitter, FocusHandle,
-    Focusable, Pixels, Render, Subscription, Task, WeakEntity, Window, px,
+    Anchor, AnyElement, AnyView, App, ClickEvent, Context, Entity, EntityId, EventEmitter,
+    FocusHandle, Focusable, Pixels, Render, Subscription, Task, WeakEntity, Window, px,
 };
 use marley_agent::{AgentKind, WAITING_AFTER};
 use marley_rail::{
-    Focus, ProjectRow, ProjectSnapshot, RailSnapshot, Row, Selection, TerminalAgent, TerminalRow,
-    TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus,
+    Focus, ProjectRow, ProjectSnapshot, RailSnapshot, Row, Selection, SwitcherRow, TerminalAgent,
+    TerminalRow, TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus,
 };
 use menu::{
     Cancel, Confirm, SelectChild, SelectFirst, SelectLast, SelectNext, SelectParent, SelectPrevious,
@@ -49,6 +49,11 @@ use zed_actions::agents_sidebar::FocusSidebarFilter;
 
 use crate::agents::{self, AgentIcon};
 
+#[path = "rail_switcher.rs"]
+mod switcher;
+
+use switcher::{RailSwitcher, SwitcherEntry, SwitcherEvent};
+
 const DEFAULT_WIDTH: Pixels = px(260.);
 const MIN_WIDTH: Pixels = px(180.);
 const MAX_WIDTH: Pixels = px(600.);
@@ -74,6 +79,14 @@ pub struct Rail {
     cursor: Option<Selection>,
     /// The filter's field, under the header.
     filter_editor: Entity<Editor>,
+    /// When each terminal and thread last took the window's focus, as a count of the changes of
+    /// the window's row: the switcher lists the highest first.
+    shown_at: HashMap<Selection, u64>,
+    shown_count: u64,
+    /// The terminal or thread row that held the window's focus at the last rebuild.
+    window_row: Option<Selection>,
+    /// The switcher, while it is open.
+    switcher: Option<OpenSwitcher>,
     foreground_command: ForegroundCommand,
     /// When each terminal last wrote output, on the executor's clock.
     terminal_output: HashMap<EntityId, Instant>,
@@ -117,6 +130,13 @@ impl std::fmt::Debug for Rail {
             .field("rows", &self.snapshot.rail)
             .finish_non_exhaustive()
     }
+}
+
+/// The open switcher, what had focus before it, and its events.
+struct OpenSwitcher {
+    view: Entity<RailSwitcher>,
+    return_focus: Option<FocusHandle>,
+    _events: Subscription,
 }
 
 /// The entities behind a project row, held weakly: a closed tab must not outlive its terminal.
@@ -218,6 +238,10 @@ impl Rail {
             closed: false,
             cursor: None,
             filter_editor,
+            shown_at: HashMap::default(),
+            shown_count: 0,
+            window_row: None,
+            switcher: None,
             foreground_command: |terminal, cx| terminal.read(cx).foreground_process_command_name(),
             terminal_output: HashMap::default(),
             quiet_timers: HashMap::default(),
@@ -282,6 +306,7 @@ impl Rail {
             })
             .unwrap_or_default();
         self.note_ended_runs(&mut snapshot);
+        self.note_window_row(&snapshot.rail);
         if self.focus_handle.contains_focused(window, cx) {
             snapshot.rail.focus.cursor.clone_from(&self.cursor);
         }
@@ -289,6 +314,25 @@ impl Rail {
             cx.notify();
         }
         self.snapshot = snapshot;
+    }
+
+    /// Notes a change of the terminal or thread row that holds the window's focus, for the
+    /// switcher's order, and forgets the rows that are gone. The switcher's own focus is no row,
+    /// so opening it notes nothing.
+    fn note_window_row(&mut self, rail: &RailSnapshot) {
+        let row = marley_rail::window_row(rail);
+        if row != self.window_row {
+            if let Some(row) = &row {
+                self.shown_count += 1;
+                self.shown_at.insert(row.clone(), self.shown_count);
+            }
+            self.window_row = row;
+        }
+        let listed: HashSet<Selection> = marley_rail::switcher_rows(rail, |_| None)
+            .iter()
+            .map(SwitcherRow::selection)
+            .collect();
+        self.shown_at.retain(|row, _| listed.contains(row));
     }
 
     /// Lights the dot of each thread whose run ended since the last rebuild while it was not
@@ -694,7 +738,18 @@ impl Rail {
 
     /// Enter: what a click on the keyboard's row does.
     fn confirm(&mut self, _: &Confirm, window: &mut Window, cx: &mut Context<Self>) {
-        let opened = match marley_rail::selection(&self.snapshot.rail) {
+        let selection = marley_rail::selection(&self.snapshot.rail);
+        self.open_row(selection, window, cx).log_err();
+    }
+
+    /// Opens a row as a click on it does.
+    fn open_row(
+        &self,
+        selection: Selection,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        match selection {
             Selection::None => Ok(()),
             Selection::Project(index) => {
                 let group = self.snapshot.groups.get(index);
@@ -712,8 +767,56 @@ impl Rail {
                 })
             }
             Selection::Thread(key) => self.open_thread(&key, window, cx),
+        }
+    }
+
+    /// The switcher's rows, from the window as the rail last read it.
+    fn switcher_entries(&self) -> Vec<SwitcherEntry> {
+        let rail = &self.snapshot.rail;
+        let project_name = |index: usize| {
+            rail.projects
+                .get(index)
+                .map(|project| SharedString::from(project.name.clone()))
         };
-        opened.log_err();
+        marley_rail::switcher_rows(rail, |row| self.shown_at.get(row).copied())
+            .into_iter()
+            .filter_map(|row| match row {
+                SwitcherRow::Terminal(row) => {
+                    let project = project_name(row.project)?;
+                    Some(SwitcherEntry::Terminal { row, project })
+                }
+                SwitcherRow::Thread(row) => {
+                    let project = project_name(row.project)?;
+                    let icon = self.snapshot.threads.get(&row.key)?.icon.clone();
+                    Some(SwitcherEntry::Thread { row, project, icon })
+                }
+            })
+            .collect()
+    }
+
+    /// Closes the switcher and opens what it chose, or after Escape gives focus back.
+    fn switcher_ended(
+        &mut self,
+        event: &SwitcherEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let return_focus = self.switcher.take().and_then(|open| open.return_focus);
+        self.multi_workspace
+            .update(cx, |multi_workspace, cx| {
+                multi_workspace.set_sidebar_overlay(None, cx);
+            })
+            .log_err();
+        match event {
+            SwitcherEvent::Confirmed(selection) => {
+                self.open_row(selection.clone(), window, cx).log_err();
+            }
+            SwitcherEvent::Cancelled { restore_focus } => {
+                if let Some(focus) = return_focus.filter(|_| *restore_focus) {
+                    window.focus(&focus, cx);
+                }
+            }
+        }
     }
 
     /// Moves a project one place up or down in the window, as Zed's own reorder does.
@@ -1066,21 +1169,12 @@ impl Rail {
         cx: &Context<Self>,
     ) -> impl IntoElement {
         let key = row.key.clone();
-        let status = ui_status(row.status);
-        let item = ThreadItem::new(
+        let item = thread_item(
             SharedString::from(format!("marley-rail-thread-{key}")),
-            row.title,
+            row,
+            &thread.icon,
         )
-        .highlight_positions(row.highlight)
-        .status(status)
-        .notified(row.attention)
-        .selected(row.selected)
-        .rounded(true)
         .base_bg(cx.theme().colors().panel_background);
-        let item = match &thread.icon {
-            AgentIcon::Named(icon) => item.icon(*icon),
-            AgentIcon::Svg(path) => item.custom_icon_from_external_svg(path.clone()),
-        };
         div()
             .debug_selector({
                 let key = key.clone();
@@ -1123,12 +1217,9 @@ impl Rail {
                         slot.debug_selector(move || format!("marley-rail-agent-{id}"))
                     })
                     .child(
-                        Icon::new(
-                            row.agent
-                                .map_or(IconName::Terminal, |agent| agents::cli_icon(agent.kind)),
-                        )
-                        .size(IconSize::Small)
-                        .color(Color::Muted),
+                        Icon::new(terminal_icon(&row))
+                            .size(IconSize::Small)
+                            .color(Color::Muted),
                     ),
             )
             .child(
@@ -1294,6 +1385,27 @@ fn resubscribe<E: 'static, S>(
             (entity.entity_id(), subscriptions)
         })
         .collect()
+}
+
+/// A terminal row's icon: its agent CLI's, or the terminal's.
+fn terminal_icon(row: &TerminalRow) -> IconName {
+    row.agent
+        .map_or(IconName::Terminal, |agent| agents::cli_icon(agent.kind))
+}
+
+/// A thread's row as Zed's thread list draws it, with the agent's icon: the rail's rows and the
+/// switcher's.
+fn thread_item(id: SharedString, row: ThreadRow, icon: &AgentIcon) -> ThreadItem {
+    let item = ThreadItem::new(id, row.title)
+        .highlight_positions(row.highlight)
+        .status(ui_status(row.status))
+        .notified(row.attention)
+        .selected(row.selected)
+        .rounded(true);
+    match icon {
+        AgentIcon::Named(icon) => item.icon(*icon),
+        AgentIcon::Svg(path) => item.custom_icon_from_external_svg(path.clone()),
+    }
 }
 
 /// The status Zed's thread row draws for a rail status.
@@ -1594,16 +1706,20 @@ fn build_snapshot(
         .clone()
         .filter(|_| AgentPanel::is_visible(displayed, cx));
     snapshot.rail.filtering = !filter.is_empty();
+    let active_terminal = displayed
+        .read(cx)
+        .active_item(cx)
+        .and_then(|item| item.downcast::<TerminalView>());
     snapshot.rail.focus = Focus {
         cursor: None,
         project: groups
             .iter()
             .position(|group| group.workspaces.contains(displayed)),
-        terminal: displayed
-            .read(cx)
-            .active_item(cx)
-            .and_then(|item| item.downcast::<TerminalView>())
+        terminal: active_terminal
+            .as_ref()
             .map(|view| view.entity_id().as_u64()),
+        terminal_focused: active_terminal
+            .is_some_and(|view| view.focus_handle(cx).contains_focused(window, cx)),
         thread: panel_thread.filter(|_| {
             panel
                 .as_ref()
@@ -1691,6 +1807,45 @@ impl Sidebar for Rail {
     // open, the Agent Panel's terminal threads included, which the rail does not list.
     fn is_threads_list_view_active(&self) -> bool {
         false
+    }
+
+    // Runs deferred, outside the `MultiWorkspace`'s update, so the overlay can be set here.
+    fn toggle_thread_switcher(
+        &mut self,
+        select_last: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(open) = &self.switcher {
+            open.view
+                .update(cx, |switcher, cx| switcher.step(!select_last, cx));
+            return;
+        }
+        let entries = self.switcher_entries();
+        if entries.len() < 2 {
+            return;
+        }
+        let return_focus = window.focused(cx);
+        let view = cx.new(|cx| RailSwitcher::new(entries, select_last, window, cx));
+        let events = cx.subscribe_in(
+            &view,
+            window,
+            |rail, _, event: &SwitcherEvent, window, cx| rail.switcher_ended(event, window, cx),
+        );
+        let overlay = AnyView::from(view.clone());
+        self.multi_workspace
+            .update(cx, |multi_workspace, cx| {
+                multi_workspace.set_sidebar_overlay(Some(overlay), cx);
+            })
+            .log_err();
+        // The overlay neither focuses nor dismisses what it shows, and the release of `ctrl`
+        // reaches only the focused view.
+        window.focus(&view.focus_handle(cx), cx);
+        self.switcher = Some(OpenSwitcher {
+            view,
+            return_focus,
+            _events: events,
+        });
     }
 
     // The window's saved sidebar state stays Zed's sidebar's while the rail stands in for it,

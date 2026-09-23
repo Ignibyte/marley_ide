@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A switcher over recent terminals and threads** (#454, 2026-09-23). In the rail or the Agent
+  Panel, `ctrl-tab` (on macOS too, as in Zed) opens a switcher over the window's terminals and
+  threads, the ones you last worked in first, with the one before the current selected. Keep
+  `ctrl` held: each `tab` moves down the list and `shift-tab` moves up. Let go of `ctrl` to
+  open the selection; Enter or a click opens an entry too, and Escape closes it. Before this,
+  `ctrl-tab` in the Agent Panel did nothing in the Marley layout. The center panes keep Zed's
+  tab switcher.
 - **A filter for the rail** (#457, 2026-09-23). Press `ctrl-f` (`cmd-f` on macOS) in the rail,
   or click the field under its header, and type. The rail keeps only the projects, terminals
   and threads whose name or title contains what you typed, ignoring the case of ASCII letters,

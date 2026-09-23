@@ -2065,3 +2065,22 @@ What #457 relied on, and proved with Zed's keymap bound (`crates/marley_workbenc
   on the exact string the row draws, and test with a multibyte character before the match.
 - A binding in a panel's context also fires from the popovers the panel opens, which keep it as
   their dispatch parent (`window.rs:4338`). `!Picker` keeps a key out of a picker's field.
+
+## L-claude-454-driving-a-hold-and-release-switcher-in-a-gpui-test-001
+*category: validate · topic: tests for switchers that confirm when a modifier is released · from: pipeline 454*
+
+What worked in #454 (`crates/marley_workbench/src/rail_tests.rs`, the W6e section):
+- `simulate_keystrokes("ctrl-tab")` sends only a KeyDown and leaves `window.modifiers()`
+  unchanged, so a switcher that records the held modifiers as it opens sees none. Hold them
+  first with `cx.simulate_modifiers_change(Modifiers::control())`, then open it, then let go
+  with `simulate_modifiers_change(Modifiers::none())`.
+- Modifier events reach only the focused path. A view in `MultiWorkspace::set_sidebar_overlay`
+  is not focused by the overlay: focus it as you install it, or the release never arrives.
+  Removing that one `window.focus` failed the release and Escape tests.
+- `Sidebar::toggle_thread_switcher` runs deferred. Two dispatches in one `cx.update` reach it
+  before the first has opened the switcher, which is how a test reaches the hook's "already
+  open" arm.
+- A recency rule keyed on what the window displays notes rows that pass by during one action.
+  Key it on what holds focus
+  (F-claude-454-recency-noted-a-terminal-the-user-never-went-to-001), and give the test inputs
+  where the two rules disagree.

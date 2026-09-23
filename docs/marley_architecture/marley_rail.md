@@ -1,9 +1,9 @@
 # `marley_rail`
 
 The Marley rail's row model, written in the fork for the workbench shell's W2 (#438) and grown
-with agent threads in W3 (#439), agent CLIs in W4 (#440), the keyboard's row in W6d (#453) and
-the filter in W6h (#457). Pure and gpui-free, MIT OR Apache-2.0; its one dependency is the
-equally pure `marley_agent`.
+with agent threads in W3 (#439), agent CLIs in W4 (#440), the keyboard's row in W6d (#453), the
+filter in W6h (#457) and the switcher's order in W6e (#454). Pure and gpui-free, MIT OR
+Apache-2.0; its one dependency is the equally pure `marley_agent`.
 
 ## What it decides
 
@@ -12,9 +12,9 @@ equally pure `marley_agent`.
   expanded, its center terminals as `TerminalSnapshot`s (id, title, subtitle, bell, and the
   agent CLI in the foreground with its status, if any), and its
   agent threads as `ThreadSnapshot`s (key, title, status, attention), in the order the collector
-  gives. `focus` holds the displayed workspace's group index, its active terminal's id, the
-  thread its Agent Panel shows while the panel holds focus, and `cursor`, the row the keyboard
-  is on while the rail holds focus. `filtering` says the filter holds text, and each project,
+  gives. `focus` holds the displayed workspace's group index, its active terminal's id and
+  whether that terminal holds the window's focus, the thread its Agent Panel shows while the
+  panel holds focus, and `cursor`, the row the keyboard is on while the rail holds focus. `filtering` says the filter holds text, and each project,
   terminal and thread carries `matched`: the byte offsets where the filter matched its name or
   title, or `None`. The gpui side computes them with Zed's matcher.
 - **One walk** decides which rows show, and `rail_rows`, `selection` and the keyboard's
@@ -36,6 +36,12 @@ equally pure `marley_agent`.
   it starts at the first going forward and the last going back. `parent` is a terminal's or a
   thread's project header, and a header is its own. `first_match` is the first shown row whose
   own name or title matched, where the keyboard's row goes as the filter changes (#457).
+- **`window_row`** is the terminal or thread row that holds the window's focus: the focused
+  Agent Panel's thread, else the active terminal while it holds focus (#454). The rail notes
+  each change of it for the switcher's order.
+- **`switcher_rows`** gives every terminal and thread as a `SwitcherRow`, never a header, for
+  the switcher: first the rows ranked by the `shown_at` the caller passes, most recent first,
+  then the rest in the rail's order, whatever the fold and the filter.
 - **`has_attention`** is the rail's notification flag: any listed terminal's bell, or thread
   dot or wait, folded or not.
 - **`thread_status`** ranks what a live conversation reports: a pending confirmation over an
@@ -62,6 +68,6 @@ filter matched.
 
 ## Tests
 
-`src/marley_rail.rs`, twenty-seven unit tests, including exactly one selected row over every
+`src/marley_rail.rs`, twenty-nine unit tests, including exactly one selected row over every
 combination of fold, displayed project, active terminal and focused thread in a two-project
 window, and `step` over every shown row of one in both directions.

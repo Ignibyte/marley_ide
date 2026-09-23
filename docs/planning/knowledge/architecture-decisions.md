@@ -1443,3 +1443,25 @@ still lands on the rows (#453), and each edit moves the keyboard's row to the fi
 matched, header or not. Rejected: `fuzzy` or `fuzzy_nucleo` in `marley_rail` (both pull in
 gpui, and neither is what Zed's sidebar uses), a matcher written for Marley, a `marley::`
 action with the same meaning, and landing the focus key in the filter as Zed's sidebar does.
+
+## AD-claude-454-the-rails-switcher-is-zeds-thread-switcher-over-the-rails-rows-001
+*decided at: 2026-09-23 · status: shipped*
+
+`ctrl-tab` in the rail and in the Agent Panel opens the rail's switcher over the window's center
+terminals and threads, through `Sidebar::toggle_thread_switcher`, as Zed's sidebar opens its
+thread switcher; the center panes keep Zed's tab switcher, as in Zed's layout. The Agent Panel
+keeps Zed's binding. The rail gets `ctrl-tab` and `ctrl-shift-tab` from the Marley keymap in
+`MarleyRail && !Picker`, and the view uses Zed's `ThreadSwitcher` key context, so Zed's
+bindings step it. The view sits in the `MultiWorkspace`'s sidebar overlay, focused by the rail,
+and keeps Zed's rules: two entries at least, the second selected, confirm on the release of
+the modifiers it opened with, on Enter or on a click, and cancel on Escape or focus-out. Recency
+is the rail's own counter over changes of the row that holds the window's focus, in memory and
+pruned. The order is most recent first, then the rest in the rail's order, whatever the fold and
+the filter. Rejected:
+- `ctrl-tab` in the `Workspace` context, which would take Zed's tab switcher away in both
+  layouts, since the keymap does not know the layout (a window-wide switcher from the center is
+  Chad's call);
+- reusing Zed's `ThreadSwitcher` view, whose entries are Agent Panel threads and terminals;
+- ordering by a pane's `activation_history`, which counts per workspace;
+- recency by what the window displays (F-claude-454-recency-noted-a-terminal-the-user-never-went-to-001);
+- a preview while cycling.

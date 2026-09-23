@@ -1739,3 +1739,17 @@ rebuilt it. Zed's Threads Sidebar subscribes to each project's worktree events
 (`sidebar.rs:1005-1031`). Found in the Code phase while writing the test for Enter with no row
 highlighted, which reaches that state only after another change in the window. Open:
 TICKET-458.
+
+## F-claude-454-recency-noted-a-terminal-the-user-never-went-to-001
+*severity: medium · category: behavior · pipeline 454*
+
+The first version noted each change of the terminal or thread the window *showed*: the focused
+Agent Panel's thread, else the displayed workspace's active terminal. Opening a thread from the
+rail activates its project first. That project's active terminal was then the window's row for
+one rebuild, before the Agent Panel took focus, so it was noted as more recent than the
+terminal the user actually came from. `ctrl-tab` would then have gone to a terminal the user
+never chose. Found in the Code phase by
+`threads::the_switcher_opens_a_thread_and_opening_it_notes_nothing`, the first time it ran.
+Fixed: the window's row counts a terminal only while it holds the window's focus
+(`Focus::terminal_focused`), as a thread already needed the panel's focus. The planned guard
+against noting while the switcher is open then protected nothing, and was removed.

@@ -87,6 +87,22 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
     and `editor::Cancel`.
   - `menu::Cancel` clears the filter, or from an empty field focuses the rows, and otherwise
     propagates. The text is not saved.
+- **The switcher (#454).** The rail's `Sidebar::toggle_thread_switcher` opens `RailSwitcher`
+  (`src/rail_switcher.rs`, the rail's `switcher` module) over the window's terminals and
+  threads, as Zed's sidebar opens its thread switcher.
+  - Zed's `AgentPanel` binding routes `ctrl-tab` there, and the Marley keymap binds `ctrl-tab`
+    and `ctrl-shift-tab` in the rail's block. The center panes keep Zed's tab switcher.
+  - The rail puts the view in the `MultiWorkspace`'s sidebar overlay and focuses it, since the
+    overlay does neither. It needs two rows, and opens on the second, or on the last with
+    `select_last`.
+  - The view's key context is Zed's `ThreadSwitcher`, so Zed's bindings step it. The release
+    of the modifiers it opened with, Enter or a click confirms, and the rail opens the row
+    through `open_row`, as Enter on the rail does. Escape cancels and hands focus back;
+    focus-out cancels and leaves it.
+  - Recency: `refresh` notes each change of `marley_rail::window_row`, the row that holds the
+    window's focus, in `shown_at`, pruned to the rows that exist. The switcher's own focus is no
+    row, so opening it notes nothing. `thread_item` and `terminal_icon` draw the rail's rows
+    and the switcher's alike.
 - The header is the title bar's height and draws the window controls the title bar leaves to a
   left-hand sidebar. Its Add Project button opens Zed's recent-projects popover.
 - The handlers take the rows' weak handles and return a `Result`, which the click sites log.
@@ -228,14 +244,15 @@ alike.
 ## Tests
 
 `src/marley_workbench_tests.rs` (the switch, the keymap loader and persistence, 20 tests) and
-`src/rail_tests.rs` (the rail, 40, 13 thread tests in `rail::tests::threads`, and 5 agent-CLI
+`src/rail_tests.rs` (the rail, 49, 14 thread tests in `rail::tests::threads`, and 5 agent-CLI
 tests in `rail::tests::agents`, which search a temporary directory for programs and read the
 new terminal's write log): driven gpui tests on `MultiWorkspace::test_new`
 over a FakeFs, clicking elements found by debug selector. The keyboard tests dispatch the
 `menu` actions from the focused rail; one binds Zed's Linux default keymap and presses
 `ctrl-alt-;`, the arrows and Enter. The filter tests type into the field with `simulate_input`;
 two bind Zed's keymap and the Marley keymap and press `ctrl-f`, in the rail and in the
-add-project picker. The thread tests run on
+add-project picker. The switcher tests hold `ctrl` with `simulate_modifiers_change` before
+opening, as a hand does, and let go of it to confirm. The thread tests run on
 `init_agent_test`, which layers Zed's agent test setup (`agent_ui::test_support`, with a
 thread database per test) over the window. They put an `AgentPanel::test_new` in each project
 and drive threads through `acp_thread::StubAgentConnection`: a turn that stays open until
@@ -274,11 +291,14 @@ has its own test in `crates/zed/src/zed.rs`, `test_reload_keymaps_binds_the_marl
   layout saves a partial state before its restore finishes (`docs/planning/intake/rail-internals.md`).
 - A restored window builds its rail open and closes it once the restore is over, through
   `close_sidebar`, which records Zed's "Sidebar Toggled" event; Zed has no silent close.
-- The switcher is W6e (#454). The filter ignores case for ASCII letters only, as Zed's does,
-  and vim's `/`, which reaches Zed's sidebar filter, does not reach the rail's.
+- The filter ignores case for ASCII letters only, as Zed's does, and vim's `/`, which reaches
+  Zed's sidebar filter, does not reach the rail's.
+- `ctrl-tab` in a center pane stays Zed's tab switcher, over that pane's items. The rail's
+  switcher shows no preview while cycling, and its recency lives in memory only. Next and
+  Previous Project and Thread still reach the trait's no-op defaults (#459).
 - A project whose last folder is removed keeps its row until another change rebuilds the rail
   (#458).
 - The thread rows, the agent rows, the routing, the terminal keys, the New Agent key, the
-  rail's persistence, its keys and reorder, and its filter have not been seen live: the drives
-  for #439 and #440 would have moved Chad's windows off his monitor, and the later ones need
-  input or a relaunch. They are owed to the next headless capture.
+  rail's persistence, its keys and reorder, its filter and its switcher have not been seen live:
+  the drives for #439 and #440 would have moved Chad's windows off his monitor, and the later
+  ones need input or a relaunch. They are owed to the next headless capture.

@@ -312,8 +312,8 @@ binding in a Terminal context on an unmodified key yields to the PTY
   lists.
 - `cycle_project` and `cycle_thread` walk projects and rows. The `MultiWorkspace` forwards
   `NextProject`, `PreviousProject`, `NextThread` and `PreviousThread` to the sidebar even while
-  it is closed (`multi_workspace.rs:2098-2140`). `toggle_thread_switcher` becomes a switcher
-  over terminals and threads in W6.
+  it is closed (`multi_workspace.rs:2098-2140`); the rail's pair is TICKET-459.
+  `toggle_thread_switcher` is the rail's switcher over terminals and threads since #454.
 - The rail header is the title bar's height and draws the window controls itself.
 - The width follows a default until Chad drags it. While the rail stands in, the window's
   saved sidebar state stays Zed's: the rail answers `serialized_state` with the state of the
@@ -378,9 +378,12 @@ terminal row renames and closes from its own menu, a double-click and a hover bu
 Zed's tab rename and close. W6d shipped as #453: the rail walks and opens its rows with Zed's
 own list keys, and a project header's menu moves the project up or down. W6h, split from it,
 shipped as #457: a filter under the rail's header narrows it as you type, with Zed's Threads
-Sidebar's matcher, and `ctrl-f` reaches it. W6e to W6g are TICKET-454 to TICKET-456, queued in
-that order. TICKET-458 makes the rail follow a project's folders, and the rail's smaller
-internals wait in `docs/planning/intake/rail-internals.md`.
+Sidebar's matcher, and `ctrl-f` reaches it. W6e shipped as #454: `ctrl-tab` in the rail and the
+Agent Panel opens a switcher over the window's terminals and threads, most recently worked in
+first, through the rail's `toggle_thread_switcher`; the center panes keep Zed's tab switcher.
+W6f and W6g are TICKET-455 and TICKET-456, queued in that order, and TICKET-459 gives Next and
+Previous Project and Thread the rail's meaning. TICKET-458 makes the rail follow a project's
+folders, and the rail's smaller internals wait in `docs/planning/intake/rail-internals.md`.
 
 | Slice | Delivers | Size |
 |---|---|---|
