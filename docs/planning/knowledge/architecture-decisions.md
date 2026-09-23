@@ -1787,3 +1787,16 @@ integration, whose reported command line carries a nonce from `VSCODE_NONCE`. Re
 checking the command against the text on the block's first row (prompts differ, and long or
 multi-line commands wrap); Rerun that types the command without running it (it changes what
 Rerun does); a nonce on `precmd` too (nothing acts on its fields yet; T2's path links will).
+
+## AD-claude-476-the-content-sits-on-the-bottom-edge-by-moving-the-grids-origin-001
+*decided at: 2026-09-23 · status: shipped*
+
+A terminal whose live screen has room is drawn with its content against the bottom edge, the
+way Warp pins its input to the bottom. It is a drawing change only: `TerminalElement::prepaint`
+moves the grid's origin down by `marley_terminal::bottom_shift` rows once the content is synced,
+and stores the moved bounds with `set_size`, which resizes nothing when the size is unchanged and
+which the mouse maps through. The grid, the PTY's size, the scrollback and the block anchors stay.
+Scrolled back by d rows, the shift is d rows smaller, so the history appears above the content.
+The alternate screen, and views that are not standalone, are drawn as before. Rejected: shell
+tricks (newlines at startup, a cursor move before each prompt), which change the grid and so
+the lines blocks anchor to; Marley's own docked command editor, which is T3.

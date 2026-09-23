@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #476 (feature, prong 1: T1d)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/476-prompt-at-the-bottom.spec.md
+- **Pipeline doc:** ../../pipeline/completed/476-prompt-at-the-bottom.spec.md
 - **Source ticket:** ../../../marley/three-prong-plan.md (T1)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Warp pins its input to the bottom of the pane, and output flows up above it. A terminal draws

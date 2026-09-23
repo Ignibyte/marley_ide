@@ -17,8 +17,9 @@
 //! refuses it.
 //!
 //! [`visible_spans`] says which blocks a viewport shows and over which of its rows, for the
-//! terminal view to draw them, and [`block_scroll`] where to scroll to show the previous or the
-//! next block (T1).
+//! terminal view to draw them, [`block_scroll`] where to scroll to show the previous or the next
+//! block, and [`bottom_shift`] how far down to draw a viewport so its content sits on the bottom
+//! edge (T1).
 
 use std::ops::Range;
 
@@ -219,6 +220,25 @@ pub fn block_scroll(
     Some(offset.min(history))
 }
 
+/// How many rows down to draw a viewport, so the live screen's last used row sits on the bottom
+/// edge.
+///
+/// `empty_bottom_rows` is how many rows of the live screen lie below its content. Scrolled back
+/// by `display_offset` rows, the shift is that much smaller, so the history appears above the
+/// content instead of the content moving. The alternate screen keeps its own layout: none.
+#[must_use]
+pub const fn bottom_shift(
+    empty_bottom_rows: usize,
+    display_offset: usize,
+    alt_screen: bool,
+) -> usize {
+    if alt_screen {
+        0
+    } else {
+        empty_bottom_rows.saturating_sub(display_offset)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -396,6 +416,18 @@ mod tests {
         let next = &blocks.blocks()[1];
         assert_eq!((next.index, next.prompt_line), (1, Some(2)));
         assert_eq!((next.state, next.output_end), (BlockState::Running, None));
+    }
+
+    #[test]
+    fn the_shift_puts_the_content_on_the_bottom_edge_until_the_view_scrolls_past_it() {
+        assert_eq!(bottom_shift(20, 0, false), 20);
+        // Scrolling back takes a row off the shift for each row, and never goes below none.
+        assert_eq!(bottom_shift(20, 3, false), 17);
+        assert_eq!(bottom_shift(20, 20, false), 0);
+        assert_eq!(bottom_shift(20, 25, false), 0);
+        // A full screen, and the alternate screen, are drawn as they are.
+        assert_eq!(bottom_shift(0, 0, false), 0);
+        assert_eq!(bottom_shift(20, 0, true), 0);
     }
 
     #[test]

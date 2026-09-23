@@ -7,6 +7,7 @@
 # when the run ends.
 #
 #   SEED     a script run with the copy's directory before the launch, to edit the copy
+#   OPEN     a path to open, as `marley <path>` does (the profile's last session otherwise)
 #   SETTLE   seconds to wait after the window maps (12)
 #   INSPECT  a command run after the shot, while Marley still runs
 #   SHOT_DIR where the PNG and the log land ($TMPDIR/marley-shots)
@@ -71,7 +72,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-setsid -f "$marley" --user-data-dir "$profile" >"$shots/$name.log" 2>&1 </dev/null
+setsid -f "$marley" --user-data-dir "$profile" ${OPEN:+"$OPEN"} >"$shots/$name.log" 2>&1 </dev/null
 for _ in $(seq 90); do
   [[ -n $(marley_window stableId) ]] && break
   sleep 1

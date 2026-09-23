@@ -54,7 +54,9 @@ pub mod styled;
 
 mod session_id;
 
-pub use anchored::{AnchoredBlock, AnchoredBlocks, BlockSpan, block_scroll, visible_spans};
+pub use anchored::{
+    AnchoredBlock, AnchoredBlocks, BlockSpan, block_scroll, bottom_shift, visible_spans,
+};
 pub use block::{
     Block, BlockCopy, BlockId, BlockIndex, BlockList, BlockState, ExitCode, PromptInfo,
     ShellSessionId,

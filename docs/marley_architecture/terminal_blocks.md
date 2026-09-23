@@ -138,6 +138,12 @@ real, reusable session. The Block model is the unit the **brain** later observes
   button sits in `marley_keep_from_terminal`, which stops a left press from reaching the
   terminal's listeners; `ButtonLike` stops only its click's release, and an occluding hitbox
   would end the group's hover under the button.
+  `bottom_shift` (#476) says how many rows down a viewport is drawn so the live screen's last
+  used row sits on the bottom edge: the rows below it (`Content::marley_empty_bottom_rows`, read
+  from the grid in `make_content`, the cursor's row counted as used) less the display offset,
+  and none on the alternate screen. `TerminalElement::prepaint` moves the grid's origin by it
+  after `sync`, plus the padding its snapped rows leave, and stores the moved bounds with a
+  second `set_size`, which the mouse maps through and which resizes nothing.
 - `shell_integration.rs` (#463, written in the fork): the embedded `shell_integration/marley.bash`,
   `install_in(dir)`, which writes it when its content changed, and `for_program`, which gives bash
   `--rcfile` and `MARLEY_SHELL_INTEGRATION=1`. Zed's `TerminalBuilder::new` applies it to a local

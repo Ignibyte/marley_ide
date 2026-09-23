@@ -1,7 +1,7 @@
 ---
 pipeline_id: 7d84dab3-026c-49eb-870e-69eadeb745cf
 ticket: docs/planning/tickets/open/TICKET-476-prompt-at-the-bottom.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote
+status: Phase 4 — Complete PASS
 title: The prompt at the bottom of the terminal
 type: feature
 slice: prong 1 T1d

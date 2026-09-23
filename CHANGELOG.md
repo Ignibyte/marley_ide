@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The prompt at the bottom of the terminal** (#476, 2026-09-23). While a terminal's screen
+  has room to spare, as in a new terminal or one you have just cleared, Marley draws its content
+  against the bottom of the pane instead of the top. The prompt sits on the last row and each
+  command's output pushes the rest up, the way Warp pins its input to the bottom. Scrolling back
+  shows the history above it, and full-screen programs such as vim are drawn as before.
+- **`just shot` can open a path** (#476, 2026-09-23). `OPEN=<path> just shot <name>` opens that
+  path in the copy of your profile, as `marley <path>` does; a folder Marley has not seen gets a
+  first terminal to capture.
 - **Copy and rerun a block from the terminal** (#474, 2026-09-23). Point at a block and two
   small buttons show beside its pill: Copy puts the block's output on the clipboard, and Rerun,
   shown while the shell waits at its prompt, clears what you had typed on the line and runs the

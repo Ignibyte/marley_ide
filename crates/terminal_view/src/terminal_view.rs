@@ -1405,6 +1405,8 @@ impl Render for TerminalView {
                 // TODO: Oddly this wrapper div is needed for TerminalElement to not steal events from the context menu
                 div()
                     .id("terminal-view-container")
+                    // Marley: where the pane's rows end, for the driven tests (#476).
+                    .debug_selector(|| "marley-terminal-view".into())
                     .size_full()
                     .bg(cx.theme().colors().editor_background)
                     .child(TerminalElement::new(
@@ -3177,10 +3179,16 @@ mod tests {
         (bounds, draw_size)
     }
 
+    // Marley: a short standalone terminal is drawn down onto the bottom edge, its one row in use
+    // in view and the empty rows below it past the edge; Zed's own test asserted the top
+    // (#476).
     #[gpui::test]
-    async fn test_short_standalone_terminal_stays_top_anchored_on_resize(cx: &mut TestAppContext) {
-        let (bounds, _) = draw_standalone_terminal(b"$ ", cx).await;
-        assert_eq!(bounds.origin.y, px(0.));
+    async fn test_short_standalone_terminal_sits_on_the_bottom_edge_on_resize(
+        cx: &mut TestAppContext,
+    ) {
+        let (bounds, draw_size) = draw_standalone_terminal(b"$ ", cx).await;
+        assert!(bounds.origin.y > px(0.) && bounds.origin.y < draw_size.height);
+        assert!(bounds.bottom() > draw_size.height);
     }
 
     #[gpui::test]
@@ -3640,6 +3648,174 @@ mod tests {
         marley_point_at("marley-block-pill-1", cx);
         assert!(cx.debug_bounds("marley-block-copy-1").is_some());
         assert!(cx.debug_bounds("marley-block-rerun-1").is_none());
+    }
+
+    // Marley: waits until the terminal's modes hold `mode`, drawing frames (#476).
+    #[cfg(unix)]
+    async fn marley_draw_until_mode(
+        terminal: &Entity<Terminal>,
+        mode: terminal::Modes,
+        cx: &mut VisualTestContext,
+    ) {
+        for _ in 0..300 {
+            cx.update(|window, _| window.refresh());
+            cx.run_until_parked();
+            if terminal.read_with(cx, |terminal, _| {
+                terminal.last_content().mode.contains(mode)
+            }) {
+                return;
+            }
+            cx.background_executor
+                .timer(std::time::Duration::from_millis(10))
+                .await;
+        }
+        panic!("the terminal never held {mode:?}");
+    }
+
+    // Marley: the rows between the middle of `bounds` and the bottom edge of the view (#476).
+    #[cfg(unix)]
+    fn marley_rows_above_the_bottom(
+        bounds: gpui::Bounds<gpui::Pixels>,
+        terminal: &Entity<Terminal>,
+        cx: &mut VisualTestContext,
+    ) -> f32 {
+        let view = cx
+            .debug_bounds("marley-terminal-view")
+            .expect("the view's container");
+        let line_height = terminal.read_with(cx, |terminal, _| {
+            terminal.last_content().terminal_bounds.line_height()
+        });
+        (view.bottom() - bounds.center().y) / line_height
+    }
+
+    // Marley: with the screen mostly empty, the content sits on the bottom edge: the prompt on
+    // the grid's last row, the failed block's command two rows above it, its pill with it
+    // (#476).
+    #[cfg(unix)]
+    #[gpui::test]
+    async fn marley_short_content_sits_on_the_bottom_edge(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let (terminal, cx) = marley_hook_terminal(MARLEY_TWO_BLOCKS, cx).await;
+        marley_draw_until_finished(&terminal, 2, cx).await;
+        cx.update(|window, _| window.refresh());
+        let pill = cx
+            .debug_bounds("marley-block-pill-1")
+            .expect("the failed block's pill");
+        // The prompt is on the grid's last row, which Zed's own layout can leave less than a row
+        // above the edge: it snaps the rows' height to whole device pixels.
+        let rows = marley_rows_above_the_bottom(pill, &terminal, cx);
+        assert!((2.5..3.5).contains(&rows), "the pill is {rows} rows up");
+    }
+
+    // Marley: the cursor's row counts as content, so a line ending in a newline keeps the
+    // empty row the next text goes on in view (#476).
+    #[cfg(unix)]
+    #[gpui::test]
+    async fn marley_the_cursors_row_counts_as_content(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let (terminal, cx) = marley_hook_terminal(r"printf 'x\r\n'", cx).await;
+        for _ in 0..300 {
+            cx.update(|window, _| window.refresh());
+            cx.run_until_parked();
+            if terminal
+                .update(cx, |terminal, _| terminal.get_content())
+                .starts_with('x')
+            {
+                break;
+            }
+            cx.background_executor
+                .timer(std::time::Duration::from_millis(10))
+                .await;
+        }
+        cx.update(|window, _| window.refresh());
+        let (empty, lines) = terminal.read_with(cx, |terminal, _| {
+            let content = terminal.last_content();
+            (content.marley_empty_bottom_rows, content.screen_lines)
+        });
+        // `x` on the first row, the cursor on the second, and every row below them empty.
+        assert_eq!(empty, lines - 2);
+    }
+
+    // Marley: scrolled back, the content stays where it was and the history shows above it
+    // (#476).
+    #[cfg(unix)]
+    #[gpui::test]
+    async fn marley_scrolled_back_the_history_shows_above_the_content(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        // A cleared screen over 200 lines of history, with the two blocks at its top.
+        let script = format!(r"seq 1 200; printf '\033[H\033[2J'; {MARLEY_TWO_BLOCKS}");
+        let (terminal, cx) = marley_hook_terminal(&script, cx).await;
+        marley_draw_until_finished(&terminal, 2, cx).await;
+        cx.update(|window, _| window.refresh());
+        let pill = cx
+            .debug_bounds("marley-block-pill-1")
+            .expect("the failed block's pill");
+        let before = marley_rows_above_the_bottom(pill, &terminal, cx);
+        terminal.update(cx, |terminal, _| terminal.scroll_up_by(1));
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        assert_eq!(
+            terminal.read_with(cx, |terminal, _| terminal.last_content().display_offset),
+            1
+        );
+        let pill = cx
+            .debug_bounds("marley-block-pill-1")
+            .expect("the pill, still in view");
+        let after = marley_rows_above_the_bottom(pill, &terminal, cx);
+        assert!(
+            (after - before).abs() < 0.1,
+            "from {before} to {after} rows up"
+        );
+    }
+
+    // Marley: the alternate screen is drawn from the top, as before (#476).
+    #[cfg(unix)]
+    #[gpui::test]
+    async fn marley_the_alternate_screen_is_drawn_from_the_top(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let (terminal, cx) = marley_hook_terminal(r"printf '\033[?1049hx'", cx).await;
+        marley_draw_until_mode(&terminal, terminal::Modes::ALT_SCREEN, cx).await;
+        let view = cx
+            .debug_bounds("marley-terminal-view")
+            .expect("the view's container");
+        let grid = terminal.read_with(cx, |terminal, _| terminal.last_content().terminal_bounds);
+        // Only the padding the snapped rows leave, less than a row, lies above the grid.
+        let above = grid.bounds.origin.y - view.top();
+        assert!(
+            above >= px(0.) && above < grid.line_height(),
+            "{above:?} above the grid"
+        );
+    }
+
+    // Marley: a click on content drawn down onto the bottom edge acts on the row it was drawn
+    // on: with mouse reporting on, it is reported at that row's grid line (#476).
+    #[cfg(unix)]
+    #[gpui::test]
+    async fn marley_a_click_on_shifted_content_reports_its_own_row(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let script = format!(r"{MARLEY_TWO_BLOCKS}; printf '\033[?1000h'");
+        let (terminal, cx) = marley_hook_terminal(&script, cx).await;
+        marley_draw_until_finished(&terminal, 2, cx).await;
+        marley_draw_until_mode(&terminal, terminal::Modes::MOUSE_REPORT_CLICK, cx).await;
+        let pill = cx
+            .debug_bounds("marley-block-pill-1")
+            .expect("the failed block's pill");
+        let grid = terminal.read_with(cx, |terminal, _| terminal.last_content().terminal_bounds);
+        // `oops`, on grid line 2, is drawn on the row below the failed block's pill.
+        let oops = gpui::point(
+            grid.bounds.origin.x + grid.cell_width() * 0.5,
+            pill.center().y + grid.line_height(),
+        );
+        terminal.update(cx, |terminal, _| terminal.take_pty_write_log());
+        cx.simulate_click(oops, gpui::Modifiers::none());
+        cx.run_until_parked();
+        let reports = terminal.update(cx, |terminal, _| terminal.take_pty_write_log());
+        // `ESC [ M`, the button, then the column and the line, each 33 more than its number.
+        assert_eq!(
+            reports.first().map(|press| press.as_slice()),
+            Some(b"\x1b[M !#".as_slice()),
+            "{reports:?}"
+        );
     }
 
     // Marley: a command whose frame did not carry the terminal's nonce, as a frame that output

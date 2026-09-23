@@ -553,6 +553,9 @@ pub struct Content {
     // Marley: the absolute line of the screen's top row with nothing scrolled, evicted lines
     // plus history, which a block's lines map to rows through (#470).
     pub marley_screen_top: u64,
+    // Marley: the live screen's rows below its content, which the view draws the content down
+    // by, so it sits on the bottom edge (#476).
+    pub marley_empty_bottom_rows: usize,
 }
 
 #[derive(Debug, Default, Clone, Eq, PartialEq)]
@@ -591,8 +594,9 @@ impl Default for Content {
             scrolled_to_top: false,
             scrolled_to_bottom: false,
             bottom_row_occupied: false,
-            // Marley: #470.
+            // Marley: #470, #476.
             marley_screen_top: 0,
+            marley_empty_bottom_rows: 0,
         }
     }
 }

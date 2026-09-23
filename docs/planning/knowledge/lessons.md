@@ -2350,3 +2350,23 @@ PR-claude-break-the-code-a-driven-test-guards-before-trusting-it-001 caught it. 
 rules out a write to the PTY reads the PTY write log, and first shows it can see such a write:
 in #474 a press on the block's output, reported, comes before the presses on buttons that must
 not be.
+
+## L-claude-476-zeds-snapped-rows-can-leave-a-gap-below-the-grid-001
+*category: validate · topic: terminal geometry · from: pipeline 476*
+
+`TerminalElement::prepaint` counts rows with the line height rounded to whole device pixels
+(`rows = available / round(line_height)`) and sets the grid's height to those rows, while the
+grid lays its lines out at the fractional line height and `num_lines` divides by it. The two
+can disagree: in #476's test window, 1024 px snapped to 1008, and 55 lines of 18.2 px take 1001,
+so the grid's last line ends 7 px above the element's edge, on a full screen too. A test of
+where the bottom row is drawn allows up to a row between it and the edge, or measures against
+the grid's own last line.
+
+## L-claude-476-a-fresh-folder-gets-a-first-terminal-for-a-capture-001
+*category: validate · topic: the live drive · from: pipeline 476*
+
+`just shot` copies Chad's profile, so it opens his last session, which may show another
+project or a project with no terminal left. `OPEN=<path>` opens a path as `marley <path>` does,
+and a folder with no saved state gets a first terminal in the Marley layout, which a seed's
+terminal settings then shape. Zed shows its trust prompt for an unknown folder over the top of
+the window; the terminal's rows stay visible under it.

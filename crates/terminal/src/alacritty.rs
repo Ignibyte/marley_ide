@@ -930,7 +930,21 @@ pub(super) fn make_content(term: &Term<ZedListener>, last_content: &Content) -> 
         bottom_row_occupied,
         // Marley: the same frame of reference as a shell hook's absolute line (#470).
         marley_screen_top: grid.evicted_lines() + grid.history_size() as u64,
+        marley_empty_bottom_rows: marley_empty_bottom_rows(grid),
     }
+}
+
+// Marley: the live screen's rows below both the cursor and the last row that is not clear. It
+// reads the grid, not the viewport's cells, so it holds while the view is scrolled back (#476).
+fn marley_empty_bottom_rows(grid: &Grid<AlacCell>) -> usize {
+    let screen_lines = grid.screen_lines();
+    let cursor_line = usize::try_from(grid.cursor.point.line.0).unwrap_or(0);
+    let last_used = (0..screen_lines)
+        .rev()
+        .find(|&line| !grid[Line(line as i32)].is_clear())
+        .unwrap_or(0)
+        .max(cursor_line);
+    screen_lines.saturating_sub(last_used + 1)
 }
 
 pub(super) fn content_text(term: &Term<ZedListener>) -> String {

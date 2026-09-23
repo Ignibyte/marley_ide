@@ -42,6 +42,7 @@ clippy +crates: idle
 fmt +crates: idle
     cargo fmt {{ prepend("-p ", crates) }}
 
-# The live drive's capture, no input sent: Marley on a profile copy, hidden; `seed` edits the copy.
+# The live drive's capture, no input sent: Marley on a profile copy, hidden; `seed` edits the copy,
+# and OPEN in the environment names a path to open.
 shot name seed="":
     SEED="{{ seed }}" script/live-shot.sh "{{ name }}"

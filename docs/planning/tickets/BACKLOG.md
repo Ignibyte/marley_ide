@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-476](open/TICKET-476-prompt-at-the-bottom.md) | feature | prong 1 T1d · the terminal's content drawn against the bottom edge while the screen has room, so the prompt sits on the last row |
 | [TICKET-477](open/TICKET-477-agent-bar.md) | feature | prong 1 T7a · the agent bar under a terminal running a CLI agent, with the folder and branch |
 | [TICKET-478](open/TICKET-478-terminal-notifications.md) | feature | prong 1 T7b · OSC 9 and 777 become desktop notifications; the chip that installs Marley's Claude Code plugin |
 | [TICKET-479](open/TICKET-479-attach-a-file.md) | feature | prong 1 T7c · Attach File types the chosen files' paths into the terminal |

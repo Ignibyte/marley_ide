@@ -1286,7 +1286,11 @@ impl Element for TerminalElement {
                 let player_color = theme.players().local();
                 let match_color = theme.colors().search_match_background;
                 let gutter;
-                let (dimensions, line_height_px) = {
+                // Marley: for a standalone view, the padding the snapped rows leave at the
+                // bottom, which the content moves down past when it sits on the bottom edge
+                // (#476).
+                let mut marley_bottom_padding = None;
+                let (mut dimensions, line_height_px) = {
                     let rem_size = window.rem_size();
                     let font_pixels = text_style.font_size.to_pixels(rem_size);
                     let line_height = f32::from(font_pixels) * line_height;
@@ -1342,6 +1346,12 @@ impl Element for TerminalElement {
                         if should_anchor_to_bottom {
                             origin.y += padding;
                         }
+                        // Marley: #476.
+                        marley_bottom_padding = Some(if should_anchor_to_bottom {
+                            px(0.)
+                        } else {
+                            padding
+                        });
                     }
 
                     // Snap to device pixels to avoid subpixel jitter while resizing.
@@ -1367,6 +1377,23 @@ impl Element for TerminalElement {
                 let (hover_tooltip, hover_match) = self.terminal.update(cx, |terminal, cx| {
                     terminal.set_size(dimensions);
                     terminal.sync(window, cx);
+                    // Marley: the content drawn down onto the bottom edge while the screen has
+                    // room, from the content just synced so new output is never a frame late.
+                    // The size is the same, so `set_size` only stores the moved origin, which
+                    // the mouse maps through (#476).
+                    if let Some(padding) = marley_bottom_padding {
+                        let content = terminal.last_content();
+                        let shift = marley_terminal::bottom_shift(
+                            content.marley_empty_bottom_rows,
+                            content.display_offset,
+                            content.mode.contains(Modes::ALT_SCREEN),
+                        );
+                        if shift > 0 {
+                            dimensions.bounds.origin.y +=
+                                dimensions.line_height * shift as f32 + padding;
+                            terminal.set_size(dimensions);
+                        }
+                    }
 
                     if window.modifiers().secondary()
                         && bounds.contains(&window.mouse_position())
