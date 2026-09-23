@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Terminal routing in the Marley layout** (#441, 2026-09-22). In the Marley layout nothing
+  opens the bottom Terminal Panel. Tasks run in center terminals, whether they start from the
+  task modal, a runnable or a code lens. A rerun replaces the task's terminal as Zed's rules
+  say, and a task that last ran in the panel before a switch reruns in the center. New Terminal
+  and every Open in Terminal menu open a center terminal, the second in the folder it names;
+  one that cannot open says why in a prompt. In the Zed layout each goes where upstream sends
+  it, and a layout switch changes the routing on the next call with nothing to restart.
 - **Agent CLIs in rail terminals** (#440, 2026-09-22). The rail recognizes Claude Code, Codex,
   Gemini CLI and OpenCode running in any terminal, however they were started. Such a row shows
   the agent's icon and the title the CLI sets, and its second line reads the agent and whether

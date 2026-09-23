@@ -59,7 +59,7 @@ pub(crate) fn init_agent_test(cx: &mut TestAppContext) {
 }
 
 /// What `sidebar::Sidebar::new` reads, for the tests that build Zed's sidebar.
-fn init_zed_sidebar(cx: &TestAppContext) {
+pub(crate) fn init_zed_sidebar(cx: &TestAppContext) {
     cx.update(|cx| {
         agent::ThreadStore::init_global(cx);
         agent_ui::thread_metadata_store::ThreadMetadataStore::init_global(cx);

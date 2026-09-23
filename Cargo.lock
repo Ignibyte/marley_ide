@@ -10840,6 +10840,7 @@ dependencies = [
  "serde_json",
  "settings",
  "sidebar",
+ "task",
  "tempfile",
  "terminal",
  "terminal_view",

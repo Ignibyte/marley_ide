@@ -8,6 +8,7 @@
 #[cfg(test)]
 pub mod marley_workbench_tests;
 mod rail;
+pub mod routing;
 
 use fs::Fs;
 use gpui::{
@@ -84,6 +85,7 @@ pub fn init(cx: &mut App) {
     let layout = state.applied;
     cx.set_global(state);
     apply_defaults(layout, cx);
+    routing::init(cx);
     cx.on_action(|_: &UseMarleyLayout, cx: &mut App| write_layout(MarleyLayout::Marley, cx))
         .on_action(|_: &UseZedLayout, cx: &mut App| write_layout(MarleyLayout::Zed, cx))
         .observe_global::<SettingsStore>(layout_setting_changed)
@@ -164,6 +166,11 @@ pub fn register_sidebar(
     if had_focus {
         focus_handle.focus(window, cx);
     }
+}
+
+/// Whether the windows use the Marley layout, read where each routing decision is made.
+fn marley_layout(cx: &App) -> bool {
+    MarleySettings::get_global(cx).layout == MarleyLayout::Marley
 }
 
 fn write_layout(layout: MarleyLayout, cx: &App) {

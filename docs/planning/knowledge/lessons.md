@@ -1919,3 +1919,27 @@ no process. What worked in #440:
   `TitleChanged` or `BreadcrumbsChanged` reaches them as an `ItemEvent`. Emitting on the
   `Terminal` entity is enough to drive the rail.
 - `cx.executor().advance_clock(WAITING_AFTER)` fires the quiet timer.
+
+## L-claude-441-driving-tasks-and-terminal-actions-in-a-gpui-test-001
+*category: validate · topic: the terminal routing's driven tests · from: pipeline 441*
+
+What worked in #441 (`crates/marley_workbench/src/routing_tests.rs`):
+- Real shells and tasks, as Zed's panel tests run them, with `cx.executor().allow_parking()`.
+  Parking lets real time pass and moves the test clock with it, so a test can await
+  `Workspace::spawn_in_terminal` and poll a shell with executor timers.
+- Load the panel with `TerminalPanel::load`, then `add_panel`, as `crates/zed` does. `load`
+  installs Zed's provider, so a provider that has to replace it meets the real order;
+  `TerminalPanel::new` installs none.
+- Dispatch an action from inside the workspace: focus the center pane, draw a frame
+  (`window.refresh()`), then `cx.dispatch_action`. Listeners on the workspace's root are on
+  the dispatch path only when focus is below it.
+- A missing program is not a failed spawn. `spawn_task` runs the command in the task's shell,
+  which reports exit status 127; a task fails to start only when its shell is missing
+  (`Shell::Program("__nonexistent_shell__")`). Zed's own failed-spawn test skips the shell by
+  calling `add_terminal_task`.
+- A shell's `Terminal::working_directory()` is known only after its first output, so poll it.
+- A switch back to the Zed layout builds Zed's sidebar, which reads the agent stores
+  (`init_zed_sidebar`).
+- Test the second run, not only the first. Zed's reuse paths, such as a task's rerun, look for
+  the old terminal wherever it is. #441's rerun gap passed seven tests and a green gate before a
+  rerun test found it (F-claude-441-a-rerun-reopened-the-hidden-terminal-panel-001).

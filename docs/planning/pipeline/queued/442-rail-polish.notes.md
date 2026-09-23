@@ -45,3 +45,16 @@
   terminals and Terminal Panel terminals open, and check both kinds come back, since the
   workspace and the Terminal Panel each clean the shared `terminals` table with only their own
   item ids (`workspace.rs:7961-7982`, `terminal_panel.rs:359-378`).
+
+## Carried from #441's promotion (2026-09-22)
+Two items moved here from W5 when #441 was narrowed to routing:
+- **The first-show terminal.** A project first shown in the Marley layout with no center
+  terminal gets one at its root. The risk: a restored workspace adds its terminals after the
+  rail's first read, which would double them. Seed only once the workspace's items are
+  restored, or only for a project opened fresh.
+- **Zed's Panel Layout presets** (carried from #438, see #441's notes). `UseClassicLayout` and
+  `UseAgenticLayout` misread the Marley layout. The title bar hides them through
+  `CommandPaletteFilter` when AI is off, and reapplies that on every settings change, so a
+  Marley-side hide would be undone. The fix is either a title-bar touchpoint or catching the
+  two actions in the capture phase in the Marley layout (as #441 does for the terminal
+  actions), with a message instead of the write.

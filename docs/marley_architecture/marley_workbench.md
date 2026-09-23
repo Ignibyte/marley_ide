@@ -1,7 +1,8 @@
 # `marley_workbench`
 
 The Marley layout, written in the fork for the workbench shell's W2 (#438): the
-`marley.layout` setting, the switch between Zed's sidebar and the rail, and the rail itself.
+`marley.layout` setting, the switch between Zed's sidebar and the rail, the rail itself, and
+since W5 (#441) the terminal routing.
 MIT OR Apache-2.0. It links Zed's GPL crates (`workspace`, `sidebar`, `terminal_view`,
 `recent_projects` and others), so it builds and ships only as part of the fork
 (AD-claude-438-marley-crates-may-link-zeds-gpl-crates-001).
@@ -106,6 +107,33 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   bar's project button
   (AD-claude-439-the-rail-does-not-claim-zeds-threads-list-001).
 
+## Routing (#441)
+
+`src/routing.rs`, installed on every workspace by `init`. In the Marley layout nothing opens the
+bottom Terminal Panel; in the Zed layout everything passes through to Zed. Both halves read the
+layout at each call, so a switch reinstalls nothing.
+
+- **Tasks.** `RoutedTerminals` replaces Zed's `TerminalProvider` when the workspace announces
+  the Terminal Panel (`workspace::Event::PanelAdded`), after the panel's `load` has installed
+  Zed's. Every task still runs through `TerminalPanel::spawn_task`, so Zed's rules for reruns,
+  reuse and concurrent runs hold; in the Marley layout the provider sets
+  `reveal_target: Center` first.
+  - The workspace calls a provider while it is being updated, and `spawn_task` reads the
+    workspace, so the spawn waits for the window's next turn.
+  - A task reruns in its last terminal. In the Marley layout the provider first moves the
+    task's terminals out of the panel into the active pane (`workspace::move_item`, as a tab
+    drag does), so a task that last ran in the Zed layout reruns in the center.
+  - The answer is the task's exit status: `Some(Err)` when it cannot start, `None` when its
+    window or terminal went first.
+- **New Terminal and Open in Terminal.** Capture-phase listeners on the workspace's root
+  (`register_action_renderer`, `capture_action`) see `workspace::NewTerminal` and
+  `workspace::OpenTerminal` before Zed's handlers. In the Marley layout they stop propagation
+  and open a center terminal through `TerminalPanel::add_center_terminal`: New Terminal where
+  Zed's would start (`default_working_directory`), Open in Terminal in the folder it names, a
+  local shell for `local: true`. An error reaches a prompt. Everything dispatched inside the
+  workspace passes these listeners, the Terminal Panel's own `+` included when the panel is
+  opened by hand.
+
 ## Tests
 
 `src/marley_workbench_tests.rs` (the switch, 11 tests) and `src/rail_tests.rs` (the rail, 16,
@@ -117,16 +145,24 @@ thread database per test) over the window. They put an `AgentPanel::test_new` in
 and drive threads through `acp_thread::StubAgentConnection`: a turn that stays open until
 `end_turn`, or a tool call waiting on a permission.
 
+`src/routing_tests.rs` (the routing, 7 tests) runs real shells and tasks, as Zed's own panel
+tests do, with the executor allowed to park. Each window loads the Terminal Panel through
+`TerminalPanel::load` and adds it, as `crates/zed` does, so Zed's provider is in place first
+and the routing's has to replace it. Actions are dispatched from the focused center pane, below
+the workspace's root.
+
 ## Known limits
 
-- Zed's Panel Layout presets misread the Marley layout until #441 hides them.
+- Zed's Panel Layout presets misread the Marley layout until #442 hides them.
+- The Terminal Panel's own toggle (`` ctrl-` ``) still opens the panel until the Marley keymap
+  (#449) takes the key. Vim's `:!` and external agents' login terminals still open there too:
+  they call the panel directly.
 - The settings UI shows the patched values as the defaults: in the Marley layout a stored
   `terminal.button: false` looks like the default and has no reset control.
 - A layout round trip with the Agent Panel open can close the right dock; each round trip
   adds a subscription pair on the kept Zed sidebar; a window restored in the Marley layout
   saves a partial state before its restore finishes. All three are in #442's notes.
-- Routing, keyboard navigation and the rail's own saved width and closed state are W5 and W6
-  (#441, #442).
-- The thread rows and the agent rows have not been seen live: the drives for #439 and #440
-  would have moved Chad's windows off his monitor, and #440's needs clicks. Their look is owed
-  to the next headless capture.
+- Keyboard navigation and the rail's own saved width and closed state are W6 (#442).
+- The thread rows, the agent rows and the routing have not been seen live: the drives for #439
+  and #440 would have moved Chad's windows off his monitor, and #440's and #441's need input.
+  They are owed to the next headless capture.

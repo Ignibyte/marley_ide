@@ -1690,3 +1690,27 @@ were rustdoc's, which `-D warnings` already turns into errors. The check could n
 in the Test phase while writing its negative smoke, which plants an unused manifest key, before
 the gate shipped. Fixed: gate:14 runs `cargo doc` without `--quiet`, and the planted key now
 turns it red.
+
+## F-claude-441-a-task-provider-read-the-workspace-inside-its-update-001
+*severity: high · category: gpui re-entrancy · pipeline 441*
+
+The first `RoutedTerminals::spawn` called `TerminalPanel::spawn_task` at once. The workspace
+calls its `TerminalProvider` from `Workspace::spawn_in_terminal`, inside its own update, and
+`spawn_task` reads the workspace (`terminal_panel.rs:638-642`). Every task in the fork would
+have panicked: "cannot read workspace::Workspace while it is already being updated". Found by
+the Code phase's review before any test ran; the REQ-001 test, run against the first version,
+reproduces the panic. Fixed: the provider spawns on the window and calls the panel from there
+with `update_in`.
+
+## F-claude-441-a-rerun-reopened-the-hidden-terminal-panel-001
+*severity: medium · category: behavior · pipeline 441*
+
+`spawn_task` reruns a task in its last terminal wherever that terminal is: `terminals_for_task`
+searches the panel's panes and the center's (`terminal_panel.rs:779-820`), and
+`replace_terminal` reveals the pane that holds it (`:1121-1127`). In the Marley layout, a task
+that last ran in the Zed layout reran in the hidden panel and opened it, against REQ-001. Task
+terminals are never saved (`persistence.rs:67`), so only a switch within one session hits it.
+Found in the Complete phase, while checking the CHANGELOG's claim that Zed's rerun rules hold
+in the center; no test had rerun a task. Fixed: in the Marley layout the provider first moves
+the task's terminals from the panel to the active pane (`workspace::move_item`), and the switch
+test reruns a task that last ran in the panel.

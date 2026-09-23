@@ -10,7 +10,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-441](open/TICKET-441-marley-terminal-routing.md) | feature | W5 · terminal routing and keys in the Marley layout |
+| [TICKET-449](open/TICKET-449-marley-keymap.md) | feature | W5b · the Marley keymap: terminal keys that route to the center in the Marley layout |
 | [TICKET-442](open/TICKET-442-rail-polish.md) | feature | W6 · rail persistence and polish |
 | [TICKET-448](open/TICKET-448-zed-dylint-lints.md) | chore | quality gates · Zed's dylint lints (`tooling/lints`) on the Marley crates, as gate:21 |
 

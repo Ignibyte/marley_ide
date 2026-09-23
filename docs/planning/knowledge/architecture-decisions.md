@@ -1331,3 +1331,17 @@ the installed CLIs as entries under an "Agent CLIs" header, not in a submenu, so
 is a single click; the original complaint was not finding how to start an agent at all. The
 launch writes only a program name from `marley_agent`'s list, after the shell's startup
 handshake, so nothing but a known command reaches the shell.
+
+## AD-claude-441-the-marley-layout-routes-terminals-without-touching-zed-001
+*decided at: 2026-09-22 · status: shipped*
+
+In the Marley layout nothing opens the bottom Terminal Panel, and no Zed crate changes for it.
+A task provider of `marley_workbench`'s own replaces Zed's when the workspace announces the
+panel. It sets each task's reveal target to the center and still runs it through
+`TerminalPanel::spawn_task`, so Zed's rerun and reuse rules hold; a task's terminals left in the
+panel move to the center before it reruns. Capture-phase listeners on the workspace's root take
+New Terminal and Open in Terminal before the panel's handlers do. Both halves read the layout
+at each call, so the Zed layout stays upstream's and a switch reinstalls nothing. The panel
+stays loaded, out of sight, since tasks and agent logins need it. Rejected: a hunk in each of
+the panel's handlers (a Zed diff per path), dropping the panel (a workspace with no provider
+fails every task silently), and keymap remaps (they miss menus and the command palette).

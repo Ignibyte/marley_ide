@@ -176,7 +176,9 @@ Marley layout the crate keeps anything from opening it:
   `workspace::Event::PanelAdded`). It sets `reveal_target` to `Center` and hands off to
   `TerminalPanel::spawn_task`, so the task modal, runnables, code lenses and the git commit
   menu all land in the center with Zed's rerun and reuse rules intact
-  (`terminal_panel.rs:632-733`). In the Zed layout it hands the task over untouched.
+  (`terminal_panel.rs:632-733`). A task reruns in its last terminal, so the provider first
+  moves the task's terminals out of the panel (`workspace::move_item`); one that last ran in
+  the Zed layout reruns in the center. In the Zed layout it hands the task over untouched.
 - **New Terminal and Open in Terminal:** `workspace::NewTerminal` goes to the panel unless a
   center terminal already has focus, and `workspace::OpenTerminal`, which every "Open in
   Terminal" menu dispatches, always does (`terminal_panel.rs:609-630`, `:736-778`). The crate
@@ -328,7 +330,7 @@ Each lands as a row in [zed-touchpoints.md](zed-touchpoints.md) in the same chan
 | W2 | `crates/zed/src/zed.rs`, `initialize_workspace` | `marley_workbench::init(cx)` as its first line, before any window opens (a hunk inside `fn main` would give the DIFF gate a mutant no test reaches) |
 | W2 | `crates/zed/src/zed.rs:536-546` | sidebar construction handed to `marley_workbench` (D1) |
 | W2 | `crates/zed/src/zed.rs`, `test_action_namespaces` | the crate's action namespace in the expected list (`:5889-5984`); the test fails once a crate with new actions is linked |
-| W5 | `crates/zed/src/zed.rs`, `load_default_keymap` | bind the Marley keymap after `specific-overrides` (`:2369-2376`) |
+| W5b | `crates/zed/src/zed.rs`, `load_default_keymap` | bind the Marley keymap after `specific-overrides` (`:2369-2376`) |
 
 Defaults, task routing and terminal routing need none (D2, D6). Deferred until Chad wants
 them: a Marley entry in the title bar's Panel Layout menu (`title_bar.rs`), the AI gate
@@ -358,8 +360,10 @@ and the rail, live, and the rail lists each project with its center terminals. W
 row opens the thread in the right-hand Agent Panel, and the project's `+` starts one for any
 configured agent. W4 shipped as #440: a terminal running Claude Code, Codex, Gemini CLI or
 OpenCode shows as an agent row with the CLI's title and a working or waiting status, and the
-project's `+` starts any installed CLI in one click. W5 and W6 are TICKET-441 and TICKET-442,
-queued in that order.
+project's `+` starts any installed CLI in one click. W5 shipped as #441: in the Marley layout
+tasks, New Terminal and Open in Terminal open center terminals, and nothing opens the bottom
+panel. The Marley keymap, split from W5 at its promotion, is TICKET-449 (W5b); W6 is
+TICKET-442, queued after it.
 
 | Slice | Delivers | Size |
 |---|---|---|
@@ -368,7 +372,7 @@ queued in that order.
 | W2 | The switch and a first rail: the `marley` settings block, the two layout actions, live sidebar swapping, the Marley defaults, and a rail with project headers, center terminals, click to switch, New Terminal, single selection and window controls; driven gpui tests and a live drive | L |
 | W3 | Zed threads in the rail: thread rows, status and attention dots, New Agent Thread, opening a thread in the right-hand Agent Panel | M |
 | W4 | Agents in terminals: New Agent, agent recognition and status | M |
-| W5 | Terminal routing in the Marley layout: the task provider, the action capture, the Marley keymap, a terminal on project open | M |
+| W5 | Terminal routing in the Marley layout: the task provider and the action capture (#441). The Marley keymap followed as W5b (#449); a terminal on project open moved to W6 | M |
 | W6 | Persistence and polish: closed-rail memory, rename, close, keyboard navigation, filter, the switcher, project reorder | M |
 
 Then the prongs continue in this shell: T0 and T1 draw Blocks inside the rail's terminals,

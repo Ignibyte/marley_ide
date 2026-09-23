@@ -2161,3 +2161,14 @@ let written = terminal.update(cx, launch)?;
 
 The `?` then shares a line with code that ran. It bit #438 (`})?;` after an update on a weak
 handle) and #440 (two `terminal.update` calls in the agent launch).
+
+## PR-claude-a-callback-zed-calls-mid-update-defers-its-entity-work-001
+*severity: high · prevents: F-claude-441-a-task-provider-read-the-workspace-inside-its-update-001*
+
+Before implementing a Zed trait method or callback in a Marley crate (a `TerminalProvider`, an
+observer, a subscription), find its caller. When the caller runs inside an entity's update, as
+`Workspace::spawn_in_terminal` calls the provider from inside the workspace's, nothing the
+callback calls may read or update that entity. That includes Zed code that only holds a handle
+to it, such as `TerminalPanel::spawn_task`. Defer the work to the window's next turn
+(`window.spawn`, then `update_in`). Drive the callback in a test through Zed's public entry
+point, the way Zed calls it, never by calling the method outside an update.
