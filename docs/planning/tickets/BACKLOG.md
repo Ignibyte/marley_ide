@@ -10,6 +10,8 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
+| [TICKET-471](open/TICKET-471-just-for-the-workflow.md) | chore | the workflow · install `just` and a `justfile` whose recipes wrap the gate, the build, tests, clippy and the live capture (Chad, 2026-09-23) |
+| [TICKET-472](open/TICKET-472-rust-toolchain-current.md) | chore | the toolchain · the box's default `stable` to 1.98.1, Marley's pin already there, and the pin moved at each new stable (Chad, 2026-09-23) |
 
 ## Deliberate (picked explicitly, never auto-next)
 
