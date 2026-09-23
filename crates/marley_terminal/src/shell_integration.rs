@@ -5,7 +5,8 @@
 //! The scripts are embedded here, and [`install_in`] writes them to a directory the caller
 //! names, from which the shell reads them at startup. [`for_program`] says how to start a
 //! program with them. bash takes `--rcfile`, and its script sources the user's own `~/.bashrc`
-//! first. zsh and fish follow (#465, #466).
+//! first. zsh and fish follow (#465, #466). [`shown_arguments`] is what the user is shown of
+//! a process's arguments: all but the ones [`for_program`] adds.
 
 use std::io;
 use std::path::Path;
@@ -63,6 +64,34 @@ pub fn for_program(program: &str, dir: &Path) -> Option<ShellIntegration> {
     }
 }
 
+/// The arguments to show of the process `argv`, without the ones Marley's integration added.
+///
+/// Every argument after the program is kept, less the arguments [`for_program`] adds to that
+/// program with the scripts in `dir` where they appear as one run, so a shell Marley started
+/// with its integration reads as the same shell started without it.
+#[must_use]
+pub fn shown_arguments<'a>(argv: &'a [String], dir: &Path) -> Vec<&'a str> {
+    let Some((program, arguments)) = argv.split_first() else {
+        return Vec::new();
+    };
+    let added = for_program(program, dir).map_or_else(Vec::new, |integration| integration.args);
+    // `windows` takes no empty run.
+    let run = (!added.is_empty())
+        .then(|| {
+            arguments
+                .windows(added.len())
+                .position(|window| window == added)
+        })
+        .flatten()
+        .map_or(0..0, |start| start..start + added.len());
+    arguments
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| !run.contains(index))
+        .map(|(_, argument)| argument.as_str())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -82,6 +111,44 @@ mod tests {
         for other in ["zsh", "/bin/sh", "fish", "", "/"] {
             assert_eq!(for_program(other, dir), None, "{other}");
         }
+    }
+
+    fn argv(arguments: &[&str]) -> Vec<String> {
+        arguments.iter().map(ToString::to_string).collect()
+    }
+
+    #[test]
+    fn a_shell_started_with_marleys_integration_shows_only_its_own_arguments() {
+        let dir = Path::new("/data/marley/shell_integration");
+        let script = "/data/marley/shell_integration/marley.bash";
+        assert!(shown_arguments(&argv(&["bash", "--rcfile", script]), dir).is_empty());
+        assert!(shown_arguments(&argv(&["/usr/bin/bash", "--rcfile", script]), dir).is_empty());
+        assert_eq!(
+            shown_arguments(&argv(&["bash", "-l", "--rcfile", script, "-x"]), dir),
+            ["-l", "-x"]
+        );
+    }
+
+    #[test]
+    fn any_other_process_shows_every_argument() {
+        let dir = Path::new("/data/marley/shell_integration");
+        let script = "/data/marley/shell_integration/marley.bash";
+        for arguments in [
+            &["zsh", "--rcfile", script][..],
+            &["bash", "--rcfile", "/home/me/.bashrc"],
+            &["bash", "--rcfile"],
+            &["bash", script, "--rcfile"],
+            &["bash", "--rcfile", "-i", script],
+            &["vim", "notes.md"],
+            &["bash"],
+        ] {
+            assert_eq!(
+                shown_arguments(&argv(arguments), dir),
+                arguments[1..],
+                "{arguments:?}"
+            );
+        }
+        assert!(shown_arguments(&[], dir).is_empty());
     }
 
     #[cfg(unix)]

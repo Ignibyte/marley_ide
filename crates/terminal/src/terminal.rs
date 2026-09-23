@@ -76,6 +76,12 @@ use crate::alacritty::{
 use crate::mappings::colors::to_vte_rgb;
 use crate::mappings::keys::to_esc_str;
 
+// Marley: where the builder installs Marley's shell integration (#463), which the title reads
+// too, to leave the integration's arguments out (#467).
+fn marley_integration_dir() -> PathBuf {
+    paths::data_dir().join("shell_integration")
+}
+
 // Marley: the shell a local interactive terminal starts: the given one, or, when Marley has an
 // integration for its program, the program with Marley's arguments and environment (#463).
 #[cfg(unix)]
@@ -85,7 +91,7 @@ fn marley_shell_integration(shell: Shell, env: &mut HashMap<String, String>) -> 
         Shell::Program(program) => program.clone(),
         Shell::WithArguments { .. } => return shell,
     };
-    let dir = paths::data_dir().join("shell_integration");
+    let dir = marley_integration_dir();
     let Some(integration) = marley_terminal::shell_integration::for_program(&program, &dir) else {
         return shell;
     };
@@ -3084,11 +3090,17 @@ impl Terminal {
                                 .unwrap_or_default();
 
                             let argv = fpi.argv.as_slice();
+                            // Marley: the arguments Marley's shell integration added are not the
+                            // user's, so the title leaves them out (#467).
+                            let arguments = marley_terminal::shell_integration::shown_arguments(
+                                argv,
+                                &marley_integration_dir(),
+                            );
                             let process_name = format!(
                                 "{}{}",
                                 fpi.name,
                                 if !argv.is_empty() {
-                                    format!(" {}", (argv[1..]).join(" "))
+                                    format!(" {}", arguments.join(" "))
                                 } else {
                                     "".to_string()
                                 }
@@ -4283,6 +4295,34 @@ mod tests {
         let block = finished_block_of(&terminal, "echo 'a;b'", cx).await;
         let output = terminal.read_with(cx, |terminal, _| terminal.block_output(&block));
         assert_eq!(output.as_deref(), Some("a;b"));
+    }
+
+    // Marley: a shell started with Marley's integration is titled as if started without it
+    // (#467).
+    #[cfg(unix)]
+    #[gpui::test]
+    async fn marley_bash_is_titled_without_the_integrations_arguments(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let home = tempfile::tempdir().unwrap();
+        std::fs::write(
+            home.path().join(".bashrc"),
+            "echo MARKER_FROM_USER_BASHRC\n",
+        )
+        .unwrap();
+        let terminal = build_marley_bash_terminal(cx, home.path()).await;
+        assert_content_eventually(&terminal, "MARKER_FROM_USER_BASHRC", cx).await;
+        let (argv, title) = terminal.update(cx, |terminal, _| {
+            let TerminalType::Pty { info, .. } = &terminal.terminal_type else {
+                panic!("a local shell runs in a PTY");
+            };
+            let argv = info.load_for_test().map(|process| process.argv);
+            (argv, terminal.title(false))
+        });
+        // The process keeps the arguments; only the title leaves them out.
+        let argv = argv.expect("the shell's process info");
+        assert_eq!(argv.get(1).map(String::as_str), Some("--rcfile"));
+        let name = home.path().file_name().unwrap().to_string_lossy();
+        assert_eq!(title.trim_end(), format!("{name} — bash"));
     }
 
     // Marley: which shells are rewritten to load Marley's integration (#463).

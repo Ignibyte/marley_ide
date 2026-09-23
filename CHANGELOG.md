@@ -225,6 +225,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A shell's title no longer shows Marley's rcfile** (#467, 2026-09-23). Since #463 every
+  bash tab and every terminal row in the rail read `bash --rcfile …/marley.bash`, because Zed
+  titles a shell with its arguments and Marley adds that one to load its integration. The title
+  now leaves out the arguments Marley added, so a shell reads `marley_ide — bash` again. A
+  program you run in the terminal is titled with its arguments as before.
 - **The rail follows a project's folders** (#458, 2026-09-23). A project whose last folder you
   removed kept its row in the rail until something else in the window changed. Now the row goes
   at once. Adding, removing or reordering a project's folders updates its row straight away,

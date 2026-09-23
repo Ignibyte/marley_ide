@@ -1768,3 +1768,16 @@ Fixed: the switch notes every dock before the move, and afterwards gives the doc
 Panel leaves the panel it showed before the trip, while the Agent Panel was still what that dock
 showed. `a_round_trip_leaves_each_dock_as_it_was` fails without the fix
 (`left: … (false, None)`).
+
+## F-claude-467-a-marley-shells-title-showed-its-rcfile-001
+*severity: medium · category: behavior · pipeline 467 (found in #463's live effect, 2026-09-23)*
+
+#463 starts each local bash as `bash --rcfile <data dir>/shell_integration/marley.bash`, and
+Zed's `Terminal::title` names the foreground process with every argument after the program
+(`crates/terminal/src/terminal.rs:3086-3095`). Every shell tab and every terminal row in the rail
+then read `marley_ide — bash --rcfile /home/…/marley.bash`. #463's live check read the running
+shells in `ps`, not their titles on screen, so it passed. Found in the capture taken before the
+rail restyle. Fixed: the title lists the arguments through
+`marley_terminal::shell_integration::shown_arguments`, which leaves out the run `for_program`
+adds. `marley_bash_is_titled_without_the_integrations_arguments` fails without the fix
+(`left: ".tmpW4qYkg — bash --rcfile /home/cpeppers/.local/share/marley/shell_integration/marley.bash"`).

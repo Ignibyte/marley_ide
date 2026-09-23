@@ -2227,3 +2227,26 @@ interactive terminal.
   Inside it, `fc -ln -0` gives the line just read, provided history kept it.
 - **A scratch `HOME` keeps a test off the user's `.bashrc`**, and a marker echoed from a scratch
   `.bashrc` proves the user's file is still sourced through `--rcfile`.
+
+## L-claude-467-see-a-process-marley-changes-where-zed-shows-it-001
+*category: validate · topic: live drives of the terminal · from: pipeline 467*
+
+When Marley changes how a process starts (arguments, environment, a wrapper), the live check
+looks at the places Zed shows that process: the tab title, the rail row, the tab's tooltip.
+`ps` proves the process runs as intended; it cannot show what the user reads. Zed titles a
+local shell `<cwd name> — <process name> <arguments>` from the foreground process
+(`Terminal::title`), so an added argument is on screen at once.
+
+## L-claude-467-capture-one-window-by-its-toplevel-001
+*category: validate · topic: live drives without touching Chad's screen · from: pipeline 467*
+
+`grim -T <stableId>` captures a single window by its `ext-foreign-toplevel-list` identifier,
+which Hyprland 0.56 prints as `stableId` in `hyprctl clients -j`. The window can sit on a
+workspace nobody is looking at, so no headless output is needed and no workspace of Chad's is
+borrowed (L-claude-438-the-headless-output-borrows-one-of-chads-workspaces-001). The recipe,
+all through `hyprctl eval`:
+`hl.window_rule({ match = { class = "dev.zed.Zed-Dev" }, workspace = "9 silent", render_unfocused = true })`,
+`hl.config({ misc = { focus_on_activate = false } })`, launch from the checkout with
+`--user-data-dir` on a copy of the profile, wait for the client, `grim -T`, SIGTERM the pid from
+`hyprctl clients -j`, `hyprctl reload`. `render_unfocused` is a window rule;
+`misc.render_unfocused` does not exist (`unknown config key`), and a failed eval exits 7.

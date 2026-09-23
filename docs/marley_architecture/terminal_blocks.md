@@ -123,7 +123,9 @@ real, reusable session. The Block model is the unit the **brain** later observes
   `--rcfile` and `MARLEY_SHELL_INTEGRATION=1`. Zed's `TerminalBuilder::new` applies it to a local
   interactive `System` or `Program` shell (`marley_shell_integration` in `crates/terminal`). The
   script sources `~/.bashrc`, then prepends `__marley_precmd` to `PROMPT_COMMAND` (keeping `$?`)
-  and appends `__marley_preexec` to `PS0`.
+  and appends `__marley_preexec` to `PS0`. `shown_arguments(argv, dir)` (#467) is a process's
+  arguments less the run `for_program` adds; Zed's `Terminal::title` lists those, so a shell
+  Marley started reads as the same shell started without the integration.
 - `session.rs` — `classify_write` + the `PtyChannel`-trait `TerminalSession` (`write_bytes` re-queue,
   `pump`, `resize`) — unit-tested via a `MockPtyChannel` (the logic is reachable headlessly).
   **M1.C (TICKET-023):** `pump` gained an IDLE FAST-PATH — a LEADING `WouldBlock` (nothing read this
