@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# enforce-phase-tasks.sh — TaskCreate-first convention (Stop hook).
-# Each pipeline phase must (a) call TaskCreate at least once after entering the
-# phase, and (b) resolve every task it created (completed|deleted) before Stop.
-# Blocks Stop otherwise. Exit 0 = allow, 2 = block.
+# enforce-phase-tasks.sh — a phase resolves the tasks it created (Stop hook).
+# A pipeline phase that called TaskCreate must mark every task it created
+# completed or deleted before Stop. A phase that created none is not blocked:
+# some harnesses have no TaskCreate, and the checklist then lives in the notes.
+# Exit 0 = allow, 2 = block.
 set -euo pipefail
 INPUT=$(cat)
 command -v jq &>/dev/null || exit 0
@@ -11,7 +12,7 @@ TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty')
 [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ] || exit 0
 is_pipeline_session "$TRANSCRIPT_PATH" || exit 0
 
-# Only enforce inside an actual pipeline phase (not /commit, /work, chat).
+# Only enforce inside an actual pipeline phase (not /spec, not chat).
 PHASE=$(detect_active_command "$TRANSCRIPT_PATH")
 [ -n "$PHASE" ] || exit 0
 
@@ -28,12 +29,6 @@ IDX=$(index_of_latest_phase_advance "$TRANSCRIPT_PATH")
 CREATED=$(count_tool_uses_after_index "$TRANSCRIPT_PATH" "$IDX" "TaskCreate")
 RESOLVED=$(count_terminal_task_updates_after_index "$TRANSCRIPT_PATH" "$IDX")
 
-if [ "$CREATED" = "0" ]; then
-    { echo ""; echo "STOP BLOCKED — /pipeline:$PHASE created no tasks."
-      echo "Convention: the FIRST action of a phase is one TaskCreate per checklist item."
-      echo "Create the phase's tasks, work them, resolve them, then Stop."; } >&2
-    exit 2
-fi
 if [ "$RESOLVED" -lt "$CREATED" ]; then
     { echo ""; echo "STOP BLOCKED — /pipeline:$PHASE has unresolved tasks ($RESOLVED/$CREATED terminal)."
       echo "Before leaving a phase, TaskUpdate every task to completed (done) or deleted (n/a)."

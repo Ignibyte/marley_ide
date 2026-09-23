@@ -53,7 +53,7 @@ references: []
 <!-- Does this ticket change anything the user SEES or types into (a pane, a panel, the terminal, a
      keystroke or mouse handler, an affordance)? Fill with ONE of:
        - UI-AFFECTING: the gpui driven tests (TestAppContext / VisualTestContext) that will prove it, and
-         the live drive validate runs on the real app (cargo run + a screenshot through dev-box-desktop).
+         the live drive the Test phase runs on the real app (cargo run + a screenshot through dev-box-desktop).
        - N/A — no UI delta: <why> (first line must start "N/A"). -->
 
 ## Locked-In Decisions
@@ -68,8 +68,8 @@ negative smoke, or review).
 | REQ-001 | WHEN … the system shall … | … |
 
 ## Phase Plan
-- **P2 Design** — …
-- **P3 Implement** — …
-- **P3.5 Inspect** — independent critics vs the diff; fix the real findings.
-- **P4 Validate** — write + RUN tests; gate green.
-- **P5 Complete** — archive, ledger capture (§19), close the ticket + drop its BACKLOG row.
+- **P1 Plan** — this spec, and the design and test plan in the notes.
+- **P2 Code** — …; fmt and clippy clean; a review of the diff.
+- **P3 Test** — write + RUN the tests; the live drive for a UI change; `script/gates.sh --diff` green.
+- **P4 Complete** — CHANGELOG and architecture docs (§21), ledger capture (§19), close the ticket,
+  archive, commit.

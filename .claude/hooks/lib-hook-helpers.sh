@@ -29,9 +29,9 @@ normalize_path() {
 # content of every tracked-or-untracked `crates/**/*.rs` (CONSTITUTION §3
 # application code, Zed's crates included) AND the files that define the bar
 # itself — `script/gates.sh`, `.claude/hooks/*.sh`, `clippy.toml`, `deny.toml`,
-# `.gitleaks.toml`, `.cargo/audit.toml`, `.cargo/config.toml`,
-# `.cargo/mutants.toml`, the Cargo manifests + lockfile, the toolchain pin, the
-# nextest config — so a post-green *weakening of the gate*
+# `.gitleaks.toml`, `.cargo/audit.toml`, `.cargo/config.toml`, the Cargo
+# manifests + lockfile, the toolchain pin, the nextest config — so a post-green
+# *weakening of the gate*
 # invalidates the receipt just as a code edit does. script/gates.sh writes this
 # to .git/ignibyte-gate-receipt on a FULL/DIFF green; enforce-commit-gate.sh
 # recomputes it at `git commit` and allows the commit only if they match, so a
@@ -45,8 +45,8 @@ normalize_path() {
 gate_state_hash() {
     local root="${PROJECT_ROOT:-$(pwd)}" paths hashes n_paths n_hashes
     paths=$({
-        git -C "$root" ls-files -z -- crates script/gates.sh .claude/hooks clippy.toml deny.toml .gitleaks.toml .cargo/audit.toml .cargo/config.toml .cargo/mutants.toml Cargo.toml Cargo.lock rust-toolchain.toml .config/nextest.toml 2>/dev/null
-        git -C "$root" ls-files -z --others --exclude-standard -- crates script/gates.sh .claude/hooks clippy.toml deny.toml .gitleaks.toml .cargo/audit.toml .cargo/config.toml .cargo/mutants.toml Cargo.toml Cargo.lock rust-toolchain.toml .config/nextest.toml 2>/dev/null
+        git -C "$root" ls-files -z -- crates script/gates.sh .claude/hooks clippy.toml deny.toml .gitleaks.toml .cargo/audit.toml .cargo/config.toml Cargo.toml Cargo.lock rust-toolchain.toml .config/nextest.toml 2>/dev/null
+        git -C "$root" ls-files -z --others --exclude-standard -- crates script/gates.sh .claude/hooks clippy.toml deny.toml .gitleaks.toml .cargo/audit.toml .cargo/config.toml Cargo.toml Cargo.lock rust-toolchain.toml .config/nextest.toml 2>/dev/null
     } | LC_ALL=C sort -z -u | grep -zE '\.(rs|sh|toml|lock)$' | tr '\0' '\n')
     # One git process hashes every file; a path list and a hash list of different
     # lengths means git failed on something, and a fingerprint that covers less
@@ -90,8 +90,8 @@ extract_assistant_tool_uses() {
 }
 
 # The Ignibyte pipeline command alphabet (used by the two detectors below).
-# Phases: plan design implement inspect validate complete. Plus work/commit.
-_PIPE_RE='(pipeline[-:](plan|design|implement|inspect|validate|complete)|commit|work)'
+# Phases: plan code test complete (CONSTITUTION §3). Plus /spec, the batch planner.
+_PIPE_RE='(pipeline[-:](plan|code|test|complete)|spec)'
 
 # Most-recent slash command of ANY kind (returns bare name or "").
 latest_pipeline_command() {
@@ -108,8 +108,8 @@ latest_pipeline_command() {
     [ -n "$m" ] && echo "$m" | grep -oE "/$_PIPE_RE" | tail -1 | sed 's#^/##' || true
 }
 
-# Bare PIPELINE PHASE name (plan|design|implement|inspect|validate|complete),
-# or "" when the latest slash command is NOT a pipeline phase (e.g. /commit).
+# Bare PIPELINE PHASE name (plan|code|test|complete), or "" when the latest
+# slash command is NOT a pipeline phase (e.g. /spec).
 detect_active_command() {
     local t="$1"; [ -f "$t" ] || { echo ""; return; }
     local m
@@ -121,7 +121,7 @@ detect_active_command() {
          elif .role=="assistant" then ((.content // [])[]? |
              select(.type=="tool_use" and .name=="Skill") | "/" + (.input.skill // ""))
          else empty end] | map(select(test($re))) | last // empty' "$t" 2>/dev/null || true)
-    [ -n "$m" ] && echo "$m" | grep -oE 'pipeline[-:](plan|design|implement|inspect|validate|complete)' | tail -1 | sed 's/^pipeline[-:]//' || true
+    [ -n "$m" ] && echo "$m" | grep -oE 'pipeline[-:](plan|code|test|complete)' | tail -1 | sed 's/^pipeline[-:]//' || true
 }
 
 # 0-based JSONL line index of the last phase-advance (user /pipeline:<phase> or
@@ -137,7 +137,7 @@ index_of_latest_phase_advance() {
                 ([.content // [] | .[]? | select(.type=="tool_use" and .name=="Skill") |
                   "/" + (.input.skill // "")] | join("\n"))
             else "" end)] |
-        to_entries | map(select(.value | test("(^|\\n)\\s*/?pipeline[-:](plan|design|implement|inspect|validate|complete)\\b"))) |
+        to_entries | map(select(.value | test("(^|\\n)\\s*/?pipeline[-:](plan|code|test|complete)\\b"))) |
         last // empty | if . == "" then "" else (.key | tostring) end' "$t" 2>/dev/null || true
 }
 
@@ -211,7 +211,7 @@ marley_owned_path() {
     case "$1" in
         crates/marley_*|docs/marley/*|docs/planning/*|docs/marley_architecture/*|\
         docs/specs/*|docs/warp_architecture/*|docs/zed_architecture/*|\
-        docs/decisions/*|docs/tickets/*|.claude/*|script/gates.sh|\
+        docs/decisions/*|docs/tickets/*|.claude/*|script/gates.sh|script/mutation.sh|\
         CONSTITUTION.md|CHANGELOG.md|deny.toml|.gitleaks.toml|.cargo/audit.toml|\
         .mcp.json.example)
             return 0 ;;

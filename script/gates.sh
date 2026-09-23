@@ -3,36 +3,36 @@
 # script/gates.sh — Marley canonical quality gate (the Zed fork)
 # =============================================================================
 # The single source of truth for "is this change shippable?" (CONSTITUTION §0).
-# Invoked by /commit (the delivery gate) and read back by enforce-commit-gate.sh
-# through the receipt it writes. Strict by charter: no baselines, no
+# Run in the Test phase (/pipeline:test) and read back at commit by
+# enforce-commit-gate.sh through the receipt it writes. Strict by charter: no baselines, no
 # suppressions, source-fix only. Every gate's verdict is the tool's EXIT CODE,
 # never a grep of its output.
 #
 # THE SCOPE RULE (§0). The Marley-owned surface is crates/marley_*. The static
 # gates run over those crates plus every crate the change touched (git status,
 # so an untracked new crate counts). The heavy gates run over the Marley crates
-# in FULL; in DIFF mode mutation covers the touched lines of any crate, in place
-# with one job (the target directory is shared with every project on this box),
-# and coverage covers the touched Marley crates. Upstream Zed code is held to
-# Zed's own bar (fmt, ./script/clippy, its tests), not to the Marley floors.
+# in FULL; in DIFF mode coverage covers the touched Marley crates. Upstream Zed
+# code is held to Zed's own bar (fmt, ./script/clippy, its tests), not to the
+# Marley floors. Mutation testing is not a gate: script/mutation.sh runs it once
+# at the end of a sprint (Chad, 2026-09-22).
 #
 # Gate numbering follows CONSTITUTION §0 (1-14 and 16; gate:15, the macOS
 # visual/AX harness, retired with the fork):
 #   STATIC (always): 1 fmt · 2 clippy · 3 tests · 7 audit · 8 deny · 9 shear
 #                    10 gitleaks · 11 shellcheck · 12 no-suppress · 13 SAST · 14 docs
 #                    16 zed-ledger
-#   HEAVY  (FULL/DIFF): 4 coverage · 5 mutation · 6 miri
+#   HEAVY  (FULL/DIFF): 4 coverage · 6 miri
+#   (gate:5, mutation, left the gate on 2026-09-22 for script/mutation.sh)
 #
 # Modes:
 #   script/gates.sh         FULL — heavy gates over every Marley crate. Receipt.
 #   script/gates.sh --diff  DIFF — heavy gates on what the change touched. Receipt.
 #   script/gates.sh --fast  FAST — static gates only (no heavy, no receipt).
-#   GATE_FAST=1 also selects FAST. Either FULL or DIFF green satisfies /commit.
+#   GATE_FAST=1 also selects FAST. Either FULL or DIFF green satisfies the
+#   commit hook.
 #
-# Knobs (env): MUT_PACKAGES="a b" scopes a FULL mutation run to named Marley
-# crates (a smoke or a killer-test check; writes NO receipt); MUT_JOBS overrides the FULL job
-# count (default 2; DIFF is always 1, in place); MARLEY_UPSTREAM_BASE names the
-# upstream fork-point commit when the `upstream` remote is not fetched.
+# Knobs (env): MARLEY_UPSTREAM_BASE names the upstream fork-point commit when
+# the `upstream` remote is not fetched.
 # =============================================================================
 
 set -uo pipefail
@@ -45,11 +45,9 @@ MANIFEST="Cargo.toml"
 
 # §0 baked minimums — env may RAISE (ratchet up); a value below the minimum is
 # clamped back up, so a green can never be bought by lowering the bar.
-RUST_COV_FLOOR=100; MUT_MSI_FLOOR=100
+RUST_COV_FLOOR=100
 RUST_COV_MIN="${RUST_COV_MIN:-$RUST_COV_FLOOR}"
-MUT_MSI_MIN="${MUT_MSI_MIN:-$MUT_MSI_FLOOR}"
 if awk -v c="$RUST_COV_MIN" -v f="$RUST_COV_FLOOR" 'BEGIN{exit !(c+0 < f+0)}'; then echo "note: RUST_COV_MIN below the §0 minimum $RUST_COV_FLOOR — clamped." >&2; RUST_COV_MIN=$RUST_COV_FLOOR; fi
-if awk -v c="$MUT_MSI_MIN"  -v f="$MUT_MSI_FLOOR"  'BEGIN{exit !(c+0 < f+0)}'; then echo "note: MUT_MSI_MIN below the §0 minimum $MUT_MSI_FLOOR — clamped." >&2; MUT_MSI_MIN=$MUT_MSI_FLOOR; fi
 
 MODE="full"
 case "${1:-}" in --fast|fast) MODE="fast" ;; --diff|diff) MODE="diff" ;; esac
@@ -150,7 +148,7 @@ secrets_g() {
 }
 
 # ── 11. shell scripts (the hooks + this gate) ────────────────────────────────
-shellcheck_g() { need shellcheck "install shellcheck" || return 1; shellcheck -S info -e SC1091 .claude/hooks/*.sh script/gates.sh; }
+shellcheck_g() { need shellcheck "install shellcheck" || return 1; shellcheck -S info -e SC1091 .claude/hooks/*.sh script/gates.sh script/mutation.sh; }
 
 # The files gates 12/13 scan wholesale: the Marley crates plus any untracked
 # Rust file elsewhere under crates/. Tracked edits to Zed crates are judged on
@@ -173,7 +171,8 @@ no_suppr_g() {
   blanket=$(grep -rnE '#!?\[(allow|expect)\((clippy::(all|correctness|suspicious|complexity|perf|style|pedantic|nursery|restriction)|warnings|unused)\b' $targets 2>/dev/null || true)
   added_unjust=$(added_lines | grep -E '#!?\[(allow|expect)\(' | grep -vE '//[[:space:]]*[^[:space:]]' || true)
   added_blanket=$(added_lines | grep -E '#!?\[(allow|expect)\((clippy::(all|correctness|suspicious|complexity|perf|style|pedantic|nursery|restriction)|warnings|unused)\b' || true)
-  # A mutation mask is a suppression of gate 5. cargo-mutants honours `mutants::skip`
+  # A mutation mask would hide code from the end-of-sprint mutation run
+  # (script/mutation.sh), so it counts as a suppression. cargo-mutants honours `mutants::skip`
   # inside any `cfg_attr` whatever its condition, so `#[cfg_attr(any(), mutants::skip)]`
   # compiles without the `mutants` crate and hides the item from mutation (#443).
   # shellcheck disable=SC2086
@@ -252,115 +251,6 @@ rust_cov() {
     --fail-under-lines "$RUST_COV_MIN"
 }
 
-# ── 5. mutation testing (MSI floor) ──────────────────────────────────────────
-# The single source of counting truth over an outcomes dir: the timeout audit
-# (a Timeout whose log shows a failing test was caught by assert, not a hang)
-# and the MSI threshold. Timeout counts as CAUGHT (a hang IS detection).
-mutation_verdict() {
-  local out="$1"
-  jq empty "$out/outcomes.json" 2>/dev/null \
-    || { echo "mutation: $out/outcomes.json is not valid JSON (truncated/interrupted run?)"; return 1; }
-  local timeouts=0 mislabeled=0 lp
-  while IFS= read -r lp; do
-    [ -z "$lp" ] && continue
-    timeouts=$((timeouts + 1))
-    if [ -f "$out/$lp" ] && grep -qE 'FAILED|panicked|assertion' "$out/$lp"; then
-      mislabeled=$((mislabeled + 1))
-    fi
-  done < <(jq -r '.outcomes[]|select(.summary=="Timeout")|.log_path' "$out/outcomes.json")
-  if [ "$timeouts" -gt 0 ]; then
-    echo "mutation: ${timeouts} timeout(s); ${mislabeled} mislabeled (log shows failing tests — caught-by-assert, perf not detection)"
-  fi
-  local caught missed total msi
-  caught=$(jq '[.outcomes[]|select(.summary=="CaughtMutant" or .summary=="Timeout")]|length' "$out/outcomes.json")
-  missed=$(jq '[.outcomes[]|select(.summary=="MissedMutant")]|length' "$out/outcomes.json")
-  total=$((caught + missed))
-  if [ "$total" -eq 0 ]; then
-    [ "$MODE" = "diff" ] && { echo "mutation: 0 viable mutants in the diff (tests/comments/excluded only) — pass"; return 0; }
-    echo "no viable mutants produced (a crate with no testable code fails closed — build the crate + tests first)"; return 1
-  fi
-  msi=$(awk -v c="$caught" -v t="$total" 'BEGIN{printf "%.1f", 100*c/t}')
-  echo "mutation: ${caught} caught / ${missed} missed → MSI ${msi}% (floor ${MUT_MSI_MIN}%)"
-  awk -v m="$msi" -v min="$MUT_MSI_MIN" 'BEGIN{exit !(m+0 >= min+0)}' \
-    || { echo "MSI ${msi}% < floor ${MUT_MSI_MIN}% — kill more mutants (write tests)"; return 1; }
-}
-
-# FULL mutates the Marley crates (copy mode, MUT_JOBS workers, default 2, each
-# copy building in its own target directory so no worker tests another's
-# binary). DIFF mutates only the lines this change touched, in
-# place with one job, so a touched Zed crate rebuilds incrementally instead of
-# cold in a copy. An interrupted in-place run can leave a mutant in the tree:
-# `git diff` shows it and the receipt refuses it; restore the file.
-mutation_g() {
-  need cargo-mutants "cargo install cargo-mutants" || return 1
-  need jq "install jq" || return 1
-  rm -rf mutants.out
-  # --no-config: a `.cargo/mutants.toml` could exclude files or stretch timeouts, and the
-  # fork's mutation gate has no exclusions (CONSTITUTION §0).
-  local -a margs=( --no-config --no-times --test-tool=nextest )
-  local rc p
-  if [ "$MODE" = "diff" ]; then
-    # Explicit a/ b/ prefixes: cargo-mutants strips `b/` and nothing else, and
-    # git 2.55 labels a --no-index diff `1/` `2/` (a user's diff.noprefix would
-    # drop them entirely). Untracked files enter as whole-file diffs.
-    git diff HEAD --src-prefix=a/ --dst-prefix=b/ -- crates > mutants.diff 2>/dev/null || true
-    git ls-files --others --exclude-standard -- crates 2>/dev/null | grep -E '\.rs$' | while IFS= read -r p; do
-      git diff --no-index --src-prefix=a/ --dst-prefix=b/ /dev/null "$p" >> mutants.diff 2>/dev/null || true
-    done
-    if [ ! -s mutants.diff ]; then
-      rm -f mutants.diff
-      echo "mutation: no changed crate lines (diff) — nothing to mutate, pass"
-      return 0
-    fi
-    # Name every touched package: the root manifest inherits Zed's
-    # `default-members = ["crates/zed"]`, and cargo-mutants mutates only the
-    # default members unless told otherwise, so without `-p` the diff filter finds
-    # nothing and the gate would pass without testing a mutant (#443).
-    if [ -z "$TOUCHED_PKGS" ]; then
-      rm -f mutants.diff
-      echo "mutation: the diff has crate lines but no touched package resolved — failing closed"
-      return 1
-    fi
-    for p in $TOUCHED_PKGS; do margs+=( -p "$p" ); done
-    # In place is one job by construction; cargo-mutants 27 refuses `--jobs`
-    # beside `--in-place` as a usage error (exit 1).
-    margs=( --in-diff mutants.diff --in-place "${margs[@]}" )
-  else
-    local mut_pkgs="${MUT_PACKAGES:-$MARLEY_PKGS}"
-    for p in $mut_pkgs; do margs+=( -p "$p" ); done
-    margs+=( --jobs "${MUT_JOBS:-2}" )
-  fi
-  # Copy-mode runs (FULL) write their tree copies under a disk-backed scratch,
-  # never /tmp (tmpfs on this box); MUT_SCRATCH overrides.
-  local scratch="${MUT_SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/marley-mutants}"
-  mkdir -p "$scratch"
-  # Each FULL copy builds in its own target directory. Cargo names a workspace
-  # crate's artifacts without the checkout's path, so copies sharing
-  # CARGO_TARGET_DIR overwrite each other's test binaries between one mutant's
-  # build and its test run, and a verdict can describe the other worker's mutant
-  # (#443). DIFF is in place with one job, so it keeps the shared, warm target.
-  # The variables that could move the outcomes away from where this gate reads
-  # them, stretch the timeout that counts as caught, or share a target again, are
-  # cleared for every run.
-  local -a mut_env=( -u CARGO_MUTANTS_OUTPUT -u CARGO_MUTANTS_MINIMUM_TEST_TIMEOUT
-                     -u CARGO_BUILD_TARGET_DIR -u CARGO_BUILD_BUILD_DIR TMPDIR="$scratch" )
-  [ "$MODE" = "diff" ] || mut_env=( -u CARGO_TARGET_DIR "${mut_env[@]}" )
-  ( env "${mut_env[@]}" cargo mutants "${margs[@]}" >/dev/null 2>&1 ); rc=$?
-  rm -f mutants.diff
-  # cargo-mutants 27.x exit: 0 all-caught · 2 missed found · 3 timeout found —
-  # all COMPLETED runs we threshold below. 1 = usage, 4 = baseline build/test
-  # failed = NOT a valid measurement (fail closed).
-  case "$rc" in
-    0|2|3) : ;;
-    *) echo "cargo mutants did not complete a valid run (exit $rc; 1=usage, 4=baseline failed)"; return 1 ;;
-  esac
-  if [ ! -f mutants.out/outcomes.json ]; then
-    [ "$MODE" = "diff" ] && { echo "mutation: no mutable lines in the diff — pass"; return 0; }
-    echo "no mutants.out/outcomes.json produced"; return 1
-  fi
-  mutation_verdict mutants.out
-}
-
 # ── 6. miri — conditional on unsafe in a Marley crate ────────────────────────
 miri_g() {
   local needing="" c
@@ -399,10 +289,9 @@ run_gate "gate:16 zed-ledger" zed_ledger_g
 
 # ── HEAVY gates (FULL + DIFF; FAST skips) ────────────────────────────────────
 if [ "$MODE" = "fast" ]; then
-  RESULTS+=("SKIP  gate:4,5,6 coverage+mutation+miri (--fast) — run the FULL or --diff gate before /commit")
+  RESULTS+=("SKIP  gate:4,6 coverage+miri (--fast) — run the FULL or --diff gate before committing")
 else
   run_gate "gate:4  rust coverage (>= ${RUST_COV_MIN}% lines)" rust_cov
-  run_gate "gate:5  mutation (MSI >= ${MUT_MSI_MIN}%)" mutation_g
   run_gate "gate:6  miri (unsafe crates)" miri_g
 fi
 
@@ -423,12 +312,7 @@ echo "GATE GREEN [$MODE]"
 # Receipt — bind this FULL/DIFF green to the exact worktree it ran on.
 # enforce-commit-gate.sh reads it back and blocks `git commit` of Rust source
 # unless the fingerprint still matches. FAST never writes one.
-# A MUT_PACKAGES-scoped run is a smoke, not a measurement of the tree: it
-# prints its verdict but writes no receipt (§15: a scoped green must never
-# satisfy /commit).
-if [ "$MODE" != "fast" ] && [ -z "${MUT_PACKAGES:-}" ]; then
+if [ "$MODE" != "fast" ]; then
   GITDIR=$(git rev-parse --git-dir 2>/dev/null || true)
   if [ -n "$GITDIR" ]; then gate_state_hash > "$GITDIR/ignibyte-gate-receipt" || echo "note: receipt not written (fingerprint failed)" >&2; fi
-elif [ -n "${MUT_PACKAGES:-}" ]; then
-  echo "note: MUT_PACKAGES scoped this run to [$MUT_PACKAGES]; no receipt written"
 fi

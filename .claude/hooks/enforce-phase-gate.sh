@@ -3,7 +3,7 @@
 # enforce-phase-gate.sh — Pipeline phase ordering (PreToolUse: Write|Edit)
 # =============================================================================
 # Blocks Write/Edit to application code unless the active pipeline doc shows the
-# previous phase as PASS (+ human-confirmed for plan/design). CONSTITUTION §3.
+# previous phase as PASS (Plan -> Code -> Test -> Complete). CONSTITUTION §3.
 #
 # Activates only when: a pipeline phase command is active AND a pipeline doc
 # exists AND the target is application code. Exit 0 = allow, 2 = block.
@@ -24,7 +24,7 @@ esac
 # Marley application code = crates/<crate>/src/** and crates/<crate>/examples/**
 # (CONSTITUTION §3). In a `case` glob, `*` DOES match `/`, so `crates/*/src/*`
 # catches nested modules; `/src/` is literal, so a `src_gen/` dir won't
-# false-match. crates/*/tests/** stays exempt (tests are a /pipeline:validate
+# false-match. crates/*/tests/** stays exempt (tests are a /pipeline:test
 # artifact; §3 names only src + examples) — as do build.rs and Cargo.toml.
 case "$NORMALIZED" in
     *.rs) : ;;
@@ -73,7 +73,7 @@ fi
 # Phase N is PASS when status frontmatter says "Phase N <…> PASS".
 # BSD-grep compatible: sed extracts the value (no \K); [[:space:]] not \s; the
 # dash is dropped from the pattern (it's a multibyte em-dash) — "Phase N " then
-# any chars then PASS is enough, and "Phase 3 " can't match "Phase 3.5".
+# any chars then PASS is enough, and "Phase 3 " can't match "Phase 33".
 phase_pass() {
     local status_line escaped
     status_line=$(sed -n 's/^status:[[:space:]]*//p' "$1" 2>/dev/null | head -1 || true)
@@ -85,11 +85,9 @@ phase_pass() {
 
 GATE_FAILED=false; MSG=""
 case "$COMMAND_NAME" in
-    design)    phase_pass "$PIPELINE_DOC" 1   || { GATE_FAILED=true; MSG="Phase 1 (Plan) must be PASS + human-confirmed before design."; } ;;
-    implement) phase_pass "$PIPELINE_DOC" 2   || { GATE_FAILED=true; MSG="Phase 2 (Design) must be PASS + human-confirmed before implementation."; } ;;
-    inspect)   phase_pass "$PIPELINE_DOC" 3   || { GATE_FAILED=true; MSG="Phase 3 (Implement) must be PASS before inspection."; } ;;
-    validate)  phase_pass "$PIPELINE_DOC" 3.5 || { GATE_FAILED=true; MSG="Phase 3.5 (Inspect) must be PASS before validation. CONSTITUTION §18.1 — the inspect checkpoint is mandatory."; } ;;
-    complete)  phase_pass "$PIPELINE_DOC" 4   || { GATE_FAILED=true; MSG="Phase 4 (Validate) must be PASS before completion."; } ;;
+    code)      phase_pass "$PIPELINE_DOC" 1 || { GATE_FAILED=true; MSG="Phase 1 (Plan) must be PASS before code."; } ;;
+    test)      phase_pass "$PIPELINE_DOC" 2 || { GATE_FAILED=true; MSG="Phase 2 (Code) must be PASS before test."; } ;;
+    complete)  phase_pass "$PIPELINE_DOC" 3 || { GATE_FAILED=true; MSG="Phase 3 (Test) must be PASS before completion."; } ;;
 esac
 
 if [ "$GATE_FAILED" = true ]; then

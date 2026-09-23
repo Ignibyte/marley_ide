@@ -13,8 +13,8 @@
 # It mirrors enforce-changelog.sh's trigger EXACTLY: same git-commit detection,
 # same staged-index key. Keep the two in lockstep — if the commit-gate's
 # git-detection regex changes, change it here too (PR-claude-detection-tracks-runner).
-# The hook gates PRESENCE + non-emptiness, NOT correctness (a human judges whether
-# the behavior match is right — the §18.1 inspect provenance review does that).
+# The hook gates PRESENCE + non-emptiness, NOT correctness (whether the behavior
+# match is right is judged in the Code phase's self-review, §20).
 #
 # Always-on (not gated on a pipeline session). Exit 0 = allow, 2 = block.
 # Bash 3.2 + BSD-grep safe.

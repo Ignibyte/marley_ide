@@ -14,7 +14,7 @@
 #     contains the literal (no receipt is written by either);
 #   - any post-green edit by ANY tool (Write, Edit, or a Bash `cat >`/`sed -i`)
 #     changes the fingerprint, so a stale green is rejected;
-#   - a FAST run writes no receipt, so `--fast` can never satisfy /commit;
+#   - a FAST run writes no receipt, so `--fast` can never satisfy a commit;
 #   - lowering a floor can't help — the gate clamps floors to the §0 minimums
 #     before it will print green and write the receipt.
 #

@@ -20,11 +20,11 @@ the fork is the design record under `docs/marley_architecture/`, `docs/specs/` a
 ## §0 — Quality Gates (binding)
 
 The canonical gate is **`script/gates.sh`**, the single source of truth for "is this change
-shippable?". It must pass green before `/commit` in one of two commit-valid modes: **FULL**
+shippable?". It must pass green in the Test phase, in one of two commit-valid modes: **FULL**
 (the heavy gates over every Marley-owned crate; the periodic audit) or **`--diff`** (the
-heavy gates only on what the change touched; the per-commit loop). Both write the receipt the
+heavy gates only on what the change touched; the per-change loop). Both write the receipt the
 commit hook requires (§15). `--fast` runs the static gates only, prints `GATE GREEN [fast]`,
-writes no receipt, and can never satisfy `/commit`.
+writes no receipt, and can never satisfy a commit of Rust source.
 
 ```
 STATIC (always; --fast runs exactly these)
@@ -43,15 +43,18 @@ gate:16 zed ledger     every changed path outside the Marley-owned set has its r
 
 HEAVY (FULL + --diff; --fast skips)
 gate:4  coverage       cargo llvm-cov nextest -p <marley crates> --fail-under-lines 100
-gate:5  mutation       cargo-mutants  (MSI 100; FULL = the Marley crates, DIFF = touched lines)
 gate:6  miri           cargo +nightly miri  (conditional on unsafe in a Marley crate)
 ```
+
+**Mutation testing is not a gate.** It was gate:5 until 2026-09-22, when Chad took it out of
+the per-change loop because it was too slow to run on every change. `script/mutation.sh`
+runs it over the Marley crates once, at the end of a sprint or before a release, and what it
+finds is fixed at the source like any other red.
 
 **The scope rule.** The Marley-owned surface is `crates/marley_*`. The static gates run over
 those crates plus every crate the change touched (derived from `git status`, so a new
 untracked crate counts). The heavy gates run over the Marley crates in FULL; in `--diff`
-mode gate:5 mutates the touched lines in any crate, in place with one job so the shared
-target directory stays warm, and gate:4 covers the touched Marley crates. Upstream Zed code
+mode gate:4 covers the touched Marley crates. Upstream Zed code
 is not held to the Marley floors: it is held to Zed's own bar (fmt, `./script/clippy`, its
 own tests), and a change inside a Zed crate must leave that crate's tests green and add
 driven tests for the behavior it adds (§7).
@@ -66,14 +69,13 @@ harness client, the agent hosts). What gate:13 bans is `mem::transmute` and `uns
 a `// SAFETY:` justification. Keep spawns in adapter modules and validate inputs; no shelling
 out unsanitized user input.
 
-**Floors ratchet up, never down.** `RUST_COV_MIN` / `MUT_MSI_MIN` are baked into the gate at
-**100% lines** and **100% MSI** over the Marley crates. Env may raise a floor; a value below
-the baked-in minimum is clamped back up. Lowering a baked-in minimum is a charter amendment.
+**Floors ratchet up, never down.** `RUST_COV_MIN` is baked into the gate at **100% lines**
+over the Marley crates. Env may raise it; a value below the baked-in minimum is clamped back
+up. Lowering a baked-in minimum is a charter amendment.
 
 **ACCEPTED-UNTESTABLE is explicit, never silent.** Coverage runs with an explicit, documented
 exclude list in the gate (today: the raw PTY shim `marley_terminal/src/pty_os.rs` and the
-`std::net` transport `marley_mcp/src/transport.rs`); mutation runs the Marley crates with no
-exclusions. A new uncoverable path (FFI, GPU, a headed window, a bound port, a live service)
+`std::net` transport `marley_mcp/src/transport.rs`). A new uncoverable path (FFI, GPU, a headed window, a bound port, a live service)
 is added to that list with a reason, never hidden in a regex.
 
 **Honest known-scope (the ratchet roadmap).** Recorded gaps, each a ratchet item:
@@ -81,7 +83,8 @@ is added to that list with a reason, never hidden in a regex.
 - clippy runs Zed's workspace lints (`[workspace.lints]` in `Cargo.toml`); pedantic and
   nursery are not enabled.
 - `gate:3` runs `--no-tests=warn`: a crate with no tests yet is a visible warning; the binding
-  "every behavior is tested" enforcement is gate:4 + gate:5 on the Marley crates.
+  "every behavior is tested" enforcement is gate:4 on the Marley crates plus the driven
+  tests §7 requires for UI paths.
 - `gate:7`: advisories already present at the upstream fork point belong to upstream's
   dependency tree. They are listed per id in `.cargo/audit.toml` with the fork commit they
   were inherited at, and the list is regenerated at every upstream merge. A NEW advisory
@@ -112,29 +115,29 @@ is added to that list with a reason, never hidden in a regex.
 On a FULL or `--diff` green the gate writes a worktree-bound receipt
 (`.git/ignibyte-gate-receipt`) that `enforce-commit-gate.sh` validates at commit (§15).
 
-Tools: `cargo install cargo-mutants cargo-audit cargo-deny cargo-shear cargo-llvm-cov
-cargo-nextest`, `rustup component add llvm-tools-preview`, and `gitleaks shellcheck jq typos`
-from the distro. Run the gate before `/commit`; fix every red at the source. One cargo
-command at a time on this box: the target directory is shared by every project on it.
+Tools: `cargo install cargo-audit cargo-deny cargo-shear cargo-llvm-cov cargo-nextest`,
+`rustup component add llvm-tools-preview`, and `gitleaks shellcheck jq typos` from the
+distro; `cargo-mutants` only for the end-of-sprint `script/mutation.sh`. Run the gate in the
+Test phase; fix every red at the source. One cargo command at a time on this box: the target
+directory is shared by every project on it.
 
 ---
 
 ## §3 — Phase Gates (binding)
 
-Work flows through an ordered pipeline. **Every phase has an entry gate: the previous phase
-must be `PASS` (and, for plan/design, human-confirmed) before the next begins.** The
+Work flows through four phases, and that is all: **Plan → Code → Test → Complete**. **Every
+phase has an entry gate: the previous phase must be `PASS` before the next begins**, and the
+plan is presented for confirmation unless the user runs the work autonomously. The
 `enforce-phase-gate.sh` PreToolUse hook blocks `Write`/`Edit` to application code until the
 gate is satisfied.
 
 ```
-/work        pre-flight (env, backlog, recall context) → hands off to plan
-  → /pipeline:plan       (Phase 1)  ticket/doc + active spec/notes
-  → /pipeline:design     (Phase 2)  design + regression test plan
-  → /pipeline:implement  (Phase 3)  code
-  → /pipeline:inspect    (Phase 3.5) adversarial review checkpoint (§18.1)
-  → /pipeline:validate   (Phase 4)  write + RUN tests; gate green
-  → /pipeline:complete   (Phase 5)  docs + knowledge capture + archive (CHANGELOG + arch docs, §21)
-  → /commit              delivery gate: script/gates.sh --diff + commit/PR
+/pipeline:plan        (Phase 1)  pick the item, pre-flight, recall; ticket + active spec/notes;
+                                 the design and its test plan
+  → /pipeline:code      (Phase 2)  the code, fmt- and clippy-clean, then a review of the diff
+  → /pipeline:test      (Phase 3)  write + RUN the tests; the live drive; script/gates.sh --diff green
+  → /pipeline:complete  (Phase 4)  docs (CHANGELOG + architecture, §21), knowledge, close the
+                                 ticket, archive, commit
 ```
 
 - **NEVER have two pipeline documents active** in `docs/planning/pipeline/active/`.
@@ -165,18 +168,18 @@ writes. Tests are not optional and not skippable because a change "looks simple"
 - **Pure and library code** (the Marley crates' cores, any pure module added to a Zed
   crate): Rust `#[cfg(test)]` **unit tests**, **each EARS clause maps to at least one test**,
   plus `trybuild` compile-fail cases for type-safety contracts and doctests for public
-  examples. Mutation (gate:5) proves the tests fail when behavior breaks (**MSI 100%** on the
-  Marley crates).
+  examples. Mutation testing (`script/mutation.sh`) runs once at the end of a sprint, not per
+  change (§0).
 - **UI code** (gpui render and input paths, in a Marley crate or a Zed crate): a change
   adds or updates a **driven test** on gpui's `TestAppContext` / `VisualTestContext` (the
   repo skill `.agents/skills/gpui-test` documents the harness; prefer the executor's timers
-  over `smol::Timer`, per `.rules`), and `/pipeline:validate` also runs the real app
+  over `smol::Timer`, per `.rules`), and `/pipeline:test` also runs the real app
   (`cargo run`), exercises the behavior, and captures it (a screenshot through the
   `dev-box-desktop` skill on this box). A green unit test never proves a pane works; the
   driven test plus the live drive do. The macOS AX harness of the gpui era is retired.
 - **NEVER mark a phase PASS if tests did not actually RUN.** Writing a test file is not
   testing. The `enforce-tests-ran.sh` Stop hook checks the transcript for a real
-  `cargo nextest run` / `cargo test` / `script/gates.sh` invocation at `/pipeline:validate`.
+  `cargo nextest run` / `cargo test` / `script/gates.sh` invocation at `/pipeline:test`.
 - **Pre-existing failures are not your problem, but document them.** Note them in the notes
   as "pre-existing" and move on; don't fix unrelated breakage unless asked. Zed's suite is
   large; run the touched crates' tests, not the world.
@@ -244,8 +247,8 @@ get past a blocked Stop. Fix the cause.
 
 **What the enforcement is, and isn't.** The hooks are a *discipline scaffold*, not a security
 boundary. They reliably catch **omissions**: writing code before a phase is PASS, stopping a
-phase with unresolved tasks or an un-advanced doc status, reaching `/pipeline:validate`
-without running tests, committing code without a green gate. They do **not** try to defeat
+phase with unresolved tasks or an un-advanced doc status, leaving `/pipeline:test` without
+running tests, committing code without a green gate. They do **not** try to defeat
 deliberate fabrication: the `status:` line and the test calls are self-reported. The one
 hard, evidence-based gate is **`script/gates.sh` at commit**: `enforce-commit-gate.sh` blocks
 a `git commit` that includes Rust source unless a FULL/`--diff` gate run left a *receipt*
@@ -256,7 +259,7 @@ any edit after the green, by Write, Edit or a Bash heredoc, changes the fingerpr
 re-blocks. A **second** commit-time hook, `enforce-changelog.sh`, blocks a Rust-source commit
 that lacks a `CHANGELOG.md` entry (§21). A change that touches **no** `.rs` is not blocked by
 the receipt; its gate is enforced by pipeline discipline (the static gates at
-`/pipeline:validate`). The receipt fingerprint binds not just `crates/**/*.rs` but the
+`/pipeline:test`). The receipt fingerprint binds not just `crates/**/*.rs` but the
 **gate-defining files** themselves (`script/gates.sh`, `.claude/hooks/**`, `clippy.toml`,
 `deny.toml`, `.gitleaks.toml`, `.cargo/audit.toml`, the Cargo manifests and lockfile, the
 toolchain pin, the nextest config), so weakening the gate after a green invalidates the
@@ -264,14 +267,13 @@ receipt.
 
 ---
 
-## §18 — Inspect & Explore (binding)
+## §18 — Review & Explore (binding)
 
-**§18.1 — Mandatory inspect checkpoint.** After implementation (Phase 3),
-`/pipeline:inspect` runs an adversarial review before validation. It spawns independent
-critics (correctness, security/secrets/provenance, data/state integrity, simplification)
-against the diff, then the lead reviews the findings and fixes the real ones. The phase-gate
-requires Phase 3.5 PASS before `/pipeline:validate`. Populating the inspect ledger in the
-notes is required by the command.
+**§18.1 — The review is part of Code.** There is no separate inspect phase since
+2026-09-22. The Code phase ends with a review of its own diff: correctness against each
+acceptance criterion, gpui entity re-entrancy, errors reaching the UI, provenance (§20) and
+upstream discipline (§14). Independent critics are optional, for a change large enough to
+want them.
 
 **§18.2 — Delegate broad file-discovery to the Explore subagent.** Any lookup with more than
 ~3 candidate paths, or where the location isn't known a priori, goes through
@@ -281,8 +283,8 @@ crates this matters more, not less.
 **§18.3 — Local knowledge first (§19).** Before planning and before implementing, recall
 prior knowledge locally: grep `docs/planning/knowledge/` (prevention rules, failures,
 lessons, architecture decisions) and the completed-pipeline notes
-(`docs/planning/pipeline/completed/`). At phase close, capture what you learned by APPENDING
-ledger blocks: inspect appends failures + prevention rules; complete appends lessons +
+(`docs/planning/pipeline/completed/`). At Complete, capture what you learned by APPENDING
+ledger blocks: failures and prevention rules for the real bugs found, lessons, and
 architecture decisions (§19 formats). The Rusty brain loop (`brain_ask` before a design
 choice, `brain_decide` after) is the house-wide twin of this rule and applies here too.
 
@@ -292,7 +294,7 @@ choice, `brain_decide` after) is the house-wide twin of this rule and applies he
 
 **Tickets are local files.** `docs/planning/tickets/open/TICKET-<n>-<slug>.md` is the
 canonical work item (closed → `tickets/closed/`). `tickets/BACKLOG.md` is the ordered queue:
-`/work` with no argument takes the TOP row of its **Queue** section; **Deliberate** rows are
+`/pipeline:plan` with no argument takes the TOP row of its **Queue** section; **Deliberate** rows are
 only picked explicitly. Ticket numbering = 1 + the max number across `open/` + `closed/`,
 continuing from the gpui era (the archive reaches #435); never renumber, never reuse.
 
@@ -330,9 +332,9 @@ shape of the rule, not its purpose:
   `## Reference (§20)` section naming the reference behavior: Warp for the terminal, blocks
   and cockpit (a `docs/warp_architecture/` citation or an observed capture), upstream Zed for
   editor and workspace behavior (cite the crate and the behavior kept), or
-  `N/A — Marley-specific + why`. Plan fills it; design confirms it; the commit hook blocks a
-  staged spec whose section is empty. The hook gates PRESENCE, not correctness; the §18.1
-  provenance review judges the match.
+  `N/A — Marley-specific + why`. Plan fills it and its design confirms it; the commit hook
+  blocks a staged spec whose section is empty. The hook gates PRESENCE, not correctness; the
+  Code phase's review judges the match (§18.1).
 - **Forced prior art (`### Prior art`, required at Plan).** The wall says what we may not
   read. It does not excuse reinventing what is already ours to take. Every spec records a
   sweep of three sources, and the hook blocks a spec that leaves it empty:
@@ -345,8 +347,9 @@ shape of the rule, not its purpose:
      `agent_servers`, alacritty, vte, tree-sitter, `regex` …)
   If the sweep finds nothing, say so and say where you looked; silence is not a filled
   section.
-- **Inspect-phase (code-layer wall)**: the §18.1 review includes a provenance check: no code
-  structurally derived from Warp's source.
+- **The code-layer wall**: the Code phase's review (§18.1) includes a provenance check: no
+  code structurally derived from Warp's source, and no Zed function body carried into a Marley
+  crate.
 - IP-counsel sign-off remains pending before commercializing (the gpui-era note in
   `docs/decisions/licensing-ownership-strategy.md` carries the reasoning).
 
@@ -354,7 +357,7 @@ shape of the rule, not its purpose:
 
 ## §21 — Documentation Phase (binding)
 
-Context must never be lost. **Every pipeline's Phase 5 (Complete) shall, without exception,
+Context must never be lost. **Every pipeline's Phase 4 (Complete) shall, without exception,
 do both:**
 
 1. **Add a `CHANGELOG.md` entry** for the change (root `CHANGELOG.md`, Keep a Changelog
@@ -365,7 +368,7 @@ do both:**
    (slice status), the per-crate notes under `docs/marley_architecture/` for a Marley crate,
    and, for a change outside the Marley-owned paths, a check that its row in
    `docs/marley/zed-touchpoints.md` still describes what shipped (the row itself is written
-   before the change, §14). This half is a **required, inspect-verified** Phase-5 step.
+   before the change, §14). This half is a **required** Phase-4 step.
 
 Skipping either is a charter violation. The CHANGELOG keeps the *what/why* of every change;
 the architecture docs keep the *shape* of the system.
@@ -379,4 +382,7 @@ section, the change, and the reason in a commit that touches only this file (and
 or gate that enforces the changed rule). Raising a floor or tightening a convention needs no
 ceremony; loosening one needs a recorded reason. The 2026-09-18 port from the gpui-era repo
 is the standing example: gate:15 retired, gate:9 moved to cargo-shear, gates 7, 8, 10 and 14
-re-scoped to what a fork can honestly gate, each with its reason in §0.
+re-scoped to what a fork can honestly gate, each with its reason in §0. On 2026-09-22 Chad
+loosened two rules, with the reason recorded in §0 and §3: mutation testing left the
+per-change gate for `script/mutation.sh` at the end of a sprint, and the workflow became
+four phases (`/work`, design, inspect and `/commit` folded into Plan, Code and Complete).

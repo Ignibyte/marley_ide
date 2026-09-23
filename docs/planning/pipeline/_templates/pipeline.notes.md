@@ -10,21 +10,26 @@
 ## Phase 1 — Plan
 - **Request:** …
 - **Classification / tier:** …
-- **Recall (§18.3):** what the local ledger + completed-pipeline archive surfaced.
-- **Discovery:** the precise edit/file surface for Design.
+- **Recall (§18.3):** what the local ledger, the completed-pipeline archive and the brain
+  surfaced.
+- **Discovery:** the precise edit/file surface.
 - **Decisions:** …
 
-## Phase 2 — Design
-- Architecture / approach; file manifest; regression test plan; risks.
+### Design
+- Approach; file manifest (Marley crate or Zed crate per file); the ledger rows it needs.
 
-## Phase 3 — Implement
-- What was built; deviations from design (with reason).
+### Test plan
+- One row per acceptance criterion: unit tests, gpui driven tests, the live drive.
 
-## Phase 3.5 — Inspect
-- Critics run; findings table (severity / finding / verdict); fixes.
+### Risks
+- …
 
-## Phase 4 — Validate
-- Tests RUN (with counts) + gate result; negative smokes; pre-existing notes.
+## Phase 2 — Code
+- What was built; deviations from the plan (with reason); what the review of the diff found.
 
-## Phase 5 — Complete
-- Docs updated; ledger appends (lessons / failures / prevention rules / ADs — codes listed); archive.
+## Phase 3 — Test
+- Tests RUN (with counts) + the gate result; the live drive; negative smokes; pre-existing notes.
+
+## Phase 4 — Complete
+- Docs updated; ledger appends (failures / prevention rules / lessons / ADs — codes listed);
+  ticket closed; archive; the commit.
