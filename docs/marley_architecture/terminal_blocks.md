@@ -114,6 +114,10 @@ real, reusable session. The Block model is the unit the **brain** later observes
 - `apply.rs` — `SessionModel` + `apply_hook` (the state machine: InitShell maps the shell id, Preexec
   opens a Running block from the staged prompt, Precmd finishes it + stages the next, Bootstrapped; the
   `MissingSession` guard leaves the BlockList unchanged).
+- `anchored.rs` (#464, written in the fork) — `AnchoredBlocks`, the same transitions for Zed's
+  terminal, where a block records absolute lines instead of copying its output: `prompt_line`,
+  `output_start` and `output_end` from each hook's position. Zed's `Terminal::block_output` reads the
+  lines from its grid while they are held.
 - `session.rs` — `classify_write` + the `PtyChannel`-trait `TerminalSession` (`write_bytes` re-queue,
   `pump`, `resize`) — unit-tested via a `MockPtyChannel` (the logic is reachable headlessly).
   **M1.C (TICKET-023):** `pump` gained an IDLE FAST-PATH — a LEADING `WouldBlock` (nothing read this

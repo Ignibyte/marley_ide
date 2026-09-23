@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #464 (feature, prong 1: T0b, second half)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet (split from #462 at its plan)
+- **Pipeline doc:** ../../pipeline/completed/464-zeds-terminal-keeps-anchored-blocks.spec.md
 - **Source ticket:** ../../../marley/three-prong-plan.md (T0, D2)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Zed's `TerminalBackendEvent` mirrors `Event::ShellHook` (#462): the exhaustive

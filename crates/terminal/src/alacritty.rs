@@ -951,6 +951,39 @@ pub(super) fn full_content_range(term: &Term<ZedListener>) -> Range {
     Range::from_alacritty(start..=end)
 }
 
+// Marley: a block's output, read from the grid (#464).
+/// The text of the absolute lines from `start` up to `end`, counted from the first line the grid
+/// ever held, or from `start` to the cursor's line while `end` is `None`. `None` once `start` has
+/// left the scrollback.
+pub(super) fn absolute_lines_text(
+    term: &Term<ZedListener>,
+    start: u64,
+    end: Option<u64>,
+) -> Option<String> {
+    let grid = term.grid();
+    let oldest = grid.evicted_lines();
+    let history = grid.history_size() as u64;
+    let to_line = |absolute: u64| -> Option<Line> {
+        let held = absolute.checked_sub(oldest)?;
+        Some(Line(
+            i32::try_from(held).ok()? - i32::try_from(history).ok()?,
+        ))
+    };
+    let first = to_line(start)?;
+    let last = match end {
+        Some(end) if end <= start => return Some(String::new()),
+        Some(end) => to_line(end - 1)?.min(grid.bottommost_line()),
+        None => grid.cursor.point.line,
+    };
+    if first > last {
+        return Some(String::new());
+    }
+    Some(term.bounds_to_string(
+        AlacPoint::new(first, Column(0)),
+        AlacPoint::new(last, term.last_column()),
+    ))
+}
+
 pub(super) fn last_non_empty_lines(term: &Term<ZedListener>, line_count: usize) -> Vec<String> {
     let grid = term.grid();
     let mut lines = Vec::new();
@@ -1184,6 +1217,41 @@ mod tests {
                 is_block: true,
             }
         );
+    }
+
+    // Marley: #464.
+    #[test]
+    fn absolute_lines_text_reads_held_lines_and_none_once_evicted() {
+        let config = pty_term_config(2, SettingsCursorShape::default());
+        let (events_tx, _events_rx) = futures::channel::mpsc::unbounded();
+        let bounds = TerminalBounds::new(
+            gpui::px(10.),
+            gpui::px(5.),
+            gpui::Bounds::new(
+                gpui::point(gpui::px(0.), gpui::px(0.)),
+                gpui::size(gpui::px(50.), gpui::px(30.)),
+            ),
+        );
+        let mut term = Term::new(config, &bounds, ZedListener(events_tx));
+        let mut parser: alacritty_terminal::vte::ansi::Processor =
+            alacritty_terminal::vte::ansi::Processor::new();
+        parser.advance(&mut term, b"1\r\n2\r\n3\r\n4\r\n5\r\n6");
+        // Six lines on a three-line screen with two lines of history: the first is gone.
+        assert_eq!(term.grid().evicted_lines(), 1);
+        assert_eq!(absolute_lines_text(&term, 0, Some(1)), None);
+        assert_eq!(
+            absolute_lines_text(&term, 1, Some(3)).as_deref(),
+            Some("2\n3")
+        );
+        // A running block reads to the cursor's line.
+        assert_eq!(absolute_lines_text(&term, 4, None).as_deref(), Some("5\n6"));
+        // An end past the screen stops at its bottom, and an empty range reads nothing.
+        assert_eq!(
+            absolute_lines_text(&term, 4, Some(9)).as_deref(),
+            Some("5\n6")
+        );
+        assert_eq!(absolute_lines_text(&term, 3, Some(3)).as_deref(), Some(""));
+        assert_eq!(absolute_lines_text(&term, 6, None).as_deref(), Some(""));
     }
 
     #[test]

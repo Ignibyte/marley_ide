@@ -1628,3 +1628,22 @@ Rejected:
 - a scanner inside the vendored crate, outside Marley's coverage and lint gates;
 - taking every DCS out of the stream, as the gpui era's scanner did, which would change what
   vte sees if it ever handles DCS.
+
+## AD-claude-464-blocks-are-anchored-ranges-read-from-the-grid-001
+*decided at: 2026-09-23 · status: shipped*
+
+Zed's `Terminal` keeps `marley_terminal::AnchoredBlocks`: each block records its command,
+state, exit code, prompt, and three absolute lines (`prompt_line`, `output_start`,
+`output_end`), the positions the vendored event loop reports with each hook. A block's output
+is never stored. `Terminal::block_output` reads it from the grid on demand, mapping absolute
+lines through `Grid::evicted_lines`, and returns `None` once the first line has left the
+scrollback. The block keeps its metadata.
+- `Precmd` finishes the running block where it falls and stages the next prompt, and `Preexec`
+  opens a block whose output starts at its line. A `Preexec` with no `Precmd` before it
+  finishes the running block without an exit code.
+- Hooks on the alternate screen are skipped: that grid keeps no history.
+- The model is new and pure, beside the gpui era's `SessionModel`, which copies output for its
+  own engine.
+
+Rejected: copying each block's output as the gpui era did. It doubles memory against the
+scrollback, and stages the output twice.

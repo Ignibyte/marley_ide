@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Blocks in Zed's terminal** (#464, 2026-09-23). A terminal keeps each command that Marley's
+  shell hooks report as a block: the command, whether it is running or finished, its exit code,
+  the prompt it was typed at, and where its lines sit in the scrollback. A block's output is read
+  from the terminal itself while those lines are still held. Nothing draws the blocks yet (T1),
+  and shells start sending the hooks with the integration scripts (#463).
 - **Shell hooks found in the terminal's output** (#462, 2026-09-23). The terminal library
   Marley carries now takes Marley's shell-hook frames out of a terminal's output before its
   parser would drop them, and reports each one with the exact line it fell on, also when one

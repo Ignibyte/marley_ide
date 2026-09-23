@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-464](open/TICKET-464-zeds-terminal-keeps-anchored-blocks.md) | feature | prong 1 T0b · Zed's terminal decodes the hooks and keeps blocks anchored by absolute line, with `blocks()` |
 | [TICKET-463](open/TICKET-463-shell-integration-scripts.md) | feature | prong 1 T0c · shell integration for zsh, bash and fish, injected at spawn |
 
 ## Deliberate (picked explicitly, never auto-next)

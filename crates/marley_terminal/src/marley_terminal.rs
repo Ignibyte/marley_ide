@@ -42,6 +42,7 @@
     )
 )]
 
+pub mod anchored;
 pub mod apply;
 pub mod block;
 pub mod dcs;
@@ -52,6 +53,7 @@ pub mod styled;
 
 mod session_id;
 
+pub use anchored::{AnchoredBlock, AnchoredBlocks};
 pub use block::{
     Block, BlockCopy, BlockId, BlockIndex, BlockList, BlockState, ExitCode, PromptInfo,
     ShellSessionId,
@@ -64,6 +66,8 @@ pub use keys::{KeyCode, KeyInput, Route, ctrl_byte, encode_key, input_route, pas
 pub use mouse::{MouseEvent, MouseModes, MouseMods, mouse_report};
 pub use session::{ApplyHookError, SessionError, SessionEvent, SessionOptions, TerminalSession};
 pub use session_id::SessionId;
+// The scanner's frame, which `decode_frame` reads.
+pub use marley_dcs::RawDcs;
 pub use styled::{StyledLine, StyledRun, coalesce_row};
 
 // The alacritty ANSI types carried in the public styled model — re-exported so consumers

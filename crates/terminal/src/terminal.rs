@@ -1067,6 +1067,8 @@ impl TerminalBuilder {
             path_style,
             cwd_history: Vec::new(),
             pending_cwd_boundary: None,
+            // Marley: the shell's commands as blocks (#464).
+            blocks: marley_terminal::AnchoredBlocks::default(),
             #[cfg(any(test, feature = "test-support"))]
             input_log: Vec::new(),
             #[cfg(test)]
@@ -1366,6 +1368,8 @@ impl TerminalBuilder {
                         .unwrap_or_default()
                 },
                 pending_cwd_boundary: None,
+                // Marley: the shell's commands as blocks (#464).
+                blocks: marley_terminal::AnchoredBlocks::default(),
                 #[cfg(any(test, feature = "test-support"))]
                 input_log: Vec::new(),
                 #[cfg(test)]
@@ -1546,6 +1550,8 @@ pub struct Terminal {
     path_style: PathStyle,
     cwd_history: Vec<CwdHistoryEntry>,
     pending_cwd_boundary: Option<i32>,
+    // Marley: the shell's commands as blocks anchored in the scrollback (#464).
+    blocks: marley_terminal::AnchoredBlocks,
     #[cfg(any(test, feature = "test-support"))]
     input_log: Vec<Vec<u8>>,
     #[cfg(test)]
@@ -1700,9 +1706,51 @@ impl Terminal {
             TerminalBackendEvent::ChildExit(exit_status) => {
                 self.register_task_finished(Some(exit_status), cx);
             }
-            // Marley: shell hooks are ignored until the terminal keeps blocks (#464).
-            TerminalBackendEvent::ShellHook(_) => {}
+            // Marley: each shell hook opens or finishes a block at its absolute line (#464).
+            TerminalBackendEvent::ShellHook(hook) => self.apply_shell_hook(hook, cx),
         }
+    }
+
+    // Marley: the shell's commands as blocks (#464).
+    /// Applies a shell hook to the blocks at the absolute line it fell on. The alternate screen
+    /// keeps no history and its lines are not the scrollback's, so hooks there are skipped.
+    fn apply_shell_hook(
+        &mut self,
+        hook: alacritty_terminal::marley_hooks::ShellHook,
+        cx: &mut Context<Self>,
+    ) {
+        if hook.position.alt_screen {
+            return;
+        }
+        let line = hook.position.absolute_line();
+        let frame = marley_terminal::RawDcs {
+            final_byte: hook.final_byte,
+            payload: hook.payload,
+        };
+        match marley_terminal::decode_frame(&frame) {
+            Ok(decoded) => match self.blocks.apply(decoded, line) {
+                Ok(()) => cx.notify(),
+                Err(error) => log::debug!("dropped a shell hook: {error:?}"),
+            },
+            Err(error) => log::debug!("dropped an undecodable shell hook: {error:?}"),
+        }
+    }
+
+    // Marley: the shell's commands as blocks (#464).
+    /// The shell's commands as blocks, oldest first.
+    pub fn blocks(&self) -> &[marley_terminal::AnchoredBlock] {
+        self.blocks.blocks()
+    }
+
+    // Marley: a block's output (#464).
+    /// A block's output, read from the grid while its lines are still held, or `None` once its
+    /// first line has left the scrollback.
+    pub fn block_output(&self, block: &marley_terminal::AnchoredBlock) -> Option<String> {
+        crate::alacritty::absolute_lines_text(
+            &self.term.lock(),
+            block.output_start,
+            block.output_end,
+        )
     }
 
     pub fn selection_started(&self) -> bool {
@@ -4110,6 +4158,103 @@ mod tests {
                 "shift+click should extend, not re-anchor, an existing selection"
             );
         });
+    }
+
+    // Marley: blocks from the shell hook frames a shell prints (#464).
+    #[cfg(unix)]
+    async fn build_shell_hook_terminal(cx: &mut TestAppContext, script: &str) -> Entity<Terminal> {
+        let program = "/bin/sh".to_string();
+        let args = vec!["-c".to_string(), script.to_string()];
+        let mode = TerminalMode::task(SpawnInTerminal {
+            command: Some(program.clone()),
+            args: args.clone(),
+            ..Default::default()
+        });
+        let builder = cx
+            .update(|cx| {
+                TerminalBuilder::new(
+                    None,
+                    mode,
+                    task::Shell::WithArguments {
+                        program,
+                        args,
+                        title_override: None,
+                    },
+                    HashMap::default(),
+                    SettingsCursorShape::default(),
+                    AlternateScroll::On,
+                    None,
+                    vec![],
+                    Duration::ZERO,
+                    false,
+                    0,
+                    cx,
+                    vec![],
+                    PathStyle::local(),
+                )
+            })
+            .await
+            .unwrap();
+        cx.new(|cx| builder.subscribe(cx))
+    }
+
+    // Marley: waits for the first finished block (#464).
+    #[cfg(unix)]
+    async fn finished_block(
+        terminal: &Entity<Terminal>,
+        cx: &mut TestAppContext,
+    ) -> marley_terminal::AnchoredBlock {
+        for _ in 0..200 {
+            let block = terminal.read_with(cx, |terminal, _| {
+                terminal
+                    .blocks()
+                    .iter()
+                    .find(|block| block.state == marley_terminal::BlockState::Finished)
+                    .cloned()
+            });
+            if let Some(block) = block {
+                return block;
+            }
+            cx.background_executor
+                .timer(Duration::from_millis(10))
+                .await;
+        }
+        panic!("no finished block");
+    }
+
+    // Marley: #464.
+    #[cfg(unix)]
+    #[gpui::test]
+    async fn marley_shell_hooks_leave_a_finished_block_with_its_output(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let terminal = build_shell_hook_terminal(
+            cx,
+            r"printf '\033Ppinit;id=1\033\\\033Pppreexec;command=echo hi\033\\'; echo hi; printf '\033Ppprecmd;exit=0\033\\'",
+        )
+        .await;
+        let block = finished_block(&terminal, cx).await;
+        assert_eq!(block.command, "echo hi");
+        assert_eq!(block.exit_code, marley_terminal::ExitCode(Some(0)));
+        let output = terminal.read_with(cx, |terminal, _| terminal.block_output(&block));
+        assert_eq!(output.as_deref(), Some("hi"));
+    }
+
+    // Marley: #464.
+    #[cfg(unix)]
+    #[gpui::test]
+    async fn marley_one_write_with_the_whole_command_leaves_the_same_block(
+        cx: &mut TestAppContext,
+    ) {
+        cx.executor().allow_parking();
+        let terminal = build_shell_hook_terminal(
+            cx,
+            r"printf '\033Ppinit;id=1\033\\\033Pppreexec;command=echo hi\033\\hi\r\n\033Ppprecmd;exit=0\033\\'",
+        )
+        .await;
+        let block = finished_block(&terminal, cx).await;
+        assert_eq!(block.exit_code, marley_terminal::ExitCode(Some(0)));
+        let output = terminal.read_with(cx, |terminal, _| terminal.block_output(&block));
+        assert_eq!(output.as_deref(), Some("hi"));
     }
 
     #[gpui::test]

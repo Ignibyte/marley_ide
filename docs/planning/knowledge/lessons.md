@@ -2202,3 +2202,14 @@ What #461 learned vendoring `alacritty_terminal`:
   fingerprint, so commit it before any gate step runs such tests.
 - **Leave recordings upstream.** alacritty's `tests/ref` is 46 MB, and all the crate's `typos`
   hits are in it.
+
+## L-claude-464-zeds-task-terminals-keep-the-maximum-history-001
+*category: validate · topic: testing scrollback in Zed's terminal · from: pipeline 464*
+
+`TerminalBuilder::new` gives every task terminal `MAX_SCROLL_HISTORY_LINES` (100,000),
+whatever `max_scroll_history_lines` says (`crates/terminal/src/terminal.rs:1202-1207`), and
+Zed's PTY test helpers build task terminals. A PTY test cannot make such a terminal evict lines
+without printing 100,000 of them. #464's first eviction test printed 500 lines into a two-line
+history and found all 500 still held. Test eviction on a `Term` built from `pty_term_config(n,
+..)` and fed with a `vte` processor instead, as `absolute_lines_text`'s test does, or build an
+interactive terminal.

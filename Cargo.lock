@@ -18392,6 +18392,7 @@ dependencies = [
  "itertools 0.14.0",
  "libc",
  "log",
+ "marley_terminal",
  "parking_lot",
  "percent-encoding",
  "rand 0.9.4",
