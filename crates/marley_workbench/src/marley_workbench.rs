@@ -13,15 +13,17 @@ pub mod routing;
 
 use fs::Fs;
 use gpui::{
-    App, AppContext as _, BorrowAppContext as _, Entity, Focusable as _, Global, ReadGlobal as _,
-    UpdateGlobal as _, Window, actions,
+    App, AppContext as _, BorrowAppContext as _, Context, Entity, Focusable as _, Global,
+    InteractiveElement as _, ReadGlobal as _, UpdateGlobal as _, Window, actions,
 };
 use settings::{
     DockPosition, KeybindSource, KeymapFile, KeymapFileLoadResult, MarleyLayout, RegisterSetting,
     Settings, SettingsContent, SettingsStore,
 };
+use title_bar::{UseAgenticLayout, UseClassicLayout};
 use util::ResultExt as _;
-use workspace::{MultiWorkspace, Sidebar as _};
+use workspace::notifications::NotificationId;
+use workspace::{MultiWorkspace, Sidebar as _, Toast, Workspace};
 
 pub use rail::{KeptSidebar, Rail};
 
@@ -96,6 +98,13 @@ pub fn init(cx: &mut App) {
     apply_defaults(layout, cx);
     routing::init(cx);
     agents::init(cx);
+    cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
+        workspace.register_action_renderer(|div, _, _, cx| {
+            div.capture_action(cx.listener(layout_preset::<UseClassicLayout>))
+                .capture_action(cx.listener(layout_preset::<UseAgenticLayout>))
+        });
+    })
+    .detach();
     cx.on_action(|_: &UseMarleyLayout, cx: &mut App| write_layout(MarleyLayout::Marley, cx))
         .on_action(|_: &UseZedLayout, cx: &mut App| write_layout(MarleyLayout::Zed, cx))
         .observe_global::<SettingsStore>(layout_setting_changed)
@@ -204,6 +213,29 @@ pub fn register_sidebar(
     if had_focus {
         focus_handle.focus(window, cx);
     }
+}
+
+/// Marks the toast [`layout_preset`] shows.
+struct LayoutPresets;
+
+/// `workspace::UseClassicLayout` and `workspace::UseAgenticLayout`: Zed's Panel Layout presets
+/// rewrite the docks the Marley layout sets, `agent.dock` among them, so in that layout they say
+/// so and offer Zed's layout instead of writing. In the Zed layout they go on to Zed.
+fn layout_preset<A>(workspace: &mut Workspace, _: &A, _: &mut Window, cx: &mut Context<Workspace>) {
+    if marley_layout(cx) {
+        cx.stop_propagation();
+        let toast = Toast::new(
+            NotificationId::unique::<LayoutPresets>(),
+            "Panel Layout presets belong to Zed's layout: the Marley layout places its own panels.",
+        )
+        .on_click("Use Zed's Layout", use_zed_layout);
+        workspace.show_toast(toast, cx);
+    }
+}
+
+/// The layout toast's button.
+fn use_zed_layout(_: &mut Window, cx: &mut App) {
+    write_layout(MarleyLayout::Zed, cx);
 }
 
 /// Whether the windows use the Marley layout, read where each routing decision is made.

@@ -1388,3 +1388,15 @@ sidebar's width. A close is remembered in the rail's own field, since the `Multi
 open. The restore closes the rail again once no entity is being updated. Rejected: a blob of
 the rail's own (the #438 failure: Zed's state leaves the database), and a Zed touchpoint for a
 silent close or a close-aware restore.
+
+## AD-claude-451-zeds-layout-presets-explain-themselves-in-the-marley-layout-001
+*decided at: 2026-09-23 · status: shipped*
+
+In the Marley layout Zed's Panel Layout presets (`workspace::UseClassicLayout`,
+`workspace::UseAgenticLayout`) are caught in the capture phase and answered with a toast, not
+run: they rewrite the docks the layout sets, and Agentic's `agent.dock: left` would outlive the
+layout. The toast says the presets belong to Zed's layout and offers a switch to it. The title
+bar's submenu stays as Zed draws it, since hiding it needs a `title_bar` touchpoint and choosing
+an entry now explains itself; the palette entries route the same way. Rejected: a palette
+filter (the title bar re-applies its own on every settings change), silently swallowing the
+actions, and a `title_bar` touchpoint.

@@ -372,8 +372,10 @@ panel. W5b shipped as #449: `` ctrl-` ``, `ctrl-~` and `ctrl-j` work on the cent
 by catching Zed's actions rather than rebinding keys. W5c shipped as #450: `ctrl-alt-n` opens
 a New Agent picker over Zed's agents and the installed CLIs, bound through the Marley keymap.
 W6 was split at its promotion. W6a shipped as #442: a closed rail stays closed across
-restarts, and one width holds in both layouts. W6b to W6e are TICKET-451 to TICKET-454, queued
-in that order, and the rail's smaller internals wait in `docs/planning/intake/rail-internals.md`.
+restarts, and one width holds in both layouts. W6b shipped as #451: in the Marley layout Zed's
+Panel Layout presets explain themselves instead of rewriting its docks. W6c to W6g are
+TICKET-452 to TICKET-456, queued in that order, and the rail's smaller internals wait in
+`docs/planning/intake/rail-internals.md`.
 
 | Slice | Delivers | Size |
 |---|---|---|
@@ -383,7 +385,7 @@ in that order, and the rail's smaller internals wait in `docs/planning/intake/ra
 | W3 | Zed threads in the rail: thread rows, status and attention dots, New Agent Thread, opening a thread in the right-hand Agent Panel | M |
 | W4 | Agents in terminals: New Agent, agent recognition and status | M |
 | W5 | Terminal routing in the Marley layout: the task provider and the action capture (#441), then the terminal keys (#449, W5b) and New Agent from the keyboard through the Marley keymap (#450, W5c); a terminal on project open moved to W6 | M |
-| W6 | Persistence and polish, split at promotion: closed-rail memory and one width (#442, W6a); Zed's layout presets, the right dock and a first terminal (#451, W6b); rename and close (#452, W6c); keyboard navigation, the filter and reorder (#453, W6d); the switcher (#454, W6e) | M |
+| W6 | Persistence and polish, split at promotion: closed-rail memory and one width (#442, W6a); Zed's layout presets (#451, W6b); rename and close (#452, W6c); keyboard navigation, the filter and reorder (#453, W6d); the switcher (#454, W6e); a first terminal (#455, W6f); the docks across a layout round trip (#456, W6g) | M |
 
 Then the prongs continue in this shell: T0 and T1 draw Blocks inside the rail's terminals,
 and C1's fleet rows become a rail section.

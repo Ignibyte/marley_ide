@@ -2000,3 +2000,18 @@ What worked in #442 (`crates/marley_workbench/src/marley_workbench_tests.rs`):
   `MultiWorkspace` while producing the blob.
 - Test the blob as JSON (`serde_json::Value`), not as a string: field order and additions
   break a byte-for-byte comparison without changing what either sidebar reads.
+
+## L-claude-451-catching-a-zed-crates-actions-in-a-marley-test-001
+*category: validate · topic: tests that need another Zed crate's actions · from: pipeline 451*
+
+What worked in #451 (`crates/marley_workbench/src/marley_workbench_tests.rs`):
+- To catch an action a Zed crate declares, depend on that crate for its types, and in
+  `[dev-dependencies]` repeat it with `features = ["test-support"]` when the test build turns on
+  another crate's test support: `title_bar` matches `remote`'s `Mock` connection only under its
+  own `test-support`, so without it `cargo check --tests` failed in `title_bar` itself.
+- A stand-in for the Zed crate's handler, registered with `workspace.register_action` as the
+  crate registers its own, shows whether an action got through, without that crate's `init`
+  and the globals it needs.
+- A toast's primary button has no debug selector to click by. Hand `Toast::on_click` a named
+  function rather than a closure, and have the test call that function; the wiring is then one
+  line in the code under review.

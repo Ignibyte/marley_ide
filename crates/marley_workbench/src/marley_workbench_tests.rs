@@ -134,7 +134,7 @@ pub(crate) fn init_agent_test(cx: &mut TestAppContext) {
 
 /// An Agent Panel in `workspace`, as `crates/zed` adds one.
 pub(crate) fn add_agent_panel(
-    workspace: &Entity<workspace::Workspace>,
+    workspace: &Entity<Workspace>,
     cx: &mut VisualTestContext,
 ) -> Entity<agent_ui::AgentPanel> {
     workspace.update_in(cx, |workspace, window, cx| {
@@ -202,7 +202,7 @@ pub(crate) async fn open_projects<'a>(
     cx: &'a mut TestAppContext,
 ) -> (
     Entity<MultiWorkspace>,
-    Vec<Entity<workspace::Workspace>>,
+    Vec<Entity<Workspace>>,
     &'a mut VisualTestContext,
 ) {
     let fs = FakeFs::new(cx.executor());
@@ -708,4 +708,96 @@ fn a_marley_keymap_that_fails_to_load_binds_nothing(cx: &TestAppContext) {
             "not even the binding that did load"
         );
     });
+}
+
+/// Which of Zed's preset handlers ran, as these tests' stand-ins for them record it.
+#[derive(Default)]
+struct PresetsRan(Vec<&'static str>);
+
+impl Global for PresetsRan {}
+
+/// Stand-ins for Zed's preset handlers on `workspace`, registered as `title_bar` registers its
+/// own; `title_bar::init` builds a title bar per workspace, with globals these tests do not set.
+fn stand_in_for_zeds_presets(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) {
+    workspace.update(cx, |workspace, _| {
+        workspace.register_action(|_, _: &UseClassicLayout, _, cx| {
+            cx.default_global::<PresetsRan>().0.push("classic");
+        });
+        workspace.register_action(|_, _: &UseAgenticLayout, _, cx| {
+            cx.default_global::<PresetsRan>().0.push("agentic");
+        });
+    });
+}
+
+fn presets_ran(cx: &VisualTestContext) -> Vec<&'static str> {
+    cx.read(|cx| {
+        cx.try_global::<PresetsRan>()
+            .map(|ran| ran.0.clone())
+            .unwrap_or_default()
+    })
+}
+
+fn preset_toast_shown(workspace: &Entity<Workspace>, cx: &VisualTestContext) -> bool {
+    workspace.read_with(cx, |workspace, _| {
+        workspace.has_notification(&NotificationId::unique::<LayoutPresets>())
+    })
+}
+
+/// Dispatches `action` from the workspace's center pane, below the workspace's root.
+fn dispatch_from_center(
+    workspace: &Entity<Workspace>,
+    action: impl gpui::Action,
+    cx: &mut VisualTestContext,
+) {
+    workspace.update_in(cx, |workspace, window, cx| {
+        workspace.active_pane().focus_handle(cx).focus(window, cx);
+    });
+    cx.update(|window, _| window.refresh());
+    cx.dispatch_action(action);
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+async fn in_the_marley_layout_zeds_layout_presets_only_explain(cx: &mut TestAppContext) {
+    init_test(cx);
+    cx.update(init);
+    set_layout(MarleyLayout::Marley, cx);
+    let (multi_workspace, workspaces, cx) = open_projects(&[path!("/alpha")], cx).await;
+    register(&multi_workspace, cx);
+    let workspace = workspaces[0].clone();
+    stand_in_for_zeds_presets(&workspace, cx);
+    dispatch_from_center(&workspace, UseClassicLayout, cx);
+    assert!(preset_toast_shown(&workspace, cx));
+    dispatch_from_center(&workspace, UseAgenticLayout, cx);
+    assert!(preset_toast_shown(&workspace, cx));
+    assert!(presets_ran(cx).is_empty(), "neither reaches Zed's handler");
+    cx.read(assert_marley_defaults);
+}
+
+#[gpui::test]
+async fn the_toasts_button_switches_to_zeds_layout(cx: &mut TestAppContext) {
+    init_test(cx);
+    init_zed_sidebar(cx);
+    cx.update(init);
+    set_layout(MarleyLayout::Marley, cx);
+    let (multi_workspace, _, cx) = open_projects(&[path!("/alpha")], cx).await;
+    register(&multi_workspace, cx);
+    cx.update(use_zed_layout);
+    cx.run_until_parked();
+    cx.read(|cx| assert_eq!(MarleySettings::get_global(cx).layout, MarleyLayout::Zed));
+}
+
+#[gpui::test]
+async fn in_the_zed_layout_the_presets_reach_zed(cx: &mut TestAppContext) {
+    init_test(cx);
+    init_zed_sidebar(cx);
+    cx.update(init);
+    let (multi_workspace, workspaces, cx) = open_projects(&[path!("/alpha")], cx).await;
+    register(&multi_workspace, cx);
+    let workspace = workspaces[0].clone();
+    stand_in_for_zeds_presets(&workspace, cx);
+    dispatch_from_center(&workspace, UseClassicLayout, cx);
+    dispatch_from_center(&workspace, UseAgenticLayout, cx);
+    assert_eq!(presets_ran(cx), ["classic", "agentic"]);
+    assert!(!preset_toast_shown(&workspace, cx));
 }

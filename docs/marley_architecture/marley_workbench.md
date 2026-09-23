@@ -34,6 +34,11 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
     cleared.
 - In the Marley layout the defaults are `terminal.button: false` and `agent.dock: right`,
   patched below the user's settings, so a user value wins in both layouts.
+- **Zed's layout presets (#451).** `workspace::UseClassicLayout` and `workspace::UseAgenticLayout`
+  (from `title_bar`) rewrite the docks the Marley layout sets, `agent.dock` among them. In the
+  Marley layout capture-phase listeners on each workspace's root stop them and show a toast
+  saying the presets belong to Zed's layout, whose button (`use_zed_layout`) switches to it. In
+  the Zed layout they go on to Zed's handlers.
 
 ## The rail (`src/rail.rs`)
 
@@ -219,7 +224,9 @@ has its own test in `crates/zed/src/zed.rs`, `test_reload_keymaps_binds_the_marl
 
 ## Known limits
 
-- Zed's Panel Layout presets misread the Marley layout until #451 catches them.
+- The title bar's Panel Layout submenu still lists Classic and Agentic in the Marley layout,
+  with "Custom" checked; choosing one explains itself (#451), and hiding it needs a
+  `title_bar` touchpoint.
 - Vim's `:!` and external agents' login terminals still open in the Terminal Panel: they call
   the panel directly. While such a panel is open, `` ctrl-` `` still toggles the center
   terminals, and `ctrl-j` closes the dock.
@@ -227,7 +234,7 @@ has its own test in `crates/zed/src/zed.rs`, `test_reload_keymaps_binds_the_marl
   (`ToggleLeftDock`, `ToggleRightDock`).
 - The settings UI shows the patched values as the defaults: in the Marley layout a stored
   `terminal.button: false` looks like the default and has no reset control.
-- A layout round trip with the Agent Panel open can close the right dock (#451). Each round
+- A layout round trip with the Agent Panel open can close the right dock (#456). Each round
   trip adds a subscription pair on the kept Zed sidebar, and a window restored in the Marley
   layout saves a partial state before its restore finishes (`docs/planning/intake/rail-internals.md`).
 - A restored window builds its rail open and closes it once the restore is over, through

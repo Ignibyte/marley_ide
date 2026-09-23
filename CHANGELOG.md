@@ -152,6 +152,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Zed's Panel Layout presets in the Marley layout** (#451, 2026-09-23). Choosing Classic or
+  Agentic from the title bar's Panel Layout menu, or from the command palette, rewrote the
+  docks the Marley layout sets, and Agentic moved the Agent Panel to the left for good. In the
+  Marley layout both now change nothing and say that the presets belong to Zed's layout, with a
+  button that switches to it. In the Zed layout they work as before.
 - **Errors the ported Marley crates dropped** (#444, folded into #447). The MCP transport now
   logs a failed connection thread, a connection's IO error, and a focus effect the app can no
   longer take. The terminal logs a shell hook that arrives before `InitShell`, and any failure

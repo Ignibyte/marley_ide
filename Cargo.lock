@@ -10850,6 +10850,7 @@ dependencies = [
  "terminal_view",
  "theme",
  "theme_settings",
+ "title_bar",
  "ui",
  "util",
  "which",
