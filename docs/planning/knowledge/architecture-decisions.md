@@ -1465,3 +1465,22 @@ the filter. Rejected:
 - ordering by a pane's `activation_history`, which counts per workspace;
 - recency by what the window displays (F-claude-454-recency-noted-a-terminal-the-user-never-went-to-001);
 - a preview while cycling.
+
+## AD-claude-455-a-first-terminal-reads-zeds-own-lookup-001
+*decided at: 2026-09-23 · status: shipped*
+
+A folder project opened fresh in the Marley layout starts with one center terminal at its root,
+and a project opened from saved state keeps exactly what it saved, terminals or none. The
+routing's `observe_new` hook seeds the terminal. It knows fresh from restored through one Zed
+touchpoint: `Workspace::opened_from_saved_state()`, which `new_local` records from its own
+`workspace_for_roots` lookup in both closures that build the workspace. That is `Some(false)`
+for fresh, `Some(true)` for restored, and `None` for a workspace made any other way. Observers
+of a new entity run after the creating update, so the hook sees the value and a workspace
+already in its window. Nothing is seeded on a layout switch, for a window with no folder, or for
+`None`. Rejected:
+- `is_restoring`, which `load_workspace` sets a turn after the workspace exists;
+- `WorkspaceAdded`, which means pinned;
+- `database_id`, which is `Some` for both kinds;
+- reading the workspace database from Marley, which races the project's first save;
+- seeding every project with no terminal, the gpui-era force-seed failure
+  (`BF-claude-boot-restore-force-seeds-a-terminal-after-the-runtime-guard-dissolved-001`).

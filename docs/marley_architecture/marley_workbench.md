@@ -199,6 +199,16 @@ layout at each call, so a switch reinstalls nothing.
   local shell for `local: true`. An error reaches a prompt. Everything dispatched inside the
   workspace passes these listeners, the Terminal Panel's own `+` included when the panel is
   opened by hand.
+- **A first terminal (#455).** The same `observe_new` hook opens one center terminal at a
+  project's root through `open_center_terminal`, when a folder project is opened fresh in the
+  Marley layout and its center has none.
+  - Fresh means `Workspace::opened_from_saved_state() == Some(false)`. That is a Zed touchpoint,
+    recorded by `new_local` from its own lookup of the project's saved state, since nothing
+    outside `crates/workspace` can tell a fresh workspace from a restored one.
+  - A project opened from saved state reports `Some(true)` and keeps what it saved. Its restore
+    also swaps in the saved center, which would drop a seed whenever that center has panes.
+  - A workspace made any other way reports `None`, as `Workspace::test_new` does, so the test
+    harness's windows get nothing.
 - **The toggles (#449).** Three more capture listeners take `terminal_panel::Toggle`
   (`` ctrl-` ``), `terminal_panel::ToggleFocus` and `workspace::ToggleBottomDock` (`ctrl-j`)
   in the Marley layout and run one toggle between the code and the center terminals:
@@ -258,7 +268,7 @@ thread database per test) over the window. They put an `AgentPanel::test_new` in
 and drive threads through `acp_thread::StubAgentConnection`: a turn that stays open until
 `end_turn`, or a tool call waiting on a permission.
 
-`src/routing_tests.rs` (the routing, 15 tests) runs real shells and tasks, as Zed's own panel
+`src/routing_tests.rs` (the routing, 20 tests) runs real shells and tasks, as Zed's own panel
 tests do, with the executor allowed to park. Each window loads the Terminal Panel through
 `TerminalPanel::load` and adds it, as `crates/zed` does, so Zed's provider is in place first
 and the routing's has to replace it. Actions are dispatched from the focused center pane, below
@@ -293,12 +303,15 @@ has its own test in `crates/zed/src/zed.rs`, `test_reload_keymaps_binds_the_marl
   `close_sidebar`, which records Zed's "Sidebar Toggled" event; Zed has no silent close.
 - The filter ignores case for ASCII letters only, as Zed's does, and vim's `/`, which reaches
   Zed's sidebar filter, does not reach the rail's.
+- A first terminal comes only with a folder opened fresh. A project opened before, in either
+  layout, reopens as it was saved, and switching a window to the Marley layout seeds nothing.
 - `ctrl-tab` in a center pane stays Zed's tab switcher, over that pane's items. The rail's
   switcher shows no preview while cycling, and its recency lives in memory only. Next and
   Previous Project and Thread still reach the trait's no-op defaults (#459).
 - A project whose last folder is removed keeps its row until another change rebuilds the rail
   (#458).
 - The thread rows, the agent rows, the routing, the terminal keys, the New Agent key, the
-  rail's persistence, its keys and reorder, its filter and its switcher have not been seen live:
-  the drives for #439 and #440 would have moved Chad's windows off his monitor, and the later
-  ones need input or a relaunch. They are owed to the next headless capture.
+  rail's persistence, its keys and reorder, its filter, its switcher and the first terminal
+  have not been seen live: the drives for #439 and #440 would have moved Chad's windows off his
+  monitor, and the later ones need input or a relaunch. They are owed to the next headless
+  capture.

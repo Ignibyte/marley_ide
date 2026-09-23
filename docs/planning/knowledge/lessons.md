@@ -2084,3 +2084,20 @@ What worked in #454 (`crates/marley_workbench/src/rail_tests.rs`, the W6e sectio
   Key it on what holds focus
   (F-claude-454-recency-noted-a-terminal-the-user-never-went-to-001), and give the test inputs
   where the two rules disagree.
+
+## L-claude-455-driving-a-real-open-and-restore-through-new-local-001
+*category: validate · topic: tests of what Zed does when it opens or reopens a folder · from: pipeline 455*
+
+What worked in #455 (`crates/marley_workbench/src/routing_tests.rs`, the W6f section):
+- `Workspace::new_local` runs in a Marley test. `init_test` provides the settings and a test
+  database (`db::AppDatabase::test_new`), `cx.update(AppState::test)` the app state, and the
+  folder is put on the app state's `FakeFs` (`app_state.fs.as_fake().insert_tree`). A real
+  `tempfile` directory at the same path lets a terminal's shell start there.
+- A real restore is two opens of the same roots with `flush_all_serialization` and
+  `window.remove_window()` between them. The second `new_local` finds the saved row and
+  restores the project's items. `requesting_window: None` and `Some(window)` run the two
+  different closures that build the workspace, so test both.
+- Restoring a project whose saved center has panes swaps that center in, which drops anything
+  added to the workspace before the restore finished. A terminal seeded at creation disappears
+  (and its shell with it), so only a project saved with an empty center shows a seed that
+  should not be there. Put the negative check there.

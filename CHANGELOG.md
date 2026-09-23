@@ -13,6 +13,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A first terminal for a new project** (#455, 2026-09-23). A folder you open for the first
+  time in the Marley layout starts with a terminal at its root, with focus. A project you have
+  opened before comes back as you left it, with its saved terminals or none, and never an extra
+  one.
 - **A switcher over recent terminals and threads** (#454, 2026-09-23). In the rail or the Agent
   Panel, `ctrl-tab` (on macOS too, as in Zed) opens a switcher over the window's terminals and
   threads, the ones you last worked in first, with the one before the current selected. Keep

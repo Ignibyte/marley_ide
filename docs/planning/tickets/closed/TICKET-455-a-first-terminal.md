@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #455 (feature, workbench shell W6f)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet (split from #451 at its promotion)
+- **Pipeline doc:** ../../pipeline/completed/455-a-first-terminal.spec.md
 - **Source ticket:** ../../pipeline/completed/451-marley-layout-presets.spec.md (Out) · ../../../marley/workbench-shell.md
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 In the Marley layout the terminal is the main surface, so a project first shown with no center
@@ -14,7 +14,10 @@ the obvious gate, but `load_workspace` sets it inside the task it spawns
 (`crates/workspace/src/workspace.rs:7857-7862`), a turn after the workspace exists, so a rail
 that reads it at `WorkspaceAdded` can see `false` for a workspace about to restore. Planning
 starts with that: find a signal that a workspace's items are in (a restore's end, or a fresh
-workspace with no serialized items), or seed only for a project opened fresh.
+workspace with no serialized items), or seed only for a project opened fresh. Settled at
+promotion (2026-09-23): no signal outside `crates/workspace` tells the two apart, so
+`Workspace::new_local`, which looks the saved state up, records whether it found any, and only
+a fresh project is seeded.
 
 ## Acceptance
 A project opened in the Marley layout with no terminal shows one at its root, focused only if

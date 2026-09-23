@@ -1,16 +1,17 @@
 //! Driven tests for the terminal routing. They start real shells and tasks, as Zed's own
 //! Terminal Panel tests do, so each lets the executor park while a process works.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use fs::FakeFs;
-use gpui::{AppContext as _, Focusable, TestAppContext, VisualTestContext};
+use gpui::{AppContext as _, Focusable, TestAppContext, VisualTestContext, WindowHandle};
 use project::Project;
 use settings::MarleyLayout;
 use task::{Shell, TaskId};
-use workspace::MultiWorkspace;
 use workspace::dock::{DockPosition, test::TestPanel};
 use workspace::item::test::TestItem;
+use workspace::{AppState, MultiWorkspace, OpenMode};
 
 use super::*;
 use crate::marley_workbench_tests::{init_test, init_zed_sidebar, set_layout};
@@ -450,4 +451,168 @@ async fn in_the_zed_layout_the_toggles_open_the_terminal_panel(cx: &mut TestAppC
     dispatch(ToggleFocus, cx);
     assert!(!focused(&panel, cx));
     assert!(center_views(&workspace, cx).is_empty());
+}
+
+// ── W6f: a first terminal ───────────────────────────────────────────────────
+
+/// Zed's own app state for opening folders, in `layout`, with the routing installed.
+fn folder_app_state(layout: MarleyLayout, cx: &TestAppContext) -> Arc<AppState> {
+    cx.executor().allow_parking();
+    init_test(cx);
+    cx.update(crate::init);
+    set_layout(layout, cx);
+    cx.update(AppState::test)
+}
+
+/// A real directory, so a terminal's shell can start in it, also on the app state's file system,
+/// so the project can open it.
+async fn folder(app_state: &Arc<AppState>) -> (tempfile::TempDir, PathBuf) {
+    let directory = tempfile::tempdir().expect("a temporary directory");
+    let root = directory
+        .path()
+        .canonicalize()
+        .expect("the directory exists");
+    app_state
+        .fs
+        .as_fake()
+        .insert_tree(&root, serde_json::json!({}))
+        .await;
+    (directory, root)
+}
+
+/// Opens `roots` as Zed opens a folder, in a new window, and waits for the open, and any restore
+/// from saved state, to finish.
+async fn open_folder(
+    roots: Vec<PathBuf>,
+    app_state: &Arc<AppState>,
+    cx: &TestAppContext,
+) -> (WindowHandle<MultiWorkspace>, Entity<Workspace>) {
+    open_folder_in(roots, None, app_state, cx).await
+}
+
+/// Opens `roots` as [`open_folder`] does, into `window` when there is one.
+async fn open_folder_in(
+    roots: Vec<PathBuf>,
+    window: Option<WindowHandle<MultiWorkspace>>,
+    app_state: &Arc<AppState>,
+    cx: &TestAppContext,
+) -> (WindowHandle<MultiWorkspace>, Entity<Workspace>) {
+    let opening = cx.update(|cx| {
+        Workspace::new_local(
+            roots,
+            Arc::clone(app_state),
+            window,
+            None,
+            None,
+            OpenMode::Activate,
+            cx,
+        )
+    });
+    let opened = opening.await.expect("the folder opens");
+    cx.run_until_parked();
+    (opened.window, opened.workspace)
+}
+
+/// Writes the window's state as Zed does before quitting, then closes the window.
+async fn save_and_close(window: WindowHandle<MultiWorkspace>, cx: &mut TestAppContext) {
+    let saving = window
+        .update(cx, |multi_workspace, window, cx| {
+            multi_workspace.flush_all_serialization(window, cx)
+        })
+        .expect("the window is open");
+    for task in saving {
+        task.await;
+    }
+    window
+        .update(cx, |_, window, _| window.remove_window())
+        .expect("the window is open");
+    cx.run_until_parked();
+}
+
+fn saved_state(workspace: &Entity<Workspace>, cx: &TestAppContext) -> Option<bool> {
+    workspace.read_with(cx, |workspace, _| workspace.opened_from_saved_state())
+}
+
+fn center_terminal_count(workspace: &Entity<Workspace>, cx: &TestAppContext) -> usize {
+    workspace.read_with(cx, |workspace, cx| {
+        workspace.items_of_type::<TerminalView>(cx).count()
+    })
+}
+
+#[gpui::test]
+async fn a_folder_opened_fresh_starts_with_a_terminal_at_its_root(cx: &TestAppContext) {
+    let app_state = folder_app_state(MarleyLayout::Marley, cx);
+    let (_directory, root) = folder(&app_state).await;
+    let (window, workspace) = open_folder(vec![root.clone()], &app_state, cx).await;
+    assert_eq!(saved_state(&workspace, cx), Some(false));
+    let cx = &mut VisualTestContext::from_window(window.into(), cx);
+    let terminals = center_terminals(&workspace, cx);
+    assert_eq!(terminals.len(), 1);
+    assert_eq!(shell_directory(&terminals[0], cx).await, Some(root));
+    let view = workspace
+        .read_with(cx, |workspace, cx| {
+            workspace.items_of_type::<TerminalView>(cx).next()
+        })
+        .expect("a terminal view");
+    let focused = cx.update(|window, cx| view.focus_handle(cx).contains_focused(window, cx));
+    assert!(focused, "the terminal takes focus");
+}
+
+#[gpui::test]
+async fn a_folder_opened_into_a_window_starts_with_a_terminal_too(cx: &TestAppContext) {
+    let app_state = folder_app_state(MarleyLayout::Marley, cx);
+    let (_directory, root) = folder(&app_state).await;
+    let (_other_directory, other) = folder(&app_state).await;
+    let (window, _) = open_folder(vec![root], &app_state, cx).await;
+    let (_, workspace) = open_folder_in(vec![other], Some(window), &app_state, cx).await;
+    assert_eq!(saved_state(&workspace, cx), Some(false));
+    assert_eq!(center_terminal_count(&workspace, cx), 1);
+}
+
+#[gpui::test]
+async fn a_folder_opened_from_saved_state_gets_no_terminal_of_its_own(cx: &mut TestAppContext) {
+    let app_state = folder_app_state(MarleyLayout::Marley, cx);
+    let (_directory, root) = folder(&app_state).await;
+    let (window, _) = open_folder(vec![root.clone()], &app_state, cx).await;
+    save_and_close(window, cx).await;
+    // Its saved terminal comes back, and no second one.
+    let (window, workspace) = open_folder(vec![root.clone()], &app_state, cx).await;
+    assert_eq!(saved_state(&workspace, cx), Some(true));
+    assert_eq!(center_terminal_count(&workspace, cx), 1);
+    save_and_close(window, cx).await;
+    // A project saved with no terminal, from the Zed layout, stays as it was.
+    let (_other_directory, other) = folder(&app_state).await;
+    set_layout(MarleyLayout::Zed, cx);
+    let (window, workspace) = open_folder(vec![other.clone()], &app_state, cx).await;
+    assert_eq!(center_terminal_count(&workspace, cx), 0);
+    save_and_close(window, cx).await;
+    set_layout(MarleyLayout::Marley, cx);
+    let (_, workspace) = open_folder(vec![other], &app_state, cx).await;
+    assert_eq!(saved_state(&workspace, cx), Some(true));
+    assert_eq!(center_terminal_count(&workspace, cx), 0);
+}
+
+#[gpui::test]
+async fn nothing_else_gets_a_first_terminal(cx: &TestAppContext) {
+    // In the Zed layout a fresh folder opens as upstream does.
+    let app_state = folder_app_state(MarleyLayout::Zed, cx);
+    let (_directory, root) = folder(&app_state).await;
+    let (_, workspace) = open_folder(vec![root], &app_state, cx).await;
+    assert_eq!(saved_state(&workspace, cx), Some(false));
+    assert_eq!(center_terminal_count(&workspace, cx), 0);
+    // A window with no folder has no root to start one in.
+    set_layout(MarleyLayout::Marley, cx);
+    let (_, workspace) = open_folder(Vec::new(), &app_state, cx).await;
+    assert_eq!(saved_state(&workspace, cx), Some(false));
+    assert_eq!(center_terminal_count(&workspace, cx), 0);
+}
+
+#[gpui::test]
+async fn a_workspace_made_another_way_gets_no_first_terminal(cx: &mut TestAppContext) {
+    let (workspace, _, cx) = open_workspace(MarleyLayout::Marley, cx).await;
+    assert_eq!(
+        workspace.read_with(cx, |workspace, _| workspace.opened_from_saved_state()),
+        None
+    );
+    assert!(center_terminals(&workspace, cx).is_empty());
 }

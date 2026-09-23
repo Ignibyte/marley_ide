@@ -5,7 +5,7 @@ status: Phase 4 — Complete PASS
 title: Zed's layout presets in the Marley layout
 type: bug
 slice: workbench shell W6b
-references: [docs/marley/workbench-shell.md, docs/planning/pipeline/completed/441-marley-terminal-routing.spec.md, docs/planning/tickets/open/TICKET-455-a-first-terminal.md, docs/planning/tickets/open/TICKET-456-docks-across-a-layout-switch.md]
+references: [docs/marley/workbench-shell.md, docs/planning/pipeline/completed/441-marley-terminal-routing.spec.md, docs/planning/tickets/closed/TICKET-455-a-first-terminal.md, docs/planning/tickets/open/TICKET-456-docks-across-a-layout-switch.md]
 ---
 
 ## Title

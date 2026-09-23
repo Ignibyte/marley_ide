@@ -1654,6 +1654,10 @@ pub struct Workspace {
     persisted_recent_navigation_history: Vec<PathBuf>,
     last_active_project_path: Option<ProjectPath>,
     restoring_workspace: bool,
+    // Marley: whether `new_local` found saved state for this workspace's roots, so an observer
+    // of new workspaces can tell a project opened fresh from one opened from saved state. `None`
+    // for a workspace made any other way.
+    opened_from_saved_state: Option<bool>,
 }
 
 impl EventEmitter<Event> for Workspace {}
@@ -2156,6 +2160,8 @@ impl Workspace {
             persisted_recent_navigation_history: Vec::new(),
             last_active_project_path: None,
             restoring_workspace: false,
+            // Marley: see `opened_from_saved_state`.
+            opened_from_saved_state: None,
         }
     }
 
@@ -2262,6 +2268,8 @@ impl Workspace {
                 OpenMode::NewWindow => None,
                 _ => requesting_window,
             };
+            // Marley: recorded on the workspace below, beside `centered_layout`.
+            let opened_from_saved_state = serialized_workspace.is_some();
 
             let (window, workspace): (WindowHandle<MultiWorkspace>, Entity<Workspace>) =
                 if let Some(window) = window_to_replace {
@@ -2281,6 +2289,8 @@ impl Workspace {
                             );
 
                             workspace.centered_layout = centered_layout;
+                            // Marley: see `opened_from_saved_state`.
+                            workspace.opened_from_saved_state = Some(opened_from_saved_state);
 
                             // Call init callback to add items before window renders
                             if let Some(init) = init {
@@ -2344,6 +2354,8 @@ impl Workspace {
                                     cx,
                                 );
                                 workspace.centered_layout = centered_layout;
+                                // Marley: see `opened_from_saved_state`.
+                                workspace.opened_from_saved_state = Some(opened_from_saved_state);
 
                                 // Call init callback to add items before window renders
                                 if let Some(init) = init {
@@ -2908,6 +2920,11 @@ impl Workspace {
 
     pub fn is_restoring(&self) -> bool {
         self.restoring_workspace
+    }
+
+    // Marley: see the field.
+    pub fn opened_from_saved_state(&self) -> Option<bool> {
+        self.opened_from_saved_state
     }
 
     #[cfg(any(test, feature = "test-support"))]

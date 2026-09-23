@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-455](open/TICKET-455-a-first-terminal.md) | feature | W6f · a first terminal for a project shown with none, without doubling a restored one's |
 | [TICKET-456](open/TICKET-456-docks-across-a-layout-switch.md) | bug | W6g · each dock as it was across a layout round trip |
 | [TICKET-458](open/TICKET-458-rail-follows-folder-changes.md) | bug | the rail rebuilt when a project's folders change |
 | [TICKET-459](open/TICKET-459-rail-cycle-actions.md) | feature | Zed's Next and Previous Project and Thread in the Marley layout |

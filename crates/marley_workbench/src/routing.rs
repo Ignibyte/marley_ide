@@ -3,8 +3,9 @@
 //! Tasks run through a task provider of this crate's own, which sends them to center terminals.
 //! `workspace::NewTerminal` and `workspace::OpenTerminal` are caught before the panel's own
 //! handlers see them, and so are the panel's toggles and the bottom dock's, which switch between
-//! the code and the center terminals instead. In the Zed layout all of it passes straight
-//! through, so the fork behaves as upstream.
+//! the code and the center terminals instead. A folder project opened fresh starts with a center
+//! terminal at its root. In the Zed layout all of it passes straight through, so the fork behaves
+//! as upstream.
 
 use std::path::PathBuf;
 use std::process::ExitStatus;
@@ -29,7 +30,7 @@ use crate::marley_layout;
 /// replaces the panel's once the panel is added, after the panel's own load has installed Zed's.
 pub fn init(cx: &App) {
     cx.observe_new(
-        |workspace: &mut Workspace, _, cx: &mut Context<Workspace>| {
+        |workspace: &mut Workspace, window, cx: &mut Context<Workspace>| {
             workspace.register_action_renderer(|div, _, _, cx| {
                 div.capture_action(cx.listener(new_terminal))
                     .capture_action(cx.listener(open_terminal))
@@ -49,9 +50,39 @@ pub fn init(cx: &App) {
                 }
             })
             .detach();
+            seed_first_terminal(workspace, window, cx);
         },
     )
     .detach();
+}
+
+/// A folder project opened fresh in the Marley layout starts with a terminal at its root, since
+/// the terminal is the layout's main surface. A project opened from saved state keeps what it
+/// saved, terminals or none, and a workspace made any other way gets nothing.
+///
+/// New-workspace observers run after the update that made the workspace, so it is in its window
+/// by now, and a file opened with the project takes focus after the terminal.
+fn seed_first_terminal(
+    workspace: &mut Workspace,
+    window: Option<&mut Window>,
+    cx: &mut Context<Workspace>,
+) {
+    let root = workspace
+        .project()
+        .read(cx)
+        .visible_worktrees(cx)
+        .next()
+        .map(|worktree| worktree.read(cx).abs_path().to_path_buf());
+    let fresh = workspace.opened_from_saved_state() == Some(false);
+    let no_terminal = workspace.items_of_type::<TerminalView>(cx).next().is_none();
+    if let Some(window) = window
+        && let Some(root) = root
+        && fresh
+        && no_terminal
+        && marley_layout(cx)
+    {
+        open_center_terminal(workspace, false, Some(root), window, cx);
+    }
 }
 
 /// The workspace's task provider in both layouts. Every task runs through the Terminal Panel,
