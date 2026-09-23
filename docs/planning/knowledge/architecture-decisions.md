@@ -1693,3 +1693,28 @@ Rejected:
 - `ThreadItem`: a fixed 16px icon slot and one line. It stays in the switcher.
 - A new icon in Zed's `icons` crate for `>_`: a Zed path for what the buffer font already draws.
 - Warp's `Ctrl <n>` hints: Marley binds no key to the n-th row.
+
+## AD-claude-465-zsh-loads-marleys-hooks-through-a-zdotdir-that-hands-back-the-users-001
+*decided at: 2026-09-23 · status: shipped*
+
+A local interactive zsh that Zed spawns, given as `Shell::System` or `Shell::Program`, starts
+unchanged but for its environment: `ZDOTDIR=<data dir>/shell_integration/zsh`,
+`MARLEY_SHELL_INTEGRATION=1`, and `MARLEY_ZSH_ZDOTDIR` with the user's own `ZDOTDIR` when the
+terminal's environment or Marley's has one. That directory holds only Marley's `.zshenv`
+(`shell_integration/marley.zsh`):
+- it restores the user's `ZDOTDIR`, or unsets it, and sources the user's `.zshenv`; zsh reads
+  each later startup file from the `ZDOTDIR` of that moment, so `.zprofile`, `.zshrc` and
+  `.zlogin` come from where they would have;
+- in an interactive shell it appends an installer to `precmd_functions`, which at the first
+  prompt puts `__marley_precmd` first and `__marley_preexec` last, and prints `init` and
+  `bootstrapped`. First, so the frame marks where the command's output ends before another
+  hook prints; zsh gives every hook the command's `$?` whatever the order.
+
+Rejected:
+- a Marley copy of each startup file that sources the user's: four files where one does;
+- installing the hooks in `.zshenv` itself: whatever the user's `.zshrc` then did to the hook
+  arrays (a framework that rebuilds them, a hook put first) would decide Marley's place;
+- rewriting the `Shell` with arguments: zsh has no rcfile argument, and the title stays zsh's.
+
+A user with no zsh startup files no longer gets zsh's new-user menu in Marley's terminals,
+since Marley's `ZDOTDIR` holds a `.zshenv`.

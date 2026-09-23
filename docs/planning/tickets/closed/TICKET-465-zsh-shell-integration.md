@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #465 (feature, prong 1: T0c, second shell)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet (split from #463 at its plan)
+- **Pipeline doc:** ../../pipeline/completed/465-zsh-shell-integration.spec.md
 - **Source ticket:** ../../../marley/three-prong-plan.md (T0, D5)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 zsh gets Marley's integration through `ZDOTDIR`, at #463's injection point. The gpui era's zsh

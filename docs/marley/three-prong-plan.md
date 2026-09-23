@@ -114,7 +114,7 @@ Marley shipped as `#433`.
 
 | Slice | Delivers | Size |
 |---|---|---|
-| T0 | Split at its promotion: the vendored `alacritty_terminal` (#461, T0a, shipped); `Event::ShellHook` from the event loop, with unit tests on recorded byte streams (#462, T0b, shipped); the anchored `BlockList` on `Terminal` and a `blocks()` accessor (#464, shipped); the hook scripts and their injection, bash first (#463, T0c, shipped), then zsh (#465) and fish (#466) | M |
+| T0 | Split at its promotion: the vendored `alacritty_terminal` (#461, T0a, shipped); `Event::ShellHook` from the event loop, with unit tests on recorded byte streams (#462, T0b, shipped); the anchored `BlockList` on `Terminal` and a `blocks()` accessor (#464, shipped); the hook scripts and their injection, bash first (#463, T0c, shipped), then zsh (#465, shipped) and fish (#466) | M |
 | T1 | Stage-one rendering: gutter, pill, wash, hover copy/rerun; block navigation keys | M |
 | T2 | Block-scoped path links (resolve against the block's cwd) and jump-to-first-failure | S |
 | T3 | The prompt editor with history ghost text and the raw-passthrough ladder | L |

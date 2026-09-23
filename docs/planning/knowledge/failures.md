@@ -1781,3 +1781,17 @@ rail restyle. Fixed: the title lists the arguments through
 `marley_terminal::shell_integration::shown_arguments`, which leaves out the run `for_program`
 adds. `marley_bash_is_titled_without_the_integrations_arguments` fails without the fix
 (`left: ".tmpW4qYkg — bash --rcfile /home/cpeppers/.local/share/marley/shell_integration/marley.bash"`).
+
+## F-claude-465-gate4-counted-lines-from-a-stale-executable-001
+*severity: medium · category: gate · pipeline 465 (fix: TICKET-469)*
+
+gate:4 went red on #465 with 45 missed lines in `marley_terminal/src/shell_integration.rs`, all
+on doc comments, a derive and a blank line. The tree's own tests covered every line. The
+coverage JSON held two instrumented copies of `marley_terminal`: the test build, and a regular
+build whose `shell_integration.rs` regions sat on the lines of the file as it was at #467. That
+copy came from `marley_workbench`'s test executable, built in #468's coverage run and still in
+`/mnt/fast/target/llvm-cov-target/debug/deps`. cargo-llvm-cov cleans the artifacts of the
+packages it runs but reads every workspace test executable in its target directory, and this
+one's line map was of the old source, with no counts from this run. Removing it, the only
+stale executable naming that file, gave the tree's report. TICKET-469 makes the gate
+independent of what earlier runs left.

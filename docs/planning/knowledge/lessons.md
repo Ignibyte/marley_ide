@@ -2261,3 +2261,35 @@ or a fill in `element_background` on the panel, is therefore invisible. Read the
 live capture (`magick <png> -format "%[pixel:p{x,y}]" info:`) for each layer before settling a
 color, and for "a step lighter than what it sits on" use the text color at a low alpha, which
 steps the right way in dark and light themes alike.
+
+## L-claude-465-zsh-reads-an-unquoted-replacement-by-context-001
+*category: code · topic: shell integration scripts · from: pipeline 465*
+
+- **Quote zsh's `${var//pattern/replacement}` when the replacement holds a backslash.** At a
+  script's top level `r=${v//;/\;}` leaves `;` bare, while `r="${v//;/\;}"` gives `\;`;
+  inside a function both give `\;`. The bash script's unquoted forms are right in bash and
+  were no model for zsh. The quoted form reads the same everywhere.
+- **zsh gives every `precmd` hook the command's `$?`.** A hook that returns 3 does not change
+  what the next hook sees after `false` (1). Hook order still decides who prints first.
+- **zsh's new-user menu checks `ZDOTDIR` before any startup file runs**, so a `ZDOTDIR` that
+  holds a `.zshenv` suppresses it. Test the no-files case with an empty `HOME` under
+  `script -qfc "zsh -i"`.
+
+## L-claude-465-a-doc-opens-with-one-short-line-001
+*category: code · topic: clippy in the Marley crates · from: pipeline 465*
+
+`clippy::too_long_first_doc_paragraph` (nursery, an error in the Marley crates) fails a doc
+comment whose first paragraph runs long, and it has failed gate:2 in #467 and #465 on the same
+day. The first paragraph of a doc is one short line saying what the item is; every detail goes
+in a paragraph after a blank `///`. Write it that way first, not after the gate.
+
+## L-claude-465-zeds-clippy-bans-std-process-in-tests-too-001
+*category: code · topic: clippy in Zed's crates · from: pipeline 465*
+
+Zed's `clippy.toml` disallows `std::process::Command::spawn`, `output` and `status` (and
+`stdin`, `stdout`, `stderr`) everywhere, test code included, with `smol::process::Command` as
+the replacement. gate:2 lints the touched Zed crate's tests, so a test that shells out to see
+whether a program is installed fails it. To check for a program, scan `PATH`
+(`std::env::split_paths(&path).any(|dir| dir.join(name).is_file())`); to run one, use `smol`.
+Run `cargo clippy -p <every touched crate> --all-targets -- -D warnings`, Zed's crates too,
+before the gate.

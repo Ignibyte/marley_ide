@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Shell integration for zsh** (#465, 2026-09-23). An interactive zsh that Marley starts in a
+  local terminal now loads Marley's integration, as bash has since #463, so every command you
+  type in zsh becomes a block with its text, exit code and output. zsh starts with `ZDOTDIR`
+  pointing at a `.zshenv` Marley writes to its data directory. That file puts your own
+  `ZDOTDIR` back, or leaves it unset if you had none, and runs your `.zshenv`, so zsh reads your
+  `.zprofile`, `.zshrc` and `.zlogin` as it always did. If you have no zsh startup files at all,
+  zsh's new-user menu no longer opens in Marley's terminals. fish follows (#466).
 - **Shell integration for bash** (#463, 2026-09-23). An interactive bash that Marley starts in a
   local terminal now loads Marley's integration: it starts with `--rcfile` pointing at a script
   Marley writes to its data directory. The script sources your own `~/.bashrc` first, then

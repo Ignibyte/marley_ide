@@ -5,8 +5,9 @@
 //! The scripts are embedded here, and [`install_in`] writes them to a directory the caller
 //! names, from which the shell reads them at startup. [`for_program`] says how to start a
 //! program with them. bash takes `--rcfile`, and its script sources the user's own `~/.bashrc`
-//! first. zsh and fish follow (#465, #466). [`shown_arguments`] is what the user is shown of
-//! a process's arguments: all but the ones [`for_program`] adds.
+//! first. zsh takes `ZDOTDIR`, and its `.zshenv` puts the user's `ZDOTDIR` back, so zsh reads
+//! the user's own files as it would have. fish follows (#466). [`shown_arguments`] is what the
+//! user is shown of a process's arguments: all but the ones [`for_program`] adds.
 
 use std::io;
 use std::path::Path;
@@ -16,6 +17,21 @@ pub const BASH_INTEGRATION: &str = include_str!("../shell_integration/marley.bas
 
 /// The file [`install_in`] writes [`BASH_INTEGRATION`] to.
 pub const BASH_FILE: &str = "marley.bash";
+
+/// Marley's zsh integration script.
+pub const ZSH_INTEGRATION: &str = include_str!("../shell_integration/marley.zsh");
+
+/// The directory, inside the one [`install_in`] is given, that zsh starts with as its
+/// `ZDOTDIR`.
+pub const ZSH_DIR: &str = "zsh";
+
+/// The file in [`ZSH_DIR`] that [`install_in`] writes [`ZSH_INTEGRATION`] to: the first
+/// startup file zsh reads.
+pub const ZSH_FILE: &str = ".zshenv";
+
+/// The variable that carries the user's own `ZDOTDIR` into a zsh started with Marley's, for
+/// [`ZSH_INTEGRATION`] to put back.
+pub const ZSH_ZDOTDIR_VARIABLE: &str = "MARLEY_ZSH_ZDOTDIR";
 
 /// The variable a shell started with Marley's integration finds set.
 pub const MARKER_VARIABLE: &str = "MARLEY_SHELL_INTEGRATION";
@@ -36,29 +52,56 @@ pub struct ShellIntegration {
 ///
 /// # Errors
 ///
-/// Creating the directory or writing a script.
+/// Creating a directory or writing a script.
 pub fn install_in(dir: &Path) -> io::Result<()> {
-    std::fs::create_dir_all(dir)?;
-    let path = dir.join(BASH_FILE);
-    let current = std::fs::read_to_string(&path).ok();
-    if current.as_deref() != Some(BASH_INTEGRATION) {
-        std::fs::write(&path, BASH_INTEGRATION)?;
-    }
-    Ok(())
+    let zsh_dir = dir.join(ZSH_DIR);
+    std::fs::create_dir_all(&zsh_dir)?;
+    write_if_changed(&dir.join(BASH_FILE), BASH_INTEGRATION)?;
+    write_if_changed(&zsh_dir.join(ZSH_FILE), ZSH_INTEGRATION)
 }
 
-/// How to start `program` with Marley's integration, reading the scripts from `dir`, where
-/// [`install_in`] writes them. `None` for a program Marley has no integration for.
+fn write_if_changed(path: &Path, content: &str) -> io::Result<()> {
+    let current = std::fs::read_to_string(path).ok();
+    if current.as_deref() == Some(content) {
+        return Ok(());
+    }
+    std::fs::write(path, content)
+}
+
+/// How to start `program` with Marley's integration, or `None` for a program it has none for.
+///
+/// The scripts are read from `dir`, where [`install_in`] writes them. `user_zdotdir` is the
+/// `ZDOTDIR` the shell would otherwise have inherited.
 #[must_use]
-pub fn for_program(program: &str, dir: &Path) -> Option<ShellIntegration> {
+pub fn for_program(
+    program: &str,
+    dir: &Path,
+    user_zdotdir: Option<&str>,
+) -> Option<ShellIntegration> {
     let name = Path::new(program).file_stem()?.to_str()?;
+    let marker = (MARKER_VARIABLE.to_string(), "1".to_string());
     match name {
         "bash" => Some(ShellIntegration {
             args: vec![
                 "--rcfile".to_string(),
                 dir.join(BASH_FILE).display().to_string(),
             ],
-            env: vec![(MARKER_VARIABLE.to_string(), "1".to_string())],
+            env: vec![marker],
+        }),
+        "zsh" => Some(ShellIntegration {
+            args: Vec::new(),
+            env: [
+                (
+                    "ZDOTDIR".to_string(),
+                    dir.join(ZSH_DIR).display().to_string(),
+                ),
+                marker,
+            ]
+            .into_iter()
+            .chain(
+                user_zdotdir.map(|zdotdir| (ZSH_ZDOTDIR_VARIABLE.to_string(), zdotdir.to_string())),
+            )
+            .collect(),
         }),
         _ => None,
     }
@@ -74,7 +117,8 @@ pub fn shown_arguments<'a>(argv: &'a [String], dir: &Path) -> Vec<&'a str> {
     let Some((program, arguments)) = argv.split_first() else {
         return Vec::new();
     };
-    let added = for_program(program, dir).map_or_else(Vec::new, |integration| integration.args);
+    let added =
+        for_program(program, dir, None).map_or_else(Vec::new, |integration| integration.args);
     // `windows` takes no empty run.
     let run = (!added.is_empty())
         .then(|| {
@@ -96,6 +140,13 @@ pub fn shown_arguments<'a>(argv: &'a [String], dir: &Path) -> Vec<&'a str> {
 mod tests {
     use super::*;
 
+    fn pairs(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
+        pairs
+            .iter()
+            .map(|(name, value)| ((*name).to_string(), (*value).to_string()))
+            .collect()
+    }
+
     #[test]
     fn bash_starts_with_marleys_rcfile_and_other_programs_are_left_alone() {
         let dir = Path::new("/data/marley/shell_integration");
@@ -104,13 +155,40 @@ mod tests {
                 "--rcfile".to_string(),
                 "/data/marley/shell_integration/marley.bash".to_string(),
             ],
-            env: vec![("MARLEY_SHELL_INTEGRATION".to_string(), "1".to_string())],
+            env: pairs(&[("MARLEY_SHELL_INTEGRATION", "1")]),
         });
-        assert_eq!(for_program("bash", dir), bash);
-        assert_eq!(for_program("/usr/bin/bash", dir), bash);
-        for other in ["zsh", "/bin/sh", "fish", "", "/"] {
-            assert_eq!(for_program(other, dir), None, "{other}");
+        assert_eq!(for_program("bash", dir, None), bash);
+        assert_eq!(
+            for_program("/usr/bin/bash", dir, Some("/home/me/zsh")),
+            bash
+        );
+        for other in ["/bin/sh", "fish", "", "/"] {
+            assert_eq!(for_program(other, dir, None), None, "{other}");
         }
+    }
+
+    #[test]
+    fn zsh_starts_with_marleys_zdotdir_and_carries_the_users_own() {
+        let dir = Path::new("/data/marley/shell_integration");
+        let marleys = [
+            ("ZDOTDIR", "/data/marley/shell_integration/zsh"),
+            ("MARLEY_SHELL_INTEGRATION", "1"),
+        ];
+        let zsh = Some(ShellIntegration {
+            args: Vec::new(),
+            env: pairs(&marleys),
+        });
+        assert_eq!(for_program("zsh", dir, None), zsh);
+        assert_eq!(for_program("/usr/bin/zsh", dir, None), zsh);
+        let mut with_users = marleys.to_vec();
+        with_users.push(("MARLEY_ZSH_ZDOTDIR", "/home/me/.config/zsh"));
+        assert_eq!(
+            for_program("zsh", dir, Some("/home/me/.config/zsh")),
+            Some(ShellIntegration {
+                args: Vec::new(),
+                env: pairs(&with_users),
+            })
+        );
     }
 
     fn argv(arguments: &[&str]) -> Vec<String> {
@@ -135,6 +213,7 @@ mod tests {
         let script = "/data/marley/shell_integration/marley.bash";
         for arguments in [
             &["zsh", "--rcfile", script][..],
+            &["zsh", "-l"],
             &["bash", "--rcfile", "/home/me/.bashrc"],
             &["bash", "--rcfile"],
             &["bash", script, "--rcfile"],
@@ -153,30 +232,35 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn install_writes_the_script_leaves_an_identical_one_and_rewrites_a_changed_one() {
+    fn install_writes_the_scripts_leaves_identical_ones_and_rewrites_changed_ones() {
         use std::fs::Permissions;
         use std::os::unix::fs::PermissionsExt as _;
 
         let root = tempfile::tempdir().expect("a scratch directory");
         let dir = root.path().join("shell_integration");
         install_in(&dir).expect("installed");
-        let path = dir.join(BASH_FILE);
-        assert_eq!(
-            std::fs::read_to_string(&path).expect("the script"),
-            BASH_INTEGRATION
-        );
+        let scripts = [
+            (dir.join(BASH_FILE), BASH_INTEGRATION),
+            (dir.join(ZSH_DIR).join(ZSH_FILE), ZSH_INTEGRATION),
+        ];
+        for (path, content) in &scripts {
+            assert_eq!(&std::fs::read_to_string(path).expect("a script"), content);
+        }
 
-        // An identical script is not written again: read-only, it still installs.
-        std::fs::set_permissions(&path, Permissions::from_mode(0o444)).expect("read-only");
+        // Identical scripts are not written again: read-only, they still install.
+        for (path, _) in &scripts {
+            std::fs::set_permissions(path, Permissions::from_mode(0o444)).expect("read-only");
+        }
         install_in(&dir).expect("left alone");
 
-        // A changed one is rewritten.
-        std::fs::set_permissions(&path, Permissions::from_mode(0o644)).expect("writable");
-        std::fs::write(&path, "stale").expect("changed");
+        // Changed ones are rewritten.
+        for (path, _) in &scripts {
+            std::fs::set_permissions(path, Permissions::from_mode(0o644)).expect("writable");
+            std::fs::write(path, "stale").expect("changed");
+        }
         install_in(&dir).expect("rewritten");
-        assert_eq!(
-            std::fs::read_to_string(&path).expect("the script"),
-            BASH_INTEGRATION
-        );
+        for (path, content) in &scripts {
+            assert_eq!(&std::fs::read_to_string(path).expect("a script"), content);
+        }
     }
 }

@@ -83,7 +83,9 @@ fn marley_integration_dir() -> PathBuf {
 }
 
 // Marley: the shell a local interactive terminal starts: the given one, or, when Marley has an
-// integration for its program, the program with Marley's arguments and environment (#463).
+// integration for its program, the program with Marley's arguments and environment (#463). A
+// zsh is handed the `ZDOTDIR` it would have inherited, from the terminal's environment or
+// Marley's own, and a shell the integration adds no arguments to stays as it was (#465).
 #[cfg(unix)]
 fn marley_shell_integration(shell: Shell, env: &mut HashMap<String, String>) -> Shell {
     let program = match &shell {
@@ -92,7 +94,13 @@ fn marley_shell_integration(shell: Shell, env: &mut HashMap<String, String>) -> 
         Shell::WithArguments { .. } => return shell,
     };
     let dir = marley_integration_dir();
-    let Some(integration) = marley_terminal::shell_integration::for_program(&program, &dir) else {
+    let user_zdotdir = env
+        .get("ZDOTDIR")
+        .cloned()
+        .or_else(|| std::env::var("ZDOTDIR").ok());
+    let Some(integration) =
+        marley_terminal::shell_integration::for_program(&program, &dir, user_zdotdir.as_deref())
+    else {
         return shell;
     };
     if let Err(error) = marley_terminal::shell_integration::install_in(&dir) {
@@ -103,6 +111,9 @@ fn marley_shell_integration(shell: Shell, env: &mut HashMap<String, String>) -> 
         return shell;
     }
     env.extend(integration.env);
+    if integration.args.is_empty() {
+        return shell;
+    }
     Shell::WithArguments {
         program,
         args: integration.args,
@@ -4212,14 +4223,31 @@ mod tests {
     // Marley: an interactive bash with Marley's shell integration, in a scratch home (#463).
     #[cfg(unix)]
     async fn build_marley_bash_terminal(cx: &mut TestAppContext, home: &Path) -> Entity<Terminal> {
+        build_marley_shell_terminal(cx, "bash", home, &[]).await
+    }
+
+    // Marley: an interactive `program` with Marley's shell integration, in a scratch home, with
+    // `extra` added to its environment (#463, #465).
+    #[cfg(unix)]
+    async fn build_marley_shell_terminal(
+        cx: &mut TestAppContext,
+        program: &str,
+        home: &Path,
+        extra: &[(&str, &str)],
+    ) -> Entity<Terminal> {
         let mut env = HashMap::default();
         env.insert("HOME".to_string(), home.display().to_string());
+        env.extend(
+            extra
+                .iter()
+                .map(|(name, value)| (name.to_string(), value.to_string())),
+        );
         let builder = cx
             .update(|cx| {
                 TerminalBuilder::new(
                     Some(home.to_path_buf()),
                     TerminalMode::interactive(),
-                    task::Shell::Program("bash".to_string()),
+                    task::Shell::Program(program.to_string()),
                     env,
                     SettingsCursorShape::default(),
                     AlternateScroll::On,
@@ -4325,6 +4353,110 @@ mod tests {
         assert_eq!(title.trim_end(), format!("{name} — bash"));
     }
 
+    // Marley: the zsh tests start a real zsh, as the bash ones start bash, and say so when there
+    // is none (#465).
+    #[cfg(unix)]
+    fn require_zsh() {
+        let on_path = std::env::var_os("PATH")
+            .is_some_and(|path| std::env::split_paths(&path).any(|dir| dir.join("zsh").is_file()));
+        assert!(on_path, "Marley's zsh tests need zsh on the PATH");
+    }
+
+    // Marley: the output of the finished block for a typed `command` (#465).
+    #[cfg(unix)]
+    async fn run_in(
+        terminal: &Entity<Terminal>,
+        command: &str,
+        cx: &mut TestAppContext,
+    ) -> (marley_terminal::ExitCode, Option<String>) {
+        terminal.update(cx, |terminal, _| {
+            terminal.input(format!("{command}\r").into_bytes())
+        });
+        let block = finished_block_of(terminal, command, cx).await;
+        let output = terminal.read_with(cx, |terminal, _| terminal.block_output(&block));
+        (block.exit_code, output)
+    }
+
+    // Marley: a real zsh reads the user's own files, reports each typed command as a block, and
+    // is titled as the shell it is (#465).
+    #[cfg(unix)]
+    #[gpui::test]
+    async fn marley_zsh_reports_each_typed_command_as_a_block(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        require_zsh();
+        assert!(
+            std::env::var_os("ZDOTDIR").is_none(),
+            "a ZDOTDIR in the tests' environment would be the shell's"
+        );
+        let home = tempfile::tempdir().unwrap();
+        std::fs::write(
+            home.path().join(".zshenv"),
+            "echo MARKER_FROM_USER_ZSHENV\n",
+        )
+        .unwrap();
+        // A hook of the user's that prints before each prompt: its line belongs to the prompt,
+        // not to the command before it.
+        std::fs::write(
+            home.path().join(".zshrc"),
+            "echo MARKER_FROM_USER_ZSHRC\nlate() { echo FROM_A_USER_HOOK }\nprecmd_functions+=(late)\n",
+        )
+        .unwrap();
+        let terminal = build_marley_shell_terminal(cx, "zsh", home.path(), &[]).await;
+        assert_content_eventually(&terminal, "MARKER_FROM_USER_ZSHENV", cx).await;
+        assert_content_eventually(&terminal, "MARKER_FROM_USER_ZSHRC", cx).await;
+
+        use marley_terminal::ExitCode;
+        assert_eq!(
+            run_in(&terminal, "echo hi", cx).await,
+            (ExitCode(Some(0)), Some("hi".to_string()))
+        );
+        assert_eq!(run_in(&terminal, "false", cx).await.0, ExitCode(Some(1)));
+        assert_eq!(
+            run_in(&terminal, "echo 'a;b'", cx).await.1.as_deref(),
+            Some("a;b")
+        );
+        // The user had no `ZDOTDIR`, and the shell has none either.
+        assert_eq!(
+            run_in(&terminal, "echo \"[$ZDOTDIR]\"", cx)
+                .await
+                .1
+                .as_deref(),
+            Some("[]")
+        );
+
+        let title = terminal.update(cx, |terminal, _| {
+            if let TerminalType::Pty { info, .. } = &terminal.terminal_type {
+                info.load_for_test();
+            }
+            terminal.title(false)
+        });
+        assert!(title.trim_end().ends_with("— zsh"), "{title}");
+    }
+
+    // Marley: a zsh started with the user's own `ZDOTDIR` reads the user's files from it and
+    // keeps it (#465).
+    #[cfg(unix)]
+    #[gpui::test]
+    async fn marley_zsh_reads_the_users_zdotdir_and_keeps_it(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        require_zsh();
+        let home = tempfile::tempdir().unwrap();
+        let zdotdir = home.path().join("zsh");
+        std::fs::create_dir(&zdotdir).unwrap();
+        std::fs::write(home.path().join(".zshrc"), "echo MARKER_FROM_HOME\n").unwrap();
+        std::fs::write(zdotdir.join(".zshrc"), "echo MARKER_FROM_ZDOTDIR\n").unwrap();
+        let zdotdir = zdotdir.display().to_string();
+        let terminal =
+            build_marley_shell_terminal(cx, "zsh", home.path(), &[("ZDOTDIR", &zdotdir)]).await;
+        assert_content_eventually(&terminal, "MARKER_FROM_ZDOTDIR", cx).await;
+        assert_eq!(
+            run_in(&terminal, "echo \"[$ZDOTDIR]\"", cx).await.1,
+            Some(format!("[{zdotdir}]"))
+        );
+        let content = terminal.update(cx, |terminal, _| terminal.get_content());
+        assert!(!content.contains("MARKER_FROM_HOME"), "{content}");
+    }
+
     // Marley: which shells are rewritten to load Marley's integration (#463).
     #[cfg(unix)]
     #[test]
@@ -4339,8 +4471,8 @@ mod tests {
             marley_shell_integration(explicit.clone(), &mut env),
             explicit
         );
-        let zsh = Shell::Program("zsh".to_string());
-        assert_eq!(marley_shell_integration(zsh.clone(), &mut env), zsh);
+        let sh = Shell::Program("sh".to_string());
+        assert_eq!(marley_shell_integration(sh.clone(), &mut env), sh);
         assert!(env.is_empty());
 
         let Shell::WithArguments { program, args, .. } =
@@ -4354,6 +4486,34 @@ mod tests {
         assert_eq!(
             env.get("MARLEY_SHELL_INTEGRATION").map(String::as_str),
             Some("1")
+        );
+    }
+
+    // Marley: zsh keeps its `Shell` and takes Marley's `ZDOTDIR`, handing on the user's (#465).
+    #[cfg(unix)]
+    #[test]
+    fn marley_shell_integration_gives_zsh_marleys_zdotdir_and_hands_on_the_users() {
+        let zsh = Shell::Program("zsh".to_string());
+        let mut env = HashMap::default();
+        env.insert("ZDOTDIR".to_string(), "/home/me/.config/zsh".to_string());
+        assert_eq!(marley_shell_integration(zsh.clone(), &mut env), zsh);
+        let zdotdir = env.get("ZDOTDIR").expect("Marley's ZDOTDIR");
+        assert!(zdotdir.ends_with("shell_integration/zsh"), "{zdotdir}");
+        assert_eq!(
+            env.get("MARLEY_ZSH_ZDOTDIR").map(String::as_str),
+            Some("/home/me/.config/zsh")
+        );
+        assert_eq!(
+            env.get("MARLEY_SHELL_INTEGRATION").map(String::as_str),
+            Some("1")
+        );
+
+        // With none in the terminal's environment, Marley's own is handed on, if it has one.
+        let mut env = HashMap::default();
+        assert_eq!(marley_shell_integration(zsh.clone(), &mut env), zsh);
+        assert_eq!(
+            env.get("MARLEY_ZSH_ZDOTDIR").cloned(),
+            std::env::var("ZDOTDIR").ok()
         );
     }
 
