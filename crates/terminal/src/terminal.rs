@@ -1189,6 +1189,18 @@ impl TerminalBuilder {
 
             insert_zed_terminal_env(&mut env, &version);
 
+            // Marley: a local terminal gives its program a nonce, which Marley's scripts add to
+            // each command's frame, so the blocks can tell the shell's own frames from output
+            // that prints one; a remote host is given none (#474).
+            let marley_nonce = (!is_remote_terminal).then(|| {
+                let nonce = marley_terminal::shell_integration::new_nonce();
+                env.insert(
+                    marley_terminal::shell_integration::NONCE_VARIABLE.to_string(),
+                    nonce.clone(),
+                );
+                nonce
+            });
+
             // Marley: a local interactive shell loads Marley's shell integration, so its prompts
             // and commands become blocks (#463).
             #[cfg(unix)]
@@ -1427,8 +1439,11 @@ impl TerminalBuilder {
                         .unwrap_or_default()
                 },
                 pending_cwd_boundary: None,
-                // Marley: the shell's commands as blocks (#464).
-                blocks: marley_terminal::AnchoredBlocks::default(),
+                // Marley: the shell's commands as blocks (#464), verified by the nonce (#474).
+                blocks: marley_nonce.map_or_else(
+                    marley_terminal::AnchoredBlocks::default,
+                    marley_terminal::AnchoredBlocks::with_nonce,
+                ),
                 #[cfg(any(test, feature = "test-support"))]
                 input_log: Vec::new(),
                 #[cfg(test)]
@@ -4317,6 +4332,8 @@ mod tests {
         terminal.update(cx, |terminal, _| terminal.input(b"echo hi\r".to_vec()));
         let block = finished_block_of(&terminal, "echo hi", cx).await;
         assert_eq!(block.exit_code, marley_terminal::ExitCode(Some(0)));
+        // Marley: the shell's own frame carries the terminal's nonce (#474).
+        assert!(block.command_verified);
         let output = terminal.read_with(cx, |terminal, _| terminal.block_output(&block));
         assert_eq!(output.as_deref(), Some("hi"));
 
@@ -4328,6 +4345,13 @@ mod tests {
         let block = finished_block_of(&terminal, "echo 'a;b'", cx).await;
         let output = terminal.read_with(cx, |terminal, _| terminal.block_output(&block));
         assert_eq!(output.as_deref(), Some("a;b"));
+
+        // Marley: the shell took the nonce out of its environment, so a program it starts has
+        // none (#474).
+        assert_eq!(
+            run_in(&terminal, "printenv MARLEY_SHELL_NONCE", cx).await.0,
+            marley_terminal::ExitCode(Some(1))
+        );
     }
 
     // Marley: a shell started with Marley's integration is titled as if started without it
@@ -4415,6 +4439,17 @@ mod tests {
             run_in(&terminal, "echo hi", cx).await,
             (ExitCode(Some(0)), Some("hi".to_string()))
         );
+        // Marley: the shell's own frame carries the terminal's nonce, and a program the shell
+        // starts has none (#474).
+        assert!(
+            finished_block_of(&terminal, "echo hi", cx)
+                .await
+                .command_verified
+        );
+        assert_eq!(
+            run_in(&terminal, "printenv MARLEY_SHELL_NONCE", cx).await.0,
+            ExitCode(Some(1))
+        );
         assert_eq!(run_in(&terminal, "false", cx).await.0, ExitCode(Some(1)));
         assert_eq!(
             run_in(&terminal, "echo 'a;b'", cx).await.1.as_deref(),
@@ -4460,6 +4495,54 @@ mod tests {
         );
         let content = terminal.update(cx, |terminal, _| terminal.get_content());
         assert!(!content.contains("MARKER_FROM_HOME"), "{content}");
+    }
+
+    // Marley: a local terminal gives its program a nonce, and a remote one gives none: its
+    // program runs on another host (#474).
+    #[cfg(unix)]
+    #[gpui::test]
+    async fn marley_only_a_local_terminal_gives_its_program_a_nonce(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        // The script then waits: a child that exits at once can leave its last bytes unread.
+        let script = r#"echo "NONCE_LENGTH=${#MARLEY_SHELL_NONCE}."; sleep 60"#;
+        for (is_remote_terminal, expected) in
+            [(false, "NONCE_LENGTH=32."), (true, "NONCE_LENGTH=0.")]
+        {
+            let program = "/bin/sh".to_string();
+            let args = vec!["-c".to_string(), script.to_string()];
+            let mode = TerminalMode::task(SpawnInTerminal {
+                command: Some(program.clone()),
+                args: args.clone(),
+                ..Default::default()
+            });
+            let builder = cx
+                .update(|cx| {
+                    TerminalBuilder::new(
+                        None,
+                        mode,
+                        task::Shell::WithArguments {
+                            program,
+                            args,
+                            title_override: None,
+                        },
+                        HashMap::default(),
+                        SettingsCursorShape::default(),
+                        AlternateScroll::On,
+                        None,
+                        vec![],
+                        Duration::ZERO,
+                        is_remote_terminal,
+                        0,
+                        cx,
+                        vec![],
+                        PathStyle::local(),
+                    )
+                })
+                .await
+                .unwrap();
+            let terminal = cx.new(|cx| builder.subscribe(cx));
+            assert_content_eventually(&terminal, expected, cx).await;
+        }
     }
 
     // Marley: which shells are rewritten to load Marley's integration (#463).

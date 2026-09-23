@@ -3413,8 +3413,10 @@ mod tests {
     }
 
     // Marley: the frames of a command that succeeds and of one that fails, one row apart (#470).
+    // Each command's frame carries `$nonce`, which a script sets to the terminal's own to have
+    // the commands verified (#474).
     #[cfg(unix)]
-    const MARLEY_TWO_BLOCKS: &str = r"printf '\033Ppinit;id=1\033\\\033Ppprecmd;exit=0\033\\$ true\r\n\033Pppreexec;command=true\033\\\033Ppprecmd;exit=0\033\\$ false\r\n\033Pppreexec;command=false\033\\oops\r\n\033Ppprecmd;exit=1\033\\$ '";
+    const MARLEY_TWO_BLOCKS: &str = r#"printf '\033Ppinit;id=1\033\\\033Ppprecmd;exit=0\033\\$ true\r\n\033Pppreexec;command=true;nonce=%s\033\\\033Ppprecmd;exit=0\033\\$ false\r\n\033Pppreexec;command=false;nonce=%s\033\\oops\r\n\033Ppprecmd;exit=1\033\\$ ' "$nonce" "$nonce""#;
 
     // Marley: draws frames until the terminal holds `count` finished blocks (#470).
     #[cfg(unix)]
@@ -3508,5 +3510,149 @@ mod tests {
         cx.update(|window, _| window.refresh());
         assert!(cx.debug_bounds("marley-block-pill-0").is_none());
         assert!(cx.debug_bounds("marley-block-pill-1").is_none());
+    }
+
+    // Marley: points at `selector`'s middle, draws a frame, and returns its bounds then (#474).
+    #[cfg(unix)]
+    fn marley_point_at(
+        selector: &'static str,
+        cx: &mut VisualTestContext,
+    ) -> gpui::Bounds<gpui::Pixels> {
+        cx.update(|window, _| window.refresh());
+        let bounds = cx.debug_bounds(selector).expect(selector);
+        cx.simulate_mouse_move(bounds.center(), None, gpui::Modifiers::none());
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        bounds
+    }
+
+    // Marley: the buttons of the block under the pointer copy its output and rerun its command.
+    // Mouse reporting is on, so whatever the terminal takes reaches the program as a report: a
+    // press on a button stays off it, and a press on the block's output and a release over a
+    // button reach it (#474).
+    #[cfg(unix)]
+    #[gpui::test]
+    async fn marley_a_hovered_blocks_buttons_copy_and_rerun_it(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let script =
+            format!(r"nonce=$MARLEY_SHELL_NONCE; {MARLEY_TWO_BLOCKS}; printf '\033[?1000h'");
+        let (terminal, cx) = marley_hook_terminal(&script, cx).await;
+        marley_draw_until_finished(&terminal, 2, cx).await;
+        let mut reporting = false;
+        for _ in 0..300 {
+            reporting = terminal.read_with(cx, |terminal, _| {
+                terminal
+                    .last_content()
+                    .mode
+                    .contains(terminal::Modes::MOUSE_REPORT_CLICK)
+            });
+            if reporting {
+                break;
+            }
+            cx.background_executor
+                .timer(std::time::Duration::from_millis(10))
+                .await;
+            cx.update(|window, _| window.refresh());
+            cx.run_until_parked();
+        }
+        assert!(reporting, "the program turned mouse reporting on");
+
+        // Over the passing block, its buttons show and the failed block's do not.
+        marley_point_at("marley-block-pill-0", cx);
+        assert!(cx.debug_bounds("marley-block-copy-0").is_some());
+        assert!(cx.debug_bounds("marley-block-copy-1").is_none());
+
+        // A press on the failed block's output, released over Copy: the program gets both, and
+        // nothing is copied.
+        let pill = marley_point_at("marley-block-pill-1", cx);
+        let copy = cx
+            .debug_bounds("marley-block-copy-1")
+            .expect("Copy on the failed block");
+        let grid = terminal.read_with(cx, |terminal, _| terminal.last_content().terminal_bounds);
+        let output = gpui::point(
+            grid.bounds.origin.x + grid.cell_width() * 0.5,
+            pill.center().y + grid.line_height(),
+        );
+        terminal.update(cx, |terminal, _| terminal.take_pty_write_log());
+        cx.simulate_event(gpui::MouseDownEvent {
+            button: gpui::MouseButton::Left,
+            position: output,
+            modifiers: gpui::Modifiers::none(),
+            click_count: 1,
+            first_mouse: false,
+        });
+        cx.simulate_event(gpui::MouseUpEvent {
+            button: gpui::MouseButton::Left,
+            position: copy.center(),
+            modifiers: gpui::Modifiers::none(),
+            click_count: 1,
+        });
+        let reports = terminal.update(cx, |terminal, _| terminal.take_pty_write_log());
+        // A report is `ESC [ M`, then 32 plus the button (0 pressed, 3 released), then the cell.
+        let buttons: Vec<Option<u8>> = reports
+            .iter()
+            .map(|report| report.strip_prefix(b"\x1b[M")?.first().copied())
+            .collect();
+        assert_eq!(buttons, [Some(b' '), Some(b'#')], "{reports:?}");
+        assert!(cx.read_from_clipboard().is_none(), "nothing copied");
+
+        let copy = marley_point_at("marley-block-copy-1", cx);
+        cx.simulate_click(copy.center(), gpui::Modifiers::none());
+        cx.run_until_parked();
+        assert_eq!(
+            cx.read_from_clipboard().and_then(|item| item.text()),
+            Some("oops".to_string())
+        );
+        assert_eq!(
+            terminal.update(cx, |terminal, _| terminal.take_pty_write_log()),
+            Vec::<Vec<u8>>::new(),
+            "no mouse report"
+        );
+
+        let rerun = marley_point_at("marley-block-rerun-1", cx);
+        cx.simulate_click(rerun.center(), gpui::Modifiers::none());
+        cx.run_until_parked();
+        assert_eq!(
+            terminal.update(cx, |terminal, _| terminal.take_pty_write_log()),
+            [b"\x15false\r".to_vec()],
+            "the rerun alone, no mouse report"
+        );
+    }
+
+    // Marley: while a block runs there is no prompt to rerun at (#474).
+    #[cfg(unix)]
+    #[gpui::test]
+    async fn marley_no_rerun_while_a_block_runs(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let script = format!(
+            r"nonce=$MARLEY_SHELL_NONCE; {MARLEY_TWO_BLOCKS}; printf '\033Pppreexec;command=sleep 60\033\\'"
+        );
+        let (terminal, cx) = marley_hook_terminal(&script, cx).await;
+        marley_draw_until_finished(&terminal, 2, cx).await;
+        for _ in 0..300 {
+            if terminal.read_with(cx, |terminal, _| terminal.blocks().len()) == 3 {
+                break;
+            }
+            cx.background_executor
+                .timer(std::time::Duration::from_millis(10))
+                .await;
+        }
+        marley_point_at("marley-block-pill-1", cx);
+        assert!(cx.debug_bounds("marley-block-copy-1").is_some());
+        assert!(cx.debug_bounds("marley-block-rerun-1").is_none());
+    }
+
+    // Marley: a command whose frame did not carry the terminal's nonce, as a frame that output
+    // prints cannot, is offered no Rerun (#474).
+    #[cfg(unix)]
+    #[gpui::test]
+    async fn marley_no_rerun_for_a_command_that_output_printed(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let script = format!("nonce=forged; {MARLEY_TWO_BLOCKS}");
+        let (terminal, cx) = marley_hook_terminal(&script, cx).await;
+        marley_draw_until_finished(&terminal, 2, cx).await;
+        marley_point_at("marley-block-pill-1", cx);
+        assert!(cx.debug_bounds("marley-block-copy-1").is_some());
+        assert!(cx.debug_bounds("marley-block-rerun-1").is_none());
     }
 }

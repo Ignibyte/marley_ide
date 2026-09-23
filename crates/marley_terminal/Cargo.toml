@@ -12,6 +12,7 @@ path = "src/marley_terminal.rs"
 alacritty_terminal.workspace = true
 log.workspace = true
 marley_dcs.workspace = true
+rand.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 rustix = { workspace = true, features = ["process", "termios"] }

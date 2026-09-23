@@ -2325,3 +2325,28 @@ in 0.2 s and failed one run in three with its suite's neighbours, 32 seconds wit
 frames. End such a script with `sleep 60` (the test drops the terminal, and the child with it):
 four runs under the same load passed. #464's `build_shell_hook_terminal` scripts still exit at
 once.
+
+## L-claude-474-an-occluding-child-ends-its-groups-hover-001
+*category: code · topic: gpui hover and the terminal · from: pipeline 474*
+
+`occlude()` gives an element a `BlockMouse` hitbox, and the hit test stops at the first one
+under the pointer (`crates/gpui/src/window.rs:1119`), so no hitbox behind it is hovered, the
+group's own included. A child that occludes inside `visible_on_hover(group)` hides as soon as the
+pointer reaches it. To keep a press on an overlay button from the element under it, stop the
+press instead, in a wrapper: `on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())`.
+Bubble listeners run front to back, and the terminal registered its own before the block
+painted, so they run after the wrapper's. `ButtonLike` does not stop the press itself: on a left
+press it only calls `prevent_default`, and it stops the release in its click handler
+(`crates/ui/src/components/button/button_like.rs:872-876`).
+
+## L-claude-474-the-input-log-misses-mouse-reports-001
+*category: validate · topic: terminal tests · from: pipeline 474*
+
+`Terminal::take_input_log` records only what `Terminal::input` sends. Mouse reports and focus
+reports go out through `write_to_pty`, which `take_pty_write_log` records, input included.
+#474's first test that a press on a button reaches no program read the input log, and it still
+passed with the wrapper removed; the negative check of
+PR-claude-break-the-code-a-driven-test-guards-before-trusting-it-001 caught it. A test that
+rules out a write to the PTY reads the PTY write log, and first shows it can see such a write:
+in #474 a press on the block's output, reported, comes before the presses on buttons that must
+not be.

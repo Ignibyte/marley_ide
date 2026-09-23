@@ -1751,3 +1751,39 @@ and change no Zed path; the Marley keymap binds `secondary-up` and `secondary-do
 before it reads, so every press moves one block. Rejected: handlers inside `TerminalView` (a
 Zed hunk for what the workspace's root can catch); a selected block (with stage two, or when
 hover actions need one).
+
+## AD-claude-474-hover-actions-live-on-one-element-per-block-001
+*decided at: 2026-09-23 · status: shipped*
+
+Each block whose first row is on screen gets one element over its rows, laid out at that row in
+`TerminalElement::prepaint` and painted after the text, with a hover group. Its first row holds
+the pill and, while the pointer is anywhere over the block, Copy and Rerun: one element per
+block, since gpui's group hover reaches only the group's descendants. Copy reads
+`Terminal::block_output` when clicked. Rerun is drawn only while the last block is finished, so
+the shell waits at its prompt, and only for a command that is not empty and verified
+(AD-claude-474-a-blocks-command-is-trusted-only-with-the-terminals-nonce-001); it sends Ctrl-U, the
+command and a carriage return, so a half-typed line cannot prefix it. Each button sits in a
+wrapper that stops a left press from reaching the terminal, whose listeners run after it. The
+release goes on: the button's click stops its own, and a press made elsewhere needs its release.
+Rejected: `occlude` on the buttons (it ends the block's hover under the pointer, and the buttons
+hide); stopping the release as well
+(F-claude-474-a-press-elsewhere-lost-its-release-over-a-button-001); Rerun while a command runs
+(it would type into that program); actions for a block whose first row has scrolled away
+(later).
+
+## AD-claude-474-a-blocks-command-is-trusted-only-with-the-terminals-nonce-001
+*decided at: 2026-09-23 · status: shipped*
+
+A hook frame is output: any program the terminal runs, or any file it prints, can emit one.
+So each local terminal gives its program a random nonce in `MARLEY_SHELL_NONCE`
+(`marley_terminal::shell_integration::new_nonce`, 128 bits), and its blocks are built with it
+(`AnchoredBlocks::with_nonce`). Marley's bash and zsh scripts copy it into a shell variable and
+unset it before the user's files run, so no program the shell starts inherits it, and add
+`nonce=` to each `preexec` frame. A block records whether its frame carried the terminal's
+nonce (`command_verified`), and only a verified command is offered Rerun. A frame without it
+still makes a block: bars and pills only show what a frame claims. Remote terminals get no
+nonce, since their program runs on another host. This follows VS Code's published shell
+integration, whose reported command line carries a nonce from `VSCODE_NONCE`. Rejected:
+checking the command against the text on the block's first row (prompts differ, and long or
+multi-line commands wrap); Rerun that types the command without running it (it changes what
+Rerun does); a nonce on `precmd` too (nothing acts on its fields yet; T2's path links will).

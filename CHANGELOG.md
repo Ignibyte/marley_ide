@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Copy and rerun a block from the terminal** (#474, 2026-09-23). Point at a block and two
+  small buttons show beside its pill: Copy puts the block's output on the clipboard, and Rerun,
+  shown while the shell waits at its prompt, clears what you had typed on the line and runs the
+  block's command again. A click on either button stays with it: it starts no selection, and a
+  program that reads the mouse does not receive it. Rerun is offered only for a command your
+  shell reported itself: each terminal gives the shell a secret that Marley's bash and zsh
+  integrations add to their reports, so text a program prints to imitate one cannot be run.
 - **Keys to move between blocks** (#473, 2026-09-23). In a terminal, Ctrl-Up (Cmd-Up on macOS)
   scrolls to the start of the block above the top of the view, and Ctrl-Down to the next one,
   or back to the live screen from the last. Each press moves one block, however fast you press.

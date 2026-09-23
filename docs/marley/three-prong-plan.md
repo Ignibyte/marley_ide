@@ -102,7 +102,9 @@ view, Enter writes the line plus CR to the PTY, and the same key ladder Marley p
 bash and fish hooks and Zed's spawn path injects them the way Warp and Kitty do: `ZDOTDIR`
 for zsh, `--rcfile` for bash, `XDG_DATA_DIRS` for fish, with the user's own rc still
 sourced. Marley's DCS format stays; emitting OSC 133 alongside it is cheap and worth doing
-for other terminals.
+for other terminals. Since #474 each local terminal gives its program a nonce, which the hooks
+take out of the environment and add to each `preexec` frame: a block's command is trusted only
+when its frame carried it, since any output can print a frame.
 
 **D6. Tasks and runnables spawn Blocks.** `TaskState` stays for Zed's own task machinery,
 but a task's spawn spec rides as Block metadata, the summary line is replaced by the
@@ -115,7 +117,7 @@ Marley shipped as `#433`.
 | Slice | Delivers | Size |
 |---|---|---|
 | T0 | Split at its promotion: the vendored `alacritty_terminal` (#461, T0a, shipped); `Event::ShellHook` from the event loop, with unit tests on recorded byte streams (#462, T0b, shipped); the anchored `BlockList` on `Terminal` and a `blocks()` accessor (#464, shipped); the hook scripts and their injection, bash first (#463, T0c, shipped), then zsh (#465, shipped) and fish (#466) | M |
-| T1 | Stage-one rendering: gutter, pill, wash (#470, T1a, shipped); hover copy/rerun (T1b); block navigation keys (#473, T1c, shipped) | M |
+| T1 | Stage-one rendering: gutter, pill, wash (#470, T1a, shipped); hover copy/rerun (#474, T1b, shipped); block navigation keys (#473, T1c, shipped) | M |
 | T2 | Block-scoped path links (resolve against the block's cwd) and jump-to-first-failure | S |
 | T3 | The prompt editor with history ghost text and the raw-passthrough ladder | L |
 | T4 | Tasks and runnables as Blocks; failed Blocks into diagnostics | M |

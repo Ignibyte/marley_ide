@@ -10814,6 +10814,7 @@ dependencies = [
  "alacritty_terminal",
  "log",
  "marley_dcs",
+ "rand 0.9.4",
  "rustix",
  "tempfile",
 ]

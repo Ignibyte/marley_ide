@@ -4,6 +4,14 @@
 # escaped the way Marley's decoder (`marley_terminal::dcs`) reads them. In the printf formats,
 # `\033` is ESC and `\134` is the frame's closing backslash.
 
+# The terminal's nonce, which each command's frame carries so the terminal can tell the shell's
+# own frames from output that prints one. It leaves the environment before the user's file runs,
+# so no program the shell starts inherits it.
+if [ -n "${MARLEY_SHELL_NONCE+set}" ]; then
+    __MARLEY_NONCE=$MARLEY_SHELL_NONCE
+    unset MARLEY_SHELL_NONCE
+fi
+
 if [ -r "$HOME/.bashrc" ]; then
     . "$HOME/.bashrc"
 fi
@@ -39,7 +47,8 @@ if [ -z "${__MARLEY_HOOKS-}" ]; then
         line=$(HISTTIMEFORMAT='' builtin fc -ln -0 2>/dev/null)
         line=${line#"${line%%[![:space:]]*}"}
         __marley_quote "$line"
-        builtin printf '\033Pqpreexec;command=%s\033\134' "$__MARLEY_REPLY"
+        builtin printf '\033Pqpreexec;command=%s;nonce=%s\033\134' \
+            "$__MARLEY_REPLY" "${__MARLEY_NONCE-}"
     }
 
     # PROMPT_COMMAND is an array since bash 5.1; in older bash its first element is the string.

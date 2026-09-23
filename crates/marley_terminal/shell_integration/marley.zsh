@@ -14,6 +14,14 @@ else
     unset ZDOTDIR
 fi
 
+# The terminal's nonce, which each command's frame carries so the terminal can tell the shell's
+# own frames from output that prints one. It leaves the environment before the user's files run,
+# so no program the shell starts inherits it.
+if [[ -n ${MARLEY_SHELL_NONCE+set} ]]; then
+    typeset -g __MARLEY_NONCE=$MARLEY_SHELL_NONCE
+    unset MARLEY_SHELL_NONCE
+fi
+
 if [[ -r ${ZDOTDIR:-$HOME}/.zshenv ]]; then
     builtin source "${ZDOTDIR:-$HOME}/.zshenv"
 fi
@@ -49,7 +57,8 @@ if [[ -o interactive && -z ${__MARLEY_HOOKS-} ]]; then
     __marley_preexec() {
         emulate -L zsh
         __marley_quote "$1"
-        builtin printf '\033Pqpreexec;command=%s\033\\' "$__MARLEY_REPLY"
+        builtin printf '\033Pqpreexec;command=%s;nonce=%s\033\\' \
+            "$__MARLEY_REPLY" "${__MARLEY_NONCE-}"
     }
 
     # At the first prompt the user's files have run and set their own hooks, so Marley's precmd

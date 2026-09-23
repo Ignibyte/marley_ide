@@ -1238,6 +1238,7 @@ mod tests {
         .unwrap();
         s.apply_hook(DcsHook::Preexec(PreexecValue {
             command: "x".into(),
+            nonce: None,
         }))
         .unwrap();
         assert_eq!(
@@ -1395,6 +1396,7 @@ mod tests {
         assert_eq!(
             s.apply_hook(DcsHook::Preexec(PreexecValue {
                 command: "x".into(),
+                nonce: None,
             })),
             Err(ApplyHookError::MissingSession)
         );
@@ -1404,6 +1406,7 @@ mod tests {
         .unwrap();
         s.apply_hook(DcsHook::Preexec(PreexecValue {
             command: "x".into(),
+            nonce: None,
         }))
         .unwrap();
         // blocks() reads the real list after the mutation (kills blocks -> leak(Default)).

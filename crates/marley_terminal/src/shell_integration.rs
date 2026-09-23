@@ -8,6 +8,10 @@
 //! first. zsh takes `ZDOTDIR`, and its `.zshenv` puts the user's `ZDOTDIR` back, so zsh reads
 //! the user's own files as it would have. fish follows (#466). [`shown_arguments`] is what the
 //! user is shown of a process's arguments: all but the ones [`for_program`] adds.
+//!
+//! A terminal gives its program a [`new_nonce`] in [`NONCE_VARIABLE`]. The scripts take it out
+//! of the environment before the user's files run and add it to each command's frame, which is
+//! how the terminal tells the shell's own frames from output that prints one.
 
 use std::io;
 use std::path::Path;
@@ -35,6 +39,15 @@ pub const ZSH_ZDOTDIR_VARIABLE: &str = "MARLEY_ZSH_ZDOTDIR";
 
 /// The variable a shell started with Marley's integration finds set.
 pub const MARKER_VARIABLE: &str = "MARLEY_SHELL_INTEGRATION";
+
+/// The variable that gives a terminal's program the terminal's nonce.
+pub const NONCE_VARIABLE: &str = "MARLEY_SHELL_NONCE";
+
+/// A new random nonce for a terminal, as 32 hex digits.
+#[must_use]
+pub fn new_nonce() -> String {
+    format!("{:032x}", rand::random::<u128>())
+}
 
 /// What to add to a shell's start so it loads Marley's integration.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -228,6 +241,17 @@ mod tests {
             );
         }
         assert!(shown_arguments(&[], dir).is_empty());
+    }
+
+    #[test]
+    fn a_nonce_is_32_hex_digits_and_new_each_time() {
+        let nonce = new_nonce();
+        assert_eq!(nonce.len(), 32, "{nonce}");
+        assert!(
+            nonce.bytes().all(|byte| byte.is_ascii_hexdigit()),
+            "{nonce}"
+        );
+        assert_ne!(new_nonce(), nonce);
     }
 
     #[cfg(unix)]

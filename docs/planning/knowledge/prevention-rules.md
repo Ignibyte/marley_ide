@@ -2210,3 +2210,13 @@ earlier run left: remove them before it runs, or pass the tool only what this ru
 tool's own clean may cover only the packages it runs; read what it reads before trusting it,
 as cargo-llvm-cov's `object_files` showed in #469. The negative smoke plants an output from
 older source and watches the step stay true to the tree.
+
+## PR-claude-474-a-hook-frame-is-output-until-its-nonce-says-otherwise-001
+*severity: high · prevents: F-claude-474-rerun-would-have-run-a-command-that-output-printed-001*
+
+A block's fields come from hook frames, and a frame is output: any program or printed file can
+emit one. Before a block action turns a field into input, a path to open or a place to go (Rerun,
+T2's path links against the block's cwd, an agent reading a block), check that the frame it came
+from carried the terminal's nonce. Today only `preexec` carries it (`command_verified`); an
+action on a `precmd` field (`pwd`, the exit code) adds the nonce to `precmd` first. Showing a
+field (a pill, a bar) needs no check.

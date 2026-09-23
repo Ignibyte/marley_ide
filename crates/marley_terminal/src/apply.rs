@@ -211,6 +211,7 @@ impl SessionModel {
         }))?;
         self.apply_hook(DcsHook::Preexec(PreexecValue {
             command: command.to_string(),
+            nonce: None,
         }))?;
         self.set_current_output(
             output
@@ -281,6 +282,7 @@ mod tests {
     fn preexec(m: &mut SessionModel, command: &str) -> Result<(), ApplyHookError> {
         m.apply_hook(DcsHook::Preexec(PreexecValue {
             command: command.into(),
+            nonce: None,
         }))
     }
 

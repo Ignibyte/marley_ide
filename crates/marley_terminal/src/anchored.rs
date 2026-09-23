@@ -9,7 +9,8 @@
 //! - `Precmd` finishes the running block at its line, with its exit code, and stages the next
 //!   prompt's metadata and line;
 //! - `Preexec` finishes any block still running, without an exit code, and opens a running block
-//!   whose output starts at its line, with the staged prompt;
+//!   whose output starts at its line, with the staged prompt; its command is verified when the
+//!   frame carried the terminal's nonce ([`AnchoredBlocks::with_nonce`]);
 //! - `Bootstrapped` changes nothing here.
 //!
 //! A `Preexec` or `Precmd` before any `InitShell` is refused, as the gpui era's `SessionModel`
@@ -32,6 +33,9 @@ pub struct AnchoredBlock {
     pub index: usize,
     /// The command text.
     pub command: String,
+    /// Whether the `Preexec` that opened the block carried the terminal's nonce, so the command
+    /// is the one the shell's own hook reported and not one that output printed.
+    pub command_verified: bool,
     /// [`BlockState::Running`] until a hook finishes it, then [`BlockState::Finished`].
     pub state: BlockState,
     /// The exit code a `Precmd` reported, or none.
@@ -52,9 +56,19 @@ pub struct AnchoredBlocks {
     blocks: Vec<AnchoredBlock>,
     registered: bool,
     staged: Option<(PromptInfo, u64)>,
+    nonce: Option<String>,
 }
 
 impl AnchoredBlocks {
+    /// No blocks yet, for a terminal that gave its program `nonce`.
+    #[must_use]
+    pub fn with_nonce(nonce: String) -> Self {
+        Self {
+            nonce: Some(nonce),
+            ..Self::default()
+        }
+    }
+
     /// Applies `hook`, which arrived at the absolute line `line`.
     ///
     /// # Errors
@@ -74,9 +88,11 @@ impl AnchoredBlocks {
                     || (PromptInfo::default(), None),
                     |(prompt, at)| (prompt, Some(at)),
                 );
+                let command_verified = self.nonce.is_some() && value.nonce == self.nonce;
                 self.blocks.push(AnchoredBlock {
                     index: self.blocks.len(),
                     command: value.command,
+                    command_verified,
                     state: BlockState::Running,
                     exit_code: ExitCode(None),
                     prompt,
@@ -218,6 +234,7 @@ mod tests {
     fn preexec(command: &str) -> DcsHook {
         DcsHook::Preexec(PreexecValue {
             command: command.to_string(),
+            nonce: None,
         })
     }
 
@@ -249,6 +266,7 @@ mod tests {
         AnchoredBlock {
             index,
             command: format!("command {index}"),
+            command_verified: false,
             state: if output_end.is_some() {
                 BlockState::Finished
             } else {
@@ -364,6 +382,7 @@ mod tests {
             [AnchoredBlock {
                 index: 0,
                 command: "echo hi".to_string(),
+                command_verified: false,
                 state: BlockState::Finished,
                 exit_code: ExitCode(Some(0)),
                 prompt: pwd("/a"),
@@ -377,6 +396,43 @@ mod tests {
         let next = &blocks.blocks()[1];
         assert_eq!((next.index, next.prompt_line), (1, Some(2)));
         assert_eq!((next.state, next.output_end), (BlockState::Running, None));
+    }
+
+    #[test]
+    fn a_blocks_command_is_verified_by_the_terminals_nonce_alone() {
+        let preexec_with = |command: &str, nonce: Option<&str>| {
+            DcsHook::Preexec(PreexecValue {
+                command: command.to_string(),
+                nonce: nonce.map(String::from),
+            })
+        };
+        let verified = |blocks: &AnchoredBlocks| -> Vec<bool> {
+            blocks
+                .blocks()
+                .iter()
+                .map(|block| block.command_verified)
+                .collect()
+        };
+        let mut blocks = AnchoredBlocks::with_nonce("00ff".to_string());
+        for (hook, line) in [
+            (init(), 0),
+            (preexec_with("ls", Some("00ff")), 1),
+            (preexec_with("forged", Some("0fff")), 2),
+            (preexec_with("forged", None), 3),
+        ] {
+            assert_eq!(blocks.apply(hook, line), Ok(()));
+        }
+        assert_eq!(verified(&blocks), [true, false, false]);
+        // A terminal that gave no nonce verifies nothing, a frame without one included.
+        let mut blocks = AnchoredBlocks::default();
+        for (hook, line) in [
+            (init(), 0),
+            (preexec_with("ls", None), 1),
+            (preexec_with("ls", Some("00ff")), 2),
+        ] {
+            assert_eq!(blocks.apply(hook, line), Ok(()));
+        }
+        assert_eq!(verified(&blocks), [false, false]);
     }
 
     #[test]

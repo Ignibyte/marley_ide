@@ -1,12 +1,12 @@
 use editor::{CursorLayout, EditorSettings, HighlightedRange, HighlightedRangeLine};
 use gpui::{
-    AbsoluteLength, AnyElement, App, AvailableSpace, Bounds, ContentMask, Context, DispatchPhase,
-    Element, ElementId, Entity, FocusHandle, Font, FontFeatures, FontStyle, FontWeight,
-    GlobalElementId, HighlightStyle, Hitbox, Hsla, InputHandler, InteractiveElement, Interactivity,
-    IntoElement, LayoutId, Length, ModifiersChangedEvent, MouseButton, MouseMoveEvent, Pixels,
-    Point as GpuiPoint, StatefulInteractiveElement, StrikethroughStyle, Styled, TextRun, TextStyle,
-    UTF16Selection, UnderlineStyle, WeakEntity, WhiteSpace, Window, div, fill, point, px, relative,
-    size,
+    AbsoluteLength, AnyElement, App, AvailableSpace, Bounds, ClipboardItem, ContentMask, Context,
+    DispatchPhase, Element, ElementId, Entity, FocusHandle, Font, FontFeatures, FontStyle,
+    FontWeight, GlobalElementId, HighlightStyle, Hitbox, Hsla, InputHandler, InteractiveElement,
+    Interactivity, IntoElement, LayoutId, Length, ModifiersChangedEvent, MouseButton,
+    MouseMoveEvent, Pixels, Point as GpuiPoint, SharedString, StatefulInteractiveElement,
+    StrikethroughStyle, Styled, TextRun, TextStyle, UTF16Selection, UnderlineStyle, WeakEntity,
+    WhiteSpace, Window, div, fill, point, px, relative, size,
 };
 use itertools::Itertools;
 use language::CursorShape as EditorCursorShape;
@@ -20,7 +20,10 @@ use terminal::{
 use theme::{ActiveTheme, Theme};
 use theme_settings::ThemeSettings;
 use ui::utils::ensure_minimum_contrast;
-use ui::{LabelCommon as _, ParentElement, Tooltip};
+use ui::{
+    ButtonCommon as _, Clickable as _, LabelCommon as _, ParentElement, Tooltip,
+    VisibleOnHover as _,
+};
 use util::ResultExt;
 use workspace::Workspace;
 
@@ -46,9 +49,10 @@ pub struct LayoutState {
     block_below_cursor_element: Option<AnyElement>,
     base_text_style: TextStyle,
     content_mode: ContentMode,
-    // Marley: the blocks on screen, and the pills of those whose first row is (#470).
+    // Marley: the blocks on screen (#470), and the element of each whose first row is: its pill
+    // and its hover actions (#474).
     marley_spans: Vec<marley_terminal::BlockSpan>,
-    marley_pills: Vec<AnyElement>,
+    marley_blocks: Vec<AnyElement>,
 }
 
 /// Helper struct for converting terminal cursor points to displayed cursor points.
@@ -1587,22 +1591,43 @@ impl Element for TerminalElement {
                     let terminal = self.terminal.read(cx);
                     marley_block_spans(terminal.last_content(), terminal.blocks())
                 };
-                let marley_pills = marley_spans
-                    .iter()
-                    .filter(|span| span.starts_in_view)
-                    .filter_map(|span| {
-                        let mut pill = marley_pill(span, dimensions.line_height(), cx)?;
+                // Marley: an element over each block whose first row is on screen (#474). Rerun
+                // is offered only while no block runs, at the shell's prompt.
+                let (marley_starting, marley_rerun) = {
+                    let blocks = self.terminal.read(cx).blocks();
+                    let starting: Vec<_> = marley_spans
+                        .iter()
+                        .filter(|span| span.starts_in_view)
+                        .filter_map(|span| Some((span.clone(), blocks.get(span.index)?.clone())))
+                        .collect();
+                    let rerun = blocks
+                        .last()
+                        .is_some_and(|block| block.state == marley_terminal::BlockState::Finished);
+                    (starting, rerun)
+                };
+                let marley_blocks = marley_starting
+                    .into_iter()
+                    .map(|(span, block)| {
+                        let line_height = dimensions.line_height();
+                        let mut element = marley_block(
+                            &span,
+                            &block,
+                            marley_rerun,
+                            &self.terminal,
+                            line_height,
+                            cx,
+                        );
                         let origin = dimensions.bounds.origin
-                            + point(px(0.), span.rows.start as f32 * dimensions.line_height())
+                            + point(px(0.), span.rows.start as f32 * line_height)
                             - point(px(0.), scroll_top);
                         let available_space = size(
                             AvailableSpace::Definite(dimensions.width()),
-                            AvailableSpace::Definite(dimensions.line_height()),
+                            AvailableSpace::Definite(span.rows.len() as f32 * line_height),
                         );
                         window.with_rem_size(rem_size, |window| {
-                            pill.prepaint_as_root(origin, available_space, window, cx);
+                            element.prepaint_as_root(origin, available_space, window, cx);
                         });
-                        Some(pill)
+                        element
                     })
                     .collect();
 
@@ -1623,7 +1648,7 @@ impl Element for TerminalElement {
                     base_text_style: text_style,
                     content_mode,
                     marley_spans,
-                    marley_pills,
+                    marley_blocks,
                 }
             },
         )
@@ -1680,8 +1705,8 @@ impl Element for TerminalElement {
             let original_cursor = layout.cursor.take();
             let hyperlink_tooltip = layout.hyperlink_tooltip.take();
             let block_below_cursor_element = layout.block_below_cursor_element.take();
-            // Marley: #470.
-            let mut marley_pills = mem::take(&mut layout.marley_pills);
+            // Marley: #470, #474.
+            let mut marley_blocks = mem::take(&mut layout.marley_blocks);
             self.interactivity.paint(
                 global_id,
                 inspector_id,
@@ -1753,7 +1778,8 @@ impl Element for TerminalElement {
                     }
                     let text_paint_time = text_paint_start.elapsed();
 
-                    // Marley: each block's gutter bar, and the pills (#470).
+                    // Marley: each block's gutter bar, and the blocks' pills and actions (#470,
+                    // #474).
                     for span in &layout.marley_spans {
                         let bar = marley_gutter_bounds(
                             &span.rows,
@@ -1765,8 +1791,8 @@ impl Element for TerminalElement {
                             marley_bar_color(span, cx.theme().status(), cx.theme().colors().border);
                         window.paint_quad(fill(bar, color));
                     }
-                    for pill in &mut marley_pills {
-                        pill.paint(window, cx);
+                    for block in &mut marley_blocks {
+                        block.paint(window, cx);
                     }
 
                     if let Some(text_to_mark) = &marked_text_cloned
@@ -2167,13 +2193,9 @@ fn marley_bar_color(
     }
 }
 
-// Marley: a block's status pill, at the right end of the row it starts on: a check for exit 0,
-// the exit code for another, `running` while it runs, and none without an exit code (#470).
-fn marley_pill(
-    span: &marley_terminal::BlockSpan,
-    line_height: Pixels,
-    cx: &App,
-) -> Option<AnyElement> {
+// Marley: a block's status pill: a check for exit 0, the exit code for another, `running` while
+// it runs, and none without an exit code (#470).
+fn marley_pill(span: &marley_terminal::BlockSpan, cx: &App) -> Option<AnyElement> {
     let theme = cx.theme();
     let status = theme.status();
     let (content, border) = match (span.state, span.exit_code.0) {
@@ -2203,26 +2225,95 @@ fn marley_pill(
     let index = span.index;
     Some(
         div()
+            .debug_selector(move || format!("marley-block-pill-{index}"))
             .flex()
-            .w_full()
-            .h(line_height)
-            .justify_end()
             .items_center()
-            .pr_1()
-            .child(
-                div()
-                    .debug_selector(move || format!("marley-block-pill-{index}"))
-                    .flex()
-                    .items_center()
-                    .px_1()
-                    .rounded_sm()
-                    .border_1()
-                    .border_color(border)
-                    .bg(theme.colors().terminal_background)
-                    .child(content),
-            )
+            .px_1()
+            .rounded_sm()
+            .border_1()
+            .border_color(border)
+            .bg(theme.colors().terminal_background)
+            .child(content)
             .into_any_element(),
     )
+}
+
+// Marley: `button` in a wrapper that stops a press there from reaching the terminal, whose
+// listeners run after it, so the press starts no selection and sends no mouse report. The
+// button's click stops its own release; a release there after a press elsewhere goes on to the
+// terminal, which ends that press. An occluding hitbox would keep the press off as well, but it
+// would end the block's hover under the button, which would hide as the pointer reached it
+// (#474).
+fn marley_keep_from_terminal(button: AnyElement) -> gpui::Div {
+    div()
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        .child(button)
+}
+
+// Marley: a block's element over its rows. Its first row holds the pill and, while the pointer
+// is over the block, Copy and, at a prompt, Rerun for a command the shell reported; a press on a
+// button does not reach the terminal, and the rest of the element takes no mouse event (#474).
+fn marley_block(
+    span: &marley_terminal::BlockSpan,
+    block: &marley_terminal::AnchoredBlock,
+    rerun: bool,
+    terminal: &Entity<Terminal>,
+    line_height: Pixels,
+    cx: &App,
+) -> AnyElement {
+    let index = span.index;
+    let group = SharedString::from(format!("marley-block-{index}"));
+    let copy = {
+        let (terminal, block) = (terminal.clone(), block.clone());
+        ui::IconButton::new(("marley-block-copy", index), ui::IconName::Copy)
+            .icon_size(ui::IconSize::XSmall)
+            .tooltip(Tooltip::text("Copy Output"))
+            .on_click(move |_, _, cx| {
+                if let Some(output) = terminal.read(cx).block_output(&block) {
+                    cx.write_to_clipboard(ClipboardItem::new_string(output));
+                }
+            })
+    };
+    // Only a command the shell's own hook reported: output can print a frame with any command
+    // in it. Ctrl-U first, so a line half typed at the prompt does not prefix the command.
+    let rerun = (rerun && block.command_verified && !block.command.is_empty()).then(|| {
+        let (terminal, command) = (terminal.clone(), block.command.clone());
+        ui::IconButton::new(("marley-block-rerun", index), ui::IconName::Rerun)
+            .icon_size(ui::IconSize::XSmall)
+            .tooltip(Tooltip::text("Rerun Command"))
+            .on_click(move |_, _, cx| {
+                terminal.update(cx, |terminal, _| {
+                    terminal.input(format!("\u{15}{command}\r").into_bytes());
+                });
+            })
+    });
+    div()
+        .id(("marley-block", index))
+        .group(group.clone())
+        .size_full()
+        .child(
+            ui::h_flex()
+                .w_full()
+                .h(line_height)
+                .justify_end()
+                .gap_1()
+                .pr_1()
+                .child(
+                    ui::h_flex()
+                        .id(("marley-block-actions", index))
+                        .visible_on_hover(group)
+                        .child(
+                            marley_keep_from_terminal(copy.into_any_element())
+                                .debug_selector(move || format!("marley-block-copy-{index}")),
+                        )
+                        .children(rerun.map(|rerun| {
+                            marley_keep_from_terminal(rerun.into_any_element())
+                                .debug_selector(move || format!("marley-block-rerun-{index}"))
+                        })),
+                )
+                .children(marley_pill(span, cx)),
+        )
+        .into_any_element()
 }
 
 #[cfg(test)]
@@ -2252,6 +2343,7 @@ mod tests {
         let blocks = [marley_terminal::AnchoredBlock {
             index: 0,
             command: "true".to_string(),
+            command_verified: true,
             state: marley_terminal::BlockState::Finished,
             exit_code: marley_terminal::ExitCode(Some(0)),
             prompt: marley_terminal::PromptInfo::default(),

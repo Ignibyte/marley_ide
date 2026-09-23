@@ -127,6 +127,17 @@ real, reusable session. The Block model is the unit the **brain** later observes
   `block_scroll` (#473) gives the scroll offset that puts the start of the last block above the
   viewport's top, or of the first below it, at the top: 0 on the live screen, within the
   history, `None` with no block that way; `marley_workbench::blocks` scrolls to it.
+  `marley_block` (#474) gives each block whose first row is on screen one element over its
+  rows, with a hover group; the first row holds the pill and, while the pointer is over the
+  block, Copy (`Terminal::block_output` to the clipboard) and, while the last block is
+  finished and the command is verified, Rerun (Ctrl-U, the command and a carriage return through
+  `Terminal::input`). A block's command is verified when its `preexec` frame carried the
+  terminal's nonce (`AnchoredBlocks::with_nonce`, `AnchoredBlock::command_verified`): Zed's
+  builder gives each local terminal's program one in `MARLEY_SHELL_NONCE` from
+  `shell_integration::new_nonce`, and the scripts unset it before the user's files run. Each
+  button sits in `marley_keep_from_terminal`, which stops a left press from reaching the
+  terminal's listeners; `ButtonLike` stops only its click's release, and an occluding hitbox
+  would end the group's hover under the button.
 - `shell_integration.rs` (#463, written in the fork): the embedded `shell_integration/marley.bash`,
   `install_in(dir)`, which writes it when its content changed, and `for_program`, which gives bash
   `--rcfile` and `MARLEY_SHELL_INTEGRATION=1`. Zed's `TerminalBuilder::new` applies it to a local

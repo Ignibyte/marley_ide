@@ -1795,3 +1795,38 @@ packages it runs but reads every workspace test executable in its target directo
 one's line map was of the old source, with no counts from this run. Removing it, the only
 stale executable naming that file, gave the tree's report. TICKET-469 makes the gate
 independent of what earlier runs left.
+
+## F-claude-474-the-occluding-buttons-hid-under-the-pointer-001
+*severity: medium · category: behavior · pipeline 474 (found by the driven test, before commit)*
+
+The plan had the hover buttons `occlude`, so the terminal would not take a click on them. The
+first driven click copied nothing. With the pointer on Copy, the button's `BlockMouse` hitbox
+stopped the hit test, the block's hitbox behind it was no longer hovered, the group's hover
+ended and `visible_on_hover` hid the button, so the click met no listener. Fixed: a wrapper
+stops the press instead (L-claude-474-an-occluding-child-ends-its-groups-hover-001).
+
+## F-claude-474-a-press-elsewhere-lost-its-release-over-a-button-001
+*severity: low · category: behavior · pipeline 474 (found in Test, before commit)*
+
+The wrapper that replaced `occlude` stopped the left release as well as the press. A press on
+the terminal's text released over a block's button then never reached the terminal: a
+selection drag never ended (its phase stayed `Selecting` and copy on select did not run), and
+with mouse reporting on, the program got a press and no release. The test at the time read the
+input log and could not see it (L-claude-474-the-input-log-misses-mouse-reports-001). Fixed: the
+wrapper stops the press alone, and the button's click stops its own release. The test's press
+on the output, released over Copy, fails with the release stop put back (`left: [Some(32)]`,
+`right: [Some(32), Some(35)]`).
+
+## F-claude-474-rerun-would-have-run-a-command-that-output-printed-001
+*severity: high · category: security · pipeline 474 (found in the Code review, before commit)*
+
+Blocks come from hook frames, and the terminal took any frame it read, from the shell or from
+the output of a program. The first Rerun sent the recorded command of any finished block. A
+file shown with `cat`, a remote host over ssh or a log line could print a `precmd`, the text
+`$ make test` and a `preexec` whose command was another one, then a `precmd` to finish it: a
+block that looks like `make test` with a failed pill, whose Rerun would run the other command
+in the user's shell. Found by the security lens of the diff review, reading what Rerun sends.
+Fixed within #474: the terminal's nonce
+(AD-claude-474-a-blocks-command-is-trusted-only-with-the-terminals-nonce-001), and Rerun only
+for a verified command. `marley_no_rerun_for_a_command_that_output_printed` fails without the
+check (`assertion failed: cx.debug_bounds("marley-block-rerun-1").is_none()`).

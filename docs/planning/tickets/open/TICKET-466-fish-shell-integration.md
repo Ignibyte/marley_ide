@@ -12,6 +12,9 @@ fish gets Marley's integration by prepending a Marley directory to `XDG_DATA_DIR
 `fish_postexec` and `fish_prompt` events, at #463's injection point. fish is not installed on the
 dev box, so the ticket waits until it is, or until a machine with fish can run its tests.
 
+Since #474, a command's frame carries the terminal's nonce (`MARLEY_SHELL_NONCE`, taken out of
+the environment before the user's files run), as bash's and zsh's do.
+
 ## Acceptance
 A real interactive fish spawned by Zed leaves a Finished block with exit 0 and output "hi" for a
 typed `echo hi`.

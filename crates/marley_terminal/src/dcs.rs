@@ -32,11 +32,13 @@ pub enum DcsEncoding {
     AnsiCQuoted,
 }
 
-/// The command text of a `Preexec` hook — the command starting to execute.
+/// The fields of a `Preexec` hook: the command starting to execute, and the frame's nonce.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreexecValue {
     /// The command text.
     pub command: String,
+    /// The nonce the frame carried, if any; Marley's scripts send the terminal's own.
+    pub nonce: Option<String>,
 }
 
 /// The fields of a `Precmd` hook — the exit code of the just-finished command and the prompt
@@ -164,6 +166,7 @@ pub fn decode_hook(encoding: DcsEncoding, payload: &[u8]) -> Result<DcsHook, Dec
             let command = field("command").ok_or(DecodeError::UndecodablePayload)?;
             Ok(DcsHook::Preexec(PreexecValue {
                 command: command.to_string(),
+                nonce: field("nonce").map(String::from),
             }))
         }
         "precmd" => {
@@ -340,6 +343,7 @@ mod tests {
             decode_hook(DcsEncoding::Plain, b"preexec;command=ls"),
             Ok(DcsHook::Preexec(PreexecValue {
                 command: "ls".into(),
+                nonce: None,
             }))
         );
     }
@@ -542,6 +546,7 @@ mod tests {
             decode_hook(DcsEncoding::AnsiCQuoted, br"preexec;command=A\nB\tC\rD\\E"),
             Ok(DcsHook::Preexec(PreexecValue {
                 command: "A\nB\tC\rD\\E".into(),
+                nonce: None,
             }))
         );
         // \x41 placed at byte-index 16 (after "preexec;command=") — NOT index 2, so the i+2/i*2
@@ -550,6 +555,29 @@ mod tests {
             decode_hook(DcsEncoding::AnsiCQuoted, br"preexec;command=\x41"),
             Ok(DcsHook::Preexec(PreexecValue {
                 command: "A".into(),
+                nonce: None,
+            }))
+        );
+    }
+
+    #[test]
+    fn decode_hook_preexec_carries_its_nonce() {
+        // The nonce is a field of its own after the command, in either encoding.
+        assert_eq!(
+            decode_hook(
+                DcsEncoding::AnsiCQuoted,
+                br"preexec;command=ls\; pwd;nonce=00ff"
+            ),
+            Ok(DcsHook::Preexec(PreexecValue {
+                command: "ls; pwd".into(),
+                nonce: Some("00ff".into()),
+            }))
+        );
+        assert_eq!(
+            decode_hook(DcsEncoding::Plain, b"preexec;command=ls;nonce=00ff"),
+            Ok(DcsHook::Preexec(PreexecValue {
+                command: "ls".into(),
+                nonce: Some("00ff".into()),
             }))
         );
     }
@@ -563,6 +591,7 @@ mod tests {
             decode_hook(DcsEncoding::AnsiCQuoted, br"preexec;command=ls\; pwd"),
             Ok(DcsHook::Preexec(PreexecValue {
                 command: "ls; pwd".into(),
+                nonce: None,
             }))
         );
         // `\x3b` (an escaped `;` by hex) also stays in-value.
@@ -570,6 +599,7 @@ mod tests {
             decode_hook(DcsEncoding::AnsiCQuoted, br"preexec;command=a\x3bb"),
             Ok(DcsHook::Preexec(PreexecValue {
                 command: "a;b".into(),
+                nonce: None,
             }))
         );
         // A `;`-containing pwd can no longer truncate or inject a phantom field: the whole
@@ -592,6 +622,7 @@ mod tests {
             decode_hook(DcsEncoding::AnsiCQuoted, br"preexec;command=a\\;x=1"),
             Ok(DcsHook::Preexec(PreexecValue {
                 command: "a\\".into(),
+                nonce: None,
             }))
         );
         // `\x3d` decodes to `=` inside a value without becoming a key/value split.
@@ -662,6 +693,7 @@ mod tests {
             decode_hook(DcsEncoding::Plain, br"preexec;command=ls\; pwd"),
             Ok(DcsHook::Preexec(PreexecValue {
                 command: "ls\\".into(),
+                nonce: None,
             }))
         );
     }
@@ -707,6 +739,7 @@ mod tests {
             decode_frame(&frame),
             Ok(DcsHook::Preexec(PreexecValue {
                 command: "ls".into(),
+                nonce: None,
             }))
         );
         let unknown = RawDcs {
