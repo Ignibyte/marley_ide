@@ -2165,3 +2165,22 @@ What #448 needed to know (`script/gates.sh`, gate:21):
 - **Guarding a cargo command.** Guard with `pgrep -x cargo`. `pgrep -f "cargo (… |install)"`
   matched the shell running the guarded `cargo install`, so the guard reported busy and
   skipped the install.
+
+## L-claude-460-a-fresh-install-drive-beside-chads-own-window-001
+*category: validate · topic: live drives on the dev box · from: pipeline 460*
+
+- `marley --user-data-dir <scratch dir> <folder>` starts a second app with a profile of its own
+  (config, database, logs under that directory), so it behaves as a fresh install while
+  Chad's own window keeps running. The dev channel skips the single-instance check, and with a
+  separate data directory the second app does not hang (compare
+  L-claude-438-the-headless-output-borrows-one-of-chads-workspaces-001). End it by its own pid
+  and remove the directory.
+- A fresh profile opens a new folder behind Zed's Restricted Mode prompt ("Unrecognized
+  Project"), which is upstream's worktree trust, not a Marley behavior.
+- On 2026-09-23 a launch through `hyprctl eval 'hl.exec_cmd("…/marley …")'` exited silently
+  after "set environment variables from shell", with no window and no panic in the log. `setsid
+  -f` from a shell holding the session's `XDG_RUNTIME_DIR`, `WAYLAND_DISPLAY` and
+  `HYPRLAND_INSTANCE_SIGNATURE` worked.
+- While Chad has this repository open in Marley, its rust-analyzer runs `cargo check
+  --workspace` after edits to the tree, as flycheck. Check `pgrep -x cargo` and wait for it
+  before the next cargo command.

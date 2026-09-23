@@ -130,10 +130,12 @@ key-value store, would hide the choice from `settings.json` and from settings pr
 - does nothing else, because the terminal provider, the action capture and the Marley keys
   read the layout on every call.
 
-**Default:** the fork starts in the Zed layout and the user's settings choose Marley. That is
-the reading of "zed can be used as default" in the decisions above; if Chad meant Marley by
-default, the design is the same with the default flipped. In the Zed layout the fork behaves
-like upstream, which also answers "is this bug ours?" in one switch.
+**Default:** the fork starts in the Marley layout since #460, and the user's settings can
+choose Zed. Chad on 2026-09-23: "when the program is installed the user shouldnt have to
+choose Marley at first it should swap it over." Until then it started in the Zed layout, the
+first reading of "zed can be used as default" in the decisions above, and the flip was the
+same design with the default turned. In the Zed layout the fork behaves like upstream, which
+also answers "is this bug ours?" in one switch.
 
 **Where to switch:** two command-palette actions, "marley: use Marley layout" and "marley: use
 Zed layout", and the rail's header menu. A Marley entry in Zed's own Panel Layout menu would

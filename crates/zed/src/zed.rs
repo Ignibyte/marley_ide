@@ -6218,6 +6218,13 @@ mod tests {
             );
             project::debugger::dap_store::DapStore::init(&app_state.client.clone().into(), cx);
             debugger_ui::init(cx);
+            // Marley: the fork starts in the Marley layout; Zed's own tests test Zed's layout.
+            cx.update_global::<SettingsStore, _>(|store, cx| {
+                store.update_user_settings(cx, |settings| {
+                    settings.marley.get_or_insert_default().layout =
+                        Some(settings::MarleyLayout::Zed);
+                });
+            });
             initialize_workspace(app_state.clone(), cx);
             search::init(cx);
             lsp_locations::init(cx);

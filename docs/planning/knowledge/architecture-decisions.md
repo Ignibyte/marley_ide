@@ -1563,3 +1563,23 @@ Rejected:
   bump would be a touchpoint and a `clippy_utils` pin to keep in step.
 
 A lint the library adds warns in the Marley crates until the roots' lists name it.
+
+## AD-claude-460-the-fork-starts-in-the-marley-layout-001
+*decided at: 2026-09-23 · status: shipped · Chad's call*
+
+`marley.layout` defaults to `marley`: `MarleyLayout`'s `#[default]` variant, where the Zed
+default was, with `default.json` still free of a `marley` block. A user who writes `zed` keeps
+Zed's layout, and a user who never chose moves to the Marley layout on update.
+
+Zed's own `crates/zed` tests reach `marley_workbench::init` through `init_test_with_state` and
+`initialize_workspace`, so they would take the new default: 24 of 93 failed without a pin.
+`init_test_with_state` writes `zed` to the user settings just before `initialize_workspace`,
+one hunk, so those tests keep testing upstream's layout and an upstream test merged later
+needs no change of its own.
+
+Rejected:
+- a `marley` block in `default.json`, a second touchpoint for the same default;
+- writing `marley` into a user's settings on first launch, which makes an absent key mean
+  something other than the default;
+- pinning the Zed layout test by test in `crates/zed`, which every upstream merge would have
+  to repeat.

@@ -283,6 +283,7 @@ async fn saved_layout(fs: &FakeFs) -> Option<MarleyLayout> {
 async fn a_window_in_the_zed_layout_gets_zeds_sidebar_and_zeds_defaults(cx: &mut TestAppContext) {
     init_test(cx);
     init_zed_sidebar(cx);
+    set_layout(MarleyLayout::Zed, cx);
     cx.update(init);
     let (multi_workspace, _, cx) = open_projects(&[path!("/alpha")], cx).await;
     register(&multi_workspace, cx);
@@ -298,6 +299,20 @@ async fn a_window_opened_in_the_marley_layout_starts_with_its_rail_open(cx: &mut
     init_test(cx);
     set_layout(MarleyLayout::Marley, cx);
     cx.update(init);
+    let (multi_workspace, _, cx) = open_projects(&[path!("/alpha")], cx).await;
+    register(&multi_workspace, cx);
+    cx.read(|cx| {
+        assert!(rail_of(&multi_workspace, cx).is_some());
+        assert!(multi_workspace.read(cx).sidebar_open());
+        assert_marley_defaults(cx);
+    });
+}
+
+#[gpui::test]
+async fn with_no_layout_chosen_a_window_opens_in_the_marley_layout(cx: &mut TestAppContext) {
+    init_test(cx);
+    cx.update(init);
+    cx.read(|cx| assert_eq!(MarleySettings::get_global(cx).layout, MarleyLayout::Marley));
     let (multi_workspace, _, cx) = open_projects(&[path!("/alpha")], cx).await;
     register(&multi_workspace, cx);
     cx.read(|cx| {
@@ -330,6 +345,7 @@ async fn switching_to_the_marley_layout_gives_every_window_an_open_rail(cx: &mut
 async fn switching_back_hands_each_window_its_own_zed_sidebar(cx: &mut TestAppContext) {
     init_test(cx);
     init_zed_sidebar(cx);
+    set_layout(MarleyLayout::Zed, cx);
     cx.update(init);
     let (multi_workspace, _, cx) = open_projects(&[path!("/alpha")], cx).await;
     register(&multi_workspace, cx);
@@ -365,6 +381,7 @@ async fn switching_back_hands_each_window_its_own_zed_sidebar(cx: &mut TestAppCo
 async fn a_closed_zed_sidebar_is_closed_again_after_a_round_trip(cx: &mut TestAppContext) {
     init_test(cx);
     init_zed_sidebar(cx);
+    set_layout(MarleyLayout::Zed, cx);
     cx.update(init);
     let (multi_workspace, _, cx) = open_projects(&[path!("/alpha")], cx).await;
     register(&multi_workspace, cx);
@@ -540,6 +557,7 @@ async fn the_rails_width_holds_through_a_switch_to_zed_and_back(cx: &mut TestApp
 async fn a_width_set_on_the_rail_carries_to_the_zed_sidebar_it_keeps(cx: &mut TestAppContext) {
     init_test(cx);
     init_zed_sidebar(cx);
+    set_layout(MarleyLayout::Zed, cx);
     cx.update(init);
     let (multi_workspace, _, cx) = open_projects(&[path!("/alpha")], cx).await;
     register(&multi_workspace, cx);
@@ -573,6 +591,7 @@ async fn a_restored_width_sizes_the_rail(cx: &mut TestAppContext) {
 async fn a_rail_built_over_zeds_sidebar_starts_at_its_width(cx: &mut TestAppContext) {
     init_test(cx);
     init_zed_sidebar(cx);
+    set_layout(MarleyLayout::Zed, cx);
     cx.update(init);
     let (multi_workspace, _, cx) = open_projects(&[path!("/alpha")], cx).await;
     register(&multi_workspace, cx);
@@ -590,6 +609,7 @@ async fn a_rail_built_over_zeds_sidebar_starts_at_its_width(cx: &mut TestAppCont
 async fn a_swap_keeps_focus_in_the_sidebar(cx: &mut TestAppContext) {
     init_test(cx);
     init_zed_sidebar(cx);
+    set_layout(MarleyLayout::Zed, cx);
     cx.update(init);
     let (multi_workspace, _, cx) = open_projects(&[path!("/alpha")], cx).await;
     register(&multi_workspace, cx);
@@ -651,21 +671,21 @@ async fn the_layout_actions_write_the_choice_to_the_settings_file(cx: &TestAppCo
     cx.update(|cx| <dyn Fs>::set_global(Arc::<FakeFs>::clone(&fs), cx));
     cx.update(init);
 
-    cx.update(|cx| cx.dispatch_action(&UseMarleyLayout));
-    cx.run_until_parked();
-    assert_eq!(saved_layout(&fs).await, Some(MarleyLayout::Marley));
-    cx.read(|cx| assert_eq!(MarleySettings::get_global(cx).layout, MarleyLayout::Marley));
-
     cx.update(|cx| cx.dispatch_action(&UseZedLayout));
     cx.run_until_parked();
     assert_eq!(saved_layout(&fs).await, Some(MarleyLayout::Zed));
     cx.read(|cx| assert_eq!(MarleySettings::get_global(cx).layout, MarleyLayout::Zed));
 
+    cx.update(|cx| cx.dispatch_action(&UseMarleyLayout));
+    cx.run_until_parked();
+    assert_eq!(saved_layout(&fs).await, Some(MarleyLayout::Marley));
+    cx.read(|cx| assert_eq!(MarleySettings::get_global(cx).layout, MarleyLayout::Marley));
+
     // Asking for the layout already in use leaves the file alone.
     fs.remove_file(paths::settings_file(), fs::RemoveOptions::default())
         .await
         .expect("the settings file");
-    cx.update(|cx| cx.dispatch_action(&UseZedLayout));
+    cx.update(|cx| cx.dispatch_action(&UseMarleyLayout));
     cx.run_until_parked();
     assert!(!fs.is_file(paths::settings_file()).await);
 }
@@ -792,6 +812,7 @@ async fn the_toasts_button_switches_to_zeds_layout(cx: &mut TestAppContext) {
 async fn in_the_zed_layout_the_presets_reach_zed(cx: &mut TestAppContext) {
     init_test(cx);
     init_zed_sidebar(cx);
+    set_layout(MarleyLayout::Zed, cx);
     cx.update(init);
     let (multi_workspace, workspaces, cx) = open_projects(&[path!("/alpha")], cx).await;
     register(&multi_workspace, cx);
@@ -817,6 +838,7 @@ async fn open_with_docks(
 ) {
     init_agent_test(cx);
     init_zed_sidebar(cx);
+    set_layout(MarleyLayout::Zed, cx);
     cx.update(init);
     let (multi_workspace, workspaces, cx) = open_projects(&[path!("/alpha")], cx).await;
     let workspace = workspaces[0].clone();

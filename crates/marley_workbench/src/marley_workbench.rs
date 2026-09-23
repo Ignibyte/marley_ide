@@ -74,7 +74,8 @@ pub struct MarleySettings {
 }
 
 impl Settings for MarleySettings {
-    // `default.json` carries no `marley` block, so a missing key means Zed's layout.
+    // `default.json` carries no `marley` block, so a missing key means the Marley layout, the
+    // enum's default.
     fn from_settings(content: &SettingsContent) -> Self {
         Self {
             layout: content

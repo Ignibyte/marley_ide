@@ -15,8 +15,10 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
 
 ## The switch (`src/marley_workbench.rs`)
 
-- `MarleySettings` reads `marley.layout`: `zed` by default, or `marley`. The settings block is
-  `settings_content::MarleySettingsContent`.
+- `MarleySettings` reads `marley.layout`: `marley` by default since #460, or `zed`. The
+  settings block is `settings_content::MarleySettingsContent`, and `default.json` has no
+  `marley` block, so the enum's `#[default]` decides. `crates/zed`'s own tests write `zed`
+  in `init_test_with_state`, before `initialize_workspace`, since they test Zed's layout.
 - `init`, the first line of `crates/zed`'s `initialize_workspace`, reads Zed's own
   `terminal.button` and `agent.dock` defaults before anything patches them, applies the current
   layout's defaults, observes the settings store and registers `marley::UseMarleyLayout` and

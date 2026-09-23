@@ -10,7 +10,7 @@ use settings_macros::{MergeFrom, with_fallible_options};
 pub struct MarleySettingsContent {
     /// Which layout the windows use.
     ///
-    /// Default: "zed"
+    /// Default: "marley"
     pub layout: Option<MarleyLayout>,
 }
 
@@ -21,8 +21,8 @@ pub struct MarleySettingsContent {
 #[serde(rename_all = "snake_case")]
 pub enum MarleyLayout {
     /// Zed's own layout: the Threads Sidebar and Zed's panel defaults.
-    #[default]
     Zed,
     /// The Marley layout: a rail of projects with their terminals, and terminals in the center.
+    #[default]
     Marley,
 }

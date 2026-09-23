@@ -163,6 +163,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Marley starts in the Marley layout** (#460, 2026-09-23). A fresh install, and anyone who
+  never chose a layout, now opens with the rail of projects and their terminals on the left
+  and the terminals in the center. Before, the fork started in Zed's layout until you ran
+  `marley: use marley layout`. `marley: use zed layout` still switches back, and a `zed`
+  choice in your settings stays.
 - **`marley_agent` is the fork's agent-CLI model** (#440). It knows four CLIs and judges an
   agent's status from a quiet spell measured on gpui's clock. The gpui-era tick counters,
   `AgentRun` and the idle and exited states are gone, since nothing used them.
