@@ -200,7 +200,7 @@ an open decision for the owner, not something Marley forces.
 
 | Slice | Delivers | Size |
 |---|---|---|
-| C0 | `marley_mcp` started by the app with the terminal read tools and the discovery file; an agent can list a pane's blocks | M |
+| C0 | `marley_mcp` started by the app with the terminal read tools and the discovery file; an agent can list a pane's blocks (#491, pulled forward for the browser's agent tools) | M |
 | C1 | `marley_harness` read side: subscribe, snapshot, events into `marley_fleet`; a fleet rail panel with state chips, question cards and staleness | L |
 | C2 | Rusty sessions in the same rail through `marley_rusty`; brain-loop and Rusty tools in the default `context_servers` | M |
 | C3 | Harness passthrough terminals (D10), observer first, controller claim second | L |
@@ -233,6 +233,42 @@ Playwright MCP, Claude Code, or Marley's own tool family attach to the same endp
 drive it. The browser outlives the IDE window, Chad's real Chrome is never touched (the
 standing ops rule), and "the agent sees what you see" is true by construction.
 
+Chad restated the goal on 2026-09-24: "the browser lives in marley and the marley ecosystem
+has first class access to what the user sees and the project / forge brain. i want it to be
+as close as 'seeing' what the user does as possible and cursor like experience." The page is
+a tab in Marley's main area; every frame Chad sees and every click and key he makes passes
+through Marley; agents reach the same page through Marley's MCP server, next to the brain
+and Forge tools they already have, and act in the tab while he watches.
+
+### What the 2026-09-24 probe answered
+
+A throwaway headless Chromium 152 and a small CDP client answered the amendment's five
+questions at the protocol level, before any Marley code (the answers Marley's side has to
+confirm are in #488 and #489):
+
+1. **IME and composition.** `Input.insertText` types composed text; `Input.imeSetComposition`
+   shows an underlined composition in the field and `insertText` commits over it (152 has no
+   `imeCommitComposition`). gpui delivers a finished compose sequence as a key with its
+   character. Live Japanese or Chinese through an input method stays untested: Chad chose
+   "compose only, CJK later".
+2. **Latency.** A key dispatched over CDP reaches a frame in 6 to 7 ms on the dev box; twenty
+   wheel steps gave twenty frames.
+3. **The inspect highlight** (`Overlay.setInspectMode`, with its accessibility tooltip) is in
+   the screencast frames.
+4. **Cross-site iframes** render in the frame and take input routed through the main page's
+   session. The main frame's `Accessibility.getFullAXTree` leaves them out; their trees come
+   from the sessions `Target.setAutoAttach` opens.
+5. **Coordinates.** Frames come at exactly the viewport `Emulation.setDeviceMetricsOverride`
+   sets; each frame's metadata carries the viewport in DIP, the scroll offsets in CSS pixels
+   and the pinch scale; input coordinates are viewport CSS pixels. Frames stay at 1× when a
+   larger device scale factor is emulated, so a HiDPI screen needs
+   `--force-device-scale-factor` when Chromium starts (the dev box runs at scale 1).
+
+Also found: `<select>` popups do not render in headless frames, and `/usr/bin/chromium` on
+Arch is a launcher that adds the user's `~/.config/chromium-flags.conf` (on the dev box,
+Omarchy's three extensions and the keyring password store); `/usr/lib/chromium/chromium` is
+the browser itself.
+
 ### Design decisions
 
 **D12. CDP screencast into a gpui image, not a native child window.** `Page.startScreencast`
@@ -242,11 +278,13 @@ through `Input.dispatchMouseEvent`, `Input.dispatchKeyEvent` and `Input.insertTe
 The workspace already depends on `async-tungstenite` and `image`. CEF off-screen rendering
 stays the named revisit if screencast latency or fidelity fails the spike.
 
-**D13. `marley_browser` is a pure protocol core plus masked adapters.** The CDP client
+**D13. `marley_browser` is a pure protocol core plus thin adapters.** The CDP client
 (JSON-RPC over WebSocket, target and session management), frame coordinate math
 (device pixel ratio, page scale, scroll offset from frame metadata), locator ranking, the
-annotation model and the ring-buffer trace are pure and unit-tested; the socket, the decoder
-and the gpui element are adapters.
+annotation model and the ring-buffer trace are kept free of gpui views; the socket, the
+decoder and the service start are adapters. The Browser tab itself is a `workspace::Item` in
+`marley_workbench`, beside the terminal features, which is how `marley_terminal` and the
+workbench already split. Since #483 each slice is proven by an e2e run, not unit tests.
 
 **D14. The three pillars from the amendment are the product, in this order.**
 A: the element picker (`Overlay.setInspectMode`, a durable locator bundle with role, name,
@@ -255,32 +293,69 @@ source file in the editor). B: the annotation layer rendered natively and anchor
 coordinates. C: the flight recorder, a rolling structured trace of input, frames, console
 and network that "record this" saves retroactively.
 
-**D15. Security is designed in the first slice.** Loopback only, a per-boot token on the
-debugging endpoint where Chromium allows it, a navigation allowlist per project, no
-`Runtime.evaluate` to arbitrary origins without a grant, and redaction of headers and
-tokens in traces before they are written.
+**D15. Security is designed in the first slice.** Chromium's debugging endpoint listens on
+127.0.0.1 only and takes no token (Chromium offers none); it refuses WebSocket connections
+from web pages (their `Origin`) and requests whose `Host` is not local, so the exposure is to
+processes of the same user, who could already read the profile directory. Agents are meant
+to come through Marley's MCP server (D17), which has its per-boot bearer. No tool evaluates
+script in the page, agent navigation takes only `http` and `https`, and the network and trace
+readers redact headers and secret-looking query values before an agent or a file sees them.
+The 2026-07 idea of a navigation allowlist per project gives way to two checks an agent
+cannot skip: the client's approval of each write call (Claude Code asks by default) and the
+Browser tab, where every agent action happens in front of Chad.
+
+**D16. Marley starts the Chromium (Chad, 2026-09-24).** The first `marley: open browser`
+starts it as a transient user unit (`systemd-run --user --collect`, Rusty's pattern), one
+unit per Marley data directory, so an e2e run gets its own. It runs the Chromium binary
+itself (`/usr/lib/chromium/chromium` where the distribution wraps it in a launcher) with
+only Marley's flags, headless, with its profile under Marley's data directory and
+`--remote-debugging-port=0`; Chromium writes the port it chose into the profile's
+`DevToolsActivePort`, where Marley and any other CDP client find it. The unit outlives
+Marley's windows and Marley itself; it ends at logout.
+
+**D17. Agents reach the browser through Marley's MCP server.** C0 (#491) starts `marley_mcp`
+in the app, and the Marley Claude Code plugin (#482) carries a small stdio bridge to it, so
+every Claude Code session on the machine finds Marley's tools while Marley runs, and an empty
+server when it does not. The `browser_*` tools (#492) read what Chad sees (the page, its
+accessibility snapshot including cross-site iframes, the frame on his screen, the console and
+network) and act in the same tab.
+
+**D18. Scenarios that click run Marley in a headless sway (#487).** Hyprland cannot send a
+pointer event to one window, and a real click would move Chad's pointer. A headless sway with
+a virtual pointer and keyboard of its own takes clicks, drags and the wheel with nothing
+reaching his desktop.
 
 ### Slices
 
-| Slice | Delivers | Size |
-|---|---|---|
-| B0 | The spike: Chromium as a user unit, `marley_browser` connect and screencast, a pane that shows a page and takes clicks and keys; measure latency and IME | M |
-| B1 | Native chrome: URL bar, back and forward, reload, tabs as targets; persistence by marker (re-derive, never store a URL on the wire) | M |
-| B2 | The `browser.*` tool family on Marley's MCP server, granted per class; the same endpoint documented for the Playwright MCP | M |
-| B3 | Pillar A, the element picker, including source-location to editor | L |
-| B4 | Pillar B, annotations | M |
-| B5 | Pillar C, the flight recorder | L |
+| Slice | Ticket | Delivers | Size |
+|---|---|---|---|
+| (tooling) | #487 | e2e scenarios that click, drag and scroll, in a headless sway | S |
+| B0a | #488 | `marley_browser`: Marley's Chromium as a transient unit, the CDP client, the screencast; the Browser tab shows the page at its size, with its title | M |
+| B0b | #489 | Typing and clicking in the page: keys, compose and input-method text, the mouse and the wheel, the clipboard; the input-to-frame time logged | M |
+| B1a | #490 | The address bar, back, forward, reload and stop, the loading state, JavaScript dialogs | M |
+| C0 | #491 | Prong 2's C0, pulled forward: Marley's MCP server in the app, the plugin's bridge, and the terminal block tools | M |
+| B2 | #492 | The `browser_*` tools: look, snapshot, console, network; navigate, click, type, press, scroll | M |
+| B1b | #493 | Tabs as page targets (pages the page or an agent opens appear as tabs), restore on relaunch, Marley's own `<select>` picker | M |
+| B3a | wave 2 | Pillar A: pick mode, the durable bundle (ranked locators, AX node, listeners, blocking styles), picks staged for Chad to caption and send | L |
+| B3b | wave 2 | A picked element's listener source, through its source map, opened in the editor at the line | M |
+| B4 | wave 2 | Pillar B, annotations drawn by gpui and anchored in page coordinates | M |
+| B5 | wave 2 | Pillar C, the flight recorder and "record this" | L |
 
-The spike must answer the five questions the amendment listed: IME over CDP, interactive
-latency, overlay visibility in frames, cross-origin iframes, and coordinate composition.
+Wave 2 is specced when wave 1 has landed, because its design rests on what the Browser tab
+and the tools turn out to be.
 
 ### Risks
 
-- IME and composition over CDP is the hardest unproven piece; the WKWebView route had it for
-  free and this route rebuilds it.
+- Japanese and Chinese through a live input method are untested (Chad's call). The input
+  path is built (#489); the first user who needs it tests it.
+- HiDPI frames need `--force-device-scale-factor` at the service's start; a Marley window
+  moved to a screen of another scale gets soft frames until Chromium restarts.
+- Headless Chromium draws no browser UI, so everything that is browser UI in a normal
+  browser is Marley's to draw: `<select>` popups (#493), JavaScript dialogs (#490), file
+  choosers, downloads, context menus, the page's cursor shape.
+- The unit outlives Marley, so a Chromium that crashed or was stopped must read as such in
+  the tab, with a way back (the #406 lesson: transport failures arrive as silence).
 - Screencast is frame-streamed; fine for browsing and agent work, wrong for video. Accepted.
-- Chromium as a service is a new packaging surface on Omarchy (a user unit, a profile
-  directory, an update path). Rusty's install script is the template.
 
 ## Cross-cutting
 
@@ -303,6 +378,9 @@ latency, overlay visibility in frames, cross-origin iframes, and coordinate comp
   until Blocks exist),
   then C0 (agents get Blocks as data), then B0 and C1 in parallel (both are read-only and
   independent), then T2 to T4, C2 to C4, B1 to B2, and the long tails T5, T6, C5, B3 to B5.
+  On 2026-09-24 Chad moved the browser first: prong 3's wave 1 (#487 to #493) runs now, with
+  C0 pulled forward inside it for the agent tools; the terminal's T2 to T6 and the rest of
+  prong 2 follow.
 - **Tickets.** Each slice becomes a ticket in this repo when it starts; decisions get
   recorded in the brain with `brain_decide`, as this plan is.
 
@@ -315,7 +393,14 @@ latency, overlay visibility in frames, cross-origin iframes, and coordinate comp
    one and keep the shell's own prompt visible.
 3. Whether Rusty's agent host and the harness runtime should converge, and which one Marley
    treats as the seat substrate of record.
-4. Chromium packaging: a Marley-owned user unit, or one shared with the Playwright MCP.
-5. The written three-prong plan Chad referred to for the browser was not found in Rusty's
-   repo, the ops handbook, or the brain under any wording; if it lives elsewhere, merge it
-   into prong 3 here.
+4. ~~Chromium packaging: a Marley-owned user unit, or one shared with the Playwright MCP.~~
+   Decided 2026-09-24: Marley starts it (D16); the Playwright MCP, agent-browser and
+   Claude Code attach to the endpoint in its `DevToolsActivePort`.
+5. ~~The written three-prong plan Chad referred to for the browser.~~ Resolved 2026-09-24:
+   his 2026-09-18 message ("Look at rusty we havd a plan for a 3 prong approach for this")
+   named the three prongs of this plan, the terminal, the control plane and the browser; no
+   separate browser plan exists in the old repository, its history, Rusty or the brain. The
+   browser's own three parts are the 2026-08-11 amendment's pillars (D14).
+6. Whether picks go to the agent at once or wait for Chad to caption them (B3a), and whether
+   annotations persist across sessions (B4). Wave 2's specs take staged picks and
+   session-only annotations as the defaults unless Chad says otherwise.

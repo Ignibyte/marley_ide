@@ -10,6 +10,13 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
+| [TICKET-487](open/TICKET-487-e2e-pointer-in-headless-sway.md) | chore | prong 3 tooling · e2e scenarios that click, drag and scroll run Marley in a headless sway |
+| [TICKET-488](open/TICKET-488-browser-pane.md) | feature | prong 3 B0a · a Browser tab that shows Marley's own Chromium (the `marley_browser` crate) |
+| [TICKET-489](open/TICKET-489-browser-input.md) | feature | prong 3 B0b · typing, clicking, the wheel and the clipboard in the page; the latency answer |
+| [TICKET-490](open/TICKET-490-browser-navigation.md) | feature | prong 3 B1a · the address bar, back, forward, reload, the loading state, JavaScript dialogs |
+| [TICKET-491](open/TICKET-491-marley-mcp-in-the-app.md) | feature | prong 2 C0 (pulled forward) · Marley's MCP server in the app, the plugin's bridge, terminal block tools |
+| [TICKET-492](open/TICKET-492-browser-tools-for-agents.md) | feature | prong 3 B2 · the `browser_*` tools: the agent sees and drives the page the user sees |
+| [TICKET-493](open/TICKET-493-browser-tabs-and-restore.md) | feature | prong 3 B1b · Browser tabs as pages, restore on relaunch, the `<select>` picker |
 | [TICKET-486](open/TICKET-486-keep-the-terminal-size-across-launches.md) | bug | prong 1 T0 · the first terminals of a launch open at the last session's size (#485's limit) |
 
 ## Deliberate (picked explicitly, never auto-next)
