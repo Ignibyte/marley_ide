@@ -1,13 +1,14 @@
 //! Driven tests for the agent bar: a real PTY whose shell becomes `claude`, a link to `sleep` on
 //! a scratch PATH, in a folder the project's fake repository covers.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use gpui::{Entity, Focusable as _, TestAppContext, VisualTestContext};
+use gpui::{Entity, Focusable as _, Modifiers, TestAppContext, VisualTestContext};
 use terminal::Terminal;
 use terminal_view::{MarleyFooterContext, TerminalView};
 use workspace::Workspace;
+use workspace::notifications::NotificationId;
 
 use super::*;
 use crate::marley_workbench_tests::{
@@ -153,4 +154,170 @@ fn the_branch_comes_from_the_innermost_repository() {
         branch_for(Path::new("/detached/src"), [(Path::new("/detached"), None)]),
         None
     );
+}
+
+/// A `claude` for the installer: it logs each run's arguments to `claude.log` beside it, and
+/// fails, saying why, when `fail` is set.
+fn fake_claude_cli(dir: &Path, fail: bool) -> PathBuf {
+    let path = dir.join("claude-cli");
+    let failure = if fail {
+        "echo 'no network' >&2\nexit 1\n"
+    } else {
+        ""
+    };
+    std::fs::write(
+        &path,
+        format!("#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$(dirname \"$0\")/claude.log\"\n{failure}"),
+    )
+    .expect("the script");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
+            .expect("executable");
+    }
+    path
+}
+
+/// Claude Code's state in `scratch/config`, Marley's plugin going to `scratch/market`, and
+/// `claude` the installer's fake.
+fn plugin_in(scratch: &Path, fail: bool) -> ClaudePlugin {
+    ClaudePlugin {
+        marketplace_dir: scratch.join("market"),
+        config_dir: scratch.join("config"),
+        claude: Some(fake_claude_cli(scratch, fail)),
+        installed: None,
+        installing: false,
+    }
+}
+
+/// Draws frames until `done` holds of the plugin's state.
+async fn wait_for_plugin(cx: &mut VisualTestContext, done: impl Fn(&ClaudePlugin) -> bool) {
+    for _ in 0..300 {
+        redraw(cx);
+        if cx.update(|_, cx| done(cx.global::<ClaudePlugin>())) {
+            return;
+        }
+        cx.background_executor
+            .timer(Duration::from_millis(10))
+            .await;
+    }
+    panic!("the plugin's state never came");
+}
+
+/// A window whose terminal runs a stand-in `claude`, with Marley's plugin set up as `plugin`
+/// says, once Claude Code's list has been read.
+async fn claude_with_plugin<'a>(
+    plugin: ClaudePlugin,
+    folder: &Path,
+    bin: &Path,
+    cx: &'a mut TestAppContext,
+) -> (Entity<Workspace>, &'a mut VisualTestContext) {
+    cx.executor().allow_parking();
+    init_test(cx);
+    cx.update(init);
+    cx.update(|cx| claude_plugin::set_up(plugin, cx));
+    let (workspace, cx) = workspace_over(folder, cx).await;
+    let (terminal, view) = terminal_running("exec claude 60", folder, bin, &workspace, cx).await;
+    wait_for_the_bar(&terminal, &view, &workspace, cx).await;
+    wait_for_plugin(cx, |plugin| plugin.installed.is_some()).await;
+    (workspace, cx)
+}
+
+fn click_the_chip(cx: &mut VisualTestContext) {
+    let chip = cx
+        .debug_bounds("marley-claude-plugin-chip")
+        .expect("the chip");
+    cx.simulate_click(chip.center(), Modifiers::none());
+}
+
+#[gpui::test]
+async fn the_chip_installs_marleys_plugin_for_claude_code(cx: &mut TestAppContext) {
+    let scratch = tempfile::tempdir().expect("a scratch directory");
+    let (_folder, folder) = scratch_folder();
+    let bin = fake_claude_bin();
+    let plugin = plugin_in(scratch.path(), false);
+    let market = plugin.marketplace_dir.clone();
+    let (workspace, cx) = claude_with_plugin(plugin, &folder, bin.path(), cx).await;
+
+    click_the_chip(cx);
+    wait_for_plugin(cx, |plugin| !plugin.installing).await;
+    let log = std::fs::read_to_string(scratch.path().join("claude.log")).expect("the log");
+    assert_eq!(
+        log,
+        format!(
+            "plugin marketplace add {}\nplugin install marley@marley\n",
+            market.display()
+        )
+    );
+    assert!(market.join("marley/hooks/notify.sh").is_file());
+    assert_eq!(
+        cx.update(|_, cx| cx.global::<ClaudePlugin>().installed),
+        Some(true)
+    );
+    redraw(cx);
+    assert!(cx.debug_bounds("marley-claude-plugin-chip").is_none());
+    assert!(workspace.read_with(cx, |workspace, _| {
+        workspace.has_notification(&NotificationId::unique::<ClaudePlugin>())
+    }));
+}
+
+#[gpui::test]
+async fn a_marketplace_claude_code_knows_is_not_added_again(cx: &mut TestAppContext) {
+    let scratch = tempfile::tempdir().expect("a scratch directory");
+    let (_folder, folder) = scratch_folder();
+    let bin = fake_claude_bin();
+    let plugin = plugin_in(scratch.path(), false);
+    let plugins = plugin.config_dir.join("plugins");
+    std::fs::create_dir_all(&plugins).expect("the directory");
+    std::fs::write(plugins.join("known_marketplaces.json"), r#"{"marley": {}}"#).expect("written");
+    let (_, cx) = claude_with_plugin(plugin, &folder, bin.path(), cx).await;
+
+    click_the_chip(cx);
+    wait_for_plugin(cx, |plugin| !plugin.installing).await;
+    let log = std::fs::read_to_string(scratch.path().join("claude.log")).expect("the log");
+    assert_eq!(log, "plugin install marley@marley\n");
+}
+
+#[gpui::test]
+async fn with_marleys_plugin_installed_there_is_no_chip(cx: &mut TestAppContext) {
+    let scratch = tempfile::tempdir().expect("a scratch directory");
+    let (_folder, folder) = scratch_folder();
+    let bin = fake_claude_bin();
+    let plugin = plugin_in(scratch.path(), false);
+    let plugins = plugin.config_dir.join("plugins");
+    std::fs::create_dir_all(&plugins).expect("the directory");
+    std::fs::write(
+        plugins.join("installed_plugins.json"),
+        r#"{"plugins": {"marley@marley": []}}"#,
+    )
+    .expect("written");
+    let (_, cx) = claude_with_plugin(plugin, &folder, bin.path(), cx).await;
+    assert!(cx.debug_bounds("marley-agent-bar").is_some());
+    assert!(cx.debug_bounds("marley-claude-plugin-chip").is_none());
+}
+
+#[gpui::test]
+async fn a_failed_install_keeps_the_chip_and_says_why(cx: &mut TestAppContext) {
+    let scratch = tempfile::tempdir().expect("a scratch directory");
+    let (_folder, folder) = scratch_folder();
+    let bin = fake_claude_bin();
+    let (workspace, cx) =
+        claude_with_plugin(plugin_in(scratch.path(), true), &folder, bin.path(), cx).await;
+
+    click_the_chip(cx);
+    wait_for_plugin(cx, |plugin| !plugin.installing).await;
+    assert_eq!(
+        cx.update(|_, cx| cx.global::<ClaudePlugin>().installed),
+        Some(false)
+    );
+    redraw(cx);
+    assert!(cx.debug_bounds("marley-claude-plugin-chip").is_some());
+    let (errors, toast) = workspace.read_with(cx, |workspace, _| {
+        (
+            workspace.notification_ids().len(),
+            workspace.has_notification(&NotificationId::unique::<ClaudePlugin>()),
+        )
+    });
+    assert_eq!((errors, toast), (1, false));
 }

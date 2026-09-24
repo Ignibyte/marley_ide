@@ -2399,3 +2399,25 @@ notification Marley posts from the hidden workspace, run
 `busctl --user monitor org.freedesktop.Notifications` during the shot: it shows the `Notify` call
 and the id the server returns, which `CloseNotification` then takes down again, so a test leaves
 nothing on Chad's screen.
+
+## L-claude-482-claude-codes-print-mode-drops-a-hooks-terminal-sequence-001
+*category: validate · topic: Claude Code hooks · from: pipeline 482*
+
+Claude Code writes a hook's `terminalSequence` through the last writer its interactive UI has
+registered (`nye` → `H9().write`, registered with `nir` by the REPL). `claude -p` registers
+none, so the hook runs, answers, and the sequence goes nowhere. Test a hook's terminal
+sequence with an interactive session: a Python pty that starts `claude --plugin-dir <plugin>
+"<prompt>"` and reads the raw output, in a folder Claude Code already trusts that has no
+settings of its own (`/srv/stacks` on this box), so no trust prompt and no project hooks.
+
+## L-claude-482-background-work-in-a-marley-crate-is-a-lazy-future-001
+*category: code · topic: gpui tasks and Zed's lints · from: pipeline 482*
+
+Blocking work off the main thread, in a Marley crate, is
+`cx.background_spawn(futures::future::lazy(move |_| …))`. `background_spawn(async move { … })`
+around code that never awaits fails Zed's dylint `async_block_without_await`, an error in the
+Marley crates. `smol::unblock` passes the lint but wakes gpui's test scheduler from smol's
+threads, and every test that runs the crate's `init` then panics with the scheduler's
+non-determinism error. A closure that only runs in production, such as a `which` fallback that
+every test replaces with a fake, leaves a function no test calls: gate:4 counts it, and
+`cargo llvm-cov report --json` names it; move such work where a test does run it.

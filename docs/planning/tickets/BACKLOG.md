@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-482](open/TICKET-482-claude-code-notifications-chip.md) | feature | prong 1 T7b · the chip that installs Marley's plugin for Claude Code, whose hooks send OSC 777 |
 | [TICKET-479](open/TICKET-479-attach-a-file.md) | feature | prong 1 T7c · Attach File types the chosen files' paths into the terminal |
 | [TICKET-480](open/TICKET-480-voice-input.md) | feature | prong 1 T7d · a microphone button that drives Voxtype |
 | [TICKET-481](open/TICKET-481-rich-input.md) | feature | prong 1 T7e · rich input: a Zed editor for an agent's prompt, Ctrl-G |

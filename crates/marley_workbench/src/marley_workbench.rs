@@ -23,6 +23,7 @@
 pub mod agent_bar;
 pub mod agents;
 pub mod blocks;
+pub mod claude_plugin;
 #[cfg(test)]
 pub mod marley_workbench_tests;
 pub mod notifications;
@@ -159,6 +160,7 @@ pub fn init(cx: &mut App) {
     agents::init(cx);
     blocks::init(cx);
     agent_bar::init(cx);
+    claude_plugin::init(cx);
     notifications::init(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action_renderer(|div, _, _, cx| {

@@ -1,0 +1,14 @@
+{
+  "name": "marley",
+  "owner": {
+    "name": "Marley"
+  },
+  "plugins": [
+    {
+      "name": "marley",
+      "source": "./marley",
+      "description": "Desktop notifications from Claude Code in Marley's terminals",
+      "version": "1.0.0"
+    }
+  ]
+}

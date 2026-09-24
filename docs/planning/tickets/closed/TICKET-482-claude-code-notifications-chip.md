@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #482 (feature, prong 1: T7b, second half)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/482-claude-code-notifications-chip.spec.md
+- **Pipeline doc:** ../../pipeline/completed/482-claude-code-notifications-chip.spec.md
 - **Source ticket:** ../../../marley/three-prong-plan.md (T7), split from #478
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 #478 turns OSC 9 and OSC 777 into desktop notifications, but Claude Code sends neither in

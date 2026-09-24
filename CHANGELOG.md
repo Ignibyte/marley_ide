@@ -13,12 +13,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Enable Claude Code notifications** (#482, 2026-09-23). While Claude Code runs in a terminal,
+  the agent bar offers "Enable Claude Code notifications". It installs a small Marley plugin
+  into your Claude Code with its own `claude plugin` commands. The plugin's hooks ask Claude Code
+  to send Marley a notification when it wants your permission, waits for you, or finishes, and
+  they stay silent in other terminals. New Claude Code sessions use it; in a running one, run
+  `/reload-plugins`.
 - **Desktop notifications from the terminal** (#478, 2026-09-23). A program that asks the
   terminal for a desktop notification, with the escapes iTerm2, Ghostty and rxvt read (OSC 9 and
   OSC 777), now gets one from Marley while you are not looking at that terminal: another pane
   has the focus, or Marley's window is in the background. Clicking it brings the terminal to the
   front, and its tab and its row in the left pane carry the same mark a bell gives them.
-  "Enable Claude Code notifications" follows in #482.
 - **The agent bar** (#477, 2026-09-23). While Claude Code, Codex, Gemini CLI or OpenCode runs
   in a terminal, a bar shows under it with the agent's name at the left and, at the right, the
   folder it works in and that folder's git branch, as Warp shows them. The terminal gives up a

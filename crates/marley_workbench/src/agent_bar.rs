@@ -10,10 +10,11 @@ use std::sync::Arc;
 use gpui::{AnyElement, App, SharedString, Window};
 use marley_agent::AgentKind;
 use terminal_view::{MarleyFooterContext, MarleyTerminalFooter};
-use ui::{Icon, IconName, IconSize, Label, LabelSize, prelude::*};
+use ui::{Button, Icon, IconName, IconSize, Label, LabelSize, prelude::*};
 use util::paths::PathExt as _;
 
 use crate::agents::cli_icon;
+use crate::claude_plugin::{self, ClaudePlugin};
 
 /// Puts the agent bar under every terminal. [`crate::init`] calls it once.
 pub fn init(cx: &mut App) {
@@ -128,6 +129,11 @@ fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option
                         Label::new(agent.display_name())
                             .size(LabelSize::Small)
                             .color(Color::Muted),
+                    )
+                    .children(
+                        (agent == AgentKind::Claude)
+                            .then(|| claude_plugin_chip(context, cx))
+                            .flatten(),
                     ),
             )
             .child(
@@ -143,6 +149,40 @@ fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option
                         chip(IconName::GitBranch, branch)
                             .debug_selector(|| "marley-agent-bar-branch".into())
                     })),
+            )
+            .into_any_element(),
+    )
+}
+
+/// The chip that installs Marley's plugin for Claude Code, while the plugin is known not to be
+/// installed (#482).
+fn claude_plugin_chip(context: &MarleyFooterContext, cx: &App) -> Option<AnyElement> {
+    let plugin = cx.try_global::<ClaudePlugin>()?;
+    if plugin.installed != Some(false) {
+        return None;
+    }
+    if plugin.installing {
+        return Some(
+            Label::new("Installing Marley's plugin for Claude Code…")
+                .size(LabelSize::Small)
+                .color(Color::Muted)
+                .into_any_element(),
+        );
+    }
+    let (plugin, workspace) = (plugin.clone(), context.workspace.clone());
+    Some(
+        div()
+            .debug_selector(|| "marley-claude-plugin-chip".into())
+            .child(
+                Button::new(
+                    "marley-enable-claude-notifications",
+                    "Enable Claude Code notifications",
+                )
+                .start_icon(Icon::new(IconName::Download).size(IconSize::XSmall))
+                .label_size(LabelSize::Small)
+                .on_click(move |_, _, cx| {
+                    claude_plugin::install(plugin.clone(), workspace.clone(), cx);
+                }),
             )
             .into_any_element(),
     )

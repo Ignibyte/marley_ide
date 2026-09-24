@@ -326,6 +326,20 @@ alike.
 - `show_sender` answers a click: it activates the view's window, its workspace in the
   multi-workspace and its item, and clears the bell, as the rail's `activate_terminal` does.
 
+## Marley's plugin for Claude Code (`src/claude_plugin.rs`, `claude_plugin/`, #482)
+
+- The plugin lives as files in the crate: a local marketplace named `marley` and the plugin,
+  whose `hooks/hooks.json` runs `hooks/notify.sh` for `permission_prompt`, `idle_prompt` and
+  `Stop`. The script answers only where `TERM_PROGRAM` is `zed`, with a `terminalSequence`
+  holding an OSC 777 notify, which the interactive Claude Code writes to its terminal (print mode
+  drops it).
+- `ClaudePlugin`, a global, holds where the plugin goes (Marley's data directory), Claude Code's
+  configuration directory, the `claude` to run, and whether `installed_plugins.json` lists
+  `marley@marley`, read in the background at `init`.
+- `install` writes the plugin, runs `claude plugin marketplace add` unless
+  `known_marketplaces.json` has `marley`, then `claude plugin install marley@marley`, and shows a
+  toast or the error. The agent bar's chip calls it.
+
 ## Tests
 
 `src/marley_workbench_tests.rs` (the switch, the keymap loader, persistence and the docks across

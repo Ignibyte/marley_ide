@@ -1,7 +1,7 @@
 ---
 pipeline_id: 78e76432-3cfb-46e4-952a-8205cbefc4ff
 ticket: docs/planning/tickets/open/TICKET-482-claude-code-notifications-chip.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote
+status: Phase 4 — Complete PASS
 title: "Enable Claude Code notifications: Marley's plugin for Claude Code"
 type: feature
 slice: prong 1 T7b

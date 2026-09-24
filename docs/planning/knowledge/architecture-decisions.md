@@ -1826,3 +1826,17 @@ marks itself as a bell does, without the sound. `marley_workbench::notifications
 gpui's `show_system_notification` unless the view is the focused terminal of the active window,
 and a click shows that terminal. Rejected: OSC 99 for now (kitty's richer protocol); in-app
 toasts; a notification for the focused terminal, which the user is already looking at.
+
+## AD-claude-482-claude-code-sends-marleys-notifications-through-a-plugin-001
+*decided at: 2026-09-23 · status: shipped*
+
+Claude Code's `auto` channel does not recognize Marley's terminal, so Marley ships a Claude Code
+plugin, installed from the agent bar's chip with Claude Code's own `claude plugin` commands from
+a local marketplace Marley writes. Its `Notification` (`permission_prompt`, `idle_prompt`) and
+`Stop` hooks run a script that answers with a `terminalSequence`, an OSC 777 notify Claude Code
+writes to its terminal, only where `TERM_PROGRAM` is `zed`; fixed messages per event, so the
+script parses nothing and needs no `jq`. Rejected: setting `preferredNotifChannel`, which is
+global and would reach every terminal; hooks writing to `/dev/tty` themselves, which
+`terminalSequence` does in step with Claude Code's own drawing. `terminalSequence` is in Claude
+Code 2.1.281's hook schema but not its public docs: if notifications stop after an upgrade, check
+that first.

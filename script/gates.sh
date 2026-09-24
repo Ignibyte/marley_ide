@@ -188,7 +188,7 @@ secrets_g() {
 }
 
 # ── 11. shell scripts (the hooks + this gate) ────────────────────────────────
-shellcheck_g() { need shellcheck "install shellcheck" || return 1; shellcheck -S info -e SC1091 .claude/hooks/*.sh script/gates.sh script/mutation.sh script/live-shot.sh crates/marley_terminal/shell_integration/marley.bash; }
+shellcheck_g() { need shellcheck "install shellcheck" || return 1; shellcheck -S info -e SC1091 .claude/hooks/*.sh script/gates.sh script/mutation.sh script/live-shot.sh crates/marley_terminal/shell_integration/marley.bash crates/marley_workbench/claude_plugin/marley/hooks/notify.sh; }
 
 # The files gates 12/13 scan wholesale: the Marley crates plus any untracked
 # Rust file elsewhere under crates/. Tracked edits to Zed crates are judged on
