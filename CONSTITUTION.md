@@ -20,25 +20,23 @@ the fork is the design record under `docs/marley_architecture/`, `docs/specs/` a
 ## §0 — Quality Gates (binding)
 
 The canonical gate is **`script/gates.sh`**, the single source of truth for "is this change
-shippable?". It must pass green in the Test phase, in one of two commit-valid modes:
-**`--full`** (the heavy gates over every Marley-owned crate; the periodic audit) or
-**`--diff`** (the heavy gates only on what the change touched; the per-change loop). Both
-write the receipt the commit hook requires (§15). `--fast` runs the static gates only, prints
-`GATE GREEN [fast]`, writes no receipt, and can never satisfy a commit of Rust source. The
-mode is always named: none, or an unknown one, is a usage error (exit 2) and runs no gate.
+shippable?". It must pass green in the Test phase with **`--diff`**, which writes the receipt
+the commit hook requires (§15). `--fast` runs the same gates, prints `GATE GREEN [fast]`,
+writes no receipt, and can never satisfy a commit of Rust source. The mode is always named:
+none, or an unknown one, is a usage error (exit 2) and runs no gate. `--full`, which ran the
+heavy gates over every Marley crate, is refused since they retired (#483).
 
 ```
-STATIC (always; --fast runs exactly these)
 gate:1  rustfmt        cargo fmt --all --check                             (whole workspace)
 gate:2  clippy         cargo clippy --all-targets --all-features -p <scope> -- -D warnings
-gate:3  tests          cargo nextest run -p <scope>  +  cargo test --doc -p <marley crates>
-                       +  cargo test --locked --manifest-path vendor/<crate>/Cargo.toml (each copy)
+                       +  cargo check --locked --all-targets --manifest-path vendor/<crate>/Cargo.toml
+                       (each copy): the tests in the tree keep building; no gate runs them (§7)
 gate:7  audit          cargo audit             (fork-point advisories listed, new ones fail)
 gate:8  supply chain   cargo deny check licenses bans sources
 gate:9  unused deps    cargo shear --locked --deny-warnings          (Zed's own tool)
 gate:10 secrets        gitleaks: commits since the upstream fork point + Marley-owned dirs
-gate:11 shell lint     shellcheck (.claude/hooks + script/gates.sh + script/mutation.sh +
-                       script/live-shot.sh + the shell integration Marley ships)
+gate:11 shell lint     shellcheck (.claude/hooks + script/gates.sh + script/e2e.sh and the
+                       scenarios in script/e2e/ + the shell integration Marley ships)
 gate:12 no-suppress    grep meta-gate (allow/expect must justify; blanket banned)
 gate:13 source-bans    grep meta-gate (transmute, bare or through mem::; unsafe without a
                        // SAFETY: on its line or the line above)
@@ -47,32 +45,26 @@ gate:14 docs           rustdoc -D warnings on the Marley crates, and no `warning
 gate:16 zed ledger     every changed path outside the Marley-owned set has its row in docs/marley/zed-touchpoints.md
 gate:17 manifests      cargo sort --check + taplo fmt --check on the Marley manifests
 gate:18 spelling       typos --config .config/typos.toml              (the repository, as Zed's CI)
-gate:19 empty suites   cargo nextest list -p <marley crates>: every suite but a binary's has a test
 gate:20 semgrep        semgrep 1.156.0 --config .semgrep.yml --error --strict on the Marley crates
 gate:21 dylint         cargo dylint --all -- --all-targets -p <marley crates>: Zed's tooling/lints,
                        denied in each Marley crate root under the driver's dylint_lib cfg
-
-HEAVY (--full + --diff; --fast skips; BLOCKED, not run, after a static red)
-gate:4  coverage       cargo llvm-cov nextest -p <marley crates> --fail-under-lines 100, from
-                       no test executable earlier runs left in llvm-cov-target (#469)
-gate:6  miri           cargo +nightly miri  (conditional on unsafe in a Marley crate)
 ```
 
-Retired numbers are not reused: gate:5 (mutation, below) and gate:15 (the gpui-era macOS
-harness).
+Retired numbers are not reused: gate:3 (the test suites), gate:4 (line coverage), gate:5
+(mutation), gate:6 (miri), gate:15 (the gpui-era macOS harness) and gate:19 (empty suites).
 
-**Mutation testing is not a gate.** It was gate:5 until 2026-09-22, when Chad took it out of
-the per-change loop because it was too slow to run on every change. `script/mutation.sh`
-runs it over the Marley crates once, at the end of a sprint or before a release, and what it
-finds is fixed at the source like any other red.
+**No test runs in the gate.** On 2026-09-23 Chad took unit tests out of the workflow; the
+proof of a change is its e2e visualization test (§7). The tests already in the tree stay, and
+gate:2 builds them, but gate:3 (the suites), gate:4 (the 100% line-coverage floor and its
+exclude list), gate:6 (miri, which runs tests) and gate:19 (empty suites) retired (#483).
+`script/mutation.sh`, the end-of-sprint mutation run that was gate:5 until 2026-09-22, retired
+with them.
 
-**The scope rule.** The Marley-owned surface is `crates/marley_*`. The static gates run over
-those crates plus every crate the change touched (derived from `git status`, so a new
-untracked crate counts). The heavy gates run over the Marley crates in FULL; in `--diff`
-mode gate:4 covers the touched Marley crates. Upstream Zed code
-is not held to the Marley floors: it is held to Zed's own bar (fmt, `./script/clippy`, its
-own tests), and a change inside a Zed crate must leave that crate's tests green and add
-driven tests for the behavior it adds (§7).
+**The scope rule.** The Marley-owned surface is `crates/marley_*`. The gates run over those
+crates plus every crate the change touched (derived from `git status`, so a new untracked crate
+counts). Upstream Zed code is held to Zed's own bar (fmt and `./script/clippy`), not to the
+Marley crates' lint levels, and a change inside a Zed crate is proven by the ticket's e2e
+scenario like any other change (§7).
 
 **No baselines. No suppressions. Source-fix only.** Any inline `#[allow(…)]` /
 `#[expect(…)]` in Marley code must carry a real `//` justification (gate:12); blanket group
@@ -84,15 +76,6 @@ harness client, the agent hosts). What gate:13 bans is `mem::transmute` and `uns
 a `// SAFETY:` justification. Keep spawns in adapter modules and validate inputs; no shelling
 out unsanitized user input.
 
-**Floors ratchet up, never down.** `RUST_COV_MIN` is baked into the gate at **100% lines**
-over the Marley crates. Env may raise it; a value below the baked-in minimum is clamped back
-up. Lowering a baked-in minimum is a charter amendment.
-
-**ACCEPTED-UNTESTABLE is explicit, never silent.** Coverage runs with an explicit, documented
-exclude list in the gate (today: the raw PTY shim `marley_terminal/src/pty_os.rs` and the
-`std::net` transport `marley_mcp/src/transport.rs`). A new uncoverable path (FFI, GPU, a headed window, a bound port, a live service)
-is added to that list with a reason, never hidden in a regex.
-
 **Honest known-scope (the ratchet roadmap).** Recorded gaps, each a ratchet item:
 
 - clippy runs rustal's lint table on the Marley crates (pedantic, nursery and cargo, with
@@ -101,12 +84,9 @@ is added to that list with a reason, never hidden in a regex.
   each crate root makes them errors; on Zed's crates they stay at the library's warn level.
   A lint the library adds warns in the Marley crates until it joins the roots' lists.
 - `vendor/` holds upstream crates Marley changes (`vendor/README.md`). They build outside Zed's
-  workspace, so fmt, clippy and the Marley floors never judge their upstream code or the Marley
-  hunks in them; gate:3 runs each copy's own tests, the hunks' tests among them (#462).
-- `gate:3` runs `--no-tests=warn` over the scope, so a Zed crate with no tests is a visible
-  warning; gate:19 fails a Marley test suite with none. The binding "every behavior is
-  tested" enforcement is gate:4 on the Marley crates plus the driven tests §7 requires for
-  UI paths.
+  workspace, so fmt, clippy and the Marley lint levels never judge their upstream code or the
+  Marley hunks in them; gate:2 builds each copy with its tests against the lockfile it keeps,
+  and no gate runs them (§7).
 - `gate:7`: advisories already present at the upstream fork point belong to upstream's
   dependency tree. They are listed per id in `.cargo/audit.toml` with the fork commit they
   were inherited at, and the list is regenerated at every upstream merge. A NEW advisory
@@ -132,28 +112,27 @@ is added to that list with a reason, never hidden in a regex.
   owned set would claim. The owned set is `marley_owned_path` in the same file, shared with
   the write hook, and `enforce-commit-gate.sh` runs the same check at every `git commit`, Rust
   or not (§14).
-- `gate:15` (the macOS accessibility and screenshot harness) is retired; UI proof is §7.
+- `gate:15` (the macOS accessibility and screenshot harness) is retired; the e2e runner of §7
+  took its place, outside the gate: its verdict is the shots, read.
 - not yet ported: architecture-layering / taint analysis.
 
-A `--full` or `--diff` run removes the earlier receipt when it starts, and on a green writes
+A `--diff` run removes the earlier receipt when it starts, and on a green writes
 a worktree-bound receipt (`.git/ignibyte-gate-receipt`) that `enforce-commit-gate.sh`
 validates at commit (§15). The receipt carries the fingerprint taken when the run started,
 and the run fails instead of writing one when the gated files changed while it ran.
 
-Tools: `cargo install cargo-audit cargo-deny cargo-shear cargo-llvm-cov cargo-nextest
-cargo-sort taplo-cli typos-cli`, `rustup component add llvm-tools-preview`, semgrep 1.156.0
-(`pipx install semgrep==1.156.0`), and `gitleaks shellcheck jq just` from the distro (`just`
-runs the `justfile`'s recipes over these commands, #471); for gate:21,
+Tools: `cargo install cargo-audit cargo-deny cargo-shear cargo-sort taplo-cli typos-cli`,
+semgrep 1.156.0 (`pipx install semgrep==1.156.0`), and `gitleaks shellcheck jq just` from the
+distro (`just` runs the `justfile`'s recipes over these commands, #471); for gate:21,
 `cargo install cargo-dylint dylint-link --locked` (6.0.4) and, from `tooling/lints`,
 `rustup toolchain install` (its pinned nightly with `rustc-dev`, `rust-src` and
-`llvm-tools-preview`);
-`cargo-mutants` only for the end-of-sprint `script/mutation.sh`. Run the gate in the
-Test phase; fix every red at the source. One cargo command at a time on this box: the target
+`llvm-tools-preview`). The e2e runner (§7) needs Hyprland's `hyprctl`, `grim`, `jq`, `python3`
+and `git`. Run the gate in the Test phase; fix every red at the source. One cargo command at a time on this box: the target
 directory is shared by every project on it.
 
 **The toolchain** is the latest stable, pinned in `rust-toolchain.toml` (1.98.1 since
 2026-09-01). When a new stable ships (`rustup check`), a chore moves the pin with a
-`script/gates.sh --full` run and fixes any new lint at the source; the box's default `stable`
+`script/gates.sh --diff` run and fixes any new lint at the source; the box's default `stable`
 is updated with it, while no cargo runs (#472). `tooling/lints` keeps Zed's nightly pin: the
 lint library builds against that nightly's compiler internals.
 
@@ -169,9 +148,10 @@ gate is satisfied.
 
 ```
 /pipeline:plan        (Phase 1)  pick the item, pre-flight, recall; ticket + active spec/notes;
-                                 the design and its test plan
+                                 the design and its e2e plan
   → /pipeline:code      (Phase 2)  the code, fmt- and clippy-clean, then a review of the diff
-  → /pipeline:test      (Phase 3)  write + RUN the tests; the live drive; script/gates.sh --diff green
+  → /pipeline:test      (Phase 3)  RUN the ticket's e2e scenario and read every shot;
+                                 script/gates.sh --diff green
   → /pipeline:complete  (Phase 4)  docs (CHANGELOG + architecture, §21), knowledge, close the
                                  ticket, archive, commit
 ```
@@ -196,35 +176,39 @@ gate is satisfied.
 
 ---
 
-## §7 — Testing Standards (binding)
+## §7 — E2E Visualization Testing (binding)
 
-**Full testing is expected.** Every pipeline produces meaningful tests for the code it
-writes. Tests are not optional and not skippable because a change "looks simple".
+**A change is proven by running the real Marley and looking at it.** Since 2026-09-23 (Chad,
+#483) the only tests a ticket writes and runs are **e2e visualization tests**: no unit tests,
+no gpui driven tests, no `trybuild` cases, no doctests. The tests already in the tree, Marley's
+and Zed's, stay where they are and keep building (gate:2 builds every target), but no gate runs
+them and no ticket adds to them.
 
-- **Pure and library code** (the Marley crates' cores, any pure module added to a Zed
-  crate): Rust `#[cfg(test)]` **unit tests**, **each EARS clause maps to at least one test**,
-  plus `trybuild` compile-fail cases for type-safety contracts and doctests for public
-  examples. Mutation testing (`script/mutation.sh`) runs once at the end of a sprint, not per
-  change (§0).
-- **UI code** (gpui render and input paths, in a Marley crate or a Zed crate): a change
-  adds or updates a **driven test** on gpui's `TestAppContext` / `VisualTestContext` (the
-  repo skill `.agents/skills/gpui-test` documents the harness; prefer the executor's timers
-  over `smol::Timer`, per `.rules`), and `/pipeline:test` also runs the real app
-  (`cargo run`), exercises the behavior, and captures it (a screenshot through the
-  `dev-box-desktop` skill on this box). A green unit test never proves a pane works; the
-  driven test plus the live drive do. The macOS AX harness of the gpui era is retired.
-- **NEVER mark a phase PASS if tests did not actually RUN.** Writing a test file is not
+- **The scenario.** A ticket carries `script/e2e/<ticket>-<slug>.sh`, run by `script/e2e.sh`
+  (`just e2e <scenario>`): the debug `marley` on a copy of the user's profile, on hidden
+  workspace 9, with the fixtures the scenario's `setup` builds (a scratch repository, a HOME
+  whose `.bashrc` is the scenario's own through `terminal_env`, fakes first on the PATH), then
+  its `steps`: keys sent to Marley's window only, and a shot of the window after each step
+  that matters. Every acceptance criterion names the shot that proves it.
+- **Reading the shots is the test.** The Test phase reads every PNG and writes into the notes
+  what each one shows, against the criterion it proves. A shot that shows anything but Marley
+  is deleted. Shots stay in the scratchpad or `SHOT_DIR`, never in the repository.
+- **The user's session is not touched.** Keys go to Marley's window by its address, and the
+  runner reports whether the user's active window and workspace moved. No mouse: a click would
+  move the user's pointer. A click-only path is shown rendered; what it does is proven through a
+  key or an action that does the same, or recorded as not driven, with the reason.
+- **A change with nothing new to see** (tooling, a refactor, a dependency) still runs a
+  scenario: Marley starts and draws (`just shot`), so nothing it needs broke.
+- **NEVER mark a phase PASS if the e2e run did not actually RUN.** Writing a scenario is not
   testing. The `enforce-tests-ran.sh` Stop hook checks the transcript for a real
-  `cargo nextest run` / `cargo test` / `script/gates.sh` invocation at `/pipeline:test`.
+  `script/e2e.sh`, `just e2e` or `just shot` run at `/pipeline:test`.
 - **Pre-existing failures are not your problem, but document them.** Note them in the notes
-  as "pre-existing" and move on; don't fix unrelated breakage unless asked. Zed's suite is
-  large; run the touched crates' tests, not the world.
-- **Genuinely uncoverable paths** (a live GUI runtime, a bound port, a live service, a
-  daemon socket, ssh) get a documented skip with the reason recorded in the notes and an
-  explicit exclude in the gate (§0), never a silent regex.
-- **Gate-is-test changes** (config, tooling, docs with no `.rs`) are verified by the gate's
-  own exit codes plus **negative smokes** (inject the drift → the gate goes red → revert →
-  green), not by inventing unit tests.
+  as "pre-existing" and move on; don't fix unrelated breakage unless asked.
+- **What no scenario can reach** (speech, a live remote service, a click) is taken as far as a
+  scenario can take it and recorded in the notes with the reason, never skipped silently.
+- **Gate-is-test changes** (config, tooling, docs with no `.rs`) are verified by the gate's own
+  exit codes plus **negative smokes** (inject the drift → the gate goes red → revert → green),
+  and by an e2e run when the change drives the app.
 
 ---
 
@@ -256,10 +240,11 @@ writes. Tests are not optional and not skippable because a change "looks simple"
   modules (`marley_terminal`, the harness and Rusty clients, `marley_mcp::transport`), use
   Zed's `util::command` / `smol` for non-PTY spawns, and validate inputs (no shelling out
   unsanitized user input).
-- File IO is testable: route it through `*_in(dir)` functions with a directory override, so
-  tests don't race on global state.
-- `unsafe` carries a `// SAFETY:` note (gate:13) and is miri-clean (gate:6) or carries a
-  spec-declared `miri-exempt` justification for FFI miri cannot model.
+- File IO takes its directory: route it through `*_in(dir)` functions with a directory
+  override, so an e2e scenario's fixtures, and the tests in the tree, never touch the user's
+  own files.
+- `unsafe` carries a `// SAFETY:` note (gate:13) that says why it is sound; miri (gate:6)
+  retired with the unit tests (§7).
 - No secrets in source; reuse existing helpers before adding new ones; comments explain
   *why*, not *what*.
 
@@ -283,34 +268,33 @@ writes. Tests are not optional and not skippable because a change "looks simple"
 ## §15 — Anti-Circumvention (binding)
 
 **The transcript is the source of truth. If it didn't happen in the transcript, it didn't
-happen.** Claiming "tests pass" without a visible test run is a violation. Claiming the gate
-is green without running `script/gates.sh` is a violation. Hooks evaluate evidence (tool
+happen.** Claiming a scenario passed without a visible e2e run and its shots read is a
+violation. Claiming the gate is green without running `script/gates.sh` is a violation. Hooks evaluate evidence (tool
 calls, Bash commands, file state), not prose.
 
-Do not weaken a gate, delete a test, lower a coverage floor, or add a blanket `#[allow]` to
-get past a blocked Stop. Fix the cause.
+Do not weaken a gate, delete a test (the tests in the tree stay, §7), or add a blanket
+`#[allow]` to get past a blocked Stop. Fix the cause.
 
 **What the enforcement is, and isn't.** The hooks are a *discipline scaffold*, not a security
 boundary. They reliably catch **omissions**: writing code before a phase is PASS, stopping a
 phase with unresolved tasks or an un-advanced doc status, leaving `/pipeline:test` without
-running tests, committing code without a green gate. They do **not** try to defeat
-deliberate fabrication: the `status:` line and the test calls are self-reported. The one
+an e2e run, committing code without a green gate. They do **not** try to defeat
+deliberate fabrication: the `status:` line and the e2e calls are self-reported. The one
 hard, evidence-based gate is **`script/gates.sh` at commit**: `enforce-commit-gate.sh` blocks
-a `git commit` that includes Rust source unless a `--full`/`--diff` gate run left a
+a `git commit` that includes Rust source unless a `--diff` gate run left a
 *receipt* (`.git/ignibyte-gate-receipt`, a content fingerprint of every `crates/**/*.rs` and
 every file under `crates/marley_*` in the tree) that still matches the worktree being
 committed. Each such run removes the earlier receipt before its first gate, so a tree that
 passed once and fails later cannot commit on the older green. The receipt is written only by a real
-FULL/`--diff` green, so the verdict cannot be forged by printing or quoting `GATE GREEN`;
+`--diff` green, so the verdict cannot be forged by printing or quoting `GATE GREEN`;
 any edit after the green, by Write, Edit or a Bash heredoc, changes the fingerprint and
 re-blocks. A **second** commit-time hook, `enforce-changelog.sh`, blocks a Rust-source commit
 that lacks a `CHANGELOG.md` entry (§21). A change that touches **no** `.rs` is not blocked by
-the receipt; its gate is enforced by pipeline discipline (the static gates at
-`/pipeline:test`). The receipt fingerprint binds not just `crates/**/*.rs` but the
+the receipt; its gate is enforced by pipeline discipline (`--fast` at `/pipeline:test`). The receipt fingerprint binds not just `crates/**/*.rs` but the
 **gate-defining files** themselves (`script/gates.sh`, `.claude/hooks/**`, `clippy.toml`,
 `rustfmt.toml`, `deny.toml`, `.gitleaks.toml`, `.semgrep.yml`, `.config/typos.toml`,
-`.cargo/audit.toml`, the Cargo manifests and lockfile, the toolchain pin, the nextest
-config, `tooling/lints`, gate:21's library and its nightly pin, and `vendor/`, the upstream
+`.cargo/audit.toml`, the Cargo manifests and lockfile, the toolchain pin, the e2e runner and
+its scenarios, `tooling/lints`, gate:21's library and its nightly pin, and `vendor/`, the upstream
 crates the build takes through `[patch]`), so weakening the gate after a green invalidates the
 receipt.
 
@@ -434,4 +418,7 @@ is the standing example: gate:15 retired, gate:9 moved to cargo-shear, gates 7, 
 re-scoped to what a fork can honestly gate, each with its reason in §0. On 2026-09-22 Chad
 loosened two rules, with the reason recorded in §0 and §3: mutation testing left the
 per-change gate for `script/mutation.sh` at the end of a sprint, and the workflow became
-four phases (`/work`, design, inspect and `/commit` folded into Plan, Code and Complete).
+four phases (`/work`, design, inspect and `/commit` folded into Plan, Code and Complete). On
+2026-09-23 Chad removed unit tests from the workflow, recorded in §0 and §7: the gate runs no
+tests, the proof of a change is its e2e visualization test, and the tests in the tree stay and
+keep building (#483).

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# enforce-tests-ran.sh — tests must actually RUN in the Test phase (Stop hook).
-# CONSTITUTION §7/§15: writing a test file is not testing. At /pipeline:test
-# the transcript must show a real cargo-test invocation. Exit 0 = allow, 2 = block.
+# enforce-tests-ran.sh — the e2e test must actually RUN in the Test phase (Stop hook).
+# CONSTITUTION §7/§15: writing a scenario is not testing. At /pipeline:test the
+# transcript must show a real run of the e2e runner. Exit 0 = allow, 2 = block.
 set -euo pipefail
 INPUT=$(cat)
 command -v jq &>/dev/null || exit 0
@@ -15,32 +15,25 @@ is_pipeline_session "$TRANSCRIPT_PATH" || exit 0
 [ "$(detect_active_command "$TRANSCRIPT_PATH")" = "test" ] || exit 0
 
 CMDS=$(extract_bash_commands "$TRANSCRIPT_PATH")
-RUST_OK=false
-# Anchor the runner to a command position (line start or after a shell
-# separator) and drop --help/--version/--list, so a bare `echo "cargo test"`
-# or `cargo test --help` doesn't satisfy the gate. This is a NUDGE against
-# omission — it can't prove the run passed (that's the commit gate's job,
-# enforced by enforce-commit-gate.sh).
-# Separator class `[;&|(]` catches line-start and after ; & | ( — and `&&`/`||`
-# match on their 2nd char (e.g. "x && cargo test" → "& cargo test"). Avoids the
-# `\|` ERE ambiguity in BSD grep. A bare `echo "cargo test"` (cargo preceded by
-# a quote) does not match.
-RUNNER_AT='(^|[;&|(])[[:space:]]*'
+# The runner counts at a command position: a line start or a shell separator
+# (`[;&|(]`, where `&&` and `||` match on their second character), then any
+# `NAME=value` assignments and a `timeout <n>` in front of it. So a bare
+# `echo "script/e2e.sh"` (the runner after a quote) and `script/e2e.sh --help`
+# do not count. This is a NUDGE against omission: it cannot prove the shots were
+# read, which the notes' Phase 3 entry records (§7).
 # COUNT survivors instead of `grep -vq`: the quiet grep exits at its first hit and
-# closes the pipe while the upstream grep is still writing — on a LARGE transcript
-# (thousands of extracted commands) that SIGPIPE + `pipefail` read as failure and
-# the hook FALSE-BLOCKED a compliant session (reproduced at 49MB/9k commands;
-# short transcripts fit the pipe buffer, which is why this never fired before).
-# `grep -vc` consumes all input — deterministic, semantics identical.
-# The justfile's recipes run the same commands (#471): `just gate-diff`, `gate-fast`,
-# `gate-full` run script/gates.sh, and `just test <crates>` runs nextest.
-RUNNER_HITS=$(echo "$CMDS" | grep -E "${RUNNER_AT}(cargo (test|nextest|llvm-cov)|(\./)?script/gates\.sh|just (gate-(diff|fast|full)|test)([[:space:]]|$))" | grep -vcE -- '--help|--version|--list' || true)
-[ "${RUNNER_HITS:-0}" -gt 0 ] && RUST_OK=true
+# closes the pipe while the upstream grep is still writing; on a LARGE transcript
+# (thousands of extracted commands) that SIGPIPE and `pipefail` read as failure and
+# the hook false-blocked a compliant session (reproduced at 49MB, 9k commands).
+# `grep -vc` consumes all input, with the same meaning.
+RUNNER_AT='(^|[;&|(])[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(timeout[[:space:]]+[0-9]+[smhd]?[[:space:]]+)?'
+RUNNER_HITS=$(echo "$CMDS" | grep -E "${RUNNER_AT}((\./)?script/e2e\.sh|just[[:space:]]+(e2e|shot))([[:space:]]|$)" | grep -vcE -- '--help' || true)
 
-if ! $RUST_OK; then
-    { echo ""; echo "STOP BLOCKED — /pipeline:test but tests did not execute:"; echo ""
-      echo "  VIOLATION: Rust tests never ran. Run: cargo nextest run -p <the touched crates>  (or script/gates.sh --diff, or just gate-diff)."
-      echo ""; echo "CONSTITUTION §15: if it didn't happen in the transcript, it didn't happen."; } >&2
+if [ "${RUNNER_HITS:-0}" -eq 0 ]; then
+    { echo ""; echo "STOP BLOCKED — /pipeline:test but no e2e test ran:"; echo ""
+      echo "  VIOLATION: the ticket's e2e scenario never ran. Run: just e2e script/e2e/<ticket>-<slug>.sh"
+      echo "  (or script/e2e.sh <scenario>; just shot <name> for a change with nothing new to see), then read every shot."
+      echo ""; echo "CONSTITUTION §7/§15: if it didn't happen in the transcript, it didn't happen."; } >&2
     exit 2
 fi
 exit 0

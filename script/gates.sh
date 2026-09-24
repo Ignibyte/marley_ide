@@ -8,31 +8,31 @@
 # suppressions, source-fix only. Every gate's verdict is the tool's EXIT CODE,
 # never a grep of its output.
 #
-# THE SCOPE RULE (§0). The Marley-owned surface is crates/marley_*. The static
-# gates run over those crates plus every crate the change touched (git status,
-# so an untracked new crate counts). The heavy gates run over the Marley crates
-# in FULL; in DIFF mode coverage covers the touched Marley crates. Upstream Zed
-# code is held to Zed's own bar (fmt, ./script/clippy, its tests), not to the
-# Marley floors. Mutation testing is not a gate: script/mutation.sh runs it once
-# at the end of a sprint (Chad, 2026-09-22).
+# THE SCOPE RULE (§0). The Marley-owned surface is crates/marley_*. The gates
+# run over those crates plus every crate the change touched (git status, so an
+# untracked new crate counts). Upstream Zed code is held to Zed's own bar, fmt
+# and clippy, not to the Marley crates' lint levels.
 #
-# Gate numbering follows CONSTITUTION §0. Retired numbers are not reused: gate:5,
-# mutation, left the gate on 2026-09-22 for script/mutation.sh, and gate:15, the
-# macOS visual/AX harness, retired with the fork.
-#   STATIC (always): 1 fmt · 2 clippy · 3 tests · 7 audit · 8 deny · 9 shear
-#                    10 gitleaks · 11 shellcheck · 12 no-suppress · 13 SAST · 14 docs
-#                    16 zed-ledger · 17 manifests · 18 spelling · 19 empty suites
-#                    20 semgrep · 21 dylint
-#   HEAVY  (FULL/DIFF): 4 coverage · 6 miri — reported BLOCKED, not run, after a
-#                    static red
+# NO TEST RUNS HERE (§7). Chad, 2026-09-23: e2e visualization tests only (#483).
+# The tests already in the tree stay, and gate:2 builds them (--all-targets), but
+# no gate runs them; a ticket's proof is its e2e scenario under script/e2e/.
+#
+# Gate numbering follows CONSTITUTION §0. Retired numbers are not reused: gate:3
+# (the test suites), gate:4 (coverage), gate:6 (miri) and gate:19 (empty suites)
+# retired with the unit tests on 2026-09-23 (#483), and with them the mutation
+# run that had been gate:5 until 2026-09-22; gate:15, the macOS visual/AX
+# harness, retired with the fork.
+#   1 fmt · 2 clippy · 7 audit · 8 deny · 9 shear · 10 gitleaks · 11 shellcheck
+#   12 no-suppress · 13 SAST · 14 docs · 16 zed-ledger · 17 manifests
+#   18 spelling · 20 semgrep · 21 dylint
 #
 # Modes (one is required; none, or an unknown one, is a usage error: exit 2):
-#   script/gates.sh --full  FULL — heavy gates over every Marley crate. Receipt.
-#   script/gates.sh --diff  DIFF — heavy gates on what the change touched. Receipt.
-#   script/gates.sh --fast  FAST — static gates only (no heavy, no receipt).
-# A FULL or DIFF run removes the earlier receipt when it starts and writes a new
-# one only when the gated files at the end are the ones it started on. Either a
-# FULL or a DIFF green satisfies the commit hook.
+#   script/gates.sh --diff  DIFF — every gate on the scope. Receipt.
+#   script/gates.sh --fast  FAST — every gate on the scope, no receipt.
+# --full ran the heavy gates over every Marley crate and is refused since they
+# retired. A DIFF run removes the earlier receipt when it starts and writes a new
+# one only when the gated files at the end are the ones it started on; the
+# commit hook accepts a DIFF green.
 #
 # Knobs (env): MARLEY_UPSTREAM_BASE names the upstream fork-point commit when
 # the `upstream` remote is not fetched.
@@ -44,10 +44,9 @@ MANIFEST="Cargo.toml"
 
 usage() {
   cat >&2 <<'USAGE'
-Usage: script/gates.sh --full|--diff|--fast
-  --full  every gate, the heavy ones over every Marley crate; writes the commit receipt
-  --diff  every gate, the heavy ones over the touched Marley crates; writes the commit receipt
-  --fast  the static gates only; writes no receipt
+Usage: script/gates.sh --diff|--fast
+  --diff  every gate on the scope; writes the commit receipt
+  --fast  every gate on the scope; writes no receipt
 USAGE
 }
 
@@ -55,7 +54,7 @@ USAGE
 MODE=""
 if [ "$#" -eq 1 ]; then
   case "$1" in
-    --full) MODE="full" ;;
+    --full) echo "--full ran the heavy gates, which retired with the unit tests (#483); run --diff" >&2; exit 2 ;;
     --diff) MODE="diff" ;;
     --fast) MODE="fast" ;;
   esac
@@ -66,13 +65,7 @@ fi
 . ./.claude/hooks/lib-hook-helpers.sh 2>/dev/null \
   || { echo "FATAL: cannot load .claude/hooks/lib-hook-helpers.sh" >&2; exit 2; }
 
-# §0 baked minimums — env may RAISE (ratchet up); a value below the minimum is
-# clamped back up, so a green can never be bought by lowering the bar.
-RUST_COV_FLOOR=100
-RUST_COV_MIN="${RUST_COV_MIN:-$RUST_COV_FLOOR}"
-if awk -v c="$RUST_COV_MIN" -v f="$RUST_COV_FLOOR" 'BEGIN{exit !(c+0 < f+0)}'; then echo "note: RUST_COV_MIN below the §0 minimum $RUST_COV_FLOOR — clamped." >&2; RUST_COV_MIN=$RUST_COV_FLOOR; fi
-
-# A FULL or DIFF run revokes the earlier receipt before any gate runs: a tree that
+# A DIFF run revokes the earlier receipt before any gate runs: a tree that
 # passed once and fails now must not commit on the older green. The new receipt
 # binds the fingerprint taken here.
 GATE_START_HASH=""
@@ -139,22 +132,16 @@ fi
 fmt_g() { cargo fmt --manifest-path "$MANIFEST" --all --check; }
 
 # ── 2. clippy on the scope (Zed's lints; ./script/clippy is the CI twin) ─────
+# --all-targets builds the tests already in the tree, which no gate runs (§7), so
+# they keep compiling.
 clippy_g() {
-  cargo clippy --manifest-path "$MANIFEST" "${SCOPE_PKG_ARGS[@]}" --all-targets --all-features -- -D warnings
-}
-
-# ── 3. tests — nextest on the scope + doctests on the Marley crates ──────────
-tests_g() {
-  need cargo-nextest "cargo install cargo-nextest" || return 1
-  cargo nextest run --manifest-path "$MANIFEST" "${SCOPE_PKG_ARGS[@]}" --no-tests=warn || return 1
-  cargo test --manifest-path "$MANIFEST" "${MARLEY_PKG_ARGS[@]}" --doc || return 1
-  # The upstream crates Marley carries build outside the workspace, so their own tests, the
-  # Marley hunks' among them, run standalone against the lockfile each copy keeps
-  # (vendor/README.md).
+  cargo clippy --manifest-path "$MANIFEST" "${SCOPE_PKG_ARGS[@]}" --all-targets --all-features -- -D warnings || return 1
+  # The upstream crates Marley carries build outside the workspace against the lockfile each
+  # copy keeps (vendor/README.md), so their tests, the Marley hunks' among them, are built here.
   local vendored
   for vendored in vendor/*/Cargo.toml; do
     [ -f "$vendored" ] || continue
-    cargo test --locked --manifest-path "$vendored" || return 1
+    cargo check --locked --all-targets --manifest-path "$vendored" || return 1
   done
 }
 
@@ -187,8 +174,8 @@ secrets_g() {
   return 0
 }
 
-# ── 11. shell scripts (the hooks + this gate) ────────────────────────────────
-shellcheck_g() { need shellcheck "install shellcheck" || return 1; shellcheck -S info -e SC1091 .claude/hooks/*.sh script/gates.sh script/mutation.sh script/live-shot.sh crates/marley_terminal/shell_integration/marley.bash crates/marley_workbench/claude_plugin/marley/hooks/notify.sh; }
+# ── 11. shell scripts (the hooks, this gate, the e2e runner and its scenarios) ────────────────────────────────
+shellcheck_g() { need shellcheck "install shellcheck" || return 1; shellcheck -S info -e SC1091 .claude/hooks/*.sh script/gates.sh script/e2e.sh script/e2e/*.sh crates/marley_terminal/shell_integration/marley.bash crates/marley_workbench/claude_plugin/marley/hooks/notify.sh; }
 
 # The files gates 12/13 scan wholesale: the Marley crates plus any untracked
 # Rust file elsewhere under crates/. Tracked edits to Zed crates are judged on
@@ -202,8 +189,7 @@ added_lines() { git diff HEAD -U0 -- crates 2>/dev/null | grep -E '^\+[^+]' | se
 
 # ── 12. no inline suppressions (CONSTITUTION §0/§15) ─────────────────────────
 no_suppr_g() {
-  local targets unjust blanket added_unjust added_blanket masks added_masks
-  local mask_re='mutants[[:space:]]*::[[:space:]]*skip'
+  local targets unjust blanket added_unjust added_blanket
   targets=$(scan_files)
   # shellcheck disable=SC2086 # the target list is word-split on purpose
   unjust=$(grep -rnE '#!?\[(allow|expect)\(' $targets 2>/dev/null | grep -vE '//[[:space:]]*[^[:space:]]' || true)
@@ -211,18 +197,10 @@ no_suppr_g() {
   blanket=$(grep -rnE '#!?\[(allow|expect)\((clippy::(all|correctness|suspicious|complexity|perf|style|pedantic|nursery|restriction)|warnings|unused)\b' $targets 2>/dev/null || true)
   added_unjust=$(added_lines | grep -E '#!?\[(allow|expect)\(' | grep -vE '//[[:space:]]*[^[:space:]]' || true)
   added_blanket=$(added_lines | grep -E '#!?\[(allow|expect)\((clippy::(all|correctness|suspicious|complexity|perf|style|pedantic|nursery|restriction)|warnings|unused)\b' || true)
-  # A mutation mask would hide code from the end-of-sprint mutation run
-  # (script/mutation.sh), so it counts as a suppression. cargo-mutants honours `mutants::skip`
-  # inside any `cfg_attr` whatever its condition, so `#[cfg_attr(any(), mutants::skip)]`
-  # compiles without the `mutants` crate and hides the item from mutation (#443).
-  # shellcheck disable=SC2086
-  masks=$(grep -rnE "$mask_re" $targets 2>/dev/null || true)
-  added_masks=$(added_lines | grep -E "$mask_re" || true)
-  if [ -n "$unjust$blanket$added_unjust$added_blanket$masks$added_masks" ]; then
+  if [ -n "$unjust$blanket$added_unjust$added_blanket" ]; then
     echo "unjustified / blanket suppressions (CONSTITUTION §0/§15):"
     [ -n "$unjust$added_unjust" ]   && { echo "— missing a // justification (allow/expect):"; echo "$unjust"; echo "$added_unjust"; }
     [ -n "$blanket$added_blanket" ] && { echo "— blanket group suppression (banned outright):"; echo "$blanket"; echo "$added_blanket"; }
-    [ -n "$masks$added_masks" ]     && { echo "— mutation mask (banned outright; mutation runs unmasked):"; echo "$masks"; echo "$added_masks"; }
     return 1
   fi
   return 0
@@ -328,30 +306,6 @@ manifests_g() {
 # ── 18. spelling — typos over the repository, with Zed's config, as Zed's CI runs it
 typos_g() { need typos "cargo install typos-cli" || return 1; typos --config .config/typos.toml; }
 
-# ── 19. empty suites — every Marley test suite but a binary's holds a test ───
-# A suite that compiles with no test in it passes gate:3 while testing nothing.
-# $1 is the JSON `cargo nextest list --message-format json` prints.
-suites_have_tests() {
-  local listing="$1" empty
-  [ -n "$listing" ] || { echo "cargo nextest list printed nothing"; return 1; }
-  jq -e '(."rust-suites" | type == "object" and length > 0)
-         and all(."rust-suites"[]; (.testcases | type == "object"))' <<<"$listing" >/dev/null 2>&1 \
-    || { echo "cargo nextest list printed no test suites, or a listing this gate cannot read"; return 1; }
-  empty=$(jq -r '."rust-suites" | to_entries[]
-                 | select((.key | contains("::bin/") | not) and (.value.testcases | length) == 0)
-                 | .key' <<<"$listing") \
-    || { echo "the nextest listing could not be read for empty suites"; return 1; }
-  [ -z "$empty" ] || { echo "test suites with no tests:"; sed 's/^/  /' <<<"$empty"; return 1; }
-  return 0
-}
-
-empty_suites_g() {
-  need cargo-nextest "cargo install cargo-nextest" || return 1
-  local listing
-  listing=$(cargo nextest list --manifest-path "$MANIFEST" "${MARLEY_PKG_ARGS[@]}" --message-format json) || return 1
-  suites_have_tests "$listing"
-}
-
 # ── 20. semgrep — the rules in .semgrep.yml that clippy and gitleaks do not cover
 # The pin is the engine the rules were proven on. The version check and metrics
 # stay off, so the gate makes no network call, and `--no-git-ignore` scans a new
@@ -383,64 +337,9 @@ dylint_g() {
   cargo dylint --all -- --all-targets "${MARLEY_PKG_ARGS[@]}"
 }
 
-# ── 4. rust line coverage floor (FULL: the Marley crates; DIFF: the touched ones)
-# ACCEPTED-UNTESTABLE (the explicit, documented exclude — §0): the raw PTY shim
-# marley_terminal/src/pty_os.rs (four OS calls, exercised end to end by the
-# real-PTY integration test) and marley_mcp/src/transport.rs (the loopback
-# std::net listener + threads, driven by its loopback tests; the IO-error arms
-# a loopback peer cannot provoke keep it here). Every testable line
-# of every Marley crate stays in the 100% denominator.
-rust_cov() {
-  need cargo-llvm-cov "cargo install cargo-llvm-cov" || return 1
-  local -a pkgs=()
-  if [ "$MODE" = "diff" ]; then
-    local p
-    for p in $TOUCHED_PKGS; do case " $MARLEY_PKGS " in *" $p "*) pkgs+=( -p "$p" ) ;; esac; done
-    if [ "${#pkgs[@]}" -eq 0 ]; then echo "coverage: no Marley crate touched (diff) — skip-clean"; return 0; fi
-  else
-    pkgs=( "${MARLEY_PKG_ARGS[@]}" )
-  fi
-  # cargo-llvm-cov reads every workspace test executable in its target directory, but cleans
-  # only the packages it runs. One an earlier run left can hold an older build of a crate this
-  # run covers, whose line map then reports missed lines (#469). Only the executables go: the
-  # run relinks the tests it needs, and every library stays built.
-  local cov_deps
-  cov_deps="$(cargo metadata --manifest-path "$MANIFEST" --format-version 1 --no-deps 2>/dev/null \
-    | jq -r .target_directory)/llvm-cov-target/debug/deps"
-  if [ -d "$cov_deps" ]; then
-    find "$cov_deps" -maxdepth 1 -type f -perm -u=x ! -name '*.*' -delete
-  fi
-  cargo llvm-cov nextest --manifest-path "$MANIFEST" "${pkgs[@]}" --no-tests=warn \
-    --ignore-filename-regex 'marley_terminal/src/pty_os\.rs|marley_mcp/src/transport\.rs' \
-    --fail-under-lines "$RUST_COV_MIN"
-}
-
-# ── 6. miri — conditional on unsafe in a Marley crate ────────────────────────
-miri_g() {
-  local needing="" c
-  for c in crates/marley_*/; do
-    [ -d "${c}src" ] || continue
-    grep -rqE '(^|[^_[:alnum:]])unsafe[^_[:alnum:]]' "${c}src" 2>/dev/null || continue
-    grep -qE '^[[:space:]]*miri-exempt[[:space:]]*=' "${c}Cargo.toml" 2>/dev/null && continue
-    needing="$needing $(basename "$c")"
-  done
-  if [ -z "$needing" ]; then
-    echo "miri: no Marley crate has non-exempt 'unsafe' — nothing to verify (skip-clean)"
-    return 0
-  fi
-  command -v rustup >/dev/null 2>&1 || { echo "miri: rustup required to verify unsafe crates:$needing"; return 1; }
-  rustup toolchain list 2>/dev/null | grep -q '^nightly' \
-    || { echo "miri: nightly+miri required for unsafe crates:$needing — rustup toolchain install nightly && rustup +nightly component add miri"; return 1; }
-  local pkg
-  for pkg in $needing; do
-    cargo +nightly miri test --manifest-path "$MANIFEST" -p "$pkg" || return 1
-  done
-}
-
-# ── STATIC gates (always run) ────────────────────────────────────────────────
+# ── The gates ───────────────────────────────────────────────────────────────
 run_gate "gate:1  rustfmt" fmt_g
-run_gate "gate:2  clippy (-D warnings, scope)" clippy_g
-run_gate "gate:3  tests (nextest scope + Marley doctests)" tests_g
+run_gate "gate:2  clippy (-D warnings, scope, every target)" clippy_g
 run_gate "gate:7  cargo-audit" audit_g
 run_gate "gate:8  cargo-deny (licenses/bans/sources)" deny_g
 run_gate "gate:9  cargo-shear (unused deps)" shear_g
@@ -452,20 +351,8 @@ run_gate "gate:14 docs (rustdoc, warning-free + todos)" docs_g
 run_gate "gate:16 zed-ledger" zed_ledger_g
 run_gate "gate:17 manifests (cargo-sort + taplo)" manifests_g
 run_gate "gate:18 spelling (typos)" typos_g
-run_gate "gate:19 empty suites (nextest list)" empty_suites_g
 run_gate "gate:20 semgrep (.semgrep.yml)" semgrep_g
 run_gate "gate:21 dylint (Zed's lints, Marley crates)" dylint_g
-
-# ── HEAVY gates (FULL + DIFF; FAST skips; a static red blocks them) ──────────
-if [ "$MODE" = "fast" ]; then
-  RESULTS+=("SKIP  gate:4,6 coverage+miri (--fast) — run the gate with --diff or --full before committing")
-elif [ "$FAIL" -gt 0 ]; then
-  RESULTS+=("BLOCKED gate:4  rust coverage — a static gate is red")
-  RESULTS+=("BLOCKED gate:6  miri — a static gate is red")
-else
-  run_gate "gate:4  rust coverage (>= ${RUST_COV_MIN}% lines)" rust_cov
-  run_gate "gate:6  miri (unsafe crates)" miri_g
-fi
 
 # The receipt binds the tree the gates ran on, so a change made during the run
 # fails the run instead of being receipted untested.
@@ -490,7 +377,7 @@ printf '  %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || { echo "GATE RED — fix at source (CONSTITUTION §0: no baselines, no suppressions)."; exit 1; }
 echo "GATE GREEN [$MODE]"
 
-# Receipt — bind this FULL/DIFF green to the exact worktree it ran on.
+# Receipt — bind this DIFF green to the exact worktree it ran on.
 # enforce-commit-gate.sh reads it back and blocks `git commit` of Rust source
 # unless the fingerprint still matches. FAST never writes one.
 if [ "$MODE" != "fast" ]; then

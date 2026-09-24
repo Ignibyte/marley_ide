@@ -4,8 +4,8 @@
 # =============================================================================
 # CONSTITUTION §0/§15: script/gates.sh is the truth gate. This hook makes it
 # binding — a `git commit` that includes Rust source is BLOCKED unless
-# script/gates.sh left a RECEIPT (.git/ignibyte-gate-receipt) proving a FULL
-# or DIFF green ran on the EXACT current worktree (FAST writes none). Every
+# script/gates.sh left a RECEIPT (.git/ignibyte-gate-receipt) proving a DIFF
+# green ran on the EXACT current worktree (FAST writes none). Every
 # commit, Rust or not, must also pass gate:16's ledger check (CONSTITUTION §14).
 #
 # The receipt is a CONTENT FINGERPRINT (gate_state_hash), not a transcript
@@ -15,8 +15,8 @@
 #   - any post-green edit by ANY tool (Write, Edit, or a Bash `cat >`/`sed -i`)
 #     changes the fingerprint, so a stale green is rejected;
 #   - a FAST run writes no receipt, so `--fast` can never satisfy a commit;
-#   - lowering a floor can't help — the gate clamps floors to the §0 minimums
-#     before it will print green and write the receipt.
+#   - weakening the gate can't help — script/gates.sh and the hooks are in the
+#     fingerprint, so an edit to them after the green re-blocks.
 #
 # Always-on (not gated on a pipeline session). Exit 0 = allow, 2 = block.
 # Bash 3.2 + BSD-grep safe.
@@ -70,10 +70,10 @@ if [ -f "$RECEIPT" ] && [ "$(cat "$RECEIPT" 2>/dev/null)" = "$(gate_state_hash)"
 fi
 
 { echo ""
-  echo "COMMIT BLOCKED — no green gate (DIFF or FULL) for the current worktree."
-  echo "CONSTITUTION §0: run  script/gates.sh --diff  (GATE GREEN [diff]; a [full]"
-  echo "green also counts) AFTER your last code change, then commit. Fix every red at"
-  echo "the source — no baselines, no suppressions, no lowering a floor."
+  echo "COMMIT BLOCKED — no green gate (DIFF) for the current worktree."
+  echo "CONSTITUTION §0: run  script/gates.sh --diff  (GATE GREEN [diff]) AFTER your last"
+  echo "code change, then commit. Fix every red at the source — no baselines, no"
+  echo "suppressions."
   if [ -f "$RECEIPT" ]; then
     echo "(a receipt exists but its fingerprint no longer matches — code changed since the"
     echo " gate ran; re-run script/gates.sh --diff.)"

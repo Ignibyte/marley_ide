@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # enforce-quality.sh — formatting gate on changed code (Stop hook).
 # At test/complete, if Rust source changed, `cargo fmt --check` must be
-# clean. The heavier clippy/test/coverage gates live in script/gates.sh (run in
-# the Test phase) and enforce-tests-ran.sh; this hook is the cheap always-on guard.
+# clean. The rest of the bar lives in script/gates.sh (run in the Test phase) and
+# the e2e run enforce-tests-ran.sh wants; this hook is the cheap always-on guard.
 # CONSTITUTION §0. Exit 0 = allow, 2 = block.
 set -uo pipefail
 INPUT=$(cat)
