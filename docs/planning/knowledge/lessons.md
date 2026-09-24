@@ -2478,3 +2478,15 @@ editor inside it, stop only keys with Ctrl, Alt or Super, or with no `key_char`;
 maps no plain character (`to_esc_str`), so those go to the editor. A stand-in agent started as
 a subshell from `.bashrc` never leads the terminal's foreground process group (job control is
 off while bash reads its startup files); `exec -a claude` in place of the shell does.
+
+## L-claude-485-log-the-bytes-a-shell-writes-inside-marley-with-script-001
+*category: validate · topic: e2e diagnosis · from: pipeline 485*
+
+When a terminal shows something the program did not seem to write, log the program's own bytes
+inside Marley: give the scenario's copy a `terminal.shell` of `script -q -f -c "<the shell>"
+<log>`, and read the log after the steps. `script`'s header records the PTY's size when the shell
+started, and the log shows what the program wrote key by key. A reproduction outside Marley can
+hide a race with the terminal's first layout: a pty sized before the shell starts is never
+resized under it. And timing that depends on the first frame differs on the hidden workspace,
+where an unfocused window draws slowly, so a race the scenario hits may be rarer on a screen in
+use.

@@ -309,6 +309,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Typing on a long prompt in a new terminal** (#485, 2026-09-23). With a two-line prompt whose
+  second line is wider than 100 columns, such as starship's on a deep path, the first command
+  typed in a new terminal lost every character after the first on screen, though the shell got
+  them all. The shell started at Zed's small starting size and was resized after its first
+  prompt, which readline does not recover from. A terminal now opens at the size the last
+  terminal was drawn at. The first terminals of a launch still open small (TICKET-486).
 - **The coverage gate reads only what its run built** (#469, 2026-09-23). gate:4's coverage
   tool read every test executable left in its target directory, and one that an earlier run
   built from older source reported 45 missed lines on doc comments in #465. The step now

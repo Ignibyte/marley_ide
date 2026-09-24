@@ -1843,3 +1843,16 @@ The first e2e run showed it; the in-process test harness does not go through tha
 the container stops only the keys the terminal maps (`to_esc_str`: chords with Ctrl, Alt or
 Super, and keys that type nothing), and text goes on to the editor
 (L-claude-481-gate-text-by-its-modifiers-not-prefer-character-input-001).
+
+## F-claude-485-a-shell-started-at-the-debug-size-misdrew-its-first-long-prompt-001
+*severity: medium · category: behavior · found by #483's e2e runner, fixed in #485*
+
+Zed opens every PTY at `TerminalBounds::default()`, 100 × 6, and the view resizes it at its
+first layout. A shell that reached its first prompt before that layout had readline lay the
+prompt out for 100 columns; after the resize, readline's multi-line redraw (`redraw_prompt`)
+restored that layout, and each key after it was drawn against it: `\r`, the whole prompt, a
+run of backspaces, the key. With starship's two-line prompt on a deep path, only the first typed
+character showed and the cursor sat inside the prompt, while bash ran the whole command. A
+plain-pty reproduction sized before bash started never shows it; a `script` log inside Marley
+does. Fixed: a new PTY opens at the size the last PTY terminal was given; the first terminals of
+a launch still open at the debug size (TICKET-486).

@@ -10,8 +10,8 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-485](open/TICKET-485-starship-echo-lands-off-the-line.md) | bug | prong 1 T0 · typed text after the first character goes missing on a long starship prompt (found by #483's e2e runner) |
 | [TICKET-484](open/TICKET-484-autosuggestions.md) | feature | prong 1 T3a · autosuggestions: the newest matching command from history as ghost text, → takes it |
+| [TICKET-486](open/TICKET-486-keep-the-terminal-size-across-launches.md) | bug | prong 1 T0 · the first terminals of a launch open at the last session's size (#485's limit) |
 
 ## Deliberate (picked explicitly, never auto-next)
 

@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #485 (bug, prong 1: T0)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** (minted at promotion)
+- **Pipeline doc:** ../../pipeline/completed/485-starship-echo-lands-off-the-line.spec.md
 - **Source ticket:** found by #483's e2e runner, 2026-09-23
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 In a bash terminal with the user's own prompt (starship, with a 140-column path in it), keys

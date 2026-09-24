@@ -705,6 +705,12 @@ const DEBUG_TERMINAL_HEIGHT: Pixels = px(30.);
 const DEBUG_CELL_WIDTH: Pixels = px(5.);
 const DEBUG_LINE_HEIGHT: Pixels = px(5.);
 
+// Marley: the size the last terminal view gave its PTY. A new PTY opens at it, not at the debug
+// size, so its shell lays its first prompt out for the width it will have: readline misdraws a
+// multi-line prompt it laid out for one width after a resize to another (#485).
+static MARLEY_LAST_BOUNDS: parking_lot::Mutex<Option<TerminalBounds>> =
+    parking_lot::Mutex::new(None);
+
 /// Inserts Zed-specific environment variables for terminal sessions.
 /// Used by both local terminals and remote terminals (via SSH).
 pub fn insert_zed_terminal_env(
@@ -1296,13 +1302,10 @@ impl TerminalBuilder {
             //Spawn a task so the Alacritty EventLoop (or the subprocess reader) can communicate with us
             //TODO: Remove with a bounded sender which can be dispatched on &self
             let (events_tx, events_rx) = unbounded();
+            // Marley: the grid, the PTY and the content start at the last terminal's size (#485).
+            let marley_bounds = MARLEY_LAST_BOUNDS.lock().unwrap_or_default();
             //Set up the terminal...
-            let term = new_term(
-                &config,
-                TerminalBounds::default(),
-                events_tx.clone(),
-                alternate_scroll,
-            );
+            let term = new_term(&config, marley_bounds, events_tx.clone(), alternate_scroll);
 
             // When `no_pty` is set (headless hosts), run the task as a plain
             // subprocess and pump its piped output into the same emulator the
@@ -1358,7 +1361,8 @@ impl TerminalBuilder {
                 );
 
                 //Setup the pty...
-                let pty = match open_pty(&pty_options, TerminalBounds::default(), window_id) {
+                // Marley: at the last terminal's size (#485).
+                let pty = match open_pty(&pty_options, marley_bounds, window_id) {
                     Ok(pty) => pty,
                     Err(error) => {
                         bail!(TerminalError {
@@ -1397,7 +1401,11 @@ impl TerminalBuilder {
                 output_processor: Processor::<StdSyncHandler>::new(),
                 title_override: terminal_title_override,
                 events: VecDeque::with_capacity(10), //Should never get this high.
-                last_content: Default::default(),
+                // Marley: at the last terminal's size, as the grid and the PTY are (#485).
+                last_content: Content {
+                    terminal_bounds: marley_bounds,
+                    ..Content::default()
+                },
                 last_mouse: None,
                 mouse_down_position: None,
                 matches: Vec::new(),
@@ -2230,6 +2238,10 @@ impl Terminal {
     ///Resize the terminal and the PTY.
     pub fn set_size(&mut self, new_bounds: TerminalBounds) {
         let new_bounds = normalize_terminal_bounds(new_bounds);
+        // Marley: the next terminal opens at this size (#485).
+        if matches!(self.terminal_type, TerminalType::Pty { .. }) {
+            *MARLEY_LAST_BOUNDS.lock() = Some(new_bounds);
+        }
 
         let old_bounds = self.last_content.terminal_bounds;
         self.last_content.terminal_bounds = new_bounds;
