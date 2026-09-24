@@ -27,6 +27,7 @@ Plan → Code → Test → Complete: `/pipeline:plan` → `/pipeline:code` → `
 The bar is CONSTITUTION §0: Zed's own fmt and clippy for Zed's crates; the full Marley bar
 (rustal's lint table, Zed's dylint lints and the meta-gates) for `crates/marley_*`. No gate
 runs tests: a change is proven by its e2e visualization test, a scripted run of the real
-Marley shot step by step (§7, `script/e2e.sh`). Prose follows the
+Marley shot step by step (§7, `script/e2e.sh`), on hidden workspace 9 with keys only, or in a
+headless sway of its own when the scenario clicks (#487). Prose follows the
 `no-ai-slop` skill. Changes inside Zed's crates are additive and small so upstream merges
 stay cheap.

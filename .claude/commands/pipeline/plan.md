@@ -79,7 +79,8 @@ checklist in the notes' Phase 1 entry.
    - **File manifest:** each file to add or change, marked Marley crate or Zed crate.
    - **E2E plan:** a table with at least one row per acceptance criterion: the scenario's
      fixtures and steps, and the shot that shows the criterion met. No unit or driven tests
-     (§7). Name what no scenario can reach (a click, speech, a live service), and why.
+     (§7). A criterion that needs a click, a drag or the wheel runs under `compositor sway`. Name
+     what no scenario can reach (speech, a live service), and why.
    - **Risks and decisions:** anything load-bearing and reversible. A decision worth keeping
      goes to the brain (`brain_decide`) at Complete.
 8. **Present for review:** the classification, the scope, the acceptance criteria and the

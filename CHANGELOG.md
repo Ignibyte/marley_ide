@@ -252,6 +252,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **E2E scenarios can click, drag and scroll** (#487, 2026-09-24). A scenario that names
+  `compositor sway` runs the debug Marley in a headless sway of its own, whose seat is a
+  virtual pointer (`script/e2e/seat-pointer.c`, built on first use) and a virtual keyboard
+  (`wtype`) that nothing else sees. It gains `click`, `pointer_to`, `pointer_down`,
+  `pointer_up` and `scroll`, types any text, and shoots the headless output. The user's
+  desktop and Hyprland are never touched, and a scenario may define `teardown` for what it
+  started outside Marley. Scenarios on Hyprland run as before, keys only.
 - **Every change is proven by an e2e visualization test** (#483, 2026-09-23). A ticket no
   longer writes unit tests or gpui driven tests. Its proof is a scenario in `script/e2e/`
   that `script/e2e.sh` (`just e2e <scenario>`) runs against the real debug Marley on a hidden

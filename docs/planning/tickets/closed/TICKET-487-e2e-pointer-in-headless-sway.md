@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #487 (chore, prong 3 tooling: the e2e harness)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/487-e2e-pointer-in-headless-sway.spec.md
+- **Pipeline doc:** ../../pipeline/completed/487-e2e-pointer-in-headless-sway.spec.md
 - **Source ticket:** docs/marley/three-prong-plan.md, prong 3 D18
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The e2e harness sends keys to Marley's window through Hyprland and cannot click: Hyprland has

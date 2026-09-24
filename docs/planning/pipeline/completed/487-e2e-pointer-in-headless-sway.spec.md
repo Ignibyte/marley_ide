@@ -1,7 +1,7 @@
 ---
 pipeline_id: 4ee747f0-2997-4561-b561-b2743e271744
 ticket: docs/planning/tickets/open/TICKET-487-e2e-pointer-in-headless-sway.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Scenarios that click run Marley in a headless sway"
 type: chore
 slice: prong 3 tooling (three-prong-plan.md D18)

@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-487](open/TICKET-487-e2e-pointer-in-headless-sway.md) | chore | prong 3 tooling · e2e scenarios that click, drag and scroll run Marley in a headless sway |
 | [TICKET-488](open/TICKET-488-browser-pane.md) | feature | prong 3 B0a · a Browser tab that shows Marley's own Chromium (the `marley_browser` crate) |
 | [TICKET-489](open/TICKET-489-browser-input.md) | feature | prong 3 B0b · typing, clicking, the wheel and the clipboard in the page; the latency answer |
 | [TICKET-490](open/TICKET-490-browser-navigation.md) | feature | prong 3 B1a · the address bar, back, forward, reload, the loading state, JavaScript dialogs |

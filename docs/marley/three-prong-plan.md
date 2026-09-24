@@ -329,7 +329,7 @@ reaching his desktop.
 
 | Slice | Ticket | Delivers | Size |
 |---|---|---|---|
-| (tooling) | #487 | e2e scenarios that click, drag and scroll, in a headless sway | S |
+| (tooling) | #487 | e2e scenarios that click, drag and scroll, in a headless sway (shipped) | S |
 | B0a | #488 | `marley_browser`: Marley's Chromium as a transient unit, the CDP client, the screencast; the Browser tab shows the page at its size, with its title | M |
 | B0b | #489 | Typing and clicking in the page: keys, compose and input-method text, the mouse and the wheel, the clipboard; the input-to-frame time logged | M |
 | B1a | #490 | The address bar, back, forward, reload and stop, the loading state, JavaScript dialogs | M |

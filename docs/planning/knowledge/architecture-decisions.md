@@ -1897,3 +1897,16 @@ appended to PS1 (FinalTerm's OSC 133;B), which has to follow every prompt framew
 rebuilds PS1 each time; reading readline's buffer through `bind -x`, which bash offers only
 inside a bound command; reconstructing the line from the keys Marley sent, which history and
 completion defeat.
+
+## AD-claude-487-scenarios-that-click-run-in-a-headless-sway-001
+*decided at: 2026-09-24 · status: shipped*
+
+The e2e harness has two backends, chosen by the scenario: Hyprland (the default, keys to one
+hidden window) and a headless sway of the run's own (`compositor sway`), whose seat is a
+virtual pointer and keyboard that nothing else sees. The browser tab is driven by the mouse, and
+Hyprland has no dispatcher that sends a pointer event to one window. Rejected: a nested
+compositor in a window on the user's Hyprland (a window on the desktop, rules to add and
+reload); `swaymsg seat cursor` (deprecated, and inert without a pointer device); a debug action
+inside Marley that injects clicks (it would skip the platform layer a scenario exists to
+exercise, and puts test code in the product); `ydotool` (uinput reaches every compositor,
+the user's included). Scenarios proven on Hyprland stay there.

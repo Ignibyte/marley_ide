@@ -53,8 +53,9 @@ references: []
 <!-- Does this ticket change anything the user SEES or types into (a pane, a panel, the terminal, a
      keystroke or mouse handler, an affordance)? Fill with ONE of:
        - UI-AFFECTING: the e2e scenario (script/e2e/<N>-<slug>.sh, run by script/e2e.sh on the real
-         debug Marley, hidden, keys to its window only) and the shot that proves each criterion (§7).
-         No unit or driven tests.
+         debug Marley, hidden, keys to its window only; or, for clicks, drags and the wheel,
+         `compositor sway`, a headless sway of its own) and the shot that proves each criterion
+         (§7). No unit or driven tests.
        - N/A — no UI delta: <why> (first line must start "N/A"); its e2e run is `just shot`. -->
 
 ## Locked-In Decisions

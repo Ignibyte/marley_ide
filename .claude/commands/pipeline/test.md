@@ -27,8 +27,11 @@ gate", and resolve them all before Stop. Without it, keep the checklist in the n
    new to see uses `just shot <name>`.
 2. **Build and run it:** `just build` (a debug `marley`; one cargo command at a time, the recipe
    waits for the box's other runs), then `just e2e script/e2e/<N>-<slug>.sh` with `SHOT_DIR` in
-   the scratchpad. Keys reach Marley's window only; the runner prints whether the user's focus
-   moved. Never send clicks: they would move the user's pointer.
+   the scratchpad. On Hyprland, keys reach Marley's window only and the runner prints whether
+   the user's focus moved; never click there, since a click would move the user's pointer. A
+   scenario that clicks, drags or scrolls names `compositor sway` and runs in a headless sway
+   of its own (`click`, `pointer_to`, `pointer_down`, `pointer_up`, `scroll`), which the user's
+   session never sees.
 3. **Read every shot.** Open each PNG, crop where the detail is small, and write into the
    notes what it shows against the criterion it proves. A red is a shot that does not show
    what the criterion says: fix the source and run the scenario again. Delete any shot that

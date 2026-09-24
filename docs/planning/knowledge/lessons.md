@@ -2500,3 +2500,16 @@ Record it in the grid's absolute coordinates (`HookPosition::of`, the hooks' own
 the next `precmd` or `preexec`, and read the typed text from the cells between it and the cursor
 while the cursor stays on that line. It is wrong only when a key is typed before the prompt has
 drawn, and then nothing matches, so a suggestion built on it shows nothing.
+
+## L-claude-487-a-headless-seat-has-no-devices-until-a-client-adds-them-001
+*category: validate · topic: e2e in a headless sway · from: pipeline 487*
+
+A sway started with `WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1` has a seat with
+`capabilities: 0` (`swaymsg -t get_seats`): no client ever gets a `wl_pointer` or a
+`wl_keyboard`, so `swaymsg seat seat0 cursor press` changes nothing and a one-shot `wtype`
+loses its keys while the app is still binding the keyboard it just gained. Hold the devices for
+the whole run: a client of the wlr-virtual-pointer protocol that stays connected and moves,
+clicks and scrolls on command (`script/e2e/seat-pointer.c`), and `wtype -s 86400000` for the
+keyboard; later `wtype` calls then only switch the keymap. gpui binds devices that appear after
+it started. With `default_border none` the one window fills the output, so the output's pixels
+are the window's, and a scenario reads its click targets from its own first shot.
