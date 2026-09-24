@@ -22,6 +22,7 @@
 
 pub mod agent_bar;
 pub mod agents;
+pub mod autosuggest;
 pub mod blocks;
 pub mod claude_plugin;
 #[cfg(test)]
@@ -91,6 +92,10 @@ actions!(
         /// Closes the rich input, keeping its text for the next time it opens.
         #[derive(Eq)]
         CloseRichInput,
+        /// Types the autosuggestion shown after the cursor; without one, the key goes to the
+        /// terminal's program.
+        #[derive(Eq)]
+        AcceptSuggestion,
     ]
 );
 
@@ -185,6 +190,7 @@ pub fn init(cx: &mut App) {
     notifications::init(cx);
     voice::init(cx);
     rich_input::init(cx);
+    autosuggest::init(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action_renderer(|div, _, _, cx| {
             div.capture_action(cx.listener(layout_preset::<UseClassicLayout>))

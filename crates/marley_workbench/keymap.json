@@ -12,12 +12,14 @@
   {
     // The block keys, as Warp binds its own; Zed's terminal binds neither key (T1c). Ctrl-G
     // opens the rich input while a CLI agent runs, as Warp's does, and otherwise reaches the
-    // program as before (T7e).
+    // program as before (T7e). → takes the autosuggestion, and otherwise reaches the program
+    // too (T3a).
     "context": "Terminal",
     "bindings": {
       "secondary-up": "marley::PreviousBlock",
       "secondary-down": "marley::NextBlock",
-      "ctrl-g": "marley::RichInput"
+      "ctrl-g": "marley::RichInput",
+      "right": "marley::AcceptSuggestion"
     }
   },
   {

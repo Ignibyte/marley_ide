@@ -68,6 +68,11 @@ if [[ -o interactive && -z ${__MARLEY_HOOKS-} ]]; then
         precmd_functions=(__marley_precmd ${precmd_functions:#__marley_install})
         preexec_functions+=(__marley_preexec)
         builtin printf '\033Pqinit;id=%d\033\\' "$$"
+        # The file zsh keeps its history in, which Marley's autosuggestions read.
+        if [[ -n ${HISTFILE-} ]]; then
+            __marley_quote "$HISTFILE"
+            builtin printf '\033Pqhistory;file=%s\033\\' "$__MARLEY_REPLY"
+        fi
         builtin printf '\033Pqbootstrapped;subshell=0\033\\'
         __marley_precmd
     }

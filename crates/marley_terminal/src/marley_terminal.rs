@@ -51,6 +51,7 @@ pub mod mouse;
 pub mod session;
 pub mod shell_integration;
 pub mod styled;
+pub mod suggest;
 
 mod session_id;
 
@@ -72,6 +73,7 @@ pub use session_id::SessionId;
 // The scanner's frame, which `decode_frame` reads.
 pub use marley_dcs::{Notification, RawDcs};
 pub use styled::{StyledLine, StyledRun, coalesce_row};
+pub use suggest::{parse_history, suggestion};
 
 // The alacritty ANSI types carried in the public styled model — re-exported so consumers
 // (the render) can match on them without a direct `alacritty_terminal` dependency.

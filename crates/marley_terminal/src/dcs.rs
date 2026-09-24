@@ -68,6 +68,11 @@ pub enum DcsHook {
         /// Whether the bootstrapped shell is a subshell of an already-known session.
         is_subshell: bool,
     },
+    /// The shell names the file it keeps its history in, for autosuggestions (#484).
+    History {
+        /// The file's path, as the shell has it.
+        file: String,
+    },
 }
 
 /// Why [`decode_hook`] rejected a payload.
@@ -193,6 +198,12 @@ pub fn decode_hook(encoding: DcsEncoding, payload: &[u8]) -> Result<DcsHook, Dec
                 _ => return Err(DecodeError::UndecodablePayload),
             };
             Ok(DcsHook::Bootstrapped { is_subshell })
+        }
+        "history" => {
+            let file = field("file").ok_or(DecodeError::UndecodablePayload)?;
+            Ok(DcsHook::History {
+                file: file.to_string(),
+            })
         }
         _ => Err(DecodeError::UnknownHook),
     }

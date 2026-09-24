@@ -144,6 +144,15 @@ pub struct MarleyTerminalFooter(
 
 impl gpui::Global for MarleyTerminalFooter {}
 
+// Marley: the autosuggestion a terminal shows after its cursor, or none; Marley's workbench
+// sets it (#484).
+#[derive(Clone)]
+pub struct MarleyTerminalSuggestion(
+    pub Arc<dyn Fn(&Entity<Terminal>, &mut App) -> Option<SharedString>>,
+);
+
+impl gpui::Global for MarleyTerminalSuggestion {}
+
 ///A terminal view, maintains the PTY's file handles and communicates with the terminal
 pub struct TerminalView {
     terminal: Entity<Terminal>,

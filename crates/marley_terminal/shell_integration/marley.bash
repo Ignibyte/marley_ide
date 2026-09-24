@@ -60,5 +60,10 @@ if [ -z "${__MARLEY_HOOKS-}" ]; then
     PS0="${PS0-}\$(__marley_preexec)"
 
     builtin printf '\033Pqinit;id=%d\033\134' "$$"
+    # The file bash keeps its history in, which Marley's autosuggestions read.
+    if [ -n "${HISTFILE-}" ]; then
+        __marley_quote "$HISTFILE"
+        builtin printf '\033Pqhistory;file=%s\033\134' "$__MARLEY_REPLY"
+    fi
     builtin printf '\033Pqbootstrapped;subshell=0\033\134'
 fi

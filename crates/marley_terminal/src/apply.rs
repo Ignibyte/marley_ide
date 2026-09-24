@@ -147,6 +147,7 @@ impl SessionModel {
                 self.bootstrapped = Some(is_subshell);
                 Ok(())
             }
+            DcsHook::History { .. } => Ok(()),
         }
     }
 

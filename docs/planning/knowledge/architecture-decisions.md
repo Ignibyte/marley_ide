@@ -1881,3 +1881,19 @@ draws a microphone, so no process runs before an agent does, and a dictation sta
 Omarchy's keys shows too; an ended status restarts only on a toggle, never on a frame.
 Rejected: capturing audio in Marley or a hosted transcription service (Warp's way), and
 reading `$XDG_RUNTIME_DIR/voxtype/state` directly, whose path is Voxtype's configuration.
+
+## AD-claude-484-autosuggestions-read-the-typed-command-from-the-grid-001
+*decided at: 2026-09-23 · status: shipped*
+
+Marley's autosuggestions need what was typed at the shell's prompt without owning the line
+editor. The typed text is read from the terminal's own cells: from the point where the first
+key after the prompt was typed (the cursor when `Terminal::input` first ran after a `precmd`
+hook) to the cursor, on the cursor's line, while nothing follows the cursor. That leaves the
+user's prompt untouched and works for any shell with Marley's hooks. The history is the
+terminal's verified commands, newest first, then the shell's history file, which the
+integration names in a `history` frame. → is bound in `Terminal` to an action that types the
+rest of the suggestion, or propagates so → stays the program's. Rejected: a prompt-end marker
+appended to PS1 (FinalTerm's OSC 133;B), which has to follow every prompt framework that
+rebuilds PS1 each time; reading readline's buffer through `bind -x`, which bash offers only
+inside a bound command; reconstructing the line from the keys Marley sent, which history and
+completion defeat.

@@ -58,6 +58,10 @@ pub struct AnchoredBlocks {
     registered: bool,
     staged: Option<(PromptInfo, u64)>,
     nonce: Option<String>,
+    /// Where the command typed at the staged prompt starts, as an absolute line and a column.
+    input_start: Option<(u64, usize)>,
+    /// The file the shell keeps its history in, when it named one.
+    history_file: Option<String>,
 }
 
 impl AnchoredBlocks {
@@ -81,9 +85,11 @@ impl AnchoredBlocks {
             DcsHook::InitShell { .. } => {
                 self.registered = true;
                 self.staged = None;
+                self.input_start = None;
             }
             DcsHook::Preexec(value) => {
                 self.require_shell()?;
+                self.input_start = None;
                 self.finish_running(line, ExitCode(None));
                 let (prompt, prompt_line) = self.staged.take().map_or_else(
                     || (PromptInfo::default(), None),
@@ -106,8 +112,10 @@ impl AnchoredBlocks {
                 self.require_shell()?;
                 self.finish_running(line, value.exit_code);
                 self.staged = Some((value.prompt, line));
+                self.input_start = None;
             }
             DcsHook::Bootstrapped { .. } => {}
+            DcsHook::History { file } => self.history_file = Some(file),
         }
         Ok(())
     }
@@ -116,6 +124,32 @@ impl AnchoredBlocks {
     #[must_use]
     pub fn blocks(&self) -> &[AnchoredBlock] {
         &self.blocks
+    }
+
+    /// Whether the shell waits at a prompt: a `Precmd` came, and no `Preexec` since.
+    #[must_use]
+    pub const fn at_prompt(&self) -> bool {
+        self.staged.is_some()
+    }
+
+    /// Notes that input was typed with the cursor at the absolute `line` and `column`. The first
+    /// such point after a prompt is where the command being typed at it starts.
+    pub const fn note_input(&mut self, line: u64, column: usize) {
+        if self.staged.is_some() && self.input_start.is_none() {
+            self.input_start = Some((line, column));
+        }
+    }
+
+    /// Where the command being typed at the prompt starts, once a key has been typed there.
+    #[must_use]
+    pub const fn input_start(&self) -> Option<(u64, usize)> {
+        self.input_start
+    }
+
+    /// The file the shell keeps its history in, when it named one.
+    #[must_use]
+    pub fn history_file(&self) -> Option<&str> {
+        self.history_file.as_deref()
     }
 
     const fn require_shell(&self) -> Result<(), ApplyHookError> {

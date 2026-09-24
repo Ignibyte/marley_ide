@@ -13,6 +13,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Autosuggestions** (#484, 2026-09-23). As you type a command at a bash or zsh prompt in
+  Marley's terminal, the rest of the newest matching command from your history shows dimmed after
+  the cursor, and → types it in, as Warp and fish do. Commands you ran in the terminal come first,
+  then the shell's history file. Without a suggestion, → moves the cursor as before.
 - **Rich input** (#481, 2026-09-23). While Claude Code or another CLI agent runs in a terminal,
   Ctrl-G, or the pencil in the agent bar, opens an editor above the bar for the agent's prompt:
   select with the mouse, undo, move by word, Shift-Enter for a new line. Enter sends the text to

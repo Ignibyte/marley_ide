@@ -10838,6 +10838,7 @@ dependencies = [
  "fuzzy",
  "gpui",
  "language_model",
+ "log",
  "marley_agent",
  "marley_rail",
  "marley_terminal",

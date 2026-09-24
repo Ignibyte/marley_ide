@@ -322,6 +322,19 @@ alike.
   remote project's chooser lists the machine its terminals run on, and types the chosen paths
   with `TerminalView::add_paths_to_terminal`, as a drop does. A cancel types nothing.
 
+## Autosuggestions (`src/autosuggest.rs`, #484)
+
+- `init` sets Zed's `terminal_view::MarleyTerminalSuggestion`, which the element calls in
+  `prepaint` for the text it paints dimmed at the cursor. The typed text is the cursor line's
+  cells from `AnchoredBlocks::input_start` to the cursor, while the shell waits at its prompt, the
+  view is on the live screen and not the alternate one, vi mode is off and nothing follows the
+  cursor. The lookup takes the terminal's own verified commands, newest first, then its shell's
+  history file, which `HistoryFiles` reads once per path in the background, deferred out of the
+  frame; a missing file holds none.
+- `marley::AcceptSuggestion`, bound to `right` in `Terminal` and handled on every workspace,
+  types the rest through `Terminal::input`, and without a suggestion calls `cx.propagate()`, so
+  → reaches the program.
+
 ## Rich input (`src/rich_input.rs`, #481)
 
 - `Prompts`, a global, holds an editor per terminal view (auto height, one to eight lines,
@@ -422,7 +435,8 @@ script.
 Since #483 no test is added (CONSTITUTION §7): the files above stay and keep building, and each
 change is proven by an e2e scenario in `script/e2e/`. `480-voice-input.sh` drives the
 microphone through a fake Voxtype whose `record toggle` moves its status on, and
-`481-rich-input.sh` types into the rich input and reads what a stand-in agent prints.
+`481-rich-input.sh` types into the rich input and reads what a stand-in agent prints;
+`484-autosuggestions.sh` types prefixes at a bash with a history file of its own.
 
 ## Known limits
 

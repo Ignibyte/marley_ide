@@ -1842,6 +1842,13 @@ impl Terminal {
         self.blocks.blocks()
     }
 
+    // Marley: what the shell's hooks said of its prompt and its history, for autosuggestions
+    // (#484).
+    /// The shell's blocks with where it waits at a prompt and the history file it named.
+    pub fn marley_anchored(&self) -> &marley_terminal::AnchoredBlocks {
+        &self.blocks
+    }
+
     // Marley: a block's output (#464).
     /// A block's output, read from the grid while its lines are still held, or `None` once its
     /// first line has left the scrollback.
@@ -2287,6 +2294,12 @@ impl Terminal {
 
     pub fn input(&mut self, input: impl Into<Cow<'static, [u8]>>) {
         self.keyboard_input_sent = true;
+        // Marley: where the command typed at a prompt starts, for its autosuggestion (#484).
+        let position = alacritty_terminal::marley_hooks::HookPosition::of(&self.term.lock());
+        if !position.alt_screen {
+            self.blocks
+                .note_input(position.absolute_line(), position.cursor_column);
+        }
         self.complete_init_command_startup_handshake();
         self.write_input(input);
     }

@@ -144,6 +144,14 @@ real, reusable session. The Block model is the unit the **brain** later observes
   and none on the alternate screen. `TerminalElement::prepaint` moves the grid's origin by it
   after `sync`, plus the padding its snapped rows leave, and stores the moved bounds with a
   second `set_size`, which the mouse maps through and which resizes nothing.
+  For autosuggestions (#484), `AnchoredBlocks::at_prompt` says a prompt is staged,
+  `note_input` (which Zed's `Terminal::input` calls with the cursor's absolute point, off the
+  alternate screen) keeps the first point typed at after it as `input_start`, which `Precmd` and
+  `Preexec` clear, and the `History` hook (`history;file=`, which both scripts send after `init`
+  with `$HISTFILE`) keeps the shell's history file. `suggest.rs` has `suggestion`, the rest of
+  the first history command, newest first, that starts with the typed text and stays on one
+  line, and `parse_history`, bash's lines without their `#<seconds>` lines and zsh's extended
+  `: <seconds>:<elapsed>;` lines with backslash continuations joined.
 - `shell_integration.rs` (#463, written in the fork): the embedded `shell_integration/marley.bash`,
   `install_in(dir)`, which writes it when its content changed, and `for_program`, which gives bash
   `--rcfile` and `MARLEY_SHELL_INTEGRATION=1`. Zed's `TerminalBuilder::new` applies it to a local

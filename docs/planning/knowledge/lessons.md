@@ -2490,3 +2490,13 @@ hide a race with the terminal's first layout: a pty sized before the shell start
 resized under it. And timing that depends on the first frame differs on the hidden workspace,
 where an unfocused window draws slowly, so a race the scenario hits may be rarer on a screen in
 use.
+
+## L-claude-484-where-a-typed-command-starts-without-touching-the-prompt-001
+*category: code · topic: terminal shell integration · from: pipeline 484*
+
+A terminal that knows when its shell reached a prompt (`precmd`) can find where the command typed
+there starts without marking the prompt: the cursor at the first key the user sends after it.
+Record it in the grid's absolute coordinates (`HookPosition::of`, the hooks' own), clear it at
+the next `precmd` or `preexec`, and read the typed text from the cells between it and the cursor
+while the cursor stays on that line. It is wrong only when a key is typed before the prompt has
+drawn, and then nothing matches, so a suggestion built on it shows nothing.

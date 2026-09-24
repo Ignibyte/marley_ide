@@ -53,6 +53,8 @@ pub struct LayoutState {
     // and its hover actions (#474).
     marley_spans: Vec<marley_terminal::BlockSpan>,
     marley_blocks: Vec<AnyElement>,
+    // Marley: the autosuggestion after the cursor (#484).
+    marley_suggestion: Option<SharedString>,
 }
 
 /// Helper struct for converting terminal cursor points to displayed cursor points.
@@ -1657,6 +1659,11 @@ impl Element for TerminalElement {
                         element
                     })
                     .collect();
+                // Marley: the autosuggestion Marley's workbench finds for the typed text (#484).
+                let marley_suggestion = cx
+                    .try_global::<crate::MarleyTerminalSuggestion>()
+                    .cloned()
+                    .and_then(|hook| (hook.0)(&self.terminal, cx));
 
                 LayoutState {
                     hitbox,
@@ -1676,6 +1683,7 @@ impl Element for TerminalElement {
                     content_mode,
                     marley_spans,
                     marley_blocks,
+                    marley_suggestion,
                 }
             },
         )
@@ -1820,6 +1828,35 @@ impl Element for TerminalElement {
                     }
                     for block in &mut marley_blocks {
                         block.paint(window, cx);
+                    }
+
+                    // Marley: the autosuggestion from the cursor on, dimmed (#484).
+                    if let Some(suggestion) = &layout.marley_suggestion
+                        && marked_text_cloned.is_none()
+                        && let Some(cursor_bounds) = layout.ime_cursor_bounds
+                    {
+                        let style = &layout.base_text_style;
+                        let shaped_line = window.text_system().shape_line(
+                            suggestion.clone(),
+                            style.font_size.to_pixels(window.rem_size()),
+                            &[TextRun {
+                                len: suggestion.len(),
+                                font: style.font(),
+                                color: cx.theme().status().predictive,
+                                ..Default::default()
+                            }],
+                            None,
+                        );
+                        shaped_line
+                            .paint(
+                                (cursor_bounds + origin).origin,
+                                layout.dimensions.line_height,
+                                gpui::TextAlign::Left,
+                                None,
+                                window,
+                                cx,
+                            )
+                            .log_err();
                     }
 
                     if let Some(text_to_mark) = &marked_text_cloned
