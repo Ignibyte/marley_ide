@@ -28,6 +28,7 @@ pub mod claude_plugin;
 pub mod marley_workbench_tests;
 pub mod notifications;
 mod rail;
+pub mod rich_input;
 pub mod routing;
 pub mod voice;
 
@@ -80,6 +81,16 @@ actions!(
         /// Starts or stops a dictation with Voxtype, which types the text where the focus is.
         #[derive(Eq)]
         ToggleDictation,
+        /// Opens an editor for the prompt of the CLI agent in the focused terminal; without an
+        /// agent, the key goes to the terminal's program.
+        #[derive(Eq)]
+        RichInput,
+        /// Sends the rich input's text to the agent as its prompt.
+        #[derive(Eq)]
+        SendRichInput,
+        /// Closes the rich input, keeping its text for the next time it opens.
+        #[derive(Eq)]
+        CloseRichInput,
     ]
 );
 
@@ -173,6 +184,7 @@ pub fn init(cx: &mut App) {
     claude_plugin::init(cx);
     notifications::init(cx);
     voice::init(cx);
+    rich_input::init(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action_renderer(|div, _, _, cx| {
             div.capture_action(cx.listener(layout_preset::<UseClassicLayout>))

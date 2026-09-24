@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Rich input** (#481, 2026-09-23). While Claude Code or another CLI agent runs in a terminal,
+  Ctrl-G, or the pencil in the agent bar, opens an editor above the bar for the agent's prompt:
+  select with the mouse, undo, move by word, Shift-Enter for a new line. Enter sends the text to
+  the agent as one paste and closes the editor; Escape closes it and keeps the draft for the
+  next Ctrl-G. Without an agent, Ctrl-G reaches the program as it always did.
 - **Voice input through Voxtype** (#480, 2026-09-23). Where Voxtype, the dictation daemon
   Omarchy ships, is installed, the agent bar has a microphone. Click it, or run
   `marley: toggle dictation`, to start or stop a dictation, and Voxtype types what you said into

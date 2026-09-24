@@ -14,17 +14,19 @@ use std::sync::Arc;
 use gpui::{AnyElement, App, Context, PathPromptOptions, SharedString, WeakEntity, Window};
 use marley_agent::AgentKind;
 use project::DirectoryLister;
+use terminal::Terminal;
 use terminal_view::{MarleyFooterContext, MarleyTerminalFooter, TerminalView};
 use ui::{Button, Icon, IconButton, IconName, IconSize, Label, LabelSize, Tooltip, prelude::*};
 use util::ResultExt as _;
 use util::paths::PathExt as _;
 use workspace::Workspace;
 
-use crate::AttachFile;
 use crate::agents::cli_icon;
 use crate::blocks::focused_terminal;
 use crate::claude_plugin::{self, ClaudePlugin};
+use crate::rich_input;
 use crate::voice::{self, Voice, VoiceState};
+use crate::{AttachFile, RichInput};
 
 /// Puts the agent bar under every terminal, and Attach File on every workspace for the focused
 /// terminal. [`crate::init`] calls it once, before any window opens.
@@ -90,10 +92,7 @@ pub struct BarContents {
 /// foreground.
 pub fn contents(context: &MarleyFooterContext, cx: &App) -> Option<BarContents> {
     let terminal = context.terminal.read(cx);
-    let agent = terminal
-        .foreground_process_command_name()
-        .as_deref()
-        .and_then(marley_agent::agent_kind_of)?;
+    let agent = agent_in(terminal)?;
     let folder = terminal.working_directory();
     let branch = folder.as_deref().and_then(|folder| {
         let project = context.project.upgrade()?;
@@ -126,6 +125,14 @@ pub fn contents(context: &MarleyFooterContext, cx: &App) -> Option<BarContents> 
     })
 }
 
+/// The CLI agent in `terminal`'s foreground, if one is.
+pub(crate) fn agent_in(terminal: &Terminal) -> Option<AgentKind> {
+    terminal
+        .foreground_process_command_name()
+        .as_deref()
+        .and_then(marley_agent::agent_kind_of)
+}
+
 /// The branch of the innermost repository whose work directory holds `folder`, if that
 /// repository is on one.
 fn branch_for<'a>(
@@ -146,6 +153,7 @@ fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option
         branch,
     } = contents(context, cx)?;
     let microphone = microphone(context, cx);
+    let prompt_editor = rich_input::element(context, cx);
     let colors = cx.theme().colors();
     let chip = |icon: IconName, text: SharedString| {
         h_flex()
@@ -159,56 +167,82 @@ fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option
                     .truncate(),
             )
     };
+    let bar = h_flex()
+        .debug_selector(|| "marley-agent-bar".into())
+        .flex_none()
+        .w_full()
+        .justify_between()
+        .gap_4()
+        .px_2()
+        .py_1()
+        .border_t_1()
+        .border_color(colors.border_variant)
+        .bg(colors.terminal_background)
+        .child(
+            h_flex()
+                .flex_none()
+                .gap_1p5()
+                .child(
+                    Icon::new(cli_icon(agent))
+                        .size(IconSize::Small)
+                        .color(Color::Muted),
+                )
+                .child(
+                    Label::new(agent.display_name())
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+                .child(attach_button(context))
+                .child(rich_input_button(context, agent))
+                .children(microphone)
+                .children(
+                    (agent == AgentKind::Claude)
+                        .then(|| claude_plugin_chip(context, cx))
+                        .flatten(),
+                ),
+        )
+        .child(
+            h_flex()
+                .min_w_0()
+                .gap_3()
+                .children(folder.map(|folder| {
+                    let text = folder.compact().to_string_lossy().into_owned();
+                    chip(IconName::Folder, text.into())
+                        .debug_selector(|| "marley-agent-bar-folder".into())
+                }))
+                .children(branch.map(|branch| {
+                    chip(IconName::GitBranch, branch)
+                        .debug_selector(|| "marley-agent-bar-branch".into())
+                })),
+        );
+    // The rich input's editor, while it is open, sits above the bar (#481).
     Some(
-        h_flex()
-            .debug_selector(|| "marley-agent-bar".into())
+        v_flex()
             .flex_none()
             .w_full()
-            .justify_between()
-            .gap_4()
-            .px_2()
-            .py_1()
-            .border_t_1()
-            .border_color(colors.border_variant)
-            .bg(colors.terminal_background)
-            .child(
-                h_flex()
-                    .flex_none()
-                    .gap_1p5()
-                    .child(
-                        Icon::new(cli_icon(agent))
-                            .size(IconSize::Small)
-                            .color(Color::Muted),
-                    )
-                    .child(
-                        Label::new(agent.display_name())
-                            .size(LabelSize::Small)
-                            .color(Color::Muted),
-                    )
-                    .child(attach_button(context))
-                    .children(microphone)
-                    .children(
-                        (agent == AgentKind::Claude)
-                            .then(|| claude_plugin_chip(context, cx))
-                            .flatten(),
-                    ),
-            )
-            .child(
-                h_flex()
-                    .min_w_0()
-                    .gap_3()
-                    .children(folder.map(|folder| {
-                        let text = folder.compact().to_string_lossy().into_owned();
-                        chip(IconName::Folder, text.into())
-                            .debug_selector(|| "marley-agent-bar-folder".into())
-                    }))
-                    .children(branch.map(|branch| {
-                        chip(IconName::GitBranch, branch)
-                            .debug_selector(|| "marley-agent-bar-branch".into())
-                    })),
-            )
+            .children(prompt_editor)
+            .child(bar)
             .into_any_element(),
     )
+}
+
+/// Rich Input, which opens the terminal's editor for `agent`'s prompt (#481).
+fn rich_input_button(context: &MarleyFooterContext, agent: AgentKind) -> AnyElement {
+    let view = context.view.clone();
+    div()
+        .debug_selector(|| "marley-rich-input-button".into())
+        .child(
+            IconButton::new("marley-rich-input", IconName::Pencil)
+                .icon_size(IconSize::Small)
+                .icon_color(Color::Muted)
+                .tooltip(Tooltip::for_action_title("Rich Input", &RichInput))
+                .on_click(move |_, window, cx| {
+                    if let Some(view) = view.upgrade() {
+                        rich_input::open(&view, agent, window, cx);
+                    }
+                }),
+        )
+        .into_any_element()
 }
 
 /// Attach File, before the plugin's chip so it stays put when the chip goes.

@@ -1830,3 +1830,16 @@ Fixed within #474: the terminal's nonce
 (AD-claude-474-a-blocks-command-is-trusted-only-with-the-terminals-nonce-001), and Rerun only
 for a verified command. `marley_no_rerun_for_a_command_that_output_printed` fails without the
 check (`assertion failed: cx.debug_bounds("marley-block-rerun-1").is_none()`).
+
+## F-claude-481-the-rich-input-dropped-every-typed-character-on-linux-001
+*severity: high · category: behavior · pipeline 481 (found by the e2e scenario, before commit)*
+
+The rich input's container stopped every key event unless `prefer_character_input` was set with
+a character, to keep the terminal view's `key_down`, on the view's root, from sending the keys
+to the program. gpui's Linux platforms never set `prefer_character_input` (`gpui_linux`, Wayland
+and X11, always `false`), so no key reached the editor's text input: the editor grew with
+Shift-Enter, which is an action, but stayed empty, Enter sent nothing and Escape kept no draft.
+The first e2e run showed it; the in-process test harness does not go through that path. Fixed:
+the container stops only the keys the terminal maps (`to_esc_str`: chords with Ctrl, Alt or
+Super, and keys that type nothing), and text goes on to the editor
+(L-claude-481-gate-text-by-its-modifiers-not-prefer-character-input-001).

@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #481 (feature, prong 1: T7e)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/481-rich-input.spec.md
+- **Pipeline doc:** ../../pipeline/completed/481-rich-input.spec.md
 - **Source ticket:** ../../../marley/three-prong-plan.md (T7, and T3's prompt editor)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Warp's rich input puts its own editor in place of a CLI agent's prompt box: you write the

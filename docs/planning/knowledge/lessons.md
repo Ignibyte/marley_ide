@@ -2466,3 +2466,15 @@ Marley's PATH follows a status file, and its `record toggle` moves the file on a
 recording, then transcribing, then idle a few seconds later. The microphone's colors in the
 shots then prove that the toggle ran and that the status was followed, with nothing read from a
 log.
+
+## L-claude-481-gate-text-by-its-modifiers-not-prefer-character-input-001
+*category: code · topic: gpui keys on Linux · from: pipeline 481*
+
+`KeyDownEvent::prefer_character_input` is always `false` on gpui's Linux platforms, so a handler
+that treats a key as text only when it is set treats no key as text there. Stopping a key event's
+propagation in a `key_down` listener also keeps it from the focused element's text input. To
+keep keys from an ancestor such as the terminal view's `key_down` while text still reaches an
+editor inside it, stop only keys with Ctrl, Alt or Super, or with no `key_char`; the terminal
+maps no plain character (`to_esc_str`), so those go to the editor. A stand-in agent started as
+a subshell from `.bashrc` never leads the terminal's foreground process group (job control is
+off while bash reads its startup files); `exec -a claude` in place of the shell does.

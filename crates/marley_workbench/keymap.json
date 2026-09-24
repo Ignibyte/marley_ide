@@ -10,11 +10,23 @@
     }
   },
   {
-    // The block keys, as Warp binds its own; Zed's terminal binds neither key (T1c).
+    // The block keys, as Warp binds its own; Zed's terminal binds neither key (T1c). Ctrl-G
+    // opens the rich input while a CLI agent runs, as Warp's does, and otherwise reaches the
+    // program as before (T7e).
     "context": "Terminal",
     "bindings": {
       "secondary-up": "marley::PreviousBlock",
-      "secondary-down": "marley::NextBlock"
+      "secondary-down": "marley::NextBlock",
+      "ctrl-g": "marley::RichInput"
+    }
+  },
+  {
+    // The rich input's editor: Enter sends, Shift-Enter adds a line, Escape keeps the draft.
+    "context": "MarleyRichInput > Editor",
+    "bindings": {
+      "enter": "marley::SendRichInput",
+      "shift-enter": "editor::Newline",
+      "escape": "marley::CloseRichInput"
     }
   },
   {

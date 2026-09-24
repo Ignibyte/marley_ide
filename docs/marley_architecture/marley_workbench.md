@@ -313,13 +313,29 @@ alike.
   `marley_agent::agent_kind_of`, the folder from `working_directory`, and the branch of the
   innermost repository in the project's git store that holds the folder (`branch_for`). No agent,
   no bar.
-- The bar draws `agents::cli_icon`, the agent's name, Attach File, the microphone and #482's
-  chip at the left, and the folder (`~` for home) and branch at the right.
+- The bar draws `agents::cli_icon`, the agent's name, Attach File, Rich Input, the microphone
+  and #482's chip at the left, and the folder (`~` for home) and branch at the right. The
+  footer is a column: the rich input's editor, while it is open, sits above the bar.
 - Attach File (#479): the bar's `+` and `marley::AttachFile`, which `init` registers on every
   workspace for the focused terminal (`blocks::focused_terminal`), both call `attach`. It opens
   `Workspace::prompt_for_open_path` for files, several at once, with the project's lister, so a
   remote project's chooser lists the machine its terminals run on, and types the chosen paths
   with `TerminalView::add_paths_to_terminal`, as a drop does. A cancel types nothing.
+
+## Rich input (`src/rich_input.rs`, #481)
+
+- `Prompts`, a global, holds an editor per terminal view (auto height, one to eight lines,
+  soft wrap), made the first time it opens and dropped with the view, and whether it shows.
+- `marley::RichInput` is bound to `ctrl-g` in `Terminal` and handled on every workspace: with a
+  CLI agent in the focused terminal (`agent_bar::agent_in`) it opens that terminal's editor and
+  focuses it; otherwise it calls `cx.propagate()`, and the key goes on to the terminal, which
+  sends it to the program.
+- In the editor's `MarleyRichInput` container, Enter (`marley::SendRichInput`) pastes the text
+  with `Terminal::paste`, bracketed when the program asked for it, sends `\r`, clears and closes
+  the editor and focuses the terminal; Escape (`marley::CloseRichInput`) closes it with the draft
+  kept; Shift-Enter is `editor::Newline`. The container stops the key events the terminal view
+  would send its program, chords and keys that type nothing, and lets text through to the
+  editor.
 
 ## Voice (`src/voice.rs`, #480)
 
@@ -405,7 +421,8 @@ script.
 
 Since #483 no test is added (CONSTITUTION §7): the files above stay and keep building, and each
 change is proven by an e2e scenario in `script/e2e/`. `480-voice-input.sh` drives the
-microphone through a fake Voxtype whose `record toggle` moves its status on.
+microphone through a fake Voxtype whose `record toggle` moves its status on, and
+`481-rich-input.sh` types into the rich input and reads what a stand-in agent prints.
 
 ## Known limits
 

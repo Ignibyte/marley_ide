@@ -1,7 +1,7 @@
 ---
 pipeline_id: f6e302f0-9cd0-464e-85f1-d1d6ec50a77a
-ticket: docs/planning/tickets/open/TICKET-481-rich-input.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote
+ticket: docs/planning/tickets/closed/TICKET-481-rich-input.md
+status: Phase 4 — Complete PASS
 title: "Rich input: a Zed editor for an agent's prompt"
 type: feature
 slice: prong 1 T7e
@@ -48,14 +48,11 @@ agent as its prompt.
   handoff; `Terminal::paste`; the #477 footer hook, which can hold the editor above the bar.
 
 ## UI proof
-UI-AFFECTING: an editor over the terminal, keys, text sent to the agent.
-- **Driven tests** (`marley_workbench`): with a fake `claude` in the foreground, Ctrl-G shows
-  the editor and focuses it; typed text and Enter write one paste and `\r` to the PTY (its
-  write log) and close it, with the terminal focused; Shift-Enter adds a line and sends
-  nothing; Escape sends nothing and the next Ctrl-G shows the draft; with no agent, Ctrl-G
-  writes `\x07`.
-- **Live drive:** Ctrl-G needs a key press in Chad's session, so the capture shows the button in
-  the bar and the editor opened from a seed; the rest is driven.
+UI-AFFECTING: an editor over the terminal, keys, text sent to the agent. Proven by the e2e
+scenario `script/e2e/481-rich-input.sh` (CONSTITUTION §7, since #483): a HOME whose `.bashrc`
+runs a stand-in `claude` that prints each line it reads (`claude got: …`) until `quit`, then
+leaves the shell's `$ ` prompt. Keys go to Marley's window only, so Ctrl-G, typing, Shift-Enter,
+Enter and Escape are all driven; the Rich Input button is a click, shown but not clicked.
 
 ## Locked-In Decisions
 - D1 — Docked below the grid, not over the cursor as the inline assistant's block: an agent's
@@ -67,16 +64,16 @@ UI-AFFECTING: an editor over the terminal, keys, text sent to the agent.
 ## Acceptance Criteria (EARS)
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
-| REQ-001 | WHILE an agent runs, WHEN Ctrl-G is pressed or Rich Input clicked, the terminal shall show the editor and focus it | driven |
-| REQ-002 | WHEN Enter is pressed in the editor, the terminal shall be sent its text as one paste and a carriage return, and the editor shall close with the terminal focused | driven |
-| REQ-003 | WHEN Shift-Enter is pressed, the editor shall add a line and send nothing | driven |
-| REQ-004 | WHEN Escape is pressed, the editor shall close without sending and show the same text when opened again | driven |
-| REQ-005 | WHILE no agent runs, Ctrl-G shall reach the program as before | driven |
+| REQ-001 | WHILE an agent runs, WHEN Ctrl-G is pressed or Rich Input clicked, the terminal shall show the editor and focus it | e2e: Ctrl-G opens it, and the text typed next lands in it |
+| REQ-002 | WHEN Enter is pressed in the editor, the terminal shall be sent its text as one paste and a carriage return, and the editor shall close with the terminal focused | e2e: the stand-in prints both lines; typing after it reaches the stand-in |
+| REQ-003 | WHEN Shift-Enter is pressed, the editor shall add a line and send nothing | e2e: two lines in the editor, nothing printed yet |
+| REQ-004 | WHEN Escape is pressed, the editor shall close without sending and show the same text when opened again | e2e: nothing printed; Ctrl-G shows the draft |
+| REQ-005 | WHILE no agent runs, Ctrl-G shall reach the program as before | e2e: after `quit`, `cat -v` prints `^G` |
 | REQ-006 | The diff gate shall be green | `just gate-diff` |
 
 ## Phase Plan
 - **P1 Plan** — this spec; promotion re-verifies the seams (the key context, the footer hook's
   room for the editor) and asks the brain.
 - **P2 Code** — the editor, its keys, the send; ledger rows for any Zed path first.
-- **P3 Test** — driven tests, negative checks, the live drive, the gate.
+- **P3 Test** — the e2e scenario and its shots, read; the gate.
 - **P4 Complete** — docs, ledger, close, archive, commit.
