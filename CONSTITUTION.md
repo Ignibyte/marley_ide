@@ -186,17 +186,21 @@ them and no ticket adds to them.
 
 - **The scenario.** A ticket carries `script/e2e/<ticket>-<slug>.sh`, run by `script/e2e.sh`
   (`just e2e <scenario>`): the debug `marley` on a copy of the user's profile, on hidden
-  workspace 9, with the fixtures the scenario's `setup` builds (a scratch repository, a HOME
-  whose `.bashrc` is the scenario's own through `terminal_env`, fakes first on the PATH), then
-  its `steps`: keys sent to Marley's window only, and a shot of the window after each step
-  that matters. Every acceptance criterion names the shot that proves it.
+  workspace 9 or, for a scenario that sets `COMPOSITOR=sway`, in a headless sway of its own,
+  with the fixtures the scenario's `setup` builds (a scratch repository, a HOME whose
+  `.bashrc` is the scenario's own through `terminal_env`, fakes first on the PATH), then its
+  `steps`: keys, and under sway clicks, drags and the wheel, sent to Marley only, and a shot
+  of the window after each step that matters. Every acceptance criterion names the shot that
+  proves it.
 - **Reading the shots is the test.** The Test phase reads every PNG and writes into the notes
   what each one shows, against the criterion it proves. A shot that shows anything but Marley
   is deleted. Shots stay in the scratchpad or `SHOT_DIR`, never in the repository.
-- **The user's session is not touched.** Keys go to Marley's window by its address, and the
-  runner reports whether the user's active window and workspace moved. No mouse: a click would
-  move the user's pointer. A click-only path is shown rendered; what it does is proven through a
-  key or an action that does the same, or recorded as not driven, with the reason.
+- **The user's session is not touched.** On Hyprland, keys go to Marley's window by its
+  address, and the runner reports whether the user's active window and workspace moved; there
+  is no mouse there, since a click would move the user's pointer. A scenario that clicks sets
+  `COMPOSITOR=sway`: Marley runs in a headless sway whose seat is a virtual pointer and a
+  virtual keyboard that nothing else sees, so the user's desktop and Hyprland are never
+  touched, and the runner reports that Hyprland's windows are as they were.
 - **A change with nothing new to see** (tooling, a refactor, a dependency) still runs a
   scenario: Marley starts and draws (`just shot`), so nothing it needs broke.
 - **NEVER mark a phase PASS if the e2e run did not actually RUN.** Writing a scenario is not
@@ -204,7 +208,7 @@ them and no ticket adds to them.
   `script/e2e.sh`, `just e2e` or `just shot` run at `/pipeline:test`.
 - **Pre-existing failures are not your problem, but document them.** Note them in the notes
   as "pre-existing" and move on; don't fix unrelated breakage unless asked.
-- **What no scenario can reach** (speech, a live remote service, a click) is taken as far as a
+- **What no scenario can reach** (speech, a live remote service) is taken as far as a
   scenario can take it and recorded in the notes with the reason, never skipped silently.
 - **Gate-is-test changes** (config, tooling, docs with no `.rs`) are verified by the gate's own
   exit codes plus **negative smokes** (inject the drift → the gate goes red → revert → green),
@@ -421,4 +425,6 @@ per-change gate for `script/mutation.sh` at the end of a sprint, and the workflo
 four phases (`/work`, design, inspect and `/commit` folded into Plan, Code and Complete). On
 2026-09-23 Chad removed unit tests from the workflow, recorded in §0 and §7: the gate runs no
 tests, the proof of a change is its e2e visualization test, and the tests in the tree stay and
-keep building (#483).
+keep building (#483). On 2026-09-24 §7 gained the headless sway: the browser tab is driven by
+the mouse, Hyprland cannot click one window, and a sway of the run's own takes clicks without
+touching the user's session, so "a click" left the list of what no scenario can reach (#487).
