@@ -62,8 +62,5 @@ crates/docs_preprocessor/actions.json
 .local*
 .cache
 
-# Marley: the local MCP config carries bearers; script/mutation.sh's artifacts are regenerated
+# Marley: the local MCP config carries bearers
 .mcp.json
-/mutants.out
-/mutants.out.old
-/mutants.diff

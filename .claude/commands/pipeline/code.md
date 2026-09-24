@@ -29,7 +29,8 @@ resolve them all before Stop. Without it, keep the checklist in the notes.
    `let _ =` a fallible call. Reuse existing helpers, Zed's crates first. Keep process spawns,
    PTYs and sockets in the adapter modules. In a Zed crate, add rather than rewrite, with a
    `// Marley: <why>` comment on the hunk.
-2. **Keep IO testable:** file IO through `*_in(dir)` functions with a directory override.
+2. **Keep IO scoped:** file IO through `*_in(dir)` functions with a directory override, so a
+   scenario's fixtures never touch the user's files.
 3. **Check as you go:** `cargo check -p <the touched crates>` (one cargo command at a time on
    this box; never the whole workspace for a scoped change), `cargo fmt`, and before closing
    `cargo clippy -p <the touched crates> --all-targets -- -D warnings`.
@@ -40,7 +41,8 @@ resolve them all before Stop. Without it, keep the checklist in the notes.
      GPL Zed function body into a Marley crate;
    - upstream discipline: each Zed hunk additive and minimal, each row written.
    Fix what you find. A real bug found here is an `F-…` block at Complete.
-5. **Tests** can grow with the code; the Test phase completes and runs them.
+5. **No tests** are written (§7): the plan's e2e scenario is the Test phase's to write and run.
+   The tests already in the tree must keep compiling (`--all-targets`).
 
 ## Closeout
 - The notes' Phase 2 entry: what was built, each deviation from the plan and why, what the

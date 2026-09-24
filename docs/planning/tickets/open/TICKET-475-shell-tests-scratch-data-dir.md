@@ -17,3 +17,8 @@ example through `paths::set_custom_data_dir` in each test process.
 ## Acceptance
 A run of `terminal`'s tests leaves `~/.local/share/marley/shell_integration` as it was, and the
 tests' shells still start with the scripts from the tree.
+
+## Deliberate since 2026-09-23
+#483 took the tests out of the workflow: they stay in the tree and keep building, but no gate
+runs them, so none of them writes to `~/.local/share/marley` in the normal flow. The fix waits
+until the tests run again.

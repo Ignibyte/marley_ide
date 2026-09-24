@@ -288,12 +288,11 @@ latency, overlay visibility in frames, cross-origin iframes, and coordinate comp
   `MIT OR Apache-2.0` and stay distinct from upstream code; the brain and the manager agent
   are separate programs speaking MCP, so the AGPL section 13 concern from the Warp study never
   reaches them; CDP, Chromium and the harness protocol are permissive or Ignibyte's own.
-- **Gates.** Zed's `./script/clippy`, tests and fmt on every change. The Marley pure-core
-  discipline (logic in gpui-free modules, adapters thin) continues in the new crates because
-  it is what makes them testable inside Zed's suite. The old repo's coverage gate came over
-  with the workflow port (2026-09-18) and holds the Marley crates to 100% of lines. Mutation
-  testing left the per-change gate on 2026-09-22 and runs once at the end of a sprint
-  (`script/mutation.sh`).
+- **Gates.** Zed's `./script/clippy` and fmt on every change, with the meta-gates. The
+  Marley pure-core discipline (logic in gpui-free modules, adapters thin) continues in the new
+  crates. Since 2026-09-23 no gate runs tests (#483): the 100% line-coverage floor that came
+  over with the workflow port (2026-09-18) and the end-of-sprint mutation run retired, and each
+  change is proven by an e2e visualization test on the real Marley (CONSTITUTION §7).
 - **Upstream merges.** Keep every change additive: new crates, new events, new panels, one
   fork branch of alacritty. Touching `terminal_element.rs` for stage-two rendering is the
   one place merge conflicts are likely; isolate it behind a `blocks` module. Every change

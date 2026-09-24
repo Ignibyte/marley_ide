@@ -238,6 +238,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Every change is proven by an e2e visualization test** (#483, 2026-09-23). A ticket no
+  longer writes unit tests or gpui driven tests. Its proof is a scenario in `script/e2e/`
+  that `script/e2e.sh` (`just e2e <scenario>`) runs against the real debug Marley on a hidden
+  workspace. The scenario builds its fixtures, presses and types keys in Marley's window only,
+  and shoots each step, and the Test phase reads every shot. `just shot` is a one-shot scenario
+  now. The tests already in the tree stay and keep building, but the gate no longer runs them.
 - **The rail looks like Warp's tab list** (#468, 2026-09-23). Terminal and thread rows are
   taller, padded cards with their icon in a 28px circle: `>_` for a shell, the agent's own mark
   for an agent. The title sits over a muted second line. The selected row is a card with a
@@ -280,6 +286,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Removed
 
+- **The test gates** (#483, 2026-09-23). gate:3 (the test suites), gate:4 (the 100% line
+  coverage floor), gate:6 (miri) and gate:19 (empty suites) left `script/gates.sh`, and so did
+  `--full`, which ran the first two over every Marley crate. `script/mutation.sh`, the
+  end-of-sprint mutation run, went with them, as did `script/live-shot.sh`, which
+  `script/e2e.sh` replaces.
 - **Mutation testing from the per-change gate** (2026-09-22). gate:5 and its MSI floor left
   `script/gates.sh`, because mutation was too slow to run on every change. It now runs once at
   the end of a sprint through `script/mutation.sh`, which keeps #443's copy-mode isolation (a

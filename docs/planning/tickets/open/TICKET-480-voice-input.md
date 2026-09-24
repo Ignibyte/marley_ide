@@ -4,7 +4,7 @@
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
 - **Pipeline doc:** ../../pipeline/queued/480-voice-input.spec.md
 - **Source ticket:** ../../../marley/three-prong-plan.md (T7)
-- **Status:** open
+- **Status:** open (parked for #483)
 
 ## Summary
 Warp's agent bar has a microphone that turns speech into prompt text, through a hosted service.

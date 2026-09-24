@@ -1,7 +1,7 @@
 ---
 pipeline_id: ff8d872f-595b-4f4c-909c-d8c11f021c3d
 ticket: docs/planning/tickets/open/TICKET-480-voice-input.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote
+status: PARKED — Phase 2 Code PASS; Phase 3 waits for #483 (e2e visualization tests replace unit tests)
 title: Voice input through Voxtype
 type: feature
 slice: prong 1 T7d

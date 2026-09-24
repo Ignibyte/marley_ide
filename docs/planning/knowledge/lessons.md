@@ -2432,3 +2432,26 @@ that allows one, and `cx.did_prompt_for_paths()` says whether one is waiting. Th
 settings keep `use_system_path_prompts` on, so in tests a local project's
 `Workspace::prompt_for_open_path` takes this path. There is no need to turn the setting off and
 inject a prompt with `set_prompt_for_open_path`, which would also leave the default path untested.
+
+## L-claude-483-send-keys-to-one-hyprland-window-by-address-001
+*category: validate · topic: e2e on Hyprland · from: pipeline 483*
+
+Hyprland 0.56 takes dispatchers as Lua: `hyprctl eval 'hl.dispatch(hl.dsp.send_key_state({
+mods = "CTRL", key = "g", state = "down", window = "address:0x…" }))'`, then the same with
+`state = "up"` about 50 ms later (Omarchy's bindings split the halves because a whole
+`send_shortcut` can leave a key stuck). The key reaches that window on a hidden workspace, and
+the user's active window and workspace stay as they were. `hyprctl dispatch <name> <args>` is
+Lua shorthand now, so the old `sendshortcut MOD, KEY, class:…` syntax fails to parse, and
+`hyprctl eval` prints only "ok", never a return value. The stubs are
+`/usr/share/hypr/stubs/hl.meta.lua`. Keys take xkb names (`Return`, `BackSpace`, `minus`); a
+capital is `SHIFT` and the lowercase key.
+
+## L-claude-483-a-scenario-brings-its-own-shell-001
+*category: validate · topic: e2e scenarios · from: pipeline 483*
+
+A scenario that types at a shell prompt gives the terminal a HOME of its own
+(`terminal_env HOME "$E2E_WORK/home"`, whose `.bashrc` it writes). The user's own prompt makes
+the shot depend on their machine: with a long starship prompt, typed text after the first
+character never showed on the line though bash received it (TICKET-485), while a plain `$ `
+prompt echoed every key. Pin the shell for the scenario's own proof, and give what the user's
+shell exposed its own ticket and its own scenario, one that sets that prompt up on purpose.

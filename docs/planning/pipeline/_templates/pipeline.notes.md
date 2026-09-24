@@ -18,8 +18,9 @@
 ### Design
 - Approach; file manifest (Marley crate or Zed crate per file); the ledger rows it needs.
 
-### Test plan
-- One row per acceptance criterion: unit tests, gpui driven tests, the live drive.
+### E2E plan
+- One row per acceptance criterion: the scenario's fixtures and steps, and the shot that shows
+  the criterion met (§7). What no scenario can reach, and why.
 
 ### Risks
 - …
@@ -28,7 +29,8 @@
 - What was built; deviations from the plan (with reason); what the review of the diff found.
 
 ## Phase 3 — Test
-- Tests RUN (with counts) + the gate result; the live drive; negative smokes; pre-existing notes.
+- The e2e run: each shot and what it shows, the focus report; the gate result; negative smokes;
+  pre-existing notes.
 
 ## Phase 4 — Complete
 - Docs updated; ledger appends (failures / prevention rules / lessons / ADs — codes listed);

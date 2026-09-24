@@ -10,14 +10,16 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-480](open/TICKET-480-voice-input.md) | feature | prong 1 T7d · a microphone button that drives Voxtype |
+| [TICKET-480](open/TICKET-480-voice-input.md) | feature | prong 1 T7d · a microphone button that drives Voxtype (parked in Test for #483; its spec is in `queued/`) |
 | [TICKET-481](open/TICKET-481-rich-input.md) | feature | prong 1 T7e · rich input: a Zed editor for an agent's prompt, Ctrl-G |
-| [TICKET-475](open/TICKET-475-shell-tests-scratch-data-dir.md) | chore | prong 1 T0 · the shell PTY tests install Marley's scripts in a scratch data directory, not the user's |
+| [TICKET-485](open/TICKET-485-starship-echo-lands-off-the-line.md) | bug | prong 1 T0 · typed text after the first character goes missing on a long starship prompt (found by #483's e2e runner) |
+| [TICKET-484](open/TICKET-484-autosuggestions.md) | feature | prong 1 T3a · autosuggestions: the newest matching command from history as ghost text, → takes it |
 
 ## Deliberate (picked explicitly, never auto-next)
 
 | Ticket | Type | Why it waits |
 |---|---|---|
+| [TICKET-475](open/TICKET-475-shell-tests-scratch-data-dir.md) | chore | prong 1 T0 · the shell PTY tests install Marley's scripts in a scratch data directory; moot while no gate runs the tests (#483), and wanted again only if they run |
 | [TICKET-466](open/TICKET-466-fish-shell-integration.md) | feature | prong 1 T0c · shell integration for fish; waits for fish on a machine that can run its tests (the dev box has none) |
 | [TICKET-446](open/TICKET-446-marley-crate-license-files.md) | chore | licensing: `LICENSE-APACHE` and `LICENSE-MIT` in every Marley crate; waits for Chad's copyright line for the MIT text |
 | [TICKET-445](open/TICKET-445-marley-release-identity.md) | chore | packaging: Marley's own keyring label, updater, app id and URL scheme; waits until Marley ships a package or needs a non-`dev` build (the `dev` channel keeps it safe until then) |

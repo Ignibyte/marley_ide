@@ -14,25 +14,17 @@ default:
 idle:
     @until ! pgrep -x cargo >/dev/null; do sleep 2; done
 
-# The gate on the change: the static gates on its scope, coverage on its Marley crates.
+# The gate on the change: every gate on its scope, and the receipt the commit needs.
 gate-diff: idle
     script/gates.sh --diff
 
-# The static gates alone, for a change with no Rust.
+# The same gates without a receipt, for a change with no Rust.
 gate-fast: idle
     script/gates.sh --fast
 
-# The full audit over every Marley crate.
-gate-full: idle
-    script/gates.sh --full
-
-# The debug `marley` binary, for a live drive.
+# The debug `marley` binary, which the e2e tests run.
 build: idle
     cargo build -p zed --bin marley
-
-# The tests of the named crates.
-test +crates: idle
-    cargo nextest run {{ prepend("-p ", crates) }}
 
 # Clippy on the named crates: every target, warnings as errors.
 clippy +crates: idle
@@ -42,7 +34,10 @@ clippy +crates: idle
 fmt +crates: idle
     cargo fmt {{ prepend("-p ", crates) }}
 
-# The live drive's capture, no input sent: Marley on a profile copy, hidden; `seed` edits the copy,
-# and OPEN in the environment names a path to open.
+# A ticket's e2e test (§7): its scenario drives the debug Marley, hidden, and shoots it.
+e2e scenario:
+    script/e2e.sh "{{ scenario }}"
+
+# One shot of the debug Marley, hidden, with no input; `seed` edits the profile copy first.
 shot name seed="":
-    SEED="{{ seed }}" script/live-shot.sh "{{ name }}"
+    NAME="{{ name }}" SEED="{{ seed }}" script/e2e.sh script/e2e/shot.sh

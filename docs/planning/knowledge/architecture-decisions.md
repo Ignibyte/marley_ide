@@ -1853,3 +1853,18 @@ when `use_system_path_prompts` is off or the project is remote. It lists through
 Rejected: a Marley picker over the project's files, because Zed's file finder cannot hand a path
 back to its caller and a fuzzy picker belongs with rich input (#481); pasting a file's contents
 instead of its path, because the agents read files themselves and a path keeps the prompt short.
+
+## AD-claude-483-e2e-visualization-tests-replace-unit-tests-001
+*decided at: 2026-09-23 · status: shipped*
+
+Chad: "We are removing unit tests from the workflow entirely with instead doing e2e
+visualization tests only". A ticket's proof is a scenario under `script/e2e/` that
+`script/e2e.sh` runs against the real debug Marley on hidden workspace 9. The scenario brings
+its own fixtures (a scratch repository, a HOME whose `.bashrc` it writes, fakes on the PATH),
+sends keys to Marley's window only through Hyprland's `send_key_state`, and shoots each step.
+The Test phase reads every shot, and the notes say what each shows. The tests already in the tree
+stay and keep building (clippy `--all-targets`, and `cargo check --all-targets` for the vendor
+copies), but no gate runs them; coverage, miri, the empty-suite gate and mutation testing
+retired. Chad's choices, asked: keep the old tests rather than delete them; scripted live
+captures rather than first building a Linux headless renderer for gpui (only macOS has one), so
+clicks stay out of reach, since a synthetic click would move the user's pointer.

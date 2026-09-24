@@ -41,9 +41,10 @@ the record of what each copy is and how it differs from upstream.
   - `src/grid/mod.rs`: `evicted_lines`, with `serde(default)`, its accessor, and the three
     places history lines are dropped (`update_history`, `scroll_up`, `clear_history`) (#462).
   - `src/grid/tests.rs`: the two `evicted_lines` tests (#462).
-- **Standalone tests:** `Cargo.lock` is the copy's own, and gate:3 runs `cargo test --locked
-  --manifest-path vendor/alacritty_terminal/Cargo.toml`. Regenerate the lockfile when the
-  copy's dependencies change.
+- **Standalone build:** `Cargo.lock` is the copy's own, and gate:2 builds the copy with its
+  tests (`cargo check --locked --all-targets --manifest-path vendor/alacritty_terminal/Cargo.toml`);
+  no gate runs them (CONSTITUTION §7). Regenerate the lockfile when the copy's dependencies
+  change.
 
 ### Re-sync when Zed moves its pin
 

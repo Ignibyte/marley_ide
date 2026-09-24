@@ -52,16 +52,17 @@ references: []
 ## UI proof
 <!-- Does this ticket change anything the user SEES or types into (a pane, a panel, the terminal, a
      keystroke or mouse handler, an affordance)? Fill with ONE of:
-       - UI-AFFECTING: the gpui driven tests (TestAppContext / VisualTestContext) that will prove it, and
-         the live drive the Test phase runs on the real app (cargo run + a screenshot through dev-box-desktop).
-       - N/A — no UI delta: <why> (first line must start "N/A"). -->
+       - UI-AFFECTING: the e2e scenario (script/e2e/<N>-<slug>.sh, run by script/e2e.sh on the real
+         debug Marley, hidden, keys to its window only) and the shot that proves each criterion (§7).
+         No unit or driven tests.
+       - N/A — no UI delta: <why> (first line must start "N/A"); its e2e run is `just shot`. -->
 
 ## Locked-In Decisions
 - D1 — …
 
 ## Acceptance Criteria (EARS)
-One observable behavior per row, with a verification method (gate exit code,
-negative smoke, or review).
+One observable behavior per row, with a verification method (a named e2e shot, the gate's
+exit code, a negative smoke, or review).
 
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
@@ -70,6 +71,6 @@ negative smoke, or review).
 ## Phase Plan
 - **P1 Plan** — this spec, and the design and test plan in the notes.
 - **P2 Code** — …; fmt and clippy clean; a review of the diff.
-- **P3 Test** — write + RUN the tests; the live drive for a UI change; `script/gates.sh --diff` green.
+- **P3 Test** — write + RUN the e2e scenario and read every shot; `script/gates.sh --diff` green.
 - **P4 Complete** — CHANGELOG and architecture docs (§21), ledger capture (§19), close the ticket,
   archive, commit.
