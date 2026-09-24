@@ -81,3 +81,61 @@
   the tests written in this pipeline (never committed), and is verified by an e2e scenario.
 - The seven negative checks had all failed as they should before the park; they belong to the
   tests that go.
+
+## Resumed under #483 (2026-09-23)
+- **The plan, amended.** The tests this pipeline wrote (`voice_tests.rs` and its additions to
+  `agent_bar_tests.rs` and `marley_workbench_tests.rs`, never committed) go, and so does what
+  only they used: `Voice::new` and the crate-visible `following`. The proof is the e2e
+  scenario in the spec's UI proof. To drive the toggle without a click, `marley::ToggleDictation`
+  (in `voice.rs`, registered on every workspace) runs the same `toggle`; without `voxtype` on
+  the PATH it says so in the workspace. The three clippy findings the #483 gate met in this
+  code (`missing_const_for_fn` on `microphone_look`, the long first doc paragraph of
+  `follow_once_drawn`, `&mut AsyncApp` in `read_status`) are fixed here.
+
+### E2E plan
+| REQ | Shot |
+|---|---|
+| 001 | `480-01-idle`: the bar with a muted microphone; `480-05-no-voxtype` (a second run, no fake): the bar without one |
+| 002 | `480-02-recording`: after `marley: toggle dictation`, the microphone red (the fake turned to recording on `record toggle`) |
+| 003 | `480-02-recording` red, `480-03-transcribing` yellow, `480-04-idle-again` muted |
+| 004 | not driven (a click): the handler's `window.focus` call is reviewed |
+| 005 | `just gate-diff` |
+
+## Phase 2 — Code, resumed (2026-09-23)
+- **Changed since the park.** The tests are gone with what only they used (`Voice::new`, the
+  crate-visible `following`). `voice::init` registers `marley::ToggleDictation` on every
+  workspace: with `voxtype` found it runs `toggle`, and without it the workspace shows "Voxtype,
+  which Marley dictates with, is not on the PATH". `microphone_look` is a `const fn`,
+  `read_status` takes `&AsyncApp`, and `follow_once_drawn`'s doc has a short first paragraph.
+  `just clippy marley_workbench` is clean on every target, the tests left in the tree included.
+- **Review.** The action reads the global and then updates only through `toggle`, outside any
+  entity update. The toggle from the palette runs where the palette gave the focus back, the
+  terminal it opened from.
+
+## Phase 3 — Test (2026-09-23)
+- **E2E** (`SHOT_DIR=<scratchpad>/e2e480 just e2e script/e2e/480-voice-input.sh`; focus report:
+  "the user's window and workspace are as they were"):
+  - `480-01-idle`: the rail's row reads "Claude Code · working"; the bar reads "Claude Code",
+    `+`, a grey microphone, "Enable Claude Code notifications", and at the right the scratch
+    folder and branch `voice`. The fake's status said idle (REQ-001, REQ-003).
+  - `480-02-recording`: after `marley: toggle dictation` from the palette, the palette closed
+    and the microphone red: only the fake's `record toggle` writes "recording" (REQ-002,
+    REQ-003).
+  - `480-03-transcribing`: after the second toggle, yellow (REQ-003).
+  - `480-04-idle-again`: grey, after the fake's delayed idle line (REQ-003).
+- **Not driven.** The click, and so its `window.focus` call (REQ-004): a click would move
+  Chad's pointer; the action runs the same `toggle`. "No microphone without Voxtype" (REQ-001's
+  second half): this box has Voxtype in `/usr/bin`, which every usable PATH includes, so no
+  scenario can hide it; the render returns early when the global's `voxtype` is `None`.
+- **Gate.** `just gate-diff`: `GATE GREEN [diff]`, 15 gates and the receipt, which matches the
+  tree.
+
+## Phase 4 — Complete (2026-09-23)
+- **Docs.** CHANGELOG (Added: voice input through Voxtype); `docs/marley_architecture/marley_workbench.md`
+  (the Voice section, the bar's order, and the note that tickets add e2e scenarios, not tests);
+  the plan's T7 row marks T7d shipped. No Zed path changed.
+- **Knowledge.** AD-claude-480-marley-drives-voxtype-and-follows-its-status-001,
+  L-claude-480-an-e2e-fake-acts-out-the-program-001. The seven negative checks of the first
+  Test run went with the tests.
+- **Brain.** Consultation de4e9df0258d4c0289bb168b9fa10e95 closed with the decision
+  `marley-drives-voxtype-and-follows-its-status`, follow-up by 2026-10-07.

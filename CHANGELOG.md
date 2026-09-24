@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Voice input through Voxtype** (#480, 2026-09-23). Where Voxtype, the dictation daemon
+  Omarchy ships, is installed, the agent bar has a microphone. Click it, or run
+  `marley: toggle dictation`, to start or stop a dictation, and Voxtype types what you said into
+  the terminal. The microphone turns red while Voxtype records and yellow while it transcribes,
+  however the dictation started, Omarchy's own keys included.
 - **Attach File** (#479, 2026-09-23). The agent bar has a `+`, Attach File, and the command
   palette has `marley: attach file`. Both open a file chooser, and the files you pick go into the
   terminal as their full paths, quoted where the shell needs it, the way dropping them on the

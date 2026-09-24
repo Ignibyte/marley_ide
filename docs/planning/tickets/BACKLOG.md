@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-480](open/TICKET-480-voice-input.md) | feature | prong 1 T7d · a microphone button that drives Voxtype (parked in Test for #483; its spec is in `queued/`) |
 | [TICKET-481](open/TICKET-481-rich-input.md) | feature | prong 1 T7e · rich input: a Zed editor for an agent's prompt, Ctrl-G |
 | [TICKET-485](open/TICKET-485-starship-echo-lands-off-the-line.md) | bug | prong 1 T0 · typed text after the first character goes missing on a long starship prompt (found by #483's e2e runner) |
 | [TICKET-484](open/TICKET-484-autosuggestions.md) | feature | prong 1 T3a · autosuggestions: the newest matching command from history as ghost text, → takes it |

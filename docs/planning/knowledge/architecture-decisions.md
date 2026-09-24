@@ -1868,3 +1868,16 @@ copies), but no gate runs them; coverage, miri, the empty-suite gate and mutatio
 retired. Chad's choices, asked: keep the old tests rather than delete them; scripted live
 captures rather than first building a Linux headless renderer for gpui (only macOS has one), so
 clicks stay out of reach, since a synthetic click would move the user's pointer.
+
+## AD-claude-480-marley-drives-voxtype-and-follows-its-status-001
+*decided at: 2026-09-23 · status: shipped*
+
+Voice input is Voxtype's, the dictation daemon Omarchy ships: Marley runs `voxtype record
+toggle` from the agent bar's microphone or `marley::ToggleDictation`, and Voxtype records,
+transcribes and types into the focused window. The microphone shows Voxtype's state from
+`voxtype status --follow --format json`, the interface Voxtype documents for bars, which also
+knows where a configured state file lives. The status is followed from the first frame that
+draws a microphone, so no process runs before an agent does, and a dictation started from
+Omarchy's keys shows too; an ended status restarts only on a toggle, never on a frame.
+Rejected: capturing audio in Marley or a hosted transcription service (Warp's way), and
+reading `$XDG_RUNTIME_DIR/voxtype/state` directly, whose path is Voxtype's configuration.

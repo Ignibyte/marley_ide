@@ -5,7 +5,8 @@
 //! takes the rows it needs from the grid; [`init`] sets it to this bar.
 //!
 //! Beside the agent, Attach File (T7c) types the paths of the files chosen in a file chooser into
-//! the terminal, as dropping the files on it does, for the agent to read.
+//! the terminal, as dropping the files on it does, for the agent to read, and the microphone
+//! (T7d) dictates through Voxtype.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -23,6 +24,7 @@ use crate::AttachFile;
 use crate::agents::cli_icon;
 use crate::blocks::focused_terminal;
 use crate::claude_plugin::{self, ClaudePlugin};
+use crate::voice::{self, Voice, VoiceState};
 
 /// Puts the agent bar under every terminal, and Attach File on every workspace for the focused
 /// terminal. [`crate::init`] calls it once, before any window opens.
@@ -143,6 +145,7 @@ fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option
         folder,
         branch,
     } = contents(context, cx)?;
+    let microphone = microphone(context, cx);
     let colors = cx.theme().colors();
     let chip = |icon: IconName, text: SharedString| {
         h_flex()
@@ -183,6 +186,7 @@ fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option
                             .color(Color::Muted),
                     )
                     .child(attach_button(context))
+                    .children(microphone)
                     .children(
                         (agent == AgentKind::Claude)
                             .then(|| claude_plugin_chip(context, cx))
@@ -226,6 +230,40 @@ fn attach_button(context: &MarleyFooterContext) -> AnyElement {
                 }),
         )
         .into_any_element()
+}
+
+/// The microphone, where Voxtype is on the PATH. It shows what Voxtype is doing, and a click
+/// puts the focus on its terminal, where Voxtype types, and starts or stops a dictation.
+fn microphone(context: &MarleyFooterContext, cx: &mut App) -> Option<AnyElement> {
+    let voice = cx.try_global::<Voice>()?;
+    let voxtype = voice.voxtype.clone()?;
+    let (color, tooltip) = microphone_look(voice.state);
+    voice::follow_once_drawn(&voxtype, cx);
+    let (workspace, focus_handle) = (context.workspace.clone(), context.focus_handle.clone());
+    Some(
+        div()
+            .debug_selector(|| "marley-microphone".into())
+            .child(
+                IconButton::new("marley-microphone", IconName::Mic)
+                    .icon_size(IconSize::Small)
+                    .icon_color(color)
+                    .tooltip(Tooltip::text(tooltip))
+                    .on_click(move |_, window, cx| {
+                        window.focus(&focus_handle, cx);
+                        voice::toggle(voxtype.clone(), workspace.clone(), cx);
+                    }),
+            )
+            .into_any_element(),
+    )
+}
+
+/// The microphone's color and tooltip while Voxtype is in `state`.
+const fn microphone_look(state: VoiceState) -> (Color, &'static str) {
+    match state {
+        VoiceState::Idle => (Color::Muted, "Dictate with Voxtype"),
+        VoiceState::Recording => (Color::Error, "Stop and transcribe"),
+        VoiceState::Transcribing => (Color::Warning, "Transcribing…"),
+    }
 }
 
 /// The chip that installs Marley's plugin for Claude Code, while the plugin is known not to be

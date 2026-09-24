@@ -199,7 +199,7 @@ async fn run_install(plugin: ClaudePlugin, cx: &AsyncApp) -> anyhow::Result<()> 
         }))
         .await?;
     if !known {
-        run(
+        crate::run_program(
             &claude,
             &[
                 OsStr::new("plugin"),
@@ -210,7 +210,7 @@ async fn run_install(plugin: ClaudePlugin, cx: &AsyncApp) -> anyhow::Result<()> 
         )
         .await?;
     }
-    run(
+    crate::run_program(
         &claude,
         &[
             OsStr::new("plugin"),
@@ -219,25 +219,6 @@ async fn run_install(plugin: ClaudePlugin, cx: &AsyncApp) -> anyhow::Result<()> 
         ],
     )
     .await
-}
-
-/// Runs `claude` with `args`, an error carrying what it printed when it fails.
-async fn run(claude: &Path, args: &[&OsStr]) -> anyhow::Result<()> {
-    let output = util::command::new_command(claude)
-        .args(args)
-        .output()
-        .await
-        .context("running `claude`")?;
-    anyhow::ensure!(
-        output.status.success(),
-        "`claude {}` failed: {}",
-        args.iter()
-            .map(|arg| arg.to_string_lossy())
-            .collect::<Vec<_>>()
-            .join(" "),
-        String::from_utf8_lossy(&output.stderr).trim()
-    );
-    Ok(())
 }
 
 #[cfg(test)]

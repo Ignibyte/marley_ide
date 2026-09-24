@@ -2455,3 +2455,14 @@ the shot depend on their machine: with a long starship prompt, typed text after 
 character never showed on the line though bash received it (TICKET-485), while a plain `$ `
 prompt echoed every key. Pin the shell for the scenario's own proof, and give what the user's
 shell exposed its own ticket and its own scenario, one that sets that prompt up on purpose.
+
+## L-claude-480-an-e2e-fake-acts-out-the-program-001
+*category: validate · topic: e2e scenarios · from: pipeline 480*
+
+A scenario proves what a click-only button does through an action that does the same, run from
+the command palette (`press "CTRL SHIFT" p`, `type_text "<action words>"`, Enter), and through a
+fake that acts the program out so the result shows on screen. #480's fake `voxtype` on
+Marley's PATH follows a status file, and its `record toggle` moves the file on as Voxtype does:
+recording, then transcribing, then idle a few seconds later. The microphone's colors in the
+shots then prove that the toggle ran and that the status was followed, with nothing read from a
+log.

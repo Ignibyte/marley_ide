@@ -29,10 +29,14 @@ pub mod marley_workbench_tests;
 pub mod notifications;
 mod rail;
 pub mod routing;
+pub mod voice;
 
 use std::collections::{HashMap, HashSet};
+use std::ffi::OsStr;
+use std::path::Path;
 
 use agent_ui::AgentPanel;
+use anyhow::Context as _;
 use fs::Fs;
 use gpui::{
     AnyWindowHandle, App, AppContext as _, BorrowAppContext as _, Context, Entity, EntityId,
@@ -73,6 +77,9 @@ actions!(
         /// Chooses files and types their paths into the focused terminal, as dropping them does.
         #[derive(Eq)]
         AttachFile,
+        /// Starts or stops a dictation with Voxtype, which types the text where the focus is.
+        #[derive(Eq)]
+        ToggleDictation,
     ]
 );
 
@@ -165,6 +172,7 @@ pub fn init(cx: &mut App) {
     agent_bar::init(cx);
     claude_plugin::init(cx);
     notifications::init(cx);
+    voice::init(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action_renderer(|div, _, _, cx| {
             div.capture_action(cx.listener(layout_preset::<UseClassicLayout>))
@@ -176,6 +184,30 @@ pub fn init(cx: &mut App) {
         .on_action(|_: &UseZedLayout, cx: &mut App| write_layout(MarleyLayout::Zed, cx))
         .observe_global::<SettingsStore>(layout_setting_changed)
         .detach();
+}
+
+/// Runs `program` with `args`, an error carrying what it printed when it fails. The agent bar's
+/// adapters run `claude` and `voxtype` with it.
+pub(crate) async fn run_program(program: &Path, args: &[&OsStr]) -> anyhow::Result<()> {
+    let name = program
+        .file_name()
+        .unwrap_or(program.as_os_str())
+        .to_string_lossy();
+    let output = util::command::new_command(program)
+        .args(args)
+        .output()
+        .await
+        .context(format!("running `{name}`"))?;
+    anyhow::ensure!(
+        output.status.success(),
+        "`{name} {}` failed: {}",
+        args.iter()
+            .map(|arg| arg.to_string_lossy())
+            .collect::<Vec<_>>()
+            .join(" "),
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
+    Ok(())
 }
 
 /// Binds the Marley keymap as a default source.
