@@ -3,22 +3,74 @@
 //! The agent is at its left, and at its right the folder the agent works in and that folder's
 //! git branch, where Warp puts them. Zed's `TerminalView` draws whatever [`MarleyTerminalFooter`] renders below its grid, and
 //! takes the rows it needs from the grid; [`init`] sets it to this bar.
+//!
+//! Beside the agent, Attach File (T7c) types the paths of the files chosen in a file chooser into
+//! the terminal, as dropping the files on it does, for the agent to read.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use gpui::{AnyElement, App, SharedString, Window};
+use gpui::{AnyElement, App, Context, PathPromptOptions, SharedString, WeakEntity, Window};
 use marley_agent::AgentKind;
-use terminal_view::{MarleyFooterContext, MarleyTerminalFooter};
-use ui::{Button, Icon, IconName, IconSize, Label, LabelSize, prelude::*};
+use project::DirectoryLister;
+use terminal_view::{MarleyFooterContext, MarleyTerminalFooter, TerminalView};
+use ui::{Button, Icon, IconButton, IconName, IconSize, Label, LabelSize, Tooltip, prelude::*};
+use util::ResultExt as _;
 use util::paths::PathExt as _;
+use workspace::Workspace;
 
+use crate::AttachFile;
 use crate::agents::cli_icon;
+use crate::blocks::focused_terminal;
 use crate::claude_plugin::{self, ClaudePlugin};
 
-/// Puts the agent bar under every terminal. [`crate::init`] calls it once.
+/// Puts the agent bar under every terminal, and Attach File on every workspace for the focused
+/// terminal. [`crate::init`] calls it once, before any window opens.
 pub fn init(cx: &mut App) {
     cx.set_global(MarleyTerminalFooter(Arc::new(render)));
+    cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
+        workspace.register_action(|workspace, _: &AttachFile, window, cx| {
+            if let Some(view) = focused_terminal(workspace, window, cx) {
+                attach(view.downgrade(), workspace, window, cx);
+            }
+        });
+    })
+    .detach();
+}
+
+/// Asks for files, in the desktop's chooser or Zed's own path prompt as the settings and the
+/// project say, and types the chosen paths into `view`'s terminal; a cancelled chooser types
+/// nothing.
+fn attach(
+    view: WeakEntity<TerminalView>,
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    // The project's lister, so a remote project's chooser lists the machine its terminals run
+    // on.
+    let lister = DirectoryLister::Project(workspace.project().clone());
+    let paths = workspace.prompt_for_open_path(
+        PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: true,
+            prompt: Some(SharedString::new_static("Attach")),
+        },
+        lister,
+        window,
+        cx,
+    );
+    cx.spawn_in(window, async move |_, cx| {
+        let Some(paths) = paths.await.log_err().flatten() else {
+            return;
+        };
+        view.update_in(cx, |view, window, cx| {
+            view.add_paths_to_terminal(&paths, window, cx);
+        })
+        .log_err();
+    })
+    .detach();
 }
 
 /// What the bar shows for one terminal.
@@ -130,6 +182,7 @@ fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option
                             .size(LabelSize::Small)
                             .color(Color::Muted),
                     )
+                    .child(attach_button(context))
                     .children(
                         (agent == AgentKind::Claude)
                             .then(|| claude_plugin_chip(context, cx))
@@ -152,6 +205,27 @@ fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option
             )
             .into_any_element(),
     )
+}
+
+/// Attach File, before the plugin's chip so it stays put when the chip goes.
+fn attach_button(context: &MarleyFooterContext) -> AnyElement {
+    let (view, workspace) = (context.view.clone(), context.workspace.clone());
+    div()
+        .debug_selector(|| "marley-attach-file".into())
+        .child(
+            IconButton::new("marley-attach-file", IconName::Plus)
+                .icon_size(IconSize::Small)
+                .icon_color(Color::Muted)
+                .tooltip(Tooltip::for_action_title("Attach File", &AttachFile))
+                .on_click(move |_, window, cx| {
+                    workspace
+                        .update(cx, |workspace, cx| {
+                            attach(view.clone(), workspace, window, cx);
+                        })
+                        .log_err();
+                }),
+        )
+        .into_any_element()
 }
 
 /// The chip that installs Marley's plugin for Claude Code, while the plugin is known not to be

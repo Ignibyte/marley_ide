@@ -13,6 +13,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Attach File** (#479, 2026-09-23). The agent bar has a `+`, Attach File, and the command
+  palette has `marley: attach file`. Both open a file chooser, and the files you pick go into the
+  terminal as their full paths, quoted where the shell needs it, the way dropping them on the
+  terminal types them. Claude Code and the other agents read a file from its path.
 - **Enable Claude Code notifications** (#482, 2026-09-23). While Claude Code runs in a terminal,
   the agent bar offers "Enable Claude Code notifications". It installs a small Marley plugin
   into your Claude Code with its own `claude plugin` commands. The plugin's hooks ask Claude Code

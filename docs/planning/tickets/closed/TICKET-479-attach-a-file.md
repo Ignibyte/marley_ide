@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #479 (feature, prong 1: T7c)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/479-attach-a-file.spec.md
+- **Pipeline doc:** ../../pipeline/completed/479-attach-a-file.spec.md
 - **Source ticket:** ../../../marley/three-prong-plan.md (T7)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Warp's agent bar has a + that attaches a file to the prompt. For a CLI agent that comes down to

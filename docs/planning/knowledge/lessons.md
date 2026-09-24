@@ -2421,3 +2421,14 @@ threads, and every test that runs the crate's `init` then panics with the schedu
 non-determinism error. A closure that only runs in production, such as a `which` fallback that
 every test replaces with a fake, leaves a function no test calls: gate:4 counts it, and
 `cargo llvm-cov report --json` names it; move such work where a test does run it.
+
+## L-claude-479-drive-a-file-chooser-through-the-test-platforms-path-prompt-001
+*category: validate · topic: gpui tests · from: pipeline 479*
+
+gpui's test platform queues every system path prompt (`prompt_for_paths`). A test answers it with
+`cx.simulate_path_prompt_response(|options| …)`: the closure sees the `PathPromptOptions` and
+returns the chosen paths, or `None` for a cancel. It panics when several paths answer a prompt
+that allows one, and `cx.did_prompt_for_paths()` says whether one is waiting. The default
+settings keep `use_system_path_prompts` on, so in tests a local project's
+`Workspace::prompt_for_open_path` takes this path. There is no need to turn the setting off and
+inject a prompt with `set_prompt_for_open_path`, which would also leave the default path untested.

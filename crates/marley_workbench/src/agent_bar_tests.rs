@@ -7,8 +7,8 @@ use std::time::Duration;
 use gpui::{Entity, Focusable as _, Modifiers, TestAppContext, VisualTestContext};
 use terminal::Terminal;
 use terminal_view::{MarleyFooterContext, TerminalView};
-use workspace::Workspace;
 use workspace::notifications::NotificationId;
+use workspace::{SplitDirection, Workspace};
 
 use super::*;
 use crate::marley_workbench_tests::{
@@ -80,6 +80,7 @@ async fn the_bar_shows_the_agent_its_folder_and_its_branch(cx: &mut TestAppConte
     );
     for selector in [
         "marley-agent-bar",
+        "marley-attach-file",
         "marley-agent-bar-folder",
         "marley-agent-bar-branch",
     ] {
@@ -320,4 +321,92 @@ async fn a_failed_install_keeps_the_chip_and_says_why(cx: &mut TestAppContext) {
         )
     });
     assert_eq!((errors, toast), (1, false));
+}
+
+/// A window whose focused terminal runs a stand-in `claude`, once the bar shows, with the PTY's
+/// log emptied of the spaces that brought the bar up.
+async fn claude_to_attach_to<'a>(
+    folder: &Path,
+    bin: &Path,
+    cx: &'a mut TestAppContext,
+) -> (
+    Entity<Workspace>,
+    Entity<Terminal>,
+    &'a mut VisualTestContext,
+) {
+    cx.executor().allow_parking();
+    init_test(cx);
+    cx.update(init);
+    let (workspace, cx) = workspace_over(folder, cx).await;
+    let (terminal, view) = terminal_running("exec claude 60", folder, bin, &workspace, cx).await;
+    wait_for_the_bar(&terminal, &view, &workspace, cx).await;
+    written(&terminal, cx);
+    (workspace, terminal, cx)
+}
+
+/// What the terminal sent its PTY since the last look.
+fn written(terminal: &Entity<Terminal>, cx: &mut VisualTestContext) -> Vec<Vec<u8>> {
+    terminal.update(cx, |terminal, _| terminal.take_pty_write_log())
+}
+
+fn click_attach_file(cx: &mut VisualTestContext) {
+    let button = cx.debug_bounds("marley-attach-file").expect("Attach File");
+    cx.simulate_click(button.center(), Modifiers::none());
+    assert!(cx.did_prompt_for_paths(), "the chooser opens");
+}
+
+#[gpui::test]
+async fn attach_file_types_the_chosen_paths_as_a_drop_does(cx: &mut TestAppContext) {
+    let (_folder, folder) = scratch_folder();
+    let bin = fake_claude_bin();
+    let (_, terminal, cx) = claude_to_attach_to(&folder, bin.path(), cx).await;
+    click_attach_file(cx);
+    let spaced = folder.join("notes on the plan.md");
+    let plain = folder.join("src/main.rs");
+    cx.simulate_path_prompt_response(|options| {
+        assert!(
+            options.files && options.multiple && !options.directories,
+            "{options:?}"
+        );
+        Some(vec![spaced.clone(), plain.clone()])
+    });
+    redraw(cx);
+    // Each path whole, quoted when it needs to be, with a space either side, in one write.
+    let expected = format!(" '{}' {} ", spaced.display(), plain.display());
+    assert_eq!(written(&terminal, cx), [expected.into_bytes()]);
+}
+
+#[gpui::test]
+async fn a_cancelled_chooser_types_nothing(cx: &mut TestAppContext) {
+    let (_folder, folder) = scratch_folder();
+    let bin = fake_claude_bin();
+    let (_, terminal, cx) = claude_to_attach_to(&folder, bin.path(), cx).await;
+    click_attach_file(cx);
+    cx.simulate_path_prompt_response(|_| None);
+    redraw(cx);
+    assert_eq!(written(&terminal, cx), Vec::<Vec<u8>>::new());
+}
+
+#[gpui::test]
+async fn the_action_attaches_to_the_focused_terminal_only(cx: &mut TestAppContext) {
+    let (_folder, folder) = scratch_folder();
+    let bin = fake_claude_bin();
+    let (workspace, terminal, cx) = claude_to_attach_to(&folder, bin.path(), cx).await;
+    cx.dispatch_action(AttachFile);
+    let chosen = folder.join("README.md");
+    cx.simulate_path_prompt_response(|_| Some(vec![chosen.clone()]));
+    redraw(cx);
+    assert_eq!(
+        written(&terminal, cx),
+        [format!(" {} ", chosen.display()).into_bytes()]
+    );
+
+    // An empty pane beside the terminal takes the focus, and the action asks for nothing.
+    workspace.update_in(cx, |workspace, window, cx| {
+        let pane = workspace.active_pane().clone();
+        workspace.split_pane(pane, SplitDirection::Right, window, cx);
+    });
+    cx.dispatch_action(AttachFile);
+    redraw(cx);
+    assert!(!cx.did_prompt_for_paths());
 }

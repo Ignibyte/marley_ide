@@ -1,7 +1,7 @@
 ---
 pipeline_id: 999f8226-1633-4c31-9d3f-3deae99085df
-ticket: docs/planning/tickets/open/TICKET-479-attach-a-file.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote
+ticket: docs/planning/tickets/closed/TICKET-479-attach-a-file.md
+status: Phase 4 — Complete PASS
 title: Attach a file to an agent's prompt
 type: feature
 slice: prong 1 T7c

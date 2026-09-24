@@ -60,7 +60,7 @@ fn scroll_to_block(
 
 /// The terminal view that holds focus: the active item of a center pane or of a Terminal Panel
 /// pane.
-fn focused_terminal(
+pub(crate) fn focused_terminal(
     workspace: &Workspace,
     window: &Window,
     cx: &App,

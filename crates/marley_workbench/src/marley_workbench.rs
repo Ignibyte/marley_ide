@@ -70,6 +70,9 @@ actions!(
         /// Scrolls the focused terminal to the start of the next block, or to its live screen.
         #[derive(Eq)]
         NextBlock,
+        /// Chooses files and types their paths into the focused terminal, as dropping them does.
+        #[derive(Eq)]
+        AttachFile,
     ]
 );
 

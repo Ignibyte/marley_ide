@@ -313,8 +313,13 @@ alike.
   `marley_agent::agent_kind_of`, the folder from `working_directory`, and the branch of the
   innermost repository in the project's git store that holds the folder (`branch_for`). No agent,
   no bar.
-- The bar draws `agents::cli_icon` and the agent's name at the left, and the folder (`~` for
-  home) and branch at the right; #478 to #481 add its buttons.
+- The bar draws `agents::cli_icon`, the agent's name, Attach File and #482's chip at the left,
+  and the folder (`~` for home) and branch at the right.
+- Attach File (#479): the bar's `+` and `marley::AttachFile`, which `init` registers on every
+  workspace for the focused terminal (`blocks::focused_terminal`), both call `attach`. It opens
+  `Workspace::prompt_for_open_path` for files, several at once, with the project's lister, so a
+  remote project's chooser lists the machine its terminals run on, and types the chosen paths
+  with `TerminalView::add_paths_to_terminal`, as a drop does. A cancel types nothing.
 
 ## Notifications (`src/notifications.rs`, #478)
 
@@ -373,6 +378,16 @@ in a temporary directory. The harness in `marley_workbench_tests.rs` holds what 
 files use: the display-only terminal factory, `programs_in`, `search_agents_in`,
 `use_display_only_terminals`, `add_agent_panel` and `configure_agents`. The keymap's hook
 has its own test in `crates/zed/src/zed.rs`, `test_reload_keymaps_binds_the_marley_keymap`.
+
+`src/agent_bar_tests.rs` (the agent bar, #482's chip and Attach File, 10 tests) and
+`src/notifications_tests.rs` (5) run a real PTY whose shell `exec`s `claude`, a link to `sleep`
+on a scratch PATH (`fake_claude_bin`), in a real scratch folder that the project's FakeFs
+repository covers, on branch `main`. The tty echoes the spaces a test sends, so the terminal
+reads its foreground process again. The chip's tests install with a fake `claude` that logs its
+arguments. Attach File's tests click the `+` and answer the test platform's path prompt with
+`simulate_path_prompt_response`, then read the terminal's PTY write log.
+`src/claude_plugin_tests.rs` (4) writes the plugin into a scratch directory and runs its hook
+script.
 
 ## Known limits
 

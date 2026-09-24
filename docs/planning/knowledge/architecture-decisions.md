@@ -1840,3 +1840,16 @@ global and would reach every terminal; hooks writing to `/dev/tty` themselves, w
 `terminalSequence` does in step with Claude Code's own drawing. `terminalSequence` is in Claude
 Code 2.1.281's hook schema but not its public docs: if notifications stop after an upgrade, check
 that first.
+
+## AD-claude-479-attach-file-types-paths-through-zeds-path-prompt-001
+*decided at: 2026-09-23 · status: shipped*
+
+Attach File types the chosen files' paths into the terminal as text, through
+`TerminalView::add_paths_to_terminal`, the drop handler's own. That serves any CLI agent and any
+shell, and a program that asked for bracketed paste gets the paths bracketed. The files come from
+`Workspace::prompt_for_open_path`: the desktop's chooser by default, or Zed's own path prompt
+when `use_system_path_prompts` is off or the project is remote. It lists through the project's
+`DirectoryLister`, so a remote project's chooser shows the machine its terminals run on.
+Rejected: a Marley picker over the project's files, because Zed's file finder cannot hand a path
+back to its caller and a fuzzy picker belongs with rich input (#481); pasting a file's contents
+instead of its path, because the agents read files themselves and a path keeps the prompt short.
