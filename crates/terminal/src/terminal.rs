@@ -730,6 +730,9 @@ pub enum Event {
     SelectionsChanged,
     NewNavigationTarget(Option<MaybeNavigationTarget>),
     Open(MaybeNavigationTarget),
+    // Marley: a desktop notification a program asked for with OSC 9, which gives no title, or
+    // OSC 777 (#478).
+    MarleyNotification { title: Option<String>, body: String },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -791,6 +794,8 @@ pub(crate) enum TerminalBackendEvent {
     ChildExit(ExitStatus),
     // Marley: a shell hook found in the PTY stream (#462).
     ShellHook(alacritty_terminal::marley_hooks::ShellHook),
+    // Marley: a desktop notification a program asked for (#478).
+    Notification(marley_terminal::Notification),
 }
 
 impl fmt::Debug for TerminalBackendEvent {
@@ -811,6 +816,8 @@ impl fmt::Debug for TerminalBackendEvent {
             Self::ChildExit(status) => write!(f, "ChildExit({status})"),
             // Marley: the shell hook event.
             Self::ShellHook(hook) => write!(f, "ShellHook({hook:?})"),
+            // Marley: #478.
+            Self::Notification(notification) => write!(f, "Notification({notification:?})"),
         }
     }
 }
@@ -1786,6 +1793,13 @@ impl Terminal {
             }
             // Marley: each shell hook opens or finishes a block at its absolute line (#464).
             TerminalBackendEvent::ShellHook(hook) => self.apply_shell_hook(hook, cx),
+            // Marley: #478.
+            TerminalBackendEvent::Notification(notification) => {
+                cx.emit(Event::MarleyNotification {
+                    title: notification.title,
+                    body: notification.body,
+                })
+            }
         }
     }
 

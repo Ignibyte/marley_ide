@@ -316,6 +316,16 @@ alike.
 - The bar draws `agents::cli_icon` and the agent's name at the left, and the folder (`~` for
   home) and branch at the right; #478 to #481 add its buttons.
 
+## Notifications (`src/notifications.rs`, #478)
+
+- `init` names the app `Marley` for the desktop's notifications, answers their clicks, and
+  subscribes every new `TerminalView` to its terminal's `Event::MarleyNotification`.
+- `notify` skips the focused terminal of the active window; otherwise it posts a
+  `SystemNotification` tagged by the view, titled by the escape or, for an OSC 9, by the tab.
+  The view has already set its bell, which marks its tab and its rail row.
+- `show_sender` answers a click: it activates the view's window, its workspace in the
+  multi-workspace and its item, and clears the bell, as the rail's `activate_terminal` does.
+
 ## Tests
 
 `src/marley_workbench_tests.rs` (the switch, the keymap loader, persistence and the docks across

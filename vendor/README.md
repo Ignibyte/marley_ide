@@ -30,11 +30,14 @@ the record of what each copy is and how it differs from upstream.
     workspace to inherit from (#461); the `marley_dcs` path dependency (#462).
   - `src/marley_hooks.rs`, all Marley's: `ShellHook`, `HookPosition` and
     `advance_with_hooks`, which takes Marley's shell hook frames out of each read and reports
-    each one with the grid position where it fell (#462).
+    each one with the grid position where it fell (#462), and feeds the bytes the parser sees to
+    `marley_dcs::NotificationScanner`, reporting each notification escape (#478).
   - `src/lib.rs`: `pub mod marley_hooks` (#462).
-  - `src/event.rs`: the `Event::ShellHook` variant and its `Debug` arm (#462).
+  - `src/event.rs`: the `Event::ShellHook` variant and its `Debug` arm (#462); the
+    `Event::Notification` variant and its `Debug` arm (#478).
   - `src/event_loop.rs`: the scanner in `State`, and `advance_with_hooks` in place of
-    `parser.advance` in `pty_read` (#462).
+    `parser.advance` in `pty_read` (#462); the notification scanner in `State`, passed to it
+    (#478).
   - `src/grid/mod.rs`: `evicted_lines`, with `serde(default)`, its accessor, and the three
     places history lines are dropped (`update_history`, `scroll_up`, `clear_history`) (#462).
   - `src/grid/tests.rs`: the two `evicted_lines` tests (#462).

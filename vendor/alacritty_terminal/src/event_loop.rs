@@ -155,6 +155,7 @@ where
             crate::marley_hooks::advance_with_hooks(
                 &mut state.parser,
                 &mut state.hooks,
+                &mut state.notifications,
                 &mut **terminal,
                 &buf[..unprocessed],
                 &self.event_proxy,
@@ -411,6 +412,8 @@ pub struct State {
     parser: ansi::Processor,
     /// Marley: finds shell hook frames before the parser sees them.
     hooks: marley_dcs::DcsScanner,
+    /// Marley: finds the desktop-notification escapes in what the parser sees (#478).
+    notifications: marley_dcs::NotificationScanner,
 }
 
 impl State {

@@ -59,6 +59,9 @@ pub enum Event {
 
     /// Marley: a shell hook frame found in the PTY stream, and where it fell.
     ShellHook(crate::marley_hooks::ShellHook),
+
+    /// Marley: a desktop notification a program asked for with OSC 9 or OSC 777 (#478).
+    Notification(marley_dcs::Notification),
 }
 
 impl Debug for Event {
@@ -77,8 +80,9 @@ impl Debug for Event {
             Event::Bell => write!(f, "Bell"),
             Event::Exit => write!(f, "Exit"),
             Event::ChildExit(status) => write!(f, "ChildExit({status:?})"),
-            // Marley: the shell hook event.
+            // Marley: the shell hook event, and the notification (#478).
             Event::ShellHook(hook) => write!(f, "ShellHook({hook:?})"),
+            Event::Notification(notification) => write!(f, "Notification({notification:?})"),
         }
     }
 }

@@ -11,6 +11,9 @@
 //! hook ([`MAX_PAYLOAD`]). The parser behind the scanner then sees them as it would have without
 //! it. Decoding a frame's payload is `marley_terminal`'s.
 //!
+//! [`NotificationScanner`] finds the desktop-notification escapes, OSC 9 and OSC 777, in the same
+//! stream (#478).
+//!
 //! The crate has no dependencies, so the terminal emulator Marley carries,
 //! `vendor/alacritty_terminal`, can use it without a dependency cycle.
 
@@ -28,6 +31,10 @@
         shared_string_from_str_literal
     )
 )]
+
+mod notification;
+
+pub use notification::{MAX_NOTIFICATION, Notification, NotificationScanner};
 
 /// The selectors of Marley's hook frames: `h` (hex), `p` (plain) and `q` (C-style escapes).
 ///

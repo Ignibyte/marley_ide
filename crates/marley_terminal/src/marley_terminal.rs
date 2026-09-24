@@ -70,7 +70,7 @@ pub use mouse::{MouseEvent, MouseModes, MouseMods, mouse_report};
 pub use session::{ApplyHookError, SessionError, SessionEvent, SessionOptions, TerminalSession};
 pub use session_id::SessionId;
 // The scanner's frame, which `decode_frame` reads.
-pub use marley_dcs::RawDcs;
+pub use marley_dcs::{Notification, RawDcs};
 pub use styled::{StyledLine, StyledRun, coalesce_row};
 
 // The alacritty ANSI types carried in the public styled model — re-exported so consumers

@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 use agent_settings::AgentSettings;
 use fs::FakeFs;
@@ -11,6 +12,7 @@ use serde_json::json;
 use settings::MarleySettingsContent;
 use terminal::terminal_settings::{AlternateScroll, CursorShape, TerminalSettings};
 use terminal::{Terminal, TerminalBuilder};
+use terminal_view::TerminalView;
 use util::path;
 use util::paths::PathStyle;
 use workspace::Sidebar as _;
@@ -986,4 +988,118 @@ async fn a_hidden_agent_panel_moves_without_moving_anything_else(cx: &mut TestAp
     assert_eq!(docks(&workspace, cx)[2], right);
     set_layout(MarleyLayout::Zed, cx);
     assert_eq!(docks(&workspace, cx)[2], right);
+}
+
+// PTY helpers shared by the agent bar's tests and the notifications' (#477, #478).
+
+/// A scratch folder holding `claude`, a link to `sleep`, so a script can become an agent by
+/// name, as `claude` is started from the PATH.
+pub(crate) fn fake_claude_bin() -> tempfile::TempDir {
+    let path = std::env::var_os("PATH").expect("a PATH");
+    let sleep = std::env::split_paths(&path)
+        .map(|dir| dir.join("sleep"))
+        .find(|candidate| candidate.is_file())
+        .expect("sleep on the PATH");
+    let bin = tempfile::tempdir().expect("a scratch directory");
+    std::os::unix::fs::symlink(sleep, bin.path().join("claude")).expect("the link");
+    bin
+}
+
+/// A real scratch folder, by its canonical path, which a process reports as its directory.
+pub(crate) fn scratch_folder() -> (tempfile::TempDir, PathBuf) {
+    let folder = tempfile::tempdir().expect("a scratch folder");
+    let path = folder.path().canonicalize().expect("its canonical path");
+    (folder, path)
+}
+
+/// A window whose project is `folder`, which is also a fake repository on branch `main`.
+pub(crate) async fn workspace_over<'a>(
+    folder: &Path,
+    cx: &'a mut TestAppContext,
+) -> (Entity<Workspace>, &'a mut VisualTestContext) {
+    let fs = FakeFs::new(cx.executor());
+    fs.insert_tree(folder, json!({ ".git": {}, "src": {} }))
+        .await;
+    fs.set_branch_name(&folder.join(".git"), Some("main"));
+    let project = Project::test(Arc::<FakeFs>::clone(&fs), [folder], cx).await;
+    cx.update(|cx| <dyn Fs>::set_global(fs, cx));
+    let (multi_workspace, cx) =
+        cx.add_window_view(|window, cx| MultiWorkspace::test_new(project, window, cx));
+    let workspace =
+        multi_workspace.read_with(cx, |multi_workspace, _| multi_workspace.workspace().clone());
+    cx.run_until_parked();
+    (workspace, cx)
+}
+
+/// A terminal view in `workspace`'s center over a real PTY that runs `script` in `folder`, with
+/// `bin` first on the PATH.
+pub(crate) async fn terminal_running(
+    script: &str,
+    folder: &Path,
+    bin: &Path,
+    workspace: &Entity<Workspace>,
+    cx: &mut VisualTestContext,
+) -> (Entity<Terminal>, Entity<TerminalView>) {
+    let program = "/bin/sh".to_string();
+    let args = vec!["-c".to_string(), script.to_string()];
+    let inherited = std::env::var_os("PATH").expect("a PATH");
+    let path = std::env::join_paths(
+        std::iter::once(bin.to_path_buf()).chain(std::env::split_paths(&inherited)),
+    )
+    .expect("a PATH");
+    let mut env = collections::HashMap::default();
+    env.insert(
+        "PATH".to_string(),
+        path.into_string().expect("a UTF-8 PATH"),
+    );
+    let builder = cx
+        .update(|_, cx| {
+            TerminalBuilder::new(
+                Some(folder.to_path_buf()),
+                terminal::TerminalMode::task(task::SpawnInTerminal {
+                    command: Some(program.clone()),
+                    args: args.clone(),
+                    ..Default::default()
+                }),
+                task::Shell::WithArguments {
+                    program,
+                    args,
+                    title_override: None,
+                },
+                env,
+                CursorShape::default(),
+                AlternateScroll::On,
+                None,
+                vec![],
+                Duration::ZERO,
+                false,
+                0,
+                cx,
+                vec![],
+                PathStyle::local(),
+            )
+        })
+        .await
+        .expect("the terminal starts");
+    let terminal = cx.update(|_, cx| cx.new(|cx| builder.subscribe(cx)));
+    let view = workspace.update_in(cx, |workspace, window, cx| {
+        let view = cx.new(|cx| {
+            TerminalView::new(
+                terminal.clone(),
+                workspace.weak_handle(),
+                None,
+                workspace.project().downgrade(),
+                window,
+                cx,
+            )
+        });
+        workspace.add_item_to_active_pane(Box::new(view.clone()), None, true, window, cx);
+        view
+    });
+    (terminal, view)
+}
+
+pub(crate) fn redraw(cx: &mut VisualTestContext) {
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
 }

@@ -23,14 +23,26 @@ stay there without a cycle. Pure, with no dependencies, MIT OR Apache-2.0.
 - An escape inside a Marley payload that is not `ESC \` stays in the payload, as the gpui era's
   scanner had it.
 
+## Notifications (#478)
+
+- `NotificationScanner` (`src/notification.rs`) watches the same stream for the
+  desktop-notification escapes: OSC 9, iTerm2's, and OSC 777 `notify`, rxvt's and Ghostty's,
+  ended by BEL or `ESC \`. It only reports: every byte still reaches the parser, which ignores
+  both escapes.
+- An OSC 9 whose text starts with a number and a `;` is one of ConEmu's commands, such as the
+  `9;4` progress, and is not a notification. CAN, SUB and a new escape cancel an unfinished one;
+  one longer than `MAX_NOTIFICATION` (4 KiB) is dropped. Control characters are stripped from
+  the text.
+
 ## Consumers
 
 - The vendored `alacritty_terminal`'s event loop, through `marley_hooks::advance_with_hooks`:
   each passthrough run is parsed, and each hook is reported as `Event::ShellHook` with the grid
-  position where it fell (#462).
+  position where it fell (#462); the same runs go through a `NotificationScanner`, and each
+  notification is reported as `Event::Notification` (#478).
 - `marley_terminal`'s `TerminalSession::ingest`, the gpui era's own PTY engine.
 
 ## Tests
 
 `src/marley_dcs.rs`, twelve unit tests, among them every split point of a read that carries
-output, a frame and more output.
+output, a frame and more output; `src/notification.rs`, six more for the notification escapes.

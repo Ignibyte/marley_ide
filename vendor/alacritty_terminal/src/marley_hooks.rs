@@ -5,12 +5,14 @@
 //! frames out before the parser sees them (vte drops every DCS unread anyway) and reports each
 //! one as an [`Event::ShellHook`] with the grid position where it fell. The bytes before a frame
 //! are parsed before its position is taken, so a command's output and the hooks around it keep
-//! their order even when one read carries them all.
+//! their order even when one read carries them all. The bytes the parser sees also go through a
+//! [`NotificationScanner`], which reports each desktop-notification escape as an
+//! [`Event::Notification`] (#478).
 //!
 //! This file is Marley's (MIT OR Apache-2.0), carried in the vendored crate; `vendor/README.md`
 //! lists every Marley hunk.
 
-use marley_dcs::{DcsEvent, DcsScanner};
+use marley_dcs::{DcsEvent, DcsScanner, NotificationScanner};
 
 use crate::event::{Event, EventListener};
 use crate::grid::Dimensions;
@@ -64,17 +66,24 @@ impl HookPosition {
 }
 
 /// Parses `bytes` into `term`, taking Marley's hook frames out and reporting each one to
-/// `listener` as an [`Event::ShellHook`] at the position where it fell.
+/// `listener` as an [`Event::ShellHook`] at the position where it fell, and each notification
+/// escape as an [`Event::Notification`].
 pub(crate) fn advance_with_hooks<T: EventListener, L: EventListener>(
     parser: &mut ansi::Processor,
     scanner: &mut DcsScanner,
+    notifications: &mut NotificationScanner,
     term: &mut Term<T>,
     bytes: &[u8],
     listener: &L,
 ) {
     for event in scanner.feed(bytes) {
         match event {
-            DcsEvent::Passthrough(bytes) => parser.advance(term, &bytes),
+            DcsEvent::Passthrough(bytes) => {
+                parser.advance(term, &bytes);
+                for notification in notifications.feed(&bytes) {
+                    listener.send_event(Event::Notification(notification));
+                }
+            },
             DcsEvent::Hook(frame) => listener.send_event(Event::ShellHook(ShellHook {
                 final_byte: frame.final_byte,
                 payload: frame.payload,
@@ -94,14 +103,21 @@ mod tests {
     use crate::term::Config;
     use crate::term::test::TermSize;
 
-    /// Keeps every shell hook it is sent.
+    /// Keeps every shell hook and notification it is sent.
     #[derive(Default)]
-    struct Recorder(RefCell<Vec<ShellHook>>);
+    struct Recorder {
+        hooks: RefCell<Vec<ShellHook>>,
+        notifications: RefCell<Vec<marley_dcs::Notification>>,
+    }
 
     impl EventListener for Recorder {
         fn send_event(&self, event: Event) {
-            if let Event::ShellHook(hook) = event {
-                self.0.borrow_mut().push(hook);
+            match event {
+                Event::ShellHook(hook) => self.hooks.borrow_mut().push(hook),
+                Event::Notification(notification) => {
+                    self.notifications.borrow_mut().push(notification)
+                },
+                _ => {},
             }
         }
     }
@@ -116,6 +132,7 @@ mod tests {
     struct Session {
         parser: ansi::Processor,
         scanner: DcsScanner,
+        notifications: NotificationScanner,
         term: Term<VoidListener>,
         hooks: Recorder,
     }
@@ -126,6 +143,7 @@ mod tests {
             Self {
                 parser: ansi::Processor::new(),
                 scanner: DcsScanner::default(),
+                notifications: NotificationScanner::default(),
                 term: Term::new(config, &TermSize::new(columns, lines), VoidListener),
                 hooks: Recorder::default(),
             }
@@ -135,6 +153,7 @@ mod tests {
             advance_with_hooks(
                 &mut self.parser,
                 &mut self.scanner,
+                &mut self.notifications,
                 &mut self.term,
                 bytes,
                 &self.hooks,
@@ -142,7 +161,11 @@ mod tests {
         }
 
         fn hooks(&self) -> Vec<ShellHook> {
-            self.hooks.0.borrow().clone()
+            self.hooks.hooks.borrow().clone()
+        }
+
+        fn notifications(&self) -> Vec<marley_dcs::Notification> {
+            self.hooks.notifications.borrow().clone()
         }
 
         fn line_text(&self, line: i32) -> String {
@@ -187,6 +210,17 @@ mod tests {
         assert_eq!(hooks[0].payload, b"precmd;exit=0");
         assert_eq!(hooks[0].position.absolute_line(), 1);
         assert_eq!(session.line_text(0), "x");
+    }
+
+    #[test]
+    fn a_notification_escape_is_reported_and_its_text_around_it_parsed() {
+        let mut session = Session::new(20, 5, 100);
+        session.read(b"a\x1b]777;notify;Build;done\x07b");
+        assert_eq!(session.notifications(), [marley_dcs::Notification {
+            title: Some("Build".to_string()),
+            body: "done".to_string(),
+        }]);
+        assert_eq!(session.line_text(0), "ab");
     }
 
     #[test]

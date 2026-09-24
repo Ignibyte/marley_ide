@@ -1,16 +1,17 @@
 ---
 pipeline_id: 8cbb63e6-f011-4624-9c29-560572687153
 ticket: docs/planning/tickets/open/TICKET-478-terminal-notifications.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote
-title: Desktop notifications from a terminal, and from Claude Code
+status: Phase 4 — Complete PASS
+title: Desktop notifications from a terminal
 type: feature
 slice: prong 1 T7b
 references: [docs/marley/three-prong-plan.md, docs/planning/pipeline/queued/477-agent-bar.spec.md]
 ---
 
 ## Title
-The terminal reads the desktop-notification escapes, Marley shows them when you are not looking
-at that terminal, and a chip in the agent bar makes Claude Code send them.
+The terminal reads the desktop-notification escapes, and Marley shows them when you are not
+looking at that terminal. Split at promotion: the chip that makes Claude Code send them is
+#482.
 
 ## Scope
 ### In
@@ -24,16 +25,12 @@ at that terminal, and a chip in the agent bar makes Claude Code send them.
   (freedesktop on Linux, mako on this box) unless that terminal is in front of the user (the
   window active and the terminal the visible item). Activating it focuses the terminal. The
   rail's row takes the waiting state it shows for a bell. `set_app_identity` names Marley.
-- **Claude Code:** while Claude Code runs and Marley's plugin is not installed, the agent bar
-  (#477) shows "Enable Claude Code notifications". The chip writes a plugin and a local
-  marketplace under Marley's data directory, then runs `claude plugin marketplace add <dir>`
-  and `claude plugin install marley@marley`. The plugin's `Notification` and `Stop` hooks answer
-  with a `terminalSequence` holding OSC 777, which Claude Code writes to its terminal, and only
-  inside Marley's terminals.
+- **The mark:** the view sets `has_bell` for a notification, without the bell's sound, so its
+  tab shows the dot and the rail's row the waiting state a bell gives them.
 
 ### Out (explicitly deferred)
+- The chip and Marley's plugin for Claude Code (#482).
 - OSC 99, kitty's richer protocol; sounds; in-app toasts.
-- The other CLI agents' hooks (Codex, Gemini); the escapes from any program already work.
 
 ## Reference (§20)
 - **Warp:** agent notifications (https://docs.warp.dev/agent-platform/capabilities/agent-notifications/):
@@ -57,23 +54,21 @@ at that terminal, and a chip in the agent bar makes Claude Code send them.
   (`vendor/alacritty_terminal/src/marley_hooks.rs`) as the template; the rail's waiting state.
 
 ## UI proof
-UI-AFFECTING: desktop notifications, a chip in the agent bar.
-- **Driven tests:** a real PTY prints OSC 777 while another item is in front: the test
-  platform shows one notification with its title and body; in front, none; answering it focuses
-  the terminal. With a fake `claude` in the foreground and no plugin, the chip shows; clicking it
-  runs a fake `claude plugin …` with the right arguments and writes the plugin.
-- **Unit tests:** the scanner (both escapes, both ends, split reads, the progress form, the cap);
-  the hook script's answer inside and outside Marley.
+UI-AFFECTING: desktop notifications, and the terminal's tab mark.
+- **Driven tests:** a real PTY prints OSC 777 while another item has the focus: the test
+  platform shows one notification with its title and body, and the view has its bell set; with
+  the terminal focused in the active window, none; answering the notification focuses the
+  terminal.
+- **Unit tests:** the scanner (both escapes, both ends, split reads, the progress form, the
+  cap); the event loop's report of it; the terminal's event.
 - **Live drive:** a terminal prints OSC 777 on the hidden workspace; `makoctl history` shows it.
 
 ## Locked-In Decisions
 - D1 — Read the escapes other terminals use, so any program can notify, Claude Code included.
 - D2 — A notification is display only; activating it focuses a terminal and sends nothing
   (PR-claude-474-a-hook-frame-is-output-until-its-nonce-says-otherwise-001).
-- D3 — Claude Code's side is a plugin, not a change to `preferredNotifChannel`, which is global
-  and would reach other terminals.
-- D4 — Only when the terminal is not in front of the user, as Warp shows desktop alerts only in
-  the background.
+- D3 — Only when the terminal is not in front of the user, meaning the focused terminal in the
+  active window, as Warp shows desktop alerts only in the background.
 
 ## Acceptance Criteria (EARS)
 | # | EARS requirement (`shall`) | Verify |
@@ -82,14 +77,11 @@ UI-AFFECTING: desktop notifications, a chip in the agent bar.
 | REQ-002 | WHILE the terminal is in front of the user, Marley shall show no desktop notification for it | driven |
 | REQ-003 | WHEN the user activates the notification, Marley shall focus that terminal | driven |
 | REQ-004 | The scanner shall find an escape split across reads and ignore the OSC 9;4 progress form and escapes longer than its cap | unit |
-| REQ-005 | WHILE Claude Code runs and Marley's plugin is not installed, the agent bar shall offer the chip; WHEN it is clicked, Marley shall install the plugin through `claude plugin` | driven |
-| REQ-006 | The plugin's hooks shall answer with an OSC 777 terminal sequence inside Marley's terminals and with nothing elsewhere | unit |
-| REQ-007 | The diff gate shall be green | `just gate-diff` |
+| REQ-005 | WHEN a notification arrives, the terminal's tab and rail row shall show the mark a bell gives them, without its sound | driven |
+| REQ-006 | The diff gate shall be green | `just gate-diff` |
 
 ## Phase Plan
-- **P1 Plan** — this spec; promotion re-verifies the seams, the plugin layout and the hook
-  schema, and asks the brain. Split in two if the plugin half outgrows one ticket.
-- **P2 Code** — the scanner, the event, the notification, the plugin and the chip; ledger rows
-  first.
+- **P1 Plan** — this spec; promotion re-verifies the seams and asks the brain.
+- **P2 Code** — the scanner, the event, the notification, the mark; ledger rows first.
 - **P3 Test** — unit and driven tests, negative checks, the live drive, the gate.
 - **P4 Complete** — docs, ledger, close, archive, commit.

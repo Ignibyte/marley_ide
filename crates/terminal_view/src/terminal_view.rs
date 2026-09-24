@@ -891,6 +891,12 @@ impl TerminalView {
         &self.terminal
     }
 
+    // Marley: the workspace the view belongs to, which a notification's click shows it in
+    // (#478).
+    pub fn marley_workspace(&self) -> &WeakEntity<Workspace> {
+        &self.workspace
+    }
+
     pub fn set_block_below_cursor(
         &mut self,
         block: BlockProperties,
@@ -1164,6 +1170,13 @@ fn subscribe_for_terminal_events(
                     if let TerminalBell::System = TerminalSettings::get_global(cx).bell {
                         window.play_system_bell();
                     }
+                    cx.emit(Event::Wakeup);
+                }
+
+                // Marley: a notification marks the terminal as a bell does, without its sound;
+                // Marley's workbench shows the notification (#478).
+                Event::MarleyNotification { .. } => {
+                    terminal_view.has_bell = true;
                     cx.emit(Event::Wakeup);
                 }
 

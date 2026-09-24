@@ -2268,6 +2268,8 @@ impl AgentPanel {
                 | TerminalEvent::SelectionsChanged
                 | TerminalEvent::NewNavigationTarget(_)
                 | TerminalEvent::Open(_) => {}
+                // Marley: Marley's workbench shows it for every terminal view (#478).
+                TerminalEvent::MarleyNotification { .. } => {}
             },
         );
 

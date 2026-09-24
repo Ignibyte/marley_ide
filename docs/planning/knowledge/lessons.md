@@ -2380,3 +2380,22 @@ a stand-in `claude` linked to `sleep`, is not seen until something else is writt
 test, send a key the tty echoes (a space) until the process shows; in a live capture, make the
 stand-in print, as a real agent redraws its screen. Start the stand-in by name from a PATH entry,
 or with `exec -a claude`: the command name comes from argv, and a path in argv[0] gives none.
+
+## L-claude-478-a-new-terminal-event-reaches-every-exhaustive-match-001
+*category: code · topic: Zed's terminal events · from: pipeline 478*
+
+`terminal::Event` is matched exhaustively outside the terminal crates: `TerminalView`'s
+subscription and the Agent Panel's (`agent_ui/src/agent_panel.rs`) both name every variant. A new
+variant breaks `agent_ui`, which a `cargo check -p terminal_view` never builds. Search for a
+variant only that enum has (`NewNavigationTarget`) to find every match before adding one, and
+give each Zed file its ledger row.
+
+## L-claude-478-omarchys-notifications-go-to-quickshell-001
+*category: validate · topic: the live drive · from: pipeline 478*
+
+On this box `org.freedesktop.Notifications` belongs to Omarchy's Quickshell shell
+(`quickshell -n -p /usr/share/omarchy/shell`), not mako, and `makoctl` is not installed. To see a
+notification Marley posts from the hidden workspace, run
+`busctl --user monitor org.freedesktop.Notifications` during the shot: it shows the `Notify` call
+and the id the server returns, which `CloseNotification` then takes down again, so a test leaves
+nothing on Chad's screen.

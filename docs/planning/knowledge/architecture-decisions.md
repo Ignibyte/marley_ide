@@ -1813,3 +1813,16 @@ shows while the foreground process is a known CLI agent, as Warp's toolbelt does
 comes from Zed's git store, the innermost repository holding the agent's folder. Rejected: the
 bar inside `terminal_view` (Marley's code in a Zed crate); an overlay on the terminal's last
 rows (it would hide the agent's own footer); a bar for every terminal (a setting, if wanted).
+
+## AD-claude-478-the-terminal-reads-the-notification-escapes-other-terminals-read-001
+*decided at: 2026-09-23 · status: shipped*
+
+Marley's terminal reads the desktop-notification escapes other terminals read, OSC 9 (iTerm2's)
+and OSC 777 `notify` (rxvt's and Ghostty's), so any program can ask for a notification and
+Claude Code can with its own channels or hooks. A scanner in `marley_dcs` watches the bytes the
+vendored event loop hands the parser, which ignores both escapes, and reports
+`Event::Notification`; Zed's `Terminal` passes it on as `Event::MarleyNotification`, and its view
+marks itself as a bell does, without the sound. `marley_workbench::notifications` shows it through
+gpui's `show_system_notification` unless the view is the focused terminal of the active window,
+and a click shows that terminal. Rejected: OSC 99 for now (kitty's richer protocol); in-app
+toasts; a notification for the focused terminal, which the user is already looking at.

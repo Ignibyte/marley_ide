@@ -123,7 +123,7 @@ Marley shipped as `#433`.
 | T4 | Tasks and runnables as Blocks; failed Blocks into diagnostics | M |
 | T5 | Stage-two rendering: native header rows, PS1 hidden, Warp density | L |
 | T6 | Completions in the prompt (paths, history, tasks) and command-line colouring | M |
-| T7 | CLI agents in the terminal, after Warp's agent toolbelt: the agent bar with the folder and branch (#477, T7a, shipped); desktop notifications from OSC 9 and 777 and a Claude Code plugin that sends them (#478, T7b); Attach File (#479, T7c); voice through Voxtype (#480, T7d); rich input, a Zed editor for the agent's prompt and the agent-first half of T3 (#481, T7e) | M |
+| T7 | CLI agents in the terminal, after Warp's agent toolbelt: the agent bar with the folder and branch (#477, T7a, shipped); desktop notifications from OSC 9 and 777 (#478, T7b, shipped) and a Claude Code plugin that sends them (#482, T7b); Attach File (#479, T7c); voice through Voxtype (#480, T7d); rich input, a Zed editor for the agent's prompt and the agent-first half of T3 (#481, T7e) | M |
 
 Acceptance for T0 is the Marley integration test moved onto Zed's terminal: a real shell
 emits the hook stream and a Finished block with exit 0 and the output "hi" appears.
