@@ -3,7 +3,11 @@
 #
 # - `serve_site <dir>` serves $E2E_WORK/<dir> on 127.0.0.1 at a free port and prints the port.
 #   A page served at 127.0.0.1 that embeds one served at `localhost` embeds another site, so
-#   Chromium draws it as a cross-site iframe, in a process of its own.
+#   Chromium draws it as a cross-site iframe, in a process of its own. Each site also answers
+#   `/slow`, a page that takes three seconds to come.
+# - `offline_chromium`, called in `setup`, has Marley start a Chromium that reaches no host but
+#   `localhost` and 127.0.0.1 (its resolver rules map IP literals too): a search or a typed
+#   name fails in the page, and nothing leaves the machine.
 # - `agent <command> ...` runs a stand-in agent that attaches to the run's Chromium the way any
 #   CDP client can, through the `DevToolsActivePort` in Marley's profile, and drives the page the
 #   Browser tab shows: `navigate <url>`, and `highlight <selector> <seconds>`, which keeps the
@@ -22,8 +26,8 @@ browser_unit() {
 
 serve_site() {
   local site=$1 port=
-  python3 -u -m http.server 0 --bind 127.0.0.1 --directory "$E2E_WORK/$site" \
-    >"$E2E_WORK/$site.log" 2>&1 &
+  [[ -f $E2E_WORK/serve.py ]] || write_server
+  python3 -u "$E2E_WORK/serve.py" "$E2E_WORK/$site" >"$E2E_WORK/$site.log" 2>&1 &
   echo "$!" >>"$E2E_WORK/servers"
   for _ in $(seq 50); do
     port=$(grep -oE 'port [0-9]+' "$E2E_WORK/$site.log" | head -1 | cut -d' ' -f2)
@@ -32,6 +36,20 @@ serve_site() {
   done
   [[ -n $port ]] || { echo "serve_site: $site did not start" >&2; return 1; }
   echo "$port"
+}
+
+offline_chromium() {
+  local binary=
+  for binary in /usr/lib/chromium/chromium "$(command -v chromium)" "$(command -v chromium-browser)"; do
+    [[ -x $binary ]] && break
+  done
+  [[ -x $binary ]] || { echo "offline_chromium: no Chromium" >&2; return 1; }
+  cat >"$E2E_WORK/chromium" <<SH
+#!/bin/sh
+exec "$binary" --host-resolver-rules="MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1" "\$@"
+SH
+  chmod +x "$E2E_WORK/chromium"
+  export MARLEY_CHROMIUM=$E2E_WORK/chromium
 }
 
 agent() {
@@ -44,6 +62,43 @@ browser_teardown() {
   if [[ -f $E2E_WORK/servers ]]; then
     xargs kill <"$E2E_WORK/servers" 2>/dev/null || true
   fi
+}
+
+write_server() {
+  cat >"$E2E_WORK/serve.py" <<'PY'
+# A loopback server for the browser's e2e scenarios: a directory's files, and /slow, a page that
+# answers after three seconds.
+import http.server
+import sys
+import time
+
+directory = sys.argv[1]
+
+
+class Handler(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=directory, **kwargs)
+
+    def do_GET(self):
+        if self.path.split('?')[0] != '/slow':
+            return super().do_GET()
+        time.sleep(3)
+        body = b'<!doctype html><title>Slow page</title><p>This page took three seconds.</p>'
+        try:
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            # The browser stopped waiting.
+            pass
+
+
+server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+print(f'port {server.server_address[1]}', flush=True)
+server.serve_forever()
+PY
 }
 
 write_agent() {

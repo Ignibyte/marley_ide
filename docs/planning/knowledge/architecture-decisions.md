@@ -1924,3 +1924,20 @@ attached to the same Chromium share one page. The probe and #488's run confirmed
 screencast route (plan D12), so the CEF fallback stays unused. Rejected: an installed login
 service (Chad chose "Marley starts it"); a fixed debugging port (profiles would collide, the
 e2e run's with Chad's); a hub per tab (an agent's page and the user's would part).
+
+## AD-claude-490-the-browser-tab-draws-its-own-chrome-and-dialogs-001
+*decided at: 2026-09-25 · status: shipped*
+
+The Browser tab's chrome is Marley's, over Chromium's Page domain: an address bar that is a
+Zed single-line editor with three rules (a known scheme as typed; a host over `http` for
+loopback and `https` otherwise; else a DuckDuckGo search), back and forward from
+`Page.getNavigationHistory`, reload that turns into stop while the main frame loads, and the
+URL a navigation goes to shown until it commits or ends. JavaScript dialogs, which headless
+Chromium does not draw, are a card over the page in the tab (Zed's `AlertModal`), naming the
+host that asks, and a navigation answers an open dialog with Cancel first, as Chrome closes a
+page's dialog when the page is left. The browser's e2e scenarios run an offline Chromium
+(`offline_chromium`: host-resolver rules that let only `localhost` and `127.0.0.1` through),
+so a search or a typed name fails in the page and nothing leaves the machine. Rejected: a
+window-wide modal for dialogs (the rest of Marley would wait on one page); leaving dialogs to
+an agent or to CDP defaults (a page would hang with nothing on the screen); a search engine
+setting now (the `marley` settings block has no browser section yet).

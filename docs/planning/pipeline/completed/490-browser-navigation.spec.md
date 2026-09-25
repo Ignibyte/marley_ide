@@ -1,7 +1,7 @@
 ---
 pipeline_id: 6988c870-dbe1-443c-82e1-f67b3c2543ea
-ticket: docs/planning/tickets/open/TICKET-490-browser-navigation.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-490-browser-navigation.md
+status: Phase 4 — Complete PASS
 title: "B1a: The address bar and navigation"
 type: feature
 slice: prong 3 B1a
@@ -64,9 +64,12 @@ URL, host and search, in their simplest form.
 UI-AFFECTING. `script/e2e/490-browser-navigation.sh` with `COMPOSITOR=sway` (#487). Fixtures:
 a loopback HTTP server (a small python3 script, so one path can answer slowly) serving page A
 (a link to B), page B (it counts its loads in `sessionStorage`), a dialogs page (buttons for
-alert, confirm and prompt that print their answers) and `/slow` (three seconds). Shots:
-`490-01-typed-url`, `490-02-link`, `490-03-back`, `490-04-forward-reload`, `490-05-loading`,
-`490-06-search`, `490-07-alert`, `490-08-prompt-answered`, `490-09-agent-navigated`.
+alert, confirm and prompt that print their answers) and `/slow` (three seconds), and a Chromium
+that resolves no host but the loopback ones. Shots: `490-00-address-selected`,
+`490-01-typed-url`, `490-02-link`, `490-03-back`, `490-03b-forward`, `490-04a-host`,
+`490-04-forward-reload`, `490-06b-restored`, `490-05-loading`, `490-05b-stopped`,
+`490-06-search`, `490-07-alert`, `490-08a-prompt`, `490-08-prompt-answered`,
+`490-09-agent-navigated`.
 
 ## Locked-In Decisions
 - D1 — The address bar is a Zed `Editor`, so it edits like every other field in Marley (Vim

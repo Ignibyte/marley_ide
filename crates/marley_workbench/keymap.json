@@ -32,6 +32,42 @@
     }
   },
   {
+    // The Browser tab's keys, as Chrome binds its own. While the tab has the focus they win over
+    // Zed's workspace bindings for the same keys (Ctrl-R opens a recent project, F5 debugs).
+    "context": "MarleyBrowser",
+    "bindings": {
+      "ctrl-l": "marley::FocusAddressBar",
+      "alt-left": "marley::BrowserBack",
+      "alt-right": "marley::BrowserForward",
+      "ctrl-r": "marley::BrowserReload",
+      "f5": "marley::BrowserReload"
+    }
+  },
+  {
+    // The address bar: Enter goes, Escape gives the page its URL and the focus back.
+    "context": "MarleyAddressBar > Editor",
+    "bindings": {
+      "enter": "marley::GoToAddress",
+      "escape": "marley::RestoreAddress"
+    }
+  },
+  {
+    // A page's JavaScript dialog: Enter answers OK and Escape Cancel, from the card or from a
+    // prompt's field.
+    "context": "MarleyBrowserDialog",
+    "bindings": {
+      "enter": "marley::AnswerDialog",
+      "escape": "marley::DismissDialog"
+    }
+  },
+  {
+    "context": "MarleyBrowserDialog > Editor",
+    "bindings": {
+      "enter": "marley::AnswerDialog",
+      "escape": "marley::DismissDialog"
+    }
+  },
+  {
     // The rail's filter and switcher, as Zed's Threads Sidebar binds its own. The rail's context
     // also reaches the popovers it opens, so `!Picker` leaves the keys out of the add-project
     // picker.

@@ -1876,3 +1876,13 @@ the debug build, where `image`, `zune-jpeg` and `marley_browser`'s pixel loop ra
 a key waited behind one decode or two. The debug build is the one Chad runs. Fixed by building
 `image`, `zune-core`, `zune-jpeg` and `marley_browser` at `opt-level = 3` in
 `[profile.dev.package]`, as Zed does for its own hot crates: median 20 ms, 95th percentile 36 ms.
+
+## F-claude-490-the-offline-resolver-rule-mapped-the-loopback-address-001
+*severity: low · found in: pipeline 490's Test phase · class: an e2e fixture that blocks what it serves*
+
+`offline_chromium` started the run's Chromium with `--host-resolver-rules="MAP * ~NOTFOUND,
+EXCLUDE localhost"`, on the belief that an IP literal never reaches the host resolver. It does:
+the rule mapped `127.0.0.1` too, and every page of the first run, the fixture's own site
+included, came back as Chromium's "This site can't be reached" with `ERR_NAME_NOT_RESOLVED`.
+Fixed by excluding `127.0.0.1` beside `localhost`. The run still showed one thing working:
+the address bar kept the typed URL over the error page.

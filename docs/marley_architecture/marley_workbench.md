@@ -388,7 +388,7 @@ alike.
   `known_marketplaces.json` has `marley`, then `claude plugin install marley@marley`, and shows a
   toast or the error. The agent bar's chip calls it.
 
-## The Browser tab (`src/browser.rs`, #488)
+## The Browser tab (`src/browser.rs`, #488 to #490)
 
 - `BrowserHub` is one entity per app, behind a global: the connection to Marley's Chromium
   (`marley_browser`), the page every Browser tab shows, its newest frame, title and URL, and
@@ -423,6 +423,29 @@ alike.
   key goes out, so a cut cannot empty it first. As `EntityInputHandler`, the tab turns a
   preedit into the page's composition and a commit into inserted text. The hub sends input in
   the order it came, keeps the held buttons, and times the first frame after each press or key.
+- **Navigation (#490).** A toolbar sits over the page: back and forward (`IconButton`s, disabled
+  at the ends of the history), reload, which is a stop button while the main frame loads, and
+  the address bar, a single-line `Editor` in a `MarleyAddressBar` key context that shows the
+  page's URL, or where a navigation it asked for is going, whenever it does not have the focus.
+  While the main frame loads, a 2-pixel accent bar runs over the toolbar's lower edge, drawn
+  absolutely so a load never resizes the page. The hub follows the main frame's
+  `frameStartedLoading` and `frameStoppedLoading` (its frame id is the target's), its
+  `frameNavigated` and `navigatedWithinDocument`, which read the history again, and the page's
+  dialogs; it emits `BrowserEvent` (`PageInfoChanged`, `DialogOpened`, `DialogClosed`). The
+  page gets keys only while its own focus handle has the focus, so the address bar and a
+  prompt's field keep theirs. The keys live in `keymap.json`: `MarleyBrowser` binds Ctrl-L
+  (`marley::FocusAddressBar`), Alt-Left and Alt-Right (`BrowserBack`, `BrowserForward`), and
+  Ctrl-R and F5 (`BrowserReload`), which beat Zed's workspace bindings for those keys while the
+  tab has the focus; `MarleyAddressBar > Editor` binds Enter (`GoToAddress`) and Escape
+  (`RestoreAddress`).
+- **Dialogs (#490).** A JavaScript dialog is Zed's `AlertModal` over an occluding layer on the
+  page, in a `MarleyBrowserDialog` key context: "<host> says" and the message, a single-line
+  field with the default for `prompt`, Cancel (not for `alert`) and OK; `beforeunload` reads
+  "Leave this page?" with Leave. Enter answers OK and Escape Cancel, from the card or the field
+  (`AnswerDialog`, `DismissDialog`). The dialog takes the focus only from inside the tab, and
+  the tab's focus goes to it while the page waits; a navigation, back, forward or reload
+  answers an open dialog with Cancel first, as Chrome closes a page's dialog when the page is
+  left.
 
 ## Tests
 

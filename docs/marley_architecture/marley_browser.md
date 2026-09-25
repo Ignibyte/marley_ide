@@ -66,6 +66,25 @@ for.
 - The dev profile builds `image`, `zune-core`, `zune-jpeg` and this crate at `opt-level = 3`:
   unoptimized, a 1100 by 900 frame took 130 ms to decode, and a key waited behind it.
 
+## Navigation and dialogs (`src/address.rs`, `src/page.rs`, #490)
+
+- `address::url_for` turns what the address bar holds into a URL: text with a scheme Chromium
+  navigates to (`http`, `https`, `file`, `about`, `data`, `chrome`, `view-source`) as typed; a
+  host with its port and path (`localhost` or a name under it, an IPv4 address, a bracketed IPv6
+  address, or a name with a dot whose last label is not a number) over `http` when it is
+  loopback and `https` otherwise; anything else as `https://duckduckgo.com/?q=` and the
+  form-encoded text. A typed `javascript:` URL is no known scheme, so it is searched for.
+- `Page` navigates (`Page.navigate`, whose `errorText` becomes an error; the call answers at the
+  commit, so a slow page holds it), reloads, stops, reads the session history
+  (`NavigationHistory`, whose `entry_at(offset)` names the entry back or forward) and moves to an
+  entry, and answers a JavaScript dialog (`Page.handleJavaScriptDialog`, with a prompt's text).
+- `JavaScriptDialog` is `Page.javascriptDialogOpening`'s event: the frame's URL, the message,
+  the kind (`alert`, `confirm`, `prompt`, `beforeunload`) and a prompt's default; `origin()` is
+  the host and port the Browser tab's card names as asking. Headless Chromium draws no dialog,
+  and the page's script waits until one is answered.
+- A failed load commits Chromium's error page, whose `frameNavigated` URL is
+  `chrome-error://chromewebdata/`; the URL that failed is `unreachableUrl`, which the tab shows.
+
 ## What the probe answered (2026-09-24)
 
 A key dispatched over CDP reaches a frame in 6 to 7 ms; frames come at the size the device

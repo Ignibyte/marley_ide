@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Browsing in the Browser tab** (#490, 2026-09-25). A toolbar runs across the top of the
+  Browser tab: back and forward, reload (a stop button while a page loads, with a thin bar under
+  the toolbar), and an address bar that takes a URL, a host such as `localhost:3000` (loopback
+  hosts load over http, others over https), or anything else as a DuckDuckGo search. Ctrl+L puts
+  the focus in the address bar with its text selected; Escape gives the page its URL and the
+  focus back; Alt+Left and Alt+Right go back and forward; Ctrl+R and F5 reload. A page's alert,
+  confirm or prompt opens as a card over the page, naming the site that asks, since headless
+  Chromium draws none: Enter answers OK and Escape Cancel. The address bar follows every
+  navigation, a link's or an agent's.
 - **Typing and clicking in the Browser tab** (#489, 2026-09-24). With the Browser tab focused,
   the page takes the mouse, the wheel and the keyboard as in Chromium: clicks, double clicks and
   right clicks where you make them, drags that keep going when the pointer leaves the tab, the

@@ -2565,3 +2565,31 @@ topmost element when the release comes, so `mouseup` lands on it, and `click`, `
 `contextmenu` go to the common ancestor instead of the target. In #489's first run it looked
 exactly like a lost release; logging every mouse event on the page showed Marley's release
 arriving.
+
+## L-claude-490-page-navigate-answers-at-the-commit-001
+*category: build · topic: CDP navigation · from: pipeline 490*
+
+`Page.navigate` answers once the navigation commits or fails, not when it starts: a page whose
+response takes three seconds holds the call for three seconds, and a stopped navigation answers
+with `errorText` `net::ERR_ABORTED`. A client can keep "where the page is going" from the call
+until its answer (or the main frame's `frameNavigated`) and show it meanwhile, as an omnibox
+does; only a timed-out call leaves the navigation running.
+
+## L-claude-490-a-failed-load-commits-chromiums-error-page-001
+*category: build · topic: CDP navigation · from: pipeline 490*
+
+A navigation that fails (a name that does not resolve, a refused connection) commits Chromium's
+error page: `Page.frameNavigated` reports the main frame's `url` as
+`chrome-error://chromewebdata/` and the URL that failed as `unreachableUrl`. An address bar that
+reads `url` shows the internal page; read `unreachableUrl` first.
+
+## L-claude-490-a-view-that-forwards-keys-sees-its-editors-keys-001
+*category: build · topic: gpui key dispatch · from: pipeline 490*
+
+A view that sends its keys somewhere else from `on_key_down` (the Browser tab sends them to the
+page) gets its child editors' keys too: a key typed in the address bar bubbles through the
+tab's listener after the editor has handled it. Gate the forwarding on the view's own handle,
+`focus_handle.is_focused(window)`, not `contains_focused`. gpui's `handle_input` already
+registers an input handler only for the exactly focused handle, so text reaches the editor
+alone. #481's rich input solves the same problem the other way round, stopping the keys at the
+editor's container.

@@ -10788,6 +10788,7 @@ dependencies = [
  "sha2",
  "smol",
  "thiserror 2.0.17",
+ "url",
  "util",
  "which",
 ]

@@ -1,4 +1,5 @@
-//! One page of the browser, attached as a flat session: its viewport and its screencast.
+//! One page of the browser, attached as a flat session: its viewport and its screencast, its
+//! navigation and history, and the JavaScript dialogs it opens.
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -73,6 +74,84 @@ pub struct FrameMetadata {
     /// When the frame was swapped, in seconds since the epoch.
     #[serde(default)]
     pub timestamp: Option<f64>,
+}
+
+/// The page's session history, as `Page.getNavigationHistory` reports it.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NavigationHistory {
+    /// The index of the entry the page shows.
+    pub current_index: usize,
+    /// The entries, oldest first.
+    pub entries: Vec<HistoryEntry>,
+}
+
+/// One entry of the session history.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct HistoryEntry {
+    /// The number [`Page::go_to_history_entry`] takes.
+    pub id: i64,
+    /// The entry's URL.
+    pub url: String,
+    /// The entry's title.
+    #[serde(default)]
+    pub title: String,
+}
+
+impl NavigationHistory {
+    /// The entry `offset` steps from the one the page shows, -1 back and 1 forward, with its
+    /// index.
+    #[must_use]
+    pub fn entry_at(&self, offset: isize) -> Option<(usize, &HistoryEntry)> {
+        let index = self.current_index.checked_add_signed(offset)?;
+        self.entries.get(index).map(|entry| (index, entry))
+    }
+}
+
+/// A JavaScript dialog the page opened, as `Page.javascriptDialogOpening` reports it. Headless
+/// Chromium draws none, and the page's script waits until one is answered.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JavaScriptDialog {
+    /// The URL of the frame that opened it.
+    pub url: String,
+    /// Its message.
+    pub message: String,
+    /// Which dialog it is.
+    #[serde(rename = "type")]
+    pub kind: DialogKind,
+    /// The text a `prompt` starts with.
+    #[serde(default)]
+    pub default_prompt: String,
+}
+
+impl JavaScriptDialog {
+    /// The host, with its port, of the frame that opened the dialog, which the dialog names as
+    /// the one asking; none for a page with no host, such as `about:blank`.
+    #[must_use]
+    pub fn origin(&self) -> Option<String> {
+        let url = url::Url::parse(&self.url).ok()?;
+        let host = url.host_str()?;
+        Some(
+            url.port()
+                .map_or_else(|| host.to_string(), |port| format!("{host}:{port}")),
+        )
+    }
+}
+
+/// The kinds of JavaScript dialog.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DialogKind {
+    /// `alert`: a message and OK.
+    Alert,
+    /// `confirm`: a message, OK and Cancel.
+    Confirm,
+    /// `prompt`: a message, a field for the answer, OK and Cancel.
+    Prompt,
+    /// The page asks before it is left.
+    #[serde(rename = "beforeunload")]
+    BeforeUnload,
 }
 
 impl Page {
@@ -254,6 +333,83 @@ impl Page {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_string())
+    }
+
+    /// Navigates the page to `url`. Chromium answers once the navigation commits or fails.
+    ///
+    /// # Errors
+    ///
+    /// When the call fails, or the navigation did (Chromium's `errorText`: a stopped one is
+    /// `net::ERR_ABORTED`).
+    pub async fn navigate(&self, url: &str) -> Result<(), CdpError> {
+        let answer = self.call("Page.navigate", json!({ "url": url })).await?;
+        match answer.get("errorText").and_then(Value::as_str) {
+            Some(error) if !error.is_empty() => Err(CdpError::Protocol {
+                method: "Page.navigate".to_string(),
+                message: error.to_string(),
+            }),
+            _ => Ok(()),
+        }
+    }
+
+    /// Loads the page again.
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::call`].
+    pub async fn reload(&self) -> Result<(), CdpError> {
+        self.call("Page.reload", json!({})).await.map(drop)
+    }
+
+    /// Stops the page's loading.
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::call`].
+    pub async fn stop_loading(&self) -> Result<(), CdpError> {
+        self.call("Page.stopLoading", json!({})).await.map(drop)
+    }
+
+    /// The page's session history.
+    ///
+    /// # Errors
+    ///
+    /// When the call fails or its answer is not a history.
+    pub async fn history(&self) -> Result<NavigationHistory, CdpError> {
+        let answer = self.call("Page.getNavigationHistory", json!({})).await?;
+        serde_json::from_value(answer)
+            .map_err(|error| CdpError::Unexpected(format!("the page's history: {error}")))
+    }
+
+    /// Moves the page to the history entry `id`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::call`].
+    pub async fn go_to_history_entry(&self, id: i64) -> Result<(), CdpError> {
+        self.call("Page.navigateToHistoryEntry", json!({ "entryId": id }))
+            .await
+            .map(drop)
+    }
+
+    /// Answers the page's JavaScript dialog: OK when `accept`, else Cancel, with
+    /// `prompt_text` as a `prompt`'s answer.
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::call`]; a page with no dialog open answers with an error.
+    pub async fn answer_dialog(
+        &self,
+        accept: bool,
+        prompt_text: Option<&str>,
+    ) -> Result<(), CdpError> {
+        let mut params = json!({ "accept": accept });
+        if let (Some(text), Value::Object(fields)) = (prompt_text, &mut params) {
+            fields.insert("promptText".into(), Value::from(text));
+        }
+        self.call("Page.handleJavaScriptDialog", params)
+            .await
+            .map(drop)
     }
 
     /// Acknowledges frame `frame`, which lets Chromium send the next: an unacknowledged stream

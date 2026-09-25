@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #490 (feature, prong 3 B1a)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/490-browser-navigation.spec.md
+- **Pipeline doc:** ../../pipeline/completed/490-browser-navigation.spec.md
 - **Source ticket:** docs/marley/three-prong-plan.md, prong 3 B1
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The Browser tab gets the chrome a person needs to browse: an address bar (a Zed single-line

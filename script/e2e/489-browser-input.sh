@@ -11,10 +11,11 @@ compositor sway
 # shellcheck source=script/e2e/browser-fixture.sh
 . script/e2e/browser-fixture.sh
 
-# The page's top left in the 1600x1000 window: right of the rail, under the tab bar (488's
-# shots). A target at (x, y) in the page is at (PAGE_X + x, PAGE_Y + y) in the window.
+# The page's top left in the 1600x1000 window: right of the rail, under the tab bar and the
+# toolbar (#490's shots). A target at (x, y) in the page is at (PAGE_X + x, PAGE_Y + y) in the
+# window.
 PAGE_X=260
-PAGE_Y=67
+PAGE_Y=109
 
 setup() {
   local port_b

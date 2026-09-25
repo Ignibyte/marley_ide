@@ -101,6 +101,30 @@ actions!(
         /// first time.
         #[derive(Eq)]
         OpenBrowser,
+        /// Puts the focus in the Browser tab's address bar, with its text selected.
+        #[derive(Eq)]
+        FocusAddressBar,
+        /// Goes to what the address bar holds: a URL, a host, or a search.
+        #[derive(Eq)]
+        GoToAddress,
+        /// Puts the page's URL back in the address bar and gives the page the focus.
+        #[derive(Eq)]
+        RestoreAddress,
+        /// Goes back in the Browser tab's history.
+        #[derive(Eq)]
+        BrowserBack,
+        /// Goes forward in the Browser tab's history.
+        #[derive(Eq)]
+        BrowserForward,
+        /// Loads the Browser tab's page again.
+        #[derive(Eq)]
+        BrowserReload,
+        /// Answers the page's dialog with OK.
+        #[derive(Eq)]
+        AnswerDialog,
+        /// Answers the page's dialog with Cancel.
+        #[derive(Eq)]
+        DismissDialog,
     ]
 );
 

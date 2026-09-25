@@ -7,11 +7,17 @@
 //! newest frame and frees each frame from the window's GPU atlas two paints after it was first
 //! drawn, as Zed's screen-share view does, since the window may present the last frame again.
 //!
-//! Input (B0b, #489) goes to the page over CDP while the tab has the focus: the mouse and the
+//! Input (B0b, #489) goes to the page over CDP while the page has the focus: the mouse and the
 //! wheel from `PageElement`'s listeners, at CSS pixels taken from the frame's metadata; keys
 //! from the tab's `key_down`, as `marley_browser::input` maps them; composed and input-method
 //! text through the tab's input handler; and the system clipboard, which headless Chromium does
 //! not share, through Marley.
+//!
+//! Navigation (B1a, #490) is the toolbar over the page: back, forward, reload or stop, and the
+//! address bar, a Zed single-line editor that shows the page's URL whenever it does not have the
+//! focus. The hub follows the main frame's loading, its commits and its history, and the page's
+//! JavaScript dialogs, which headless Chromium does not draw: the tab draws each as a card over
+//! the page, whose script waits until the card is answered.
 
 use std::fmt;
 use std::ops::Range;
@@ -19,6 +25,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use editor::Editor;
+use editor::actions::SelectAll;
 use futures::StreamExt as _;
 use futures::channel::mpsc;
 use gpui::{
@@ -29,17 +37,24 @@ use gpui::{
     RenderImage, ScrollWheelEvent, Size, Style, Subscription, Task, UTF16Selection, WeakEntity,
     relative,
 };
-use marley_browser::cdp::{self, Connection, Event};
+use marley_browser::cdp::{self, CdpError, Connection, Event};
 use marley_browser::input::{self, KeyPress};
-use marley_browser::page::{FrameMetadata, Page, ScreencastFrame, TargetInfo};
-use marley_browser::{frame, service};
+use marley_browser::page::{
+    DialogKind, FrameMetadata, JavaScriptDialog, NavigationHistory, Page, ScreencastFrame,
+    TargetInfo,
+};
+use marley_browser::{address, frame, service};
 use serde_json::Value;
 use ui::prelude::*;
+use ui::{AlertModal, Tooltip};
 use util::ResultExt as _;
 use workspace::Workspace;
 use workspace::item::{Item, ItemEvent};
 
-use crate::OpenBrowser;
+use crate::{
+    AnswerDialog, BrowserBack, BrowserForward, BrowserReload, DismissDialog, FocusAddressBar,
+    GoToAddress, OpenBrowser, RestoreAddress,
+};
 
 /// How many times, a tenth of a second apart, a start waits for Chromium to write its endpoint
 /// and answer.
@@ -65,9 +80,16 @@ pub enum HubState {
     Failed(SharedString),
 }
 
-/// The page's title or URL changed.
+/// What the hub tells the Browser tabs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PageInfoChanged;
+pub enum BrowserEvent {
+    /// The page's title or URL changed, or the address it is going to.
+    PageInfoChanged,
+    /// The page opened a JavaScript dialog.
+    DialogOpened,
+    /// The page's dialog closed, answered here or by another client.
+    DialogClosed,
+}
 
 /// The viewport a tab asked for: its size in whole logical pixels, at the window's scale.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -87,6 +109,13 @@ pub struct BrowserHub {
     metadata: Option<FrameMetadata>,
     title: Option<SharedString>,
     url: Option<SharedString>,
+    /// Where a navigation the tab asked for goes, from the ask until it commits or ends.
+    pending_url: Option<SharedString>,
+    /// Whether the main frame is loading.
+    loading: bool,
+    history: Option<NavigationHistory>,
+    /// The JavaScript dialog the page waits on.
+    dialog: Option<JavaScriptDialog>,
     viewport: Option<Viewport>,
     viewers: usize,
     screencasting: bool,
@@ -106,13 +135,14 @@ impl fmt::Debug for BrowserHub {
             .debug_struct("BrowserHub")
             .field("state", &self.state)
             .field("url", &self.url)
+            .field("loading", &self.loading)
             .field("viewers", &self.viewers)
             .field("screencasting", &self.screencasting)
             .finish_non_exhaustive()
     }
 }
 
-impl EventEmitter<PageInfoChanged> for BrowserHub {}
+impl EventEmitter<BrowserEvent> for BrowserHub {}
 
 struct HubHandle(Entity<BrowserHub>);
 
@@ -132,6 +162,10 @@ impl BrowserHub {
                 metadata: None,
                 title: None,
                 url: None,
+                pending_url: None,
+                loading: false,
+                history: None,
+                dialog: None,
                 viewport: None,
                 viewers: 0,
                 screencasting: false,
@@ -165,6 +199,35 @@ impl BrowserHub {
         self.url.clone()
     }
 
+    /// What the address bar shows: where the page is going, else where it is.
+    #[must_use]
+    pub fn address(&self) -> Option<SharedString> {
+        self.pending_url.clone().or_else(|| self.url.clone())
+    }
+
+    /// Whether the main frame is loading.
+    #[must_use]
+    pub const fn is_loading(&self) -> bool {
+        self.loading
+    }
+
+    /// Whether the page's history has an entry `offset` steps from the one it shows: -1 back,
+    /// 1 forward.
+    #[must_use]
+    pub fn can_go(&self, offset: isize) -> bool {
+        self.page.is_some()
+            && self
+                .history
+                .as_ref()
+                .is_some_and(|history| history.entry_at(offset).is_some())
+    }
+
+    /// The JavaScript dialog the page waits on.
+    #[must_use]
+    pub const fn dialog(&self) -> Option<&JavaScriptDialog> {
+        self.dialog.as_ref()
+    }
+
     /// Starts over: finds or starts Chromium, connects, attaches to its page, and follows the
     /// page's events until the connection ends.
     pub fn start(&mut self, cx: &mut Context<Self>) {
@@ -176,8 +239,9 @@ impl BrowserHub {
         self.metadata = None;
         self.held_buttons = 0;
         self.screencasting = false;
+        self.forget_page(cx);
         if self.title.take().is_some() | self.url.take().is_some() {
-            cx.emit(PageInfoChanged);
+            cx.emit(BrowserEvent::PageInfoChanged);
         }
         cx.notify();
         let profile = paths::data_dir().join("browser").join("profile");
@@ -240,7 +304,19 @@ impl BrowserHub {
         self.metadata = None;
         self.held_buttons = 0;
         self.screencasting = false;
+        self.forget_page(cx);
         cx.notify();
+    }
+
+    /// Drops what the hub knew of a page that is gone: where it was going, its loading, its
+    /// history and its dialog.
+    fn forget_page(&mut self, cx: &mut Context<Self>) {
+        self.loading = false;
+        self.history = None;
+        if self.pending_url.take().is_some() {
+            cx.emit(BrowserEvent::PageInfoChanged);
+        }
+        self.leave_dialog(cx);
     }
 
     fn attached(&mut self, generation: u64, page: Page, cx: &mut Context<Self>) {
@@ -251,6 +327,7 @@ impl BrowserHub {
         self.state = HubState::Showing;
         cx.notify();
         if let Some(viewport) = self.viewport {
+            let page = page.clone();
             cx.spawn(async move |_, _| {
                 page.set_viewport(viewport.width, viewport.height, viewport.scale)
                     .await
@@ -259,6 +336,193 @@ impl BrowserHub {
             .detach();
         }
         self.sync_screencast(cx);
+        cx.spawn(async move |this, cx| {
+            let history = page.history().await.log_err();
+            this.update(cx, |this, cx| this.navigated(generation, None, history, cx))
+                .ok();
+        })
+        .detach();
+    }
+
+    /// Navigates the page to `url`, which the address bar shows until the navigation commits or
+    /// ends. A dialog the page waits on is answered with Cancel first, as Chrome closes a page's
+    /// dialog when the page is left.
+    pub fn navigate(&mut self, url: String, cx: &mut Context<Self>) {
+        let Some(page) = self.page.clone() else {
+            return;
+        };
+        let dismiss = self.leave_dialog(cx);
+        self.pending_url = Some(SharedString::from(&url));
+        cx.emit(BrowserEvent::PageInfoChanged);
+        cx.notify();
+        let generation = self.generation;
+        cx.spawn(async move |this, cx| {
+            if dismiss {
+                page.answer_dialog(false, None).await.log_err();
+            }
+            let result = page.navigate(&url).await;
+            if let Err(error) = &result {
+                log::info!("browser: a navigation ended early: {error}");
+            }
+            // A navigation outlives a call that timed out, and the address bar keeps its URL.
+            if !matches!(result, Err(CdpError::Timeout(_))) {
+                this.update(cx, |this, cx| this.navigation_ended(generation, &url, cx))
+                    .ok();
+            }
+        })
+        .detach();
+    }
+
+    fn navigation_ended(&mut self, generation: u64, url: &str, cx: &mut Context<Self>) {
+        if generation == self.generation && self.pending_url.as_deref() == Some(url) {
+            self.pending_url = None;
+            cx.emit(BrowserEvent::PageInfoChanged);
+            cx.notify();
+        }
+    }
+
+    /// Moves the page `offset` entries through its history: -1 back, 1 forward.
+    pub fn go(&mut self, offset: isize, cx: &mut Context<Self>) {
+        let Some(page) = self.page.clone() else {
+            return;
+        };
+        let Some(history) = self.history.as_mut() else {
+            return;
+        };
+        let Some((index, id)) = history
+            .entry_at(offset)
+            .map(|(index, entry)| (index, entry.id))
+        else {
+            return;
+        };
+        // A second press before the page reports where it went goes on from here.
+        history.current_index = index;
+        let dismiss = self.leave_dialog(cx);
+        cx.notify();
+        cx.spawn(async move |_, _| {
+            if dismiss {
+                page.answer_dialog(false, None).await.log_err();
+            }
+            page.go_to_history_entry(id).await.log_err();
+        })
+        .detach();
+    }
+
+    /// Loads the page again.
+    pub fn reload(&mut self, cx: &mut Context<Self>) {
+        let Some(page) = self.page.clone() else {
+            return;
+        };
+        let dismiss = self.leave_dialog(cx);
+        cx.spawn(async move |_, _| {
+            if dismiss {
+                page.answer_dialog(false, None).await.log_err();
+            }
+            page.reload().await.log_err();
+        })
+        .detach();
+    }
+
+    /// Stops the page's loading.
+    pub fn stop(&mut self, cx: &mut Context<Self>) {
+        let Some(page) = self.page.clone() else {
+            return;
+        };
+        cx.spawn(async move |_, _| {
+            page.stop_loading().await.log_err();
+        })
+        .detach();
+    }
+
+    /// Answers the page's dialog: OK when `accept`, else Cancel, with `prompt_text` as a
+    /// `prompt`'s answer.
+    pub fn answer_dialog(
+        &mut self,
+        accept: bool,
+        prompt_text: Option<String>,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(page) = self.page.clone() else {
+            return;
+        };
+        if !self.leave_dialog(cx) {
+            return;
+        }
+        cx.spawn(async move |_, _| {
+            page.answer_dialog(accept, prompt_text.as_deref())
+                .await
+                .log_err();
+        })
+        .detach();
+    }
+
+    /// Forgets the page's dialog, if it has one, and says whether it had.
+    fn leave_dialog(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.dialog.take().is_none() {
+            return false;
+        }
+        cx.emit(BrowserEvent::DialogClosed);
+        cx.notify();
+        true
+    }
+
+    fn dialog_opened(&mut self, generation: u64, dialog: JavaScriptDialog, cx: &mut Context<Self>) {
+        if generation != self.generation {
+            return;
+        }
+        self.dialog = Some(dialog);
+        cx.emit(BrowserEvent::DialogOpened);
+        cx.notify();
+    }
+
+    fn dialog_closed(&mut self, generation: u64, cx: &mut Context<Self>) {
+        if generation == self.generation {
+            self.leave_dialog(cx);
+        }
+    }
+
+    /// The main frame started or stopped loading.
+    fn loading_changed(
+        &mut self,
+        generation: u64,
+        frame_id: Option<&str>,
+        loading: bool,
+        cx: &mut Context<Self>,
+    ) {
+        // The main frame's id is the page's target id.
+        if generation == self.generation && self.is_page(frame_id) && self.loading != loading {
+            self.loading = loading;
+            cx.notify();
+        }
+    }
+
+    /// The main frame committed a navigation, to `url` when the event said where: the address
+    /// bar's navigation is over, and back and forward go from the new history.
+    fn navigated(
+        &mut self,
+        generation: u64,
+        url: Option<String>,
+        history: Option<NavigationHistory>,
+        cx: &mut Context<Self>,
+    ) {
+        if generation != self.generation {
+            return;
+        }
+        if history.is_some() {
+            self.history = history;
+        }
+        let arrived = url.is_some() && self.pending_url.take().is_some();
+        let moved = match url.map(SharedString::from) {
+            Some(url) if self.url.as_ref() != Some(&url) => {
+                self.url = Some(url);
+                true
+            }
+            _ => false,
+        };
+        if arrived || moved {
+            cx.emit(BrowserEvent::PageInfoChanged);
+        }
+        cx.notify();
     }
 
     /// Lays the page out at a tab's size: `size` in logical pixels, at the window's `scale`.
@@ -503,7 +767,7 @@ impl BrowserHub {
         if title != self.title || url != self.url {
             self.title = title;
             self.url = url;
-            cx.emit(PageInfoChanged);
+            cx.emit(BrowserEvent::PageInfoChanged);
         }
     }
 
@@ -606,19 +870,8 @@ async fn follow(
                 }
             }
             // The document's own title arrives with its content, which no target event reports.
-            "Page.domContentEventFired"
-            | "Page.loadEventFired"
-            | "Page.navigatedWithinDocument" => {
-                let page = this
-                    .read_with(cx, |this, _| this.page.clone())
-                    .ok()
-                    .flatten();
-                if let Some(page) = page
-                    && let Some(info) = page.target_info().await.log_err()
-                {
-                    this.update(cx, |this, cx| this.target_changed(generation, info, cx))
-                        .ok();
-                }
+            "Page.domContentEventFired" | "Page.loadEventFired" => {
+                refresh_info(&this, generation, cx).await;
             }
             // Discovery reports the targets that exist already as created.
             "Target.targetCreated" | "Target.targetInfoChanged" => {
@@ -650,7 +903,7 @@ async fn follow(
                     return;
                 }
             }
-            _ => {}
+            _ => follow_navigation(&this, event, generation, cx).await,
         }
     }
     this.update(cx, |this, cx| {
@@ -663,10 +916,111 @@ async fn follow(
     .ok();
 }
 
-/// The Browser tab: the page Marley's Chromium shows, drawn from the hub's newest frame.
+/// Follows the page's navigation for the start `generation`: its main frame's commits and
+/// loading, and the JavaScript dialogs it opens and closes.
+async fn follow_navigation(
+    this: &WeakEntity<BrowserHub>,
+    event: Event,
+    generation: u64,
+    cx: &mut AsyncApp,
+) {
+    match event.method.as_str() {
+        // A commit in the main frame, which has no parent. A page that failed to load commits
+        // Chromium's error page, which names the URL it could not load.
+        "Page.frameNavigated" => {
+            if event.params.pointer("/frame/parentId").is_none() {
+                let url = ["/frame/unreachableUrl", "/frame/url"]
+                    .into_iter()
+                    .find_map(|pointer| event.params.pointer(pointer).and_then(Value::as_str))
+                    .map(str::to_string);
+                refresh_history(this, generation, url, cx).await;
+            }
+        }
+        // A fragment or the history API moved the main frame within its document.
+        "Page.navigatedWithinDocument" => {
+            let frame = event.params.get("frameId").and_then(Value::as_str);
+            let main = this
+                .read_with(cx, |this, _| this.is_page(frame))
+                .unwrap_or(false);
+            if main {
+                let url = event
+                    .params
+                    .get("url")
+                    .and_then(Value::as_str)
+                    .map(str::to_string);
+                refresh_history(this, generation, url, cx).await;
+                refresh_info(this, generation, cx).await;
+            }
+        }
+        "Page.frameStartedLoading" | "Page.frameStoppedLoading" => {
+            let loading = event.method == "Page.frameStartedLoading";
+            let frame = event.params.get("frameId").and_then(Value::as_str);
+            this.update(cx, |this, cx| {
+                this.loading_changed(generation, frame, loading, cx);
+            })
+            .ok();
+        }
+        "Page.javascriptDialogOpening" => {
+            match serde_json::from_value::<JavaScriptDialog>(event.params) {
+                Ok(dialog) => {
+                    this.update(cx, |this, cx| this.dialog_opened(generation, dialog, cx))
+                        .ok();
+                }
+                Err(error) => log::warn!("browser: a dialog the page opened: {error}"),
+            }
+        }
+        "Page.javascriptDialogClosed" => {
+            this.update(cx, |this, cx| this.dialog_closed(generation, cx))
+                .ok();
+        }
+        _ => {}
+    }
+}
+
+/// Reads the page's title and URL into the hub.
+async fn refresh_info(this: &WeakEntity<BrowserHub>, generation: u64, cx: &mut AsyncApp) {
+    let page = this
+        .read_with(cx, |this, _| this.page.clone())
+        .ok()
+        .flatten();
+    if let Some(page) = page
+        && let Some(info) = page.target_info().await.log_err()
+    {
+        this.update(cx, |this, cx| this.target_changed(generation, info, cx))
+            .ok();
+    }
+}
+
+/// Reads the page's history into the hub after its main frame went to `url`.
+async fn refresh_history(
+    this: &WeakEntity<BrowserHub>,
+    generation: u64,
+    url: Option<String>,
+    cx: &mut AsyncApp,
+) {
+    let page = this
+        .read_with(cx, |this, _| this.page.clone())
+        .ok()
+        .flatten();
+    let Some(page) = page else {
+        return;
+    };
+    let history = page.history().await.log_err();
+    this.update(cx, |this, cx| this.navigated(generation, url, history, cx))
+        .ok();
+}
+
+/// The Browser tab: the page Marley's Chromium shows, drawn from the hub's newest frame, under
+/// a toolbar with the address bar.
 pub struct BrowserView {
     hub: Entity<BrowserHub>,
+    /// The page's focus: keys and text go to the page while it holds the focus itself.
     focus_handle: FocusHandle,
+    address_bar: Entity<Editor>,
+    /// The focus of a dialog card with no field.
+    dialog_focus: FocusHandle,
+    /// A `prompt` dialog's field.
+    prompt_field: Entity<Editor>,
     /// The frame this tab drew last, which the window may present again.
     current_frame: Option<Arc<RenderImage>>,
     /// The frame drawn before it, freed when the next new frame is drawn.
@@ -676,7 +1030,7 @@ pub struct BrowserView {
     last_press: Option<Point<Pixels>>,
     /// The input method's text not yet committed, shown as the page's composition.
     marked: String,
-    _subscriptions: [Subscription; 2],
+    _subscriptions: [Subscription; 4],
 }
 
 impl fmt::Debug for BrowserView {
@@ -688,11 +1042,30 @@ impl fmt::Debug for BrowserView {
 }
 
 impl BrowserView {
-    fn new(hub: Entity<BrowserHub>, window: &Window, cx: &mut Context<Self>) -> Self {
+    fn new(hub: Entity<BrowserHub>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let address_bar = cx.new(|cx| {
+            let mut editor = Editor::single_line(window, cx);
+            editor.set_placeholder_text("Search or enter an address", window, cx);
+            editor
+        });
+        let prompt_field = cx.new(|cx| Editor::single_line(window, cx));
+        let focus_handle = cx.focus_handle();
         let subscriptions = [
             cx.observe(&hub, |_, _, cx| cx.notify()),
-            cx.subscribe(&hub, |_, _, _: &PageInfoChanged, cx| {
-                cx.emit(ItemEvent::UpdateTab);
+            cx.subscribe_in(&hub, window, |this, _, event, window, cx| {
+                this.hub_event(*event, window, cx);
+            }),
+            // The address bar shows the page's URL again once the focus leaves it.
+            cx.on_focus_out(
+                &address_bar.focus_handle(cx),
+                window,
+                |this, _, window, cx| this.show_address(window, cx),
+            ),
+            // While the page waits on a dialog, the page's focus goes to the dialog.
+            cx.on_focus(&focus_handle, window, |this, window, cx| {
+                if this.hub.read(cx).dialog().is_some() {
+                    this.focus_dialog(window, cx);
+                }
             }),
         ];
         hub.update(cx, BrowserHub::add_viewer);
@@ -709,15 +1082,139 @@ impl BrowserView {
             this.hub.update(cx, BrowserHub::remove_viewer);
         })
         .detach();
-        Self {
+        let view = Self {
             hub,
-            focus_handle: cx.focus_handle(),
+            focus_handle,
+            address_bar,
+            dialog_focus: cx.focus_handle(),
+            prompt_field,
             current_frame: None,
             previous_frame: None,
             last_press: None,
             marked: String::new(),
             _subscriptions: subscriptions,
+        };
+        view.show_address(window, cx);
+        view
+    }
+
+    fn hub_event(&self, event: BrowserEvent, window: &mut Window, cx: &mut Context<Self>) {
+        match event {
+            BrowserEvent::PageInfoChanged => {
+                cx.emit(ItemEvent::UpdateTab);
+                self.show_address(window, cx);
+            }
+            BrowserEvent::DialogOpened => {
+                let default = self
+                    .hub
+                    .read(cx)
+                    .dialog()
+                    .map(|dialog| dialog.default_prompt.clone())
+                    .unwrap_or_default();
+                self.prompt_field.update(cx, |field, cx| {
+                    field.set_text(default, window, cx);
+                    field.select_all(&SelectAll, window, cx);
+                });
+                // A dialog takes the focus from inside the tab only: a page elsewhere waits
+                // until the tab has the focus again.
+                if self.focus_handle.contains_focused(window, cx) {
+                    self.focus_dialog(window, cx);
+                }
+            }
+            BrowserEvent::DialogClosed => {
+                if self.dialog_focus.contains_focused(window, cx)
+                    || self
+                        .prompt_field
+                        .focus_handle(cx)
+                        .contains_focused(window, cx)
+                {
+                    window.focus(&self.focus_handle, cx);
+                }
+            }
         }
+    }
+
+    /// Shows where the page is, or is going, in the address bar, unless the user is typing there.
+    fn show_address(&self, window: &mut Window, cx: &mut Context<Self>) {
+        if self
+            .address_bar
+            .focus_handle(cx)
+            .contains_focused(window, cx)
+        {
+            return;
+        }
+        let address = self.hub.read(cx).address().unwrap_or_default();
+        self.address_bar.update(cx, |editor, cx| {
+            if editor.text(cx) != *address {
+                editor.set_text(address.to_string(), window, cx);
+            }
+        });
+    }
+
+    /// Gives the focus to the page's dialog: its field for a `prompt`, else the card.
+    fn focus_dialog(&self, window: &mut Window, cx: &mut Context<Self>) {
+        let is_prompt = self
+            .hub
+            .read(cx)
+            .dialog()
+            .is_some_and(|dialog| dialog.kind == DialogKind::Prompt);
+        if is_prompt {
+            window.focus(&self.prompt_field.focus_handle(cx), cx);
+        } else {
+            window.focus(&self.dialog_focus, cx);
+        }
+    }
+
+    fn focus_address_bar(
+        &mut self,
+        _: &FocusAddressBar,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        window.focus(&self.address_bar.focus_handle(cx), cx);
+        self.address_bar
+            .update(cx, |editor, cx| editor.select_all(&SelectAll, window, cx));
+    }
+
+    fn go_to_address(&mut self, _: &GoToAddress, window: &mut Window, cx: &mut Context<Self>) {
+        let text = self.address_bar.read(cx).text(cx);
+        if let Some(url) = address::url_for(&text) {
+            self.hub.update(cx, |hub, cx| hub.navigate(url, cx));
+        }
+        self.restore_address(&RestoreAddress, window, cx);
+    }
+
+    fn restore_address(&mut self, _: &RestoreAddress, window: &mut Window, cx: &mut Context<Self>) {
+        window.focus(&self.focus_handle, cx);
+        self.show_address(window, cx);
+    }
+
+    fn back(&mut self, _: &BrowserBack, _: &mut Window, cx: &mut Context<Self>) {
+        self.hub.update(cx, |hub, cx| hub.go(-1, cx));
+    }
+
+    fn forward(&mut self, _: &BrowserForward, _: &mut Window, cx: &mut Context<Self>) {
+        self.hub.update(cx, |hub, cx| hub.go(1, cx));
+    }
+
+    fn reload(&mut self, _: &BrowserReload, _: &mut Window, cx: &mut Context<Self>) {
+        self.hub.update(cx, BrowserHub::reload);
+    }
+
+    fn answer_dialog(&mut self, _: &AnswerDialog, _: &mut Window, cx: &mut Context<Self>) {
+        let is_prompt = self
+            .hub
+            .read(cx)
+            .dialog()
+            .is_some_and(|dialog| dialog.kind == DialogKind::Prompt);
+        let prompt_text = is_prompt.then(|| self.prompt_field.read(cx).text(cx));
+        self.hub
+            .update(cx, |hub, cx| hub.answer_dialog(true, prompt_text, cx));
+    }
+
+    fn dismiss_dialog(&mut self, _: &DismissDialog, _: &mut Window, cx: &mut Context<Self>) {
+        self.hub
+            .update(cx, |hub, cx| hub.answer_dialog(false, None, cx));
     }
 
     /// Records `frame` as drawn now, and frees the frame drawn two paints ago.
@@ -735,8 +1232,12 @@ impl BrowserView {
         self.previous_frame = self.current_frame.replace(Arc::clone(frame));
     }
 
-    /// Sends a key the tab receives to the page, after Zed's own bindings had their turn.
-    fn key_down(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+    /// Sends a key the page receives to the page, after Zed's own bindings had their turn. A
+    /// key typed in the address bar or a dialog passes here on its way up, and stays in Marley.
+    fn key_down(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.focus_handle.is_focused(window) {
+            return;
+        }
         let keystroke = &event.keystroke;
         let modifiers = &keystroke.modifiers;
         let ctrl_alone = modifiers.control && !modifiers.alt && !modifiers.platform;
@@ -855,11 +1356,170 @@ impl EntityInputHandler for BrowserView {
     }
 }
 
+impl BrowserView {
+    fn render_toolbar(&self, cx: &Context<Self>) -> impl IntoElement {
+        let hub = self.hub.read(cx);
+        let showing = hub.state == HubState::Showing;
+        let loading = hub.is_loading();
+        let colors = cx.theme().colors();
+        let reload_or_stop = if loading {
+            IconButton::new("browser-stop", IconName::Close)
+                .tooltip(Tooltip::text("Stop"))
+                .on_click(cx.listener(|this, _, _, cx| this.hub.update(cx, BrowserHub::stop)))
+        } else {
+            IconButton::new("browser-reload", IconName::RotateCw)
+                .disabled(!showing)
+                .tooltip(Tooltip::for_action_title("Reload", &BrowserReload))
+                .on_click(cx.listener(|this, _, window, cx| {
+                    this.reload(&BrowserReload, window, cx);
+                }))
+        };
+        h_flex()
+            .relative()
+            .flex_none()
+            .w_full()
+            .gap_1()
+            .px_1p5()
+            .py_1()
+            .border_b_1()
+            .border_color(colors.border_variant)
+            .bg(colors.toolbar_background)
+            .child(
+                IconButton::new("browser-back", IconName::ArrowLeft)
+                    .disabled(!hub.can_go(-1))
+                    .tooltip(Tooltip::for_action_title("Back", &BrowserBack))
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.back(&BrowserBack, window, cx);
+                    })),
+            )
+            .child(
+                IconButton::new("browser-forward", IconName::ArrowRight)
+                    .disabled(!hub.can_go(1))
+                    .tooltip(Tooltip::for_action_title("Forward", &BrowserForward))
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.forward(&BrowserForward, window, cx);
+                    })),
+            )
+            .child(reload_or_stop)
+            .child(
+                div()
+                    .key_context("MarleyAddressBar")
+                    .on_action(cx.listener(Self::go_to_address))
+                    .on_action(cx.listener(Self::restore_address))
+                    .flex_1()
+                    .min_w_0()
+                    .px_2()
+                    .py_1()
+                    .rounded_md()
+                    .border_1()
+                    .border_color(colors.border)
+                    .bg(colors.editor_background)
+                    .child(self.address_bar.clone()),
+            )
+            // Over the toolbar's edge, so a load never moves the page.
+            .when(loading, |this| {
+                this.child(
+                    div()
+                        .absolute()
+                        .left_0()
+                        .right_0()
+                        .bottom_0()
+                        .h(px(2.))
+                        .bg(colors.text_accent),
+                )
+            })
+    }
+
+    /// The page's dialog as a card over the page, which takes no input while it shows.
+    fn render_dialog(
+        &self,
+        dialog: &JavaScriptDialog,
+        cx: &Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let (title, message, accept) = if dialog.kind == DialogKind::BeforeUnload {
+            (
+                SharedString::new_static("Leave this page?"),
+                SharedString::new_static("Changes you made may not be saved."),
+                "Leave",
+            )
+        } else {
+            let asker = dialog.origin().map_or_else(
+                || "This page says".to_string(),
+                |origin| format!("{origin} says"),
+            );
+            (
+                SharedString::from(asker),
+                SharedString::from(&dialog.message),
+                "OK",
+            )
+        };
+        let colors = cx.theme().colors();
+        div()
+            .absolute()
+            .inset_0()
+            .occlude()
+            .flex()
+            .justify_center()
+            .items_start()
+            .pt_16()
+            .child(
+                AlertModal::new("browser-dialog")
+                    .key_context("MarleyBrowserDialog")
+                    .track_focus(&self.dialog_focus)
+                    .on_action(cx.listener(Self::answer_dialog))
+                    .on_action(cx.listener(Self::dismiss_dialog))
+                    .width(rems(28.))
+                    .title(title)
+                    .child(Label::new(message))
+                    .when(dialog.kind == DialogKind::Prompt, |this| {
+                        this.child(
+                            div()
+                                .mt_2()
+                                .px_2()
+                                .py_1()
+                                .rounded_md()
+                                .border_1()
+                                .border_color(colors.border)
+                                .bg(colors.editor_background)
+                                .child(self.prompt_field.clone()),
+                        )
+                    })
+                    .footer(
+                        h_flex()
+                            .p_3()
+                            .justify_end()
+                            .gap_1()
+                            .when(dialog.kind != DialogKind::Alert, |this| {
+                                this.child(
+                                    Button::new("browser-dialog-cancel", "Cancel")
+                                        .color(Color::Muted)
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.dismiss_dialog(&DismissDialog, window, cx);
+                                        })),
+                                )
+                            })
+                            .child(
+                                Button::new("browser-dialog-accept", accept)
+                                    .style(ButtonStyle::Filled)
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.answer_dialog(&AnswerDialog, window, cx);
+                                    })),
+                            ),
+                    ),
+            )
+    }
+}
+
 impl Render for BrowserView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let (state, frame, metadata) = {
+        let (state, frame, metadata, dialog) = {
             let hub = self.hub.read(cx);
-            (hub.state.clone(), hub.frame.clone(), hub.metadata)
+            (
+                hub.state.clone(),
+                hub.frame.clone(),
+                hub.metadata,
+                hub.dialog.clone(),
+            )
         };
         if let Some(frame) = &frame {
             self.drew(frame, window);
@@ -877,40 +1537,56 @@ impl Render for BrowserView {
                 )),
             )),
         };
-        div()
+        let toolbar = self.render_toolbar(cx);
+        let dialog = dialog.map(|dialog| self.render_dialog(&dialog, cx));
+        v_flex()
             .track_focus(&self.focus_handle)
             .key_context("MarleyBrowser")
             .on_key_down(cx.listener(Self::key_down))
-            .relative()
+            .on_action(cx.listener(Self::focus_address_bar))
+            .on_action(cx.listener(Self::back))
+            .on_action(cx.listener(Self::forward))
+            .on_action(cx.listener(Self::reload))
             .size_full()
             .bg(cx.theme().colors().editor_background)
-            .child(PageElement {
-                hub: self.hub.clone(),
-                view: cx.entity(),
-                focus_handle: self.focus_handle.clone(),
-                frame,
-                metadata,
-            })
-            .when_some(message, |this, (headline, hint)| {
-                this.child(
-                    v_flex()
-                        .absolute()
-                        .inset_0()
-                        .items_center()
-                        .justify_center()
-                        .gap_1()
-                        .px_8()
-                        .child(
-                            div()
-                                .max_w(rems(48.))
-                                .text_center()
-                                .child(Label::new(headline).color(Color::Muted)),
+            .child(toolbar)
+            .child(
+                div()
+                    .relative()
+                    .flex_1()
+                    .min_h_0()
+                    .w_full()
+                    .child(PageElement {
+                        hub: self.hub.clone(),
+                        view: cx.entity(),
+                        focus_handle: self.focus_handle.clone(),
+                        frame,
+                        metadata,
+                    })
+                    .when_some(message, |this, (headline, hint)| {
+                        this.child(
+                            v_flex()
+                                .absolute()
+                                .inset_0()
+                                .items_center()
+                                .justify_center()
+                                .gap_1()
+                                .px_8()
+                                .child(
+                                    div()
+                                        .max_w(rems(48.))
+                                        .text_center()
+                                        .child(Label::new(headline).color(Color::Muted)),
+                                )
+                                .when_some(hint, |this, hint| {
+                                    this.child(
+                                        Label::new(hint).size(LabelSize::Small).color(Color::Muted),
+                                    )
+                                }),
                         )
-                        .when_some(hint, |this, hint| {
-                            this.child(Label::new(hint).size(LabelSize::Small).color(Color::Muted))
-                        }),
-                )
-            })
+                    })
+                    .children(dialog),
+            )
     }
 }
 
