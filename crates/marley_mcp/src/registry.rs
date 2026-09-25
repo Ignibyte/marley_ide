@@ -142,6 +142,20 @@ const REGISTRY: &[ToolSpec] = &[
         "A page's latest requests, oldest first, at most 200: method, URL with secret-looking \
          values hidden, type, status, duration and failure; no headers or bodies.",
     ),
+    browser_read(
+        "picks",
+        "List the elements the user picked in the Browser tabs this session, oldest first: each \
+         pick's id, its tab, the page's URL and title, what the element is, the user's caption, \
+         and whether the user sent it to you.",
+    ),
+    browser_read(
+        "pick",
+        "Read an element the user picked in a Browser tab, by its id from the user's line or \
+         browser_picks, as it was at the pick: its locators, the most durable first, with \
+         whether each finds it alone; its role and name; the listeners on it and its ancestors \
+         with their scripts, lines and columns; what would block a click on it; its box in the \
+         page; and the page around it as an image.",
+    ),
     browser_write(
         "navigate",
         "Load an http or https URL in a Browser tab, or in a new tab with `new_tab`, opening one \
@@ -290,6 +304,8 @@ fn browser_schemas(verb: &str) -> (Value, Value) {
         "look" => look_schemas(),
         "snapshot" => snapshot_schemas(),
         "console" | "network" => entries_schemas(verb),
+        "picks" => picks_schemas(),
+        "pick" => pick_schemas(),
         _ => browser_write_schemas(verb),
     }
 }
@@ -425,6 +441,116 @@ fn entries_schemas(verb: &str) -> (Value, Value) {
                 "entries": { "type": "array", "items": item }
             },
             "required": ["tab", "entries"]
+        }),
+    )
+}
+
+/// What `browser_picks` and `browser_pick` say of a pick besides its bundle.
+fn pick_properties() -> Value {
+    json!({
+        "id": { "type": "integer" },
+        "tab": { "type": "string", "description": "The tab the pick was made in." },
+        "url": { "type": "string" },
+        "title": { "type": "string" },
+        "summary": { "type": "string", "description": "The element's role and name, or its tag and text." },
+        "caption": { "type": "string", "description": "What the user said of it when sending it." },
+        "sent": { "type": "boolean", "description": "Whether the user sent it to the agent." }
+    })
+}
+
+/// `browser_picks`: no arguments; each pick of the session (#496).
+fn picks_schemas() -> (Value, Value) {
+    (
+        json!({ "type": "object", "properties": {}, "additionalProperties": false }),
+        json!({
+            "type": "object",
+            "properties": {
+                "picks": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": pick_properties(),
+                        "required": ["id", "tab", "url", "title", "summary", "caption", "sent"]
+                    }
+                }
+            },
+            "required": ["picks"]
+        }),
+    )
+}
+
+/// `browser_pick`: a pick's id; the pick with its bundle, and its crop as the answer's image.
+fn pick_schemas() -> (Value, Value) {
+    let mut properties = pick_properties();
+    let bundle = json!({
+        "type": "object",
+        "properties": {
+            "tag": { "type": "string" },
+            "role": { "type": ["string", "null"] },
+            "name": { "type": ["string", "null"] },
+            "text": { "type": "string" },
+            "locators": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "kind": { "type": "string", "description": "test id, id, text or css." },
+                        "value": { "type": "string" },
+                        "unique": { "type": ["boolean", "null"] }
+                    },
+                    "required": ["kind", "value"]
+                }
+            },
+            "listeners": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "event": { "type": "string" },
+                        "on": { "type": "string", "description": "The element, an ancestor, the document or the window." },
+                        "script": { "type": ["string", "null"] },
+                        "line": { "type": "integer", "description": "From 0." },
+                        "column": { "type": "integer", "description": "From 0." },
+                        "source_map": { "type": ["string", "null"] }
+                    },
+                    "required": ["event", "on", "line", "column"]
+                }
+            },
+            "blockers": { "type": "array", "items": { "type": "string" } },
+            "page_box": {
+                "type": "object",
+                "description": "In the document's CSS pixels.",
+                "properties": {
+                    "x": { "type": "number" },
+                    "y": { "type": "number" },
+                    "width": { "type": "number" },
+                    "height": { "type": "number" }
+                },
+                "required": ["x", "y", "width", "height"]
+            }
+        },
+        "required": ["tag", "text", "locators", "listeners", "blockers", "page_box"]
+    });
+    if let Some(properties) = properties.as_object_mut() {
+        properties.extend([("bundle".to_string(), bundle)]);
+    }
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "A pick's id, as the user's line or browser_picks names it."
+                }
+            },
+            "required": ["id"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": properties,
+            "required": ["id", "tab", "url", "title", "summary", "caption", "sent", "bundle"]
         }),
     )
 }

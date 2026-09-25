@@ -61,6 +61,12 @@ async fn run(
     hub: &Entity<BrowserHub>,
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, String> {
+    // Picks are Marley's, kept while the browser restarts.
+    match tool {
+        "browser_picks" => return Ok(picks(hub, cx)),
+        "browser_pick" => return pick(arguments, hub, cx),
+        _ => {}
+    }
     showing(hub, cx).await?;
     let named_tab = arguments.get("tab").and_then(Value::as_str);
     match tool {
@@ -181,6 +187,53 @@ async fn look(
             mime_type: "image/jpeg".to_string(),
             data: image,
         }),
+    })
+}
+
+/// `browser_picks`: each pick of the session, without its bundle.
+fn picks(hub: &Entity<BrowserHub>, cx: &AsyncApp) -> ToolAnswer {
+    let picks: Vec<Value> = hub.read_with(cx, |hub, _| {
+        hub.picks()
+            .iter()
+            .map(|pick| {
+                json!({
+                    "id": pick.id,
+                    "tab": pick.tab,
+                    "url": pick.url,
+                    "title": pick.title,
+                    "summary": pick.summary,
+                    "caption": pick.caption,
+                    "sent": pick.sent,
+                })
+            })
+            .collect()
+    });
+    ToolAnswer {
+        structured: json!({ "picks": picks }),
+        text: None,
+        image: None,
+    }
+}
+
+/// `browser_pick`: the pick `id` with its bundle, and its crop as the image.
+fn pick(arguments: &Value, hub: &Entity<BrowserHub>, cx: &AsyncApp) -> Result<ToolAnswer, String> {
+    let id = arguments
+        .get("id")
+        .and_then(Value::as_u64)
+        .and_then(|id| usize::try_from(id).ok())
+        .ok_or_else(|| "browser_pick needs the pick's id, from browser_picks".to_string())?;
+    let pick = hub
+        .read_with(cx, |hub, _| hub.pick(id).cloned())
+        .ok_or_else(|| format!("the user made no pick {id}; browser_picks lists them"))?;
+    let image = pick.crop.clone().map(|data| ToolImage {
+        mime_type: "image/jpeg".to_string(),
+        data,
+    });
+    let structured = serde_json::to_value(&pick).map_err(|error| error.to_string())?;
+    Ok(ToolAnswer {
+        structured,
+        text: None,
+        image,
     })
 }
 

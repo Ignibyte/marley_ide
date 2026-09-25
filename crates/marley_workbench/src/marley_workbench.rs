@@ -130,6 +130,13 @@ actions!(
         /// Answers the page's dialog with Cancel.
         #[derive(Eq)]
         DismissDialog,
+        /// Turns pick mode on or off in the Browser tab: the next click in the page picks the
+        /// element under the pointer, for the agent.
+        #[derive(Eq)]
+        PickElement,
+        /// Sends the pick whose caption has the focus to the agent in the terminal used last.
+        #[derive(Eq)]
+        SendPick,
     ]
 );
 

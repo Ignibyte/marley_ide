@@ -13,6 +13,19 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Pick an element for the agent** (#496, 2026-09-25). The Browser tab's crosshair button, or
+  Ctrl+Shift+C, turns on pick mode: Chromium's own inspect highlight and its tooltip follow the
+  pointer, and a click picks the control under it (a click on a button's label picks the
+  button) without reaching the page; Escape leaves pick mode. Each pick waits in a tray under
+  the toolbar with a caption field; Enter or Send types a line such as `[browser pick 1: button
+  “Save changes” on localhost:3000/card; browser_pick id 1] Make this green` into the terminal
+  you used last and takes you there. Agents read picks through Marley's MCP server:
+  `browser_picks` lists them, and `browser_pick` gives one's locators (test id, id, text, CSS
+  path, each marked when it finds the element alone), its role and name, the listeners on it and
+  its ancestors with their script, line and column, what would block a click on it (something
+  on top of it, `pointer-events`, visibility, `disabled`), its box and a crop of the page around
+  it. A pick never records what was typed into a field. Escape now reaches a page in a Browser
+  tab; before, Zed took it.
 - **Select lists in the Browser tab** (#495, 2026-09-25). A page's drop-down list, which
   headless Chromium opens where no one can see it, now opens as a Marley list right under it,
   in the page or in a frame from another site: the current option checked, each group's name

@@ -2714,3 +2714,18 @@ with priority 1, and focus its handle. `select_toggled_or_first` starts it on th
 entry. An entry's handler runs inside the menu's own update and may clear the field, dropping
 the menu and its subscription there; the menu's dismissal after the confirm then reaches no
 one, which Zed's editor relies on too.
+
+## L-claude-496-chromium-picks-an-element-over-cdp-001
+*category: build · topic: CDP, the element picker · from: pipeline 496*
+
+Chromium's own element picker works over CDP in headless Chromium. `Overlay.setInspectMode`
+with `searchForNode` and a `highlightConfig` (`showInfo`, `showAccessibilityInfo`) draws
+DevTools' highlight and tooltip into the screencast frames as the pointer moves; a click
+dispatched with `Input.dispatchMouseEvent` then raises `Overlay.inspectNodeRequested` with the
+deepest node's `backendNodeId` and does not reach the page. Mode `none` takes the highlight away
+before a `Page.captureScreenshot` crop, whose clip is in page coordinates. `Debugger.enable`
+replays `Debugger.scriptParsed` for the scripts loaded already, with each URL and
+`sourceMapURL`, and `Debugger.setSkipAllPauses` keeps a `debugger` statement from freezing the
+page. `DOMDebugger.getEventListeners` takes one object at a time; a function that returns the
+element's ancestors, document and window as an array, read with `Runtime.getProperties`, gives
+each object's id and description. Listener lines and columns count from 0.

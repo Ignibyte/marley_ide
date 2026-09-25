@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #496 (feature, prong 3 B3a; prong 3 wave 2)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/496-element-picker.spec.md
+- **Pipeline doc:** ../../pipeline/completed/496-element-picker.spec.md
 - **Source ticket:** docs/marley/three-prong-plan.md, prong 3 B3a; docs/marley/browser-handoff.md
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Pillar A, the element picker. Chad turns on pick mode in a Browser tab, sees Chromium's own

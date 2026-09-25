@@ -1973,3 +1973,34 @@ the user's focus sat in that page would then have opened a list the user never a
 moved the focus into it. Fixed before the commit: the tab's own key path stamps the same moment
 a press does, and the list opens only within a second of that stamp; the scenario's last step,
 an agent's click with the page focused, opens nothing.
+
+## F-claude-496-ctrl-shift-c-in-a-tab-field-opened-the-collab-panel-001
+*severity: low · found in: pipeline 496's Test phase (the first run's shots) · class: a key bound in a view's context lost to a negated predicate · prevented by: PR-claude-a-views-key-needs-its-fields-context-too-001*
+
+`marley::PickElement` was bound to Ctrl-Shift-C in `MarleyBrowser`. Pressed from a pick's
+caption field, the key opened Zed's collab panel instead: Zed binds it in `!Terminal`, a
+predicate that holds at every depth and so matches at the deepest one, the field's `Editor`,
+which outranks a binding in the field's ancestor `MarleyBrowser`. From the page itself both sit
+at the same depth and Marley's keymap, bound later, won, so the first press in the run worked
+and the second did not. Fixed before the commit: `MarleyBrowser > Editor` binds the key too.
+
+## F-claude-496-escape-never-reached-a-browser-page-001
+*severity: low · found in: pipeline 496's Code phase (the review, before Escape could end pick mode) · class: a key bound above a view that forwards raw keys · prevented by: PR-claude-a-views-key-needs-its-fields-context-too-001*
+
+Since #489 the Browser tab sent each key to the page from its `on_key_down`, after Zed's
+bindings. Zed binds Escape to `workspace::Unfollow` in `Workspace`, whose handler never
+propagates, so Escape never reached a page: a page's own dialog or menu could not be closed
+with it, and pick mode could not end on it. Fixed before the commit: `MarleyBrowser` binds
+Escape to `null`, which drops the `Workspace` binding while the tab has the focus; the address
+bar's, the dialog's and a select list's Escape bindings sit deeper and still win. Other keys Zed
+binds above the tab (Ctrl-S, Ctrl-W) still stay with Zed.
+
+## F-claude-496-the-picks-text-read-a-fields-value-001
+*severity: medium · found in: pipeline 496's Code phase (the review against the security line) · class: what the user typed reaching an agent · prevented by: the #492 rule that a snapshot writes no values*
+
+`DESCRIBE`, the function that reads a picked element, took its text from `innerText` and, for
+an element with none, from `value`. For a picked password field that is the password, which the
+bundle would have handed to the agent through `browser_pick`, and for any field what the user
+typed. Fixed before the commit: the text is `innerText`, and a value only for an `<input>`
+button, where it is the label; the accessible name, which a field's label gives, still names a
+field.

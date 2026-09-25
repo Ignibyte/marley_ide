@@ -407,6 +407,10 @@ alike.
   Every answer names its tab.
 - `browser_tabs` lists each page: its id, title, URL (with secret-looking values hidden),
   whether it loads, and which one a call that names no tab acts on.
+- `browser_picks` and `browser_pick {id}` (#496) answer from the hub alone, before the browser
+  needs to show, so a pick outlives its page and a restart: the list gives each pick's id, tab,
+  URL and title, summary, caption and whether it was sent; `browser_pick` gives the pick with
+  its bundle, and its crop as the image.
 - The read tools: `browser_look` (the hub's URL and title, `Page::viewport`,
   `focused_element`, the selection unless a password field has the focus, and
   `Page::screenshot` as the image), `browser_snapshot` (the main frame's tree, each same-site
@@ -449,7 +453,7 @@ alike.
   when that changes. The root `.gitignore` ignores every `.mcp.json`, since a local one carries
   bearers, with an exception for this one.
 
-## The Browser tab (`src/browser.rs`, #488 to #490, #493, #494)
+## The Browser tab (`src/browser.rs`, #488 to #490, #493 to #496)
 
 - `BrowserHub` is one entity per app, behind a global: the connection to Marley's Chromium
   (`marley_browser`) and a `PageState` for each of its pages (#493): the `Page`, its newest
@@ -566,6 +570,26 @@ alike.
   and, for a press, the difference between the press in the page and in its frame, which places
   it right in any frame. A choice calls the hub's `choose_option`, a dismissal its
   `dismiss_select`, and either gives the page the focus back.
+- **Picks (#496).** The toolbar's Crosshair button, lit while the page picks, and
+  `marley::PickElement` (Ctrl-Shift-C in `MarleyBrowser`, and in `MarleyBrowser > Editor`, where
+  Zed's `!Terminal` binding of the key would otherwise win) call the hub's `set_picking`, which
+  turns on the page's Debugger domain the first time (its `scripts` map is `None` until then)
+  and inspect mode (`Page::set_inspect`); the page takes the focus. `MarleyBrowser` binds Escape
+  to nothing, so it reaches the tab's `key_down` rather than Zed's `workspace::Unfollow`: in pick
+  mode it ends the mode, and otherwise it goes to the page. `Overlay.inspectNodeRequested` ends
+  pick mode and reads the pick in a task (`capture_pick`, then `crop`); the session's `Pick`s,
+  numbered from 1, keep their tab, redacted URL, title, summary, caption, whether they were sent
+  and the bundle, and `BrowserEvent::PickStaged` gives the tab's caption field the focus. The
+  tray, under the toolbar while its page has picks, lists them newest first in rows of one
+  height: the pick's number and summary, then a caption field (`MarleyPickCaption`, where Enter
+  is `marley::SendPick`), Send and Discard, or what was sent. Send types
+  `[browser pick N: <summary> on <host/path>; browser_pick id N] <caption>` with
+  `Terminal::paste` into the terminal the user focused last (`LastTerminal`, kept by an
+  `on_focus_in` on every `TerminalView`), after bringing its tab to the front of its center pane
+  or Terminal Panel, in whichever workspace of the window holds it, and focusing it; that work
+  is deferred, since the terminal's pane may hold the tab itself. A sent pick's Discard takes it
+  out of the tray and keeps it for the agent. A pick that did not read, or a Send with no
+  terminal used yet, says so in the tray.
 
 ## Tests
 
@@ -619,6 +643,9 @@ microphone through a fake Voxtype whose `record toggle` moves its status on, and
 
 ## Known limits
 
+- A key Zed binds above the Browser tab goes to Zed, not the page: Ctrl-S saves, Ctrl-W closes
+  the tab. Escape reaches the page since #496. Pick mode runs in the page's own session, not a
+  cross-site iframe's, so picking inside such an iframe is outside #496.
 - A Browser tab's page outlives its window: closing a window, or quitting, closes no page. A
   tab restored at launch takes its page back (#494); a page no restored tab claims gets a tab
   the next time `marley: open browser` runs, or when an agent acts in it. A navigation in the

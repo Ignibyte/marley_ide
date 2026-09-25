@@ -2265,3 +2265,13 @@ A task that waits on a component's readiness to finish something the user is sho
 failure means the job is gone; the task belongs to the thing that shows it pending, so it ends
 when that does. A wait that returns on the first failure strands its dependents once the
 component recovers, and nothing retries them.
+
+## PR-claude-a-views-key-needs-its-fields-context-too-001
+*severity: low · prevents: F-claude-496-ctrl-shift-c-in-a-tab-field-opened-the-collab-panel-001, F-claude-496-escape-never-reached-a-browser-page-001*
+
+Before binding a key in a Marley view's context, or relying on a key reaching the view's
+`on_key_down`, grep Zed's keymaps for that key. A binding of it in `Workspace` or `Pane` runs
+before the view's key listener: give the view's context a `null` binding for a key the view must
+receive. A binding under a negated predicate (`!Terminal`, `!Editor`) matches at the deepest
+context, so from any field inside the view it outranks the view's own binding: bind the key in
+`<View> > Editor` too. Check the key from the view itself and from each of its fields.

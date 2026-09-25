@@ -33,15 +33,33 @@
   },
   {
     // The Browser tab's keys, as Chrome binds its own. While the tab has the focus they win over
-    // Zed's workspace bindings for the same keys (Ctrl-R opens a recent project, F5 debugs).
+    // Zed's workspace bindings for the same keys (Ctrl-R opens a recent project, F5 debugs), and
+    // Escape reaches the page, or ends pick mode, instead of Zed's Unfollow.
     "context": "MarleyBrowser",
     "bindings": {
+      "escape": null,
       "ctrl-l": "marley::FocusAddressBar",
       "ctrl-t": "marley::NewBrowserTab",
       "alt-left": "marley::BrowserBack",
       "alt-right": "marley::BrowserForward",
       "ctrl-r": "marley::BrowserReload",
-      "f5": "marley::BrowserReload"
+      "f5": "marley::BrowserReload",
+      "ctrl-shift-c": "marley::PickElement"
+    }
+  },
+  {
+    // Ctrl-Shift-C from the tab's own fields too, where Zed's `!Terminal` binding of the key (the
+    // collab panel) sits as deep as the field.
+    "context": "MarleyBrowser > Editor",
+    "bindings": {
+      "ctrl-shift-c": "marley::PickElement"
+    }
+  },
+  {
+    // A pick's caption: Enter sends the pick to the agent.
+    "context": "MarleyPickCaption > Editor",
+    "bindings": {
+      "enter": "marley::SendPick"
     }
   },
   {

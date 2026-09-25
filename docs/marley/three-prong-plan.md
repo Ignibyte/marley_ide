@@ -340,7 +340,7 @@ reaching his desktop.
 | B1b | #493 | Tabs as page targets: pages the page, an agent or Ctrl+T opens appear as tabs, a closed tab closes its page, the tools take `tab` (shipped) | M |
 | B1c | #494 | The Browser tabs saved with the workspace and back after a relaunch, on their pages or at their URLs (shipped) | S |
 | B1d | #495 | Marley's own `<select>` lists, drawn under the select in any frame, for the user's opening (shipped) | S |
-| B3a | #496 | Pillar A: pick mode, the durable bundle (ranked locators, AX node, listeners, blocking styles), picks staged for Chad to caption and send | L |
+| B3a | #496 | Pillar A: pick mode, the durable bundle (ranked locators, AX node, listeners, blocking styles), picks staged for Chad to caption and send (shipped) | L |
 | B3b | #497 | A picked element's listener source, through its source map, opened in the editor at the line | M |
 | B4 | #498 | Pillar B, annotations drawn by gpui and anchored in page coordinates | M |
 | B5 | #499 | Pillar C, the flight recorder and "record this" | L |
@@ -407,4 +407,5 @@ Wave 2 was specced on 2026-09-25, once wave 1 had landed (#496 to #499; the shel
    browser's own three parts are the 2026-08-11 amendment's pillars (D14).
 6. Whether picks go to the agent at once or wait for Chad to caption them (B3a), and whether
    annotations persist across sessions (B4). Wave 2's specs take staged picks and
-   session-only annotations as the defaults unless Chad says otherwise.
+   session-only annotations as the defaults unless Chad says otherwise; #496 shipped staged
+   picks.

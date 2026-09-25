@@ -8,7 +8,8 @@
 //! and [`address`] turns what the address bar holds into a URL. For agents (#492), [`snapshot`]
 //! writes the accessibility tree as text with refs, and [`observe`] keeps what the page logged
 //! and fetched, secrets hidden. [`select`] catches a `<select>` opening, whose list headless
-//! Chromium draws where no frame shows it (#495). The Browser tab that shows the page is
+//! Chromium draws where no frame shows it (#495), and [`pick`] reads the element the user picks
+//! in inspect mode (#496). The Browser tab that shows the page is
 //! `marley_workbench`'s (`docs/marley/three-prong-plan.md`, prong 3).
 
 // gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
@@ -32,6 +33,7 @@ pub mod frame;
 pub mod input;
 pub mod observe;
 pub mod page;
+pub mod pick;
 pub mod select;
 pub mod service;
 pub mod snapshot;

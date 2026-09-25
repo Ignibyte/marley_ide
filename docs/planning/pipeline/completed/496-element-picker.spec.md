@@ -1,7 +1,7 @@
 ---
 pipeline_id: 586c6a28-c005-4f0f-bc43-dabe695f23cf
 ticket: docs/planning/tickets/open/TICKET-496-element-picker.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "B3a: Pick an element in the Browser tab and send it to the agent"
 type: feature
 slice: prong 3 B3a (wave 2)
@@ -76,7 +76,10 @@ listener at `app.js`, the covered element's blocker); pick mode and Escape (`496
 - D2 — Chromium's own inspect highlight, since it is in the frames; Marley draws none.
 - D3 — The bundle is captured at the pick and kept for the session; the terminal line is the
   reference, the MCP tool the content.
-- D4 — Send types into the terminal the user used last, as attaching a file does.
+- D4 — Send types into the terminal the user used last, as attaching a file does, and takes the
+  user there.
+- D5 — Picking turns on the page's Debugger domain once, for the scripts' URLs, with every pause
+  skipped (`Debugger.setSkipAllPauses`), so a page's `debugger` statement never freezes it.
 
 ## Acceptance Criteria (EARS)
 

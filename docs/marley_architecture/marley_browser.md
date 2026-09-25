@@ -134,6 +134,32 @@ for.
   context, index)` sets the select's index in the world that reported it and dispatches `input`
   and `change` when the choice differs; the events are not trusted.
 
+## Picking (`src/pick.rs`, #496)
+
+- `Page::set_inspect(on)` turns Chromium's inspect mode on (`DOM.enable`, `Overlay.enable`,
+  `Overlay.setInspectMode` with `searchForNode` and a highlight that shows its tooltip and the
+  accessibility info) or off (`none`). The highlight is in the frames, so the Browser tab draws
+  nothing; a click in the page raises `Overlay.inspectNodeRequested` with the node's
+  `backendNodeId` and does not reach the page.
+- `Page::watch_scripts` turns on the Debugger domain with every pause skipped
+  (`Debugger.setSkipAllPauses`), so a page's `debugger` statement never stops it; its
+  `Debugger.scriptParsed` events name each script's URL and source map, the scripts loaded
+  already included.
+- `Page::capture_pick(backend_node_id, scripts)` reads the pick into a `PickBundle` in one pass:
+  the node resolved and walked up, through open shadow roots, to its nearest interactive
+  ancestor (a control, a link, an element with a tab index, an `onclick` or an interactive role),
+  else its own element; `DESCRIBE`'s tag, text (a field's value never, a password's included;
+  an `<input>` button's value is its label), locators (a test id, an id, the text, a CSS path,
+  each marked when it finds the element alone in its document), box in the page through
+  same-origin frames, and blockers (`pointer-events: none` on it or an ancestor, visibility,
+  `display`, opacity, `disabled`, and the element on top at its middle); role and name from
+  `Accessibility.getPartialAXTree`; and the listeners of the element, its ancestors, the
+  document and the window (`DOMDebugger.getEventListeners` on each), at most 24, with their
+  script's URL and source map from `scripts`. `PickBundle::summary` names it as the tray does:
+  its role and name, else its tag and text.
+- `Page::crop(page_box)` is `Page.captureScreenshot` of the box with a 16-pixel margin, in page
+  coordinates, as a base64 JPEG.
+
 ## What the probe answered (2026-09-24)
 
 A key dispatched over CDP reaches a frame in 6 to 7 ms; frames come at the size the device

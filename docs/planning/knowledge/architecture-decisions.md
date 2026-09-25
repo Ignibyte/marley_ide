@@ -2021,3 +2021,19 @@ agent keeps the page's keys. Rejected: a hit test (`DOM.getNodeForLocation`) bef
 press, which puts a round trip in front of each click and misses a keyboard opening; letting
 Chromium's invisible popup open, which swallows keys; opening the list for any click, which
 would let an agent take the user's focus.
+
+## AD-claude-496-picks-are-staged-and-sent-to-the-last-terminal-001
+*decided at: 2026-09-25 · status: shipped*
+
+A pick in the Browser tab is staged, never sent on its own: it waits in a tray under the
+toolbar with a caption field, and Send (or Enter in the caption) pastes one line,
+`[browser pick N: <summary> on <host/path>; browser_pick id N] <caption>`, into the terminal the
+user focused last, brings that terminal to the front and gives it the focus, without pressing
+Enter. The line is the reference and `browser_pick` the content: the bundle (the nearest
+interactive element, its ranked locators, role and name, listeners with their scripts, blockers,
+box and crop) is read at the pick and kept in the hub for the session, so a pick outlives its
+page, a browser restart and its row in the tray. Chromium draws the highlight (inspect mode);
+Marley draws none. Rejected: sending a pick at once (open decision 3 leaned staged, and a pick
+the user did not mean would reach the agent); guessing a terminal when none was used yet (the
+tray says so instead); submitting the line (the user may add to it first); a popover for the
+tray (it would cover the page the user is looking at).

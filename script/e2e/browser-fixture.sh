@@ -18,6 +18,8 @@
 #   (#492): `tools`, `tabs`, `navigate <url>`, `look [<image file>]`, `snapshot`, `console`,
 #   `network`, `type-into <role> <name> <text>`, `click-on <role> <name>` and `scroll <dy>`.
 #   `--tab <id>` names the tab a tool acts on, and `--new-tab` has `navigate` open one (#493).
+#   `picks` lists the user's picks and `pick <id> [<image file>]` reads one, saving its crop
+#   (#496).
 # - `browser_profile` and `browser_unit` name the run's Chromium profile and its user unit;
 #   `browser_teardown`, for the scenario's `teardown`, stops the unit and the servers.
 
@@ -337,6 +339,36 @@ def main():
         result = client.tool("browser_scroll", {"dy": float(rest[0]), **options})
         if result:
             print(f"  {result['structuredContent']['did']}")
+    elif command == "picks":
+        result = client.tool("browser_picks")
+        picks = (result or {}).get("structuredContent", {}).get("picks", [])
+        if result and not picks:
+            print("  no picks")
+        for pick in picks:
+            sent = f"sent with {pick['caption']!r}" if pick["sent"] else "not sent"
+            print(f"  pick {pick['id']}: {pick['summary']} at {pick['url']} in tab {pick['tab']}, {sent}")
+    elif command == "pick":
+        result = client.tool("browser_pick", {"id": int(rest[0])})
+        if result:
+            pick = result["structuredContent"]
+            bundle = pick["bundle"]
+            print(f"  pick {pick['id']}: {pick['summary']} at {pick['url']} ({pick['title']!r})")
+            print(f"  tag {bundle['tag']}, role {bundle['role']}, name {bundle['name']!r}, text {bundle['text']!r}")
+            for locator in bundle["locators"]:
+                print(f"  locator {locator['kind']}: {locator['value']} (unique: {locator.get('unique')})")
+            for listener in bundle["listeners"]:
+                place = f"{listener.get('script')}:{listener['line']}:{listener['column']}"
+                print(f"  listener {listener['event']} on {listener['on']}: {place}")
+            print(f"  blockers: {', '.join(bundle['blockers']) or 'none'}")
+            box = bundle["page_box"]
+            print(f"  box in the page: {box['x']:.0f},{box['y']:.0f} {box['width']:.0f}x{box['height']:.0f}")
+            images = [block for block in result["content"] if block["type"] == "image"]
+            if not images:
+                print("  no crop")
+            elif len(rest) > 1:
+                with open(rest[1], "wb") as file:
+                    file.write(base64.b64decode(images[0]["data"]))
+                print(f"  the crop: {images[0]['mimeType']}, saved as {os.path.basename(rest[1])}")
     client.close()
 
 
