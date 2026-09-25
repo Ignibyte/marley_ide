@@ -153,8 +153,9 @@ const REGISTRY: &[ToolSpec] = &[
         "Read an element the user picked in a Browser tab, by its id from the user's line or \
          browser_picks, as it was at the pick: its locators, the most durable first, with \
          whether each finds it alone; its role and name; the listeners on it and its ancestors \
-         with their scripts, lines and columns; what would block a click on it; its box in the \
-         page; and the page around it as an image.",
+         with their scripts, lines and columns, and, through each script's source map, the file \
+         in the project and the line they were written at; what would block a click on it; its \
+         box in the page; and the page around it as an image.",
     ),
     browser_write(
         "navigate",
@@ -509,9 +510,23 @@ fn pick_schemas() -> (Value, Value) {
                         "event": { "type": "string" },
                         "on": { "type": "string", "description": "The element, an ancestor, the document or the window." },
                         "script": { "type": ["string", "null"] },
-                        "line": { "type": "integer", "description": "From 0." },
-                        "column": { "type": "integer", "description": "From 0." },
-                        "source_map": { "type": ["string", "null"] }
+                        "line": { "type": "integer", "description": "In the script, from 1." },
+                        "column": { "type": "integer", "description": "In the script, from 1." },
+                        "source_map": { "type": ["string", "null"] },
+                        "original": {
+                            "type": ["object", "null"],
+                            "description": "Where the script's source map says the listener was written.",
+                            "properties": {
+                                "source": { "type": "string", "description": "The source, as its map names it." },
+                                "file": {
+                                    "type": ["string", "null"],
+                                    "description": "The file in the user's project that holds it, relative to its worktree."
+                                },
+                                "line": { "type": "integer", "description": "From 1." },
+                                "column": { "type": "integer", "description": "From 1." }
+                            },
+                            "required": ["source", "line", "column"]
+                        }
                     },
                     "required": ["event", "on", "line", "column"]
                 }

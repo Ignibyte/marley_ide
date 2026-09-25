@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A pick's code, one click away** (#497, 2026-09-25). A pick in the Browser tab now shows
+  where the element's listener was written: Marley reads the script's source map, from the page
+  or from the script itself, and finds that source in your project, so the tray reads
+  `click src/app.ts:2` and a click on it opens `src/app.ts` at line 2 in the editor. A listener
+  whose script has no map, or whose source is not in the project, shows its script's name and
+  line instead, and opens nothing. The tooltip lists every listener. `browser_pick` gives agents
+  each listener's original source, file and line too, and every line and column the pick tools
+  give now counts from 1, as an editor does.
 - **Pick an element for the agent** (#496, 2026-09-25). The Browser tab's crosshair button, or
   Ctrl+Shift+C, turns on pick mode: Chromium's own inspect highlight and its tooltip follow the
   pointer, and a click picks the control under it (a click on a button's label picks the

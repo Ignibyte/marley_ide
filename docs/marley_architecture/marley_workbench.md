@@ -453,7 +453,7 @@ alike.
   when that changes. The root `.gitignore` ignores every `.mcp.json`, since a local one carries
   bearers, with an exception for this one.
 
-## The Browser tab (`src/browser.rs`, #488 to #490, #493 to #496)
+## The Browser tab (`src/browser.rs`, #488 to #490, #493 to #497)
 
 - `BrowserHub` is one entity per app, behind a global: the connection to Marley's Chromium
   (`marley_browser`) and a `PageState` for each of its pages (#493): the `Page`, its newest
@@ -590,6 +590,18 @@ alike.
   is deferred, since the terminal's pane may hold the tab itself. A sent pick's Discard takes it
   out of the tray and keeps it for the agent. A pick that did not read, or a Send with no
   terminal used yet, says so in the tray.
+- **Listener sources (#497).** Once a pick is staged, its capture task reads each distinct source
+  map of its listeners (`original_positions`, `load_map`; the parse and the scans on the
+  background executor, as `futures::future::lazy`) and `pick_sources` sets each listener's
+  `original`, its `file` from `find_source` in the project of the pick's tab: an absolute
+  source inside a worktree, else the longest suffix of the source's path, down to two
+  components, that `entry_for_path` finds as a file (a lone name only when that is all the
+  source names). The row shows the first listener whose file is in the project, else the first
+  with a script: its event, then `src/app.ts:2` as a link, or the original source's or the
+  script's name and line muted, or `…` while the maps are read; the tooltip lists every
+  listener. The link opens the file with `Workspace::open_path` and
+  `Editor::go_to_singleton_buffer_point` at the line, from a task, since the file opens in the
+  tab's own pane; a file gone since, or an open that fails, says so in the tray.
 
 ## Tests
 
@@ -645,7 +657,9 @@ microphone through a fake Voxtype whose `record toggle` moves its status on, and
 
 - A key Zed binds above the Browser tab goes to Zed, not the page: Ctrl-S saves, Ctrl-W closes
   the tab. Escape reaches the page since #496. Pick mode runs in the page's own session, not a
-  cross-site iframe's, so picking inside such an iframe is outside #496.
+  cross-site iframe's, so picking inside such an iframe is outside #496. A page whose framework
+  delegates its events (React's root listener) shows the framework's listener, whose source is
+  the framework's code, not the handler the app wrote (#497).
 - A Browser tab's page outlives its window: closing a window, or quitting, closes no page. A
   tab restored at launch takes its page back (#494); a page no restored tab claims gets a tab
   the next time `marley: open browser` runs, or when an agent acts in it. A navigation in the

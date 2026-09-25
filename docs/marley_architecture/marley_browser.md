@@ -160,6 +160,25 @@ for.
 - `Page::crop(page_box)` is `Page.captureScreenshot` of the box with a 16-pixel margin, in page
   coordinates, as a base64 JPEG.
 
+## Source maps (`src/source_map.rs`, #497)
+
+- `map_location(script_url, source_map_url)` decodes a `data:` map (base64 or percent-encoded)
+  as `Inline`, and joins any other URL to the script's as `Remote`. `Page::load_resource(url)`
+  loads a remote map as Chromium's own tools do, through `Network.loadNetworkResource` in the
+  page's main frame (its frame id is the target's), reads its stream with `IO.read` to the end
+  and closes it; 32 MiB at most, and a failed load names its status.
+- `SourceMap::parse(text, base)` takes a version 3 map: its `sources` joined to `sourceRoot` and
+  resolved against the map's URL (the script's for an inline map), its `mappings` kept as text,
+  and one level of an index map's `sections`, each with its offset. `SourceMap::original(line,
+  column)` finds the section, then scans the base64 VLQ segments to the place: the last mapping
+  at or before it, where a one-value segment maps to nothing. Lines and columns count from 0.
+- `source_path(source)` gives the path a source names for a lookup: the scheme and host taken
+  off (`webpack://app/`, `http://localhost:5173/`), a `file:` URL and Vite's `/@fs/` marked
+  absolute, each component percent-decoded, `.` dropped and `..` applied.
+- Since #497 a pick's `Listener` counts its line and column from 1, and carries `original`, a
+  `SourcePosition` (the source, the file in the user's project when the workbench finds one, the
+  line and the column, from 1).
+
 ## What the probe answered (2026-09-24)
 
 A key dispatched over CDP reaches a frame in 6 to 7 ms; frames come at the size the device

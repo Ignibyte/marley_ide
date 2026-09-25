@@ -18,6 +18,7 @@ fs.workspace = true
 futures.workspace = true
 fuzzy.workspace = true
 gpui.workspace = true
+language.workspace = true
 log.workspace = true
 marley_agent.workspace = true
 marley_browser.workspace = true

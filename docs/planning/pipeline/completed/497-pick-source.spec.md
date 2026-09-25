@@ -1,11 +1,11 @@
 ---
 pipeline_id: 539e18c6-b2ed-4fe6-b42c-151901f7191f
 ticket: docs/planning/tickets/open/TICKET-497-pick-source.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "B3b: Open a picked element's listener source in the editor"
 type: feature
 slice: prong 3 B3b (wave 2; after #496)
-references: [docs/marley/browser-handoff.md, docs/planning/pipeline/queued/496-element-picker.spec.md]
+references: [docs/marley/browser-handoff.md, docs/planning/pipeline/completed/496-element-picker.spec.md]
 ---
 
 ## Title
@@ -21,10 +21,11 @@ source map to the original file and line in the workspace, which opens in Marley
 - It finds the original source in the workspace: the map's `sources` entry joined with its
   `sourceRoot`, with a bundler's scheme and prefix (`webpack://`, `/@fs/`, a leading `./`)
   taken off, tried under each worktree of the workspace, first match wins.
-- The tray shows each listener as `file:line` when found, else as the script's URL and line; a
-  click on a found one (or `marley::OpenPickSource` on the tray's selection) opens the file in the
+- The tray shows a pick's first listener as `file:line` when found, else as the script's name
+  and line, with every listener in its tooltip; a click on a found one opens the file in the
   editor at that line, in the workspace the tab belongs to.
-- `browser_pick` gives each listener's original file and line beside the script location.
+- `browser_pick` gives each listener's original source, file and line beside the script
+  location; every line and column in the pick tools counts from 1, as an editor does.
 
 ### Out (explicitly deferred)
 - Showing a script that has no map, or whose source is not in the workspace, in a read-only
@@ -43,6 +44,11 @@ and opens it at the line; Marley does that in its own editor, through Zed's
   `Network.loadNetworkResource` for a map the page's origin serves.
 - **Observed (the probe, 2026-09-25).** A listener added in `app.js` reports `app.js:0:69`, and
   the script's `sourceMapURL` is the relative `app.js.map` its comment names.
+- **Observed (the promotion's probe, 2026-09-25).** `Network.loadNetworkResource` with the
+  page's target id as `frameId` loads the map from the page's origin (`success`, the status and a
+  stream); `IO.read` gives its text, then `eof`; a missing map answers `success: false` with
+  404. A listener's position is its handler function's start (`line 0, col 103` for an inner
+  arrow function).
 - **Code we already ship.** No source-map crate in `Cargo.lock` (checked `sourcemap`,
   `source-map`, `swc_sourcemap`, `oxc_sourcemap`); Zed's debugger (`debugger_ui`) opens a file at
   a line with `go_to_singleton_buffer_point`; the worktrees come from the workspace's project.
@@ -53,7 +59,7 @@ with `src/app.ts` and a built `dist/app.js` with its map (the fixture writes bot
 hand), served from `dist/`; Marley opens the repository. Steps: pick the button whose listener
 `app.js` adds (`497-01-tray`: the listener as `src/app.ts:2`); click it (`497-02-opened`: the
 editor on `src/app.ts`, the cursor on line 2); a pick on an element whose listener's script has
-no map (`497-03-no-map`: its URL and line, nothing opened); the agent's `browser_pick` (the run
+no map (`497-03-no-map`: its script's name and line, nothing opened); the agent's `browser_pick` (the run
 log: the original location).
 
 ## Locked-In Decisions
@@ -61,7 +67,12 @@ log: the original location).
   the Plan phase finds a crate already in the tree; the mappings are the only part it needs.
 - D2 — The workspace's worktrees are the only place a source is looked for: a pick never opens a
   file outside the project.
-- D3 — A map is fetched from the page's own origin, as the page could fetch it, or read inline.
+- D3 — A map is loaded through the page's frame with `Network.loadNetworkResource`, as
+  DevTools loads maps, or read inline from a `data:` URL.
+- D4 — Every line and column the pick tools give counts from 1, as an editor does; #496's
+  listener positions move from CDP's 0 to 1 with it.
+- D5 — A source is found by the longest suffix of its path that names a file in a worktree,
+  down to two components; a lone file name only when that is all the source names.
 
 ## Acceptance Criteria (EARS)
 
@@ -69,7 +80,7 @@ log: the original location).
 |---|---|---|
 | REQ-001 | WHEN a pick's listener's script has a source map whose source is in the workspace, the tray shall show that source's path and line. | Shot `497-01-tray` |
 | REQ-002 | WHEN the user clicks that listener, Marley shall open the source in the editor at that line. | Shot `497-02-opened` |
-| REQ-003 | WHEN a listener's script has no source map, the tray shall show the script's URL and line and open nothing. | Shot `497-03-no-map` |
+| REQ-003 | WHEN a listener's script has no source map, the tray shall show the script's name and line and open nothing. | Shot `497-03-no-map` |
 | REQ-004 | WHEN an agent calls `browser_pick`, each listener with a source map shall carry its original path and line. | The run log |
 
 ## Phase Plan

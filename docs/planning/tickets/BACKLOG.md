@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-497](open/TICKET-497-pick-source.md) | feature | prong 3 B3b · a pick's listener through its source map, opened in the editor at the line |
 | [TICKET-498](open/TICKET-498-annotations.md) | feature | prong 3 B4 · annotations over the page in page coordinates, for Chad and agents |
 | [TICKET-499](open/TICKET-499-flight-recorder.md) | feature | prong 3 B5 · the flight recorder: the last minute per page, Record this, for agents |
 | [TICKET-486](open/TICKET-486-keep-the-terminal-size-across-launches.md) | bug | prong 1 T0 · the first terminals of a launch open at the last session's size (#485's limit) |

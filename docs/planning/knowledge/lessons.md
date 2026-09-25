@@ -2729,3 +2729,16 @@ replays `Debugger.scriptParsed` for the scripts loaded already, with each URL an
 page. `DOMDebugger.getEventListeners` takes one object at a time; a function that returns the
 element's ancestors, document and window as an array, read with `Runtime.getProperties`, gives
 each object's id and description. Listener lines and columns count from 0.
+
+## L-claude-497-chromium-loads-a-source-map-for-its-client-001
+*category: build · topic: CDP, source maps · from: pipeline 497*
+
+A CDP client loads a page's source map the way Chromium's own tools do:
+`Network.loadNetworkResource` with the page's target id as `frameId` (a page's main frame id is
+its target id) and `options {disableCache, includeCredentials}` answers `resource.success`, the
+status and an `IO` stream; `IO.read` gives the text (or base64 with `base64Encoded`) until
+`eof`, and `IO.close` frees it. A missing map answers `success: false` with its status, not an
+error. `Debugger.scriptParsed`'s `sourceMapURL` is as the script's comment wrote it, often
+relative, so it is joined to the script's URL first. A listener's `lineNumber` and
+`columnNumber` are its handler function's start, which a line-level map still places on the
+right source line.

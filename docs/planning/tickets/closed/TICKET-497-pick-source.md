@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #497 (feature, prong 3 B3b; prong 3 wave 2)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/497-pick-source.spec.md
+- **Pipeline doc:** ../../pipeline/completed/497-pick-source.spec.md
 - **Source ticket:** docs/marley/three-prong-plan.md, prong 3 B3b; docs/marley/browser-handoff.md
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The signature move of pillar A: from a picked element to the code that handles it. For each

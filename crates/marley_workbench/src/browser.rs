@@ -55,17 +55,20 @@ use marley_browser::page::{
     DialogKind, FrameMetadata, JavaScriptDialog, NavigationHistory, Page, ScreencastFrame,
     TargetInfo,
 };
-use marley_browser::pick::{PickBundle, ScriptInfo};
+use marley_browser::pick::{Listener, PickBundle, ScriptInfo, SourcePosition};
 use marley_browser::select::{self, SelectRequest};
 use marley_browser::snapshot::RefTarget;
+use marley_browser::source_map::{self, MapLocation, OriginalPosition, SourceMap};
 use marley_browser::{address, frame, service};
-use project::Project;
+use project::{Project, ProjectPath};
 use serde_json::Value;
 use terminal_view::TerminalView;
 use terminal_view::terminal_panel::TerminalPanel;
 use ui::prelude::*;
 use ui::{AlertModal, Chip, ContextMenu, IconPosition, Tooltip};
 use util::ResultExt as _;
+use util::paths::PathStyle;
+use util::rel_path::RelPath;
 use workspace::item::{Item, ItemEvent, SerializableItem};
 use workspace::{ItemId, MultiWorkspace, Pane, SplitDirection, Workspace, WorkspaceId};
 
@@ -213,6 +216,9 @@ pub struct Pick {
     /// Whether the user took it out of the tray after sending it; the agent can still read it.
     #[serde(skip)]
     pub dismissed: bool,
+    /// Whether its listeners' source maps were read (#497).
+    #[serde(skip)]
+    pub sources_read: bool,
     /// What the pick captured.
     pub bundle: PickBundle,
     /// The page around the element, a base64 JPEG.
@@ -1150,18 +1156,27 @@ impl BrowserHub {
         cx.spawn(async move |this, cx| {
             session.set_inspect(false).await.log_err();
             let captured = session.capture_pick(backend_node_id, &scripts).await;
-            let crop = match &captured {
-                Ok(bundle) => session.crop(bundle.page_box).await.log_err(),
-                Err(_) => None,
+            let (crop, listeners) = match &captured {
+                Ok(bundle) => (
+                    session.crop(bundle.page_box).await.log_err(),
+                    bundle.listeners.clone(),
+                ),
+                Err(_) => (None, Vec::new()),
             };
-            this.update(cx, |this, cx| {
-                this.pick_captured(&target, (url, title), captured, crop, cx);
-            })
-            .ok();
+            let Ok(Some(id)) = this.update(cx, |this, cx| {
+                this.pick_captured(&target, (url, title), captured, crop, cx)
+            }) else {
+                return;
+            };
+            // The tray shows the pick at once; the listeners' places follow.
+            let positions = original_positions(&session, &listeners, cx).await;
+            this.update(cx, |this, cx| this.pick_sources(id, positions, cx))
+                .ok();
         })
         .detach();
     }
 
+    /// Stages the pick the page's capture read, or says why it read none; the staged pick's id.
     fn pick_captured(
         &mut self,
         target: &str,
@@ -1169,8 +1184,8 @@ impl BrowserHub {
         captured: Result<PickBundle, CdpError>,
         crop: Option<String>,
         cx: &mut Context<Self>,
-    ) {
-        match captured {
+    ) -> Option<usize> {
+        let staged = match captured {
             Ok(bundle) => {
                 let id = self.next_pick;
                 self.next_pick += 1;
@@ -1183,6 +1198,7 @@ impl BrowserHub {
                     caption: String::new(),
                     sent: false,
                     dismissed: false,
+                    sources_read: false,
                     bundle,
                     crop,
                 });
@@ -1190,14 +1206,56 @@ impl BrowserHub {
                     target: target.to_string(),
                     id,
                 });
+                Some(id)
             }
             Err(error) => {
                 log::warn!("browser: a pick did not read: {error}");
                 if let Some(page) = self.page_state_mut(target) {
                     page.pick_error = Some(format!("Could not read the element: {error}").into());
                 }
+                None
             }
+        };
+        cx.notify();
+        staged
+    }
+
+    /// Sets each listener's place in its original source in the pick `id`, with the file in its
+    /// tab's project that holds it (#497).
+    fn pick_sources(
+        &mut self,
+        id: usize,
+        positions: Vec<Option<OriginalPosition>>,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(tab) = self.pick(id).map(|pick| pick.tab.clone()) else {
+            return;
+        };
+        let project = view_of(&tab, cx)
+            .and_then(|view| view.read(cx).workspace.upgrade())
+            .map(|workspace| workspace.read(cx).project().clone());
+        let files: Vec<Option<String>> = positions
+            .iter()
+            .map(|position| {
+                let (position, project) = (position.as_ref()?, project.as_ref()?);
+                find_source(project.read(cx), &position.source, cx)
+                    .map(|path| path.path.as_unix_str().to_string())
+            })
+            .collect();
+        let Some(pick) = self.picks.iter_mut().find(|pick| pick.id == id) else {
+            return;
+        };
+        for ((listener, position), file) in
+            pick.bundle.listeners.iter_mut().zip(positions).zip(files)
+        {
+            listener.original = position.map(|position| SourcePosition {
+                source: position.source,
+                file,
+                line: position.line.saturating_add(1),
+                column: position.column.saturating_add(1),
+            });
         }
+        pick.sources_read = true;
         cx.notify();
     }
 
@@ -2609,8 +2667,8 @@ pub struct BrowserView {
     select_menu: Option<SelectMenu>,
     /// The caption fields of the page's staged picks, by pick (#496).
     captions: HashMap<usize, Entity<Editor>>,
-    /// Why the last Send reached no terminal.
-    send_error: Option<SharedString>,
+    /// What went wrong with the last Send, or the last listener's file opened.
+    tray_error: Option<SharedString>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -2620,6 +2678,19 @@ struct TrayRow {
     summary: String,
     /// The caption it was sent with, once sent.
     sent: Option<String>,
+    place: Option<ListenerPlace>,
+}
+
+/// What a tray row says of its pick's listeners (#497): the first whose file is in the project,
+/// else the first with a script.
+struct ListenerPlace {
+    event: String,
+    /// Where it is, as the row shows it.
+    label: String,
+    /// The listener whose file a click opens.
+    opens: Option<usize>,
+    /// Every listener and its place, one a line.
+    all: String,
 }
 
 /// A select's list, drawn by the tab over the page where the select's popup would be.
@@ -2735,7 +2806,7 @@ impl BrowserView {
             pressed_at: None,
             select_menu: None,
             captions: HashMap::new(),
-            send_error: None,
+            tray_error: None,
             _subscriptions: subscriptions,
         };
         view.show_address(window, cx);
@@ -3153,7 +3224,7 @@ impl BrowserView {
         self.hub
             .update(cx, |hub, cx| hub.set_picking(&target, on, cx));
         if on {
-            self.send_error = None;
+            self.tray_error = None;
             window.focus(&self.focus_handle, cx);
         }
     }
@@ -3196,7 +3267,7 @@ impl BrowserView {
             .try_global::<LastTerminal>()
             .and_then(|last| Some((last.view.upgrade()?, last.window)));
         let Some((terminal, terminal_window)) = terminal else {
-            self.send_error = Some(SharedString::new_static(
+            self.tray_error = Some(SharedString::new_static(
                 "No terminal to send to: click in one, then Send.",
             ));
             cx.notify();
@@ -3208,7 +3279,7 @@ impl BrowserView {
             .map(|field| field.read(cx).text(cx).trim().to_string())
             .unwrap_or_default();
         let line = pick_line(id, &summary, &url, &caption);
-        self.send_error = None;
+        self.tray_error = None;
         self.hub
             .update(cx, |hub, cx| hub.pick_sent(id, caption, cx));
         let browser_window = window.window_handle();
@@ -3229,13 +3300,68 @@ impl BrowserView {
         });
     }
 
+    /// Opens the file a pick's listener was written in, at its line, in the tab's workspace.
+    fn open_pick_source(
+        &mut self,
+        id: usize,
+        listener: usize,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(original) = self
+            .hub
+            .read(cx)
+            .pick(id)
+            .and_then(|pick| pick.bundle.listeners.get(listener))
+            .and_then(|listener| listener.original.clone())
+        else {
+            return;
+        };
+        let Some(workspace) = self.workspace.upgrade() else {
+            return;
+        };
+        let Some(path) = find_source(workspace.read(cx).project().read(cx), &original.source, cx)
+        else {
+            let name = original.file.unwrap_or(original.source);
+            self.tray_error = Some(format!("{name} is not in the project any more.").into());
+            cx.notify();
+            return;
+        };
+        let point = language::Point::new(original.line.saturating_sub(1), 0);
+        // Opening the file in this tab's pane updates the tab, so it happens after this update.
+        cx.spawn_in(window, async move |this, cx| {
+            let opened = async {
+                let item = workspace
+                    .update_in(cx, |workspace, window, cx| {
+                        workspace.open_path(path, None, true, window, cx)
+                    })?
+                    .await?;
+                if let Some(editor) = cx.update(|_, cx| item.act_as::<Editor>(cx))? {
+                    editor.update_in(cx, |editor, window, cx| {
+                        editor.go_to_singleton_buffer_point(point, window, cx);
+                    })?;
+                }
+                anyhow::Ok(())
+            }
+            .await;
+            if let Err(error) = opened {
+                this.update(cx, |this, cx| {
+                    this.tray_error = Some(format!("Could not open the file: {error}").into());
+                    cx.notify();
+                })
+                .ok();
+            }
+        })
+        .detach();
+    }
+
     fn discard_pick(&mut self, id: usize, cx: &mut Context<Self>) {
         self.captions.remove(&id);
         self.hub.update(cx, |hub, cx| hub.discard_pick(id, cx));
     }
 
     fn dismiss_pick_error(&mut self, cx: &mut Context<Self>) {
-        self.send_error = None;
+        self.tray_error = None;
         if let Some(target) = self.target.clone() {
             self.hub
                 .update(cx, |hub, cx| hub.clear_pick_error(&target, cx));
@@ -3619,13 +3745,14 @@ impl BrowserView {
                     id: pick.id,
                     summary: pick.summary.clone(),
                     sent: pick.sent.then(|| pick.caption.clone()),
+                    place: listener_place(pick),
                 })
                 .collect();
             (picks, hub.pick_error(&target))
         };
         self.captions
             .retain(|id, _| picks.iter().any(|row| row.id == *id && row.sent.is_none()));
-        let error = error.or_else(|| self.send_error.clone());
+        let error = error.or_else(|| self.tray_error.clone());
         if picks.is_empty() && error.is_none() {
             return None;
         }
@@ -3684,7 +3811,12 @@ impl BrowserView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
-        let TrayRow { id, summary, sent } = row;
+        let TrayRow {
+            id,
+            summary,
+            sent,
+            place,
+        } = row;
         let sent_already = sent.is_some();
         // One height for every row, sent or not, so the page below moves by whole rows.
         let head = h_flex()
@@ -3702,7 +3834,10 @@ impl BrowserView {
                     .flex_none()
                     .max_w(rems(20.))
                     .child(Label::new(summary).size(LabelSize::Small).truncate()),
-            );
+            )
+            .when_some(place, |row, place| {
+                row.child(Self::render_listener_place(id, place, cx))
+            });
         let body = if let Some(caption) = sent {
             let said = if caption.is_empty() {
                 "Sent to the terminal".to_string()
@@ -3764,6 +3899,50 @@ impl BrowserView {
                 }))
                 .on_click(cx.listener(move |this, _, _, cx| this.discard_pick(id, cx))),
         )
+    }
+
+    /// A pick's listener and where it is: a link that opens its file when the file is in the
+    /// project, else the place muted; every listener in the tooltip.
+    fn render_listener_place(
+        id: usize,
+        place: ListenerPlace,
+        cx: &Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let ListenerPlace {
+            event,
+            label,
+            opens,
+            all,
+        } = place;
+        let location = match opens {
+            Some(listener) => Button::new(("browser-pick-source", id), label)
+                .style(ButtonStyle::Transparent)
+                .label_size(LabelSize::Small)
+                .color(Color::Accent)
+                .truncate(true)
+                .tooltip(Tooltip::text(all))
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    this.open_pick_source(id, listener, window, cx);
+                }))
+                .into_any_element(),
+            None => div()
+                .id(("browser-pick-place", id))
+                .min_w_0()
+                .tooltip(Tooltip::text(all))
+                .child(
+                    Label::new(label)
+                        .size(LabelSize::Small)
+                        .color(Color::Muted)
+                        .truncate(),
+                )
+                .into_any_element(),
+        };
+        h_flex()
+            .flex_none()
+            .max_w(rems(18.))
+            .gap_1()
+            .child(Label::new(event).size(LabelSize::Small).color(Color::Muted))
+            .child(location)
     }
 
     /// What the tab says over the page while it has none to show, or when the browser stopped.
@@ -4394,6 +4573,197 @@ fn reveal_terminal(terminal: &Entity<TerminalView>, window: &mut Window, cx: &mu
         });
         return;
     }
+}
+
+/// Each listener's place in its original source, through its script's source map (#497): each
+/// map loaded once for the pick, and parsed and scanned off the main thread.
+async fn original_positions(
+    session: &Page,
+    listeners: &[Listener],
+    cx: &AsyncApp,
+) -> Vec<Option<OriginalPosition>> {
+    let mut maps: Vec<(&str, &str, Option<Arc<SourceMap>>)> = Vec::new();
+    for listener in listeners {
+        let (Some(script), Some(map_url)) = (&listener.script, &listener.source_map) else {
+            continue;
+        };
+        if maps
+            .iter()
+            .any(|(known_script, known_map, _)| known_script == script && known_map == map_url)
+        {
+            continue;
+        }
+        let map = load_map(session, script, map_url, cx).await;
+        maps.push((script, map_url, map));
+    }
+    let mut positions = Vec::with_capacity(listeners.len());
+    for listener in listeners {
+        let map = maps
+            .iter()
+            .find(|(script, map_url, _)| {
+                listener.script.as_deref() == Some(*script)
+                    && listener.source_map.as_deref() == Some(*map_url)
+            })
+            .and_then(|(_, _, map)| map.clone());
+        let position = match map {
+            Some(map) => {
+                let (line, column) = (
+                    listener.line.saturating_sub(1),
+                    listener.column.saturating_sub(1),
+                );
+                cx.background_spawn(futures::future::lazy(move |_| map.original(line, column)))
+                    .await
+            }
+            None => None,
+        };
+        positions.push(position);
+    }
+    positions
+}
+
+/// The source map `script` names, loaded through the page or read from its `data:` URL.
+async fn load_map(
+    session: &Page,
+    script: &str,
+    map_url: &str,
+    cx: &AsyncApp,
+) -> Option<Arc<SourceMap>> {
+    let (text, base) = match source_map::map_location(script, map_url)? {
+        MapLocation::Inline(text) => (text, script.to_string()),
+        MapLocation::Remote(url) => match session.load_resource(&url).await {
+            Ok(text) => (text, url),
+            Err(error) => {
+                log::info!("browser: {script}'s source map did not load: {error}");
+                return None;
+            }
+        },
+    };
+    cx.background_spawn(futures::future::lazy(move |_| {
+        SourceMap::parse(&text, &base)
+    }))
+    .await
+    .inspect_err(|error| log::info!("browser: {script}'s source map: {error}"))
+    .ok()
+    .map(Arc::new)
+}
+
+/// The file in `project` that a map's `source` names (#497): an absolute path inside a worktree,
+/// else the longest suffix of its path, down to two components, that is a file in one; a lone
+/// name only when that is all the source names.
+fn find_source(project: &Project, source: &str, cx: &App) -> Option<ProjectPath> {
+    let path = source_map::source_path(source);
+    let worktrees: Vec<_> = project.visible_worktrees(cx).collect();
+    if path.absolute {
+        let absolute = PathBuf::from(format!("/{}", path.components.join("/")));
+        for worktree in &worktrees {
+            let worktree = worktree.read(cx);
+            let Ok(relative) = absolute.strip_prefix(worktree.abs_path()) else {
+                continue;
+            };
+            let Ok(relative) = RelPath::new(relative, PathStyle::local()) else {
+                continue;
+            };
+            if worktree
+                .entry_for_path(&relative)
+                .is_some_and(project::Entry::is_file)
+            {
+                return Some(ProjectPath {
+                    worktree_id: worktree.id(),
+                    path: relative.into_arc(),
+                });
+            }
+        }
+    }
+    let count = path.components.len();
+    let shortest = if count == 1 { 1 } else { 2 };
+    for length in (shortest..=count).rev() {
+        let suffix = path.components.get(count - length..)?.join("/");
+        let Ok(relative) = RelPath::from_unix_str(&suffix) else {
+            continue;
+        };
+        for worktree in &worktrees {
+            let worktree = worktree.read(cx);
+            if worktree
+                .entry_for_path(relative)
+                .is_some_and(project::Entry::is_file)
+            {
+                return Some(ProjectPath {
+                    worktree_id: worktree.id(),
+                    path: relative.into_arc(),
+                });
+            }
+        }
+    }
+    None
+}
+
+/// What a pick's tray row says of its listeners: the first whose file is in the project, else
+/// the first with a script, and every listener for the tooltip.
+fn listener_place(pick: &Pick) -> Option<ListenerPlace> {
+    let listeners = &pick.bundle.listeners;
+    let opens = listeners.iter().position(|listener| {
+        listener
+            .original
+            .as_ref()
+            .is_some_and(|original| original.file.is_some())
+    });
+    let index = opens.or_else(|| {
+        listeners
+            .iter()
+            .position(|listener| listener.script.is_some())
+    })?;
+    let listener = listeners.get(index)?;
+    let reading = !pick.sources_read && listener.source_map.is_some();
+    let label = if reading {
+        "\u{2026}".to_string()
+    } else {
+        listener_where(listener)
+    };
+    let all = listeners
+        .iter()
+        .map(|listener| {
+            format!(
+                "{} on {}: {}",
+                listener.event,
+                listener.on,
+                listener_where(listener)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    Some(ListenerPlace {
+        event: listener.event.clone(),
+        label,
+        opens,
+        all,
+    })
+}
+
+/// Where a listener is: its file and line in the project, else its original source's name and
+/// line, else its script's name and line.
+fn listener_where(listener: &Listener) -> String {
+    match (&listener.original, &listener.script) {
+        (
+            Some(SourcePosition {
+                file: Some(file),
+                line,
+                ..
+            }),
+            _,
+        ) => format!("{file}:{line}"),
+        (Some(original), _) => format!("{}:{}", file_name(&original.source), original.line),
+        (None, Some(script)) => format!("{}:{}", file_name(script), listener.line),
+        (None, None) => "a script with no URL".to_string(),
+    }
+}
+
+/// A URL's file name: its last path segment, without the query or the fragment.
+fn file_name(url: &str) -> &str {
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    path.rsplit('/')
+        .next()
+        .filter(|name| !name.is_empty())
+        .unwrap_or(path)
 }
 
 /// The line Send types into the terminal: the pick's reference, which `browser_pick` reads, then

@@ -358,6 +358,9 @@ def main():
                 print(f"  locator {locator['kind']}: {locator['value']} (unique: {locator.get('unique')})")
             for listener in bundle["listeners"]:
                 place = f"{listener.get('script')}:{listener['line']}:{listener['column']}"
+                original = listener.get("original")
+                if original:
+                    place += f" -> {original.get('file')}:{original['line']}:{original['column']} (source {original['source']})"
                 print(f"  listener {listener['event']} on {listener['on']}: {place}")
             print(f"  blockers: {', '.join(bundle['blockers']) or 'none'}")
             box = bundle["page_box"]

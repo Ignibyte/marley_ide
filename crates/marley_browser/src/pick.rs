@@ -130,12 +130,27 @@ pub struct Listener {
     pub on: String,
     /// The URL of the script that added it.
     pub script: Option<String>,
-    /// Its line in the script, from 0.
-    pub line: i64,
-    /// Its column in the line, from 0.
-    pub column: i64,
-    /// The script's source map, as the script names it (#497).
+    /// Its line in the script, from 1.
+    pub line: u32,
+    /// Its column in the line, from 1.
+    pub column: u32,
+    /// The script's source map, as the script names it.
     pub source_map: Option<String>,
+    /// Where its source map says it was written (#497), once the map is read.
+    pub original: Option<SourcePosition>,
+}
+
+/// A listener's place in its original source (#497).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SourcePosition {
+    /// The source, as its map names it, resolved to a URL.
+    pub source: String,
+    /// The file in the user's project that holds it, relative to its worktree, when one does.
+    pub file: Option<String>,
+    /// Its line, from 1.
+    pub line: u32,
+    /// Its column, from 1.
+    pub column: u32,
 }
 
 /// The element's box in the page, in CSS pixels: the document's, not the viewport's.
@@ -430,20 +445,23 @@ impl Page {
                     script: script
                         .map(|script| script.url.clone())
                         .filter(|url| !url.is_empty()),
-                    line: listener
-                        .get("lineNumber")
-                        .and_then(Value::as_i64)
-                        .unwrap_or(0),
-                    column: listener
-                        .get("columnNumber")
-                        .and_then(Value::as_i64)
-                        .unwrap_or(0),
+                    line: from_one(listener.get("lineNumber")),
+                    column: from_one(listener.get("columnNumber")),
                     source_map: script.and_then(|script| script.source_map.clone()),
+                    original: None,
                 });
             }
         }
         Ok(listeners)
     }
+}
+
+/// CDP's count from 0 as a count from 1, as an editor shows it.
+fn from_one(value: Option<&Value>) -> u32 {
+    value
+        .and_then(Value::as_u64)
+        .and_then(|value| u32::try_from(value).ok())
+        .map_or(1, |value| value.saturating_add(1))
 }
 
 /// The object id at `pointer` in `answer`.

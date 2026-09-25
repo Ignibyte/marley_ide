@@ -2037,3 +2037,18 @@ Marley draws none. Rejected: sending a pick at once (open decision 3 leaned stag
 the user did not mean would reach the agent); guessing a terminal when none was used yet (the
 tray says so instead); submitting the line (the user may add to it first); a popover for the
 tray (it would cover the page the user is looking at).
+
+## AD-claude-497-marley-reads-source-maps-and-finds-sources-in-the-worktrees-001
+*decided at: 2026-09-25 · status: shipped*
+
+Marley follows a pick's listeners through their scripts' source maps with a decoder of its own
+(`marley_browser::source_map`: version 3, `sourceRoot`, one level of index-map sections, a base64
+VLQ scan to the place asked for), since no source-map crate is in the tree and only the mappings
+are needed. A map comes through the page (`Network.loadNetworkResource`) or from the script's
+`data:` URL. A source is looked for only in the project's worktrees: an absolute source inside
+one, else the longest suffix of its path, down to two components, that names a file there;
+nothing outside the project is ever opened. Positions in the pick tools count from 1, as
+editors do. Rejected: adding a source-map crate for one lookup per pick; reading the source from
+the map's `sourcesContent` into a buffer (out of scope, and not the user's file); matching a
+lone file name when the source names a path (a common name like `index.ts` would open the wrong
+file).

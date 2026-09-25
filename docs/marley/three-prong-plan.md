@@ -341,7 +341,7 @@ reaching his desktop.
 | B1c | #494 | The Browser tabs saved with the workspace and back after a relaunch, on their pages or at their URLs (shipped) | S |
 | B1d | #495 | Marley's own `<select>` lists, drawn under the select in any frame, for the user's opening (shipped) | S |
 | B3a | #496 | Pillar A: pick mode, the durable bundle (ranked locators, AX node, listeners, blocking styles), picks staged for Chad to caption and send (shipped) | L |
-| B3b | #497 | A picked element's listener source, through its source map, opened in the editor at the line | M |
+| B3b | #497 | A picked element's listener source, through its source map, opened in the editor at the line (shipped) | M |
 | B4 | #498 | Pillar B, annotations drawn by gpui and anchored in page coordinates | M |
 | B5 | #499 | Pillar C, the flight recorder and "record this" | L |
 
