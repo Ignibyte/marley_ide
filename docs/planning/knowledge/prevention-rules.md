@@ -2220,3 +2220,13 @@ T2's path links against the block's cwd, an agent reading a block), check that t
 from carried the terminal's nonce. Today only `preexec` carries it (`command_verified`); an
 action on a `precmd` field (`pwd`, the exit code) adds the nonce to `precmd` first. Showing a
 field (a pill, a bar) needs no check.
+
+## PR-claude-scripts-that-start-detached-processes-trap-the-signals-001
+*severity: medium · prevents: F-claude-488-a-signal-skipped-the-e2e-cleanup-001*
+
+A bash script whose cleanup lives in `trap … EXIT` and that starts anything that outlives it
+(`setsid -f`, `systemd-run`, a compositor) also traps the signals that end it:
+`trap 'exit 130' INT TERM HUP`. Bash runs the EXIT trap on `exit` and at the end of the script,
+not when a signal it does not trap kills it, so `timeout`, Ctrl-C or a closed terminal would
+leave the detached processes running. And a script that hands its own background jobs to
+sourced code tells that code to `wait "$pid"`, never a bare `wait`.

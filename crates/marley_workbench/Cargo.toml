@@ -19,6 +19,7 @@ fuzzy.workspace = true
 gpui.workspace = true
 log.workspace = true
 marley_agent.workspace = true
+marley_browser.workspace = true
 marley_rail.workspace = true
 marley_terminal.workspace = true
 menu.workspace = true

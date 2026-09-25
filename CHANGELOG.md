@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A Browser tab** (#488, 2026-09-24). `marley: open browser` opens a tab in the main area
+  that shows a web page rendered by Marley's own Chromium. The first time, Marley starts
+  Chromium in the background, headless, as a user service with its own profile, and it keeps
+  running when the tab or Marley closes. The tab is the page at the tab's size, laid out again
+  when the tab resizes, with the page's title on the tab. Any agent or tool that speaks the
+  Chrome DevTools Protocol can attach to the same Chromium, through the endpoint it writes into
+  its profile, and what it does to the page shows in the tab. Typing and clicking in the page
+  come next (#489). Without Chromium, the tab says so and names where it looked.
 - **Autosuggestions** (#484, 2026-09-23). As you type a command at a bash or zsh prompt in
   Marley's terminal, the rest of the newest matching command from your history shows dimmed after
   the cursor, and → types it in, as Warp and fish do. Commands you ran in the terminal come first,

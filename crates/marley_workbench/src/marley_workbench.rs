@@ -24,6 +24,7 @@ pub mod agent_bar;
 pub mod agents;
 pub mod autosuggest;
 pub mod blocks;
+pub mod browser;
 pub mod claude_plugin;
 #[cfg(test)]
 pub mod marley_workbench_tests;
@@ -96,6 +97,10 @@ actions!(
         /// terminal's program.
         #[derive(Eq)]
         AcceptSuggestion,
+        /// Opens the Browser tab: the page Marley's own Chromium shows, starting Chromium the
+        /// first time.
+        #[derive(Eq)]
+        OpenBrowser,
     ]
 );
 
@@ -191,6 +196,7 @@ pub fn init(cx: &mut App) {
     voice::init(cx);
     rich_input::init(cx);
     autosuggest::init(cx);
+    browser::init(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action_renderer(|div, _, _, cx| {
             div.capture_action(cx.listener(layout_preset::<UseClassicLayout>))

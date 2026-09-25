@@ -1910,3 +1910,17 @@ reload); `swaymsg seat cursor` (deprecated, and inert without a pointer device);
 inside Marley that injects clicks (it would skip the platform layer a scenario exists to
 exercise, and puts test code in the product); `ydotool` (uinput reaches every compositor,
 the user's included). Scenarios proven on Hyprland stay there.
+
+## AD-claude-488-marleys-browser-is-a-transient-unit-streamed-into-a-tab-001
+*decided at: 2026-09-24 · status: shipped*
+
+Marley's browser is a headless Chromium that Marley starts on first use as a transient user
+unit, one per data directory, from the browser binary itself (never a distribution's launcher,
+which would load the user's flags and extensions), with `--remote-debugging-port=0` and the
+endpoint read from `DevToolsActivePort`. The Browser tab draws `Page.startScreencast` JPEG
+frames (quality 85, acknowledged after decoding) as gpui images sized to the tab by the
+device-metrics override, and one app-wide hub owns the connection, so the user and any agent
+attached to the same Chromium share one page. The probe and #488's run confirmed the
+screencast route (plan D12), so the CEF fallback stays unused. Rejected: an installed login
+service (Chad chose "Marley starts it"); a fixed debugging port (profiles would collide, the
+e2e run's with Chad's); a hub per tab (an agent's page and the user's would part).

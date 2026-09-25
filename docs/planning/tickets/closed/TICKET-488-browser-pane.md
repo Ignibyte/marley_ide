@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #488 (feature, prong 3 B0a)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/488-browser-pane.spec.md
+- **Pipeline doc:** ../../pipeline/completed/488-browser-pane.spec.md
 - **Source ticket:** docs/marley/three-prong-plan.md, prong 3 (D12, D13, D16)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The first slice of the browser. `marley: open browser` starts Marley's own Chromium (a

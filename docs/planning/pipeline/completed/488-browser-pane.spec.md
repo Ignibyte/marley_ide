@@ -1,7 +1,7 @@
 ---
 pipeline_id: 4abba6cb-8b6c-4aca-9556-8d309cac3348
 ticket: docs/planning/tickets/open/TICKET-488-browser-pane.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "B0a: A Browser tab that shows Marley's own Chromium"
 type: feature
 slice: prong 3 B0a

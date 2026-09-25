@@ -30,7 +30,9 @@
 # and `shot <name>`, which writes SHOT_DIR/<name>.png and prints its path. Under sway also
 # `click <x> <y> [button]`, `pointer_to <x> <y>`, `pointer_down [button]`,
 # `pointer_up [button]` and `scroll <steps>` (wheel detents at the pointer, positive down), in
-# the window's pixels, with the buttons left, middle and right.
+# the window's pixels, with the buttons left, middle and right. A step started in the
+# background is waited for by its pid (`wait "$pid"`): the run's own helpers are background jobs
+# of the same shell, so a bare `wait` waits for them too, until the run is killed.
 #
 #   SHOT_DIR where the PNGs and Marley's log land ($TMPDIR/marley-shots); never the repository
 set -euo pipefail
@@ -438,6 +440,8 @@ cleanup() {
   rm -rf "$E2E_PROFILE" "$E2E_WORK" ${SWAY_DIR:+"$SWAY_DIR"}
 }
 trap cleanup EXIT
+# A signal ends the run through its EXIT trap, so a run cut short still stops what it started.
+trap 'exit 130' INT TERM HUP
 
 if [[ $COMPOSITOR == hyprland ]]; then
   hyprctl eval "hl.window_rule({ match = { class = \"$class\" }, workspace = \"9 silent\", render_unfocused = true })" >/dev/null

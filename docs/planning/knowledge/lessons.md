@@ -2513,3 +2513,25 @@ clicks and scrolls on command (`script/e2e/seat-pointer.c`), and `wtype -s 86400
 keyboard; later `wtype` calls then only switch the keymap. gpui binds devices that appear after
 it started. With `default_border none` the one window fills the output, so the output's pixels
 are the window's, and a scenario reads its click targets from its own first shot.
+
+## L-claude-488-chromium-reports-a-new-url-not-the-documents-title-001
+*category: code · topic: CDP targets · from: pipeline 488*
+
+With target discovery on, Chromium sends `Target.targetInfoChanged` when a page's URL changes,
+with the URL standing in as the title, and `Target.targetCreated` for the targets that exist
+when discovery starts. It sends nothing when the document's `<title>` arrives, although
+`Target.getTargets` reports it a moment later. A tab that shows the page's title asks for it:
+`Target.getTargetInfo` after `Page.domContentEventFired`, `Page.loadEventFired` and
+`Page.navigatedWithinDocument`. A title a single-page app changes later, with no navigation,
+still goes unseen.
+
+## L-claude-488-an-overlay-from-any-session-shows-in-every-screencast-001
+*category: code · topic: CDP screencast · from: pipeline 488*
+
+The Overlay domain's highlights are drawn into the page's compositor frame, so a highlight one
+CDP session sets (`Overlay.highlightNode`, or inspect mode's hover) shows in the screencast
+frames of every other session on that page. In #488's run, a stand-in agent's highlight of a
+button, with its accessibility tooltip, showed in Marley's Browser tab. It ends when that
+session detaches, so a client that highlights stays connected while the highlight must show.
+The element picker (B3a) can use DevTools' own inspect mode for its hover, drawn once for
+everyone watching.

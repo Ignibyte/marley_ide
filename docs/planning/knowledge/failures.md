@@ -1856,3 +1856,13 @@ character showed and the cursor sat inside the prompt, while bash ran the whole 
 plain-pty reproduction sized before bash started never shows it; a `script` log inside Marley
 does. Fixed: a new PTY opens at the size the last PTY terminal was given; the first terminals of
 a launch still open at the debug size (TICKET-486).
+
+## F-claude-488-a-signal-skipped-the-e2e-cleanup-001
+*severity: medium · found in: pipeline 488's Test phase · class: cleanup on a signal*
+
+A browser scenario hung on a bare `wait` (it waited for the harness's own keyboard holder, a
+background job of the same shell), and `timeout` ended the run with SIGTERM. `script/e2e.sh`
+trapped only EXIT, which bash does not run when an untrapped signal kills it, so the run's
+headless sway, its Marley and its Chromium unit stayed up, with the profile copy on disk. Fixed
+in the harness: `trap 'exit 130' INT TERM HUP` beside the EXIT trap, so a signal ends the run
+through its cleanup; the header says to wait for a background step by its pid.

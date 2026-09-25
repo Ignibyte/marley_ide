@@ -1,0 +1,72 @@
+[package]
+name = "marley_browser"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license = "MIT OR Apache-2.0"
+
+[lib]
+path = "src/marley_browser.rs"
+
+[dependencies]
+anyhow.workspace = true
+async-tungstenite.workspace = true
+base64.workspace = true
+futures.workspace = true
+gpui.workspace = true
+hex.workspace = true
+image.workspace = true
+log.workspace = true
+parking_lot.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+smol.workspace = true
+thiserror.workspace = true
+util.workspace = true
+which.workspace = true
+
+# Rustal's lint table (CONSTITUTION §14). The Marley manifests carry the same table: cargo
+# gives a crate either the workspace's table or its own, and Zed's crates keep Zed's.
+[lints.rust]
+unexpected_cfgs = { level = "allow" }
+unsafe_code = "deny"
+missing_docs = "deny"
+missing_debug_implementations = "deny"
+unreachable_pub = "warn"
+unused_qualifications = "warn"
+# gpui's registration calls return `&mut App` for chaining, and `.log_err()`, the
+# `.rules` idiom for an error that is logged and dropped, returns an `Option`: in a gpui
+# crate an unused result is a statement by design.
+unused_results = "allow"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+declare_interior_mutable_const = "deny"
+redundant_clone = "deny"
+disallowed_methods = "deny"
+missing_errors_doc = "deny"
+missing_panics_doc = "deny"
+missing_safety_doc = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+clone_on_ref_ptr = "warn"
+# Zed's `.rules`: never `let _ =` a fallible call.
+let_underscore_must_use = "deny"
+multiple_crate_versions = "allow"
+module_name_repetitions = "allow"
+# The cargo group reads every manifest in the workspace, so these three report Zed's packages
+# and Zed's `test-support` feature convention; the Marley crates are unpublished.
+cargo_common_metadata = "allow"
+negative_feature_names = "allow"
+redundant_feature_names = "allow"
+# gpui runs futures on its foreground executor, and its test and async contexts are not
+# `Send` by design, so every gpui test future would trip this lint.
+future_not_send = "allow"

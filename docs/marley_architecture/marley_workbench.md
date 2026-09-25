@@ -388,6 +388,31 @@ alike.
   `known_marketplaces.json` has `marley`, then `claude plugin install marley@marley`, and shows a
   toast or the error. The agent bar's chip calls it.
 
+## The Browser tab (`src/browser.rs`, #488)
+
+- `BrowserHub` is one entity per app, behind a global: the connection to Marley's Chromium
+  (`marley_browser`), the page every Browser tab shows, its newest frame, title and URL, and
+  how many tabs show it. `start` connects through the profile's `DevToolsActivePort` when a
+  Chromium answers there; otherwise, unless the unit is up, it removes a stale endpoint file,
+  starts the unit and waits up to fifteen seconds, failing early when the unit stops. Its event
+  loop decodes each frame off the main thread, keeps it and acknowledges it; follows the
+  page's URL and title (asking for the title after DOMContentLoaded, load and same-document
+  navigations, since no target event reports it); starts over when the page is closed or
+  crashes; and fails with "The browser closed its connection." when the socket ends. A
+  generation number drops a superseded start's late results. The screencast runs while at
+  least one Browser tab exists and the page's size is known.
+- `BrowserView` is the Browser tab, a `workspace::Item`: its text is the page's title (else
+  "Browser"), its tooltip the URL, its icon the globe. It draws the hub's state ("Starting
+  Chromium…", "Connecting to Chromium…", or the reason it stopped, with how to try again) or the
+  page. It frees each frame from the window's atlas two paints after it was first drawn and
+  both kept frames on release, as Zed's screen-share view does, since the window may present
+  the last frame again.
+- `PageElement` reports the tab's size and the window's scale to the hub in `prepaint` (the
+  page is laid out again only when either changes) and paints the frame from the tab's top
+  left at its own size, so a frame from before a resize is neither stretched nor squeezed.
+- `marley::OpenBrowser` ("marley: open browser") activates the workspace's Browser tab or adds
+  one to the active pane, and restarts a hub that failed.
+
 ## Tests
 
 `src/marley_workbench_tests.rs` (the switch, the keymap loader, persistence and the docks across

@@ -10771,6 +10771,28 @@ name = "marley_agent"
 version = "0.1.0"
 
 [[package]]
+name = "marley_browser"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-tungstenite",
+ "base64 0.22.1",
+ "futures 0.3.34",
+ "gpui",
+ "hex",
+ "image",
+ "log",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "sha2",
+ "smol",
+ "thiserror 2.0.17",
+ "util",
+ "which",
+]
+
+[[package]]
 name = "marley_dcs"
 version = "0.1.0"
 
@@ -10840,6 +10862,7 @@ dependencies = [
  "language_model",
  "log",
  "marley_agent",
+ "marley_browser",
  "marley_rail",
  "marley_terminal",
  "menu",

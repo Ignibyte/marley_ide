@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-488](open/TICKET-488-browser-pane.md) | feature | prong 3 B0a · a Browser tab that shows Marley's own Chromium (the `marley_browser` crate) |
 | [TICKET-489](open/TICKET-489-browser-input.md) | feature | prong 3 B0b · typing, clicking, the wheel and the clipboard in the page; the latency answer |
 | [TICKET-490](open/TICKET-490-browser-navigation.md) | feature | prong 3 B1a · the address bar, back, forward, reload, the loading state, JavaScript dialogs |
 | [TICKET-491](open/TICKET-491-marley-mcp-in-the-app.md) | feature | prong 2 C0 (pulled forward) · Marley's MCP server in the app, the plugin's bridge, terminal block tools |
