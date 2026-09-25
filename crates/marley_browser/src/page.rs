@@ -350,12 +350,16 @@ impl Page {
     }
 
     /// Lays the page out in a viewport of `width` by `height` CSS pixels, at `scale` device
-    /// pixels to the CSS pixel.
+    /// pixels to the CSS pixel, with its browser window at the same size.
     ///
     /// # Errors
     ///
-    /// As [`Connection::call`].
+    /// As [`Connection::call`]; the viewport is set even when the window could not be sized.
     pub async fn set_viewport(&self, width: u32, height: u32, scale: f32) -> Result<(), CdpError> {
+        // A page Chromium made on request sits in a headless window of its own, of its first
+        // size; laid out wider than that window, a page with a cross-site iframe can stop sending
+        // screencast frames after a resize (#494). The window follows the viewport.
+        let window = self.fit_window(width, height).await;
         self.call(
             "Emulation.setDeviceMetricsOverride",
             json!({
@@ -365,8 +369,32 @@ impl Page {
                 "mobile": false,
             }),
         )
-        .await
-        .map(drop)
+        .await?;
+        window
+    }
+
+    /// Gives the page's browser window `width` by `height`.
+    async fn fit_window(&self, width: u32, height: u32) -> Result<(), CdpError> {
+        let window = self
+            .connection
+            .call(
+                "Browser.getWindowForTarget",
+                json!({ "targetId": self.target_id }),
+                None,
+            )
+            .await?;
+        let window_id = window
+            .get("windowId")
+            .and_then(Value::as_i64)
+            .ok_or_else(|| CdpError::Unexpected("the page's window has no id".to_string()))?;
+        self.connection
+            .call(
+                "Browser.setWindowBounds",
+                json!({ "windowId": window_id, "bounds": { "width": width, "height": height } }),
+                None,
+            )
+            .await
+            .map(drop)
     }
 
     /// Starts streaming the page as JPEG frames.

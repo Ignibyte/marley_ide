@@ -449,7 +449,7 @@ alike.
   when that changes. The root `.gitignore` ignores every `.mcp.json`, since a local one carries
   bearers, with an exception for this one.
 
-## The Browser tab (`src/browser.rs`, #488 to #490, #493)
+## The Browser tab (`src/browser.rs`, #488 to #490, #493, #494)
 
 - `BrowserHub` is one entity per app, behind a global: the connection to Marley's Chromium
   (`marley_browser`) and a `PageState` for each of its pages (#493): the `Page`, its newest
@@ -458,8 +458,8 @@ alike.
   profile's `DevToolsActivePort` when a Chromium answers there; otherwise, unless the unit is
   up, it removes a stale endpoint file, starts the unit and waits up to fifteen seconds, failing
   early when the unit stops. It then turns on target discovery and attaches the pages the
-  browser lists (making `about:blank` when it has none), each once and each in a task of its
-  own, with the page's observers on before the page is announced. The event loop routes each
+  browser lists, each once and each in a task of its own, with the page's observers on before
+  the page is announced; a start opens no page (#494). The event loop routes each
   event to the page whose session it came from, or whose iframe's; attaches each `page` target
   discovery reports later (`targetCreated`, which carries `openerId` for a page a page opened);
   drops a page on `targetDestroyed` or `targetCrashed`, and one that went while it was being
@@ -471,8 +471,10 @@ alike.
   known.
 - **Tabs as pages (#493).** The hub emits `PageOpened` once a page is attached and
   `PageClosed` when it goes, each naming the page's target id, and a subscription made with the
-  hub's global answers them. A tab that waits for the first page of a start takes it; otherwise
-  the page gets a tab of its own, unless a tab shows it already. A page a page opened goes beside
+  hub's global answers them. A tab that shows the page already keeps it. A page a start found
+  (`listed`, #494) goes to a tab opened while the browser started, or else waits without a tab
+  until a restored tab claims it or `marley: open browser` gives it one. Any other page gets a
+  tab of its own. A page a page opened goes beside
   its opener's tab, with the focus. Any other page goes after the tab the user focused last, or
   else after the newest Browser tab, and never takes the focus: in a pane that has the focus it
   joins the tab bar behind the active tab, since Zed gives a lost focus to the pane's new front
@@ -493,13 +495,27 @@ alike.
   adds it again in one update, before the deferred check runs. The tab frees each frame from the
   window's atlas two paints after it was first drawn, and both kept frames on release, as Zed's
   screen-share view does, since the window may present the last frame again.
+- **Saved and restored (#494).** `BrowserView` is a `SerializableItem` of kind
+  `MarleyBrowserTab`, registered in `browser::init`. The workspace's layout holds the item
+  alone; the tab's page id, URL and title go in its own table, `marley_browser_tabs`, of the
+  `db` domain `MarleyBrowserTabsDb` (after `WorkspaceDb`, its rows deleted with their
+  workspace). Zed saves the item when it joins a workspace and on `UpdateTab`, which the tab
+  emits when its page's URL or title changes and when it takes a page; `cleanup` is Zed's
+  `delete_unloaded_items`. `deserialize` builds a tab that claims its saved page id at once, so
+  the start's `PageOpened` for that page finds it, and shows the saved title and URL until the
+  page is back. The tab's restore task waits for the hub to show its pages and for the start's
+  attaches: a page that is back is kept, and otherwise the saved URL opens in a new page, which
+  the tab takes.
 - `PageElement` reports the tab's size and the window's scale to the hub in `prepaint` (the
   page is laid out again only when either changes) and paints the frame from the tab's top
   left at its own size, so a frame from before a resize is neither stretched nor squeezed.
-- `marley::OpenBrowser` ("marley: open browser") activates the workspace's tab of the page the
-  user focused last, or its first Browser tab; else gives a tab to each page that has none
-  (their tabs closed with their window); else opens a tab and a blank page for it. It restarts a
-  hub that failed, and the tabs of the old pages close. `marley::NewBrowserTab` ("marley: new
+- `marley::OpenBrowser` ("marley: open browser") gives a tab to each page that has none (a
+  start's that no tab claimed, and those whose tab closed with its window), the first with the
+  focus; else activates the workspace's tab of the page the user focused last, or its first
+  Browser tab, a restoring one included; else opens a tab and a blank page for it. A tab opened
+  while the browser starts waits, in a task it holds, for the start's pages, through a failure
+  and the start after it, and opens a blank page when none came to it. It restarts a hub that
+  failed, and the tabs of the old pages close. `marley::NewBrowserTab` ("marley: new
   browser tab", Ctrl-T in `MarleyBrowser`) opens a tab after the active one with the focus in
   its address bar, and a blank page for it. The tab takes the page's id when
   `Target.createTarget` answers, which is before the page is attached, so the page's
@@ -592,10 +608,11 @@ microphone through a fake Voxtype whose `record toggle` moves its status on, and
 
 ## Known limits
 
-- A Browser tab's page outlives its window: closing a window, or quitting, closes no page, and
-  such a page gets a tab the next time `marley: open browser` runs (#494 restores the tabs at
-  launch). Ctrl+T while Chromium is still starting opens a second blank page beside the one the
-  start makes.
+- A Browser tab's page outlives its window: closing a window, or quitting, closes no page. A
+  tab restored at launch takes its page back (#494); a page no restored tab claims gets a tab
+  the next time `marley: open browser` runs, or when an agent acts in it. A navigation in the
+  moment before a quit may go unsaved, since Zed throttles item saves. History across a
+  Chromium restart, scroll positions and form contents come back only when the page lived on.
 - The title bar's Panel Layout submenu still lists Classic and Agentic in the Marley layout,
   with "Custom" checked; choosing one explains itself (#451), and hiding it needs a
   `title_bar` touchpoint.

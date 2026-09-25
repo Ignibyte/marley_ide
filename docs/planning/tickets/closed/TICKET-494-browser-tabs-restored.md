@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #494 (feature, prong 3 B1c; split from #493)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/494-browser-tabs-restored.spec.md
+- **Pipeline doc:** ../../pipeline/completed/494-browser-tabs-restored.spec.md
 - **Source ticket:** docs/marley/three-prong-plan.md, prong 3 B1
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Browser tabs are saved with the workspace, through Zed's `SerializableItem`, in a table of

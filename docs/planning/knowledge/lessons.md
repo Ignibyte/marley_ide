@@ -2669,3 +2669,24 @@ closes, and `Target.createTarget` still opens a page on the same connection (a p
 scratch profile, 2026-09-25). Closing the last Browser tab can close its page without taking
 the browser down. The browser also lists `browser_ui` and `background_page` targets, which come
 and go with no page among them.
+
+## L-claude-494-a-created-page-keeps-the-window-of-its-first-size-001
+*category: build · topic: CDP and headless Chromium · from: pipeline 494*
+
+In headless Chromium each page `Target.createTarget` makes has a window of its own, 780 by 580
+unless the call names a size, and `Emulation.setDeviceMetricsOverride` changes the page's
+viewport, not that window. A page laid out wider than its window can stop producing screencast
+frames after a resize when it holds an out-of-process iframe; the startup page did not show it.
+Size the window with the viewport: `Browser.getWindowForTarget`, then
+`Browser.setWindowBounds`, then the override. With `--no-startup-window` a start opens no page,
+and without it or a URL headless Chromium opens `chrome://newtab/`.
+
+## L-claude-494-zed-item-ids-change-at-each-launch-001
+*category: build · topic: Zed item persistence · from: pipeline 494*
+
+An item's `ItemId` is its entity id, new at each launch. Zed deserializes an item under its
+saved id, saves it again under its new one when it joins the workspace, and then runs `cleanup`
+with the loaded items' new ids, so an item's own table keeps one row per live item only if it
+saves on `added_to_workspace` (Zed does that for every serializable item) and its `cleanup`
+deletes the rest (`delete_unloaded_items`). A table keyed by anything but the item id outlives
+its items.

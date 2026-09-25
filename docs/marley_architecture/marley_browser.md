@@ -19,7 +19,9 @@ for.
   launcher, which would add the user's `chromium-flags.conf` (on Omarchy, three extensions and
   the keyring password store); else `chromium` or `chromium-browser` on the PATH.
 - Chromium runs `--headless --remote-debugging-port=0 --user-data-dir=<data dir>/browser/profile
-  --no-first-run --no-default-browser-check --password-store=basic about:blank`. Port 0 lets
+  --no-first-run --no-default-browser-check --password-store=basic --no-startup-window`: it
+  opens no page of its own (#494), and Marley opens the pages its tabs and agents ask for; without
+  the flag or a URL, headless Chromium opens `chrome://newtab/`. Port 0 lets
   Chromium pick the port, which it writes with the browser's WebSocket path to
   `DevToolsActivePort` in the profile; `endpoint_in` reads it, for Marley and for any other
   CDP client. The basic password store keeps a headless service from ever waiting on the
@@ -47,7 +49,10 @@ for.
   attached or not. A fresh headless Chromium also lists `browser_ui` and extension targets, so
   only `page` is a tab; it keeps running with no page at all, and `create` works then too.
 - The viewport is `Emulation.setDeviceMetricsOverride` at the tab's size and the window's
-  scale; the screencast is JPEG at quality 85, each frame acknowledged after it is decoded,
+  scale, after `Browser.setWindowBounds` gives the page's own headless window the same size
+  (#494): a page made by `Target.createTarget` keeps the window of its first size, and laid out
+  wider than that, a page with a cross-site iframe can stop sending screencast frames after a
+  resize. The screencast is JPEG at quality 85, each frame acknowledged after it is decoded,
   which paces Chromium to Marley. `target_info` reads the page's title: Chromium reports a new
   URL as a target change, with the URL as the title, but never the title the document sets.
 - `frame::decode` turns a frame's base64 JPEG into a BGRA `RenderImage`.

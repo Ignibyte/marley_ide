@@ -33,6 +33,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use anyhow::Context as _;
 use editor::Editor;
 use editor::actions::SelectAll;
 use futures::StreamExt as _;
@@ -54,12 +55,13 @@ use marley_browser::page::{
 };
 use marley_browser::snapshot::RefTarget;
 use marley_browser::{address, frame, service};
+use project::Project;
 use serde_json::Value;
 use ui::prelude::*;
 use ui::{AlertModal, Chip, Tooltip};
 use util::ResultExt as _;
-use workspace::item::{Item, ItemEvent};
-use workspace::{MultiWorkspace, Pane, SplitDirection, Workspace};
+use workspace::item::{Item, ItemEvent, SerializableItem};
+use workspace::{ItemId, MultiWorkspace, Pane, SplitDirection, Workspace, WorkspaceId};
 
 use crate::{
     AnswerDialog, BrowserBack, BrowserForward, BrowserReload, DismissDialog, FocusAddressBar,
@@ -85,6 +87,16 @@ const AGENT_CHIP: Duration = Duration::from_secs(5);
 
 /// How long a navigation an agent asked for may take to load before its call answers.
 const LOAD_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// How long a tab waits for the pages a start found to be attached before it decides that its
+/// page is not among them (#494).
+const START_PAGES_WAIT: Duration = Duration::from_secs(10);
+
+/// The URL of a blank page.
+const BLANK: &str = "about:blank";
+
+/// How often a tab waiting for its page looks at the browser's state.
+const SHOWN_POLL: Duration = Duration::from_millis(250);
 
 /// A cross-site iframe of a page, attached with a session of its own (#492).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -132,6 +144,9 @@ pub enum BrowserEvent {
         opener: Option<String>,
         /// Whether its tab takes the focus.
         focus: bool,
+        /// Whether a start found it, rather than something opening it since (#494): it gets a
+        /// tab only when one claims it, such as a tab restored at launch.
+        listed: bool,
     },
     /// A page went away: its tab closes.
     PageClosed {
@@ -332,7 +347,8 @@ impl BrowserHub {
                 target,
                 opener,
                 focus,
-            } => open_tab(&hub, target, opener.as_deref(), *focus, cx),
+                listed,
+            } => open_tab(&hub, target, opener.as_deref(), *focus, *listed, cx),
             BrowserEvent::PageClosed { target } => close_tabs(target, cx),
             _ => {}
         });
@@ -512,7 +528,7 @@ impl BrowserHub {
                             this.state = HubState::Showing;
                             // Discovery reports these again, and each is attached once.
                             for target in pages {
-                                this.attach(generation, target, None, cx);
+                                this.attach(generation, target, None, true, cx);
                             }
                             cx.notify();
                         }
@@ -551,12 +567,13 @@ impl BrowserHub {
     }
 
     /// Attaches to the page `target` in a task of its own, unless it is attached or attaching;
-    /// once attached, its tab opens.
+    /// once attached, its tab opens. A `listed` page is one a start found.
     fn attach(
         &mut self,
         generation: u64,
         target: String,
         opener: Option<String>,
+        listed: bool,
         cx: &Context<Self>,
     ) {
         if generation != self.generation
@@ -577,7 +594,7 @@ impl BrowserHub {
                 }
                 this.attaching.retain(|attaching| *attaching != target);
                 match attached {
-                    Ok(page) => this.attached(page, opener, cx),
+                    Ok(page) => this.attached(page, opener, listed, cx),
                     Err(error) => {
                         this.closing.retain(|closing| *closing != target);
                         log::warn!("browser: could not attach to a page: {error}");
@@ -589,7 +606,13 @@ impl BrowserHub {
         .detach();
     }
 
-    fn attached(&mut self, page: Page, opener: Option<String>, cx: &mut Context<Self>) {
+    fn attached(
+        &mut self,
+        page: Page,
+        opener: Option<String>,
+        listed: bool,
+        cx: &mut Context<Self>,
+    ) {
         let target = page.target_id().to_string();
         if let Some(index) = self.closing.iter().position(|closing| *closing == target) {
             self.closing.remove(index);
@@ -617,6 +640,7 @@ impl BrowserHub {
             target: target.clone(),
             opener,
             focus,
+            listed,
         });
         let generation = self.generation;
         cx.spawn(async move |this, cx| {
@@ -1473,14 +1497,11 @@ fn whole_pixels(length: Pixels) -> u32 {
     whole
 }
 
-/// The browser's pages once discovery is on, with a blank one made when it has none.
+/// The browser's pages once discovery is on. A start opens none (#494): a tab that wants a page
+/// and finds none among these opens its own.
 async fn pages_at_start(connection: &Connection) -> Result<Vec<String>, CdpError> {
     Page::discover(connection).await?;
-    let pages = Page::page_ids(connection).await?;
-    if pages.is_empty() {
-        return Ok(vec![Page::create(connection, "about:blank").await?]);
-    }
-    Ok(pages)
+    Page::page_ids(connection).await
 }
 
 /// Waits until the hub shows the browser's pages.
@@ -1504,21 +1525,43 @@ pub(crate) async fn showing(hub: &Entity<BrowserHub>, cx: &AsyncApp) -> Result<(
     }
 }
 
-/// Opens a blank page once the hub shows the browser's pages, and gives its id; its tab opens as
-/// any page's does.
+/// Opens a page at `url` once the hub shows the browser's pages, and gives its id; its tab opens
+/// as any page's does.
 ///
 /// # Errors
 ///
 /// As [`showing`], or the browser's reason when it made no page.
 pub(crate) async fn new_page(
     hub: &Entity<BrowserHub>,
+    url: String,
     cx: &mut AsyncApp,
 ) -> Result<String, String> {
     showing(hub, cx).await?;
-    let task = hub.update(cx, |hub, cx| {
-        hub.create_page_task("about:blank".to_string(), cx)
-    });
+    let task = hub.update(cx, |hub, cx| hub.create_page_task(url, cx));
     task.await
+}
+
+/// Waits until the hub shows the browser's pages, however long that takes: a tab waiting for its
+/// page shows why the browser stopped, and waits on for it to be opened again.
+async fn shown(hub: &Entity<BrowserHub>, cx: &AsyncApp) {
+    while hub.read_with(cx, |hub, _| hub.state() != &HubState::Showing) {
+        cx.background_executor().timer(SHOWN_POLL).await;
+    }
+}
+
+/// Waits, up to ten seconds, while the hub attaches pages a start found and `waiting` holds.
+async fn wait_for_start_pages(
+    hub: &Entity<BrowserHub>,
+    cx: &AsyncApp,
+    waiting: impl Fn(&BrowserHub) -> bool,
+) {
+    let mut waited = Duration::ZERO;
+    while waited < START_PAGES_WAIT
+        && hub.read_with(cx, |hub, _| hub.is_attaching() && waiting(hub))
+    {
+        cx.background_executor().timer(POLL_INTERVAL).await;
+        waited += POLL_INTERVAL;
+    }
 }
 
 /// Connects to the Marley Chromium whose profile is `profile`, starting it first when none
@@ -1629,8 +1672,10 @@ async fn follow(
                         .and_then(Value::as_str)
                         .map(str::to_string);
                     let target = target.to_string();
-                    this.update(cx, |this, cx| this.attach(generation, target, opener, cx))
-                        .ok();
+                    this.update(cx, |this, cx| {
+                        this.attach(generation, target, opener, false, cx);
+                    })
+                    .ok();
                 }
             }
             "Target.targetInfoChanged" => {
@@ -1887,13 +1932,15 @@ fn new_view(
     cx.new(|cx| BrowserView::new(hub, target, adopts, workspace, window, cx))
 }
 
-/// A page was attached: a tab waiting for the first page of a start takes it, and otherwise it
-/// gets a tab of its own, unless one shows it already.
+/// A page was attached. A tab that claims it shows it. A page a start found goes to a tab opened
+/// while the browser started, or else waits without a tab until one claims it or the user opens
+/// the browser (#494); any other page gets a tab of its own.
 fn open_tab(
     hub: &Entity<BrowserHub>,
     target: &str,
     opener: Option<&str>,
     focus: bool,
+    listed: bool,
     cx: &mut App,
 ) {
     let views = live_views(cx);
@@ -1901,6 +1948,16 @@ fn open_tab(
         .iter()
         .any(|view| view.read(cx).target.as_deref() == Some(target))
     {
+        return;
+    }
+    if !listed {
+        let beside = opener.and_then(|opener| {
+            views
+                .iter()
+                .find(|view| view.read(cx).target.as_deref() == Some(opener))
+                .cloned()
+        });
+        place_tab(hub, target, beside.as_ref(), focus, cx);
         return;
     }
     let waiting = views.iter().find(|view| {
@@ -1916,15 +1973,7 @@ fn open_tab(
                 view.update(cx, |view, cx| view.show_page(target, window, cx));
             })
             .log_err();
-        return;
     }
-    let beside = opener.and_then(|opener| {
-        views
-            .iter()
-            .find(|view| view.read(cx).target.as_deref() == Some(opener))
-            .cloned()
-    });
-    place_tab(hub, target, beside.as_ref(), focus, cx);
 }
 
 /// Opens a tab for the page `target`: beside `beside`, the tab of the page that opened it, or
@@ -2090,14 +2139,18 @@ fn close_tabs(target: &str, cx: &mut App) {
     }
 }
 
-/// Opens a blank page for `view`, which shows it once the browser has made it. A tab closed by
-/// then takes its page with it.
-fn open_page_in(hub: &Entity<BrowserHub>, view: &Entity<BrowserView>, cx: &App) {
-    let window = view.read(cx).window;
+/// Opens a page at `url` for `view`, a tab in `window`, which shows it once the browser has made
+/// it. A tab closed by then takes its page with it.
+fn open_page_in(
+    hub: &Entity<BrowserHub>,
+    view: WeakEntity<BrowserView>,
+    window: AnyWindowHandle,
+    url: String,
+    cx: &App,
+) {
     let hub = hub.clone();
-    let view = view.downgrade();
     cx.spawn(async move |cx| {
-        let created = new_page(&hub, cx).await;
+        let created = new_page(&hub, url, cx).await;
         let shown = window
             .update(cx, |_, window, cx| {
                 view.update(cx, |view, cx| {
@@ -2122,6 +2175,13 @@ pub struct BrowserView {
     target: Option<String>,
     /// Whether it takes the first page a start attaches: a tab opened while the browser starts.
     adopts: bool,
+    /// Whether it is a tab restored at launch whose page is not back yet (#494).
+    restoring: bool,
+    /// The URL and title it was saved with, shown until its page is back.
+    saved_url: Option<String>,
+    saved_title: Option<SharedString>,
+    /// The task that waits for the browser to give the tab its page, dropped with the tab.
+    waiting: Option<Task<()>>,
     /// Why its page did not open.
     open_error: Option<SharedString>,
     /// An address the user went to before the page was attached, gone to once it is.
@@ -2197,6 +2257,22 @@ impl BrowserView {
         ];
         let this = cx.weak_entity();
         cx.default_global::<BrowserViews>().0.push(this);
+        // A tab opened while the browser starts takes a page the start finds, and opens a blank
+        // one when the start brings none, after a failure and the start that follows it too.
+        let waiting = adopts.then(|| {
+            let hub = hub.clone();
+            cx.spawn(async move |this, cx| {
+                shown(&hub, cx).await;
+                wait_for_start_pages(&hub, cx, |_| true).await;
+                let Ok(Some(window)) = this.read_with(cx, |this, _| {
+                    (this.target.is_none() && this.adopts).then_some(this.window)
+                }) else {
+                    return;
+                };
+                this.update(cx, |this, _| this.adopts = false).ok();
+                cx.update(|cx| open_page_in(&hub, this, window, BLANK.to_string(), cx));
+            })
+        });
         let window_handle = window.window_handle();
         cx.on_release(move |this: &mut Self, cx| {
             for frame in [this.previous_frame.take(), this.current_frame.take()]
@@ -2218,6 +2294,10 @@ impl BrowserView {
             hub,
             target,
             adopts,
+            restoring: false,
+            saved_url: None,
+            saved_title: None,
+            waiting,
             open_error: None,
             queued_url: None,
             workspace,
@@ -2235,6 +2315,55 @@ impl BrowserView {
         };
         view.show_address(window, cx);
         view
+    }
+
+    /// Brings back a tab restored at launch (#494), which claims its saved page already: it
+    /// shows the saved title and URL until its page is back, keeps the page when the browser
+    /// still has it, and otherwise opens the saved URL in a new page.
+    fn restore(&mut self, url: String, title: String, window: &mut Window, cx: &mut Context<Self>) {
+        self.restoring = true;
+        self.saved_title = (!title.is_empty()).then(|| SharedString::from(title));
+        self.saved_url = Some(url.clone());
+        self.show_address(window, cx);
+        let Some(target) = self.target.clone() else {
+            return;
+        };
+        let hub = self.hub.clone();
+        let window_handle = self.window;
+        self.waiting = Some(cx.spawn(async move |this, cx| {
+            shown(&hub, cx).await;
+            wait_for_start_pages(&hub, cx, |hub| hub.page(&target).is_none()).await;
+            let back = hub.read_with(cx, |hub, _| hub.page(&target).is_some());
+            let settled = window_handle.update(cx, |_, window, cx| {
+                this.update(cx, |this, cx| {
+                    this.restoring = false;
+                    this.page_ready(window, cx);
+                    cx.notify();
+                })
+            });
+            if !back && matches!(settled, Ok(Ok(()))) {
+                // The browser no longer has the page, after a restart say: its URL opens again.
+                cx.update(|cx| open_page_in(&hub, this, window_handle, url, cx));
+            }
+        }));
+    }
+
+    /// What the tab saves: its page's id, and the page's URL and title, or the ones it was saved
+    /// with while its page is not back.
+    fn saved(&self, cx: &App) -> Option<(String, String, String)> {
+        let target = self.target.clone()?;
+        let hub = self.hub.read(cx);
+        let url = hub
+            .url(&target)
+            .map(|url| url.to_string())
+            .or_else(|| self.saved_url.clone())
+            .unwrap_or_else(|| BLANK.to_string());
+        let title = hub
+            .title(&target)
+            .or_else(|| self.saved_title.clone())
+            .map(|title| title.to_string())
+            .unwrap_or_default();
+        Some((target, url, title))
     }
 
     /// Starts showing the page `target`, attached or about to be.
@@ -2271,6 +2400,8 @@ impl BrowserView {
         let Some(target) = self.attached_target(cx) else {
             return;
         };
+        self.saved_url = None;
+        self.saved_title = None;
         if let Some(url) = self.queued_url.take() {
             self.hub
                 .update(cx, |hub, cx| hub.navigate(&target, url, cx));
@@ -2355,6 +2486,7 @@ impl BrowserView {
                 let target = self.target.as_deref()?;
                 self.hub.read(cx).address(target)
             })
+            .or_else(|| self.saved_url.clone().map(SharedString::from))
             .unwrap_or_default();
         self.address_bar.update(cx, |editor, cx| {
             if editor.text(cx) != *address {
@@ -2930,6 +3062,7 @@ impl Item for BrowserView {
         self.target
             .as_deref()
             .and_then(|target| self.hub.read(cx).title(target))
+            .or_else(|| self.saved_title.clone())
             .unwrap_or_else(|| SharedString::new_static("Browser"))
     }
 
@@ -2941,6 +3074,7 @@ impl Item for BrowserView {
         self.target
             .as_deref()
             .and_then(|target| self.hub.read(cx).url(target))
+            .or_else(|| self.saved_url.clone().map(SharedString::from))
     }
 
     fn telemetry_event_text(&self) -> Option<&'static str> {
@@ -2967,6 +3101,129 @@ impl Item for BrowserView {
                 hub.update(cx, |hub, cx| hub.close_page(&target, cx));
             }
         });
+    }
+}
+
+/// A Browser tab is saved with its workspace (#494). The workspace's layout holds only the item;
+/// the tab's page id, URL and title go in the tab's own table.
+impl SerializableItem for BrowserView {
+    fn serialized_item_kind() -> &'static str {
+        "MarleyBrowserTab"
+    }
+
+    fn cleanup(
+        workspace_id: WorkspaceId,
+        alive_items: Vec<ItemId>,
+        _window: &mut Window,
+        cx: &mut App,
+    ) -> Task<anyhow::Result<()>> {
+        workspace::delete_unloaded_items(
+            alive_items,
+            workspace_id,
+            "marley_browser_tabs",
+            &persistence::MarleyBrowserTabsDb::global(cx),
+            cx,
+        )
+    }
+
+    fn deserialize(
+        _project: Entity<Project>,
+        workspace: WeakEntity<Workspace>,
+        workspace_id: WorkspaceId,
+        item_id: ItemId,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Task<anyhow::Result<Entity<Self>>> {
+        let db = persistence::MarleyBrowserTabsDb::global(cx);
+        window.spawn(cx, async move |cx| {
+            let (target, url, title) = db
+                .get_tab(item_id, workspace_id)?
+                .context("no Browser tab was saved for the item")?;
+            cx.update(|window, cx| {
+                let hub = BrowserHub::global(cx);
+                // The tab claims its page before the browser's start can report it, so the page
+                // gets no second tab.
+                let view = cx.new(|cx| Self::new(hub, Some(target), false, workspace, window, cx));
+                view.update(cx, |view, cx| view.restore(url, title, window, cx));
+                view
+            })
+        })
+    }
+
+    fn serialize(
+        &mut self,
+        workspace: &mut Workspace,
+        item_id: ItemId,
+        _closing: bool,
+        cx: &mut Context<Self>,
+    ) -> Option<Task<anyhow::Result<()>>> {
+        let workspace_id = workspace.database_id()?;
+        let (target, url, title) = self.saved(cx)?;
+        let db = persistence::MarleyBrowserTabsDb::global(cx);
+        Some(cx.background_spawn(async move {
+            db.save_tab(item_id, workspace_id, target, url, title).await
+        }))
+    }
+
+    fn should_serialize(&self, event: &ItemEvent) -> bool {
+        matches!(event, ItemEvent::UpdateTab)
+    }
+}
+
+mod persistence {
+    use db::query;
+    use db::sqlez::domain::Domain;
+    use db::sqlez::thread_safe_connection::ThreadSafeConnection;
+    use db::sqlez_macros::sql;
+    use workspace::{ItemId, WorkspaceDb, WorkspaceId};
+
+    /// The Browser tabs' own table: each tab's page, and the URL and title it had.
+    pub(super) struct MarleyBrowserTabsDb(ThreadSafeConnection);
+
+    impl Domain for MarleyBrowserTabsDb {
+        const NAME: &str = stringify!(MarleyBrowserTabsDb);
+
+        const MIGRATIONS: &[&str] = &[sql!(
+            CREATE TABLE marley_browser_tabs (
+                workspace_id INTEGER,
+                item_id INTEGER UNIQUE,
+                target_id TEXT NOT NULL,
+                url TEXT NOT NULL,
+                title TEXT NOT NULL,
+
+                PRIMARY KEY(workspace_id, item_id),
+                FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id)
+                ON DELETE CASCADE
+            ) STRICT;
+        )];
+    }
+
+    db::static_connection!(MarleyBrowserTabsDb, [WorkspaceDb]);
+
+    impl MarleyBrowserTabsDb {
+        query! {
+            pub(super) async fn save_tab(
+                item_id: ItemId,
+                workspace_id: WorkspaceId,
+                target_id: String,
+                url: String,
+                title: String
+            ) -> Result<()> {
+                INSERT OR REPLACE INTO marley_browser_tabs(item_id, workspace_id, target_id, url, title)
+                VALUES (?, ?, ?, ?, ?)
+            }
+        }
+
+        query! {
+            pub(super) fn get_tab(
+                item_id: ItemId,
+                workspace_id: WorkspaceId
+            ) -> Result<Option<(String, String, String)>> {
+                SELECT target_id, url, title
+                FROM marley_browser_tabs
+                WHERE item_id = ? AND workspace_id = ?
+            }
+        }
     }
 }
 
@@ -3206,9 +3463,10 @@ impl PageElement {
     }
 }
 
-/// Installs `marley::OpenBrowser` and `marley::NewBrowserTab` on every workspace. [`crate::init`]
-/// calls it once.
-pub fn init(cx: &App) {
+/// Installs `marley::OpenBrowser` and `marley::NewBrowserTab` on every workspace, and saves and
+/// restores the Browser tabs with their workspaces. [`crate::init`] calls it once.
+pub fn init(cx: &mut App) {
+    workspace::register_serializable_item::<BrowserView>(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action(|workspace, _: &OpenBrowser, window, cx| {
             open(workspace, window, cx);
@@ -3232,32 +3490,12 @@ pub(crate) fn show_for_agent(target: &str, cx: &mut App) {
     place_tab(&hub, target, None, false, cx);
 }
 
-/// Shows a Browser tab: the workspace's tab of the page the user focused last, or its first; else
-/// a tab for each page that has none; else a new tab. A hub that stopped starts again, and the
-/// tabs of its old pages close.
+/// Shows the Browser: tabs for the pages that have none, the first with the focus; else the
+/// workspace's tab of the page the user focused last, or its first; else a new tab. A hub that
+/// stopped starts again, and the tabs of its old pages close.
 fn open(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
     let hub = BrowserHub::global(cx);
     hub.update(cx, BrowserHub::start_if_failed);
-    let focused = hub.read(cx).focused();
-    let views: Vec<Entity<BrowserView>> = workspace
-        .items_of_type::<BrowserView>(cx)
-        .filter(|view| {
-            // A tab waiting for its page counts; one whose page is gone is closing.
-            view.read(cx)
-                .target
-                .as_ref()
-                .is_none_or(|target| hub.read(cx).page_state(target).is_some())
-        })
-        .collect();
-    let shown = views
-        .iter()
-        .find(|view| focused.is_some() && view.read(cx).target == focused)
-        .or_else(|| views.first())
-        .cloned();
-    if let Some(view) = shown {
-        workspace.activate_item(&view, true, true, window, cx);
-        return;
-    }
     let this = cx.weak_entity();
     let untabbed = untabbed(&hub, cx);
     if !untabbed.is_empty() {
@@ -3272,11 +3510,35 @@ fn open(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspa
         }
         return;
     }
+    let focused = hub.read(cx).focused();
+    let views: Vec<Entity<BrowserView>> = workspace
+        .items_of_type::<BrowserView>(cx)
+        .filter(|view| {
+            // A tab waiting for its page counts, a restored one too; one whose page is gone is
+            // closing.
+            let view = view.read(cx);
+            view.restoring
+                || view
+                    .target
+                    .as_ref()
+                    .is_none_or(|target| hub.read(cx).page_state(target).is_some())
+        })
+        .collect();
+    let shown = views
+        .iter()
+        .find(|view| focused.is_some() && view.read(cx).target == focused)
+        .or_else(|| views.first())
+        .cloned();
+    if let Some(view) = shown {
+        workspace.activate_item(&view, true, true, window, cx);
+        return;
+    }
     let showing = hub.read(cx).state == HubState::Showing;
     let view = new_view(hub.clone(), None, !showing, this, window, cx);
     workspace.add_item_to_active_pane(Box::new(view.clone()), None, true, window, cx);
     if showing {
-        open_page_in(&hub, &view, cx);
+        let window_handle = view.read(cx).window;
+        open_page_in(&hub, view.downgrade(), window_handle, BLANK.to_string(), cx);
     }
 }
 
@@ -3289,10 +3551,12 @@ fn new_tab(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Work
     view.update(cx, |view, cx| {
         view.focus_address_bar(&FocusAddressBar, window, cx);
     });
-    open_page_in(&hub, &view, cx);
+    let window_handle = view.read(cx).window;
+    open_page_in(&hub, view.downgrade(), window_handle, BLANK.to_string(), cx);
 }
 
-/// The pages no tab shows: those whose tab closed with its window.
+/// The pages no tab shows: those a start found that no tab claimed, and those whose tab closed
+/// with its window.
 fn untabbed(hub: &Entity<BrowserHub>, cx: &mut App) -> Vec<String> {
     let shown: Vec<String> = live_views(cx)
         .iter()

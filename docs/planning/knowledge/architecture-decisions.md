@@ -1993,3 +1993,17 @@ Rejected: one Browser tab switching among pages (an agent's page would replace w
 looks at); a tab strip drawn inside the Browser tab (Zed's tab bar already is one, with its
 splitting and moving); bringing an agent's tab to the front of the focused pane (Zed's
 focus-loss rule hands it the focus); a window of its own for agent pages.
+
+## AD-claude-494-browser-tabs-reattach-or-reopen-001
+*decided at: 2026-09-25 · status: shipped*
+
+Browser tabs are Zed serializable items whose layout entry is the item alone; each tab's page
+id, URL and title live in the tab's own table in Marley's database, per the #403 rule that no
+URL enters a layout codec. At launch a restored tab claims its saved page id before the browser
+reports its pages: when Marley's Chromium lived on, the tab takes its page back with everything
+the page held; when it did not, the tab opens its saved URL in a new page. A start opens no page
+and places no tab for the pages it finds, so which page belongs in which tab is the restored
+tabs' to say, and a page no tab claims waits for `marley: open browser` or an agent. Rejected:
+the URL in Zed's layout (the #403 rule); reloading every tab at launch (it would lose what a
+live page holds); a tab for every page a start finds (a relaunch would open duplicates of the
+restored tabs).

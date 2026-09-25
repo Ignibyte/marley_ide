@@ -1929,3 +1929,37 @@ user's tab so the focus stays, never painted, and kept Chromium's default viewpo
 1100 by 860, and the page would have laid out again the moment the user looked at it. Fixed:
 a page takes the viewport of the page it opens beside (its opener, else the page the user
 focused last) when it is attached; the rerun's look answered 1100 by 860.
+
+## F-claude-494-waiting-tabs-gave-up-on-a-failure-001
+*severity: medium · found in: pipeline 494's Code phase (the review) · class: a waiter that ends on a transient failure*
+
+Once a start made no blank page, a tab opened while the browser starts, and a tab restored at
+launch, each waited for the hub with `showing`, which answers a failure at once, and ended
+there. After `marley: open browser` started the browser again the tab would have waited for
+ever for a page nobody opened for it, saying "Opening a page…". Fixed before the Test phase:
+both wait on `shown`, which polls until the hub shows its pages however long a failure lasts,
+in a task the tab holds, so the wait ends with the tab.
+
+## F-claude-494-a-created-page-with-a-cross-site-iframe-stopped-its-screencast-001
+*severity: medium · found in: pipeline 494's Test phase (the #488 regression) · class: an emulated size the real surface does not have*
+
+`488-04-wider` showed the page at 1100 pixels after the right dock closed, twice. Chromium had
+the page at 1340 (the page said so), and the tab still drew the old frame, only when the page
+held a cross-site iframe. #494 made the first page a `Target.createTarget` page, and a probe
+on a scratch Chromium showed such a page, with an out-of-process iframe, sending no screencast
+frame after `Emulation.setDeviceMetricsOverride` in four of six runs, and a page Chromium
+opened at start in none of five. A created page sits in a headless window of its first size
+(780 by 580) whatever the override. Fixed: `Page::set_viewport` gives the page's window the
+viewport's size (`Browser.getWindowForTarget`, `Browser.setWindowBounds`) before the override,
+four of four in the probe and every rerun since. The stall had hit every page Ctrl+T or an
+agent made since #493.
+
+## F-claude-494-the-relaunched-marley-got-no-keymap-001
+*severity: low · found in: pipeline 494's Test phase · class: an e2e seat whose devices come and go*
+
+The first relaunch in the headless sway panicked at start in gpui's Wayland keyboard code
+(`keymap_state.as_mut().unwrap()` on a `Modifiers` event). Its first keymap was `NoKeymap`: the
+seat's newest virtual keyboard was a step's `wtype`, gone by then, and the keyboard holder the
+run started with was older. Fixed in the harness: `hold_keyboard` starts a new holder before
+each launch, so the seat's live keyboard is the holder's when Marley binds it. gpui's unwrap
+is Zed's and stays, since a real compositor always sends a keymap.

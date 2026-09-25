@@ -75,7 +75,8 @@ pub fn unit_name(profile: &Path) -> String {
 ///
 /// It is headless, its profile is `profile`, its debugging endpoint is on a port it picks, it
 /// opens no first-run pages, and it keeps cookies without the desktop's keyring: a headless
-/// service must never wait on the keyring's unlock prompt.
+/// service must never wait on the keyring's unlock prompt. It opens no page of its own either
+/// (#494): Marley opens the pages its tabs and agents ask for, and a restored tab its saved URL.
 #[must_use]
 pub fn chromium_args(profile: &Path) -> Vec<OsString> {
     let mut profile_arg = OsString::from("--user-data-dir=");
@@ -87,7 +88,7 @@ pub fn chromium_args(profile: &Path) -> Vec<OsString> {
         OsString::from("--no-first-run"),
         OsString::from("--no-default-browser-check"),
         OsString::from("--password-store=basic"),
-        OsString::from("about:blank"),
+        OsString::from("--no-startup-window"),
     ]
 }
 

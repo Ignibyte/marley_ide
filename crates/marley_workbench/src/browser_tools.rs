@@ -327,7 +327,7 @@ async fn navigate(
         .unwrap_or(false);
     let has_pages = hub.read_with(cx, |hub, _| hub.has_pages());
     let tab = if new_tab || (named_tab.is_none() && !has_pages) {
-        let created = new_page(hub, cx).await?;
+        let created = new_page(hub, "about:blank".to_string(), cx).await?;
         page_of(hub, Some(&created), cx).await?.0
     } else {
         page_of(hub, named_tab, cx).await?.0

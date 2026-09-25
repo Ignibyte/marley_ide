@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Browser tabs come back after a relaunch** (#494, 2026-09-25). Browser tabs are saved with
+  their workspace. When Marley starts again while its Chromium still runs, each tab returns on
+  its own page, with what you typed into the page and where you scrolled; when the Chromium has
+  stopped since, each tab opens its saved address again. A returning tab shows its old title
+  and address until its page is back. Marley's Chromium now opens no page of its own at start,
+  so a start adds no stray tab. A page opened on request, such as a new tab or an agent's, now
+  keeps drawing after its tab is resized when it holds a frame from another site; before, it
+  could stay on its old frame.
 - **A Browser tab for each page** (#493, 2026-09-25). Every page of Marley's Chromium has a
   Browser tab of its own. A link that opens a new window, or a page's `window.open`, opens a tab
   beside the page that opened it, with the focus, as in a browser. Ctrl+T in a Browser tab, or

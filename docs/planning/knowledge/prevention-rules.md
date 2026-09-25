@@ -2256,3 +2256,12 @@ A surface an agent can read while no view draws it (a page behind another tab, a
 hidden pane) gets the geometry of the view that will show it as soon as it exists, not at that
 view's first paint. The agent's reading is meant to be what the user would see, and a surface
 laid out only on paint reads at a default size until someone looks.
+
+## PR-claude-a-waiter-outlasts-the-failure-it-waits-through-001
+*severity: medium · prevents: F-claude-494-waiting-tabs-gave-up-on-a-failure-001*
+
+A task that waits on a component's readiness to finish something the user is shown as pending
+(a tab's page, a panel's data) waits through a failure and the restart after it, unless the
+failure means the job is gone; the task belongs to the thing that shows it pending, so it ends
+when that does. A wait that returns on the first failure strands its dependents once the
+component recovers, and nothing retries them.

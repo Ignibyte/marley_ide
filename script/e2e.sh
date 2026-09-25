@@ -28,7 +28,9 @@
 # Steps: `settle <seconds>`; `press <mods> <key>`, with mods as Hyprland names them ("" for none,
 # "CTRL SHIFT" for two) and the key by its xkb name (`Return`, `Escape`, `g`); `press_keys
 # <key>...`, several keys in one go (a compose sequence); `type_text <text>`;
-# and `shot <name>`, which writes SHOT_DIR/<name>.png and prints its path. Under sway also
+# `shot <name>`, which writes SHOT_DIR/<name>.png and prints its path; and `quit_marley`, which
+# quits Marley through its palette and waits for it to exit, and `launch_marley`, which starts it
+# again on the same profile with the same path, for what Marley restores (#494). Under sway also
 # `click <x> <y> [button]`, `pointer_to <x> <y>`, `pointer_down [button]`,
 # `pointer_up [button]` and `scroll <steps>` (wheel detents at the pointer, positive down), in
 # the window's pixels, with the buttons left, middle and right. A step started in the
@@ -154,8 +156,9 @@ seat_pointer() {
   echo "$build/seat-pointer"
 }
 
-# Starts the headless sway, then gives its seat a pointer and a keyboard, before Marley starts:
-# a seat with no devices never hands a client a wl_pointer or a wl_keyboard.
+# Starts the headless sway, then gives its seat a pointer, before Marley starts: a seat with no
+# devices never hands a client a wl_pointer or a wl_keyboard. `launch_marley` gives it the
+# keyboard.
 sway_start() {
   local helper ready
   helper=$(seat_pointer)
@@ -186,8 +189,19 @@ EOF
     echo "the pointer helper did not start; see $shots/$name.sway.log" >&2
     return 1
   fi
+}
+
+# Gives the sway's seat a keyboard that stays: a virtual keyboard that holds on while it sleeps.
+# Each step's `wtype` makes a keyboard of its own and drops it, so a Marley that binds the seat's
+# keyboard after one is gone gets no keymap, which gpui cannot run without (#494); a new holder
+# before each launch is the seat's live keyboard.
+hold_keyboard() {
+  if [[ -n $KEY_HOLDER ]]; then
+    kill "$KEY_HOLDER" 2>/dev/null || true
+  fi
   WAYLAND_DISPLAY=$SWAY_DISPLAY wtype -s 86400000 &
   KEY_HOLDER=$!
+  sleep 0.2
 }
 
 sway_stop() {
@@ -220,6 +234,56 @@ sway_stop() {
   elif [[ -n $SWAY_DIR ]]; then
     echo "sway: stopped, with the run's Marley, pointer and keyboard"
   fi
+}
+
+# The pid of the run's Marley, while its window is open.
+marley_pid() {
+  if [[ $COMPOSITOR == sway ]]; then
+    sway_marley_pid
+  else
+    marley_window pid
+  fi
+}
+
+# Starts Marley on the run's profile with the path the scenario named, its output after any
+# earlier launch's in the run's log, and waits up to 90 seconds for its window.
+launch_marley() {
+  if [[ $COMPOSITOR == sway ]]; then
+    hold_keyboard
+    env -u DISPLAY -u HYPRLAND_INSTANCE_SIGNATURE WAYLAND_DISPLAY="$SWAY_DISPLAY" \
+      SWAYSOCK="$SWAY_SOCK" setsid -f "$marley" --user-data-dir "$E2E_PROFILE" ${OPEN:+"$OPEN"} \
+      >>"$shots/$name.log" 2>&1 </dev/null
+  else
+    setsid -f "$marley" --user-data-dir "$E2E_PROFILE" ${OPEN:+"$OPEN"} >>"$shots/$name.log" 2>&1 </dev/null
+  fi
+  for _ in $(seq 90); do
+    [[ -n $(window) ]] && return 0
+    sleep 1
+  done
+  echo "no Marley window within 90 seconds; see $shots/$name.log" >&2
+  return 1
+}
+
+# Quits Marley through its command palette, as a user does, so it saves what it saves at a
+# quit, and waits up to 30 seconds for the process to end.
+quit_marley() {
+  local pid
+  pid=$(marley_pid)
+  if [[ -z $pid ]]; then
+    echo "quit_marley: no Marley window" >&2
+    return 1
+  fi
+  press "CTRL SHIFT" p
+  sleep 1
+  type_text "zed: quit"
+  sleep 1
+  press "" Return
+  for _ in $(seq 30); do
+    kill -0 "$pid" 2>/dev/null || return 0
+    sleep 1
+  done
+  echo "quit_marley: Marley still runs 30 seconds after the quit" >&2
+  return 1
 }
 
 # One command to the pointer helper; fails unless it answers ok.
@@ -485,23 +549,13 @@ write_terminal_env
 if [[ $COMPOSITOR == sway ]]; then
   hyprland_before=$(hyprland_marley_windows)
   sway_start
-  env -u DISPLAY -u HYPRLAND_INSTANCE_SIGNATURE WAYLAND_DISPLAY="$SWAY_DISPLAY" \
-    SWAYSOCK="$SWAY_SOCK" setsid -f "$marley" --user-data-dir "$E2E_PROFILE" ${OPEN:+"$OPEN"} \
-    >"$shots/$name.log" 2>&1 </dev/null
   window() { sway_marley_pid; }
 else
   before=$(user_focus)
-  setsid -f "$marley" --user-data-dir "$E2E_PROFILE" ${OPEN:+"$OPEN"} >"$shots/$name.log" 2>&1 </dev/null
   window() { marley_window stableId; }
 fi
-for _ in $(seq 90); do
-  [[ -n $(window) ]] && break
-  sleep 1
-done
-if [[ -z $(window) ]]; then
-  echo "no Marley window within 90 seconds; see $shots/$name.log" >&2
-  exit 1
-fi
+: >"$shots/$name.log"
+launch_marley
 steps
 if [[ $COMPOSITOR == sway ]]; then
   echo "hyprland: $hyprland_before Marley windows before the run, $(hyprland_marley_windows) after; the run added no rule and did not reload it"

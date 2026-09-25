@@ -189,8 +189,9 @@ them and no ticket adds to them.
   workspace 9 or, for a scenario that sets `COMPOSITOR=sway`, in a headless sway of its own,
   with the fixtures the scenario's `setup` builds (a scratch repository, a HOME whose
   `.bashrc` is the scenario's own through `terminal_env`, fakes first on the PATH), then its
-  `steps`: keys, and under sway clicks, drags and the wheel, sent to Marley only, and a shot
-  of the window after each step that matters. Every acceptance criterion names the shot that
+  `steps`: keys, and under sway clicks, drags and the wheel, sent to Marley only, a quit and a
+  launch on the same profile for what Marley restores (`quit_marley`, `launch_marley`), and a
+  shot of the window after each step that matters. Every acceptance criterion names the shot that
   proves it.
 - **Reading the shots is the test.** The Test phase reads every PNG and writes into the notes
   what each one shows, against the criterion it proves. A shot that shows anything but Marley
