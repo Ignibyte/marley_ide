@@ -412,6 +412,17 @@ alike.
   left at its own size, so a frame from before a resize is neither stretched nor squeezed.
 - `marley::OpenBrowser` ("marley: open browser") activates the workspace's Browser tab or adds
   one to the active pane, and restarts a hub that failed.
+- **Input (#489).** `PageElement` inserts a hitbox and, in `paint`, registers the tab's input
+  handler and its mouse listeners: a press in the page focuses the tab and records where it
+  landed (an input method opens its window there, since CDP reports no caret); moves and the
+  release reach the page wherever the pointer is while a button the page got is held; the
+  wheel counts 100/3 CSS pixels a line with the sign turned. A point maps to CSS pixels through
+  the frame's metadata (its DIP width over the width it is drawn at). The tab's `key_down`
+  sends each key `marley_browser::input` maps, after Zed's bindings; Ctrl+V inserts the
+  clipboard's text, and Ctrl+C and Ctrl+X read the selection onto the clipboard before their
+  key goes out, so a cut cannot empty it first. As `EntityInputHandler`, the tab turns a
+  preedit into the page's composition and a commit into inserted text. The hub sends input in
+  the order it came, keeps the held buttons, and times the first frame after each press or key.
 
 ## Tests
 

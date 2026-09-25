@@ -24,5 +24,6 @@
 
 pub mod cdp;
 pub mod frame;
+pub mod input;
 pub mod page;
 pub mod service;

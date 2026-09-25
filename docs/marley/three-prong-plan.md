@@ -252,7 +252,9 @@ confirm are in #488 and #489):
    character. Live Japanese or Chinese through an input method stays untested: Chad chose
    "compose only, CJK later".
 2. **Latency.** A key dispatched over CDP reaches a frame in 6 to 7 ms on the dev box; twenty
-   wheel steps gave twenty frames.
+   wheel steps gave twenty frames. Through Marley (#489), from the key to the decoded frame, the
+   median is 20 ms and the 95th percentile 36 ms in a debug build, once its JPEG decoder is
+   built optimized; unoptimized, a frame took 130 ms to decode.
 3. **The inspect highlight** (`Overlay.setInspectMode`, with its accessibility tooltip) is in
    the screencast frames.
 4. **Cross-site iframes** render in the frame and take input routed through the main page's
@@ -331,7 +333,7 @@ reaching his desktop.
 |---|---|---|---|
 | (tooling) | #487 | e2e scenarios that click, drag and scroll, in a headless sway (shipped) | S |
 | B0a | #488 | `marley_browser`: Marley's Chromium as a transient unit, the CDP client, the screencast; the Browser tab shows the page at its size, with its title (shipped) | M |
-| B0b | #489 | Typing and clicking in the page: keys, compose and input-method text, the mouse and the wheel, the clipboard; the input-to-frame time logged | M |
+| B0b | #489 | Typing and clicking in the page: keys, compose and input-method text, the mouse and the wheel, the clipboard; the input-to-frame time logged (shipped) | M |
 | B1a | #490 | The address bar, back, forward, reload and stop, the loading state, JavaScript dialogs | M |
 | C0 | #491 | Prong 2's C0, pulled forward: Marley's MCP server in the app, the plugin's bridge, and the terminal block tools | M |
 | B2 | #492 | The `browser_*` tools: look, snapshot, console, network; navigate, click, type, press, scroll | M |

@@ -2230,3 +2230,12 @@ A bash script whose cleanup lives in `trap … EXIT` and that starts anything th
 not when a signal it does not trap kills it, so `timeout`, Ctrl-C or a closed terminal would
 leave the detached processes running. And a script that hands its own background jobs to
 sourced code tells that code to `wait "$pid"`, never a bare `wait`.
+
+## PR-claude-a-per-frame-path-is-optimized-in-the-dev-build-001
+*severity: medium · prevents: F-claude-489-the-browser-decoded-frames-unoptimized-001*
+
+Code that runs for every frame or every input event, including the dependencies it calls
+(decoders, converters, parsers), is timed in the debug build before its ticket closes. When it
+is slow there, it gets `opt-level = 3` in `[profile.dev.package]` beside Zed's own hot crates
+(`tree-sitter`, `taffy`, `resvg`, `serde_json`). The debug build is the one the user runs, so a
+number measured only in release does not describe what they get.

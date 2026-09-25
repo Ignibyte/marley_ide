@@ -6,22 +6,34 @@
 //! shows it, and lays the page out at the tab's size. [`BrowserView`] is the tab: it draws the
 //! newest frame and frees each frame from the window's GPU atlas two paints after it was first
 //! drawn, as Zed's screen-share view does, since the window may present the last frame again.
+//!
+//! Input (B0b, #489) goes to the page over CDP while the tab has the focus: the mouse and the
+//! wheel from `PageElement`'s listeners, at CSS pixels taken from the frame's metadata; keys
+//! from the tab's `key_down`, as `marley_browser::input` maps them; composed and input-method
+//! text through the tab's input handler; and the system clipboard, which headless Chromium does
+//! not share, through Marley.
 
 use std::fmt;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use futures::StreamExt as _;
 use futures::channel::mpsc;
 use gpui::{
-    App, AsyncApp, BackgroundExecutor, Bounds, Corners, Element, ElementId, Entity, EventEmitter,
-    FocusHandle, Focusable, Global, GlobalElementId, InspectorElementId, LayoutId, Pixels,
-    RenderImage, Size, Style, Subscription, Task, WeakEntity, relative,
+    App, AsyncApp, BackgroundExecutor, Bounds, ClipboardItem, Corners, DispatchPhase, Element,
+    ElementId, ElementInputHandler, Entity, EntityInputHandler, EventEmitter, FocusHandle,
+    Focusable, Global, GlobalElementId, Hitbox, HitboxBehavior, InspectorElementId, KeyDownEvent,
+    LayoutId, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point,
+    RenderImage, ScrollWheelEvent, Size, Style, Subscription, Task, UTF16Selection, WeakEntity,
+    relative,
 };
 use marley_browser::cdp::{self, Connection, Event};
-use marley_browser::page::{Page, ScreencastFrame, TargetInfo};
+use marley_browser::input::{self, KeyPress};
+use marley_browser::page::{FrameMetadata, Page, ScreencastFrame, TargetInfo};
 use marley_browser::{frame, service};
+use serde_json::Value;
 use ui::prelude::*;
 use util::ResultExt as _;
 use workspace::Workspace;
@@ -35,6 +47,10 @@ const START_POLLS: u32 = 150;
 
 /// The wait between two of those tries.
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
+
+/// The CSS pixels a wheel line scrolls: three lines a detent make the 100 a mouse wheel turns in
+/// Chrome.
+const WHEEL_LINE: f32 = 100.0 / 3.0;
 
 /// What the hub is doing, as the Browser tab shows it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,11 +83,18 @@ pub struct BrowserHub {
     state: HubState,
     page: Option<Page>,
     frame: Option<Arc<RenderImage>>,
+    /// The newest frame's geometry, which maps a point in the tab to the page.
+    metadata: Option<FrameMetadata>,
     title: Option<SharedString>,
     url: Option<SharedString>,
     viewport: Option<Viewport>,
     viewers: usize,
     screencasting: bool,
+    /// The mouse buttons held in the page, in CDP's bits, so a drag that leaves the tab still
+    /// reaches the page, its release too.
+    held_buttons: u32,
+    /// When the oldest input that no frame has shown yet was sent.
+    input_at: Option<Instant>,
     /// Bumped at each start, so a superseded start's late results are dropped.
     generation: u64,
     run: Option<Task<()>>,
@@ -106,11 +129,14 @@ impl BrowserHub {
                 state: HubState::Starting,
                 page: None,
                 frame: None,
+                metadata: None,
                 title: None,
                 url: None,
                 viewport: None,
                 viewers: 0,
                 screencasting: false,
+                held_buttons: 0,
+                input_at: None,
                 generation: 0,
                 run: None,
             };
@@ -147,6 +173,8 @@ impl BrowserHub {
         self.state = HubState::Starting;
         self.page = None;
         self.frame = None;
+        self.metadata = None;
+        self.held_buttons = 0;
         self.screencasting = false;
         if self.title.take().is_some() | self.url.take().is_some() {
             cx.emit(PageInfoChanged);
@@ -209,6 +237,8 @@ impl BrowserHub {
         self.state = HubState::Failed(reason.into());
         self.page = None;
         self.frame = None;
+        self.metadata = None;
+        self.held_buttons = 0;
         self.screencasting = false;
         cx.notify();
     }
@@ -291,6 +321,7 @@ impl BrowserHub {
         &mut self,
         generation: u64,
         decoded: anyhow::Result<Arc<RenderImage>>,
+        metadata: FrameMetadata,
         cx: &mut Context<Self>,
     ) -> Option<Page> {
         if generation != self.generation {
@@ -299,11 +330,163 @@ impl BrowserHub {
         match decoded {
             Ok(image) => {
                 self.frame = Some(image);
+                self.metadata = Some(metadata);
+                if let Some(sent) = self.input_at.take() {
+                    input::log_latency(sent);
+                }
                 cx.notify();
             }
             Err(error) => log::warn!("browser: a screencast frame did not decode: {error:#}"),
         }
         self.page.clone()
+    }
+
+    /// Sends `method` with `params` to the page. Each call's message leaves in the order the
+    /// calls were made, so input keeps its order. A `timed` input starts the clock the next
+    /// frame stops.
+    fn send(&mut self, method: &'static str, params: Value, timed: bool, cx: &Context<Self>) {
+        let Some(page) = self.page.clone() else {
+            return;
+        };
+        if timed {
+            self.input_at.get_or_insert_with(Instant::now);
+        }
+        cx.spawn(async move |_, _| {
+            page.call(method, params).await.log_err();
+        })
+        .detach();
+    }
+
+    fn send_key(&mut self, press: KeyPress, cx: &Context<Self>) {
+        self.send("Input.dispatchKeyEvent", press.down, true, cx);
+        self.send("Input.dispatchKeyEvent", press.up, false, cx);
+    }
+
+    fn insert_text(&mut self, text: &str, cx: &Context<Self>) {
+        self.send(
+            "Input.insertText",
+            serde_json::json!({ "text": text }),
+            true,
+            cx,
+        );
+    }
+
+    fn set_composition(&mut self, text: &str, selected: Range<usize>, cx: &Context<Self>) {
+        self.send(
+            "Input.imeSetComposition",
+            serde_json::json!({
+                "text": text,
+                "selectionStart": selected.start,
+                "selectionEnd": selected.end,
+            }),
+            true,
+            cx,
+        );
+    }
+
+    /// Puts the page's selection on the system clipboard, then sends `press`, the Ctrl+C or
+    /// Ctrl+X that asked for it: a cut must not empty the selection before it is read.
+    fn copy_selection(&self, press: KeyPress, cx: &Context<Self>) {
+        let Some(page) = self.page.clone() else {
+            return;
+        };
+        cx.spawn(async move |_, cx| {
+            match page.selected_text().await {
+                Ok(text) if !text.is_empty() => {
+                    cx.update(|cx| cx.write_to_clipboard(ClipboardItem::new_string(text)));
+                }
+                Ok(_) => {}
+                Err(error) => log::warn!("browser: reading the page's selection failed: {error}"),
+            }
+            page.call("Input.dispatchKeyEvent", press.down)
+                .await
+                .log_err();
+            page.call("Input.dispatchKeyEvent", press.up)
+                .await
+                .log_err();
+        })
+        .detach();
+    }
+
+    /// Presses `button` at `point`, in CSS pixels.
+    fn mouse_press(
+        &mut self,
+        point: (f64, f64),
+        button: MouseButton,
+        click_count: usize,
+        modifiers: Modifiers,
+        cx: &Context<Self>,
+    ) {
+        let (name, bit) = input::mouse_button(button);
+        self.held_buttons |= bit;
+        let params = input::mouse_event(
+            "mousePressed",
+            point,
+            name,
+            self.held_buttons,
+            click_count,
+            input::modifier_bits(modifiers),
+        );
+        self.send("Input.dispatchMouseEvent", params, true, cx);
+    }
+
+    fn mouse_release(
+        &mut self,
+        point: (f64, f64),
+        button: MouseButton,
+        click_count: usize,
+        modifiers: Modifiers,
+        cx: &Context<Self>,
+    ) {
+        let (name, bit) = input::mouse_button(button);
+        self.held_buttons &= !bit;
+        let params = input::mouse_event(
+            "mouseReleased",
+            point,
+            name,
+            self.held_buttons,
+            click_count,
+            input::modifier_bits(modifiers),
+        );
+        self.send("Input.dispatchMouseEvent", params, false, cx);
+    }
+
+    fn mouse_move(&mut self, point: (f64, f64), modifiers: Modifiers, cx: &Context<Self>) {
+        // A move names the button it drags with, the first one held.
+        let button = [
+            (1, "left"),
+            (4, "middle"),
+            (2, "right"),
+            (8, "back"),
+            (16, "forward"),
+        ]
+        .iter()
+        .find(|(bit, _)| self.held_buttons & bit != 0)
+        .map_or("none", |(_, name)| name);
+        let params = input::mouse_event(
+            "mouseMoved",
+            point,
+            button,
+            self.held_buttons,
+            0,
+            input::modifier_bits(modifiers),
+        );
+        self.send("Input.dispatchMouseEvent", params, false, cx);
+    }
+
+    fn wheel(
+        &mut self,
+        point: (f64, f64),
+        delta: (f64, f64),
+        modifiers: Modifiers,
+        cx: &Context<Self>,
+    ) {
+        let params = input::wheel_event(point, delta, input::modifier_bits(modifiers));
+        self.send("Input.dispatchMouseEvent", params, true, cx);
+    }
+
+    const fn is_holding(&self) -> bool {
+        self.held_buttons != 0
     }
 
     fn target_changed(&mut self, generation: u64, info: TargetInfo, cx: &mut Context<Self>) {
@@ -409,11 +592,12 @@ async fn follow(
                     continue;
                 };
                 let number = frame.session_id;
+                let metadata = frame.metadata;
                 let data = frame.data;
                 let decoded = cx
                     .background_spawn(futures::future::lazy(move |_| frame::decode(&data)))
                     .await;
-                match this.update(cx, |this, cx| this.show(generation, decoded, cx)) {
+                match this.update(cx, |this, cx| this.show(generation, decoded, metadata, cx)) {
                     Ok(Some(page)) => {
                         page.ack_frame(number).await.log_err();
                     }
@@ -487,6 +671,11 @@ pub struct BrowserView {
     current_frame: Option<Arc<RenderImage>>,
     /// The frame drawn before it, freed when the next new frame is drawn.
     previous_frame: Option<Arc<RenderImage>>,
+    /// Where the last press in the page was, in the window: an input method opens its window
+    /// there, since CDP reports no caret.
+    last_press: Option<Point<Pixels>>,
+    /// The input method's text not yet committed, shown as the page's composition.
+    marked: String,
     _subscriptions: [Subscription; 2],
 }
 
@@ -525,6 +714,8 @@ impl BrowserView {
             focus_handle: cx.focus_handle(),
             current_frame: None,
             previous_frame: None,
+            last_press: None,
+            marked: String::new(),
             _subscriptions: subscriptions,
         }
     }
@@ -543,13 +734,132 @@ impl BrowserView {
         }
         self.previous_frame = self.current_frame.replace(Arc::clone(frame));
     }
+
+    /// Sends a key the tab receives to the page, after Zed's own bindings had their turn.
+    fn key_down(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        let keystroke = &event.keystroke;
+        let modifiers = &keystroke.modifiers;
+        let ctrl_alone = modifiers.control && !modifiers.alt && !modifiers.platform;
+        if ctrl_alone && keystroke.key == "v" {
+            if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
+                self.hub.update(cx, |hub, cx| hub.insert_text(&text, cx));
+            }
+            cx.stop_propagation();
+            return;
+        }
+        let Some(press) = input::key_press(keystroke, event.is_held) else {
+            return;
+        };
+        if ctrl_alone && !modifiers.shift && matches!(keystroke.key.as_str(), "c" | "x") {
+            self.hub.update(cx, |hub, cx| hub.copy_selection(press, cx));
+            cx.stop_propagation();
+            return;
+        }
+        // A key with text ends a composition: a compose sequence's last key, say.
+        if keystroke.key_char.is_some() && !self.marked.is_empty() {
+            self.marked.clear();
+            self.hub
+                .update(cx, |hub, cx| hub.set_composition("", 0..0, cx));
+        }
+        self.hub.update(cx, |hub, cx| hub.send_key(press, cx));
+        cx.stop_propagation();
+    }
+}
+
+impl EntityInputHandler for BrowserView {
+    fn text_for_range(
+        &mut self,
+        _range: Range<usize>,
+        _adjusted_range: &mut Option<Range<usize>>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<String> {
+        None
+    }
+
+    fn selected_text_range(
+        &mut self,
+        _ignore_disabled_input: bool,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<UTF16Selection> {
+        // An input method places its window only where some selection is.
+        Some(UTF16Selection {
+            range: 0..0,
+            reversed: false,
+        })
+    }
+
+    fn marked_text_range(
+        &self,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<Range<usize>> {
+        (!self.marked.is_empty()).then(|| 0..self.marked.encode_utf16().count())
+    }
+
+    fn unmark_text(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        if !self.marked.is_empty() {
+            let text = std::mem::take(&mut self.marked);
+            self.hub.update(cx, |hub, cx| hub.insert_text(&text, cx));
+        }
+    }
+
+    fn replace_text_in_range(
+        &mut self,
+        _range: Option<Range<usize>>,
+        text: &str,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        // Inserting replaces the page's composition, if there is one.
+        self.marked.clear();
+        if !text.is_empty() {
+            self.hub.update(cx, |hub, cx| hub.insert_text(text, cx));
+        }
+    }
+
+    fn replace_and_mark_text_in_range(
+        &mut self,
+        _range: Option<Range<usize>>,
+        new_text: &str,
+        new_selected_range: Option<Range<usize>>,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let length = new_text.encode_utf16().count();
+        let selected = new_selected_range.unwrap_or(length..length);
+        self.marked = new_text.to_string();
+        self.hub
+            .update(cx, |hub, cx| hub.set_composition(new_text, selected, cx));
+    }
+
+    fn bounds_for_range(
+        &mut self,
+        _range_utf16: Range<usize>,
+        element_bounds: Bounds<Pixels>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<Bounds<Pixels>> {
+        let origin = self.last_press.unwrap_or(element_bounds.origin);
+        Some(Bounds::new(origin, gpui::size(px(2.), px(20.))))
+    }
+
+    fn character_index_for_point(
+        &mut self,
+        _point: Point<Pixels>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<usize> {
+        None
+    }
 }
 
 impl Render for BrowserView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let (state, frame) = {
+        let (state, frame, metadata) = {
             let hub = self.hub.read(cx);
-            (hub.state.clone(), hub.frame.clone())
+            (hub.state.clone(), hub.frame.clone(), hub.metadata)
         };
         if let Some(frame) = &frame {
             self.drew(frame, window);
@@ -570,12 +880,16 @@ impl Render for BrowserView {
         div()
             .track_focus(&self.focus_handle)
             .key_context("MarleyBrowser")
+            .on_key_down(cx.listener(Self::key_down))
             .relative()
             .size_full()
             .bg(cx.theme().colors().editor_background)
             .child(PageElement {
                 hub: self.hub.clone(),
+                view: cx.entity(),
+                focus_handle: self.focus_handle.clone(),
                 frame,
+                metadata,
             })
             .when_some(message, |this, (headline, hint)| {
                 this.child(
@@ -636,10 +950,14 @@ impl Item for BrowserView {
 }
 
 /// The page's frame, drawn from the tab's top left at its own size (a frame from before a
-/// resize is neither stretched nor squeezed), and the tab's size reported to the hub.
+/// resize is neither stretched nor squeezed), the tab's size reported to the hub, and the
+/// mouse and the tab's input handler, which send what they get to the page.
 struct PageElement {
     hub: Entity<BrowserHub>,
+    view: Entity<BrowserView>,
+    focus_handle: FocusHandle,
     frame: Option<Arc<RenderImage>>,
+    metadata: Option<FrameMetadata>,
 }
 
 impl IntoElement for PageElement {
@@ -652,7 +970,7 @@ impl IntoElement for PageElement {
 
 impl Element for PageElement {
     type RequestLayoutState = ();
-    type PrepaintState = ();
+    type PrepaintState = Hitbox;
 
     fn id(&self) -> Option<ElementId> {
         None
@@ -687,6 +1005,7 @@ impl Element for PageElement {
         let scale = window.scale_factor();
         self.hub
             .update(cx, |hub, cx| hub.resize(bounds.size, scale, cx));
+        window.insert_hitbox(bounds, HitboxBehavior::Normal)
     }
 
     fn paint(
@@ -695,10 +1014,17 @@ impl Element for PageElement {
         _inspector_id: Option<&InspectorElementId>,
         bounds: Bounds<Pixels>,
         _request_layout: &mut Self::RequestLayoutState,
-        _prepaint: &mut Self::PrepaintState,
+        hitbox: &mut Self::PrepaintState,
         window: &mut Window,
-        _cx: &mut App,
+        cx: &mut App,
     ) {
+        window.handle_input(
+            &self.focus_handle,
+            ElementInputHandler::new(bounds, self.view.clone()),
+            cx,
+        );
+        let to_page = PageMapping::new(bounds, self.frame.as_deref(), self.metadata, window);
+        self.listen(hitbox, to_page, window);
         let Some(frame) = self.frame.clone() else {
             return;
         };
@@ -710,6 +1036,133 @@ impl Element for PageElement {
         window
             .paint_image(bounds, image_bounds, Corners::default(), frame, 0, false)
             .log_err();
+    }
+}
+
+/// Where a point in the window falls in the page, in CSS pixels: the offset from the tab's top
+/// left, scaled by the frame's viewport width in DIP over the width the frame is drawn at.
+#[derive(Clone, Copy)]
+struct PageMapping {
+    origin: Point<Pixels>,
+    scale_x: f64,
+    scale_y: f64,
+}
+
+impl PageMapping {
+    fn new(
+        bounds: Bounds<Pixels>,
+        frame: Option<&RenderImage>,
+        metadata: Option<FrameMetadata>,
+        window: &Window,
+    ) -> Self {
+        let (scale_x, scale_y) = frame.zip(metadata).map_or((1.0, 1.0), |(frame, metadata)| {
+            let drawn = frame.size(0).to_pixels(window.scale_factor());
+            let width = f64::from(drawn.width);
+            let height = f64::from(drawn.height);
+            if width > 0.0 && height > 0.0 {
+                (
+                    metadata.device_width / width,
+                    metadata.device_height / height,
+                )
+            } else {
+                (1.0, 1.0)
+            }
+        });
+        Self {
+            origin: bounds.origin,
+            scale_x,
+            scale_y,
+        }
+    }
+
+    fn map(self, position: Point<Pixels>) -> (f64, f64) {
+        let offset = position - self.origin;
+        (
+            f64::from(offset.x) * self.scale_x,
+            f64::from(offset.y) * self.scale_y,
+        )
+    }
+}
+
+impl PageElement {
+    /// Sends the mouse to the page: a press in the page focuses the tab first, and while a
+    /// button the page got is held, moves and the release reach it wherever the pointer is.
+    fn listen(&self, hitbox: &Hitbox, to_page: PageMapping, window: &mut Window) {
+        window.on_mouse_event({
+            let hub = self.hub.clone();
+            let view = self.view.clone();
+            let focus_handle = self.focus_handle.clone();
+            let hitbox = hitbox.clone();
+            move |event: &MouseDownEvent, phase, window, cx| {
+                if phase != DispatchPhase::Bubble || !hitbox.is_hovered(window) {
+                    return;
+                }
+                window.focus(&focus_handle, cx);
+                view.update(cx, |view, _| view.last_press = Some(event.position));
+                hub.update(cx, |hub, cx| {
+                    hub.mouse_press(
+                        to_page.map(event.position),
+                        event.button,
+                        event.click_count,
+                        event.modifiers,
+                        cx,
+                    );
+                });
+            }
+        });
+        window.on_mouse_event({
+            let hub = self.hub.clone();
+            let hitbox = hitbox.clone();
+            move |event: &MouseUpEvent, phase, window, cx| {
+                if phase != DispatchPhase::Bubble
+                    || !(hitbox.is_hovered(window) || hub.read(cx).is_holding())
+                {
+                    return;
+                }
+                hub.update(cx, |hub, cx| {
+                    hub.mouse_release(
+                        to_page.map(event.position),
+                        event.button,
+                        event.click_count,
+                        event.modifiers,
+                        cx,
+                    );
+                });
+            }
+        });
+        window.on_mouse_event({
+            let hub = self.hub.clone();
+            let hitbox = hitbox.clone();
+            move |event: &MouseMoveEvent, phase, window, cx| {
+                if phase != DispatchPhase::Bubble
+                    || !(hitbox.is_hovered(window) || hub.read(cx).is_holding())
+                {
+                    return;
+                }
+                hub.update(cx, |hub, cx| {
+                    hub.mouse_move(to_page.map(event.position), event.modifiers, cx);
+                });
+            }
+        });
+        window.on_mouse_event({
+            let hub = self.hub.clone();
+            let hitbox = hitbox.clone();
+            move |event: &ScrollWheelEvent, phase, window, cx| {
+                if phase != DispatchPhase::Bubble || !hitbox.is_hovered(window) {
+                    return;
+                }
+                // gpui's positive y scrolls up; CDP's scrolls down.
+                let delta = event.delta.pixel_delta(px(WHEEL_LINE));
+                let delta = (
+                    -f64::from(delta.x) * to_page.scale_x,
+                    -f64::from(delta.y) * to_page.scale_y,
+                );
+                hub.update(cx, |hub, cx| {
+                    hub.wheel(to_page.map(event.position), delta, event.modifiers, cx);
+                });
+                cx.stop_propagation();
+            }
+        });
     }
 }
 

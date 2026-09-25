@@ -50,6 +50,22 @@ for.
   URL as a target change, with the URL as the title, but never the title the document sets.
 - `frame::decode` turns a frame's base64 JPEG into a BGRA `RenderImage`.
 
+## Input (`src/input.rs`, #489)
+
+- `key_press` maps a gpui keystroke to the down and up halves of `Input.dispatchKeyEvent`: a
+  key with text and no Ctrl or Alt as `keyDown` with its text (the page sees keydown,
+  keypress, input and keyup), Enter with the text `\r` so a keypress submits a form, the named
+  keys and the Ctrl and Alt chords as `rawKeyDown`, which run Blink's editing commands, and
+  nothing for a Super chord. gpui carries no physical key code, so `code` and the Windows key
+  code come from the US layout's tables; `key` and the text are always what was typed.
+- `mouse_event` and `wheel_event` build `Input.dispatchMouseEvent`'s parameters;
+  `modifier_bits` counts Alt 1, Ctrl 2, Meta 4, Shift 8; `log_latency` logs the time from an
+  input to the frame that showed it (`ZED_LOG=marley_browser=debug`).
+- `Page::selected_text` reads the focused field's selection, or the document's, in an isolated
+  world on the main frame, where the page's scripts neither see the read nor change it.
+- The dev profile builds `image`, `zune-core`, `zune-jpeg` and this crate at `opt-level = 3`:
+  unoptimized, a 1100 by 900 frame took 130 ms to decode, and a key waited behind it.
+
 ## What the probe answered (2026-09-24)
 
 A key dispatched over CDP reaches a frame in 6 to 7 ms; frames come at the size the device

@@ -1866,3 +1866,13 @@ trapped only EXIT, which bash does not run when an untrapped signal kills it, so
 headless sway, its Marley and its Chromium unit stayed up, with the profile copy on disk. Fixed
 in the harness: `trap 'exit 130' INT TERM HUP` beside the EXIT trap, so a signal ends the run
 through its cleanup; the header says to wait for a background step by its pid.
+
+## F-claude-489-the-browser-decoded-frames-unoptimized-001
+*severity: medium · found in: pipeline 489's Test phase · class: a per-frame path in a debug build*
+
+The first latency report through Marley was a median of 114 ms from a key to its frame, against
+6 to 7 ms at the protocol. Timing the decode found each 1100 by 900 JPEG frame taking 130 ms in
+the debug build, where `image`, `zune-jpeg` and `marley_browser`'s pixel loop ran unoptimized;
+a key waited behind one decode or two. The debug build is the one Chad runs. Fixed by building
+`image`, `zune-core`, `zune-jpeg` and `marley_browser` at `opt-level = 3` in
+`[profile.dev.package]`, as Zed does for its own hot crates: median 20 ms, 95th percentile 36 ms.

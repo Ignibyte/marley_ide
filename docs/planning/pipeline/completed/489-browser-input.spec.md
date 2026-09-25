@@ -1,7 +1,7 @@
 ---
 pipeline_id: 89bf9612-89ac-4235-8c8b-84187a76c7c1
 ticket: docs/planning/tickets/open/TICKET-489-browser-input.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "B0b: Typing and clicking in the page"
 type: feature
 slice: prong 3 B0b

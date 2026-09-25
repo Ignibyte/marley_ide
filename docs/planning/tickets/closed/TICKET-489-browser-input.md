@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #489 (feature, prong 3 B0b)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/489-browser-input.spec.md
+- **Pipeline doc:** ../../pipeline/completed/489-browser-input.spec.md
 - **Source ticket:** docs/marley/three-prong-plan.md, prong 3 (D12; the amendment's five questions)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The input half of the B0 spike. With the Browser tab focused, clicks, drags, the wheel and the

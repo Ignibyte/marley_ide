@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Typing and clicking in the Browser tab** (#489, 2026-09-24). With the Browser tab focused,
+  the page takes the mouse, the wheel and the keyboard as in Chromium: clicks, double clicks and
+  right clicks where you make them, drags that keep going when the pointer leaves the tab, the
+  wheel at 100 pixels a detent, typing and editing keys, Ctrl chords such as select all and
+  undo, a compose sequence's character, and an input method's text. Ctrl+V pastes the system
+  clipboard into the page and Ctrl+C and Ctrl+X copy the page's selection to it, since
+  headless Chromium keeps a clipboard of its own. Super chords stay Marley's. A key reaches the
+  screen in about 20 ms in a debug build, whose JPEG decoder is now built optimized.
 - **A Browser tab** (#488, 2026-09-24). `marley: open browser` opens a tab in the main area
   that shows a web page rendered by Marley's own Chromium. The first time, Marley starts
   Chromium in the background, headless, as a user service with its own profile, and it keeps

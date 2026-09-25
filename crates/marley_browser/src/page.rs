@@ -8,6 +8,16 @@ use crate::cdp::{CdpError, Connection};
 /// The screencast's JPEG quality: text stays crisp and a frame stays small.
 const SCREENCAST_QUALITY: u8 = 85;
 
+/// The script that reads what is selected: the focused text field's selection, which the
+/// document's selection leaves out, or else the document's.
+const SELECTED_TEXT: &str = "(() => {
+  const field = document.activeElement;
+  if (field && typeof field.selectionStart === 'number' && typeof field.value === 'string') {
+    return field.value.slice(field.selectionStart, field.selectionEnd);
+  }
+  return String(getSelection());
+})()";
+
 /// A page target, attached with its own session on the browser's connection.
 #[derive(Debug, Clone)]
 pub struct Page {
@@ -209,6 +219,41 @@ impl Page {
     /// As [`Connection::call`].
     pub async fn stop_screencast(&self) -> Result<(), CdpError> {
         self.call("Page.stopScreencast", json!({})).await.map(drop)
+    }
+
+    /// What is selected in the page's main frame, read in an isolated world, where the page's
+    /// own scripts can neither see the read nor change what it returns.
+    ///
+    /// # Errors
+    ///
+    /// When a call fails or the page has no main frame.
+    pub async fn selected_text(&self) -> Result<String, CdpError> {
+        let tree = self.call("Page.getFrameTree", json!({})).await?;
+        let frame_id = tree
+            .pointer("/frameTree/frame/id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| CdpError::Unexpected("the page has no main frame".to_string()))?;
+        let world = self
+            .call(
+                "Page.createIsolatedWorld",
+                json!({ "frameId": frame_id, "worldName": "marley" }),
+            )
+            .await?;
+        let context = world
+            .get("executionContextId")
+            .and_then(Value::as_i64)
+            .ok_or_else(|| CdpError::Unexpected("the isolated world has no context".to_string()))?;
+        let evaluated = self
+            .call(
+                "Runtime.evaluate",
+                json!({ "expression": SELECTED_TEXT, "contextId": context, "returnByValue": true }),
+            )
+            .await?;
+        Ok(evaluated
+            .pointer("/result/value")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string())
     }
 
     /// Acknowledges frame `frame`, which lets Chromium send the next: an unacknowledged stream

@@ -26,7 +26,8 @@
 # started outside Marley. OPEN in the environment names the path when the scenario names none.
 #
 # Steps: `settle <seconds>`; `press <mods> <key>`, with mods as Hyprland names them ("" for none,
-# "CTRL SHIFT" for two) and the key by its xkb name (`Return`, `Escape`, `g`); `type_text <text>`;
+# "CTRL SHIFT" for two) and the key by its xkb name (`Return`, `Escape`, `g`); `press_keys
+# <key>...`, several keys in one go (a compose sequence); `type_text <text>`;
 # and `shot <name>`, which writes SHOT_DIR/<name>.png and prints its path. Under sway also
 # `click <x> <y> [button]`, `pointer_to <x> <y>`, `pointer_down [button]`,
 # `pointer_up [button]` and `scroll <steps>` (wheel detents at the pointer, positive down), in
@@ -325,6 +326,25 @@ type_text() {
   done
 }
 
+# Presses keys one after another, with no modifiers. Under sway one `wtype` sends them all:
+# each `wtype` brings a keymap of its own, and gpui drops a compose sequence when the keymap
+# changes, so a sequence (Multi_key, then its keys) composes only when sent together.
+press_keys() {
+  local key
+  local -a args=()
+  if [[ $COMPOSITOR == sway ]]; then
+    for key in "$@"; do
+      args+=(-k "$key")
+    done
+    WAYLAND_DISPLAY=$SWAY_DISPLAY wtype "${args[@]}"
+    sleep 0.05
+    return
+  fi
+  for key in "$@"; do
+    press "" "$key"
+  done
+}
+
 shot() {
   if [[ $COMPOSITOR == sway ]]; then
     WAYLAND_DISPLAY=$SWAY_DISPLAY grim "$shots/$1.png"
@@ -436,6 +456,10 @@ cleanup() {
     sleep 1
     # Drops the rule and restores focus_on_activate.
     hyprctl reload >/dev/null
+  fi
+  # Marley writes its log into the profile, which goes next.
+  if [[ -f $E2E_PROFILE/logs/Marley.log ]]; then
+    cp "$E2E_PROFILE/logs/Marley.log" "$shots/$name.marley.log"
   fi
   rm -rf "$E2E_PROFILE" "$E2E_WORK" ${SWAY_DIR:+"$SWAY_DIR"}
 }

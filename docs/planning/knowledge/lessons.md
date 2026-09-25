@@ -2535,3 +2535,33 @@ button, with its accessibility tooltip, showed in Marley's Browser tab. It ends 
 session detaches, so a client that highlights stays connected while the highlight must show.
 The element picker (B3a) can use DevTools' own inspect mode for its hover, drawn once for
 everyone watching.
+
+## L-claude-489-each-wtype-resets-gpuis-compose-001
+*category: validate · topic: e2e keys under sway · from: pipeline 489*
+
+Every `wtype` process creates a virtual keyboard with a keymap of its own, and the seat hands
+its keymap to the focused client each time the active keyboard changes (gpui logs "Received
+keymap format NoKeymap, expected XkbV1" as the held keyboard, which has none, comes back). gpui
+drops a pending xkb compose sequence when that happens, so Multi_key, `'` and `e` sent by three
+`press` calls type `'e`. Send a sequence in one `wtype` call: the harness's `press_keys
+Multi_key apostrophe e` types é.
+
+## L-claude-489-zlog-filters-by-the-crate-a-line-comes-from-001
+*category: code · topic: logging · from: pipeline 489*
+
+Zed's logger matches a `ZED_LOG` or `RUST_LOG` directive (`name=level`) against the crate and
+module the line was logged from, not the `log` target. `log::debug!(target: "marley_browser",
+…)` written in `marley_workbench` stays hidden under `ZED_LOG=marley_browser=debug`; log it
+from `marley_browser`'s own code, or filter on `marley_workbench::browser`. Marley's log is
+`<data dir>/logs/Marley.log`, not stdout; the e2e harness copies it beside the shots as
+`<scenario>.marley.log`.
+
+## L-claude-489-a-fixture-that-marks-presses-must-not-take-them-001
+*category: validate · topic: e2e fixtures · from: pipeline 489*
+
+A fixture page that draws a mark where each press lands, placed over the target, must give the
+mark `pointer-events: none`. Otherwise the mark, added by the `mousedown` listener, is the
+topmost element when the release comes, so `mouseup` lands on it, and `click`, `dblclick` and
+`contextmenu` go to the common ancestor instead of the target. In #489's first run it looked
+exactly like a lost release; logging every mouse event on the page showed Marley's release
+arriving.
