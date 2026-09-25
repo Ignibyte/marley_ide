@@ -1909,3 +1909,23 @@ task that turned on Runtime, Network and Log in the page's session. The agent's 
 The console looked whole only because Runtime and Log replay what they buffered. A probe on a
 scratch Chromium showed every request reported on the page's session when the domains were on
 first. Fixed: `start` awaits `Page::observe` before `attached` announces the page.
+
+## F-claude-493-a-closed-page-was-closed-again-by-its-tabs-removal-001
+*severity: low · found in: pipeline 493's Code phase (the review) · class: a teardown that undoes itself twice*
+
+When a page closed elsewhere (a script, an agent, another DevTools client), the hub's
+`PageClosed` removed its Browser tab from its pane, and the tab's `Item::on_removed`, written
+for the user's close, sent `Target.closeTarget` for the page again. Chromium answered "no such
+target", logged as an error for every page an agent closed, and the hub's `closing` list kept
+the page's id for good. Fixed before the Test phase: `close_tabs` has the tab forget its page
+before it removes the tab, so the removal closes nothing.
+
+## F-claude-493-a-page-behind-a-tab-kept-chromiums-default-size-001
+*severity: medium · found in: pipeline 493's Test phase · class: what an agent reads is not what the user would see*
+
+A page is laid out at its tab's size when the tab paints. An agent's page, opened behind the
+user's tab so the focus stays, never painted, and kept Chromium's default viewport of 780 by
+493: the first run's `browser_look --tab` answered at that size while the tabs around it were
+1100 by 860, and the page would have laid out again the moment the user looked at it. Fixed:
+a page takes the viewport of the page it opens beside (its opener, else the page the user
+focused last) when it is attached; the rerun's look answered 1100 by 860.

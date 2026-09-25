@@ -1,10 +1,12 @@
-//! The browser family of Marley's MCP server (#492): the page in the Browser tab, seen and driven
-//! by agents.
+//! The browser family of Marley's MCP server (#492, #493): the pages in the Browser tabs, seen
+//! and driven by agents.
 //!
-//! Each call answers from a task of its own, since each waits on the browser. A read tool reads
-//! the page the user sees. A write tool first brings the Browser tab to the front, so the user
-//! watches, says what it does in the tab's Agent chip, and sends the same CDP events the user's
-//! keys and mouse send (`marley_browser::input`), so the page cannot tell them apart.
+//! Each call answers from a task of its own, since each waits on the browser, and acts on the
+//! page its `tab` names, a page's id from `browser_tabs`, or else on the page whose tab the user
+//! focused last. A read tool reads the page as the user sees it. A write tool first brings the
+//! page's tab to the front where that leaves the focus alone, so the user watches, says what it
+//! does in the tab's Agent chip, and sends the same CDP events the user's keys and mouse send
+//! (`marley_browser::input`), so the page cannot tell them apart.
 
 use std::collections::HashSet;
 use std::time::Duration;
@@ -21,10 +23,10 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use ui::SharedString;
 
-use crate::browser::{BrowserHub, HubState, show_for_agent};
+use crate::browser::{BrowserHub, new_page, show_for_agent, showing};
 
-/// How long a call waits for the browser to show its page.
-const PAGE_WAIT: Duration = Duration::from_secs(20);
+/// How long a call waits, once the browser shows its pages, for the page it acts on to attach.
+const ATTACH_WAIT: Duration = Duration::from_secs(5);
 
 /// How often it looks.
 const POLL: Duration = Duration::from_millis(100);
@@ -32,9 +34,8 @@ const POLL: Duration = Duration::from_millis(100);
 /// How long a scroll is given to land before its call answers.
 const SCROLL_SETTLE: Duration = Duration::from_millis(300);
 
-/// The tools that act in the page, which bring the Browser tab to the front.
+/// The tools that act in a page they find, which bring its tab to the front first.
 const WRITES: &[&str] = &[
-    "browser_navigate",
     "browser_back",
     "browser_click",
     "browser_type",
@@ -42,12 +43,11 @@ const WRITES: &[&str] = &[
     "browser_scroll",
 ];
 
-/// Answers `call`, a `browser_*` tool, from a task of its own.
+/// Answers `call`, a `browser_*` tool, from a task of its own. A browser that stopped starts
+/// again, as `marley: open browser` starts it.
 pub fn answer(call: AppCall, cx: &mut App) {
     let hub = BrowserHub::global(cx);
-    if WRITES.contains(&call.tool.as_str()) {
-        show_for_agent(cx);
-    }
+    hub.update(cx, BrowserHub::start_if_failed);
     cx.spawn(async move |cx| {
         let result = run(&call.tool, &call.arguments, &hub, cx).await;
         call.answer(result);
@@ -61,43 +61,92 @@ async fn run(
     hub: &Entity<BrowserHub>,
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, String> {
-    let page = page_of(hub, cx).await?;
+    showing(hub, cx).await?;
+    let named_tab = arguments.get("tab").and_then(Value::as_str);
     match tool {
-        "browser_look" => look(&page, hub, cx).await,
-        "browser_snapshot" => take_snapshot(&page, arguments, hub, cx).await,
-        "browser_console" => entries(hub.read_with(cx, |hub, _| hub.console_entries())),
-        "browser_network" => entries(hub.read_with(cx, |hub, _| hub.network_entries())),
-        "browser_navigate" => navigate(arguments, hub, cx).await,
-        "browser_back" => back(hub, cx).await,
-        "browser_click" => click(&page, arguments, hub, cx).await,
-        "browser_type" => type_text(&page, arguments, hub, cx).await,
-        "browser_press" => press(&page, arguments, hub, cx).await,
-        "browser_scroll" => scroll(&page, arguments, hub, cx).await,
+        "browser_tabs" => return tabs(hub, cx).await,
+        "browser_navigate" => return navigate(arguments, named_tab, hub, cx).await,
+        _ => {}
+    }
+    let (tab, page) = page_of(hub, named_tab, cx).await?;
+    if WRITES.contains(&tool) {
+        cx.update(|cx| show_for_agent(&tab, cx));
+    }
+    match tool {
+        "browser_look" => look(&page, &tab, hub, cx).await,
+        "browser_snapshot" => take_snapshot(&page, &tab, arguments, hub, cx).await,
+        "browser_console" => entries(&tab, hub.read_with(cx, |hub, _| hub.console_entries(&tab))),
+        "browser_network" => entries(&tab, hub.read_with(cx, |hub, _| hub.network_entries(&tab))),
+        "browser_back" => back(&tab, hub, cx).await,
+        "browser_click" => click(&page, &tab, arguments, hub, cx).await,
+        "browser_type" => type_text(&page, &tab, arguments, hub, cx).await,
+        "browser_press" => press(&page, &tab, arguments, hub, cx).await,
+        "browser_scroll" => scroll(&page, &tab, arguments, hub, cx).await,
         other => Err(format!("Marley answers no tool named {other}")),
     }
 }
 
-/// The page, once the hub shows it; the reason, if the browser could not start.
-async fn page_of(hub: &Entity<BrowserHub>, cx: &AsyncApp) -> Result<Page, String> {
+/// The page `named_tab` names, or the page whose tab the user focused last, with its id, once
+/// it is attached.
+async fn page_of(
+    hub: &Entity<BrowserHub>,
+    named_tab: Option<&str>,
+    cx: &AsyncApp,
+) -> Result<(String, Page), String> {
     let mut waited = Duration::ZERO;
     loop {
-        let (state, page) = hub.read_with(cx, |hub, _| (hub.state().clone(), hub.page()));
-        match (state, page) {
-            (HubState::Showing, Some(page)) => return Ok(page),
-            (HubState::Failed(reason), _) => return Err(reason.to_string()),
-            _ if waited >= PAGE_WAIT => {
-                return Err("the browser did not show its page within 20 seconds".to_string());
-            }
-            _ => {}
+        let (found, has_pages) = hub.read_with(cx, |hub, _| {
+            let tab = named_tab.map(str::to_string).or_else(|| hub.focused());
+            let found = tab.and_then(|tab| hub.page(&tab).map(|page| (tab, page)));
+            (found, hub.has_pages())
+        });
+        if let Some(found) = found {
+            return Ok(found);
+        }
+        // A page just made attaches in a moment; with none at all there is nothing to wait for.
+        if (named_tab.is_none() && !has_pages) || waited >= ATTACH_WAIT {
+            return Err(named_tab.map_or_else(
+                || "the browser has no tabs; browser_navigate opens one".to_string(),
+                |tab| format!("the browser has no tab {tab}; browser_tabs lists them"),
+            ));
         }
         cx.background_executor().timer(POLL).await;
         waited += POLL;
     }
 }
 
-async fn look(page: &Page, hub: &Entity<BrowserHub>, cx: &AsyncApp) -> Result<ToolAnswer, String> {
-    let (url, title, loading) =
-        hub.read_with(cx, |hub, _| (hub.url(), hub.title(), hub.is_loading()));
+/// `browser_tabs`: every page, once the pages being attached are.
+async fn tabs(hub: &Entity<BrowserHub>, cx: &AsyncApp) -> Result<ToolAnswer, String> {
+    let mut waited = Duration::ZERO;
+    while hub.read_with(cx, |hub, _| hub.is_attaching()) && waited < ATTACH_WAIT {
+        cx.background_executor().timer(POLL).await;
+        waited += POLL;
+    }
+    let tabs: Vec<_> = hub
+        .read_with(cx, |hub, _| hub.tabs())
+        .into_iter()
+        .map(|mut tab| {
+            tab.url = redact_url(&tab.url);
+            tab
+        })
+        .collect();
+    let tabs = serde_json::to_value(tabs).map_err(|error| error.to_string())?;
+    Ok(ToolAnswer {
+        structured: json!({ "tabs": tabs }),
+        text: None,
+        image: None,
+    })
+}
+
+async fn look(
+    page: &Page,
+    tab: &str,
+    hub: &Entity<BrowserHub>,
+    cx: &AsyncApp,
+) -> Result<ToolAnswer, String> {
+    let (url, title, loading) = hub.read_with(cx, |hub, _| {
+        (hub.url(tab), hub.title(tab), hub.is_loading(tab))
+    });
     let viewport = page.viewport().await.map_err(|error| error.to_string())?;
     let focused = page
         .focused_element()
@@ -116,6 +165,7 @@ async fn look(page: &Page, hub: &Entity<BrowserHub>, cx: &AsyncApp) -> Result<To
     };
     let image = page.screenshot().await.map_err(|error| error.to_string())?;
     let structured = serde_json::to_value(Look {
+        tab: tab.to_string(),
         url: url.map(|url| redact_url(&url)).unwrap_or_default(),
         title: title.map(|title| title.to_string()).unwrap_or_default(),
         loading,
@@ -137,6 +187,7 @@ async fn look(page: &Page, hub: &Entity<BrowserHub>, cx: &AsyncApp) -> Result<To
 /// What `browser_look` says of the page, beside its image.
 #[derive(Serialize)]
 struct Look {
+    tab: String,
     url: String,
     title: String,
     loading: bool,
@@ -147,6 +198,7 @@ struct Look {
 
 async fn take_snapshot(
     page: &Page,
+    tab: &str,
     arguments: &Value,
     hub: &Entity<BrowserHub>,
     cx: &mut AsyncApp,
@@ -155,7 +207,7 @@ async fn take_snapshot(
         .get("full")
         .and_then(Value::as_bool)
         .unwrap_or(false);
-    let iframes = hub.read_with(cx, |hub, _| hub.iframes());
+    let iframes = hub.read_with(cx, |hub, _| hub.iframes(tab));
     let main = page
         .accessibility_tree(page.session_id(), None)
         .await
@@ -202,29 +254,30 @@ async fn take_snapshot(
     }
     let Snapshot { text, refs, cut } = snapshot::render(&trees, full);
     let count = refs.len();
-    hub.update(cx, |hub, _| hub.set_refs(refs));
+    hub.update(cx, |hub, _| hub.set_refs(tab, refs));
     Ok(ToolAnswer {
-        structured: json!({ "snapshot": text, "refs": count, "cut": cut }),
+        structured: json!({ "tab": tab, "snapshot": text, "refs": count, "cut": cut }),
         text: Some(text),
         image: None,
     })
 }
 
-fn entries<T: Serialize>(entries: Vec<T>) -> Result<ToolAnswer, String> {
+fn entries<T: Serialize>(tab: &str, entries: Vec<T>) -> Result<ToolAnswer, String> {
     let entries = serde_json::to_value(entries).map_err(|error| error.to_string())?;
     Ok(ToolAnswer {
-        structured: json!({ "entries": entries }),
+        structured: json!({ "tab": tab, "entries": entries }),
         text: None,
         image: None,
     })
 }
 
-/// A write tool's answer: what it did, and where the page is now.
-fn done(did: &str, hub: &Entity<BrowserHub>, cx: &AsyncApp) -> ToolAnswer {
-    let (url, title) = hub.read_with(cx, |hub, _| (hub.url(), hub.title()));
+/// A write tool's answer: what it did, in which tab, and where the page is now.
+fn done(did: &str, tab: &str, hub: &Entity<BrowserHub>, cx: &AsyncApp) -> ToolAnswer {
+    let (url, title) = hub.read_with(cx, |hub, _| (hub.url(tab), hub.title(tab)));
     ToolAnswer {
         structured: json!({
             "did": did,
+            "tab": tab,
             "url": url.map(|url| redact_url(&url)).unwrap_or_default(),
             "title": title.map(|title| title.to_string()).unwrap_or_default(),
         }),
@@ -233,27 +286,33 @@ fn done(did: &str, hub: &Entity<BrowserHub>, cx: &AsyncApp) -> ToolAnswer {
     }
 }
 
-/// Shows `doing` in the Agent chip, runs `action`, and shows `did`, or that it failed.
+/// Shows `doing` in the tab's Agent chip, runs `action`, and shows `did`, or that it failed.
 async fn acting<T>(
     hub: &Entity<BrowserHub>,
+    tab: &str,
     doing: String,
     did: String,
     cx: &mut AsyncApp,
     action: impl AsyncFnOnce(&mut AsyncApp) -> Result<T, String>,
 ) -> Result<ToolAnswer, String> {
-    hub.update(cx, |hub, cx| hub.agent_started(doing, cx));
+    hub.update(cx, |hub, cx| hub.agent_started(tab, doing, cx));
     let result = action(cx).await;
     let shown = if result.is_ok() {
         did.clone()
     } else {
         format!("failed: {did}")
     };
-    hub.update(cx, |hub, cx| hub.agent_ended(SharedString::from(shown), cx));
-    result.map(|_| done(&did, hub, cx))
+    hub.update(cx, |hub, cx| {
+        hub.agent_ended(tab, SharedString::from(shown), cx);
+    });
+    result.map(|_| done(&did, tab, hub, cx))
 }
 
+/// `browser_navigate`: in the tab named or focused last, or in a new tab with `new_tab` or when
+/// the browser has none.
 async fn navigate(
     arguments: &Value,
+    named_tab: Option<&str>,
     hub: &Entity<BrowserHub>,
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, String> {
@@ -262,30 +321,51 @@ async fn navigate(
         .and_then(Value::as_str)
         .ok_or("give `url`, an http or https URL")?;
     let url = address::agent_url(url)?;
+    let new_tab = arguments
+        .get("new_tab")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let has_pages = hub.read_with(cx, |hub, _| hub.has_pages());
+    let tab = if new_tab || (named_tab.is_none() && !has_pages) {
+        let created = new_page(hub, cx).await?;
+        page_of(hub, Some(&created), cx).await?.0
+    } else {
+        page_of(hub, named_tab, cx).await?.0
+    };
+    cx.update(|cx| show_for_agent(&tab, cx));
     let shown = redact_url(&url);
     let hub_for_action = hub.clone();
+    let tab_for_action = tab.clone();
     acting(
         hub,
+        &tab,
         format!("going to {shown}"),
         format!("went to {shown}"),
         cx,
         async move |cx| {
-            let task = hub_for_action.update(cx, |hub, cx| hub.navigate_task(url, cx));
+            let task =
+                hub_for_action.update(cx, |hub, cx| hub.navigate_task(&tab_for_action, url, cx));
             task.await
         },
     )
     .await
 }
 
-async fn back(hub: &Entity<BrowserHub>, cx: &mut AsyncApp) -> Result<ToolAnswer, String> {
+async fn back(
+    tab: &str,
+    hub: &Entity<BrowserHub>,
+    cx: &mut AsyncApp,
+) -> Result<ToolAnswer, String> {
     let hub_for_action = hub.clone();
+    let tab_for_action = tab.to_string();
     acting(
         hub,
+        tab,
         "going back".to_string(),
         "went back".to_string(),
         cx,
         async move |cx| {
-            let task = hub_for_action.update(cx, |hub, cx| hub.go_task(-1, cx));
+            let task = hub_for_action.update(cx, |hub, cx| hub.go_task(&tab_for_action, -1, cx));
             task.await
         },
     )
@@ -294,6 +374,7 @@ async fn back(hub: &Entity<BrowserHub>, cx: &mut AsyncApp) -> Result<ToolAnswer,
 
 async fn click(
     page: &Page,
+    tab: &str,
     arguments: &Value,
     hub: &Entity<BrowserHub>,
     cx: &mut AsyncApp,
@@ -314,10 +395,11 @@ async fn click(
         .and_then(|count| usize::try_from(count).ok())
         .unwrap_or(1)
         .clamp(1, 3);
-    let (point, what) = target_point(page, arguments, hub, cx).await?;
+    let (point, what) = target_point(page, tab, arguments, hub, cx).await?;
     let page = page.clone();
     acting(
         hub,
+        tab,
         format!("clicking {what}"),
         format!("clicked {what}"),
         cx,
@@ -332,6 +414,7 @@ async fn click(
 
 async fn type_text(
     page: &Page,
+    tab: &str,
     arguments: &Value,
     hub: &Entity<BrowserHub>,
     cx: &mut AsyncApp,
@@ -346,7 +429,7 @@ async fn type_text(
         .and_then(Value::as_bool)
         .unwrap_or(false);
     let into = if arguments.get("ref").is_some() {
-        let (point, what) = target_point(page, arguments, hub, cx).await?;
+        let (point, what) = target_point(page, tab, arguments, hub, cx).await?;
         click_at(page, point, MouseButton::Left, 1)
             .await
             .map_err(|error| error.to_string())?;
@@ -360,6 +443,7 @@ async fn type_text(
     let page = page.clone();
     acting(
         hub,
+        tab,
         format!("typing {into}"),
         format!("typed {count} characters {into}{then}"),
         cx,
@@ -378,6 +462,7 @@ async fn type_text(
 
 async fn press(
     page: &Page,
+    tab: &str,
     arguments: &Value,
     hub: &Entity<BrowserHub>,
     cx: &mut AsyncApp,
@@ -390,6 +475,7 @@ async fn press(
     let page = page.clone();
     acting(
         hub,
+        tab,
         format!("pressing {key}"),
         format!("pressed {key}"),
         cx,
@@ -400,21 +486,28 @@ async fn press(
 
 async fn scroll(
     page: &Page,
+    tab: &str,
     arguments: &Value,
     hub: &Entity<BrowserHub>,
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, String> {
     if let Some(reference) = arguments.get("ref").and_then(Value::as_str) {
-        let target = ref_target(reference, hub, cx)?;
+        let target = ref_target(tab, reference, hub, cx)?;
         let what = target.describe();
         let page = page.clone();
         let hub_for_action = hub.clone();
+        let tab_for_action = tab.to_string();
         return acting(
             hub,
+            tab,
             format!("scrolling {what} into view"),
             format!("scrolled {what} into view"),
             cx,
-            async move |cx| place(&page, &target, &hub_for_action, cx).await.map(drop),
+            async move |cx| {
+                place(&page, &tab_for_action, &target, &hub_for_action, cx)
+                    .await
+                    .map(drop)
+            },
         )
         .await;
     }
@@ -428,6 +521,7 @@ async fn scroll(
     let page = page.clone();
     acting(
         hub,
+        tab,
         format!("scrolling {}", scroll_words(delta_x, delta_y)),
         format!("scrolled {}", scroll_words(delta_x, delta_y)),
         cx,
@@ -463,25 +557,27 @@ fn scroll_words(delta_x: f64, delta_y: f64) -> String {
 }
 
 fn ref_target(
+    tab: &str,
     reference: &str,
     hub: &Entity<BrowserHub>,
     cx: &AsyncApp,
 ) -> Result<RefTarget, String> {
-    hub.read_with(cx, |hub, _| hub.ref_target(reference))
-        .ok_or_else(|| format!("no {reference} in the newest snapshot; take a new one"))
+    hub.read_with(cx, |hub, _| hub.ref_target(tab, reference))
+        .ok_or_else(|| format!("no {reference} in the tab's newest snapshot; take a new one"))
 }
 
 /// Where a click goes, in the page's viewport, and what the chip calls it: a ref's element,
 /// scrolled into view, or the point `x`, `y`.
 async fn target_point(
     page: &Page,
+    tab: &str,
     arguments: &Value,
     hub: &Entity<BrowserHub>,
     cx: &AsyncApp,
 ) -> Result<((f64, f64), String), String> {
     if let Some(reference) = arguments.get("ref").and_then(Value::as_str) {
-        let target = ref_target(reference, hub, cx)?;
-        let point = place(page, &target, hub, cx).await?;
+        let target = ref_target(tab, reference, hub, cx)?;
+        let point = place(page, tab, &target, hub, cx).await?;
         return Ok((point, target.describe()));
     }
     match (
@@ -497,6 +593,7 @@ async fn target_point(
 /// a cross-site iframe is placed through the iframe's owner element.
 async fn place(
     page: &Page,
+    tab: &str,
     target: &RefTarget,
     hub: &Entity<BrowserHub>,
     cx: &AsyncApp,
@@ -517,7 +614,7 @@ async fn place(
     let offset = match &target.frame_id {
         Some(frame) => {
             let nested = hub.read_with(cx, |hub, _| {
-                hub.iframes().iter().any(|iframe| {
+                hub.iframes(tab).iter().any(|iframe| {
                     iframe.frame_id == *frame && iframe.parent_session != page.session_id()
                 })
             });

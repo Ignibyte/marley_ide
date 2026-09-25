@@ -394,13 +394,19 @@ alike.
   - `terminal_read`: `Terminal::block_output`, the last 2,000 lines and at most 256 KiB, and
     whether anything was left out.
 
-## The browser's agent tools (`src/browser_tools.rs`, #492)
+## The browser's agent tools (`src/browser_tools.rs`, #492, #493)
 
-- `mcp.rs` hands each `browser_*` call to `browser_tools::answer`, which answers it from a task
-  of its own once the hub shows its page (starting Chromium if it must, and waiting up to 20
-  seconds). A write tool first calls `browser::show_for_agent`, which brings the first Browser
-  tab in any window to the front of its pane or opens one in the active workspace, both without
-  the focus.
+- `mcp.rs` hands each `browser_*` call to `browser_tools::answer`, which starts a hub that
+  failed again and answers the call from a task of its own once the hub shows its pages
+  (starting Chromium if it must, and waiting up to 20 seconds). A call acts on the page its
+  `tab` names, a target id from `browser_tabs`, or else on the page whose tab the user focused
+  last (the newest page when the user focused none), waiting up to five seconds for a page still
+  being attached (#493). A write tool first calls `browser::show_for_agent`, which brings the
+  page's tab to the front of its pane unless that pane has the focus, and gives a page with no
+  tab a tab. `browser_navigate` opens a new page with `new_tab`, or when the browser has none.
+  Every answer names its tab.
+- `browser_tabs` lists each page: its id, title, URL (with secret-looking values hidden),
+  whether it loads, and which one a call that names no tab acts on.
 - The read tools: `browser_look` (the hub's URL and title, `Page::viewport`,
   `focused_element`, the selection unless a password field has the focus, and
   `Page::screenshot` as the image), `browser_snapshot` (the main frame's tree, each same-site
@@ -443,30 +449,62 @@ alike.
   when that changes. The root `.gitignore` ignores every `.mcp.json`, since a local one carries
   bearers, with an exception for this one.
 
-## The Browser tab (`src/browser.rs`, #488 to #490)
+## The Browser tab (`src/browser.rs`, #488 to #490, #493)
 
 - `BrowserHub` is one entity per app, behind a global: the connection to Marley's Chromium
-  (`marley_browser`), the page every Browser tab shows, its newest frame, title and URL, and
-  how many tabs show it. `start` connects through the profile's `DevToolsActivePort` when a
-  Chromium answers there; otherwise, unless the unit is up, it removes a stale endpoint file,
-  starts the unit and waits up to fifteen seconds, failing early when the unit stops. Its event
-  loop decodes each frame off the main thread, keeps it and acknowledges it; follows the
-  page's URL and title (asking for the title after DOMContentLoaded, load and same-document
-  navigations, since no target event reports it); starts over when the page is closed or
-  crashes; and fails with "The browser closed its connection." when the socket ends. A
-  generation number drops a superseded start's late results. The screencast runs while at
-  least one Browser tab exists and the page's size is known.
-- `BrowserView` is the Browser tab, a `workspace::Item`: its text is the page's title (else
+  (`marley_browser`) and a `PageState` for each of its pages (#493): the `Page`, its newest
+  frame, title and URL, its loading, history and dialog, its iframes, rings and refs, the
+  agent's last action, its viewport and how many tabs draw it. `start` connects through the
+  profile's `DevToolsActivePort` when a Chromium answers there; otherwise, unless the unit is
+  up, it removes a stale endpoint file, starts the unit and waits up to fifteen seconds, failing
+  early when the unit stops. It then turns on target discovery and attaches the pages the
+  browser lists (making `about:blank` when it has none), each once and each in a task of its
+  own, with the page's observers on before the page is announced. The event loop routes each
+  event to the page whose session it came from, or whose iframe's; attaches each `page` target
+  discovery reports later (`targetCreated`, which carries `openerId` for a page a page opened);
+  drops a page on `targetDestroyed` or `targetCrashed`, and one that went while it was being
+  attached (`closing`); decodes each frame off the main thread, keeps it for its page and
+  acknowledges it; follows each page's URL and title (asking for the title after
+  DOMContentLoaded, load and same-document navigations, since no target event reports it); and
+  fails with "The browser closed its connection." when the socket ends. A generation number
+  drops a superseded start's late results. A page streams while a tab draws it and its size is
+  known.
+- **Tabs as pages (#493).** The hub emits `PageOpened` once a page is attached and
+  `PageClosed` when it goes, each naming the page's target id, and a subscription made with the
+  hub's global answers them. A tab that waits for the first page of a start takes it; otherwise
+  the page gets a tab of its own, unless a tab shows it already. A page a page opened goes beside
+  its opener's tab, with the focus. Any other page goes after the tab the user focused last, or
+  else after the newest Browser tab, and never takes the focus: in a pane that has the focus it
+  joins the tab bar behind the active tab, since Zed gives a lost focus to the pane's new front
+  item; when no Browser tab is open and the active pane shows other work with the focus in it,
+  the page opens in a pane split to its right, and the focus goes back where it was. A new page
+  takes the viewport of the page it opens beside, so a page behind another tab lays out as it
+  will show. `PageClosed` closes each tab of the page, which first forgets the page so that its
+  removal closes nothing. A registry of weak `BrowserView`s finds a page's tab.
+- `BrowserView` is one page's tab, a `workspace::Item` that holds the page's target id (none
+  while it waits for one), its workspace and its window: its text is the page's title (else
   "Browser"), its tooltip the URL, its icon the globe. It draws the hub's state ("Starting
-  Chromium…", "Connecting to Chromium…", or the reason it stopped, with how to try again) or the
-  page. It frees each frame from the window's atlas two paints after it was first drawn and
-  both kept frames on release, as Zed's screen-share view does, since the window may present
-  the last frame again.
+  Chromium…", "Connecting to Chromium…", "Opening a page…", or the reason it stopped, with how
+  to try again) or its page. It counts as its page's viewer from its first paint in front of its
+  pane until `Item::deactivated` or its release, so a page behind another tab stops streaming.
+  Its focus marks the page the agent tools act on by default. `Item::on_removed`, which Zed
+  calls on a close and on a move between panes alike, defers a check past the effect cycle and
+  closes the page (`Page::close`) only when no pane holds a tab of it: a move removes the tab and
+  adds it again in one update, before the deferred check runs. The tab frees each frame from the
+  window's atlas two paints after it was first drawn, and both kept frames on release, as Zed's
+  screen-share view does, since the window may present the last frame again.
 - `PageElement` reports the tab's size and the window's scale to the hub in `prepaint` (the
   page is laid out again only when either changes) and paints the frame from the tab's top
   left at its own size, so a frame from before a resize is neither stretched nor squeezed.
-- `marley::OpenBrowser` ("marley: open browser") activates the workspace's Browser tab or adds
-  one to the active pane, and restarts a hub that failed.
+- `marley::OpenBrowser` ("marley: open browser") activates the workspace's tab of the page the
+  user focused last, or its first Browser tab; else gives a tab to each page that has none
+  (their tabs closed with their window); else opens a tab and a blank page for it. It restarts a
+  hub that failed, and the tabs of the old pages close. `marley::NewBrowserTab` ("marley: new
+  browser tab", Ctrl-T in `MarleyBrowser`) opens a tab after the active one with the focus in
+  its address bar, and a blank page for it. The tab takes the page's id when
+  `Target.createTarget` answers, which is before the page is attached, so the page's
+  `PageOpened` finds the tab and opens no second one; an address typed before the page is
+  attached is gone to once it is.
 - **Input (#489).** `PageElement` inserts a hitbox and, in `paint`, registers the tab's input
   handler and its mouse listeners: a press in the page focuses the tab and records where it
   landed (an input method opens its window there, since CDP reports no caret); moves and the
@@ -554,6 +592,10 @@ microphone through a fake Voxtype whose `record toggle` moves its status on, and
 
 ## Known limits
 
+- A Browser tab's page outlives its window: closing a window, or quitting, closes no page, and
+  such a page gets a tab the next time `marley: open browser` runs (#494 restores the tabs at
+  launch). Ctrl+T while Chromium is still starting opens a second blank page beside the one the
+  start makes.
 - The title bar's Panel Layout submenu still lists Classic and Agentic in the Marley layout,
   with "Custom" checked; choosing one explains itself (#451), and hiding it needs a
   `title_bar` touchpoint.

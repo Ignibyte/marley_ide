@@ -10,7 +10,8 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-493](open/TICKET-493-browser-tabs-and-restore.md) | feature | prong 3 B1b · Browser tabs as pages, restore on relaunch, the `<select>` picker |
+| [TICKET-494](open/TICKET-494-browser-tabs-restored.md) | feature | prong 3 B1c · Browser tabs saved with the workspace and restored on relaunch |
+| [TICKET-495](open/TICKET-495-select-picker.md) | feature | prong 3 B1d · Marley draws the page's `<select>` lists |
 | [TICKET-486](open/TICKET-486-keep-the-terminal-size-across-launches.md) | bug | prong 1 T0 · the first terminals of a launch open at the last session's size (#485's limit) |
 
 ## Deliberate (picked explicitly, never auto-next)

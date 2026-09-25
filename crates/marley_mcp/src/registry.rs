@@ -117,33 +117,39 @@ const REGISTRY: &[ToolSpec] = &[
                       are more.",
     },
     browser_read(
+        "tabs",
+        "List Marley's Browser tabs, one per page of its browser: each tab's id, which the other \
+         browser tools take as `tab`, its title and URL, whether it loads, and which one the tools \
+         act on when a call names no tab, the one the user focused last.",
+    ),
+    browser_read(
         "look",
-        "See the page in Marley's Browser tab as the user sees it: its URL, title, viewport, \
+        "See a page in Marley's Browser tabs as the user sees it: its URL, title, viewport, \
          scroll, whether it loads, the focused element and the selection, and the frame on the \
          screen as an image.",
     ),
     browser_read(
         "snapshot",
-        "The page's accessibility tree as text: its interactive elements (every node with \
+        "A page's accessibility tree as text: its interactive elements (every node with \
          `full`), each with a ref for the write tools, cross-site iframes included.",
     ),
     browser_read(
         "console",
-        "The page's latest console messages and uncaught errors, oldest first, at most 200.",
+        "A page's latest console messages and uncaught errors, oldest first, at most 200.",
     ),
     browser_read(
         "network",
-        "The page's latest requests, oldest first, at most 200: method, URL with secret-looking \
+        "A page's latest requests, oldest first, at most 200: method, URL with secret-looking \
          values hidden, type, status, duration and failure; no headers or bodies.",
     ),
     browser_write(
         "navigate",
-        "Load an http or https URL in the Browser tab, opening the tab if none is open; answers \
-         once the page has loaded.",
+        "Load an http or https URL in a Browser tab, or in a new tab with `new_tab`, opening one \
+         when none is open; answers once the page has loaded, with the tab's id.",
     ),
     browser_write(
         "back",
-        "Go back in the Browser tab's history; answers once the page has loaded.",
+        "Go back in a Browser tab's history; answers once the page has loaded.",
     ),
     browser_write(
         "click",
@@ -277,9 +283,10 @@ fn fleet_snapshot_schema() -> Value {
     })
 }
 
-/// The input and output schemas of the browser family's tools (#492).
+/// The input and output schemas of the browser family's tools (#492, #493).
 fn browser_schemas(verb: &str) -> (Value, Value) {
     match verb {
+        "tabs" => tabs_schemas(),
         "look" => look_schemas(),
         "snapshot" => snapshot_schemas(),
         "console" | "network" => entries_schemas(verb),
@@ -287,17 +294,67 @@ fn browser_schemas(verb: &str) -> (Value, Value) {
     }
 }
 
-/// No arguments.
-fn no_arguments() -> Value {
-    json!({ "type": "object", "properties": {}, "additionalProperties": false })
+/// The schema of the `tab` argument every browser tool but `browser_tabs` takes (#493).
+fn tab_argument_schema() -> Value {
+    json!({
+        "type": "string",
+        "description": "A tab's id from browser_tabs; left out, the tab the user focused last."
+    })
+}
+
+/// A browser tool's arguments: `properties`, with `tab`, and the `required` ones.
+fn browser_arguments(mut properties: Value, required: &[&str]) -> Value {
+    if let Some(properties) = properties.as_object_mut() {
+        properties.extend([("tab".to_string(), tab_argument_schema())]);
+    }
+    let mut schema = json!({
+        "type": "object",
+        "properties": properties,
+        "additionalProperties": false
+    });
+    if !required.is_empty() {
+        schema["required"] = json!(required);
+    }
+    schema
+}
+
+/// `browser_tabs`: no arguments; each tab.
+fn tabs_schemas() -> (Value, Value) {
+    (
+        json!({ "type": "object", "properties": {}, "additionalProperties": false }),
+        json!({
+            "type": "object",
+            "properties": {
+                "tabs": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": { "type": "string" },
+                            "title": { "type": "string" },
+                            "url": { "type": "string" },
+                            "loading": { "type": "boolean" },
+                            "focused": {
+                                "type": "boolean",
+                                "description": "The tab the tools act on when a call names none."
+                            }
+                        },
+                        "required": ["id", "title", "url", "loading", "focused"]
+                    }
+                }
+            },
+            "required": ["tabs"]
+        }),
+    )
 }
 
 fn look_schemas() -> (Value, Value) {
     (
-        no_arguments(),
+        browser_arguments(json!({}), &[]),
         json!({
             "type": "object",
             "properties": {
+                "tab": { "type": "string" },
                 "url": { "type": "string" },
                 "title": { "type": "string" },
                 "loading": { "type": "boolean" },
@@ -305,33 +362,33 @@ fn look_schemas() -> (Value, Value) {
                 "focused": { "type": ["object", "null"] },
                 "selection": { "type": "string" }
             },
-            "required": ["url", "title", "loading", "viewport"]
+            "required": ["tab", "url", "title", "loading", "viewport"]
         }),
     )
 }
 
 fn snapshot_schemas() -> (Value, Value) {
     (
-        json!({
-            "type": "object",
-            "properties": {
+        browser_arguments(
+            json!({
                 "full": { "type": "boolean", "description": "Every node, not only the interactive ones." }
-            },
-            "additionalProperties": false
-        }),
+            }),
+            &[],
+        ),
         json!({
             "type": "object",
             "properties": {
+                "tab": { "type": "string" },
                 "snapshot": { "type": "string" },
                 "refs": { "type": "integer" },
                 "cut": { "type": "boolean" }
             },
-            "required": ["snapshot", "refs", "cut"]
+            "required": ["tab", "snapshot", "refs", "cut"]
         }),
     )
 }
 
-/// `browser_console` and `browser_network`: no arguments; the entries of the ring.
+/// `browser_console` and `browser_network`: the entries of the tab's ring.
 fn entries_schemas(verb: &str) -> (Value, Value) {
     let item = if verb == "console" {
         json!({
@@ -360,16 +417,19 @@ fn entries_schemas(verb: &str) -> (Value, Value) {
         })
     };
     (
-        no_arguments(),
+        browser_arguments(json!({}), &[]),
         json!({
             "type": "object",
-            "properties": { "entries": { "type": "array", "items": item } },
-            "required": ["entries"]
+            "properties": {
+                "tab": { "type": "string" },
+                "entries": { "type": "array", "items": item }
+            },
+            "required": ["tab", "entries"]
         }),
     )
 }
 
-/// The write tools' arguments; each answers with what it did.
+/// The write tools' arguments; each answers with what it did, and in which tab.
 fn browser_write_schemas(verb: &str) -> (Value, Value) {
     let element =
         json!({ "type": "string", "description": "A ref from browser_snapshot, such as e3." });
@@ -377,56 +437,54 @@ fn browser_write_schemas(verb: &str) -> (Value, Value) {
         "type": "object",
         "properties": {
             "did": { "type": "string", "description": "What the tool did, as the Agent chip says it." },
+            "tab": { "type": "string" },
             "url": { "type": "string" },
             "title": { "type": "string" }
         },
-        "required": ["did"]
+        "required": ["did", "tab"]
     });
     let arguments = match verb {
-        "navigate" => json!({
-            "type": "object",
-            "properties": { "url": { "type": "string", "description": "An http or https URL." } },
-            "required": ["url"],
-            "additionalProperties": false
-        }),
-        "click" => json!({
-            "type": "object",
-            "properties": {
+        "navigate" => browser_arguments(
+            json!({
+                "url": { "type": "string", "description": "An http or https URL." },
+                "new_tab": { "type": "boolean", "description": "Open the page in a new tab, which leaves the user's focus where it is." }
+            }),
+            &["url"],
+        ),
+        "click" => browser_arguments(
+            json!({
                 "ref": element,
                 "x": { "type": "number", "description": "A point of the viewport, in CSS pixels, with y." },
                 "y": { "type": "number" },
                 "button": { "type": "string", "enum": ["left", "right", "middle"] },
                 "count": { "type": "integer", "minimum": 1, "maximum": 3 }
-            },
-            "additionalProperties": false
-        }),
-        "type" => json!({
-            "type": "object",
-            "properties": {
+            }),
+            &[],
+        ),
+        "type" => browser_arguments(
+            json!({
                 "text": { "type": "string" },
                 "ref": element,
                 "submit": { "type": "boolean", "description": "Press Enter after the text." }
-            },
-            "required": ["text"],
-            "additionalProperties": false
-        }),
-        "press" => json!({
-            "type": "object",
-            "properties": { "key": { "type": "string", "description": "Enter, Tab, Ctrl+A, Shift+ArrowLeft." } },
-            "required": ["key"],
-            "additionalProperties": false
-        }),
-        "scroll" => json!({
-            "type": "object",
-            "properties": {
+            }),
+            &["text"],
+        ),
+        "press" => browser_arguments(
+            json!({
+                "key": { "type": "string", "description": "Enter, Tab, Ctrl+A, Shift+ArrowLeft." }
+            }),
+            &["key"],
+        ),
+        "scroll" => browser_arguments(
+            json!({
                 "dy": { "type": "number", "description": "Pixels down; negative is up." },
                 "dx": { "type": "number", "description": "Pixels right; negative is left." },
                 "ref": element
-            },
-            "additionalProperties": false
-        }),
+            }),
+            &[],
+        ),
         // `back`.
-        _ => no_arguments(),
+        _ => browser_arguments(json!({}), &[]),
     };
     (arguments, done)
 }

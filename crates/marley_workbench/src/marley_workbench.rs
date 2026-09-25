@@ -103,6 +103,9 @@ actions!(
         /// first time.
         #[derive(Eq)]
         OpenBrowser,
+        /// Opens a blank page in a new Browser tab, with the focus in its address bar.
+        #[derive(Eq)]
+        NewBrowserTab,
         /// Puts the focus in the Browser tab's address bar, with its text selected.
         #[derive(Eq)]
         FocusAddressBar,

@@ -2639,3 +2639,33 @@ that Chromium dropped the event.
 as a password. A snapshot that writes values leaks the length. Marley's snapshot writes no
 values; `browser_look` reads the focused field's value in an isolated world, where
 `type === 'password'` is known, and drops it and its selection there.
+
+## L-claude-493-zed-gives-a-lost-focus-to-the-panes-front-item-001
+*category: build · topic: Zed panes and focus · from: pipeline 493*
+
+`Pane::add_item` with `focus_item` false still moves the focus when the item lands in the pane
+that has it: the item comes to the front, the focused item behind it stops rendering, gpui
+reports the focus lost, and the workspace's `on_focus_lost` gives it to
+`focus_lost_restore_target`, the pane, which focuses its new front item. To add an item without
+the focus, activate the old front item again in the same update (the new one then waits in the
+tab bar), or put it in a pane without the focus. A split for it takes the focus too:
+`Workspace::add_pane` focuses the new pane, so put the old focus back before the update ends.
+
+## L-claude-493-a-move-between-panes-is-a-remove-then-an-add-001
+*category: build · topic: Zed items · from: pipeline 493*
+
+Zed calls `Item::on_removed` from `Pane::_remove_item`, for a close and for a move between panes
+alike; a move adds the item to its new pane in the same update, after `on_removed`. A check
+deferred from `on_removed` (`cx.defer`) runs once both are done, but `Workspace::pane_for`
+answers from `panes_by_item`, which the panes' `RemovedItem` and `AddItem` events update, and
+those events are queued behind the defer: it sees the item in no pane. Ask each pane
+(`Pane::index_for_item`) instead.
+
+## L-claude-493-headless-chromium-lives-on-with-no-pages-001
+*category: build · topic: CDP targets · from: pipeline 493*
+
+Headless Chromium (the `--headless` mode Marley starts) keeps running after its last page
+closes, and `Target.createTarget` still opens a page on the same connection (a probe on a
+scratch profile, 2026-09-25). Closing the last Browser tab can close its page without taking
+the browser down. The browser also lists `browser_ui` and `background_page` targets, which come
+and go with no page among them.

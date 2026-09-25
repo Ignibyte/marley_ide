@@ -2,8 +2,8 @@
 # #488's e2e test: the Browser tab. `marley: open browser` starts the run's own Chromium as a
 # transient user unit and shows its page. A stand-in agent attached to the same Chromium
 # navigates it to a fixture page with a cross-site iframe and highlights its button, and the
-# tab shows both. The page is laid out again when the tab widens, and a closed and reopened tab
-# shows the same page from the same Chromium.
+# tab shows both. The page is laid out again when the tab widens. Closing the tab closes its
+# page (#493), and the tab opened again shows a new page from the same Chromium.
 compositor sway
 
 # shellcheck source=script/e2e/browser-fixture.sh

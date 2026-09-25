@@ -2248,3 +2248,11 @@ endpoint, a session other tasks act through) turns on everything it watches befo
 announces readiness, in the same sequence, not in a task spawned after the flip. Whoever waits
 on the state acts as soon as it flips, and their first action races any watcher still being
 set up. The first events are the ones an agent most wants: the page's own load.
+
+## PR-claude-lay-out-what-no-view-draws-yet-001
+*severity: medium · prevents: F-claude-493-a-page-behind-a-tab-kept-chromiums-default-size-001*
+
+A surface an agent can read while no view draws it (a page behind another tab, a terminal in a
+hidden pane) gets the geometry of the view that will show it as soon as it exists, not at that
+view's first paint. The agent's reading is meant to be what the user would see, and a surface
+laid out only on paint reads at a default size until someone looks.

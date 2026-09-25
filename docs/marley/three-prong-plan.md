@@ -337,7 +337,9 @@ reaching his desktop.
 | B1a | #490 | The address bar, back, forward, reload and stop, the loading state, JavaScript dialogs (shipped) | M |
 | C0 | #491 | Prong 2's C0, pulled forward: Marley's MCP server in the app, the plugin's bridge, and the terminal block tools (shipped) | M |
 | B2 | #492 | The `browser_*` tools: look, snapshot, console, network; navigate, click, type, press, scroll (shipped) | M |
-| B1b | #493 | Tabs as page targets (pages the page or an agent opens appear as tabs), restore on relaunch, Marley's own `<select>` picker | M |
+| B1b | #493 | Tabs as page targets: pages the page, an agent or Ctrl+T opens appear as tabs, a closed tab closes its page, the tools take `tab` (shipped) | M |
+| B1c | #494 | The Browser tabs restored on relaunch | S |
+| B1d | #495 | Marley's own `<select>` picker | S |
 | B3a | wave 2 | Pillar A: pick mode, the durable bundle (ranked locators, AX node, listeners, blocking styles), picks staged for Chad to caption and send | L |
 | B3b | wave 2 | A picked element's listener source, through its source map, opened in the editor at the line | M |
 | B4 | wave 2 | Pillar B, annotations drawn by gpui and anchored in page coordinates | M |
@@ -353,7 +355,7 @@ and the tools turn out to be.
 - HiDPI frames need `--force-device-scale-factor` at the service's start; a Marley window
   moved to a screen of another scale gets soft frames until Chromium restarts.
 - Headless Chromium draws no browser UI, so everything that is browser UI in a normal
-  browser is Marley's to draw: `<select>` popups (#493), JavaScript dialogs (#490), file
+  browser is Marley's to draw: `<select>` popups (#495), JavaScript dialogs (#490), file
   choosers, downloads, context menus, the page's cursor shape.
 - The unit outlives Marley, so a Chromium that crashed or was stopped must read as such in
   the tab, with a way back (the #406 lesson: transport failures arrive as silence).
@@ -380,7 +382,7 @@ and the tools turn out to be.
   until Blocks exist),
   then C0 (agents get Blocks as data), then B0 and C1 in parallel (both are read-only and
   independent), then T2 to T4, C2 to C4, B1 to B2, and the long tails T5, T6, C5, B3 to B5.
-  On 2026-09-24 Chad moved the browser first: prong 3's wave 1 (#487 to #493) runs now, with
+  On 2026-09-24 Chad moved the browser first: prong 3's wave 1 (#487 to #495) runs now, with
   C0 pulled forward inside it for the agent tools; the terminal's T2 to T6 and the rest of
   prong 2 follow.
 - **Tickets.** Each slice becomes a ticket in this repo when it starts; decisions get

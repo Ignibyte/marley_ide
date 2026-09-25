@@ -9,9 +9,15 @@
 #   `localhost` and 127.0.0.1 (its resolver rules map IP literals too): a search or a typed
 #   name fails in the page, and nothing leaves the machine.
 # - `agent <command> ...` runs a stand-in agent that attaches to the run's Chromium the way any
-#   CDP client can, through the `DevToolsActivePort` in Marley's profile, and drives the page the
-#   Browser tab shows: `navigate <url>`, and `highlight <selector> <seconds>`, which keeps the
-#   highlight, drawn for its own session, for that long.
+#   CDP client can, through the `DevToolsActivePort` in Marley's profile, and drives the browser's
+#   first page: `navigate <url>`, and `highlight <selector> <seconds>`, which keeps the
+#   highlight, drawn for its own session, for that long; `close <text>` closes the page whose URL
+#   holds the text.
+# - `mcp_agent <command> ...` runs a stand-in agent that reaches Marley's MCP server through the
+#   Claude Code plugin's bridge, as Claude Code in a terminal does, and calls the browser tools
+#   (#492): `tools`, `tabs`, `navigate <url>`, `look [<image file>]`, `snapshot`, `console`,
+#   `network`, `type-into <role> <name> <text>`, `click-on <role> <name>` and `scroll <dy>`.
+#   `--tab <id>` names the tab a tool acts on, and `--new-tab` has `navigate` open one (#493).
 # - `browser_profile` and `browser_unit` name the run's Chromium profile and its user unit;
 #   `browser_teardown`, for the scenario's `teardown`, stops the unit and the servers.
 
@@ -55,6 +61,13 @@ SH
 agent() {
   [[ -f $E2E_WORK/agent.mjs ]] || write_agent
   node "$E2E_WORK/agent.mjs" "$(browser_profile)" "$@"
+}
+
+mcp_agent() {
+  [[ -f $E2E_WORK/mcp-agent.py ]] || write_mcp_agent
+  BRIDGE=$PWD/crates/marley_workbench/claude_plugin/marley/bin/marley-mcp-bridge \
+    MARLEY_MCP_ENDPOINT=$E2E_PROFILE/mcp-endpoint.json \
+    python3 "$E2E_WORK/mcp-agent.py" "$@"
 }
 
 browser_teardown() {
@@ -137,6 +150,14 @@ await new Promise((resolve, reject) => {
 });
 
 const { targetInfos } = await send('Target.getTargets');
+if (command === 'close') {
+  const closing = targetInfos.find((target) => target.type === 'page' && target.url.includes(args[0]));
+  if (!closing) throw new Error(`agent: no page at ${args[0]}`);
+  await send('Target.closeTarget', { targetId: closing.targetId });
+  console.log(`agent: closed the page at ${closing.url}`);
+  socket.close();
+  process.exit(0);
+}
 const page = targetInfos.find((target) => target.type === 'page');
 if (!page) throw new Error('the browser has no page');
 const { sessionId } = await send('Target.attachToTarget', { targetId: page.targetId, flatten: true });
@@ -169,4 +190,156 @@ if (command === 'navigate') {
 }
 socket.close();
 JS
+}
+
+write_mcp_agent() {
+  cat >"$E2E_WORK/mcp-agent.py" <<'PY'
+# A stand-in agent for the browser's e2e scenarios (#492 on): it runs the plugin's bridge, as
+# Claude Code does, and calls Marley's browser tools, printing what comes back.
+import base64
+import json
+import os
+import queue
+import re
+import subprocess
+import sys
+import threading
+import time
+
+
+class Client:
+    def __init__(self):
+        self.bridge = subprocess.Popen(
+            [os.environ["BRIDGE"]],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        self.messages = queue.Queue()
+        self.next_id = 0
+        threading.Thread(target=self.pump, daemon=True).start()
+        self.call(
+            "initialize",
+            {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "e2e", "version": "0"}},
+        )
+        self.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+
+    def pump(self):
+        for line in self.bridge.stdout:
+            if line.strip():
+                self.messages.put(json.loads(line))
+        self.messages.put(None)
+
+    def send(self, message):
+        self.bridge.stdin.write(json.dumps(message) + "\n")
+        self.bridge.stdin.flush()
+
+    def call(self, method, params=None, seconds=60):
+        self.next_id += 1
+        self.send({"jsonrpc": "2.0", "id": self.next_id, "method": method, "params": params or {}})
+        deadline = time.monotonic() + seconds
+        while (left := deadline - time.monotonic()) > 0:
+            try:
+                message = self.messages.get(timeout=left)
+            except queue.Empty:
+                break
+            if message is None:
+                sys.exit(f"{method}: the bridge closed")
+            if message.get("id") == self.next_id:
+                return message
+        sys.exit(f"{method}: no answer")
+
+    def tool(self, name, arguments=None):
+        """The tool's result, or its error printed; None when it failed."""
+        reply = self.call("tools/call", {"name": name, "arguments": arguments or {}})
+        result = reply.get("result") or {}
+        if "error" in reply:
+            print(f"  {name} refused: {reply['error'].get('message')}")
+            return None
+        if result.get("isError"):
+            print(f"  {name} refused: {result['content'][0]['text']}")
+            return None
+        return result
+
+    def close(self):
+        self.bridge.stdin.close()
+        self.bridge.wait(timeout=10)
+
+
+def find_ref(snapshot, role, name):
+    for line in snapshot.splitlines():
+        match = re.match(r'\s*- (\S+)(?: "(.*?)")?.*\[ref=(e\d+)\]', line)
+        if match and match.group(1) == role and (match.group(2) or "").startswith(name):
+            return match.group(3)
+    sys.exit(f"no {role} {name!r} in the snapshot")
+
+
+def main():
+    options = {}
+    words = []
+    given = iter(sys.argv[1:])
+    for word in given:
+        if word == "--tab":
+            options["tab"] = next(given)
+        elif word == "--new-tab":
+            options["new_tab"] = True
+        else:
+            words.append(word)
+    command, *rest = words
+    client = Client()
+    if command == "tools":
+        tools = client.call("tools/list")["result"]["tools"]
+        names = [tool["name"] for tool in tools]
+        print(f"  {len(names)} tools: {', '.join(names)}")
+        evaluating = [name for name in names if "eval" in name or "script" in name]
+        print(f"  tools that evaluate script: {evaluating or 'none'}")
+    elif command == "tabs":
+        result = client.tool("browser_tabs")
+        for tab in (result or {}).get("structuredContent", {}).get("tabs", []):
+            focused = ", focused" if tab["focused"] else ""
+            print(f"  tab {tab['id']}: {tab['title']!r} at {tab['url']}{focused}")
+    elif command == "navigate":
+        result = client.tool("browser_navigate", {"url": rest[0], **options})
+        if result:
+            print(f"  {json.dumps(result['structuredContent'])}")
+    elif command == "look":
+        result = client.tool("browser_look", options)
+        if result:
+            print(f"  {json.dumps(result['structuredContent'])}")
+            if rest:
+                images = [block for block in result["content"] if block["type"] == "image"]
+                with open(rest[0], "wb") as file:
+                    file.write(base64.b64decode(images[0]["data"]))
+                print(f"  the frame: {images[0]['mimeType']}, saved as {os.path.basename(rest[0])}")
+    elif command == "snapshot":
+        result = client.tool("browser_snapshot", options)
+        if result:
+            print(result["content"][0]["text"], end="")
+    elif command in ("console", "network"):
+        result = client.tool(f"browser_{command}", options)
+        for entry in (result or {}).get("structuredContent", {}).get("entries", []):
+            if command == "console":
+                print(f"  {entry['level']}: {entry['text']} ({entry.get('source')}:{entry.get('line')})")
+            else:
+                print(f"  {entry['method']} {entry.get('status')} {entry.get('kind')} {entry['url']}")
+    elif command in ("type-into", "click-on"):
+        role, name = rest[0], rest[1]
+        snapshot = client.tool("browser_snapshot", options)["content"][0]["text"]
+        reference = find_ref(snapshot, role, name)
+        if command == "type-into":
+            result = client.tool("browser_type", {"ref": reference, "text": rest[2], **options})
+        else:
+            result = client.tool("browser_click", {"ref": reference, **options})
+        if result:
+            print(f"  {reference}: {result['structuredContent']['did']}")
+    elif command == "scroll":
+        result = client.tool("browser_scroll", {"dy": float(rest[0]), **options})
+        if result:
+            print(f"  {result['structuredContent']['did']}")
+    client.close()
+
+
+main()
+PY
 }

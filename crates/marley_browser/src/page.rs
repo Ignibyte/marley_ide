@@ -207,21 +207,29 @@ pub struct FrameInfo {
 }
 
 impl Page {
-    /// Attaches to the browser's first page, or to a new blank one when it has none, and turns
-    /// on what the Browser tab needs: the page's events, focus as if the page had it, and every
-    /// target's title and URL as they change.
+    /// Turns on target discovery: the browser reports every target it has as created, and each
+    /// one it makes or loses from then on (#493).
     ///
     /// # Errors
     ///
-    /// When a call fails or the browser's answers lack what attaching needs.
-    pub async fn attach_first(connection: &Connection) -> Result<Self, CdpError> {
+    /// When the call fails.
+    pub async fn discover(connection: &Connection) -> Result<(), CdpError> {
         connection
             .call(
                 "Target.setDiscoverTargets",
                 json!({ "discover": true }),
                 None,
             )
-            .await?;
+            .await
+            .map(drop)
+    }
+
+    /// The browser's pages, by target id.
+    ///
+    /// # Errors
+    ///
+    /// When the call fails or its answer is not a list of targets.
+    pub async fn page_ids(connection: &Connection) -> Result<Vec<String>, CdpError> {
         let targets = connection
             .call("Target.getTargets", json!({}), None)
             .await?;
@@ -232,15 +240,34 @@ impl Page {
             .transpose()
             .map_err(|error| CdpError::Unexpected(format!("the browser's targets: {error}")))?
             .unwrap_or_default();
-        let first_page = infos.into_iter().find(|info| info.kind == "page");
-        let target_id = if let Some(info) = first_page {
-            info.target_id
-        } else {
-            let created = connection
-                .call("Target.createTarget", json!({ "url": "about:blank" }), None)
-                .await?;
-            string_field(&created, "targetId")?
-        };
+        Ok(infos
+            .into_iter()
+            .filter(|info| info.kind == "page")
+            .map(|info| info.target_id)
+            .collect())
+    }
+
+    /// Opens a new page at `url` and gives its target id; the browser reports it as created
+    /// before it answers.
+    ///
+    /// # Errors
+    ///
+    /// When the call fails or its answer has no target id.
+    pub async fn create(connection: &Connection, url: &str) -> Result<String, CdpError> {
+        let created = connection
+            .call("Target.createTarget", json!({ "url": url }), None)
+            .await?;
+        string_field(&created, "targetId")
+    }
+
+    /// Attaches to the page `target_id` with a flat session of its own and turns on what the
+    /// Browser tab and the agent tools need: the page's events, focus as if the page had it, and
+    /// the observers ([`Page::observe`]), all before the page is handed back.
+    ///
+    /// # Errors
+    ///
+    /// When a call fails or the browser's answer lacks the session.
+    pub async fn attach(connection: &Connection, target_id: &str) -> Result<Self, CdpError> {
         let attached = connection
             .call(
                 "Target.attachToTarget",
@@ -251,7 +278,7 @@ impl Page {
         let page = Self {
             connection: connection.clone(),
             session_id: string_field(&attached, "sessionId")?,
-            target_id,
+            target_id: target_id.to_string(),
         };
         page.call("Page.enable", json!({})).await?;
         page.call(
@@ -259,7 +286,20 @@ impl Page {
             json!({ "enabled": true }),
         )
         .await?;
+        page.observe(&page.session_id).await?;
         Ok(page)
+    }
+
+    /// Closes the page `target_id`, attached or not, as closing its tab in a browser does.
+    ///
+    /// # Errors
+    ///
+    /// When the call fails, as it does for a page that is gone.
+    pub async fn close(connection: &Connection, target_id: &str) -> Result<(), CdpError> {
+        connection
+            .call("Target.closeTarget", json!({ "targetId": target_id }), None)
+            .await
+            .map(drop)
     }
 
     /// The page's target id.

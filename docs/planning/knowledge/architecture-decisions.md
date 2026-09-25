@@ -1977,3 +1977,19 @@ agent's first write brings the Browser tab forward without taking the focus. No 
 script an agent supplies. Rejected: a script-evaluation tool; Playwright MCP's full tree by
 default (about 11,900 tokens against about 3,400 for the interactive list); deny-by-default
 writes behind a setting that does not exist yet.
+
+## AD-claude-493-one-browser-tab-per-page-001
+*decided at: 2026-09-25 · status: shipped*
+
+Each page of Marley's Chromium is one Browser tab, a Zed item in Zed's own tab bar, and the hub
+keeps each page's state by its target id. A page a page opens (`_blank`, `window.open`) opens
+beside its opener's tab with the focus, as in a browser. A page an agent or any DevTools client
+opens never takes the focus: it waits in the tab bar behind the tab in front of a pane with the
+focus, and, when no Browser tab is open and the pane with the focus shows other work such as
+the agent's terminal, it opens in a pane split beside that one. Closing a tab closes its page;
+a move between panes does not; a page that closes elsewhere closes its tab. The agent tools act
+on the page their `tab` names, from `browser_tabs`, or on the tab the user focused last.
+Rejected: one Browser tab switching among pages (an agent's page would replace what the user
+looks at); a tab strip drawn inside the Browser tab (Zed's tab bar already is one, with its
+splitting and moving); bringing an agent's tab to the front of the focused pane (Zed's
+focus-loss rule hands it the focus); a window of its own for agent pages.

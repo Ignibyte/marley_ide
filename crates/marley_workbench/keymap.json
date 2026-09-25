@@ -37,6 +37,7 @@
     "context": "MarleyBrowser",
     "bindings": {
       "ctrl-l": "marley::FocusAddressBar",
+      "ctrl-t": "marley::NewBrowserTab",
       "alt-left": "marley::BrowserBack",
       "alt-right": "marley::BrowserForward",
       "ctrl-r": "marley::BrowserReload",

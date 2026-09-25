@@ -13,6 +13,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A Browser tab for each page** (#493, 2026-09-25). Every page of Marley's Chromium has a
+  Browser tab of its own. A link that opens a new window, or a page's `window.open`, opens a tab
+  beside the page that opened it, with the focus, as in a browser. Ctrl+T in a Browser tab, or
+  `marley: new browser tab`, opens a blank page in a new tab with the focus in its address bar.
+  Closing a tab closes its page, and a page that closes, from a script or another DevTools
+  client, closes its tab. A page an agent opens gets a tab that leaves your focus where it is:
+  behind the tab you are in, or, when no Browser tab is open and you are working in another
+  pane such as the agent's terminal, in a new pane beside it; either way it is laid out at the
+  size of the tabs around it. The agent tools take the tab to act on, by the id the new
+  `browser_tabs` lists, and otherwise act on the tab you used last; `browser_navigate` with
+  `new_tab` opens its page in a new tab. `marley: open browser` shows the tab you used last.
 - **Agents see and drive the Browser tab** (#492, 2026-09-25). Marley's MCP server gains ten
   browser tools. An agent can look at the page the user sees (its URL, title, scroll, focused
   element and selection, and the frame as an image), read its accessibility tree as a list of

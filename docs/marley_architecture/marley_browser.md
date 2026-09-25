@@ -40,10 +40,12 @@ for.
 
 ## The page (`src/page.rs`) and the frames (`src/frame.rs`)
 
-- `Page::attach_first` turns on target discovery, attaches to the browser's first `page`
-  target with `flatten` (a new `about:blank` when there is none), enables the Page domain and
-  focus emulation. A fresh headless Chromium also lists `browser_ui` and extension targets, so
-  only `page` is a tab.
+- The page's life (#493): `Page::discover` turns on target discovery, `page_ids` lists the
+  browser's `page` targets, `create` opens one at a URL and answers with its id (its
+  `targetCreated` comes first), `attach` attaches to one with `flatten`, enables the Page domain,
+  focus emulation and the observers before it hands the page back, and `close` closes one by id,
+  attached or not. A fresh headless Chromium also lists `browser_ui` and extension targets, so
+  only `page` is a tab; it keeps running with no page at all, and `create` works then too.
 - The viewport is `Emulation.setDeviceMetricsOverride` at the tab's size and the window's
   scale; the screencast is JPEG at quality 85, each frame acknowledged after it is decoded,
   which paces Chromium to Marley. `target_info` reads the page's title: Chromium reports a new
