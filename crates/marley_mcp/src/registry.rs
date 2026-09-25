@@ -16,6 +16,8 @@ pub enum Family {
     Session,
     /// Marley's terminals and their blocks, read by the app (#491).
     Terminal,
+    /// The page in Marley's Browser tab, seen and driven by the app (#492).
+    Browser,
 }
 
 impl Family {
@@ -26,6 +28,7 @@ impl Family {
             Self::Fleet => "fleet",
             Self::Session => "session",
             Self::Terminal => "terminal",
+            Self::Browser => "browser",
         }
     }
 
@@ -33,7 +36,7 @@ impl Family {
     /// 2's C1 to feed them; a client that names one of their tools still reaches it.
     #[must_use]
     pub const fn is_served(self) -> bool {
-        matches!(self, Self::Terminal)
+        matches!(self, Self::Terminal | Self::Browser)
     }
 }
 
@@ -113,7 +116,77 @@ const REGISTRY: &[ToolSpec] = &[
         description: "Read one block's output as text: at most 2,000 lines, the end kept when there \
                       are more.",
     },
+    browser_read(
+        "look",
+        "See the page in Marley's Browser tab as the user sees it: its URL, title, viewport, \
+         scroll, whether it loads, the focused element and the selection, and the frame on the \
+         screen as an image.",
+    ),
+    browser_read(
+        "snapshot",
+        "The page's accessibility tree as text: its interactive elements (every node with \
+         `full`), each with a ref for the write tools, cross-site iframes included.",
+    ),
+    browser_read(
+        "console",
+        "The page's latest console messages and uncaught errors, oldest first, at most 200.",
+    ),
+    browser_read(
+        "network",
+        "The page's latest requests, oldest first, at most 200: method, URL with secret-looking \
+         values hidden, type, status, duration and failure; no headers or bodies.",
+    ),
+    browser_write(
+        "navigate",
+        "Load an http or https URL in the Browser tab, opening the tab if none is open; answers \
+         once the page has loaded.",
+    ),
+    browser_write(
+        "back",
+        "Go back in the Browser tab's history; answers once the page has loaded.",
+    ),
+    browser_write(
+        "click",
+        "Click an element by its ref from browser_snapshot, or a point of the viewport, as the \
+         user's mouse does.",
+    ),
+    browser_write(
+        "type",
+        "Type text as key presses into an element by its ref, or where the focus is; `submit` \
+         presses Enter after.",
+    ),
+    browser_write(
+        "press",
+        "Press a key or a chord: Enter, Tab, Escape, ArrowDown, Ctrl+A, Shift+Tab.",
+    ),
+    browser_write(
+        "scroll",
+        "Scroll the page by pixels (dy down, dx right), or an element by its ref into view.",
+    ),
 ];
+
+/// A browser tool that reads the page (#492).
+const fn browser_read(verb: &'static str, description: &'static str) -> ToolSpec {
+    ToolSpec {
+        family: Family::Browser,
+        verb,
+        tier: Tier::Read,
+        grant_class: "",
+        description,
+    }
+}
+
+/// A browser tool that acts in the page the user sees (#492): Marley grants `browser.write` when
+/// it starts the server, and a setting can take it away.
+const fn browser_write(verb: &'static str, description: &'static str) -> ToolSpec {
+    ToolSpec {
+        family: Family::Browser,
+        verb,
+        tier: Tier::Write,
+        grant_class: "browser.write",
+        description,
+    }
+}
 
 /// The L1 tool table (the const `REGISTRY`).
 #[must_use]
@@ -160,6 +233,7 @@ pub fn tools_list() -> Value {
 fn tool_schemas(spec: &ToolSpec) -> (Value, Value) {
     match spec.family {
         Family::Terminal => terminal_schemas(spec.verb),
+        Family::Browser => browser_schemas(spec.verb),
         Family::Fleet => (
             json!({ "type": "object", "properties": {}, "additionalProperties": false }),
             fleet_snapshot_schema(),
@@ -201,6 +275,160 @@ fn fleet_snapshot_schema() -> Value {
         },
         "required": ["seats"]
     })
+}
+
+/// The input and output schemas of the browser family's tools (#492).
+fn browser_schemas(verb: &str) -> (Value, Value) {
+    match verb {
+        "look" => look_schemas(),
+        "snapshot" => snapshot_schemas(),
+        "console" | "network" => entries_schemas(verb),
+        _ => browser_write_schemas(verb),
+    }
+}
+
+/// No arguments.
+fn no_arguments() -> Value {
+    json!({ "type": "object", "properties": {}, "additionalProperties": false })
+}
+
+fn look_schemas() -> (Value, Value) {
+    (
+        no_arguments(),
+        json!({
+            "type": "object",
+            "properties": {
+                "url": { "type": "string" },
+                "title": { "type": "string" },
+                "loading": { "type": "boolean" },
+                "viewport": { "type": "object" },
+                "focused": { "type": ["object", "null"] },
+                "selection": { "type": "string" }
+            },
+            "required": ["url", "title", "loading", "viewport"]
+        }),
+    )
+}
+
+fn snapshot_schemas() -> (Value, Value) {
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "full": { "type": "boolean", "description": "Every node, not only the interactive ones." }
+            },
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "snapshot": { "type": "string" },
+                "refs": { "type": "integer" },
+                "cut": { "type": "boolean" }
+            },
+            "required": ["snapshot", "refs", "cut"]
+        }),
+    )
+}
+
+/// `browser_console` and `browser_network`: no arguments; the entries of the ring.
+fn entries_schemas(verb: &str) -> (Value, Value) {
+    let item = if verb == "console" {
+        json!({
+            "type": "object",
+            "properties": {
+                "level": { "type": "string" },
+                "text": { "type": "string" },
+                "source": { "type": ["string", "null"] },
+                "line": { "type": ["integer", "null"] },
+                "time_ms": { "type": ["number", "null"] }
+            },
+            "required": ["level", "text"]
+        })
+    } else {
+        json!({
+            "type": "object",
+            "properties": {
+                "method": { "type": "string" },
+                "url": { "type": "string" },
+                "kind": { "type": ["string", "null"] },
+                "status": { "type": ["integer", "null"] },
+                "duration_ms": { "type": ["integer", "null"] },
+                "failure": { "type": ["string", "null"] }
+            },
+            "required": ["method", "url"]
+        })
+    };
+    (
+        no_arguments(),
+        json!({
+            "type": "object",
+            "properties": { "entries": { "type": "array", "items": item } },
+            "required": ["entries"]
+        }),
+    )
+}
+
+/// The write tools' arguments; each answers with what it did.
+fn browser_write_schemas(verb: &str) -> (Value, Value) {
+    let element =
+        json!({ "type": "string", "description": "A ref from browser_snapshot, such as e3." });
+    let done = json!({
+        "type": "object",
+        "properties": {
+            "did": { "type": "string", "description": "What the tool did, as the Agent chip says it." },
+            "url": { "type": "string" },
+            "title": { "type": "string" }
+        },
+        "required": ["did"]
+    });
+    let arguments = match verb {
+        "navigate" => json!({
+            "type": "object",
+            "properties": { "url": { "type": "string", "description": "An http or https URL." } },
+            "required": ["url"],
+            "additionalProperties": false
+        }),
+        "click" => json!({
+            "type": "object",
+            "properties": {
+                "ref": element,
+                "x": { "type": "number", "description": "A point of the viewport, in CSS pixels, with y." },
+                "y": { "type": "number" },
+                "button": { "type": "string", "enum": ["left", "right", "middle"] },
+                "count": { "type": "integer", "minimum": 1, "maximum": 3 }
+            },
+            "additionalProperties": false
+        }),
+        "type" => json!({
+            "type": "object",
+            "properties": {
+                "text": { "type": "string" },
+                "ref": element,
+                "submit": { "type": "boolean", "description": "Press Enter after the text." }
+            },
+            "required": ["text"],
+            "additionalProperties": false
+        }),
+        "press" => json!({
+            "type": "object",
+            "properties": { "key": { "type": "string", "description": "Enter, Tab, Ctrl+A, Shift+ArrowLeft." } },
+            "required": ["key"],
+            "additionalProperties": false
+        }),
+        "scroll" => json!({
+            "type": "object",
+            "properties": {
+                "dy": { "type": "number", "description": "Pixels down; negative is up." },
+                "dx": { "type": "number", "description": "Pixels right; negative is left." },
+                "ref": element
+            },
+            "additionalProperties": false
+        }),
+        // `back`.
+        _ => no_arguments(),
+    };
+    (arguments, done)
 }
 
 /// The input and output schemas of the terminal family's tools (#491).

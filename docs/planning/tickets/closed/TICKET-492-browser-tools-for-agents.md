@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #492 (feature, prong 3 B2)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/492-browser-tools-for-agents.spec.md
+- **Pipeline doc:** ../../pipeline/completed/492-browser-tools-for-agents.spec.md
 - **Source ticket:** docs/marley/three-prong-plan.md, prong 3 B2, D15 and D17
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The `browser_*` tools on Marley's MCP server (#491) give an agent what Chad sees in the

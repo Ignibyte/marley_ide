@@ -11,13 +11,13 @@
 //! Code plugin's bridge (`claude_plugin/marley/bin/marley-mcp-bridge`) reads it.
 
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use futures::StreamExt as _;
 use futures::channel::mpsc;
 use gpui::{App, AppContext as _, Context, Entity, Global};
-use marley_mcp::{AppCall, AppCaller, ToolAnswer, discovery, transport};
+use marley_mcp::{AppCall, AppCaller, GrantTable, ToolAnswer, discovery, transport};
 use marley_terminal::{AnchoredBlock, BlockState, BlockTimes};
 use serde_json::{Value, json};
 use terminal_view::TerminalView;
@@ -65,7 +65,16 @@ pub fn start(cx: &mut App) {
     // None of the tools the server lists asks for an effect.
     let (effects, _) = std::sync::mpsc::channel();
     let data_dir = paths::data_dir().clone();
-    let failure = match transport::spawn(transport::Shared::default(), effects, caller) {
+    // The browser's write tools are granted: the client's approval of each call and the Browser
+    // tab, where the user watches each action, are their checks (#492 D2).
+    let shared: transport::Shared = Arc::new((
+        Mutex::new(transport::ServerData {
+            grants: GrantTable::from_classes(["browser.write"]),
+            ..transport::ServerData::default()
+        }),
+        Condvar::new(),
+    ));
+    let failure = match transport::spawn(shared, effects, caller) {
         Ok(handle) => {
             write_endpoint(
                 data_dir.clone(),
@@ -133,8 +142,12 @@ fn show_failure(cx: &mut Context<Workspace>) {
     });
 }
 
-/// Answers `call` from the app's state.
-fn answer(call: AppCall, cx: &App) {
+/// Answers `call` from the app's state; a browser call answers from its own task.
+fn answer(call: AppCall, cx: &mut App) {
+    if call.tool.starts_with("browser_") {
+        crate::browser_tools::answer(call, cx);
+        return;
+    }
     let result = match call.tool.as_str() {
         "terminal_list" => Ok(terminal_list(cx)),
         "terminal_blocks" => terminal_blocks(&call.arguments, cx),
@@ -226,6 +239,7 @@ fn terminal_list(cx: &App) -> ToolAnswer {
     ToolAnswer {
         structured: json!({ "terminals": terminals }),
         text: None,
+        image: None,
     }
 }
 
@@ -257,6 +271,7 @@ fn terminal_blocks(arguments: &Value, cx: &App) -> Result<ToolAnswer, String> {
     Ok(ToolAnswer {
         structured: json!({ "terminal": id, "total": blocks.len(), "blocks": listed }),
         text: None,
+        image: None,
     })
 }
 
@@ -318,6 +333,7 @@ fn terminal_read(arguments: &Value, cx: &App) -> Result<ToolAnswer, String> {
             "truncated": truncated,
         }),
         text: Some(output),
+        image: None,
     })
 }
 

@@ -85,6 +85,31 @@ for.
 - A failed load commits Chromium's error page, whose `frameNavigated` URL is
   `chrome-error://chromewebdata/`; the URL that failed is `unreachableUrl`, which the tab shows.
 
+## For agents (`src/snapshot.rs`, `src/observe.rs`, #492)
+
+- `snapshot::render` writes one or more frames' accessibility trees (`AxNode`, from
+  `Accessibility.getFullAXTree`) as text: by default each interactive node (buttons, links,
+  fields, boxes, options, tabs and the like) on a line with its role, its trimmed name, its states
+  and a ref (`e3`); with `full`, every node indented, unnamed containers folded. A cross-site
+  iframe's nodes follow under a line that names its URL. A `RefTarget` says what each ref names:
+  the session, the iframe's frame, the DOM node, the role and the name. No field's value is
+  written: Chromium's value for a password field is a bullet a character. The text stops at 30,000
+  characters, with a note.
+- `observe` keeps the newest 200 console messages, uncaught errors and browser log entries
+  (`ConsoleLog`) and requests (`NetworkLog`: method, URL, type, status, duration, failure; no
+  headers, no bodies). `redact_url` drops a URL's user and password and hides the values of query
+  and fragment parameters whose names hold `token`, `key`, `secret`, `password`, `auth`, `code`,
+  `sig` or `session`.
+- `Page` gains what the tools call: `call_in` (another session: a cross-site iframe's),
+  `observe` (Runtime, Network, Log and auto-attach, turned on before the Browser tab shows the
+  page, since a navigation sent sooner loads before the network is watched), `screenshot`,
+  `viewport`, `frames`, `accessibility_tree`, `scroll_into_view`, `box_center`, `frame_origin`
+  (an iframe's owner element's content box, which places a point in the iframe on the page) and
+  `focused_element` (read in an isolated world; a password field's value never).
+- `input::char_press` types a character as the keyboard does, and `input::chord` turns `Enter`,
+  `Ctrl+A` or `Shift+ArrowLeft` into a key press; `address::agent_url` lets an agent open `http`
+  and `https` URLs only.
+
 ## What the probe answered (2026-09-24)
 
 A key dispatched over CDP reaches a frame in 6 to 7 ms; frames come at the size the device

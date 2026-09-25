@@ -69,6 +69,24 @@ const DIGIT_CODES: [&str; 10] = [
 /// The shifted digits of the US layout, from `)` on 0 to `(` on 9.
 const SHIFTED_DIGITS: &str = ")!@#$%^&*(";
 
+/// The other characters the US layout types with Shift.
+const SHIFTED_SYMBOLS: &str = "_+{}|:\"<>?~";
+
+/// The DOM's names for keys, as an agent writes them, and gpui's.
+const DOM_KEYS: &[(&str, &str)] = &[
+    ("ArrowLeft", "left"),
+    ("ArrowRight", "right"),
+    ("ArrowUp", "up"),
+    ("ArrowDown", "down"),
+    ("Escape", "escape"),
+    ("Esc", "escape"),
+    ("Enter", "enter"),
+    ("Return", "enter"),
+    ("Space", "space"),
+    ("Spacebar", "space"),
+    ("Del", "delete"),
+];
+
 /// The code and Windows key code of the US key that types `character`, with or without Shift.
 fn us_key(character: char) -> Option<(&'static str, u32)> {
     let lower = character.to_ascii_lowercase();
@@ -145,6 +163,93 @@ pub fn key_press(keystroke: &Keystroke, auto_repeat: bool) -> Option<KeyPress> {
     }
     .to_string();
     Some(press(&key, code, key_code, None, bits, auto_repeat))
+}
+
+/// A character typed as the keyboard types it: `keyDown` with the character as its text, and
+/// `keyUp`. A line break is Enter and a tab is Tab (#492).
+#[must_use]
+pub fn char_press(character: char) -> KeyPress {
+    let named = match character {
+        '\n' | '\r' => Some("enter"),
+        '\t' => Some("tab"),
+        _ => None,
+    };
+    if let Some(&(_, key, code, key_code, text)) =
+        named.and_then(|name| NAMED_KEYS.iter().find(|(named, ..)| *named == name))
+    {
+        return press(key, code, key_code, text, 0, false);
+    }
+    let text = character.to_string();
+    let (code, key_code) = us_key(character).unwrap_or(("", 0));
+    let shifted = character.is_ascii_uppercase()
+        || SHIFTED_DIGITS.contains(character)
+        || SHIFTED_SYMBOLS.contains(character);
+    let modifiers = if shifted { 8 } else { 0 };
+    press(&text, code, key_code, Some(&text), modifiers, false)
+}
+
+/// A key or a chord as an agent writes it (`Enter`, `a`, `Ctrl+A`, `Shift+Tab`,
+/// `Alt+ArrowLeft`) as the key press the page gets (#492).
+///
+/// # Errors
+///
+/// For an empty key, a modifier Marley does not know, a Super chord, which Marley keeps for
+/// itself, and a key gpui does not know.
+pub fn chord(chord: &str) -> Result<KeyPress, String> {
+    let parts: Vec<&str> = chord.split('+').map(str::trim).collect();
+    let (key, modifiers) = match parts.as_slice() {
+        // `+` and `Ctrl++` name the plus key.
+        [modifiers @ .., "", ""] => ("+", modifiers),
+        [modifiers @ .., key] if !key.is_empty() => (*key, modifiers),
+        _ => return Err(format!("no key in {chord:?}")),
+    };
+    let mut source = String::new();
+    for modifier in modifiers {
+        let name = match modifier.to_ascii_lowercase().as_str() {
+            "ctrl" | "control" => "ctrl",
+            "alt" | "option" => "alt",
+            "shift" => "shift",
+            "meta" | "cmd" | "command" | "super" | "win" => {
+                return Err("Marley keeps the Super key's chords for itself".to_string());
+            }
+            other => return Err(format!("no modifier named {other}")),
+        };
+        source.push_str(name);
+        source.push('-');
+    }
+    // gpui reads a capital letter as Shift and the letter; here a letter's case only says which
+    // character a plain key types, so `Ctrl+A` is Ctrl and A.
+    let letter = single_char(key).filter(char::is_ascii_alphabetic);
+    let key_name = DOM_KEYS
+        .iter()
+        .find(|(dom, _)| dom.eq_ignore_ascii_case(key))
+        .map_or_else(
+            || {
+                letter.map_or_else(
+                    || key.to_string(),
+                    |letter| letter.to_ascii_lowercase().to_string(),
+                )
+            },
+            |(_, gpui)| (*gpui).to_string(),
+        );
+    source.push_str(&key_name);
+    let mut keystroke = Keystroke::parse(&source)
+        .map_err(|error| format!("{chord:?} is not a key Marley knows: {error}"))?;
+    let modifiers = &mut keystroke.modifiers;
+    if let Some(character) = single_char(key)
+        && !modifiers.control
+        && !modifiers.alt
+    {
+        let upper = modifiers.shift || character.is_ascii_uppercase();
+        modifiers.shift = upper && character.is_ascii_alphabetic() || modifiers.shift;
+        let typed = if upper {
+            character.to_ascii_uppercase()
+        } else {
+            character
+        };
+        keystroke.key_char = Some(typed.to_string());
+    }
+    key_press(&keystroke, false).ok_or_else(|| format!("{chord:?} sends nothing to the page"))
 }
 
 fn single_char(text: &str) -> Option<char> {

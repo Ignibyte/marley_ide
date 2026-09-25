@@ -20,6 +20,23 @@ const SCHEMES: &[&str] = &[
 /// Where a search goes: `duckduckgo.com` needs no account and shows no consent page.
 const SEARCH: &str = "https://duckduckgo.com/?q=";
 
+/// The URL an agent may send the Browser tab to (#492): `http` and `https` only, since an
+/// agent's `file:` URL reads the user's files and a `javascript:` one runs script in the page.
+///
+/// # Errors
+///
+/// For text that is no URL, or a URL of another scheme.
+pub fn agent_url(text: &str) -> Result<String, String> {
+    let url =
+        url::Url::parse(text.trim()).map_err(|error| format!("{text:?} is no URL: {error}"))?;
+    match url.scheme() {
+        "http" | "https" => Ok(url.into()),
+        scheme => Err(format!(
+            "an agent may open http and https URLs only, not {scheme}:"
+        )),
+    }
+}
+
 /// The URL `text` navigates to, or nothing for text that is only spaces.
 #[must_use]
 pub fn url_for(text: &str) -> Option<String> {

@@ -1960,3 +1960,20 @@ a failed server outside Marley); an environment variable for the endpoint (only 
 terminals would have it); a `.mcp.json` in each project (it would spread a bearer into
 repositories); answering tool calls on the transport's threads (the terminals are the main
 thread's).
+
+## AD-claude-492-agents-drive-the-browser-tab-through-the-mcp-server-001
+*decided at: 2026-09-25 · status: shipped*
+
+Agents reach the page in Marley's Browser tab through ten tools on Marley's MCP server, never a
+second browser or page. The read tools are look (the frame as a JPEG image block, the viewport,
+the focused element and the selection), an accessibility snapshot of the interactive elements
+with refs across same-site frames and cross-site iframes, and rings of the newest 200 console
+entries and requests, with secret-looking URL values hidden and no headers or bodies. The write
+tools are navigate (http and https only), back, click and type by ref or point, press and
+scroll, sent as the same CDP input events the user's hand makes, so the page sees trusted
+events. Their grant class, `browser.write`, is granted when the server starts (the checks are
+the client's approval of each call and the Agent chip in the tab the user watches), and an
+agent's first write brings the Browser tab forward without taking the focus. No tool evaluates
+script an agent supplies. Rejected: a script-evaluation tool; Playwright MCP's full tree by
+default (about 11,900 tokens against about 3,400 for the interactive list); deny-by-default
+writes behind a setting that does not exist yet.

@@ -1897,3 +1897,15 @@ left it out: a clean checkout fails to build, and a plugin written from an older
 no MCP server. Caught by reading `git status` after writing the file. Fixed with an exception
 after the rule, `!crates/marley_workbench/claude_plugin/marley/.mcp.json`, and the ledger's
 `.gitignore` row.
+
+## F-claude-492-the-observers-came-on-after-the-page-showed-001
+*severity: medium · found in: pipeline 492's Test phase · class: readiness announced before its watchers run*
+
+`browser_network` listed neither the page's document nor its `/api` fetch, though the console
+had the fetch's 404. `BrowserHub::attached` set the hub to Showing, and only then spawned the
+task that turned on Runtime, Network and Log in the page's session. The agent's first
+`Page.navigate` was waiting for Showing, and it reached Chromium between `Runtime.enable` and
+`Network.enable`. The small fixture page loaded and fetched before the network was watched.
+The console looked whole only because Runtime and Log replay what they buffered. A probe on a
+scratch Chromium showed every request reported on the page's session when the domains were on
+first. Fixed: `start` awaits `Page::observe` before `attached` announces the page.

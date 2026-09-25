@@ -154,14 +154,15 @@ fn tools_call(ctx: &RequestCtx, request: &RpcRequest, id: &Value) -> Handled {
         return respond(jsonrpc::result_response(id, tools::tool_error(&reason)));
     }
     // Match on the family (EXHAUSTIVE — no catch-all; a new `Family` variant is a compile error until its
-    // handler is wired, REQ-011). The terminal family's answers are the app's (#491).
+    // handler is wired, REQ-011). The terminal and browser families' answers are the app's (#491,
+    // #492).
     match spec.family {
         Family::Fleet => respond(jsonrpc::result_response(
             id,
             tools::fleet_snapshot_result(ctx.snapshot),
         )),
         Family::Session => surface_to_human(ctx, &arguments, id),
-        Family::Terminal => Handled {
+        Family::Terminal | Family::Browser => Handled {
             outgoing: vec![Outgoing::Deferred(PendingCall {
                 id: id.clone(),
                 tool: spec.name(),

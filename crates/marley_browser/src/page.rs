@@ -1,10 +1,11 @@
 //! One page of the browser, attached as a flat session: its viewport and its screencast, its
 //! navigation and history, and the JavaScript dialogs it opens.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::cdp::{CdpError, Connection};
+use crate::snapshot::AxNode;
 
 /// The screencast's JPEG quality: text stays crisp and a frame stays small.
 const SCREENCAST_QUALITY: u8 = 85;
@@ -18,6 +19,16 @@ const SELECTED_TEXT: &str = "(() => {
   }
   return String(getSelection());
 })()";
+
+/// The script, run in an isolated world, that gives the focused element: the page's own scripts
+/// neither see it nor change what it finds.
+const ACTIVE_ELEMENT: &str = "(() => { const element = document.activeElement; \
+return element && element !== document.body && element !== document.documentElement ? element : null; })()";
+
+/// What the focused element says of itself; a password field keeps its value.
+const DESCRIBE_ELEMENT: &str = "function () { return { tag: this.tagName.toLowerCase(), \
+kind: typeof this.type === 'string' ? this.type : null, \
+value: this.type === 'password' || typeof this.value !== 'string' ? null : this.value }; }";
 
 /// A page target, attached with its own session on the browser's connection.
 #[derive(Debug, Clone)]
@@ -152,6 +163,47 @@ pub enum DialogKind {
     /// The page asks before it is left.
     #[serde(rename = "beforeunload")]
     BeforeUnload,
+}
+
+/// The page's viewport, as `Page.getLayoutMetrics` gives it, in CSS pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub struct Viewport {
+    /// Its width.
+    pub width: f64,
+    /// Its height.
+    pub height: f64,
+    /// How far the page is scrolled right.
+    pub scroll_x: f64,
+    /// How far the page is scrolled down.
+    pub scroll_y: f64,
+    /// The pinch zoom.
+    pub scale: f64,
+}
+
+/// The element that has the focus, as an agent sees it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct FocusedElement {
+    /// Its tag, lowercased.
+    pub tag: String,
+    /// An input's type.
+    pub kind: Option<String>,
+    /// Its accessible role.
+    pub role: Option<String>,
+    /// Its accessible name.
+    pub name: Option<String>,
+    /// A field's value; never a password field's.
+    pub value: Option<String>,
+}
+
+/// A frame of the page, from its frame tree.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FrameInfo {
+    /// The frame's id.
+    pub id: String,
+    /// Its URL.
+    pub url: String,
+    /// Whether it is the main frame.
+    pub main: bool,
 }
 
 impl Page {
@@ -307,21 +359,7 @@ impl Page {
     ///
     /// When a call fails or the page has no main frame.
     pub async fn selected_text(&self) -> Result<String, CdpError> {
-        let tree = self.call("Page.getFrameTree", json!({})).await?;
-        let frame_id = tree
-            .pointer("/frameTree/frame/id")
-            .and_then(Value::as_str)
-            .ok_or_else(|| CdpError::Unexpected("the page has no main frame".to_string()))?;
-        let world = self
-            .call(
-                "Page.createIsolatedWorld",
-                json!({ "frameId": frame_id, "worldName": "marley" }),
-            )
-            .await?;
-        let context = world
-            .get("executionContextId")
-            .and_then(Value::as_i64)
-            .ok_or_else(|| CdpError::Unexpected("the isolated world has no context".to_string()))?;
+        let context = self.isolated_context().await?;
         let evaluated = self
             .call(
                 "Runtime.evaluate",
@@ -410,6 +448,294 @@ impl Page {
         self.call("Page.handleJavaScriptDialog", params)
             .await
             .map(drop)
+    }
+
+    /// Sends `method` with `params` to `session`, one of this browser's: the page's, or a
+    /// cross-site iframe's.
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::call`].
+    pub async fn call_in(
+        &self,
+        session: &str,
+        method: &str,
+        params: Value,
+    ) -> Result<Value, CdpError> {
+        self.connection.call(method, params, Some(session)).await
+    }
+
+    /// Turns on, in `session`, what the agent tools read: console messages and uncaught errors,
+    /// the network, the browser's log, and each cross-site iframe as a session of its own.
+    ///
+    /// # Errors
+    ///
+    /// When a call fails.
+    pub async fn observe(&self, session: &str) -> Result<(), CdpError> {
+        for (method, params) in [
+            ("Runtime.enable", json!({})),
+            ("Network.enable", json!({})),
+            ("Log.enable", json!({})),
+            (
+                "Target.setAutoAttach",
+                json!({ "autoAttach": true, "waitForDebuggerOnStart": false, "flatten": true }),
+            ),
+        ] {
+            self.call_in(session, method, params).await?;
+        }
+        Ok(())
+    }
+
+    /// The page as a JPEG, base64, at its viewport's size.
+    ///
+    /// # Errors
+    ///
+    /// When the call fails or its answer holds no image.
+    pub async fn screenshot(&self) -> Result<String, CdpError> {
+        let answer = self
+            .call(
+                "Page.captureScreenshot",
+                json!({ "format": "jpeg", "quality": SCREENCAST_QUALITY }),
+            )
+            .await?;
+        string_field(&answer, "data")
+    }
+
+    /// The page's viewport and scroll.
+    ///
+    /// # Errors
+    ///
+    /// When the call fails or its answer lacks the viewports.
+    pub async fn viewport(&self) -> Result<Viewport, CdpError> {
+        let answer = self.call("Page.getLayoutMetrics", json!({})).await?;
+        let number = |pointer: &str| {
+            answer
+                .pointer(pointer)
+                .and_then(Value::as_f64)
+                .ok_or_else(|| CdpError::Unexpected(format!("the layout metrics lack {pointer}")))
+        };
+        Ok(Viewport {
+            width: number("/cssLayoutViewport/clientWidth")?,
+            height: number("/cssLayoutViewport/clientHeight")?,
+            scroll_x: number("/cssLayoutViewport/pageX")?,
+            scroll_y: number("/cssLayoutViewport/pageY")?,
+            scale: number("/cssVisualViewport/scale").unwrap_or(1.0),
+        })
+    }
+
+    /// The page's frames, the main one first: the ones in its own process, and the cross-site
+    /// ones by id and URL.
+    ///
+    /// # Errors
+    ///
+    /// When the call fails.
+    pub async fn frames(&self) -> Result<Vec<FrameInfo>, CdpError> {
+        let tree = self.call("Page.getFrameTree", json!({})).await?;
+        let mut frames = Vec::new();
+        let mut pending = vec![(tree.get("frameTree").cloned().unwrap_or_default(), true)];
+        while let Some((node, main)) = pending.pop() {
+            if let Some(id) = node.pointer("/frame/id").and_then(Value::as_str) {
+                frames.push(FrameInfo {
+                    id: id.to_string(),
+                    url: node
+                        .pointer("/frame/url")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_string(),
+                    main,
+                });
+            }
+            if let Some(children) = node.get("childFrames").and_then(Value::as_array) {
+                pending.extend(children.iter().rev().cloned().map(|child| (child, false)));
+            }
+        }
+        Ok(frames)
+    }
+
+    /// The accessibility tree of `frame` in `session`, or of the session's main frame.
+    ///
+    /// # Errors
+    ///
+    /// When the call fails or its answer is not a tree.
+    pub async fn accessibility_tree(
+        &self,
+        session: &str,
+        frame: Option<&str>,
+    ) -> Result<Vec<AxNode>, CdpError> {
+        let params = frame.map_or_else(|| json!({}), |frame| json!({ "frameId": frame }));
+        let answer = self
+            .call_in(session, "Accessibility.getFullAXTree", params)
+            .await?;
+        answer
+            .get("nodes")
+            .cloned()
+            .map(serde_json::from_value)
+            .transpose()
+            .map_err(|error| CdpError::Unexpected(format!("the accessibility tree: {error}")))?
+            .ok_or_else(|| CdpError::Unexpected("the accessibility tree has no nodes".into()))
+    }
+
+    /// Scrolls the DOM node `backend_node_id` of `session` into view.
+    ///
+    /// # Errors
+    ///
+    /// When the call fails, as it does for a node that is gone.
+    pub async fn scroll_into_view(
+        &self,
+        session: &str,
+        backend_node_id: i64,
+    ) -> Result<(), CdpError> {
+        self.call_in(
+            session,
+            "DOM.scrollIntoViewIfNeeded",
+            json!({ "backendNodeId": backend_node_id }),
+        )
+        .await
+        .map(drop)
+    }
+
+    /// The middle of the DOM node `backend_node_id` of `session`, in its frame's viewport.
+    ///
+    /// # Errors
+    ///
+    /// When the call fails, as it does for a node that is gone or has no box.
+    pub async fn box_center(
+        &self,
+        session: &str,
+        backend_node_id: i64,
+    ) -> Result<(f64, f64), CdpError> {
+        let quad = self.content_quad(session, backend_node_id).await?;
+        let xs = [quad[0], quad[2], quad[4], quad[6]];
+        let ys = [quad[1], quad[3], quad[5], quad[7]];
+        Ok((xs.iter().sum::<f64>() / 4.0, ys.iter().sum::<f64>() / 4.0))
+    }
+
+    /// Where the cross-site iframe `frame` shows its content in the page's viewport: the top left
+    /// of its owner element's content box, scrolled into view first.
+    ///
+    /// # Errors
+    ///
+    /// When a call fails.
+    pub async fn frame_origin(&self, frame: &str) -> Result<(f64, f64), CdpError> {
+        let owner = self
+            .call("DOM.getFrameOwner", json!({ "frameId": frame }))
+            .await?;
+        let backend = owner
+            .get("backendNodeId")
+            .and_then(Value::as_i64)
+            .ok_or_else(|| CdpError::Unexpected("the frame has no owner element".into()))?;
+        self.scroll_into_view(&self.session_id, backend).await?;
+        let quad = self.content_quad(&self.session_id, backend).await?;
+        Ok((quad[0], quad[1]))
+    }
+
+    async fn content_quad(
+        &self,
+        session: &str,
+        backend_node_id: i64,
+    ) -> Result<[f64; 8], CdpError> {
+        let answer = self
+            .call_in(
+                session,
+                "DOM.getBoxModel",
+                json!({ "backendNodeId": backend_node_id }),
+            )
+            .await?;
+        let points: Vec<f64> = answer
+            .pointer("/model/content")
+            .and_then(Value::as_array)
+            .map(|points| points.iter().filter_map(Value::as_f64).collect())
+            .unwrap_or_default();
+        points
+            .try_into()
+            .map_err(|_| CdpError::Unexpected("the element's box has no content quad".into()))
+    }
+
+    /// The element that has the focus in the main frame, if one does; read in an isolated world.
+    ///
+    /// # Errors
+    ///
+    /// When a call fails.
+    pub async fn focused_element(&self) -> Result<Option<FocusedElement>, CdpError> {
+        let context = self.isolated_context().await?;
+        let evaluated = self
+            .call(
+                "Runtime.evaluate",
+                json!({ "expression": ACTIVE_ELEMENT, "contextId": context }),
+            )
+            .await?;
+        let Some(object) = evaluated
+            .pointer("/result/objectId")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            return Ok(None);
+        };
+        let described = self
+            .call(
+                "Runtime.callFunctionOn",
+                json!({
+                    "objectId": object,
+                    "functionDeclaration": DESCRIBE_ELEMENT,
+                    "returnByValue": true,
+                }),
+            )
+            .await;
+        let node = self
+            .call("DOM.describeNode", json!({ "objectId": object }))
+            .await;
+        self.call("Runtime.releaseObject", json!({ "objectId": object }))
+            .await?;
+        let described = described?;
+        let fields = described
+            .pointer("/result/value")
+            .cloned()
+            .unwrap_or_default();
+        let text = |name: &str| fields.get(name).and_then(Value::as_str).map(str::to_string);
+        let mut element = FocusedElement {
+            tag: text("tag").unwrap_or_default(),
+            kind: text("kind"),
+            role: None,
+            name: None,
+            value: text("value"),
+        };
+        if let Some(backend) = node?.pointer("/node/backendNodeId").and_then(Value::as_i64) {
+            let tree = self
+                .call(
+                    "Accessibility.getPartialAXTree",
+                    json!({ "backendNodeId": backend, "fetchRelatives": false }),
+                )
+                .await?;
+            let first = tree.pointer("/nodes/0");
+            let value = |pointer: &str| {
+                first
+                    .and_then(|node| node.pointer(pointer))
+                    .and_then(Value::as_str)
+                    .map(|text| text.trim().to_string())
+            };
+            element.role = value("/role/value");
+            element.name = value("/name/value");
+        }
+        Ok(Some(element))
+    }
+
+    /// An isolated world in the main frame, where Marley's own scripts run unseen by the page's.
+    async fn isolated_context(&self) -> Result<i64, CdpError> {
+        let tree = self.call("Page.getFrameTree", json!({})).await?;
+        let frame_id = tree
+            .pointer("/frameTree/frame/id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| CdpError::Unexpected("the page has no main frame".to_string()))?;
+        let world = self
+            .call(
+                "Page.createIsolatedWorld",
+                json!({ "frameId": frame_id, "worldName": "marley" }),
+            )
+            .await?;
+        world
+            .get("executionContextId")
+            .and_then(Value::as_i64)
+            .ok_or_else(|| CdpError::Unexpected("the isolated world has no context".to_string()))
     }
 
     /// Acknowledges frame `frame`, which lets Chromium send the next: an unacknowledged stream

@@ -354,6 +354,11 @@ shot() {
   echo "$shots/$1.png"
 }
 
+# The path of a file a scenario keeps beside its shots: #492's frame an agent got, say.
+shot_file() {
+  echo "$shots/$1"
+}
+
 pointer_to() {
   needs_sway pointer_to
   pointer move "$1" "$2"

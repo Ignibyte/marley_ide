@@ -15,7 +15,8 @@
 //! Since #491 Marley starts the server at startup (`marley_workbench::mcp`), and the family it serves
 //! is `terminal`, whose answers are the app's: the core returns each such call as
 //! [`Outgoing::Deferred`], and the transport hands it to the app through an [`AppCaller`] and waits
-//! for the answer. The `fleet` and `session` families stay unlisted until prong 2's C1 feeds them.
+//! for the answer. The `browser` family (#492) is the app's too. The `fleet` and `session` families
+//! stay unlisted until prong 2's C1 feeds them.
 
 // gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
 // Zed's crates keep them at warn (CONSTITUTION §0).
@@ -161,14 +162,25 @@ impl AppCall {
     }
 }
 
-/// What the app answers a tool call with: the structured result, and the text a client reads
-/// when it is not the result's JSON (a block's output, say).
+/// What the app answers a tool call with: the structured result, the text a client reads when it
+/// is not the result's JSON (a block's output, say), and an image (the browser's frame, #492).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ToolAnswer {
     /// The result, as the tool's output schema describes it.
     pub structured: Value,
     /// The text to show, when not the result's JSON.
     pub text: Option<String>,
+    /// An image the answer carries.
+    pub image: Option<ToolImage>,
+}
+
+/// An image in an answer, base64, with its media type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ToolImage {
+    /// Its media type: `image/jpeg`, `image/png`.
+    pub mime_type: String,
+    /// Its bytes, base64.
+    pub data: String,
 }
 
 /// How a call handed to the app ended.

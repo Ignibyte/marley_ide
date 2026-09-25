@@ -2239,3 +2239,12 @@ Code that runs for every frame or every input event, including the dependencies 
 is slow there, it gets `opt-level = 3` in `[profile.dev.package]` beside Zed's own hot crates
 (`tree-sitter`, `taffy`, `resvg`, `serde_json`). The debug build is the one the user runs, so a
 number measured only in release does not describe what they get.
+
+## PR-claude-watch-before-you-announce-ready-001
+*severity: medium · prevents: F-claude-492-the-observers-came-on-after-the-page-showed-001*
+
+A component that others wait on (a hub whose state flips to ready, a server that writes its
+endpoint, a session other tasks act through) turns on everything it watches before it
+announces readiness, in the same sequence, not in a task spawned after the flip. Whoever waits
+on the state acts as soon as it flips, and their first action races any watcher still being
+set up. The first events are the ones an agent most wants: the page's own load.

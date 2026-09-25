@@ -2621,3 +2621,21 @@ agents once each Claude Code session's bridge held one, and a bridge that ended 
 kept its slot for half an hour. #491 raised the cap to 32 and made the bridge send `DELETE` for
 its session when its input ends. A client of Marley's MCP server that opens a session should
 close it.
+
+## L-claude-492-runtime-and-log-replay-network-does-not-001
+*category: build · topic: CDP domains · from: pipeline 492*
+
+Turning on `Runtime` and `Log` in a CDP session delivers what they had already buffered (console
+messages, and log entries such as "Failed to load resource"), so a console ring looks complete
+even when it came on late. `Network` delivers only requests made after `Network.enable`. A
+missing request next to a console line about it means the network domain came on too late, not
+that Chromium dropped the event.
+
+## L-claude-492-chromium-shows-a-password-by-length-001
+*category: security · topic: accessibility tree · from: pipeline 492*
+
+`Accessibility.getFullAXTree` gives a password field's value as one bullet a character
+(`•••••••`), with a `StaticText` child holding the same bullets, and no property marks the field
+as a password. A snapshot that writes values leaks the length. Marley's snapshot writes no
+values; `browser_look` reads the focused field's value in an isolated world, where
+`type === 'password'` is known, and drops it and its selection there.

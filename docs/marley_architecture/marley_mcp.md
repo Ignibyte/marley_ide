@@ -24,6 +24,13 @@ OR Apache-2.0, with the Marley crates' lint table.
   output), or a tool error that names the tool: the app's reason, no answer within
   `APP_CALL_TIMEOUT_SECONDS` (30), or an app that takes no calls.
 
+- The `browser` family (#492) is served too: four read tools (`browser_look`,
+  `browser_snapshot`, `browser_console`, `browser_network`) and six write tools
+  (`browser_navigate`, `browser_back`, `browser_click`, `browser_type`, `browser_press`,
+  `browser_scroll`) whose grant class, `browser.write`, Marley grants when it starts the server.
+  A `ToolAnswer` can carry an image (`ToolImage`), which reaches the client as an MCP image block
+  after the text.
+
 ## The transport (`transport.rs`, `session.rs`, `auth.rs`, `discovery.rs`, `secret.rs`)
 
 - `spawn(shared, effects, caller)` binds `127.0.0.1:0`, mints a 32-hex bearer from

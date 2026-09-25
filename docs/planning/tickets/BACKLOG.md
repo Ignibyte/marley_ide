@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-492](open/TICKET-492-browser-tools-for-agents.md) | feature | prong 3 B2 · the `browser_*` tools: the agent sees and drives the page the user sees |
 | [TICKET-493](open/TICKET-493-browser-tabs-and-restore.md) | feature | prong 3 B1b · Browser tabs as pages, restore on relaunch, the `<select>` picker |
 | [TICKET-486](open/TICKET-486-keep-the-terminal-size-across-launches.md) | bug | prong 1 T0 · the first terminals of a launch open at the last session's size (#485's limit) |
 

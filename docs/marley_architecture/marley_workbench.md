@@ -394,6 +394,32 @@ alike.
   - `terminal_read`: `Terminal::block_output`, the last 2,000 lines and at most 256 KiB, and
     whether anything was left out.
 
+## The browser's agent tools (`src/browser_tools.rs`, #492)
+
+- `mcp.rs` hands each `browser_*` call to `browser_tools::answer`, which answers it from a task
+  of its own once the hub shows its page (starting Chromium if it must, and waiting up to 20
+  seconds). A write tool first calls `browser::show_for_agent`, which brings the first Browser
+  tab in any window to the front of its pane or opens one in the active workspace, both without
+  the focus.
+- The read tools: `browser_look` (the hub's URL and title, `Page::viewport`,
+  `focused_element`, the selection unless a password field has the focus, and
+  `Page::screenshot` as the image), `browser_snapshot` (the main frame's tree, each same-site
+  frame the main tree does not hold, and each cross-site iframe's session's tree, whose refs the
+  hub keeps until the next snapshot), and `browser_console` and `browser_network` (the hub's
+  rings).
+- The write tools: `browser_navigate` (`address::agent_url`, then `BrowserHub::navigate_task`,
+  which answers once the page has loaded), `browser_back` (`go_task`), `browser_click` (a ref
+  scrolled into view and placed at its box's middle, through its iframe's owner when it is in
+  one, or a point; the pointer moves, then each press and release), `browser_type` (a click on
+  the ref, then each character as a key press), `browser_press` (`input::chord`) and
+  `browser_scroll` (a wheel turn at the viewport's middle, or a ref into view). Each shows its
+  action in the Agent chip.
+- The hub observes the page and each cross-site iframe as it attaches (`Target.setAutoAttach`),
+  keeps their sessions, the console and network rings, the snapshot's refs, the calls waiting
+  for a load (fired when the main frame stops loading or moves within its document) and the
+  agent's last action. The toolbar's Agent chip shows that action while it runs and for five
+  seconds after it ends; a typed text shows as its length, never itself.
+
 ## Marley's plugin for Claude Code (`src/claude_plugin.rs`, `claude_plugin/`, #482)
 
 - The plugin lives as files in the crate: a local marketplace named `marley` and the plugin,

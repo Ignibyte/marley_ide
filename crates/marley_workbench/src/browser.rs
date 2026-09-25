@@ -28,7 +28,7 @@ use std::time::{Duration, Instant};
 use editor::Editor;
 use editor::actions::SelectAll;
 use futures::StreamExt as _;
-use futures::channel::mpsc;
+use futures::channel::{mpsc, oneshot};
 use gpui::{
     App, AsyncApp, BackgroundExecutor, Bounds, ClipboardItem, Corners, DispatchPhase, Element,
     ElementId, ElementInputHandler, Entity, EntityInputHandler, EventEmitter, FocusHandle,
@@ -39,17 +39,19 @@ use gpui::{
 };
 use marley_browser::cdp::{self, CdpError, Connection, Event};
 use marley_browser::input::{self, KeyPress};
+use marley_browser::observe::{ConsoleEntry, ConsoleLog, NetworkEntry, NetworkLog};
 use marley_browser::page::{
     DialogKind, FrameMetadata, JavaScriptDialog, NavigationHistory, Page, ScreencastFrame,
     TargetInfo,
 };
+use marley_browser::snapshot::RefTarget;
 use marley_browser::{address, frame, service};
 use serde_json::Value;
 use ui::prelude::*;
-use ui::{AlertModal, Tooltip};
+use ui::{AlertModal, Chip, Tooltip};
 use util::ResultExt as _;
-use workspace::Workspace;
 use workspace::item::{Item, ItemEvent};
+use workspace::{MultiWorkspace, Workspace};
 
 use crate::{
     AnswerDialog, BrowserBack, BrowserForward, BrowserReload, DismissDialog, FocusAddressBar,
@@ -66,6 +68,33 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 /// The CSS pixels a wheel line scrolls: three lines a detent make the 100 a mouse wheel turns in
 /// Chrome.
 const WHEEL_LINE: f32 = 100.0 / 3.0;
+
+/// How long the Agent chip stays after an agent's action ends (#492).
+const AGENT_CHIP: Duration = Duration::from_secs(5);
+
+/// How long a navigation an agent asked for may take to load before its call answers.
+const LOAD_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// A cross-site iframe of the page, attached with a session of its own (#492).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Iframe {
+    /// Its session.
+    pub session: String,
+    /// The session it was attached from: the page's, or an outer iframe's.
+    pub parent_session: String,
+    /// Its frame's id, which is its target's.
+    pub frame_id: String,
+    /// Its URL.
+    pub url: String,
+}
+
+/// What an agent did last in the page, for the Agent chip.
+#[derive(Debug, Clone)]
+struct AgentAction {
+    text: SharedString,
+    /// When it ended; none while it runs.
+    ended: Option<Instant>,
+}
 
 /// What the hub is doing, as the Browser tab shows it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -116,6 +145,18 @@ pub struct BrowserHub {
     history: Option<NavigationHistory>,
     /// The JavaScript dialog the page waits on.
     dialog: Option<JavaScriptDialog>,
+    /// The page's cross-site iframes (#492).
+    iframes: Vec<Iframe>,
+    /// What the page logged since the connection began.
+    console: ConsoleLog,
+    /// What the page fetched since the connection began.
+    network: NetworkLog,
+    /// What the refs of the newest snapshot name.
+    refs: Vec<RefTarget>,
+    /// The agent's last action, for the Agent chip.
+    agent: Option<AgentAction>,
+    /// Calls waiting for the main frame to stop loading.
+    load_waiters: Vec<oneshot::Sender<()>>,
     viewport: Option<Viewport>,
     viewers: usize,
     screencasting: bool,
@@ -166,6 +207,12 @@ impl BrowserHub {
                 loading: false,
                 history: None,
                 dialog: None,
+                iframes: Vec::new(),
+                console: ConsoleLog::default(),
+                network: NetworkLog::default(),
+                refs: Vec::new(),
+                agent: None,
+                load_waiters: Vec::new(),
                 viewport: None,
                 viewers: 0,
                 screencasting: false,
@@ -263,6 +310,9 @@ impl BrowserHub {
             .ok();
             match Page::attach_first(&connection).await {
                 Ok(page) => {
+                    // What the agent tools read comes on before the hub shows the page, since a
+                    // navigation sent sooner loads before the network is watched (#492).
+                    page.observe(page.session_id()).await.log_err();
                     if this
                         .update(cx, |this, cx| this.attached(generation, page, cx))
                         .is_err()
@@ -313,6 +363,12 @@ impl BrowserHub {
     fn forget_page(&mut self, cx: &mut Context<Self>) {
         self.loading = false;
         self.history = None;
+        self.iframes.clear();
+        self.console = ConsoleLog::default();
+        self.network = NetworkLog::default();
+        self.refs.clear();
+        // A waiting call hears its waiter drop, and answers.
+        self.load_waiters.clear();
         if self.pending_url.take().is_some() {
             cx.emit(BrowserEvent::PageInfoChanged);
         }
@@ -348,14 +404,25 @@ impl BrowserHub {
     /// ends. A dialog the page waits on is answered with Cancel first, as Chrome closes a page's
     /// dialog when the page is left.
     pub fn navigate(&mut self, url: String, cx: &mut Context<Self>) {
+        self.navigate_task(url, cx).detach();
+    }
+
+    /// Navigates as [`BrowserHub::navigate`] does, in a task that ends once the page has loaded,
+    /// or 15 seconds later, with Chromium's reason when the navigation failed (#492).
+    pub fn navigate_task(
+        &mut self,
+        url: String,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<(), String>> {
         let Some(page) = self.page.clone() else {
-            return;
+            return Task::ready(Err("the browser has no page".to_string()));
         };
         let dismiss = self.leave_dialog(cx);
         self.pending_url = Some(SharedString::from(&url));
         cx.emit(BrowserEvent::PageInfoChanged);
         cx.notify();
         let generation = self.generation;
+        let loaded = self.load_waiter();
         cx.spawn(async move |this, cx| {
             if dismiss {
                 page.answer_dialog(false, None).await.log_err();
@@ -369,8 +436,26 @@ impl BrowserHub {
                 this.update(cx, |this, cx| this.navigation_ended(generation, &url, cx))
                     .ok();
             }
+            result.map_err(|error| error.to_string())?;
+            wait_for_load(loaded, cx).await;
+            Ok(())
         })
-        .detach();
+    }
+
+    /// A receiver that hears when the main frame next stops loading, or moves within its
+    /// document; it is dropped if the page goes.
+    fn load_waiter(&mut self) -> oneshot::Receiver<()> {
+        let (sender, receiver) = oneshot::channel();
+        self.load_waiters.push(sender);
+        receiver
+    }
+
+    /// Tells the calls waiting for a load that it is over.
+    fn loaded(&mut self) {
+        for waiter in self.load_waiters.drain(..) {
+            // A call that stopped waiting dropped its end.
+            waiter.send(()).ok();
+        }
     }
 
     fn navigation_ended(&mut self, generation: u64, url: &str, cx: &mut Context<Self>) {
@@ -383,29 +468,39 @@ impl BrowserHub {
 
     /// Moves the page `offset` entries through its history: -1 back, 1 forward.
     pub fn go(&mut self, offset: isize, cx: &mut Context<Self>) {
+        self.go_task(offset, cx).detach();
+    }
+
+    /// Moves as [`BrowserHub::go`] does, in a task that ends once the page has loaded, or
+    /// 15 seconds later (#492).
+    pub fn go_task(&mut self, offset: isize, cx: &mut Context<Self>) -> Task<Result<(), String>> {
         let Some(page) = self.page.clone() else {
-            return;
+            return Task::ready(Err("the browser has no page".to_string()));
         };
         let Some(history) = self.history.as_mut() else {
-            return;
+            return Task::ready(Err("the page's history is not read yet".to_string()));
         };
         let Some((index, id)) = history
             .entry_at(offset)
             .map(|(index, entry)| (index, entry.id))
         else {
-            return;
+            return Task::ready(Err("the page's history has no entry there".to_string()));
         };
         // A second press before the page reports where it went goes on from here.
         history.current_index = index;
         let dismiss = self.leave_dialog(cx);
         cx.notify();
-        cx.spawn(async move |_, _| {
+        let loaded = self.load_waiter();
+        cx.spawn(async move |_, cx| {
             if dismiss {
                 page.answer_dialog(false, None).await.log_err();
             }
-            page.go_to_history_entry(id).await.log_err();
+            page.go_to_history_entry(id)
+                .await
+                .map_err(|error| error.to_string())?;
+            wait_for_load(loaded, cx).await;
+            Ok(())
         })
-        .detach();
     }
 
     /// Loads the page again.
@@ -492,6 +587,9 @@ impl BrowserHub {
         // The main frame's id is the page's target id.
         if generation == self.generation && self.is_page(frame_id) && self.loading != loading {
             self.loading = loading;
+            if !loading {
+                self.loaded();
+            }
             cx.notify();
         }
     }
@@ -523,6 +621,144 @@ impl BrowserHub {
             cx.emit(BrowserEvent::PageInfoChanged);
         }
         cx.notify();
+    }
+
+    /// The page, while the hub shows it (#492).
+    #[must_use]
+    pub fn page(&self) -> Option<Page> {
+        self.page.clone()
+    }
+
+    /// The page's cross-site iframes.
+    #[must_use]
+    pub fn iframes(&self) -> Vec<Iframe> {
+        self.iframes.clone()
+    }
+
+    /// What the page logged, oldest first.
+    #[must_use]
+    pub fn console_entries(&self) -> Vec<ConsoleEntry> {
+        self.console.entries().cloned().collect()
+    }
+
+    /// What the page fetched, oldest first.
+    #[must_use]
+    pub fn network_entries(&self) -> Vec<NetworkEntry> {
+        self.network.entries().cloned().collect()
+    }
+
+    /// Keeps the refs of a new snapshot, in place of the last one's.
+    pub fn set_refs(&mut self, refs: Vec<RefTarget>) {
+        self.refs = refs;
+    }
+
+    /// What the ref `id` of the newest snapshot names.
+    #[must_use]
+    pub fn ref_target(&self, id: &str) -> Option<RefTarget> {
+        self.refs.iter().find(|target| target.id == id).cloned()
+    }
+
+    /// Shows the Agent chip with what an agent is doing, until it ends.
+    pub fn agent_started(&mut self, text: impl Into<SharedString>, cx: &mut Context<Self>) {
+        self.agent = Some(AgentAction {
+            text: text.into(),
+            ended: None,
+        });
+        cx.notify();
+    }
+
+    /// Shows the Agent chip with what an agent did, for five seconds more.
+    pub fn agent_ended(&mut self, text: impl Into<SharedString>, cx: &mut Context<Self>) {
+        self.agent = Some(AgentAction {
+            text: text.into(),
+            ended: Some(Instant::now()),
+        });
+        cx.notify();
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(AGENT_CHIP).await;
+            this.update(cx, |this, cx| {
+                let over = this.agent.as_ref().is_some_and(|action| {
+                    action
+                        .ended
+                        .is_some_and(|ended| ended.elapsed() >= AGENT_CHIP)
+                });
+                if over {
+                    this.agent = None;
+                    cx.notify();
+                }
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    /// What the Agent chip says, while it shows.
+    fn agent_chip(&self) -> Option<SharedString> {
+        self.agent.as_ref().map(|action| action.text.clone())
+    }
+
+    /// A cross-site iframe attached from `parent_session`: its tools' domains come on, and its
+    /// own iframes attach in turn.
+    fn iframe_attached(
+        &mut self,
+        generation: u64,
+        parent_session: String,
+        params: &Value,
+        cx: &Context<Self>,
+    ) {
+        if generation != self.generation {
+            return;
+        }
+        let info = params.get("targetInfo");
+        let kind = info
+            .and_then(|info| info.get("type"))
+            .and_then(Value::as_str);
+        let (Some("iframe"), Some(session), Some(frame_id), Some(page)) = (
+            kind,
+            params.get("sessionId").and_then(Value::as_str),
+            info.and_then(|info| info.get("targetId"))
+                .and_then(Value::as_str),
+            self.page.clone(),
+        ) else {
+            return;
+        };
+        let url = info
+            .and_then(|info| info.get("url"))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        self.iframes.retain(|iframe| iframe.session != session);
+        self.iframes.push(Iframe {
+            session: session.to_string(),
+            parent_session,
+            frame_id: frame_id.to_string(),
+            url,
+        });
+        let session = session.to_string();
+        cx.spawn(async move |_, _| {
+            page.observe(&session).await.log_err();
+        })
+        .detach();
+    }
+
+    fn iframe_detached(&mut self, generation: u64, params: &Value) {
+        if generation != self.generation {
+            return;
+        }
+        if let Some(session) = params.get("sessionId").and_then(Value::as_str) {
+            self.iframes.retain(|iframe| iframe.session != session);
+        }
+    }
+
+    fn observed(&mut self, generation: u64, method: &str, params: &Value) {
+        if generation != self.generation {
+            return;
+        }
+        if method.starts_with("Network.") {
+            self.network.apply(method, params);
+        } else {
+            self.console.apply(method, params);
+        }
     }
 
     /// Lays the page out at a tab's size: `size` in logical pixels, at the window's `scale`.
@@ -754,11 +990,21 @@ impl BrowserHub {
     }
 
     fn target_changed(&mut self, generation: u64, info: TargetInfo, cx: &mut Context<Self>) {
-        if generation != self.generation
-            || self
-                .page
-                .as_ref()
-                .is_none_or(|page| page.target_id() != info.target_id)
+        if generation != self.generation {
+            return;
+        }
+        if let Some(iframe) = self
+            .iframes
+            .iter_mut()
+            .find(|iframe| iframe.frame_id == info.target_id)
+        {
+            iframe.url = info.url;
+            return;
+        }
+        if self
+            .page
+            .as_ref()
+            .is_none_or(|page| page.target_id() != info.target_id)
         {
             return;
         }
@@ -948,6 +1194,8 @@ async fn follow_navigation(
                     .get("url")
                     .and_then(Value::as_str)
                     .map(str::to_string);
+                // A move within the document is all the load a waiting call will see.
+                this.update(cx, |this, _| this.loaded()).ok();
                 refresh_history(this, generation, url, cx).await;
                 refresh_info(this, generation, cx).await;
             }
@@ -972,6 +1220,46 @@ async fn follow_navigation(
         "Page.javascriptDialogClosed" => {
             this.update(cx, |this, cx| this.dialog_closed(generation, cx))
                 .ok();
+        }
+        _ => follow_observed(this, &event, generation, cx),
+    }
+}
+
+/// Follows what the agent tools read (#492): console messages, errors and the browser's log, the
+/// network, and the cross-site iframes that attach and detach.
+fn follow_observed(
+    this: &WeakEntity<BrowserHub>,
+    event: &Event,
+    generation: u64,
+    cx: &mut AsyncApp,
+) {
+    let method = event.method.as_str();
+    match method {
+        "Runtime.consoleAPICalled"
+        | "Runtime.exceptionThrown"
+        | "Log.entryAdded"
+        | "Network.requestWillBeSent"
+        | "Network.responseReceived"
+        | "Network.loadingFinished"
+        | "Network.loadingFailed" => {
+            this.update(cx, |this, _| {
+                this.observed(generation, method, &event.params);
+            })
+            .ok();
+        }
+        "Target.attachedToTarget" => {
+            if let Some(parent) = event.session_id.clone() {
+                this.update(cx, |this, cx| {
+                    this.iframe_attached(generation, parent, &event.params, cx);
+                })
+                .ok();
+            }
+        }
+        "Target.detachedFromTarget" => {
+            this.update(cx, |this, _| {
+                this.iframe_detached(generation, &event.params);
+            })
+            .ok();
         }
         _ => {}
     }
@@ -1008,6 +1296,12 @@ async fn refresh_history(
     let history = page.history().await.log_err();
     this.update(cx, |this, cx| this.navigated(generation, url, history, cx))
         .ok();
+}
+
+/// Waits until `loaded` hears the load end, or [`LOAD_TIMEOUT`] passes.
+async fn wait_for_load(loaded: oneshot::Receiver<()>, cx: &AsyncApp) {
+    let timeout = cx.background_executor().timer(LOAD_TIMEOUT);
+    futures::future::select(loaded, timeout).await;
 }
 
 /// The Browser tab: the page Marley's Chromium shows, drawn from the hub's newest frame, under
@@ -1416,6 +1710,27 @@ impl BrowserView {
                     .bg(colors.editor_background)
                     .child(self.address_bar.clone()),
             )
+            // What an agent does in the page, while it does it and a moment after (#492).
+            .when_some(hub.agent_chip(), |this, action| {
+                this.child(
+                    h_flex()
+                        .flex_none()
+                        .max_w(rems(24.))
+                        .gap_1()
+                        .child(
+                            Chip::new("Agent")
+                                .icon(IconName::Sparkle)
+                                .icon_color(Color::Accent)
+                                .label_color(Color::Accent),
+                        )
+                        .child(
+                            Label::new(action)
+                                .size(LabelSize::Small)
+                                .color(Color::Muted)
+                                .truncate(),
+                        ),
+                )
+            })
             // Over the toolbar's edge, so a load never moves the page.
             .when(loading, |this| {
                 this.child(
@@ -1850,6 +2165,53 @@ pub fn init(cx: &App) {
         });
     })
     .detach();
+}
+
+/// Brings a Browser tab to the front for an agent (#492): the first one in any window, shown in
+/// its pane, or else a new one in the active workspace's active pane. The focus stays where the
+/// user types.
+pub(crate) fn show_for_agent(cx: &mut App) {
+    let hub = BrowserHub::global(cx);
+    let windows: Vec<_> = cx
+        .windows()
+        .into_iter()
+        .filter_map(|window| window.downcast::<MultiWorkspace>())
+        .collect();
+    for window in &windows {
+        let shown = window
+            .update(cx, |multi_workspace, window, cx| {
+                multi_workspace.workspaces().any(|workspace| {
+                    workspace.update(cx, |workspace, cx| {
+                        let Some(view) = workspace.item_of_type::<BrowserView>(cx) else {
+                            return false;
+                        };
+                        workspace.activate_item(&view, false, false, window, cx);
+                        true
+                    })
+                })
+            })
+            .unwrap_or(false);
+        if shown {
+            return;
+        }
+    }
+    let active = cx
+        .active_window()
+        .and_then(|window| window.downcast::<MultiWorkspace>())
+        .or_else(|| windows.first().copied());
+    let Some(window) = active else {
+        log::warn!("browser: no window to show an agent's page in");
+        return;
+    };
+    window
+        .update(cx, |multi_workspace, window, cx| {
+            let workspace = multi_workspace.workspace().clone();
+            workspace.update(cx, |workspace, cx| {
+                let view = cx.new(|cx| BrowserView::new(hub, window, cx));
+                workspace.add_item_to_active_pane(Box::new(view), None, false, window, cx);
+            });
+        })
+        .log_err();
 }
 
 /// Shows the Browser tab: the workspace's own when it has one, else a new one in the active

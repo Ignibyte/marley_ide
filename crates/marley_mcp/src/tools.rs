@@ -38,15 +38,19 @@ pub fn fleet_snapshot_result(snapshot: &FleetSnapshot) -> Value {
 /// The result of a call the app answered (#491).
 ///
 /// Its text is the answer's own when it has one, so a block's output reads as itself rather than
-/// as a JSON string, and the result's JSON otherwise.
+/// as a JSON string, and the result's JSON otherwise; an image follows the text (#492).
 #[must_use]
 pub fn tool_answer_result(answer: &ToolAnswer) -> Value {
     let text = answer
         .text
         .clone()
         .unwrap_or_else(|| answer.structured.to_string());
+    let mut content = vec![json!({ "type": "text", "text": text })];
+    if let Some(image) = &answer.image {
+        content.push(json!({ "type": "image", "data": image.data, "mimeType": image.mime_type }));
+    }
     json!({
-        "content": [ { "type": "text", "text": text } ],
+        "content": content,
         "structuredContent": answer.structured,
         "isError": false,
     })

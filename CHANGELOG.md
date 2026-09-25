@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Agents see and drive the Browser tab** (#492, 2026-09-25). Marley's MCP server gains ten
+  browser tools. An agent can look at the page the user sees (its URL, title, scroll, focused
+  element and selection, and the frame as an image), read its accessibility tree as a list of
+  the elements it can act on, each with a ref (fields in cross-site iframes included), and read
+  the page's recent console messages and requests, with secret-looking values in URLs hidden and
+  no headers or bodies. It can go to an http or https page, go back, click, type, press keys and
+  scroll, with the same events the user's mouse and keys send. An agent's first action opens the
+  Browser tab if none is open, without taking the focus, and an Agent chip in the toolbar says
+  what the agent did. No tool runs script the agent supplies.
 - **Marley's tools for agents, over MCP** (#491, 2026-09-25). While Marley runs, it serves MCP on
   127.0.0.1, behind a bearer that changes at every start and sits in a file only the user can
   read. The first tools read Marley's terminals: `terminal_list` names each terminal with its

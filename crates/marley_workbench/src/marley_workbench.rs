@@ -25,6 +25,7 @@ pub mod agents;
 pub mod autosuggest;
 pub mod blocks;
 pub mod browser;
+pub mod browser_tools;
 pub mod claude_plugin;
 #[cfg(test)]
 pub mod marley_workbench_tests;

@@ -1,7 +1,7 @@
 ---
 pipeline_id: 094d43c1-790b-413a-9215-06d3b7cdf1fc
-ticket: docs/planning/tickets/open/TICKET-492-browser-tools-for-agents.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-492-browser-tools-for-agents.md
+status: Phase 4 — Complete PASS
 title: "B2: The agent sees and drives the browser"
 type: feature
 slice: prong 3 B2
@@ -19,9 +19,10 @@ watches.
     the focused element (role, accessible name, tag; its value unless it is a password field),
     the selected text, and the frame on the user's screen as an image;
   - `browser_snapshot`: the page's accessibility tree as indented text, interactive elements
-    only by default (`full` for all), each with a ref (`e12`) the write tools take; cross-site
-    iframes included, from the sessions `Target.setAutoAttach` opens; capped at 30,000
-    characters with a note when cut;
+    only by default (`full` for all), each with a ref (`e12`) the write tools take; same-site
+    iframes through the page's frame tree and cross-site iframes from the sessions
+    `Target.setAutoAttach` opens; no field values (Chromium's masked password shows its
+    length); capped at 30,000 characters with a note when cut;
   - `browser_console`: the latest 200 console messages and uncaught exceptions (level, text,
     source and line, time);
   - `browser_network`: the latest 200 requests (method, URL, status, type, duration, failure),
@@ -30,11 +31,20 @@ watches.
 - **Write tools**, acting in the tab the user sees:
   - `browser_navigate` (`http` and `https` only), `browser_back`;
   - `browser_click` (a ref, scrolled into view first, or viewport coordinates; button and
-    count), `browser_type` (text into a ref or the focused element, as key events; `submit`
-    presses Enter), `browser_press` (a key or chord, `Ctrl+A`), `browser_scroll`.
-  A write call with no Browser tab open opens one, so the user sees what the agent does.
+    count; a ref inside a cross-site iframe is placed through its owner element's box),
+    `browser_type` (text into a ref or the focused element, as key events; `submit` presses
+    Enter), `browser_press` (a key or chord, `Ctrl+A`), `browser_scroll` (by pixels, or a ref
+    into view).
+  A write call with no Browser tab open opens one, and a Browser tab behind another comes to
+  the front, without taking the focus from where the user types, so the user sees what the
+  agent does. `browser_navigate` and `browser_back` answer once the page has loaded (at most
+  15 seconds).
 - **The Agent chip.** While a write call runs, and for five seconds after, the Browser tab's
   toolbar shows "Agent" and the last action ("clicked button “Sign in”").
+- **The grant.** The browser's write tools carry the grant class `browser.write`, which Marley
+  grants when it starts the server (D2).
+- **Images in answers.** `marley_mcp`'s `ToolAnswer` carries an image, which reaches the client
+  as an MCP image content block (`browser_look`'s JPEG).
 - The console and network rings start with the connection (#488's app-wide entity), so an
   agent reads what happened before it asked.
 
@@ -63,13 +73,15 @@ snapshot here defaults to interactive elements.
   deferred calls and registry; `marley_mcp`'s `GrantTable` and `decide`.
 
 ## UI proof
-UI-AFFECTING. `script/e2e/492-browser-tools.sh` with `COMPOSITOR=sway`. Fixtures: a loopback
-site with a sign-in form, a console message and a request to `/api?token=abc123&page=2`, and
-a cross-site iframe with a field. The Browser tab is open on screen; a stand-in agent run by
+UI-AFFECTING. `script/e2e/492-browser-tools.sh` with `COMPOSITOR=sway`, Chromium offline
+(`offline_chromium`). Fixtures: a loopback site with a sign-in form that reports the events it
+gets, a console message, an uncaught error and a request to `/api?token=abc123&page=2`, and a
+cross-site iframe with a field. No Browser tab is open at the start; a stand-in agent run by
 the harness speaks JSON-RPC through the plugin's bridge (`MARLEY_MCP_ENDPOINT` at the e2e
 profile) and prints each answer to the run log, saving `browser_look`'s image beside the
-shots. Shots: `492-01-navigated`, `492-02-typed-and-clicked`, `492-03-agent-chip`,
-`492-04-opened-by-agent`; the saved frame `492-look.jpg`.
+shots. Shots: `492-01-opened-and-navigated` (the agent's first navigation opened the tab),
+`492-02-typed-and-clicked` (with the Agent chip), `492-03-chip-gone`; the saved frame
+`492-look.jpg`.
 
 ## Locked-In Decisions
 - D1 — The agent reads the page the user has, never a second one (plan D6 and the
@@ -91,13 +103,13 @@ shots. Shots: `492-01-navigated`, `492-02-typed-and-clicked`, `492-03-agent-chip
 
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
-| REQ-001 | WHEN an agent calls `browser_look`, the answer shall hold the URL, title, viewport, scroll offsets, focused element and selection of the page in the Browser tab, and the frame the tab shows. | The run log, and `492-look.jpg` against shot `492-01-navigated` |
+| REQ-001 | WHEN an agent calls `browser_look`, the answer shall hold the URL, title, viewport, scroll offsets, focused element and selection of the page in the Browser tab, and the frame the tab shows. | The run log, and `492-look.jpg` against shot `492-01-opened-and-navigated` |
 | REQ-002 | WHEN an agent calls `browser_snapshot`, the answer shall list the page's interactive elements with roles, names and refs, including those inside a cross-site iframe. | The run log (the iframe's field is listed) |
 | REQ-003 | WHEN an agent calls `browser_console` or `browser_network`, the answer shall hold the recent entries, with secret-looking query values replaced and no headers. | The run log (`token=…`, `page=2`) |
-| REQ-004 | WHEN an agent calls `browser_navigate` with an `http` or `https` URL, the Browser tab shall load it; WHEN the URL has another scheme, the call shall fail and the page shall stay. | Shot `492-01-navigated`; the run log's refusals (`file:`, `javascript:`) |
-| REQ-005 | WHEN an agent clicks a ref or types, the page in the tab shall receive the same events a user's click and keys send. | Shot `492-02-typed-and-clicked` |
-| REQ-006 | WHILE an agent's write call runs and for five seconds after, the tab shall show the Agent chip with the last action. | Shot `492-03-agent-chip` |
-| REQ-007 | WHEN an agent calls a write tool and no Browser tab is open, one shall open. | Shot `492-04-opened-by-agent` |
+| REQ-004 | WHEN an agent calls `browser_navigate` with an `http` or `https` URL, the Browser tab shall load it; WHEN the URL has another scheme, the call shall fail and the page shall stay. | Shot `492-01-opened-and-navigated`; the run log's refusals (`file:`, `javascript:`) |
+| REQ-005 | WHEN an agent clicks a ref or types, including into a cross-site iframe's field, the page in the tab shall receive the same events a user's click and keys send. | Shot `492-02-typed-and-clicked` |
+| REQ-006 | WHILE an agent's write call runs and for five seconds after, the tab shall show the Agent chip with the last action. | Shots `492-02-typed-and-clicked` (the chip) and `492-03-chip-gone` |
+| REQ-007 | WHEN an agent calls a write tool and no Browser tab is open, one shall open. | Shot `492-01-opened-and-navigated` |
 | REQ-008 | The tool list shall hold no tool that evaluates script. | The run log's `tools/list` |
 
 ## Phase Plan
