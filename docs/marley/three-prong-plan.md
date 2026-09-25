@@ -200,7 +200,7 @@ an open decision for the owner, not something Marley forces.
 
 | Slice | Delivers | Size |
 |---|---|---|
-| C0 | `marley_mcp` started by the app with the terminal read tools and the discovery file; an agent can list a pane's blocks (#491, pulled forward for the browser's agent tools) | M |
+| C0 | `marley_mcp` started by the app with the terminal read tools and the discovery file; an agent can list a pane's blocks (#491, pulled forward for the browser's agent tools; shipped) | M |
 | C1 | `marley_harness` read side: subscribe, snapshot, events into `marley_fleet`; a fleet rail panel with state chips, question cards and staleness | L |
 | C2 | Rusty sessions in the same rail through `marley_rusty`; brain-loop and Rusty tools in the default `context_servers` | M |
 | C3 | Harness passthrough terminals (D10), observer first, controller claim second | L |
@@ -335,7 +335,7 @@ reaching his desktop.
 | B0a | #488 | `marley_browser`: Marley's Chromium as a transient unit, the CDP client, the screencast; the Browser tab shows the page at its size, with its title (shipped) | M |
 | B0b | #489 | Typing and clicking in the page: keys, compose and input-method text, the mouse and the wheel, the clipboard; the input-to-frame time logged (shipped) | M |
 | B1a | #490 | The address bar, back, forward, reload and stop, the loading state, JavaScript dialogs (shipped) | M |
-| C0 | #491 | Prong 2's C0, pulled forward: Marley's MCP server in the app, the plugin's bridge, and the terminal block tools | M |
+| C0 | #491 | Prong 2's C0, pulled forward: Marley's MCP server in the app, the plugin's bridge, and the terminal block tools (shipped) | M |
 | B2 | #492 | The `browser_*` tools: look, snapshot, console, network; navigate, click, type, press, scroll | M |
 | B1b | #493 | Tabs as page targets (pages the page or an agent opens appear as tabs), restore on relaunch, Marley's own `<select>` picker | M |
 | B3a | wave 2 | Pillar A: pick mode, the durable bundle (ranked locators, AX node, listeners, blocking styles), picks staged for Chad to caption and send | L |

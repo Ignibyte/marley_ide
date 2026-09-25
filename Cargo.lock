@@ -10864,6 +10864,7 @@ dependencies = [
  "log",
  "marley_agent",
  "marley_browser",
+ "marley_mcp",
  "marley_rail",
  "marley_terminal",
  "menu",

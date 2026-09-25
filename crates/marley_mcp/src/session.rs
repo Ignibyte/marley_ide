@@ -10,8 +10,10 @@ use crate::auth::ct_eq;
 /// The maximum number of concurrent sessions.
 ///
 /// A local-DoS bound (the #370 cap-before-alloc lesson applied to sessions), NOT an LRU cache — at
-/// the cap a new session is REFUSED, never evicting a live one (D4).
-pub const SESSION_CAP: usize = 8;
+/// the cap a new session is REFUSED, never evicting a live one (D4). Since #491 each Claude Code
+/// session's bridge holds one, and a bridge that ends without closing its session keeps it until
+/// the TTL, so the bound leaves room for a desk of agents.
+pub const SESSION_CAP: usize = 32;
 
 /// How long a session may sit IDLE (no validated use) before the sweep expires it (#379).
 ///

@@ -2593,3 +2593,31 @@ tab's listener after the editor has handled it. Gate the forwarding on the view'
 registers an input handler only for the exactly focused handle, so text reaches the editor
 alone. #481's rich input solves the same problem the other way round, stopping the keys at the
 editor's container.
+
+## L-claude-491-ctrl-q-in-a-terminal-goes-to-the-shell-001
+*category: validate · topic: e2e scenarios · from: pipeline 491*
+
+Zed's Linux keymap binds `ctrl-q` to `zed::Quit` in `Workspace` and to
+`["terminal::SendKeystroke", "ctrl-q"]` in `Terminal`, so a scenario whose focus is in a
+terminal does not quit Marley with Ctrl+Q. Quit through the palette: Ctrl+Shift+P, `zed: quit`,
+Enter. The same holds for every key the `Terminal` context sends on (Ctrl+R among them).
+
+## L-claude-491-hook-stamps-are-when-the-main-thread-applies-them-001
+*category: build · topic: terminal blocks · from: pipeline 491*
+
+A block's `BlockTimes` are stamped when Zed's terminal applies each shell hook on the main
+thread, not when the shell sent it. In #491's run `sleep 1` measured 957 ms: the `Preexec` came
+in about 40 ms late while the main thread drew the typed command. Durations are right to tens of
+milliseconds; a figure closer than that would need the time in the hook itself (bash's
+`$EPOCHREALTIME` in the `preexec` and `precmd` frames) or a stamp taken where the vendored event
+loop parses the frame.
+
+## L-claude-491-a-session-per-agent-needs-room-and-a-close-001
+*category: build · topic: MCP sessions · from: pipeline 491*
+
+`marley_mcp`'s session registry refuses new sessions at its cap and never evicts, and an idle
+session lives 30 minutes. Sized at 8 for one manager seat, it would have refused a desk of
+agents once each Claude Code session's bridge held one, and a bridge that ended without closing
+kept its slot for half an hour. #491 raised the cap to 32 and made the bridge send `DELETE` for
+its session when its input ends. A client of Marley's MCP server that opens a session should
+close it.

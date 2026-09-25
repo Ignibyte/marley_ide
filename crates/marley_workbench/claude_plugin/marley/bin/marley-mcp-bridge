@@ -1,0 +1,313 @@
+#!/usr/bin/env python3
+"""Marley's MCP server, over stdio, for Claude Code.
+
+Claude Code runs this for the `marley` server the plugin declares. It passes each JSON-RPC message
+from stdin to the Marley that is running, found through the endpoint file Marley writes, and writes
+each answer to stdout. While no Marley answers, it answers `initialize` itself and lists no tools,
+so a Claude Code session outside Marley sees an empty server rather than a failed one; when Marley
+starts or quits, it tells the client that its tool list changed.
+
+The endpoint file is `$MARLEY_MCP_ENDPOINT`, else
+`${XDG_DATA_HOME:-~/.local/share}/marley/mcp-endpoint.json`. The bearer in it goes only to a
+loopback URL, and nothing here prints it.
+"""
+
+import json
+import os
+import socket
+import sys
+import threading
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+PROTOCOL_VERSION = "2025-06-18"
+
+# How often the bridge checks whether Marley answers, in seconds.
+POLL_SECONDS = 2
+
+# Longer than Marley waits for the app to answer a tool call (30 seconds).
+REQUEST_TIMEOUT = 40
+
+LOOPBACK = {"127.0.0.1", "localhost", "::1"}
+
+NOT_RUNNING = "Marley is not running, so its tools are not there. Start Marley and call again."
+
+output_lock = threading.Lock()
+
+
+def send(message):
+    """Writes one JSON-RPC message to the client."""
+    with output_lock:
+        sys.stdout.write(json.dumps(message, separators=(",", ":")) + "\n")
+        sys.stdout.flush()
+
+
+def log(line):
+    """Tells Claude Code's log what the bridge is doing."""
+    sys.stderr.write(f"marley-mcp-bridge: {line}\n")
+    sys.stderr.flush()
+
+
+def endpoint_path():
+    named = os.environ.get("MARLEY_MCP_ENDPOINT")
+    if named:
+        return named
+    data = os.environ.get("XDG_DATA_HOME") or os.path.join(
+        os.path.expanduser("~"), ".local", "share"
+    )
+    return os.path.join(data, "marley", "mcp-endpoint.json")
+
+
+def read_endpoint():
+    """The URL and the Authorization header in the endpoint file, when it names a loopback URL."""
+    try:
+        with open(endpoint_path(), encoding="utf-8") as file:
+            entry = json.load(file)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(entry, dict):
+        return None
+    url = entry.get("url")
+    headers = entry.get("headers")
+    if not isinstance(url, str) or not isinstance(headers, dict):
+        return None
+    authorization = headers.get("Authorization")
+    if not isinstance(authorization, str):
+        return None
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme != "http" or parsed.hostname not in LOOPBACK:
+        # The bearer never leaves this machine.
+        return None
+    return url, authorization
+
+
+class Unreachable(Exception):
+    """No Marley answered at the endpoint."""
+
+
+class SessionGone(Exception):
+    """Marley does not know the session: it restarted, or the session sat idle too long."""
+
+
+def messages_in(body, kind):
+    """The JSON-RPC messages in an answer's body, JSON or a stream of events."""
+    if not body.strip():
+        return []
+    if kind.startswith("text/event-stream"):
+        found, data = [], []
+        for line in body.splitlines():
+            if line.startswith("data:"):
+                data.append(line[5:].removeprefix(" "))
+            elif not line.strip() and data:
+                found.append(json.loads("\n".join(data)))
+                data = []
+        if data:
+            found.append(json.loads("\n".join(data)))
+        return found
+    parsed = json.loads(body)
+    return parsed if isinstance(parsed, list) else [parsed]
+
+
+def request(endpoint, method, message=None, session=None):
+    """Sends one HTTP request to Marley: the messages it answered with, and the session it gave."""
+    url, authorization = endpoint
+    headers = {
+        "Accept": "application/json, text/event-stream",
+        "Authorization": authorization,
+        "MCP-Protocol-Version": PROTOCOL_VERSION,
+    }
+    data = None
+    if message is not None:
+        headers["Content-Type"] = "application/json"
+        data = json.dumps(message).encode()
+    if session:
+        headers["Mcp-Session-Id"] = session
+    outgoing = urllib.request.Request(url, data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(outgoing, timeout=REQUEST_TIMEOUT) as response:
+            given = response.headers.get("Mcp-Session-Id")
+            kind = response.headers.get("Content-Type", "")
+            body = response.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            raise SessionGone() from None
+        raise Unreachable(f"Marley answered HTTP {error.code}") from None
+    except (urllib.error.URLError, OSError) as error:
+        raise Unreachable(f"no answer: {error}") from None
+    try:
+        return messages_in(body, kind), given
+    except ValueError:
+        raise Unreachable("Marley's answer was not JSON") from None
+
+
+def answers(endpoint):
+    """Whether a Marley listens at the endpoint's address."""
+    parsed = urllib.parse.urlsplit(endpoint[0])
+    try:
+        with socket.create_connection((parsed.hostname, parsed.port or 80), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+def local_answer(message):
+    """What the bridge answers itself while no Marley does."""
+    method = message.get("method")
+    results = {
+        "tools/list": {"tools": []},
+        "tools/call": {"content": [{"type": "text", "text": NOT_RUNNING}], "isError": True},
+        "resources/list": {"resources": []},
+        "prompts/list": {"prompts": []},
+        "ping": {},
+    }
+    if method in results:
+        return {"jsonrpc": "2.0", "id": message.get("id"), "result": results[method]}
+    return {
+        "jsonrpc": "2.0",
+        "id": message.get("id"),
+        "error": {"code": -32601, "message": f"{method} needs Marley, which is not running"},
+    }
+
+
+def local_initialize():
+    return {
+        "protocolVersion": PROTOCOL_VERSION,
+        "capabilities": {"tools": {"listChanged": True}},
+        "serverInfo": {"name": "marley", "version": "0"},
+    }
+
+
+class Bridge:
+    """The client's session with Marley, opened again whenever Marley starts over."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.client_initialize = None
+        self.endpoint = None
+        self.session = None
+        self.client_ready = False
+        # What the client was last told: that Marley's tools are there, or that none are.
+        self.told_up = None
+
+    def connect(self):
+        """Opens a session with the Marley that runs, with the client's own `initialize`."""
+        endpoint = read_endpoint()
+        if endpoint is None:
+            raise Unreachable("no endpoint file")
+        params = self.client_initialize or {
+            "protocolVersion": PROTOCOL_VERSION,
+            "capabilities": {},
+            "clientInfo": {"name": "marley-mcp-bridge", "version": "1"},
+        }
+        replies, session = request(
+            endpoint,
+            "POST",
+            {"jsonrpc": "2.0", "id": "bridge-initialize", "method": "initialize", "params": params},
+        )
+        if not session:
+            raise Unreachable("Marley gave no session")
+        request(endpoint, "POST", {"jsonrpc": "2.0", "method": "notifications/initialized"}, session)
+        with self.lock:
+            self.endpoint, self.session = endpoint, session
+        log(f"connected to Marley at {urllib.parse.urlsplit(endpoint[0]).netloc}")
+        return next(
+            (reply.get("result") for reply in replies if reply.get("id") == "bridge-initialize"),
+            None,
+        )
+
+    def forward(self, message):
+        """Marley's answers to `message`, in the client's session."""
+        for _ in range(2):
+            with self.lock:
+                stale = self.session is None or read_endpoint() != self.endpoint
+            if stale:
+                self.connect()
+            try:
+                replies, _ = request(self.endpoint, "POST", message, self.session)
+                return replies
+            except SessionGone:
+                with self.lock:
+                    self.session = None
+        raise Unreachable("Marley did not keep the session")
+
+    def handle(self, message):
+        method = message.get("method")
+        if method == "initialize":
+            self.client_initialize = message.get("params") or {}
+            try:
+                result = self.connect()
+            except Unreachable as error:
+                log(f"answering alone: {error}")
+                result = None
+            self.told_up = result is not None
+            send({"jsonrpc": "2.0", "id": message.get("id"), "result": result or local_initialize()})
+            return
+        if method == "notifications/initialized":
+            # The bridge's own session is initialized already.
+            self.client_ready = True
+            return
+        if "id" not in message:
+            try:
+                self.forward(message)
+            except Unreachable:
+                pass
+            return
+        try:
+            replies = self.forward(message)
+        except Unreachable as error:
+            log(f"answering alone: {error}")
+            send(local_answer(message))
+            return
+        for reply in replies:
+            send(reply)
+
+    def close(self):
+        """Ends the session, so Marley does not hold it until it expires."""
+        with self.lock:
+            endpoint, session = self.endpoint, self.session
+        if endpoint and session:
+            try:
+                request(endpoint, "DELETE", session=session)
+            except (Unreachable, SessionGone):
+                pass
+
+    def watch(self):
+        """Tells the client when Marley starts or quits, so it lists the tools again."""
+        while True:
+            time.sleep(POLL_SECONDS)
+            if not self.client_ready:
+                continue
+            endpoint = read_endpoint()
+            up = endpoint is not None and answers(endpoint)
+            with self.lock:
+                changed = self.told_up is not None and up != self.told_up
+                self.told_up = up
+                if changed and not up:
+                    self.session = None
+            if changed:
+                log("Marley started" if up else "Marley quit")
+                send({"jsonrpc": "2.0", "method": "notifications/tools/list_changed"})
+
+
+def main():
+    bridge = Bridge()
+    threading.Thread(target=bridge.watch, daemon=True).start()
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            message = json.loads(line)
+        except ValueError:
+            send({"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "not JSON"}})
+            continue
+        for item in message if isinstance(message, list) else [message]:
+            if isinstance(item, dict):
+                bridge.handle(item)
+    bridge.close()
+
+
+if __name__ == "__main__":
+    main()

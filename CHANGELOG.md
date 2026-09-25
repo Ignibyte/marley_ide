@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Marley's tools for agents, over MCP** (#491, 2026-09-25). While Marley runs, it serves MCP on
+  127.0.0.1, behind a bearer that changes at every start and sits in a file only the user can
+  read. The first tools read Marley's terminals: `terminal_list` names each terminal with its
+  project, working directory and running command; `terminal_blocks` lists the commands run in
+  one, with their exit codes, working directories, start times and durations; `terminal_read`
+  gives one command's output. Marley's plugin for Claude Code, now 1.1.0, carries a bridge to
+  the server, so Claude Code in any terminal on the machine finds the tools while Marley runs,
+  and an empty server rather than an error when it does not.
 - **Browsing in the Browser tab** (#490, 2026-09-25). A toolbar runs across the top of the
   Browser tab: back and forward, reload (a stop button while a page loads, with a thin bar under
   the toolbar), and an address bar that takes a URL, a host such as `localhost:3000` (loopback

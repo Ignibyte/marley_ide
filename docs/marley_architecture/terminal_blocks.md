@@ -152,6 +152,11 @@ real, reusable session. The Block model is the unit the **brain** later observes
   the first history command, newest first, that starts with the typed text and stays on one
   line, and `parse_history`, bash's lines without their `#<seconds>` lines and zsh's extended
   `: <seconds>:<elapsed>;` lines with backslash continuations joined.
+  `stamp` (#491), which Zed's `Terminal::apply_shell_hook` calls after each hook applies, keeps
+  each block's `BlockTimes` beside it: its start, when the `Preexec` that opened it was applied,
+  and its end, when the hook that finished it was; a busy main thread moves a stamp by tens of
+  milliseconds. `times(index)` reads them for the MCP server's `terminal_blocks`, with
+  `Terminal::block_output_kept`, whether a block's first output line is still held.
 - `shell_integration.rs` (#463, written in the fork): the embedded `shell_integration/marley.bash`,
   `install_in(dir)`, which writes it when its content changed, and `for_program`, which gives bash
   `--rcfile` and `MARLEY_SHELL_INTEGRATION=1`. Zed's `TerminalBuilder::new` applies it to a local

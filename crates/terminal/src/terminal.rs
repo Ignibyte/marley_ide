@@ -1829,7 +1829,11 @@ impl Terminal {
         };
         match marley_terminal::decode_frame(&frame) {
             Ok(decoded) => match self.blocks.apply(decoded, line) {
-                Ok(()) => cx.notify(),
+                Ok(()) => {
+                    // Marley: each block's start and end, for the MCP server's tools (#491).
+                    self.blocks.stamp(std::time::SystemTime::now());
+                    cx.notify()
+                }
                 Err(error) => log::debug!("dropped a shell hook: {error:?}"),
             },
             Err(error) => log::debug!("dropped an undecodable shell hook: {error:?}"),
@@ -1858,6 +1862,12 @@ impl Terminal {
             block.output_start,
             block.output_end,
         )
+    }
+
+    // Marley: the MCP server's `terminal_blocks` (#491).
+    /// Whether a block's output is still in the scrollback: its first line has not been evicted.
+    pub fn block_output_kept(&self, block: &marley_terminal::AnchoredBlock) -> bool {
+        block.output_start >= self.term.lock().grid().evicted_lines()
     }
 
     pub fn selection_started(&self) -> bool {

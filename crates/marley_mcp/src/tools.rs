@@ -1,10 +1,13 @@
-//! The tool handlers' PURE parts (D2/D6/D7): `fleet.snapshot` serialization, `surface_to_human` id
-//! resolution + receipt, and the `isError` tool-execution-error envelope. The #367 `marley_fleet` types
-//! ARE the schema (D2) — no parallel hand-written schema drifts from them.
+//! The tool handlers' PURE parts (D2/D6/D7): `fleet_snapshot` serialization, `surface_to_human` id
+//! resolution + receipt, the envelope of an answer the app gave (#491), and the `isError`
+//! tool-execution-error envelope. The #367 `marley_fleet` types ARE the schema (D2) — no parallel
+//! hand-written schema drifts from them.
 
 use marley_fleet::{FleetSnapshot, Receipt};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+
+use crate::ToolAnswer;
 
 /// A tools/call result envelope: the typed `structuredContent` + the back-compat `text` block, with
 /// `isError` set for a business refusal (D6).
@@ -21,7 +24,7 @@ pub fn tool_result(structured: &Value, is_error: bool) -> Value {
     })
 }
 
-/// The `fleet.snapshot` result (D2/REQ-002): the CURRENT `FleetSnapshot` serialized as
+/// The `fleet_snapshot` result (D2/REQ-002): the CURRENT `FleetSnapshot` serialized as
 /// `structuredContent` (+ text), never an error.
 ///
 /// `to_value` on a plain data struct (string keys, no floats) is infallible; `unwrap_or_default` is
@@ -30,6 +33,23 @@ pub fn tool_result(structured: &Value, is_error: bool) -> Value {
 pub fn fleet_snapshot_result(snapshot: &FleetSnapshot) -> Value {
     let structured = serde_json::to_value(snapshot).unwrap_or_default();
     tool_result(&structured, false)
+}
+
+/// The result of a call the app answered (#491).
+///
+/// Its text is the answer's own when it has one, so a block's output reads as itself rather than
+/// as a JSON string, and the result's JSON otherwise.
+#[must_use]
+pub fn tool_answer_result(answer: &ToolAnswer) -> Value {
+    let text = answer
+        .text
+        .clone()
+        .unwrap_or_else(|| answer.structured.to_string());
+    json!({
+        "content": [ { "type": "text", "text": text } ],
+        "structuredContent": answer.structured,
+        "isError": false,
+    })
 }
 
 /// A tool-execution error result (D6) — `isError:true` carrying the reason. Used for permission denials

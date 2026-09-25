@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "marley": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/marley-mcp-bridge"
+    }
+  }
+}

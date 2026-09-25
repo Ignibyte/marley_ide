@@ -1,5 +1,5 @@
 {
   "name": "marley",
-  "description": "Desktop notifications from Claude Code in Marley's terminals",
-  "version": "1.0.0"
+  "description": "Desktop notifications from Claude Code in Marley's terminals, and Marley's own tools over MCP",
+  "version": "1.1.0"
 }

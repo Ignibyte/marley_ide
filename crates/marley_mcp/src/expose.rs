@@ -42,10 +42,13 @@ mod tests {
     use crate::{Handled, Outgoing, RequestCtx, Subscriptions, handle_message};
     use marley_fleet::FleetSnapshot;
 
-    /// The JSON body of the first outbound message (the or-pattern is irrefutable — both variants carry a body).
+    /// The JSON body of the first outbound message.
     fn response_body(handled: &Handled) -> serde_json::Value {
         let (Outgoing::Response(text) | Outgoing::Notification(text)) =
-            handled.outgoing.first().expect("a response");
+            handled.outgoing.first().expect("a response")
+        else {
+            panic!("a deferred call carries no body");
+        };
         serde_json::from_str(text).expect("json")
     }
 
@@ -55,7 +58,7 @@ mod tests {
     fn expose_grants_gate_the_write_verb_end_to_end() {
         let snapshot = FleetSnapshot::default();
         let index = [("dev-1/a".to_string(), 42u64)];
-        let call = r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"session.surface_to_human","arguments":{"id":"dev-1/a"}}}"#;
+        let call = r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"session_surface_to_human","arguments":{"id":"dev-1/a"}}}"#;
 
         // Granted: allow_write = ["session.write"] → the permission check passes → the surface is accepted.
         let granted = ExposeConfig {

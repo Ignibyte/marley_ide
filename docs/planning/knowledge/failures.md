@@ -1886,3 +1886,14 @@ the rule mapped `127.0.0.1` too, and every page of the first run, the fixture's 
 included, came back as Chromium's "This site can't be reached" with `ERR_NAME_NOT_RESOLVED`.
 Fixed by excluding `127.0.0.1` beside `localhost`. The run still showed one thing working:
 the address bar kept the typed URL over the error page.
+
+## F-claude-491-the-root-gitignore-hid-the-plugins-mcp-json-001
+*severity: medium · found in: pipeline 491's Code phase · class: a file the build embeds that git ignores*
+
+The plugin's new `marley/.mcp.json` never showed in `git status`: the root `.gitignore` ignores
+every `.mcp.json` (a local MCP config carries bearers). `include_str!` still found the file on
+disk, so the build, clippy and a local run would all have passed, and the commit would have
+left it out: a clean checkout fails to build, and a plugin written from an older tree declares
+no MCP server. Caught by reading `git status` after writing the file. Fixed with an exception
+after the rule, `!crates/marley_workbench/claude_plugin/marley/.mcp.json`, and the ledger's
+`.gitignore` row.

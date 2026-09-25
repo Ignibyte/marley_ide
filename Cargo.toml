@@ -422,6 +422,7 @@ marley_agent = { path = "crates/marley_agent" }
 marley_browser = { path = "crates/marley_browser" }
 marley_dcs = { path = "crates/marley_dcs" }
 marley_fleet = { path = "crates/marley_fleet" }
+marley_mcp = { path = "crates/marley_mcp" }
 marley_rail = { path = "crates/marley_rail" }
 marley_terminal = { path = "crates/marley_terminal" }
 marley_workbench = { path = "crates/marley_workbench" }

@@ -12,15 +12,17 @@
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{RecvTimeoutError, Sender};
 use std::sync::{Arc, Condvar, Mutex};
+use std::time::Duration;
 
 use marley_fleet::FleetSnapshot;
 
 use crate::permission::GrantTable;
 use crate::session::{SessionDecision, SessionRegistry, session_gate};
 use crate::{
-    Effect, Outgoing, RequestCtx, Subscriptions, auth, handle_message, mint_secret, parse_request,
+    APP_CALL_TIMEOUT_SECONDS, AppCall, AppCaller, AppOutcome, Effect, Outgoing, PendingCall,
+    RequestCtx, Subscriptions, auth, deferred_response, handle_message, mint_secret, parse_request,
     snapshot_changed,
 };
 
@@ -100,14 +102,19 @@ fn read_entropy() -> Option<[u8; 16]> {
 /// Bind a loopback listener on an OS-assigned port and start the accept loop on a background thread.
 ///
 /// Returns the [`ServerHandle`] (url + a CSPRNG bearer) for the discovery file. The `shared` state is read
-/// on each request; `effects` carries `surface_to_human` focus requests to the UI thread. Refuses to start
-/// (typed `io::Error`, no weaker fallback — D2) when OS entropy is unavailable.
+/// on each request; `effects` carries `surface_to_human` focus requests to the UI thread, and `caller`
+/// hands the app the tool calls it answers (#491). Refuses to start (typed `io::Error`, no weaker
+/// fallback — D2) when OS entropy is unavailable.
 ///
 /// # Errors
 ///
 /// Any IO error binding the listener or starting its thread, and an `io::Error` wrapping
 /// [`EntropyError`](crate::EntropyError) when OS entropy is unavailable.
-pub fn spawn(shared: Shared, effects: Sender<Effect>) -> std::io::Result<ServerHandle> {
+pub fn spawn(
+    shared: Shared,
+    effects: Sender<Effect>,
+    caller: AppCaller,
+) -> std::io::Result<ServerHandle> {
     let listener = TcpListener::bind("127.0.0.1:0")?;
     let addr = listener.local_addr()?;
     let bearer = mint_secret(read_entropy()).map_err(std::io::Error::other)?;
@@ -117,21 +124,30 @@ pub fn spawn(shared: Shared, effects: Sender<Effect>) -> std::io::Result<ServerH
     drop(
         std::thread::Builder::new()
             .name("marley-mcp-server".into())
-            .spawn(move || accept_loop(&listener, &shared, &effects, &bearer_for_thread))?,
+            .spawn(move || {
+                accept_loop(&listener, &shared, &effects, &caller, &bearer_for_thread);
+            })?,
     );
     Ok(ServerHandle { url, bearer })
 }
 
 /// Accept connections, one thread per connection (blocking IO — the search/syntax-worker idiom).
-fn accept_loop(listener: &TcpListener, shared: &Shared, effects: &Sender<Effect>, bearer: &str) {
+fn accept_loop(
+    listener: &TcpListener,
+    shared: &Shared,
+    effects: &Sender<Effect>,
+    caller: &AppCaller,
+    bearer: &str,
+) {
     for stream in listener.incoming().flatten() {
         let shared = Arc::clone(shared);
         let effects = effects.clone();
+        let caller = Arc::clone(caller);
         let bearer = bearer.to_string();
         let spawned = std::thread::Builder::new()
             .name("marley-mcp-conn".into())
             .spawn(move || {
-                if let Err(error) = serve_connection(stream, &shared, &effects, &bearer) {
+                if let Err(error) = serve_connection(stream, &shared, &effects, &caller, &bearer) {
                     // Mostly a client that hung up mid-exchange; the connection is over either way.
                     log::debug!("marley_mcp: a connection ended in an IO error: {error}");
                 }
@@ -149,6 +165,7 @@ fn serve_connection(
     mut stream: std::net::TcpStream,
     shared: &Shared,
     effects: &Sender<Effect>,
+    caller: &AppCaller,
     bearer: &str,
 ) -> std::io::Result<()> {
     let mut reader = BufReader::new(stream.try_clone()?);
@@ -231,12 +248,19 @@ fn serve_connection(
         }
         let mut wrote_response = false;
         for message in handled.outgoing {
-            if let Outgoing::Response(body) = message {
-                // The `Mcp-Session-Id` header rides ONLY the initialize response (session_id is Some only
-                // for an Initialize decision); subsequent responses carry no new id.
-                write_sse_response(&mut stream, &body, session_id.as_deref())?;
-                wrote_response = true;
-            }
+            let body = match message {
+                Outgoing::Response(body) => body,
+                // The lock is released by now, so the wait holds up no other connection.
+                Outgoing::Deferred(pending) => {
+                    let outcome = ask_app(caller, &pending);
+                    deferred_response(&pending, outcome)
+                }
+                Outgoing::Notification(_) => continue,
+            };
+            // The `Mcp-Session-Id` header rides ONLY the initialize response (session_id is Some only
+            // for an Initialize decision); subsequent responses carry no new id.
+            write_sse_response(&mut stream, &body, session_id.as_deref())?;
+            wrote_response = true;
         }
         // Inspect fix: a notification-only POST (no response body) still gets an HTTP reply — 202
         // Accepted, per MCP Streamable-HTTP — so the client's read never hangs waiting for a body.
@@ -249,6 +273,21 @@ fn serve_connection(
         // Its session is reclaimed when the stream drops, so a client that reconnects (re-initializing, per
         // the MCP spec + Marley's own #373 pump) does not leak its old slot toward the cap.
         serve_sse_stream(stream, shared, request.session.as_deref())
+    }
+}
+
+/// Hands `pending` to the app and waits for its answer, up to [`APP_CALL_TIMEOUT_SECONDS`] (#491).
+fn ask_app(caller: &AppCaller, pending: &PendingCall) -> AppOutcome {
+    let (answer, answered) = std::sync::mpsc::sync_channel(1);
+    caller(AppCall::new(
+        pending.tool.clone(),
+        pending.arguments.clone(),
+        answer,
+    ));
+    match answered.recv_timeout(Duration::from_secs(APP_CALL_TIMEOUT_SECONDS)) {
+        Ok(result) => AppOutcome::Answered(result),
+        Err(RecvTimeoutError::Timeout) => AppOutcome::TimedOut,
+        Err(RecvTimeoutError::Disconnected) => AppOutcome::Unavailable,
     }
 }
 
@@ -485,7 +524,10 @@ mod tests {
     fn start() -> Server {
         let shared: Shared = Arc::new((Mutex::new(ServerData::default()), Condvar::new()));
         let (sender, effects) = mpsc::channel();
-        let handle = spawn(Arc::clone(&shared), sender).expect("the loopback server starts");
+        // No app answers here: a deferred call's answer channel closes as the call is dropped.
+        let caller: AppCaller = Arc::new(drop);
+        let handle =
+            spawn(Arc::clone(&shared), sender, caller).expect("the loopback server starts");
         Server {
             handle,
             shared,
@@ -775,7 +817,7 @@ mod tests {
         let session = server.initialize();
         let reply = server.post(
             Some(&session),
-            r#"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"session.surface_to_human","arguments":{"id":"dev-1/a"}}}"#,
+            r#"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"session_surface_to_human","arguments":{"id":"dev-1/a"}}}"#,
         );
         assert_eq!(status_line(&reply), "HTTP/1.1 200 OK", "{reply}");
         assert_eq!(

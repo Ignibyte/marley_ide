@@ -28,6 +28,7 @@ pub mod browser;
 pub mod claude_plugin;
 #[cfg(test)]
 pub mod marley_workbench_tests;
+pub mod mcp;
 pub mod notifications;
 mod rail;
 pub mod rich_input;

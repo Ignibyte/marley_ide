@@ -1941,3 +1941,22 @@ so a search or a typed name fails in the page and nothing leaves the machine. Re
 window-wide modal for dialogs (the rest of Marley would wait on one page); leaving dialogs to
 an agent or to CDP defaults (a page would hang with nothing on the screen); a search engine
 setting now (the `marley` settings block has no browser section yet).
+
+## AD-claude-491-marleys-mcp-server-runs-in-the-app-behind-a-stdio-bridge-001
+*decided at: 2026-09-25 · status: shipped*
+
+Marley starts `marley_mcp`'s server once per process, from `zed`'s `main` right after
+`initialize_workspace` (Zed's tests run `initialize_workspace`, and a server started there would
+write its endpoint over a running Marley's). It serves Streamable HTTP on 127.0.0.1 behind a
+per-boot bearer, and writes `mcp-endpoint.json` (mode 0600, an MCP client's server entry) into
+Marley's data directory, removed on quit. Tools whose answers are the app's come back from the
+pure core as deferred calls, which the transport hands to the app with the server's lock
+released and waits up to 30 seconds for. Wire names are `family_verb`; the first family served is
+`terminal` (`terminal_list`, `terminal_blocks`, `terminal_read`) over every terminal in Marley's
+windows. Claude Code reaches it through the Marley plugin's stdio bridge, which finds the
+endpoint file, sends the bearer only to loopback, answers with no tools while Marley is closed
+and says so when that changes. Rejected: a bare HTTP entry in the plugin (Claude Code would show
+a failed server outside Marley); an environment variable for the endpoint (only Marley's own
+terminals would have it); a `.mcp.json` in each project (it would spread a bearer into
+repositories); answering tool calls on the transport's threads (the terminals are the main
+thread's).

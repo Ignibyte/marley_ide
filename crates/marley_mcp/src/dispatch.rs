@@ -7,8 +7,8 @@ use crate::jsonrpc::RpcRequest;
 use crate::permission::Decision;
 use crate::registry::Family;
 use crate::{
-    Effect, Handled, MCP_PROTOCOL_VERSION, Outgoing, RequestCtx, Subscriptions, jsonrpc,
-    permission, registry, resource, tools,
+    APP_CALL_TIMEOUT_SECONDS, AppOutcome, Effect, Handled, MCP_PROTOCOL_VERSION, Outgoing,
+    PendingCall, RequestCtx, Subscriptions, jsonrpc, permission, registry, resource, tools,
 };
 use marley_fleet::SurfaceRequest;
 use serde_json::{Value, json};
@@ -58,6 +58,24 @@ pub fn snapshot_changed(subs: Subscriptions) -> Vec<Outgoing> {
     }
 }
 
+/// The response to a call the app was handed (#491): the tool's result, or a tool error that names
+/// the tool when the app failed, did not answer in time (D6), or takes no calls.
+#[must_use]
+pub fn deferred_response(pending: &PendingCall, outcome: AppOutcome) -> String {
+    let tool = &pending.tool;
+    let result = match outcome {
+        AppOutcome::Answered(Ok(answer)) => tools::tool_answer_result(&answer),
+        AppOutcome::Answered(Err(reason)) => tools::tool_error(&format!("{tool}: {reason}")),
+        AppOutcome::TimedOut => tools::tool_error(&format!(
+            "{tool}: Marley did not answer within {APP_CALL_TIMEOUT_SECONDS} seconds"
+        )),
+        AppOutcome::Unavailable => {
+            tools::tool_error(&format!("{tool}: Marley is not taking tool calls"))
+        }
+    };
+    jsonrpc::result_response(&pending.id, result)
+}
+
 /// A single-response result with no effect.
 fn respond(response: String) -> Handled {
     Handled {
@@ -66,11 +84,12 @@ fn respond(response: String) -> Handled {
     }
 }
 
-/// The `initialize` result — protocol version + the L1 capabilities (tools + subscribable resources).
+/// The `initialize` result — protocol version + the capabilities (tools + subscribable resources).
+/// `listChanged` is what lets the plugin's bridge tell a client that Marley came or went (#491).
 fn initialize_result() -> Value {
     json!({
         "protocolVersion": MCP_PROTOCOL_VERSION,
-        "capabilities": { "tools": {}, "resources": { "subscribe": true } },
+        "capabilities": { "tools": { "listChanged": true }, "resources": { "subscribe": true } },
         "serverInfo": { "name": "marley", "version": "0" }
     })
 }
@@ -135,17 +154,25 @@ fn tools_call(ctx: &RequestCtx, request: &RpcRequest, id: &Value) -> Handled {
         return respond(jsonrpc::result_response(id, tools::tool_error(&reason)));
     }
     // Match on the family (EXHAUSTIVE — no catch-all; a new `Family` variant is a compile error until its
-    // handler is wired, REQ-011). L1 has one tool per family.
+    // handler is wired, REQ-011). The terminal family's answers are the app's (#491).
     match spec.family {
         Family::Fleet => respond(jsonrpc::result_response(
             id,
             tools::fleet_snapshot_result(ctx.snapshot),
         )),
         Family::Session => surface_to_human(ctx, &arguments, id),
+        Family::Terminal => Handled {
+            outgoing: vec![Outgoing::Deferred(PendingCall {
+                id: id.clone(),
+                tool: spec.name(),
+                arguments,
+            })],
+            effect: None,
+        },
     }
 }
 
-/// `session.surface_to_human` (D7/REQ-004/005): resolve the id → a pane handle. Resolved → an `Accepted`
+/// `session_surface_to_human` (D7/REQ-004/005): resolve the id → a pane handle. Resolved → an `Accepted`
 /// receipt + the focus effect for the app; unresolved → a `Refused` receipt (`isError`), NO effect, no
 /// app-state change.
 fn surface_to_human(ctx: &RequestCtx, arguments: &Value, id: &Value) -> Handled {
@@ -199,10 +226,11 @@ mod tests {
         )
     }
 
-    /// The JSON body of an outbound message. The or-pattern covers BOTH `Outgoing` variants, so the `let`
-    /// is IRREFUTABLE — one always-executed arm, no uncovered discriminant/panic branch (both carry a body).
+    /// The JSON body of an outbound message that carries one.
     fn body(outgoing: &Outgoing) -> serde_json::Value {
-        let (Outgoing::Response(text) | Outgoing::Notification(text)) = outgoing;
+        let (Outgoing::Response(text) | Outgoing::Notification(text)) = outgoing else {
+            panic!("a deferred call carries no body");
+        };
         serde_json::from_str(text).expect("json")
     }
 
@@ -253,7 +281,7 @@ mod tests {
             &snapshot(),
             &GrantTable::default(),
             &[],
-            r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"fleet.snapshot"}}"#,
+            r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"fleet_snapshot"}}"#,
         );
         assert_eq!(r["result"]["isError"], false);
         assert_eq!(
@@ -286,7 +314,7 @@ mod tests {
             &snapshot(),
             &GrantTable::default(), // no grant
             &[("dev-1/a".to_string(), 5)],
-            r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"session.surface_to_human","arguments":{"id":"dev-1/a"}}}"#,
+            r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"session_surface_to_human","arguments":{"id":"dev-1/a"}}}"#,
         );
         assert!(r.get("error").is_none()); // NOT a protocol error
         assert_eq!(r["result"]["isError"], true); // a tool-execution refusal (D6)
@@ -304,7 +332,7 @@ mod tests {
         let handled = handle_message(
             &ctx,
             &mut subs,
-            r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"session.surface_to_human","arguments":{"id":"dev-1/a"}}}"#,
+            r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"session_surface_to_human","arguments":{"id":"dev-1/a"}}}"#,
         );
         assert_eq!(handled.effect, Some(Effect::SurfacePane(42)));
         assert!(matches!(handled.outgoing[0], Outgoing::Response(_)));
@@ -325,7 +353,7 @@ mod tests {
         let handled = handle_message(
             &ctx,
             &mut subs,
-            r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"session.surface_to_human","arguments":{"id":"ghost"}}}"#,
+            r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"session_surface_to_human","arguments":{"id":"ghost"}}}"#,
         );
         assert_eq!(handled.effect, None); // REQ-005: no app-state change on an unknown id
         let r = body(&handled.outgoing[0]);
@@ -409,7 +437,7 @@ mod tests {
         let handled = handle_message(
             &ctx,
             &mut subs,
-            r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"session.surface_to_human","arguments":{"id":123}}}"#,
+            r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"session_surface_to_human","arguments":{"id":123}}}"#,
         );
         assert_eq!(handled.effect, None);
         assert_eq!(body(&handled.outgoing[0])["result"]["isError"], true);

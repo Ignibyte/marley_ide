@@ -23,7 +23,7 @@ pub const MARKETPLACE: &str = "marley";
 pub const PLUGIN: &str = "marley@marley";
 
 /// The plugin's files, by their path in the marketplace, and whether each is a program.
-const FILES: [(&str, &str, bool); 4] = [
+const FILES: [(&str, &str, bool); 6] = [
     (
         ".claude-plugin/marketplace.json",
         include_str!("../claude_plugin/.claude-plugin/marketplace.json"),
@@ -33,6 +33,17 @@ const FILES: [(&str, &str, bool); 4] = [
         "marley/.claude-plugin/plugin.json",
         include_str!("../claude_plugin/marley/.claude-plugin/plugin.json"),
         false,
+    ),
+    // Marley's MCP server, through the bridge (#491).
+    (
+        "marley/.mcp.json",
+        include_str!("../claude_plugin/marley/.mcp.json"),
+        false,
+    ),
+    (
+        "marley/bin/marley-mcp-bridge",
+        include_str!("../claude_plugin/marley/bin/marley-mcp-bridge"),
+        true,
     ),
     (
         "marley/hooks/hooks.json",
@@ -103,7 +114,7 @@ pub fn set_up(plugin: ClaudePlugin, cx: &mut App) {
     .detach();
 }
 
-/// Writes the plugin and its marketplace into `dir`, the script executable.
+/// Writes the plugin and its marketplace into `dir`, the programs executable.
 ///
 /// # Errors
 ///

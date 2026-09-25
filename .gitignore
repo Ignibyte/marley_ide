@@ -62,5 +62,6 @@ crates/docs_preprocessor/actions.json
 .local*
 .cache
 
-# Marley: the local MCP config carries bearers
+# Marley: the local MCP config carries bearers; the Claude Code plugin's names only its bridge (#491)
 .mcp.json
+!crates/marley_workbench/claude_plugin/marley/.mcp.json

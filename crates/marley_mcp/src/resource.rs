@@ -28,7 +28,7 @@ pub fn resources_list() -> Value {
 }
 
 /// The `resources/read` result for `uri` (D3): the fleet resource serves the SAME serialization as
-/// the `fleet.snapshot` tool.
+/// the `fleet_snapshot` tool.
 ///
 /// # Errors
 ///

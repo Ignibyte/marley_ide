@@ -875,6 +875,9 @@ fn main() {
         }
 
         initialize_workspace(app_state.clone(), cx);
+        // Marley: Marley's MCP server, for agents (#491). Zed's tests run `initialize_workspace`,
+        // so the server starts here, where only the app goes.
+        marley_workbench::mcp::start(cx);
 
         cx.activate(true);
 

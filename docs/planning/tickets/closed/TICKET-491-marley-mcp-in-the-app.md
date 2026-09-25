@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #491 (feature, prong 2 C0, pulled forward for prong 3)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/491-marley-mcp-in-the-app.spec.md
+- **Pipeline doc:** ../../pipeline/completed/491-marley-mcp-in-the-app.spec.md
 - **Source ticket:** docs/marley/three-prong-plan.md, prong 2 C0 and prong 3 D17
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 `marley_mcp`, ported and compiled but never started, runs inside Marley: a Streamable HTTP

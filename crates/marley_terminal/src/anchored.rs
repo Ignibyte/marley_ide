@@ -14,7 +14,8 @@
 //! - `Bootstrapped` changes nothing here.
 //!
 //! A `Preexec` or `Precmd` before any `InitShell` is refused, as the gpui era's `SessionModel`
-//! refuses it.
+//! refuses it. The terminal [`AnchoredBlocks::stamp`]s the blocks as each hook applies, which
+//! keeps when each command started and ended beside its block (#491).
 //!
 //! [`visible_spans`] says which blocks a viewport shows and over which of its rows, for the
 //! terminal view to draw them, [`block_scroll`] where to scroll to show the previous or the next
@@ -22,6 +23,7 @@
 //! edge (T1).
 
 use std::ops::Range;
+use std::time::SystemTime;
 
 use crate::apply::ApplyHookError;
 use crate::block::{BlockState, ExitCode, PromptInfo};
@@ -51,10 +53,22 @@ pub struct AnchoredBlock {
     pub output_end: Option<u64>,
 }
 
+/// When a block's command started and, once it finished, when it ended: the times the terminal saw
+/// the shell's hooks arrive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlockTimes {
+    /// When the `Preexec` that opened the block was applied.
+    pub started: SystemTime,
+    /// When the hook that finished it was applied.
+    pub finished: Option<SystemTime>,
+}
+
 /// A terminal's blocks, in order, and the prompt staged for the next one.
 #[derive(Debug, Default)]
 pub struct AnchoredBlocks {
     blocks: Vec<AnchoredBlock>,
+    /// Each block's times, by index, as [`AnchoredBlocks::stamp`] kept them.
+    times: Vec<BlockTimes>,
     registered: bool,
     staged: Option<(PromptInfo, u64)>,
     nonce: Option<String>,
@@ -124,6 +138,33 @@ impl AnchoredBlocks {
     #[must_use]
     pub fn blocks(&self) -> &[AnchoredBlock] {
         &self.blocks
+    }
+
+    /// Stamps the blocks at `now`, right after a hook applied: a block opened since the last stamp
+    /// started now, and one finished since then ended now.
+    pub fn stamp(&mut self, now: SystemTime) {
+        while self.times.len() < self.blocks.len() {
+            self.times.push(BlockTimes {
+                started: now,
+                finished: None,
+            });
+        }
+        // One block runs at a time, so only the newest can have finished since the last stamp:
+        // the walk back stops at the first block that has its end.
+        for (block, times) in self.blocks.iter().zip(self.times.iter_mut()).rev() {
+            if times.finished.is_some() {
+                break;
+            }
+            if block.state == BlockState::Finished {
+                times.finished = Some(now);
+            }
+        }
+    }
+
+    /// When block `index` started and ended, once the terminal stamped it.
+    #[must_use]
+    pub fn times(&self, index: usize) -> Option<BlockTimes> {
+        self.times.get(index).copied()
     }
 
     /// Whether the shell waits at a prompt: a `Precmd` came, and no `Preexec` since.

@@ -374,6 +374,26 @@ alike.
 - `show_sender` answers a click: it activates the view's window, its workspace in the
   multi-workspace and its item, and clears the bell, as the rail's `activate_terminal` does.
 
+## Marley's MCP server (`src/mcp.rs`, #491)
+
+- `start`, which `zed`'s `main` calls after `initialize_workspace` (Zed's tests run
+  `initialize_workspace`, and must not start a server), spawns `marley_mcp`'s server once per
+  process, writes `mcp-endpoint.json` into `paths::data_dir()` on the background executor, and
+  removes it in `on_app_quit`. A server or a file that fails is logged and shown once, as a toast
+  in the first workspace; Marley runs on without it.
+- The server hands each call that is the app's to an unbounded channel, and a foreground task
+  answers it in a top-level update:
+  - `terminal_list`: every `TerminalView` in every window, the center panes' and the terminal
+    panel's, with its id (the view's entity id, as the rail's), its tab title, its project (the
+    first visible worktree), its working directory, the running block's command and how many
+    blocks it holds;
+  - `terminal_blocks`: the newest 50 blocks, at most 500, each with its command, whether the
+    command was verified, whether it runs, its exit code, the prompt's `pwd`, its start and
+    duration from `AnchoredBlocks::times` (a running block's duration is how long it has run),
+    and `Terminal::block_output_kept`;
+  - `terminal_read`: `Terminal::block_output`, the last 2,000 lines and at most 256 KiB, and
+    whether anything was left out.
+
 ## Marley's plugin for Claude Code (`src/claude_plugin.rs`, `claude_plugin/`, #482)
 
 - The plugin lives as files in the crate: a local marketplace named `marley` and the plugin,
@@ -387,6 +407,15 @@ alike.
 - `install` writes the plugin, runs `claude plugin marketplace add` unless
   `known_marketplaces.json` has `marley`, then `claude plugin install marley@marley`, and shows a
   toast or the error. The agent bar's chip calls it.
+- Since #491 (version 1.1.0) the plugin declares an MCP server, `marley`, in `marley/.mcp.json`:
+  `bin/marley-mcp-bridge`, Python 3 with the standard library only. It reads the endpoint file
+  (`$MARLEY_MCP_ENDPOINT`, else `${XDG_DATA_HOME:-~/.local/share}/marley/mcp-endpoint.json`),
+  sends the bearer only to a loopback `http` URL, and passes each JSON-RPC message to Marley in a
+  session of its own, replaying the client's `initialize` when Marley starts over and closing the
+  session when its input ends. With no Marley it answers `initialize` and lists no tools; a thread
+  checks every two seconds whether Marley answers and sends `notifications/tools/list_changed`
+  when that changes. The root `.gitignore` ignores every `.mcp.json`, since a local one carries
+  bearers, with an exception for this one.
 
 ## The Browser tab (`src/browser.rs`, #488 to #490)
 
