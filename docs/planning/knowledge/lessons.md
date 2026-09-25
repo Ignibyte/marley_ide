@@ -2690,3 +2690,27 @@ with the loaded items' new ids, so an item's own table keeps one row per live it
 saves on `added_to_workspace` (Zed does that for every serializable item) and its `cleanup`
 deletes the rest (`delete_unloaded_items`). A table keyed by anything but the item id outlives
 its items.
+
+## L-claude-495-a-listener-and-a-binding-catch-what-headless-chromium-hides-001
+*category: build · topic: CDP, isolated worlds · from: pipeline 495*
+
+To act on something headless Chromium opens out of sight (a `<select>`'s popup), a listener in
+an isolated world beats a hit test before every press. `Runtime.addBinding` with
+`executionContextName` exposes a function in the worlds of that name, which
+`Page.addScriptToEvaluateOnNewDocument` with `worldName` makes for each new document and
+`Page.createIsolatedWorld` makes for one already loaded; its calls arrive as
+`Runtime.bindingCalled` on the session, with the calling world's context. The world's listeners
+see the page's own events: `preventDefault` on a select's `mousedown` keeps the popup shut, and
+the page's listeners still run. Events the world dispatches reach the page's listeners as not
+trusted.
+
+## L-claude-495-a-menu-at-a-point-in-a-view-001
+*category: build · topic: Zed UI · from: pipeline 495*
+
+A `ui::ContextMenu` at an arbitrary point is the view's to draw: build it with
+`ContextMenu::build`, keep the entity and a `DismissEvent` subscription in one field, render it
+as `deferred(anchored().position(p).anchor(Anchor::TopLeft).snap_to_window_with_margin(…))`
+with priority 1, and focus its handle. `select_toggled_or_first` starts it on the checked
+entry. An entry's handler runs inside the menu's own update and may clear the field, dropping
+the menu and its subscription there; the menu's dismissal after the confirm then reaches no
+one, which Zed's editor relies on too.

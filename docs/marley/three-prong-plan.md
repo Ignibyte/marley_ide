@@ -339,7 +339,7 @@ reaching his desktop.
 | B2 | #492 | The `browser_*` tools: look, snapshot, console, network; navigate, click, type, press, scroll (shipped) | M |
 | B1b | #493 | Tabs as page targets: pages the page, an agent or Ctrl+T opens appear as tabs, a closed tab closes its page, the tools take `tab` (shipped) | M |
 | B1c | #494 | The Browser tabs saved with the workspace and back after a relaunch, on their pages or at their URLs (shipped) | S |
-| B1d | #495 | Marley's own `<select>` picker | S |
+| B1d | #495 | Marley's own `<select>` lists, drawn under the select in any frame, for the user's opening (shipped) | S |
 | B3a | wave 2 | Pillar A: pick mode, the durable bundle (ranked locators, AX node, listeners, blocking styles), picks staged for Chad to caption and send | L |
 | B3b | wave 2 | A picked element's listener source, through its source map, opened in the editor at the line | M |
 | B4 | wave 2 | Pillar B, annotations drawn by gpui and anchored in page coordinates | M |
@@ -355,8 +355,8 @@ and the tools turn out to be.
 - HiDPI frames need `--force-device-scale-factor` at the service's start; a Marley window
   moved to a screen of another scale gets soft frames until Chromium restarts.
 - Headless Chromium draws no browser UI, so everything that is browser UI in a normal
-  browser is Marley's to draw: `<select>` popups (#495), JavaScript dialogs (#490), file
-  choosers, downloads, context menus, the page's cursor shape.
+  browser is Marley's to draw. `<select>` lists (#495) and JavaScript dialogs (#490) are drawn;
+  file choosers, downloads, context menus and the page's cursor shape are not yet.
 - The unit outlives Marley, so a Chromium that crashed or was stopped must read as such in
   the tab, with a way back (the #406 lesson: transport failures arrive as silence).
 - Screencast is frame-streamed; fine for browsing and agent work, wrong for video. Accepted.

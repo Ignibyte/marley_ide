@@ -39,12 +39,13 @@ use editor::actions::SelectAll;
 use futures::StreamExt as _;
 use futures::channel::{mpsc, oneshot};
 use gpui::{
-    AnyWindowHandle, App, AsyncApp, BackgroundExecutor, Bounds, ClipboardItem, Corners,
-    DispatchPhase, Element, ElementId, ElementInputHandler, Entity, EntityInputHandler,
-    EventEmitter, FocusHandle, Focusable, Global, GlobalElementId, Hitbox, HitboxBehavior,
-    InspectorElementId, KeyDownEvent, LayoutId, Modifiers, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, Pixels, Point, RenderImage, ScrollWheelEvent, Size, Style,
-    Subscription, Task, UTF16Selection, WeakEntity, WindowHandle, relative,
+    Anchor, AnyWindowHandle, App, AsyncApp, BackgroundExecutor, Bounds, ClipboardItem, Corners,
+    DismissEvent, DispatchPhase, Element, ElementId, ElementInputHandler, Entity,
+    EntityInputHandler, EventEmitter, FocusHandle, Focusable, Global, GlobalElementId, Hitbox,
+    HitboxBehavior, InspectorElementId, KeyDownEvent, LayoutId, Modifiers, MouseButton,
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point, RenderImage, ScrollWheelEvent,
+    Size, Style, Subscription, Task, UTF16Selection, WeakEntity, WindowHandle, anchored, deferred,
+    point, relative,
 };
 use marley_browser::cdp::{self, CdpError, Connection, Event};
 use marley_browser::input::{self, KeyPress};
@@ -53,12 +54,13 @@ use marley_browser::page::{
     DialogKind, FrameMetadata, JavaScriptDialog, NavigationHistory, Page, ScreencastFrame,
     TargetInfo,
 };
+use marley_browser::select::{self, SelectRequest};
 use marley_browser::snapshot::RefTarget;
 use marley_browser::{address, frame, service};
 use project::Project;
 use serde_json::Value;
 use ui::prelude::*;
-use ui::{AlertModal, Chip, Tooltip};
+use ui::{AlertModal, Chip, ContextMenu, IconPosition, Tooltip};
 use util::ResultExt as _;
 use workspace::item::{Item, ItemEvent, SerializableItem};
 use workspace::{ItemId, MultiWorkspace, Pane, SplitDirection, Workspace, WorkspaceId};
@@ -97,6 +99,10 @@ const BLANK: &str = "about:blank";
 
 /// How often a tab waiting for its page looks at the browser's state.
 const SHOWN_POLL: Duration = Duration::from_millis(250);
+
+/// How soon after the user's press or key in the page a select that opens is taken as the
+/// user's (#495); one an agent's click or key opens stays shut.
+const USER_PRESS: Duration = Duration::from_secs(1);
 
 /// A cross-site iframe of a page, attached with a session of its own (#492).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -168,6 +174,11 @@ pub enum BrowserEvent {
         /// The page.
         target: String,
     },
+    /// A page's `<select>` is opening (#495): its tab shows the list.
+    SelectOpened {
+        /// The page.
+        target: String,
+    },
 }
 
 /// The viewport a tab asked for: its size in whole logical pixels, at the window's scale.
@@ -176,6 +187,15 @@ struct Viewport {
     width: u32,
     height: u32,
     scale: f32,
+}
+
+/// A select the page's listener caught opening (#495), with where the choice goes: the session
+/// and the listener's world that reported it.
+#[derive(Debug, Clone)]
+struct SelectState {
+    session: String,
+    context: i64,
+    request: SelectRequest,
 }
 
 /// One page of Marley's Chromium, as its tab shows it (#493).
@@ -193,6 +213,8 @@ struct PageState {
     history: Option<NavigationHistory>,
     /// The JavaScript dialog the page waits on.
     dialog: Option<JavaScriptDialog>,
+    /// The select whose list the page's tab shows or is about to.
+    select: Option<SelectState>,
     /// The page's cross-site iframes (#492).
     iframes: Vec<Iframe>,
     /// What the page logged since it was attached.
@@ -228,6 +250,7 @@ impl PageState {
             loading: false,
             history: None,
             dialog: None,
+            select: None,
             iframes: Vec::new(),
             console: ConsoleLog::default(),
             network: NetworkLog::default(),
@@ -644,6 +667,7 @@ impl BrowserHub {
         });
         let generation = self.generation;
         cx.spawn(async move |this, cx| {
+            page.watch_selects(page.session_id()).await.log_err();
             if let Some(info) = page.target_info().await.log_err() {
                 this.update(cx, |this, cx| this.target_changed(generation, info, cx))
                     .ok();
@@ -911,6 +935,79 @@ impl BrowserHub {
         }
     }
 
+    /// A page's listener reported a select opening (#495): the page keeps it for its tab.
+    fn select_requested(
+        &mut self,
+        generation: u64,
+        session: &str,
+        params: &Value,
+        cx: &mut Context<Self>,
+    ) {
+        if generation != self.generation
+            || params.get("name").and_then(Value::as_str) != Some(select::BINDING)
+        {
+            return;
+        }
+        let Some(target) = self.target_of_session(session) else {
+            return;
+        };
+        let (Some(payload), Some(context)) = (
+            params.get("payload").and_then(Value::as_str),
+            params.get("executionContextId").and_then(Value::as_i64),
+        ) else {
+            return;
+        };
+        let request = match SelectRequest::parse(payload) {
+            Ok(request) => request,
+            Err(error) => {
+                log::warn!("browser: a select's report did not read: {error}");
+                return;
+            }
+        };
+        if let Some(page) = self.page_state_mut(&target) {
+            page.select = Some(SelectState {
+                session: session.to_string(),
+                context,
+                request,
+            });
+            cx.emit(BrowserEvent::SelectOpened { target });
+        }
+    }
+
+    /// The select whose list the page's tab shows or is about to.
+    fn select(&self, target: &str) -> Option<&SelectState> {
+        self.page_state(target)?.select.as_ref()
+    }
+
+    /// Chooses option `index` of the page's open select.
+    fn choose_option(&mut self, target: &str, index: usize, cx: &Context<Self>) {
+        let Some(page) = self.page_state_mut(target) else {
+            return;
+        };
+        let Some(select) = page.select.take() else {
+            return;
+        };
+        let session = page.page.clone();
+        cx.spawn(async move |_, _| {
+            match session
+                .choose_option(&select.session, select.context, index)
+                .await
+            {
+                Ok(true) => {}
+                Ok(false) => log::info!("browser: the select or its option went before the choice"),
+                Err(error) => log::warn!("browser: choosing a select's option failed: {error}"),
+            }
+        })
+        .detach();
+    }
+
+    /// Forgets the page's open select: its list closed with no choice.
+    fn dismiss_select(&mut self, target: &str) {
+        if let Some(page) = self.page_state_mut(target) {
+            page.select = None;
+        }
+    }
+
     fn dialog_closed(&mut self, generation: u64, target: &str, cx: &mut Context<Self>) {
         if generation == self.generation {
             self.leave_dialog(target, cx);
@@ -1141,6 +1238,7 @@ impl BrowserHub {
         let page = page.page.clone();
         cx.spawn(async move |_, _| {
             page.observe(&session).await.log_err();
+            page.watch_selects(&session).await.log_err();
         })
         .detach();
     }
@@ -1489,6 +1587,13 @@ fn no_page(target: &str) -> String {
     format!("the browser has no tab {target}")
 }
 
+/// A length in the window's logical pixels from one CDP gives.
+const fn window_pixels(length: f64) -> Pixels {
+    #[allow(clippy::cast_possible_truncation)] // a length on a screen fits an f32
+    let length = length as f32;
+    px(length)
+}
+
 /// Rounds a length to the whole CSS pixels CDP takes, between 1 and 16,384.
 fn whole_pixels(length: Pixels) -> u32 {
     let clamped = f32::from(length).round().clamp(1.0, 16_384.0);
@@ -1821,6 +1926,14 @@ fn follow_observed(
                 this.iframe_detached(generation, &event.params);
             })
             .ok();
+        }
+        "Runtime.bindingCalled" => {
+            if let Some(session) = event.session_id.as_deref() {
+                this.update(cx, |this, cx| {
+                    this.select_requested(generation, session, &event.params, cx);
+                })
+                .ok();
+            }
         }
         _ => {}
     }
@@ -2207,7 +2320,22 @@ pub struct BrowserView {
     last_press: Option<Point<Pixels>>,
     /// The input method's text not yet committed, shown as the page's composition.
     marked: String,
+    /// Where the page's frame sat in the window at the last paint, which places a select's list.
+    mapping: Option<PageMapping>,
+    /// When the user last pressed in the page, or sent it a key: a select that opens right after
+    /// is the user's.
+    pressed_at: Option<Instant>,
+    /// The list of the page's open select (#495).
+    select_menu: Option<SelectMenu>,
     _subscriptions: Vec<Subscription>,
+}
+
+/// A select's list, drawn by the tab over the page where the select's popup would be.
+struct SelectMenu {
+    menu: Entity<ContextMenu>,
+    /// Its top left, in the window: under the select, at its left edge.
+    position: Point<Pixels>,
+    _dismissed: Subscription,
 }
 
 impl fmt::Debug for BrowserView {
@@ -2311,6 +2439,9 @@ impl BrowserView {
             previous_frame: None,
             last_press: None,
             marked: String::new(),
+            mapping: None,
+            pressed_at: None,
+            select_menu: None,
             _subscriptions: subscriptions,
         };
         view.show_address(window, cx);
@@ -2454,6 +2585,9 @@ impl BrowserView {
                 if self.focus_handle.contains_focused(window, cx) {
                     self.focus_dialog(window, cx);
                 }
+            }
+            BrowserEvent::SelectOpened { target: opened } if *opened == target => {
+                self.open_select(window, cx);
             }
             BrowserEvent::DialogClosed { target: closed }
                 if *closed == target
@@ -2608,6 +2742,107 @@ impl BrowserView {
         }
     }
 
+    /// Shows the list of the select the page's listener reported (#495), when the user opened
+    /// it: the user pressed in the page, or sent it a key, a moment before.
+    fn open_select(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(target) = self.target.clone() else {
+            return;
+        };
+        let Some(request) = self
+            .hub
+            .read(cx)
+            .select(&target)
+            .map(|select| select.request.clone())
+        else {
+            return;
+        };
+        let pressed = self
+            .pressed_at
+            .is_some_and(|pressed_at| pressed_at.elapsed() < USER_PRESS);
+        let position = self.select_position(&request);
+        let (Some(position), true) = (position, pressed) else {
+            // An agent's click, say: the select stays shut, and focused for keys.
+            self.hub.update(cx, |hub, _| hub.dismiss_select(&target));
+            return;
+        };
+        let view = cx.weak_entity();
+        let menu = ContextMenu::build(window, cx, |mut menu, _, _| {
+            let mut group = None;
+            for (index, option) in request.options.iter().enumerate() {
+                if option.group != group {
+                    menu = match &option.group {
+                        Some(label) => menu.header(label.clone()),
+                        None => menu.separator(),
+                    };
+                    group.clone_from(&option.group);
+                }
+                let view = view.clone();
+                menu = menu.toggleable_entry_disabled_when(
+                    option.text.clone(),
+                    request.selected == Some(index),
+                    option.disabled,
+                    IconPosition::Start,
+                    None,
+                    move |window, cx| {
+                        view.update(cx, |view, cx| view.choose_option(index, window, cx))
+                            .ok();
+                    },
+                );
+            }
+            menu
+        });
+        menu.update(cx, |menu, cx| menu.select_toggled_or_first(window, cx));
+        window.focus(&menu.focus_handle(cx), cx);
+        let dismissed = cx.subscribe_in(&menu, window, |this, _, _: &DismissEvent, window, cx| {
+            this.close_select(window, cx);
+        });
+        self.select_menu = Some(SelectMenu {
+            menu,
+            position,
+            _dismissed: dismissed,
+        });
+        cx.notify();
+    }
+
+    /// Where a select's list goes in the window: under the select, at its left edge. The select's
+    /// box is in its frame's viewport; a press, known in the page and in the frame, gives the
+    /// frame's place in the page, and a key leaves the box as the main frame's.
+    fn select_position(&self, request: &SelectRequest) -> Option<Point<Pixels>> {
+        let mapping = self.mapping?;
+        let (offset_x, offset_y) = match (request.press_x, request.press_y, self.last_press) {
+            (Some(press_x), Some(press_y), Some(press)) => {
+                let (page_x, page_y) = mapping.map(press);
+                (page_x - press_x, page_y - press_y)
+            }
+            _ => (0.0, 0.0),
+        };
+        Some(mapping.to_window((
+            request.left + offset_x,
+            request.top + request.height + offset_y,
+        )))
+    }
+
+    /// The user chose option `index` from a select's list.
+    fn choose_option(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(target) = self.target.clone() {
+            self.hub
+                .update(cx, |hub, cx| hub.choose_option(&target, index, cx));
+        }
+        self.select_menu = None;
+        window.focus(&self.focus_handle, cx);
+        cx.notify();
+    }
+
+    /// A select's list closed with no choice: the page keeps its value.
+    fn close_select(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(target) = self.target.clone() {
+            self.hub.update(cx, |hub, _| hub.dismiss_select(&target));
+        }
+        self.select_menu = None;
+        window.focus(&self.focus_handle, cx);
+        cx.notify();
+    }
+
     /// Records `frame` as drawn now, and frees the frame drawn two paints ago.
     fn drew(&mut self, frame: &Arc<RenderImage>, window: &mut Window) {
         if self
@@ -2632,6 +2867,7 @@ impl BrowserView {
         let Some(target) = self.target.clone() else {
             return;
         };
+        self.pressed_at = Some(Instant::now());
         let keystroke = &event.keystroke;
         let modifiers = &keystroke.modifiers;
         let ctrl_alone = modifiers.control && !modifiers.alt && !modifiers.platform;
@@ -3040,6 +3276,17 @@ impl Render for BrowserView {
                     })
                     .children(dialog),
             )
+            // Over everything, as Chromium's own popup would be.
+            .children(self.select_menu.as_ref().map(|select| {
+                deferred(
+                    anchored()
+                        .position(select.position)
+                        .anchor(Anchor::TopLeft)
+                        .snap_to_window_with_margin(px(8.))
+                        .child(select.menu.clone()),
+                )
+                .with_priority(1)
+            }))
     }
 }
 
@@ -3308,6 +3555,7 @@ impl Element for PageElement {
         );
         if let Some(target) = self.target.clone() {
             let to_page = PageMapping::new(bounds, self.frame.as_deref(), self.metadata, window);
+            self.view.update(cx, |view, _| view.mapping = Some(to_page));
             self.listen(target, hitbox, to_page, window);
         }
         let Some(frame) = self.frame.clone() else {
@@ -3367,6 +3615,14 @@ impl PageMapping {
             f64::from(offset.y) * self.scale_y,
         )
     }
+
+    /// Where a point of the page, in CSS pixels, falls in the window.
+    fn to_window(self, (x, y): (f64, f64)) -> Point<Pixels> {
+        point(
+            self.origin.x + window_pixels(x / self.scale_x),
+            self.origin.y + window_pixels(y / self.scale_y),
+        )
+    }
 }
 
 impl PageElement {
@@ -3385,7 +3641,10 @@ impl PageElement {
                     return;
                 }
                 window.focus(&focus_handle, cx);
-                view.update(cx, |view, _| view.last_press = Some(event.position));
+                view.update(cx, |view, _| {
+                    view.last_press = Some(event.position);
+                    view.pressed_at = Some(Instant::now());
+                });
                 hub.update(cx, |hub, cx| {
                     hub.mouse_press(
                         &target,

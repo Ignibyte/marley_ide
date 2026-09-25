@@ -1963,3 +1963,13 @@ seat's newest virtual keyboard was a step's `wtype`, gone by then, and the keybo
 run started with was older. Fixed in the harness: `hold_keyboard` starts a new holder before
 each launch, so the seat's live keyboard is the holder's when Marley binds it. gpui's unwrap
 is Zed's and stays, since a real compositor always sends a keymap.
+
+## F-claude-495-the-list-opened-for-an-agents-click-in-a-focused-tab-001
+*severity: low · found in: pipeline 495's Test phase (checking D4 against the run) · class: an agent's action read as the user's*
+
+The tab first opened a select's list when the user had pressed in the page within a second or
+when the page had the focus, the second for keys. An agent's `browser_click` on a select while
+the user's focus sat in that page would then have opened a list the user never asked for, and
+moved the focus into it. Fixed before the commit: the tab's own key path stamps the same moment
+a press does, and the list opens only within a second of that stamp; the scenario's last step,
+an agent's click with the page focused, opens nothing.

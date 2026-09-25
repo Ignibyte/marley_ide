@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #495 (feature, prong 3 B1d; split from #493)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/495-select-picker.spec.md
+- **Pipeline doc:** ../../pipeline/completed/495-select-picker.spec.md
 - **Source ticket:** docs/marley/three-prong-plan.md, prong 3 B1
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Headless Chromium draws no `<select>` popup, so a press on a select in the Browser tab shows

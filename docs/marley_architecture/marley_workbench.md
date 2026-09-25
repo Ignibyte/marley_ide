@@ -555,6 +555,17 @@ alike.
   the tab's focus goes to it while the page waits; a navigation, back, forward or reload
   answers an open dialog with Cancel first, as Chrome closes a page's dialog when the page is
   left.
+- **Select lists (#495).** The hub watches each page's session once the page is attached, and
+  each cross-site iframe's once it is observed (`Page::watch_selects`). A `Runtime.bindingCalled`
+  from the select world becomes the page's `select` (the session, the listener's context, the
+  request) and `BrowserEvent::SelectOpened`. The tab opens a `ContextMenu` for it only within a
+  second of the user's own press or key in the page, so an agent's click opens nothing: a header
+  per group and a separator after one, a checked entry for the selected option, disabled ones
+  greyed. The menu starts on the current option, takes the focus, and is drawn with
+  `deferred(anchored())` at the select's bottom left, from the frame's mapping at the last paint
+  and, for a press, the difference between the press in the page and in its frame, which places
+  it right in any frame. A choice calls the hub's `choose_option`, a dismissal its
+  `dismiss_select`, and either gives the page the focus back.
 
 ## Tests
 

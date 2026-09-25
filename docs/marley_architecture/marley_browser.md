@@ -117,6 +117,23 @@ for.
   `Ctrl+A` or `Shift+ArrowLeft` into a key press; `address::agent_url` lets an agent open `http`
   and `https` URLs only.
 
+## Select lists (`src/select.rs`, #495)
+
+- Headless Chromium opens a `<select>`'s popup in a widget no frame shows. `LISTENER`, a script
+  run in the isolated world `WORLD` of each frame, takes the press that would open a single,
+  enabled select (a primary-button `mousedown`, and Alt+Down, Alt+Up, F4 or Space on a focused
+  one), cancels it, which keeps the popup shut, gives the select the focus, and reports it
+  through the binding `BINDING` as a `SelectRequest`: the select's box and the press in its
+  frame's viewport, the selected index, and the options with text, disabled and group. The
+  page's own listeners still get the event; a closed, focused select takes the arrows in the
+  page as Chromium's does.
+- `Page::watch_selects(session)` adds the binding for the world
+  (`Runtime.addBinding` with `executionContextName`), the listener for each new document
+  (`Page.addScriptToEvaluateOnNewDocument` with `worldName`), and, for each frame the session
+  shows already, a new world with the listener evaluated in it. `Page::choose_option(session,
+  context, index)` sets the select's index in the world that reported it and dispatches `input`
+  and `change` when the choice differs; the events are not trusted.
+
 ## What the probe answered (2026-09-24)
 
 A key dispatched over CDP reaches a frame in 6 to 7 ms; frames come at the size the device

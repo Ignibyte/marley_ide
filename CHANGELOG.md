@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Select lists in the Browser tab** (#495, 2026-09-25). A page's drop-down list, which
+  headless Chromium opens where no one can see it, now opens as a Marley list right under it,
+  in the page or in a frame from another site: the current option checked, each group's name
+  over its options, a disabled option greyed. Click an option, or use the arrows and Enter;
+  Escape or a click elsewhere closes the list and keeps the value. Alt+Down, F4 or Space on a
+  focused list opens it too, and the arrows on a closed one change its value as in Chromium. A
+  choice reaches the page's own scripts as an input and a change. A list an agent clicks stays
+  shut, so an agent never takes your focus that way.
 - **Browser tabs come back after a relaunch** (#494, 2026-09-25). Browser tabs are saved with
   their workspace. When Marley starts again while its Chromium still runs, each tab returns on
   its own page, with what you typed into the page and where you scrolled; when the Chromium has

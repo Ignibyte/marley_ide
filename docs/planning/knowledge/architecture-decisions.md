@@ -2007,3 +2007,17 @@ tabs' to say, and a page no tab claims waits for `marley: open browser` or an ag
 the URL in Zed's layout (the #403 rule); reloading every tab at launch (it would lose what a
 live page holds); a tab for every page a start finds (a relaunch would open duplicates of the
 restored tabs).
+
+## AD-claude-495-marley-draws-the-pages-select-lists-001
+*decided at: 2026-09-25 · status: shipped*
+
+Marley draws a page's `<select>` lists, which headless Chromium opens out of sight. A listener
+in an isolated world of every frame the hub watches (the page's, its same-site frames', and each
+cross-site iframe's session) cancels the press or key that would open a single, enabled select
+and reports it through a CDP binding; the Browser tab shows Zed's `ContextMenu` under it and
+sets the choice in the same world, dispatching `input` and `change`. The list opens only within
+a second of the user's own press or key in the page, so an agent's click opens nothing; the
+agent keeps the page's keys. Rejected: a hit test (`DOM.getNodeForLocation`) before every
+press, which puts a round trip in front of each click and misses a keyboard opening; letting
+Chromium's invisible popup open, which swallows keys; opening the list for any click, which
+would let an agent take the user's focus.
