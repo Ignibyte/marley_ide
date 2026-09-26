@@ -79,30 +79,41 @@ pub(crate) fn now_ms() -> u64 {
 }
 
 /// Folds the body of a `marley-event` frame from `view`'s terminal into the view's seat, while
-/// Claude Code is the terminal's foreground program.
-pub(crate) fn on_frame(view: &TerminalView, body: &str, cx: &mut Context<TerminalView>) {
+/// Claude Code is the terminal's foreground program, and gives the seat's state before the frame
+/// and the seat after it, for the push (#535).
+pub(crate) fn on_frame(
+    view: &TerminalView,
+    body: &str,
+    cx: &mut Context<TerminalView>,
+) -> Option<(State, Session)> {
     if crate::agent_bar::agent_in(view.terminal().read(cx)) != Some(AgentKind::Claude) {
-        return;
+        return None;
     }
     let event = match claude_events::decode(body) {
         Ok(event) => event,
         Err(error) => {
             log::debug!("a marley-event frame that is not an event: {error}");
-            return;
+            return None;
         }
     };
     let seat = seat_id(cx.entity_id());
     let previous = cx
         .try_global::<AgentEvents>()
         .and_then(|events| events.snapshot.get(&seat));
+    let before = previous.map_or(State::Starting, |session| session.state);
     let events = claude_events::fold(&seat, previous, &event, now_ms());
     if events.is_empty() {
-        return;
+        return None;
     }
     let agent_events = cx.default_global::<AgentEvents>();
     for event in &events {
         marley_fleet::apply(&mut agent_events.snapshot, event);
     }
+    agent_events
+        .snapshot
+        .get(&seat)
+        .cloned()
+        .map(|after| (before, after))
 }
 
 /// Ends the seats of the terminals named by their ids, whose Claude Code has left the foreground

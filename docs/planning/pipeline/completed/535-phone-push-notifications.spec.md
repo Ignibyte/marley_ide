@@ -1,7 +1,7 @@
 ---
 pipeline_id: b860795e-c6f8-4c20-acec-4cae3d2dd2e8
 ticket: docs/planning/tickets/open/TICKET-535-phone-push-notifications.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Agent events pushed to the phone through ntfy on the dev box"
 type: feature
 slice: prong 2, remote control; the phone path's first slice (report 04 §3.2 item 1)
@@ -17,9 +17,10 @@ the native app and a Rust relay are designed in the notes as later slices.
 
 ## Scope
 ### In
-- `crates/marley_workbench/src/push.rs` (new, Marley-owned): follows the seats #519's
-  `marley_workbench::agent_events` keeps, one per terminal, and for three changes posts to ntfy
-  with Zed's HTTP client (`App::http_client`):
+- `crates/marley_workbench/src/push.rs` (new, Marley-owned): acts on the changes of the seats
+  #519's `marley_workbench::agent_events` keeps, one per terminal (`on_frame` reports a seat's
+  state before and after each frame), and for three of them posts to ntfy with Zed's HTTP client
+  (`App::http_client`):
   - needs input: the seat starts waiting (a `PermissionRequest`, or a `PreToolUse` of
     `AskUserQuestion`);
   - finished: a `Stop` ends a working turn;
@@ -35,7 +36,7 @@ the native app and a Rust relay are designed in the notes as later slices.
 - Settings, a `push` block in `MarleySettingsContent` (`crates/settings_content/src/marley.rs`, a
   Marley file in a Zed crate) read by `MarleySettings`: `url` (the ntfy server, loopback only),
   `topic`, and `token_file` (optional: a file holding an ntfy access token). Unset means no push.
-  A Push section on the Marley settings page, when #515 has added the page.
+  A Push section on the Marley settings page (#515's page), three text fields.
 - The token is read from its file at each post and sent as `Authorization: Bearer`; it is never
   logged and never kept in settings.
 - A failed post logs a warning and, once per failure spell, shows a toast naming the server; a
@@ -101,8 +102,10 @@ reaches, and Marley draws nothing new except a toast when the server is down.
 `script/e2e/535-phone-push-notifications.sh` (`compositor sway`, so Marley's window is the active
 one and the focused-terminal case is real) runs the real Marley with a fake ntfy, a Python HTTP
 server on a loopback port that logs each request's method, path, headers and body, and a fake
-`claude` (L-claude-480, started as #481's scenario starts one) that prints #519's frames for a
-permission request, a finished turn and a failed turn when the scenario touches a trigger file.
+`claude` in the shape of #519's and #547's: at each Enter it runs the plugin's real hooks with
+recorded payloads, `hooks/event.py` for every event and `hooks/notify.sh` where Claude Code runs it
+too (the `Notification` of a permission prompt, and `Stop`), so the desktop banner of a real
+session shows as well.
 Marley runs on a private D-Bus session bus whose fake notification server logs each banner, so no
 banner reaches Chad's desktop (the helper #538's scenario also uses). The proof of each push is the
 fake server's log; each shot shows the agent terminal at its event,

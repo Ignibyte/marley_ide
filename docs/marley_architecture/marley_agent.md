@@ -28,6 +28,9 @@ pub enum AgentStatus { Working, Waiting, Idle, Failed }  // label(): "working", 
 pub const WAITING_AFTER: Duration;                  // 2 s
 pub fn agent_status(quiet_for: Duration, bell: bool) -> AgentStatus;
 pub fn status_line(kind: AgentKind, status: AgentStatus) -> String;   // "Claude Code · waiting"
+pub enum TurnEvent { NeedsInput, Finished, Failed }    // of_change(before, after), words()
+pub fn event_line(project: &str, kind: AgentKind, event: TurnEvent) -> String;
+                                                     // "marley_ide: Claude needs input" (#535)
 ```
 
 - **`agent_kind_of`** reads a command line's leading program, with a directory path stripped

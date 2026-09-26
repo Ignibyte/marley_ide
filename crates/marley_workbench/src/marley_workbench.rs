@@ -32,6 +32,7 @@ pub mod claude_plugin;
 pub mod marley_workbench_tests;
 pub mod mcp;
 pub mod notifications;
+pub mod push;
 mod rail;
 pub mod rich_input;
 pub mod routing;
@@ -175,6 +176,19 @@ pub struct MarleySettings {
     /// Minutes a working Claude Code may go without an event before its row says so; 0 is never
     /// (#547).
     pub no_update_after_minutes: u64,
+    /// Where agent events are pushed for the phone, when a server and a topic are set (#535).
+    pub push: Option<PushSettings>,
+}
+
+/// The ntfy server agent events are pushed to (#535), as the user set it; [`push`] checks it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PushSettings {
+    /// The server's URL.
+    pub url: String,
+    /// The topic on the server.
+    pub topic: String,
+    /// The file holding the access token, when there is one.
+    pub token_file: Option<String>,
 }
 
 impl Settings for MarleySettings {
@@ -193,6 +207,22 @@ impl Settings for MarleySettings {
             no_update_after_minutes: marley
                 .and_then(|marley| marley.no_update_after_minutes)
                 .unwrap_or(30),
+            push: marley
+                .and_then(|marley| marley.push.as_ref())
+                .and_then(|push| {
+                    let set = |value: &Option<String>| {
+                        value
+                            .as_deref()
+                            .map(str::trim)
+                            .filter(|value| !value.is_empty())
+                            .map(str::to_string)
+                    };
+                    Some(PushSettings {
+                        url: set(&push.url)?,
+                        topic: set(&push.topic)?,
+                        token_file: set(&push.token_file),
+                    })
+                }),
         }
     }
 }

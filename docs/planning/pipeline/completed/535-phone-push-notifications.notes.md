@@ -194,3 +194,142 @@ lock screen shows and ntfy's log of the poll request to ntfy.sh.
 5. **Push once the app exists.** Stay on ntfy (the app subscribes as ntfy's does, or through
    UnifiedPush on Android), or send through APNs directly, which needs an Apple developer account
    and a key of Chad's. What leaves the box stays D2's line unless Chad widens it.
+
+## Chad's answer, 2026-09-26
+- "lets do the planning phases for this": promote after #547, through `/pipeline:plan`.
+
+### Promotion (2026-09-26): what changed from the queued design
+- **Recall at promotion:** L-claude-478-omarchys-notifications-go-to-quickshell-001 (the private
+  bus stays: this scenario raises banners); L-claude-547-marleys-path-is-the-login-shells-001 and
+  PR-claude-name-the-fakes-the-app-runs-001 (the stand-in `claude` runs inside a terminal, so the
+  scenario's `.bashrc` puts it first; Marley itself runs nothing here but its HTTP client);
+  F-claude-547-a-timer-armed-at-the-first-event-fired-before-the-last-was-a-minute-old-001 (the
+  cooldown is measured from the last post, per project). Brain consultation
+  a7148ae197fb4de586e54d0eb6666ac0: nothing on this seam.
+- **Seams re-verified at `b6103917ba`** (#519 and #547 have landed):
+  - `crates/marley_workbench/src/agent_events.rs`: `AgentEvents` (one `FleetSnapshot`, a seat per
+    terminal view, keyed by the view's id), `on_frame` (drops a frame unless Claude Code is the
+    foreground, decodes, folds, applies), `end`, `forget`, `next_quiet_change`. It emits nothing
+    per frame, so the design changes: `on_frame` returns the seat's state before and after, and
+    the caller acts on it.
+  - `crates/marley_workbench/src/notifications.rs:38-51`: the subscription that routes a
+    `marley-event` title to `on_frame` has the view and the window, which the focus gate needs;
+    it calls `push::on_change(view, before, after, window, cx)` after `on_frame`. The gate
+    (`:66`, the active window's focused terminal) becomes one function, `looking_at`, that
+    `notify` and `push` both call.
+  - The kinds from `marley_fleet::State`: needs input is a change into `Waiting`; finished is a
+    change into `Idle` from `Working` or `Waiting`; failed is a change into `Error`.
+  - `crates/settings_content/src/marley.rs` now holds `layout`, `redact_secrets_for_agents`,
+    `redaction_patterns` and `no_update_after_minutes`; `push` joins them. #515's page exists
+    (`crates/settings_ui/src/marley_page.rs`, sections Layout, Agents, Privacy), and `settings_ui`
+    renders `String` fields (`settings_ui.rs:554`), so the Push section is in this slice.
+  - The plugin (1.2.0) runs `hooks/event.py` for every event and `hooks/notify.sh` for the
+    `Notification` hook and `Stop`, so a real permission prompt raises both a frame (the rail, and
+    now the push) and notify.sh's banner (the desktop). REQ-010's "still show the desktop
+    notification" is that banner, on the private bus.
+  - `crates/http_client/src/http_client.rs` and `App::http_client` unchanged.
+- **The scenario's stand-in:** the #519/#547 shape (a Python `claude` first on the terminal's PATH
+  that runs the real hooks at each Enter) replaces the trigger-file fake; it also runs
+  `notify.sh` where Claude Code does.
+- **Needs Chad at Test:** the real phone. ntfy is not installed on the box and `tailscale serve
+  --https` publishes a port on the tailnet; both are changes to his machine and network, so Test
+  asks before setting them up, and records what the lock screen shows.
+
+## Phase 2 — Code
+- **Built.**
+  - `marley_agent`: `AgentKind::short_name` ("Claude"); `TurnEvent` (`NeedsInput`, `Finished`,
+    `Failed`) with `of_change(before, after)` over `marley_fleet::State` (a change into
+    `Waiting`; into `Idle` from `Working` or `Waiting`; into `Error`; a wait or a failure that
+    repeats is none) and `words`; `event_line(project, kind, event)`, the one line, with the
+    project's control characters dropped. `claude_events::CWD_LABEL` names the seat's `cwd`.
+  - `agent_events::on_frame` returns the seat's state before the frame and the seat after it.
+  - `notifications`: `looking_at(view, window, cx)`, the gate `notify` and `push` share; the
+    `marley-event` branch hands `on_frame`'s change to `push::on_change`.
+  - `push.rs` (new): `on_change` (the kind; `marley.push` set; not looking at it; `target_url`,
+    which refuses a host that is not loopback and a topic ntfy would not take; a 5-second
+    cooldown per project, from the last post; the post off the main thread); `post` (the token
+    read from its file only there, refused when group or others can read it; `Title`,
+    `Priority` 4 or 3, `Tags` `question`, `white_check_mark` or `x`, the line as the body);
+    `report` (a refusal is logged; a failure is logged and shows one toast until a post
+    succeeds). The project is the last folder of the seat's `cwd`, as notify.sh names it.
+  - Settings: `MarleySettingsContent::push` (`MarleyPushSettingsContent { url, topic,
+    token_file }`, Zed's `settings_content`, its row widened first), `MarleySettings::push`
+    (`PushSettings`, set only when a URL and a topic are), and the Marley page's Push section
+    (three text fields; `settings_ui`, its row widened first). `http_client` joins the
+    workbench's dependencies; it re-exports `Url` and `Host`.
+- **Deviations.**
+  - A refused push (the token file's mode, a missing token) is logged only; a toast is kept for
+    a server that does not answer (REQ-010), so a setting's mistake does not toast at every
+    event.
+  - The project's name comes from the seat's `cwd` label (where Claude Code started), not the
+    workspace root, which needs no entity lookup and matches notify.sh's `CLAUDE_PROJECT_DIR`.
+- **Review of the diff.**
+  - The token file's read and mode check run inside the background post (Zed's
+    `blocking_io_on_foreground` lint, as #547 learned); the URL check is pure and runs first.
+  - Re-entrancy: `on_change` runs in the terminal view's subscription and reads only the
+    settings, the focus and globals.
+  - Nothing of the agent's goes in the push: the line is built from the folder name, the agent's
+    short name and the event's words (D2).
+- **Checks.** `cargo check --all-targets`, `cargo clippy --all-targets --all-features -D
+  warnings` and `cargo fmt` over `marley_agent`, `marley_workbench`, `settings_content` and
+  `settings_ui`: clean.
+
+## Phase 3 — Test
+- **The scenario:** `script/e2e/535-phone-push-notifications.sh` (`compositor sway`). Setup starts
+  a monitor on the user's own bus (for a banner that must not reach it), a private session bus
+  (`dbus-daemon --session --fork`) with a notification server of the scenario's own (dbus-python)
+  that logs each banner, a fake ntfy on a free loopback port that logs each request as a JSON
+  line, and a stand-in `claude` stepped through a FIFO, since keys cannot reach a terminal that
+  is not focused: at each step it runs the plugin's real `event.py` for every event and
+  `notify.sh` where Claude Code runs it. Marley's window moves off the active workspace
+  (`sway_msg workspace 2`) for each event that should push and comes back for its shot.
+- **A red of the scenario's own:** the first two runs printed nothing and exited 1. The wait for
+  the fake ntfy's port ran `grep | cut` in an assignment at setup's top level, where `set -e` and
+  `pipefail` end the run on the first grep that finds nothing yet (browser-fixture.sh's
+  `serve_site` does the same inside a command substitution, where `set -e` does not reach). Fixed
+  with `|| true`.
+- **The run, every check passing** (the requests quoted from the fake's log):
+  - REQ-006: `sleep 3; printf` of an OSC 9 and an OSC 777 in a plain shell, the window away: no
+    request, and both banners on the private bus (`|built`, `|make|done`).
+  - REQ-007: with `marley.push` removed, a turn's end pushes nothing.
+  - REQ-001: `POST /marley-e2e`, `title: Marley`, `priority: 4`, `tags: question`, body
+    `repo: Claude needs input` (24 bytes).
+  - REQ-002: `priority: 3`, `tags: white_check_mark`, `repo: Claude finished`.
+  - REQ-003: `priority: 4`, `tags: x`, `repo: Claude failed`.
+  - REQ-005: with the window active and the terminal focused, a turn's end pushes nothing.
+  - REQ-004: every request's headers are `title`, `priority`, `tags`, `content-type`, `accept`,
+    `user-agent` (Zed's, with the build), `host`, `content-length`, and `authorization` where set;
+    each body is the line alone.
+  - REQ-008: a 0600 token file sends `authorization: Bearer tk_e2e`; at 0644 nothing is posted
+    and Marley's log says the file "can be read by others".
+  - REQ-009: `http://192.0.2.1:9` posts nothing, and Marley's log says it "is not a server on
+    this machine".
+  - REQ-010: with the fake killed, the "repo finished" banners went from 5 to 6 (the desktop
+    notification still shown), and no banner reached the user's own bus.
+- **The shots, read:**
+  - `535-01-needs-input`: the row `waiting · Add a README`, then `Permission for Write: README…`.
+  - `535-02-finished`: `idle · Add a README`, then `Added README.md.`
+  - `535-03-failed`: `failed · Run the tests`, then `rate_limit`.
+  - `535-04-focused`: `idle · Check the lints`, then `No lints.` (the event whose push was held).
+  - `535-05-no-server`: the toast "Marley could not push to your phone: the server at
+    http://127.0.0.1:46499 did not take it (error sending request for url
+    (http://127.0.0.1:46499/marley-e2e))."; the row `idle · Write the changelog`.
+  - Each row carries the bell dot: notify.sh's banners mark the terminal as #478 does.
+- **Not reached by a scenario:** the phone. ntfy is not installed on the box, and `tailscale serve
+  --https` would publish a port on the tailnet; both wait for Chad's yes (asked 2026-09-26, with
+  which phone and whether Tailscale runs on it), and the notes will record the lock screen then.
+- **Golden set:** 535 joins it; `just regress` on the debug build: all 13 pass (535 in 112 s).
+- **Gate:** `script/gates.sh --diff` red once on gate:14 (the `push` module's doc linked the
+  crate-private `on_change`), fixed at the source; then `GATE GREEN [diff]`, 16 passed.
+- **Verdict:** Phase 3 PASS for every criterion; the real phone stays a hand check for when Chad
+  says yes to ntfy on the box.
+
+## Phase 4 — Complete
+- **Documented:** `CHANGELOG.md` (Added); `docs/marley_architecture/marley_workbench.md` (the push)
+  and `marley_agent.md` (`TurnEvent`, `event_line`, `short_name`); the two Zed rows describe what
+  shipped. The ops handbook's ntfy page waits for the real setup, which waits for Chad's yes.
+- **Knowledge:** L-claude-535-a-setup-wait-loop-under-set-e-exits-without-a-word-001,
+  AD-claude-535-agent-events-reach-the-phone-as-one-line-through-ntfy-on-the-box-001.
+- **Brain:** consultation a7148ae197fb4de586e54d0eb6666ac0 closed with a decision.
+- **Ticket:** closed; the phone's hand check and the handbook page are its follow-up, noted in
+  the ticket.

@@ -2179,3 +2179,17 @@ hook (an endpoint file and a bearer in every terminal, and no route from a remot
 `terminal::Event` variant (it breaks every exhaustive match outside the terminal crates,
 L-claude-478); inferring state from output alone (the 2 s quiet timer stays the fallback for a
 terminal that sends no events).
+
+## AD-claude-535-agent-events-reach-the-phone-as-one-line-through-ntfy-on-the-box-001
+*decided at: 2026-09-26 · status: shipped (the phone's hand check waits on the box's ntfy)*
+
+When Claude Code in a terminal the user is not looking at needs input, finishes or fails, Marley
+posts one line (`<project>: Claude <event>`) to an ntfy server on the same machine, which
+`tailscale serve` publishes to the phone; the ntfy app shows it. Only that line, a title, a
+priority and a tag go out, and for iOS only a message id and a topic hash pass through ntfy.sh's
+poll relay; nothing the agent wrote travels. The trigger is the seat change #519's fold gives
+(`TurnEvent::of_change`), gated as desktop banners are (`notifications::looking_at`), with a
+5-second cooldown per project. The URL must be loopback and a token comes from a 0600 file, read
+off the main thread. Rejected: a push gateway of Marley's own or APNs (an Apple developer account,
+and the text in plaintext at the gateway, as Orca's is); sending the agent's words (they stay on
+the desktop until Chad widens it); pushing every OSC notification (only Claude Code's events).

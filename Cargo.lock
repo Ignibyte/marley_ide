@@ -10869,6 +10869,7 @@ dependencies = [
  "futures 0.3.34",
  "fuzzy",
  "gpui",
+ "http_client",
  "language",
  "language_model",
  "log",

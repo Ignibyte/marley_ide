@@ -26,6 +26,21 @@ pub struct MarleySettingsContent {
     ///
     /// Default: 30
     pub no_update_after_minutes: Option<u64>,
+    /// Where Marley pushes a line to the phone when Claude Code needs input, finishes or fails
+    /// (#535): an ntfy server on this machine. Unset, Marley pushes nothing.
+    pub push: Option<MarleyPushSettingsContent>,
+}
+
+/// The ntfy server and topic agent events are pushed to.
+#[with_fallible_options]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema, MergeFrom)]
+pub struct MarleyPushSettingsContent {
+    /// The ntfy server, on this machine: `http://127.0.0.1:<port>`, `[::1]` or `localhost`.
+    pub url: Option<String>,
+    /// The topic on the server.
+    pub topic: Option<String>,
+    /// A file holding an ntfy access token, readable by its owner alone.
+    pub token_file: Option<String>,
 }
 
 /// A window layout.

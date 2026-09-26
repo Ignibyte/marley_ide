@@ -9,6 +9,7 @@ pub(crate) fn marley_page() -> SettingsPage {
         items: layout_section()
             .into_iter()
             .chain(agents_section())
+            .chain(push_section())
             .chain(privacy_section())
             .collect(),
     }
@@ -82,6 +83,88 @@ fn agents_section() -> [SettingsPageItem; 3] {
                         .marley
                         .get_or_insert_default()
                         .no_update_after_minutes = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+    ]
+}
+
+// Marley: the ntfy server Claude Code's events are pushed to, for the phone (#535).
+fn push_section() -> [SettingsPageItem; 4] {
+    [
+        SettingsPageItem::SectionHeader("Push"),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Push Server",
+            description: "An ntfy server on this machine, such as http://127.0.0.1:8090. When Claude Code in a terminal you are not looking at needs input, finishes or fails, Marley pushes one line to it, which the ntfy app shows on your phone. Empty pushes nothing.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.push.url"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.push.as_ref())
+                        .and_then(|push| push.url.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .push
+                        .get_or_insert_default()
+                        .url = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Push Topic",
+            description: "The ntfy topic the phone subscribes to.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.push.topic"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.push.as_ref())
+                        .and_then(|push| push.topic.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .push
+                        .get_or_insert_default()
+                        .topic = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Push Token File",
+            description: "A file holding the ntfy access token Marley sends, readable by you alone. Empty sends none.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.push.token_file"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.push.as_ref())
+                        .and_then(|push| push.token_file.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .push
+                        .get_or_insert_default()
+                        .token_file = value;
                 },
             }),
             metadata: None,

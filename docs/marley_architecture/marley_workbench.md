@@ -438,6 +438,20 @@ alike.
   a third line is 3.5 rem tall; every other row keeps `h_11`. A row without a seat keeps the
   quiet timer's reading.
 
+## Pushes to the phone (`src/push.rs`, #535)
+
+- `notifications::init` hands each `marley-event` frame's seat change (`agent_events::on_frame`
+  gives the state before and the seat after) to `push::on_change`, which asks `TurnEvent::of_change`
+  whether it is one to push (a wait that starts, a turn that ends, a turn that fails).
+- It pushes only with `MarleySettings::push` set (`marley.push.url` and `topic`), only while the
+  user is not looking at the terminal (`notifications::looking_at`, the gate desktop banners use),
+  only to a loopback host and an ntfy topic (`target_url`), and at most once per project in 5
+  seconds. The line is `marley_agent::event_line` over the last folder of the seat's `cwd`.
+- `post` runs on a background task: the token from `token_file`, refused when group or others
+  can read the file; `Title: Marley`, `Priority` 4 (needs input, failed) or 3 (finished), `Tags`
+  `question`, `white_check_mark` or `x`, the line as the body. `report` logs a refusal, and a
+  failure too, with one toast (`Pushes::failing`) until a post succeeds.
+
 ## Marley's MCP server (`src/mcp.rs`, #491, #501)
 
 - `start`, which `zed`'s `main` calls after `initialize_workspace` (Zed's tests run

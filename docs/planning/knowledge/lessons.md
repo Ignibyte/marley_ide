@@ -2930,3 +2930,13 @@ A PATH that `script/e2e.sh`'s setup exports reaches the programs in Marley's ter
 through the scenario's own `.bashrc`; what Marley itself looks up with `which` can come from the
 login shell's profile, which on this box puts `~/.local/bin` (the real `claude`) first. #480's
 Voxtype fake worked only because nothing named `voxtype` sits in `~/.local/bin`.
+
+## L-claude-535-a-setup-wait-loop-under-set-e-exits-without-a-word-001
+*category: validate · topic: e2e scenarios · from: pipeline 535*
+
+`script/e2e.sh` runs under `set -euo pipefail`, and a scenario's `setup` runs in that shell. A
+wait loop there such as `PORT=$(grep -oE 'port [0-9]+' out | cut -d' ' -f2)` ends the whole run,
+exit 1 and nothing printed, the first time grep finds nothing yet: the pipeline fails and the
+assignment carries its status. browser-fixture.sh's `serve_site` gets away with the same line
+because it runs inside a command substitution, where `set -e` does not reach. In `setup` and
+`steps`, end such a pipeline with `|| true` and test the value after.

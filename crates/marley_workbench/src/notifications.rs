@@ -37,9 +37,13 @@ pub fn init(cx: &App) {
             let terminal = view.terminal().clone();
             cx.subscribe_in(&terminal, window, |view, _, event, window, cx| {
                 if let Event::MarleyNotification { title, body } = event {
-                    // Claude Code's hook events are for the rail, not the desktop (#519).
+                    // Claude Code's hook events are for the rail, not the desktop (#519), and
+                    // for the phone (#535).
                     if title.as_deref() == Some(marley_terminal::AGENT_EVENT_TITLE) {
-                        crate::agent_events::on_frame(view, body, cx);
+                        if let Some((before, seat)) = crate::agent_events::on_frame(view, body, cx)
+                        {
+                            crate::push::on_change(view, before, &seat, window, cx);
+                        }
                     } else {
                         notify(view, title.as_deref(), body, window, cx);
                     }
@@ -54,8 +58,14 @@ pub fn init(cx: &App) {
     .detach();
 }
 
-/// Shows a desktop notification from `view`, unless it is the focused terminal of the active
-/// window. An OSC 9 gives no title, so the terminal's tab names it.
+/// Whether the user is looking at `view`: the focused terminal of the active window, for which
+/// nothing is shown on the desktop (#478) or pushed to the phone (#535).
+pub(crate) fn looking_at(view: &TerminalView, window: &Window, cx: &App) -> bool {
+    window.is_window_active() && view.focus_handle(cx).contains_focused(window, cx)
+}
+
+/// Shows a desktop notification from `view`, unless the user is looking at it. An OSC 9 gives no
+/// title, so the terminal's tab names it.
 fn notify(
     view: &TerminalView,
     title: Option<&str>,
@@ -63,7 +73,7 @@ fn notify(
     window: &Window,
     cx: &mut Context<TerminalView>,
 ) {
-    if window.is_window_active() && view.focus_handle(cx).contains_focused(window, cx) {
+    if looking_at(view, window, cx) {
         return;
     }
     let tag = SharedString::from(format!("marley-terminal-{}", cx.entity_id()));

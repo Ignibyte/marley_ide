@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #535 (feature, prong 2 remote control: the phone path's first slice)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/535-phone-push-notifications.spec.md
+- **Pipeline doc:** ../../pipeline/completed/535-phone-push-notifications.spec.md
 - **Source ticket:** Chad, 2026-09-25, on the phone: a full native app eventually, and "we could potentially have the app drive it or a small native rust relayer". The Orca survey puts push first on that path (docs/orca_architecture/04-remote-control-and-mobile.md §2.6, §3.2 item 1, §3.3).
-- **Status:** open
+- **Status:** closed (2026-09-26); follow-up: the real phone's hand check and the ops handbook's ntfy page, once Chad says yes to ntfy on the box and `tailscale serve`
 - **Backlog:** Deliberate. It is the first step of the phone path, which starts when Chad picks it. It also needs #519's agent events: the three event kinds, "failed" above all, come from them.
 
 ## Summary

@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Claude Code's events on your phone** (#535, 2026-09-26). With `marley.push` set to an ntfy
+  server on this machine and a topic (the Marley settings page's new Push section), Marley
+  pushes one line when Claude Code in a terminal you are not looking at needs input, finishes or
+  fails: `marley_ide: Claude needs input`. The line carries nothing the agent wrote. The ntfy app
+  on your phone shows it; published to the phone over Tailscale, nothing goes through anyone
+  else's server but, for iOS, ntfy.sh's relay of a message id. A token, if your server wants one,
+  comes from a file only you can read. A burst from one project makes one push, a server off
+  this machine is refused, and a server that stops answering shows one toast until it answers.
 - **Claude Code's sessions for agents, the plugin update, and quiet rows** (#547, 2026-09-26).
   An older install of Marley's plugin for Claude Code now gets "Update Marley's plugin" in the
   agent bar, which runs Claude Code's own `plugin marketplace update` and `plugin update`

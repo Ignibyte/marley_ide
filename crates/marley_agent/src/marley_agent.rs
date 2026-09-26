@@ -24,6 +24,8 @@
 
 use std::time::Duration;
 
+use marley_fleet::State;
+
 pub mod claude_events;
 
 /// An agent CLI Marley knows. [`AgentKind::ALL`], [`AgentKind::program`] and
@@ -52,6 +54,17 @@ impl AgentKind {
             Self::Codex => "codex",
             Self::Gemini => "gemini",
             Self::OpenCode => "opencode",
+        }
+    }
+
+    /// The agent's short name, for a line that has little room, such as a push (#535).
+    #[must_use]
+    pub const fn short_name(self) -> &'static str {
+        match self {
+            Self::Claude => "Claude",
+            Self::Codex => "Codex",
+            Self::Gemini => "Gemini",
+            Self::OpenCode => "OpenCode",
         }
     }
 
@@ -119,6 +132,53 @@ impl AgentStatus {
             Self::Failed => "failed",
         }
     }
+}
+
+/// What an agent's turn came to, for a line that names it outside Marley (#535).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TurnEvent {
+    /// It asks for a permission or a choice.
+    NeedsInput,
+    /// Its turn ended.
+    Finished,
+    /// Its turn failed.
+    Failed,
+}
+
+impl TurnEvent {
+    /// The event a seat's change of state from `before` to `after` makes, if it makes one: a
+    /// wait that starts, a turn that ends, a turn that fails.
+    #[must_use]
+    pub const fn of_change(before: State, after: State) -> Option<Self> {
+        match (before, after) {
+            (State::Waiting, State::Waiting) | (State::Error, State::Error) => None,
+            (_, State::Waiting) => Some(Self::NeedsInput),
+            (State::Working | State::Waiting, State::Idle) => Some(Self::Finished),
+            (_, State::Error) => Some(Self::Failed),
+            _ => None,
+        }
+    }
+
+    /// The words a line gives the event.
+    #[must_use]
+    pub const fn words(self) -> &'static str {
+        match self {
+            Self::NeedsInput => "needs input",
+            Self::Finished => "finished",
+            Self::Failed => "failed",
+        }
+    }
+}
+
+/// A line that names an agent's event outside Marley, such as `marley_ide: Claude needs input`
+/// (#535). The project's name loses its control characters; nothing the agent wrote goes in.
+#[must_use]
+pub fn event_line(project: &str, kind: AgentKind, event: TurnEvent) -> String {
+    let project: String = project
+        .chars()
+        .filter(|character| !character.is_control())
+        .collect();
+    format!("{project}: {} {}", kind.short_name(), event.words())
 }
 
 /// How long an agent's terminal stays quiet before the agent reads as waiting. Claude Code and

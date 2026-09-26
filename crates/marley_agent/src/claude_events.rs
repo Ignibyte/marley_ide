@@ -43,6 +43,8 @@ pub const ERROR_LABEL: &str = "error";
 pub const SUBAGENTS_LABEL: &str = "subagents";
 /// The label for Claude Code's session id.
 pub const SESSION_LABEL: &str = "session_id";
+/// The label for the session's working directory, where Claude Code started (#535).
+pub const CWD_LABEL: &str = "cwd";
 /// A lead's tool in flight, by its tool call's id.
 const LEAD_TOOL_PREFIX: &str = "lead_tool:";
 /// A subagent's tool in flight, by its tool call's id.
@@ -264,7 +266,7 @@ impl Moving {
             for (key, value) in [
                 ("prompt_id", &event.prompt_id),
                 ("permission_mode", &event.permission_mode),
-                ("cwd", &event.cwd),
+                (CWD_LABEL, &event.cwd),
                 ("transcript_path", &event.transcript_path),
             ] {
                 if let Some(value) = value {
