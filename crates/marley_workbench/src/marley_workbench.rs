@@ -147,6 +147,10 @@ actions!(
         /// Drops the annotation being drawn.
         #[derive(Eq)]
         DropAnnotation,
+        /// Saves the Browser tab's last minute, which Marley keeps while the tab shows the page,
+        /// as a recording agents can read.
+        #[derive(Eq)]
+        RecordThis,
     ]
 );
 

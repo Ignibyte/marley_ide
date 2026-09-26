@@ -1,7 +1,7 @@
 ---
 pipeline_id: 3795148d-18ec-4308-85ed-86a6033510a0
 ticket: docs/planning/tickets/open/TICKET-499-flight-recorder.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "B5: Record what already happened in the Browser tab"
 type: feature
 slice: prong 3 B5 (wave 2)
@@ -49,7 +49,8 @@ it already forwards. Warp: N/A.
 
 ## UI proof
 UI-AFFECTING. `script/e2e/499-flight-recorder.sh` (`compositor sway`, offline): a fixture sign-in
-page that logs to the console and fetches with a token in its query. Steps: type an e-mail and a
+page that logs to the console and fetches with a token in its query. Steps: a click at a marked
+spot, then a wait of more than a minute (the minute rolls past it); type an e-mail and a
 password, click, scroll; Record this (`499-01-recorded`: the toast); the stand-in agent's
 `browser_recordings` and `browser_recording` with a frame (the run log: the timeline's input as
 counts and names, the console and the redacted request, a frame saved and shown); a grep of the
@@ -61,6 +62,11 @@ recording's files for the typed password, the e-mail and the token (the run log:
   a recording holds what was on the screen.
 - D3 — No typed character is ever recorded; keys by name, text by count.
 - D4 — At most two frames a second, only while a tab draws the page.
+- D5 — Frames are kept as the JPEGs Chromium sent, 16 MiB of them at most per page, the oldest
+  going first; nothing is decoded for the recorder.
+- D6 — A recording's id is the local time it was saved (`20260925-193045`), with a suffix when
+  two land in one second; the tools reject any other name, so no id reaches outside the
+  recordings' folder.
 
 ## Acceptance Criteria (EARS)
 

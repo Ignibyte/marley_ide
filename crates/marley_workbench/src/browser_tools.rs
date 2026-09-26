@@ -11,20 +11,23 @@
 use std::collections::HashSet;
 use std::time::Duration;
 
-use gpui::{App, AsyncApp, Entity, MouseButton};
+use base64::Engine as _;
+
+use gpui::{App, AppContext as _, AsyncApp, Entity, MouseButton};
 use marley_browser::address;
 use marley_browser::cdp::CdpError;
 use marley_browser::input::{self, KeyPress};
 use marley_browser::observe::redact_url;
 use marley_browser::page::Page;
 use marley_browser::pick::PageBox;
+use marley_browser::recorder;
 use marley_browser::snapshot::{self, FrameTree, RefTarget, Snapshot};
 use marley_mcp::{AppCall, ToolAnswer, ToolImage};
 use serde::Serialize;
 use serde_json::{Value, json};
 use ui::SharedString;
 
-use crate::browser::{BrowserHub, Maker, new_page, show_for_agent, showing};
+use crate::browser::{BrowserHub, Maker, new_page, recordings_dir, show_for_agent, showing};
 
 /// How long a call waits, once the browser shows its pages, for the page it acts on to attach.
 const ATTACH_WAIT: Duration = Duration::from_secs(5);
@@ -63,10 +66,12 @@ async fn run(
     hub: &Entity<BrowserHub>,
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, String> {
-    // Picks are Marley's, kept while the browser restarts.
+    // Picks are Marley's, kept while the browser restarts, and recordings are files.
     match tool {
         "browser_picks" => return Ok(picks(hub, cx)),
         "browser_pick" => return pick(arguments, hub, cx),
+        "browser_recordings" => return recordings(cx).await,
+        "browser_recording" => return recording(arguments, cx).await,
         _ => {}
     }
     showing(hub, cx).await?;
@@ -190,6 +195,54 @@ async fn look(
         image: Some(ToolImage {
             mime_type: "image/jpeg".to_string(),
             data: image,
+        }),
+    })
+}
+
+/// `browser_recordings`: the recordings Record this saved, read off the main thread (#499).
+async fn recordings(cx: &AsyncApp) -> Result<ToolAnswer, String> {
+    let dir = recordings_dir();
+    let recordings = cx
+        .background_spawn(futures::future::lazy(move |_| recorder::list_in(&dir)))
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(ToolAnswer {
+        structured: json!({ "recordings": recordings }),
+        text: None,
+        image: None,
+    })
+}
+
+/// `browser_recording`: a recording's timeline, and one of its frames as the image (#499).
+async fn recording(arguments: &Value, cx: &AsyncApp) -> Result<ToolAnswer, String> {
+    let id = arguments
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            "browser_recording needs a recording's id, from browser_recordings".to_string()
+        })?
+        .to_string();
+    let frame = arguments
+        .get("frame")
+        .and_then(Value::as_u64)
+        .and_then(|frame| usize::try_from(frame).ok());
+    let dir = recordings_dir();
+    let (timeline, jpeg) = cx
+        .background_spawn(futures::future::lazy(move |_| {
+            let timeline = recorder::read_in(&dir, &id)?;
+            let jpeg = frame
+                .map(|frame| recorder::frame_in(&dir, &id, frame))
+                .transpose()?;
+            Ok::<_, recorder::RecordingError>((timeline, jpeg))
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(ToolAnswer {
+        structured: timeline,
+        text: None,
+        image: jpeg.map(|bytes| ToolImage {
+            mime_type: "image/jpeg".to_string(),
+            data: base64::engine::general_purpose::STANDARD.encode(bytes),
         }),
     })
 }

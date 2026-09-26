@@ -2761,3 +2761,13 @@ ticket adds a button beside it: #496's scenario clicked the pick button's old pl
 gave to the annotate button, so its rerun turned on the wrong mode and made no pick, while
 every step "passed". A ticket that adds to a toolbar reruns the scenarios that click that
 toolbar, and reads their logs, not only their exit codes.
+
+## L-claude-499-a-screencast-sends-frames-only-when-the-page-changes-001
+*category: build · topic: CDP screencast, the flight recorder · from: pipeline 499*
+
+`Page.startScreencast` sends a frame when the page's pixels change, not on a clock: a still
+page sends none, so a recorder that keeps "two frames a second at most" keeps far fewer on a
+quiet page (seven in ten seconds of typing and clicking in #499's run). A recording's frames
+mark changes, and its length comes from its entries, not from a frame count times the rate.
+Keeping a frame is cheap when the loop hands back the base64 it decoded instead of copying it
+before the decode.

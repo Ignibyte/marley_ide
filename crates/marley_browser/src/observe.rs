@@ -48,20 +48,19 @@ pub struct ConsoleLog {
 
 impl ConsoleLog {
     /// Keeps what the event `method` with `params` says, when it is a console message, an
-    /// uncaught error or a browser log entry.
-    pub fn apply(&mut self, method: &str, params: &Value) {
+    /// uncaught error or a browser log entry; the entry kept.
+    pub fn apply(&mut self, method: &str, params: &Value) -> Option<&ConsoleEntry> {
         let entry = match method {
             "Runtime.consoleAPICalled" => console_call(params),
             "Runtime.exceptionThrown" => exception(params),
             "Log.entryAdded" => log_entry(params),
             _ => None,
-        };
-        if let Some(entry) = entry {
-            if self.entries.len() == RING {
-                self.entries.pop_front();
-            }
-            self.entries.push_back(entry);
+        }?;
+        if self.entries.len() == RING {
+            self.entries.pop_front();
         }
+        self.entries.push_back(entry);
+        self.entries.back()
     }
 
     /// The entries, oldest first.

@@ -412,6 +412,10 @@ alike.
   from `Page::viewport`), or over an area of the viewport, and names the annotation; `clear`
   removes the agent's own. `browser_annotations` lists the page's boxes in page coordinates,
   with their notes, makers and times.
+- `browser_recordings` and `browser_recording {id, frame?}` (#499) read the recordings' files
+  off the main thread, before the browser needs to show: the list (each id, tab, URL, title,
+  time, length, frame and entry counts), and one timeline with frame `frame`, from 1, as the
+  image.
 - `browser_picks` and `browser_pick {id}` (#496) answer from the hub alone, before the browser
   needs to show, so a pick outlives its page and a restart: the list gives each pick's id, tab,
   URL and title, summary, caption and whether it was sent; `browser_pick` gives the pick with
@@ -458,7 +462,7 @@ alike.
   when that changes. The root `.gitignore` ignores every `.mcp.json`, since a local one carries
   bearers, with an exception for this one.
 
-## The Browser tab (`src/browser.rs`, #488 to #490, #493 to #498)
+## The Browser tab (`src/browser.rs`, #488 to #490, #493 to #499)
 
 - `BrowserHub` is one entity per app, behind a global: the connection to Marley's Chromium
   (`marley_browser`) and a `PageState` for each of its pages (#493): the `Page`, its newest
@@ -621,6 +625,19 @@ alike.
   `marley::KeepAnnotation`, Escape `marley::DropAnnotation`), and Escape in the page ends the
   mode. A chip occludes the page under it: its click selects the box and gives the page the
   focus, and Delete or Backspace then removes it; a press in the page drops the selection.
+- **The flight recorder (#499).** Each page's `recorder` is fed by `record_entry` only while a
+  tab draws the page: the hub's `mouse_press`, `wheel`, `send_key`, `copy_selection` and
+  `insert_text` (`key_entry` counts a key that types, or a single character that is not a
+  letter or a digit, which is how AltGr's characters arrive, and names any other key or
+  shortcut), `agent_ended`, `observed` (console entries; requests as they start, then their
+  status or failure), the main frame's `frameNavigated`, a snapshot after each load
+  (`record_snapshot`, spawned so the event loop does not wait on the tree), and `show`, which the
+  frame loop hands each frame's base64 back to. An agent's own clicks and keys go to the page
+  directly, so only its Agent chip text reaches the minute. `record(target, dir)` takes the
+  minute, adds a snapshot of the moment and writes it off the main thread into
+  `recordings_dir()`, `browser/recordings` under Marley's data directory. The toolbar's red dot
+  (`IconName::Circle` in the error color) and `marley::RecordThis` save it, and a toast in the
+  tab's workspace names the recording or the failure.
 
 ## Tests
 

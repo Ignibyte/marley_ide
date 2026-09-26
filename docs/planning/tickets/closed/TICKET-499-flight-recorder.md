@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #499 (feature, prong 3 B5; prong 3 wave 2)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/499-flight-recorder.spec.md
+- **Pipeline doc:** ../../pipeline/completed/499-flight-recorder.spec.md
 - **Source ticket:** docs/marley/three-prong-plan.md, prong 3 B5; docs/marley/browser-handoff.md
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Pillar C, the flight recorder. Each page keeps a rolling minute of what happened in it: the input

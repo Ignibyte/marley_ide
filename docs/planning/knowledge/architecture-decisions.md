@@ -2065,3 +2065,17 @@ viewport area) and clears only its own. Rejected: drawing with a script or an ov
 page (the handoff's rule, and a page's own styles or scripts could hide or read it); storing
 viewport coordinates (a box would slide off its content on the first scroll); keeping
 annotations across launches before Chad decides open decision 4.
+
+## AD-claude-499-the-flight-recorder-keeps-a-drawn-pages-minute-in-memory-001
+*decided at: 2026-09-25 · status: shipped*
+
+Each page a Browser tab draws keeps its last 60 seconds in memory: input as Marley sent it
+(presses with their place, keys by name, typing as counts), the agent's Agent chip actions,
+console entries, requests with redacted URLs, navigations, a snapshot after each load, and at
+most two JPEG frames a second, 16 MiB at most. Nothing reaches the disk until the user saves
+it with Record this, into `browser/recordings/<local time>/` under Marley's data directory,
+never a project (the repository is public, and a recording holds what was on the screen).
+Agents read recordings with `browser_recordings` and `browser_recording`. Rejected: recording
+pages no tab draws (an agent's background work would fill memory unseen); keeping typed text
+(a password is typed text); a video file (the frames already are the JPEGs Chromium sent);
+pruning by age (a recording stays until removed by hand, as the spec's scope says).

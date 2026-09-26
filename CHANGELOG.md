@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Browser tab's flight recorder** (#499, 2026-09-25). While a Browser tab shows a page,
+  Marley keeps that page's last minute: your clicks and where they landed, keys by name, typing
+  as a count of characters (never the characters), the agent's actions, console messages,
+  requests with secret-looking URL values hidden, navigations, the page's accessibility
+  snapshot after each load, and two frames a second at most. The red dot in the toolbar, or
+  `marley: record this`, saves that minute as a recording in Marley's data folder, never in a
+  project, and a toast names it. Agents list recordings with `browser_recordings` and read one,
+  with any of its frames as an image, with `browser_recording`, so "it broke just now" comes
+  with what happened.
 - **Annotations over the page** (#498, 2026-09-25). The Browser tab's pencil button, or
   `marley: annotate`, turns on annotate mode: drag a box around anything on the page, type a
   note, and Enter keeps it (Escape drops it). Boxes are drawn by Marley over the page, never

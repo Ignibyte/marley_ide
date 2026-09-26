@@ -158,6 +158,20 @@ const REGISTRY: &[ToolSpec] = &[
          box in the page; and the page around it as an image.",
     ),
     browser_read(
+        "recordings",
+        "List the recordings the user saved with Record this in a Browser tab: each one's id, \
+         its tab, the page's URL and title, when it was saved, how many seconds it spans, and \
+         how many frames and entries it holds.",
+    ),
+    browser_read(
+        "recording",
+        "Read a recording the user saved with Record this, the minute before it, by its id \
+         from browser_recordings: what the user did (presses with their places, keys by name, \
+         typing as counts, never the characters), what the agent did, the console, the \
+         requests with secret-looking URL values hidden, navigations, accessibility snapshots, \
+         and the frames; `frame` gives one frame, from 1, as an image.",
+    ),
+    browser_read(
         "annotations",
         "List the boxes and notes drawn over a page in a Browser tab, by the user or an agent: \
          each one's id, its box in page coordinates (the document's CSS pixels, which stay on \
@@ -319,6 +333,8 @@ fn browser_schemas(verb: &str) -> (Value, Value) {
         "snapshot" => snapshot_schemas(),
         "console" | "network" => entries_schemas(verb),
         "annotations" => annotations_schemas(),
+        "recordings" => recordings_schemas(),
+        "recording" => recording_schemas(),
         "picks" => picks_schemas(),
         "pick" => pick_schemas(),
         _ => browser_write_schemas(verb),
@@ -472,6 +488,84 @@ fn page_box_schema() -> Value {
         },
         "required": ["x", "y", "width", "height"]
     })
+}
+
+/// What `browser_recordings` and `browser_recording` say of a recording besides its entries.
+fn recording_properties() -> Value {
+    json!({
+        "id": { "type": "string" },
+        "tab": { "type": "string" },
+        "url": { "type": "string" },
+        "title": { "type": "string" },
+        "recorded_at": { "type": "integer", "description": "Seconds since the Unix epoch." },
+        "seconds": { "type": "number", "description": "How long it spans." },
+        "frames": { "type": "integer" }
+    })
+}
+
+/// `browser_recordings`: no arguments; each recording, without its entries (#499).
+fn recordings_schemas() -> (Value, Value) {
+    let mut item = recording_properties();
+    if let Some(properties) = item.as_object_mut() {
+        properties.extend([(
+            "entries".to_string(),
+            json!({ "type": "integer", "description": "How many entries it holds." }),
+        )]);
+    }
+    (
+        json!({ "type": "object", "properties": {}, "additionalProperties": false }),
+        json!({
+            "type": "object",
+            "properties": {
+                "recordings": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": item,
+                        "required": ["id", "tab", "url", "title", "recorded_at", "seconds", "frames", "entries"]
+                    }
+                }
+            },
+            "required": ["recordings"]
+        }),
+    )
+}
+
+/// `browser_recording`: a recording's id and, with `frame`, one frame as the answer's image.
+fn recording_schemas() -> (Value, Value) {
+    let mut properties = recording_properties();
+    if let Some(object) = properties.as_object_mut() {
+        object.extend([
+            (
+                "entries".to_string(),
+                json!({
+                    "type": "array",
+                    "description": "What happened, oldest first: each entry's `kind` (click, scroll, key, typed, navigation, console, request, snapshot, agent or frame), `at_ms` from the recording's start, and its details.",
+                    "items": { "type": "object", "properties": { "kind": { "type": "string" }, "at_ms": { "type": "integer" } }, "required": ["kind", "at_ms"] }
+                }),
+            ),
+            (
+                "snapshot".to_string(),
+                json!({ "type": "string", "description": "The page's accessibility snapshot when it was saved." }),
+            ),
+        ]);
+    }
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "id": { "type": "string", "description": "A recording's id from browser_recordings." },
+                "frame": { "type": "integer", "minimum": 1, "description": "A frame to see, from 1, as an entry of kind frame names it." }
+            },
+            "required": ["id"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": properties,
+            "required": ["id", "tab", "url", "title", "recorded_at", "seconds", "frames", "entries", "snapshot"]
+        }),
+    )
 }
 
 /// `browser_annotations`: the tab's annotations (#498).

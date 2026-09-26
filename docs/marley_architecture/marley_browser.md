@@ -167,6 +167,23 @@ for.
   viewport (left, top, width, height), read from `DOM.getBoxModel`'s border quad; the content
   quad that `box_center` uses comes from the same read.
 
+## The flight recorder (`src/recorder.rs`, #499)
+
+- `Recorder` keeps a page's last minute (`WINDOW`, 60 seconds): `Entry`s (a press with its
+  place, button and count; a scroll; a key by its name or a shortcut; typing as a count; a
+  navigation; a console entry; a request with its method, redacted URL, status and failure; a
+  snapshot; an agent's action), each with the `Instant` it came, typing added up and wheel
+  turns within half a second added up; and frames as the base64 JPEGs Chromium sent, one at
+  most every 500 ms (`FRAME_GAP`), 16 MiB of them at most (`FRAME_BYTES`). `request_ended`
+  adds a status or a failure. `take(now)` gives the minute in time order, each frame an
+  `Entry::Frame` numbered from 1, with its JPEGs and its length.
+- `save_in(dir, recording, frames)` writes `<dir>/<id>/timeline.json` (the `Recording`: id,
+  tab, URL, title, time, length, frame count, entries with their `at_ms`, and the snapshot at
+  the save) and `<dir>/<id>/frames/NNNN.jpg`, a suffix on an id another recording has.
+  `list_in`, `read_in` and `frame_in` read them back and refuse an id that is not letters,
+  digits and dashes.
+- `ConsoleLog::apply` answers the entry it kept, which the recorder copies.
+
 ## Source maps (`src/source_map.rs`, #497)
 
 - `map_location(script_url, source_map_url)` decodes a `data:` map (base64 or percent-encoded)

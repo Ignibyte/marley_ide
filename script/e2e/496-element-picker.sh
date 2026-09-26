@@ -18,9 +18,9 @@ compositor sway
 PAGE_X=260
 PAGE_Y=109
 TRAY_ROW=36
-# The toolbar's pick button (the annotate button, since #498, is to its right), and the Browser
-# tab's tab.
-PICK_X=1314
+# The toolbar's pick button (the annotate button, since #498, and the record button, since #499,
+# are to its right), and the Browser tab's tab.
+PICK_X=1288
 PICK_Y=87
 TAB_X=515
 TAB_Y=50

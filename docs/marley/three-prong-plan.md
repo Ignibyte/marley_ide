@@ -343,7 +343,7 @@ reaching his desktop.
 | B3a | #496 | Pillar A: pick mode, the durable bundle (ranked locators, AX node, listeners, blocking styles), picks staged for Chad to caption and send (shipped) | L |
 | B3b | #497 | A picked element's listener source, through its source map, opened in the editor at the line (shipped) | M |
 | B4 | #498 | Pillar B, annotations drawn by gpui and anchored in page coordinates (shipped) | M |
-| B5 | #499 | Pillar C, the flight recorder and "record this" | L |
+| B5 | #499 | Pillar C, the flight recorder and "record this" (shipped) | L |
 
 Wave 2 was specced on 2026-09-25, once wave 1 had landed (#496 to #499; the shelf note is
 `docs/planning/design-notes/browser-wave-2-shelf.md`).

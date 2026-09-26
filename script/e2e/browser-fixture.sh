@@ -21,6 +21,8 @@
 #   `picks` lists the user's picks and `pick <id> [<image file>]` reads one, saving its crop
 #   (#496). `annotate <role> <name> <note>` draws the agent's box around an element,
 #   `annotations` lists a tab's boxes, and `annotate-clear` removes the agent's (#498).
+#   `recordings` lists the saved recordings, and `recording <id> [<frame> <image file>]` prints
+#   one's timeline and saves a frame (#499).
 # - `browser_profile` and `browser_unit` name the run's Chromium profile and its user unit;
 #   `browser_teardown`, for the scenario's `teardown`, stops the unit and the servers.
 
@@ -349,6 +351,39 @@ def main():
             answer = result["structuredContent"]
             box = answer["box"]
             print(f"  {reference}: {answer['did']}, annotation {answer['id']} at {box['x']:.0f},{box['y']:.0f} {box['width']:.0f}x{box['height']:.0f}")
+    elif command == "recordings":
+        result = client.tool("browser_recordings")
+        recordings = (result or {}).get("structuredContent", {}).get("recordings", [])
+        if result and not recordings:
+            print("  no recordings")
+        for recording in recordings:
+            print(f"  recording {recording['id']}: {recording['title']!r} at {recording['url']}, {recording['seconds']:.1f} s, {recording['frames']} frames, {recording['entries']} entries")
+    elif command == "recording":
+        arguments = {"id": rest[0]}
+        if len(rest) > 1:
+            arguments["frame"] = int(rest[1])
+        result = client.tool("browser_recording", arguments)
+        if result:
+            recording = result["structuredContent"]
+            print(f"  recording {recording['id']}: {recording['seconds']:.1f} s, {recording['frames']} frames")
+            frame_times = []
+            for entry in recording["entries"]:
+                kind, at = entry["kind"], entry["at_ms"]
+                if kind == "frame":
+                    frame_times.append(at)
+                    continue
+                details = {key: value for key, value in entry.items() if key not in ("kind", "at_ms")}
+                if kind == "snapshot":
+                    details = {"lines": len(details.get("text", "").splitlines())}
+                print(f"  {at:>6} ms {kind}: {json.dumps(details)}")
+            gaps = [later - earlier for earlier, later in zip(frame_times, frame_times[1:])]
+            print(f"  frames: {len(frame_times)}, the least gap between two: {min(gaps) if gaps else 'none'} ms")
+            print(f"  the snapshot at the save: {len(recording['snapshot'].splitlines())} lines")
+            images = [block for block in result["content"] if block["type"] == "image"]
+            if images and len(rest) > 2:
+                with open(rest[2], "wb") as file:
+                    file.write(base64.b64decode(images[0]["data"]))
+                print(f"  frame {rest[1]}: {images[0]['mimeType']}, saved as {os.path.basename(rest[2])}")
     elif command == "annotate-clear":
         result = client.tool("browser_annotate", {"clear": True, **options})
         if result:

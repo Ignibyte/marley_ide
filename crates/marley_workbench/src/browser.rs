@@ -56,8 +56,9 @@ use marley_browser::page::{
     TargetInfo,
 };
 use marley_browser::pick::{Listener, PageBox, PickBundle, ScriptInfo, SourcePosition};
+use marley_browser::recorder::{self, Entry as RecordedEntry, Recorder, Recording};
 use marley_browser::select::{self, SelectRequest};
-use marley_browser::snapshot::RefTarget;
+use marley_browser::snapshot::{self, FrameTree, RefTarget};
 use marley_browser::source_map::{self, MapLocation, OriginalPosition, SourceMap};
 use marley_browser::{address, frame, service};
 use project::{Project, ProjectPath};
@@ -70,12 +71,13 @@ use util::ResultExt as _;
 use util::paths::PathStyle;
 use util::rel_path::RelPath;
 use workspace::item::{Item, ItemEvent, SerializableItem};
-use workspace::{ItemId, MultiWorkspace, Pane, SplitDirection, Workspace, WorkspaceId};
+use workspace::notifications::NotificationId;
+use workspace::{ItemId, MultiWorkspace, Pane, SplitDirection, Toast, Workspace, WorkspaceId};
 
 use crate::{
     Annotate, AnswerDialog, BrowserBack, BrowserForward, BrowserReload, DismissDialog,
     DropAnnotation, FocusAddressBar, GoToAddress, KeepAnnotation, NewBrowserTab, OpenBrowser,
-    PickElement, RestoreAddress, SendPick,
+    PickElement, RecordThis, RestoreAddress, SendPick,
 };
 
 /// How many times, a tenth of a second apart, a start waits for Chromium to write its endpoint
@@ -298,6 +300,8 @@ struct PageState {
     /// The boxes and notes drawn over the page (#498), oldest first, until it leaves its
     /// document.
     annotations: Vec<Annotation>,
+    /// The page's last minute, kept while a tab draws the page (#499).
+    recorder: Recorder,
     /// The page's cross-site iframes (#492).
     iframes: Vec<Iframe>,
     /// What the page logged since it was attached.
@@ -338,6 +342,7 @@ impl PageState {
             scripts: None,
             pick_error: None,
             annotations: Vec::new(),
+            recorder: Recorder::default(),
             iframes: Vec::new(),
             console: ConsoleLog::default(),
             network: NetworkLog::default(),
@@ -1354,6 +1359,69 @@ impl BrowserHub {
         cx.notify();
     }
 
+    /// Keeps `entry` in the page's minute, while a tab draws the page (#499).
+    fn record_entry(&mut self, target: &str, entry: RecordedEntry) {
+        if let Some(page) = self.page_state_mut(target)
+            && page.viewers > 0
+        {
+            page.recorder.push(entry, Instant::now());
+        }
+    }
+
+    fn record_navigation(&mut self, generation: u64, target: &str, url: Option<&str>) {
+        if generation != self.generation {
+            return;
+        }
+        if let Some(url) = url {
+            self.record_entry(
+                target,
+                RecordedEntry::Navigation {
+                    url: redact_url(url),
+                },
+            );
+        }
+    }
+
+    /// Saves the page's minute, with a snapshot of the moment, as a recording in `dir`, off the
+    /// main thread; the recording's id (#499).
+    pub fn record(
+        &self,
+        target: &str,
+        dir: PathBuf,
+        cx: &Context<Self>,
+    ) -> Task<anyhow::Result<String>> {
+        let Some(page) = self.page_state(target) else {
+            return Task::ready(Err(anyhow::anyhow!("the page is gone")));
+        };
+        let (entries, frames, seconds) = page.recorder.take(Instant::now());
+        let mut recording = Recording {
+            id: chrono::Local::now().format("%Y%m%d-%H%M%S").to_string(),
+            tab: target.to_string(),
+            url: page.url.as_deref().map(redact_url).unwrap_or_default(),
+            title: page
+                .title
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_default(),
+            recorded_at: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_or(0, |since| since.as_secs()),
+            seconds,
+            frames: frames.len(),
+            entries,
+            snapshot: String::new(),
+        };
+        let session = page.page.clone();
+        cx.spawn(async move |_, cx| {
+            recording.snapshot = snapshot_text(&session).await.unwrap_or_default();
+            cx.background_spawn(futures::future::lazy(move |_| {
+                recorder::save_in(&dir, &mut recording, &frames).map(|_| recording.id)
+            }))
+            .await
+            .map_err(anyhow::Error::from)
+        })
+    }
+
     /// The page's annotations, oldest first (#498).
     #[must_use]
     pub fn annotations(&self, target: &str) -> &[Annotation] {
@@ -1561,11 +1629,18 @@ impl BrowserHub {
         text: impl Into<SharedString>,
         cx: &mut Context<Self>,
     ) {
+        let text: SharedString = text.into();
+        self.record_entry(
+            target,
+            RecordedEntry::Agent {
+                did: text.to_string(),
+            },
+        );
         let Some(page) = self.page_state_mut(target) else {
             return;
         };
         page.agent = Some(AgentAction {
-            text: text.into(),
+            text,
             ended: Some(Instant::now()),
         });
         cx.notify();
@@ -1681,10 +1756,21 @@ impl BrowserHub {
             return;
         };
         if let Some(page) = self.page_state_mut(&target) {
+            let recording = page.viewers > 0;
+            let now = Instant::now();
             if method.starts_with("Network.") {
                 page.network.apply(method, params);
-            } else {
-                page.console.apply(method, params);
+                if recording {
+                    record_request(&mut page.recorder, method, params, now);
+                }
+            } else if let Some(entry) = page.console.apply(method, params)
+                && recording
+            {
+                let entry = RecordedEntry::Console {
+                    level: entry.level.clone(),
+                    text: entry.text.clone(),
+                };
+                page.recorder.push(entry, now);
             }
         }
     }
@@ -1759,11 +1845,13 @@ impl BrowserHub {
 
     /// Keeps a decoded frame the page of `session` streamed, unless a later start superseded
     /// the stream, and returns the page to acknowledge it to.
+    /// Shows a frame the page sent, decoded, with its base64 JPEG, which the page's minute keeps
+    /// every half second while a tab draws the page (#499).
     fn show(
         &mut self,
         generation: u64,
         session: &str,
-        decoded: anyhow::Result<Arc<RenderImage>>,
+        (decoded, jpeg): (anyhow::Result<Arc<RenderImage>>, String),
         metadata: FrameMetadata,
         cx: &mut Context<Self>,
     ) -> Option<Page> {
@@ -1780,6 +1868,10 @@ impl BrowserHub {
                 page.metadata = Some(metadata);
                 if let Some(sent) = page.input_at.take() {
                     input::log_latency(sent);
+                }
+                let now = Instant::now();
+                if page.viewers > 0 && page.recorder.wants_frame(now) {
+                    page.recorder.push_frame(Arc::from(jpeg), now);
                 }
                 cx.notify();
             }
@@ -1813,11 +1905,18 @@ impl BrowserHub {
     }
 
     fn send_key(&mut self, target: &str, press: KeyPress, cx: &Context<Self>) {
+        self.record_entry(target, key_entry(&press));
         self.send(target, "Input.dispatchKeyEvent", press.down, true, cx);
         self.send(target, "Input.dispatchKeyEvent", press.up, false, cx);
     }
 
     fn insert_text(&mut self, target: &str, text: &str, cx: &Context<Self>) {
+        self.record_entry(
+            target,
+            RecordedEntry::Typed {
+                characters: text.chars().count(),
+            },
+        );
         self.send(
             target,
             "Input.insertText",
@@ -1849,7 +1948,8 @@ impl BrowserHub {
 
     /// Puts the page's selection on the system clipboard, then sends `press`, the Ctrl+C or
     /// Ctrl+X that asked for it: a cut must not empty the selection before it is read.
-    fn copy_selection(&self, target: &str, press: KeyPress, cx: &Context<Self>) {
+    fn copy_selection(&mut self, target: &str, press: KeyPress, cx: &Context<Self>) {
+        self.record_entry(target, key_entry(&press));
         let Some(page) = self.page(target) else {
             return;
         };
@@ -1882,6 +1982,15 @@ impl BrowserHub {
         cx: &Context<Self>,
     ) {
         let (name, bit) = input::mouse_button(button);
+        self.record_entry(
+            target,
+            RecordedEntry::Click {
+                x: point.0,
+                y: point.1,
+                button: name.to_string(),
+                count: click_count,
+            },
+        );
         let Some(page) = self.page_state_mut(target) else {
             return;
         };
@@ -1962,6 +2071,13 @@ impl BrowserHub {
         modifiers: Modifiers,
         cx: &Context<Self>,
     ) {
+        self.record_entry(
+            target,
+            RecordedEntry::Scroll {
+                dx: delta.0,
+                dy: delta.1,
+            },
+        );
         let params = input::wheel_event(point, delta, input::modifier_bits(modifiers));
         self.send(target, "Input.dispatchMouseEvent", params, true, cx);
     }
@@ -2163,11 +2279,11 @@ async fn follow(
                 let number = frame.session_id;
                 let metadata = frame.metadata;
                 let data = frame.data;
-                let decoded = cx
-                    .background_spawn(futures::future::lazy(move |_| frame::decode(&data)))
+                let (decoded, data) = cx
+                    .background_spawn(futures::future::lazy(move |_| (frame::decode(&data), data)))
                     .await;
                 match this.update(cx, |this, cx| {
-                    this.show(generation, &session, decoded, metadata, cx)
+                    this.show(generation, &session, (decoded, data), metadata, cx)
                 }) {
                     Ok(Some(page)) => {
                         page.ack_frame(number).await.log_err();
@@ -2179,6 +2295,14 @@ async fn follow(
             // The document's own title arrives with its content, which no target event reports.
             "Page.domContentEventFired" | "Page.loadEventFired" => {
                 if let Some(target) = page_of_event(&this, &event, cx) {
+                    if event.method == "Page.loadEventFired" {
+                        let this = this.clone();
+                        let target = target.clone();
+                        cx.spawn(async move |cx| {
+                            record_snapshot(&this, generation, &target, cx).await;
+                        })
+                        .detach();
+                    }
                     refresh_info(&this, generation, &target, cx).await;
                 }
             }
@@ -2258,12 +2382,15 @@ async fn follow_navigation(
         // Chromium's error page, which names the URL it could not load.
         "Page.frameNavigated" => {
             if event.params.pointer("/frame/parentId").is_none() {
-                this.update(cx, |this, cx| this.left_document(generation, &target, cx))
-                    .ok();
                 let url = ["/frame/unreachableUrl", "/frame/url"]
                     .into_iter()
                     .find_map(|pointer| event.params.pointer(pointer).and_then(Value::as_str))
                     .map(str::to_string);
+                this.update(cx, |this, cx| {
+                    this.left_document(generation, &target, cx);
+                    this.record_navigation(generation, &target, url.as_deref());
+                })
+                .ok();
                 refresh_history(this, generation, &target, url, cx).await;
             }
         }
@@ -2378,6 +2505,141 @@ fn follow_observed(
         }
         _ => {}
     }
+}
+
+/// Keeps the page's snapshot in its minute after a load, while a tab draws the page (#499).
+async fn record_snapshot(
+    this: &WeakEntity<BrowserHub>,
+    generation: u64,
+    target: &str,
+    cx: &mut AsyncApp,
+) {
+    let page = this
+        .read_with(cx, |this, _| {
+            this.page_state(target)
+                .filter(|page| this.generation == generation && page.viewers > 0)
+                .map(|page| page.page.clone())
+        })
+        .ok()
+        .flatten();
+    let Some(page) = page else {
+        return;
+    };
+    if let Some(text) = snapshot_text(&page).await {
+        this.update(cx, |this, _| {
+            this.record_entry(target, RecordedEntry::Snapshot { text });
+        })
+        .ok();
+    }
+}
+
+/// The page's main frame as `snapshot::render` writes it for the recorder: its interactive
+/// nodes, and no field's value.
+async fn snapshot_text(page: &Page) -> Option<String> {
+    let nodes = page
+        .accessibility_tree(page.session_id(), None)
+        .await
+        .log_err()?;
+    let trees = [FrameTree {
+        session: None,
+        frame_id: None,
+        label: None,
+        nodes,
+    }];
+    Some(snapshot::render(&trees, false).text)
+}
+
+/// What the recorder keeps of a request's events: its start, then its status or its failure.
+fn record_request(recorder: &mut Recorder, method: &str, params: &Value, now: Instant) {
+    let Some(id) = params.get("requestId").and_then(Value::as_str) else {
+        return;
+    };
+    match method {
+        "Network.requestWillBeSent" => {
+            let url = params
+                .pointer("/request/url")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let request_method = params
+                .pointer("/request/method")
+                .and_then(Value::as_str)
+                .unwrap_or("GET");
+            recorder.push(
+                RecordedEntry::Request {
+                    id: id.to_string(),
+                    method: request_method.to_string(),
+                    url: redact_url(url),
+                    status: None,
+                    failure: None,
+                },
+                now,
+            );
+        }
+        "Network.responseReceived" => {
+            if let Some(status) = params.pointer("/response/status").and_then(Value::as_u64) {
+                recorder.request_ended(id, Ok(status));
+            }
+        }
+        "Network.loadingFailed" => {
+            let reason = params
+                .get("errorText")
+                .and_then(Value::as_str)
+                .unwrap_or("failed");
+            recorder.request_ended(id, Err(reason.to_string()));
+        }
+        _ => {}
+    }
+}
+
+/// What the recorder keeps of a key (#499): a key that types a character counts as one, and the
+/// character is never kept; a shortcut by its name and modifiers.
+fn key_entry(press: &KeyPress) -> RecordedEntry {
+    const ALT: u64 = 1;
+    const CTRL: u64 = 2;
+    const META: u64 = 4;
+    const SHIFT: u64 = 8;
+    let key = press
+        .down
+        .get("key")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let modifiers = press
+        .down
+        .get("modifiers")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let types = press
+        .down
+        .get("text")
+        .and_then(Value::as_str)
+        .is_some_and(|text| !text.is_empty() && text != "\r");
+    let mut characters = key.chars();
+    let single = characters.next().filter(|_| characters.next().is_none());
+    // A character a layout's AltGr types arrives as a chord: it is typing too.
+    let typed_by_chord = single.is_some_and(|character| !character.is_ascii_alphanumeric());
+    if types || typed_by_chord {
+        return RecordedEntry::Typed { characters: 1 };
+    }
+    let mut name: String = [
+        (CTRL, "Ctrl+"),
+        (ALT, "Alt+"),
+        (META, "Meta+"),
+        (SHIFT, "Shift+"),
+    ]
+    .iter()
+    .filter(|(bit, _)| modifiers & bit != 0)
+    .map(|(_, label)| *label)
+    .collect();
+    match single {
+        Some(character) => name.push(character.to_ascii_uppercase()),
+        None => name.push_str(key),
+    }
+    RecordedEntry::Key { key: name }
+}
+
+/// Where Record this saves the pages' minutes: Marley's data directory, never a project (#499).
+pub(crate) fn recordings_dir() -> PathBuf {
+    paths::data_dir().join("browser").join("recordings")
 }
 
 /// Reads the page's title and URL into the hub.
@@ -3495,6 +3757,35 @@ impl BrowserView {
         cx.notify();
     }
 
+    /// Saves the page's last minute as a recording, and says so, or why not, in a toast (#499).
+    fn record_this(&mut self, _: &RecordThis, _: &mut Window, cx: &mut Context<Self>) {
+        let Some(target) = self.target.clone() else {
+            return;
+        };
+        let saved = self
+            .hub
+            .update(cx, |hub, cx| hub.record(&target, recordings_dir(), cx));
+        let workspace = self.workspace.clone();
+        cx.spawn(async move |_, cx| {
+            let message = match saved.await {
+                Ok(id) => format!(
+                    "Saved this page's last minute as recording {id}; agents read it with \
+                     browser_recording."
+                ),
+                Err(error) => format!("Could not save the recording: {error:#}"),
+            };
+            workspace
+                .update(cx, |workspace, cx| {
+                    workspace.show_toast(
+                        Toast::new(NotificationId::unique::<RecordThis>(), message),
+                        cx,
+                    );
+                })
+                .ok();
+        })
+        .detach();
+    }
+
     /// Turns annotate mode on or off; the page takes the focus, so Escape ends it.
     fn annotate(&mut self, _: &Annotate, window: &mut Window, cx: &mut Context<Self>) {
         self.annotate_mode = if matches!(self.annotate_mode, AnnotateMode::Off) {
@@ -3835,6 +4126,7 @@ impl BrowserView {
             )
             .child(Self::render_pick_button(showing, picking, cx))
             .child(Self::render_annotate_button(showing, annotating, cx))
+            .child(Self::render_record_button(showing, cx))
             // What an agent does in the page, while it does it and a moment after (#492).
             .when_some(hub.agent_chip(target), |this, action| {
                 this.child(
@@ -3905,6 +4197,22 @@ impl BrowserView {
             ))
             .on_click(cx.listener(|this, _, window, cx| {
                 this.annotate(&Annotate, window, cx);
+            }))
+    }
+
+    /// The toolbar's record button, a red dot: the recorder keeps the page's last minute while the
+    /// tab draws it, and the button saves it (#499).
+    fn render_record_button(showing: bool, cx: &Context<Self>) -> IconButton {
+        IconButton::new("browser-record", IconName::Circle)
+            .icon_size(IconSize::Small)
+            .icon_color(Color::Error)
+            .disabled(!showing)
+            .tooltip(Tooltip::for_action_title(
+                "Save the Last Minute of This Page",
+                &RecordThis,
+            ))
+            .on_click(cx.listener(|this, _, window, cx| {
+                this.record_this(&RecordThis, window, cx);
             }))
     }
 
@@ -4407,6 +4715,7 @@ impl Render for BrowserView {
             .on_action(cx.listener(Self::reload))
             .on_action(cx.listener(Self::pick_element))
             .on_action(cx.listener(Self::annotate))
+            .on_action(cx.listener(Self::record_this))
             .on_action(cx.listener(Self::keep_annotation))
             .on_action(cx.listener(Self::drop_annotation))
             .size_full()

@@ -10853,6 +10853,7 @@ dependencies = [
  "agent_settings",
  "agent_ui",
  "anyhow",
+ "base64 0.22.1",
  "chrono",
  "collections",
  "db",
