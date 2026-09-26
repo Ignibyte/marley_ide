@@ -21,9 +21,9 @@ use marley_fleet::FleetSnapshot;
 use crate::permission::GrantTable;
 use crate::session::{SessionDecision, SessionRegistry, session_gate};
 use crate::{
-    APP_CALL_TIMEOUT_SECONDS, AppCall, AppCaller, AppOutcome, Effect, Outgoing, PendingCall,
-    RequestCtx, Subscriptions, auth, deferred_response, handle_message, mint_secret, parse_request,
-    snapshot_changed,
+    APP_CALL_TIMEOUT_SECONDS, AppCall, AppCaller, AppOutcome, Caller, Effect, Outgoing,
+    PendingCall, RequestCtx, Subscriptions, auth, deferred_response, handle_message, mint_secret,
+    parse_request, snapshot_changed,
 };
 
 /// The shared server state the app updates each pump tick: the current snapshot, the permission
@@ -252,7 +252,7 @@ fn serve_connection(
                 Outgoing::Response(body) => body,
                 // The lock is released by now, so the wait holds up no other connection.
                 Outgoing::Deferred(pending) => {
-                    let outcome = ask_app(caller, &pending);
+                    let outcome = ask_app(caller, &pending, &request.caller);
                     deferred_response(&pending, outcome)
                 }
                 Outgoing::Notification(_) => continue,
@@ -276,12 +276,14 @@ fn serve_connection(
     }
 }
 
-/// Hands `pending` to the app and waits for its answer, up to [`APP_CALL_TIMEOUT_SECONDS`] (#491).
-fn ask_app(caller: &AppCaller, pending: &PendingCall) -> AppOutcome {
+/// Hands `pending`, from `who`, to the app and waits for its answer, up to
+/// [`APP_CALL_TIMEOUT_SECONDS`] (#491).
+fn ask_app(caller: &AppCaller, pending: &PendingCall, who: &Caller) -> AppOutcome {
     let (answer, answered) = std::sync::mpsc::sync_channel(1);
     caller(AppCall::new(
         pending.tool.clone(),
         pending.arguments.clone(),
+        who.clone(),
         answer,
     ));
     match answered.recv_timeout(Duration::from_secs(APP_CALL_TIMEOUT_SECONDS)) {
@@ -384,7 +386,33 @@ struct HttpRequest {
     bearer: Option<String>,
     /// The presented `Mcp-Session-Id` (#375), if any.
     session: Option<String>,
+    /// Who is calling, from the bridge's `Marley-*` headers (#520).
+    caller: Caller,
     body: String,
+}
+
+/// The longest path a `Marley-Project` or `Marley-Cwd` header may name, decoded.
+const MAX_CALLER_PATH: usize = 4096;
+
+/// A `Marley-Terminal` header's value, when it has a terminal id's shape (a UUID).
+fn caller_terminal(value: &str) -> Option<String> {
+    let shaped = value.len() == 36
+        && value.char_indices().all(|(index, character)| {
+            if matches!(index, 8 | 13 | 18 | 23) {
+                character == '-'
+            } else {
+                character.is_ascii_hexdigit()
+            }
+        });
+    shaped.then(|| value.to_string())
+}
+
+/// A `Marley-Project` or `Marley-Cwd` header's path, percent-decoded, when it is absolute and short
+/// enough. A malformed value names nothing rather than refusing the call.
+fn caller_path(value: &str) -> Option<String> {
+    let path = urlencoding::decode(value).ok()?;
+    (path.starts_with('/') && path.len() <= MAX_CALLER_PATH && !path.contains('\0'))
+        .then(|| path.into_owned())
 }
 
 /// The largest request body the server reads (1 MiB; an MCP request is small).
@@ -409,6 +437,7 @@ fn read_http_request(
         .unwrap_or("")
         .to_string();
     let (mut origin, mut bearer, mut session, mut content_length) = (None, None, None, 0usize);
+    let mut caller = Caller::default();
     loop {
         let mut line = String::new();
         if reader.read_line(&mut line)? == 0 {
@@ -424,6 +453,12 @@ fn read_http_request(
             bearer = value.strip_prefix("Bearer ").map(str::to_string);
         } else if let Some(value) = header_value(line, "mcp-session-id") {
             session = Some(value.to_string());
+        } else if let Some(value) = header_value(line, "marley-terminal") {
+            caller.terminal = caller_terminal(value);
+        } else if let Some(value) = header_value(line, "marley-project") {
+            caller.project = caller_path(value);
+        } else if let Some(value) = header_value(line, "marley-cwd") {
+            caller.cwd = caller_path(value);
         } else if let Some(value) = header_value(line, "content-length") {
             content_length = value.parse().unwrap_or(0);
         }
@@ -439,6 +474,7 @@ fn read_http_request(
         origin,
         bearer,
         session,
+        caller,
         body: String::from_utf8_lossy(&body).into_owned(),
     }))
 }

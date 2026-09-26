@@ -1136,6 +1136,8 @@ impl TerminalBuilder {
             pending_cwd_boundary: None,
             // Marley: the shell's commands as blocks (#464).
             blocks: marley_terminal::AnchoredBlocks::default(),
+            // Marley: a display-only terminal runs no program to be told an id (#520).
+            marley_terminal_id: None,
             #[cfg(any(test, feature = "test-support"))]
             input_log: Vec::new(),
             #[cfg(test)]
@@ -1217,6 +1219,25 @@ impl TerminalBuilder {
                 );
                 nonce
             });
+
+            // Marley: a local interactive terminal gives its programs an id of its own, which an
+            // agent's MCP bridge hands Marley's tools so they know their caller; one it was handed
+            // (a split's source) is replaced. A task or a remote terminal names no terminal and no
+            // project. The values are emptied, not removed: the program inherits Marley's own
+            // environment besides this map, and a Marley started from a Marley terminal carries
+            // its parent's (#520).
+            let marley_terminal_id = (task.is_none() && !is_remote_terminal)
+                .then(marley_terminal::identity::new_terminal_id);
+            env.insert(
+                marley_terminal::identity::TERMINAL_ID_VARIABLE.to_string(),
+                marley_terminal_id.clone().unwrap_or_default(),
+            );
+            if marley_terminal_id.is_none() {
+                env.insert(
+                    marley_terminal::identity::PROJECT_VARIABLE.to_string(),
+                    String::new(),
+                );
+            }
 
             // Marley: a local interactive shell loads Marley's shell integration, so its prompts
             // and commands become blocks (#463).
@@ -1463,6 +1484,8 @@ impl TerminalBuilder {
                     marley_terminal::AnchoredBlocks::default,
                     marley_terminal::AnchoredBlocks::with_nonce,
                 ),
+                // Marley: the id its programs see (#520).
+                marley_terminal_id,
                 #[cfg(any(test, feature = "test-support"))]
                 input_log: Vec::new(),
                 #[cfg(test)]
@@ -1645,6 +1668,9 @@ pub struct Terminal {
     pending_cwd_boundary: Option<i32>,
     // Marley: the shell's commands as blocks anchored in the scrollback (#464).
     blocks: marley_terminal::AnchoredBlocks,
+    // Marley: the `MARLEY_TERMINAL_ID` its programs were given, for a local interactive terminal
+    // (#520).
+    marley_terminal_id: Option<String>,
     #[cfg(any(test, feature = "test-support"))]
     input_log: Vec<Vec<u8>>,
     #[cfg(test)]
@@ -1838,6 +1864,13 @@ impl Terminal {
             },
             Err(error) => log::debug!("dropped an undecodable shell hook: {error:?}"),
         }
+    }
+
+    // Marley: the id Marley's tools know this terminal's callers by (#520).
+    /// The `MARLEY_TERMINAL_ID` this terminal's programs were given; `None` for a task, a remote
+    /// terminal or a display-only one.
+    pub fn marley_terminal_id(&self) -> Option<&str> {
+        self.marley_terminal_id.as_deref()
     }
 
     // Marley: the shell's commands as blocks (#464).

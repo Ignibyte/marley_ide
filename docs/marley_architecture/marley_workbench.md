@@ -471,6 +471,13 @@ alike.
 
 ## Marley's MCP server (`src/mcp.rs`, #491, #501)
 
+- Since #520 every call carries its `marley_mcp::Caller` (the bridge's `Marley-Terminal`,
+  `Marley-Project` and `Marley-Cwd` headers): `terminal_list` marks the row whose
+  `Terminal::marley_terminal_id` is the caller's `self` and gives each row's `terminal_id`, and
+  `terminal_of` reads the caller's own terminal when a call names none, refusing with the next
+  step when the caller has none. The context server registered for Zed's agents blanks both
+  variables, so a Marley started from a Marley terminal hands its agents no parent's identity.
+
 - `start`, which `zed`'s `main` calls after `initialize_workspace` (Zed's tests run
   `initialize_workspace`, and must not start a server), spawns `marley_mcp`'s server once per
   process, writes `mcp-endpoint.json` into `paths::data_dir()` on the background executor, and

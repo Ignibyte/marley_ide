@@ -126,6 +126,21 @@ pub struct PendingCall {
     pub arguments: Value,
 }
 
+/// Who made a tool call, as the Claude Code plugin's bridge reports it (#520).
+///
+/// It holds the Marley terminal the client runs in, that terminal's project, and the folder the
+/// client runs in. It is a convenience for what a call that names no terminal acts on, never an
+/// authority: the bearer gates every call, and a shell can set its own variables.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Caller {
+    /// The caller's `MARLEY_TERMINAL_ID`.
+    pub terminal: Option<String>,
+    /// The caller's `MARLEY_PROJECT`.
+    pub project: Option<String>,
+    /// The folder the caller's client runs in.
+    pub cwd: Option<String>,
+}
+
 /// A tool call handed to the app. The connection's thread waits for [`AppCall::answer`].
 #[derive(Debug)]
 pub struct AppCall {
@@ -133,22 +148,31 @@ pub struct AppCall {
     pub tool: String,
     /// Its arguments, as the client sent them.
     pub arguments: Value,
+    caller: Caller,
     answer: SyncSender<Result<ToolAnswer, String>>,
 }
 
 impl AppCall {
-    /// A call for `tool` with `arguments`, whose answer goes to `answer`.
+    /// A call for `tool` with `arguments` from `caller`, whose answer goes to `answer`.
     #[must_use]
     pub const fn new(
         tool: String,
         arguments: Value,
+        caller: Caller,
         answer: SyncSender<Result<ToolAnswer, String>>,
     ) -> Self {
         Self {
             tool,
             arguments,
+            caller,
             answer,
         }
+    }
+
+    /// Who made the call, as far as the client said (#520).
+    #[must_use]
+    pub const fn caller(&self) -> &Caller {
+        &self.caller
     }
 
     /// Gives the waiting connection the app's answer: the tool's result, or why it failed. An

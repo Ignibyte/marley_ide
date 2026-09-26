@@ -26,7 +26,8 @@
 #   any terminal, whose command holds the text: its command, the redaction counts and its
 #   output (#516). `terminals` lists every terminal: its id, title, project and folder (#513).
 #   `blocks` lists every terminal's blocks: command, exit code, whether it runs and whether its
-#   output is still kept (#546). `fleet` lists `fleet_snapshot`'s seats: each one's id, state and
+#   output is still kept (#546); `blocks-here` lists the blocks of the terminal the agent runs in,
+#   naming none (#520), and `terminals` marks that one `(self)` and gives each `terminal_id`. `fleet` lists `fleet_snapshot`'s seats: each one's id, state and
 #   the labels an agent row shows, or `no seats` (#547).
 # - `browser_profile` and `browser_unit` name the run's Chromium profile and its user unit;
 #   `browser_teardown`, for the scenario's `teardown`, stops the unit and the servers.
@@ -374,7 +375,13 @@ def main():
     elif command == "terminals":
         result = client.tool("terminal_list")
         for terminal in (result or {}).get("structuredContent", {}).get("terminals", []):
-            print(f"  terminal {terminal['id']}: {terminal['title']!r}, project {terminal['project']}, in {terminal['cwd']}")
+            own = " (self)" if terminal.get("self") else ""
+            print(f"  terminal {terminal['id']}{own}: {terminal['title']!r}, project {terminal['project']}, "
+                  f"id {terminal.get('terminal_id')}, in {terminal['cwd']}")
+    elif command == "blocks-here":
+        answer = (client.tool("terminal_blocks") or {}).get("structuredContent", {})
+        for block in answer.get("blocks", []):
+            print(f"  block {block['index']}: {block['command']!r}, exit {block['exit_code']}")
     elif command == "terminal-read":
         listed = client.tool("terminal_list")
         found = None

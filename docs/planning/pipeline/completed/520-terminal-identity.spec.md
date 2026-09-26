@@ -1,7 +1,7 @@
 ---
 pipeline_id: 3df3b046-8a7a-4e68-b152-db9a25aadf76
 ticket: docs/planning/tickets/open/TICKET-520-terminal-identity.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Each terminal knows its id, and Marley's tools know their caller"
 type: feature
 slice: prong 2, C0 follow-on (the caller behind a tool call); prong 3 (browser tools scoped to the caller's project)
@@ -31,10 +31,6 @@ the caller's project instead of on whichever tab the user focused last.
     local terminal and passes a restored id to the builder; a new
     `create_terminal_shell_restoring(cwd, terminal_id)` is what the restore calls.
   - `marley_terminal::identity` (Marley): the names, `new_terminal_id`, and the shape check.
-- **Restore.** A Marley table keeps each terminal item's id (`MarleyTerminalIdsDb`, a database
-  domain in `marley_workbench` like #494's `MarleyBrowserTabsDb`). `TerminalView`'s serialize,
-  deserialize and cleanup reach it through a hook global `marley_workbench` sets, as
-  `MarleyTerminalFooter` (#477) is set.
 - **The bridge** sends `Marley-Terminal` (a UUID), `Marley-Project` and `Marley-Cwd` (absolute
   paths, at most 4,096 bytes each) with every request, each only when its value is well formed.
 - **`marley_mcp`.** The transport reads the three headers into a `Caller` and `AppCall` carries it
@@ -43,20 +39,17 @@ the caller's project instead of on whichever tab the user focused last.
   caller's own with `"self": true`. `terminal_blocks` and `terminal_read` with no `terminal` read
   the caller's; with no caller either, they refuse with the reason and the next step
   (`terminal_list`).
-- **The browser tools.** The caller's project is its terminal's project group when the id
-  resolves, else the group with a workspace whose folders hold `Marley-Project`, else the one
-  holding `Marley-Cwd` (the longest folder wins). The workspaces' own folders are matched, not
-  the group's key, so a linked worktree (#510) finds its group. A tool that names no `tab` acts
-  on the tab the user focused last in that project; `browser_navigate` with none opens a new tab
-  there when the project has no tab. `browser_tabs` gives each tab's project and marks the tab a
-  call with no `tab` would act on for this caller.
 - **Zed's own agents.** The context server Marley registers (#501) sets both variables empty in
   the bridge's environment, so a Marley started from a Marley terminal passes its parent's identity
-  to no one. Zed starts a local project's context servers in the project's folder, so an Agent
-  Panel agent is placed by `Marley-Cwd`.
-- `marley_mcp`'s tool descriptions say what a call with no `terminal` or `tab` acts on.
+  to no one.
+- `marley_mcp`'s tool descriptions say what a call with no `terminal` acts on.
 
 ### Out (explicitly deferred)
+- **Cut at promotion (2026-09-26):** the browser tools acting in the caller's project (a tab
+  named by none, `browser_navigate`'s new tab, `browser_tabs`' `project` and `default`, an Agent
+  Panel agent placed by `Marley-Cwd`; the queued REQ-007 and REQ-008) are TICKET-574, which
+  reads this slice's `Caller`; the id surviving a restore (the table and the terminal view's
+  hook; REQ-004) is TICKET-575. Until then an id lasts one launch.
 - `FORCE_HYPERLINK=1` (Orca sets it for OSC 8 links; #503's business).
 - Remote terminals: they get no id, and their agents cannot reach the loopback server anyway.
 - A thread id for Agent Panel callers; refusing a stale id with a next step (Orca's remint): a
@@ -103,31 +96,22 @@ the caller's project instead of on whichever tab the user focused last.
   guessing from the running command, the gap this ticket closes.
 
 ## UI proof
-UI-AFFECTING: what agents see through the tools, shown in terminals and Browser tabs.
-`script/e2e/520-terminal-identity.sh` (`compositor sway`: a split, the rail's rows and its + menu
-are clicked). Setup exports `MARLEY_TERMINAL_ID=inherited` and `MARLEY_PROJECT=/nowhere` before
-the launch, so Marley inherits them; builds scratch repositories A (opened) and B (opened in the
-steps through Zed's Open with its own path prompt, `use_system_path_prompts` off in the run's
-settings), B holding a `.zed/tasks.json` task that prints both variables; a HOME whose `.bashrc`
-defines `mcp` (#491's stand-in client, with `list`, `blocks`, `tabs` and `navigate`) and `ids`
-(prints both variables and appends them to a log); and an offline Chromium serving two local
-pages (`browser-fixture.sh`). Shots:
-- `520-01-identity`: `ids` in A's terminal prints a UUID and A's folder; after a split, `ids` in
-  the new terminal prints another UUID.
-- `520-02-self`: `mcp list` in A's first terminal: its row reads `self: true`, the split's does
-  not, and each row has a `terminal_id`.
-- `520-03-own-blocks`: `mcp blocks` with no terminal named lists that terminal's commands.
-- `520-04-task`: B's task prints both variables unset.
-- `520-05-scoped-tab`: B gets a Browser tab from the rail's + (so the tab the user focused last is
-  B's); in A's terminal, `mcp navigate <page>` opens the page in a new tab in A, and B's tab keeps
-  its page.
-- `520-06-agent-panel`: #501's stand-in ACP agent, started in B, is prompted to open the other
-  page: it opens in B.
-- `520-07-restored`: after `quit_marley` and `launch_marley`, `ids` in A's restored terminal
-  prints the id it had before; the run log compares the two log lines.
-A client run from the harness with an empty environment calls `terminal_list` and
-`browser_navigate`: no row is `self`, and the page loads in the tab the user focused last, in
-whichever project, as before this ticket (the run log).
+UI-AFFECTING: what agents see through the tools, shown in terminals.
+`script/e2e/520-terminal-identity.sh` (`compositor sway`: Chad's own Marley is open, and the
+runner refuses Hyprland beside it; keys only). Setup exports `MARLEY_TERMINAL_ID=inherited` and
+`MARLEY_PROJECT=/nowhere` before the launch, so Marley inherits them; builds a scratch repository
+holding a `.zed/tasks.json` task that prints both variables; and a HOME whose `.bashrc` defines
+`ids` (prints both variables). The stand-in agent (`browser-fixture.sh`'s `mcp_agent`, through the
+plugin's bridge) runs in a terminal, so its requests carry that terminal's headers. Shots:
+- `520-01-identity`: `ids` prints a UUID and the repository's folder; after a split (`pane: split
+  right`), `ids` in the new terminal prints another UUID.
+- `520-02-self`: `mcp_agent terminals` in the first terminal: its row reads `self`, the split's
+  does not, and each row has a `terminal_id`.
+- `520-03-own-blocks`: `mcp_agent blocks-here`, `terminal_blocks` with no terminal named, lists
+  that terminal's own commands.
+- `520-04-task`: the task, run from the palette, prints both variables unset.
+The harness-side client (the runner's shell, no terminal of Marley's) calls `terminal_list`: no
+row is `self`, and `terminal_blocks` with no terminal refuses with its next step (the run log).
 
 ## Locked-In Decisions
 - D1: The id is a UUID that Marley mints, never the gpui entity id, which changes at every
@@ -159,13 +143,10 @@ whichever project, as before this ticket (the run log).
 |---|---|---|
 | REQ-001 | WHEN Marley opens a local terminal, its environment shall hold its own `MARLEY_TERMINAL_ID`, a UUID, and `MARLEY_PROJECT`, its project's folder, whatever values Marley inherited. | Shot `520-01-identity` |
 | REQ-002 | WHEN a terminal is split, the new terminal shall get a new `MARLEY_TERMINAL_ID`. | Shot `520-01-identity` |
-| REQ-003 | WHEN a task runs, its environment shall hold neither variable. | Shot `520-04-task` |
-| REQ-004 | WHEN Marley restores a terminal at launch, the terminal shall keep its `MARLEY_TERMINAL_ID`. | Shot `520-07-restored`; the run log's comparison |
+| REQ-003 | WHEN a task runs, both variables shall be empty in its environment, naming no terminal and no project. | Shot `520-04-task` |
 | REQ-005 | WHEN an agent in a Marley terminal calls `terminal_list` through the plugin's bridge, the answer shall mark its own terminal `self` and give each terminal's `terminal_id`. | Shot `520-02-self` |
 | REQ-006 | WHEN `terminal_blocks` or `terminal_read` names no terminal, it shall read the caller's own. | Shot `520-03-own-blocks` |
-| REQ-007 | WHEN a browser tool names no tab, it shall act in the caller's project: on its tab the user focused last, or for `browser_navigate` on a new tab there when it has none. | Shot `520-05-scoped-tab` |
-| REQ-008 | WHEN an Agent Panel agent calls a browser tool with no tab, it shall act in its thread's project. | Shot `520-06-agent-panel`; the stand-in's log |
-| REQ-009 | WHEN a caller has no terminal and no project, the tools shall act as they did before this ticket. | The run log: the harness-side client |
+| REQ-009 | WHEN a caller has no terminal, the tools shall act as they did before this ticket. | The run log: the harness-side client |
 | REQ-010 | The diff gate shall be green. | `script/gates.sh --diff` |
 
 ## Phase Plan

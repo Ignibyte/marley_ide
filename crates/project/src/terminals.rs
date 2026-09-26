@@ -317,6 +317,13 @@ impl Project {
     ) -> Task<Result<Entity<Terminal>>> {
         let path = cwd.map(|p| Arc::from(&*p));
         let is_via_remote = !force_local && self.remote_client.is_some();
+        // Marley: a terminal of a local project is told its project's folder; one in a remote
+        // project, even a local terminal, is not, since the folder is not on this machine (#520).
+        let marley_project = self
+            .remote_client
+            .is_none()
+            .then(|| self.first_project_directory(cx))
+            .flatten();
 
         let mut settings_location = None;
         if let Some(path) = path.as_ref()
@@ -376,6 +383,16 @@ impl Project {
             let shell_kind = ShellKind::new(&shell, path_style.is_windows());
             let mut env = env_task.await.unwrap_or_default();
             env.extend(settings.env);
+            // Marley: the project's folder, for Marley's tools to know the caller's project. An
+            // inherited value is replaced, and emptied when there is no local folder: the program
+            // inherits Marley's own environment besides this map (#520).
+            env.insert(
+                marley_terminal::identity::PROJECT_VARIABLE.to_string(),
+                marley_project
+                    .as_ref()
+                    .map(|folder| folder.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+            );
 
             let activation_script = maybe!(async {
                 for toolchain in toolchains {

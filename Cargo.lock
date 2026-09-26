@@ -10822,6 +10822,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "urlencoding",
 ]
 
 [[package]]
@@ -10848,6 +10849,7 @@ dependencies = [
  "rand 0.9.4",
  "rustix",
  "tempfile",
+ "uuid",
 ]
 
 [[package]]
@@ -14249,6 +14251,7 @@ dependencies = [
  "log",
  "lsp",
  "markdown",
+ "marley_terminal",
  "node_runtime",
  "parking_lot",
  "path",

@@ -23,7 +23,7 @@ use futures::channel::mpsc;
 use gpui::{App, AppContext as _, BorrowAppContext as _, Context, Entity, Global};
 use marley_fleet::FleetSnapshot;
 use marley_mcp::redact::{Redacted, Redactor};
-use marley_mcp::{AppCall, AppCaller, GrantTable, ToolAnswer, discovery, transport};
+use marley_mcp::{AppCall, AppCaller, Caller, GrantTable, ToolAnswer, discovery, transport};
 use marley_terminal::{AnchoredBlock, BlockState, BlockTimes};
 use serde_json::{Value, json};
 use settings::settings_content::{ContextServerCommand, ContextServerSettingsContent};
@@ -192,11 +192,24 @@ fn offer_to_zeds_agents(data_dir: PathBuf, cx: &App) {
             let command = ContextServerCommand {
                 path: bridge,
                 args: Vec::new(),
+                // A Marley started from a Marley terminal would hand its parent's identity to its
+                // own agents' bridge, so both are blank there (#520).
                 env: Some(
-                    std::iter::once((
-                        "MARLEY_MCP_ENDPOINT".to_string(),
-                        endpoint.to_string_lossy().into_owned(),
-                    ))
+                    [
+                        (
+                            "MARLEY_MCP_ENDPOINT".to_string(),
+                            endpoint.to_string_lossy().into_owned(),
+                        ),
+                        (
+                            marley_terminal::identity::TERMINAL_ID_VARIABLE.to_string(),
+                            String::new(),
+                        ),
+                        (
+                            marley_terminal::identity::PROJECT_VARIABLE.to_string(),
+                            String::new(),
+                        ),
+                    ]
+                    .into_iter()
                     .collect(),
                 ),
                 timeout: None,
@@ -337,9 +350,9 @@ fn answer(call: AppCall, cx: &mut App) {
         return;
     }
     let result = match call.tool.as_str() {
-        "terminal_list" => Ok(terminal_list(cx)),
-        "terminal_blocks" => terminal_blocks(&call.arguments, cx),
-        "terminal_read" => terminal_read(&call.arguments, cx),
+        "terminal_list" => Ok(terminal_list(call.caller(), cx)),
+        "terminal_blocks" => terminal_blocks(&call.arguments, call.caller(), cx),
+        "terminal_read" => terminal_read(&call.arguments, call.caller(), cx),
         other => Err(format!("Marley answers no tool named {other}")),
     };
     call.answer(result);
@@ -386,15 +399,30 @@ fn terminal_with_id(id: u64, cx: &App) -> Result<Entity<TerminalView>, String> {
         .ok_or_else(|| format!("no terminal has the id {id}; terminal_list names them"))
 }
 
-/// The `terminal` argument: a terminal's id.
-fn terminal_argument(arguments: &Value) -> Result<u64, String> {
-    arguments
-        .get("terminal")
-        .and_then(Value::as_u64)
-        .ok_or_else(|| "give `terminal`, a terminal's id from terminal_list".to_string())
+/// The terminal a call names in `terminal`, else the caller's own (#520): its id and its view.
+fn terminal_of(
+    arguments: &Value,
+    caller: &Caller,
+    cx: &App,
+) -> Result<(u64, Entity<TerminalView>), String> {
+    if let Some(id) = arguments.get("terminal").and_then(Value::as_u64) {
+        return terminal_with_id(id, cx).map(|view| (id, view));
+    }
+    let own = caller.terminal.as_deref().and_then(|own| {
+        terminals(cx)
+            .into_iter()
+            .map(|(_, view)| view)
+            .find(|view| view.read(cx).terminal().read(cx).marley_terminal_id() == Some(own))
+    });
+    own.map(|view| (view.entity_id().as_u64(), view))
+        .ok_or_else(|| {
+            "give `terminal`, a terminal's id from terminal_list: this call comes from no \
+             terminal of Marley's"
+                .to_string()
+        })
 }
 
-fn terminal_list(cx: &App) -> ToolAnswer {
+fn terminal_list(caller: &Caller, cx: &App) -> ToolAnswer {
     let terminals: Vec<Value> = terminals(cx)
         .iter()
         .map(|(workspace, view)| {
@@ -414,8 +442,12 @@ fn terminal_list(cx: &App) -> ToolAnswer {
                 .visible_worktrees(cx)
                 .next()
                 .map(|worktree| worktree.read(cx).root_name_str().to_string());
+            let terminal_id = terminal.marley_terminal_id();
             json!({
                 "id": view.entity_id().as_u64(),
+                "terminal_id": terminal_id,
+                // Marley: the caller's own terminal (#520).
+                "self": terminal_id.is_some() && terminal_id == caller.terminal.as_deref(),
                 "title": view.read(cx).tab_content_text(0, cx).to_string(),
                 "project": project,
                 "cwd": cwd,
@@ -431,15 +463,14 @@ fn terminal_list(cx: &App) -> ToolAnswer {
     }
 }
 
-fn terminal_blocks(arguments: &Value, cx: &App) -> Result<ToolAnswer, String> {
-    let id = terminal_argument(arguments)?;
+fn terminal_blocks(arguments: &Value, caller: &Caller, cx: &App) -> Result<ToolAnswer, String> {
+    let (id, view) = terminal_of(arguments, caller, cx)?;
     let last = arguments
         .get("last")
         .and_then(Value::as_u64)
         .map_or(DEFAULT_BLOCKS, |last| {
             usize::try_from(last).map_or(MAX_BLOCKS, |last| last.clamp(1, MAX_BLOCKS))
         });
-    let view = terminal_with_id(id, cx)?;
     let terminal = view.read(cx).terminal().read(cx);
     let anchored = terminal.marley_anchored();
     let blocks = anchored.blocks();
@@ -505,14 +536,13 @@ fn milliseconds(span: Result<std::time::Duration, std::time::SystemTimeError>) -
         .and_then(|span| u64::try_from(span.as_millis()).ok())
 }
 
-fn terminal_read(arguments: &Value, cx: &App) -> Result<ToolAnswer, String> {
-    let id = terminal_argument(arguments)?;
+fn terminal_read(arguments: &Value, caller: &Caller, cx: &App) -> Result<ToolAnswer, String> {
+    let (id, view) = terminal_of(arguments, caller, cx)?;
     let index = arguments
         .get("block")
         .and_then(Value::as_u64)
         .and_then(|index| usize::try_from(index).ok())
         .ok_or_else(|| "give `block`, a block's index from terminal_blocks".to_string())?;
-    let view = terminal_with_id(id, cx)?;
     let terminal = view.read(cx).terminal().read(cx);
     let block = terminal
         .blocks()

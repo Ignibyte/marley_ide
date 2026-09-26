@@ -2210,3 +2210,19 @@ Rejected: `on_app_quit` (it cannot cancel) and `on_window_should_close` (Zed's o
 vetoes and closes later); an `Item` method (none can veto a close); asking in `prepare_to_close`
 alone (a quit or a window with agents in two projects would ask twice); holding the `Terminal`
 without its view (the view carries the scrollback's rendering and the seat's key).
+
+## AD-claude-520-each-terminal-names-itself-and-the-bridge-names-the-caller-001
+*decided at: 2026-09-26 · status: shipped (slice 1; #574 and #575 follow)*
+
+Each local interactive terminal starts with `MARLEY_TERMINAL_ID`, a UUID Zed's terminal builder
+mints beside #474's nonce (so a split, rebuilt through the builder, gets its own), and
+`MARLEY_PROJECT`, the project's folder, which the project sets; a task, a remote terminal and a
+local terminal of a remote project get both emptied, since the program inherits Marley's own
+environment under the builder's map. The Claude Code plugin's bridge sends them, with its own
+folder, as `Marley-Terminal`, `Marley-Project` and `Marley-Cwd` on each request; the transport
+keeps well-formed values as a `Caller` on each `AppCall`. The terminal tools default to the
+caller's terminal. The id scopes defaults and is no authority: the bearer gates every call.
+Rejected: the gpui entity id (it changes every launch, and no program sees it); guessing the
+caller from the running command (#491's stand-in did, and two agents in two terminals look
+alike); a column in Zed's `terminals` table for the restore (#575 keeps its own table, so no
+Marley migration sits in upstream's list).

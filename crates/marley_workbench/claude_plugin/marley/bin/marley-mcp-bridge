@@ -14,6 +14,7 @@ loopback URL, and nothing here prints it.
 
 import json
 import os
+import re
 import socket
 import sys
 import threading
@@ -110,6 +111,31 @@ def messages_in(body, kind):
     return parsed if isinstance(parsed, list) else [parsed]
 
 
+# A terminal id, as Marley mints them: a UUID.
+TERMINAL_ID = re.compile(r"^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
+MAX_PATH = 4096
+
+
+def caller_headers():
+    """Who is calling (#520): the terminal and the project a Marley terminal starts its programs
+    with, and the folder the bridge runs in, so Marley's tools can act on the caller's own when a
+    call names none. Each goes only when it is well formed; the paths are percent-encoded, since
+    a header carries Latin-1 alone."""
+    headers = {}
+    terminal = os.environ.get("MARLEY_TERMINAL_ID", "")
+    if TERMINAL_ID.match(terminal):
+        headers["Marley-Terminal"] = terminal
+    try:
+        cwd = os.getcwd()
+    except OSError:
+        cwd = ""
+    for name, value in (("Marley-Project", os.environ.get("MARLEY_PROJECT", "")),
+                        ("Marley-Cwd", cwd)):
+        if value.startswith("/") and len(value.encode("utf-8", "replace")) <= MAX_PATH:
+            headers[name] = urllib.parse.quote(value, safe="/")
+    return headers
+
+
 def request(endpoint, method, message=None, session=None):
     """Sends one HTTP request to Marley: the messages it answered with, and the session it gave."""
     url, authorization = endpoint
@@ -117,6 +143,7 @@ def request(endpoint, method, message=None, session=None):
         "Accept": "application/json, text/event-stream",
         "Authorization": authorization,
         "MCP-Protocol-Version": PROTOCOL_VERSION,
+        **caller_headers(),
     }
     data = None
     if message is not None:

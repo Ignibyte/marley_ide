@@ -95,15 +95,18 @@ const REGISTRY: &[ToolSpec] = &[
         verb: "list",
         tier: Tier::Read,
         grant_class: "",
-        description: "List Marley's terminals: each one's id, title, project, working directory, the \
-                      command running in it, and how many blocks it holds.",
+        description: "List Marley's terminals: each one's id, its `terminal_id` (the \
+                      `MARLEY_TERMINAL_ID` its programs see), title, project, working directory, \
+                      the command running in it, how many blocks it holds, and `self` for the \
+                      terminal this call comes from.",
     },
     ToolSpec {
         family: Family::Terminal,
         verb: "blocks",
         tier: Tier::Read,
         grant_class: "",
-        description: "List a terminal's blocks, the commands run in it, oldest first: each command, \
+        description: "List a terminal's blocks (the calling terminal's when `terminal` is left \
+                      out), the commands run in it, oldest first: each command, \
                       whether the shell's own hook reported it, its exit code, working directory, \
                       start time and duration, whether it still runs, and whether its output is \
                       still in the scrollback. Secrets in commands come back as \
@@ -115,8 +118,8 @@ const REGISTRY: &[ToolSpec] = &[
         verb: "read",
         tier: Tier::Read,
         grant_class: "",
-        description: "Read one block's output as text: at most 2,000 lines, the end kept when there \
-                      are more. Secrets come back as `[redacted: <kind>]`, counted in \
+        description: "Read one block's output as text, from the calling terminal when `terminal` is \
+                      left out: at most 2,000 lines, the end kept when there are more. Secrets come back as `[redacted: <kind>]`, counted in \
                       `redacted`, unless the user turned redaction off.",
     },
     browser_read(
@@ -818,7 +821,10 @@ fn terminal_schemas(verb: &str) -> (Value, Value) {
 
 /// The schema of the `terminal` argument, a terminal's id.
 fn terminal_argument_schema() -> Value {
-    json!({ "type": "integer", "description": "The terminal's id, from terminal_list." })
+    json!({
+        "type": "integer",
+        "description": "The terminal's id, from terminal_list; the terminal this call comes from when left out."
+    })
 }
 
 /// `terminal_list`: no arguments; each terminal.
@@ -834,6 +840,14 @@ fn terminal_list_schemas() -> (Value, Value) {
                         "type": "object",
                         "properties": {
                             "id": { "type": "integer" },
+                            "terminal_id": {
+                                "type": ["string", "null"],
+                                "description": "The MARLEY_TERMINAL_ID the terminal's programs see."
+                            },
+                            "self": {
+                                "type": "boolean",
+                                "description": "Whether this call comes from this terminal."
+                            },
                             "title": { "type": "string" },
                             "project": { "type": ["string", "null"] },
                             "cwd": { "type": ["string", "null"] },
@@ -867,7 +881,7 @@ fn terminal_blocks_schemas() -> (Value, Value) {
                     "description": "How many of the newest blocks to list; 50 when left out."
                 }
             },
-            "required": ["terminal"],
+            "required": [],
             "additionalProperties": false
         }),
         json!({
@@ -922,7 +936,7 @@ fn terminal_read_schemas() -> (Value, Value) {
                 "terminal": terminal,
                 "block": { "type": "integer", "description": "The block's index, from terminal_blocks." }
             },
-            "required": ["terminal", "block"],
+            "required": ["block"],
             "additionalProperties": false
         }),
         json!({

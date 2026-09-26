@@ -2329,3 +2329,12 @@ through an environment variable Marley reads (`MARLEY_CLAUDE`, `MARLEY_CHROMIUM`
 the PATH alone: the app's PATH can come from the login shell and find the real program first.
 Keep the real program's own state pointed at scratch too (`CLAUDE_CONFIG_DIR`), so a fake that is
 missed still touches nothing of the user's.
+
+## PR-claude-empty-a-variable-the-child-must-not-inherit-001
+*severity: medium · prevents: F-claude-520-a-key-removed-from-the-builders-map-still-reached-the-program-001*
+
+To keep a variable from a terminal's program, set it to an empty value in the environment map
+Zed's terminal builder is given, and make its readers treat empty as unset; removing the key
+from the map does nothing, since the program inherits Marley's own environment under the map. A
+scenario that proves the variable is gone exports a foreign value before the launch, so an
+inherited leak shows.

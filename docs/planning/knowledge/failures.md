@@ -2135,3 +2135,13 @@ quiet time runs from its last event (the tool call, milliseconds later). At the 
 had been quiet just under a minute, so the row stayed `working` and the timer waited another
 minute. Fixed in #547: the delay is computed from each working seat's last event to the moment
 its row next changes (`AgentEvents::next_quiet_change`).
+
+## F-claude-520-a-key-removed-from-the-builders-map-still-reached-the-program-001
+*severity: medium · found in: pipeline 520's Test (the task's shot) · class: an environment the child inherits · prevented by: PR-claude-empty-a-variable-the-child-must-not-inherit-001*
+
+`TerminalBuilder::new` removed `MARLEY_TERMINAL_ID` and `MARLEY_PROJECT` from its `env` map for a
+task terminal, and the task still printed Marley's inherited values: the PTY's program gets
+Marley's own process environment with the map laid over it, so a key missing from the map is
+inherited, not unset. The interactive terminals looked right only because their values were set.
+Fixed in #520: the hunks set the variables empty where they name nothing, and the readers treat
+empty as none.

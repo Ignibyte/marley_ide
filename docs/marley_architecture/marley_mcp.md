@@ -71,6 +71,15 @@ OR Apache-2.0, with the Marley crates' lint table.
   set before the bearer's bytes land, and `remove_discovery_file_in(dir)` removes it. The bearer
   is never logged, and `ServerHandle`'s `Debug` hides it.
 
+## The caller (#520)
+
+- `read_http_request` keeps three more headers the Claude Code plugin's bridge sends:
+  `Marley-Terminal` (kept only with a UUID's shape), `Marley-Project` and `Marley-Cwd`
+  (percent-decoded, absolute, at most 4,096 bytes). They make a `Caller`, which `ask_app` hands
+  the app on each `AppCall` (`AppCall::caller`). A malformed value names nothing and never refuses
+  a call; the caller is a default for what a call that names no terminal acts on, never an
+  authority, since the bearer gates every call.
+
 ## In the app (#491)
 
 `marley_workbench::mcp` starts the server from `zed`'s `main`, writes `mcp-endpoint.json` into

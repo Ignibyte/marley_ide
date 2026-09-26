@@ -10,7 +10,8 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-520](open/TICKET-520-terminal-identity.md) | feature | prong 2 · each terminal knows its id and project, and Marley's tools know which terminal called them |
+| [TICKET-574](open/TICKET-574-browser-tools-in-the-callers-project.md) | feature | prong 3 with prong 2 · a browser tool with no tab acts in the caller's project (#520's caller); an Agent Panel agent in its thread's |
+| [TICKET-575](open/TICKET-575-terminal-id-across-restore.md) | feature | prong 2 · a restored terminal keeps its MARLEY_TERMINAL_ID across a launch (#520's table and hook) |
 | [TICKET-549](open/TICKET-549-selection-to-the-agent.md) | feature | prong 2 with prong 1 · the editor's selection typed into a terminal agent's prompt as `@path#L1-99`; a picker when several agents run |
 | [TICKET-562](open/TICKET-562-orca-redactor-cross-check.md) | chore | prong 2 · Orca's redactor compared rule by rule with #516's; the gaps added: Basic and Token authorization headers, hyphenated secret names, cookies |
 | [TICKET-503](open/TICKET-503-terminal-urls-open-in-the-browser.md) | feature | prong 3 with prong 1 · a local URL in a terminal opens a Browser tab; the terminal offers a dev server's URL while its port listens |

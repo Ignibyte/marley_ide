@@ -172,3 +172,118 @@ if the promotion wants the proof beyond the stand-in client).
   convenience for scoping, not authority: the MCP bearer still gates every call.
 - If the slice runs long, the restore (REQ-004: the hook and the table) splits off, and this
   slice keeps a per-launch id.
+
+### Promotion (2026-09-26): slice 1
+- **Recall at promotion:** AD-claude-474-a-blocks-command-is-trusted-only-with-the-terminals-nonce-001
+  (the pattern: a per-terminal value minted in `TerminalBuilder::new`, local terminals only; the
+  difference is that the shell scripts unset the nonce before the user's files run, and
+  `MARLEY_TERMINAL_ID` must stay for programs); AD-claude-491-marleys-mcp-server-runs-in-the-app-behind-a-stdio-bridge-001
+  (the bridge carries the bearer to loopback only; the headers ride the same requests);
+  L-claude-547-marleys-path-is-the-login-shells-001 (the scenario's clients run in terminals, so
+  nothing depends on Marley's own PATH). Brain consultation 168c73cd07cc4fc48807bf8f732ed36c:
+  nothing on this seam.
+- **Cut to slice 1** (the full design reads L): the variables, the bridge's headers and the
+  `Caller`, the terminal tools, and the blank variables for Zed's agents. The browser tools'
+  scope (items 9 and 10, REQ-007, REQ-008) is TICKET-574; the restore (items 4 and 5, D3, D4,
+  REQ-004) is TICKET-575, so this slice touches `terminal_view` not at all and an id lasts one
+  launch.
+- **Seams re-verified at `236fd6999b`:** `TerminalBuilder::new` at `terminal.rs:1153`, #474's
+  nonce at `:1213-1215`, the shell integration at `:1225`, `insert_zed_terminal_env` at `:716`,
+  `clone_builder` at `:3385`; `first_project_directory` at `project/src/terminals.rs:54`,
+  `create_terminal_shell` at `:284`, `create_terminal_shell_internal` at `:312`,
+  `env.extend(settings.env)` at `:378`, `TerminalBuilder::new` at `:409`; the bridge's `request`
+  at `marley-mcp-bridge:113-127`; `ask_app` at `transport.rs:280`, `HttpRequest` at `:381`,
+  `read_http_request` at `:399`; `AppCall` at `marley_mcp.rs:131`; `terminal_with_id`,
+  `terminal_argument` and `terminal_list` at `mcp.rs:381`, `:390`, `:397`, the context server's
+  environment at `:197`.
+- **Slice 1's manifest:** Marley: `crates/marley_terminal/src/identity.rs` (new),
+  `crates/marley_terminal/src/marley_terminal.rs`, `crates/marley_terminal/Cargo.toml` (`uuid`),
+  `crates/marley_workbench/claude_plugin/marley/bin/marley-mcp-bridge`,
+  `crates/marley_mcp/src/transport.rs`, `crates/marley_mcp/src/marley_mcp.rs`,
+  `crates/marley_mcp/src/registry.rs`, `crates/marley_workbench/src/mcp.rs`,
+  `script/e2e/browser-fixture.sh` (the stand-in's `blocks-here`), `script/e2e/520-terminal-identity.sh`
+  (Test). Zed: `crates/terminal/src/terminal.rs` (the builder hunk, the field and its getter),
+  `crates/project/src/terminals.rs` (`MARLEY_PROJECT`), `crates/project/Cargo.toml`
+  (`marley_terminal`). Ledger rows: `terminal.rs` widened; `project/src/terminals.rs` and
+  `project/Cargo.toml` new.
+
+## Phase 2 — Code (slice 1)
+- **Built.**
+  - `marley_terminal::identity` (new): `TERMINAL_ID_VARIABLE`, `PROJECT_VARIABLE`,
+    `new_terminal_id` (a v4 UUID, `uuid` added), `is_terminal_id` (for #575's restored id).
+  - Zed, `terminal`: in `TerminalBuilder::new`, beside #474's nonce, the inherited id is removed,
+    a task's or a remote terminal's project folder too, and a local interactive terminal gets a
+    new id; the `Terminal` keeps it (`marley_terminal_id`, `None` in the display-only literal).
+    A split rebuilds from its source's saved environment through the same builder, so it drops
+    the source's id and mints its own.
+  - Zed, `project`: `create_terminal_shell_internal` sets `MARLEY_PROJECT` to
+    `first_project_directory` for a local project's terminal, after the settings' `env`, and
+    removes it for a remote project's (its folder is not on this machine); `marley_terminal`
+    joins `project`'s dependencies (no cycle: it depends on nothing of Zed's).
+  - The bridge: `caller_headers` sends `Marley-Terminal` (a UUID's shape only), `Marley-Project`
+    and `Marley-Cwd` (absolute, at most 4,096 bytes, percent-encoded, since a header carries
+    Latin-1 alone) on every request.
+  - `marley_mcp`: `Caller { terminal, project, cwd }`; the transport reads the three headers
+    (`caller_terminal` checks the shape, `caller_path` percent-decodes with `urlencoding` and
+    checks the path) into `HttpRequest::caller` and hands it to `AppCall::new`;
+    `AppCall::caller()`. The three terminal tools' descriptions and schemas say what a call with
+    no `terminal` reads; `terminal` is no longer required, and `terminal_list`'s rows gain
+    `terminal_id` and `self`.
+  - `mcp.rs`: `terminal_of` (the named terminal, else the caller's by its id, else a refusal
+    naming `terminal_list`); `terminal_list` marks `self`; the context server Marley registers
+    for Zed's agents blanks both variables.
+  - The stand-in agent: `terminals` shows `(self)` and each `terminal_id` (before `in <cwd>`,
+    which 513 reads at the line's end); `blocks-here`.
+- **Deviations.** `Caller` names the call's source; the transport's existing `caller` is the
+  app's callback, so the new parameter is `who`. The path headers are percent-encoded (the design
+  sent them raw), since Python's `http.client` refuses a header value outside Latin-1.
+- **Review of the diff.** A malformed header names nothing and never refuses a call (D7); the id
+  is no authority (the bearer gates every call); a task terminal and a remote one get neither
+  variable; an explicit `terminal` argument keeps its old meaning.
+- **Checks.** `cargo check --all-targets`, `cargo clippy --all-targets --all-features -D
+  warnings` (after two findings: `is_terminal_id` can be `const`, `Caller`'s first doc paragraph
+  too long) and `cargo fmt` over `marley_terminal`, `terminal`, `project`, `marley_mcp` and
+  `marley_workbench`: clean.
+
+## Phase 3 — Test (slice 1)
+- **The scenario:** `script/e2e/520-terminal-identity.sh` (`compositor sway`, keys only). Setup
+  exports `MARLEY_TERMINAL_ID=inherited` and `MARLEY_PROJECT=/nowhere` before the launch; the
+  scenario's `.bashrc` defines `ids` (both variables, logged) and `agent` (the stand-in agent,
+  run inside Marley's terminal, so its bridge carries that terminal's headers); the repository's
+  `.zed/tasks.json` has a task printing both variables.
+- **A red, fixed at the source:** the first run's task printed `task-id=inherited
+  task-project=/nowhere`. Removing a key from the builder's environment map does not unset it:
+  the PTY's program inherits Marley's own environment besides the map, so only a value set in the
+  map overrides. The interactive terminals were right because their values are set. Both hunks
+  now empty the variables where they name nothing (a task, a remote terminal, a local terminal of
+  a remote project); the bridge and the tools read an empty value as none, and REQ-003 says so.
+- **The run, every check passing:**
+  - REQ-001, REQ-002: two `ids` lines, two different UUIDs, both with the repository's folder,
+    neither inherited value.
+  - REQ-005: in the split, `agent terminals` marks one row `(self)`, the split, under the id its
+    own `ids` printed; each row carries its `terminal_id`.
+  - REQ-006: `agent blocks-here` lists that terminal's blocks (`ids`, `agent terminals`, and the
+    running `agent blocks-here`).
+  - REQ-003: the task prints `task-id=unset task-project=unset`; `terminal_list` shows its
+    terminal with no id.
+  - REQ-009: from the harness's own shell (both variables blank), no row is `self`, and
+    `terminal_blocks` with no terminal is refused: "give `terminal`, a terminal's id from
+    terminal_list: this call comes from no terminal of Marley's".
+- **The shots, read:** `520-01-identity` (the split's `ids`: its UUID and the repository's
+  folder); `520-02-self` (the two rows, `(self)` on the split's); `520-03-own-blocks` (blocks 0 to
+  2: `ids`, `agent terminals`, `agent blocks-here`); `520-04-task` (the task's line with both
+  unset, the task's row in the rail).
+- **Golden set:** 520 joins it; `just regress`: all 15 pass (520 in 43 s).
+- **Gate:** `script/gates.sh --diff`: `GATE GREEN [diff]`, 16 passed.
+- **Verdict:** Phase 3 PASS for slice 1.
+
+## Phase 4 — Complete
+- **Documented:** `CHANGELOG.md` (Added); `docs/marley_architecture/marley_mcp.md` (the caller)
+  and `marley_workbench.md` (the terminal tools and the blank variables); the ledger rows for
+  `terminal.rs`, `project/src/terminals.rs` and `project/Cargo.toml` describe what shipped.
+- **Knowledge:** F-claude-520-a-key-removed-from-the-builders-map-still-reached-the-program-001,
+  PR-claude-empty-a-variable-the-child-must-not-inherit-001,
+  AD-claude-520-each-terminal-names-itself-and-the-bridge-names-the-caller-001.
+- **Brain:** consultation 168c73cd07cc4fc48807bf8f732ed36c closed with a decision.
+- **Ticket:** closed for slice 1; TICKET-574 (the browser tools' scope) and TICKET-575 (the id
+  across a restore) carry the rest.

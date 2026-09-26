@@ -66,6 +66,7 @@ language.workspace = true
 log.workspace = true
 lsp.workspace = true
 markdown.workspace = true
+marley_terminal.workspace = true
 node_runtime.workspace = true
 parking_lot.workspace = true
 path.workspace = true

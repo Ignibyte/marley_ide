@@ -46,6 +46,7 @@ pub mod anchored;
 pub mod apply;
 pub mod block;
 pub mod dcs;
+pub mod identity;
 pub mod keys;
 pub mod mouse;
 pub mod session;

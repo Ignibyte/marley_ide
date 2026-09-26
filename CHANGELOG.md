@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Marley's tools know which terminal is calling** (#520, 2026-09-26). Each local terminal now
+  starts with `MARLEY_TERMINAL_ID`, an id of its own (a split gets another), and
+  `MARLEY_PROJECT`, its project's folder; a task, a remote terminal and a Marley started inside
+  a Marley terminal pass on neither. The Claude Code plugin's bridge sends them with each call,
+  so `terminal_list` marks the agent's own terminal `self`, and `terminal_blocks` and
+  `terminal_read` read that terminal when no `terminal` is named: an agent no longer guesses
+  which terminal it runs in. Browser tools that act in the caller's project are #574, and the id
+  surviving a restart is #575.
 - **No more agents lost to a stray close** (#550, 2026-09-26). Closing a terminal, a window or
   Marley while an agent in it is working now asks first and names each agent, as in "Quit
   Marley? 1 agent is working: marley_ide · Claude Code · working", with Quit (or Close), Show
