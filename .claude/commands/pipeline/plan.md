@@ -58,7 +58,7 @@ checklist in the notes' Phase 1 entry.
    (`python3 -c 'import uuid;print(uuid.uuid4())'`). Remove the ticket's `BACKLOG.md` row:
    promotion leaves the queue. Set the ticket's `Pipeline doc` link and `Status: in-progress`.
 5. **The prior-art sweep (§20)**, before any decision is locked. Three legs: the behavior maps
-   (`docs/warp_architecture/`, `docs/zed_architecture/`, observed captures; research, not
+   (`docs/warp_architecture/`, `docs/zed_architecture/`, `docs/orca_architecture/`, observed captures; research, not
    source), published material (docs, the LSP, MCP, ACP and CDP specs), and the code we
    already ship (Zed's crates and every dependency in `Cargo.lock`; reading them is
    adoption). Ask plainly whether a crate we already build owns this seam. Record what you

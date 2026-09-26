@@ -214,7 +214,7 @@ upstream_base() {
 marley_owned_path() {
     case "$1" in
         crates/marley_*|docs/marley/*|docs/planning/*|docs/marley_architecture/*|\
-        docs/specs/*|docs/warp_architecture/*|docs/zed_architecture/*|\
+        docs/specs/*|docs/warp_architecture/*|docs/zed_architecture/*|docs/orca_architecture/*|\
         docs/decisions/*|docs/tickets/*|.claude/*|script/gates.sh|script/e2e.sh|\
         script/e2e/*|script/install-marley|justfile|\
         CONSTITUTION.md|CHANGELOG.md|deny.toml|.gitleaks.toml|.semgrep.yml|\

@@ -100,7 +100,8 @@ out unsanitized user input.
   Marley-owned directories; upstream's history is upstream's.
 - `gate:14` scans the Marley crates' Rust source and Marley-authored docs only
   (`CONSTITUTION.md`, `docs/marley/`, `docs/marley_architecture/`, `docs/specs/`,
-  `docs/decisions/`, `docs/zed_architecture/`, `docs/tickets/`, `.claude/`);
+  `docs/decisions/`, `docs/zed_architecture/`, `docs/orca_architecture/`, `docs/tickets/`,
+  `.claude/`);
   `docs/planning/` is working scratch and
   `docs/warp_architecture/` transcribes Warp's own markers. The gpui-era brand scrub is
   retired: this repo is Zed.
@@ -378,7 +379,9 @@ shape of the rule, not its purpose:
   read. It does not excuse reinventing what is already ours to take. Every spec records a
   sweep of three sources, and the hook blocks a spec that leaves it empty:
   1. **The behavior maps and observed captures**: `docs/warp_architecture/`,
-     `docs/zed_architecture/`. Research, not source.
+     `docs/zed_architecture/`, `docs/orca_architecture/`. Research, not source; Orca is MIT, so
+     its checkout at `/srv/stacks/orca-refs/orca` may also be read, and code adopted from it keeps
+     its copyright and permission notice.
   2. **Published material**: docs, blogs, talks, the LSP, MCP, ACP and CDP specs.
   3. **The code we already ship**: Zed's own crates and every dependency in `Cargo.lock`.
      Reading them is adoption, and it is the highest-yield leg. Ask plainly: *does a crate we

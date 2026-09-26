@@ -274,7 +274,7 @@ docs_g() {
   if grep -qE '^warning:' <<<"$out"; then echo "cargo doc printed a warning (above)"; return 1; fi
   hits=$({
     grep -rnE '(TODO|FIXME|XXX)[:(!]' --include='*.md' \
-      CONSTITUTION.md docs/marley docs/marley_architecture docs/specs docs/zed_architecture docs/decisions docs/tickets .claude 2>/dev/null \
+      CONSTITUTION.md docs/marley docs/marley_architecture docs/specs docs/zed_architecture docs/orca_architecture docs/decisions docs/tickets .claude 2>/dev/null \
       | grep -vE '^docs/marley/history/'
     grep -rnE '(TODO|FIXME|XXX)[:(!]' --include='*.rs' crates/marley_* 2>/dev/null
   } || true)
