@@ -28,6 +28,7 @@ pub mod blocks;
 pub mod browser;
 pub mod browser_tools;
 pub mod claude_plugin;
+pub mod close_guard;
 #[cfg(test)]
 pub mod marley_workbench_tests;
 pub mod mcp;
@@ -158,6 +159,10 @@ actions!(
         /// as a recording agents can read.
         #[derive(Eq)]
         RecordThis,
+        /// Brings back the working agent's terminal closed last, while Marley still holds it;
+        /// with none held, the key reopens Zed's closed item.
+        #[derive(Eq)]
+        UndoCloseTerminal,
     ]
 );
 
@@ -178,6 +183,10 @@ pub struct MarleySettings {
     pub no_update_after_minutes: u64,
     /// Where agent events are pushed for the phone, when a server and a topic are set (#535).
     pub push: Option<PushSettings>,
+    /// Whether a close or a quit asks first while an agent is working (#550).
+    pub ask_before_ending_a_working_agent: bool,
+    /// Seconds a working terminal closed from its tab is held for undo; 0 is none (#550).
+    pub undo_close_seconds: u64,
 }
 
 /// The ntfy server agent events are pushed to (#535), as the user set it; [`push`] checks it.
@@ -223,6 +232,12 @@ impl Settings for MarleySettings {
                         token_file: set(&push.token_file),
                     })
                 }),
+            ask_before_ending_a_working_agent: marley
+                .and_then(|marley| marley.ask_before_ending_a_working_agent)
+                .unwrap_or(true),
+            undo_close_seconds: marley
+                .and_then(|marley| marley.undo_close_seconds)
+                .unwrap_or(60),
         }
     }
 }
@@ -292,6 +307,7 @@ pub fn init(cx: &mut App) {
     agent_bar::init(cx);
     claude_plugin::init(cx);
     notifications::init(cx);
+    close_guard::init(cx);
     voice::init(cx);
     rich_input::init(cx);
     autosuggest::init(cx);

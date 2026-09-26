@@ -1,7 +1,7 @@
 ---
 pipeline_id: 1a5be75c-9381-485f-9d44-22730dfd2119
 ticket: docs/planning/tickets/open/TICKET-550-ask-before-ending-a-working-agent.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Ask before a close or a quit ends a working agent, and hold the closed terminal"
 type: feature
 slice: prong 2 (the agents Marley hosts survive Marley's own gestures); the Warp second pass's finding 2 with the Orca second pass's finding 1
@@ -81,9 +81,10 @@ logout, a shutdown or a signal is never held up.
   a project replace (`crates/workspace/src/workspace.rs:720` `CloseIntent`, `:3643`), and
   `Pane::close_items` for a tab (`crates/workspace/src/pane.rs:1954`); their prompts
   (`save_all_internal` `:3880`, `save_item` `:2246`) stay, and Marley's question comes before
-  them. `ctrl-shift-t` is `pane::ReopenClosedItem` (`assets/keymaps/default-linux.json:694`),
-  which reopens by path and cannot restore a terminal; Marley's undo takes the key only while
-  something is held.
+  them. `ctrl-shift-t` is `pane::ReopenClosedItem` in the `Workspace` context
+  (`assets/keymaps/default-linux.json:694`), which reopens by path and cannot restore a terminal;
+  Marley's undo, bound in the deeper `Pane` context, is tried first and takes the key only while
+  something is held. In a terminal `ctrl-shift-w` is `pane::CloseActiveItem` (`:1322`).
 
 ### Prior art
 - **Behavior maps and research.** The two second passes above; #519's states; #540's D4

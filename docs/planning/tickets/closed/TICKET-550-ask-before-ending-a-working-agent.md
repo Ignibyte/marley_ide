@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #550 (feature, prong 2: the agents Marley hosts survive its own gestures)
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/550-ask-before-ending-a-working-agent.spec.md
+- **Pipeline doc:** ../../pipeline/completed/550-ask-before-ending-a-working-agent.spec.md
 - **Source ticket:** The Warp second pass of 2026-09-25, finding 2, and the Orca second pass's finding 1, ranked first there (`docs/planning/design-notes/warp-second-pass-2026-09-25.md`, `orca-second-pass-2026-09-25.md`), with Chad's answers of 2026-09-26: ask first, name the working agents, close idle ones without asking, and also hold a closed working terminal for a configurable number of seconds so an accidental close can be undone. Specced because Chad decided on 2026-09-26 that every remaining Orca and Warp finding gets built.
-- **Status:** open
+- **Status:** closed (2026-09-26)
 
 ## Summary
 Nothing in Marley asks before it ends an agent. `ctrl-shift-w` in Claude Code's terminal, the

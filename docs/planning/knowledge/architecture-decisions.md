@@ -2193,3 +2193,20 @@ poll relay; nothing the agent wrote travels. The trigger is the seat change #519
 off the main thread. Rejected: a push gateway of Marley's own or APNs (an Apple developer account,
 and the text in plaintext at the gateway, as Orca's is); sending the agent's words (they stay on
 the desktop until Chad widens it); pushing every OSC notification (only Claude Code's events).
+
+## AD-claude-550-the-close-guard-asks-in-zeds-own-close-paths-and-holds-the-view-001
+*decided at: 2026-09-26 · status: shipped*
+
+A close or a quit that would end a working agent asks first, through one global hook,
+`workspace::MarleyCloseGuard`, called where Zed's own close paths start: `Pane::close_items` for
+a tab (the rail's Close and `ctrl-shift-w` reach it), `prepare_windows_to_quit` once per quit,
+`prepare_window_to_close` once per window, and `prepare_to_close` for a replace. Each hook hands
+over the items, so the guard reads only terminal views and never an entity being updated.
+"Working" is the seat's state for Claude Code (a turn, a permission or a question in flight),
+else the quiet timer's. A working terminal closed from its tab is held: the guard keeps the
+`TerminalView` itself (the pane's items list is its only strong owner), and `Pane::add_item`
+puts the same view back, scrollback, seat and PTY intact, as a drag between panes does.
+Rejected: `on_app_quit` (it cannot cancel) and `on_window_should_close` (Zed's own always
+vetoes and closes later); an `Item` method (none can veto a close); asking in `prepare_to_close`
+alone (a quit or a window with agents in two projects would ask twice); holding the `Terminal`
+without its view (the view carries the scrollback's rendering and the seat's key).

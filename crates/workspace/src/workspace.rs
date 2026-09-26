@@ -726,6 +726,53 @@ pub enum CloseIntent {
     ReplaceWindow,
 }
 
+// Marley: the hook through which Marley asks before a close or a quit ends a working agent, and
+// holds a closed working terminal for undo (#550). `crates/marley_workbench` sets the global.
+/// What a close is about to end.
+pub struct MarleyClose {
+    /// The items that would close.
+    pub items: Vec<Box<dyn ItemHandle>>,
+    /// The pane a tab's close takes them from; `None` for a window's close, a quit or a replace.
+    pub pane: Option<WeakEntity<Pane>>,
+    /// The quit, the window's close or the replace; `None` for a tab's close.
+    pub intent: Option<CloseIntent>,
+}
+
+/// Asked before a close; its `false` cancels the close, as Cancel in Zed's own prompts does.
+#[derive(Clone)]
+pub struct MarleyCloseGuard(pub Arc<dyn Fn(MarleyClose, &mut Window, &mut App) -> Task<bool>>);
+
+impl Global for MarleyCloseGuard {}
+
+/// The guard's answer for `close`: yes when no guard is set.
+pub(crate) fn marley_close_guard(
+    close: MarleyClose,
+    window: &mut Window,
+    cx: &mut App,
+) -> Task<bool> {
+    match cx.try_global::<MarleyCloseGuard>().cloned() {
+        Some(guard) => (guard.0)(close, window, cx),
+        None => Task::ready(true),
+    }
+}
+
+/// Every item of `workspaces`, for the guard.
+fn marley_items<'a>(
+    workspaces: impl IntoIterator<Item = &'a Entity<Workspace>>,
+    cx: &App,
+) -> Vec<Box<dyn ItemHandle>> {
+    workspaces
+        .into_iter()
+        .flat_map(|workspace| {
+            workspace
+                .read(cx)
+                .items(cx)
+                .map(|item| item.boxed_clone())
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
 #[derive(Clone)]
 pub struct Toast {
     id: NotificationId,
@@ -3647,8 +3694,30 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> Task<Result<bool>> {
         let active_call = self.active_global_call();
+        // Marley: a replace asks here; a quit and a window's close asked once already (#550).
+        let marley_items = if close_intent == CloseIntent::ReplaceWindow {
+            self.items(cx).map(|item| item.boxed_clone()).collect()
+        } else {
+            Vec::new()
+        };
 
         cx.spawn_in(window, async move |this, cx| {
+            if close_intent == CloseIntent::ReplaceWindow {
+                let allowed = cx.update(|window, cx| {
+                    marley_close_guard(
+                        MarleyClose {
+                            items: marley_items,
+                            pane: None,
+                            intent: Some(close_intent),
+                        },
+                        window,
+                        cx,
+                    )
+                })?;
+                if !allowed.await {
+                    return anyhow::Ok(false);
+                }
+            }
             this.update(cx, |this, _| {
                 if close_intent == CloseIntent::CloseWindow {
                     this.removing = true;
@@ -11751,6 +11820,36 @@ pub async fn prepare_windows_to_quit(
     workspace_windows: &[WindowHandle<MultiWorkspace>],
     cx: &mut AsyncApp,
 ) -> bool {
+    // Marley: a quit that would end a working agent asks once, naming every one (#550).
+    if let Some(first) = workspace_windows.first() {
+        let items = cx.update(|cx| {
+            let workspaces: Vec<Entity<Workspace>> = workspace_windows
+                .iter()
+                .filter_map(|window| window.read(cx).ok())
+                .flat_map(|multi_workspace| multi_workspace.workspaces().cloned())
+                .collect();
+            marley_items(&workspaces, cx)
+        });
+        let allowed = first.update(cx, |_, window, cx| {
+            marley_close_guard(
+                MarleyClose {
+                    items,
+                    pane: None,
+                    intent: Some(CloseIntent::Quit),
+                },
+                window,
+                cx,
+            )
+        });
+        match allowed {
+            Ok(allowed) => {
+                if !allowed.await {
+                    return false;
+                }
+            }
+            Err(error) => log::error!("asking before the quit: {error:#}"),
+        }
+    }
     // If the user cancels any save prompt, then keep the app open.
     let mut prepared_windows = Vec::new();
     let mut cancelled = false;
@@ -11811,6 +11910,24 @@ pub(crate) async fn prepare_window_to_close(
     let Some((originally_active, workspaces)) = active_and_workspaces else {
         return Ok(true);
     };
+    // Marley: a window's close that would end a working agent asks once for the window (#550).
+    if close_intent == CloseIntent::CloseWindow {
+        let allowed = window.update(cx, |_, window, cx| {
+            let items = marley_items(&workspaces, cx);
+            marley_close_guard(
+                MarleyClose {
+                    items,
+                    pane: None,
+                    intent: Some(close_intent),
+                },
+                window,
+                cx,
+            )
+        })?;
+        if !allowed.await {
+            return Ok(false);
+        }
+    }
 
     let mut prepared = anyhow::Ok(true);
     for workspace in workspaces {

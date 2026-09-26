@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-550](open/TICKET-550-ask-before-ending-a-working-agent.md) | feature | prong 2 · a close or a quit asks before ending a working agent and names it; a closed working terminal is held for undo |
 | [TICKET-520](open/TICKET-520-terminal-identity.md) | feature | prong 2 · each terminal knows its id and project, and Marley's tools know which terminal called them |
 | [TICKET-549](open/TICKET-549-selection-to-the-agent.md) | feature | prong 2 with prong 1 · the editor's selection typed into a terminal agent's prompt as `@path#L1-99`; a picker when several agents run |
 | [TICKET-562](open/TICKET-562-orca-redactor-cross-check.md) | chore | prong 2 · Orca's redactor compared rule by rule with #516's; the gaps added: Basic and Token authorization headers, hyphenated secret names, cookies |

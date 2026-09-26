@@ -14,3 +14,4 @@
 519-claude-code-events-in-the-rail.sh  # Claude Code's hook events: the hook's bound, frames kept off the desktop
 547-claude-code-events-slice-2.sh    # the plugin update, fleet_snapshot's seats, a row with no update
 535-phone-push-notifications.sh      # pushes to the phone: only agents' events, only while away, the line alone
+550-ask-before-ending-a-working-agent.sh  # a close or a quit asks before ending a working agent; the hold and undo

@@ -1671,6 +1671,12 @@
     // Minutes a working Claude Code may go without a hook event before its rail row says
     // "no update in N m" instead of "working" (#547); 0 turns this off.
     "no_update_after_minutes": 30,
+    // Whether closing a terminal, a window or Marley asks first while an agent in it is working
+    // (#550).
+    "ask_before_ending_a_working_agent": true,
+    // Seconds a working agent's terminal closed from its tab is kept, running, for Undo or
+    // ctrl-shift-t (#550); 0 ends it at once.
+    "undo_close_seconds": 60,
   },
   // Control what info is collected by Zed.
   "telemetry": {

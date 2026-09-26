@@ -438,6 +438,23 @@ alike.
   a third line is 3.5 rem tall; every other row keeps `h_11`. A row without a seat keeps the
   quiet timer's reading.
 
+## Asking before a close ends a working agent (`src/close_guard.rs`, #550)
+
+- Zed's close paths ask `workspace::MarleyCloseGuard`, which `close_guard::init` sets: a tab's
+  close at the head of `Pane::close_items` (the rail's Close and `ctrl-shift-w` included), the
+  quit once in `prepare_windows_to_quit`, a window's close once in `prepare_window_to_close`,
+  and a replace (the rail's project removal) in `prepare_to_close`. Each hands over the items
+  about to close; `false` cancels as Zed's own Cancel does.
+- `working_agents` keeps the terminals whose foreground program is a known agent that is
+  working: the seat's `Starting`, `Working` or `Waiting` for Claude Code, else the quiet timer's
+  `Working` (a `Wakeup` within two seconds, no bell). With none, the close goes on. Otherwise one
+  question at a time names each agent (`Close`/`Quit`/`Close Window`, `Show`, `Cancel`).
+- A tab's close of a working terminal holds the view (its pane, its workspace, a deadline of
+  `undo_close_seconds`) with a toast; Undo dispatches `marley::UndoCloseTerminal`, which
+  `ctrl-shift-t` also sends (Marley's keymap, the Workspace context; it propagates to Zed's
+  Reopen Closed Item when nothing is held) and which re-adds the newest view to its pane. At the
+  deadline the view drops and its PTY ends as a close ends it.
+
 ## Pushes to the phone (`src/push.rs`, #535)
 
 - `notifications::init` hands each `marley-event` frame's seat change (`agent_events::on_frame`

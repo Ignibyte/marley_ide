@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **No more agents lost to a stray close** (#550, 2026-09-26). Closing a terminal, a window or
+  Marley while an agent in it is working now asks first and names each agent, as in "Quit
+  Marley? 1 agent is working: marley_ide · Claude Code · working", with Quit (or Close), Show
+  and Cancel. An idle agent closes as before. A working agent's terminal closed from its tab
+  keeps running for a minute: the toast's Undo, or Ctrl-Shift-T, puts it back with its
+  scrollback. `marley.ask_before_ending_a_working_agent` turns the question off and
+  `marley.undo_close_seconds` sets the minute (0 ends the terminal at once), both on the Marley
+  settings page.
 - **Claude Code's events on your phone** (#535, 2026-09-26). With `marley.push` set to an ntfy
   server on this machine and a topic (the Marley settings page's new Push section), Marley
   pushes one line when Claude Code in a terminal you are not looking at needs input, finishes or

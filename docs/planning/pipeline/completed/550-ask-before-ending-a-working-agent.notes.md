@@ -154,3 +154,102 @@ review's (no Marley work in `on_app_quit`, no wait outside the two paths).
 
 ## Phase 4 — Complete
 - Not started.
+
+### Promotion (2026-09-26)
+- **Recall at promotion:** AD-claude-452-the-rail-starts-zeds-own-rename-and-close-001 (the rail's
+  Close is the pane's `close_item_by_id` with `SaveIntent::Close`, so it meets the guard in
+  `close_items`, as the design says); AD-claude-494-browser-tabs-reattach-or-reopen-001 (494's
+  quit and relaunch carry no agent); L-claude-547-marleys-path-is-the-login-shells-001 (the
+  stand-in runs in a terminal, first on the PATH through the scenario's `.bashrc`). Brain
+  consultation 3c055621c9a148c5a7082fff438d9cff: nothing on this seam.
+- **Seams re-verified at `465f15dcc5`:** `Pane::close_items` at `pane.rs:1954`; `CloseIntent` at
+  `workspace.rs:720` and `prepare_to_close` at `:3643`; the rail's `close_terminal` at
+  `rail.rs:612`, its `close_item_by_id` at `:625`; `AgentEvents::seat` at `agent_events.rs:30`.
+  One correction: Zed binds `ctrl-shift-t` to `pane::ReopenClosedItem` in the `Workspace`
+  context (`default-linux.json:694`), not `Pane`; Marley's binding in `Pane`, a deeper context,
+  is tried first, and propagates to Zed's when nothing is held. `ctrl-shift-w` in a terminal is
+  `pane::CloseActiveItem` (`:1322`), the scenario's tab close.
+- **The golden set and a quit:** the scenarios that quit (494, 502, 512) run no agent, so no
+  question can stall their `quit_marley`.
+
+## Phase 2 — Code
+- **Built.**
+  - Zed, `crates/workspace`: `MarleyClose { items, pane, intent }`, the `MarleyCloseGuard` global
+    and `marley_close_guard` (yes when no guard is set) in `workspace.rs`; the guard asked at the
+    head of `Pane::close_items`' task (the items and the pane; `false` returns as Zed's Cancel
+    does), at the head of `prepare_windows_to_quit` (every window's items, once per quit), in
+    `prepare_window_to_close` for a window's close (its workspaces' items), and in
+    `prepare_to_close` for a replace. Each hunk carries `// Marley:`; rows written first.
+  - `marley_workbench::close_guard` (new): `init` sets the guard, follows each terminal's
+    `Wakeup` for the quiet timer (a `last_output` map, forgotten on release) and registers
+    `UndoCloseTerminal` on every workspace (it propagates when nothing is held, so Zed's Reopen
+    Closed Item keeps the key); `working_agents` and `working_status` (the seat's `Starting`,
+    `Working` or `Waiting` for Claude Code, else the quiet timer's `Working`); the question per
+    intent (one agent: "Close Claude Code in repo? It is working."; several, a quit, a window, a
+    replace: a count and a line per agent), `Close`/`Quit`/`Close Window`, `Show`, `Cancel`, one
+    at a time (`asking`); `hold` (a tab's close only: the view kept with its pane and workspace,
+    a deadline task, a toast with Undo that dispatches the action); `undo` (the newest held view
+    back in its pane, or the workspace's active pane); `show` (its window, project and tab).
+  - Settings: `ask_before_ending_a_working_agent` (true) and `undo_close_seconds` (60) in
+    `MarleySettingsContent`, `default.json`, `MarleySettings` and the Agents section; the
+    `marley::UndoCloseTerminal` action; `ctrl-shift-t` in the `Workspace` context of Marley's keymap (it loads after Zed's, so it is tried first at the same depth, and the Workspace context is in the focus chain wherever the focus lands after the close, an empty pane or the rail).
+- **Deviations, and why.**
+  - Four hook sites, not the spec's two: `prepare_to_close` runs once per workspace, so a quit
+    or a window's close with agents in two projects would have asked twice. The quit asks once
+    in `prepare_windows_to_quit`, a window once in `prepare_window_to_close`, and
+    `prepare_to_close` keeps only the replace (the rail's project removal runs it per workspace
+    being removed, its "consent phase").
+  - `MarleyClose` carries the pane, so an undo returns the view to the pane it left.
+  - Each hook collects the items and hands them over, and the guard reads nothing but terminal
+    views: the quit's hook reads every window before it updates the first, since a window's
+    root may not be read while it is being updated.
+  - The hold, with the question off, waits for the pane's update to end (a spawned task): the
+    pane closing the tab is being updated when the guard runs.
+- **Review of the diff.** Every return path of the guard answers; `asking` is cleared when the
+  prompt resolves, whatever it answers; the hold's deadline drops the view (and its PTY) with
+  the entry, and a quit ends held views with the app; no `on_app_quit` work was added.
+- **Checks.** `cargo check --all-targets`, `cargo clippy --all-targets --all-features -D
+  warnings` (after two findings: the pane passed by value, a missing `;`) and `cargo fmt` over
+  `workspace`, `marley_workbench`, `settings_content` and `settings_ui`: clean.
+
+## Phase 3 — Test
+- **The scenario:** `script/e2e/550-ask-before-ending-a-working-agent.sh`, under `compositor sway`
+  rather than the planned Hyprland, since Chad's own Marley is open and the runner refuses a
+  Hyprland run beside it; keys only either way. The stand-in `claude` runs the plugin's real
+  `event.py` at each Return (working, then idle), prints a tick a second and writes its pid; the
+  profile holds a closed terminal for 8 seconds; Marley's MCP server's `terminal_list` tells
+  whether the tab is there.
+- **The run, every check passing:** Cancel keeps Marley running; the tab's close asks, Close
+  removes the tab (`terminal_list` empty) and the stand-in still runs; Ctrl-Shift-T lists the
+  terminal again with the stand-in alive; an idle agent's close ends it at once; a hold nobody
+  claims ends the stand-in and Ctrl-Shift-T brings nothing back; with the question off the tab
+  goes without a dialog and the stand-in is held; `quit_marley` with no working agent exits
+  within its wait (REQ-008).
+- **The shots, read:**
+  - `550-01-quit-asks`: "Quit Marley? 1 agent is working:", the line `repo · Claude Code ·
+    working`, and Quit, Show, Cancel (REQ-001).
+  - `550-02-still-running`: after Escape, the terminal as it was, its ticks going on (REQ-001).
+  - `550-03-close-asks`: "Close Claude Code in repo? It is working.", its line, and Close, Show,
+    Cancel (REQ-002).
+  - `550-04-held`: no tab, the toast "Closed Claude Code in repo" with Undo (REQ-003).
+  - `550-05-restored`: the terminal back, its ticks at 19 against 14 when the close asked, the
+    rail row `working · Refactor the parser` (REQ-004).
+  - `550-06-idle-closes`: no tab, no dialog, no toast (REQ-005).
+  - `550-07-expired`: nothing came back, no toast (REQ-006).
+  - `550-08-no-ask`: no dialog, the toast (REQ-007).
+- **Not reached:** the window's close button and a compositor's close request (keys only; both
+  reach `prepare_window_to_close`, the path this hook shares with the rail's project removal),
+  and a logout (D3 stands on the review: nothing in `on_app_quit`).
+- **REQ-009:** the golden run's `515-01-marley-page` shows the Agents section's "Ask Before
+  Ending a Working Agent" (on) and "Undo Close Seconds" (60); `default.json` sets true and 60.
+- **Golden set:** 550 joins it; `just regress`: all 14 pass (550 in 93 s).
+- **Gate:** `script/gates.sh --diff`: `GATE GREEN [diff]`, 16 passed.
+- **Verdict:** Phase 3 PASS.
+
+## Phase 4 — Complete
+- **Documented:** `CHANGELOG.md` (Added); `docs/marley_architecture/marley_workbench.md` (the
+  guard); the ledger rows for `pane.rs` (new), `workspace.rs` and the three settings files
+  describe what shipped.
+- **Knowledge:** AD-claude-550-the-close-guard-asks-in-zeds-own-close-paths-and-holds-the-view-001.
+- **Brain:** consultation 3c055621c9a148c5a7082fff438d9cff closed with a decision.
+- **Ticket:** closed.

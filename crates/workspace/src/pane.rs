@@ -1983,6 +1983,22 @@ impl Pane {
             return Task::ready(Ok(()));
         };
         cx.spawn_in(window, async move |pane, cx| {
+            // Marley: a working agent's terminal asks before it closes, and is held for undo
+            // (#550).
+            let allowed = pane.update_in(cx, |_, window, cx| {
+                let close = crate::MarleyClose {
+                    items: items_to_close
+                        .iter()
+                        .map(|item| item.boxed_clone())
+                        .collect(),
+                    pane: Some(cx.entity().downgrade()),
+                    intent: None,
+                };
+                crate::marley_close_guard(close, window, cx)
+            })?;
+            if !allowed.await {
+                return Ok(());
+            }
             let dirty_items = workspace.update(cx, |workspace, cx| {
                 items_to_close
                     .iter()

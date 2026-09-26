@@ -40,7 +40,7 @@ fn layout_section() -> [SettingsPageItem; 2] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 3] {
+fn agents_section() -> [SettingsPageItem; 5] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -83,6 +83,51 @@ fn agents_section() -> [SettingsPageItem; 3] {
                         .marley
                         .get_or_insert_default()
                         .no_update_after_minutes = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: asking before a close ends a working agent, and holding it for undo (#550).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Ask Before Ending a Working Agent",
+            description: "Whether closing a terminal, a window or Marley asks first while an agent in it is working, and names each one.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.ask_before_ending_a_working_agent"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.ask_before_ending_a_working_agent.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .ask_before_ending_a_working_agent = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Undo Close Seconds",
+            description: "Seconds a working agent's terminal closed from its tab is kept, still running, for Undo or Ctrl-Shift-T. 0 ends it at once.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.undo_close_seconds"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.undo_close_seconds.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .undo_close_seconds = value;
                 },
             }),
             metadata: None,

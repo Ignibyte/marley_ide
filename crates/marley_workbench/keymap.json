@@ -6,7 +6,12 @@
   {
     "context": "Workspace",
     "bindings": {
-      "secondary-alt-n": "marley::NewAgent"
+      "secondary-alt-n": "marley::NewAgent",
+      // Undo a working agent's close while Marley holds it (#550). Zed binds the key to Reopen
+      // Closed Item in the same context; this one loads later, so it is tried first, and it
+      // hands the key back when nothing is held. Wherever the focus lands after the close (an
+      // empty pane, the rail), the Workspace context is in its chain.
+      "ctrl-shift-t": "marley::UndoCloseTerminal"
     }
   },
   {

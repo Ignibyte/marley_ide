@@ -26,6 +26,16 @@ pub struct MarleySettingsContent {
     ///
     /// Default: 30
     pub no_update_after_minutes: Option<u64>,
+    /// Whether closing a terminal, a window or Marley asks first while an agent in it is working
+    /// (#550).
+    ///
+    /// Default: true
+    pub ask_before_ending_a_working_agent: Option<bool>,
+    /// Seconds a working agent's terminal closed from its tab is kept, running, for Undo or
+    /// `ctrl-shift-t`; 0 ends it at once.
+    ///
+    /// Default: 60
+    pub undo_close_seconds: Option<u64>,
     /// Where Marley pushes a line to the phone when Claude Code needs input, finishes or fails
     /// (#535): an ntfy server on this machine. Unset, Marley pushes nothing.
     pub push: Option<MarleyPushSettingsContent>,
