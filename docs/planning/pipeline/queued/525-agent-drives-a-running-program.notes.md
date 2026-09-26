@@ -1,0 +1,204 @@
+# An agent reads and types into a running program — Notes
+
+- **Local ticket doc:** docs/planning/tickets/open/TICKET-525-agent-drives-a-running-program.md
+- **Pipeline spec:** 525-agent-drives-a-running-program.spec.md
+
+## Phase 1 — Plan (drafted by /spec, 2026-09-25)
+- **Request:** Chad approved all seven items of the Warp once-over on 2026-09-25; on item 1, Full
+  Terminal Use, "love this idea lets do it". The ticket as asked: an agent reads a running
+  program's live screen and types into it, with a take-over key that stops its writes until the
+  user hands back and write approval on the first write, every write or never; Marley tools in
+  `marley_mcp`, shown in the terminal; rustal-harness's managed input as the model, since the
+  harness will be embedded in Marley.
+- **Classification:** feature, size M. Marley crates `marley_terminal` (the pure control state),
+  `marley_mcp` (two rows and their schemas), `marley_workbench` (the answers, the bar, the card,
+  the action). Zed crates, small and additive: `terminal` (a screen read by rows),
+  `settings_content` and `settings_ui` (the setting and its dropdown), `assets/settings/default.json`
+  (its default).
+- **Order:** after #516 (active tonight), whose `Redactor` the screen read uses and whose Agents
+  section of the Marley page takes the setting.
+- **Recall (§18.3):**
+  - AD-claude-492-agents-drive-the-browser-tab-through-the-mcp-server-001: write tools granted at
+    start, the client's approval of each call and the tab the user watches as the checks. For
+    terminals Chad asked for Marley's own approval as well, Warp's three modes.
+  - AD-claude-477-a-footer-hook-in-zeds-terminal-view-and-the-bar-in-marleys-crate-001: anything
+    under a terminal goes through `MarleyTerminalFooter`; the footer takes rows from the grid.
+  - L-claude-477-a-quiet-foreground-process-is-seen-only-after-output-001: the foreground name
+    refreshes on a `Wakeup`, which comes with output. The program check uses `pid()`, a live
+    `tcgetpgrp`, and the name only for display.
+  - L-claude-493-zed-gives-a-lost-focus-to-the-panes-front-item-001: a tab brought forward in the
+    focused pane takes the focus, hence D6.
+  - L-claude-491-a-session-per-agent-needs-room-and-a-close-001 and AD-claude-491: every Claude
+    Code bridge is one MCP session; the app gets no caller identity (`AppCall` holds the tool,
+    the arguments and the answer channel only).
+  - F-claude-481 and L-claude-481: keys inside the terminal view must not be swallowed on Linux;
+    the card has buttons and no text field, so nothing of that trap applies, and Ctrl-I's
+    fall-through copies `marley::RichInput`'s `cx.propagate()`.
+  - PR-claude-474-a-hook-frame-is-output-until-its-nonce-says-otherwise-001: this ticket acts on
+    no hook frame; the program comes from the PTY's process group, which output cannot forge.
+- **Discovery (the seams, checked 2026-09-25):**
+  - `crates/marley_mcp/src/registry.rs:78` `REGISTRY`, whose `terminal` rows (`list`, `blocks`,
+    `read`) are all `Tier::Read`; `:229` `browser_write`, the pattern for a write row with its
+    grant class; `:807` `terminal_schemas`, where the two new verbs get their schemas.
+  - `crates/marley_mcp/src/permission.rs:14` `GrantTable`, `:54` `decide`: a write needs its class
+    in the table, so `terminal.write` must be granted.
+  - `crates/marley_mcp/src/dispatch.rs:133` `tools_call`: the permission check at `:153`, then
+    `Outgoing::Deferred` for the `Terminal` and `Browser` families, so the app answers both tools.
+  - `crates/marley_mcp/src/marley_mcp.rs:81` `APP_CALL_TIMEOUT_SECONDS` = 30; `:131` `AppCall`;
+    `crates/marley_mcp/src/transport.rs:280` `ask_app` waits that long, then answers that Marley
+    did not answer. `crates/marley_workbench/claude_plugin/marley/bin/marley-mcp-bridge:31`
+    `REQUEST_TIMEOUT = 40`. So an approval must settle inside 30 seconds (D7).
+  - `crates/marley_workbench/src/mcp.rs`: `start` grants `browser.write` (line 83 today); `answer`
+    (285) routes by tool name; `terminal_with_id` (332); `terminal_read` (459). #516 is editing this
+    file for the redaction, so its lines move.
+  - `crates/terminal/src/terminal.rs:2305` `input`; `:2553` `try_keystroke` (Zed's `to_esc_str` with
+    the program's modes); `:2582` `paste` (bracketed while `Modes::BRACKETED_PASTE` is set, else
+    newlines become CRs); `:2619` `get_content` (the whole grid, wrapped lines joined); `:3071`
+    `foreground_process_command_name`; `:3266` `pid` (the foreground process group); `:3273`
+    `pid_getter`, whose `fallback_pid` is the shell. `crates/terminal/src/pty_info.rs:241`
+    `PtyProcessInfo::pid` calls `ProcessIdGetter::pid` (`:33`), a live `tcgetpgrp` on the PTY that
+    falls back to the shell's pid.
+  - `crates/terminal/src/alacritty.rs:975` `absolute_lines_text`: from a line to the cursor's, so
+    not a screen read; the new row reader goes beside it.
+  - `crates/terminal_view/src/terminal_view.rs:130` `MarleyFooterContext`, `:141`
+    `MarleyTerminalFooter`, called in `render` at `:1397`.
+  - `crates/marley_workbench/src/agent_bar.rs:33` `init` sets the footer to `render` (`:149`), which
+    returns `None` without an agent CLI; `:129` `agent_in`.
+  - `crates/marley_workbench/src/rich_input.rs:49` `None => cx.propagate()`: the key goes on to the
+    program.
+  - `crates/marley_workbench/src/blocks.rs:63` `focused_terminal`.
+  - `crates/marley_workbench/keymap.json:17` the `Terminal` bindings; Zed's
+    `assets/keymaps/default-linux.json` binds no `ctrl-i` in `Terminal` (it binds it in the editor,
+    the agent panel and the debugger: lines 120, 251, 330, 1160).
+  - `crates/workspace/src/workspace.rs:730` `Toast`, `:747` `on_click`.
+  - `crates/settings_content/src/marley.rs` (`MarleySettingsContent`, #516 adding its two fields);
+    `assets/settings/default.json`'s `marley` block (#516); `crates/settings_ui/src/marley_page.rs`
+    (#515, #516's Agents section); `crates/settings_ui/src/settings_ui.rs:559`, one dropdown
+    renderer per enum (`MarleyLayout`'s).
+  - `crates/marley_fleet/src/verbs.rs` `Receipt`.
+  - `/srv/stacks/rustal-harness/docs/MANAGED_INPUT.md`: observer first (line 4), control by claim
+    with `takeover: true` (55, 60), "supplies control, not a terminal screen renderer" (48), the
+    program's output proves consumption (46), exact retries (88), 1 to 4,096 bytes (130). Its
+    `docs/ROADMAP.md:226` (M9): sessions are driven "through receipted commands, never through
+    keystrokes or screen reads", the reason agent CLIs are out of this tool.
+  - `docs/marley/three-prong-plan.md:180` D9 (`terminal.run` grant-gated), `:187` D10 (a harness
+    seat as a display-only terminal promoted by a claim), `:206` C3.
+- **Decisions:** D1 to D9 in the spec. The setting's name, `agent_terminal_writes`, and its values
+  follow Warp's three modes in Marley's words.
+
+### Design
+- **Approach.**
+  - *The screen.* `Terminal::marley_screen()` returns `MarleyScreen { rows, cursor_row,
+    cursor_column, columns, alt_screen }`: each live screen row `Line(0)` to
+    `Line(screen_lines - 1)` read alone, whatever the display offset, with trailing blanks
+    trimmed, through a helper `screen_rows_text` beside `absolute_lines_text`. The workbench adds
+    the program: `pid()` when it differs from `pid_getter().fallback_pid()`, named by
+    `foreground_process_command_name`.
+  - *The control state* (pure, `marley_terminal::control`, new): `TerminalControl { generation,
+    program, taken_over, approved, last_write }`. `observe(program)` advances the generation and
+    clears `approved` and `taken_over` when the program differs; `take_over` and `hand_back`
+    advance it; `check(generation, mode)` answers `Stale`, `NoProgram`, `TakenOver`, `Ask` or
+    `Allow`; `approve` records the program; `wrote(summary)` keeps the last write for the bar.
+  - *The tools.* Two rows in `REGISTRY` (`terminal`, `screen`, `Tier::Read`; `terminal`, `type`,
+    `Tier::Write`, `terminal.write`), their schemas, and `terminal.write` granted at start in
+    `mcp::start`. `mcp::answer` routes both to a new `terminal_control` module in
+    `marley_workbench`: `screen` observes, reads, redacts and answers; `type` observes, refuses
+    an agent CLI (`agent_in`), checks, then types (`paste(text)`, `try_keystroke` per key,
+    `try_keystroke("enter")`), or holds the call as a pending approval.
+  - *The approval.* A pending approval per terminal view: the `AppCall`, the text to show, and a
+    25-second timer (`cx.background_executor().timer`) that answers the call refused and clears
+    the card. Allow approves (in `ask_first_write`), types and answers accepted; Deny answers
+    refused. A toast (`Toast::new(..).on_click("Show", ..)`) in the view's workspace, dismissed
+    with the card; Show reveals and focuses the terminal as #496's `reveal_terminal` does.
+  - *The footer.* `agent_bar::init` sets the footer to a closure that stacks
+    `terminal_control::element` (the card while an approval waits, else the driving bar while an
+    agent has written to the program) over the agent bar, so a terminal can show both. The card
+    and the bar are one row each and take the same row: a footer takes its rows from the grid
+    (AD-claude-477), so the program's PTY is resized once when an agent first asks and once when
+    the program ends, not at every approval.
+  - *The key.* `marley::TakeOverTerminal`, a workspace action like `marley::RichInput`: on the
+    focused terminal, take over or hand back while an agent has written to its program, else
+    `cx.propagate()`. Taking over while an approval waits denies it.
+  - *The setting.* `MarleySettingsContent::agent_terminal_writes: Option<AgentTerminalWrites>`
+    (`AskFirstWrite`, the default, `AskEveryWrite`, `NeverAsk`, with strum's `VariantArray` and
+    `VariantNames`), its default in `default.json`'s `marley` block, `MarleySettings` resolving it,
+    an item in the Agents section of `marley_page.rs`, and its dropdown renderer.
+- **The harness mapping, for C3** (a harness seat shown as a display-only terminal, plan D10):
+
+  | Marley (#525) | rustal-harness managed input | On a harness seat |
+  |---|---|---|
+  | `generation` in `terminal_screen` | the claim generation from `inspect` | Marley's generation also advances on a harness claim change and on a runtime epoch change, so either side's change makes an agent re-read |
+  | the screen's rows | none: the managed session "supplies control, not a terminal screen renderer" | the rows of Marley's display-only terminal, fed by the capture stream |
+  | `terminal_type` | `input {generation, bytes}`, 1 to 4,096 literal bytes | Marley encodes the text and keys to bytes and sends one `input` on its own controller connection, with the harness generation it holds |
+  | accepted, with the bytes | `input_submitted`; `native_input_incomplete` with the prefix count | accepted on `input_submitted`; a short write refused with its count |
+  | Take Over and Hand Back | a claim with `takeover: true`; `release` | Marley's connection keeps the claim for the user and agents alike; Take Over stops forwarding agent writes and advances Marley's generation only |
+  | a stale generation refused | a stale generation refused | the same refusal |
+  | (Out) `request_id` | an exact retry on the connection returns the original response | add `request_id` then and pass it as the harness request id, which also answers MREQ-002's ask for sends |
+  | the approval | none: a cooperative same-user contract | stays Marley's |
+
+- **File manifest.**
+  - Marley crates: `crates/marley_terminal/src/control.rs` (new), `marley_terminal.rs` (the
+    module); `crates/marley_mcp/src/registry.rs`; `crates/marley_workbench/src/terminal_control.rs`
+    (new), `mcp.rs`, `agent_bar.rs`, `marley_workbench.rs` (the action, the setting, the init),
+    `keymap.json`; `script/e2e/525-agent-drives-a-running-program.sh` (Test).
+  - Zed crates: `crates/terminal/src/terminal.rs` (`marley_screen`), `crates/terminal/src/alacritty.rs`
+    (`screen_rows_text`), `crates/settings_content/src/marley.rs` (the field and the enum),
+    `crates/settings_ui/src/marley_page.rs` (the item), `crates/settings_ui/src/settings_ui.rs` (the
+    renderer), `assets/settings/default.json` (the default).
+- **Ledger rows** (`docs/marley/zed-touchpoints.md`, written before the hunks): extend the rows of
+  `crates/terminal/src/terminal.rs`, `crates/terminal/src/alacritty.rs`,
+  `crates/settings_content/src/marley.rs`, `crates/settings_ui/src/marley_page.rs`,
+  `crates/settings_ui/src/settings_ui.rs` and `assets/settings/default.json` with the #525 hunks.
+
+### E2E plan
+`script/e2e/525-agent-drives-a-running-program.sh`, `compositor sway`. Setup: a scratch HOME whose
+`.bashrc` sets `PS1='$ '` and defines `agent()` to run the stand-in client; `demo.db` made with
+`sqlite3` (a `users` table of three rows); the client (`mcp-client.py`, #491's shape) with
+`screen`, `type` and `wait-type` commands, run from the harness in the background when a call
+waits on the card; a stand-in `claude` first on the PATH that prints a line and waits, typed at a prompt so it leads
+the foreground group (L-claude-477);
+the profile copy's `marley` block rewritten between steps for the modes.
+
+| REQ | Step | Shot or log |
+|---|---|---|
+| REQ-012 | at the bash prompt, `ech` and Ctrl-I | `525-00-ctrl-i-completes`: `echo` completed |
+| REQ-001 | `sqlite3 demo.db`; the client's `screen` | `525-01-screen`; the log's rows, cursor, program `sqlite3` and generation |
+| REQ-002 | `type "select count(*) from users;" submit` in the background | `525-02-asked`: the card and the toast |
+| REQ-003, REQ-005 | click Allow | `525-03-typed`: `3` under the query, the bar naming sqlite3; the log's accepted bytes |
+| REQ-004 | a second `type` | `525-04-no-second-ask` |
+| REQ-006 | a click in the terminal, Ctrl-I; a `type` | `525-05-taken-over`; the log's refusal |
+| REQ-007 | Ctrl-I; a `type` with the old generation, then `screen` and a `type` with the new | `525-06-handed-back`; the log |
+| REQ-008 | the setting at `ask_every_write`; a `type`; click Deny | `525-07-denied`; the log's refusal |
+| REQ-009 | `never_ask`; a `type` | `525-08-never` |
+| REQ-013 | `marley: open settings` | `525-09-setting` |
+| REQ-002 | `ask_first_write`; `.quit`, `sqlite3 demo.db` again; a `type` | `525-10-asked-again` |
+| REQ-010 | 25 seconds with no answer | `525-11-expired`; the log's refusal |
+| REQ-011 | `.quit`; a `type` at the prompt; `claude` in a second terminal and a `type` there | the log's two refusals |
+| REQ-014 | `just gate-diff` | the gate's exit |
+
+Not reachable by a scenario: a real psql or gdb session (sqlite3 stands in: a database shell with
+a readline prompt and bracketed paste), and a real Claude Code calling the tools (the stand-in
+client speaks the same JSON-RPC through the same bridge).
+
+### Risks
+- **The slice is large.** If Code finds it so, the fallback split keeps REQ-001 to REQ-007, REQ-011
+  and REQ-012 (the tools, the first-write approval, take-over) and moves the other two modes, the
+  expiry test and the setting's page item to a follow-up; typing must not ship without the
+  approval and the take-over.
+- **A program that owns the PTY without a process group change** (a shell function, `exec` in the
+  shell) reads as no program; the write is refused, which fails safe.
+- **ssh is a program.** One approval covers the whole ssh session, remote shell included, as
+  Warp's process-scoped approval does; the card names `ssh` and the tool's description says so.
+  `ask_every_write` is the answer for a session that matters.
+- **25 seconds is short** for a user looking elsewhere; the toast is there for that, and the
+  agent can ask again.
+- **The row the bar takes** resizes the program's PTY when the bar first shows: readline programs
+  redraw their line, a full-screen one its screen. The shots show sqlite3 after it.
+- **Ctrl-I inside a program that uses it** (vim's jump forward) is Marley's while an agent drives
+  that program (D5).
+- **Two agents, one approval.** Without a caller, an approval given for one agent's first write
+  lets any agent type into that program. #520 (queued the same night) adds `AppCall::caller`
+  from the bridge's `Marley-Terminal` header. If it has landed at promotion, key the approval on
+  the program and the caller, name the caller's terminal on the card, and refuse a write whose
+  target is the caller's own terminal; if not, the ticket ships as specced and a follow-up takes
+  those three lines.
