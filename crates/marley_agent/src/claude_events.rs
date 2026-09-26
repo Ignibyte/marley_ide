@@ -181,15 +181,27 @@ pub const fn seat_status(state: State) -> AgentStatus {
 /// An agent row's second line from its seat, such as `working · 1 subagent · Add a README`.
 ///
 /// It gives what the agent is doing, the subagents running and the user's prompt. The row's icon
-/// names the agent, so the line starts with the state.
+/// names the agent, so the line starts with the state. A working seat whose last event is at
+/// least `no_update_after_ms` old at `now_ms` reads `no update in N m` in place of `working`
+/// (#547): an Escape fires no hook, so the seat cannot know the turn stopped. A threshold of 0
+/// never marks it.
 #[must_use]
-pub fn seat_line(seat: &Session) -> String {
+pub fn seat_line(seat: &Session, now_ms: u64, no_update_after_ms: u64) -> String {
+    let state = if seat.state == State::Working
+        && no_update_after_ms > 0
+        && marley_fleet::is_stale(seat, now_ms, no_update_after_ms)
+    {
+        let minutes = now_ms.saturating_sub(seat.last_event_ms) / 60_000;
+        format!("no update in {minutes} m")
+    } else {
+        seat_status(seat.state).label().to_string()
+    };
     let subagents = match subagents(&seat.labels) {
         0 => None,
         1 => Some("1 subagent".to_string()),
         count => Some(format!("{count} subagents")),
     };
-    std::iter::once(seat_status(seat.state).label().to_string())
+    std::iter::once(state)
         .chain(subagents)
         .chain(seat.labels.get(PROMPT_LABEL).cloned())
         .collect::<Vec<_>>()

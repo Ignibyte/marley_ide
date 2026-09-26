@@ -26,7 +26,8 @@
 #   any terminal, whose command holds the text: its command, the redaction counts and its
 #   output (#516). `terminals` lists every terminal: its id, title, project and folder (#513).
 #   `blocks` lists every terminal's blocks: command, exit code, whether it runs and whether its
-#   output is still kept (#546).
+#   output is still kept (#546). `fleet` lists `fleet_snapshot`'s seats: each one's id, state and
+#   the labels an agent row shows, or `no seats` (#547).
 # - `browser_profile` and `browser_unit` name the run's Chromium profile and its user unit;
 #   `browser_teardown`, for the scenario's `teardown`, stops the unit and the servers.
 
@@ -361,6 +362,15 @@ def main():
             answer = (client.tool("terminal_blocks", {"terminal": terminal["id"]}) or {}).get("structuredContent", {})
             for block in answer.get("blocks", []):
                 print(f"  block {block['index']}: {block['command']!r}, exit {block['exit_code']}, running {block['running']}, kept {block['output_kept']}")
+    elif command == "fleet":
+        answer = (client.tool("fleet_snapshot") or {}).get("structuredContent") or {}
+        seats = answer.get("seats", [])
+        for seat in seats:
+            labels = seat.get("labels", {})
+            shown = "".join(f", {key} {labels[key]!r}" for key in ("prompt", "tool", "message", "error") if key in labels)
+            print(f"  seat {seat['id']}: {seat['state']}{shown}")
+        if not seats:
+            print("  no seats")
     elif command == "terminals":
         result = client.tool("terminal_list")
         for terminal in (result or {}).get("structuredContent", {}).get("terminals", []):

@@ -39,7 +39,7 @@ fn layout_section() -> [SettingsPageItem; 2] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 2] {
+fn agents_section() -> [SettingsPageItem; 3] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -59,6 +59,29 @@ fn agents_section() -> [SettingsPageItem; 2] {
                         .marley
                         .get_or_insert_default()
                         .redact_secrets_for_agents = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: when a working Claude Code's rail row says `no update in N m` (#547).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "No Update After Minutes",
+            description: "Minutes a working Claude Code may go without reporting a hook event before its row in the rail says \"no update in N m\" instead of \"working\". 0 turns this off.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.no_update_after_minutes"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.no_update_after_minutes.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .no_update_after_minutes = value;
                 },
             }),
             metadata: None,

@@ -30,6 +30,7 @@ use menu::{
 };
 use project::{AgentId, AgentServerStore, AgentServersUpdated, Project, ProjectGroupKey};
 use recent_projects::sidebar_recent_projects::SidebarRecentProjects;
+use settings::Settings as _;
 use terminal::Terminal;
 use terminal_view::{RenameTerminal, TerminalView, terminal_panel::TerminalPanel};
 use ui::{
@@ -48,9 +49,9 @@ use workspace::{
 };
 use zed_actions::agents_sidebar::FocusSidebarFilter;
 
-use crate::agent_events::AgentEvents;
+use crate::agent_events::{self, AgentEvents};
 use crate::agents::{self, AgentIcon};
-use crate::browser;
+use crate::{MarleySettings, browser};
 
 #[path = "rail_switcher.rs"]
 mod switcher;
@@ -96,6 +97,9 @@ pub struct Rail {
     /// Per agent terminal: a refresh due once its output has been quiet for `WAITING_AFTER`,
     /// replaced on each output.
     quiet_timers: HashMap<EntityId, Task<()>>,
+    /// While a Claude Code seat works, a refresh due when a row's `no update in N m` next changes
+    /// (#547).
+    minute_timer: Option<Task<()>>,
     /// The window as the rail last read it. `render` draws from this alone, so another entity's
     /// notify does not redraw the window, and an event that changes nothing shown does not either:
     /// workspaces and terminal views report every chunk of terminal output.
@@ -256,6 +260,7 @@ impl Rail {
             foreground_command: |terminal, cx| terminal.read(cx).foreground_process_command_name(),
             terminal_output: HashMap::default(),
             quiet_timers: HashMap::default(),
+            minute_timer: None,
             snapshot: Snapshot::default(),
             zed_sidebar,
             zed_sidebar_state: None,
@@ -320,6 +325,7 @@ impl Rail {
             .unwrap_or_default();
         self.note_ended_runs(&mut snapshot);
         self.note_window_row(&snapshot.rail);
+        self.note_claude_code(&snapshot.rail, window, cx);
         if self.focus_handle.contains_focused(window, cx) {
             snapshot.rail.focus.cursor.clone_from(&self.cursor);
         }
@@ -327,6 +333,46 @@ impl Rail {
             cx.notify();
         }
         self.snapshot = snapshot;
+    }
+
+    /// Ends the seat of each terminal that no longer runs Claude Code (#547): it left without a
+    /// `SessionEnd`, or was killed. The refresh that ending the seats causes finds none to end.
+    /// While a seat works, arms the refresh due when a row's `no update in N m` next changes; a
+    /// timer that comes early, after a newer event, only arms the next one.
+    fn note_claude_code(&mut self, rail: &RailSnapshot, window: &Window, cx: &mut Context<Self>) {
+        let gone: Vec<u64> = rail
+            .projects
+            .iter()
+            .flat_map(|project| &project.terminals)
+            .filter(|terminal| {
+                terminal
+                    .agent
+                    .is_none_or(|agent| agent.kind != AgentKind::Claude)
+            })
+            .map(|terminal| terminal.id)
+            .collect();
+        agent_events::end(&gone, cx);
+        let next = cx.try_global::<AgentEvents>().and_then(|events| {
+            events.next_quiet_change(agent_events::now_ms(), no_update_after_ms(cx))
+        });
+        match next {
+            None => self.minute_timer = None,
+            Some(delay) if self.minute_timer.is_none() => {
+                // A little past the moment, so the refresh sees the row changed.
+                let due = cx
+                    .background_executor()
+                    .timer(delay + Duration::from_millis(100));
+                self.minute_timer = Some(cx.spawn_in(window, async move |rail, cx| {
+                    due.await;
+                    rail.update_in(cx, |rail, window, cx| {
+                        rail.minute_timer = None;
+                        rail.refresh(window, cx);
+                    })
+                    .log_err();
+                }));
+            }
+            Some(_) => {}
+        }
     }
 
     /// Notes a change of the terminal or thread row that holds the window's focus, for the
@@ -1719,7 +1765,9 @@ fn terminal_snapshot(
             );
             let status = seat.map_or_else(
                 || marley_agent::status_line(agent.kind, agent.status),
-                claude_events::seat_line,
+                |seat| {
+                    claude_events::seat_line(seat, agent_events::now_ms(), no_update_after_ms(cx))
+                },
             );
             (title, Some(status))
         },
@@ -1733,6 +1781,14 @@ fn terminal_snapshot(
         activity: seat.and_then(claude_events::seat_activity),
         matched: None,
     }
+}
+
+/// How long a working Claude Code may go without an event before its row says so, from
+/// `marley.no_update_after_minutes`; 0 is never (#547).
+fn no_update_after_ms(cx: &App) -> u64 {
+    MarleySettings::get_global(cx)
+        .no_update_after_minutes
+        .saturating_mul(60_000)
 }
 
 /// An agent row's title: the title the CLI set over OSC, else the agent's name.

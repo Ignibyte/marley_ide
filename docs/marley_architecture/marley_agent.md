@@ -51,7 +51,8 @@ pub fn decode(body: &str) -> Result<HookEvent, DecodeError>;   // base64, ≤ 3,
 pub fn fold(seat: &str, previous: Option<&Session>, event: &HookEvent, now_ms: u64)
     -> Vec<SessionEvent>;
 pub const fn seat_status(state: State) -> AgentStatus;
-pub fn seat_line(seat: &Session) -> String;          // "working · 1 subagent · Add a README"
+pub fn seat_line(seat: &Session, now_ms: u64, no_update_after_ms: u64) -> String;
+                                                     // "working · 1 subagent · Add a README"
 pub fn seat_activity(seat: &Session) -> Option<String>;   // "Bash: ls -la", the question, …
 pub fn is_harness_injected(prompt: &str) -> bool;
 pub fn is_compact_continuation(prompt: &str) -> bool;
@@ -69,6 +70,8 @@ pub fn is_compact_continuation(prompt: &str) -> bool;
   subagent count and the session's id, transcript, directory and permission mode, and, for the
   fold itself, the tools in flight by call id (`lead_tool:`, `subagent_tool:`) and the call a
   wait ends with (`waiting_on`), so `fold` needs nothing but the previous seat.
+- `seat_line` gives a working seat whose last event is at least `no_update_after_ms` old
+  `no update in N m` in place of `working` (#547, through `marley_fleet::is_stale`); 0 never.
 - A prompt with one of the tags or openings Orca observed harnesses inject
   (`src/shared/harness-injected-user-turns.ts` in stablyai/orca, MIT) keeps the user's prompt on
   the seat; the continuation after a compaction changes nothing.

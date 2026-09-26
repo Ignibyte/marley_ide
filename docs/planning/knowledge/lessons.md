@@ -2922,3 +2922,11 @@ never ran: prove that before reasoning about its logic. #544's remap was right, 
 always false; one temporary `log::info!` on the path, read from the run's copied `Marley.log`
 (`$SHOT_DIR/<scenario>.marley.log`), showed in one run that the code was never reached. Remove the
 line before the gate.
+
+## L-claude-547-marleys-path-is-the-login-shells-001
+*category: validate · topic: e2e fakes · from: pipeline 547*
+
+A PATH that `script/e2e.sh`'s setup exports reaches the programs in Marley's terminals only
+through the scenario's own `.bashrc`; what Marley itself looks up with `which` can come from the
+login shell's profile, which on this box puts `~/.local/bin` (the real `claude`) first. #480's
+Voxtype fake worked only because nothing named `voxtype` sits in `~/.local/bin`.

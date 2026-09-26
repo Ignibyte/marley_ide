@@ -4,9 +4,10 @@
 //! notify titled [`marley_terminal::AGENT_EVENT_TITLE`]. `on_frame` folds each one into the
 //! app's fleet snapshot, a seat per terminal view, and the rail reads the seat of each agent
 //! row's terminal. A frame counts only while Claude Code is the terminal's foreground program,
-//! so a `cat` of an old log moves no row.
+//! so a `cat` of an old log moves no row. The MCP server serves the same snapshot as
+//! `fleet_snapshot` (#547).
 
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use gpui::{App, Context, EntityId, Global};
 use marley_agent::AgentKind;
@@ -31,11 +32,50 @@ impl AgentEvents {
             .get(&seat_id(view))
             .filter(|session| session.state != State::Done)
     }
+
+    /// Every seat, for the MCP server's `fleet_snapshot`.
+    #[must_use]
+    pub const fn snapshot(&self) -> &FleetSnapshot {
+        &self.snapshot
+    }
+
+    /// How long until a working seat's row next changes at `now_ms` (#547): when it has gone
+    /// `no_update_after_ms` without an event and reads `no update in N m`, then at each whole
+    /// minute after, when N moves. `None` while no seat works, or with the form turned off.
+    #[must_use]
+    pub fn next_quiet_change(&self, now_ms: u64, no_update_after_ms: u64) -> Option<Duration> {
+        if no_update_after_ms == 0 {
+            return None;
+        }
+        self.snapshot
+            .seats()
+            .iter()
+            .filter(|session| session.state == State::Working)
+            .map(|session| {
+                let quiet = now_ms.saturating_sub(session.last_event_ms);
+                if quiet < no_update_after_ms {
+                    no_update_after_ms - quiet
+                } else {
+                    60_000 - quiet % 60_000
+                }
+            })
+            .min()
+            .map(Duration::from_millis)
+    }
 }
 
 /// A terminal view's seat id: its entity id, as `terminal_list` gives it.
 fn seat_id(view: EntityId) -> String {
     view.as_u64().to_string()
+}
+
+/// Now, in the fleet's epoch milliseconds.
+pub(crate) fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .and_then(|since| u64::try_from(since.as_millis()).ok())
+        .unwrap_or(0)
 }
 
 /// Folds the body of a `marley-event` frame from `view`'s terminal into the view's seat, while
@@ -52,21 +92,43 @@ pub(crate) fn on_frame(view: &TerminalView, body: &str, cx: &mut Context<Termina
         }
     };
     let seat = seat_id(cx.entity_id());
-    let now_ms = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .and_then(|since| u64::try_from(since.as_millis()).ok())
-        .unwrap_or(0);
     let previous = cx
         .try_global::<AgentEvents>()
         .and_then(|events| events.snapshot.get(&seat));
-    let events = claude_events::fold(&seat, previous, &event, now_ms);
+    let events = claude_events::fold(&seat, previous, &event, now_ms());
     if events.is_empty() {
         return;
     }
     let agent_events = cx.default_global::<AgentEvents>();
     for event in &events {
         marley_fleet::apply(&mut agent_events.snapshot, event);
+    }
+}
+
+/// Ends the seats of the terminals named by their ids, whose Claude Code has left the foreground
+/// without a `SessionEnd` (#547). A seat that has ended, or failed, is left as it is: the reducer
+/// keeps a failed seat failed, and ending it again would change nothing but notify the rail,
+/// which would end it again.
+pub(crate) fn end(terminals: &[u64], cx: &mut App) {
+    let live: Vec<String> = terminals
+        .iter()
+        .map(u64::to_string)
+        .filter(|seat| {
+            cx.try_global::<AgentEvents>()
+                .and_then(|events| events.snapshot.get(seat))
+                .is_some_and(|session| !matches!(session.state, State::Done | State::Error))
+        })
+        .collect();
+    if live.is_empty() {
+        return;
+    }
+    let ts_ms = now_ms();
+    let agent_events = cx.default_global::<AgentEvents>();
+    for id in live {
+        marley_fleet::apply(
+            &mut agent_events.snapshot,
+            &SessionEvent::Ended { id, ts_ms },
+        );
     }
 }
 

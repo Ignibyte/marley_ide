@@ -35,6 +35,7 @@ platform_title_bar.workspace = true
 project.workspace = true
 recent_projects.workspace = true
 release_channel.workspace = true
+semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 settings.workspace = true

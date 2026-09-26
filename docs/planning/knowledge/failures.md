@@ -2116,3 +2116,22 @@ the loop dropped the prompt and the preview before reaching the paths, so the fr
 event and nothing the row shows, and the scenario's first size check passed on it because it
 checked only the size and the event's name. Fixed in #519 before the commit: the paths go first,
 and the check requires each row's fields in the decoded summary.
+
+## F-claude-547-a-scenarios-click-ran-the-real-claude-001
+*severity: high · found in: pipeline 547's Test (the first run) · class: a fake the app never found · prevented by: PR-claude-name-the-fakes-the-app-runs-001*
+
+The scenario put its stand-in `claude` first on the PATH it exported and clicked the agent bar's
+update chip. Marley found `claude` with `which`, on the PATH the app sees, which the login shell's
+profile had led with `~/.local/bin`: the real Claude Code ran `claude plugin marketplace update
+marley`. Only the scratch `CLAUDE_CONFIG_DIR` kept it off Chad's Claude Code configuration (it
+refused the scratch file's shape and changed nothing). Fixed in #547: `MARLEY_CLAUDE` names the
+program, as `MARLEY_CHROMIUM` does, and the scenario sets it.
+
+## F-claude-547-a-timer-armed-at-the-first-event-fired-before-the-last-was-a-minute-old-001
+*severity: low · found in: pipeline 547's Test · class: a timer measured from the wrong moment · prevented by: PR-claude-compare-against-the-state-the-change-acts-on-001*
+
+The rail armed a 60-second refresh at the first frame of a turn (the prompt), but the seat's
+quiet time runs from its last event (the tool call, milliseconds later). At the refresh the seat
+had been quiet just under a minute, so the row stayed `working` and the timer waited another
+minute. Fixed in #547: the delay is computed from each working seat's last event to the moment
+its row next changes (`AgentEvents::next_quiet_change`).

@@ -4,7 +4,8 @@
 //! bar offers to install a small plugin. Its `Notification` and `Stop` hooks answer with a
 //! `terminalSequence`, an OSC 777 notify that Claude Code writes to its terminal, and stay
 //! silent in terminals other than Marley's. [`install`] writes the plugin as a local
-//! marketplace under Marley's data directory and installs it with `claude plugin`.
+//! marketplace under Marley's data directory and installs it with `claude plugin`, and
+//! [`update`] brings an older install up to the version Marley ships (#547).
 
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -27,6 +28,9 @@ pub const PLUGIN: &str = "marley@marley";
 /// ships it, and Zed's own agents run it as the context server `marley` (#501).
 pub(crate) const BRIDGE: &str = include_str!("../claude_plugin/marley/bin/marley-mcp-bridge");
 
+/// The plugin's manifest, whose `version` is the one Marley ships.
+const MANIFEST: &str = include_str!("../claude_plugin/marley/.claude-plugin/plugin.json");
+
 /// The plugin's files, by their path in the marketplace, and whether each is a program.
 const FILES: [(&str, &str, bool); 7] = [
     (
@@ -34,11 +38,7 @@ const FILES: [(&str, &str, bool); 7] = [
         include_str!("../claude_plugin/.claude-plugin/marketplace.json"),
         false,
     ),
-    (
-        "marley/.claude-plugin/plugin.json",
-        include_str!("../claude_plugin/marley/.claude-plugin/plugin.json"),
-        false,
-    ),
+    ("marley/.claude-plugin/plugin.json", MANIFEST, false),
     // Marley's MCP server, through the bridge (#491).
     (
         "marley/.mcp.json",
@@ -75,14 +75,48 @@ pub struct ClaudePlugin {
     pub claude: Option<PathBuf>,
     /// Whether the plugin is installed, `None` until Claude Code's list has been read.
     pub installed: Option<bool>,
+    /// The installed plugin's version, as Claude Code's list gives it.
+    pub installed_version: Option<String>,
     /// Whether an install is running.
     pub installing: bool,
+    /// Whether an update is running (#547).
+    pub updating: bool,
 }
 
 impl Global for ClaudePlugin {}
 
-/// Uses Marley's data directory and Claude Code's own, `CLAUDE_CONFIG_DIR` or `~/.claude`.
-/// [`crate::init`] calls it once.
+impl ClaudePlugin {
+    /// Whether Claude Code has an older version of the plugin than Marley ships. Claude Code runs
+    /// a plugin from a copy per version, so the new hooks reach it only through an update. A
+    /// version that does not parse, or a newer one, needs none: two Marley builds of different
+    /// ages must not keep offering each other's plugin.
+    #[must_use]
+    pub fn needs_update(&self) -> bool {
+        let installed = self
+            .installed_version
+            .as_deref()
+            .and_then(|version| semver::Version::parse(version).ok());
+        self.installed == Some(true)
+            && matches!(
+                (installed, shipped_version()),
+                (Some(installed), Some(shipped)) if installed < shipped
+            )
+    }
+}
+
+/// The plugin's version as Marley ships it, read from its manifest.
+#[must_use]
+pub fn shipped_version() -> Option<semver::Version> {
+    let manifest: serde_json::Value = serde_json::from_str(MANIFEST).ok()?;
+    semver::Version::parse(manifest.get("version")?.as_str()?).ok()
+}
+
+/// Sets up the plugin's global; [`crate::init`] calls it once.
+///
+/// It uses Marley's data directory and Claude Code's own, `CLAUDE_CONFIG_DIR` or `~/.claude`, and
+/// runs the `claude` that `MARLEY_CLAUDE` names, else the PATH's (#547). Marley's PATH can come
+/// from the login shell, so a scenario's stand-in names itself there, as `MARLEY_CHROMIUM` does
+/// for Chromium.
 pub fn init(cx: &mut App) {
     let config_dir = std::env::var_os("CLAUDE_CONFIG_DIR")
         .map_or_else(|| util::paths::home_dir().join(".claude"), PathBuf::from);
@@ -90,30 +124,37 @@ pub fn init(cx: &mut App) {
         ClaudePlugin {
             marketplace_dir: paths::data_dir().join("claude-code"),
             config_dir,
-            claude: None,
+            claude: std::env::var_os("MARLEY_CLAUDE").map(PathBuf::from),
             installed: None,
+            installed_version: None,
             installing: false,
+            updating: false,
         },
         cx,
     );
 }
 
-/// Uses `plugin`, then reads off the main thread whether the plugin is installed, and finds
-/// `claude` on the PATH unless `plugin` names one.
+/// Uses `plugin`, then reads off the main thread whether the plugin is installed and at which
+/// version, and finds `claude` on the PATH unless `plugin` names one.
 pub fn set_up(plugin: ClaudePlugin, cx: &mut App) {
     let config_dir = plugin.config_dir.clone();
     let find_claude = plugin.claude.is_none();
     cx.set_global(plugin);
     cx.spawn(async move |cx| {
-        let (installed, claude) = cx
+        let (installed, installed_version, claude) = cx
             .background_spawn(futures::future::lazy(move |_| {
                 let claude = find_claude.then(|| which::which("claude").ok()).flatten();
-                (installed_in(&config_dir), claude)
+                (
+                    installed_in(&config_dir),
+                    installed_version_in(&config_dir),
+                    claude,
+                )
             }))
             .await;
         cx.update(|cx| {
             let state = cx.global_mut::<ClaudePlugin>();
             state.installed = Some(installed);
+            state.installed_version = installed_version;
             state.claude = state.claude.take().or(claude);
             cx.refresh_windows();
         });
@@ -146,6 +187,20 @@ pub fn installed_in(config_dir: &Path) -> bool {
     listed_in(&config_dir.join("plugins/installed_plugins.json"), |list| {
         list.get("plugins")?.get(PLUGIN)
     })
+}
+
+/// The version of Marley's plugin that Claude Code's list in `config_dir` has installed: its
+/// user-scope entry's, else its first entry's.
+#[must_use]
+pub fn installed_version_in(config_dir: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(config_dir.join("plugins/installed_plugins.json")).ok()?;
+    let list: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let entries = list.get("plugins")?.get(PLUGIN)?.as_array()?;
+    let entry = entries
+        .iter()
+        .find(|entry| entry.get("scope").and_then(serde_json::Value::as_str) == Some("user"))
+        .or_else(|| entries.first())?;
+    Some(entry.get("version")?.as_str()?.to_string())
 }
 
 /// Whether Claude Code in `config_dir` already knows Marley's marketplace.
@@ -202,7 +257,12 @@ pub fn install(plugin: ClaudePlugin, workspace: WeakEntity<Workspace>, cx: &mut 
     .detach();
 }
 
-async fn run_install(plugin: ClaudePlugin, cx: &AsyncApp) -> anyhow::Result<()> {
+/// Writes the plugin and its marketplace off the main thread, and gives the `claude` to run, the
+/// marketplace's directory, and whether Claude Code already knows the marketplace.
+async fn write_marketplace(
+    plugin: ClaudePlugin,
+    cx: &AsyncApp,
+) -> anyhow::Result<(PathBuf, PathBuf, bool)> {
     let ClaudePlugin {
         marketplace_dir,
         config_dir,
@@ -217,6 +277,11 @@ async fn run_install(plugin: ClaudePlugin, cx: &AsyncApp) -> anyhow::Result<()> 
             anyhow::Ok((claude, marketplace_known_in(&config_dir)))
         }))
         .await?;
+    Ok((claude, marketplace_dir, known))
+}
+
+async fn run_install(plugin: ClaudePlugin, cx: &AsyncApp) -> anyhow::Result<()> {
+    let (claude, marketplace_dir, known) = write_marketplace(plugin, cx).await?;
     if !known {
         crate::run_program(
             &claude,
@@ -234,6 +299,70 @@ async fn run_install(plugin: ClaudePlugin, cx: &AsyncApp) -> anyhow::Result<()> 
         &[
             OsStr::new("plugin"),
             OsStr::new("install"),
+            OsStr::new(PLUGIN),
+        ],
+    )
+    .await
+}
+
+/// Updates the plugin to the version Marley ships, showing the outcome in `workspace`.
+///
+/// It writes the marketplace again, has Claude Code refresh it (or add it, when it no longer
+/// knows it), and updates the plugin.
+pub fn update(plugin: ClaudePlugin, workspace: WeakEntity<Workspace>, cx: &mut App) {
+    cx.global_mut::<ClaudePlugin>().updating = true;
+    cx.refresh_windows();
+    cx.spawn(async move |cx| {
+        let result = run_update(plugin, cx).await;
+        cx.update(|cx| {
+            let state = cx.global_mut::<ClaudePlugin>();
+            state.updating = false;
+            if result.is_ok() {
+                state.installed_version = shipped_version().map(|version| version.to_string());
+            }
+            cx.refresh_windows();
+            workspace
+                .update(cx, |workspace, cx| match result {
+                    Ok(()) => workspace.show_toast(
+                        Toast::new(
+                            NotificationId::unique::<ClaudePlugin>(),
+                            "Marley's plugin for Claude Code is updated, and now tells the rail \
+                             what Claude Code is doing. New Claude Code sessions use it; restart \
+                             a running one to pick it up.",
+                        ),
+                        cx,
+                    ),
+                    Err(error) => workspace.show_error(error, cx),
+                })
+                .log_err();
+        });
+    })
+    .detach();
+}
+
+async fn run_update(plugin: ClaudePlugin, cx: &AsyncApp) -> anyhow::Result<()> {
+    let (claude, marketplace_dir, known) = write_marketplace(plugin, cx).await?;
+    let marketplace = if known {
+        [
+            OsStr::new("plugin"),
+            OsStr::new("marketplace"),
+            OsStr::new("update"),
+            OsStr::new(MARKETPLACE),
+        ]
+    } else {
+        [
+            OsStr::new("plugin"),
+            OsStr::new("marketplace"),
+            OsStr::new("add"),
+            marketplace_dir.as_os_str(),
+        ]
+    };
+    crate::run_program(&claude, &marketplace).await?;
+    crate::run_program(
+        &claude,
+        &[
+            OsStr::new("plugin"),
+            OsStr::new("update"),
             OsStr::new(PLUGIN),
         ],
     )

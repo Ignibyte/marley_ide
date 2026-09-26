@@ -2320,3 +2320,12 @@ data is told.
 When a payload is kept under a size by dropping fields, drop first the fields that have no bound
 of their own (paths, free text passed through as it came), and only then the ones already cut to
 a length; and a check of the bound asserts which fields survived, not only the size.
+
+## PR-claude-name-the-fakes-the-app-runs-001
+*severity: high · prevents: F-claude-547-a-scenarios-click-ran-the-real-claude-001*
+
+A scenario's fake for a program that Marley itself starts (not one typed in a terminal) is named
+through an environment variable Marley reads (`MARLEY_CLAUDE`, `MARLEY_CHROMIUM`), never through
+the PATH alone: the app's PATH can come from the login shell and find the real program first.
+Keep the real program's own state pointed at scratch too (`CLAUDE_CONFIG_DIR`), so a fake that is
+missed still touches nothing of the user's.

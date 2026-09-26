@@ -421,6 +421,16 @@ alike.
   that does not decode is logged at debug and dropped.
 - `forget` removes a closing view's seat by folding the others again from nothing, since the
   reducer never removes a seat.
+- `end(terminals)` (#547) ends each live seat named, and the rail's refresh names every listed
+  terminal without Claude Code in the foreground, so a Claude Code that left without a
+  `SessionEnd` reads `done`. A failed seat is left as it is: the reducer keeps it failed on
+  `Ended`, and ending it again would only notify the rail into ending it again.
+  `next_quiet_change` gives the delay to the moment a working row's `no update in N m` next
+  changes, which the rail's one timer (`minute_timer`) waits for.
+- `mcp::publish`, an observer of the global, sends each snapshot down a channel to one background
+  task that replaces the server's `ServerData.snapshot` and calls `transport::signal_change`, so
+  `fleet_snapshot` and `fleet://snapshot` answer the same seats and the main thread never waits
+  on the server's lock (#547).
 - The rail observes the global (`observe_global_in`) and refreshes. `terminal_snapshot` reads
   the seat of a Claude Code row: its status from `seat_status`, its second line from
   `seat_line` (the state, the subagents, the user's prompt; the icon names the agent), and a
@@ -540,6 +550,14 @@ alike.
   preview to 200; an overlong path goes first, then those fields), which keeps the sequence
   under Claude Code's 4,096-byte cap and Marley's scanner's 4 KiB. `FILES` ships it as a
   program; it takes about 14 ms a call.
+- Since #547 `ClaudePlugin` keeps the installed version (`installed_version_in`, the user-scope
+  entry of `marley@marley`), and `needs_update` compares it with the embedded manifest's
+  (`shipped_version`, `semver`); an unparseable or newer one needs none. The chip then reads
+  "Update Marley's plugin", and `update` writes the marketplace again (`write_marketplace`,
+  shared with `install`), runs `claude plugin marketplace update marley` (or `add` when Claude
+  Code forgot it) and `claude plugin update marley@marley`, and shows a toast or the error.
+  `MARLEY_CLAUDE` names the `claude` to run: the app's PATH can come from the login shell, which
+  finds the real one before a scenario's stand-in.
 
 ## The Browser tab (`src/browser.rs`, #488 to #490, #493 to #499)
 

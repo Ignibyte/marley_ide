@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #547 (feature, prong 2 C1, after #519)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** (none yet; #519's queued design, items 7 and 8 and D7, is its start)
+- **Pipeline doc:** ../../pipeline/completed/547-claude-code-events-slice-2.spec.md
 - **Source ticket:** split from #519 at its Plan, 2026-09-26, to land the rail's states first
-- **Status:** open
+- **Status:** closed (2026-09-26)
 
 ## Summary
 #519 brings Claude Code's hook events into the rail: the plugin's `event.py`, the fold into

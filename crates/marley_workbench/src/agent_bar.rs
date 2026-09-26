@@ -304,37 +304,58 @@ const fn microphone_look(state: VoiceState) -> (Color, &'static str) {
 /// installed (#482).
 fn claude_plugin_chip(context: &MarleyFooterContext, cx: &App) -> Option<AnyElement> {
     let plugin = cx.try_global::<ClaudePlugin>()?;
-    if plugin.installed != Some(false) {
+    // An install older than the plugin Marley ships lacks its newer hooks (#547).
+    let update = plugin.needs_update();
+    if plugin.installed != Some(false) && !update {
         return None;
     }
-    if plugin.installing {
+    let busy = if update {
+        plugin
+            .updating
+            .then_some("Updating Marley's plugin for Claude Code…")
+    } else {
+        plugin
+            .installing
+            .then_some("Installing Marley's plugin for Claude Code…")
+    };
+    if let Some(busy) = busy {
         return Some(
-            Label::new("Installing Marley's plugin for Claude Code…")
+            Label::new(busy)
                 .size(LabelSize::Small)
                 .color(Color::Muted)
                 .into_any_element(),
         );
     }
     let (plugin, workspace) = (plugin.clone(), context.workspace.clone());
+    let button = if update {
+        Button::new("marley-update-claude-plugin", "Update Marley's plugin")
+            .start_icon(Icon::new(IconName::ArrowCircle).size(IconSize::XSmall))
+            .tooltip(Tooltip::text(
+                "Updates Marley's plugin for Claude Code, which then tells the rail what Claude \
+                 Code is doing: your prompt, the tool it runs, what it waits on",
+            ))
+            .on_click(move |_, _, cx| {
+                claude_plugin::update(plugin.clone(), workspace.clone(), cx);
+            })
+    } else {
+        Button::new(
+            "marley-enable-claude-notifications",
+            "Connect Claude Code to Marley",
+        )
+        .start_icon(Icon::new(IconName::Download).size(IconSize::XSmall))
+        .tooltip(Tooltip::text(
+            "Installs Marley's plugin for Claude Code: notifications, and Marley's tools \
+             for its terminals and Browser tabs, so the agent can open a page and drive \
+             it while you watch",
+        ))
+        .on_click(move |_, _, cx| {
+            claude_plugin::install(plugin.clone(), workspace.clone(), cx);
+        })
+    };
     Some(
         div()
             .debug_selector(|| "marley-claude-plugin-chip".into())
-            .child(
-                Button::new(
-                    "marley-enable-claude-notifications",
-                    "Connect Claude Code to Marley",
-                )
-                .start_icon(Icon::new(IconName::Download).size(IconSize::XSmall))
-                .label_size(LabelSize::Small)
-                .tooltip(Tooltip::text(
-                    "Installs Marley's plugin for Claude Code: notifications, and Marley's tools \
-                     for its terminals and Browser tabs, so the agent can open a page and drive \
-                     it while you watch",
-                ))
-                .on_click(move |_, _, cx| {
-                    claude_plugin::install(plugin.clone(), workspace.clone(), cx);
-                }),
-            )
+            .child(button.label_size(LabelSize::Small))
             .into_any_element(),
     )
 }

@@ -10886,6 +10886,7 @@ dependencies = [
  "prompt_store",
  "recent_projects",
  "release_channel",
+ "semver",
  "serde",
  "serde_json",
  "settings",

@@ -10,7 +10,9 @@
 //! the URL and the bearer as an MCP client's server entry, and goes when Marley quits; the Claude
 //! Code plugin's bridge (`claude_plugin/marley/bin/marley-mcp-bridge`) reads it. Zed's own agents
 //! reach the server through the same bridge, which Marley registers as the context server
-//! `marley` among Zed's default settings (#501).
+//! `marley` among Zed's default settings (#501). The server's fleet snapshot, which
+//! `fleet_snapshot` and the `fleet://snapshot` resource serve, is the app's Claude Code sessions,
+//! handed over at each change (#547).
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex};
@@ -19,6 +21,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use futures::StreamExt as _;
 use futures::channel::mpsc;
 use gpui::{App, AppContext as _, BorrowAppContext as _, Context, Entity, Global};
+use marley_fleet::FleetSnapshot;
 use marley_mcp::redact::{Redacted, Redactor};
 use marley_mcp::{AppCall, AppCaller, GrantTable, ToolAnswer, discovery, transport};
 use marley_terminal::{AnchoredBlock, BlockState, BlockTimes};
@@ -33,6 +36,7 @@ use workspace::notifications::simple_message_notification::MessageNotification;
 use workspace::notifications::{NotificationId, show_app_notification};
 use workspace::{MultiWorkspace, Toast, Workspace};
 
+use crate::agent_events::AgentEvents;
 use crate::{MarleySettings, claude_plugin};
 
 /// How many of the newest blocks `terminal_blocks` lists when the call names no `last`.
@@ -47,9 +51,11 @@ const MAX_READ_LINES: usize = 2_000;
 /// The most bytes `terminal_read` gives, for output whose lines are long.
 const MAX_READ_BYTES: usize = 256 * 1024;
 
-/// The server in the app: why it could not start, until a workspace shows it.
+/// The server in the app: why it could not start, until a workspace shows it, and where the
+/// app's fleet snapshot goes to reach it, while it runs.
 struct McpServer {
     failure: Option<String>,
+    snapshots: Option<mpsc::UnboundedSender<FleetSnapshot>>,
 }
 
 impl Global for McpServer {}
@@ -85,7 +91,8 @@ pub fn start(cx: &mut App) {
         }),
         Condvar::new(),
     ));
-    let failure = match transport::spawn(shared, effects, caller) {
+    let published = Arc::clone(&shared);
+    let (failure, snapshots) = match transport::spawn(shared, effects, caller) {
         Ok(handle) => {
             write_endpoint(
                 data_dir.clone(),
@@ -93,14 +100,18 @@ pub fn start(cx: &mut App) {
                 cx,
             );
             offer_to_zeds_agents(data_dir.clone(), cx);
-            None
+            (None, Some(publisher(published, cx)))
         }
-        Err(error) => Some(format!("Marley's MCP server did not start: {error}")),
+        Err(error) => (
+            Some(format!("Marley's MCP server did not start: {error}")),
+            None,
+        ),
     };
     if let Some(failure) = &failure {
         log::error!("mcp: {failure}");
     }
-    cx.set_global(McpServer { failure });
+    cx.set_global(McpServer { failure, snapshots });
+    cx.observe_global::<AgentEvents>(publish).detach();
     cx.on_app_quit(move |cx| {
         let data_dir = data_dir.clone();
         cx.background_spawn(futures::future::lazy(move |_| {
@@ -118,6 +129,44 @@ pub fn start(cx: &mut App) {
         }
     })
     .detach();
+}
+
+/// Sends the server the app's Claude Code sessions (#547), for `fleet_snapshot` and the
+/// `fleet://snapshot` resource.
+fn publish(cx: &mut App) {
+    let Some(snapshots) = cx
+        .try_global::<McpServer>()
+        .and_then(|server| server.snapshots.clone())
+    else {
+        return;
+    };
+    let snapshot = cx
+        .try_global::<AgentEvents>()
+        .map(|events| events.snapshot().clone())
+        .unwrap_or_default();
+    if let Err(error) = snapshots.unbounded_send(snapshot) {
+        log::debug!("mcp: a fleet snapshot came as Marley shut down: {error}");
+    }
+}
+
+/// A background task that hands the server each snapshot sent to it, in order, and wakes the
+/// streams of the clients that follow `fleet://snapshot`. The server's threads hold the data's
+/// lock, so the main thread never waits on it.
+fn publisher(shared: transport::Shared, cx: &App) -> mpsc::UnboundedSender<FleetSnapshot> {
+    let (snapshots, mut incoming) = mpsc::unbounded::<FleetSnapshot>();
+    cx.background_spawn(async move {
+        while let Some(snapshot) = incoming.next().await {
+            {
+                let (data, _) = &*shared;
+                data.lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .snapshot = snapshot;
+            }
+            transport::signal_change(&shared);
+        }
+    })
+    .detach();
+    snapshots
 }
 
 /// The context server Zed's own agents know Marley's server by (#501).

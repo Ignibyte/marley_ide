@@ -188,7 +188,9 @@ fn plugin_in(scratch: &Path, fail: bool) -> ClaudePlugin {
         config_dir: scratch.join("config"),
         claude: Some(fake_claude_cli(scratch, fail)),
         installed: None,
+        installed_version: None,
         installing: false,
+        updating: false,
     }
 }
 

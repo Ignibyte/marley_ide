@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Claude Code's sessions for agents, the plugin update, and quiet rows** (#547, 2026-09-26).
+  An older install of Marley's plugin for Claude Code now gets "Update Marley's plugin" in the
+  agent bar, which runs Claude Code's own `plugin marketplace update` and `plugin update`
+  commands; restart a running Claude Code to pick it up. Marley's MCP tool `fleet_snapshot` (and
+  the `fleet://snapshot` resource) lists every Claude Code session in Marley's terminals, with
+  what each is doing, so an agent or the harness can see the others; a session reads `done` once
+  its Claude Code leaves the terminal, and goes with the terminal. A working row that has had no
+  event for 30 minutes (Escape fires no hook) reads `no update in N m` instead of `working`; the
+  minutes are `marley.no_update_after_minutes`, on the Marley settings page, and 0 turns it off.
+  `MARLEY_CLAUDE` names the `claude` Marley runs for the plugin, else the PATH's.
 - **What Claude Code is doing, in the rail** (#519, 2026-09-26). Marley's plugin for Claude Code
   (now 1.2.0) reports each of its hook events to the terminal it runs in, and the agent's row in
   the rail follows them: `working` with your prompt and the tool it runs (`Bash: ls -la`),

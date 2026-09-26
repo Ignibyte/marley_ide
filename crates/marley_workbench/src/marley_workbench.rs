@@ -172,6 +172,9 @@ pub struct MarleySettings {
     pub redact_secrets: bool,
     /// The user's own patterns to hide from agents (#516).
     pub redaction_patterns: Vec<String>,
+    /// Minutes a working Claude Code may go without an event before its row says so; 0 is never
+    /// (#547).
+    pub no_update_after_minutes: u64,
 }
 
 impl Settings for MarleySettings {
@@ -187,6 +190,9 @@ impl Settings for MarleySettings {
             redaction_patterns: marley
                 .and_then(|marley| marley.redaction_patterns.clone())
                 .unwrap_or_default(),
+            no_update_after_minutes: marley
+                .and_then(|marley| marley.no_update_after_minutes)
+                .unwrap_or(30),
         }
     }
 }

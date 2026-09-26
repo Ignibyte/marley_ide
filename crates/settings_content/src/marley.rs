@@ -21,6 +21,11 @@ pub struct MarleySettingsContent {
     ///
     /// Default: []
     pub redaction_patterns: Option<Vec<String>>,
+    /// Minutes a working Claude Code may go without a hook event before its rail row says
+    /// `no update in N m` instead of `working`; 0 turns this off.
+    ///
+    /// Default: 30
+    pub no_update_after_minutes: Option<u64>,
 }
 
 /// A window layout.
