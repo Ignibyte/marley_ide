@@ -1874,7 +1874,12 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for WaylandClientStatePtr {
                     )
                     .log_err()
                     .flatten()
-                    .expect("Failed to create keymap")
+                };
+                // Marley: a keymap that does not compile keeps the last good one in place rather
+                // than panicking; the keys go on working under it.
+                let Some(keymap) = keymap else {
+                    log::error!("Failed to create a keymap from the compositor's keymap");
+                    return;
                 };
                 state.keymap_state = Some(xkb::State::new(&keymap));
                 state.compose_state = get_xkb_compose_state(&xkb_context);
@@ -1918,7 +1923,11 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for WaylandClientStatePtr {
             } => {
                 let focused_window = state.keyboard_focused_window.clone();
 
-                let keymap_state = state.keymap_state.as_mut().unwrap();
+                // Marley: a compositor may send `modifiers` before any usable keymap (wlroots
+                // does for a seat with no keyboard); until one arrives there is nothing to update.
+                let Some(keymap_state) = state.keymap_state.as_mut() else {
+                    return;
+                };
                 let old_layout =
                     keymap_state.serialize_layout(xkbcommon::xkb::STATE_LAYOUT_EFFECTIVE);
                 keymap_state.update_mask(mods_depressed, mods_latched, mods_locked, 0, 0, group);
@@ -1955,7 +1964,11 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for WaylandClientStatePtr {
                     return;
                 };
 
-                let keymap_state = state.keymap_state.as_ref().unwrap();
+                // Marley: with no keymap yet (see `Modifiers`), a keycode cannot become a
+                // keystroke, so the key is dropped.
+                let Some(keymap_state) = state.keymap_state.as_ref() else {
+                    return;
+                };
                 let keycode = Keycode::from(key + MIN_KEYCODE);
                 let keysym = keymap_state.key_get_one_sym(keycode);
 

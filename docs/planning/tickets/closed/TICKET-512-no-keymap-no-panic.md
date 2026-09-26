@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #512 (bug, platform: gpui's Wayland client)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/512-no-keymap-no-panic.spec.md
+- **Pipeline doc:** ../../pipeline/completed/512-no-keymap-no-panic.spec.md
 - **Source ticket:** found in #502's Test, 2026-09-25: the installed Marley started the way Omarchy's menu starts an entry, on a seat whose keyboard had just gone, panicked at `crates/gpui_linux/src/linux/wayland/client.rs:1921`
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 gpui's Wayland client builds its keyboard state from the compositor's `wl_keyboard.keymap`

@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-512](open/TICKET-512-no-keymap-no-panic.md) | bug | platform · a Wayland seat with no keymap panics gpui's keyboard handler at Marley's start (found in #502's Test) |
 | [TICKET-503](open/TICKET-503-terminal-urls-open-in-the-browser.md) | feature | prong 3 with prong 1 · a local URL in a terminal opens a Browser tab; the terminal offers a dev server's URL |
 | [TICKET-504](open/TICKET-504-browser-tabs-in-the-rail.md) | feature | prong 3 · Browser tabs as rows of their project in the rail |
 | [TICKET-505](open/TICKET-505-pick-fix-check.md) | feature | prong 3 · a pick re-found after the fix: before and after in the tray, and a tool |

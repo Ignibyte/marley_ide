@@ -449,6 +449,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Marley no longer dies at start on a seat without a keyboard** (#512, 2026-09-25). When the
+  compositor had no keyboard to describe (a keyboard that had just gone, or a keymap that would not
+  compile), the first keyboard event made Marley exit with nothing in its log; started from the
+  menu, it just vanished. Marley now waits for a usable keymap and takes keys as soon as one
+  arrives. The same fault is in upstream Zed.
 - **Typing on a long prompt in a new terminal** (#485, 2026-09-23). With a two-line prompt whose
   second line is wider than 100 columns, such as starship's on a deep path, the first command
   typed in a new terminal lost every character after the first on screen, though the shell got

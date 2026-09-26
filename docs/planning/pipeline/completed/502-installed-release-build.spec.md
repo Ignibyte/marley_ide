@@ -96,7 +96,7 @@ line's commit, which must equal `HEAD`. Chad's own `~/.local` is installed by a 
   a panic reaches stderr and nothing else, and a Marley the menu starts has no terminal. The
   launcher sends stderr to `logs/stderr.log` beside `Marley.log` when it is not a terminal, and
   keeps one earlier log past 10 MiB. Test found why this matters: the first menu start panicked
-  (#512), and Chad's own debug Marley stopped at 20:11 on 2026-09-25 with nothing in its log.
+  (#512) and left nothing in `Marley.log`.
 
 ## Acceptance Criteria (EARS)
 

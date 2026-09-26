@@ -148,8 +148,9 @@ Not reachable by a scenario: the menu itself (it is Chad's shell on his screen) 
   after; the run added no rule and did not reload it."
 - **Chad's install:** `just install` into `~/.local`: the launcher `~/.local/bin/marley` (681
   bytes), the binary `~/.local/lib/marley/marley`, `marley.desktop` (validates clean) and the
-  icon. No Marley was running (Chad's debug one had ended; its log stops at 20:11:05 with no
-  cause, the gap D5 closes).
+  icon. No Marley was running: Chad had quit his debug one at 20:11:05 (corrected after the
+  commit: `telemetry.log` ends with `App Closed` then; this entry first read the silent end of
+  `Marley.log` as a death).
 - **Gate:** `just gate-fast` (no Rust): `GATE GREEN [fast]`, log in the scratchpad
   (`gate-502.log`).
 - **Pre-existing, not in scope:** the fresh profile logs `activation token received with no

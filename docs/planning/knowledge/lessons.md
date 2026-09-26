@@ -2799,11 +2799,12 @@ On the `dev` channel Zed installs no crash handler: `should_install_crash_handle
 `ZED_GENERATE_MINIDUMPS` or a non-dev channel with a minidump endpoint, and otherwise
 `crashes::force_backtrace` is the whole panic hook (`crates/zed/src/main.rs:419`). Panics unwind,
 so there is no coredump either. A panic is printed to stderr and the process exits, with
-nothing in `Marley.log`: a log that stops mid-line of work with no quit is what a panic looks
-like there. A Marley started from the menu has no terminal for stderr, so the installed build's
-launcher appends stderr to `logs/stderr.log` (#502). A debug Marley started by an agent with
-`setsid -f` should send stderr to a file too, never `/dev/null`: on 2026-09-25 Chad's debug
-Marley ended at 20:11:05 and nothing says why.
+nothing in `Marley.log`. A Marley started from the menu has no terminal for stderr, so the
+installed build's launcher appends stderr to `logs/stderr.log` (#502). A debug Marley started by
+an agent with `setsid -f` should send stderr to a file too, never `/dev/null`. To tell a quit
+from a death afterwards, read `telemetry.log` beside `Marley.log`: with metrics on it ends with
+an `App Closed` event at a normal quit. (On 2026-09-25 #502 first read the end of Chad's
+`Marley.log` at 20:11:05 as a death; `telemetry.log` showed `App Closed`, a quit.)
 
 ## L-claude-502-omarchy-starts-an-entry-through-uwsm-app-and-gtk-launch-001
 *category: validate · topic: starting Marley from the menu · from: pipeline 502*
@@ -2828,3 +2829,24 @@ second when nothing changed. The binary is 2.1 GB with the release profile's `de
 loaded, and they keep file and line numbers in a backtrace, so the installed copy keeps them.
 `desktop-file-validate` hints at `Utility;TextEditor;Development;IDE;` (Zed's categories: two
 main categories); `Development;IDE;` draws no hint.
+
+## L-claude-512-show-the-bug-on-the-unfixed-build-first-001
+*category: validate · topic: proving a fix · from: pipeline 512*
+
+For a bug, write the scenario at Plan and run it on the build before the fix, where it has to
+fail the way the bug report says; then fix, rebuild and run it again. #512's scenario failed on
+the unfixed build at the step the panic predicts ("no window from the second Marley") and passed
+after the fix, which proves both that the scenario reaches the bug and that the change removes
+it. A scenario only ever seen green could be testing something next to the bug. Orca's audit
+folders do the same by reversing the patch in memory (docs/orca_architecture/07, §A8).
+
+## L-claude-512-the-gate-receipt-binds-head-001
+*category: workflow · topic: the commit receipt · from: pipeline 512*
+
+The receipt's fingerprint (`gate_state_hash` in `.claude/hooks/lib-hook-helpers.sh`) is a hash
+of `git rev-parse HEAD` followed by the gated files (the crates, scripts, hooks, e2e scenarios and
+config; not `docs/`). So a commit between a green `--diff` and the code's own commit, even a
+docs-only one, voids the receipt, and the commit hook then demands a new gate run. Commit the
+gated change first and docs-only work after it, or put both in one commit. Docs edits alone
+(CHANGELOG, knowledge, `docs/planning/`) never touch the fingerprint, which is why Complete's
+paperwork after the gate is safe.

@@ -2275,3 +2275,13 @@ before the view's key listener: give the view's context a `null` binding for a k
 receive. A binding under a negated predicate (`!Terminal`, `!Editor`) matches at the deepest
 context, so from any field inside the view it outranks the view's own binding: bind the key in
 `<View> > Editor` too. Check the key from the view itself and from each of its fields.
+
+## PR-claude-an-event-handler-never-unwraps-what-another-event-sets-001
+*severity: high · prevents: F-claude-502-a-seat-with-no-keymap-panics-gpuis-keyboard-handler-001*
+
+In a handler for a stream of protocol events (Wayland, CDP, ACP, a hook feed), never `unwrap` or
+`expect` state that a different event initializes. A peer can send events in an order the code
+did not expect, or never send the initializing one at all: treat the state as absent and return,
+drop the event, or queue it until the state arrives, and log a failure to build it rather than
+panic. When touching such a handler, including an upstream Zed one, grep it for `.unwrap()` and
+`.expect(` on shared state and ask what happens if the setup event is missing or fails.

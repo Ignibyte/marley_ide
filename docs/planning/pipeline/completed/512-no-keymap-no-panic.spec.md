@@ -1,7 +1,7 @@
 ---
 pipeline_id: 03c08d22-0f5f-46bc-a8b4-843117a265f7
-ticket: docs/planning/tickets/open/TICKET-512-no-keymap-no-panic.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-512-no-keymap-no-panic.md
+status: Phase 4 — Complete PASS
 title: "A Wayland seat without a keymap no longer kills Marley"
 type: bug
 slice: platform (gpui's Wayland client), found in #502's Test
@@ -45,15 +45,18 @@ fix matches. Warp: N/A.
 - **Observed.** #502's scenario, run 1: after `quit_marley` the run's last `wtype` had exited,
   the headless sway's seat had no keyboard, and the Marley that `uwsm-app -- gtk-launch` started
   panicked at line 1921 (`Option::unwrap()` on `None`, in `<WlKeyboard as Dispatch>::event`).
-  Run 2, with the seat's keyboard held first, started and stayed up.
+  Run 2, with the seat's keyboard held first, started and stayed up. Reproduced at Plan with
+  this ticket's scenario on the unfixed debug build: the same panic, before the window mapped.
 
 ## UI proof
 UI-AFFECTING (a crash at start). `script/e2e/512-no-keymap-no-panic.sh` (`compositor sway`): the
 debug build, whose first launch is made with no keyboard on the seat (the runner's held keyboard
-released first). Steps: the window maps and the process lives ten seconds (`512-01-no-keyboard`);
-a keyboard arrives (`hold_keyboard`), and the palette opens on Ctrl+Shift+P
-(`512-02-keys-arrive`). The run log shows no panic. Run first on the unfixed build, where it must
-fail at the first step, then on the fix.
+released first). Steps: the run's Marley quits (the `wtype` keyboards that typed it exit), and a second
+Marley starts on the same profile: the window maps and the process lives ten seconds
+(`512-01-no-keyboard`); a keyboard types Ctrl+Shift+P and the palette opens
+(`512-02-keys-arrive`). The run log shows no panic. Run first on the unfixed build, where it
+failed at the first step, then on the fix; #500's scenario runs again for the keyboard as it
+was.
 
 ## Locked-In Decisions
 - D1 — Skip, do not guess: with no keymap there is no way to turn a keycode into a keystroke, so
