@@ -8,6 +8,12 @@ license = "MIT OR Apache-2.0"
 [lib]
 path = "src/marley_agent.rs"
 
+[dependencies]
+base64.workspace = true
+marley_fleet.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
 # Rustal's lint table (CONSTITUTION §14). The seven Marley manifests carry the same table:
 # cargo gives a crate either the workspace's table or its own, and Zed's crates keep Zed's.
 [lints.rust]

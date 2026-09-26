@@ -21,6 +21,7 @@
 )]
 
 pub mod agent_bar;
+pub mod agent_events;
 pub mod agents;
 pub mod autosuggest;
 pub mod blocks;

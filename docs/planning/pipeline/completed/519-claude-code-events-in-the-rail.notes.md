@@ -89,6 +89,37 @@
     UserPromptSubmit, SessionEnd's reason is `prompt_input_exit`.
 - **Decisions:** D1 to D9 in the spec.
 
+### Slice 1 at promotion (2026-09-26): what changed from the queued design
+- **Recall at promotion:** L-claude-482-claude-codes-print-mode-drops-a-hooks-terminal-sequence-001
+  (only an interactive session writes a hook's sequence; a Python pty proves a real run);
+  L-claude-478-a-new-terminal-event-reaches-every-exhaustive-match-001 and
+  L-claude-478-omarchys-notifications-go-to-quickshell-001 (`busctl --user monitor`);
+  L-claude-440-testing-agent-clis-without-a-pty-001. Brain consultation
+  cf47828359624003b1ffa447279c2a19: nothing on this seam.
+- **Cut to slice 1** (#547 takes the rest): the design's items 1 to 6 without the stale form
+  (D7), the version bump without the update chip (D9's chip), and no MCP publishing (item 7).
+- **Seams re-verified** (an Explore sweep at `edccce539f`). What it changed:
+  - The rail never sees a notification: the view re-emits only `Wakeup`. The rail observes the
+    `AgentEvents` global instead (`cx.observe_global`), which `on_frame` updates.
+  - The branch goes in `notifications::init`'s subscription, before `notify`, which returns early
+    for a focused terminal.
+  - `row_card` has one fixed-height subtitle and is shared with thread rows, and a test pins equal
+    heights for rows with and without a second line. An event row keeps the status on its second
+    line, with the prompt after it (`Claude Code · working · Add a README…`), and gains a third
+    line for the activity (the tool and its input, what it waits on, the last message, the
+    error); only such rows grow, so the pinned rows keep their height.
+  - `TerminalAgent` stays `Copy` (seven sites copy it); the event text rides beside it as
+    `TerminalSnapshot::agent_detail` and `TerminalRow::agent_detail`, an `AgentDetail { summary,
+    activity }` of strings.
+  - `marley_agent::AgentStatus` gains `Idle` and `Failed` (labels `idle`, `failed`).
+  - `marley_fleet::Question` has no tool field: its `prompt` holds `Write: README.md`.
+  - `agent_in` reads a cached foreground that refreshes on output; a frame can beat it (a
+    SessionStart right after launch). D4 stands: such a frame is dropped, and the next one lands.
+  - Seats end on SessionEnd, reset on a SessionStart or a new `session_id`, and go when the view
+    is released; a seat is shown only while Claude Code is the terminal's foreground.
+  - Orca's `src/shared/harness-injected-user-turns.ts` (MIT) gives the injected-turn tags and
+    prefixes; `claude_events` names it with its notice.
+
 ### Design
 - **Approach.**
   1. `hooks/event.py`: read at most 1 MiB of stdin; parse; build the summary of the spec's
@@ -203,3 +234,119 @@ row needs it. #540, drafted the same night, takes the session id from it; every 
 - Upstream: one condition inside a Marley hunk of `terminal_view.rs`, whose row exists.
 - If the slice runs long, the chip's update (REQ-013) and `fleet_snapshot` (REQ-011) split off as
   a follow-up; the rows (REQ-001 to REQ-010) are the first slice.
+
+## Phase 2 — Code
+- **Built (slice 1).**
+  - The plugin: `hooks/event.py` (new, a program), `hooks.json` registering the twelve events
+    beside `notify.sh`'s two, version 1.2.0 in `plugin.json` and `marketplace.json`, and
+    `claude_plugin::FILES` shipping `event.py` (seven files).
+  - `marley_terminal::AGENT_EVENT_TITLE` (`marley-event`); Zed's `terminal_view` arm leaves a
+    notification with that title unmarked, its ledger row widened.
+  - `marley_agent`: `AgentStatus::Idle` and `Failed`; `claude_events` (new, pure): `HookEvent`,
+    `decode` (base64, at most 3,000 bytes, `v` 1), `fold` (D6 through a private `Moving` seat,
+    one handler per event kind), `seat_status`, `seat_summary` and `seat_activity` for the row,
+    and Orca's injected-turn tags and prefixes with its source named.
+  - `marley_rail`: `TerminalSnapshot::activity` and `TerminalRow::activity`, copied by
+    `rail_rows` and `switcher_rows`; the tests' literals gained the field.
+  - `marley_workbench`: `agent_events` (new): the `AgentEvents` global over one
+    `FleetSnapshot`, `on_frame` (drops a frame unless `agent_bar::agent_in` says Claude Code,
+    decodes, folds against the seat, applies), `forget` on a view's release (the snapshot folded
+    again without the seat); `notifications::init` sends a `marley-event` title to `on_frame`
+    and registers `forget`; the rail observes `AgentEvents` (`observe_global_in`), reads the seat
+    in `terminal_snapshot` for a Claude Code row, puts the subagents and the prompt after the
+    status and the activity on a third line; `row_card` takes the lines under the title, and a
+    row with two of them is 3.5 rem tall, the others keep `h_11`.
+- **Deviations from the design, and why.**
+  - One `tool` label holds `Tool: preview`; no separate `preview` label. The row shows the line
+    as it is and the question names it the same way, so a split would only be joined again.
+  - The tools in flight are labels too (`lead_tool:<id>`, `subagent_tool:<id>`) with
+    `waiting_on`, so `fold` stays a pure function of the previous seat and the event.
+  - `activity` alone rides on the snapshot and the row, not an `AgentDetail` pair: the prompt and
+    the subagents join the status line, which `subtitle` already carries.
+  - A user's prompt (not a harness's) starts a new turn: it ends a wait and forgets the tools in
+    flight, since a turn cannot go on waiting once the user has typed the next prompt. An
+    injected prompt starts a turn too but keeps the user's prompt on the row.
+  - The subagent count is the turn's: `end_turn` clears it, so an interrupted subagent that never
+    reports `SubagentStop` cannot leave a stale count on the next turn.
+  - A permission's question reads `Permission for Write: README.md`; `AskUserQuestion`'s is its
+    question's text.
+  - `agent_events` needs no `init`: `default_global` creates the global at the first frame, and
+    `observe_global_in` fires for it.
+- **Review of the diff.**
+  - Re-entrancy: `on_frame` runs inside the terminal view's subscription and reads only the
+    `Terminal` entity and the global; the rail's observer runs at the effect flush, after the
+    view's update ends, so its `view.read` never meets a view being updated.
+  - Errors: a frame that does not decode is logged at debug and dropped (display data, D4);
+    nothing on these paths can panic (no indexing, `strip_prefix` for the ids).
+  - Provenance: Orca's MIT list named in the module doc; nothing from Warp.
+  - Upstream: the one Zed hunk is a condition inside #478's Marley arm.
+- **Checks.** `cargo check` and `cargo clippy --all-targets -D warnings` over `marley_agent`,
+  `marley_rail`, `marley_workbench` and `terminal_view` clean; `cargo fmt --check` clean.
+
+## Phase 3 — Test
+- **The scenario:** `script/e2e/519-claude-code-events-in-the-rail.sh`, `compositor sway`. Setup
+  checks the hook itself, writes a HOME whose `.bashrc` puts `$E2E_WORK/bin` first on the PATH,
+  the stand-in `claude` (Python; it runs the real `hooks/event.py` per recorded payload at each
+  Enter and writes each answer's `terminalSequence`), the six steps, and starts
+  `busctl --user monitor org.freedesktop.Notifications` into a log. The plan's `SessionStart`
+  and a `Task` around the subagent were added to the steps, so the lead's line shows the Task
+  while the subagent's Grep runs, as a real session's does.
+- **Run** (debug build, then again after the fixes below; SHOT_DIR in the scratchpad): every
+  check passes: `{}` outside a Marley terminal; for 100 KB prompt, tool input and message with
+  5,000-byte paths, 555-, 463- and 543-byte sequences carrying the event and the fields the row
+  shows; the stand-in acted out all six steps (`terminal-read claude`); the monitor saw the
+  service's calls (a `GetServerInformation` of our own), and no `marley-event` in any call.
+  Sway: the user's Hyprland had no Marley window before or after, and no rule or reload.
+- **The shots, read (the rail rows cropped and enlarged):**
+  - `519-00-before-events`: `Claude Code · waiting`, two lines, from the quiet timer (REQ-009).
+  - `519-01-working`: `working · Add a README to the…`, then `Bash: ls -la` on a third line;
+    the row is the one taller row (REQ-001, REQ-002).
+  - `519-02-waiting`: `waiting · Add a README to the…`, then `Permission for Write: README…`,
+    after the Read's PostToolUse: the parallel tool finishing did not end the wait (REQ-003).
+  - `519-03-subagent`: `working · 1 subagent · Add a RE…`, then `Task: Find the TODOs`: the
+    count, the lead's state and prompt, and the subagent's Grep not on the lead's line (REQ-004).
+  - `519-04-idle`: `idle · Add a README to the proj…`, then `I added README.md with a sho…`
+    (REQ-005).
+  - `519-05-injected`: `idle · Add a README to the proj…`, then `Noted.`: the
+    `<task-notification>` and the continuation left the user's prompt (REQ-006).
+  - `519-06-failed`: `failed · Run the tests`, then `rate_limit` (REQ-007).
+  - No bell dot in any shot, and the terminal shows only the stand-in's lines (REQ-008).
+- **Reds, and what changed.**
+  - The first run's rows read `Claude Code · working · Add a…`: the agent's name took the
+    rail's width and the prompt showed three letters. The icon names the agent, so an event
+    row's line now starts with the state (`claude_events::seat_line`, which replaces
+    `seat_summary`); a row without events keeps `Claude Code · waiting`.
+  - The size check, with 5,000-byte paths, passed on a sequence that carried no prompt:
+    `event.py` dropped the prompt before the paths. It now drops an overlong transcript path and
+    working directory first, and the check requires each row's fields in the summary.
+- **REQ-012:** the setup checks above, in the run log.
+- **REQ-014, the live check** (`scratchpad/night/519/live-check.py`): Claude Code 2.1.283 in a
+  Python pty, `--plugin-dir` at the repository's plugin, in `/srv/stacks` with
+  `TERM_PROGRAM=zed`, asked to Read a file and reply `ok`. Its output carried `marley-event`
+  frames for UserPromptSubmit (the prompt), PreToolUse and PostToolUse (Read and the path) and
+  Stop (`ok`). No SessionStart frame, as L-claude-482 predicted: no row depends on one.
+- **Cost:** `event.py` takes 14 ms a call (median of 20, 19 ms at most), two per tool call.
+- **Golden set:** 519 joins it (its checks guard the hook's bound and the frames' route);
+  `just regress` on the debug build: all 11 pass. The rows themselves are checked by shots; #547's
+  `fleet_snapshot` gives the scenario a check of the seat's state.
+- **Gate:** `script/gates.sh --diff` first red on two docs findings (the first paragraph of
+  `seat_line`'s doc too long for clippy; the module doc of `agent_events` linking the
+  crate-private `on_frame`), fixed at the source; then `GATE GREEN [diff]`, 16 passed.
+- **Not reached by any scenario:** a real model's turns held steady for shots (the live check
+  stands in), and the frames of a real permission prompt and subagent (the stand-in's recorded
+  payloads carry the fields 2.1.283's bundle sends).
+- **Verdict:** Phase 3 PASS.
+
+## Phase 4 — Complete
+- **Documented:** `CHANGELOG.md` (Added); `docs/marley/three-prong-plan.md` (C1's first piece
+  shipped); `docs/marley_architecture/marley_agent.md` (`claude_events`, the dependencies),
+  `marley_rail.md` (`activity`), `marley_workbench.md` (the notification route,
+  `agent_events`, the rail's rows, the plugin's 1.2.0 hooks); the `terminal_view.rs` row in
+  `docs/marley/zed-touchpoints.md` describes what shipped.
+- **Knowledge:** F-claude-519-a-frame-bound-dropped-the-shown-fields-before-the-unbounded-ones-001,
+  PR-claude-drop-the-unbounded-fields-first-001,
+  AD-claude-519-claude-codes-hook-events-ride-in-band-into-marley-fleet-001.
+- **Brain:** consultation cf47828359624003b1ffa447279c2a19 closed with
+  `decisions/marley-claude-codes-hook-events-ride-in-band-into-marley-fleet` (follow-up by
+  2026-10-10).
+- **Ticket:** closed; TICKET-547 stays queued for slice 2.

@@ -54,6 +54,9 @@ pub struct TerminalSnapshot {
     pub bell: bool,
     /// The agent CLI in the terminal's foreground, if one is.
     pub agent: Option<TerminalAgent>,
+    /// A third line under an agent's status, from the agent's own events (#519): the tool in
+    /// flight, what the agent waits on, its last message or its error.
+    pub activity: Option<String>,
     /// Where the filter matched the title, as for [`ProjectSnapshot::matched`].
     pub matched: Option<Vec<usize>>,
 }
@@ -223,6 +226,8 @@ pub struct TerminalRow {
     pub bell: bool,
     /// The agent CLI the terminal runs, which makes the row an agent row.
     pub agent: Option<TerminalAgent>,
+    /// The third line, if any (see [`TerminalSnapshot::activity`]).
+    pub activity: Option<String>,
     /// Whether this is the selected row.
     pub selected: bool,
     /// The byte offsets of the title's characters the filter matched, to highlight.
@@ -523,6 +528,7 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                 subtitle: terminal.subtitle.clone(),
                 bell: terminal.bell,
                 agent: terminal.agent,
+                activity: terminal.activity.clone(),
                 selected: selected == Selection::Terminal(terminal.id),
                 highlight: highlight(terminal.matched.as_deref()),
             }),
@@ -585,6 +591,7 @@ pub fn switcher_rows(
                 subtitle: terminal.subtitle.clone(),
                 bell: terminal.bell,
                 agent: terminal.agent,
+                activity: terminal.activity.clone(),
                 selected: false,
                 highlight: Vec::new(),
             })
@@ -678,6 +685,7 @@ mod tests {
             subtitle: None,
             bell,
             agent: None,
+            activity: None,
             matched: None,
         }
     }
@@ -830,6 +838,7 @@ mod tests {
                     subtitle: None,
                     bell: false,
                     agent: None,
+                    activity: None,
                     selected: false,
                     highlight: Vec::new(),
                 }),
@@ -840,6 +849,7 @@ mod tests {
                     subtitle: None,
                     bell: true,
                     agent: None,
+                    activity: None,
                     selected: false,
                     highlight: Vec::new(),
                 }),
@@ -858,6 +868,7 @@ mod tests {
                     subtitle: None,
                     bell: false,
                     agent: None,
+                    activity: None,
                     selected: true,
                     highlight: Vec::new(),
                 }),
@@ -894,6 +905,7 @@ mod tests {
                     subtitle: None,
                     bell: false,
                     agent: None,
+                    activity: None,
                     selected: false,
                     highlight: Vec::new(),
                 }),
@@ -1038,6 +1050,7 @@ mod tests {
                     subtitle: None,
                     bell: false,
                     agent: None,
+                    activity: None,
                     selected: false,
                     highlight: Vec::new(),
                 }),
@@ -1074,6 +1087,7 @@ mod tests {
                     subtitle: None,
                     bell: false,
                     agent: None,
+                    activity: None,
                     selected: false,
                     highlight: Vec::new(),
                 }),

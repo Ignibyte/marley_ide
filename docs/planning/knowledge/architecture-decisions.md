@@ -2160,3 +2160,22 @@ needs a non-blank cell, and Zed underlines and opens hyperlinks); recomputing an
 of the grid (a full history cuts rows there). Accepted limits: a hook positioned before a resize
 and applied after it, and the shell's own prompt redraw on SIGWINCH, can leave the newest prompt's
 anchors off until the next prompt.
+
+## AD-claude-519-claude-codes-hook-events-ride-in-band-into-marley-fleet-001
+*decided at: 2026-09-26 · status: shipped (slice 1; #547 publishes the snapshot)*
+
+A terminal's Claude Code reports its hook events in band: Marley's plugin answers each hook with a
+`terminalSequence`, an OSC 777 notify titled `marley-event` whose body is the base64 of a JSON
+summary under 2,900 bytes, so the frame reaches the terminal it belongs to (over SSH too) with no
+endpoint, token or terminal id to pass. The terminal's existing notification path carries it
+(`Event::MarleyNotification`); Zed's view leaves that title unmarked and the workbench routes it
+to `agent_events` instead of the desktop. A frame counts only while Claude Code is the terminal's
+foreground program, and it is display data only: anything that turns an event into input must
+check authenticity first. The state lives in `marley_fleet` (one `FleetSnapshot`, a seat per
+terminal view), folded by the pure `marley_agent::claude_events::fold` from the previous seat and
+the event, with Orca's rules (a permission wait ends only with the tool it asked for; subagents
+move a count; harness-injected prompts keep the user's). Rejected: a POST to `marley_mcp` from the
+hook (an endpoint file and a bearer in every terminal, and no route from a remote host); a new
+`terminal::Event` variant (it breaks every exhaustive match outside the terminal crates,
+L-claude-478); inferring state from output alone (the 2 s quiet timer stays the fallback for a
+terminal that sends no events).

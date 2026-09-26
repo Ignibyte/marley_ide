@@ -13,6 +13,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **What Claude Code is doing, in the rail** (#519, 2026-09-26). Marley's plugin for Claude Code
+  (now 1.2.0) reports each of its hook events to the terminal it runs in, and the agent's row in
+  the rail follows them: `working` with your prompt and the tool it runs (`Bash: ls -la`),
+  `waiting` with the permission it asks for, until that tool finishes, `idle` with its last
+  message, or `failed` with the error, and a count of the subagents running. A prompt Claude
+  Code or a harness sends on your behalf (a task notification, a system reminder, the
+  continuation after a compaction) keeps your own prompt on the row. The events never ring the
+  terminal's bell or post a desktop notification, and a terminal whose Claude Code sends none
+  keeps the old reading from its output. An installed plugin picks the events up once it is
+  updated to 1.2.0 (`claude plugin update marley@marley`); the agent bar offering that update is
+  #547.
 - **Marley's own regression suite** (#517, 2026-09-26). `just regress` runs a golden set of
   Marley's e2e scenarios (the MCP server and terminal tools, blocks and suggestions, rich input,
   the Browser tab driven by an agent and from the rail, the settings page, secret redaction, one

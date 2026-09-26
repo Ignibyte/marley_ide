@@ -20,7 +20,7 @@ use gpui::{
     EventEmitter, FocusHandle, Focusable, Hsla, Pixels, Render, Stateful, Subscription, Task,
     WeakEntity, Window, px,
 };
-use marley_agent::{AgentKind, WAITING_AFTER};
+use marley_agent::{AgentKind, WAITING_AFTER, claude_events};
 use marley_rail::{
     Focus, ProjectRow, ProjectSnapshot, RailSnapshot, Row, Selection, SwitcherRow, TerminalAgent,
     TerminalRow, TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus,
@@ -48,6 +48,7 @@ use workspace::{
 };
 use zed_actions::agents_sidebar::FocusSidebarFilter;
 
+use crate::agent_events::AgentEvents;
 use crate::agents::{self, AgentIcon};
 use crate::browser;
 
@@ -124,6 +125,8 @@ pub struct Rail {
     /// The threads whose attention dot is lit.
     noted_threads: HashSet<String>,
     _multi_workspace_subscriptions: [Subscription; 2],
+    /// Claude Code's hook events, which move its terminals' rows (#519).
+    _agent_events: Subscription,
     _focus_out: Subscription,
     _filter_edits: Subscription,
 }
@@ -235,6 +238,7 @@ impl Rail {
                 }
             },
         );
+        let agent_events = cx.observe_global_in::<AgentEvents>(window, Self::refresh);
         Self {
             multi_workspace: multi_workspace.downgrade(),
             focus_handle,
@@ -266,6 +270,7 @@ impl Rail {
             thread_statuses: HashMap::default(),
             noted_threads: HashSet::default(),
             _multi_workspace_subscriptions: subscriptions,
+            _agent_events: agent_events,
             _focus_out: focus_out,
             _filter_edits: filter_edits,
         }
@@ -1252,7 +1257,7 @@ impl Rail {
                 .color(Color::Muted)
                 .into_any_element(),
             row_label(row.title, row.highlight, Color::Default),
-            Some(subtitle),
+            vec![subtitle],
             cx,
         )
         .children(thread_status_mark(row.status, row.attention))
@@ -1317,7 +1322,7 @@ impl Rail {
             row.selected,
             icon,
             row_label(row.title, row.highlight, Color::Default),
-            row.subtitle,
+            row.subtitle.into_iter().chain(row.activity).collect(),
             cx,
         )
         .child(end)
@@ -1675,18 +1680,26 @@ fn terminal_snapshot(
     let terminal_view = view.read(cx);
     let terminal = terminal_view.terminal();
     let bell = terminal_view.has_bell();
-    // No output seen yet counts as quiet: the agent is at its prompt, as far as the rail knows.
-    let agent = foreground_command(terminal, cx)
+    let kind = foreground_command(terminal, cx)
         .as_deref()
-        .and_then(marley_agent::agent_kind_of)
-        .map(|kind| {
-            let quiet_for =
-                last_output.map_or(Duration::MAX, |at| now.saturating_duration_since(at));
-            TerminalAgent {
-                kind,
-                status: marley_agent::agent_status(quiet_for, bell),
-            }
-        });
+        .and_then(marley_agent::agent_kind_of);
+    // Once Claude Code has sent its hook events, they say what it is doing (#519).
+    let seat = kind
+        .filter(|kind| *kind == AgentKind::Claude)
+        .and_then(|_| cx.try_global::<AgentEvents>()?.seat(view.entity_id()));
+    let agent = kind.map(|kind| TerminalAgent {
+        kind,
+        status: seat.map_or_else(
+            || {
+                // No output seen yet counts as quiet: the agent is at its prompt, as far as the
+                // rail knows.
+                let quiet_for =
+                    last_output.map_or(Duration::MAX, |at| now.saturating_duration_since(at));
+                marley_agent::agent_status(quiet_for, bell)
+            },
+            |seat| claude_events::seat_status(seat.state),
+        ),
+    });
     let (title, subtitle) = agent.map_or_else(
         || {
             (
@@ -1704,10 +1717,11 @@ fn terminal_snapshot(
                 || agent_title(&terminal.read(cx).breadcrumb_text, agent.kind),
                 ToString::to_string,
             );
-            (
-                title,
-                Some(marley_agent::status_line(agent.kind, agent.status)),
-            )
+            let status = seat.map_or_else(
+                || marley_agent::status_line(agent.kind, agent.status),
+                claude_events::seat_line,
+            );
+            (title, Some(status))
         },
     );
     TerminalSnapshot {
@@ -1716,6 +1730,7 @@ fn terminal_snapshot(
         subtitle,
         bell,
         agent,
+        activity: seat.and_then(claude_events::seat_activity),
         matched: None,
     }
 }
@@ -1905,19 +1920,26 @@ fn row_frame(id: impl Into<ElementId>, selected: bool, cx: &App) -> Stateful<Div
 }
 
 /// A terminal's or a thread's row, laid out as Warp's tab list lays out a tab: a round icon, then
-/// the title over its second line when it has one, at one height either way. `icon_selector`
-/// names the icon's container for the driven tests. The caller adds the row's end and its clicks.
+/// the title over the `lines` under it, at one height with a second line or without. An agent row
+/// whose events give it a third line (#519) is the one taller row. `icon_selector` names the
+/// icon's container for the driven tests. The caller adds the row's end and its clicks.
 fn row_card(
     id: impl Into<ElementId>,
     icon_selector: String,
     selected: bool,
     icon: AnyElement,
     title: AnyElement,
-    subtitle: Option<String>,
+    lines: Vec<String>,
     cx: &App,
 ) -> Stateful<Div> {
     row_frame(id, selected, cx)
-        .h_11()
+        .map(|row| {
+            if lines.len() > 1 {
+                row.h(rems(3.5))
+            } else {
+                row.h_11()
+            }
+        })
         .gap_2p5()
         .pl_2()
         .pr_1p5()
@@ -1936,14 +1958,12 @@ fn row_card(
                 .min_w_0()
                 .flex_1()
                 .child(title)
-                .when_some(subtitle, |text, subtitle| {
-                    text.child(
-                        Label::new(subtitle)
-                            .size(LabelSize::XSmall)
-                            .color(Color::Muted)
-                            .truncate(),
-                    )
-                }),
+                .children(lines.into_iter().map(|line| {
+                    Label::new(line)
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted)
+                        .truncate()
+                })),
         )
 }
 

@@ -2313,3 +2313,10 @@ copy that another path updates on its own schedule: `set_size` had already writt
 into the cache the Resize arm compared with. And when a vendored or upstream routine drops data
 (a `truncate`, a `drain`, a rotate), check that every counter that promises to account for dropped
 data is told.
+
+## PR-claude-drop-the-unbounded-fields-first-001
+*severity: medium · prevents: F-claude-519-a-frame-bound-dropped-the-shown-fields-before-the-unbounded-ones-001*
+
+When a payload is kept under a size by dropping fields, drop first the fields that have no bound
+of their own (paths, free text passed through as it came), and only then the ones already cut to
+a length; and a check of the bound asserts which fields survived, not only the size.

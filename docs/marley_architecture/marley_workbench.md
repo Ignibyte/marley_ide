@@ -405,6 +405,29 @@ alike.
 - `show_sender` answers a click: it activates the view's window, its workspace in the
   multi-workspace and its item, and clears the bell, as the rail's `activate_terminal` does.
 
+- A notification titled `marley-event` (`marley_terminal::AGENT_EVENT_TITLE`) is a Claude Code
+  hook event, not one for the user (#519): `init`'s subscription hands its body to
+  `agent_events::on_frame` instead of `notify`, and registers `agent_events::forget` for the
+  view's release. Zed's view leaves such a notification unmarked, so no bell either.
+
+## Claude Code's hook events (`src/agent_events.rs`, #519)
+
+- `AgentEvents`, a global made at the first frame, holds one `marley_fleet::FleetSnapshot`: a
+  seat per terminal view whose Claude Code has sent an event, keyed by the view's entity id as
+  `terminal_list` gives it. `seat(view)` gives the seat until its session ends.
+- `on_frame` drops a frame unless `agent_bar::agent_in` says Claude Code is the terminal's
+  foreground program (a `cat` of an old log moves nothing; spec D4), decodes it, folds it
+  against the seat with `marley_agent::claude_events::fold`, and applies the events. A frame
+  that does not decode is logged at debug and dropped.
+- `forget` removes a closing view's seat by folding the others again from nothing, since the
+  reducer never removes a seat.
+- The rail observes the global (`observe_global_in`) and refreshes. `terminal_snapshot` reads
+  the seat of a Claude Code row: its status from `seat_status`, its second line from
+  `seat_line` (the state, the subagents, the user's prompt; the icon names the agent), and a
+  third line from `seat_activity`. `row_card` takes the lines under the title, and a row with
+  a third line is 3.5 rem tall; every other row keeps `h_11`. A row without a seat keeps the
+  quiet timer's reading.
+
 ## Marley's MCP server (`src/mcp.rs`, #491, #501)
 
 - `start`, which `zed`'s `main` calls after `initialize_workspace` (Zed's tests run
@@ -508,6 +531,15 @@ alike.
   checks every two seconds whether Marley answers and sends `notifications/tools/list_changed`
   when that changes. The root `.gitignore` ignores every `.mcp.json`, since a local one carries
   bearers, with an exception for this one.
+- Since #519 (version 1.2.0) `hooks.json` also runs `hooks/event.py` for SessionStart,
+  UserPromptSubmit, PreToolUse, PostToolUse, PostToolUseFailure and PermissionRequest (matcher
+  `*`), Stop, StopFailure, PostCompact, SubagentStart, SubagentStop and SessionEnd. Python 3
+  with the standard library, it answers `{}` outside `TERM_PROGRAM=zed` or on any failure, and
+  inside a `terminalSequence` of an OSC 777 notify titled `marley-event`, the base64 of a
+  summary of at most 2,900 bytes (the prompt and message cut to 300 characters, the tool's
+  preview to 200; an overlong path goes first, then those fields), which keeps the sequence
+  under Claude Code's 4,096-byte cap and Marley's scanner's 4 KiB. `FILES` ships it as a
+  program; it takes about 14 ms a call.
 
 ## The Browser tab (`src/browser.rs`, #488 to #490, #493 to #499)
 

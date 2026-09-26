@@ -1183,9 +1183,13 @@ fn subscribe_for_terminal_events(
                 }
 
                 // Marley: a notification marks the terminal as a bell does, without its sound;
-                // Marley's workbench shows the notification (#478).
-                Event::MarleyNotification { .. } => {
-                    terminal_view.has_bell = true;
+                // Marley's workbench shows the notification (#478). One titled
+                // `marley-event` carries Claude Code's hook events for the rail, and marks
+                // nothing (#519).
+                Event::MarleyNotification { title, .. } => {
+                    if title.as_deref() != Some(marley_terminal::AGENT_EVENT_TITLE) {
+                        terminal_view.has_bell = true;
+                    }
                     cx.emit(Event::Wakeup);
                 }
 

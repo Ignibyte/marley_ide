@@ -1,7 +1,7 @@
 ---
 pipeline_id: 4a40ed7e-fc22-43ae-a2e7-32e1eeea47a9
 ticket: docs/planning/tickets/open/TICKET-519-claude-code-events-in-the-rail.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Claude Code's hook events in the rail"
 type: feature
 slice: prong 2, C1's first piece (a terminal's own Claude Code events into marley_fleet and the rail, ahead of the harness adapter)
@@ -35,14 +35,13 @@ build on them.
   `message` (Stop, StopFailure and SubagentStop's `last_assistant_message`); `error`
   (StopFailure); `source` (SessionStart); `trigger` (PostCompact); `reason` (SessionEnd); and
   `is_interrupt` (PostToolUseFailure). Prompt and message are cut to 300 characters, the preview to 200, and
-  the JSON to 2,900 bytes, dropping message, then preview, then prompt while it is over, so the
+  the JSON to 2,900 bytes, dropping an overlong transcript path and working directory, then
+  message, then preview, then prompt while it is over, so the
   sequence stays under Claude Code's 4,096-byte cap and Marley's 4 KiB scanner cap. A failure of
   any kind prints `{}` and exits 0.
 - **The plugin's version** moves from 1.1.0 to 1.2.0 (`plugin.json`, `marketplace.json`), and
-  `claude_plugin::FILES` ships `event.py` as a program. While `installed_plugins.json` lists
-  `marley@marley` at an older version, the agent bar's chip reads "Update Marley's plugin"; a click
-  writes the marketplace and runs `claude plugin marketplace update marley`, then
-  `claude plugin update marley@marley`.
+  `claude_plugin::FILES` ships `event.py` as a program. (The "Update Marley's plugin" chip for an
+  older install is slice 2, #547.)
 - **The terminal.** Zed's `TerminalView` does not mark a notification titled `marley-event` as
   a bell (the one Zed change, inside #478's arm), and `marley_workbench::notifications` hands its
   body to the new `agent_events` module instead of showing it on the desktop.
@@ -52,12 +51,12 @@ build on them.
   Claude Code has sent an event, keyed by the terminal's id as `terminal_list` gives it, ended when
   Claude Code leaves the foreground or the terminal closes.
 - **The rail.** An agent row whose terminal has sent events takes its state from them: `working`,
-  `waiting`, `idle` or `failed`, and `no update in N m` once a working seat has gone 30 minutes
-  without an event. The status line counts running subagents, a second line shows the prompt,
+  `waiting`, `idle` or `failed` (`no update in N m` for a quiet working seat is slice 2, #547).
+  The status line counts running subagents, a second line shows the prompt,
   and a third shows the tool in flight with its preview, what the session waits on, the last
   message, or the error. A row with no events keeps today's quiet-timer status.
-- **`fleet_snapshot`.** `marley_workbench::mcp` hands the server the app's snapshot on every
-  change (`ServerData.snapshot`, then `transport::signal_change`).
+- **Slice 2, #547:** `fleet_snapshot` fed from the app's snapshot, the update chip, and the
+  30-minute `no update` form (D7, D9's chip, the design's items 7 and 8).
 
 ### Out (explicitly deferred)
 - Notifications that say what happened (report 01, item 4; #538): `notify.sh` keeps its fixed
@@ -128,14 +127,8 @@ real `hooks/event.py` with a recorded payload on stdin and writes the answer's
 - `519-05-injected`: a `<task-notification>` prompt, then the post-compaction continuation: the
   user's prompt still on the row.
 - `519-06-failed`: a new prompt, then StopFailure (`rate_limit`): `failed` and `rate_limit`.
-- `519-07-update-chip`: a scratch `installed_plugins.json` lists `marley@marley` 1.1.0; the chip
-  reads "Update Marley's plugin", and a click runs the fake's installer mode, which logs its
-  arguments.
-- `519-08-no-update`, only with `E2E_LONG=1` (31 minutes): the fake holds after its last event;
-  the row reads `no update in 31m`.
 No shot from 519-01 to 519-06 shows a bell dot, and `busctl --user monitor
-org.freedesktop.Notifications` during the run records no `Notify` (L-claude-478). After 519-06 a
-client run from the harness calls `fleet_snapshot` through the plugin's bridge and logs the seat.
+org.freedesktop.Notifications` during the run records no `Notify` (L-claude-478).
 Test also runs a real Claude Code once, in a Python pty with `--plugin-dir` (L-claude-482), to
 prove 2.1.283 writes `marley-event` frames for UserPromptSubmit, PreToolUse and Stop; a real
 model's replies cannot be held steady for shots.
@@ -198,10 +191,7 @@ model's replies cannot be held steady for shots.
 | REQ-007 | WHEN a turn ends with StopFailure, the row shall read `failed` and show the error type. | Shot `519-06-failed` |
 | REQ-008 | WHEN a `marley-event` frame arrives, Marley shall post no desktop notification and mark no bell. | Shots `519-01` to `519-06`; the run log's `busctl` record |
 | REQ-009 | WHILE an agent terminal has sent no event, its row shall keep the quiet-timer status. | Shot `519-00-before-events` |
-| REQ-010 | WHEN 30 minutes pass without an event while the row reads `working`, the row shall read `no update in N m`. | Shot `519-08-no-update` (`E2E_LONG=1`) |
-| REQ-011 | WHEN an MCP client calls `fleet_snapshot`, the answer shall list the terminal's seat with its state and labels. | The run log: the harness-side client |
 | REQ-012 | WHEN `event.py` runs outside a Marley terminal it shall print `{}`, and inside one its answer shall stay under 4,096 bytes for any payload. | The run log: setup runs the hook without `TERM_PROGRAM=zed` and with a 100 KB payload, and logs each answer's size |
-| REQ-013 | WHILE the installed plugin is older than Marley's, the agent bar shall offer the update, and a click shall run `claude plugin marketplace update marley` and `claude plugin update marley@marley`. | Shot `519-07-update-chip`; the fake installer's log |
 | REQ-014 | WHEN a real Claude Code 2.1.283 runs with the plugin in a Marley-like terminal, its output shall carry `marley-event` frames for UserPromptSubmit, PreToolUse and Stop. | Test's live check (L-claude-482's pty method); its log |
 | REQ-015 | The diff gate shall be green. | `script/gates.sh --diff` |
 

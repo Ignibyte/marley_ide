@@ -57,6 +57,9 @@ Apache-2.0; its one dependency is the equally pure `marley_agent`.
 - **`thread_attention`** says whether a thread's dot is lit after a rebuild. A run that just
   ended (running before, done or failed now) lights it unless the thread is shown, and it
   stays lit until the thread is shown.
+- **`TerminalSnapshot::activity`** (#519) is a third line under an agent's status, from its
+  own events: the tool in flight, what it waits on, its last message or its error. `rail_rows`
+  and `switcher_rows` copy it to `TerminalRow::activity`; it decides no order or visibility.
 - **`working_directory_label`** is a terminal row's second line: the directory relative to the
   project root, or with the home directory written as `~` outside it. It is empty at the root
   itself and when the terminal cannot tell (no path, or an empty one).

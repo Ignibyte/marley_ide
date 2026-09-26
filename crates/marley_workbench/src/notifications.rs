@@ -3,7 +3,9 @@
 //! Zed's `Terminal` emits `Event::MarleyNotification` for each OSC 9 or OSC 777 notify a program
 //! prints, and its view marks itself as a bell does. [`init`] subscribes every terminal view to
 //! its terminal and shows a desktop notification unless the view is the focused one of the
-//! active window. Clicking the notification shows that terminal.
+//! active window. Clicking the notification shows that terminal. A notify titled
+//! `marley-event` carries a Claude Code hook event instead, which goes to the rail
+//! ([`crate::agent_events`]).
 
 use std::collections::HashMap;
 
@@ -35,10 +37,18 @@ pub fn init(cx: &App) {
             let terminal = view.terminal().clone();
             cx.subscribe_in(&terminal, window, |view, _, event, window, cx| {
                 if let Event::MarleyNotification { title, body } = event {
-                    notify(view, title.as_deref(), body, window, cx);
+                    // Claude Code's hook events are for the rail, not the desktop (#519).
+                    if title.as_deref() == Some(marley_terminal::AGENT_EVENT_TITLE) {
+                        crate::agent_events::on_frame(view, body, cx);
+                    } else {
+                        notify(view, title.as_deref(), body, window, cx);
+                    }
                 }
             })
             .detach();
+            let view = cx.entity_id();
+            cx.on_release(move |_, cx| crate::agent_events::forget(view, cx))
+                .detach();
         },
     )
     .detach();

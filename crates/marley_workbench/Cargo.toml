@@ -24,6 +24,7 @@ language.workspace = true
 log.workspace = true
 marley_agent.workspace = true
 marley_browser.workspace = true
+marley_fleet.workspace = true
 marley_mcp.workspace = true
 marley_rail.workspace = true
 marley_terminal.workspace = true

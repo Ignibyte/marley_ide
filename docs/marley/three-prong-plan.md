@@ -203,7 +203,7 @@ an open decision for the owner, not something Marley forces.
 | Slice | Delivers | Size |
 |---|---|---|
 | C0 | `marley_mcp` started by the app with the terminal read tools and the discovery file; an agent can list a pane's blocks (#491, pulled forward for the browser's agent tools; shipped) | M |
-| C1 | `marley_harness` read side: subscribe, snapshot, events into `marley_fleet`; a fleet rail panel with state chips, question cards and staleness | L |
+| C1 | `marley_harness` read side: subscribe, snapshot, events into `marley_fleet`; a fleet rail panel with state chips, question cards and staleness. First piece shipped ahead of the harness (#519): a terminal's own Claude Code hook events, carried in-band by Marley's plugin, fold into `marley_fleet` and drive the terminal's rail row; #547 publishes that snapshot to `fleet_snapshot` and adds the update chip and the stale form | L |
 | C2 | Rusty sessions in the same rail through `marley_rusty`; brain-loop and Rusty tools in the default `context_servers` | M |
 | C3 | Harness passthrough terminals (D10), observer first, controller claim second | L |
 | C4 | Dispatch: `session.send` and `session.answer` over Marley's MCP, harness messages with delivery states rendered as chips | M |

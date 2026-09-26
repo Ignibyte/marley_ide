@@ -10769,6 +10769,12 @@ dependencies = [
 [[package]]
 name = "marley_agent"
 version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "marley_fleet",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "marley_browser"
@@ -10868,6 +10874,7 @@ dependencies = [
  "log",
  "marley_agent",
  "marley_browser",
+ "marley_fleet",
  "marley_mcp",
  "marley_rail",
  "marley_terminal",

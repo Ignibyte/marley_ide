@@ -3,8 +3,9 @@
 //! Marley starts agent CLIs (Claude Code, Codex, …) in its terminals and recognizes them there.
 //! This crate is the pure, gpui-free model for that: [`agent_kind_of`] recognizes an agent from
 //! the command a terminal runs, [`launch_input`] is what starts one in a shell, and
-//! [`agent_status`] judges from its terminal whether it is working or waiting on the user. The
-//! launching and the watching live in `marley_workbench`; every decision here is unit-tested.
+//! [`agent_status`] judges from its terminal whether it is working or waiting on the user.
+//! [`claude_events`] reads Claude Code's own hook events, which Marley's plugin sends, and folds
+//! them into a fleet seat (#519). The launching and the watching live in `marley_workbench`.
 
 // gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
 // Zed's crates keep them at warn (CONSTITUTION §0).
@@ -22,6 +23,8 @@
 )]
 
 use std::time::Duration;
+
+pub mod claude_events;
 
 /// An agent CLI Marley knows. [`AgentKind::ALL`], [`AgentKind::program`] and
 /// [`AgentKind::display_name`] grow with it.
@@ -91,13 +94,18 @@ pub fn launch_input(kind: AgentKind) -> Vec<u8> {
     send_payload(kind.program())
 }
 
-/// What an agent CLI is doing, as far as its terminal shows.
+/// What an agent CLI is doing, as far as its terminal shows, or as its hook events say.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentStatus {
-    /// Output is arriving: the agent is at work.
+    /// Output is arriving, or its events say a turn is under way: the agent is at work.
     Working,
-    /// Output has stopped, or the agent rang the bell: it probably waits on the user.
+    /// Output has stopped, the agent rang the bell, or it asked for a permission: it waits on the
+    /// user.
     Waiting,
+    /// Its events say the turn ended and it waits at its prompt (#519).
+    Idle,
+    /// Its events say the turn failed, with an error (#519).
+    Failed,
 }
 
 impl AgentStatus {
@@ -107,6 +115,8 @@ impl AgentStatus {
         match self {
             Self::Working => "working",
             Self::Waiting => "waiting",
+            Self::Idle => "idle",
+            Self::Failed => "failed",
         }
     }
 }

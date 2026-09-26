@@ -2105,3 +2105,14 @@ is the alternate grid, whose own evicted count climbs as the program scrolls: an
 an earlier block while the user sat in `less` was told its output had left the scrollback (#546's
 unfixed run), or could get the program's rows. Fixed in #546: both read the main screen
 (`Term::main_grid`, `Term::main_bounds_to_string`, vendored).
+
+## F-claude-519-a-frame-bound-dropped-the-shown-fields-before-the-unbounded-ones-001
+*severity: low · found in: pipeline 519's Test (the hook's size check) · class: a bound that drops the wrong field first · prevented by: PR-claude-drop-the-unbounded-fields-first-001*
+
+`event.py` keeps its summary under 2,900 bytes by dropping fields while it is over: message, then
+preview, then prompt, then the transcript path and the working directory. The fields the row
+shows are cut to 300 and 200 characters already; the paths have no bound. With 5,000-byte paths
+the loop dropped the prompt and the preview before reaching the paths, so the frame carried the
+event and nothing the row shows, and the scenario's first size check passed on it because it
+checked only the size and the event's name. Fixed in #519 before the commit: the paths go first,
+and the check requires each row's fields in the decoded summary.

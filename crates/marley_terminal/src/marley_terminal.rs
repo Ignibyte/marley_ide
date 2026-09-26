@@ -73,6 +73,11 @@ pub use session::{ApplyHookError, SessionError, SessionEvent, SessionOptions, Te
 pub use session_id::SessionId;
 // The scanner's frame, which `decode_frame` reads.
 pub use marley_dcs::{Notification, RawDcs};
+
+/// The title of an OSC 777 notification that carries a Claude Code hook event for the rail
+/// (#519), sent by Marley's plugin: the terminal marks nothing for it and Marley shows no
+/// notification.
+pub const AGENT_EVENT_TITLE: &str = "marley-event";
 pub use styled::{StyledLine, StyledRun, coalesce_row};
 pub use suggest::{parse_history, suggestion};
 
