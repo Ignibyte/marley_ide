@@ -24,6 +24,8 @@
 # on the user's shell), and may prepend to PATH (fakes that Marley and its terminals find first).
 # It may define `teardown`, run however the run ends and before Marley stops, for anything it
 # started outside Marley. OPEN in the environment names the path when the scenario names none.
+# `binary <path>`, at the top level or in `setup`, runs that build instead of the debug one (the
+# installed release build, #502).
 #
 # Steps: `settle <seconds>`; `press <mods> <key>`, with mods as Hyprland names them ("" for none,
 # "CTRL SHIFT" for two) and the key by its xkb name (`Return`, `Escape`, `g`); `press_keys
@@ -54,6 +56,9 @@ name=$(basename "$scenario" .sh)
 export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
 
 open_path() { OPEN=$1; }
+
+MARLEY_BIN=
+binary() { MARLEY_BIN=$1; }
 
 # The scenario's backend, `hyprland` or `sway`, named at its top level; SIZE may follow it.
 compositor() { COMPOSITOR=$1; }
@@ -484,7 +489,7 @@ PY
 
 # --- The run -------------------------------------------------------------------------------
 
-if [[ ! -x $marley ]]; then
+if [[ -z $MARLEY_BIN && ! -x $marley ]]; then
   echo "no $marley: run \`just build\` first" >&2
   exit 1
 fi
@@ -543,6 +548,13 @@ fi
 
 if declare -F setup >/dev/null; then
   setup
+fi
+if [[ -n $MARLEY_BIN ]]; then
+  marley=$(realpath -m "$MARLEY_BIN")
+  if [[ ! -x $marley ]]; then
+    echo "no $marley, the binary the scenario names" >&2
+    exit 1
+  fi
 fi
 write_terminal_env
 

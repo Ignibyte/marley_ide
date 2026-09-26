@@ -2013,3 +2013,17 @@ reading a full snapshot saw "Third heading" and had no ref to name it by: `brows
 which marks any element, could only reach buttons, links and fields. Fixed before the commit:
 with `full`, every node the tree writes a line for gets a ref, but text and the document. The
 default snapshot is unchanged, so #492's refs and their token cost stay as they were.
+
+## F-claude-502-a-seat-with-no-keymap-panics-gpuis-keyboard-handler-001
+*severity: high · found in: pipeline 502's Test phase (the first start through the menu's path, in the headless sway) · class: an unwrap on state another event sets · prevented by: #512*
+
+gpui's Wayland client unwraps its xkb state in the `wl_keyboard` `modifiers` and `key` arms
+(`crates/gpui_linux/src/linux/wayland/client.rs:1921`, `:1926`, `:1958`), and the `keymap` arm
+sets that state only for an `xkb_v1` keymap that compiles (and `expect`s the compile). A
+compositor may send `modifiers` with no usable keymap first: wlroots does when the seat has no
+keyboard. In #502's first run the scenario's last `wtype` had exited, the Marley that
+`uwsm-app -- gtk-launch` started got no keymap, and it panicked on its first keyboard event. On
+the `dev` channel the panic went to stderr only (L-claude-502-a-dev-channel-panic-reaches-stderr-only-001).
+Upstream Zed has the same code on 2026-09-25. Not fixed in #502: its scenario gives the seat a
+keyboard first, as a desktop has one, and #512 makes the handler skip keyboard events until a
+keymap arrives.

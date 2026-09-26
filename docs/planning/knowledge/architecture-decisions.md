@@ -2090,3 +2090,16 @@ Agent Panel is handed it at `session/new`, so each can drive the Browser tab as 
 terminal does through the plugin. Rejected: an HTTP entry with the URL and the bearer (the bearer
 would sit in the settings the Settings window shows, and change at every start); writing the
 entry into the user's settings file (Marley's state would land in a file the user owns).
+
+## AD-claude-502-the-installed-marley-is-a-copy-and-a-launcher-001
+*decided at: 2026-09-25 · status: shipped*
+
+`just install` (`script/install-marley`) installs the release `marley` as a copy in
+`~/.local/lib/marley/marley`, replaced by a rename, and `~/.local/bin/marley` as a launcher that
+appends stderr to Marley's `logs/stderr.log` when stderr is not a terminal, then `exec`s the
+binary; `marley.desktop` names the launcher. The `dev` channel stays until #445, so the installed
+and the debug builds share their settings and data and must not run at once. Rejected: a link
+into the target directory (gone with a `cargo clean`); Zed's `install-linux` (builds `zed` and
+`cli`, names the app Zed Dev, links `~/.local/bin/zed` over Chad's Zed); `release-fast` (full
+debug info, no LTO); stripping (loses a backtrace's lines to save disk that is not short); a
+panic hook in Zed's `main.rs` (a Zed hunk for what a launcher does outside Zed).

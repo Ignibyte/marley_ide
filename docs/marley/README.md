@@ -31,3 +31,17 @@ Marley shot step by step (§7, `script/e2e.sh`), on hidden workspace 9 with keys
 headless sway of its own when the scenario clicks (#487). Prose follows the
 `no-ai-slop` skill. Changes inside Zed's crates are additive and small so upstream merges
 stay cheap.
+
+## Running Marley
+
+- `just build` makes the debug `marley` in the shared target directory
+  (`/mnt/fast/target/debug/marley` on the dev box). The e2e scenarios run it.
+- `just install` (#502) builds `marley` in the release profile and installs it under
+  `~/.local` (`--prefix DIR` for another place): the binary `lib/marley/marley`, its launcher
+  `bin/marley`, the desktop entry `share/applications/marley.desktop` and an icon, so the menu
+  lists Marley. Run it again after a pull; a running Marley keeps its old binary until it
+  restarts. The launcher appends stderr to `~/.local/share/marley/logs/stderr.log` when stderr
+  is not a terminal: on the `dev` channel a panic goes to stderr and nowhere else.
+- Both builds are on the `dev` channel and share `~/.config/marley` and `~/.local/share/marley`.
+  That channel skips Zed's single-instance check, and a second Marley on the same data
+  directory hangs, so run one at a time.

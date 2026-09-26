@@ -10,6 +10,16 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
+| [TICKET-512](open/TICKET-512-no-keymap-no-panic.md) | bug | platform · a Wayland seat with no keymap panics gpui's keyboard handler at Marley's start (found in #502's Test) |
+| [TICKET-503](open/TICKET-503-terminal-urls-open-in-the-browser.md) | feature | prong 3 with prong 1 · a local URL in a terminal opens a Browser tab; the terminal offers a dev server's URL |
+| [TICKET-504](open/TICKET-504-browser-tabs-in-the-rail.md) | feature | prong 3 · Browser tabs as rows of their project in the rail |
+| [TICKET-505](open/TICKET-505-pick-fix-check.md) | feature | prong 3 · a pick re-found after the fix: before and after in the tray, and a tool |
+| [TICKET-506](open/TICKET-506-recording-to-playwright-test.md) | feature | prong 3 · clicks and typing recorded as locators; a recording drafted as a Playwright test |
+| [TICKET-507](open/TICKET-507-browser-context-per-project.md) | feature | prong 3 · a browser context per project, its cookies kept across restarts |
+| [TICKET-508](open/TICKET-508-approvals-inbox.md) | feature | prong 2 · every agent's pending permission prompt in one list in the rail |
+| [TICKET-509](open/TICKET-509-per-turn-diffs.md) | feature | prong 2 · Claude Code's turns in a terminal as snapshots, each turn's diff in a review view |
+| [TICKET-510](open/TICKET-510-worktree-agents.md) | feature | prong 2 · the + starts an agent in a new worktree on its own branch, its own rail project and ports |
+| [TICKET-511](open/TICKET-511-review-and-merge-a-worktree.md) | feature | prong 2 · review a worktree agent's branch, merge it, remove the worktree |
 | [TICKET-486](open/TICKET-486-keep-the-terminal-size-across-launches.md) | bug | prong 1 T0 · the first terminals of a launch open at the last session's size (#485's limit) |
 
 ## Deliberate (picked explicitly, never auto-next)

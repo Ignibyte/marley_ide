@@ -26,6 +26,10 @@ gate-fast: idle
 build: idle
     cargo build -p zed --bin marley
 
+# The release `marley` installed with its desktop entry, under ~/.local unless `--prefix DIR`.
+install *args: idle
+    script/install-marley {{ args }}
+
 # Clippy on the named crates: every target, warnings as errors.
 clippy +crates: idle
     cargo clippy {{ prepend("-p ", crates) }} --all-targets -- -D warnings

@@ -11,7 +11,8 @@ at every upstream merge.
 **Marley-owned paths**, never listed below: `crates/marley_*`, `docs/marley/`,
 `docs/planning/`, `docs/marley_architecture/`, `docs/specs/`, `docs/warp_architecture/`,
 `docs/zed_architecture/`, `docs/decisions/`, `docs/tickets/`, `.claude/`, `script/gates.sh`,
-`script/e2e.sh` and `script/e2e/` (#483), `justfile` (#471), `CONSTITUTION.md`,
+`script/e2e.sh` and `script/e2e/` (#483), `script/install-marley` (#502), `justfile` (#471),
+`CONSTITUTION.md`,
 `CHANGELOG.md`, `deny.toml`, `.gitleaks.toml`,
 `.semgrep.yml`, `.cargo/audit.toml`, `.mcp.json.example`, and `vendor/`, the upstream crates
 Marley carries, whose source, base and hunks `vendor/README.md` records (#461).

@@ -2791,3 +2791,40 @@ not handed over). So a server added to the defaults with `SettingsStore::update_
 reaches all of them at once, and a stdio entry that runs a bridge keeps any bearer out of the
 settings, where an HTTP entry's headers would sit in plain view. `agent: open settings` now opens
 Zed's Settings window at its AI page.
+
+## L-claude-502-a-dev-channel-panic-reaches-stderr-only-001
+*category: build · topic: panics, the dev channel · from: pipeline 502*
+
+On the `dev` channel Zed installs no crash handler: `should_install_crash_handler` wants
+`ZED_GENERATE_MINIDUMPS` or a non-dev channel with a minidump endpoint, and otherwise
+`crashes::force_backtrace` is the whole panic hook (`crates/zed/src/main.rs:419`). Panics unwind,
+so there is no coredump either. A panic is printed to stderr and the process exits, with
+nothing in `Marley.log`: a log that stops mid-line of work with no quit is what a panic looks
+like there. A Marley started from the menu has no terminal for stderr, so the installed build's
+launcher appends stderr to `logs/stderr.log` (#502). A debug Marley started by an agent with
+`setsid -f` should send stderr to a file too, never `/dev/null`: on 2026-09-25 Chad's debug
+Marley ended at 20:11:05 and nothing says why.
+
+## L-claude-502-omarchy-starts-an-entry-through-uwsm-app-and-gtk-launch-001
+*category: validate · topic: starting Marley from the menu · from: pipeline 502*
+
+Omarchy's menu starts an app with `uwsm-app -- gtk-launch <id>.desktop`
+(`/usr/share/omarchy/shell/services/AppLibrary.qml`), in a scope under `app-graphical.slice`.
+`uwsm-app` asks its daemon for a command line and `eval`s it in the caller's own environment, so
+a scenario can send the menu's exact path into its headless sway: `WAYLAND_DISPLAY` and
+`SWAYSOCK` for the display, `XDG_DATA_HOME` pointing at a scratch prefix's `share` (where
+`gtk-launch` then finds the entry, and where Marley keeps its data) and a scratch
+`XDG_CONFIG_HOME`. Give the seat a keyboard first (`hold_keyboard`): after the run's last `wtype`
+exits, a new client gets no keymap (F-claude-502-a-seat-with-no-keymap-panics-gpuis-keyboard-handler-001).
+The Marley it starts sits in `app-Hyprland-gtk\x2dlaunch-*.scope` even in sway.
+
+## L-claude-502-the-release-build-on-the-dev-box-001
+*category: build · topic: release builds · from: pipeline 502*
+
+`cargo build --release -p zed --bin marley` took 9 min 57 s on the dev box with the shared
+target's release directory already holding Zed's dependencies (137 crates compiled), and under a
+second when nothing changed. The binary is 2.1 GB with the release profile's `debug = "limited"`
+(407 MB after `objcopy --strip-debug`, which takes under a second); the debug sections are never
+loaded, and they keep file and line numbers in a backtrace, so the installed copy keeps them.
+`desktop-file-validate` hints at `Utility;TextEditor;Development;IDE;` (Zed's categories: two
+main categories); `Development;IDE;` draws no hint.

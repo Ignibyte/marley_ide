@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Marley in the app menu** (#502, 2026-09-25). `just install` builds Marley in the release
+  profile and installs it under `~/.local`, with a desktop entry, so Marley starts from the menu
+  like any other app instead of from a debug build in the shared target directory, which a
+  `cargo clean` or a broken build used to take away. Run it again after a pull; a Marley that is
+  running keeps its old build until you restart it. When Marley started from the menu writes to
+  stderr, which is where a panic goes on this build's channel, the launcher keeps it in
+  `~/.local/share/marley/logs/stderr.log`. The installed and the debug builds share your
+  settings and sessions, so run one of them at a time.
 - **Zed's own agents drive the browser too** (#501, 2026-09-25). Marley now offers its MCP
   server to the agents of the Agent Panel: the Zed Agent (in its default Write profile) gets
   Marley's tools, the terminals and the Browser tabs among them, and every external agent you
