@@ -381,6 +381,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Telemetry is off by default** (#514, 2026-09-25). Marley no longer sends Zed's usage
+  metrics or crash and hang reports unless you turn them on: `telemetry.metrics` and
+  `telemetry.diagnostics` now default to false. Both are still settings, in your settings file or
+  the Settings window (search "telemetry"), and turning one on works as it did.
 - **E2E scenarios can click, drag and scroll** (#487, 2026-09-24). A scenario that names
   `compositor sway` runs the debug Marley in a headless sway of its own, whose seat is a
   virtual pointer (`script/e2e/seat-pointer.c`, built on first use) and a virtual keyboard
