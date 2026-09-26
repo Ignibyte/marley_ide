@@ -15,7 +15,7 @@
 #   holds the text.
 # - `mcp_agent <command> ...` runs a stand-in agent that reaches Marley's MCP server through the
 #   Claude Code plugin's bridge, as Claude Code in a terminal does, and calls the browser tools
-#   (#492): `tools`, `tabs`, `navigate <url>`, `look [<image file>]`, `snapshot`, `console`,
+#   (#492): `tools`, `tabs`, `navigate <url>`, `look [<image file>]`, `snapshot [full]`, `console`,
 #   `network`, `type-into <role> <name> <text>`, `click-on <role> <name>` and `scroll <dy>`.
 #   `--tab <id>` names the tab a tool acts on, and `--new-tab` has `navigate` open one (#493).
 #   `picks` lists the user's picks and `pick <id> [<image file>]` reads one, saving its crop
@@ -320,7 +320,7 @@ def main():
                     file.write(base64.b64decode(images[0]["data"]))
                 print(f"  the frame: {images[0]['mimeType']}, saved as {os.path.basename(rest[0])}")
     elif command == "snapshot":
-        result = client.tool("browser_snapshot", options)
+        result = client.tool("browser_snapshot", {**options, "full": bool(rest and rest[0] == "full")})
         if result:
             print(result["content"][0]["text"], end="")
     elif command in ("console", "network"):

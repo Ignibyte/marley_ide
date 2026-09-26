@@ -1,7 +1,7 @@
 ---
 pipeline_id: c4b4b8fc-4627-4ffd-bddd-428f9be34434
 ticket: docs/planning/tickets/open/TICKET-517-regression-suite.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Marley's own regression suite: a golden set that checks itself before an install"
 type: chore
 slice: the workflow's e2e layer (CONSTITUTION §7) and the installer (#502)
@@ -19,7 +19,8 @@ release build before it replaces the installed one.
   guards. The first set: `491-marley-mcp` (the MCP server and the terminal tools),
   `484-autosuggestions` (blocks and the prompt), `481-rich-input` (the agent bar), `492-browser-tools`
   (the Browser tab driven through MCP), `500-browser-from-the-rail` (the rail's + and a Browser
-  tab), `515-marley-settings-page`, `514-telemetry-off-by-default`, `516-secret-redaction-for-agents`.
+  tab), `515-marley-settings-page`, `516-secret-redaction-for-agents` and
+  `513-one-marley-per-data-dir` (startup).
 - Machine checks where a golden scenario has none: each ends by reading Marley's state through
   the stand-in agent (`mcp_agent`: `terminal_list`, `terminal_blocks`, `browser_tabs`,
   `browser_snapshot`) or sway's tree, and fails with a line naming what it expected. The shots
@@ -27,9 +28,10 @@ release build before it replaces the installed one.
 - `script/e2e.sh`: `E2E_BINARY=<path>` in the environment names the binary, as a scenario's
   `binary` does, so a runner can aim every scenario at one build.
 - `script/regress` (new) and `just regress [scenario...]`: runs the golden set (or the named
-  scenarios) one after another through `script/e2e.sh`, shots under one run folder, and prints
-  one line per scenario (pass or fail, seconds, the failing check) and a verdict; exit 1 on any
-  failure.
+  scenarios, or the list `REGRESS_GOLDEN` names) one after another through `script/e2e.sh`, every
+  one in a headless sway (`COMPOSITOR=sway`, so none touches the user's session), shots under
+  one run folder, and prints one line per scenario (pass or fail, seconds, the failing check) and
+  a verdict; exit 1 on any failure.
 - `script/install-marley`: after the release build and before anything is replaced, runs the
   golden set against the built binary; on a red it installs nothing, prints the summary and
   where the shots are, and exits 1. `--skip-regress` installs without it and says so.

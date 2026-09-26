@@ -33,7 +33,10 @@
 # <key>...`, several keys in one go (a compose sequence); `type_text <text>`;
 # `shot <name>`, which writes SHOT_DIR/<name>.png and prints its path; and `quit_marley`, which
 # quits Marley through its palette and waits for it to exit, and `launch_marley`, which starts it
-# again on the same profile with the same path, for what Marley restores (#494). Under sway also
+# again on the same profile with the same path, for what Marley restores (#494); and `expect
+# <what> <command...>`, a check that prints its verdict and fails the run when the command fails,
+# with `holds <file> <text>...` for the common one (#517), so a run passes or fails with no one
+# reading its shots. Under sway also
 # `click <x> <y> [button]`, `pointer_to <x> <y>`, `pointer_down [button]`,
 # `pointer_up [button]` and `scroll <steps>` (wheel detents at the pointer, positive down), in
 # the window's pixels, with the buttons left, middle and right. A step started in the
@@ -41,6 +44,7 @@
 # of the same shell, so a bare `wait` waits for them too, until the run is killed.
 #
 #   SHOT_DIR where the PNGs and Marley's log land ($TMPDIR/marley-shots); never the repository
+#   E2E_BINARY the build to run instead of the debug one, unless the scenario names its own (#517)
 set -euo pipefail
 
 scenario=${1:?usage: e2e.sh <scenario>}
@@ -58,7 +62,9 @@ export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
 
 open_path() { OPEN=$1; }
 
-MARLEY_BIN=
+# E2E_BINARY in the environment names the build for every scenario (script/regress, #517); a
+# scenario's own `binary` still wins.
+MARLEY_BIN=${E2E_BINARY:-}
 binary() { MARLEY_BIN=$1; }
 
 # The scenario's backend, `hyprland` or `sway`, named at its top level; SIZE may follow it.
@@ -333,6 +339,28 @@ wtype_modifier() {
 # --- Steps ---------------------------------------------------------------------------------
 
 settle() { sleep "$1"; }
+
+# `holds <file> <text>...`: whether the file holds each text, as a fixed string (#517).
+holds() {
+  local file=$1 text
+  shift
+  for text in "$@"; do
+    grep -qF -- "$text" "$file" || return 1
+  done
+}
+
+# `expect <what> <command...>`: runs the command, prints `check <what>: pass` when it succeeds and
+# `check <what>: FAIL` when it does not, and then returns 1, which ends the run (#517).
+expect() {
+  local what=$1
+  shift
+  if "$@"; then
+    echo "check $what: pass"
+  else
+    echo "check $what: FAIL"
+    return 1
+  fi
+}
 
 # One key, down then up. Under Hyprland Omarchy's bindings send the halves apart because a
 # whole `send_shortcut` can leave a key stuck.

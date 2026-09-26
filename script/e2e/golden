@@ -1,0 +1,11 @@
+# The golden set (#517): the scenarios `script/regress` runs, and `just install` before it
+# installs a build. One scenario per line; `#` starts a comment. Each one checks itself, so a run
+# passes or fails with no one reading its shots.
+491-marley-mcp.sh                 # the MCP server, the terminal tools, the bridge
+484-autosuggestions.sh            # blocks, the prompt at the bottom, suggestions from history
+481-rich-input.sh                 # an agent in a terminal, the agent bar, rich input
+492-browser-tools.sh              # the Browser tab driven through MCP
+500-browser-from-the-rail.sh      # the rail's + opening a Browser tab
+515-marley-settings-page.sh       # the Marley settings page, the layout switch
+516-secret-redaction-for-agents.sh  # secrets hidden from what agents read
+513-one-marley-per-data-dir.sh    # startup: one Marley per data directory

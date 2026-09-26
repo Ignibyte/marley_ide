@@ -38,6 +38,14 @@ run() {
   settle "${2:-1}"
 }
 
+# Whether the harness's block listing holds each of the lines named.
+in_blocks() {
+  local line
+  for line in "$@"; do
+    grep -qF "$line" "$E2E_WORK/blocks.txt" || return 1
+  done
+}
+
 steps() {
   local watcher
   settle 12
@@ -54,7 +62,13 @@ steps() {
   shot 491-02-blocks
   run "mcp read 'seq 3'" 3
   shot 491-03-read
-  client endpoint
+  # The same reads from the harness, for the checks (#517).
+  client blocks | tee "$E2E_WORK/blocks.txt"
+  client read 'seq 3' | tee "$E2E_WORK/read.txt"
+  expect "the blocks' exit codes" in_blocks "'echo hi': exit 0" "'false': exit 1" "'seq 3': exit 0"
+  expect "seq 3's output read back" test "$(awk NF "$E2E_WORK/read.txt" | tail -3 | paste -sd ' ')" = "1 2 3"
+  client endpoint | tee "$E2E_WORK/endpoint.txt"
+  expect "the endpoint file is owner-only" grep -q "mode 600" "$E2E_WORK/endpoint.txt"
   client watch >"$E2E_WORK/watch.log" 2>&1 &
   watcher=$!
   settle 4
@@ -67,13 +81,16 @@ steps() {
   settle 6
   wait "$watcher" || echo "the watching client failed"
   cat "$E2E_WORK/watch.log"
+  expect "the bridge told the client the tools changed" \
+    grep -q "list_changed came" "$E2E_WORK/watch.log"
   if [[ -e $E2E_PROFILE/mcp-endpoint.json ]]; then
     echo "endpoint file after the quit: still there"
   else
     echo "endpoint file after the quit: removed"
   fi
   echo "with no Marley:"
-  client tools
+  client tools | tee "$E2E_WORK/tools-after.txt"
+  expect "no tools with no Marley" grep -q "lists 0 tools" "$E2E_WORK/tools-after.txt"
   echo "the bridges' log:"
   cat "$E2E_WORK/bridge.log"
 }

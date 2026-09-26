@@ -42,6 +42,12 @@ fmt +crates: idle
 e2e scenario:
     script/e2e.sh "{{ scenario }}"
 
+# Marley's regression suite (#517): the golden set, or the scenarios named, each in a headless
+# sway and checking itself; a line per scenario and a verdict. It waits for the box's cargo runs,
+# which would slow the scenarios' timing.
+regress *scenarios: idle
+    script/regress {{ scenarios }}
+
 # One shot of the debug Marley, hidden, with no input; `seed` edits the profile copy first.
 shot name seed="":
     NAME="{{ name }}" SEED="{{ seed }}" script/e2e.sh script/e2e/shot.sh

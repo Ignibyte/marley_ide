@@ -81,15 +81,20 @@ steps() {
   press "" Return
   settle 2
   echo "== navigate, with no Browser tab open"
-  mcp_agent navigate "$SITE/index.html"
+  mcp_agent navigate "$SITE/index.html" | tee "$E2E_WORK/navigate.txt"
+  expect "navigate answers the page's title" holds "$E2E_WORK/navigate.txt" '"title": "Sign in"'
   settle 3
   shot 492-01-opened-and-navigated
   echo "== look"
   mcp_agent look "$(shot_file 492-look.jpg)"
   echo "== snapshot"
-  mcp_agent snapshot
+  mcp_agent snapshot | tee "$E2E_WORK/snapshot.txt"
+  expect "the snapshot names the form's fields and the frame's" holds "$E2E_WORK/snapshot.txt" \
+    'textbox "Email"' 'button "Sign in"' "textbox \"the frame's field\""
   echo "== console"
-  mcp_agent console
+  mcp_agent console | tee "$E2E_WORK/console.txt"
+  expect "the console holds the page's messages" holds "$E2E_WORK/console.txt" \
+    "log: hello from the page" "warning: a warning from the page" "an uncaught error"
   echo "== network"
   mcp_agent network
   echo "== type and click by ref"
@@ -98,14 +103,19 @@ steps() {
   mcp_agent click-on button "Sign in"
   settle 1
   shot 492-02-typed-and-clicked
+  mcp_agent snapshot full >"$E2E_WORK/after.txt"
+  expect "the typed email signed in, and the frame got its text" holds "$E2E_WORK/after.txt" \
+    "Signed in as agent@example.com." "the frame has: typed by the agent"
   settle 6
   shot 492-03-chip-gone
   echo "== refused schemes"
-  mcp_agent navigate "file:///etc/passwd"
-  mcp_agent navigate "javascript:alert(1)"
+  mcp_agent navigate "file:///etc/passwd" | tee "$E2E_WORK/refused.txt"
+  mcp_agent navigate "javascript:alert(1)" | tee -a "$E2E_WORK/refused.txt"
+  expect "file: and javascript: are refused" test "$(grep -c refused "$E2E_WORK/refused.txt")" -eq 2
   echo "== scroll, then look again"
   mcp_agent scroll 300
   mcp_agent look "$E2E_WORK/after-scroll.jpg"
   echo "== tools"
-  mcp_agent tools
+  mcp_agent tools | tee "$E2E_WORK/tools.txt"
+  expect "no tool evaluates script" holds "$E2E_WORK/tools.txt" "tools that evaluate script: none"
 }

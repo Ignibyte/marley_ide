@@ -216,7 +216,7 @@ marley_owned_path() {
         crates/marley_*|docs/marley/*|docs/planning/*|docs/marley_architecture/*|\
         docs/specs/*|docs/warp_architecture/*|docs/zed_architecture/*|docs/orca_architecture/*|\
         docs/decisions/*|docs/tickets/*|.claude/*|script/gates.sh|script/e2e.sh|\
-        script/e2e/*|script/install-marley|justfile|\
+        script/e2e/*|script/install-marley|script/regress|justfile|\
         CONSTITUTION.md|CHANGELOG.md|deny.toml|.gitleaks.toml|.semgrep.yml|\
         .cargo/audit.toml|.mcp.json.example|vendor/*)
             return 0 ;;

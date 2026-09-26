@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-517](open/TICKET-517-regression-suite.md) | chore | workflow · a golden set of e2e scenarios that check themselves through Marley's MCP server, run by `just regress` and before every `just install` |
 | [TICKET-544](open/TICKET-544-blocks-survive-a-rewrap.md) | bug | prong 1 T0 · a resize that rewraps the terminal moves every block's rows; the bars, pills and `terminal_read` follow them again (the plan's D2) |
 | [TICKET-519](open/TICKET-519-claude-code-events-in-the-rail.md) | feature | prong 2 C1 · Claude Code's hook events (prompt, tool, waiting, last message) into `marley_fleet` and the rail; before #508, #509, #538, #542 |
 | [TICKET-520](open/TICKET-520-terminal-identity.md) | feature | prong 2 · each terminal knows its id and project, and Marley's tools know which terminal called them |

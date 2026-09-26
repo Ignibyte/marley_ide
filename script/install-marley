@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# install-marley [--prefix DIR]: build `marley` in the release profile and install a copy with a
-# desktop entry, so the menu starts an installed Marley rather than the debug binary in the shared
-# target directory, which a `cargo clean` or a failed build takes away (TICKET-502).
+# install-marley [--prefix DIR] [--skip-regress]: build `marley` in the release profile and
+# install a copy with a desktop entry, so the menu starts an installed Marley rather than the debug
+# binary in the shared target directory, which a `cargo clean` or a failed build takes away
+# (TICKET-502). Before anything is replaced, the golden set (script/regress, #517) runs against
+# the new build; a failure installs nothing. `--skip-regress` installs without it.
 #
 # Under DIR (default ~/.local) it writes the binary lib/marley/marley, its launcher bin/marley,
 # share/applications/marley.desktop and the icon share/icons/hicolor/512x512/apps/marley.png
@@ -14,21 +16,26 @@
 # is not a terminal, the launcher appends it to logs/stderr.log beside Marley.log.
 #
 # The build stays on the `dev` channel (crates/zed/RELEASE_CHANNEL), so the installed and the
-# debug builds share ~/.config/marley and ~/.local/share/marley. That channel skips Zed's
-# single-instance check, and a second Marley on the same data directory hangs: run one at a time.
+# debug builds share ~/.config/marley and ~/.local/share/marley. Since #513 a second Marley on
+# the same data directory hands its paths to the one that runs and exits.
 set -euo pipefail
 
 usage() {
-  echo "usage: script/install-marley [--prefix DIR]   (DIR defaults to ~/.local)"
+  echo "usage: script/install-marley [--prefix DIR] [--skip-regress]   (DIR defaults to ~/.local)"
 }
 
 prefix=$HOME/.local
+regress=1
 while (($#)); do
   case $1 in
     --prefix)
       [[ $# -ge 2 ]] || { usage >&2; exit 2; }
       prefix=$2
       shift 2
+      ;;
+    --skip-regress)
+      regress=0
+      shift
       ;;
     -h | --help)
       usage
@@ -61,6 +68,16 @@ until ! pgrep -x cargo >/dev/null; do sleep 2; done
 
 echo "==> building marley in the release profile"
 cargo build --release -p zed --bin marley
+
+if ((regress)); then
+  echo "==> the golden set against the new build (script/regress; --skip-regress skips it)"
+  if ! E2E_BINARY=$built script/regress; then
+    echo "install-marley: the golden set failed against the new build, so nothing was installed" >&2
+    exit 1
+  fi
+else
+  echo "==> the golden set skipped (--skip-regress)"
+fi
 
 echo "==> installing into $prefix"
 mkdir -p "$bin" "$lib" "$applications"

@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# regress [scenario...]: Marley's regression suite (#517).
+#
+# Runs each scenario, the golden set in script/e2e/golden when none is named (or the list that
+# REGRESS_GOLDEN names, in the same format), through script/e2e.sh one after another. Every run
+# is in a headless sway of its own (COMPOSITOR=sway), so none touches the user's session and none
+# is refused because the user's Marley is open. E2E_BINARY, when set, names the build each
+# scenario runs (`just install` passes the release build it made); else the debug build. Each
+# scenario checks itself, so its exit status is its verdict.
+#
+# It prints a line per scenario, PASS or FAIL with its seconds and, for a failure, the first line
+# that says why, then a verdict, and exits 1 when any scenario failed.
+#
+#   REGRESS_DIR     where the runs go (${XDG_STATE_HOME:-~/.local/state}/marley/regress); the
+#                   five newest are kept
+#   REGRESS_TIMEOUT the seconds a scenario may take (900)
+set -euo pipefail
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$root"
+runs=${REGRESS_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/marley/regress}
+limit=${REGRESS_TIMEOUT:-900}
+
+scenarios=()
+if (($#)); then
+  scenarios=("$@")
+else
+  list=${REGRESS_GOLDEN:-script/e2e/golden}
+  while read -r entry _; do
+    entry=${entry%%#*}
+    [[ -n $entry ]] || continue
+    if [[ $entry == */* ]]; then
+      scenarios+=("$entry")
+    else
+      scenarios+=("script/e2e/$entry")
+    fi
+  done <"$list"
+fi
+if ((${#scenarios[@]} == 0)); then
+  echo "regress: no scenarios to run" >&2
+  exit 2
+fi
+
+run=$runs/$(date +%Y%m%d-%H%M%S)
+mkdir -p "$run"
+echo "regress: ${#scenarios[@]} to run against ${E2E_BINARY:-the debug build}; logs and shots in $run"
+failed=0
+for scenario in "${scenarios[@]}"; do
+  name=$(basename "$scenario" .sh)
+  start=$SECONDS
+  if COMPOSITOR=sway SHOT_DIR=$run/$name timeout "$limit" script/e2e.sh "$scenario" \
+    >"$run/$name.log" 2>&1; then
+    printf 'PASS %s %d s\n' "$name" $((SECONDS - start))
+  else
+    status=$?
+    failed=$((failed + 1))
+    if ((status == 124)); then
+      why="timed out after $limit s"
+    else
+      why=$(grep -m1 -E 'FAIL|^no Marley window|^no .*: run|failed' "$run/$name.log" || true)
+    fi
+    printf 'FAIL %s %d s: %s\n' "$name" $((SECONDS - start)) "${why:-exit $status}"
+  fi
+done
+
+# The five newest runs stay; older ones go.
+mapfile -t old < <(find "$runs" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn |
+  tail -n +6 | cut -d' ' -f2-)
+for dir in "${old[@]}"; do
+  rm -rf -- "$dir"
+done
+
+if ((failed)); then
+  echo "regress: $failed of ${#scenarios[@]} failed; see $run" >&2
+  exit 1
+fi
+echo "regress: all ${#scenarios[@]} passed"

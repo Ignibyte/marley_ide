@@ -55,7 +55,10 @@ download again on first use.
 
 From the checkout, run `just install`. It waits until no other cargo runs on the machine (the
 target directory is shared by every project on the dev box), builds `marley` in the release
-profile, and installs it under `~/.local`. `just install --prefix DIR` installs somewhere else.
+profile, runs Marley's golden set of e2e scenarios against that build (#517, about fifteen
+minutes; see [For developers](#for-developers)), and installs it under `~/.local` only when
+every scenario passed. `just install --prefix DIR` installs somewhere else, and
+`--skip-regress` installs without the golden set.
 
 | Path under the prefix | What it is |
 |---|---|
@@ -928,12 +931,13 @@ and that includes rust-analyzer's `cargo check` in a Marley that has this reposi
 | Recipe | What it runs |
 |---|---|
 | `just build` | The debug `marley` |
-| `just install [--prefix DIR]` | The release `marley`, installed with its menu entry |
+| `just install [--prefix DIR] [--skip-regress]` | The release `marley`, checked by the golden set, then installed with its menu entry |
 | `just gate-diff` | Every gate on the change, and the receipt a commit needs |
 | `just gate-fast` | The same gates without a receipt, for a change with no Rust |
 | `just clippy <crates>` | Clippy on the named crates, every target, warnings as errors |
 | `just fmt <crates>` | Formats the named crates |
 | `just e2e <scenario>` | A ticket's e2e scenario (`script/e2e/`) against the debug build, on a hidden workspace, or in a headless sway of its own when it clicks |
+| `just regress [scenario...]` | Marley's regression suite: the golden set in `script/e2e/golden` (or the scenarios named), each in a headless sway, each checking itself; a PASS or FAIL line per scenario and a verdict. `E2E_BINARY=<path>` runs another build. The runs go under `~/.local/state/marley/regress/` |
 | `just shot <name> [seed]` | One shot of the debug Marley on a copy of your profile; `OPEN=<path>` opens a path |
 
 Work moves through four phases, Plan, Code, Test and Complete (`/pipeline:plan`, `/pipeline:code`,

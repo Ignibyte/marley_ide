@@ -59,6 +59,9 @@ steps() {
   press "" Return
   settle 4
   shot 500-02-opened
+  mcp_agent tabs | tee "$E2E_WORK/tabs.txt"
+  expect "the rail's Browser tab shows the page" \
+    grep -qF "'From the rail' at $SITE/index.html" "$E2E_WORK/tabs.txt"
   echo "== the terminal's agent bar offers to connect Claude Code to Marley"
   click "$TERMINAL_TAB_X" "$TERMINAL_TAB_Y"
   settle 2

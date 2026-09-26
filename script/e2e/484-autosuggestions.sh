@@ -3,6 +3,17 @@
 # a command in it shows the rest dimmed after the cursor; → takes it; a prefix nothing starts
 # shows nothing; and a command run in the session is suggested over the file's.
 
+# The blocks, read through Marley's MCP server, name the commands that ran (#517).
+# shellcheck source=script/e2e/browser-fixture.sh
+. script/e2e/browser-fixture.sh
+
+# Whether a block's command is exactly the command named, as the stand-in agent reads it.
+ran() {
+  mcp_agent terminal-read "$1" >"$E2E_WORK/ran.txt" || return 1
+  cat "$E2E_WORK/ran.txt"
+  head -1 "$E2E_WORK/ran.txt" | grep -qF ": '$1'"
+}
+
 setup() {
   local home=$E2E_WORK/home
   mkdir -p "$home"
@@ -44,4 +55,6 @@ steps() {
   type_text "ec"
   settle 1
   shot 484-05-session-first
+  expect "the suggestion taken with → ran as the history's command" ran "echo hello world"
+  expect "this session's command ran" ran "echo from this session"
 }

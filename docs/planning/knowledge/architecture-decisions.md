@@ -2130,3 +2130,17 @@ starts without the check. Rejected: a second socket and protocol of Marley's own
 opens paths and focuses the app); focusing through `hyprctl` from the launcher (ties the fix to
 one compositor; gpui's activation works where the compositor allows it); forwarding the
 launcher's activation token now (a gpui change; ticketed).
+
+## AD-claude-517-the-golden-set-gates-the-install-001
+*decided at: 2026-09-26 · status: shipped*
+
+Marley's regression suite is a golden set of its own e2e scenarios (`script/e2e/golden`), each
+ending in machine checks through Marley's MCP server, the stand-in agent and the files the run
+writes (`expect`, `holds` in `script/e2e.sh`), so a run passes or fails with no one reading its
+shots. `script/regress` runs the set one scenario after another, every one in a headless sway
+(`COMPOSITOR=sway` also moves the key-only scenarios off the user's Hyprland), and `just install`
+runs it against the release build it made before anything is replaced; `--skip-regress` is the
+way out. Rejected: comparing shots against saved ones (fragile across themes and fonts, and the
+checks say what broke); running the set in `script/gates.sh --diff` now (choosing scenarios by the
+files a change touches is slice 2, once the set's run time is known: about five minutes today);
+testing the debug build before an install (the install would test a build it does not install).

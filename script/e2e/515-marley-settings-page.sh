@@ -44,4 +44,6 @@ steps() {
   click "$ZED_ENTRY_X" "$ZED_ENTRY_Y"
   settle 3
   shot 515-02-zed-layout
+  expect "the dropdown wrote the Zed layout" \
+    grep -qE '"layout": *"zed"' "$E2E_PROFILE/config/settings.json"
 }

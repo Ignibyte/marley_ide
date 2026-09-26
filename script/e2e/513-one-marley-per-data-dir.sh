@@ -78,18 +78,6 @@ windows() {
     '.. | objects | select(.app_id? == $class) | "\(.pid) focused=\(.focused) urgent=\(.urgent) \(.name)"'
 }
 
-# Runs the rest as a command; its success passes the check named `$1`.
-expect() {
-  local name=$1
-  shift
-  if "$@"; then
-    echo "check $name: pass"
-  else
-    echo "check $name: FAIL"
-    return 1
-  fi
-}
-
 # Whether the terminal listing has a terminal at the root of each folder named.
 in_one_listing() {
   local folder

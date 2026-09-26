@@ -3,6 +3,17 @@
 # `^G`). Then the shell becomes a stand-in Claude Code (`exec -a claude`, so the terminal's
 # foreground process is `claude` by name) that prints each line it reads. Ctrl-G opens the
 # rich input, whose text reaches the stand-in as one paste and Enter, and Escape keeps a draft.
+# The stand-in's block, read through Marley's MCP server, holds each line it got (#517).
+# shellcheck source=script/e2e/browser-fixture.sh
+. script/e2e/browser-fixture.sh
+
+# Whether the stand-in's block holds each line named.
+stand_in_got() {
+  local line
+  for line in "$@"; do
+    grep -qxF "claude got: $line" "$E2E_WORK/stand-in.txt" || return 1
+  done
+}
 
 setup() {
   local home=$E2E_WORK/home
@@ -52,6 +63,9 @@ steps() {
   press "" Return
   settle 1
   shot 481-05-focus-back
+  mcp_agent terminal-read stand_in | tee "$E2E_WORK/stand-in.txt"
+  expect "the rich input's two lines and the typed one reached the agent" \
+    stand_in_got "hello rich input" "second line" "typed after"
   press CTRL g
   settle 1
   type_text "draft"

@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Marley's own regression suite** (#517, 2026-09-26). `just regress` runs a golden set of
+  Marley's e2e scenarios (the MCP server and terminal tools, blocks and suggestions, rich input,
+  the Browser tab driven by an agent and from the rail, the settings page, secret redaction, one
+  Marley per data directory), each in a hidden sway of its own and each checking itself through
+  Marley's own tools, and prints a PASS or FAIL line for each. `just install` now runs the set
+  against the build it is about to install and installs nothing when a scenario fails, so the
+  Marley in your menu keeps working; `--skip-regress` installs without it.
 - **Secrets hidden from what agents read** (#516, 2026-09-25). What Marley's tools hand an agent
   from a terminal (each command and its output) and from a page's console now has its secrets
   replaced by `[redacted: <kind>]`: private keys, values set on names such as `API_TOKEN` or

@@ -2900,3 +2900,16 @@ A launch that hands off to the running Marley still builds gpui's application fi
 connects to the compositor before Zed's single-instance check runs and exits; its Wayland trace,
 when one is on, fills its output. A scenario prints such a launch's own lines by filtering the
 trace out (`grep -v '^\['`), not by tailing.
+
+## L-claude-517-a-running-bash-script-reads-its-file-as-it-goes-001
+*category: workflow · topic: editing scripts · from: pipeline 517*
+
+bash reads a script file as it executes it, a block at a time, so an edit to a script that is
+running changes what it runs next: text inserted before the point it has reached shifts the byte
+offset it resumes from, and it can run a line twice, run half a line, or skip one. #517 edited
+`script/install-marley` while `just install` was inside its `cargo build`; the committed file went
+back within the minute, before the build returned, and the edit was re-applied after the install
+ended. Before editing a script, check that nothing runs it, and never edit one mid-run. The check
+itself has its own trap: `pgrep -f install-marley` in a one-shot `bash -c` matches that shell,
+whose command line holds the pattern (compare the cargo guard in the lessons above); look for the
+process by its own name or read `/proc/<pid>/cmdline`.

@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #517 (chore, the e2e runner and the installer)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/517-regression-suite.spec.md
+- **Pipeline doc:** ../../pipeline/completed/517-regression-suite.spec.md
 - **Source ticket:** Chad, 2026-09-25, on item 6 of the Orca questions (Marley's own regression
   suite, re-running old scenarios and a golden set before every install, each run checking
   itself through Marley's MCP server): "ok yes ill defer to you on that"; the Orca survey's
   engineering report (docs/orca_architecture/07, the golden e2e set)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Every Marley feature has an e2e scenario, and each runs once, at its own ticket's Test phase, where
