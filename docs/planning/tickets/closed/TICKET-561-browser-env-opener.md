@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #561 (feature, prong 3 with prong 1: a follow-up slice of #503)
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/561-browser-env-opener.spec.md
+- **Pipeline doc:** ../../pipeline/completed/561-browser-env-opener.spec.md
 - **Source ticket:** The Orca second pass of 2026-09-25 (`docs/planning/design-notes/orca-second-pass-2026-09-25.md`), finding 3; Chad decided on 2026-09-26 that every remaining Orca and Warp finding gets built.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 #503 routes the URLs a terminal prints and the ones Chad clicks. A program that opens a URL

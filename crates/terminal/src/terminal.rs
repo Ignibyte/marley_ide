@@ -1170,6 +1170,14 @@ impl TerminalBuilder {
     ) -> Task<Result<TerminalBuilder>> {
         let version = release_channel::AppVersion::global(cx);
         let background_executor = cx.background_executor().clone();
+        // Marley: Marley's opener, unless the user gave terminals a `BROWSER` of their own in
+        // `terminal.env` (#561).
+        let marley_browser_opener =
+            marley_terminal::shell_integration::browser_opener().filter(|_| {
+                !TerminalSettings::get_global(cx)
+                    .env
+                    .contains_key(marley_terminal::shell_integration::BROWSER_VARIABLE)
+            });
         // Headless hosts (e.g. the eval CLI) have no controlling TTY, so PTY
         // allocation / acquiring a controlling terminal fails with `ENOTTY`.
         // When set, run the command as a plain subprocess instead.
@@ -1245,6 +1253,16 @@ impl TerminalBuilder {
                 env.insert(
                     marley_terminal::identity::PROJECT_VARIABLE.to_string(),
                     String::new(),
+                );
+            }
+
+            // Marley: a local terminal's programs open URLs through Marley's opener, which puts a
+            // local one in a Browser tab of their project; it replaces a captured login value, and
+            // a shell's own files can still set their own (#561).
+            if !is_remote_terminal && let Some(opener) = marley_browser_opener {
+                env.insert(
+                    marley_terminal::shell_integration::BROWSER_VARIABLE.to_string(),
+                    opener.to_string_lossy().into_owned(),
                 );
             }
 

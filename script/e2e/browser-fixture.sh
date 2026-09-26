@@ -30,7 +30,8 @@
 #   `blocks` lists every terminal's blocks: command, exit code, whether it runs and whether its
 #   output is still kept (#546); `blocks-here` lists the blocks of the terminal the agent runs in,
 #   naming none (#520), and `terminals` marks that one `(self)` and gives each `terminal_id`. `fleet` lists `fleet_snapshot`'s seats: each one's id, state and
-#   the labels an agent row shows, or `no seats` (#547).
+#   the labels an agent row shows, or `no seats` (#547). `open-url <url> <directory>` asks
+#   `browser_open_url` to open a URL for a program in that folder (#561).
 # - `browser_profile` and `browser_unit` name the run's Chromium profile and its user unit;
 #   `browser_teardown`, for the scenario's `teardown`, stops the unit and the servers.
 
@@ -315,6 +316,10 @@ def main():
             print(f"  tab {tab['id']}: {tab['title']!r} at {tab['url']}, project {tab.get('project')}{focused}{default}")
     elif command == "navigate":
         result = client.tool("browser_navigate", {"url": rest[0], **options})
+        if result:
+            print(f"  {json.dumps(result['structuredContent'])}")
+    elif command == "open-url":
+        result = client.tool("browser_open_url", {"url": rest[0], "directory": rest[1]})
         if result:
             print(f"  {json.dumps(result['structuredContent'])}")
     elif command == "look":

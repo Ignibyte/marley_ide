@@ -2789,7 +2789,10 @@ fn in_a_pane(view: &Entity<BrowserView>, cx: &App) -> bool {
 }
 
 /// The window that holds `workspace`.
-fn window_of(workspace: &Entity<Workspace>, cx: &App) -> Option<WindowHandle<MultiWorkspace>> {
+pub(crate) fn window_of(
+    workspace: &Entity<Workspace>,
+    cx: &App,
+) -> Option<WindowHandle<MultiWorkspace>> {
     cx.windows()
         .into_iter()
         .filter_map(|window| window.downcast::<MultiWorkspace>())

@@ -1,7 +1,7 @@
 ---
 pipeline_id: 59e32e7e-bf9f-46ff-89e5-4a0f8dcff2c6
 ticket: docs/planning/tickets/open/TICKET-561-browser-env-opener.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Programs that open a browser land in Marley's Browser tab, through BROWSER"
 type: feature
 slice: prong 3 with prong 1; a follow-up slice of #503 (the Orca second pass, finding 3); after #503

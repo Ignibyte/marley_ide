@@ -199,6 +199,14 @@ const REGISTRY: &[ToolSpec] = &[
          when it has none. Answers once the page has loaded, with the tab's id.",
     ),
     browser_write(
+        "open_url",
+        "Open a URL a program in `directory` asked to open, as Marley's `BROWSER` opener does \
+         (#561): in a Browser tab of the project whose folder holds `directory`, with the focus, \
+         when `marley.terminal_links` sends that URL to a Browser tab (a local http or https \
+         URL, by default), bringing forward a tab of that project already on it. It never opens \
+         the system browser: `opened: false` says why it opened nothing.",
+    ),
+    browser_write(
         "back",
         "Go back in a Browser tab's history; answers once the page has loaded.",
     ),
@@ -346,8 +354,34 @@ fn browser_schemas(verb: &str) -> (Value, Value) {
         "recording" => recording_schemas(),
         "picks" => picks_schemas(),
         "pick" => pick_schemas(),
+        "open_url" => open_url_schemas(),
         _ => browser_write_schemas(verb),
     }
+}
+
+/// `browser_open_url` (#561): the URL and the program's folder; whether a tab opened, and in
+/// which project, or why not.
+fn open_url_schemas() -> (Value, Value) {
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "url": { "type": "string", "description": "The http or https URL the program opens." },
+                "directory": { "type": "string", "description": "The program's working directory, an absolute path." }
+            },
+            "required": ["url", "directory"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "opened": { "type": "boolean" },
+                "project": { "type": "string", "description": "The project whose Browser tab shows the URL." },
+                "reason": { "type": "string", "description": "Why no tab opened." }
+            },
+            "required": ["opened"]
+        }),
+    )
 }
 
 /// The schema of the `tab` argument every browser tool but `browser_tabs` takes (#493).

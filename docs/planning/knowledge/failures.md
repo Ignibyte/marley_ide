@@ -2225,3 +2225,14 @@ pane calls `Pane::activate_item`, which calls `deactivated` on the pane's previo
 the terminal view, and `ItemHandle::deactivated` updates it: a double update, which panics. Found
 before any code was written. Fixed in #503: the hook picks the destination and returns, and the
 tab opens in `window.defer`.
+
+## F-claude-561-an-opener-on-the-default-endpoint-would-open-tabs-in-another-marley-001
+*severity: high · found in: pipeline 561's promotion (reading the bridge's endpoint lookup against a terminal's environment) · class: a helper finding the wrong Marley · prevented by: PR-claude-a-program-marley-writes-finds-the-marley-that-wrote-it-001*
+
+#561's plan had the opener read the endpoint file as the bridge does: `$MARLEY_MCP_ENDPOINT`,
+else `~/.local/share/marley/mcp-endpoint.json`. Only the context server's bridge is given
+`MARLEY_MCP_ENDPOINT`, and terminals carry none. So a Marley started with its own data
+directory, or any e2e run's profile copy, would have had its terminals' programs open their
+tabs in the user's main Marley, and a scenario would have driven the user's real window. Found
+before any code was written. Fixed in #561: the opener lives at `<data_dir>/mcp/marley-open-url`
+and reads `<data_dir>/mcp-endpoint.json` beside it; `$MARLEY_MCP_ENDPOINT` still wins.

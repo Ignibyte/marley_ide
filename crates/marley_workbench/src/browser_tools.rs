@@ -17,7 +17,9 @@ use std::time::Duration;
 
 use base64::Engine as _;
 
-use gpui::{App, AppContext as _, AsyncApp, Entity, EntityId, MouseButton, WeakEntity};
+use gpui::{
+    AnyWindowHandle, App, AppContext as _, AsyncApp, Entity, EntityId, MouseButton, WeakEntity,
+};
 use marley_browser::address;
 use marley_browser::cdp::CdpError;
 use marley_browser::input::{self, KeyPress};
@@ -33,9 +35,10 @@ use ui::SharedString;
 use workspace::{MultiWorkspace, ProjectGroup, Workspace};
 
 use crate::browser::{
-    BrowserHub, Maker, TabSummary, new_page, recordings_dir, show_for_agent, showing,
-    tab_workspaces,
+    BrowserHub, Maker, TabSummary, new_page, open_url_tab, recordings_dir, show_for_agent, showing,
+    tab_workspaces, window_of,
 };
+use crate::links;
 
 /// How long a call waits, once the browser shows its pages, for the page it acts on to attach.
 const ATTACH_WAIT: Duration = Duration::from_secs(5);
@@ -199,6 +202,8 @@ async fn run(
         "browser_pick" => return pick(arguments, hub, cx),
         "browser_recordings" => return recordings(cx).await,
         "browser_recording" => return recording(arguments, cx).await,
+        // Before the browser is up: a new tab waits for it by itself.
+        "browser_open_url" => return Ok(cx.update(|cx| open_url(arguments, cx))),
         _ => {}
     }
     showing(hub, cx).await?;
@@ -234,6 +239,59 @@ async fn run(
         "browser_press" => press(&page, &tab, arguments, hub, cx).await,
         "browser_scroll" => scroll(&page, &tab, arguments, hub, cx).await,
         other => Err(format!("Marley answers no tool named {other}")),
+    }
+}
+
+/// `browser_open_url` (#561): a URL a program in `directory` asked its opener to open, in a
+/// Browser tab of the project one of whose folders holds `directory`, with the focus, when
+/// `marley.terminal_links` sends it to a Browser tab. It answers at once, since the program waits
+/// on its opener, and opens nothing for a URL it declines: the opener sends that one to the
+/// system browser itself.
+fn open_url(arguments: &Value, cx: &mut App) -> ToolAnswer {
+    let answer = |structured: Value| ToolAnswer {
+        structured,
+        text: None,
+        image: None,
+    };
+    let declined = |reason: &str| answer(json!({ "opened": false, "reason": reason }));
+    let text = |name: &str| {
+        arguments
+            .get(name)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+    };
+    let Ok(url) = address::agent_url(text("url")) else {
+        return declined("not an http or https URL");
+    };
+    let Some(url) = links::browser_tab_url(&url, cx) else {
+        return declined("marley.terminal_links sends this URL to the system browser");
+    };
+    let Some(workspace) = holding(text("directory"), cx) else {
+        return declined("no project of Marley's holds the directory");
+    };
+    let Some(window) = window_of(&workspace, cx) else {
+        return declined("the project's window is gone");
+    };
+    let project = window
+        .read(cx)
+        .ok()
+        .and_then(|multi_workspace| names_in(multi_workspace, cx).remove(&workspace.entity_id()))
+        .unwrap_or_default();
+    // Through the window's handle, which leaves its root alone, so the workspace is shown and its
+    // tab added each in an update of its own.
+    let shown = AnyWindowHandle::from(window).update(cx, |_, window, cx| {
+        if let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten()
+            && multi_workspace.read(cx).workspace() != &workspace
+        {
+            multi_workspace.update(cx, |multi_workspace, cx| {
+                multi_workspace.activate(workspace.clone(), None, window, cx);
+            });
+        }
+        workspace.update(cx, |workspace, cx| open_url_tab(workspace, url, window, cx));
+    });
+    match shown {
+        Ok(()) => answer(json!({ "opened": true, "project": project })),
+        Err(_) => declined("the project's window is gone"),
     }
 }
 

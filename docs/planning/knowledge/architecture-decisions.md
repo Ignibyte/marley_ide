@@ -2288,3 +2288,19 @@ URL is held. This widens AD-claude-477: a terminal with no agent shows a one-row
 has an offer. Rejected: opening every URL in a Browser tab by default (a docs link wants the
 real browser); offering every printed URL (a dead port's URL is noise); parsing `/proc/net` by
 hand (the tree builds `procfs-core` already).
+
+## AD-claude-561-marley-exports-its-opener-as-browser-in-every-local-terminal-001
+*decided at: 2026-09-26 · status: shipped*
+
+Marley gives every terminal it starts that is not remote, tasks included, its opener as
+`BROWSER`, replacing a captured login value. Omarchy exports `BROWSER` for every shell, so
+"only when unset", Orca's rule, would never fire on this box. A `BROWSER` the user set in
+`terminal.env`, or that a shell's own files export, still wins, and `marley.terminal_links` set to
+`system_browser` exports nothing. The opener speaks MCP with the bearer from the endpoint beside
+its own data directory, so a printed frame cannot steer the browser, and it reaches the Marley
+that wrote it. The server's side, `browser_open_url`, opens Browser tabs only, by #503's rule and
+in the project that holds the program's folder. The system browser stays the opener's fallback,
+run without `BROWSER` so nothing loops back. Rejected: exporting only when unset; a `%s`
+template (Rust's `opener` runs the whole value as a program); an in-band escape the terminal
+reads (any output could print one); `file://` pages in a Browser tab (plan D15, left to Chad's
+open question).

@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Programs that open a browser open a Browser tab** (#561, 2026-09-26). `gh pr view --web`,
+  Vite's `--open`, Python's `webbrowser` and any other program that opens a URL through `BROWSER`
+  now open a local one (`localhost`, a loopback address) in a Browser tab of the project their
+  folder is in, with the focus, from any terminal Marley starts. Any other URL, a `file://` page,
+  or a program outside every project still goes to your browser, as it did. Marley gives its
+  terminals its own opener as `BROWSER`. A `BROWSER` that your shell's files or `terminal.env`
+  set wins, and `marley.terminal_links` set to `system_browser` turns the opener off. Agents get
+  `browser_open_url`, which opens such a URL in a Browser tab of the project that holds a folder.
 - **Local URLs in a terminal open in a Browser tab** (#503, 2026-09-26). Ctrl+click on a
   `localhost` or loopback URL in a terminal opens it in a Browser tab of the terminal's project,
   or brings forward the tab already on it; any other URL still opens in your browser. A

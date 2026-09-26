@@ -27,7 +27,7 @@ use marley_mcp::{AppCall, AppCaller, Caller, GrantTable, ToolAnswer, discovery, 
 use marley_terminal::{AnchoredBlock, BlockState, BlockTimes};
 use serde_json::{Value, json};
 use settings::settings_content::{ContextServerCommand, ContextServerSettingsContent};
-use settings::{Settings as _, SettingsStore};
+use settings::{MarleyTerminalLinks, Settings as _, SettingsStore};
 use terminal_view::TerminalView;
 use terminal_view::terminal_panel::TerminalPanel;
 use util::ResultExt as _;
@@ -100,6 +100,7 @@ pub fn start(cx: &mut App) {
                 cx,
             );
             offer_to_zeds_agents(data_dir.clone(), cx);
+            offer_browser_opener(data_dir.clone(), cx);
             (None, Some(publisher(published, cx)))
         }
         Err(error) => (
@@ -236,16 +237,57 @@ fn offer_to_zeds_agents(data_dir: PathBuf, cx: &App) {
 
 /// Writes the bridge into `data_dir` as a program; its path.
 fn write_bridge_in(data_dir: &Path) -> std::io::Result<PathBuf> {
+    write_program_in(data_dir, "marley-mcp-bridge", claude_plugin::BRIDGE)
+}
+
+/// The program Marley's local terminals give their programs as `BROWSER` (#561).
+const OPENER: &str = include_str!("../bin/marley-open-url");
+
+/// Its file, beside the bridge's.
+const OPENER_FILE: &str = "marley-open-url";
+
+/// Gives the local terminals started from now on the opener as `BROWSER` (#561), while
+/// `marley.terminal_links` sends some URLs to Browser tabs, and writes it beside the bridge off the
+/// main thread. The path is set at once, so the terminals a launch restores carry it: the copy an
+/// earlier launch wrote is there until this one's lands, and a missing one sends a program's URL
+/// to its next browser.
+fn offer_browser_opener(data_dir: PathBuf, cx: &mut App) {
+    let opener = data_dir.join("mcp").join(OPENER_FILE);
+    give_browser_opener(&opener, cx);
+    cx.observe_global::<SettingsStore>(move |cx| give_browser_opener(&opener, cx))
+        .detach();
+    let written = cx.background_spawn(futures::future::lazy(move |_| {
+        write_program_in(&data_dir, OPENER_FILE, OPENER)
+    }));
+    cx.spawn(async move |_| {
+        if let Err(error) = written.await {
+            log::error!("mcp: programs in terminals open URLs as before: the opener: {error:#}");
+        }
+    })
+    .detach();
+}
+
+/// The opener for new terminals under the settings in force: none under `system_browser`, so they
+/// keep the `BROWSER` they inherit.
+fn give_browser_opener(opener: &Path, cx: &App) {
+    let links = MarleySettings::get_global(cx).terminal_links;
+    marley_terminal::shell_integration::set_browser_opener(
+        (links != MarleyTerminalLinks::SystemBrowser).then(|| opener.to_path_buf()),
+    );
+}
+
+/// Writes `contents` into `data_dir`'s `mcp` folder as the program `name`; its path.
+fn write_program_in(data_dir: &Path, name: &str, contents: &str) -> std::io::Result<PathBuf> {
     let dir = data_dir.join("mcp");
     std::fs::create_dir_all(&dir)?;
-    let bridge = dir.join("marley-mcp-bridge");
-    std::fs::write(&bridge, claude_plugin::BRIDGE)?;
+    let program = dir.join(name);
+    std::fs::write(&program, contents)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt as _;
-        std::fs::set_permissions(&bridge, std::fs::Permissions::from_mode(0o755))?;
+        std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755))?;
     }
-    Ok(bridge)
+    Ok(program)
 }
 
 /// Writes the endpoint file off the main thread; a failure is shown as the server's would be.

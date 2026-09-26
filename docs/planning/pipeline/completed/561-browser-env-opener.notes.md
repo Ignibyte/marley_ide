@@ -178,3 +178,183 @@ a remote project's terminal (read in the review through `is_remote_terminal`).
   nothing here changes when #520 lands.
 - The bridge's second copy and the opener sit under `<data_dir>/mcp/`; the profile copy an e2e
   run makes has its own, so the scenario's `$BROWSER` names the copy's path (`561-01-env`).
+
+## Promotion (2026-09-26, at `bd2b1a0066`)
+- **What has landed since the draft:**
+  - #503: `links.rs` (`destination`, `over_ssh`), `browser::open_url_tab` and
+    `address::local_url`.
+  - #520: the caller headers the bridge sends (`Marley-Terminal`, `Marley-Project`,
+    `Marley-Cwd`), with `MARLEY_TERMINAL_ID` and `MARLEY_PROJECT` in every local terminal.
+  - #574: `browser_tools::holding(path)`, the local workspace one of whose folders holds a path,
+    the longest winning, which is D5's rule as written.
+  - Omarchy still exports `BROWSER="${BROWSER:-omarchy-launch-browser}"` from its bash envs.
+- **Seams re-read:**
+  - `terminal.rs`: `TerminalBuilder::new` (1155), the nonce hunk (1212-1221), #520's and #575's id
+    hunk (1223-1248), the integration hunk (1250-1257, no task).
+  - `project/src/terminals.rs`: `MARLEY_PROJECT` and `MARLEY_RESTORED_TERMINAL_ID` inserted after
+    `settings.env` (393-410).
+  - `mcp.rs`: `start` (66-110, `browser.write` granted), `offer_to_zeds_agents` (179-235, the
+    bridge written off the main thread), `write_bridge_in` (238-249).
+  - `claude_plugin.rs`: `BRIDGE` (29), `FILES` (35-65).
+  - The bridge: `endpoint_path` (53-60), `read_endpoint` (63-83), `messages_in` (94-110),
+    `caller_headers` (117-137).
+  - `registry.rs`: the browser write rows (188-224), `browser_write` (238-246),
+    `browser_write_schemas` (743).
+  - `browser_tools.rs`: `answer` (71-81), `caller_scope` (86-111), `holding` (114-131).
+  - No scenario pins the tool count while Marley runs (491's only count is "lists 0 tools" with
+    no Marley).
+- **Corrections to the design:**
+  1. **The opener's endpoint is the one beside it.** Terminals carry no `MARLEY_MCP_ENDPOINT`: only
+     the context server's bridge gets it. The bridge's default,
+     `~/.local/share/marley/mcp-endpoint.json`, is the user's main Marley, so a scratch Marley's
+     terminal, or an e2e run, would open its tabs in the user's own Marley. The opener lives at
+     `<data_dir>/mcp/marley-open-url` and reads `<data_dir>/mcp-endpoint.json`, the file its own
+     Marley writes; `$MARLEY_MCP_ENDPOINT` still wins when set.
+  2. **The path goes through a process-wide setting in `marley_terminal`, not a gpui global.**
+     `marley_terminal` has no gpui, so `shell_integration::set_browser_opener` and
+     `browser_opener` keep an `RwLock<Option<PathBuf>>`. The workbench sets it at start and on a
+     settings change: none under `system_browser`. The builder's one new hunk inserts `BROWSER`
+     for every terminal that is not remote, tasks included (a dev server started as a task opens
+     its page too), so it sits beside the id hunk rather than inside the integration hunk, which
+     skips tasks. The ledger row for `terminal.rs` widens.
+  3. **The opener's source is outside the plugin.** It is not one of Claude Code's plugin files
+     (nothing in the plugin runs it), so it lives at `crates/marley_workbench/bin/marley-open-url`,
+     is written by `mcp.rs` beside the bridge's second copy, and `FILES` does not change.
+  4. **The answer is `{opened, project?, reason?}`.** A new tab's page id is not known until its
+     page is made, and the opener needs only `opened`.
+- **Safety in the scenario (L-claude-503-gpui-falls-back…).**
+  - Python's `webbrowser` tries `BROWSER` first and then every browser it knows, `xdg-open` first
+    and the real browsers after, until one exits 0. Under `system_browser` the terminal's
+    `BROWSER` would be the captured login environment's `omarchy-launch-browser`, which opens the
+    user's real browser.
+  - So the scenario sets `terminal.env BROWSER` to its fake `xdg-open`. That value is overridden
+    by the opener while it is exported and stands when it is not.
+  - Fakes named `xdg-open`, `gio` and `google-chrome` go first on both PATHs. Each logs and exits
+    0, the last two to `leak.log`, which must stay empty.
+- **Recall added:** AD-claude-503 (the route and `open_url_tab`);
+  L-claude-503-gpui-falls-back-to-the-desktop-portal… (the fake exits 0);
+  PR-claude-empty-a-variable-the-child-must-not-inherit-001 (a removed key is inherited, so
+  under `system_browser` the inherited value stands, which is the desktop default this ticket
+  wants).
+- **Brain consultation e345fed38cdf47c18328a1ac3e78d5cc:** nothing on this seam (only unrelated follow-ups due). A second, identical ask (bcbc368b…) was closed with `brain no-decision` as a repeat.
+
+## Phase 2 — Code
+- **Built:**
+  - `marley_terminal::shell_integration`: `BROWSER_VARIABLE`, and `set_browser_opener` and
+    `browser_opener` over a process-wide `RwLock<Option<PathBuf>>`.
+  - `crates/terminal/src/terminal.rs`, two hunks. Before the future, the opener is read and
+    dropped when `TerminalSettings`' `env` names a `BROWSER` of the user's own. After #520's id
+    hunk, it is inserted as `BROWSER` for every terminal that is not remote, tasks included.
+  - `crates/marley_workbench/bin/marley-open-url` (new, Python 3, standard library):
+    - the endpoint is `$MARLEY_MCP_ENDPOINT`, else `mcp-endpoint.json` beside its own data
+      directory, loopback only;
+    - `initialize`, `notifications/initialized`, then `tools/call browser_open_url {url,
+      directory}` and a DELETE, all within 5 s;
+    - `opened: true` exits 0, and anything else execs `xdg-open` with `BROWSER` removed;
+    - the failures caught: `OSError`, `ValueError`, `http.client.HTTPException` and `URLError`.
+  - `mcp.rs`:
+    - `offer_browser_opener` sets the path at once and again on each settings change, none
+      under `system_browser`, and writes the file off the main thread;
+    - `write_program_in` now writes both the bridge and the opener.
+  - `registry.rs`: `browser_open_url` (write, `browser.write`) and `open_url_schemas`.
+  - `browser_tools.rs`: `open_url`, answered before the browser is up, since a new tab waits for
+    it by itself. It runs `agent_url`, then `links::browser_tab_url`, then `holding(directory)`,
+    then `window_of` (now `pub(crate)`). Through the `AnyWindowHandle` it shows the workspace in
+    its window and then opens the tab (`open_url_tab`), in separate updates, and answers
+    `{opened, project}` or `{opened: false, reason}`.
+  - `links::browser_tab_url`: #503's `destination` with no SSH and no key held.
+  - `browser-fixture.sh`: `mcp_agent open-url <url> <directory>`.
+- **Deviations from the plan, and why:**
+  1. The promotion's corrections: the endpoint beside the opener, the setting in
+     `marley_terminal`, the source outside the plugin, and the answer without `tab`.
+  2. A `BROWSER` in the user's `terminal.env` wins over the opener. It is the user's explicit
+     setting, and `terminal.env` is merged in three places in `project/src/terminals.rs`, while
+     the builder already has `TerminalSettings`.
+  3. `open_url` answers before `showing()`. Waiting for a stopped browser to start could pass
+     the opener's 5 s, and the opener would then send the URL to the system browser while the
+     tab opened too.
+  4. The workspace is shown and the tab added through `AnyWindowHandle::update`, whose root is
+     not leased. A `WindowHandle<MultiWorkspace>` update would have the tab added inside the
+     root's update.
+- **Review:**
+  - The bearer is never printed or logged, and goes to loopback only.
+  - The fallback's environment is the process's without `BROWSER`, through `os.execvpe`, with no
+    shell anywhere.
+  - Nothing opens the system browser from Marley's side.
+  - The registry's schemas are closed (`additionalProperties: false`).
+  - Routing: `mcp::answer` hands every `browser_` call to `browser_tools::answer`.
+  - No scenario pins the tool count.
+  - Provenance: Orca's relay (MIT) is reimplemented, and the endpoint and SSE code follows
+    Marley's own bridge.
+  - Checks: `cargo check -p marley_workbench` is clean, fmt is clean, and `cargo clippy -p
+    marley_terminal -p terminal -p marley_mcp -p marley_workbench --all-targets -- -D warnings`
+    is clean.
+
+## Phase 3 — Test
+- **The scenario:** `script/e2e/561-browser-env-opener.sh` (`compositor sway`, offline Chromium,
+  a served page "Opened page").
+  - Python's `webbrowser` is the program that reads `BROWSER`.
+  - Fakes named `xdg-open`, `user-browser`, `gio`, `google-chrome` and `firefox` go first on the
+    runner's PATH, which Marley inherits, and on the terminal's. Each logs and exits 0, the last
+    three to `leak.log`.
+  - The scenario's `.bashrc` sets `BROWSER` to the fake `xdg-open` unless it is the opener.
+  - 16 `expect` checks, through `terminal-read`, `mcp_agent tabs` and `open-url`, the three logs
+    and a timed run of the opener.
+- **Green, the debug build, first run:** all 16 pass. The fallback with no endpoint took 30 ms,
+  and `leak.log` stayed empty.
+- **Red, the installed build (`bd2b1a0066`, before the change):** `check BROWSER is Marley's
+  opener: FAIL`, since the terminal carried the `.bashrc`'s fake.
+- **Shots, read:**
+  - `561-01-env`: `echo "$BROWSER"` prints `/run/user/1000/marley-e2e/profile.…/mcp/marley-open-url`,
+    the profile copy's opener (REQ-001).
+  - `561-02-tab`: an "Opened page" Browser tab of `repo` at `http://127.0.0.1:<port>/`, in front;
+    `tabs` says `project repo, focused` (REQ-002).
+  - `561-03-same-tab`: after the same call, one Opened page tab, in front (REQ-003).
+  - `561-04-system`: after the docs URL and the `file://` page, the terminal in front and no new
+    tab; `xdg-open.log` holds both (REQ-004).
+  - `561-05-outside`: from `elsewhere`, a folder in no project, the local URL reached
+    `xdg-open.log` and opened no tab (REQ-005).
+  - `561-06-user-browser`: with `BROWSER=…/user-browser` on the command line,
+    `user-browser.log` holds the URL (REQ-006).
+  - `561-07-off`: after `marley.terminal_links` became `system_browser`, a new terminal's
+    `BROWSER` is the fake and not the opener, and its local URL reached `xdg-open.log` with no
+    tab (REQ-007).
+  - The run log: the opener with a missing endpoint handed the URL to `xdg-open` in 30 ms
+    (REQ-008). `browser_open_url` with `https://example.com/` answered `{"opened": false,
+    "reason": "marley.terminal_links sends this URL to the system browser"}`, and nothing
+    reached the log (REQ-009).
+  - The footers in `561-04` to `561-07` offer `127.0.0.1:<port>`. That is #503's rule: the typed
+    command lines hold the site's URL, and its port listens.
+- **Not reached by a scenario:** real `gh` and Vite, which read the same variable the same way,
+  and a remote project's terminal (the builder's `!is_remote_terminal`).
+- **The golden set, with 561 added (`just regress`, the debug build):** all 23 pass. #503 still
+  passes on the same route, and #492 still passes with the registry's new tool. 561 took 83 s.
+- **The focus report:** each sway run stopped with its Marley, pointer and keyboard. The
+  Hyprland check found no Marley window before or after the run, and nothing was added or
+  reloaded.
+- **The gate:** `script/gates.sh --diff` gave `GATE GREEN [diff]`, 16 passed and 0 failed,
+  shellcheck and semgrep on the new scenario and the fixture among them. The receipt matches
+  the tree.
+- **Verdict:** PASS. REQ-001 to REQ-007 are shown by the shots and the checks, and REQ-008 and
+  REQ-009 by the run log's checks.
+
+## Phase 4 — Complete
+- **Documented:**
+  - `CHANGELOG.md`, under Added: "Programs that open a browser open a Browser tab".
+  - `docs/marley/three-prong-plan.md`: prong 3's table gains B6c (#561, shipped).
+  - `docs/marley_architecture/marley_mcp.md`: `browser_open_url`, and eight write tools.
+  - `docs/marley_architecture/marley_workbench.md`: the opener, under Terminal links.
+  - The `crates/terminal/src/terminal.rs` row was checked against what shipped: the opener read
+    before the future and skipped for a `terminal.env` `BROWSER`, and the insert for every
+    terminal that is not remote.
+- **Knowledge appended:**
+  - `F-claude-561-an-opener-on-the-default-endpoint-would-open-tabs-in-another-marley-001`
+  - `PR-claude-a-program-marley-writes-finds-the-marley-that-wrote-it-001`
+  - `L-claude-561-pythons-webbrowser-tries-every-browser-it-knows-after-a-failed-one-001`
+  - `AD-claude-561-marley-exports-its-opener-as-browser-in-every-local-terminal-001`
+- **Brain:** consultation `e345fed38cdf47c18328a1ac3e78d5cc` was closed by `brain decide`
+  (`decisions/marley-exports-its-opener-as-browser-in-every-local-terminal-and-the-opener-finds-the-marley-that-wrote-it`,
+  follow-up 2026-10-26); the repeat ask was closed with `brain no-decision`.
+- **Open for Chad:** the spec's question on `file://` pages from the project (`cargo doc
+  --open`, coverage reports). The default shipped: they go to the system browser.
+- **Closed:** TICKET-561 moved to `tickets/closed/`, and its BACKLOG row went at promotion.

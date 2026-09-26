@@ -23,3 +23,4 @@
 549-selection-to-the-agent.sh  # the editor's selection typed at a terminal agent's prompt; the picker, rich input, the refusal
 562-orca-redactor-cross-check.sh  # the rules from Orca's redactor: authorization schemes, hyphenated names, cookies
 503-terminal-urls-open-in-the-browser.sh  # a terminal's URL: a Browser tab or the system browser, the dev server's offer, ssh
+561-browser-env-opener.sh  # programs that open a browser through BROWSER: a Browser tab of their project, or the system browser

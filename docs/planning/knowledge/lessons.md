@@ -3011,3 +3011,16 @@ launch if that is wrong, and the fake ends with `exit 0` whatever its logging do
 scenario's own `expect` is replaced by the runner's and the first failed check still ends the
 run. A copy made to measure coordinates has to change its checks, for instance by wrapping each
 in `|| true`, not the helper.
+
+## L-claude-561-pythons-webbrowser-tries-every-browser-it-knows-after-a-failed-one-001
+*category: validate · topic: e2e fakes · from: pipeline 561*
+
+Python's `webbrowser` runs `BROWSER`'s entries first. When one exits non-zero, it tries every
+browser it registered, in order: `xdg-open`, `gio`, then the installed browsers
+(`google-chrome`, `firefox`, …). Under Omarchy the captured login environment also carries
+`BROWSER=omarchy-launch-browser`. So a scenario that runs a program reading `BROWSER` does four
+things:
+- puts a fake `xdg-open` that always exits 0 first on the terminal's PATH;
+- sets `BROWSER` to that fake in its `.bashrc` whenever the value under test is absent;
+- fakes the browsers after `xdg-open` into a log;
+- checks that the log stays empty.

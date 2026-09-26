@@ -2364,3 +2364,12 @@ item's pane: its own subscription callbacks, an `on_action` it registered, and t
 views call in their updates (`MarleyTerminalUrl`, `MarleyTerminalFooter`). Changing the pane's
 front item calls `deactivated` on the old one, which updates it. Defer the change with
 `window.defer` or a spawned task, as Zed's `open_path_like_target` spawns its open.
+
+## PR-claude-a-program-marley-writes-finds-the-marley-that-wrote-it-001
+*severity: high · prevents: F-claude-561-an-opener-on-the-default-endpoint-would-open-tabs-in-another-marley-001*
+
+A program Marley writes for others to run (an opener, a hook, a helper in a terminal's
+environment) finds the Marley that wrote it from where it was written: a file beside it in
+`<data_dir>`, or a variable Marley set for it. It never uses the default data directory, where
+the user's main Marley lives. A second Marley (`--user-data-dir`, an e2e profile copy) would
+otherwise reach the main one, and a scenario would drive the user's own window.

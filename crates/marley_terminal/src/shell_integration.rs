@@ -12,9 +12,14 @@
 //! A terminal gives its program a [`new_nonce`] in [`NONCE_VARIABLE`]. The scripts take it out
 //! of the environment before the user's files run and add it to each command's frame, which is
 //! how the terminal tells the shell's own frames from output that prints one.
+//!
+//! A local terminal also gives its programs [`browser_opener`] as [`BROWSER_VARIABLE`] while one
+//! is set (#561): Marley's opener, which puts a local URL a program opens in a Browser tab of its
+//! project. The workbench sets it with [`set_browser_opener`].
 
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::RwLock;
 
 /// Marley's bash integration script.
 pub const BASH_INTEGRATION: &str = include_str!("../shell_integration/marley.bash");
@@ -47,6 +52,29 @@ pub const NONCE_VARIABLE: &str = "MARLEY_SHELL_NONCE";
 #[must_use]
 pub fn new_nonce() -> String {
     format!("{:032x}", rand::random::<u128>())
+}
+
+/// The variable programs read for the program that opens a URL for them.
+pub const BROWSER_VARIABLE: &str = "BROWSER";
+
+/// The opener terminals started from now on give their programs, if any.
+static BROWSER_OPENER: RwLock<Option<PathBuf>> = RwLock::new(None);
+
+/// Sets the opener each local terminal started from now on gives its programs as
+/// [`BROWSER_VARIABLE`], or none, so they keep the one they inherit.
+pub fn set_browser_opener(opener: Option<PathBuf>) {
+    *BROWSER_OPENER
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = opener;
+}
+
+/// The opener a new local terminal gives its programs, if one is set.
+#[must_use]
+pub fn browser_opener() -> Option<PathBuf> {
+    BROWSER_OPENER
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
 }
 
 /// What to add to a shell's start so it loads Marley's integration.

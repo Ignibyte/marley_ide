@@ -27,9 +27,11 @@ OR Apache-2.0, with the Marley crates' lint table.
 - The `browser` family (#492) is served too: ten read tools (`browser_tabs`, since #493,
   `browser_look`, `browser_snapshot`, `browser_console`, `browser_network`, since #496
   `browser_picks` and `browser_pick`, since #498 `browser_annotations`, and since #499
-  `browser_recordings` and `browser_recording`) and seven write
+  `browser_recordings` and `browser_recording`) and eight write
   tools (`browser_navigate`, `browser_back`, `browser_click`, `browser_type`, `browser_press`,
-  `browser_scroll`, and since #498 `browser_annotate`) whose grant class,
+  `browser_scroll`, since #498 `browser_annotate`, and since #561 `browser_open_url`, which takes
+  a `url` and a program's `directory` and answers `opened` with the project, or a `reason`,
+  through `open_url_schemas`) whose grant class,
   `browser.write`, Marley grants when it starts the server. Since #493 every browser tool that
   acts in a page takes `tab`, a page's id from `browser_tabs` (`browser_arguments` adds it to
   each schema), `browser_navigate` takes `new_tab`, and every answer from a page names its tab.

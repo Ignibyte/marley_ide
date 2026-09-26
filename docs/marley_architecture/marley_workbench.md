@@ -385,6 +385,20 @@ alike.
     Copy URL.
   - `agent_bar::render` puts it before the folder chip, or alone in a one-row strip under a
     terminal with no agent.
+- Programs that open a URL themselves (#561):
+  - `mcp::offer_browser_opener` writes `bin/marley-open-url` beside the bridge's copy
+    (`<data_dir>/mcp/`), and gives its path to `marley_terminal::shell_integration::set_browser_opener`
+    at start and on every settings change, or none under `system_browser`. The terminal builder
+    exports it as `BROWSER` for every terminal that is not remote, unless `terminal.env` names a
+    `BROWSER`.
+  - The opener, run with a URL, reads the endpoint beside its own data directory (or
+    `$MARLEY_MCP_ENDPOINT`), so it reaches the Marley that wrote it. It calls
+    `browser_open_url {url, directory}` within 5 s, and otherwise execs `xdg-open` without
+    `BROWSER`.
+  - `browser_tools::open_url` answers before the browser is up. It checks `address::agent_url`,
+    then `links::browser_tab_url` (#503's rule, with no SSH and no key), then `holding(directory)`
+    and `window_of`. It shows the workspace in its window and opens the tab with
+    `open_url_tab`, in separate updates through the window's `AnyWindowHandle`.
 
 ## Autosuggestions (`src/autosuggest.rs`, #484)
 

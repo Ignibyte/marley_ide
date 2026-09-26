@@ -139,6 +139,16 @@ fn destination(url: &str, over_ssh: bool, inverted: bool, cx: &App) -> Option<De
     })
 }
 
+/// The URL to open in a Browser tab for a program that opened `url` through `BROWSER` (#561), or
+/// none when `marley.terminal_links` sends it to the system browser. The opener runs on this
+/// machine, so SSH plays no part, and no key is held.
+pub(crate) fn browser_tab_url(url: &str, cx: &App) -> Option<String> {
+    match destination(url, false, false, cx)? {
+        Destination::BrowserTab(url) => Some(url),
+        Destination::SystemBrowser(_) => None,
+    }
+}
+
 fn open(destination: Destination, workspace: WeakEntity<Workspace>, window: &Window, cx: &mut App) {
     match destination {
         Destination::SystemBrowser(url) => cx.open_url(&url),

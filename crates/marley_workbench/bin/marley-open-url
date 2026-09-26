@@ -1,0 +1,174 @@
+#!/usr/bin/env python3
+"""Opens a URL for a program in a Marley terminal (#561).
+
+Marley gives its local terminals this program as `BROWSER`, which `gh`, Python's `webbrowser`,
+Vite and others run with the URL to open. It asks the Marley whose data directory it lives in,
+through that Marley's MCP endpoint and bearer, to open the URL in a Browser tab of the project
+that holds the working directory. When Marley declines (the URL is not local, no project holds
+the directory, the user set `system_browser`), is not running, or does not answer within five
+seconds, the URL goes to `xdg-open` with `BROWSER` removed, so nothing comes back here.
+
+The endpoint file is `$MARLEY_MCP_ENDPOINT`, else `mcp-endpoint.json` in the data directory this
+program was written to (`<data_dir>/mcp/marley-open-url`). The bearer in it goes only to a
+loopback URL, and nothing here prints it.
+"""
+
+import http.client
+import json
+import os
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+PROTOCOL_VERSION = "2025-06-18"
+
+# The whole exchange with Marley, in seconds; a program waits on its opener.
+DEADLINE = 5
+
+LOOPBACK = {"127.0.0.1", "localhost", "::1"}
+
+# What an exchange with Marley can fail with; each sends the URL to `xdg-open` instead.
+FAILURES = (OSError, ValueError, http.client.HTTPException, urllib.error.URLError)
+
+
+def endpoint_path():
+    named = os.environ.get("MARLEY_MCP_ENDPOINT")
+    if named:
+        return named
+    here = os.path.dirname(os.path.realpath(__file__))
+    return os.path.join(os.path.dirname(here), "mcp-endpoint.json")
+
+
+def read_endpoint():
+    """The URL and the Authorization header in the endpoint file, when it names a loopback URL."""
+    try:
+        with open(endpoint_path(), encoding="utf-8") as file:
+            entry = json.load(file)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(entry, dict):
+        return None
+    url = entry.get("url")
+    headers = entry.get("headers")
+    if not isinstance(url, str) or not isinstance(headers, dict):
+        return None
+    authorization = headers.get("Authorization")
+    if not isinstance(authorization, str):
+        return None
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme != "http" or parsed.hostname not in LOOPBACK:
+        # The bearer never leaves this machine.
+        return None
+    return url, authorization
+
+
+def messages_in(body, kind):
+    """The JSON-RPC messages in an answer's body, JSON or a stream of events."""
+    if not body.strip():
+        return []
+    if kind.startswith("text/event-stream"):
+        found, data = [], []
+        for line in body.splitlines():
+            if line.startswith("data:"):
+                data.append(line[5:].removeprefix(" "))
+            elif not line.strip() and data:
+                found.append(json.loads("\n".join(data)))
+                data = []
+        if data:
+            found.append(json.loads("\n".join(data)))
+        return found
+    parsed = json.loads(body)
+    return parsed if isinstance(parsed, list) else [parsed]
+
+
+def request(endpoint, deadline, method, message=None, session=None):
+    """One HTTP request to Marley within the deadline: the messages it answered with, and the
+    session it gave."""
+    url, authorization = endpoint
+    headers = {
+        "Authorization": authorization,
+        "Accept": "application/json, text/event-stream",
+        "MCP-Protocol-Version": PROTOCOL_VERSION,
+    }
+    body = None
+    if message is not None:
+        headers["Content-Type"] = "application/json"
+        body = json.dumps(message).encode("utf-8")
+    if session:
+        headers["Mcp-Session-Id"] = session
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("Marley did not answer in time")
+    sent = urllib.request.Request(url, data=body, headers=headers, method=method)
+    with urllib.request.urlopen(sent, timeout=remaining) as answer:
+        kind = answer.headers.get("Content-Type", "")
+        text = answer.read().decode("utf-8", "replace")
+        return messages_in(text, kind), answer.headers.get("Mcp-Session-Id") or session
+
+
+def opened_in_marley(url, directory):
+    """Whether Marley opened `url` in a Browser tab for a program in `directory`."""
+    endpoint = read_endpoint()
+    if endpoint is None:
+        return False
+    deadline = time.monotonic() + DEADLINE
+    session = None
+    try:
+        _, session = request(endpoint, deadline, "POST", {
+            "jsonrpc": "2.0", "id": 1, "method": "initialize",
+            "params": {"protocolVersion": PROTOCOL_VERSION, "capabilities": {},
+                       "clientInfo": {"name": "marley-open-url", "version": "1"}},
+        })
+        request(endpoint, deadline, "POST",
+                {"jsonrpc": "2.0", "method": "notifications/initialized"}, session)
+        answers, session = request(endpoint, deadline, "POST", {
+            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+            "params": {"name": "browser_open_url",
+                       "arguments": {"url": url, "directory": directory}},
+        }, session)
+        for answer in answers:
+            if isinstance(answer, dict) and answer.get("id") == 2:
+                result = answer.get("result")
+                content = result.get("structuredContent") if isinstance(result, dict) else None
+                return isinstance(content, dict) and content.get("opened") is True
+        return False
+    except FAILURES:
+        return False
+    finally:
+        if session:
+            try:
+                # A second more, so the session ends even after a slow answer.
+                request(endpoint, deadline + 1, "DELETE", session=session)
+            except FAILURES:
+                pass
+
+
+def fall_back(url):
+    """Hands the URL to the desktop's own opener, without `BROWSER`, so nothing loops back."""
+    environment = dict(os.environ)
+    environment.pop("BROWSER", None)
+    try:
+        os.execvpe("xdg-open", ["xdg-open", url], environment)
+    except OSError as error:
+        sys.stderr.write(f"marley-open-url: xdg-open: {error}\n")
+        return 1
+
+
+def main():
+    if len(sys.argv) != 2:
+        sys.stderr.write("usage: marley-open-url <url>\n")
+        return 2
+    url = sys.argv[1]
+    try:
+        directory = os.getcwd()
+    except OSError:
+        directory = ""
+    if directory and opened_in_marley(url, directory):
+        return 0
+    return fall_back(url)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
