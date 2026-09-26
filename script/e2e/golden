@@ -9,3 +9,4 @@
 515-marley-settings-page.sh       # the Marley settings page, the layout switch
 516-secret-redaction-for-agents.sh  # secrets hidden from what agents read
 513-one-marley-per-data-dir.sh    # startup: one Marley per data directory
+544-blocks-survive-a-rewrap.sh    # blocks across a resize that rewraps the terminal

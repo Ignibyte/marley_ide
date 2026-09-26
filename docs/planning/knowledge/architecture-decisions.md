@@ -2144,3 +2144,19 @@ way out. Rejected: comparing shots against saved ones (fragile across themes and
 checks say what broke); running the set in `script/gates.sh --diff` now (choosing scenarios by the
 files a change touches is slice 2, once the set's run time is known: about five minutes today);
 testing the debug build before an install (the install would test a build it does not install).
+
+## AD-claude-544-anchors-cross-a-rewrap-as-logical-places-001
+*decided at: 2026-09-26 · status: shipped*
+
+The blocks' anchors stay absolute lines, and a width change carries them across alacritty's
+rewrap as places the rewrap keeps: logical lines (a row and the rows its `WRAPLINE` continues
+into) from the cursor's logical line, and a character offset inside their own. The pivot is the
+cursor, which alacritty keeps inside its logical line, not the grid's top, which a full history
+cuts. The logic is pure (`marley_terminal::anchored::RowsView`, `AnchoredBlocks::rewrap`); Zed's
+Resize arm only reads the main screen's rows before and after `resize` (`marley_rows_view`,
+through the vendored `Term::main_grid`, since the main screen is rewrapped while a full-screen
+program shows too). Rejected: the plan's OSC 8 tag on each prompt (re-finds only the prompt row,
+needs a non-blank cell, and Zed underlines and opens hyperlinks); recomputing anchors from the top
+of the grid (a full history cuts rows there). Accepted limits: a hook positioned before a resize
+and applied after it, and the shell's own prompt redraw on SIGWINCH, can leave the newest prompt's
+anchors off until the next prompt.

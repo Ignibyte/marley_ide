@@ -2913,3 +2913,12 @@ ended. Before editing a script, check that nothing runs it, and never edit one m
 itself has its own trap: `pgrep -f install-marley` in a one-shot `bash -c` matches that shell,
 whose command line holds the pattern (compare the cargo guard in the lessons above); look for the
 process by its own name or read `/proc/<pid>/cmdline`.
+
+## L-claude-544-when-a-fix-fails-exactly-like-the-bug-instrument-001
+*category: validate · topic: debugging a fix · from: pipeline 544*
+
+When the scenario fails after the fix in exactly the way it failed before, the fix most likely
+never ran: prove that before reasoning about its logic. #544's remap was right, but its guard was
+always false; one temporary `log::info!` on the path, read from the run's copied `Marley.log`
+(`$SHOT_DIR/<scenario>.marley.log`), showed in one run that the code was never reached. Remove the
+line before the gate.

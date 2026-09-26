@@ -2303,3 +2303,13 @@ macOS). When the path comes from a directory the user or a harness chooses (`--u
 profile copy, a scratch folder), check its length before binding, and treat "too long" as its own
 case with its own message, never as "in use" or any other failure the caller acts on. A scenario
 that makes sockets under its own folders keeps those folders short (the runtime directory).
+
+## PR-claude-compare-against-the-state-the-change-acts-on-001
+*severity: high · prevents: F-claude-544-the-resize-arms-columns-changed-is-always-false-001, F-claude-544-a-rewrap-cut-history-rows-without-counting-them-001*
+
+When a handler decides whether a change happened (the width changed, rows left the history), read
+the "before" from the thing being changed, at the moment before the change, not from a cache or a
+copy that another path updates on its own schedule: `set_size` had already written the new bounds
+into the cache the Resize arm compared with. And when a vendored or upstream routine drops data
+(a `truncate`, a `drain`, a rotate), check that every counter that promises to account for dropped
+data is told.

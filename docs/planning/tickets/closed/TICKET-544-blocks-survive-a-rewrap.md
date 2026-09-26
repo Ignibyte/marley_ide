@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #544 (bug, prong 1 T0: the block terminal's anchors, the plan's D2)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** (none yet)
+- **Pipeline doc:** ../../pipeline/completed/544-blocks-survive-a-rewrap.spec.md
 - **Source ticket:** found in #516's Test, 2026-09-25: the Settings window, tiled beside the main
   window by sway, narrowed the terminal; its lines rewrapped, and every block lost its rows
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 A block is a range of absolute lines in the one scrollback (`output_start`, `output_end`, the

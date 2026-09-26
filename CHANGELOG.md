@@ -472,6 +472,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Blocks survive a resize** (#544, 2026-09-26). Making a terminal narrower or wider rewraps
+  its long lines, and every block before the rewrap lost its place: its bar and pill vanished or
+  sat on the wrong rows, and an agent reading a block got rows from its neighbours. Blocks now
+  follow their lines through the rewrap, while a full-screen program shows too, so the bars, the
+  pills, Copy Output and what agents read stay right at any width.
 - **One Marley at a time** (#513, 2026-09-26). Starting Marley while it already runs, from the
   menu or with `marley <folder>` in a terminal, used to start a second app on the same settings
   and data, and it hung. Now the second launch hands its folders and files to the Marley that

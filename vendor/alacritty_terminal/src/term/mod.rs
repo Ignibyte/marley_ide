@@ -651,6 +651,17 @@ impl<T> Term<T> {
         &mut self.grid
     }
 
+    // Marley: Marley's blocks live on the main screen, which `resize` rewraps even while a
+    // full-screen program holds the alternate one (#544).
+    /// The main screen's grid, whichever screen shows.
+    pub fn main_grid(&self) -> &Grid<Cell> {
+        if self.mode.contains(TermMode::ALT_SCREEN) {
+            &self.inactive_grid
+        } else {
+            &self.grid
+        }
+    }
+
     /// Resize terminal to new dimensions.
     pub fn resize<S: Dimensions>(&mut self, size: S) {
         let old_cols = self.columns();

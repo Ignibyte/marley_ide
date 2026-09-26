@@ -21,6 +21,10 @@
 //! terminal view to draw them, [`block_scroll`] where to scroll to show the previous or the next
 //! block, and [`bottom_shift`] how far down to draw a viewport so its content sits on the bottom
 //! edge (T1).
+//!
+//! A resize that changes the width rewraps the grid and moves every row after the first wrapped
+//! one, so [`AnchoredBlocks::rewrap`] carries the anchors across it through a [`RowsView`] of the
+//! grid before and after (#544).
 
 use std::ops::Range;
 use std::time::SystemTime;
@@ -212,6 +216,151 @@ impl AnchoredBlocks {
             block.exit_code = exit_code;
             block.output_end = Some(line);
         }
+    }
+
+    /// Carries every anchor across a resize that rewrapped the grid from `before` to `after`.
+    ///
+    /// The anchors are each block's prompt line, output start and output end, the staged
+    /// prompt's line, and where the prompt's input started (#544). An anchor already evicted
+    /// before stays as it was; one whose logical line the resize dropped off the top comes back
+    /// evicted.
+    pub fn rewrap(&mut self, before: &RowsView, after: &RowsView) {
+        let (before_lines, after_lines) = (before.logical_lines(), after.logical_lines());
+        let carry = |line: u64, column: usize| {
+            before
+                .place_of(&before_lines, line, column)
+                .map_or((line, column), |place| after.line_of(&after_lines, place))
+        };
+        for block in &mut self.blocks {
+            if let Some(line) = block.prompt_line.as_mut() {
+                *line = carry(*line, 0).0;
+            }
+            block.output_start = carry(block.output_start, 0).0;
+            if let Some(line) = block.output_end.as_mut() {
+                *line = carry(*line, 0).0;
+            }
+        }
+        if let Some((_, line)) = self.staged.as_mut() {
+            *line = carry(*line, 0).0;
+        }
+        if let Some((line, column)) = self.input_start.as_mut() {
+            (*line, *column) = carry(*line, *column);
+        }
+    }
+}
+
+/// A grid's rows as a rewrap sees them (#544).
+///
+/// alacritty rewraps logical lines, a row and the rows its last cell's `WRAPLINE` continues into,
+/// when the width changes, and keeps the cursor inside its logical line; so a place counted in
+/// logical lines from the cursor's, with a character offset inside its own line, survives the
+/// rewrap, where an absolute line does not.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RowsView {
+    /// The absolute line of the grid's first row.
+    pub first: u64,
+    /// The cursor's row, counted from the first.
+    pub cursor: usize,
+    /// Whether each row, from the first to the screen's last, continues into the next.
+    pub wraps: Vec<bool>,
+    /// The grid's width in columns.
+    pub columns: usize,
+}
+
+/// Each row's logical line, and the row each logical line starts on.
+#[derive(Debug)]
+struct LogicalLines {
+    line_of_row: Vec<usize>,
+    starts: Vec<usize>,
+}
+
+/// An anchor as a rewrap keeps it: logical lines from the cursor's (positive above it), and the
+/// character offset inside its own logical line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Place {
+    above: Distance,
+    offset: usize,
+}
+
+/// How many logical lines an anchor sits above or below the cursor's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Distance {
+    Above(usize),
+    Below(usize),
+}
+
+impl RowsView {
+    /// Each row's logical line and each logical line's first row.
+    fn logical_lines(&self) -> LogicalLines {
+        let mut line_of_row = Vec::with_capacity(self.wraps.len());
+        let mut starts = Vec::new();
+        for row in 0..self.wraps.len() {
+            let continued = row
+                .checked_sub(1)
+                .and_then(|previous| self.wraps.get(previous))
+                .copied()
+                .unwrap_or(false);
+            if !continued {
+                starts.push(row);
+            }
+            line_of_row.push(starts.len().saturating_sub(1));
+        }
+        LogicalLines {
+            line_of_row,
+            starts,
+        }
+    }
+
+    /// Where `line` and `column` sit as a rewrap keeps it, or `None` for a line outside the
+    /// view (already evicted, or past the last row).
+    fn place_of(&self, lines: &LogicalLines, line: u64, column: usize) -> Option<Place> {
+        let row = usize::try_from(line.checked_sub(self.first)?).ok()?;
+        let logical = *lines.line_of_row.get(row)?;
+        let start = *lines.starts.get(logical)?;
+        let cursor_logical = *lines.line_of_row.get(self.cursor)?;
+        let above = if logical <= cursor_logical {
+            Distance::Above(cursor_logical - logical)
+        } else {
+            Distance::Below(logical - cursor_logical)
+        };
+        let offset = (row - start)
+            .saturating_mul(self.columns.max(1))
+            .saturating_add(column);
+        Some(Place { above, offset })
+    }
+
+    /// The absolute line and column of `place` in this view. A logical line above the view's
+    /// first row, which the rewrap dropped, comes back as the line before it, so it reads as
+    /// evicted; one past the last row comes back on the last.
+    fn line_of(&self, lines: &LogicalLines, place: Place) -> (u64, usize) {
+        let evicted = (self.first.saturating_sub(1), 0);
+        let Some(&cursor_logical) = lines.line_of_row.get(self.cursor) else {
+            return evicted;
+        };
+        let target = match place.above {
+            Distance::Above(count) => match cursor_logical.checked_sub(count) {
+                Some(target) => target,
+                None => return evicted,
+            },
+            Distance::Below(count) => cursor_logical
+                .saturating_add(count)
+                .min(lines.starts.len().saturating_sub(1)),
+        };
+        let Some(&start) = lines.starts.get(target) else {
+            return evicted;
+        };
+        let end = lines
+            .starts
+            .get(target + 1)
+            .copied()
+            .unwrap_or(lines.line_of_row.len());
+        let columns = self.columns.max(1);
+        let rows_in_line = end.saturating_sub(start).max(1);
+        let row = start + (place.offset / columns).min(rows_in_line - 1);
+        let line = self
+            .first
+            .saturating_add(u64::try_from(row).unwrap_or(u64::MAX));
+        (line, place.offset % columns)
     }
 }
 

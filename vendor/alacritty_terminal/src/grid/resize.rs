@@ -365,6 +365,10 @@ impl<T: GridCell + Default + PartialEq> Grid<T> {
 
         // Reverse iterator and use it as the new grid storage.
         let mut reversed: Vec<Row<T>> = new_raw.drain(..).rev().collect();
+        // Marley: the rows cut off the top of a full history are evicted like any others, so
+        // absolute lines stay true across a rewrap (#544).
+        self.evicted_lines +=
+            reversed.len().saturating_sub(self.max_scroll_limit + self.lines) as u64;
         reversed.truncate(self.max_scroll_limit + self.lines);
         self.raw.replace_inner(reversed);
 

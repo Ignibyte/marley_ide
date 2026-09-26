@@ -117,7 +117,13 @@ real, reusable session. The Block model is the unit the **brain** later observes
 - `anchored.rs` (#464, written in the fork) — `AnchoredBlocks`, the same transitions for Zed's
   terminal, where a block records absolute lines instead of copying its output: `prompt_line`,
   `output_start` and `output_end` from each hook's position. Zed's `Terminal::block_output` reads the
-  lines from its grid while they are held. `visible_spans` (#470) maps the blocks to a viewport's
+  lines from its grid while they are held. A resize that changes the width rewraps the grid and
+  moves its rows, so `AnchoredBlocks::rewrap` (#544) carries every anchor (the three per block,
+  the staged prompt's line, the input's start with its column) across it: each becomes a place
+  alacritty's rewrap keeps, logical lines from the cursor's logical line and a character offset
+  inside its own, read from a `RowsView` of the main screen's rows (`marley_rows_view`, each row's
+  `WRAPLINE`) before and after `resize`, in Zed's Resize arm; an anchor whose line fell off a full
+  history reads as evicted, which the vendored `shrink_columns` now counts. `visible_spans` (#470) maps the blocks to a viewport's
   rows: a block starts at its prompt's line, else its output's, and ends before `output_end`, or
   after the cursor's line while it runs. Zed's `TerminalElement` draws them in stage one (the
   plan's D3): `Content::marley_screen_top` (evicted lines plus history) less `display_offset` is

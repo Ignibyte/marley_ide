@@ -82,9 +82,11 @@ cost of exact positions.
 A `BlockList` on `Terminal` maps absolute lines (evicted count plus scrollback position) to
 block metadata. When the history is full, evicted lines shift positions; the counter keeps
 older anchors valid until their output is gone, at which point the block keeps its metadata
-and is marked output-evicted. Reflow on resize is the known weak spot; the mitigation to
-evaluate is tagging the prompt's first cell with a synthetic OSC 8 hyperlink id that
-survives reflow and lets the block re-find its start.
+and is marked output-evicted. Reflow on resize was the known weak spot; the mitigation to
+evaluate was tagging the prompt's first cell with a synthetic OSC 8 hyperlink id that
+survives reflow and lets the block re-find its start. #544 settled it without the tag: every
+anchor is carried across a width change as logical lines from the cursor's logical line, which
+alacritty's rewrap keeps, and a character offset inside its own.
 
 **D3. Render in two stages.** Stage one draws block decorations without changing the row
 model: a gutter bar per block, a status pill at the block's top right, a background wash on
@@ -132,7 +134,7 @@ emits the hook stream and a Finished block with exit 0 and the output "hi" appea
 
 - The vendored copy is a standing re-sync cost each time Zed bumps alacritty
   (`vendor/README.md`). One file changes, and the diff is small.
-- Reflow versus anchors (D2). Decide after T0 with real resize traces.
+- Reflow versus anchors (D2). Settled by #544 (logical places around each resize).
 - Two input models in one view (D4) is where Warp itself is hardest to get right; T3 needs
   the driven-keystroke tests Marley used, ported to Zed's `TestAppContext`.
 

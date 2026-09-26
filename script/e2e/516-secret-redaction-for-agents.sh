@@ -13,9 +13,8 @@
 # - a page's console, read by the agent, has its two fakes hidden;
 # - the Marley page shows the toggle on (REQ-004); clicked, it turns redaction off, and the
 #   console comes back as printed.
-# The terminal is read before the Settings window opens: sway tiles it beside the main window,
-# and the narrower terminal rewraps its lines, which moves every block's rows (the plan's D2,
-# TICKET-544).
+# The terminal is read before the Settings window opens: sway tiles it beside the main window, and
+# the narrower terminal rewraps its lines (which moved every block's rows until #544).
 compositor sway
 # shellcheck source=script/e2e/browser-fixture.sh
 . script/e2e/browser-fixture.sh

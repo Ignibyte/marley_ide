@@ -10,7 +10,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-544](open/TICKET-544-blocks-survive-a-rewrap.md) | bug | prong 1 T0 · a resize that rewraps the terminal moves every block's rows; the bars, pills and `terminal_read` follow them again (the plan's D2) |
+| [TICKET-546](open/TICKET-546-block-reads-under-the-alternate-screen.md) | bug | prong 1 T0 · `terminal_read` answers the main screen's blocks while vim or less holds the alternate screen (after #544's `main_grid`) |
 | [TICKET-519](open/TICKET-519-claude-code-events-in-the-rail.md) | feature | prong 2 C1 · Claude Code's hook events (prompt, tool, waiting, last message) into `marley_fleet` and the rail; before #508, #509, #538, #542 |
 | [TICKET-520](open/TICKET-520-terminal-identity.md) | feature | prong 2 · each terminal knows its id and project, and Marley's tools know which terminal called them |
 | [TICKET-503](open/TICKET-503-terminal-urls-open-in-the-browser.md) | feature | prong 3 with prong 1 · a local URL in a terminal opens a Browser tab; the terminal offers a dev server's URL while its port listens |

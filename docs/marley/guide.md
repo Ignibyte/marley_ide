@@ -917,9 +917,6 @@ Every `~/.local/share/marley` path follows `$XDG_DATA_HOME`, and a Marley starte
 - **An agent reads `[redacted: …]` where it needs a value.** Marley hid what looked like a
   secret. Turn off Redact Secrets for Agents on the Marley settings page (`marley: open
   settings`) while the agent needs it, or print the value under a name the rules do not take.
-- **A resize scrambles a terminal's blocks.** After a resize that rewraps long lines, a block's
-  bar and pill can sit on the wrong rows, and `terminal_read` answers the wrong rows (TICKET-544).
-  Blocks run after the resize are right.
 - **`zed://` links open stock Zed.** Stock Zed owns the scheme where it is installed; Marley's own
   URL scheme waits on TICKET-445.
 
@@ -954,7 +951,6 @@ each came from). The next ones:
 | Ticket | What it brings |
 |---|---|
 | TICKET-517 | Marley's own regression suite: a golden set of scenarios that check themselves, run before every `just install` |
-| TICKET-544 | Blocks keep their rows when a resize rewraps the terminal's lines |
 | TICKET-519 | Claude Code's hook events in the rail: the prompt, the tool in flight, what it waits on, its last message |
 | TICKET-520 | Each terminal knows its id, and Marley's tools know which terminal called them |
 | TICKET-503 | A local URL in a terminal opens in a Browser tab, and the terminal offers the URL a dev server printed |

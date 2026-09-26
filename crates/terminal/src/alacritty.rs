@@ -1001,6 +1001,25 @@ pub(super) fn absolute_lines_text(
     ))
 }
 
+// Marley: the main screen's rows as a rewrap sees them, for the blocks' anchors (#544).
+/// Every row of the main screen, from the top of its history to the bottom of the screen: whether
+/// it continues into the next, the cursor's row, and the absolute line of the first.
+pub(super) fn marley_rows_view(term: &Term<ZedListener>) -> marley_terminal::RowsView {
+    let grid = term.main_grid();
+    let columns = grid.columns();
+    let top = grid.topmost_line().0;
+    let last = Column(columns.saturating_sub(1));
+    let wraps = (top..=grid.bottommost_line().0)
+        .map(|row| grid[Line(row)][last].flags.contains(Flags::WRAPLINE))
+        .collect();
+    marley_terminal::RowsView {
+        first: grid.evicted_lines(),
+        cursor: usize::try_from(grid.cursor.point.line.0 - top).unwrap_or(0),
+        wraps,
+        columns,
+    }
+}
+
 pub(super) fn last_non_empty_lines(term: &Term<ZedListener>, line_count: usize) -> Vec<String> {
     let grid = term.grid();
     let mut lines = Vec::new();

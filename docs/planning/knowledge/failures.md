@@ -2074,3 +2074,24 @@ be shorter than SUN_LEN"), and Marley exited: any `--user-data-dir` deep enough 
 from starting at all. Fixed before the commit: `single_instance::socket_fits()` gates the check,
 and a data directory whose socket does not fit starts without it and logs why; the e2e runner
 makes its profiles under `$XDG_RUNTIME_DIR/marley-e2e/`.
+
+## F-claude-544-the-resize-arms-columns-changed-is-always-false-001
+*severity: high · found in: pipeline 544's Test phase (the first run on the fixed build) · class: a stale-comparison guard · prevented by: PR-claude-compare-against-the-state-the-change-acts-on-001*
+
+The first fix gated the anchors' rewrap on the Resize arm's own `columns_changed`, which compares
+`last_content.terminal_bounds` with the event's bounds. `Terminal::set_size` stores the new bounds
+in `last_content.terminal_bounds` before it queues the event, so by the time the arm runs the two
+are equal and the test is always false: the rewrap never ran, and the scenario failed exactly as
+on the unfixed build (upstream's `reset_cwd_history` on a width change never runs either). Found
+with a temporary log line that never printed. Fixed before the commit: the arm reads the grid's
+rows before and after `resize` and rewraps when the grid's own width changed.
+
+## F-claude-544-a-rewrap-cut-history-rows-without-counting-them-001
+*severity: medium · found in: pipeline 544's Plan (the anchors' sweep) · class: the eviction counter · prevented by: PR-claude-compare-against-the-state-the-change-acts-on-001*
+
+The vendored alacritty's `shrink_columns` rewraps into more rows and then `truncate`s the storage
+to the history limit, cutting the oldest rows without adding them to `evicted_lines`, the counter
+#462 added so absolute lines stay true. With a full history, every narrowing shifted each absolute
+line by the rows it cut: a block's output read the wrong rows, and `block_output_kept` misjudged
+what had left the scrollback. Fixed in #544: the cut rows are counted, recorded in
+`vendor/README.md`.

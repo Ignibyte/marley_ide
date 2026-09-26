@@ -1898,7 +1898,17 @@ impl Terminal {
                     pty_tx.resize(new_bounds);
                 }
 
+                // Marley: a width change rewraps the grid and moves its rows, so the blocks'
+                // anchors are carried across it by logical line (#544). The grid's own width is
+                // the test: `set_size` stored the new bounds before queueing this event, so
+                // `columns_changed` compares them with themselves. A hook placed before the resize
+                // and applied after it keeps its old line: rare, and set right by the next.
+                let rows_before = crate::alacritty::marley_rows_view(term);
                 resize(term, new_bounds);
+                let rows_after = crate::alacritty::marley_rows_view(term);
+                if rows_after.columns != rows_before.columns {
+                    self.blocks.rewrap(&rows_before, &rows_after);
+                }
                 if columns_changed {
                     self.reset_cwd_history();
                 }
