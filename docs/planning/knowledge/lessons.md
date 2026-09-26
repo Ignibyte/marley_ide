@@ -2779,3 +2779,15 @@ A `ContextMenu` a `PopoverMenu` opens on a click starts with its first entry sel
 scenario one Down reaches the second entry and Enter confirms it; #500's first run pressed Down
 twice and opened the third. Take the menu's shot after the steps, so the highlight shows which
 entry Enter will run.
+
+## L-claude-501-zeds-agents-take-tools-from-the-projects-context-servers-001
+*category: build · topic: Zed's agents, MCP · from: pipeline 501*
+
+Every agent of Zed's Agent Panel takes MCP tools from the project's context servers: the Zed
+Agent through its profile (the default `write` has `enable_all_context_servers: true`), and each
+external ACP agent through `session/new`'s `mcpServers`, which `mcp_servers_for_project` builds
+from the merged `context_servers` setting (stdio and HTTP entries; a registry-only descriptor is
+not handed over). So a server added to the defaults with `SettingsStore::update_default_settings`
+reaches all of them at once, and a stdio entry that runs a bridge keeps any bearer out of the
+settings, where an HTTP entry's headers would sit in plain view. `agent: open settings` now opens
+Zed's Settings window at its AI page.

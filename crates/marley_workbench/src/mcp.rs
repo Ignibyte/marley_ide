@@ -8,24 +8,30 @@
 //! the app's arrives here as an [`AppCall`], through a channel a foreground task reads, and is
 //! answered on the main thread. `mcp-endpoint.json` in Marley's data directory (mode 0600) holds
 //! the URL and the bearer as an MCP client's server entry, and goes when Marley quits; the Claude
-//! Code plugin's bridge (`claude_plugin/marley/bin/marley-mcp-bridge`) reads it.
+//! Code plugin's bridge (`claude_plugin/marley/bin/marley-mcp-bridge`) reads it. Zed's own agents
+//! reach the server through the same bridge, which Marley registers as the context server
+//! `marley` among Zed's default settings (#501).
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use futures::StreamExt as _;
 use futures::channel::mpsc;
-use gpui::{App, AppContext as _, Context, Entity, Global};
+use gpui::{App, AppContext as _, BorrowAppContext as _, Context, Entity, Global};
 use marley_mcp::{AppCall, AppCaller, GrantTable, ToolAnswer, discovery, transport};
 use marley_terminal::{AnchoredBlock, BlockState, BlockTimes};
 use serde_json::{Value, json};
+use settings::SettingsStore;
+use settings::settings_content::{ContextServerCommand, ContextServerSettingsContent};
 use terminal_view::TerminalView;
 use terminal_view::terminal_panel::TerminalPanel;
 use util::ResultExt as _;
 use workspace::item::Item as _;
 use workspace::notifications::NotificationId;
 use workspace::{MultiWorkspace, Toast, Workspace};
+
+use crate::claude_plugin;
 
 /// How many of the newest blocks `terminal_blocks` lists when the call names no `last`.
 const DEFAULT_BLOCKS: usize = 50;
@@ -81,6 +87,7 @@ pub fn start(cx: &mut App) {
                 transport::discovery_json(handle.url(), handle.bearer()),
                 cx,
             );
+            offer_to_zeds_agents(data_dir.clone(), cx);
             None
         }
         Err(error) => Some(format!("Marley's MCP server did not start: {error}")),
@@ -106,6 +113,72 @@ pub fn start(cx: &mut App) {
         }
     })
     .detach();
+}
+
+/// The context server Zed's own agents know Marley's server by (#501).
+const CONTEXT_SERVER: &str = "marley";
+
+/// Registers Marley's server as the context server `marley` among Zed's default settings (#501),
+/// so the Zed Agent lists its tools and each external agent's new session is handed it: a stdio
+/// server running the bridge, which reads the endpoint file, so no bearer goes into a setting
+/// and a restart of Marley is followed. The bridge is written off the main thread first; a user's
+/// own `context_servers.marley` wins, as settings do.
+fn offer_to_zeds_agents(data_dir: PathBuf, cx: &App) {
+    let written = cx.background_spawn(futures::future::lazy(move |_| {
+        let bridge = write_bridge_in(&data_dir)?;
+        anyhow::Ok((bridge, data_dir.join("mcp-endpoint.json")))
+    }));
+    cx.spawn(async move |cx| match written.await {
+        Ok((bridge, endpoint)) => cx.update(|cx| {
+            log::info!(
+                "mcp: Zed's own agents reach Marley's tools through the context server \
+                 {CONTEXT_SERVER}, which runs {}",
+                bridge.display()
+            );
+            let command = ContextServerCommand {
+                path: bridge,
+                args: Vec::new(),
+                env: Some(
+                    std::iter::once((
+                        "MARLEY_MCP_ENDPOINT".to_string(),
+                        endpoint.to_string_lossy().into_owned(),
+                    ))
+                    .collect(),
+                ),
+                timeout: None,
+            };
+            cx.update_global::<SettingsStore, _>(|store, cx| {
+                store.update_default_settings(cx, |defaults| {
+                    defaults.project.context_servers.insert(
+                        CONTEXT_SERVER.into(),
+                        ContextServerSettingsContent::Stdio {
+                            enabled: true,
+                            remote: false,
+                            command,
+                        },
+                    );
+                });
+            });
+        }),
+        Err(error) => {
+            log::error!("mcp: Zed's own agents get no Marley tools: the bridge: {error:#}");
+        }
+    })
+    .detach();
+}
+
+/// Writes the bridge into `data_dir` as a program; its path.
+fn write_bridge_in(data_dir: &Path) -> std::io::Result<PathBuf> {
+    let dir = data_dir.join("mcp");
+    std::fs::create_dir_all(&dir)?;
+    let bridge = dir.join("marley-mcp-bridge");
+    std::fs::write(&bridge, claude_plugin::BRIDGE)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(&bridge, std::fs::Permissions::from_mode(0o755))?;
+    }
+    Ok(bridge)
 }
 
 /// Writes the endpoint file off the main thread; a failure is shown as the server's would be.

@@ -33,6 +33,8 @@ OR Apache-2.0, with the Marley crates' lint table.
   `browser.write`, Marley grants when it starts the server. Since #493 every browser tool that
   acts in a page takes `tab`, a page's id from `browser_tabs` (`browser_arguments` adds it to
   each schema), `browser_navigate` takes `new_tab`, and every answer from a page names its tab.
+  Since #501 Zed's own agents reach the server too, through the workbench's context server
+  `marley`, which runs the same bridge over stdio.
   `browser_pick` takes a pick's `id`; its output schema spells out the bundle (`pick_schemas`),
   each listener with its `original` place through the script's source map since #497, and
   every line and column counted from 1.

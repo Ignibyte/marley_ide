@@ -377,7 +377,7 @@ alike.
 - `show_sender` answers a click: it activates the view's window, its workspace in the
   multi-workspace and its item, and clears the bell, as the rail's `activate_terminal` does.
 
-## Marley's MCP server (`src/mcp.rs`, #491)
+## Marley's MCP server (`src/mcp.rs`, #491, #501)
 
 - `start`, which `zed`'s `main` calls after `initialize_workspace` (Zed's tests run
   `initialize_workspace`, and must not start a server), spawns `marley_mcp`'s server once per
@@ -396,6 +396,13 @@ alike.
     and `Terminal::block_output_kept`;
   - `terminal_read`: `Terminal::block_output`, the last 2,000 lines and at most 256 KiB, and
     whether anything was left out.
+- Since #501, once the server runs, `offer_to_zeds_agents` writes the bridge
+  (`claude_plugin::BRIDGE`) to `<data dir>/mcp/marley-mcp-bridge` off the main thread and adds
+  `context_servers.marley` to Zed's default settings: a stdio server running it, with
+  `MARLEY_MCP_ENDPOINT` naming the endpoint file. Zed's context server store then runs it for
+  each local project, where the Zed Agent's Write profile (`enable_all_context_servers`) takes
+  its tools from, and `mcp_servers_for_project` hands it to each external agent's `session/new`.
+  No bearer goes into a setting; a user's own `context_servers.marley` replaces the default.
 
 ## The browser's agent tools (`src/browser_tools.rs`, #492, #493)
 

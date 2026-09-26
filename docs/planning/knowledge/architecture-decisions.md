@@ -2079,3 +2079,14 @@ Agents read recordings with `browser_recordings` and `browser_recording`. Reject
 pages no tab draws (an agent's background work would fill memory unseen); keeping typed text
 (a password is typed text); a video file (the frames already are the JPEGs Chromium sent);
 pruning by age (a recording stays until removed by hand, as the spec's scope says).
+
+## AD-claude-501-marleys-server-is-a-default-context-server-001
+*decided at: 2026-09-25 · status: shipped*
+
+Marley offers its MCP server to Zed's own agents as the context server `marley` among Zed's
+default settings, a stdio server running Marley's bridge with `MARLEY_MCP_ENDPOINT`, added once
+the server runs. The Zed Agent's Write profile lists its tools and every external agent of the
+Agent Panel is handed it at `session/new`, so each can drive the Browser tab as Claude Code in a
+terminal does through the plugin. Rejected: an HTTP entry with the URL and the bearer (the bearer
+would sit in the settings the Settings window shows, and change at every start); writing the
+entry into the user's settings file (Marley's state would land in a file the user owns).

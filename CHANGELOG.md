@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Zed's own agents drive the browser too** (#501, 2026-09-25). Marley now offers its MCP
+  server to the agents of the Agent Panel: the Zed Agent (in its default Write profile) gets
+  Marley's tools, the terminals and the Browser tabs among them, and every external agent you
+  start there, Claude Agent, Codex and the rest, is handed Marley's server with its session. So
+  any of them can open a page in a Browser tab and click, type and scroll while you watch. It is
+  the context server `marley`, running Marley's small bridge; no password or token goes into your
+  settings, and `"context_servers": {"marley": {"enabled": false}}` turns it off.
 - **A Browser tab from the rail** (#500, 2026-09-25). A project's + in the rail now lists New
   Browser Tab after New Terminal: it brings the project to the front and opens a blank page in
   a new Browser tab there, with the cursor in the address bar, starting Marley's Chromium when it

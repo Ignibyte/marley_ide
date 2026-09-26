@@ -22,6 +22,11 @@ pub const MARKETPLACE: &str = "marley";
 /// The plugin's id as Claude Code lists it.
 pub const PLUGIN: &str = "marley@marley";
 
+/// Marley's MCP bridge (#491): Python 3, the standard library only. It reads Marley's endpoint
+/// file and passes each JSON-RPC message of a stdio MCP client to Marley's server; the plugin
+/// ships it, and Zed's own agents run it as the context server `marley` (#501).
+pub(crate) const BRIDGE: &str = include_str!("../claude_plugin/marley/bin/marley-mcp-bridge");
+
 /// The plugin's files, by their path in the marketplace, and whether each is a program.
 const FILES: [(&str, &str, bool); 6] = [
     (
@@ -40,11 +45,7 @@ const FILES: [(&str, &str, bool); 6] = [
         include_str!("../claude_plugin/marley/.mcp.json"),
         false,
     ),
-    (
-        "marley/bin/marley-mcp-bridge",
-        include_str!("../claude_plugin/marley/bin/marley-mcp-bridge"),
-        true,
-    ),
+    ("marley/bin/marley-mcp-bridge", BRIDGE, true),
     (
         "marley/hooks/hooks.json",
         include_str!("../claude_plugin/marley/hooks/hooks.json"),
