@@ -43,18 +43,43 @@ OR Apache-2.0, with the Marley crates' lint table.
   A `ToolAnswer` can carry an image (`ToolImage`), which reaches the client as an MCP image block
   after the text.
 
-## Redaction (`redact.rs`, #516)
+## Redaction (`redact.rs`, #516, #562)
 
 - `Redactor::new(patterns)` builds the redactor from the user's regular expressions and returns
   the errors of those that did not compile, which it leaves out. `redact(text)` answers a
   `Redacted { text, count }`: each secret replaced by `[redacted: <kind>]`, and how many.
-- The built-in rules (`BUILT_IN`, compiled once) run in order: private key blocks (PEM and PGP;
-  one with no END line yet is hidden to the end of the text), values assigned to secret-named
-  variables (the name kept), `Bearer` values (the word kept), a URL's password or a lone token as
-  its userinfo (the scheme, the user and the `@` kept), then AWS key ids, GitHub, Slack, Stripe,
-  Google and `sk-` keys, and JWTs. A value an earlier rule already turned into a marker is left
-  alone, so a token assigned to `GITHUB_TOKEN=` counts once. The user's patterns run last, as
-  `[redacted: pattern]`.
+- The built-in rules (`BUILT_IN`, compiled once) run in order:
+  - private key blocks (PEM and PGP; one with no END line yet is hidden to the end of the text);
+  - cookie headers (the label kept and the whole value hidden, up to a quote that closes the
+    argument the header sits in);
+  - values assigned to secret-named variables, the name kept (hyphenated names such as
+    `x-api-key` count);
+  - `Bearer` values (the word kept);
+  - authorization credentials (the label and the scheme kept, a Digest parameter list hidden
+    whole);
+  - a URL's password, or a lone token as its userinfo (the scheme, the user and the `@` kept);
+  - then AWS key ids, GitHub, Slack, Stripe, Google and `sk-` keys, and JWTs.
+- A value an earlier rule already turned into a marker is left alone, so a token assigned to
+  `GITHUB_TOKEN=` counts once. The order is load-bearing:
+  - the cookie rule comes before `secret`, so a cookie named `token=` is hidden once, as a cookie;
+  - `authorization` is not a `secret` name, since that rule's value would stop at the space after
+    `Basic`;
+  - the `authorization` rule follows `bearer token` and leaves its marker.
+- The user's patterns run last, as `[redacted: pattern]`.
+- #562 compared the rules with Orca's redactor (`src/main/observability/redactor.ts`, MIT, read
+  at `1c2cf120e3`) rule by rule:
+
+  | Orca's rule | Marley's answer |
+  |---|---|
+  | Labelled pairs (`api[-_]?key`, `token`, `secret`, `password`, `bearer`, `authorization`), the label hidden too | The `secret` rule keeps the name; since #562 it takes the hyphen forms and `BEARER` and `PRIVKEY`. `authorization` has its own rule, which also hides a two-word credential (`Basic …`) that Orca's `\S+` value cuts at the space |
+  | Anthropic, OpenAI, GitHub, AWS key id and Slack shapes | The same shapes, some wider (`api key` takes both `sk-` forms, `github_pat_`, `ASIA`); the kinds stay coarse, `api key` rather than one per vendor |
+  | `aws_secret_access_key = <40 characters>` | The `secret` rule (the name holds `SECRET` and `ACCESS_KEY`) |
+  | JWT | The same, with the payload starting `eyJ` too |
+  | Any PEM block | Private-key blocks only: certificates and public keys are not secrets, and an agent reading a chain needs them |
+  | URL userinfo, the whole of it | A password after the user, or a lone token of 20 characters or more; a bare user name (`https://admin@host/`) stays |
+  | Every `.env` line | Left out (#516): `env` output would lose `PATH` and every harmless value |
+  | The attribute blocklist (`cookie`, `set-cookie`, `proxy-authorization`, …) | The `cookie` rule and `proxy-authorization` in the `authorization` rule, for text; the structured keys (`env`, `install_id`) have no text form |
+  | Idempotent passes, `[redacted:<tag>]` | The marker skip in `apply`, `[redacted: <kind>]` |
 - The module is pure: the workbench calls it on what its tools answer (`marley_workbench.md`,
   the MCP server), and the terminal's own buffer never changes.
 

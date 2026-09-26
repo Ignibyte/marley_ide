@@ -21,3 +21,4 @@
 577-restored-terminal-keeps-its-folder.sh  # a restored terminal opens in the folder it was in
 576-browser-tabs-table-item-id-not-unique.sh  # a Browser tab's row survives another workspace's tab of the same item id
 549-selection-to-the-agent.sh  # the editor's selection typed at a terminal agent's prompt; the picker, rich input, the refusal
+562-orca-redactor-cross-check.sh  # the rules from Orca's redactor: authorization schemes, hyphenated names, cookies

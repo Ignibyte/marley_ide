@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #562 (chore, prong 2: the MCP server's tools, #516's redactor)
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/562-orca-redactor-cross-check.spec.md
+- **Pipeline doc:** ../../pipeline/completed/562-orca-redactor-cross-check.spec.md
 - **Source ticket:** The Orca second pass of 2026-09-25 (`docs/planning/design-notes/orca-second-pass-2026-09-25.md`), the five smaller details, item 3; Chad decided on 2026-09-26 that every remaining Orca and Warp finding gets built.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 #516's Test phase compared Marley's redactor with Orca's once, took two rules from it (a bare

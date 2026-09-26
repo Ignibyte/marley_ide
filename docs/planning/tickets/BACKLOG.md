@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-562](open/TICKET-562-orca-redactor-cross-check.md) | chore | prong 2 · Orca's redactor compared rule by rule with #516's; the gaps added: Basic and Token authorization headers, hyphenated secret names, cookies |
 | [TICKET-503](open/TICKET-503-terminal-urls-open-in-the-browser.md) | feature | prong 3 with prong 1 · a local URL in a terminal opens a Browser tab; the terminal offers a dev server's URL while its port listens |
 | [TICKET-561](open/TICKET-561-browser-env-opener.md) | feature | prong 3 with prong 1 · programs that open a browser land in a Browser tab of their project, through BROWSER in Marley's terminals; after #503 |
 | [TICKET-504](open/TICKET-504-browser-tabs-in-the-rail.md) | feature | prong 3 · Browser tabs as rows of their project in the rail |

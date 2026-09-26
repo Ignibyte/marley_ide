@@ -468,6 +468,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **More secrets hidden from what agents read** (#562, 2026-09-26). An `Authorization` or
+  `Proxy-Authorization` header now loses its credential under any common scheme, not only
+  `Bearer`: `Basic`, `Token`, `Negotiate`, `NTLM`, `ApiKey`, and `Digest` with its whole parameter
+  list. Agents read `Authorization: Basic [redacted: authorization]`, so the scheme still shows.
+  A `Cookie` or `Set-Cookie` header loses its whole value (`[redacted: cookie]`), and values set on
+  hyphenated names such as `x-api-key`, `private-key` and `access-key`, or on `BEARER` and
+  `PRIVKEY`, are hidden like `API_KEY`'s. The rules come from comparing Orca's redactor with
+  Marley's rule by rule. Orca's rule that hides every `NAME=value` line stays out, so `env` output
+  still shows `PATH`.
 - **Telemetry is off by default** (#514, 2026-09-25). Marley no longer sends Zed's usage
   metrics or crash and hang reports unless you turn them on: `telemetry.metrics` and
   `telemetry.diagnostics` now default to false. Both are still settings, in your settings file or

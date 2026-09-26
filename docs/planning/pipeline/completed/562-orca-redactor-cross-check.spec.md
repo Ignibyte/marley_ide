@@ -1,7 +1,7 @@
 ---
 pipeline_id: b110f49b-4276-4a85-84cb-efaa86e4ccdb
 ticket: docs/planning/tickets/open/TICKET-562-orca-redactor-cross-check.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Orca's redactor as a cross-check for #516's rules"
 type: chore
 slice: prong 2, the MCP server's tools (#516's redactor); the Orca second pass, smaller item 3
@@ -24,7 +24,9 @@ scenario stays true.
   Redaction section at Complete.
 - **`crates/marley_mcp/src/redact.rs`**:
   - the `secret` rule's name alternation takes `API[_-]?KEY`, `PRIVATE[_-]?KEY`, `ACCESS[_-]?KEY`,
-    and the names `AUTHORIZATION`, `BEARER` and `PRIVKEY`;
+    and the names `BEARER` and `PRIVKEY` (promotion: not `AUTHORIZATION`, which in that rule
+    would take `Bearer` as the value and leave the token after it; the `authorization` rule
+    covers every `authorization` label);
   - a new `authorization` rule, after the `bearer token` rule: `(?i)(\b(?:proxy-)?authorization["']?[ \t]*[=:][ \t]*(?:(?:basic|bearer|token|digest|negotiate|ntlm|apikey)[ \t]+)?)("[^"\n]*"|'[^'\n]*'|[^\s"',;]+)`,
     keeping group 1 (the label and the scheme word) and hiding the credential as
     `[redacted: authorization]`; a credential already hidden by an earlier rule is left alone,
@@ -66,7 +68,7 @@ scenario stays true.
 | Rule 3, `URL_USERINFO` `(https?://)([^/@\s]+)@`: the whole userinfo | `url password`: `user:pass@` keeps the user; a bare token of 20 or more `[A-Za-z0-9_-]` before `@` | Kept as Marley's: a bare user name (`https://admin@host/`) is not a secret |
 | Rule 4, `ENV_LINE` `^\s*[A-Z_][A-Z0-9_]*\s*=\s*\S.*` | Secret-named values only | Left out (#516) |
 | The attribute blocklist: `cookie`, `set-cookie`, `proxy-authorization`, `headers.authorization`, `env`, `install_id`, … | None (structured data) | Added for text: the `cookie` rule; `proxy-authorization` in the `authorization` rule |
-| The key-family drop `apikey\|token\|secret\|password\|authorization\|bearer\|privkey\|privatekey` | `APIKEY` through `API_?KEY`; `PRIVATEKEY` through `PRIVATE_?KEY` | Added: `AUTHORIZATION`, `BEARER`, `PRIVKEY` |
+| The key-family drop `apikey\|token\|secret\|password\|authorization\|bearer\|privkey\|privatekey` | `APIKEY` through `API_?KEY`; `PRIVATEKEY` through `PRIVATE_?KEY` | Added: `BEARER` and `PRIVKEY` as names; `authorization` through the `authorization` rule |
 | Idempotent passes (three locations) | `apply` leaves a value that is a marker already | Same |
 | Tags `[redacted:<tag>]` | Kinds `[redacted: <kind>]` | Same shape; the kind names stay Marley's |
 

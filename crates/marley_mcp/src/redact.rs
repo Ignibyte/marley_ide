@@ -1,11 +1,12 @@
-//! Secrets hidden from what agents read (#516).
+//! Secrets hidden from what agents read (#516, #562).
 //!
 //! Marley's tools hand agents terminal commands, their output and the browser's console. Before
 //! any of it leaves, [`Redactor::redact`] replaces what looks like a secret with
-//! `[redacted: <kind>]`: known key and token shapes, private key blocks, bearer headers, passwords
-//! in URLs, values assigned to secret-named variables, and the user's own patterns. It names the
-//! kind so an agent knows something was there, and counts the replacements for the tool's answer.
-//! The terminal's own buffer is never changed: only what goes to a model is.
+//! `[redacted: <kind>]`: known key and token shapes, private key blocks, bearer tokens and other
+//! authorization credentials, cookie headers, passwords in URLs, values assigned to secret-named
+//! variables, and the user's own patterns. It names the kind so an agent knows something was
+//! there, and counts the replacements for the tool's answer. The terminal's own buffer is never
+//! changed: only what goes to a model is.
 
 use std::sync::LazyLock;
 
@@ -37,15 +38,37 @@ const BUILT_IN: &[(&str, &str, Option<usize>, Option<usize>)] = &[
         None,
         None,
     ),
+    // A cookie header is a list of credentials, so all of it goes: the rest of the line, or up
+    // to a quote before a space or the line's end, which closes the argument the header sits in
+    // (`curl -H "Cookie: …" <url>`). It runs before `secret`, which would otherwise take a cookie
+    // named `token=` first and leave the others.
+    (
+        "cookie",
+        r#"(?i)(\b(?:set-)?cookie["']?[ \t]*[=:][ \t]*)("[^"\n]*"|'[^'\n]*'|(?:[^\n"']|["'][^\s"'])+)"#,
+        Some(1),
+        None,
+    ),
     (
         "secret",
-        r#"(?i)(\b(?:export[ \t]+)?[A-Z0-9_.-]*(?:SECRET|TOKEN|PASSWORD|PASSWD|PASSPHRASE|API_?KEY|PRIVATE_?KEY|ACCESS_?KEY|CREDENTIALS?)[A-Z0-9_.-]*["']?[ \t]*[=:][ \t]*)("[^"\n]*"|'[^'\n]*'|[^\s"',;]+)"#,
+        r#"(?i)(\b(?:export[ \t]+)?[A-Z0-9_.-]*(?:SECRET|TOKEN|PASSWORD|PASSWD|PASSPHRASE|API[_-]?KEY|PRIVATE[_-]?KEY|ACCESS[_-]?KEY|CREDENTIALS?|BEARER|PRIVKEY)[A-Z0-9_.-]*["']?[ \t]*[=:][ \t]*)("[^"\n]*"|'[^'\n]*'|[^\s"',;]+)"#,
         Some(1),
         None,
     ),
     (
         "bearer token",
         r"(?i)(\bbearer[ \t]+)[A-Za-z0-9._~+/-]{16,}=*",
+        Some(1),
+        None,
+    ),
+    // `authorization` is not a `secret` name: that rule's value stops at the space after the
+    // scheme, and on `Authorization: Basic <credential>` it would hide `Basic` and leave the
+    // credential. This rule keeps the scheme and hides what follows, a Digest header's parameter
+    // list whole. A list has two parameters at least, so a Basic credential's `=` padding is not
+    // read as one and the quote after it kept. It runs after `bearer token`, whose marker it
+    // leaves as it is.
+    (
+        "authorization",
+        r#"(?i)(\b(?:proxy-)?authorization["']?[ \t]*[=:][ \t]*(?:["']?(?:basic|bearer|token|digest|negotiate|ntlm|apikey)[ \t]+)?)("[^"\n]*"|'[^'\n]*'|[\w.-]+=(?:"[^"\n]*"|[^\s",]+)(?:[ \t]*,[ \t]*[\w.-]+=(?:"[^"\n]*"|[^\s",]+))+|[^\s"',;]+)"#,
         Some(1),
         None,
     ),

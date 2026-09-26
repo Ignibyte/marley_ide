@@ -2193,3 +2193,25 @@ The first `send` inserted the reference into the target's rich input whenever it
 without bringing its terminal to the front, so with the file's editor in front of that terminal
 in the same pane the text went into a hidden editor and the user saw nothing happen. Fixed in
 #549: `send` activates the window and reveals the terminal before the insert.
+
+## F-claude-562-a-one-word-value-rule-would-have-hidden-the-scheme-and-left-the-credential-001
+*severity: high · found in: pipeline 562's promotion (reading the plan against the `secret` rule) · class: redaction rule shape · prevented by: PR-claude-a-labels-values-decide-which-redaction-rule-owns-it-001*
+
+#562's plan added `AUTHORIZATION` to the `secret` rule's names. That rule keeps the name and
+hides one value, quoted or bare, and a bare value stops at the first space. An authorization
+header's value is two words, a scheme and a credential. On `Authorization: Basic <credential>`
+the rule would have hidden `Basic` and passed the credential. On `Authorization: Bearer <token>`
+it would have run before the `bearer token` rule, hidden `Bearer` the same way, and passed the
+token, which #516 hid. Found before any code was written. Fixed in #562: `authorization` has a
+rule of its own, which keeps the label and the scheme word and hides what follows.
+
+## F-claude-562-a-digest-list-read-base64-padding-as-a-parameter-001
+*severity: low · found in: pipeline 562's Test (modelling the scenario's lines before the run) · class: redaction rule shape*
+
+The `authorization` rule's Digest alternative took one `name=value` parameter or more. A Basic
+credential whose base64 ends in one `=` matched as a parameter: the base64 as the name, the `=` as
+the separator. In a JSON body (`"Basic <b64>=", "Accept": …`) the value then ran from the closing
+quote to the next opening one. The agent would have read `…[redacted: authorization]Accept": …`, with the quote,
+the comma and the next key's quote gone. Nothing leaked, but the JSON no longer parsed. Fixed in
+#562: a Digest list takes two parameters or more, as every real Digest header has. The
+scenario's JSON line uses a credential with one `=` of padding.

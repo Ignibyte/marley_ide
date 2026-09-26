@@ -2973,3 +2973,23 @@ A step that must reach the Agent Panel sets a stand-in ACP agent in the run's se
 Under the headless sway, `press "CTRL SHIFT" period` does not match Zed's `ctrl->`; `press CTRL
 greater`, the symbol the binding names, does. Press a binding written with a shifted symbol by
 that symbol's key name.
+
+## L-claude-562-model-a-redaction-rule-change-in-python-before-the-build-001
+*category: code · topic: redaction rules · from: pipeline 562*
+
+A change to `redact.rs`'s rules can be checked in a second, before a build, with a scratch model
+of `redact` and `apply` in Python that reads `BUILT_IN` from the file. On these patterns Python's
+`re` and Rust's `regex` agree: leftmost-first alternation, no lookaround and no backreferences.
+Feed it the lines the scenario will print, plus the lines of every scenario that reads through
+the redactor. #562's model found the padding bug in F-claude-562, and the e2e run then matched
+the model line for line. The e2e scenario stays the proof. The model only makes the first run
+green more often.
+
+## L-claude-562-a-block-read-joins-a-wrapped-line-before-redaction-001
+*category: platform · topic: terminal reads · from: pipeline 562*
+
+A block's text comes from alacritty's `main_bounds_to_string`, which appends no newline after a
+row whose last cell carries `WRAPLINE`. A line longer than the terminal is wide therefore reaches
+the redactor as one line, however it wraps on screen. #562's Digest header wrapped in the
+headless sway and came back whole as `Authorization: Digest [redacted: authorization]`. The
+redactor's rules can end values at `\n`, since a line that only wrapped holds none.

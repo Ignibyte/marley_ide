@@ -2259,3 +2259,16 @@ sets empty for every terminal it does not restore, so no program sees an id unde
 inherited value is never taken. Rejected: a column in Zed's table (AD-claude-520); reading the
 table at `deserialize` (the panel's cleanup deletes rows mid-restore); removing the key from the
 map (the program inherits Marley's environment besides it).
+
+## AD-claude-562-authorization-and-cookie-headers-have-rules-of-their-own-001
+*decided at: 2026-09-26 · status: shipped*
+
+Marley's redactor hides an authorization header's credential under every common scheme
+(`Basic`, `Bearer`, `Token`, `Digest` with its whole parameter list, `Negotiate`, `NTLM`,
+`ApiKey`), keeping the label and the scheme word so an agent knows what kind of credential it
+was. It hides a cookie header's whole value, since a `Cookie:` line is a list of credentials. The
+`secret` rule gains the hyphen forms of its key names, plus `BEARER` and `PRIVKEY`. The
+comparison with Orca's redactor, rule by rule, is kept in `marley_mcp.md`. Rejected:
+`AUTHORIZATION` as a `secret` name (F-claude-562); hiding a cookie header's first pair only (the
+rest pass); Orca's `.env` and every-PEM rules (they would hide `PATH` and certificates, as #516
+found); one kind per vendor for `sk-` keys (the kind tells the agent enough).

@@ -2346,3 +2346,12 @@ State a Marley item restores from Zed's per-item tables is read before any clean
 `init` or from memory kept since, never from the table at the item's `deserialize`: Zed runs
 more than one `cleanup` for one kind (the workspace's, and a panel's with its own items), each
 with its own list of live items, and one can land between two items' restores.
+
+## PR-claude-a-labels-values-decide-which-redaction-rule-owns-it-001
+*severity: high · prevents: F-claude-562-a-one-word-value-rule-would-have-hidden-the-scheme-and-left-the-credential-001*
+
+Before a label joins a redaction rule, write down the values it carries and check them against
+that rule's value pattern. The `secret` rule hides one word, so a label whose value is a scheme
+and a credential (`Authorization`, `Proxy-Authorization`) or a list (`Cookie`) gets a rule of
+its own, one that keeps the label and the scheme and hides everything after them. A new rule's
+place in `BUILT_IN` is checked against every rule before it, with a line that both could match.
