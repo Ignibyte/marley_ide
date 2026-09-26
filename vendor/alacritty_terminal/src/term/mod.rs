@@ -662,6 +662,87 @@ impl<T> Term<T> {
         }
     }
 
+    // Marley: `bounds_to_string` over the main screen, where Marley's blocks live, whichever screen
+    // shows (#546). `grid_line_to_string` is `line_to_string` reading the grid it is given.
+    /// Convert a range of the main screen between two points to a String.
+    pub fn main_bounds_to_string(&self, start: Point, end: Point) -> String {
+        let grid = self.main_grid();
+        let mut res = String::new();
+
+        for line in (start.line.0..=end.line.0).map(Line::from) {
+            let start_col = if line == start.line { start.column } else { Column(0) };
+            let end_col = if line == end.line { end.column } else { self.last_column() };
+
+            res += &self.grid_line_to_string(grid, line, start_col..end_col, line == end.line);
+        }
+
+        res.strip_suffix('\n').map(str::to_owned).unwrap_or(res)
+    }
+
+    /// Convert a single line of `grid` to a String.
+    fn grid_line_to_string(
+        &self,
+        grid: &Grid<Cell>,
+        line: Line,
+        mut cols: Range<Column>,
+        include_wrapped_wide: bool,
+    ) -> String {
+        let mut text = String::new();
+
+        let grid_line = &grid[line];
+        let line_length = cmp::min(grid_line.line_length(), cols.end + 1);
+
+        // Include wide char when trailing spacer is selected.
+        if grid_line[cols.start].flags.contains(Flags::WIDE_CHAR_SPACER) {
+            cols.start -= 1;
+        }
+
+        let mut tab_mode = false;
+        for column in (cols.start.0..line_length.0).map(Column::from) {
+            let cell = &grid_line[column];
+
+            // Skip over cells until next tab-stop once a tab was found.
+            if tab_mode {
+                if self.tabs[column] || cell.c != ' ' {
+                    tab_mode = false;
+                } else {
+                    continue;
+                }
+            }
+
+            if cell.c == '\t' {
+                tab_mode = true;
+            }
+
+            if !cell.flags.intersects(Flags::WIDE_CHAR_SPACER | Flags::LEADING_WIDE_CHAR_SPACER) {
+                // Push cells primary character.
+                text.push(cell.c);
+
+                // Push zero-width characters.
+                for c in cell.zerowidth().into_iter().flatten() {
+                    text.push(*c);
+                }
+            }
+        }
+
+        if cols.end >= self.columns() - 1
+            && (line_length.0 == 0 || !grid[line][line_length - 1].flags.contains(Flags::WRAPLINE))
+        {
+            text.push('\n');
+        }
+
+        // If wide char is not part of the selection, but leading spacer is, include it.
+        if line_length == self.columns()
+            && line_length.0 >= 2
+            && grid_line[line_length - 1].flags.contains(Flags::LEADING_WIDE_CHAR_SPACER)
+            && include_wrapped_wide
+        {
+            text.push(grid[line - 1i32][Column(0)].c);
+        }
+
+        text
+    }
+
     /// Resize terminal to new dimensions.
     pub fn resize<S: Dimensions>(&mut self, size: S) {
         let old_cols = self.columns();

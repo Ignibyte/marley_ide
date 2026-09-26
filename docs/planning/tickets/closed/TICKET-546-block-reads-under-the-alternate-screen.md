@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #546 (bug, prong 1 T0 with prong 2's terminal tools)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** (none yet)
+- **Pipeline doc:** ../../pipeline/completed/546-block-reads-under-the-alternate-screen.spec.md
 - **Source ticket:** found in #544's Plan, 2026-09-26, by the sweep of the block anchors
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Blocks live on the terminal's main screen. While a full-screen program (vim, less, htop) holds

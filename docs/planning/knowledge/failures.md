@@ -2095,3 +2095,13 @@ to the history limit, cutting the oldest rows without adding them to `evicted_li
 line by the rows it cut: a block's output read the wrong rows, and `block_output_kept` misjudged
 what had left the scrollback. Fixed in #544: the cut rows are counted, recorded in
 `vendor/README.md`.
+
+## F-claude-546-block-reads-answered-from-the-alternate-screen-001
+*severity: medium · found in: pipeline 544's Plan (the anchors' sweep) · class: two screens, one reader · prevented by: PR-claude-compare-against-the-state-the-change-acts-on-001*
+
+`absolute_lines_text` (behind `terminal_read`) and `block_output_kept` (behind `terminal_blocks`)
+read `term.grid()`, the active grid. While a full-screen program holds the alternate screen, that
+is the alternate grid, whose own evicted count climbs as the program scrolls: an agent asking for
+an earlier block while the user sat in `less` was told its output had left the scrollback (#546's
+unfixed run), or could get the program's rows. Fixed in #546: both read the main screen
+(`Term::main_grid`, `Term::main_bounds_to_string`, vendored).

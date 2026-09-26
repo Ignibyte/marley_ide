@@ -472,6 +472,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Agents read blocks while vim or less is open** (#546, 2026-09-26). While a full-screen
+  program held the terminal, an agent asking for an earlier command's output was told it had left
+  the scrollback, or got the full-screen program's rows. Marley now reads blocks from the
+  terminal's main screen, where they live, whatever the terminal shows.
 - **Blocks survive a resize** (#544, 2026-09-26). Making a terminal narrower or wider rewraps
   its long lines, and every block before the rewrap lost its place: its bar and pill vanished or
   sat on the wrong rows, and an agent reading a block got rows from its neighbours. Blocks now

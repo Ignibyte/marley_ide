@@ -117,7 +117,9 @@ real, reusable session. The Block model is the unit the **brain** later observes
 - `anchored.rs` (#464, written in the fork) — `AnchoredBlocks`, the same transitions for Zed's
   terminal, where a block records absolute lines instead of copying its output: `prompt_line`,
   `output_start` and `output_end` from each hook's position. Zed's `Terminal::block_output` reads the
-  lines from its grid while they are held. A resize that changes the width rewraps the grid and
+  lines from the main screen's grid while they are held (`main_grid` and `main_bounds_to_string`,
+  vendored, so a read while a full-screen program shows reads the blocks and not the alternate
+  screen, #546). A resize that changes the width rewraps the grid and
   moves its rows, so `AnchoredBlocks::rewrap` (#544) carries every anchor (the three per block,
   the staged prompt's line, the input's start with its column) across it: each becomes a place
   alacritty's rewrap keeps, logical lines from the cursor's logical line and a character offset

@@ -10,3 +10,4 @@
 516-secret-redaction-for-agents.sh  # secrets hidden from what agents read
 513-one-marley-per-data-dir.sh    # startup: one Marley per data directory
 544-blocks-survive-a-rewrap.sh    # blocks across a resize that rewraps the terminal
+546-block-reads-under-the-alternate-screen.sh  # block reads while vim or less holds the screen

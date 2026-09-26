@@ -1867,7 +1867,8 @@ impl Terminal {
     // Marley: the MCP server's `terminal_blocks` (#491).
     /// Whether a block's output is still in the scrollback: its first line has not been evicted.
     pub fn block_output_kept(&self, block: &marley_terminal::AnchoredBlock) -> bool {
-        block.output_start >= self.term.lock().grid().evicted_lines()
+        // The main screen's count: the alternate screen's climbs as a full-screen program scrolls (#546).
+        block.output_start >= self.term.lock().main_grid().evicted_lines()
     }
 
     pub fn selection_started(&self) -> bool {

@@ -25,6 +25,8 @@
 #   one's timeline and saves a frame (#499). `terminal-read <text>` reads the newest block, in
 #   any terminal, whose command holds the text: its command, the redaction counts and its
 #   output (#516). `terminals` lists every terminal: its id, title, project and folder (#513).
+#   `blocks` lists every terminal's blocks: command, exit code, whether it runs and whether its
+#   output is still kept (#546).
 # - `browser_profile` and `browser_unit` name the run's Chromium profile and its user unit;
 #   `browser_teardown`, for the scenario's `teardown`, stops the unit and the servers.
 
@@ -353,6 +355,12 @@ def main():
             answer = result["structuredContent"]
             box = answer["box"]
             print(f"  {reference}: {answer['did']}, annotation {answer['id']} at {box['x']:.0f},{box['y']:.0f} {box['width']:.0f}x{box['height']:.0f}")
+    elif command == "blocks":
+        listed = client.tool("terminal_list")
+        for terminal in (listed or {}).get("structuredContent", {}).get("terminals", []):
+            answer = (client.tool("terminal_blocks", {"terminal": terminal["id"]}) or {}).get("structuredContent", {})
+            for block in answer.get("blocks", []):
+                print(f"  block {block['index']}: {block['command']!r}, exit {block['exit_code']}, running {block['running']}, kept {block['output_kept']}")
     elif command == "terminals":
         result = client.tool("terminal_list")
         for terminal in (result or {}).get("structuredContent", {}).get("terminals", []):

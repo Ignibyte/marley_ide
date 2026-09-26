@@ -977,7 +977,8 @@ pub(super) fn absolute_lines_text(
     start: u64,
     end: Option<u64>,
 ) -> Option<String> {
-    let grid = term.grid();
+    // The main screen's grid, which holds the blocks while a full-screen program shows (#546).
+    let grid = term.main_grid();
     let oldest = grid.evicted_lines();
     let history = grid.history_size() as u64;
     let to_line = |absolute: u64| -> Option<Line> {
@@ -995,7 +996,7 @@ pub(super) fn absolute_lines_text(
     if first > last {
         return Some(String::new());
     }
-    Some(term.bounds_to_string(
+    Some(term.main_bounds_to_string(
         AlacPoint::new(first, Column(0)),
         AlacPoint::new(last, term.last_column()),
     ))

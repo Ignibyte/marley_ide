@@ -43,7 +43,10 @@ the record of what each copy is and how it differs from upstream.
   - `src/grid/resize.rs`: `shrink_columns` counts the rows its `truncate` cuts off the top of a
     full history in `evicted_lines`, a fourth place history lines are dropped (#544).
   - `src/term/mod.rs`: `Term::main_grid`, the main screen's grid whichever screen shows, which
-    `resize` rewraps even while the alternate screen shows (#544).
+    `resize` rewraps even while the alternate screen shows (#544); `Term::main_bounds_to_string`
+    and its private `grid_line_to_string`, `bounds_to_string` and `line_to_string` over a given
+    grid, so a block read while a full-screen program shows reads the main screen (#546). At a
+    re-sync, compare `grid_line_to_string` with upstream's `line_to_string`, which it copies.
   - `src/grid/tests.rs`: the two `evicted_lines` tests (#462).
 - **Standalone build:** `Cargo.lock` is the copy's own, and gate:2 builds the copy with its
   tests (`cargo check --locked --all-targets --manifest-path vendor/alacritty_terminal/Cargo.toml`);
