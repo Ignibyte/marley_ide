@@ -41,6 +41,21 @@ OR Apache-2.0, with the Marley crates' lint table.
   A `ToolAnswer` can carry an image (`ToolImage`), which reaches the client as an MCP image block
   after the text.
 
+## Redaction (`redact.rs`, #516)
+
+- `Redactor::new(patterns)` builds the redactor from the user's regular expressions and returns
+  the errors of those that did not compile, which it leaves out. `redact(text)` answers a
+  `Redacted { text, count }`: each secret replaced by `[redacted: <kind>]`, and how many.
+- The built-in rules (`BUILT_IN`, compiled once) run in order: private key blocks (PEM and PGP;
+  one with no END line yet is hidden to the end of the text), values assigned to secret-named
+  variables (the name kept), `Bearer` values (the word kept), a URL's password or a lone token as
+  its userinfo (the scheme, the user and the `@` kept), then AWS key ids, GitHub, Slack, Stripe,
+  Google and `sk-` keys, and JWTs. A value an earlier rule already turned into a marker is left
+  alone, so a token assigned to `GITHUB_TOKEN=` counts once. The user's patterns run last, as
+  `[redacted: pattern]`.
+- The module is pure: the workbench calls it on what its tools answer (`marley_workbench.md`,
+  the MCP server), and the terminal's own buffer never changes.
+
 ## The transport (`transport.rs`, `session.rs`, `auth.rs`, `discovery.rs`, `secret.rs`)
 
 - `spawn(shared, effects, caller)` binds `127.0.0.1:0`, mints a 32-hex bearer from

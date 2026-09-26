@@ -2285,3 +2285,12 @@ did not expect, or never send the initializing one at all: treat the state as ab
 drop the event, or queue it until the state arrives, and log a failure to build it rather than
 panic. When touching such a handler, including an upstream Zed one, grep it for `.unwrap()` and
 `.expect(` on shared state and ask what happens if the setup event is missing or fails.
+
+## PR-claude-redact-the-whole-text-before-cutting-it-001
+*severity: high · prevents: F-claude-516-a-cut-before-redaction-leaks-the-cut-secret-001*
+
+Run a redaction pass over the whole text before any truncation, paging or tailing, and cut the
+redacted text. A rule that anchors on a header or a prefix (`-----BEGIN`, `Bearer `, `NAME=`, a
+URL's userinfo) cannot match once a cut has taken the anchor, and the secret's body then passes.
+When a tool answers part of a larger text, count the redactions over the whole and say so in its
+schema.

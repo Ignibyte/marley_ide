@@ -88,7 +88,16 @@ async fn run(
     match tool {
         "browser_look" => look(&page, &tab, hub, cx).await,
         "browser_snapshot" => take_snapshot(&page, &tab, arguments, hub, cx).await,
-        "browser_console" => entries(&tab, hub.read_with(cx, |hub, _| hub.console_entries(&tab))),
+        "browser_console" => {
+            let mut entries_read = hub.read_with(cx, |hub, _| hub.console_entries(&tab));
+            let redactor = cx.update(|cx| crate::mcp::agent_redactor(cx));
+            if let Some(redactor) = redactor {
+                for entry in &mut entries_read {
+                    entry.text = redactor.redact(&entry.text).text;
+                }
+            }
+            entries(&tab, entries_read)
+        }
         "browser_network" => entries(&tab, hub.read_with(cx, |hub, _| hub.network_entries(&tab))),
         "browser_annotations" => Ok(annotations(&tab, hub, cx)),
         "browser_annotate" => annotate(&page, &tab, arguments, hub, cx).await,

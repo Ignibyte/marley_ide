@@ -19,19 +19,21 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use futures::StreamExt as _;
 use futures::channel::mpsc;
 use gpui::{App, AppContext as _, BorrowAppContext as _, Context, Entity, Global};
+use marley_mcp::redact::{Redacted, Redactor};
 use marley_mcp::{AppCall, AppCaller, GrantTable, ToolAnswer, discovery, transport};
 use marley_terminal::{AnchoredBlock, BlockState, BlockTimes};
 use serde_json::{Value, json};
-use settings::SettingsStore;
 use settings::settings_content::{ContextServerCommand, ContextServerSettingsContent};
+use settings::{Settings as _, SettingsStore};
 use terminal_view::TerminalView;
 use terminal_view::terminal_panel::TerminalPanel;
 use util::ResultExt as _;
 use workspace::item::Item as _;
-use workspace::notifications::NotificationId;
+use workspace::notifications::simple_message_notification::MessageNotification;
+use workspace::notifications::{NotificationId, show_app_notification};
 use workspace::{MultiWorkspace, Toast, Workspace};
 
-use crate::claude_plugin;
+use crate::{MarleySettings, claude_plugin};
 
 /// How many of the newest blocks `terminal_blocks` lists when the call names no `last`.
 const DEFAULT_BLOCKS: usize = 50;
@@ -70,6 +72,9 @@ pub fn start(cx: &mut App) {
     });
     // None of the tools the server lists asks for an effect.
     let (effects, _) = std::sync::mpsc::channel();
+    refresh_redaction(cx);
+    cx.observe_global::<SettingsStore>(refresh_redaction)
+        .detach();
     let data_dir = paths::data_dir().clone();
     // The browser's write tools are granted: the client's approval of each call and the Browser
     // tab, where the user watches each action, are their checks (#492 D2).
@@ -215,6 +220,67 @@ fn show_failure(cx: &mut Context<Workspace>) {
     });
 }
 
+/// The redactor what the tools give agents runs through (#516), and the settings it was built
+/// from, so a settings change that leaves them alone keeps it.
+struct AgentRedaction {
+    enabled: bool,
+    patterns: Vec<String>,
+    redactor: Arc<Redactor>,
+}
+
+impl Global for AgentRedaction {}
+
+/// Rebuilds the redactor when `marley.redact_secrets_for_agents` or `marley.redaction_patterns`
+/// changed; a pattern that is not a regular expression is left out and named in a notification.
+fn refresh_redaction(cx: &mut App) {
+    let settings = MarleySettings::get_global(cx);
+    let (enabled, patterns) = (settings.redact_secrets, settings.redaction_patterns.clone());
+    if cx
+        .try_global::<AgentRedaction>()
+        .is_some_and(|current| current.enabled == enabled && current.patterns == patterns)
+    {
+        return;
+    }
+    let (redactor, errors) = Redactor::new(&patterns);
+    cx.set_global(AgentRedaction {
+        enabled,
+        patterns,
+        redactor: Arc::new(redactor),
+    });
+    if errors.is_empty() {
+        return;
+    }
+    let message = format!(
+        "Marley left out redaction patterns that are not regular expressions: {}",
+        errors.join("; ")
+    );
+    log::error!("mcp: {message}");
+    show_app_notification(NotificationId::unique::<AgentRedaction>(), cx, move |cx| {
+        cx.new(|cx| MessageNotification::new(message.clone(), cx))
+    });
+}
+
+/// The redactor for what agents read, or `None` when the user turned redaction off. Before the
+/// settings are read it is the built-in rules alone, so nothing leaves unredacted by accident.
+pub(crate) fn agent_redactor(cx: &App) -> Option<Arc<Redactor>> {
+    match cx.try_global::<AgentRedaction>() {
+        Some(redaction) if redaction.enabled => Some(Arc::clone(&redaction.redactor)),
+        Some(_) => None,
+        None => Some(Arc::new(Redactor::new(&[]).0)),
+    }
+}
+
+/// `text` as an agent may read it.
+fn for_agents(text: &str, redactor: Option<&Redactor>) -> Redacted {
+    redactor.map_or_else(
+        || Redacted {
+            text: text.to_string(),
+            count: 0,
+        },
+        |redactor| redactor.redact(text),
+    )
+}
+
 /// Answers `call` from the app's state; a browser call answers from its own task.
 fn answer(call: AppCall, cx: &mut App) {
     if call.tool.starts_with("browser_") {
@@ -329,12 +395,17 @@ fn terminal_blocks(arguments: &Value, cx: &App) -> Result<ToolAnswer, String> {
     let anchored = terminal.marley_anchored();
     let blocks = anchored.blocks();
     let now = SystemTime::now();
+    let redactor = agent_redactor(cx);
+    let mut redacted = 0;
     let listed: Vec<Value> = blocks
         .iter()
         .skip(blocks.len().saturating_sub(last))
         .map(|block| {
+            let command = for_agents(&block.command, redactor.as_deref());
+            redacted += command.count;
             block_entry(
                 block,
+                &command.text,
                 anchored.times(block.index),
                 terminal.block_output_kept(block),
                 now,
@@ -342,7 +413,12 @@ fn terminal_blocks(arguments: &Value, cx: &App) -> Result<ToolAnswer, String> {
         })
         .collect();
     Ok(ToolAnswer {
-        structured: json!({ "terminal": id, "total": blocks.len(), "blocks": listed }),
+        structured: json!({
+            "terminal": id,
+            "total": blocks.len(),
+            "blocks": listed,
+            "redacted": redacted,
+        }),
         text: None,
         image: None,
     })
@@ -351,6 +427,7 @@ fn terminal_blocks(arguments: &Value, cx: &App) -> Result<ToolAnswer, String> {
 /// One block as `terminal_blocks` lists it. A running block's duration is how long it has run.
 fn block_entry(
     block: &AnchoredBlock,
+    command: &str,
     times: Option<BlockTimes>,
     output_kept: bool,
     now: SystemTime,
@@ -362,7 +439,7 @@ fn block_entry(
     });
     json!({
         "index": block.index,
-        "command": block.command,
+        "command": command,
         "verified": block.command_verified,
         "running": block.state == BlockState::Running,
         "exit_code": block.exit_code.0,
@@ -395,17 +472,23 @@ fn terminal_read(arguments: &Value, cx: &App) -> Result<ToolAnswer, String> {
     let output = terminal
         .block_output(block)
         .ok_or_else(|| format!("block {index}'s output has left the terminal's scrollback"))?;
-    let (output, truncated) = tail(&output);
+    let redactor = agent_redactor(cx);
+    let command = for_agents(&block.command, redactor.as_deref());
+    // Redacted whole before the tail is cut: a private key cut at the tail would lose the
+    // BEGIN line its rule needs.
+    let output = for_agents(&output, redactor.as_deref());
+    let (text, truncated) = tail(&output.text);
     Ok(ToolAnswer {
         structured: json!({
             "terminal": id,
             "block": index,
-            "command": block.command,
+            "command": command.text,
             "running": block.state == BlockState::Running,
-            "output": output,
+            "output": text,
             "truncated": truncated,
+            "redacted": command.count + output.count,
         }),
-        text: Some(output),
+        text: Some(text),
         image: None,
     })
 }

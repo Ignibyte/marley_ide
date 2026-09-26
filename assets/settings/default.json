@@ -1661,6 +1661,14 @@
   //
   // Default: true
   "word_diff_enabled": true,
+  // Marley: Marley's own settings (#516). `layout` defaults to "marley" in Marley's code.
+  "marley": {
+    // Hide secrets (keys, tokens, passwords) in what Marley's MCP tools give agents from
+    // terminals and the browser's console.
+    "redact_secrets_for_agents": true,
+    // Regular expressions whose matches are also hidden from agents.
+    "redaction_patterns": [],
+  },
   // Control what info is collected by Zed.
   "telemetry": {
     // Marley: both are off unless you turn them on (#514).

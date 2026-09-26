@@ -194,6 +194,7 @@ pub(crate) fn set_layout(layout: MarleyLayout, cx: &TestAppContext) {
     update_user_settings(cx, |content| {
         content.marley = Some(MarleySettingsContent {
             layout: Some(layout),
+            ..MarleySettingsContent::default()
         });
     });
 }

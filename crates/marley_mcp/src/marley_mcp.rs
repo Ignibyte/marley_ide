@@ -40,6 +40,7 @@ mod dispatch;
 mod expose;
 pub mod jsonrpc;
 mod permission;
+pub mod redact;
 mod registry;
 mod resource;
 mod secret;

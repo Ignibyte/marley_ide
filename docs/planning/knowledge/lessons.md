@@ -2860,3 +2860,22 @@ register it on the workspace (`workspace.register_action(|_, action, window, cx|
 command palette (or any window-level dispatch) is running logs `window not found` and does
 nothing, because the window is out of the app's map during its own update. A test that calls
 `cx.dispatch_action` from the outside would not see it; only the palette path shows it.
+
+## L-claude-516-a-second-window-in-sway-narrows-the-terminal-under-test-001
+*category: validate · topic: e2e under sway · from: pipeline 516*
+
+In a `compositor sway` scenario, any new window (the Settings window, a dialog that is its own
+window) tiles beside Marley's main window and halves its width, and the terminal rewraps. Until
+TICKET-544 lands a rewrap scrambles every block before it, so a scenario that reads blocks
+(`terminal_read`, the bars and pills in a shot) does so before it opens another window, and
+proves what comes later through something that has no rows to lose (a Browser tab's console, a
+settings file).
+
+## L-claude-516-fake-secrets-are-put-together-at-run-time-001
+*category: validate · topic: e2e fixtures with secrets · from: pipeline 516*
+
+A scenario that needs secret-shaped values builds them in its setup from pieces (`"gh" + "p_" +
+"Fake" * 9`, `"-----BEGIN OPENSSH " + "PRIVATE" + " KEY-----"`), low-entropy on purpose, and
+writes them and the list the checks use into `$E2E_WORK`. The scenario file then holds nothing
+gitleaks takes for a secret, the checks grep the run's own files rather than literals, and the
+notes quote the markers, never the values.

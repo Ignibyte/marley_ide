@@ -28,3 +28,7 @@ agent-prompt detection at the shell prompt, tab groups and pinned tabs (low valu
 
 None of the seven is ticketed yet. Items 1 and 2 pair with the Orca survey's terminal identity
 and receipted input; item 4 pairs with its repo-declared first tabs; item 7 with #510.
+
+Chad took all seven the same evening ("1.) lose this idea lets do it 2.) love it need it …"). Item
+2 shipped first, as #516, for what Marley's tools hand agents; the on-screen masking stays for
+later.

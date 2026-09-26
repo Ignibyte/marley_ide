@@ -161,21 +161,28 @@ actions!(
 const KEYMAP: &str = include_str!("../keymap.json");
 
 /// The resolved `marley` settings block.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, RegisterSetting)]
+#[derive(Debug, Clone, PartialEq, Eq, RegisterSetting)]
 pub struct MarleySettings {
     /// Which layout the windows use.
     pub layout: MarleyLayout,
+    /// Whether what Marley's tools give agents has its secrets hidden (#516).
+    pub redact_secrets: bool,
+    /// The user's own patterns to hide from agents (#516).
+    pub redaction_patterns: Vec<String>,
 }
 
 impl Settings for MarleySettings {
-    // `default.json` carries no `marley` block, so a missing key means the Marley layout, the
-    // enum's default.
+    // `default.json`'s `marley` block names no layout, so a missing key means the Marley layout,
+    // the enum's default; redaction is on unless turned off.
     fn from_settings(content: &SettingsContent) -> Self {
+        let marley = content.marley.as_ref();
         Self {
-            layout: content
-                .marley
-                .as_ref()
-                .and_then(|marley| marley.layout)
+            layout: marley.and_then(|marley| marley.layout).unwrap_or_default(),
+            redact_secrets: marley
+                .and_then(|marley| marley.redact_secrets_for_agents)
+                .unwrap_or(true),
+            redaction_patterns: marley
+                .and_then(|marley| marley.redaction_patterns.clone())
                 .unwrap_or_default(),
         }
     }

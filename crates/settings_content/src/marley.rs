@@ -12,6 +12,15 @@ pub struct MarleySettingsContent {
     ///
     /// Default: "marley"
     pub layout: Option<MarleyLayout>,
+    /// Whether Marley hides secrets (keys, tokens, passwords) in what its MCP tools give agents
+    /// from terminals and the browser's console.
+    ///
+    /// Default: true
+    pub redact_secrets_for_agents: Option<bool>,
+    /// Regular expressions whose matches Marley also hides from agents, beside its own rules.
+    ///
+    /// Default: []
+    pub redaction_patterns: Option<Vec<String>>,
 }
 
 /// A window layout.

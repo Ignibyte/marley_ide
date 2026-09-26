@@ -2103,3 +2103,17 @@ into the target directory (gone with a `cargo clean`); Zed's `install-linux` (bu
 `cli`, names the app Zed Dev, links `~/.local/bin/zed` over Chad's Zed); `release-fast` (full
 debug info, no LTO); stripping (loses a backtrace's lines to save disk that is not short); a
 panic hook in Zed's `main.rs` (a Zed hunk for what a launcher does outside Zed).
+
+## AD-claude-516-redact-at-the-tool-boundary-on-by-default-001
+*decided at: 2026-09-25 · status: shipped*
+
+Marley hides secrets in what its MCP tools hand an agent, at the tool boundary
+(`terminal_blocks`, `terminal_read`, `browser_console`), never in the terminal's buffer or the
+console's log: what Chad sees stays exact. It is on by default (`marley.redact_secrets_for_agents`,
+unlike Warp's opt-in), since a model is always on the other end, and it names each kind
+(`[redacted: github token]`) so the agent knows something was there. The rules favour hiding: a
+secret-named variable loses any value (`TOKEN_LIMIT=5`), and a private key block with no END line
+is hidden to the end. The user's patterns add to the rules and never replace them; one that does
+not compile is left out and named in a notification. Rejected: redacting in `marley_terminal`
+for everything it stores (changes what the user sees and copies); Orca's rule that hides every
+`NAME=value` line (an `env` dump would lose `PATH` and every harmless value).

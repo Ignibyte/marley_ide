@@ -22,7 +22,9 @@
 #   (#496). `annotate <role> <name> <note>` draws the agent's box around an element,
 #   `annotations` lists a tab's boxes, and `annotate-clear` removes the agent's (#498).
 #   `recordings` lists the saved recordings, and `recording <id> [<frame> <image file>]` prints
-#   one's timeline and saves a frame (#499).
+#   one's timeline and saves a frame (#499). `terminal-read <text>` reads the newest block, in
+#   any terminal, whose command holds the text: its command, the redaction counts and its
+#   output (#516).
 # - `browser_profile` and `browser_unit` name the run's Chromium profile and its user unit;
 #   `browser_teardown`, for the scenario's `teardown`, stops the unit and the servers.
 
@@ -351,6 +353,24 @@ def main():
             answer = result["structuredContent"]
             box = answer["box"]
             print(f"  {reference}: {answer['did']}, annotation {answer['id']} at {box['x']:.0f},{box['y']:.0f} {box['width']:.0f}x{box['height']:.0f}")
+    elif command == "terminal-read":
+        listed = client.tool("terminal_list")
+        found = None
+        for terminal in (listed or {}).get("structuredContent", {}).get("terminals", []):
+            blocks = client.tool("terminal_blocks", {"terminal": terminal["id"]})
+            answer = (blocks or {}).get("structuredContent", {})
+            matching = [block for block in answer.get("blocks", []) if rest[0] in block["command"]]
+            if matching:
+                found = (terminal["id"], matching[-1], answer["redacted"])
+        if found is None:
+            sys.exit(f"no block's command holds {rest[0]!r}")
+        terminal, block, listed_redacted = found
+        result = client.tool("terminal_read", {"terminal": terminal, "block": block["index"]})
+        if result:
+            read = result["structuredContent"]
+            print(f"  terminal {terminal}, block {block['index']}: {read['command']!r}")
+            print(f"  redacted: {read['redacted']} in the read, {listed_redacted} in the list")
+            print(read["output"])
     elif command == "recordings":
         result = client.tool("browser_recordings")
         recordings = (result or {}).get("structuredContent", {}).get("recordings", [])

@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Secrets hidden from what agents read** (#516, 2026-09-25). What Marley's tools hand an agent
+  from a terminal (each command and its output) and from a page's console now has its secrets
+  replaced by `[redacted: <kind>]`: private keys, values set on names such as `API_TOKEN` or
+  `DATABASE_PASSWORD`, bearer tokens, passwords and tokens in URLs, JWTs, and the key shapes of
+  AWS, GitHub, Slack, Stripe, Google, OpenAI and Anthropic. Each answer says how many it hid. Add
+  your own regular expressions as `marley.redaction_patterns`; one that is not a regular
+  expression is named in a notification. It is on by default, and the Marley settings page's new
+  Agents section turns it off. Your terminal still shows everything as printed.
 - **A Marley page in the Settings window** (#515, 2026-09-25). `marley: open settings` opens
   Zed's Settings window on a new Marley page, first in its list. It holds Marley's own settings:
   the layout (Marley's rail or Zed's own, as a dropdown) and, under Privacy, the telemetry

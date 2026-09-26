@@ -8,6 +8,7 @@ pub(crate) fn marley_page() -> SettingsPage {
         title: "Marley",
         items: layout_section()
             .into_iter()
+            .chain(agents_section())
             .chain(privacy_section())
             .collect(),
     }
@@ -30,6 +31,34 @@ fn layout_section() -> [SettingsPageItem; 2] {
                 },
                 write: |settings_content, value, _| {
                     settings_content.marley.get_or_insert_default().layout = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+    ]
+}
+
+fn agents_section() -> [SettingsPageItem; 2] {
+    [
+        SettingsPageItem::SectionHeader("Agents"),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Redact Secrets for Agents",
+            description: "Hide keys, tokens and passwords in what Marley's tools give agents from terminals and the browser's console (#516). Add your own patterns as `marley.redaction_patterns` in settings.json.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.redact_secrets_for_agents"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.redact_secrets_for_agents.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .redact_secrets_for_agents = value;
                 },
             }),
             metadata: None,

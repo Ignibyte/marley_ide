@@ -106,7 +106,9 @@ const REGISTRY: &[ToolSpec] = &[
         description: "List a terminal's blocks, the commands run in it, oldest first: each command, \
                       whether the shell's own hook reported it, its exit code, working directory, \
                       start time and duration, whether it still runs, and whether its output is \
-                      still in the scrollback.",
+                      still in the scrollback. Secrets in commands come back as \
+                      `[redacted: <kind>]`, counted in `redacted`, unless the user turned \
+                      redaction off.",
     },
     ToolSpec {
         family: Family::Terminal,
@@ -114,7 +116,8 @@ const REGISTRY: &[ToolSpec] = &[
         tier: Tier::Read,
         grant_class: "",
         description: "Read one block's output as text: at most 2,000 lines, the end kept when there \
-                      are more.",
+                      are more. Secrets come back as `[redacted: <kind>]`, counted in \
+                      `redacted`, unless the user turned redaction off.",
     },
     browser_read(
         "tabs",
@@ -135,7 +138,8 @@ const REGISTRY: &[ToolSpec] = &[
     ),
     browser_read(
         "console",
-        "A page's latest console messages and uncaught errors, oldest first, at most 200.",
+        "A page's latest console messages and uncaught errors, oldest first, at most 200, \
+         with secrets as `[redacted: <kind>]` unless the user turned redaction off.",
     ),
     browser_read(
         "network",
@@ -225,7 +229,7 @@ const fn browser_read(verb: &'static str, description: &'static str) -> ToolSpec
 }
 
 /// A browser tool that acts in the page the user sees (#492): Marley grants `browser.write` when
-/// it starts the server, and a setting can take it away.
+/// it starts the server; no setting takes it away yet.
 const fn browser_write(verb: &'static str, description: &'static str) -> ToolSpec {
     ToolSpec {
         family: Family::Browser,
@@ -871,6 +875,10 @@ fn terminal_blocks_schemas() -> (Value, Value) {
             "properties": {
                 "terminal": { "type": "integer" },
                 "total": { "type": "integer", "description": "How many blocks the terminal holds." },
+                "redacted": {
+                    "type": "integer",
+                    "description": "How many secrets the listed commands had hidden."
+                },
                 "blocks": {
                     "type": "array",
                     "items": {
@@ -928,6 +936,10 @@ fn terminal_read_schemas() -> (Value, Value) {
                 "truncated": {
                     "type": "boolean",
                     "description": "Whether the start of the output was left out."
+                },
+                "redacted": {
+                    "type": "integer",
+                    "description": "How many secrets the command and the whole output had hidden, the part left out included."
                 }
             },
             "required": ["terminal", "block", "command", "running", "output", "truncated"]

@@ -2038,3 +2038,27 @@ dispatches its chosen action while the window is being updated, and an app-level
 the window up in the app's map, where it is not until the update ends. Fixed before the commit:
 the action is registered on the workspace (`workspace.register_action`) and calls
 `window.dispatch_action`, as `agent_panel.rs` opens its settings page.
+
+## F-claude-516-a-cut-before-redaction-leaks-the-cut-secret-001
+*severity: high · found in: pipeline 516's Code review · class: redaction order · prevented by: PR-claude-redact-the-whole-text-before-cutting-it-001*
+
+`terminal_read` cut a block's output to its last 2,000 lines and 256 KiB (`tail`) and then ran
+the redactor over what was left. A private key whose `-----BEGIN` line fell before the cut would
+reach the agent as its body and its END line: the private-key rule needs the BEGIN line to match,
+and no other rule takes base64 lines. The same holds for any rule that anchors on a prefix a cut
+can take away (`Bearer `, a URL's `scheme://user:`, a variable's name). Found by reading the diff
+against the rules before Test, so it never shipped. Fixed: the whole output is redacted first,
+then cut; `redacted` counts over the whole output, and the schema says so.
+
+## F-claude-516-a-rewrap-moves-every-blocks-rows-001
+*severity: high · found in: pipeline 516's Test phase (the first run) · class: block anchors across a resize · prevented by: TICKET-544*
+
+A block is a range of absolute lines (`output_start`, `output_end`). In #516's first run the
+Settings window opened tiled beside the main window, the terminal narrowed from about 120
+columns to 30, and alacritty rewrapped its lines: the prompt line became two rows and every long
+output line two or three. The anchors stayed where they were, so the block's bar and pill
+vanished and `terminal_read` answered rows that began inside the command line (`ake sh
+secrets.sh`) and stopped mid-line. Every block before a rewrapping resize is wrong from then
+on, in the view and for agents. The plan's D2 calls reflow "the known weak spot" and deferred the
+choice until a real resize trace; this is one. Not fixed in #516, whose scenario reads the
+terminal before any window opens; TICKET-544 takes it.

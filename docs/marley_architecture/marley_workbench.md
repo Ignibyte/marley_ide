@@ -57,9 +57,12 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   on each workspace and dispatches `zed_actions::OpenSettingsPage { page: "Marley" }` through the
   window. The page itself lives in Zed's `settings_ui` (`src/marley_page.rs`, first in
   `settings_data`), since a page is data over `SettingsContent` that the settings UI owns: a
-  Layout section (`marley.layout`, a dropdown through `strum` on `MarleyLayout`) and a Privacy
-  section (the telemetry keys, off by default since #514). A Marley feature with a setting adds
-  its section there.
+  Layout section (`marley.layout`, a dropdown through `strum` on `MarleyLayout`), since #516 an
+  Agents section (`marley.redact_secrets_for_agents`), and a Privacy section (the telemetry keys,
+  off by default since #514). A Marley feature with a setting adds its section there.
+- **`MarleySettings`** holds `layout`, and since #516 `redact_secrets` (true unless
+  `marley.redact_secrets_for_agents` says false) and `redaction_patterns`; it is `Clone`, no
+  longer `Copy`.
 
 ## The rail (`src/rail.rs`)
 
@@ -403,6 +406,15 @@ alike.
     and `Terminal::block_output_kept`;
   - `terminal_read`: `Terminal::block_output`, the last 2,000 lines and at most 256 KiB, and
     whether anything was left out.
+- **Redaction (#516).** `start` builds the `AgentRedaction` global from `MarleySettings` and
+  rebuilds it on each `SettingsStore` change that alters `redact_secrets` or
+  `redaction_patterns`, with an app notification naming a pattern that did not compile.
+  `agent_redactor(cx)` answers its `Arc<Redactor>`, `None` while redaction is off, and the
+  built-in rules alone before `start` ran, so nothing leaves unredacted by accident.
+  `terminal_blocks` runs each command through it and `terminal_read` the command and the whole
+  output, before `tail` cuts it (a key whose BEGIN line fell before the cut would pass
+  otherwise); both answer `redacted`, the count. `browser_tools`' `browser_console` runs each
+  entry's text through it.
 - Since #501, once the server runs, `offer_to_zeds_agents` writes the bridge
   (`claude_plugin::BRIDGE`) to `<data dir>/mcp/marley-mcp-bridge` off the main thread and adds
   `context_servers.marley` to Zed's default settings: a stdio server running it, with
