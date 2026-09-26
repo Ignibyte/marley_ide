@@ -1,5 +1,13 @@
 > [!IMPORTANT]
 > Remove this line to confirm you've reviewed this PR before submitting.
+# Marley
+
+Marley is Ignibyte's fork of Zed. It adds a layout built around terminals, with a rail of
+projects and their terminals and agents; a block terminal; agent CLIs recognized in any terminal;
+an MCP server that lets agents read your terminals and drive the browser; and a Browser tab you
+and your agents use together. [The guide](docs/marley/guide.md) covers all of it and how to use
+it. The rest of this file is Zed's.
+
 # Zed
 
 [![Zed](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/zed-industries/zed/main/assets/badge/v0.json)](https://zed.dev)
