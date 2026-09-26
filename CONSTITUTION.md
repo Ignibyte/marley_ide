@@ -206,6 +206,12 @@ them and no ticket adds to them.
   touched, and the runner reports that Hyprland's windows are as they were.
 - **A change with nothing new to see** (tooling, a refactor, a dependency) still runs a
   scenario: Marley starts and draws (`just shot`), so nothing it needs broke.
+- **The golden set guards what shipped.** `script/e2e/golden` names the scenarios that cover
+  Marley's core; each ends in machine checks (`expect`, through Marley's own MCP server where it
+  can), so its exit status is its verdict. `just regress` runs the set, each in a headless sway,
+  and `just install` runs it against the release build before replacing anything; a red installs
+  nothing (#517). A ticket that changes what a golden scenario covers keeps that scenario's
+  checks true, and a scenario that joins the set brings its checks with it.
 - **NEVER mark a phase PASS if the e2e run did not actually RUN.** Writing a scenario is not
   testing. The `enforce-tests-ran.sh` Stop hook checks the transcript for a real
   `script/e2e.sh`, `just e2e` or `just shot` run at `/pipeline:test`.
@@ -433,3 +439,5 @@ tests, the proof of a change is its e2e visualization test, and the tests in the
 keep building (#483). On 2026-09-24 §7 gained the headless sway: the browser tab is driven by
 the mouse, Hyprland cannot click one window, and a sway of the run's own takes clicks without
 touching the user's session, so "a click" left the list of what no scenario can reach (#487).
+On 2026-09-26 §7 gained the golden set, a floor raised: the scenarios that cover Marley's core
+check themselves and run before every install (#517; Chad left its design to the agent).
