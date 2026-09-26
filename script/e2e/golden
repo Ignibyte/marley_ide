@@ -17,3 +17,4 @@
 550-ask-before-ending-a-working-agent.sh  # a close or a quit asks before ending a working agent; the hold and undo
 520-terminal-identity.sh             # each terminal's own id and project; the tools know their caller
 574-browser-tools-in-the-callers-project.sh  # a browser call with no tab acts in the caller's project
+575-terminal-id-across-restore.sh   # a restored terminal keeps its id; a split and a new one get their own

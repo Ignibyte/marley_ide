@@ -153,6 +153,26 @@ pub struct MarleyTerminalSuggestion(
 
 impl gpui::Global for MarleyTerminalSuggestion {}
 
+// Marley: keeps each terminal's MARLEY_TERMINAL_ID across a restore, in a table of Marley's own
+// whose rows follow the `terminals` rows; Marley's workbench sets it (#575).
+#[derive(Clone)]
+pub struct MarleyTerminalIdentity {
+    /// The id saved for an item, if any.
+    pub saved: Arc<dyn Fn(WorkspaceId, workspace::ItemId, &App) -> Option<String>>,
+    /// Saves an item's id.
+    pub save:
+        Arc<dyn Fn(WorkspaceId, workspace::ItemId, String, &mut App) -> Task<anyhow::Result<()>>>,
+    /// Moves an item's row from the old workspace id to the new one.
+    pub moved: Arc<
+        dyn Fn(WorkspaceId, WorkspaceId, workspace::ItemId, &mut App) -> Task<anyhow::Result<()>>,
+    >,
+    /// Deletes the rows of the workspace's items that were not loaded.
+    pub cleanup:
+        Arc<dyn Fn(WorkspaceId, Vec<workspace::ItemId>, &mut App) -> Task<anyhow::Result<()>>>,
+}
+
+impl gpui::Global for MarleyTerminalIdentity {}
+
 ///A terminal view, maintains the PTY's file handles and communicates with the terminal
 pub struct TerminalView {
     terminal: Entity<Terminal>,
@@ -1909,6 +1929,10 @@ impl Item for TerminalView {
                     db.update_workspace_id(new_id, old_id, entity_id).await
                 })
                 .detach();
+                // Marley: the terminal's id follows it to the new workspace id (#575).
+                if let Some(identity) = cx.try_global::<MarleyTerminalIdentity>().cloned() {
+                    (identity.moved)(new_id, old_id, entity_id, cx).detach_and_log_err(cx);
+                }
             }
             self.workspace_id = workspace.database_id();
         }
@@ -1930,6 +1954,10 @@ impl SerializableItem for TerminalView {
         _window: &mut Window,
         cx: &mut App,
     ) -> Task<anyhow::Result<()>> {
+        // Marley: the ids of the items not loaded go with their rows (#575).
+        if let Some(identity) = cx.try_global::<MarleyTerminalIdentity>().cloned() {
+            (identity.cleanup)(workspace_id, alive_items.clone(), cx).detach_and_log_err(cx);
+        }
         let db = TerminalDb::global(cx);
         delete_unloaded_items(alive_items, workspace_id, "terminals", &db, cx)
     }
@@ -1954,6 +1982,12 @@ impl SerializableItem for TerminalView {
         let cwd = terminal.working_directory();
         let custom_title = self.custom_title.clone();
         self.needs_serialize = false;
+        // Marley: the terminal's id is saved with the rest, and awaited with it, so a quit keeps
+        // it (#575).
+        let marley_id = terminal.marley_terminal_id().map(str::to_string);
+        let marley_save = marley_id
+            .zip(cx.try_global::<MarleyTerminalIdentity>().cloned())
+            .map(|(id, identity)| (identity.save)(workspace_id, item_id, id, cx));
 
         let db = TerminalDb::global(cx);
         Some(cx.background_spawn(async move {
@@ -1963,6 +1997,9 @@ impl SerializableItem for TerminalView {
             }
             db.save_custom_title(item_id, workspace_id, custom_title)
                 .await?;
+            if let Some(marley_save) = marley_save {
+                marley_save.await?;
+            }
             Ok(())
         }))
     }
@@ -2006,9 +2043,19 @@ impl SerializableItem for TerminalView {
                 })
                 .ok()
                 .unwrap_or((None, None));
+            // Marley: the id the terminal had, which the restored terminal keeps (#575).
+            let marley_terminal_id = cx
+                .update(|_window, cx| {
+                    cx.try_global::<MarleyTerminalIdentity>()
+                        .and_then(|identity| (identity.saved)(workspace_id, item_id, cx))
+                })
+                .ok()
+                .flatten();
 
             let terminal = project
-                .update(cx, |project, cx| project.create_terminal_shell(cwd, cx))
+                .update(cx, |project, cx| {
+                    project.create_terminal_shell_restoring(cwd, marley_terminal_id, cx)
+                })
                 .await?;
             cx.update(|window, cx| {
                 cx.new(|cx| {

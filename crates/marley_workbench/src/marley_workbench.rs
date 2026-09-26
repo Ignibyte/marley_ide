@@ -39,6 +39,7 @@ pub mod rich_input;
 pub mod routing;
 #[cfg(unix)]
 pub mod single_instance;
+pub mod terminal_ids;
 pub mod voice;
 
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -308,6 +309,7 @@ pub fn init(cx: &mut App) {
     claude_plugin::init(cx);
     notifications::init(cx);
     close_guard::init(cx);
+    terminal_ids::init(cx);
     voice::init(cx);
     rich_input::init(cx);
     autosuggest::init(cx);

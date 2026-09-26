@@ -2949,3 +2949,11 @@ an item in a private module (`mod rail;`) that another module of the crate needs
 visibility that passes: `pub(crate)` and `pub(super)` trip `redundant_pub_crate`, and `pub` trips
 `unreachable_pub`. Put it in a public module or at the crate root, where `pub(crate)` passes
 both; #574 moved the rail's `group_names` to `marley_workbench.rs`.
+
+## L-claude-575-log-a-hooks-calls-in-order-to-find-a-race-001
+*category: validate · topic: debugging a restore · from: pipeline 575*
+
+When one of two alike items restores wrong, dump what was saved before the relaunch, then log
+each hook call with its arguments during the relaunch. #575's two rows were both saved; the log
+showed a cleanup with an empty list landing between the two reads, which no reading of the code
+path of one item would have shown.

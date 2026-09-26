@@ -2244,3 +2244,18 @@ stops); a one-shot "next page" placement (a page opened meanwhile would take it)
 last active workspace as the new tab's home (a linked worktree's agent would get its tab in the
 main checkout's workspace); refusing a named tab of another project (#507's per-project contexts
 are where projects part).
+
+## AD-claude-575-a-restored-terminal-keeps-its-id-through-marleys-table-001
+*decided at: 2026-09-26 · status: shipped*
+
+A terminal Zed restores keeps its `MARLEY_TERMINAL_ID`. Marley's own table,
+`marley_terminal_ids(workspace_id, item_id, terminal_id)`, keyed by the pair with no
+`UNIQUE(item_id)`, follows Zed's `terminals` rows through the `terminal_view` hook
+`MarleyTerminalIdentity`: saved in `serialize` (awaited, so a quit keeps it), moved in
+`added_to_workspace`, cleaned up in `cleanup`, and read at the restore from memory, the table as
+`init` read it plus each id saved since. The restore hands the id to the builder under
+`MARLEY_RESTORED_TERMINAL_ID`, which the builder takes and leaves empty, and which the project
+sets empty for every terminal it does not restore, so no program sees an id under it and an
+inherited value is never taken. Rejected: a column in Zed's table (AD-claude-520); reading the
+table at `deserialize` (the panel's cleanup deletes rows mid-restore); removing the key from the
+map (the program inherits Marley's environment besides it).

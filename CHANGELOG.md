@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A terminal keeps its id across a restart** (#575, 2026-09-26). A terminal Marley restores
+  at a launch now keeps the `MARLEY_TERMINAL_ID` it had, so an agent resumed there, or a script
+  that kept the id, still names the same terminal, and Marley's tools mark it `self` as before.
+  A split of a restored terminal and a new terminal still get an id of their own. The ids live
+  in Marley's own table beside Zed's terminal rows.
 - **Browser tools act in the agent's own project** (#574, 2026-09-26). A browser call that names
   no tab now acts on the Browser tab the user focused last in the agent's project, the project of
   the terminal it runs in or, for Zed's own agents, of the folder it runs in, rather than on the

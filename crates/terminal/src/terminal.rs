@@ -1225,9 +1225,18 @@ impl TerminalBuilder {
             // (a split's source) is replaced. A task or a remote terminal names no terminal and no
             // project. The values are emptied, not removed: the program inherits Marley's own
             // environment besides this map, and a Marley started from a Marley terminal carries
-            // its parent's (#520).
-            let marley_terminal_id = (task.is_none() && !is_remote_terminal)
-                .then(marley_terminal::identity::new_terminal_id);
+            // its parent's (#520). A restored terminal keeps the id its restore handed over, taken
+            // out of every map, and the key emptied, before the template keeps it, so neither a
+            // program nor a split sees it (#575).
+            let marley_restored_id = env
+                .insert(
+                    marley_terminal::identity::RESTORED_ID_VARIABLE.to_string(),
+                    String::new(),
+                )
+                .filter(|id| marley_terminal::identity::is_terminal_id(id));
+            let marley_terminal_id = (task.is_none() && !is_remote_terminal).then(|| {
+                marley_restored_id.unwrap_or_else(marley_terminal::identity::new_terminal_id)
+            });
             env.insert(
                 marley_terminal::identity::TERMINAL_ID_VARIABLE.to_string(),
                 marley_terminal_id.clone().unwrap_or_default(),

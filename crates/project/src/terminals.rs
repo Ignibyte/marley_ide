@@ -286,7 +286,18 @@ impl Project {
         cwd: Option<PathBuf>,
         cx: &mut Context<Self>,
     ) -> Task<Result<Entity<Terminal>>> {
-        self.create_terminal_shell_internal(cwd, false, cx)
+        self.create_terminal_shell_internal(cwd, false, None, cx)
+    }
+
+    /// Marley: as `create_terminal_shell`, for a terminal Zed restores, which keeps the
+    /// `MARLEY_TERMINAL_ID` it had when it is local (#575).
+    pub fn create_terminal_shell_restoring(
+        &mut self,
+        cwd: Option<PathBuf>,
+        terminal_id: Option<String>,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<Entity<Terminal>>> {
+        self.create_terminal_shell_internal(cwd, false, terminal_id, cx)
     }
 
     /// Creates a local terminal even if the project is remote.
@@ -303,7 +314,7 @@ impl Project {
             // Local project: use project directory like normal terminals
             self.active_project_directory(cx).map(|p| p.to_path_buf())
         };
-        self.create_terminal_shell_internal(working_directory, true, cx)
+        self.create_terminal_shell_internal(working_directory, true, None, cx)
     }
 
     /// Internal method for creating terminal shells.
@@ -313,6 +324,7 @@ impl Project {
         &mut self,
         cwd: Option<PathBuf>,
         force_local: bool,
+        marley_restored_id: Option<String>,
         cx: &mut Context<Self>,
     ) -> Task<Result<Entity<Terminal>>> {
         let path = cwd.map(|p| Arc::from(&*p));
@@ -391,6 +403,15 @@ impl Project {
                 marley_project
                     .as_ref()
                     .map(|folder| folder.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+            );
+            // Marley: a restored local terminal's saved id, for the builder, which takes it back
+            // out. Any other terminal's is empty, so an inherited value hands over nothing, and so
+            // is a remote one's, since its environment leaves the machine (#575).
+            env.insert(
+                marley_terminal::identity::RESTORED_ID_VARIABLE.to_string(),
+                marley_restored_id
+                    .filter(|_| remote_client.is_none())
                     .unwrap_or_default(),
             );
 

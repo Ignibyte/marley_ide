@@ -513,6 +513,24 @@ alike.
   its tools from, and `mcp_servers_for_project` hands it to each external agent's `session/new`.
   No bearer goes into a setting; a user's own `context_servers.marley` replaces the default.
 
+## Terminal ids across a restore (`src/terminal_ids.rs`, #575)
+
+- `init` reads `MarleyTerminalIdsDb`'s table, `marley_terminal_ids(workspace_id, item_id,
+  terminal_id)` (its own domain after `WorkspaceDb`, keyed by the pair with the workspace's
+  cascade and no `UNIQUE(item_id)`), into `KnownIds`, and sets `terminal_view`'s
+  `MarleyTerminalIdentity` hook, before any window restores its terminals.
+- `TerminalView::serialize` saves the terminal's id through `save` (memory, then the table, the
+  task awaited with Zed's own saves, so a quit keeps it); `added_to_workspace` moves it through
+  `moved`; `cleanup` deletes the rows of the items not loaded (`delete_unloaded_items`);
+  `deserialize` reads `saved`, which answers from memory, then from the table, and opens the
+  shell with `Project::create_terminal_shell_restoring`.
+- The restore reads memory because the terminal panel runs `TerminalView::cleanup` with the
+  panel's items alone, which can delete a center terminal's row between two terminals' restores.
+- `create_terminal_shell_restoring` puts the id under `MARLEY_RESTORED_TERMINAL_ID` for a local
+  terminal, and the project sets the key empty for every other one; `TerminalBuilder::new` takes
+  the value and leaves the key empty, so a well-formed value becomes the terminal's id and no
+  program, and no split rebuilt from the template, sees it.
+
 ## The browser's agent tools (`src/browser_tools.rs`, #492, #493, #574)
 
 - `mcp.rs` hands each `browser_*` call to `browser_tools::answer`, which starts a hub that

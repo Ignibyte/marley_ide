@@ -2153,3 +2153,14 @@ The first draft kept a new page's placement, the workspace its tab goes to, unti
 took it, so a page whose attach failed, or one made just before a restart, left its placement in
 the hub for the rest of the run. Fixed before Test: the placement goes with a failed attach, at a
 start and when its page goes.
+
+## F-claude-575-the-terminal-panels-cleanup-deleted-the-center-terminals-rows-001
+*severity: medium · found in: pipeline 575's Test (the right terminal's id after the first relaunch) · class: a cleanup whose caller lists part of the items · prevented by: PR-claude-a-row-a-restore-reads-is-read-before-any-cleanup-001*
+
+The first design read a restored terminal's saved id from Marley's table in `deserialize`. The
+terminal panel restores its own terminals and then runs `TerminalView::cleanup` with the
+panel's items alone (none in the Marley layout), which deletes every terminal row of the
+workspace; at the relaunch it ran between the two center terminals' restores, and the second
+one found no row and got a new id. Found by logging the hook's calls in the order they came.
+Fixed in #575: the ids the table held at the start, and each id saved since, are kept in memory
+and the restore reads there. Zed's own `terminals` rows meet the same delete (TICKET-577).

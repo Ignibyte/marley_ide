@@ -2338,3 +2338,11 @@ Zed's terminal builder is given, and make its readers treat empty as unset; remo
 from the map does nothing, since the program inherits Marley's own environment under the map. A
 scenario that proves the variable is gone exports a foreign value before the launch, so an
 inherited leak shows.
+
+## PR-claude-a-row-a-restore-reads-is-read-before-any-cleanup-001
+*severity: medium · prevents: F-claude-575-the-terminal-panels-cleanup-deleted-the-center-terminals-rows-001*
+
+State a Marley item restores from Zed's per-item tables is read before any cleanup can run, at
+`init` or from memory kept since, never from the table at the item's `deserialize`: Zed runs
+more than one `cleanup` for one kind (the workspace's, and a panel's with its own items), each
+with its own list of live items, and one can land between two items' restores.
