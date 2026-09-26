@@ -2027,3 +2027,14 @@ the `dev` channel the panic went to stderr only (L-claude-502-a-dev-channel-pani
 Upstream Zed has the same code on 2026-09-25. Not fixed in #502: its scenario gives the seat a
 keyboard first, as a desktop has one, and #512 makes the handler skip keyboard events until a
 keymap arrives.
+
+## F-claude-515-an-app-dispatch-inside-an-action-found-no-window-001
+*severity: medium · found in: pipeline 515's Test phase (the first run) · class: gpui dispatch during an update · prevented by: L-claude-515-dispatch-through-the-window-from-inside-an-action-001*
+
+`marley: open settings` was a global `cx.on_action` handler that called
+`cx.dispatch_action(&zed_actions::OpenSettingsPage { .. })`. Run from the command palette, it
+opened nothing and the log said `window not found` (`crates/gpui/src/app.rs:2572`): the palette
+dispatches its chosen action while the window is being updated, and an app-level dispatch looks
+the window up in the app's map, where it is not until the update ends. Fixed before the commit:
+the action is registered on the workspace (`workspace.register_action`) and calls
+`window.dispatch_action`, as `agent_panel.rs` opens its settings page.

@@ -1,4 +1,6 @@
 mod components;
+// Marley: the Marley page (#515).
+mod marley_page;
 mod page_data;
 pub mod pages;
 
@@ -553,6 +555,8 @@ fn init_renderers(cx: &mut App) {
         .add_basic_renderer::<SharedString>(render_text_field)
         .add_basic_renderer::<settings::SaturatingBool>(render_toggle_button)
         .add_basic_renderer::<settings::CursorShape>(render_dropdown)
+        // Marley: the Marley page's layout dropdown (#515).
+        .add_basic_renderer::<settings::MarleyLayout>(render_dropdown)
         .add_basic_renderer::<settings::RestoreOnStartupBehavior>(render_dropdown)
         .add_basic_renderer::<settings::OnNewWindow>(render_dropdown)
         .add_basic_renderer::<settings::BottomDockLayout>(render_dropdown)

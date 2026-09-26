@@ -13,6 +13,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A Marley page in the Settings window** (#515, 2026-09-25). `marley: open settings` opens
+  Zed's Settings window on a new Marley page, first in its list. It holds Marley's own settings:
+  the layout (Marley's rail or Zed's own, as a dropdown) and, under Privacy, the telemetry
+  toggles, both off by default. New Marley settings will appear there as they arrive.
 - **Marley in the app menu** (#502, 2026-09-25). `just install` builds Marley in the release
   profile and installs it under `~/.local`, with a desktop entry, so Marley starts from the menu
   like any other app instead of from a debug build in the shared target directory, which a

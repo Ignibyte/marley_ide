@@ -15,8 +15,20 @@ pub struct MarleySettingsContent {
 }
 
 /// A window layout.
+// Marley: `VariantArray` and `VariantNames` give the Settings window's Marley page its dropdown (#515).
 #[derive(
-    Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, MergeFrom,
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum MarleyLayout {

@@ -69,6 +69,9 @@ actions!(
         /// Switches every window back to Zed's own layout.
         #[derive(Eq)]
         UseZedLayout,
+        /// Opens the Settings window on Marley's page.
+        #[derive(Eq)]
+        OpenSettings,
         /// Opens the New Agent picker: Zed's agents and the installed agent CLIs, started in
         /// this project.
         #[derive(Eq)]
@@ -251,6 +254,17 @@ pub fn init(cx: &mut App) {
         workspace.register_action_renderer(|div, _, _, cx| {
             div.capture_action(cx.listener(layout_preset::<UseClassicLayout>))
                 .capture_action(cx.listener(layout_preset::<UseAgenticLayout>))
+        });
+        // Through the window, as the Agent Panel opens its page: an app-level dispatch from inside
+        // the palette's own dispatch finds no window.
+        workspace.register_action(|_, _: &OpenSettings, window, cx| {
+            window.dispatch_action(
+                Box::new(zed_actions::OpenSettingsPage {
+                    page: "Marley".into(),
+                    target: None,
+                }),
+                cx,
+            );
         });
     })
     .detach();

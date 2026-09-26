@@ -53,6 +53,13 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   Marley layout capture-phase listeners on each workspace's root stop them and show a toast
   saying the presets belong to Zed's layout, whose button (`use_zed_layout`) switches to it. In
   the Zed layout they go on to Zed's handlers.
+- **The Marley settings page (#515).** `marley::OpenSettings` (`marley: open settings`) is registered
+  on each workspace and dispatches `zed_actions::OpenSettingsPage { page: "Marley" }` through the
+  window. The page itself lives in Zed's `settings_ui` (`src/marley_page.rs`, first in
+  `settings_data`), since a page is data over `SettingsContent` that the settings UI owns: a
+  Layout section (`marley.layout`, a dropdown through `strum` on `MarleyLayout`) and a Privacy
+  section (the telemetry keys, off by default since #514). A Marley feature with a setting adds
+  its section there.
 
 ## The rail (`src/rail.rs`)
 

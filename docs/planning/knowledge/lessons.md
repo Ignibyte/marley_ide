@@ -2850,3 +2850,13 @@ docs-only one, voids the receipt, and the commit hook then demands a new gate ru
 gated change first and docs-only work after it, or put both in one commit. Docs edits alone
 (CHANGELOG, knowledge, `docs/planning/`) never touch the fingerprint, which is why Complete's
 paperwork after the gate is safe.
+
+## L-claude-515-dispatch-through-the-window-from-inside-an-action-001
+*category: build · topic: gpui actions · from: pipeline 515*
+
+An action handler that forwards to another action must dispatch through the window it runs in:
+register it on the workspace (`workspace.register_action(|_, action, window, cx| ...)`) and call
+`window.dispatch_action(Box::new(..), cx)`. `cx.dispatch_action` from inside an action that the
+command palette (or any window-level dispatch) is running logs `window not found` and does
+nothing, because the window is out of the app's map during its own update. A test that calls
+`cx.dispatch_action` from the outside would not see it; only the palette path shows it.
