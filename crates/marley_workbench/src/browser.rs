@@ -32,7 +32,7 @@ use std::fmt;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::Context as _;
 use editor::Editor;
@@ -55,7 +55,7 @@ use marley_browser::page::{
     DialogKind, FrameMetadata, JavaScriptDialog, NavigationHistory, Page, ScreencastFrame,
     TargetInfo,
 };
-use marley_browser::pick::{Listener, PickBundle, ScriptInfo, SourcePosition};
+use marley_browser::pick::{Listener, PageBox, PickBundle, ScriptInfo, SourcePosition};
 use marley_browser::select::{self, SelectRequest};
 use marley_browser::snapshot::RefTarget;
 use marley_browser::source_map::{self, MapLocation, OriginalPosition, SourceMap};
@@ -73,8 +73,9 @@ use workspace::item::{Item, ItemEvent, SerializableItem};
 use workspace::{ItemId, MultiWorkspace, Pane, SplitDirection, Workspace, WorkspaceId};
 
 use crate::{
-    AnswerDialog, BrowserBack, BrowserForward, BrowserReload, DismissDialog, FocusAddressBar,
-    GoToAddress, NewBrowserTab, OpenBrowser, PickElement, RestoreAddress, SendPick,
+    Annotate, AnswerDialog, BrowserBack, BrowserForward, BrowserReload, DismissDialog,
+    DropAnnotation, FocusAddressBar, GoToAddress, KeepAnnotation, NewBrowserTab, OpenBrowser,
+    PickElement, RestoreAddress, SendPick,
 };
 
 /// How many times, a tenth of a second apart, a start waits for Chromium to write its endpoint
@@ -226,6 +227,33 @@ pub struct Pick {
     pub crop: Option<String>,
 }
 
+/// Who drew an annotation (#498).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Maker {
+    /// The user, in annotate mode.
+    User,
+    /// An agent, through `browser_annotate`.
+    Agent,
+}
+
+/// A box and a note Marley draws over a page (#498), in the page's coordinates, the document's
+/// CSS pixels, so it stays on what it marks as the page scrolls.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Annotation {
+    /// Its number, from 1, across the session.
+    pub id: usize,
+    /// Its box in the page.
+    #[serde(rename = "box")]
+    pub page_box: PageBox,
+    /// What it says.
+    pub note: String,
+    /// Who drew it.
+    pub maker: Maker,
+    /// When, in seconds since the Unix epoch.
+    pub made_at: u64,
+}
+
 /// The viewport a tab asked for: its size in whole logical pixels, at the window's scale.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Viewport {
@@ -267,6 +295,9 @@ struct PageState {
     scripts: Option<HashMap<String, ScriptInfo>>,
     /// Why the page's last pick could not be read.
     pick_error: Option<SharedString>,
+    /// The boxes and notes drawn over the page (#498), oldest first, until it leaves its
+    /// document.
+    annotations: Vec<Annotation>,
     /// The page's cross-site iframes (#492).
     iframes: Vec<Iframe>,
     /// What the page logged since it was attached.
@@ -306,6 +337,7 @@ impl PageState {
             picking: false,
             scripts: None,
             pick_error: None,
+            annotations: Vec::new(),
             iframes: Vec::new(),
             console: ConsoleLog::default(),
             network: NetworkLog::default(),
@@ -372,6 +404,8 @@ pub struct BrowserHub {
     picks: Vec<Pick>,
     /// The next pick's number.
     next_pick: usize,
+    /// The next annotation's number (#498).
+    next_annotation: usize,
     /// Bumped at each start, so a superseded start's late results are dropped.
     generation: u64,
     run: Option<Task<()>>,
@@ -420,6 +454,7 @@ impl BrowserHub {
                 focused: None,
                 picks: Vec::new(),
                 next_pick: 1,
+                next_annotation: 1,
                 generation: 0,
                 run: None,
             };
@@ -1319,6 +1354,72 @@ impl BrowserHub {
         cx.notify();
     }
 
+    /// The page's annotations, oldest first (#498).
+    #[must_use]
+    pub fn annotations(&self, target: &str) -> &[Annotation] {
+        self.page_state(target)
+            .map_or(&[], |page| page.annotations.as_slice())
+    }
+
+    /// Draws a box with a note over the page; the annotation's id, or none when the page is
+    /// gone.
+    pub fn add_annotation(
+        &mut self,
+        target: &str,
+        page_box: PageBox,
+        note: String,
+        maker: Maker,
+        cx: &mut Context<Self>,
+    ) -> Option<usize> {
+        let id = self.next_annotation;
+        let made_at = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |since| since.as_secs());
+        self.page_state_mut(target)?.annotations.push(Annotation {
+            id,
+            page_box,
+            note,
+            maker,
+            made_at,
+        });
+        self.next_annotation += 1;
+        cx.notify();
+        Some(id)
+    }
+
+    fn remove_annotation(&mut self, target: &str, id: usize, cx: &mut Context<Self>) {
+        if let Some(page) = self.page_state_mut(target) {
+            page.annotations.retain(|annotation| annotation.id != id);
+            cx.notify();
+        }
+    }
+
+    /// Removes the agent's annotations from the page, the user's staying; how many went.
+    pub fn clear_agent_annotations(&mut self, target: &str, cx: &mut Context<Self>) -> usize {
+        let Some(page) = self.page_state_mut(target) else {
+            return 0;
+        };
+        let before = page.annotations.len();
+        page.annotations
+            .retain(|annotation| annotation.maker != Maker::Agent);
+        let removed = before - page.annotations.len();
+        cx.notify();
+        removed
+    }
+
+    /// The page's main frame shows another document: what was drawn over the old one goes.
+    fn left_document(&mut self, generation: u64, target: &str, cx: &mut Context<Self>) {
+        if generation != self.generation {
+            return;
+        }
+        if let Some(page) = self.page_state_mut(target)
+            && !page.annotations.is_empty()
+        {
+            page.annotations.clear();
+            cx.notify();
+        }
+    }
+
     /// Forgets the page's open select: its list closed with no choice.
     fn dismiss_select(&mut self, target: &str) {
         if let Some(page) = self.page_state_mut(target) {
@@ -2157,6 +2258,8 @@ async fn follow_navigation(
         // Chromium's error page, which names the URL it could not load.
         "Page.frameNavigated" => {
             if event.params.pointer("/frame/parentId").is_none() {
+                this.update(cx, |this, cx| this.left_document(generation, &target, cx))
+                    .ok();
                 let url = ["/frame/unreachableUrl", "/frame/url"]
                     .into_iter()
                     .find_map(|pointer| event.params.pointer(pointer).and_then(Value::as_str))
@@ -2669,7 +2772,28 @@ pub struct BrowserView {
     captions: HashMap<usize, Entity<Editor>>,
     /// What went wrong with the last Send, or the last listener's file opened.
     tray_error: Option<SharedString>,
+    /// Annotate mode, and the annotation being drawn (#498).
+    annotate_mode: AnnotateMode,
+    /// The annotation whose note the user clicked, which Delete removes.
+    selected_annotation: Option<usize>,
     _subscriptions: Vec<Subscription>,
+}
+
+/// Annotate mode (#498): a drag in the page reaches the page, draws a box, or has drawn one that
+/// waits for its note.
+enum AnnotateMode {
+    Off,
+    On,
+    /// A drag between two document points.
+    Dragging {
+        from: (f64, f64),
+        to: (f64, f64),
+    },
+    /// A box and the field for its note.
+    Noting {
+        page_box: PageBox,
+        note: Entity<Editor>,
+    },
 }
 
 /// A pick as its tray row shows it.
@@ -2807,6 +2931,8 @@ impl BrowserView {
             select_menu: None,
             captions: HashMap::new(),
             tray_error: None,
+            annotate_mode: AnnotateMode::Off,
+            selected_annotation: None,
             _subscriptions: subscriptions,
         };
         view.show_address(window, cx);
@@ -3369,6 +3495,101 @@ impl BrowserView {
         cx.notify();
     }
 
+    /// Turns annotate mode on or off; the page takes the focus, so Escape ends it.
+    fn annotate(&mut self, _: &Annotate, window: &mut Window, cx: &mut Context<Self>) {
+        self.annotate_mode = if matches!(self.annotate_mode, AnnotateMode::Off) {
+            window.focus(&self.focus_handle, cx);
+            AnnotateMode::On
+        } else {
+            AnnotateMode::Off
+        };
+        self.selected_annotation = None;
+        cx.notify();
+    }
+
+    const fn is_dragging(&self) -> bool {
+        matches!(self.annotate_mode, AnnotateMode::Dragging { .. })
+    }
+
+    /// A press in annotate mode starts a box at the document point `from`; a box still waiting
+    /// for its note goes.
+    fn start_drag(&mut self, from: (f64, f64), cx: &mut Context<Self>) {
+        if !matches!(self.annotate_mode, AnnotateMode::Off) {
+            self.annotate_mode = AnnotateMode::Dragging { from, to: from };
+            self.selected_annotation = None;
+            cx.notify();
+        }
+    }
+
+    fn drag_to(&mut self, point: (f64, f64), cx: &mut Context<Self>) {
+        if let AnnotateMode::Dragging { to, .. } = &mut self.annotate_mode {
+            *to = point;
+            cx.notify();
+        }
+    }
+
+    /// The release ends the box and opens the field for its note; a drag too short to be a box
+    /// draws nothing.
+    fn end_drag(&mut self, point: (f64, f64), window: &mut Window, cx: &mut Context<Self>) {
+        let AnnotateMode::Dragging { from, .. } = self.annotate_mode else {
+            return;
+        };
+        let page_box = PageBox {
+            x: from.0.min(point.0),
+            y: from.1.min(point.1),
+            width: (point.0 - from.0).abs(),
+            height: (point.1 - from.1).abs(),
+        };
+        if page_box.width < SHORTEST_BOX || page_box.height < SHORTEST_BOX {
+            self.annotate_mode = AnnotateMode::On;
+            cx.notify();
+            return;
+        }
+        let note = cx.new(|cx| {
+            let mut editor = Editor::single_line(window, cx);
+            editor.set_placeholder_text("A note for this box; Enter keeps it", window, cx);
+            editor
+        });
+        window.focus(&note.focus_handle(cx), cx);
+        self.annotate_mode = AnnotateMode::Noting { page_box, note };
+        cx.notify();
+    }
+
+    /// Keeps the box drawn, with its note; annotate mode stays on for the next.
+    fn keep_annotation(&mut self, _: &KeepAnnotation, window: &mut Window, cx: &mut Context<Self>) {
+        let AnnotateMode::Noting { page_box, note } = &self.annotate_mode else {
+            return;
+        };
+        let (page_box, note) = (*page_box, note.read(cx).text(cx).trim().to_string());
+        if let Some(target) = self.target.clone() {
+            self.hub.update(cx, |hub, cx| {
+                hub.add_annotation(&target, page_box, note, Maker::User, cx);
+            });
+        }
+        self.annotate_mode = AnnotateMode::On;
+        window.focus(&self.focus_handle, cx);
+        cx.notify();
+    }
+
+    /// Drops the box being drawn, or waiting for its note.
+    fn drop_annotation(&mut self, _: &DropAnnotation, window: &mut Window, cx: &mut Context<Self>) {
+        if matches!(
+            self.annotate_mode,
+            AnnotateMode::Dragging { .. } | AnnotateMode::Noting { .. }
+        ) {
+            self.annotate_mode = AnnotateMode::On;
+            window.focus(&self.focus_handle, cx);
+            cx.notify();
+        }
+    }
+
+    /// A click on an annotation's note selects it, for Delete; the page takes the focus.
+    fn select_annotation(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
+        self.selected_annotation = Some(id);
+        window.focus(&self.focus_handle, cx);
+        cx.notify();
+    }
+
     /// Records `frame` as drawn now, and frees the frame drawn two paints ago.
     fn drew(&mut self, frame: &Arc<RenderImage>, window: &mut Window) {
         if self
@@ -3397,6 +3618,21 @@ impl BrowserView {
         if keystroke.key == "escape" && self.hub.read(cx).is_picking(&target) {
             self.hub
                 .update(cx, |hub, cx| hub.set_picking(&target, false, cx));
+            cx.stop_propagation();
+            return;
+        }
+        if keystroke.key == "escape" && !matches!(self.annotate_mode, AnnotateMode::Off) {
+            self.annotate_mode = AnnotateMode::Off;
+            cx.notify();
+            cx.stop_propagation();
+            return;
+        }
+        if let Some(id) = self.selected_annotation
+            && matches!(keystroke.key.as_str(), "delete" | "backspace")
+        {
+            self.selected_annotation = None;
+            self.hub
+                .update(cx, |hub, cx| hub.remove_annotation(&target, id, cx));
             cx.stop_propagation();
             return;
         }
@@ -3541,6 +3777,7 @@ impl BrowserView {
         let showing = hub.state == HubState::Showing && hub.page_state(target).is_some();
         let loading = hub.is_loading(target);
         let picking = hub.is_picking(target);
+        let annotating = !matches!(self.annotate_mode, AnnotateMode::Off);
         let colors = cx.theme().colors();
         let reload_or_stop = if loading {
             IconButton::new("browser-stop", IconName::Close)
@@ -3597,6 +3834,7 @@ impl BrowserView {
                     .child(self.address_bar.clone()),
             )
             .child(Self::render_pick_button(showing, picking, cx))
+            .child(Self::render_annotate_button(showing, annotating, cx))
             // What an agent does in the page, while it does it and a moment after (#492).
             .when_some(hub.agent_chip(target), |this, action| {
                 this.child(
@@ -3649,6 +3887,163 @@ impl BrowserView {
             .on_click(cx.listener(|this, _, window, cx| {
                 this.pick_element(&PickElement, window, cx);
             }))
+    }
+
+    /// The toolbar's annotate button, lit while a drag in the page draws a box (#498).
+    fn render_annotate_button(showing: bool, annotating: bool, cx: &Context<Self>) -> IconButton {
+        IconButton::new("browser-annotate", IconName::Pencil)
+            .disabled(!showing)
+            .toggle_state(annotating)
+            .selected_icon_color(Color::Accent)
+            .tooltip(Tooltip::for_action_title(
+                if annotating {
+                    "Stop Annotating"
+                } else {
+                    "Annotate the Page"
+                },
+                &Annotate,
+            ))
+            .on_click(cx.listener(|this, _, window, cx| {
+                this.annotate(&Annotate, window, cx);
+            }))
+    }
+
+    /// The page's annotations over the frame drawn now, each placed from that frame's own
+    /// scroll and scale; then the box being drawn, and the field for its note (#498).
+    fn render_annotations(
+        &self,
+        placement: Option<Placement>,
+        cx: &Context<Self>,
+    ) -> Vec<AnyElement> {
+        let (Some(placement), Some(target)) = (placement, self.target.as_deref()) else {
+            return Vec::new();
+        };
+        let user = cx.theme().status().warning;
+        let mut elements: Vec<AnyElement> = self
+            .hub
+            .read(cx)
+            .annotations(target)
+            .iter()
+            .filter_map(|annotation| self.render_annotation(annotation, placement, cx))
+            .flatten()
+            .collect();
+        match &self.annotate_mode {
+            AnnotateMode::Dragging { from, to } => {
+                let page_box = PageBox {
+                    x: from.0.min(to.0),
+                    y: from.1.min(to.1),
+                    width: (to.0 - from.0).abs(),
+                    height: (to.1 - from.1).abs(),
+                };
+                elements.push(
+                    annotation_box(placement.place(page_box), user, false, true).into_any_element(),
+                );
+            }
+            AnnotateMode::Noting { page_box, note } => {
+                let bounds = placement.place(*page_box);
+                elements.push(annotation_box(bounds, user, false, true).into_any_element());
+                elements.push(Self::render_note_field(bounds, placement, note, cx));
+            }
+            AnnotateMode::Off | AnnotateMode::On => {}
+        }
+        elements
+    }
+
+    /// An annotation's box and its note's chip, which a click selects; none when the box is out
+    /// of the frame.
+    fn render_annotation(
+        &self,
+        annotation: &Annotation,
+        placement: Placement,
+        cx: &Context<Self>,
+    ) -> Option<[AnyElement; 2]> {
+        let bounds = placement.place(annotation.page_box);
+        if !placement.shows(&bounds) {
+            return None;
+        }
+        let theme = cx.theme();
+        let (color, maker) = match annotation.maker {
+            Maker::User => (theme.status().warning, "You"),
+            Maker::Agent => (theme.colors().text_accent, "Agent"),
+        };
+        let selected = self.selected_annotation == Some(annotation.id);
+        let id = annotation.id;
+        let label = if annotation.note.is_empty() {
+            maker.to_string()
+        } else {
+            annotation.note.clone()
+        };
+        let chip_top = if bounds.origin.y > px(NOTE_CHIP_HEIGHT) {
+            bounds.origin.y - px(NOTE_CHIP_HEIGHT)
+        } else {
+            bounds.origin.y
+        };
+        let chip = h_flex()
+            .id(("browser-annotation", id))
+            .absolute()
+            .left(bounds.origin.x)
+            .top(chip_top)
+            .h(px(NOTE_CHIP_HEIGHT))
+            .max_w(rems(20.))
+            .gap_1()
+            .px_1()
+            .rounded_sm()
+            .border_1()
+            .border_color(color)
+            .bg(theme.colors().elevated_surface_background)
+            .occlude()
+            .cursor_pointer()
+            .when(annotation.maker == Maker::Agent, |this| {
+                this.child(
+                    Icon::new(IconName::Sparkle)
+                        .size(IconSize::XSmall)
+                        .color(Color::Custom(color)),
+                )
+            })
+            .child(
+                Label::new(label)
+                    .size(LabelSize::Small)
+                    .color(Color::Custom(color))
+                    .truncate(),
+            )
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.select_annotation(id, window, cx);
+            }));
+        Some([
+            annotation_box(bounds, color, selected, false).into_any_element(),
+            chip.into_any_element(),
+        ])
+    }
+
+    /// The field for a drawn box's note: under the box, or over it when it would not fit.
+    fn render_note_field(
+        bounds: Bounds<Pixels>,
+        placement: Placement,
+        note: &Entity<Editor>,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let colors = cx.theme().colors();
+        let below = bounds.origin.y + bounds.size.height + px(4.);
+        let top = if f64::from(below) + f64::from(NOTE_FIELD_HEIGHT) > placement.height {
+            bounds.origin.y - px(4. + NOTE_FIELD_HEIGHT)
+        } else {
+            below
+        };
+        div()
+            .absolute()
+            .left(bounds.origin.x)
+            .top(top)
+            .w(rems(20.))
+            .key_context("MarleyAnnotationNote")
+            .occlude()
+            .px_2()
+            .py_1()
+            .rounded_md()
+            .border_1()
+            .border_color(colors.border)
+            .bg(colors.editor_background)
+            .child(note.clone())
+            .into_any_element()
     }
 
     /// The page's dialog as a card over the page, which takes no input while it shows.
@@ -3993,6 +4388,12 @@ impl Render for BrowserView {
             self.drew(frame, window);
         }
         let message = self.message(state, attached);
+        let placement = frame
+            .as_deref()
+            .zip(metadata)
+            .and_then(|(frame, metadata)| Placement::new(frame, metadata, window));
+        let annotations = self.render_annotations(placement, cx);
+        let annotating = !matches!(self.annotate_mode, AnnotateMode::Off);
         let tray = self.render_tray(window, cx);
         let toolbar = self.render_toolbar(cx);
         let dialog = dialog.map(|dialog| self.render_dialog(&dialog, cx));
@@ -4005,6 +4406,9 @@ impl Render for BrowserView {
             .on_action(cx.listener(Self::forward))
             .on_action(cx.listener(Self::reload))
             .on_action(cx.listener(Self::pick_element))
+            .on_action(cx.listener(Self::annotate))
+            .on_action(cx.listener(Self::keep_annotation))
+            .on_action(cx.listener(Self::drop_annotation))
             .size_full()
             .bg(cx.theme().colors().editor_background)
             .child(toolbar)
@@ -4015,6 +4419,7 @@ impl Render for BrowserView {
                     .flex_1()
                     .min_h_0()
                     .w_full()
+                    .overflow_hidden()
                     .child(PageElement {
                         hub: self.hub.clone(),
                         view: cx.entity(),
@@ -4022,7 +4427,9 @@ impl Render for BrowserView {
                         focus_handle: self.focus_handle.clone(),
                         frame,
                         metadata,
+                        annotating,
                     })
+                    .children(annotations)
                     .when_some(message, |this, (headline, hint)| {
                         this.child(
                             v_flex()
@@ -4256,6 +4663,8 @@ struct PageElement {
     focus_handle: FocusHandle,
     frame: Option<Arc<RenderImage>>,
     metadata: Option<FrameMetadata>,
+    /// Whether a drag draws an annotation rather than reaching the page (#498).
+    annotating: bool,
 }
 
 impl IntoElement for PageElement {
@@ -4327,7 +4736,12 @@ impl Element for PageElement {
         if let Some(target) = self.target.clone() {
             let to_page = PageMapping::new(bounds, self.frame.as_deref(), self.metadata, window);
             self.view.update(cx, |view, _| view.mapping = Some(to_page));
-            self.listen(target, hitbox, to_page, window);
+            if self.annotating {
+                self.listen_for_a_box(hitbox, to_page, window);
+            } else {
+                self.listen(&target, hitbox, to_page, window);
+            }
+            self.listen_for_the_wheel(target, hitbox, to_page, window);
         }
         let Some(frame) = self.frame.clone() else {
             return;
@@ -4400,21 +4814,24 @@ impl PageElement {
     /// Sends the mouse to the page `target`: a press in the page focuses the tab first, and
     /// while a button the page got is held, moves and the release reach it wherever the pointer
     /// is.
-    fn listen(&self, target: String, hitbox: &Hitbox, to_page: PageMapping, window: &mut Window) {
+    fn listen(&self, target: &str, hitbox: &Hitbox, to_page: PageMapping, window: &mut Window) {
         window.on_mouse_event({
             let hub = self.hub.clone();
             let view = self.view.clone();
             let focus_handle = self.focus_handle.clone();
             let hitbox = hitbox.clone();
-            let target = target.clone();
+            let target = target.to_string();
             move |event: &MouseDownEvent, phase, window, cx| {
                 if phase != DispatchPhase::Bubble || !hitbox.is_hovered(window) {
                     return;
                 }
                 window.focus(&focus_handle, cx);
-                view.update(cx, |view, _| {
+                view.update(cx, |view, cx| {
                     view.last_press = Some(event.position);
                     view.pressed_at = Some(Instant::now());
+                    if view.selected_annotation.take().is_some() {
+                        cx.notify();
+                    }
                 });
                 hub.update(cx, |hub, cx| {
                     hub.mouse_press(
@@ -4431,7 +4848,7 @@ impl PageElement {
         window.on_mouse_event({
             let hub = self.hub.clone();
             let hitbox = hitbox.clone();
-            let target = target.clone();
+            let target = target.to_string();
             move |event: &MouseUpEvent, phase, window, cx| {
                 if phase != DispatchPhase::Bubble
                     || !(hitbox.is_hovered(window) || hub.read(cx).is_holding(&target))
@@ -4453,7 +4870,7 @@ impl PageElement {
         window.on_mouse_event({
             let hub = self.hub.clone();
             let hitbox = hitbox.clone();
-            let target = target.clone();
+            let target = target.to_string();
             move |event: &MouseMoveEvent, phase, window, cx| {
                 if phase != DispatchPhase::Bubble
                     || !(hitbox.is_hovered(window) || hub.read(cx).is_holding(&target))
@@ -4465,6 +4882,16 @@ impl PageElement {
                 });
             }
         });
+    }
+
+    /// Sends the wheel to the page, in annotate mode too.
+    fn listen_for_the_wheel(
+        &self,
+        target: String,
+        hitbox: &Hitbox,
+        to_page: PageMapping,
+        window: &mut Window,
+    ) {
         window.on_mouse_event({
             let hub = self.hub.clone();
             let hitbox = hitbox.clone();
@@ -4490,6 +4917,157 @@ impl PageElement {
                 cx.stop_propagation();
             }
         });
+    }
+
+    /// In annotate mode, a drag in the page draws a box, its corners in document points: the
+    /// viewport point over the pinch scale, plus the scroll of the frame drawn now (#498).
+    fn listen_for_a_box(&self, hitbox: &Hitbox, to_page: PageMapping, window: &mut Window) {
+        let (zoom, scroll_x, scroll_y, top) =
+            self.metadata.map_or((1.0, 0.0, 0.0, 0.0), |metadata| {
+                (
+                    positive_or_one(metadata.page_scale_factor),
+                    metadata.scroll_offset_x,
+                    metadata.scroll_offset_y,
+                    metadata.offset_top,
+                )
+            });
+        let to_document = move |position: Point<Pixels>| {
+            let (x, y) = to_page.map(position);
+            (x / zoom + scroll_x, (y - top) / zoom + scroll_y)
+        };
+        window.on_mouse_event({
+            let view = self.view.clone();
+            let focus_handle = self.focus_handle.clone();
+            let hitbox = hitbox.clone();
+            move |event: &MouseDownEvent, phase, window, cx| {
+                if phase != DispatchPhase::Bubble
+                    || event.button != MouseButton::Left
+                    || !hitbox.is_hovered(window)
+                {
+                    return;
+                }
+                window.focus(&focus_handle, cx);
+                view.update(cx, |view, cx| {
+                    view.start_drag(to_document(event.position), cx);
+                });
+            }
+        });
+        window.on_mouse_event({
+            let view = self.view.clone();
+            move |event: &MouseMoveEvent, phase, _, cx| {
+                if phase == DispatchPhase::Bubble && view.read(cx).is_dragging() {
+                    view.update(cx, |view, cx| {
+                        view.drag_to(to_document(event.position), cx);
+                    });
+                }
+            }
+        });
+        window.on_mouse_event({
+            let view = self.view.clone();
+            move |event: &MouseUpEvent, phase, window, cx| {
+                if phase == DispatchPhase::Bubble
+                    && event.button == MouseButton::Left
+                    && view.read(cx).is_dragging()
+                {
+                    view.update(cx, |view, cx| {
+                        view.end_drag(to_document(event.position), window, cx);
+                    });
+                }
+            }
+        });
+    }
+}
+
+/// How long a side of a drawn box must be, in CSS pixels, for the drag to draw one.
+const SHORTEST_BOX: f64 = 4.0;
+
+/// The height of an annotation's note chip, in window pixels.
+const NOTE_CHIP_HEIGHT: f32 = 20.0;
+
+/// The height of the note field, in window pixels, which goes above its box when it would not
+/// fit below.
+const NOTE_FIELD_HEIGHT: f32 = 32.0;
+
+/// A pinch scale as a divisor: one when the frame reports none.
+fn positive_or_one(value: f64) -> f64 {
+    if value > 0.0 { value } else { 1.0 }
+}
+
+/// An annotation's box: a border in its maker's color over a light fill, thicker when selected,
+/// dashed while it is drawn.
+fn annotation_box(bounds: Bounds<Pixels>, color: gpui::Hsla, selected: bool, drawing: bool) -> Div {
+    div()
+        .absolute()
+        .left(bounds.origin.x)
+        .top(bounds.origin.y)
+        .w(bounds.size.width)
+        .h(bounds.size.height)
+        .rounded_sm()
+        .map(|this| {
+            if selected {
+                this.border_4()
+            } else {
+                this.border_2()
+            }
+        })
+        .when(drawing, Styled::border_dashed)
+        .border_color(color)
+        .bg(color.opacity(0.08))
+}
+
+/// Where the document's points fall in the page area, from the frame drawn now (#498): its
+/// scroll, its pinch scale and its top offset, and its viewport in DIP over the size it is drawn
+/// at.
+#[derive(Clone, Copy)]
+struct Placement {
+    scroll_x: f64,
+    scroll_y: f64,
+    zoom: f64,
+    top: f64,
+    scale_x: f64,
+    scale_y: f64,
+    /// The frame's size as drawn, in window pixels.
+    width: f64,
+    height: f64,
+}
+
+impl Placement {
+    fn new(frame: &RenderImage, metadata: FrameMetadata, window: &Window) -> Option<Self> {
+        let drawn = frame.size(0).to_pixels(window.scale_factor());
+        let (width, height) = (f64::from(drawn.width), f64::from(drawn.height));
+        (width > 0.0 && height > 0.0).then(|| Self {
+            scroll_x: metadata.scroll_offset_x,
+            scroll_y: metadata.scroll_offset_y,
+            zoom: positive_or_one(metadata.page_scale_factor),
+            top: metadata.offset_top,
+            scale_x: metadata.device_width / width,
+            scale_y: metadata.device_height / height,
+            width,
+            height,
+        })
+    }
+
+    /// A box of the document as a box of the page area, in window pixels from its top left.
+    fn place(&self, page_box: PageBox) -> Bounds<Pixels> {
+        let x = (page_box.x - self.scroll_x) * self.zoom / self.scale_x;
+        let y = (page_box.y - self.scroll_y).mul_add(self.zoom, self.top) / self.scale_y;
+        Bounds::new(
+            point(window_pixels(x), window_pixels(y)),
+            gpui::size(
+                window_pixels(page_box.width * self.zoom / self.scale_x),
+                window_pixels(page_box.height * self.zoom / self.scale_y),
+            ),
+        )
+    }
+
+    /// Whether any of `bounds` shows in the frame.
+    fn shows(&self, bounds: &Bounds<Pixels>) -> bool {
+        let right = f64::from(bounds.origin.x + bounds.size.width);
+        let bottom = f64::from(bounds.origin.y + bounds.size.height);
+        right > 0.0
+            && bottom > 0.0
+            && f64::from(bounds.origin.x) < self.width
+            && f64::from(bounds.origin.y) < self.height
     }
 }
 

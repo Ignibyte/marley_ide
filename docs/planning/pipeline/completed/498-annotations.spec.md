@@ -1,7 +1,7 @@
 ---
 pipeline_id: b8d629ab-a478-416f-87af-0c6d270dd851
 ticket: docs/planning/tickets/open/TICKET-498-annotations.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "B4: Draw annotations on the page, for Chad and for the agent"
 type: feature
 slice: prong 3 B4 (wave 2)
@@ -57,16 +57,20 @@ frame's metadata. Warp: N/A.
 ## UI proof
 UI-AFFECTING. `script/e2e/498-annotations.sh` (`compositor sway`, offline): a long fixture page
 with headings down it. Steps: annotate mode, a drag around a heading and a note
-(`498-01-drawn`); five wheel detents down (`498-02-scrolled`: the box still on its heading); the
+(`498-01-drawn`); two wheel detents down (`498-02-scrolled`: the box still on its heading); the
 stand-in agent's `browser_annotate` on a ref (`498-03-agent`: a box of the agent's around that
 element with its note); `browser_annotations` (the run log: both, with their page coordinates
-and makers); a navigation (`498-04-gone`: no annotation).
+and makers); a click on the user's note and Delete (`498-03b-deleted`, the run log: the agent's
+alone); a navigation (`498-04-gone`: no annotation).
 
 ## Locked-In Decisions
 - D1 — Page coordinates are the document's CSS pixels, from each frame's own scroll offsets.
 - D2 — gpui draws; the page gets no drawing script (the handoff's rule).
 - D3 — Session only, per page, dropped on navigation, until Chad decides open decision 4.
 - D4 — An agent's annotations are marked as the agent's, and the agent clears only its own.
+- D5 — `browser_annotate` on a ref scrolls the element into view first, as the other write tools
+  do, so the user sees what the agent marks.
+- D6 — An annotation's time is seconds since the Unix epoch.
 
 ## Acceptance Criteria (EARS)
 
@@ -77,6 +81,7 @@ and makers); a navigation (`498-04-gone`: no annotation).
 | REQ-003 | WHEN an agent calls `browser_annotate` with a ref and a note, the tab shall draw a box of the agent's around that element with the note. | Shot `498-03-agent` |
 | REQ-004 | WHEN an agent calls `browser_annotations`, the answer shall list each annotation with its box in page coordinates, its note and its maker. | The run log |
 | REQ-005 | WHEN the page navigates to another document, its annotations shall go. | Shot `498-04-gone` |
+| REQ-006 | WHEN the user clicks an annotation's note and presses Delete, that annotation shall go. | Shot `498-03b-deleted`; the run log |
 
 ## Phase Plan
 - **P1 Plan** — promote, re-verify the seams, the design (the note's editor, selection and

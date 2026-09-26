@@ -2742,3 +2742,22 @@ error. `Debugger.scriptParsed`'s `sourceMapURL` is as the script's comment wrote
 relative, so it is joined to the script's URL first. A listener's `lineNumber` and
 `columnNumber` are its handler function's start, which a line-level map still places on the
 right source line.
+
+## L-claude-498-draw-over-a-streamed-page-from-the-frame-drawn-001
+*category: build · topic: gpui over a screencast · from: pipeline 498*
+
+Anything a view draws over a streamed page (a box, a label) is placed in render from the frame
+drawn in the same render and that frame's own metadata (scroll, pinch scale, top offset, DIP
+over the drawn size), as absolute children of a clipping container, not from a mapping saved at
+the last paint, which lags a scroll by a frame. A child with no hitbox lets the pointer through
+to the page element under it; a child that must take a click (a note's chip) `occlude()`s, so
+the page element's `hitbox.is_hovered` is false and its own press handler does nothing.
+
+## L-claude-498-a-new-toolbar-button-moves-older-scenarios-clicks-001
+*category: validate · topic: e2e scenarios · from: pipeline 498*
+
+A scenario that clicks a toolbar button by its window coordinates breaks silently when a later
+ticket adds a button beside it: #496's scenario clicked the pick button's old place, which #498
+gave to the annotate button, so its rerun turned on the wrong mode and made no pick, while
+every step "passed". A ticket that adds to a toolbar reruns the scenarios that click that
+toolbar, and reads their logs, not only their exit codes.

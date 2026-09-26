@@ -19,7 +19,8 @@
 #   `network`, `type-into <role> <name> <text>`, `click-on <role> <name>` and `scroll <dy>`.
 #   `--tab <id>` names the tab a tool acts on, and `--new-tab` has `navigate` open one (#493).
 #   `picks` lists the user's picks and `pick <id> [<image file>]` reads one, saving its crop
-#   (#496).
+#   (#496). `annotate <role> <name> <note>` draws the agent's box around an element,
+#   `annotations` lists a tab's boxes, and `annotate-clear` removes the agent's (#498).
 # - `browser_profile` and `browser_unit` name the run's Chromium profile and its user unit;
 #   `browser_teardown`, for the scenario's `teardown`, stops the unit and the servers.
 
@@ -339,6 +340,27 @@ def main():
         result = client.tool("browser_scroll", {"dy": float(rest[0]), **options})
         if result:
             print(f"  {result['structuredContent']['did']}")
+    elif command == "annotate":
+        role, name, note = rest[0], rest[1], rest[2]
+        snapshot = client.tool("browser_snapshot", {"full": True, **options})["content"][0]["text"]
+        reference = find_ref(snapshot, role, name)
+        result = client.tool("browser_annotate", {"ref": reference, "note": note, **options})
+        if result:
+            answer = result["structuredContent"]
+            box = answer["box"]
+            print(f"  {reference}: {answer['did']}, annotation {answer['id']} at {box['x']:.0f},{box['y']:.0f} {box['width']:.0f}x{box['height']:.0f}")
+    elif command == "annotate-clear":
+        result = client.tool("browser_annotate", {"clear": True, **options})
+        if result:
+            print(f"  {result['structuredContent']['did']}")
+    elif command == "annotations":
+        result = client.tool("browser_annotations", options)
+        annotations = (result or {}).get("structuredContent", {}).get("annotations", [])
+        if result and not annotations:
+            print("  no annotations")
+        for annotation in annotations:
+            box = annotation["box"]
+            print(f"  annotation {annotation['id']} by the {annotation['maker']}: {annotation['note']!r} at {box['x']:.0f},{box['y']:.0f} {box['width']:.0f}x{box['height']:.0f}")
     elif command == "picks":
         result = client.tool("browser_picks")
         picks = (result or {}).get("structuredContent", {}).get("picks", [])

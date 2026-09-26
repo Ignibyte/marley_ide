@@ -137,6 +137,16 @@ actions!(
         /// Sends the pick whose caption has the focus to the agent in the terminal used last.
         #[derive(Eq)]
         SendPick,
+        /// Turns annotate mode on or off in the Browser tab: a drag in the page draws a box, with
+        /// a note, over it.
+        #[derive(Eq)]
+        Annotate,
+        /// Keeps the annotation being drawn, with the note typed for it.
+        #[derive(Eq)]
+        KeepAnnotation,
+        /// Drops the annotation being drawn.
+        #[derive(Eq)]
+        DropAnnotation,
     ]
 );
 

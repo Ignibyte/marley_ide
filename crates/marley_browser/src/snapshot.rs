@@ -228,19 +228,21 @@ impl Writer {
         if shown {
             let interactive = INTERACTIVE.contains(&role.as_str());
             let line = if interactive && let Some(backend) = node.backend_dom_node_id {
-                let id = format!("e{}", self.snapshot.refs.len() + 1);
-                let line = self.describe(node, &role, &name, Some(&id));
-                self.snapshot.refs.push(RefTarget {
-                    id,
-                    session: frame.session.clone(),
-                    frame_id: frame.frame_id.clone(),
-                    backend_node_id: backend,
-                    role,
-                    name: name.clone(),
-                });
-                Some(line)
+                Some(self.add_ref(node, role, &name, backend, frame))
             } else if self.full {
-                self.full_line(node, &role, &name, parent_name)
+                match (
+                    self.full_line(node, &role, &name, parent_name),
+                    node.backend_dom_node_id,
+                ) {
+                    // With `full`, an element the tree names gets a ref too, which
+                    // `browser_annotate` can mark (#498); text and the document do not.
+                    (Some(_), Some(backend))
+                        if !matches!(role.as_str(), "StaticText" | "RootWebArea" | "WebArea") =>
+                    {
+                        Some(self.add_ref(node, role, &name, backend, frame))
+                    }
+                    (line, _) => line,
+                }
             } else {
                 None
             };
@@ -256,6 +258,28 @@ impl Writer {
                 self.walk(child, nodes, frame, child_depth, &name);
             }
         }
+    }
+
+    /// A node's line with a new ref, which the snapshot keeps for the write tools.
+    fn add_ref(
+        &mut self,
+        node: &AxNode,
+        role: String,
+        name: &str,
+        backend_node_id: i64,
+        frame: &FrameTree,
+    ) -> String {
+        let id = format!("e{}", self.snapshot.refs.len() + 1);
+        let line = self.describe(node, &role, name, Some(&id));
+        self.snapshot.refs.push(RefTarget {
+            id,
+            session: frame.session.clone(),
+            frame_id: frame.frame_id.clone(),
+            backend_node_id,
+            role,
+            name: name.to_string(),
+        });
+        line
     }
 
     /// A node that is not interactive, as `full` writes it; none for a node that only holds

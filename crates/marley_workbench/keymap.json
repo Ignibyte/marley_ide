@@ -63,6 +63,14 @@
     }
   },
   {
+    // An annotation's note: Enter keeps the annotation, Escape drops it.
+    "context": "MarleyAnnotationNote > Editor",
+    "bindings": {
+      "enter": "marley::KeepAnnotation",
+      "escape": "marley::DropAnnotation"
+    }
+  },
+  {
     // The address bar: Enter goes, Escape gives the page its URL and the focus back.
     "context": "MarleyAddressBar > Editor",
     "bindings": {

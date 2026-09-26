@@ -157,6 +157,19 @@ const REGISTRY: &[ToolSpec] = &[
          in the project and the line they were written at; what would block a click on it; its \
          box in the page; and the page around it as an image.",
     ),
+    browser_read(
+        "annotations",
+        "List the boxes and notes drawn over a page in a Browser tab, by the user or an agent: \
+         each one's id, its box in page coordinates (the document's CSS pixels, which stay on \
+         the content as the page scrolls), its note, who drew it and when.",
+    ),
+    browser_write(
+        "annotate",
+        "Draw a box with a note over a page in a Browser tab, for the user to see: around an \
+         element by its ref from browser_snapshot, scrolled into view, or over an area of the \
+         viewport; it stays on that content as the page scrolls, marked as the agent's. \
+         `clear` removes the agent's own boxes instead.",
+    ),
     browser_write(
         "navigate",
         "Load an http or https URL in a Browser tab, or in a new tab with `new_tab`, opening one \
@@ -305,6 +318,7 @@ fn browser_schemas(verb: &str) -> (Value, Value) {
         "look" => look_schemas(),
         "snapshot" => snapshot_schemas(),
         "console" | "network" => entries_schemas(verb),
+        "annotations" => annotations_schemas(),
         "picks" => picks_schemas(),
         "pick" => pick_schemas(),
         _ => browser_write_schemas(verb),
@@ -446,6 +460,48 @@ fn entries_schemas(verb: &str) -> (Value, Value) {
     )
 }
 
+/// A box in page coordinates, the document's CSS pixels.
+fn page_box_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "width": { "type": "number" },
+            "height": { "type": "number" }
+        },
+        "required": ["x", "y", "width", "height"]
+    })
+}
+
+/// `browser_annotations`: the tab's annotations (#498).
+fn annotations_schemas() -> (Value, Value) {
+    (
+        browser_arguments(json!({}), &[]),
+        json!({
+            "type": "object",
+            "properties": {
+                "tab": { "type": "string" },
+                "annotations": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": { "type": "integer" },
+                            "box": page_box_schema(),
+                            "note": { "type": "string" },
+                            "maker": { "type": "string", "enum": ["user", "agent"] },
+                            "made_at": { "type": "integer", "description": "Seconds since the Unix epoch." }
+                        },
+                        "required": ["id", "box", "note", "maker", "made_at"]
+                    }
+                }
+            },
+            "required": ["tab", "annotations"]
+        }),
+    )
+}
+
 /// What `browser_picks` and `browser_pick` say of a pick besides its bundle.
 fn pick_properties() -> Value {
     json!({
@@ -574,7 +630,7 @@ fn pick_schemas() -> (Value, Value) {
 fn browser_write_schemas(verb: &str) -> (Value, Value) {
     let element =
         json!({ "type": "string", "description": "A ref from browser_snapshot, such as e3." });
-    let done = json!({
+    let mut done = json!({
         "type": "object",
         "properties": {
             "did": { "type": "string", "description": "What the tool did, as the Agent chip says it." },
@@ -584,6 +640,17 @@ fn browser_write_schemas(verb: &str) -> (Value, Value) {
         },
         "required": ["did", "tab"]
     });
+    if verb == "annotate"
+        && let Some(properties) = done.get_mut("properties").and_then(Value::as_object_mut)
+    {
+        properties.extend([
+            (
+                "id".to_string(),
+                json!({ "type": "integer", "description": "The annotation's id; none for `clear`." }),
+            ),
+            ("box".to_string(), page_box_schema()),
+        ]);
+    }
     let arguments = match verb {
         "navigate" => browser_arguments(
             json!({
@@ -621,6 +688,18 @@ fn browser_write_schemas(verb: &str) -> (Value, Value) {
                 "dy": { "type": "number", "description": "Pixels down; negative is up." },
                 "dx": { "type": "number", "description": "Pixels right; negative is left." },
                 "ref": element
+            }),
+            &[],
+        ),
+        "annotate" => browser_arguments(
+            json!({
+                "ref": element,
+                "x": { "type": "number", "description": "An area of the viewport, in CSS pixels, with y, width and height." },
+                "y": { "type": "number" },
+                "width": { "type": "number" },
+                "height": { "type": "number" },
+                "note": { "type": "string", "description": "What the box says." },
+                "clear": { "type": "boolean", "description": "Remove the agent's own boxes from the page instead." }
             }),
             &[],
         ),

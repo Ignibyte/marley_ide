@@ -697,10 +697,41 @@ impl Page {
         Ok((quad[0], quad[1]))
     }
 
+    /// The border box of the DOM node `backend_node_id` of `session`, in its frame's viewport:
+    /// its left, top, width and height (#498).
+    ///
+    /// # Errors
+    ///
+    /// When the call fails, as it does for a node that is gone or has no box.
+    pub async fn border_box(
+        &self,
+        session: &str,
+        backend_node_id: i64,
+    ) -> Result<(f64, f64, f64, f64), CdpError> {
+        let quad = self.quad(session, backend_node_id, "border").await?;
+        let xs = [quad[0], quad[2], quad[4], quad[6]];
+        let ys = [quad[1], quad[3], quad[5], quad[7]];
+        let left = xs.iter().copied().fold(f64::INFINITY, f64::min);
+        let top = ys.iter().copied().fold(f64::INFINITY, f64::min);
+        let right = xs.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let bottom = ys.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        Ok((left, top, right - left, bottom - top))
+    }
+
     async fn content_quad(
         &self,
         session: &str,
         backend_node_id: i64,
+    ) -> Result<[f64; 8], CdpError> {
+        self.quad(session, backend_node_id, "content").await
+    }
+
+    /// One of the node's box model quads: `content`, `padding`, `border` or `margin`.
+    async fn quad(
+        &self,
+        session: &str,
+        backend_node_id: i64,
+        which: &str,
     ) -> Result<[f64; 8], CdpError> {
         let answer = self
             .call_in(
@@ -710,13 +741,13 @@ impl Page {
             )
             .await?;
         let points: Vec<f64> = answer
-            .pointer("/model/content")
+            .pointer(&format!("/model/{which}"))
             .and_then(Value::as_array)
             .map(|points| points.iter().filter_map(Value::as_f64).collect())
             .unwrap_or_default();
         points
             .try_into()
-            .map_err(|_| CdpError::Unexpected("the element's box has no content quad".into()))
+            .map_err(|_| CdpError::Unexpected(format!("the element's box has no {which} quad")))
     }
 
     /// The element that has the focus in the main frame, if one does; read in an isolated world.

@@ -407,6 +407,11 @@ alike.
   Every answer names its tab.
 - `browser_tabs` lists each page: its id, title, URL (with secret-looking values hidden),
   whether it loads, and which one a call that names no tab acts on.
+- `browser_annotate` (#498, a write tool) draws the agent's box around a ref's element, scrolled
+  into view first (`ref_origin`, which `place` shares, then `Page::border_box` plus the scroll
+  from `Page::viewport`), or over an area of the viewport, and names the annotation; `clear`
+  removes the agent's own. `browser_annotations` lists the page's boxes in page coordinates,
+  with their notes, makers and times.
 - `browser_picks` and `browser_pick {id}` (#496) answer from the hub alone, before the browser
   needs to show, so a pick outlives its page and a restart: the list gives each pick's id, tab,
   URL and title, summary, caption and whether it was sent; `browser_pick` gives the pick with
@@ -453,7 +458,7 @@ alike.
   when that changes. The root `.gitignore` ignores every `.mcp.json`, since a local one carries
   bearers, with an exception for this one.
 
-## The Browser tab (`src/browser.rs`, #488 to #490, #493 to #497)
+## The Browser tab (`src/browser.rs`, #488 to #490, #493 to #498)
 
 - `BrowserHub` is one entity per app, behind a global: the connection to Marley's Chromium
   (`marley_browser`) and a `PageState` for each of its pages (#493): the `Page`, its newest
@@ -602,6 +607,20 @@ alike.
   listener. The link opens the file with `Workspace::open_path` and
   `Editor::go_to_singleton_buffer_point` at the line, from a task, since the file opens in the
   tab's own pane; a file gone since, or an open that fails, says so in the tray.
+- **Annotations (#498).** A page's `annotations` live in the hub (`Annotation { id, page_box,
+  note, maker, made_at }`, numbered across the session) until its main frame shows another
+  document (`frameNavigated`); a fragment or history move keeps them. The view's render reads
+  the frame and its metadata together and places each box from them (`Placement`: the scroll,
+  the pinch scale, the top offset and the DIP over the drawn size), as absolute children of the
+  page area, which clips: a border and a light fill in the user's color (the theme's warning) or
+  the agent's (its accent, with the Sparkle icon on the note), the note on a chip above the box.
+  Nothing reaches the page to draw, and a box has no hitbox, so the page under it still takes
+  the pointer. Annotate mode (`AnnotateMode`, the toolbar's Pencil, `marley::Annotate`) has
+  `PageElement` take the press, move and release as a drag in document points while the wheel
+  still scrolls the page; the release opens a note field (`MarleyAnnotationNote`, Enter
+  `marley::KeepAnnotation`, Escape `marley::DropAnnotation`), and Escape in the page ends the
+  mode. A chip occludes the page under it: its click selects the box and gives the page the
+  focus, and Delete or Backspace then removes it; a press in the page drops the selection.
 
 ## Tests
 

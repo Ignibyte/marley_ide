@@ -17,13 +17,14 @@ use marley_browser::cdp::CdpError;
 use marley_browser::input::{self, KeyPress};
 use marley_browser::observe::redact_url;
 use marley_browser::page::Page;
+use marley_browser::pick::PageBox;
 use marley_browser::snapshot::{self, FrameTree, RefTarget, Snapshot};
 use marley_mcp::{AppCall, ToolAnswer, ToolImage};
 use serde::Serialize;
 use serde_json::{Value, json};
 use ui::SharedString;
 
-use crate::browser::{BrowserHub, new_page, show_for_agent, showing};
+use crate::browser::{BrowserHub, Maker, new_page, show_for_agent, showing};
 
 /// How long a call waits, once the browser shows its pages, for the page it acts on to attach.
 const ATTACH_WAIT: Duration = Duration::from_secs(5);
@@ -36,6 +37,7 @@ const SCROLL_SETTLE: Duration = Duration::from_millis(300);
 
 /// The tools that act in a page they find, which bring its tab to the front first.
 const WRITES: &[&str] = &[
+    "browser_annotate",
     "browser_back",
     "browser_click",
     "browser_type",
@@ -83,6 +85,8 @@ async fn run(
         "browser_snapshot" => take_snapshot(&page, &tab, arguments, hub, cx).await,
         "browser_console" => entries(&tab, hub.read_with(cx, |hub, _| hub.console_entries(&tab))),
         "browser_network" => entries(&tab, hub.read_with(cx, |hub, _| hub.network_entries(&tab))),
+        "browser_annotations" => Ok(annotations(&tab, hub, cx)),
+        "browser_annotate" => annotate(&page, &tab, arguments, hub, cx).await,
         "browser_back" => back(&tab, hub, cx).await,
         "browser_click" => click(&page, &tab, arguments, hub, cx).await,
         "browser_type" => type_text(&page, &tab, arguments, hub, cx).await,
@@ -651,19 +655,60 @@ async fn place(
     hub: &Entity<BrowserHub>,
     cx: &AsyncApp,
 ) -> Result<(f64, f64), String> {
-    let gone = |_: CdpError| {
-        format!(
-            "{} is no longer on the page, or has no box; take a new snapshot",
-            target.id
-        )
-    };
+    let (session, offset) = ref_origin(page, tab, target, hub, cx).await?;
+    let (x, y) = page
+        .box_center(&session, target.backend_node_id)
+        .await
+        .map_err(|_| gone(target))?;
+    Ok((x + offset.0, y + offset.1))
+}
+
+/// Scrolls a ref's element into view and gives its border box in the page's coordinates (#498).
+async fn element_box(
+    page: &Page,
+    tab: &str,
+    target: &RefTarget,
+    hub: &Entity<BrowserHub>,
+    cx: &AsyncApp,
+) -> Result<PageBox, String> {
+    let (session, offset) = ref_origin(page, tab, target, hub, cx).await?;
+    let (left, top, width, height) = page
+        .border_box(&session, target.backend_node_id)
+        .await
+        .map_err(|_| gone(target))?;
+    let viewport = page.viewport().await.map_err(|error| error.to_string())?;
+    Ok(PageBox {
+        x: left + offset.0 + viewport.scroll_x,
+        y: top + offset.1 + viewport.scroll_y,
+        width,
+        height,
+    })
+}
+
+/// What a call says of a ref whose element went.
+fn gone(target: &RefTarget) -> String {
+    format!(
+        "{} is no longer on the page, or has no box; take a new snapshot",
+        target.id
+    )
+}
+
+/// A ref's element scrolled into view: the session that holds it, and where its frame's viewport
+/// sits in the page's, through a cross-site iframe's owner element.
+async fn ref_origin(
+    page: &Page,
+    tab: &str,
+    target: &RefTarget,
+    hub: &Entity<BrowserHub>,
+    cx: &AsyncApp,
+) -> Result<(String, (f64, f64)), String> {
     let session = target
         .session
         .clone()
         .unwrap_or_else(|| page.session_id().to_string());
     page.scroll_into_view(&session, target.backend_node_id)
         .await
-        .map_err(gone)?;
+        .map_err(|_| gone(target))?;
     let offset = match &target.frame_id {
         Some(frame) => {
             let nested = hub.read_with(cx, |hub, _| {
@@ -684,11 +729,84 @@ async fn place(
         }
         None => (0.0, 0.0),
     };
-    let (x, y) = page
-        .box_center(&session, target.backend_node_id)
-        .await
-        .map_err(gone)?;
-    Ok((x + offset.0, y + offset.1))
+    Ok((session, offset))
+}
+
+/// `browser_annotations`: the tab's annotations, with their boxes in page coordinates (#498).
+fn annotations(tab: &str, hub: &Entity<BrowserHub>, cx: &AsyncApp) -> ToolAnswer {
+    let annotations = hub.read_with(cx, |hub, _| hub.annotations(tab).to_vec());
+    ToolAnswer {
+        structured: json!({ "tab": tab, "annotations": annotations }),
+        text: None,
+        image: None,
+    }
+}
+
+/// `browser_annotate`: a box of the agent's, with a note, around a ref's element or over an area
+/// of the viewport; or, with `clear`, the agent's own boxes gone (#498).
+async fn annotate(
+    page: &Page,
+    tab: &str,
+    arguments: &Value,
+    hub: &Entity<BrowserHub>,
+    cx: &mut AsyncApp,
+) -> Result<ToolAnswer, String> {
+    if arguments.get("clear").and_then(Value::as_bool) == Some(true) {
+        let removed = hub.update(cx, |hub, cx| hub.clear_agent_annotations(tab, cx));
+        let did = format!("cleared {removed} annotations");
+        hub.update(cx, |hub, cx| {
+            hub.agent_ended(tab, SharedString::from(did.clone()), cx);
+        });
+        return Ok(done(&did, tab, hub, cx));
+    }
+    let note = arguments
+        .get("note")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let (page_box, what) = if let Some(reference) = arguments.get("ref").and_then(Value::as_str) {
+        let target = ref_target(tab, reference, hub, cx)?;
+        (
+            element_box(page, tab, &target, hub, cx).await?,
+            target.describe(),
+        )
+    } else {
+        let number = |name: &str| arguments.get(name).and_then(Value::as_f64);
+        let (Some(x), Some(y), Some(width), Some(height)) =
+            (number("x"), number("y"), number("width"), number("height"))
+        else {
+            return Err(
+                "give `ref` from browser_snapshot, or `x`, `y`, `width` and `height`".to_string(),
+            );
+        };
+        let viewport = page.viewport().await.map_err(|error| error.to_string())?;
+        (
+            PageBox {
+                x: x + viewport.scroll_x,
+                y: y + viewport.scroll_y,
+                width,
+                height,
+            },
+            format!("the area at {x:.0}, {y:.0}"),
+        )
+    };
+    let id = hub
+        .update(cx, |hub, cx| {
+            hub.add_annotation(tab, page_box, note, Maker::Agent, cx)
+        })
+        .ok_or_else(|| format!("the browser has no tab {tab}"))?;
+    let did = format!("annotated {what}");
+    hub.update(cx, |hub, cx| {
+        hub.agent_ended(tab, SharedString::from(did.clone()), cx);
+    });
+    let mut answer = done(&did, tab, hub, cx);
+    if let Some(structured) = answer.structured.as_object_mut() {
+        structured.extend([
+            ("id".to_string(), json!(id)),
+            ("box".to_string(), json!(page_box)),
+        ]);
+    }
+    Ok(answer)
 }
 
 /// A click at `point`, as the user's mouse makes one: the pointer moves there, then each press

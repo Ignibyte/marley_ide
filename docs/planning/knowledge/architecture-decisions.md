@@ -2052,3 +2052,16 @@ editors do. Rejected: adding a source-map crate for one lookup per pick; reading
 the map's `sourcesContent` into a buffer (out of scope, and not the user's file); matching a
 lone file name when the source names a path (a common name like `index.ts` would open the wrong
 file).
+
+## AD-claude-498-annotations-are-the-hubs-in-document-coordinates-001
+*decided at: 2026-09-25 · status: shipped*
+
+An annotation is a box in the document's CSS pixels with a note, a maker (the user or an agent)
+and a time, kept per page by the hub for the session and dropped when the page shows another
+document. gpui draws it over the frame, placed from that frame's metadata, and nothing is put
+into the page. The user draws in an annotate mode whose drag replaces the page's press, move and
+release; an agent draws through `browser_annotate` (a ref's border box, scrolled into view, or a
+viewport area) and clears only its own. Rejected: drawing with a script or an overlay in the
+page (the handoff's rule, and a page's own styles or scripts could hide or read it); storing
+viewport coordinates (a box would slide off its content on the first scroll); keeping
+annotations across launches before Chad decides open decision 4.

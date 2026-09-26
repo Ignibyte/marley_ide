@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Annotations over the page** (#498, 2026-09-25). The Browser tab's pencil button, or
+  `marley: annotate`, turns on annotate mode: drag a box around anything on the page, type a
+  note, and Enter keeps it (Escape drops it). Boxes are drawn by Marley over the page, never
+  put into it, and stay on what they mark as the page scrolls. Click a note and press Delete
+  to remove its box; leaving the page for another clears them. Agents draw boxes too:
+  `browser_annotate` puts one of the agent's, blue with a sparkle, around an element or over an
+  area, and `browser_annotations` lists every box with its place on the page, its note and who
+  drew it. A full `browser_snapshot` now gives headings and other named elements refs, so an
+  agent can point at them.
 - **A pick's code, one click away** (#497, 2026-09-25). A pick in the Browser tab now shows
   where the element's listener was written: Marley reads the script's source map, from the page
   or from the script itself, and finds that source in your project, so the tray reads

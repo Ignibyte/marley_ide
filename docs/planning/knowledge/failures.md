@@ -2004,3 +2004,12 @@ bundle would have handed to the agent through `browser_pick`, and for any field 
 typed. Fixed before the commit: the text is `innerText`, and a value only for an `<input>`
 button, where it is the label; the accessible name, which a field's label gives, still names a
 field.
+
+## F-claude-498-a-full-snapshot-gave-no-heading-a-ref-001
+*severity: low · found in: pipeline 498's Test phase (the stand-in agent's first annotate) · class: a tool's handle covered less than the tools that take it*
+
+`browser_snapshot` gave refs to interactive nodes only, with `full` as without, so an agent
+reading a full snapshot saw "Third heading" and had no ref to name it by: `browser_annotate`,
+which marks any element, could only reach buttons, links and fields. Fixed before the commit:
+with `full`, every node the tree writes a line for gets a ref, but text and the document. The
+default snapshot is unchanged, so #492's refs and their token cost stay as they were.

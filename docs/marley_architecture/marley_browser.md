@@ -97,7 +97,8 @@ for.
 - `snapshot::render` writes one or more frames' accessibility trees (`AxNode`, from
   `Accessibility.getFullAXTree`) as text: by default each interactive node (buttons, links,
   fields, boxes, options, tabs and the like) on a line with its role, its trimmed name, its states
-  and a ref (`e3`); with `full`, every node indented, unnamed containers folded. A cross-site
+  and a ref (`e3`); with `full`, every node indented, unnamed containers folded, and since #498
+  every element the tree names gets a ref too (text and the document do not). A cross-site
   iframe's nodes follow under a line that names its URL. A `RefTarget` says what each ref names:
   the session, the iframe's frame, the DOM node, the role and the name. No field's value is
   written: Chromium's value for a password field is a bullet a character. The text stops at 30,000
@@ -159,6 +160,12 @@ for.
   its role and name, else its tag and text.
 - `Page::crop(page_box)` is `Page.captureScreenshot` of the box with a 16-pixel margin, in page
   coordinates, as a base64 JPEG.
+
+## Boxes (`src/page.rs`, #498)
+
+- `Page::border_box(session, backend_node_id)` gives a node's border box in its frame's
+  viewport (left, top, width, height), read from `DOM.getBoxModel`'s border quad; the content
+  quad that `box_center` uses comes from the same read.
 
 ## Source maps (`src/source_map.rs`, #497)
 

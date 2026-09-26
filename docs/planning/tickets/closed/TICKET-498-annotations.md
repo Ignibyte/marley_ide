@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #498 (feature, prong 3 B4; prong 3 wave 2)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/498-annotations.spec.md
+- **Pipeline doc:** ../../pipeline/completed/498-annotations.spec.md
 - **Source ticket:** docs/marley/three-prong-plan.md, prong 3 B4; docs/marley/browser-handoff.md
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Pillar B. Boxes and notes drawn by Marley over the page, never injected into it, stored in page
