@@ -530,6 +530,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A project's Browser tabs come back after another project's** (#576, 2026-09-26). A Browser
+  tab saved in one project could replace another project's saved tab when Marley happened to give
+  both the same internal item id in different launches, and that project's tab then did not come
+  back. Each project's saved tabs are now kept apart; the saved tabs you already have are kept.
 - **A restored terminal opens in the folder it was in** (#577, 2026-09-26). After a restart, a
   terminal that had moved into a subfolder could come back in the project's folder instead: the
   terminal panel, cleaning up its own saved terminals, deleted the other terminals' saved rows,

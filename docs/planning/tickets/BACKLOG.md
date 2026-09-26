@@ -10,7 +10,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-576](open/TICKET-576-browser-tabs-table-item-id-not-unique.md) | bug | prong 3 · `marley_browser_tabs` loses `UNIQUE(item_id)`, as Zed's `terminals` did, so a tab's row survives another workspace's tab of the same item id |
+| [TICKET-578](open/TICKET-578-restored-browser-tab-draws-its-reopened-page.md) | bug | prong 3 · a restored Browser tab in front of its pane draws the page it reopens: `show_page` moves the tab's viewing to the new page (found in #576) |
 | [TICKET-549](open/TICKET-549-selection-to-the-agent.md) | feature | prong 2 with prong 1 · the editor's selection typed into a terminal agent's prompt as `@path#L1-99`; a picker when several agents run |
 | [TICKET-562](open/TICKET-562-orca-redactor-cross-check.md) | chore | prong 2 · Orca's redactor compared rule by rule with #516's; the gaps added: Basic and Token authorization headers, hyphenated secret names, cookies |
 | [TICKET-503](open/TICKET-503-terminal-urls-open-in-the-browser.md) | feature | prong 3 with prong 1 · a local URL in a terminal opens a Browser tab; the terminal offers a dev server's URL while its port listens |

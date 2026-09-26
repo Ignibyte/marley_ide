@@ -5020,19 +5020,44 @@ mod persistence {
     impl Domain for MarleyBrowserTabsDb {
         const NAME: &str = stringify!(MarleyBrowserTabsDb);
 
-        const MIGRATIONS: &[&str] = &[sql!(
-            CREATE TABLE marley_browser_tabs (
-                workspace_id INTEGER,
-                item_id INTEGER UNIQUE,
-                target_id TEXT NOT NULL,
-                url TEXT NOT NULL,
-                title TEXT NOT NULL,
+        const MIGRATIONS: &[&str] = &[
+            sql!(
+                CREATE TABLE marley_browser_tabs (
+                    workspace_id INTEGER,
+                    item_id INTEGER UNIQUE,
+                    target_id TEXT NOT NULL,
+                    url TEXT NOT NULL,
+                    title TEXT NOT NULL,
 
-                PRIMARY KEY(workspace_id, item_id),
-                FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id)
-                ON DELETE CASCADE
-            ) STRICT;
-        )];
+                    PRIMARY KEY(workspace_id, item_id),
+                    FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id)
+                    ON DELETE CASCADE
+                ) STRICT;
+            ),
+            // An item id is its entity id, which repeats across launches, so it keys a row only
+            // with its workspace: with `UNIQUE(item_id)`, one workspace's tab replaced another's
+            // (#576). SQLite drops a constraint by building the table again.
+            sql!(
+                CREATE TABLE marley_browser_tabs2 (
+                    workspace_id INTEGER,
+                    item_id INTEGER,
+                    target_id TEXT NOT NULL,
+                    url TEXT NOT NULL,
+                    title TEXT NOT NULL,
+
+                    PRIMARY KEY(workspace_id, item_id),
+                    FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id)
+                    ON DELETE CASCADE
+                ) STRICT;
+
+                INSERT INTO marley_browser_tabs2 (workspace_id, item_id, target_id, url, title)
+                SELECT workspace_id, item_id, target_id, url, title FROM marley_browser_tabs;
+
+                DROP TABLE marley_browser_tabs;
+
+                ALTER TABLE marley_browser_tabs2 RENAME TO marley_browser_tabs;
+            ),
+        ];
     }
 
     db::static_connection!(MarleyBrowserTabsDb, [WorkspaceDb]);

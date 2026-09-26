@@ -2174,3 +2174,14 @@ rows, and a center terminal whose restore read its row after that came back in t
 folder. #577's scenario showed it on the build before the fix: the split's terminal, left in
 `beta`, came back in the repository's root. Fixed in #577: the panel's cleanup also keeps the
 terminal items of the workspace's saved layout (`TerminalDb::marley_saved_terminal_items`).
+
+## F-claude-576-the-browser-tabs-table-kept-a-unique-item-id-001
+*severity: medium · found in: pipeline 575's Plan (reading Zed's `terminals` migrations), shown red in pipeline 576's Test · class: an item id keyed without its workspace · prevented by: L-claude-494-zed-item-ids-change-at-each-launch-001*
+
+#494's `marley_browser_tabs` declared `item_id INTEGER UNIQUE` beside `PRIMARY KEY(workspace_id,
+item_id)`. Item ids are entity ids, which repeat across launches, so a tab saved in one workspace
+under an item id another workspace's tab had been saved under replaced that row through
+`INSERT OR REPLACE`, and the other workspace's tab no longer came back; #576's scenario showed it
+on the build before the fix, the two tabs meeting on one id by themselves. Zed's own `terminals`
+table had dropped the same constraint in a later migration. Fixed in #576: a second migration
+rebuilds the table without it.

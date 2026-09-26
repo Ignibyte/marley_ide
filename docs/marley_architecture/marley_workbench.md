@@ -682,17 +682,18 @@ alike.
   adds it again in one update, before the deferred check runs. The tab frees each frame from the
   window's atlas two paints after it was first drawn, and both kept frames on release, as Zed's
   screen-share view does, since the window may present the last frame again.
-- **Saved and restored (#494).** `BrowserView` is a `SerializableItem` of kind
-  `MarleyBrowserTab`, registered in `browser::init`. The workspace's layout holds the item
-  alone; the tab's page id, URL and title go in its own table, `marley_browser_tabs`, of the
-  `db` domain `MarleyBrowserTabsDb` (after `WorkspaceDb`, its rows deleted with their
-  workspace). Zed saves the item when it joins a workspace and on `UpdateTab`, which the tab
-  emits when its page's URL or title changes and when it takes a page; `cleanup` is Zed's
-  `delete_unloaded_items`. `deserialize` builds a tab that claims its saved page id at once, so
-  the start's `PageOpened` for that page finds it, and shows the saved title and URL until the
-  page is back. The tab's restore task waits for the hub to show its pages and for the start's
-  attaches: a page that is back is kept, and otherwise the saved URL opens in a new page, which
-  the tab takes.
+- **Saved and restored (#494).** `BrowserView` is a `SerializableItem` of kind `MarleyBrowserTab`,
+  registered in `browser::init`. The workspace's layout holds the item alone; the tab's page id,
+  URL and title go in its own table, `marley_browser_tabs`, of the `db` domain
+  `MarleyBrowserTabsDb` (after `WorkspaceDb`, its rows deleted with their workspace), keyed by
+  workspace and item: item ids repeat across launches, so a second migration rebuilt the table
+  without the first's `UNIQUE(item_id)`, rows and all (#576). Zed saves the item when it joins a
+  workspace and on `UpdateTab`, which the tab emits when its page's URL or title changes and when
+  it takes a page; `cleanup` is Zed's `delete_unloaded_items`. `deserialize` builds a tab that
+  claims its saved page id at once, so the start's `PageOpened` for that page finds it, and shows
+  the saved title and URL until the page is back. The tab's restore task waits for the hub to show
+  its pages and for the start's attaches: a page that is back is kept, and otherwise the saved URL
+  opens in a new page, which the tab takes.
 - `PageElement` reports the tab's size and the window's scale to the hub in `prepaint` (the
   page is laid out again only when either changes) and paints the frame from the tab's top
   left at its own size, so a frame from before a resize is neither stretched nor squeezed.

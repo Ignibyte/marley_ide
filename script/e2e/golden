@@ -19,3 +19,4 @@
 574-browser-tools-in-the-callers-project.sh  # a browser call with no tab acts in the caller's project
 575-terminal-id-across-restore.sh   # a restored terminal keeps its id; a split and a new one get their own
 577-restored-terminal-keeps-its-folder.sh  # a restored terminal opens in the folder it was in
+576-browser-tabs-table-item-id-not-unique.sh  # a Browser tab's row survives another workspace's tab of the same item id
