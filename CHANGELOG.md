@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Send the editor's selection to an agent in a terminal** (#549, 2026-09-26). In the Marley
+  layout, `ctrl->` in a file's editor types a reference to the selection at the prompt of the
+  CLI agent running in a terminal of the window, without pressing Enter, and focuses that
+  terminal: `@src/auth.rs#L12-40` for Claude Code, `src/auth.rs:12-40 ` for Codex, Gemini CLI
+  and OpenCode, the path relative to the agent's folder when the file is inside it. With several
+  agents a picker asks which; with none, the key does what it always did and adds the selection
+  to Zed's Agent Panel. Rich input open on the terminal gets the reference instead. Nothing is
+  typed while Claude Code waits on a permission or a question, which a paste would answer; a
+  toast says so. `marley: send selection to agent` does the same from the palette, in either
+  layout.
 - **A terminal keeps its id across a restart** (#575, 2026-09-26). A terminal Marley restores
   at a launch now keeps the `MARLEY_TERMINAL_ID` it had, so an agent resumed there, or a script
   that kept the id, still names the same terminal, and Marley's tools mark it `self` as before.

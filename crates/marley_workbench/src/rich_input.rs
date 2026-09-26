@@ -69,6 +69,28 @@ pub fn open(view: &Entity<TerminalView>, agent: AgentKind, window: &mut Window, 
     view.update(cx, |_, cx| cx.notify());
 }
 
+/// Whether `view`'s editor is open (#549).
+pub fn is_open(view: &Entity<TerminalView>, cx: &App) -> bool {
+    cx.try_global::<Prompts>()
+        .and_then(|prompts| prompts.0.get(&view.entity_id()))
+        .is_some_and(|prompt| prompt.open)
+}
+
+/// Inserts `text` at the cursor of `view`'s editor while it is open, and gives the editor the
+/// focus; a closed editor is left alone (#549).
+pub fn insert(view: &Entity<TerminalView>, text: &str, window: &mut Window, cx: &mut App) {
+    let Some(editor) = cx
+        .try_global::<Prompts>()
+        .and_then(|prompts| prompts.0.get(&view.entity_id()))
+        .filter(|prompt| prompt.open)
+        .map(|prompt| prompt.editor.clone())
+    else {
+        return;
+    };
+    editor.update(cx, |editor, cx| editor.insert(text, window, cx));
+    window.focus(&editor.focus_handle(cx), cx);
+}
+
 /// A new editor for `view`'s prompt to `agent`, one to eight lines tall, which goes when the view
 /// does.
 fn new_editor(

@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #549 (feature, prong 2 with prong 1: the editor feeds the CLI agent in a terminal)
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/549-selection-to-the-agent.spec.md
+- **Pipeline doc:** ../../pipeline/completed/549-selection-to-the-agent.spec.md
 - **Source ticket:** The Warp second pass of 2026-09-25, finding 1 and its first recommendation (`docs/planning/design-notes/warp-second-pass-2026-09-25.md`), with Chad's answer of 2026-09-26: with several agents running, a picker chooses the target. Specced because Chad decided on 2026-09-26 that every remaining Orca and Warp finding gets built.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Zed's `ctrl->` quotes the editor's selection into an Agent Panel thread and reaches nothing

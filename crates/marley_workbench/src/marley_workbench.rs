@@ -37,6 +37,7 @@ pub mod push;
 mod rail;
 pub mod rich_input;
 pub mod routing;
+pub mod send_selection;
 #[cfg(unix)]
 pub mod single_instance;
 pub mod terminal_ids;
@@ -164,6 +165,10 @@ actions!(
         /// with none held, the key reopens Zed's closed item.
         #[derive(Eq)]
         UndoCloseTerminal,
+        /// Types a reference to the editor's selection at the prompt of the agent running in a
+        /// terminal of this window; with several, a picker asks which.
+        #[derive(Eq)]
+        SendSelectionToAgent,
     ]
 );
 
@@ -312,6 +317,7 @@ pub fn init(cx: &mut App) {
     terminal_ids::init(cx);
     voice::init(cx);
     rich_input::init(cx);
+    send_selection::init(cx);
     autosuggest::init(cx);
     browser::init(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {

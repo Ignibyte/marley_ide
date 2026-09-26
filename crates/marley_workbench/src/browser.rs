@@ -5555,7 +5555,7 @@ fn track_terminals(cx: &App) {
 
 /// Brings `terminal`'s tab to the front wherever its window keeps it: a center pane or the
 /// Terminal Panel, of the workspace shown or another.
-fn reveal_terminal(terminal: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
+pub(crate) fn reveal_terminal(terminal: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
     let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten() else {
         return;
     };

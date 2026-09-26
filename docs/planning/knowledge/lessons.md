@@ -2957,3 +2957,19 @@ When one of two alike items restores wrong, dump what was saved before the relau
 each hook call with its arguments during the relaunch. #575's two rows were both saved; the log
 showed a cleanup with an empty list landing between the two reads, which no reading of the code
 path of one item would have shown.
+
+## L-claude-549-a-scenario-that-reaches-zeds-agent-panel-starts-the-profiles-last-agent-001
+*category: validate · topic: e2e scenarios · from: pipeline 549*
+
+`script/e2e.sh` copies the user's Marley profile, the Agent Panel's remembered agent included,
+so a scenario step that makes Zed open a thread (Add to Agent Thread, a new thread from the
+panel) starts that agent: in #549's first run, the user's own Claude agent created a session.
+A step that must reach the Agent Panel sets a stand-in ACP agent in the run's settings first, as
+#501's scenario does, or stays out of the scenario and is checked once by hand.
+
+## L-claude-549-wtype-sends-a-shifted-binding-by-its-symbol-001
+*category: validate · topic: e2e keys · from: pipeline 549*
+
+Under the headless sway, `press "CTRL SHIFT" period` does not match Zed's `ctrl->`; `press CTRL
+greater`, the symbol the binding names, does. Press a binding written with a shifted symbol by
+that symbol's key name.

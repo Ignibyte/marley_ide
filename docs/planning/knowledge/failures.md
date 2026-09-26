@@ -2185,3 +2185,11 @@ under an item id another workspace's tab had been saved under replaced that row 
 on the build before the fix, the two tabs meeting on one id by themselves. Zed's own `terminals`
 table had dropped the same constraint in a later migration. Fixed in #576: a second migration
 rebuilds the table without it.
+
+## F-claude-549-a-rich-input-behind-another-tab-took-the-reference-001
+*severity: low · found in: pipeline 549's Test (working the rich input step) · class: text sent to an element the user cannot see*
+
+The first `send` inserted the reference into the target's rich input whenever it was open,
+without bringing its terminal to the front, so with the file's editor in front of that terminal
+in the same pane the text went into a hidden editor and the user saw nothing happen. Fixed in
+#549: `send` activates the window and reveals the terminal before the insert.

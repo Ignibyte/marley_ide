@@ -1,7 +1,7 @@
 ---
 pipeline_id: edef95de-eb7a-44af-99a9-320b4e0aa008
-ticket: docs/planning/tickets/open/TICKET-549-selection-to-the-agent.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-549-selection-to-the-agent.md
+status: Phase 4 — Complete PASS
 title: "Send the editor's selection to a terminal agent"
 type: feature
 slice: prong 2 with prong 1 (the editor feeds the CLI agent in a terminal); the Warp second pass's finding 1

@@ -382,6 +382,30 @@ alike.
   would send its program, chords and keys that type nothing, and lets text through to the
   editor.
 
+## Sending the selection to an agent (`src/send_selection.rs`, #549)
+
+- `init` registers `marley::SendSelectionToAgent` on every workspace and, through
+  `register_action_renderer`, a capture of Zed's `agent::AddSelectionToThread` (`ctrl->`) that
+  acts only in the Marley layout and only when the send goes ahead; every other case (no focused
+  file editor, no agent) lets the action on to Zed's Agent Panel. A `FocusOrder` global follows
+  the terminals' focus-ins, 64 at most.
+- `send_selection` takes the active item as an `Editor` when it holds the focus, its newest
+  selection as an absolute path and 1-based lines (`selection_of`, through the multi-buffer
+  snapshot's `range_to_buffer_range` and the file's `LocalFile::abs_path`; `line_span` leaves out
+  a last line the selection ends at the start of; a caret is the file alone). `agent_targets`
+  walks the terminals of the window's workspaces, center and docked, whose foreground program is
+  a known agent (`agent_bar::agent_in`), newest focus first; it reads the workspace the action
+  runs in through the `&Workspace` it is given, since that one is being updated. One target is
+  sent; several open `TargetPicker`, Zed's `Picker` in a `ModalView`, rows "agent · project ·
+  state" (the state from the seat, when there is one).
+- `reference` gives Claude Code `@path#L<a>-<b>` and the other agents `path:<a>-<b> `, the path
+  relative to the agent's `Terminal::working_directory` when the file lies under it.
+- `send` runs after the update it starts in: rich input open on the terminal
+  (`rich_input::is_open`) gets the text through `rich_input::insert`, the terminal brought to the
+  front first; a seat in `State::Waiting` gets nothing and a toast; otherwise the window
+  activated, the terminal revealed (`browser::reveal_terminal`) and focused, one
+  `Terminal::paste`, no Enter.
+
 ## Voice (`src/voice.rs`, #480)
 
 - `Voice`, a global, holds the `voxtype` found on the PATH at `init` (a lazy background
