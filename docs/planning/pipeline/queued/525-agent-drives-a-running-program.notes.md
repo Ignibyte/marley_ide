@@ -202,3 +202,30 @@ client speaks the same JSON-RPC through the same bridge).
   the program and the caller, name the caller's terminal on the card, and refuse a write whose
   target is the caller's own terminal; if not, the ticket ships as specced and a follow-up takes
   those three lines.
+
+## Folded in from the Orca second pass (2026-09-26)
+Smaller item 1 of `docs/planning/design-notes/orca-second-pass-2026-09-25.md`: a terminal read
+that leaves out what someone is typing. `terminal_screen` gives the rows as drawn, so with an agent
+CLI in the foreground they carry the CLI's input box and whatever Chad has half-typed, and an
+agent reading his Claude Code terminal could take the half-typed prompt for output.
+
+- **What Orca does.** `orca terminal read` finds the agent CLI's input box by its prompt glyph at
+  the cursor row (`❯` under a frame line of eight or more `─`, `━` or `-`, Claude Code's box; `›`
+  or `»` for the others), keeps only the glyph in the returned rows, joins the box's continuation
+  rows, and returns the typed text as a separate `draft` field, "UI-only composer text, excluded
+  from `tail`" (`src/shared/terminal-composer-draft.ts`, 201 lines;
+  `src/main/runtime/orca-runtime-terminal-projection.ts`; `src/shared/runtime-terminal-contracts.ts`;
+  MIT, read).
+- **For `terminal_screen`.** When the foreground program is an agent CLI (`agent_bar::agent_in`)
+  and the cursor row starts with one of the three glyphs (the `❯` form only under a frame line),
+  the answer's rows carry the glyph and not the typed text, and a `draft` field carries the typed
+  text, redacted as the rows are (D9). No glyph row at the cursor, no `draft`, and the rows are as
+  drawn: the heuristic is tied to each CLI's glyphs and breaks when a CLI changes its input box,
+  so a miss falls back to the plain read rather than hiding rows. The glyph table is one constant
+  in `marley_terminal`, pure, beside the control state. `terminal_read` (blocks) is unchanged.
+- **Acceptance to add at promotion.** REQ-015: WHEN `terminal_screen` reads a terminal whose
+  foreground program is an agent CLI and whose cursor row starts with that CLI's prompt glyph, the
+  rows shall carry the glyph without the typed text and the answer shall carry the typed text as
+  `draft`. Verify: the run log, with the stand-in `claude` drawing a frame line and `❯ ` and the
+  scenario typing part of a prompt before the client's `screen`. The existing refusal (REQ-011,
+  an agent CLI takes no `terminal_type`) stands; this item is about the read only.

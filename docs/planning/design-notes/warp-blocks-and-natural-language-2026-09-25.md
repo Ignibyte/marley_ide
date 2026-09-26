@@ -296,3 +296,9 @@ code read: `crates/marley_workbench/src/{blocks.rs,rich_input.rs,autosuggest.rs,
 `crates/marley_terminal/src/{anchored.rs,block.rs}`, `crates/terminal/src/terminal.rs`,
 `crates/terminal_view/src/{terminal_view.rs,terminal_element.rs}`, `crates/agent_ui/src/`,
 `crates/marley_mcp/src/`, `crates/task/src/task.rs`, and the gpui-era `workflows.rs`.
+
+## Chad's answers, 2026-09-26
+1. "Copy as context": both. Send to Agent puts the block into the agent's prompt, and Copy as
+   Markdown copies it shaped for pasting into any agent.
+2. Workflows: entries in Zed's `tasks.json` ("if it works tasks.json it would make sense not to
+   conflict"), not Marley YAML files. Save as Workflow writes a task.

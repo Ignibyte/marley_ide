@@ -153,3 +153,33 @@ run, and Chad's account is not the scenario's).
   workspace's active repository, as the agent bar's branch does.
 - `git switch` in the scenario changes files Zed watches; the counts wait a second after the last
   status event so a burst of events costs one `git diff`.
+
+## Folded in from the Orca second pass (2026-09-26)
+Finding 4 of `docs/planning/design-notes/orca-second-pass-2026-09-25.md`: a PR URL printed in a
+terminal ties the PR to its row. When an agent's `gh pr create` prints the new PR's URL, the row
+shows the PR at once instead of at the next two-minute lookup (D5).
+
+- **The hint.** A GitHub PR URL (`https://github.com/<owner>/<repo>/pull/<n>`) printed in a
+  terminal of the project, found by the scan #503 adds for local URLs (`links.rs` over
+  `last_n_non_empty_lines`, where escapes are gone and soft wraps joined; if #503 has not landed,
+  a scan of the same shape in `rail.rs`'s terminal subscriptions, on `terminal::Event::Wakeup`,
+  at most twice a second). Orca scans the byte stream instead and carries 512 bytes across reads
+  so a URL split over two writes still matches, strips SGR sequences and trailing `),.;]}`,
+  ignores a URL over 2,048 bytes and matches each URL once per terminal
+  (`src/shared/terminal-github-pr-link-detector.ts`, MIT, read).
+- **A hint, not a fact.** The hit starts one lookup for the terminal's repository and branch, the
+  same `gh pr list --head <branch>` as D3, and the chip changes only when that lookup returns the
+  printed number, because terminal output can carry any PR URL (docs, an agent's log). A PR
+  already on the row is never replaced by a different printed number (Orca's rule,
+  `src/renderer/src/store/slices/worktrees/session/worktree-unread-activity.ts`).
+- **Bounded.** At most one hint-started lookup per repository and branch a minute, on top of D5's
+  two-minute timer; a `gh` answer whose stderr says `API rate limit exceeded` (and not
+  `secondary rate limit`) pauses every lookup for that repository for one two-minute period,
+  Orca's breaker reduced to one bucket (`src/main/git/gh-rate-limit-breaker.ts`).
+- **Acceptance to add at promotion.** REQ-008: WHEN a terminal of the project prints a GitHub PR
+  URL for the project's repository, the row shall show that PR within five seconds when `gh`
+  confirms it for the branch, and shall not change when the printed number differs from `gh`'s
+  answer. Shots `531-08-printed-pr` (the stand-in `gh` answers #42 for the branch; the terminal
+  echoes `.../pull/42`; the chip appears before any timer would fire) and `531-09-printed-other`
+  (`.../pull/7` echoed; the chip still reads #42; the run log's `gh.log` shows one lookup for the
+  hint). Worktree rows (#510) take the same hint from their own terminals.

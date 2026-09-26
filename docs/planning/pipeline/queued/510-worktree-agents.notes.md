@@ -210,3 +210,29 @@ prompt anywhere else, and its outcome goes in the Phase 3 entry.
   `linked_worktrees` alone, with no git or filesystem call in the rebuild.
 - A repository with many old worktrees (Zed's own layout collects them) gives the project many
   rows. Folding worktree rows is not in this slice; the project row still folds them all.
+
+## Folded in from the Orca second pass (2026-09-26)
+Smaller item 2 of `docs/planning/design-notes/orca-second-pass-2026-09-25.md`: a setup command
+suggested for a repository that has none, for slice 2 (the worktree's environment).
+
+- **What Orca does.** A sidebar card offers a setup command imported from another tool's file at
+  the repository root, in this order: `conductor.json`, `.superset/config.json` (and
+  `.superset/config.local.json`), `.cmux/cmux.json` or `cmux.json`, `.codex/environments/environment.toml`;
+  or else, when `package.json` exists, the install command for the one lockfile present
+  (`pnpm-lock.yaml` → `pnpm install`, `bun.lock` or `bun.lockb` → `bun install`, `yarn.lock` →
+  `yarn install`, `package-lock.json` → `npm install`; lockfiles of two managers → no suggestion),
+  so a new worktree has its dependencies before the agent's first command runs
+  (`src/shared/setup-script-imports.ts`, `setup-script-package-manager-suggestion.ts`,
+  `src/renderer/src/components/sidebar/SetupScriptPromptCard.tsx`; MIT, read).
+- **For slice 2.** Zed already runs a repository's `create_worktree` task hooks after a create
+  (`TaskHook::CreateWorktree`, `.zed/tasks.json`). When the repository has none, the prompt modal
+  of this slice shows one more line under the branch line, `Setup: pnpm install (pnpm-lock.yaml
+  found)`, with a checkbox that is off by default, since nothing a repository supplies runs until
+  Chad says so; checked, the command runs in the worktree's terminal before the agent starts,
+  and the choice is remembered per repository in `git config marley.worktreeSetup` (the command,
+  or `none`), which every worktree reads and #511's `marley.merge` key sits beside. Orca's imported
+  files are read for their command only, never run as they are; the JS lockfile table is Orca's,
+  and other ecosystems (`uv.lock`, `Cargo.lock`) are added only when a real repository asks for
+  them. A slice-2 acceptance row: WHEN the repository has no `create_worktree` task and one
+  lockfile of one package manager, the modal shall offer that manager's install command, off by
+  default; checked, it shall run in the worktree before the agent's command.

@@ -297,3 +297,9 @@ https://github.com/ghubnab99/jev-enterprise-decision-fabric/blob/main/docs/evalu
 (the action-gate study), https://github.com/nikkoxgonzales/jev-certify/blob/main/results/REPORT.md,
 https://github.com/jujumilk3/jev-calibration-audit/blob/main/FINDINGS.md (the KoBBQ audit) and
 https://openrouter.ai/blog/insights/what-is-jev/ (the 791-call run, as OpenRouter reports it).
+
+## Chad's answers, 2026-09-26
+- On what leaves the box: Jev sees only the short updates the rail shows (the prompt and the last
+  message cut to 300 characters with #516's redaction, the tool and what it acts on, states),
+  never files or whole transcripts; a metadata-only mode sends states and tool names alone. The
+  choice of service and of projects is still open.

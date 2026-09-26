@@ -228,3 +228,12 @@ Marley and Zed code read: `crates/marley_workbench/src/{browser.rs,rail.rs,notif
 `crates/marley_rail/src/marley_rail.rs`, `crates/terminal_view/src/terminal_view.rs`,
 `crates/workspace/src/workspace.rs`, `crates/zed/src/zed.rs`, `crates/terminal/src/pty_info.rs`,
 `assets/keymaps/default-linux.json`.
+
+## Chad's answers, 2026-09-26
+1. With several agents, a selection goes through a picker, not to the one used last.
+3. Closing a terminal, or quitting, while an agent works asks first. The prompt names the working
+   agents; an idle agent closes without asking; the undo that holds a closed agent for 60 seconds
+   stays out.
+   Revised the same morning: both. It asks first, and a closed working terminal is also held for a
+   configurable number of seconds so an accidental close can be undone ("allows stopping of
+   accidental. so both").

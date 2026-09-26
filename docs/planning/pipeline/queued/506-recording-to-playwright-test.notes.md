@@ -163,3 +163,7 @@ writes the file the way the agent would); selects (Out).
   does not create. The answer says where it starts.
 - The scenario depends on another project's `node_modules` for Playwright; the setup names the
   path and stops when it is gone.
+
+## Chad's answer, 2026-09-26
+- D3 confirmed: text typed into ordinary fields is recorded; secret fields keep a count and
+  become `process.env` placeholders.

@@ -162,3 +162,7 @@ cut-off, and `reader`'s before the relaunch, and never prints either.
 
 ## Phase 4 — Complete
 - Not started.
+
+## Chad's answer, 2026-09-26
+- The open question: the trusted-client list and the closed DevTools port, "either order doesn't
+  matter, we haven't shipped this product yet". Slice 1 first, as the default said.

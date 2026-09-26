@@ -103,3 +103,11 @@ and Git Credential Manager (not installed), whose variable the stand-ins print b
 - `git push` over HTTP to the 401 server: git's first request is `GET /info/refs?service=
   git-receive-pack`; a 401 there is enough for git to ask for credentials, so the server needs no
   git code.
+
+## Chad's answer, 2026-09-26
+- SSH's prompts: "passphrases have always been a pain so either the agents need passphrase-less
+  or a way the user can type it in, preferably". The preferred route: agent terminals get
+  `SSH_ASKPASS` (with `SSH_ASKPASS_REQUIRE=force`) pointing at a Marley helper that asks the user
+  for the passphrase in Marley and hands it to ssh, so an agent's push waits on the user instead
+  of hanging on a prompt it cannot answer; passphrase-less agent keys stay the fallback. To be
+  specced with this ticket's promotion.
