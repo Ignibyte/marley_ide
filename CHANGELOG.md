@@ -465,6 +465,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **One Marley at a time** (#513, 2026-09-26). Starting Marley while it already runs, from the
+  menu or with `marley <folder>` in a terminal, used to start a second app on the same settings
+  and data, and it hung. Now the second launch hands its folders and files to the Marley that
+  runs, which opens them, and exits; with nothing to open it asks the running Marley to come
+  forward. It prints what it did. A Marley with a data directory of its own
+  (`--user-data-dir`) still runs beside the first.
 - **Marley no longer dies at start on a seat without a keyboard** (#512, 2026-09-25). When the
   compositor had no keyboard to describe (a keyboard that had just gone, or a keymap that would not
   compile), the first keyboard event made Marley exit with nothing in its log; started from the

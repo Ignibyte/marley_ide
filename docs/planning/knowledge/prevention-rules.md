@@ -2294,3 +2294,12 @@ redacted text. A rule that anchors on a header or a prefix (`-----BEGIN`, `Beare
 URL's userinfo) cannot match once a cut has taken the anchor, and the secret's body then passes.
 When a tool answers part of a larger text, count the redactions over the whole and say so in its
 schema.
+
+## PR-claude-check-a-unix-socket-path-against-sun-path-001
+*severity: high · prevents: F-claude-513-a-socket-path-too-long-read-as-a-running-marley-001*
+
+A Unix socket's path must be shorter than `sun_path` (108 bytes on Linux, 104 on FreeBSD and
+macOS). When the path comes from a directory the user or a harness chooses (`--user-data-dir`, a
+profile copy, a scratch folder), check its length before binding, and treat "too long" as its own
+case with its own message, never as "in use" or any other failure the caller acts on. A scenario
+that makes sockets under its own folders keeps those folders short (the runtime directory).

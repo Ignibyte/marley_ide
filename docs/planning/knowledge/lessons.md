@@ -2879,3 +2879,24 @@ A scenario that needs secret-shaped values builds them in its setup from pieces 
 writes them and the list the checks use into `$E2E_WORK`. The scenario file then holds nothing
 gitleaks takes for a secret, the checks grep the run's own files rather than literals, and the
 notes quote the markers, never the values.
+
+## L-claude-513-gpui-asks-for-activation-from-the-window-it-activates-001
+*category: platform · topic: Wayland activation · from: pipeline 513*
+
+gpui's `Window::activate_window` on Wayland asks for an xdg-activation token with the window it
+activates as the token's surface and its last pointer press as the serial (0 until the first
+press), then activates with it. sway checks a token against the seat's focus, so a window asking
+from behind another window, or from behind another app, is not focused; Omarchy's Hyprland, with
+`misc:focus_on_activate = true`, focuses on any activation (the e2e runner turns that off during
+Hyprland runs for this reason). A scenario that proves a Marley asked to come forward reads its
+Wayland trace (`WAYLAND_DEBUG=client`, `xdg_activation_v1.activate`), not the compositor's focus.
+gpui also keeps one pending activation: two tokens asked for at once log "activation token
+received with no pending activation" for the second.
+
+## L-claude-513-a-second-launch-reaches-wayland-before-the-check-001
+*category: platform · topic: Marley's startup · from: pipeline 513*
+
+A launch that hands off to the running Marley still builds gpui's application first, so it
+connects to the compositor before Zed's single-instance check runs and exits; its Wayland trace,
+when one is on, fills its output. A scenario prints such a launch's own lines by filtering the
+trace out (`grep -v '^\['`), not by tailing.

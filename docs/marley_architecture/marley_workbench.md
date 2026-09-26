@@ -64,6 +64,24 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   `marley.redact_secrets_for_agents` says false) and `redaction_patterns`; it is `Clone`, no
   longer `Copy`.
 
+## One Marley per data directory (`src/single_instance.rs`, #513)
+
+- `zed`'s `main` runs Zed's single-instance check on the dev channel too: it binds
+  `<data dir>/zed-dev.sock`, so `--user-data-dir` gives a Marley a socket of its own. It runs only
+  where `socket_fits()`: a socket path of 108 bytes or more fails the bind as a running Marley
+  would, so such a data directory starts without the check and logs a warning.
+- When the check finds a Marley running, `hand_off(paths_or_urls)` sends it one datagram per
+  argument, the URL Zed's listener opens (a path that exists canonicalized as `file://`; `file://`,
+  `zed://`, `zed-cli://` and `ssh://` as given; anything else made absolute against this launch's
+  working directory, so `path:line:column` keeps its suffix), or `zed://open` when there is none,
+  which Zed handles as `FocusApp` (`activate_any_workspace_window`). A URL over 1,024 bytes, the
+  listener's buffer, is refused before anything is sent. `main` prints the answer ("Marley is
+  already running on <dir>; it was handed N of this launch's paths", or "… asked to come
+  forward"), or the error on stderr, and exits.
+- Whether the window comes to the front is the compositor's call: gpui asks for the activation
+  token itself (L-claude-513-gpui-asks-for-activation-from-the-window-it-activates-001); #545
+  would carry the launcher's token instead.
+
 ## The rail (`src/rail.rs`)
 
 - It implements `workspace::Sidebar`, so the `MultiWorkspace` keeps the resize handle, the open

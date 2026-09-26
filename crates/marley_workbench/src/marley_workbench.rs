@@ -34,6 +34,8 @@ pub mod notifications;
 mod rail;
 pub mod rich_input;
 pub mod routing;
+#[cfg(unix)]
+pub mod single_instance;
 pub mod voice;
 
 use std::collections::{HashMap, HashSet};

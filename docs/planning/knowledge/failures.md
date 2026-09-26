@@ -2062,3 +2062,15 @@ secrets.sh`) and stopped mid-line. Every block before a rewrapping resize is wro
 on, in the view and for agents. The plan's D2 calls reflow "the known weak spot" and deferred the
 choice until a real resize trace; this is one. Not fixed in #516, whose scenario reads the
 terminal before any window opens; TICKET-544 takes it.
+
+## F-claude-513-a-socket-path-too-long-read-as-a-running-marley-001
+*severity: high · found in: pipeline 513's Test phase (the first run on the fixed build) · class: Unix socket path length · prevented by: PR-claude-check-a-unix-socket-path-against-sun-path-001*
+
+With the single-instance check running on the dev channel, the scenario's Marley never opened a
+window. Its profile sat under the session's long shots folder, so `<profile>/zed-dev.sock` was
+134 bytes, over the 108 a Unix socket's address holds. Zed's `listen_for_cli_connections` failed
+to bind, the check reads any failure as "a Marley runs", the hand-off could not connect ("path must
+be shorter than SUN_LEN"), and Marley exited: any `--user-data-dir` deep enough would stop Marley
+from starting at all. Fixed before the commit: `single_instance::socket_fits()` gates the check,
+and a data directory whose socket does not fit starts without it and logs why; the e2e runner
+makes its profiles under `$XDG_RUNTIME_DIR/marley-e2e/`.

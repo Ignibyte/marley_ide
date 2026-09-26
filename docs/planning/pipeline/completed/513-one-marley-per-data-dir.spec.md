@@ -1,7 +1,7 @@
 ---
 pipeline_id: d73ae04a-5388-4dea-a0af-18e9299be146
 ticket: docs/planning/tickets/open/TICKET-513-one-marley-per-data-dir.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "One Marley per data directory: a second launch hands its paths to the first"
 type: bug
 slice: the Marley app, startup (found in #502's Test)
@@ -60,11 +60,13 @@ hands off, since Marley ships no CLI.
 UI-AFFECTING (what a second launch does). `script/e2e/513-one-marley-per-data-dir.sh`
 (`compositor sway`): the run's Marley opens folder A. The harness starts the same binary on the
 same profile with folder B: it exits within 10 seconds, one Marley process runs, and the
-running one shows B (`513-01-handed-off`). A second hand-off with no path while another window
-has the focus: the Marley window is focused or marked urgent in sway's tree (the run log) and
-`513-02-came-forward`. A Marley on a second profile starts beside it (`513-03-two-profiles`, the
-run log counts two). After `kill -9` of the first, a new launch on the first profile starts
-though the socket file is still there (the run log).
+running one shows B (`513-01-handed-off`). A second hand-off with no path while the Settings
+window has the focus: the running Marley sends an `xdg_activation_v1.activate` request for its
+workspace window, seen in its Wayland trace (the run turns `WAYLAND_DEBUG=client` on), shot
+`513-02-asked-to-come-forward`; sway's tree goes to the log, since focusing is the compositor's
+call. A Marley on a second profile starts beside it (`513-03-two-profiles`). After `kill -9` of
+the first, a new launch on the first profile starts though the socket file is still there (the
+run log).
 
 ## Locked-In Decisions
 - D1 — The check holds per data directory, not per machine: `--user-data-dir` still gives a
@@ -79,9 +81,10 @@ though the socket file is still there (the run log).
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
 | REQ-001 | WHEN Marley starts on a data directory where a Marley runs, it shall send its paths to the running Marley and exit within 10 seconds, and the running Marley shall open them. | The run log (one process, the exit), shot `513-01-handed-off` |
-| REQ-002 | WHEN Marley starts with no path on a data directory where a Marley runs, the running Marley shall ask the compositor to activate one of its windows. | The run log (sway's tree), shot `513-02-came-forward` |
+| REQ-002 | WHEN Marley starts with no path on a data directory where a Marley runs, the running Marley shall ask the compositor to activate one of its windows. | The run log (an `xdg_activation_v1.activate` request after the hand-off), shot `513-02-asked-to-come-forward` |
 | REQ-003 | WHILE a Marley runs on one data directory, a Marley started on another shall start. | The run log (two processes), shot `513-03-two-profiles` |
 | REQ-004 | WHEN the socket's Marley has died, Marley shall start on that data directory as before. | The run log (the window after `kill -9` and a relaunch) |
+| REQ-005 | WHERE the data directory's socket path is too long for a Unix socket, Marley shall start without the check, and log why. | The first Test run, whose long profile path refused to start; review of `socket_fits` |
 
 ## Phase Plan
 - **P1 Plan** — this spec; the design in the notes.

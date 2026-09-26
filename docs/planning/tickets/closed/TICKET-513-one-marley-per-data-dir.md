@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #513 (bug, the Marley app: startup)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/513-one-marley-per-data-dir.spec.md
+- **Pipeline doc:** ../../pipeline/completed/513-one-marley-per-data-dir.spec.md
 - **Source ticket:** found in #502's Test, 2026-09-25: the installed Marley and the debug build
   share `~/.local/share/marley`, the dev channel skips Zed's single-instance check, and a second
   Marley on the same data directory hangs
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Every Marley build is on Zed's `dev` channel, and Zed skips its single-instance check on that

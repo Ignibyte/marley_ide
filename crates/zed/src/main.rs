@@ -48,7 +48,7 @@ use node_runtime::{NodeBinaryOptions, NodeRuntime};
 use parking_lot::Mutex;
 use project::{project_settings::ProjectSettings, trusted_worktrees};
 use recent_projects::{RemoteSettings, open_remote_project};
-use release_channel::{AppCommitSha, AppVersion, ReleaseChannel};
+use release_channel::{AppCommitSha, AppVersion};
 use session::{AppSession, Session};
 use settings::{BaseKeymap, Settings, SettingsStore, watch_config_file};
 use smol::future::poll_once;
@@ -357,14 +357,17 @@ fn main() {
 
     let (open_listener, mut open_rx) = OpenListener::new();
 
-    let failed_single_instance_check = if *zed_env_vars::ZED_STATELESS
-        || *release_channel::RELEASE_CHANNEL == ReleaseChannel::Dev
-    {
+    // Marley: the check runs on the dev channel too. Every Marley build is on it, and they share
+    // one data directory, where a second app hangs (#513).
+    let failed_single_instance_check = if *zed_env_vars::ZED_STATELESS {
         false
     } else {
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
         {
-            crate::zed::listen_for_cli_connections(open_listener.clone()).is_err()
+            // Marley: a socket path too long for a Unix socket fails the bind as a running Marley
+            // would; that data directory starts without the check (#513).
+            marley_workbench::single_instance::socket_fits()
+                && crate::zed::listen_for_cli_connections(open_listener.clone()).is_err()
         }
 
         #[cfg(target_os = "windows")]
@@ -379,6 +382,13 @@ fn main() {
         }
     };
     if failed_single_instance_check {
+        // Marley: this launch's paths go to the Marley that runs, as Zed's CLI would hand them,
+        // since Marley ships no CLI (#513).
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        match marley_workbench::single_instance::hand_off(&args.paths_or_urls) {
+            Ok(said) => println!("{said}"),
+            Err(error) => eprintln!("{error:#}"),
+        }
         println!("zed is already running");
         return;
     }

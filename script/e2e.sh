@@ -25,7 +25,8 @@
 # It may define `teardown`, run however the run ends and before Marley stops, for anything it
 # started outside Marley. OPEN in the environment names the path when the scenario names none.
 # `binary <path>`, at the top level or in `setup`, runs that build instead of the debug one (the
-# installed release build, #502).
+# installed release build, #502). From `steps` on, E2E_MARLEY names the binary the run starts,
+# E2E_CLASS its windows' class and E2E_LOG the log its output goes to (#513).
 #
 # Steps: `settle <seconds>`; `press <mods> <key>`, with mods as Hyprland names them ("" for none,
 # "CTRL SHIFT" for two) and the key by its xkb name (`Return`, `Escape`, `g`); `press_keys
@@ -505,7 +506,10 @@ if [[ $COMPOSITOR == hyprland ]]; then
 fi
 
 mkdir -p "$shots"
-E2E_PROFILE=$(mktemp -d "$shots/profile.XXXXXX")
+# The profile goes under the runtime directory rather than SHOT_DIR: Marley's instance socket
+# lives in it, and a Unix socket's path must stay under 108 bytes (#513).
+mkdir -p "$XDG_RUNTIME_DIR/marley-e2e"
+E2E_PROFILE=$(mktemp -d "$XDG_RUNTIME_DIR/marley-e2e/profile.XXXXXX")
 E2E_WORK=$(mktemp -d "$shots/work.XXXXXX")
 export E2E_PROFILE E2E_WORK
 mkdir -p "$E2E_PROFILE/config"
@@ -556,6 +560,9 @@ if [[ -n $MARLEY_BIN ]]; then
     exit 1
   fi
 fi
+# The binary, the window class and the run's log, which gets Marley's output, for a scenario
+# that starts a Marley of its own or reads what the run's Marley printed (#513).
+export E2E_MARLEY=$marley E2E_CLASS=$class E2E_LOG=$shots/$name.log
 write_terminal_env
 
 if [[ $COMPOSITOR == sway ]]; then

@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-513](open/TICKET-513-one-marley-per-data-dir.md) | bug | the app · a second Marley on the same data directory hands its paths to the first and exits |
 | [TICKET-517](open/TICKET-517-regression-suite.md) | chore | workflow · a golden set of e2e scenarios that check themselves through Marley's MCP server, run by `just regress` and before every `just install` |
 | [TICKET-544](open/TICKET-544-blocks-survive-a-rewrap.md) | bug | prong 1 T0 · a resize that rewraps the terminal moves every block's rows; the bars, pills and `terminal_read` follow them again (the plan's D2) |
 | [TICKET-519](open/TICKET-519-claude-code-events-in-the-rail.md) | feature | prong 2 C1 · Claude Code's hook events (prompt, tool, waiting, last message) into `marley_fleet` and the rail; before #508, #509, #538, #542 |
@@ -45,6 +44,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 | [TICKET-543](open/TICKET-543-remote-terminals-survive-a-drop.md) | feature | prong 2 · remote terminals that survive a dropped link (tmux on the host) |
 | [TICKET-533](open/TICKET-533-harness-contract-alignment.md) | chore | prong 2 · the harness's contract requests answered, and the plan's harness text corrected |
 | [TICKET-541](open/TICKET-541-spawn-in-adapters-ratchet.md) | chore | gate · process spawns held to adapter modules by a ratchet |
+| [TICKET-545](open/TICKET-545-activation-token-hand-off.md) | feature | the app · a second launch hands its launcher's activation token to the running Marley, so a compositor that checks tokens brings the window forward (#513's follow-up) |
 | [TICKET-486](open/TICKET-486-keep-the-terminal-size-across-launches.md) | bug | prong 1 T0 · the first terminals of a launch open at the last session's size (#485's limit) |
 
 ## Deliberate (picked explicitly, never auto-next)

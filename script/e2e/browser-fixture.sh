@@ -24,7 +24,7 @@
 #   `recordings` lists the saved recordings, and `recording <id> [<frame> <image file>]` prints
 #   one's timeline and saves a frame (#499). `terminal-read <text>` reads the newest block, in
 #   any terminal, whose command holds the text: its command, the redaction counts and its
-#   output (#516).
+#   output (#516). `terminals` lists every terminal: its id, title, project and folder (#513).
 # - `browser_profile` and `browser_unit` name the run's Chromium profile and its user unit;
 #   `browser_teardown`, for the scenario's `teardown`, stops the unit and the servers.
 
@@ -353,6 +353,10 @@ def main():
             answer = result["structuredContent"]
             box = answer["box"]
             print(f"  {reference}: {answer['did']}, annotation {answer['id']} at {box['x']:.0f},{box['y']:.0f} {box['width']:.0f}x{box['height']:.0f}")
+    elif command == "terminals":
+        result = client.tool("terminal_list")
+        for terminal in (result or {}).get("structuredContent", {}).get("terminals", []):
+            print(f"  terminal {terminal['id']}: {terminal['title']!r}, project {terminal['project']}, in {terminal['cwd']}")
     elif command == "terminal-read":
         listed = client.tool("terminal_list")
         found = None

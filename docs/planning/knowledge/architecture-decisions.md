@@ -2117,3 +2117,16 @@ is hidden to the end. The user's patterns add to the rules and never replace the
 not compile is left out and named in a notification. Rejected: redacting in `marley_terminal`
 for everything it stores (changes what the user sees and copies); Orca's rule that hides every
 `NAME=value` line (an `env` dump would lose `PATH` and every harmless value).
+
+## AD-claude-513-one-marley-per-data-directory-001
+*decided at: 2026-09-26 · status: shipped*
+
+Marley runs Zed's single-instance check on the dev channel too, per data directory: its socket
+is `<data dir>/zed-dev.sock`, so `--user-data-dir` still gives a second Marley. A launch that
+finds a Marley running hands it its paths through Zed's own socket and URLs (`file://` for a
+path, made absolute against the launch's working directory; `zed://open` when there is none) and
+exits, since Marley ships no CLI; a data directory whose socket path does not fit a Unix socket
+starts without the check. Rejected: a second socket and protocol of Marley's own (Zed's already
+opens paths and focuses the app); focusing through `hyprctl` from the launcher (ties the fix to
+one compositor; gpui's activation works where the compositor allows it); forwarding the
+launcher's activation token now (a gpui change; ticketed).
