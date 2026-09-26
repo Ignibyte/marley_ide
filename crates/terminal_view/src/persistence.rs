@@ -541,4 +541,14 @@ impl TerminalDb {
             WHERE item_id = ? AND workspace_id = ?
         }
     }
+
+    // Marley: the terminal items the workspace's saved layout lists, whose rows the terminal
+    // panel's cleanup keeps until their restore reads them (#577).
+    query! {
+        pub fn marley_saved_terminal_items(workspace_id: WorkspaceId, kind: &str) -> Result<Vec<ItemId>> {
+            SELECT item_id
+            FROM items
+            WHERE workspace_id = ? AND kind = ?
+        }
+    }
 }

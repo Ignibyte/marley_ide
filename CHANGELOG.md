@@ -530,6 +530,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A restored terminal opens in the folder it was in** (#577, 2026-09-26). After a restart, a
+  terminal that had moved into a subfolder could come back in the project's folder instead: the
+  terminal panel, cleaning up its own saved terminals, deleted the other terminals' saved rows,
+  sometimes before their restore read them. It now keeps the rows of the terminals the
+  workspace restores.
 - **Agents read blocks while vim or less is open** (#546, 2026-09-26). While a full-screen
   program held the terminal, an agent asking for an earlier command's output was told it had left
   the scrollback, or got the full-screen program's rows. Marley now reads blocks from the

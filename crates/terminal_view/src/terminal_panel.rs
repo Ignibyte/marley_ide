@@ -371,8 +371,21 @@ impl TerminalPanel {
             alive_item_ids
                 .zip(workspace.database_id())
                 .map(|(alive_item_ids, workspace_id)| {
+                    // Marley: the rows of the terminals the workspace's own layout restores are
+                    // kept too; deleting them before a center terminal's restore read its row
+                    // lost its folder (#577).
+                    let mut kept_item_ids = alive_item_ids.clone();
+                    kept_item_ids.extend(
+                        crate::persistence::TerminalDb::global(cx)
+                            .marley_saved_terminal_items(
+                                workspace_id,
+                                TerminalView::serialized_item_kind(),
+                            )
+                            .log_err()
+                            .unwrap_or_default(),
+                    );
                     let cleanup_task =
-                        TerminalView::cleanup(workspace_id, alive_item_ids.clone(), window, cx);
+                        TerminalView::cleanup(workspace_id, kept_item_ids, window, cx);
                     (cleanup_task, alive_item_ids)
                 })
         })?;

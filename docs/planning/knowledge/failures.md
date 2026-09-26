@@ -2164,3 +2164,13 @@ workspace; at the relaunch it ran between the two center terminals' restores, an
 one found no row and got a new id. Found by logging the hook's calls in the order they came.
 Fixed in #575: the ids the table held at the start, and each id saved since, are kept in memory
 and the restore reads there. Zed's own `terminals` rows meet the same delete (TICKET-577).
+
+## F-claude-577-a-restored-center-terminal-opened-in-the-projects-folder-001
+*severity: medium · found in: pipeline 575's Test, confirmed red in pipeline 577's on the build before · class: a cleanup whose caller lists part of the items · prevented by: PR-claude-a-row-a-restore-reads-is-read-before-any-cleanup-001*
+
+Zed's terminal panel cleans up the `terminals` rows after its own restore with the panel's items
+alone, whether or not it restored any, so in the Marley layout it deleted the center terminals'
+rows, and a center terminal whose restore read its row after that came back in the project's
+folder. #577's scenario showed it on the build before the fix: the split's terminal, left in
+`beta`, came back in the repository's root. Fixed in #577: the panel's cleanup also keeps the
+terminal items of the workspace's saved layout (`TerminalDb::marley_saved_terminal_items`).
