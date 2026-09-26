@@ -37,9 +37,10 @@
 # <what> <command...>`, a check that prints its verdict and fails the run when the command fails,
 # with `holds <file> <text>...` for the common one (#517), so a run passes or fails with no one
 # reading its shots. Under sway also
-# `click <x> <y> [button]`, `pointer_to <x> <y>`, `pointer_down [button]`,
-# `pointer_up [button]` and `scroll <steps>` (wheel detents at the pointer, positive down), in
-# the window's pixels, with the buttons left, middle and right. A step started in the
+# `click <x> <y> [button]`, `click_with <mods> <x> <y>` (a click with modifiers held, #503),
+# `pointer_to <x> <y>`, `pointer_down [button]`, `pointer_up [button]` and `scroll <steps>`
+# (wheel detents at the pointer, positive down), in the window's pixels, with the buttons left,
+# middle and right. A step started in the
 # background is waited for by its pid (`wait "$pid"`): the run's own helpers are background jobs
 # of the same shell, so a bare `wait` waits for them too, until the run is killed.
 #
@@ -480,6 +481,26 @@ click() {
   sleep 0.05
   pointer up "${3:-left}"
   sleep 0.1
+}
+
+# `click_with <mods> <x> <y>`: a left click while the modifiers named (`CTRL`, `"SHIFT CTRL"`)
+# are held. One `wtype` presses them, holds them through the click and lets them go, since each
+# `wtype` is a keyboard of its own and its keys go with it (#503).
+click_with() {
+  local mods=$1 x=$2 y=$3 modifier holder
+  local -a mod_names args=() releases=()
+  needs_sway click_with
+  read -ra mod_names <<<"$mods"
+  for modifier in "${mod_names[@]}"; do
+    modifier=$(wtype_modifier "$modifier")
+    args+=(-M "$modifier")
+    releases+=(-m "$modifier")
+  done
+  WAYLAND_DISPLAY=$SWAY_DISPLAY wtype "${args[@]}" -s 1500 "${releases[@]}" &
+  holder=$!
+  sleep 0.4
+  click "$x" "$y"
+  wait "$holder"
 }
 
 scroll() {

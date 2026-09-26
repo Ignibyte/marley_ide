@@ -224,3 +224,197 @@ review checks through `project.is_local()`; the real system browser, faked by `x
   presses, waits for the click and releases, and the Test notes say which worked.
 - #507 later gives each project its own Chromium; `open_url_tab` takes the workspace, so #507 can
   route it to that project's browser without a change here.
+
+## Promotion (2026-09-26, at `ce3f4038a8`)
+- **Seams re-read**, with where the lines are now:
+  - `terminal_view.rs`: `MarleyFooterContext` is at 130, `MarleyTerminalFooter` at 141, the
+    `Event::Open` URL arm at 1284 and the footer call at 1419-1430.
+  - `terminal.rs`: `process_hyperlink` is at 2086, `last_n_non_empty_lines` at 2677 (over
+    `alacritty.rs`'s `last_non_empty_lines` at 1024, the grid that shows) and `mouse_up` at 2962,
+    with the OSC 8 `cx.open_url(link.uri())` at 3021 and the Ctrl `FindHyperlink` at 3024.
+    `working_directory` is at 3112, `foreground_process_command_name` at 3124 and
+    `foreground_process_command_from_argv` at 3668, which still reads the script after `python3`.
+  - `browser.rs`: `new_page` is at 2224, `live_views` at 2744, `new_view` at 2817, `open_page_in`
+    at 3063, `init` at 5513, `track_terminals` at 5537 and `new_tab` at 5872.
+  - `agent_bar.rs`: `init` is at 33, `contents` at 93 and `render` at 149.
+  - `address.rs`: `host_kind` is at 65, still private.
+  - Settings: `settings_ui.rs` registers the `MarleyLayout` dropdown at 559; `marley_page.rs` has
+    `layout_section`, `agents_section`, `push_section` and `privacy_section`;
+    `settings_content/src/marley.rs` is as cited.
+  - `project.rs`: `is_local` is at 3069.
+  - `gpui_linux`: `open_uri_internal` (817) tries `open::commands` in order and stops at the
+    first that exits 0.
+  - `Cargo.lock` has `procfs-core` 0.18.0.
+- **What changed since the draft:**
+  - #574 gave `new_page` a `place_in: Option<WeakEntity<Workspace>>` and added
+    `tab_workspaces`. `open_url_tab` passes `None` as `open_page_in` does: the view it adds
+    claims the page, as `new_tab`'s does.
+  - #549's `L-claude-549-wtype-sends-a-shifted-binding-by-its-symbol-001`: `click_with` sends
+    modifier names (`ctrl`, `shift`), which wtype's `-M` takes.
+- **A correction to the design, from the re-read:** the hook runs inside the terminal view's
+  subscription, so the view is being updated. Adding a tab to its pane calls `deactivated` on
+  the pane's active item, which is this terminal view, and that would update it again and panic.
+  Opening a tab or activating one must not happen in the hook. The hook decides the destination
+  there, returns `true`, and defers the tab (`window.defer`) until the view's update has ended.
+  The system browser (`cx.open_url`) needs no deferral.
+- **The fake `xdg-open` is a guard, not only a fixture:** without it, a scenario's Ctrl+click on
+  a non-local URL would run the real `xdg-open` and open the user's own browser. The setup puts
+  it first on the PATH Marley inherits and checks `command -v xdg-open` before the launch; the
+  scenario stops if that is not the fake.
+- **Recall added:** the brain decision `decisions/marleys-browser-tools-act-in-the-callers-project`
+  (#574): a tab opened for a terminal's click opens in that terminal's workspace, as D5 has it.
+- **Brain consultation d7131167e33d4f27934917a47d20fa57:** nothing on link routing.
+
+## Phase 2 — Code
+- **Built:**
+  - *Zed crates.* `terminal_view.rs`: `MarleyTerminalUrl`, and the `Event::Open` URL arm asks it
+    with the view's `MarleyFooterContext` before `cx.open_url`. `terminal.rs`: `mouse_up`'s plain
+    OSC 8 click queues `FindHyperlink(position, true)` for an http or https target (by the
+    scheme, case-insensitive). `settings_content/src/marley.rs`: `terminal_links` and
+    `MarleyTerminalLinks`, the default first so the dropdown's fallback matches it.
+    `settings_ui`: the Terminal section after Agents and the dropdown renderer.
+    `assets/settings/default.json`: `terminal_links` with a comment. Root `Cargo.toml`:
+    `procfs-core`.
+  - *Marley crates.*
+    - `marley_browser::address`: `LocalUrl`, `local_url` and `printed_local_urls`, with the
+      trailing punctuation and unopened brackets trimmed.
+    - `marley_browser::ports::listening_ports_in(dir)`: both TCP tables through `procfs-core`, an
+      error only when neither reads.
+    - `marley_workbench::links`: the hook `open_clicked`, `destination`, `open` (the Browser tab
+      through `window.defer`), `over_ssh`, `ServedUrls` and `Printed` (each port's newest print,
+      16 kept), the scan on `Wakeup` (one per 500 ms, the task kept per view and dropped with it),
+      `watch_ports` and `take_ports` (every 2 s while any terminal holds a URL), `offer` and
+      `offer_button` (a `SplitButton` whose `PopoverMenu` opens upward).
+    - `agent_bar::render`: the offer in the bar before the folder chip, or alone in a one-row
+      strip.
+    - `browser::open_url_tab`: an existing tab of the workspace whose address is the same URL is
+      activated, or a new view goes in the active pane with the focus and `open_page_in` loads
+      the URL.
+    - `MarleySettings.terminal_links`.
+  - *The runner.* `script/e2e.sh`'s `click_with <mods> <x> <y>`: one `wtype` presses the
+    modifiers, holds them for 1.5 s while `click` runs, and releases them.
+- **Deviations from the plan, and why:**
+  - The Browser tab opens in `window.defer` (the promotion's correction): a tab added inside the
+    hook would deactivate the terminal view while it is being updated.
+  - `procfs-core` is an ordinary dependency of `marley_browser`, not a Linux-only one. The crate
+    only parses text, so it builds anywhere, and elsewhere the missing `/proc/net` files read as
+    no listeners.
+  - `url` is a new dependency of `marley_workbench` (the scheme check and the URL comparison in
+    `open_url_tab`).
+  - `default.json` gains `terminal_links`, as each Marley setting since #516 has; the ledger row
+    for that file says so.
+  - Printed URLs accumulate across scans (16 kept per terminal) instead of being re-read from the
+    last 200 lines alone. A dev server that logs requests pushes its URL past 200 lines, and
+    its offer would go while it still listens. A kept URL whose port closes stops being offered
+    anyway.
+  - Over SSH the URL opens as printed. Loopback is not rewritten there, since that host is
+    another machine.
+- **Review of the diff:**
+  - Re-entrancy: the hook and the menu read the terminal and the project and defer the tab. The
+    scan runs in its own task's update of the view and reads the workspace. `take_ports` updates
+    each view from the watch task. Nothing updates an entity that is already being updated.
+  - Every place the terminal opens a URL was checked: only the hook's fallback and the OSC 8
+    branch for other schemes call `cx.open_url`.
+  - `schedule_scan` reads the global with `try_global`, since `default_global` would notify its
+    observers on every wakeup.
+  - The Terminal section sits after Agents, so the Layout dropdown (#515) and the redaction
+    toggle (#516), which those scenarios click by coordinates, do not move.
+  - Provenance: Orca's behaviours (MIT) are reimplemented, and `open_url_tab` follows Marley's own
+    `new_tab`.
+  - fmt clean. `cargo clippy -p marley_browser -p marley_workbench -p terminal -p terminal_view
+    -p settings_content -p settings_ui --all-targets -- -D warnings` is clean after fixing its
+    first findings: a long first doc paragraph, an inverted `!=`, two `&mut` parameters that only
+    needed `&`, and a missing `#[must_use]`.
+
+## Phase 3 — Test
+- **The scenario:** `script/e2e/503-terminal-urls-open-in-the-browser.sh` (`compositor sway`,
+  offline Chromium).
+  - The fake `xdg-open` is first on the PATH Marley starts with and is checked with `command -v`
+    before the launch. It logs its argument and always exits 0: gpui tries the desktop portal
+    only after every `open` command fails, and the portal would reach the user's own browser.
+  - Fakes on the terminal's PATH, each waiting after it prints: `links` (a docs URL and
+    `localhost:9`), `devserver` (127.0.0.1 at a free port, Vite's lines), `osc8` (an OSC 8 link
+    to the site's page) and `ssh` (Python, so its foreground reads as `ssh`). Beside them,
+    `python3 -m http.server 0 --bind 0.0.0.0`, and a stand-in Claude Code made with `exec -a
+    claude`.
+  - 15 `expect` checks, on the `xdg-open` log, `mcp_agent tabs` and `wl-paste` on the sway's
+    display.
+- **Measuring:** the first two runs used a copy in the scratchpad whose `expect` reported and
+  carried on.
+  - The first run placed the offer's arrow on its label.
+  - The second clicked the OSC 8 label one row off: nothing was offered then, so there was no
+    strip.
+  - The coordinates are now the defaults at the file's top.
+  - The `Public` icon drew a broadcast glyph and became `ToolWeb`, the Browser tab's globe.
+- **Green, the debug build:** all 15 checks pass.
+- **Red, the installed build (`d0939a6fc4`, before the change):** `check a Browser tab of the
+  project on the dev server, focused: FAIL`. The local URL went to the system browser, and the
+  old `503-01` shows no strip under the dev server.
+- **Shots, read** (all Marley's headless sway window, kept in the scratchpad):
+  - `503-00-links`: the docs and `localhost:9` URLs printed, no strip. The Ctrl+click on the docs
+    URL reached the fake `xdg-open` (REQ-004).
+  - `503-01-offer`: the strip under the plain terminal offers `localhost:<port>` and not
+    `localhost:9` (REQ-009, REQ-010).
+  - `503-02-browser-tab`: a "Dev page" Browser tab in the terminal's pane at
+    `http://localhost:<port>/`, in front; `tabs` says `project repo, focused` (REQ-001).
+  - `503-03-same-tab`: after a second Ctrl+click, the one Dev page tab in front and no other
+    (REQ-002).
+  - `503-04-inverse`: after Shift+Ctrl+click, the terminal still in front and no tab; the log
+    holds the URL (REQ-005).
+  - `503-07-offer-opens`: the offer's label opened a Dev page tab (REQ-011).
+  - `503-08-offer-menu`: the menu opens upward from the chevron with Open in Browser Tab
+    (selected), Open in System Browser and Copy URL (REQ-012). Copy URL put the URL on the
+    clipboard, and Open in System Browser reached the log (REQ-013).
+  - `503-09-offer-gone`: after Ctrl+C, the prompt with no strip, within the 5 s settle (REQ-010).
+  - `503-05-unspecified-offer`: `Serving HTTP on 0.0.0.0 port N (http://0.0.0.0:N/)` offered as
+    `127.0.0.1:N`, the parenthesis trimmed. The dev server's closed URL above it is not offered.
+  - `503-06-unspecified-tab`: the address bar reads `http://127.0.0.1:N/` (REQ-003).
+  - `503-10-osc8`: an OSC 8 page tab at `…/osc8.html` reading "Reached by an OSC 8 link.",
+    which is the target and not the label (REQ-007).
+  - `503-11-agent-bar`: the stand-in Claude Code's bar carries the offer before the folder chip
+    (REQ-009). The install chip shows and was not clicked.
+  - `503-12-ssh`: the stand-in `ssh` printed a URL whose port listens here, and there is no
+    strip. The Ctrl+click on it reached the log with no tab (REQ-008).
+  - `503-14-system-default`: with `system_browser`, Ctrl+click reached the log, and
+    Shift+Ctrl+click opened a Dev page tab (REQ-006, REQ-005).
+  - `503-13-settings`: the Marley page's Terminal section after Agents, Terminal Links with the
+    reset arrow, and the dropdown reading System Browser (REQ-014).
+- **Not reached by a scenario:** a remote project's terminal (Zed's remote server over SSH). The
+  review checked that path through `Project::is_local`. The stand-in `ssh` covers the other half
+  of D4.
+- **The golden set, with 503 added (`just regress`, the debug build):** all 22 pass.
+  - #500 (the agent bar it shoots gains no chip without a live offer) passes.
+  - #515 and #516 click the Layout dropdown and the redaction toggle by coordinates; the Terminal
+    section sits below both, and both pass.
+  - 503 itself took 145 s.
+- **The focus report:** each sway run stopped with its Marley, pointer and keyboard. The
+  Hyprland check found no Marley window before or after the run, and nothing was added or
+  reloaded.
+- **The gate:** `script/gates.sh --diff` gave `GATE GREEN [diff]`, 16 passed and 0 failed,
+  cargo-deny and cargo-shear included for `procfs-core` and `url`. The receipt matches the tree.
+- **Verdict:** PASS. REQ-001 to REQ-014 are each shown by a shot and, where a machine check
+  reaches it, by an `expect`.
+
+## Phase 4 — Complete
+- **Documented:**
+  - `CHANGELOG.md`, under Added: "Local URLs in a terminal open in a Browser tab".
+  - `docs/marley/three-prong-plan.md`: prong 3's slice table gains B6a (#503, shipped).
+  - `docs/marley_architecture/marley_browser.md`: `local_url` and `printed_local_urls` under
+    Navigation, and a Listening ports section.
+  - `docs/marley_architecture/marley_workbench.md`: a Terminal links and the offered URL
+    section, and the agent bar's strip.
+  - The touchpoint rows were checked against what shipped: `terminal_view.rs`, `terminal.rs`,
+    `settings_content/src/marley.rs`, `settings_ui/src/marley_page.rs`,
+    `settings_ui/src/settings_ui.rs`, `assets/settings/default.json` and `Cargo.toml`.
+- **Knowledge appended:**
+  - `F-claude-503-a-tab-opened-inside-a-terminal-views-event-would-update-the-view-again-001`
+  - `PR-claude-defer-a-pane-change-out-of-an-items-own-event-001`
+  - `L-claude-503-gpui-falls-back-to-the-desktop-portal-when-every-open-command-fails-001`
+  - `L-claude-503-a-scenario-cannot-redefine-the-runners-helpers-001`
+  - `AD-claude-503-marley-routes-a-terminals-urls-and-offers-a-listening-dev-server-001`
+- **Brain:** consultation `d7131167e33d4f27934917a47d20fa57` was closed by `brain decide`
+  (`decisions/a-local-url-clicked-in-a-marley-terminal-opens-in-a-browser-tab-of-its-project-and-a-listening-dev-servers-url-is-offered`,
+  follow-up 2026-10-26).
+- **Slice 2 minted:** TICKET-579 (the popover on a plain-clicked link, the default asked once,
+  wrapped URLs joined), queued after #561.
+- **Closed:** TICKET-503 moved to `tickets/closed/`, and its BACKLOG row went at promotion.

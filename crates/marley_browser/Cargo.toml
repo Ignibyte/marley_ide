@@ -19,6 +19,7 @@ image.workspace = true
 log.workspace = true
 parking_lot.workspace = true
 percent-encoding.workspace = true
+procfs-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

@@ -2993,3 +2993,21 @@ row whose last cell carries `WRAPLINE`. A line longer than the terminal is wide 
 the redactor as one line, however it wraps on screen. #562's Digest header wrapped in the
 headless sway and came back whole as `Authorization: Digest [redacted: authorization]`. The
 redactor's rules can end values at `\n`, since a line that only wrapped holds none.
+
+## L-claude-503-gpui-falls-back-to-the-desktop-portal-when-every-open-command-fails-001
+*category: validate · topic: e2e fakes · from: pipeline 503*
+
+gpui's Linux `open_url` runs `open::commands`, `xdg-open` first, and stops at the first that
+exits 0. Only when every one fails does it ask the XDG desktop portal on the session bus, and
+the portal opens the user's own browser, even from a headless sway. A scenario that opens URLs
+puts a fake `xdg-open` first on the PATH Marley starts with (the runner launches Marley from its
+own shell, after `setup`). It checks the fake with `command -v` before the launch and refuses to
+launch if that is wrong, and the fake ends with `exit 0` whatever its logging does.
+
+## L-claude-503-a-scenario-cannot-redefine-the-runners-helpers-001
+*category: validate · topic: e2e runner · from: pipeline 503*
+
+`script/e2e.sh` sources the scenario (line 81) before it defines `holds` and `expect`, so a
+scenario's own `expect` is replaced by the runner's and the first failed check still ends the
+run. A copy made to measure coordinates has to change its checks, for instance by wrapping each
+in `|| true`, not the helper.

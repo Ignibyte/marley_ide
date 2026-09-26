@@ -2272,3 +2272,19 @@ comparison with Orca's redactor, rule by rule, is kept in `marley_mcp.md`. Rejec
 `AUTHORIZATION` as a `secret` name (F-claude-562); hiding a cookie header's first pair only (the
 rest pass); Orca's `.env` and every-PEM rules (they would hide `PATH` and certificates, as #516
 found); one kind per vendor for `sk-` keys (the kind tells the agent enough).
+
+## AD-claude-503-marley-routes-a-terminals-urls-and-offers-a-listening-dev-server-001
+*decided at: 2026-09-26 · status: shipped*
+
+Zed's terminal still finds the links; Marley only decides where they open. The decision goes
+through one hook in `TerminalView`'s `Event::Open` URL arm, `MarleyTerminalUrl`, with Zed's
+`cx.open_url` as the fallback. An OSC 8 link's plain click reaches the same arm. A local URL
+(loopback or unspecified, `0.0.0.0` opened as `127.0.0.1`) goes to a Browser tab of the
+terminal's project, bringing forward a tab already on it, and any other to the system browser,
+per `marley.terminal_links`; Shift+Ctrl+click takes the other place. A terminal over SSH always
+uses the system browser. A printed local URL is offered in the terminal's footer only while
+`/proc/net/tcp` or `tcp6` shows its port listening, read through `procfs-core` every 2 s while a
+URL is held. This widens AD-claude-477: a terminal with no agent shows a one-row strip while it
+has an offer. Rejected: opening every URL in a Browser tab by default (a docs link wants the
+real browser); offering every printed URL (a dead port's URL is noise); parsing `/proc/net` by
+hand (the tree builds `procfs-core` already).

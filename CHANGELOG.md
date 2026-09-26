@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Local URLs in a terminal open in a Browser tab** (#503, 2026-09-26). Ctrl+click on a
+  `localhost` or loopback URL in a terminal opens it in a Browser tab of the terminal's project,
+  or brings forward the tab already on it; any other URL still opens in your browser. A
+  server's `0.0.0.0` address opens at `127.0.0.1`. Shift+Ctrl+click opens a URL in the other
+  place. `marley.terminal_links`, in the Marley settings page's new Terminal section, can send
+  every URL to a Browser tab or every URL to your browser. An OSC 8 link a program prints opens
+  the same way on a plain click. While something listens on the port of a local URL a terminal
+  printed, such as a dev server's, the terminal's footer offers it: click it to open the page,
+  or use its menu to open it in your browser or copy the URL. A terminal running ssh sends every
+  URL to your browser and offers nothing, since its `localhost` is another machine.
 - **Send the editor's selection to an agent in a terminal** (#549, 2026-09-26). In the Marley
   layout, `ctrl->` in a file's editor types a reference to the selection at the prompt of the
   CLI agent running in a terminal of the window, without pressing Enter, and focuses that

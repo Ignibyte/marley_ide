@@ -9,6 +9,7 @@ pub(crate) fn marley_page() -> SettingsPage {
         items: layout_section()
             .into_iter()
             .chain(agents_section())
+            .chain(terminal_section())
             .chain(push_section())
             .chain(privacy_section())
             .collect(),
@@ -128,6 +129,35 @@ fn agents_section() -> [SettingsPageItem; 5] {
                         .marley
                         .get_or_insert_default()
                         .undo_close_seconds = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+    ]
+}
+
+// Marley: where a URL clicked in a terminal opens (#503).
+fn terminal_section() -> [SettingsPageItem; 2] {
+    [
+        SettingsPageItem::SectionHeader("Terminal"),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Terminal Links",
+            description: "Where a URL Ctrl+clicked in a terminal opens: a local one, such as a dev server's localhost address, in a Browser tab of the terminal's project; every one in a Browser tab; or every one in the system browser. Shift+Ctrl+click opens it in the other place. A terminal running ssh always uses the system browser.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.terminal_links"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.terminal_links.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .terminal_links = value;
                 },
             }),
             metadata: None,

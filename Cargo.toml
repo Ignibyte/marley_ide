@@ -798,6 +798,7 @@ portable-pty = "0.9.0"
 postage = { version = "0.5", features = ["futures-traits"] }
 pretty_assertions = { version = "1.3.0", features = ["unstable"] }
 proc-macro2 = "1.0.93"
+procfs-core = { version = "0.18", default-features = false }
 profiling = "1"
 # replace this with main when #635 is merged
 pollster = "0.4.0"

@@ -10,8 +10,8 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-503](open/TICKET-503-terminal-urls-open-in-the-browser.md) | feature | prong 3 with prong 1 · a local URL in a terminal opens a Browser tab; the terminal offers a dev server's URL while its port listens |
 | [TICKET-561](open/TICKET-561-browser-env-opener.md) | feature | prong 3 with prong 1 · programs that open a browser land in a Browser tab of their project, through BROWSER in Marley's terminals; after #503 |
+| [TICKET-579](open/TICKET-579-terminal-link-popover-and-wrapped-urls.md) | feature | prong 3 with prong 1 · #503's slice 2: a popover on a plain-clicked terminal link, the default asked once, URLs wrapped at the edge or drawn in a box joined |
 | [TICKET-504](open/TICKET-504-browser-tabs-in-the-rail.md) | feature | prong 3 · Browser tabs as rows of their project in the rail |
 | [TICKET-518](open/TICKET-518-fuller-pick-bundle.md) | feature | prong 3 · the pick bundle gains HTML, styles and the React component with its source; before #505 |
 | [TICKET-505](open/TICKET-505-pick-fix-check.md) | feature | prong 3 · a pick re-found after the fix: before and after in the tray, and a tool |

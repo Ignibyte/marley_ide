@@ -46,6 +46,7 @@ terminal.workspace = true
 terminal_view.workspace = true
 title_bar.workspace = true
 ui.workspace = true
+url.workspace = true
 util.workspace = true
 which.workspace = true
 workspace.workspace = true

@@ -29,6 +29,7 @@ pub mod browser;
 pub mod browser_tools;
 pub mod claude_plugin;
 pub mod close_guard;
+pub mod links;
 #[cfg(test)]
 pub mod marley_workbench_tests;
 pub mod mcp;
@@ -56,8 +57,8 @@ use gpui::{
     WeakEntity, Window, actions,
 };
 use settings::{
-    DockPosition, KeybindSource, KeymapFile, KeymapFileLoadResult, MarleyLayout, RegisterSetting,
-    Settings, SettingsContent, SettingsStore,
+    DockPosition, KeybindSource, KeymapFile, KeymapFileLoadResult, MarleyLayout,
+    MarleyTerminalLinks, RegisterSetting, Settings, SettingsContent, SettingsStore,
 };
 use title_bar::{UseAgenticLayout, UseClassicLayout};
 use util::ResultExt as _;
@@ -193,6 +194,8 @@ pub struct MarleySettings {
     pub ask_before_ending_a_working_agent: bool,
     /// Seconds a working terminal closed from its tab is held for undo; 0 is none (#550).
     pub undo_close_seconds: u64,
+    /// Where a URL Ctrl+clicked in a terminal opens (#503).
+    pub terminal_links: MarleyTerminalLinks,
 }
 
 /// The ntfy server agent events are pushed to (#535), as the user set it; [`push`] checks it.
@@ -244,6 +247,9 @@ impl Settings for MarleySettings {
             undo_close_seconds: marley
                 .and_then(|marley| marley.undo_close_seconds)
                 .unwrap_or(60),
+            terminal_links: marley
+                .and_then(|marley| marley.terminal_links)
+                .unwrap_or_default(),
         }
     }
 }
@@ -320,6 +326,7 @@ pub fn init(cx: &mut App) {
     send_selection::init(cx);
     autosuggest::init(cx);
     browser::init(cx);
+    links::init(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action_renderer(|div, _, _, cx| {
             div.capture_action(cx.listener(layout_preset::<UseClassicLayout>))

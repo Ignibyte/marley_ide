@@ -1677,6 +1677,11 @@
     // Seconds a working agent's terminal closed from its tab is kept, running, for Undo or
     // ctrl-shift-t (#550); 0 ends it at once.
     "undo_close_seconds": 60,
+    // Where a URL Ctrl+clicked in a terminal opens (#503): "local_in_browser_tab" (a local one,
+    // such as a dev server's localhost address, in a Browser tab of the terminal's project, and
+    // any other in the system browser), "all_in_browser_tab" or "system_browser".
+    // Shift+Ctrl+click opens it in the other place.
+    "terminal_links": "local_in_browser_tab",
   },
   // Control what info is collected by Zed.
   "telemetry": {

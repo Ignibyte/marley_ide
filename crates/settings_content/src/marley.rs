@@ -39,6 +39,11 @@ pub struct MarleySettingsContent {
     /// Where Marley pushes a line to the phone when Claude Code needs input, finishes or fails
     /// (#535): an ntfy server on this machine. Unset, Marley pushes nothing.
     pub push: Option<MarleyPushSettingsContent>,
+    /// Where a URL Ctrl+clicked in a terminal opens (#503). Shift+Ctrl+click opens it in the
+    /// other place.
+    ///
+    /// Default: "local_in_browser_tab"
+    pub terminal_links: Option<MarleyTerminalLinks>,
 }
 
 /// The ntfy server and topic agent events are pushed to.
@@ -51,6 +56,33 @@ pub struct MarleyPushSettingsContent {
     pub topic: Option<String>,
     /// A file holding an ntfy access token, readable by its owner alone.
     pub token_file: Option<String>,
+}
+
+/// Where a URL clicked in a terminal opens (#503).
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum MarleyTerminalLinks {
+    /// A local URL (`localhost`, a loopback address) in a Browser tab of the terminal's project,
+    /// and any other in the system browser.
+    #[default]
+    LocalInBrowserTab,
+    /// Every http and https URL in a Browser tab of the terminal's project.
+    AllInBrowserTab,
+    /// Every URL in the system browser, as Zed opens them.
+    SystemBrowser,
 }
 
 /// A window layout.

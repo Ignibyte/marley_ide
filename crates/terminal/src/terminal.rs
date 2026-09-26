@@ -3018,7 +3018,17 @@ impl Terminal {
                     .get(mouse_cell_index)
                     .and_then(|cell| cell.hyperlink())
                 {
-                    cx.open_url(link.uri());
+                    // Marley: a web link goes through `Event::Open`, as a Ctrl+click's does, where
+                    // Marley decides where it opens (#503).
+                    let web = link.uri().split_once(':').is_some_and(|(scheme, _)| {
+                        scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https")
+                    });
+                    if web {
+                        self.events
+                            .push_back(InternalEvent::FindHyperlink(position, true));
+                    } else {
+                        cx.open_url(link.uri());
+                    }
                 } else if e.modifiers.secondary() {
                     self.events
                         .push_back(InternalEvent::FindHyperlink(position, true));

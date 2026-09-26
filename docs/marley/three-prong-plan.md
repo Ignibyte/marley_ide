@@ -347,6 +347,7 @@ reaching his desktop.
 | B4 | #498 | Pillar B, annotations drawn by gpui and anchored in page coordinates (shipped) | M |
 | B5 | #499 | Pillar C, the flight recorder and "record this" (shipped) | L |
 | B2b | #574 | The browser tools act in the caller's project (#520's caller): a call with no tab takes the tab of the agent's project the user focused last, `browser_navigate` opens one beside the agent's terminal when the project has none, and `browser_tabs` names each tab's project and the default (shipped) | M |
+| B6a | #503 | A terminal's local URLs open in a Browser tab of its project, Shift+Ctrl+click and `marley.terminal_links` choosing the other place; an OSC 8 link on a plain click; a terminal over ssh keeps the system browser; the footer offers a dev server's printed URL while its port listens (shipped) | M |
 
 Wave 2 was specced on 2026-09-25, once wave 1 had landed (#496 to #499; the shelf note is
 `docs/planning/design-notes/browser-wave-2-shelf.md`).

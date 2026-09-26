@@ -144,6 +144,15 @@ pub struct MarleyTerminalFooter(
 
 impl gpui::Global for MarleyTerminalFooter {}
 
+// Marley: where a URL clicked in a terminal opens; Marley's workbench sets it, and `true` means it
+// took the URL (#503).
+#[derive(Clone)]
+pub struct MarleyTerminalUrl(
+    pub Arc<dyn Fn(&MarleyFooterContext, &str, &mut Window, &mut App) -> bool>,
+);
+
+impl gpui::Global for MarleyTerminalUrl {}
+
 // Marley: the autosuggestion a terminal shows after its cursor, or none; Marley's workbench
 // sets it (#484).
 #[derive(Clone)]
@@ -1282,7 +1291,26 @@ fn subscribe_for_terminal_events(
                 }
 
                 Event::Open(maybe_navigation_target) => match maybe_navigation_target {
-                    MaybeNavigationTarget::Url(url) => cx.open_url(url),
+                    // Marley: Marley decides where the URL opens, and Zed's open runs when it
+                    // does not (#503).
+                    MaybeNavigationTarget::Url(url) => {
+                        let taken =
+                            cx.try_global::<MarleyTerminalUrl>()
+                                .cloned()
+                                .is_some_and(|hook| {
+                                    let context = MarleyFooterContext {
+                                        view: cx.entity().downgrade(),
+                                        terminal,
+                                        project: &terminal_view.project,
+                                        workspace: &terminal_view.workspace,
+                                        focus_handle: &terminal_view.focus_handle,
+                                    };
+                                    (hook.0)(&context, url, window, cx)
+                                });
+                        if !taken {
+                            cx.open_url(url);
+                        }
+                    }
                     MaybeNavigationTarget::PathLike(path_like_target) => open_path_like_target(
                         &workspace,
                         terminal_view,

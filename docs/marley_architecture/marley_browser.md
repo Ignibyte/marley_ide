@@ -91,6 +91,21 @@ for.
   and the page's script waits until one is answered.
 - A failed load commits Chromium's error page, whose `frameNavigated` URL is
   `chrome-error://chromewebdata/`; the URL that failed is `unreachableUrl`, which the tab shows.
+- `address::local_url` (#503) reads an http or https URL on this machine: its host `localhost` or
+  a name under it, a `127.0.0.0/8` address, `::1`, or the unspecified `0.0.0.0` and `::`, which
+  become `127.0.0.1` and `::1` in the URL to open. It gives that URL, the `host:port` label a
+  terminal's footer shows and the port, the scheme's own when none is named.
+  `printed_local_urls` finds them in a terminal's line: each `http://` or `https://` up to a
+  space, a quote or an angle bracket, less the sentence punctuation after it and a closing
+  bracket it did not open (`(http://0.0.0.0:8000/)` from Python's `http.server`).
+
+## Listening ports (`src/ports.rs`, #503)
+
+- `listening_ports_in(dir)` reads `dir/tcp` and `dir/tcp6` (`/proc/net` on the machine) through
+  `procfs-core`, which the tree already builds for `crashes`, and keeps the ports of the
+  sockets in `LISTEN` bound to a loopback or unspecified address, IPv4-mapped ones included:
+  those a local URL reaches. It fails only when neither table reads, since a machine without
+  IPv6 has no `tcp6`. The workbench runs it off the main thread.
 
 ## For agents (`src/snapshot.rs`, `src/observe.rs`, #492)
 

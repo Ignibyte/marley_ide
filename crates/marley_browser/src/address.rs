@@ -1,10 +1,15 @@
-//! What the address bar's text navigates to.
+//! What the address bar's text navigates to, and which URLs are local (#503).
 //!
 //! The rules stay small enough to predict: a URL with a scheme Chromium navigates to loads as
 //! typed; a host, with its port and path, loads over `http` when it is loopback and `https`
 //! otherwise; anything else is a search at `duckduckgo.com`.
+//!
+//! A local URL is an http or https one whose host is this machine: `localhost` or a name under
+//! it, a `127.0.0.0/8` address, `::1`, or the unspecified `0.0.0.0` and `::` a server prints for
+//! where it listens. [`local_url`] reads one, and [`printed_local_urls`] finds them in a line a
+//! terminal printed.
 
-use std::net::{Ipv4Addr, Ipv6Addr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 /// The schemes typed text keeps as they are.
 const SCHEMES: &[&str] = &[
@@ -106,4 +111,93 @@ fn host_kind(text: &str) -> Option<bool> {
 /// Whether `port` is a port number: one to five digits.
 fn is_port(port: &str) -> bool {
     (1..=5).contains(&port.len()) && port.chars().all(|character| character.is_ascii_digit())
+}
+
+/// A local URL a terminal printed or a user clicked (#503).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalUrl {
+    /// The URL to open, as parsed: an unspecified host becomes the loopback address of its
+    /// family, since `0.0.0.0` says where a server listens and is no address to connect to.
+    pub url: String,
+    /// `host:port`, as the terminal's footer names it.
+    pub label: String,
+    /// The port, the scheme's own when the URL names none.
+    pub port: u16,
+}
+
+/// `text` as a [`LocalUrl`], when it is an http or https URL on this machine.
+#[must_use]
+pub fn local_url(text: &str) -> Option<LocalUrl> {
+    let mut url = url::Url::parse(text.trim()).ok()?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return None;
+    }
+    let port = url.port_or_known_default()?;
+    let connect_to: Option<IpAddr> = match url.host()? {
+        url::Host::Domain(name) => {
+            let name = name.to_ascii_lowercase();
+            if name != "localhost" && !name.ends_with(".localhost") {
+                return None;
+            }
+            None
+        }
+        url::Host::Ipv4(address) if address.is_unspecified() => Some(Ipv4Addr::LOCALHOST.into()),
+        url::Host::Ipv6(address) if address.is_unspecified() => Some(Ipv6Addr::LOCALHOST.into()),
+        url::Host::Ipv4(address) if address.is_loopback() => None,
+        url::Host::Ipv6(address) if address.is_loopback() => None,
+        url::Host::Ipv4(_) | url::Host::Ipv6(_) => return None,
+    };
+    if let Some(address) = connect_to {
+        url.set_ip_host(address).ok()?;
+    }
+    let label = format!("{}:{port}", url.host_str()?);
+    Some(LocalUrl {
+        url: url.into(),
+        label,
+        port,
+    })
+}
+
+/// The local URLs in `line`, in the order they appear. A URL ends at a space, a quote or an angle
+/// bracket, and loses the punctuation a sentence puts after it and a closing bracket it did not
+/// open.
+#[must_use]
+pub fn printed_local_urls(line: &str) -> Vec<LocalUrl> {
+    let mut found = Vec::new();
+    let mut rest = line;
+    while let Some(start) = ["http://", "https://"]
+        .iter()
+        .filter_map(|scheme| rest.find(scheme))
+        .min()
+    {
+        let candidate = rest.get(start..).unwrap_or_default();
+        let end = candidate
+            .find(|character: char| {
+                character.is_whitespace() || matches!(character, '<' | '>' | '"' | '\'' | '`')
+            })
+            .unwrap_or(candidate.len());
+        let printed = candidate.get(..end).unwrap_or_default();
+        found.extend(local_url(trim_printed(printed)));
+        // Past the scheme at least, so a candidate that ends at once is not found again.
+        rest = candidate.get(end.max(1)..).unwrap_or_default();
+    }
+    found
+}
+
+/// `url` without the sentence punctuation after it and the closing brackets it did not open.
+fn trim_printed(mut url: &str) -> &str {
+    loop {
+        let unopened = |close: char, open: char| {
+            url.ends_with(close) && url.matches(close).count() > url.matches(open).count()
+        };
+        if url.ends_with(['.', ',', ';', ':', '!', '?'])
+            || unopened(')', '(')
+            || unopened(']', '[')
+            || unopened('}', '{')
+        {
+            url = url.get(..url.len() - 1).unwrap_or_default();
+        } else {
+            return url;
+        }
+    }
 }

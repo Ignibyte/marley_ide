@@ -2215,3 +2215,13 @@ quote to the next opening one. The agent would have read `…[redacted: authoriz
 the comma and the next key's quote gone. Nothing leaked, but the JSON no longer parsed. Fixed in
 #562: a Digest list takes two parameters or more, as every real Digest header has. The
 scenario's JSON line uses a credential with one `=` of padding.
+
+## F-claude-503-a-tab-opened-inside-a-terminal-views-event-would-update-the-view-again-001
+*severity: high · found in: pipeline 503's promotion (re-reading `Pane::activate_item` against the hook) · class: gpui re-entrancy · prevented by: PR-claude-defer-a-pane-change-out-of-an-items-own-event-001*
+
+#503's plan had the terminal view's URL hook open the Browser tab itself. The hook runs in the
+view's subscription to its terminal, so the view is being updated. Adding a tab to the view's
+pane calls `Pane::activate_item`, which calls `deactivated` on the pane's previous front item,
+the terminal view, and `ItemHandle::deactivated` updates it: a double update, which panics. Found
+before any code was written. Fixed in #503: the hook picks the destination and returns, and the
+tab opens in `window.defer`.

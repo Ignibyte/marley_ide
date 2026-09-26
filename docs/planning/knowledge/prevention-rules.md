@@ -2355,3 +2355,12 @@ that rule's value pattern. The `secret` rule hides one word, so a label whose va
 and a credential (`Authorization`, `Proxy-Authorization`) or a list (`Cookie`) gets a rule of
 its own, one that keeps the label and the scheme and hides everything after them. A new rule's
 place in `BUILT_IN` is checked against every rule before it, with a line that both could match.
+
+## PR-claude-defer-a-pane-change-out-of-an-items-own-event-001
+*severity: high · prevents: F-claude-503-a-tab-opened-inside-a-terminal-views-event-would-update-the-view-again-001*
+
+Code that runs while an item is being updated must not add, activate or close items in that
+item's pane: its own subscription callbacks, an `on_action` it registered, and the hooks Zed's
+views call in their updates (`MarleyTerminalUrl`, `MarleyTerminalFooter`). Changing the pane's
+front item calls `deactivated` on the old one, which updates it. Defer the change with
+`window.defer` or a spawned task, as Zed's `open_path_like_target` spawns its open.

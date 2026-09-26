@@ -11,6 +11,7 @@
 //! Chromium draws where no frame shows it (#495), [`pick`] reads the element the user picks in
 //! inspect mode (#496), [`source_map`] follows a script's source map to the file it was built
 //! from (#497), and [`recorder`] keeps each page's last minute for the flight recorder (#499).
+//! [`ports`] reads which ports listen, for the dev server URLs a terminal offers (#503).
 //! The Browser tab that shows the page is `marley_workbench`'s
 //! (`docs/marley/three-prong-plan.md`, prong 3).
 
@@ -36,6 +37,7 @@ pub mod input;
 pub mod observe;
 pub mod page;
 pub mod pick;
+pub mod ports;
 pub mod recorder;
 pub mod select;
 pub mod service;

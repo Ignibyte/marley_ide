@@ -343,7 +343,7 @@ alike.
 - `contents` is what the bar shows: the agent from `foreground_process_command_name` through
   `marley_agent::agent_kind_of`, the folder from `working_directory`, and the branch of the
   innermost repository in the project's git store that holds the folder (`branch_for`). No agent,
-  no bar.
+  no bar, except the one-row strip that holds a terminal's offer (#503).
 - The bar draws `agents::cli_icon`, the agent's name, Attach File, Rich Input, the microphone
   and #482's chip ("Connect Claude Code to Marley" since #500, its tooltip naming the plugin's
   notifications and Marley's tools for its terminals and Browser tabs) at the left, and the folder (`~` for home) and branch at the right. The
@@ -353,6 +353,38 @@ alike.
   `Workspace::prompt_for_open_path` for files, several at once, with the project's lister, so a
   remote project's chooser lists the machine its terminals run on, and types the chosen paths
   with `TerminalView::add_paths_to_terminal`, as a drop does. A cancel types nothing.
+
+## Terminal links and the offered URL (`src/links.rs`, #503)
+
+- `init` sets Zed's `terminal_view::MarleyTerminalUrl`, which a terminal view's `Event::Open` asks
+  with its `MarleyFooterContext` before `cx.open_url`. It gets Ctrl+click URLs, and since #503
+  also an OSC 8 link's http or https target on a plain click. `open_clicked` leaves a URL that is
+  not http or https to Zed.
+- `destination`: over SSH (a remote project, or a foreground program among `ssh`, `mosh-client`,
+  `autossh` and `et`) every URL goes to the system browser as printed. Otherwise
+  `marley.terminal_links` (`MarleySettings.terminal_links`) decides: `local_in_browser_tab`, the
+  default, sends a local URL to a Browser tab and any other to the system browser;
+  `all_in_browser_tab` and `system_browser` send every one to one place. Shift, read from the
+  window when the event is handled, takes the other place. A local URL opens as
+  `address::local_url` gives it, so `0.0.0.0` opens at `127.0.0.1`.
+- `open`: the system browser through `cx.open_url`. A Browser tab is opened through `window.defer`,
+  since the URL arrives while its terminal view is being updated, and a tab added then would
+  deactivate that view, the pane's front item, and update it again. `browser::open_url_tab`
+  brings forward a tab of the workspace whose address is the same URL, or adds one to the active
+  pane with the focus.
+- The offer:
+  - `follow` subscribes every terminal view to its own `Wakeup`s. A scan runs 500 ms after the
+    first (`schedule_scan`, one pending per view, dropped with the view) and reads the last 200
+    logical lines through `address::printed_local_urls`. It skips a terminal over SSH.
+  - `ServedUrls` keeps each view's URLs, each port's newest print, 16 at most. While any
+    terminal holds one, `watch_ports` reads `ports::listening_ports_in("/proc/net")` every 2 s
+    off the main thread, and `take_ports` redraws each terminal whose offer changed.
+  - `offer` is the terminal's newest URL whose port listens, and none over SSH.
+  - `offer_button` is a `SplitButton`: its label opens the URL as a Ctrl+click would, and its
+    arrow's `PopoverMenu`, opening upward, holds Open in Browser Tab, Open in System Browser and
+    Copy URL.
+  - `agent_bar::render` puts it before the folder chip, or alone in a one-row strip under a
+    terminal with no agent.
 
 ## Autosuggestions (`src/autosuggest.rs`, #484)
 

@@ -5881,6 +5881,42 @@ pub(crate) fn new_tab(workspace: &mut Workspace, window: &mut Window, cx: &mut C
     open_page_in(&hub, view.downgrade(), window_handle, BLANK.to_string(), cx);
 }
 
+/// Opens `url` in a Browser tab of `workspace` with the focus, or brings forward the tab of
+/// `workspace` already on it (#503).
+pub(crate) fn open_url_tab(
+    workspace: &mut Workspace,
+    url: String,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    let this = cx.weak_entity();
+    let hub = BrowserHub::global(cx);
+    let same = |address: &str| {
+        url::Url::parse(address)
+            .ok()
+            .zip(url::Url::parse(&url).ok())
+            .is_some_and(|(address, url)| address == url)
+    };
+    let showing = live_views(cx).into_iter().find(|view| {
+        let view = view.read(cx);
+        view.workspace == this
+            && view
+                .target
+                .as_deref()
+                .and_then(|target| hub.read(cx).address(target))
+                .is_some_and(|address| same(&address))
+    });
+    if let Some(view) = showing {
+        workspace.activate_item(&view, true, true, window, cx);
+        return;
+    }
+    hub.update(cx, BrowserHub::start_if_failed);
+    let view = new_view(hub.clone(), None, false, this, window, cx);
+    workspace.add_item_to_active_pane(Box::new(view.clone()), None, true, window, cx);
+    let window_handle = view.read(cx).window;
+    open_page_in(&hub, view.downgrade(), window_handle, url, cx);
+}
+
 /// The pages no tab shows: those a start found that no tab claimed, and those whose tab closed
 /// with its window.
 fn untabbed(hub: &Entity<BrowserHub>, cx: &mut App) -> Vec<String> {

@@ -1,7 +1,7 @@
 ---
 pipeline_id: 1f97d1fe-a090-44de-8671-96c166770c3c
 ticket: docs/planning/tickets/open/TICKET-503-terminal-urls-open-in-the-browser.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Local URLs in a terminal open in a Browser tab, and the terminal offers the one a dev server printed"
 type: feature
 slice: prong 3 with prong 1 (after wave 2), item 1 of the list after the browser waves; slice 1 of 2

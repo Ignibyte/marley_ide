@@ -24,6 +24,7 @@ use workspace::Workspace;
 use crate::agents::cli_icon;
 use crate::blocks::focused_terminal;
 use crate::claude_plugin::{self, ClaudePlugin};
+use crate::links;
 use crate::rich_input;
 use crate::voice::{self, Voice, VoiceState};
 use crate::{AttachFile, RichInput};
@@ -147,11 +148,30 @@ fn branch_for<'a>(
 }
 
 fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option<AnyElement> {
-    let BarContents {
+    let offer = links::offer(context, cx).map(|url| links::offer_button(context, url));
+    let Some(BarContents {
         agent,
         folder,
         branch,
-    } = contents(context, cx)?;
+    }) = contents(context, cx)
+    else {
+        // A terminal with no agent shows a strip only while it offers a URL (#503).
+        let colors = cx.theme().colors();
+        return offer.map(|offer| {
+            h_flex()
+                .debug_selector(|| "marley-served-url-strip".into())
+                .flex_none()
+                .w_full()
+                .justify_end()
+                .px_2()
+                .py_1()
+                .border_t_1()
+                .border_color(colors.border_variant)
+                .bg(colors.terminal_background)
+                .child(offer)
+                .into_any_element()
+        });
+    };
     let microphone = microphone(context, cx);
     let prompt_editor = rich_input::element(context, cx);
     let colors = cx.theme().colors();
@@ -205,6 +225,7 @@ fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option
             h_flex()
                 .min_w_0()
                 .gap_3()
+                .children(offer)
                 .children(folder.map(|folder| {
                     let text = folder.compact().to_string_lossy().into_owned();
                     chip(IconName::Folder, text.into())
