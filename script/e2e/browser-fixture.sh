@@ -17,7 +17,9 @@
 #   Claude Code plugin's bridge, as Claude Code in a terminal does, and calls the browser tools
 #   (#492): `tools`, `tabs`, `navigate <url>`, `look [<image file>]`, `snapshot [full]`, `console`,
 #   `network`, `type-into <role> <name> <text>`, `click-on <role> <name>` and `scroll <dy>`.
-#   `--tab <id>` names the tab a tool acts on, and `--new-tab` has `navigate` open one (#493).
+#   `--tab <id>` names the tab a tool acts on, and `--new-tab` has `navigate` open one (#493);
+#   `tabs` gives each tab's project and marks `default` the one a call naming no tab acts on for
+#   this caller (#574).
 #   `picks` lists the user's picks and `pick <id> [<image file>]` reads one, saving its crop
 #   (#496). `annotate <role> <name> <note>` draws the agent's box around an element,
 #   `annotations` lists a tab's boxes, and `annotate-clear` removes the agent's (#498).
@@ -309,7 +311,8 @@ def main():
         result = client.tool("browser_tabs")
         for tab in (result or {}).get("structuredContent", {}).get("tabs", []):
             focused = ", focused" if tab["focused"] else ""
-            print(f"  tab {tab['id']}: {tab['title']!r} at {tab['url']}{focused}")
+            default = ", default" if tab.get("default") else ""
+            print(f"  tab {tab['id']}: {tab['title']!r} at {tab['url']}, project {tab.get('project')}{focused}{default}")
     elif command == "navigate":
         result = client.tool("browser_navigate", {"url": rest[0], **options})
         if result:

@@ -125,8 +125,9 @@ const REGISTRY: &[ToolSpec] = &[
     browser_read(
         "tabs",
         "List Marley's Browser tabs, one per page of its browser: each tab's id, which the other \
-         browser tools take as `tab`, its title and URL, whether it loads, and which one the tools \
-         act on when a call names no tab, the one the user focused last.",
+         browser tools take as `tab`, its title and URL, whether it loads, its project, whether \
+         the user focused it last, and `default`, the one the tools act on when a call names no \
+         tab: the one the user focused last in the project you run in.",
     ),
     browser_read(
         "look",
@@ -193,8 +194,9 @@ const REGISTRY: &[ToolSpec] = &[
     ),
     browser_write(
         "navigate",
-        "Load an http or https URL in a Browser tab, or in a new tab with `new_tab`, opening one \
-         when none is open; answers once the page has loaded, with the tab's id.",
+        "Load an http or https URL in a Browser tab, or in a new tab with `new_tab`; with no \
+         `tab`, in the tab the user focused last in the project you run in, opening one there \
+         when it has none. Answers once the page has loaded, with the tab's id.",
     ),
     browser_write(
         "back",
@@ -352,7 +354,9 @@ fn browser_schemas(verb: &str) -> (Value, Value) {
 fn tab_argument_schema() -> Value {
     json!({
         "type": "string",
-        "description": "A tab's id from browser_tabs; left out, the tab the user focused last."
+        "description": "A tab's id from browser_tabs. Left out: the tab the user focused last in \
+                        the project you run in (your terminal's, else your folder's); for a \
+                        caller in no project of Marley's, the tab the user focused last."
     })
 }
 
@@ -390,10 +394,18 @@ fn tabs_schemas() -> (Value, Value) {
                             "loading": { "type": "boolean" },
                             "focused": {
                                 "type": "boolean",
-                                "description": "The tab the tools act on when a call names none."
+                                "description": "Whether the user focused this tab last, anywhere."
+                            },
+                            "project": {
+                                "type": ["string", "null"],
+                                "description": "The project the tab belongs to, as Marley's rail names it."
+                            },
+                            "default": {
+                                "type": "boolean",
+                                "description": "The tab the tools act on when a call of yours names none."
                             }
                         },
-                        "required": ["id", "title", "url", "loading", "focused"]
+                        "required": ["id", "title", "url", "loading", "focused", "project", "default"]
                     }
                 }
             },

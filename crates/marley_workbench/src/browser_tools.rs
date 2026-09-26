@@ -2,18 +2,22 @@
 //! and driven by agents.
 //!
 //! Each call answers from a task of its own, since each waits on the browser, and acts on the
-//! page its `tab` names, a page's id from `browser_tabs`, or else on the page whose tab the user
-//! focused last. A read tool reads the page as the user sees it. A write tool first brings the
-//! page's tab to the front where that leaves the focus alone, so the user watches, says what it
-//! does in the tab's Agent chip, and sends the same CDP events the user's keys and mouse send
-//! (`marley_browser::input`), so the page cannot tell them apart.
+//! page its `tab` names, a page's id from `browser_tabs`. A call that names none acts in the
+//! caller's project (#574), the project of the terminal it comes from or of the folder it runs
+//! in: on the page whose tab of that project the user focused last. A caller in no project of
+//! Marley's gets the page whose tab the user focused last anywhere. A read tool reads the page as
+//! the user sees it. A write tool first brings the page's tab to the front where that leaves the
+//! focus alone, so the user watches, says what it does in the tab's Agent chip, and sends the
+//! same CDP events the user's keys and mouse send (`marley_browser::input`), so the page cannot
+//! tell them apart.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use std::time::Duration;
 
 use base64::Engine as _;
 
-use gpui::{App, AppContext as _, AsyncApp, Entity, MouseButton};
+use gpui::{App, AppContext as _, AsyncApp, Entity, EntityId, MouseButton, WeakEntity};
 use marley_browser::address;
 use marley_browser::cdp::CdpError;
 use marley_browser::input::{self, KeyPress};
@@ -22,12 +26,16 @@ use marley_browser::page::Page;
 use marley_browser::pick::PageBox;
 use marley_browser::recorder;
 use marley_browser::snapshot::{self, FrameTree, RefTarget, Snapshot};
-use marley_mcp::{AppCall, ToolAnswer, ToolImage};
+use marley_mcp::{AppCall, Caller, ToolAnswer, ToolImage};
 use serde::Serialize;
 use serde_json::{Value, json};
 use ui::SharedString;
+use workspace::{MultiWorkspace, ProjectGroup, Workspace};
 
-use crate::browser::{BrowserHub, Maker, new_page, recordings_dir, show_for_agent, showing};
+use crate::browser::{
+    BrowserHub, Maker, TabSummary, new_page, recordings_dir, show_for_agent, showing,
+    tab_workspaces,
+};
 
 /// How long a call waits, once the browser shows its pages, for the page it acts on to attach.
 const ATTACH_WAIT: Duration = Duration::from_secs(5);
@@ -48,21 +56,140 @@ const WRITES: &[&str] = &[
     "browser_scroll",
 ];
 
+/// The project a call comes from (#574), as the rail groups projects: a call that names no tab
+/// acts among its tabs.
+struct Scope {
+    /// The group's workspaces.
+    workspaces: HashSet<EntityId>,
+    /// The workspace the caller runs in, where a tab opened for it goes.
+    home: WeakEntity<Workspace>,
+    /// The group's name, as the rail shows it.
+    name: String,
+}
+
 /// Answers `call`, a `browser_*` tool, from a task of its own. A browser that stopped starts
 /// again, as `marley: open browser` starts it.
 pub fn answer(call: AppCall, cx: &mut App) {
     let hub = BrowserHub::global(cx);
     hub.update(cx, BrowserHub::start_if_failed);
+    let scope = caller_scope(call.caller(), cx);
     cx.spawn(async move |cx| {
-        let result = run(&call.tool, &call.arguments, &hub, cx).await;
+        let result = run(&call.tool, &call.arguments, scope.as_ref(), &hub, cx).await;
         call.answer(result);
     })
     .detach();
 }
 
+/// The project `caller` comes from (#574): the group of its terminal, else of the workspace one
+/// of whose folders holds its `Marley-Project`, else its `Marley-Cwd`, the longest folder winning.
+/// None for a caller in no project of Marley's.
+fn caller_scope(caller: &Caller, cx: &App) -> Option<Scope> {
+    let home = crate::mcp::caller_terminal(caller, cx)
+        .map(|(workspace, _)| workspace)
+        .or_else(|| holding(caller.project.as_deref()?, cx))
+        .or_else(|| holding(caller.cwd.as_deref()?, cx))?;
+    let multi_workspace = multi_workspaces(cx).into_iter().find(|multi_workspace| {
+        multi_workspace
+            .workspaces()
+            .any(|workspace| *workspace == home)
+    })?;
+    let key = home.read(cx).project_group_key(cx);
+    let workspaces = multi_workspace
+        .workspaces()
+        .filter(|workspace| workspace.read(cx).project_group_key(cx) == key)
+        .map(Entity::entity_id)
+        .collect();
+    let name = names_in(multi_workspace, cx)
+        .remove(&home.entity_id())
+        .unwrap_or_default();
+    Some(Scope {
+        workspaces,
+        home: home.downgrade(),
+        name,
+    })
+}
+
+/// The local workspace one of whose folders holds `path`, the longest folder winning. Folders are
+/// each workspace's own, so a linked worktree's finds its workspace, not its repository's.
+fn holding(path: &str, cx: &App) -> Option<Entity<Workspace>> {
+    let path = Path::new(path);
+    multi_workspaces(cx)
+        .into_iter()
+        .flat_map(MultiWorkspace::workspaces)
+        .filter(|workspace| workspace.read(cx).project().read(cx).is_local())
+        .flat_map(|workspace| {
+            workspace
+                .read(cx)
+                .root_paths(cx)
+                .into_iter()
+                .filter(|root| path.starts_with(root))
+                .map(|root| (root.components().count(), workspace.clone()))
+                .collect::<Vec<_>>()
+        })
+        .max_by_key(|(depth, _)| *depth)
+        .map(|(_, workspace)| workspace)
+}
+
+/// Each of Marley's windows.
+fn multi_workspaces(cx: &App) -> Vec<&MultiWorkspace> {
+    cx.windows()
+        .into_iter()
+        .filter_map(|window| window.downcast::<MultiWorkspace>()?.read(cx).ok())
+        .collect()
+}
+
+/// The name of each workspace's project in `multi_workspace`, as the rail shows it; a workspace
+/// the rail does not list is named for its folders.
+fn names_in(multi_workspace: &MultiWorkspace, cx: &App) -> HashMap<EntityId, String> {
+    let groups: Vec<ProjectGroup> = multi_workspace
+        .project_groups(cx)
+        .into_iter()
+        .filter(|group| !group.workspaces.is_empty())
+        .collect();
+    let names = crate::group_names(&groups);
+    multi_workspace
+        .workspaces()
+        .map(|workspace| {
+            let key = workspace.read(cx).project_group_key(cx);
+            let name = groups
+                .iter()
+                .zip(&names)
+                .find(|(group, _)| group.key == key)
+                .map_or_else(
+                    || key.display_name(&HashMap::new()).to_string(),
+                    |(_, name)| name.clone(),
+                );
+            (workspace.entity_id(), name)
+        })
+        .collect()
+}
+
+/// The pages of the scope's Browser tabs.
+fn targets_in(scope: &Scope, cx: &mut App) -> HashSet<String> {
+    tab_workspaces(cx)
+        .into_iter()
+        .filter(|(_, workspace)| scope.workspaces.contains(&workspace.entity_id()))
+        .map(|(target, _)| target)
+        .collect()
+}
+
+/// The page a call that names no tab acts on: in the caller's project, the page of its tab the
+/// user focused last, else of its newest; for a caller in no project, the page whose tab the user
+/// focused last anywhere.
+fn default_tab(hub: &Entity<BrowserHub>, scope: Option<&Scope>, cx: &mut App) -> Option<String> {
+    match scope {
+        Some(scope) => {
+            let targets = targets_in(scope, cx);
+            hub.read(cx).focused_among(&targets)
+        }
+        None => hub.read(cx).focused(),
+    }
+}
+
 async fn run(
     tool: &str,
     arguments: &Value,
+    scope: Option<&Scope>,
     hub: &Entity<BrowserHub>,
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, String> {
@@ -77,11 +204,11 @@ async fn run(
     showing(hub, cx).await?;
     let named_tab = arguments.get("tab").and_then(Value::as_str);
     match tool {
-        "browser_tabs" => return tabs(hub, cx).await,
-        "browser_navigate" => return navigate(arguments, named_tab, hub, cx).await,
+        "browser_tabs" => return tabs(hub, scope, cx).await,
+        "browser_navigate" => return navigate(arguments, named_tab, scope, hub, cx).await,
         _ => {}
     }
-    let (tab, page) = page_of(hub, named_tab, cx).await?;
+    let (tab, page) = page_of(hub, named_tab, scope, cx).await?;
     if WRITES.contains(&tool) {
         cx.update(|cx| show_for_agent(&tab, cx));
     }
@@ -110,50 +237,96 @@ async fn run(
     }
 }
 
-/// The page `named_tab` names, or the page whose tab the user focused last, with its id, once
-/// it is attached.
+/// The page `named_tab` names, or else the page a call that names no tab acts on
+/// ([`default_tab`]), with its id, once it is attached.
 async fn page_of(
     hub: &Entity<BrowserHub>,
     named_tab: Option<&str>,
+    scope: Option<&Scope>,
     cx: &AsyncApp,
 ) -> Result<(String, Page), String> {
     let mut waited = Duration::ZERO;
     loop {
-        let (found, has_pages) = hub.read_with(cx, |hub, _| {
-            let tab = named_tab.map(str::to_string).or_else(|| hub.focused());
-            let found = tab.and_then(|tab| hub.page(&tab).map(|page| (tab, page)));
-            (found, hub.has_pages())
+        let (found, has_pages) = cx.update(|cx| {
+            let (tab, has_pages) = match (named_tab, scope) {
+                (Some(tab), _) => (Some(tab.to_string()), true),
+                (None, Some(scope)) => {
+                    let targets = targets_in(scope, cx);
+                    (hub.read(cx).focused_among(&targets), !targets.is_empty())
+                }
+                (None, None) => {
+                    let hub = hub.read(cx);
+                    (hub.focused(), hub.has_pages())
+                }
+            };
+            let found = tab.and_then(|tab| hub.read(cx).page(&tab).map(|page| (tab, page)));
+            (found, has_pages)
         });
         if let Some(found) = found {
             return Ok(found);
         }
         // A page just made attaches in a moment; with none at all there is nothing to wait for.
-        if (named_tab.is_none() && !has_pages) || waited >= ATTACH_WAIT {
-            return Err(named_tab.map_or_else(
-                || "the browser has no tabs; browser_navigate opens one".to_string(),
-                |tab| format!("the browser has no tab {tab}; browser_tabs lists them"),
-            ));
+        if !has_pages || waited >= ATTACH_WAIT {
+            return Err(match (named_tab, scope) {
+                (Some(tab), _) => format!("the browser has no tab {tab}; browser_tabs lists them"),
+                (None, Some(scope)) => format!(
+                    "no Browser tab of the project {} shows a page; browser_navigate opens one \
+                     there",
+                    scope.name
+                ),
+                (None, None) => "the browser has no tabs; browser_navigate opens one".to_string(),
+            });
         }
         cx.background_executor().timer(POLL).await;
         waited += POLL;
     }
 }
 
+/// What `browser_tabs` says of a tab: the hub's summary, the tab's project, and whether a call
+/// from this caller that names no tab acts on it (#574).
+#[derive(Serialize)]
+struct TabRow {
+    #[serde(flatten)]
+    summary: TabSummary,
+    project: Option<String>,
+    default: bool,
+}
+
 /// `browser_tabs`: every page, once the pages being attached are.
-async fn tabs(hub: &Entity<BrowserHub>, cx: &AsyncApp) -> Result<ToolAnswer, String> {
+async fn tabs(
+    hub: &Entity<BrowserHub>,
+    scope: Option<&Scope>,
+    cx: &AsyncApp,
+) -> Result<ToolAnswer, String> {
     let mut waited = Duration::ZERO;
     while hub.read_with(cx, |hub, _| hub.is_attaching()) && waited < ATTACH_WAIT {
         cx.background_executor().timer(POLL).await;
         waited += POLL;
     }
-    let tabs: Vec<_> = hub
-        .read_with(cx, |hub, _| hub.tabs())
-        .into_iter()
-        .map(|mut tab| {
-            tab.url = redact_url(&tab.url);
-            tab
-        })
-        .collect();
+    let tabs: Vec<TabRow> = cx.update(|cx| {
+        let placed = tab_workspaces(cx);
+        let names: HashMap<EntityId, String> = multi_workspaces(cx)
+            .into_iter()
+            .flat_map(|multi_workspace| names_in(multi_workspace, cx))
+            .collect();
+        let default = default_tab(hub, scope, cx);
+        hub.read(cx)
+            .tabs()
+            .into_iter()
+            .map(|mut summary| {
+                summary.url = redact_url(&summary.url);
+                let project = placed
+                    .iter()
+                    .find(|(target, _)| *target == summary.id)
+                    .and_then(|(_, workspace)| names.get(&workspace.entity_id()).cloned());
+                TabRow {
+                    default: default.as_deref() == Some(summary.id.as_str()),
+                    project,
+                    summary,
+                }
+            })
+            .collect()
+    });
     let tabs = serde_json::to_value(tabs).map_err(|error| error.to_string())?;
     Ok(ToolAnswer {
         structured: json!({ "tabs": tabs }),
@@ -427,11 +600,14 @@ async fn acting<T>(
     result.map(|_| done(&did, tab, hub, cx))
 }
 
-/// `browser_navigate`: in the tab named or focused last, or in a new tab with `new_tab` or when
-/// the browser has none.
+/// `browser_navigate`: in the tab named, else in the tab a call that names no tab acts on; in a
+/// new tab with `new_tab`, or when the caller's project has no tab showing a page, or, for a
+/// caller in no project, when the browser has none. A new tab for a caller's project opens in the
+/// caller's workspace (#574).
 async fn navigate(
     arguments: &Value,
     named_tab: Option<&str>,
+    scope: Option<&Scope>,
     hub: &Entity<BrowserHub>,
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, String> {
@@ -444,12 +620,16 @@ async fn navigate(
         .get("new_tab")
         .and_then(Value::as_bool)
         .unwrap_or(false);
-    let has_pages = hub.read_with(cx, |hub, _| hub.has_pages());
+    let has_pages = cx.update(|cx| match scope {
+        Some(_) => default_tab(hub, scope, cx).is_some(),
+        None => hub.read(cx).has_pages(),
+    });
     let tab = if new_tab || (named_tab.is_none() && !has_pages) {
-        let created = new_page(hub, "about:blank".to_string(), cx).await?;
-        page_of(hub, Some(&created), cx).await?.0
+        let home = scope.map(|scope| scope.home.clone());
+        let created = new_page(hub, "about:blank".to_string(), home, cx).await?;
+        page_of(hub, Some(&created), None, cx).await?.0
     } else {
-        page_of(hub, named_tab, cx).await?.0
+        page_of(hub, named_tab, scope, cx).await?.0
     };
     cx.update(|cx| show_for_agent(&tab, cx));
     let shown = redact_url(&url);

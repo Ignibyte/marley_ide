@@ -2940,3 +2940,12 @@ exit 1 and nothing printed, the first time grep finds nothing yet: the pipeline 
 assignment carries its status. browser-fixture.sh's `serve_site` gets away with the same line
 because it runs inside a command substitution, where `set -e` does not reach. In `setup` and
 `steps`, end such a pipeline with `|| true` and test the value after.
+
+## L-claude-574-an-item-a-private-module-shares-lives-in-a-public-module-001
+*category: code · topic: clippy visibility lints · from: pipeline 574*
+
+The Marley crates run rustc's `unreachable_pub` and clippy's `redundant_pub_crate` together, so
+an item in a private module (`mod rail;`) that another module of the crate needs has no
+visibility that passes: `pub(crate)` and `pub(super)` trip `redundant_pub_crate`, and `pub` trips
+`unreachable_pub`. Put it in a public module or at the crate root, where `pub(crate)` passes
+both; #574 moved the rail's `group_names` to `marley_workbench.rs`.

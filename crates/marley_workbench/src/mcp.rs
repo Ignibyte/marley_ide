@@ -399,6 +399,17 @@ fn terminal_with_id(id: u64, cx: &App) -> Result<Entity<TerminalView>, String> {
         .ok_or_else(|| format!("no terminal has the id {id}; terminal_list names them"))
 }
 
+/// The terminal of Marley's a call comes from (#520), with its workspace.
+pub(crate) fn caller_terminal(
+    caller: &Caller,
+    cx: &App,
+) -> Option<(Entity<Workspace>, Entity<TerminalView>)> {
+    let own = caller.terminal.as_deref()?;
+    terminals(cx)
+        .into_iter()
+        .find(|(_, view)| view.read(cx).terminal().read(cx).marley_terminal_id() == Some(own))
+}
+
 /// The terminal a call names in `terminal`, else the caller's own (#520): its id and its view.
 fn terminal_of(
     arguments: &Value,
@@ -408,13 +419,8 @@ fn terminal_of(
     if let Some(id) = arguments.get("terminal").and_then(Value::as_u64) {
         return terminal_with_id(id, cx).map(|view| (id, view));
     }
-    let own = caller.terminal.as_deref().and_then(|own| {
-        terminals(cx)
-            .into_iter()
-            .map(|(_, view)| view)
-            .find(|view| view.read(cx).terminal().read(cx).marley_terminal_id() == Some(own))
-    });
-    own.map(|view| (view.entity_id().as_u64(), view))
+    caller_terminal(caller, cx)
+        .map(|(_, view)| (view.entity_id().as_u64(), view))
         .ok_or_else(|| {
             "give `terminal`, a terminal's id from terminal_list: this call comes from no \
              terminal of Marley's"

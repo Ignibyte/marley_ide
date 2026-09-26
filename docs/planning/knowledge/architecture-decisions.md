@@ -2226,3 +2226,21 @@ Rejected: the gpui entity id (it changes every launch, and no program sees it); 
 caller from the running command (#491's stand-in did, and two agents in two terminals look
 alike); a column in Zed's `terminals` table for the restore (#575 keeps its own table, so no
 Marley migration sits in upstream's list).
+
+## AD-claude-574-browser-tools-default-to-the-callers-project-001
+*decided at: 2026-09-26 · status: shipped*
+
+A browser tool that names no tab acts in the caller's project: the project group of the caller's
+terminal, else of the local workspace one of whose own folders holds its `Marley-Project`, else
+its `Marley-Cwd`, the longest folder winning. It acts on the page of that project's tab the user
+focused last (the hub keeps its focus history, each page once, 64 at most), else its newest. With
+none, `browser_navigate` opens a page whose tab goes to the caller's own workspace, through a
+placement the hub keeps by page id until the tab opens, placed as AD-claude-493 places an
+agent's page, and the other tools refuse, naming `browser_navigate`. A named tab is the caller's
+choice and is not refused. A caller in no project keeps the tab the user focused last anywhere.
+This narrows AD-claude-493's default, the tab the user focused last, to the caller's project.
+Rejected: acting on another project's tab when the caller's has none (the failure this ticket
+stops); a one-shot "next page" placement (a page opened meanwhile would take it); the group's
+last active workspace as the new tab's home (a linked worktree's agent would get its tab in the
+main checkout's workspace); refusing a named tab of another project (#507's per-project contexts
+are where projects part).

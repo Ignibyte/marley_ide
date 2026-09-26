@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-574](open/TICKET-574-browser-tools-in-the-callers-project.md) | feature | prong 3 with prong 2 · a browser tool with no tab acts in the caller's project (#520's caller); an Agent Panel agent in its thread's |
 | [TICKET-575](open/TICKET-575-terminal-id-across-restore.md) | feature | prong 2 · a restored terminal keeps its MARLEY_TERMINAL_ID across a launch (#520's table and hook) |
 | [TICKET-549](open/TICKET-549-selection-to-the-agent.md) | feature | prong 2 with prong 1 · the editor's selection typed into a terminal agent's prompt as `@path#L1-99`; a picker when several agents run |
 | [TICKET-562](open/TICKET-562-orca-redactor-cross-check.md) | chore | prong 2 · Orca's redactor compared rule by rule with #516's; the gaps added: Basic and Token authorization headers, hyphenated secret names, cookies |

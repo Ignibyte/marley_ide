@@ -2145,3 +2145,11 @@ Marley's own process environment with the map laid over it, so a key missing fro
 inherited, not unset. The interactive terminals looked right only because their values were set.
 Fixed in #520: the hunks set the variables empty where they name nothing, and the readers treat
 empty as none.
+
+## F-claude-574-a-placement-outlived-its-page-001
+*severity: low · found in: pipeline 574's Code phase (the review of the diff) · class: state kept for an event that may never come*
+
+The first draft kept a new page's placement, the workspace its tab goes to, until `place_tab`
+took it, so a page whose attach failed, or one made just before a restart, left its placement in
+the hub for the rest of the run. Fixed before Test: the placement goes with a failed attach, at a
+start and when its page goes.

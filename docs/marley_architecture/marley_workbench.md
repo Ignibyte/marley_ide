@@ -91,7 +91,8 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   nothing but the rail, so a background terminal's output never redraws the window through it,
   and `has_notifications` reads the stored snapshot, so it holds while the rail is closed.
 - It lists the groups that have an open workspace, named through Zed's public functions
-  (`compute_disambiguation_details`, `ProjectGroupKey::display_name`).
+  (`compute_disambiguation_details`, `ProjectGroupKey::display_name`) in `crate::group_names`,
+  which the browser tools share for a tab's project (#574).
 - A project header has a chevron to fold it, a `+` menu with New Terminal, New Browser Tab
   (#500: `Rail::new_browser_tab` shows the project, then `browser::new_tab`, as Ctrl+T), New
   Agent Thread and the agent CLIs, and an attention dot;
@@ -512,19 +513,32 @@ alike.
   its tools from, and `mcp_servers_for_project` hands it to each external agent's `session/new`.
   No bearer goes into a setting; a user's own `context_servers.marley` replaces the default.
 
-## The browser's agent tools (`src/browser_tools.rs`, #492, #493)
+## The browser's agent tools (`src/browser_tools.rs`, #492, #493, #574)
 
 - `mcp.rs` hands each `browser_*` call to `browser_tools::answer`, which starts a hub that
   failed again and answers the call from a task of its own once the hub shows its pages
   (starting Chromium if it must, and waiting up to 20 seconds). A call acts on the page its
-  `tab` names, a target id from `browser_tabs`, or else on the page whose tab the user focused
-  last (the newest page when the user focused none), waiting up to five seconds for a page still
+  `tab` names, a target id from `browser_tabs`, waiting up to five seconds for a page still
   being attached (#493). A write tool first calls `browser::show_for_agent`, which brings the
   page's tab to the front of its pane unless that pane has the focus, and gives a page with no
-  tab a tab. `browser_navigate` opens a new page with `new_tab`, or when the browser has none.
-  Every answer names its tab.
+  tab a tab. Every answer names its tab.
+- **The caller's project (#574).** `answer` works out the call's `Scope` once, from its
+  `marley_mcp::Caller`: the workspace of the caller's terminal (`mcp::caller_terminal`), else the
+  local workspace one of whose own folders (`Workspace::root_paths`, so a linked worktree finds
+  its own) holds `Marley-Project`, else `Marley-Cwd`, the longest folder winning; the scope is that
+  workspace's project group in its window, every held workspace with its `project_group_key`,
+  named as the rail names it (`crate::group_names`). A call that names no tab acts on the page of
+  the scope's tab the user focused last, else of its newest (`BrowserHub::focused_among` over
+  `browser::tab_workspaces`); with no tab of the scope showing a page it is refused at once,
+  naming `browser_navigate`. A caller in no project gets the page whose tab the user focused last
+  anywhere, the newest page when the user focused none, as before. `browser_navigate` opens a new
+  page with `new_tab`, or when the caller's project has no tab showing a page (for a caller in no
+  project, when the browser has none); a page opened for a caller's project gets its tab in the
+  caller's own workspace.
 - `browser_tabs` lists each page: its id, title, URL (with secret-looking values hidden),
-  whether it loads, and which one a call that names no tab acts on.
+  whether it loads, its `project` (the rail's name for its tab's workspace; null for a page with
+  no tab), whether the user focused it last (`focused`), and `default`, the one a call from this
+  caller that names no tab acts on.
 - `browser_annotate` (#498, a write tool) draws the agent's box around a ref's element, scrolled
   into view first (`ref_origin`, which `place` shares, then `Page::border_box` plus the scroll
   from `Page::viewport`), or over an area of the viewport, and names the annotation; `clear`
@@ -623,8 +637,13 @@ alike.
   (`listed`, #494) goes to a tab opened while the browser started, or else waits without a tab
   until a restored tab claims it or `marley: open browser` gives it one. Any other page gets a
   tab of its own. A page a page opened goes beside
-  its opener's tab, with the focus. Any other page goes after the tab the user focused last, or
-  else after the newest Browser tab, and never takes the focus: in a pane that has the focus it
+  its opener's tab, with the focus. A page an agent's call opened for a project (#574) goes to
+  the workspace the hub keeps for it (`placements`, which `create_page_task` records when
+  `Target.createTarget` answers, several round trips before the page can attach, and which goes
+  with a failed attach, a start or the page): after that workspace's tab the user focused last,
+  else its newest, else in its active pane. Any other page goes after the tab the user focused
+  last, or else after the newest Browser tab. None of these takes the focus: in a pane that has
+  the focus it
   joins the tab bar behind the active tab, since Zed gives a lost focus to the pane's new front
   item; when no Browser tab is open and the active pane shows other work with the focus in it,
   the page opens in a pane split to its right, and the focus goes back where it was. A new page
@@ -637,7 +656,9 @@ alike.
   Chromium…", "Connecting to Chromium…", "Opening a page…", or the reason it stopped, with how
   to try again) or its page. It counts as its page's viewer from its first paint in front of its
   pane until `Item::deactivated` or its release, so a page behind another tab stops streaming.
-  Its focus marks the page the agent tools act on by default. `Item::on_removed`, which Zed
+  Its focus moves its page to the end of the hub's focus history (#574: each page once, the newest
+  last, 64 at most, a page that goes dropped), which the agent tools' defaults read: `focused()`
+  is its newest live page, else the newest page, and `focused_among` the same within a set. `Item::on_removed`, which Zed
   calls on a close and on a move between panes alike, defers a check past the effect cycle and
   closes the page (`Page::close`) only when no pane holds a tab of it: a move removes the tab and
   adds it again in one update, before the deferred check runs. The tab frees each frame from the

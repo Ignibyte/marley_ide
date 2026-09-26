@@ -41,9 +41,9 @@ pub mod routing;
 pub mod single_instance;
 pub mod voice;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::OsStr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use agent_ui::AgentPanel;
 use anyhow::Context as _;
@@ -61,7 +61,7 @@ use title_bar::{UseAgenticLayout, UseClassicLayout};
 use util::ResultExt as _;
 use workspace::dock::{Dock, Panel as _};
 use workspace::notifications::NotificationId;
-use workspace::{MultiWorkspace, Sidebar as _, Toast, Workspace};
+use workspace::{MultiWorkspace, ProjectGroup, Sidebar as _, Toast, Workspace};
 
 pub use rail::{KeptSidebar, Rail};
 
@@ -462,6 +462,26 @@ pub fn register_sidebar(
     if had_focus {
         focus_handle.focus(window, cx);
     }
+}
+
+/// The label for each group, as the rail shows it and the browser tools name a tab's project
+/// (#574): its roots' last components, with parent components added where two groups' labels
+/// would otherwise read the same, through the public naming functions Zed's own project groups
+/// use (`compute_disambiguation_details`, `path_suffix`, `display_name`).
+pub(crate) fn group_names(groups: &[ProjectGroup]) -> Vec<String> {
+    let roots: BTreeSet<PathBuf> = groups
+        .iter()
+        .flat_map(|group| group.key.path_list().paths().to_vec())
+        .collect();
+    let roots: Vec<PathBuf> = roots.into_iter().collect();
+    let depths = util::disambiguate::compute_disambiguation_details(&roots, |root, depth| {
+        project::path_suffix(root, depth)
+    });
+    let depth_by_root: HashMap<PathBuf, usize> = roots.into_iter().zip(depths).collect();
+    groups
+        .iter()
+        .map(|group| group.key.display_name(&depth_by_root).to_string())
+        .collect()
 }
 
 /// Marks the toast [`layout_preset`] shows.

@@ -4,9 +4,8 @@
 //! state, persistence and the toggle actions; the rows and the one selected row come from
 //! `marley_rail`.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
-use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use acp_thread::{AcpThread, AcpThreadEvent};
@@ -1816,7 +1815,7 @@ fn build_snapshot(
         .into_iter()
         .filter(|group| !group.workspaces.is_empty())
         .collect();
-    let names = group_names(&groups);
+    let names = crate::group_names(&groups);
     let displayed = multi_workspace.workspace();
     let home = util::paths::home_dir().as_path();
     let now = cx.background_executor().now();
@@ -2057,25 +2056,6 @@ fn thread_status_mark(status: ThreadStatus, attention: bool) -> Option<AnyElemen
             attention.then(|| Indicator::dot().color(Color::Accent).into_any_element())
         }
     }
-}
-
-/// The label for each group: its roots' last components, with parent components added where two
-/// groups' labels would otherwise read the same, through the public naming functions Zed's own
-/// project groups use (`compute_disambiguation_details`, `path_suffix`, `display_name`).
-fn group_names(groups: &[ProjectGroup]) -> Vec<String> {
-    let roots: BTreeSet<PathBuf> = groups
-        .iter()
-        .flat_map(|group| group.key.path_list().paths().to_vec())
-        .collect();
-    let roots: Vec<PathBuf> = roots.into_iter().collect();
-    let depths = util::disambiguate::compute_disambiguation_details(&roots, |root, depth| {
-        project::path_suffix(root, depth)
-    });
-    let depth_by_root: HashMap<PathBuf, usize> = roots.into_iter().zip(depths).collect();
-    groups
-        .iter()
-        .map(|group| group.key.display_name(&depth_by_root).to_string())
-        .collect()
 }
 
 impl EventEmitter<SidebarEvent> for Rail {}

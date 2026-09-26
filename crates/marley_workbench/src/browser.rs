@@ -27,7 +27,7 @@
 //! page's JavaScript dialogs, which headless Chromium does not draw: the tab draws each as a card
 //! over the page, whose script waits until the card is answered.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
@@ -113,6 +113,9 @@ const SHOWN_POLL: Duration = Duration::from_millis(250);
 /// How soon after the user's press or key in the page a select that opens is taken as the
 /// user's (#495); one an agent's click or key opens stays shut.
 const USER_PRESS: Duration = Duration::from_secs(1);
+
+/// How many of the pages the user focused the hub remembers, newest last (#574).
+const FOCUS_HISTORY: usize = 64;
 
 /// A cross-site iframe of a page, attached with a session of its own (#492).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -389,8 +392,7 @@ pub struct TabSummary {
     pub url: String,
     /// Whether its main frame loads.
     pub loading: bool,
-    /// Whether the tools act on it when a call names no tab: the page whose tab the user focused
-    /// last.
+    /// Whether it is the page whose tab the user focused last, anywhere.
     pub focused: bool,
 }
 
@@ -403,8 +405,10 @@ pub struct BrowserHub {
     attaching: Vec<String>,
     /// The pages closing or gone while they were attached: an attach that ends for one drops it.
     closing: Vec<String>,
-    /// The page whose tab the user focused last.
-    focused: Option<String>,
+    /// The pages whose tabs the user focused, each once, the newest last (#574).
+    focus_history: Vec<String>,
+    /// The workspace each page an agent asked for gets its tab in, until the tab opens (#574).
+    placements: Vec<(String, WeakEntity<Workspace>)>,
     /// The picks of the session, oldest first (#496).
     picks: Vec<Pick>,
     /// The next pick's number.
@@ -422,7 +426,7 @@ impl fmt::Debug for BrowserHub {
             .debug_struct("BrowserHub")
             .field("state", &self.state)
             .field("pages", &self.pages.len())
-            .field("focused", &self.focused)
+            .field("focused", &self.focused())
             .finish_non_exhaustive()
     }
 }
@@ -456,7 +460,8 @@ impl BrowserHub {
                 pages: Vec::new(),
                 attaching: Vec::new(),
                 closing: Vec::new(),
-                focused: None,
+                focus_history: Vec::new(),
+                placements: Vec::new(),
                 picks: Vec::new(),
                 next_pick: 1,
                 next_annotation: 1,
@@ -518,16 +523,46 @@ impl BrowserHub {
     /// The page whose tab the user focused last while it lives, else the newest page.
     #[must_use]
     pub fn focused(&self) -> Option<String> {
-        self.focused
-            .clone()
-            .filter(|target| self.page_state(target).is_some())
-            .or_else(|| self.pages.last().map(|page| page.target().to_string()))
+        self.newest_focused(|_| true)
+    }
+
+    /// Among `targets`, the page whose tab the user focused last while it lives, else the newest
+    /// of them (#574).
+    #[must_use]
+    pub fn focused_among(&self, targets: &HashSet<String>) -> Option<String> {
+        self.newest_focused(|target| targets.contains(target))
+    }
+
+    /// The live page `wanted` takes that the user focused last, else the newest one it takes.
+    fn newest_focused(&self, wanted: impl Fn(&str) -> bool) -> Option<String> {
+        self.focus_history
+            .iter()
+            .rev()
+            .map(String::as_str)
+            .chain(self.pages.iter().rev().map(PageState::target))
+            .find(|target| wanted(target) && self.page_state(target).is_some())
+            .map(str::to_string)
     }
 
     fn set_focused(&mut self, target: &str) {
-        if self.focused.as_deref() != Some(target) {
-            self.focused = Some(target.to_string());
+        if self.focus_history.last().map(String::as_str) == Some(target) {
+            return;
         }
+        self.focus_history.retain(|focused| focused != target);
+        self.focus_history.push(target.to_string());
+        if self.focus_history.len() > FOCUS_HISTORY {
+            self.focus_history.remove(0);
+        }
+    }
+
+    /// The workspace the page `target` gets its tab in, when an agent's call asked for one
+    /// (#574); asked once.
+    fn take_placement(&mut self, target: &str) -> Option<WeakEntity<Workspace>> {
+        let index = self
+            .placements
+            .iter()
+            .position(|(placed, _)| placed == target)?;
+        Some(self.placements.remove(index).1)
     }
 
     /// Every page, oldest first, as `browser_tabs` lists them.
@@ -618,6 +653,7 @@ impl BrowserHub {
         self.connection = None;
         self.attaching.clear();
         self.closing.clear();
+        self.placements.clear();
         for page in std::mem::take(&mut self.pages) {
             cx.emit(BrowserEvent::PageClosed {
                 target: page.target().to_string(),
@@ -721,6 +757,7 @@ impl BrowserHub {
                     Ok(page) => this.attached(page, opener, listed, cx),
                     Err(error) => {
                         this.closing.retain(|closing| *closing != target);
+                        this.placements.retain(|(placed, _)| *placed != target);
                         log::warn!("browser: could not attach to a page: {error}");
                     }
                 }
@@ -794,6 +831,8 @@ impl BrowserHub {
         } else {
             self.closing.retain(|closing| closing != target);
         }
+        self.focus_history.retain(|focused| focused != target);
+        self.placements.retain(|(placed, _)| placed != target);
         let before = self.pages.len();
         self.pages.retain(|page| page.target() != target);
         if self.pages.len() != before {
@@ -805,19 +844,30 @@ impl BrowserHub {
     }
 
     /// Opens a new page at `url` and answers with its id once the browser has made it; the page
-    /// attaches, and its tab opens as any page's does, a moment later (#493).
+    /// attaches, and its tab opens as any page's does, a moment later (#493), in `place_in` when
+    /// given (#574).
     pub fn create_page_task(
         &self,
         url: String,
+        place_in: Option<WeakEntity<Workspace>>,
         cx: &Context<Self>,
     ) -> Task<Result<String, String>> {
         let Some(connection) = self.connection.clone() else {
             return Task::ready(Err("the browser is not connected".to_string()));
         };
-        cx.spawn(async move |_, _| {
-            Page::create(&connection, &url)
+        cx.spawn(async move |this, cx| {
+            let target = Page::create(&connection, &url)
                 .await
-                .map_err(|error| error.to_string())
+                .map_err(|error| error.to_string())?;
+            // Kept before the page can attach, which takes several round trips more, so its tab
+            // finds it.
+            if let Some(workspace) = place_in {
+                this.update(cx, |hub, _| {
+                    hub.placements.push((target.clone(), workspace));
+                })
+                .ok();
+            }
+            Ok(target)
         })
     }
 
@@ -2166,7 +2216,7 @@ pub(crate) async fn showing(hub: &Entity<BrowserHub>, cx: &AsyncApp) -> Result<(
 }
 
 /// Opens a page at `url` once the hub shows the browser's pages, and gives its id; its tab opens
-/// as any page's does.
+/// as any page's does, in `place_in` when given (#574).
 ///
 /// # Errors
 ///
@@ -2174,10 +2224,11 @@ pub(crate) async fn showing(hub: &Entity<BrowserHub>, cx: &AsyncApp) -> Result<(
 pub(crate) async fn new_page(
     hub: &Entity<BrowserHub>,
     url: String,
+    place_in: Option<WeakEntity<Workspace>>,
     cx: &mut AsyncApp,
 ) -> Result<String, String> {
     showing(hub, cx).await?;
-    let task = hub.update(cx, |hub, cx| hub.create_page_task(url, cx));
+    let task = hub.update(cx, |hub, cx| hub.create_page_task(url, place_in, cx));
     task.await
 }
 
@@ -2696,6 +2747,18 @@ fn live_views(cx: &mut App) -> Vec<Entity<BrowserView>> {
     views.0.iter().filter_map(WeakEntity::upgrade).collect()
 }
 
+/// Each Browser tab in a pane that shows a page, with the page and the tab's workspace (#574).
+pub(crate) fn tab_workspaces(cx: &mut App) -> Vec<(String, WeakEntity<Workspace>)> {
+    live_views(cx)
+        .iter()
+        .filter(|view| in_a_pane(view, cx))
+        .filter_map(|view| {
+            let view = view.read(cx);
+            Some((view.target.clone()?, view.workspace.clone()))
+        })
+        .collect()
+}
+
 /// The tab showing the page `target`.
 fn view_of(target: &str, cx: &mut App) -> Option<Entity<BrowserView>> {
     live_views(cx)
@@ -2723,6 +2786,20 @@ fn in_a_pane(view: &Entity<BrowserView>, cx: &App) -> bool {
         .workspace
         .upgrade()
         .is_some_and(|workspace| pane_of(&workspace, view, cx).is_some())
+}
+
+/// The window that holds `workspace`.
+fn window_of(workspace: &Entity<Workspace>, cx: &App) -> Option<WindowHandle<MultiWorkspace>> {
+    cx.windows()
+        .into_iter()
+        .filter_map(|window| window.downcast::<MultiWorkspace>())
+        .find(|window| {
+            window.read(cx).is_ok_and(|multi_workspace| {
+                multi_workspace
+                    .workspaces()
+                    .any(|candidate| candidate == workspace)
+            })
+        })
 }
 
 /// The window a tab with no Browser tab to go beside opens in: the active window, else the
@@ -2793,8 +2870,9 @@ fn open_tab(
 }
 
 /// Opens a tab for the page `target`: beside `beside`, the tab of the page that opened it, or
-/// else after the tab the user focused last, or else in the active workspace. A tab that does not
-/// take the focus leaves the tab that has it in front.
+/// else after the tab the user focused last, or else in the active workspace. A page an agent's
+/// call asked for in a workspace (#574) looks only among that workspace's tabs, and else opens
+/// in that workspace. A tab that does not take the focus leaves the tab that has it in front.
 fn place_tab(
     hub: &Entity<BrowserHub>,
     target: &str,
@@ -2802,8 +2880,29 @@ fn place_tab(
     focus: bool,
     cx: &mut App,
 ) {
-    let focused = hub.read(cx).focused();
-    let views = live_views(cx);
+    let placed_in = hub
+        .update(cx, |hub, _| hub.take_placement(target))
+        .and_then(|workspace| workspace.upgrade());
+    let views: Vec<Entity<BrowserView>> = live_views(cx)
+        .into_iter()
+        .filter(|view| {
+            placed_in
+                .as_ref()
+                .is_none_or(|placed_in| view.read(cx).workspace == *placed_in)
+        })
+        .collect();
+    let focused = {
+        let hub = hub.read(cx);
+        if placed_in.is_some() {
+            let targets = views
+                .iter()
+                .filter_map(|view| view.read(cx).target.clone())
+                .collect();
+            hub.focused_among(&targets)
+        } else {
+            hub.focused()
+        }
+    };
     let anchor = beside
         .cloned()
         .or_else(|| {
@@ -2839,7 +2938,11 @@ fn place_tab(
             return;
         }
     }
-    let Some(window) = active_multi_workspace(cx) else {
+    let window = placed_in.as_ref().map_or_else(
+        || active_multi_workspace(cx),
+        |workspace| window_of(workspace, cx),
+    );
+    let Some(window) = window else {
         log::warn!("browser: no window to open a page's tab in");
         return;
     };
@@ -2847,7 +2950,7 @@ fn place_tab(
     let target = target.to_string();
     window
         .update(cx, |multi_workspace, window, cx| {
-            let workspace = multi_workspace.workspace().clone();
+            let workspace = placed_in.unwrap_or_else(|| multi_workspace.workspace().clone());
             let view = new_view(hub, Some(target), false, workspace.downgrade(), window, cx);
             workspace.update(cx, |workspace, cx| {
                 let pane = workspace.active_pane().clone();
@@ -2966,7 +3069,7 @@ fn open_page_in(
 ) {
     let hub = hub.clone();
     cx.spawn(async move |cx| {
-        let created = new_page(&hub, url, cx).await;
+        let created = new_page(&hub, url, None, cx).await;
         let shown = window
             .update(cx, |_, window, cx| {
                 view.update(cx, |view, cx| {

@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Browser tools act in the agent's own project** (#574, 2026-09-26). A browser call that names
+  no tab now acts on the Browser tab the user focused last in the agent's project, the project of
+  the terminal it runs in or, for Zed's own agents, of the folder it runs in, rather than on the
+  tab the user focused last anywhere. When its project has no tab, `browser_navigate` opens one
+  there, beside the agent's terminal, and the other tools refuse and say so, so an agent in one
+  project no longer drives another project's page. `browser_tabs` names each tab's project and
+  marks `default` the tab a call from this agent would act on. An agent outside every project
+  keeps the old behavior.
 - **Marley's tools know which terminal is calling** (#520, 2026-09-26). Each local terminal now
   starts with `MARLEY_TERMINAL_ID`, an id of its own (a split gets another), and
   `MARLEY_PROJECT`, its project's folder; a task, a remote terminal and a Marley started inside

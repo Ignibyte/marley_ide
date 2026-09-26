@@ -16,3 +16,4 @@
 535-phone-push-notifications.sh      # pushes to the phone: only agents' events, only while away, the line alone
 550-ask-before-ending-a-working-agent.sh  # a close or a quit asks before ending a working agent; the hold and undo
 520-terminal-identity.sh             # each terminal's own id and project; the tools know their caller
+574-browser-tools-in-the-callers-project.sh  # a browser call with no tab acts in the caller's project
