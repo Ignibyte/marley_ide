@@ -181,7 +181,8 @@ pub fn install(plugin: ClaudePlugin, workspace: WeakEntity<Workspace>, cx: &mut 
                     Ok(()) => workspace.show_toast(
                         Toast::new(
                             NotificationId::unique::<ClaudePlugin>(),
-                            "Marley's plugin for Claude Code is installed. New Claude Code \
+                            "Marley's plugin for Claude Code is installed: notifications, and \
+                             Marley's tools for its terminals and Browser tabs. New Claude Code \
                              sessions use it; in a running one, run /reload-plugins.",
                         ),
                         cx,

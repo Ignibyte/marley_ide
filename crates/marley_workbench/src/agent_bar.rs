@@ -322,10 +322,15 @@ fn claude_plugin_chip(context: &MarleyFooterContext, cx: &App) -> Option<AnyElem
             .child(
                 Button::new(
                     "marley-enable-claude-notifications",
-                    "Enable Claude Code notifications",
+                    "Connect Claude Code to Marley",
                 )
                 .start_icon(Icon::new(IconName::Download).size(IconSize::XSmall))
                 .label_size(LabelSize::Small)
+                .tooltip(Tooltip::text(
+                    "Installs Marley's plugin for Claude Code: notifications, and Marley's tools \
+                     for its terminals and Browser tabs, so the agent can open a page and drive \
+                     it while you watch",
+                ))
                 .on_click(move |_, _, cx| {
                     claude_plugin::install(plugin.clone(), workspace.clone(), cx);
                 }),

@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A Browser tab from the rail** (#500, 2026-09-25). A project's + in the rail now lists New
+  Browser Tab after New Terminal: it brings the project to the front and opens a blank page in
+  a new Browser tab there, with the cursor in the address bar, starting Marley's Chromium when it
+  must. The chip under a Claude Code terminal that installs Marley's plugin now reads "Connect
+  Claude Code to Marley", and its tooltip says what it brings: notifications, and Marley's tools
+  for its terminals and Browser tabs, so the agent can open a page and drive it while you watch.
 - **The Browser tab's flight recorder** (#499, 2026-09-25). While a Browser tab shows a page,
   Marley keeps that page's last minute: your clicks and where they landed, keys by name, typing
   as a count of characters (never the characters), the agent's actions, console messages,

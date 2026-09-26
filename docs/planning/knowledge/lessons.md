@@ -2771,3 +2771,11 @@ quiet page (seven in ten seconds of typing and clicking in #499's run). A record
 mark changes, and its length comes from its entries, not from a frame count times the rate.
 Keeping a frame is cheap when the loop hands back the base64 it decoded instead of copying it
 before the decode.
+
+## L-claude-500-a-clicked-context-menu-starts-on-its-first-entry-001
+*category: validate · topic: e2e scenarios · from: pipeline 500*
+
+A `ContextMenu` a `PopoverMenu` opens on a click starts with its first entry selected, so in a
+scenario one Down reaches the second entry and Enter confirms it; #500's first run pressed Down
+twice and opened the third. Take the menu's shot after the steps, so the highlight shows which
+entry Enter will run.

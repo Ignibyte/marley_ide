@@ -64,7 +64,9 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   and `has_notifications` reads the stored snapshot, so it holds while the rail is closed.
 - It lists the groups that have an open workspace, named through Zed's public functions
   (`compute_disambiguation_details`, `ProjectGroupKey::display_name`).
-- A project header has a chevron to fold it, a `+` menu with New Terminal and an attention dot;
+- A project header has a chevron to fold it, a `+` menu with New Terminal, New Browser Tab
+  (#500: `Rail::new_browser_tab` shows the project, then `browser::new_tab`, as Ctrl+T), New
+  Agent Thread and the agent CLIs, and an attention dot;
   a terminal row has the title, the working directory and a bell dot. A header click shows the
   project. A terminal row click shows its project, activates and focuses the terminal and
   clears its bell. New Terminal starts where Zed's own would
@@ -314,7 +316,8 @@ alike.
   innermost repository in the project's git store that holds the folder (`branch_for`). No agent,
   no bar.
 - The bar draws `agents::cli_icon`, the agent's name, Attach File, Rich Input, the microphone
-  and #482's chip at the left, and the folder (`~` for home) and branch at the right. The
+  and #482's chip ("Connect Claude Code to Marley" since #500, its tooltip naming the plugin's
+  notifications and Marley's tools for its terminals and Browser tabs) at the left, and the folder (`~` for home) and branch at the right. The
   footer is a column: the rich input's editor, while it is open, sits above the bar.
 - Attach File (#479): the bar's `+` and `marley::AttachFile`, which `init` registers on every
   workspace for the focused terminal (`blocks::focused_terminal`), both call `attach`. It opens

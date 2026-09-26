@@ -49,6 +49,7 @@ use workspace::{
 use zed_actions::agents_sidebar::FocusSidebarFilter;
 
 use crate::agents::{self, AgentIcon};
+use crate::browser;
 
 #[path = "rail_switcher.rs"]
 mod switcher;
@@ -601,6 +602,19 @@ impl Rail {
         Ok(())
     }
 
+    /// Shows `workspace` and opens a blank page in a new Browser tab there, the focus in its
+    /// address bar (#500).
+    fn new_browser_tab(
+        &self,
+        workspace: &WeakEntity<Workspace>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let workspace = self.activate_workspace(workspace, window, cx)?;
+        workspace.update(cx, |workspace, cx| browser::new_tab(workspace, window, cx));
+        Ok(())
+    }
+
     /// Shows `workspace` and starts `kind` in a new center terminal there.
     fn new_agent(
         &self,
@@ -1121,6 +1135,8 @@ impl Rail {
                         Some(ContextMenu::build(window, cx, move |menu, _, _| {
                             let terminal_rail = rail.clone();
                             let terminal_workspace = workspace.clone();
+                            let browser_rail = rail.clone();
+                            let browser_workspace = workspace.clone();
                             let cli_rail = rail.clone();
                             let cli_workspace = workspace.clone();
                             let menu = menu
@@ -1128,6 +1144,14 @@ impl Rail {
                                     terminal_rail
                                         .update(cx, |rail, cx| {
                                             rail.new_terminal(&terminal_workspace, window, cx)
+                                        })
+                                        .flatten()
+                                        .log_err();
+                                })
+                                .entry("New Browser Tab", None, move |window, cx| {
+                                    browser_rail
+                                        .update(cx, |rail, cx| {
+                                            rail.new_browser_tab(&browser_workspace, window, cx)
                                         })
                                         .flatten()
                                         .log_err();

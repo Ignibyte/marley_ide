@@ -5739,8 +5739,9 @@ fn open(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspa
     }
 }
 
-/// Opens a blank page in a new tab after the active one, with the focus in its address bar.
-fn new_tab(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
+/// Opens a blank page in a new tab after the active one, with the focus in its address bar: what
+/// Ctrl+T does, and the rail's New Browser Tab (#500).
+pub(crate) fn new_tab(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
     let hub = BrowserHub::global(cx);
     hub.update(cx, BrowserHub::start_if_failed);
     let view = new_view(hub.clone(), None, false, cx.weak_entity(), window, cx);
