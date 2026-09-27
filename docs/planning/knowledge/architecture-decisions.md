@@ -2504,3 +2504,21 @@ refuses its token at once. Rejected:
   later, `browser_draft_test`'s project paths among them;
 - tokens that last across restarts, as Orca's direct tokens do (report 04 §2.13);
 - clients in Zed's settings, where a repository could grant itself one.
+
+## AD-claude-583-chromium-on-its-pipe-behind-marleys-relay-001
+*decided at: 2026-09-27 · status: shipped · builds on: AD-claude-488-marleys-browser-is-a-transient-unit-streamed-into-a-tab-001, AD-claude-524-outside-clients-reach-a-list-of-browser-tools-by-name-001*
+
+A project's Chromium listens on no port. It runs with `--remote-debugging-pipe` as the child of
+Marley's relay, a hidden mode of Marley's own executable (`marley --browser-relay`) that is the
+unit's main process, so the unit still outlives Marley. The relay gives each client a browser
+session over the one pipe, serves Marley on a 0600 Unix socket in the project's 0700 folder, and
+serves other CDP clients on a loopback WebSocket that takes a token it mints at each start and
+keeps, with the address, in a 0600 `relay.json`; a script's command names that file, never the
+token. On SIGTERM it closes Chromium over the pipe. Rejected:
+- Chromium on its port behind a network namespace: a private namespace takes away the loopback
+  dev servers a Browser tab is for;
+- a second binary for the relay: it would need building, installing and finding, where Zed's own
+  hidden modes (`--askpass`, `--crash-handler`) show the way;
+- one connection for all clients through the pipe's root: clients would share discovery and
+  auto-attach state, and a Playwright client's pause-on-start would stop Marley's pages;
+- CDP for #524's outside clients: CDP evaluates script, which no Marley tool does.

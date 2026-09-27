@@ -2332,3 +2332,16 @@ reset can drop a reply the peer has not read yet, so the client would have seen 
 reset and no 431. Fixed before any run: `write_status_then_drain` shuts the write side and reads
 and drops up to 64 KiB for a second before closing; the scenario's 16 KiB header line gets its
 431.
+
+## F-claude-583-a-script-runs-start-was-lost-while-no-tab-drew-the-page-001
+*severity: medium · found in: the release install of 1cdd5a929e (#524), whose golden set failed 523 · class: an event kept only while a view is drawn · prevented by: PR-claude-an-event-a-command-caused-is-kept-whatever-the-view-001*
+
+#523's run of a Playwright script records its start in the page's minute right after it types
+the command, and its end when the block ends. `record_script` went through `record_entry`, which
+keeps an entry only while a tab draws the page, a rule meant for what the page does on its own.
+The run's terminal is added to the tab's pane, taking the tab's place, and then moved beside it;
+a release build types and records inside that moment, so the start was dropped, and a failed
+run's recording held its end with exit code 1 and no start. The debug build recorded after the
+tab was drawn again, so every run until the release install passed. Nothing was installed (the
+golden set gates the install). Fixed in #583: `record_script` pushes to the page's recorder
+whether or not a tab draws the page.

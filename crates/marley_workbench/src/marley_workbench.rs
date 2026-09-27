@@ -314,6 +314,15 @@ struct DocksBefore {
 
 impl Global for LayoutState {}
 
+/// Runs Marley's browser relay when this process was started as one (#583).
+///
+/// It answers the exit code, or `None` for any other start. `main` asks before it parses its
+/// arguments, since the relay's command ends with Chromium's.
+#[must_use]
+pub fn run_browser_relay_if_invoked() -> Option<i32> {
+    marley_browser::relay::run_if_invoked()
+}
+
 /// Installs the layout switch. Call once at startup, after `settings::init` and before any
 /// window opens.
 pub fn init(cx: &mut App) {

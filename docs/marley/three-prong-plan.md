@@ -302,7 +302,8 @@ and network that "record this" saves retroactively.
 from web pages (their `Origin`) and requests whose `Host` is not local. A TCP port on loopback
 checks no user, though, so every local process can reach it, other users' included (this
 decision first said "processes of the same user", which holds for the profile's files and not
-for the port, #524); slice 2 of #524 (#583) takes Chromium off TCP. Agents are meant to come
+for the port, #524). Since #583 Chromium speaks CDP on its pipe to Marley's relay and listens on
+no port; other clients reach the relay's loopback WebSocket with a token only the user can read. Agents are meant to come
 through Marley's MCP server (D17), which has its per-boot bearer. No tool evaluates
 script in the page, agent navigation takes only `http` and `https`, and the network and trace
 readers redact headers and secret-looking query values before an agent or a file sees them.
@@ -316,7 +317,9 @@ unit per Marley data directory, so an e2e run gets its own. It runs the Chromium
 itself (`/usr/lib/chromium/chromium` where the distribution wraps it in a launcher) with
 only Marley's flags, headless, with its profile under Marley's data directory and
 `--remote-debugging-port=0`; Chromium writes the port it chose into the profile's
-`DevToolsActivePort`, where Marley and any other CDP client find it. The unit outlives
+`DevToolsActivePort`, where Marley and any other CDP client find it. Since #583 the unit's main
+process is Marley's relay, Chromium runs on its pipe, and Marley and other CDP clients find the
+relay: its Unix socket, and `relay.json` with the loopback WebSocket's address and token. The unit outlives
 Marley's windows and Marley itself; it ends at logout. Since #507 (Chad, 2026-09-25) it is one
 unit per project: each project, as the rail groups it, has a profile of its own under
 `browser/projects/<key>/`, keyed on its main folders, so its logins stay its own and a linked
@@ -370,7 +373,7 @@ reaching his desktop.
 | B7c | #581 | Clear Browser Data for one project: the rail's project menu and `marley: clear project browser data` ask, then close the project's tabs, close and stop its Chromium and delete its profile, keeping `project.json`; a toast reports it (shipped) | S |
 | B7b | #507 | A Chromium and a profile per project: logins (cookies, `localStorage`, IndexedDB) kept apart and across restarts, a linked worktree on its repository's, the unit started by the project's first tab, kept at a quit and stopped when the project is removed (the rail's Remove Project), the old profile moved to the first project, the tools across every project's browser (shipped; clearing one project's data is #581) | L |
 | B8a | #524 | Trusted outside clients, slice 1: named clients with per-start tokens in endpoint files of their own, a read or act grant over an explicit list of browser tools, the tab's "Driven by" mark and Cut Off, owned sessions, and the MCP server's read bounded before authentication (shipped) | L |
-| B8b | #583 | Slice 2: Chromium's DevTools off TCP, behind a Marley relay that serves Marley over a Unix socket and Playwright clients a CDP WebSocket that takes a client's token | M |
+| B8b | #583 | Slice 2: Chromium's DevTools off TCP, on its pipe behind Marley's relay, which gives each client a browser session, serves Marley over a 0600 Unix socket and other clients a loopback CDP WebSocket that takes a token it mints at each start (shipped) | L |
 | B8c | #584 | Slice 3: a client on another machine, through `ssh -L` or `tailscale serve` to a fixed loopback port | M |
 
 Wave 2 was specced on 2026-09-25, once wave 1 had landed (#496 to #499; the shelf note is

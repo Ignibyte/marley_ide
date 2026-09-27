@@ -9,10 +9,13 @@
 #   `localhost` and 127.0.0.1 (its resolver rules map IP literals too): a search or a typed
 #   name fails in the page, and nothing leaves the machine.
 # - `agent <command> ...` runs a stand-in agent that attaches to the run's Chromium the way any
-#   CDP client can, through the `DevToolsActivePort` in the profile of the project
-#   `$E2E_WORK/repo` (#507), and drives the browser's first page: `navigate <url>`, and
+#   CDP client can: through the relay's WebSocket with the token in `relay.json` beside the
+#   profile of the project `$E2E_WORK/repo` (#583), or over the `DevToolsActivePort` of a
+#   Chromium an earlier build started. It drives the browser's first page: `navigate <url>`, and
 #   `highlight <selector> <seconds>`, which keeps the highlight, drawn for its own session, for
-#   that long; `close <text>` closes the page whose URL holds the text.
+#   that long; `close <text>` closes the page whose URL holds the text. `hold-session <seconds>`
+#   attaches and prints its page session, `use-session <id>` calls on a session it does not own,
+#   and `close-browser` sends `Browser.close` (#583).
 # - `mcp_agent <command> ...` runs a stand-in agent that reaches Marley's MCP server through the
 #   Claude Code plugin's bridge, as Claude Code in a terminal does, and calls the browser tools
 #   (#492): `tools`, `tabs`, `navigate <url>`, `look [<image file>]`, `snapshot [full]`, `console`,
@@ -48,7 +51,8 @@
 #   and puts them in its title, `whoami: cookie=… local=… idb=…`, which `browser_tabs` reads.
 # - `browser_profile [root]` and `browser_unit [root]` name the Chromium profile and the user
 #   unit of the project whose one folder is `root`, `$E2E_WORK/repo` by default: a Chromium per
-#   project since #507. `browser_close [root]` asks that project's Chromium to close over CDP, as
+#   project since #507. `browser_close [root]` asks that project's Chromium to close over CDP (the
+#   relay's WebSocket with its token since #583, else its port), as
 #   Marley does before it stops a unit, and waits up to five seconds for the unit to stop: stopped
 #   by a signal, Chromium loses the cookies it has not written yet. `browser_teardown`, for the
 #   scenario's `teardown`, stops every unit of the run, the profile of earlier builds' too, and the
@@ -81,9 +85,16 @@ browser_close() {
   profile=$(browser_profile "$@")
   unit=$(browser_unit_of "$profile")
   node --input-type=module -e '
-    import { readFileSync } from "node:fs";
-    const [port, path] = readFileSync(process.argv[1] + "/DevToolsActivePort", "utf8").trim().split("\n");
-    const socket = new WebSocket("ws://127.0.0.1:" + port + path);
+    import { existsSync, readFileSync } from "node:fs";
+    const relayFile = process.argv[1] + "/../relay.json";
+    let socket;
+    if (existsSync(relayFile)) {
+      const { url, token } = JSON.parse(readFileSync(relayFile, "utf8"));
+      socket = new WebSocket(url, { headers: { Authorization: "Bearer " + token } });
+    } else {
+      const [port, path] = readFileSync(process.argv[1] + "/DevToolsActivePort", "utf8").trim().split("\n");
+      socket = new WebSocket("ws://127.0.0.1:" + port + path);
+    }
     socket.onopen = () => socket.send(JSON.stringify({ id: 1, method: "Browser.close" }));
     socket.onclose = () => process.exit(0);
     setTimeout(() => process.exit(0), 5000);
@@ -383,12 +394,21 @@ PY
 
 write_agent() {
   cat >"$E2E_WORK/agent.mjs" <<'JS'
-// A stand-in agent for the browser's e2e scenarios: a CDP client of the run's Chromium.
-import { readFileSync } from 'node:fs';
+// A stand-in agent for the browser's e2e scenarios: a CDP client of the run's Chromium, through
+// its relay's WebSocket with the relay's token (#583), or over the port a Chromium an earlier
+// build started listens on.
+import { existsSync, readFileSync } from 'node:fs';
 
 const [, , profile, command, ...args] = process.argv;
-const [port, path] = readFileSync(`${profile}/DevToolsActivePort`, 'utf8').trim().split('\n');
-const socket = new WebSocket(`ws://127.0.0.1:${port}${path}`);
+const relayFile = `${profile}/../relay.json`;
+let socket;
+if (existsSync(relayFile)) {
+  const { url, token } = JSON.parse(readFileSync(relayFile, 'utf8'));
+  socket = new WebSocket(url, { headers: { Authorization: `Bearer ${token}` } });
+} else {
+  const [port, path] = readFileSync(`${profile}/DevToolsActivePort`, 'utf8').trim().split('\n');
+  socket = new WebSocket(`ws://127.0.0.1:${port}${path}`);
+}
 let nextId = 0;
 const waiting = new Map();
 const listeners = [];
@@ -416,6 +436,22 @@ await new Promise((resolve, reject) => {
   socket.onerror = () => reject(new Error('no DevTools socket'));
 });
 
+if (command === 'close-browser') {
+  // Chromium may end the connection before it answers.
+  await Promise.race([send('Browser.close').catch(() => {}), sleep(3000)]);
+  console.log('agent: asked the browser to close');
+  process.exit(0);
+}
+if (command === 'use-session') {
+  try {
+    await send('Runtime.evaluate', { expression: '1 + 1', returnByValue: true }, args[0]);
+    console.log('agent: the other session answered');
+  } catch (error) {
+    console.log(`agent: refused: ${error.message}`);
+  }
+  socket.close();
+  process.exit(0);
+}
 const { targetInfos } = await send('Target.getTargets');
 if (command === 'close') {
   const closing = targetInfos.find((target) => target.type === 'page' && target.url.includes(args[0]));
@@ -435,6 +471,9 @@ if (command === 'navigate') {
   await send('Page.navigate', { url: args[0] }, sessionId);
   await loaded;
   console.log(`agent: navigated to ${args[0]}`);
+} else if (command === 'hold-session') {
+  console.log(`agent: holding session ${sessionId}`);
+  await sleep(Number(args[0] ?? 10) * 1000);
 } else if (command === 'highlight') {
   await send('DOM.enable', {}, sessionId);
   await send('Overlay.enable', {}, sessionId);

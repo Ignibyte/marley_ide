@@ -210,6 +210,12 @@ fn main() {
     #[cfg(unix)]
     util::prevent_root_execution();
 
+    // Marley: a project's Chromium unit runs this executable as Marley's browser relay (#583),
+    // with Chromium's command line after `--`, which `Args::parse` would refuse.
+    if let Some(code) = marley_workbench::run_browser_relay_if_invoked() {
+        std::process::exit(code);
+    }
+
     let args = Args::parse();
 
     // `zed --askpass` Makes zed operate in nc/netcat mode for use with askpass

@@ -2425,3 +2425,12 @@ a peer that trickles a byte a second defeats a per-read timeout. A refusal writt
 request was read to its end drains the rest (bounded) after shutting the write side, so the peer
 reads it. PR-claude-cap-client-size-before-alloc-pre-auth-001 covers the size of one allocation;
 this covers the rest of the path.
+
+## PR-claude-an-event-a-command-caused-is-kept-whatever-the-view-001
+*severity: medium · prevents: F-claude-583-a-script-runs-start-was-lost-while-no-tab-drew-the-page-001*
+
+A record of something Marley itself did to a page (a script run, an agent's action) is kept
+whatever state the page's view is in: a rule that keeps entries only while a view is drawn is for
+what the page does on its own, and a command that moves views around can run inside the moment
+no view draws. Timing that only a release build hits is found by the install's golden set, so a
+check on such a record stays in a golden scenario.

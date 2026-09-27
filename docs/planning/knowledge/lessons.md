@@ -3265,3 +3265,32 @@ server: a copy of the new endpoint file with the old file's `headers` (`jq -s '.
 `browser_snapshot` without `full` lists the page's interactive elements with their refs (a
 textbox, a button) and none of its text, so a check that a line on the page changed finds
 nothing. The fixture's `mcp_agent snapshot full` returns the text as well.
+
+## L-claude-583-one-pipe-many-clients-through-browser-sessions-001
+*category: code · topic: CDP over Chromium's debugging pipe · from: pipeline 583*
+
+Chromium's `--remote-debugging-pipe` is one connection, where its port gave each client a
+connection of its own with its own domain state. `Target.attachToBrowserTarget` gives each client
+a browser session instead, and a probe over a pipe (Chromium 152) showed them kept apart:
+discovery and auto-attach on one session announce to that session alone, answers and events
+carry their flat session id, a browser session detaches, and `Browser.close` from one closes the
+browser. A relay that rewrites ids, routes by session and owns each session to one client lets
+Marley, a Playwright script and an agent share the pipe as they shared the port.
+
+## L-claude-583-grep-counting-none-ends-a-step-under-errexit-001
+*category: testing · topic: e2e scenarios · from: pipeline 583*
+
+`grep -c` exits 1 when it counts no line, and a scenario step runs under errexit, so
+`count=$(… | grep -c pattern)` ends the step on the very count a check wants to see (a process
+listening on no port), with nothing in the log after the step's heading. Write
+`count=$(… | grep -c pattern || true)`, and wrap a filtering `grep` in a pipeline the same way.
+
+## L-claude-583-a-program-marley-starts-by-path-runs-through-a-fixed-shell-exec-001
+*category: code · topic: starting a program whose path is configured · from: pipeline 583*
+
+gate:20's semgrep rule `command-injection-risk` refuses `std::process::Command::new` of any
+program that is not a literal, and Marley's relay had to start the Chromium that
+`MARLEY_CHROMIUM` or the known paths name. The relay runs the fixed `/bin/sh` with the literal
+script `exec "$0" "$@"` and the program and its arguments as positional parameters, each one
+word: nothing in them is read as a name or as shell, and the exec keeps fds a caller mapped
+(`command-fds`). `env` would read a path holding `=` as a variable.

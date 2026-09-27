@@ -166,6 +166,9 @@ steps() {
   mcp_agent terminal-read where.mjs | tee "$E2E_WORK/where.txt"
   expect "the first run installed playwright-core from the registry" holds "$E2E_WORK/where.txt" "npm install --prefix" "added 1 package"
   expect "the run's environment names the tab's page and its URL" holds "$E2E_WORK/where.txt" "tab $tab at $SITE/login.html"
+  expect "the typed command names the relay's file and holds no token (#583)" holds "$E2E_WORK/where.txt" "MARLEY_CDP_FILE="
+  expect "the typed command holds no endpoint or bearer (#583)" bash -c \
+    "! grep -qE 'ws://|Bearer|MARLEY_CDP_URL=' '$E2E_WORK/where.txt'"
   expect "Marley's Playwright is installed" test -f "$E2E_PROFILE/playwright/node_modules/playwright-core/package.json"
 
   echo "== log-in signs the page in, the tab in front, and saves nothing"

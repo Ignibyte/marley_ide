@@ -10,8 +10,10 @@ path = "src/marley_browser.rs"
 
 [dependencies]
 anyhow.workspace = true
+async-signal = "0.2.13"
 async-tungstenite.workspace = true
 base64.workspace = true
+command-fds = "0.3.1"
 futures.workspace = true
 gpui.workspace = true
 hex.workspace = true

@@ -1,21 +1,33 @@
 // Marley's Playwright runner (#523): runs a saved script on a Browser tab.
 //
 // Marley writes this file into its data folder and types `node run.mjs <script>` into a terminal
-// beside the tab, with MARLEY_CDP_URL naming the tab's Chromium and MARLEY_TAB the tab's page.
-// Playwright attaches to that Chromium over CDP, the tab's page goes to the script's default
-// export, and at the end Playwright only lets go: the page, its context and the browser are the
-// tab's, and stay open.
+// beside the tab, with MARLEY_CDP_FILE naming the file where the tab's Chromium relay keeps its
+// address and token (#583) and MARLEY_TAB the tab's page. Playwright attaches to that Chromium
+// over CDP with the token, the tab's page goes to the script's default export, and at the end
+// Playwright only lets go: the page, its context and the browser are the tab's, and stay open.
+// The token never goes on the command line: this file reads it, and hands MARLEY_CDP_URL and
+// MARLEY_CDP_TOKEN to what the script starts.
+import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright-core';
 
 const [script] = process.argv.slice(2);
-const endpoint = process.env.MARLEY_CDP_URL;
+const endpointFile = process.env.MARLEY_CDP_FILE;
 const tab = process.env.MARLEY_TAB;
-if (!script || !endpoint || !tab) {
-  console.error('Marley runs this with a script, MARLEY_CDP_URL and MARLEY_TAB set.');
+if (!script || !endpointFile || !tab) {
+  console.error('Marley runs this with a script, MARLEY_CDP_FILE and MARLEY_TAB set.');
   process.exit(2);
 }
+let endpoint;
+try {
+  endpoint = JSON.parse(readFileSync(endpointFile, 'utf8'));
+} catch (error) {
+  console.error(`The browser's relay file cannot be read: ${error.message}. Is the browser running?`);
+  process.exit(2);
+}
+process.env.MARLEY_CDP_URL = endpoint.url;
+process.env.MARLEY_CDP_TOKEN = endpoint.token;
 const name = basename(script).replace(/\.mjs$/, '');
 
 // The tab's page, by its target id; a page just attached can take a moment to show.
@@ -37,7 +49,9 @@ async function tabPage(context) {
 const started = Date.now();
 let browser;
 try {
-  browser = await chromium.connectOverCDP(endpoint);
+  browser = await chromium.connectOverCDP(endpoint.url, {
+    headers: { Authorization: `Bearer ${endpoint.token}` },
+  });
   const context = browser.contexts()[0];
   const page = await tabPage(context);
   const module = await import(pathToFileURL(script).href);

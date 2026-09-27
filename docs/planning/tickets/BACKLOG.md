@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-583](open/TICKET-583-chromium-devtools-off-tcp.md) | feature | prong 3 · Chromium's DevTools off TCP behind Marley's relay: a 0600 Unix socket for Marley, a CDP WebSocket that takes a client's token for Playwright clients; slice 2 of #524 |
 | [TICKET-584](open/TICKET-584-outside-clients-from-other-machines.md) | feature | prong 3 · #524's clients from another machine, through `ssh -L` or `tailscale serve` to a fixed loopback port; slice 3 of #524 |
 | [TICKET-539](open/TICKET-539-headless-chrome-user-agent.md) | chore | prong 3 · Marley's Chromium introduces itself as Chrome, not HeadlessChrome |
 | [TICKET-521](open/TICKET-521-ports-per-project.md) | feature | prong 3 · listening ports per project in the rail, with Open, Copy and Stop |

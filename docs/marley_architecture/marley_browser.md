@@ -14,7 +14,10 @@ for.
   data directory (an e2e run's included) has its own (#507). `systemd-run --user --quiet
   --collect --service-type=exec` starts it, with `KillMode=mixed` and a ten-second stop
   timeout; the unit outlives the tab, the window and Marley, and ends at logout or when its
-  project is removed (plan D16).
+  project is removed (plan D16). Since #583 the unit's main process is Marley's relay
+  (`relay_command`: Marley's executable, `--browser-relay`, the relay's socket and endpoint file,
+  `--`, then Chromium's command), which a stop's SIGTERM reaches alone; the relay closes Chromium
+  over its pipe before it exits.
 - A project's folder is `<data dir>/browser/projects/<key>/` (`project_dir_in`), its profile
   `profile/` in it (`profile_in`). `project_key` is the first sixteen hex digits of the SHA-256
   of the project's main worktree paths, sorted, each followed by a newline, then of the host
@@ -32,27 +35,60 @@ for.
   `/usr/lib/chromium/chromium`, the browser behind Arch's and Debian's `/usr/bin/chromium`
   launcher, which would add the user's `chromium-flags.conf` (on Omarchy, three extensions and
   the keyring password store); else `chromium` or `chromium-browser` on the PATH.
-- Chromium runs `--headless --remote-debugging-port=0 --user-data-dir=<project's profile>
+- Chromium runs `--headless --remote-debugging-pipe --user-data-dir=<project's profile>
   --no-first-run --no-default-browser-check --password-store=basic --no-startup-window`: it
-  opens no page of its own (#494), and Marley opens the pages its tabs and agents ask for; without
-  the flag or a URL, headless Chromium opens `chrome://newtab/`. Port 0 lets
-  Chromium pick the port, which it writes with the browser's WebSocket path to
-  `DevToolsActivePort` in the profile; `endpoint_in` reads it, for Marley and for any other
-  CDP client. The basic password store keeps a headless service from ever waiting on the
-  desktop keyring's unlock prompt.
+  opens no page of its own (#494), and Marley opens the pages its tabs and agents ask for;
+  without the flag or a URL, headless Chromium opens `chrome://newtab/`. Since #583 it speaks CDP
+  on its pipe (commands on fd 3, answers and events on fd 4, each a JSON message ended by a NUL)
+  to the relay, and listens on no port. Beside the profile the relay keeps `relay.sock`
+  (`relay_socket_in`, mode 0600) and `relay.json` (`relay_endpoint_file_in`, the loopback URL and
+  the token, mode 0600); `socket_fits` checks the socket's path against `sun_path`, and
+  `relay_executable` is `current_exe` with an installer's `" (deleted)"` taken off. A Chromium an
+  earlier build started still writes its port and WebSocket path to `DevToolsActivePort`;
+  `endpoint_in` reads it, only to close that Chromium. The basic password store keeps a headless
+  service from ever waiting on the desktop keyring's unlock prompt.
 - `unit_state` reads `systemctl --user is-active`; `remove_endpoint_in` removes the file a
   Chromium that is gone left behind.
 
 ## The client (`src/cdp.rs`)
 
-- One WebSocket to the browser's endpoint on 127.0.0.1 (`async_tungstenite::client_async` over
-  a smol `TcpStream`) carries every session. `Connection::call` sends a request with an id
-  and, for a page, its flat session, and waits up to fifteen seconds for the answer; events go
-  to one unbounded channel with their session.
+- One WebSocket to the browser carries every session: since #583 over the relay's Unix socket
+  (`connect_unix`, `async_tungstenite::client_async` over a smol `UnixStream`), and over a port
+  (`connect`) only to close a Chromium an earlier build started. `Connection::call` sends a
+  request with an id and, for a page, its flat session, and waits up to fifteen seconds for the
+  answer; events go to one unbounded channel with their session.
 - When the socket ends, every waiting call fails with the reason and the event channel
   closes, so a browser that went away reads as such (the #406 lesson: failures arrive as
   silence unless something turns them into a state). The reader and writer tasks live in the
   connection's shared inner, so the socket closes when the last clone drops.
+
+## The relay (`src/relay.rs`, #583)
+
+- `marley --browser-relay --socket <path> --endpoint-file <path> -- <chromium> <arguments>` is
+  the unit's main process; `run_if_invoked` spots the flag first thing in `main` and runs it on
+  `smol::block_on`. It starts Chromium through the fixed `/bin/sh` and the literal `exec "$0"
+  "$@"`, Chromium's command as positional parameters (semgrep's `command-injection-risk` refuses a
+  `Command::new` of a program that is not a literal), with its CDP pipe on fds 3 and 4
+  (`command-fds`, as `util::shell_env` maps fds; the command dropped at once, so the relay sees
+  the answers' end). It waits up to 15 seconds for `Browser.getVersion` to answer, and only then
+  binds its socket (0600, a stale one removed) and `127.0.0.1:0`, mints a token (16 bytes of
+  `/dev/urandom` as hex) and writes `relay.json` through a renamed file. A failure there kills
+  Chromium.
+- The switch lets any number of clients share the one pipe. Each client gets a browser session
+  of its own (`Target.attachToBrowserTarget`), so one client's discovery and auto-attach never
+  reach another; its commands wait until that session exists. A command without a session goes
+  on the client's browser session and its answers and events come back without it; a command
+  on a session the client does not own is answered `-32001`, "Session with given id not
+  found."; ids are rewritten per client and restored. An `attachToTarget` answer or an
+  `attachedToTarget` event gives the new session to its client, and `detachedFromTarget` takes it
+  away. A client that leaves has every session it owned detached, its browser session last.
+- The socket admits Marley alone by its mode. The loopback WebSocket takes a handshake of at most
+  10 seconds and refuses, through tungstenite's `Callback` (`Admission`, `refusal`), a web page's
+  `Origin` or a foreign `Host` (403) and a missing or wrong `Authorization: Bearer` token (401,
+  compared in constant time).
+- SIGTERM or SIGINT (`async-signal`) sends `Browser.close` and gives Chromium 5 seconds before it
+  is killed. When Chromium's pipe ends, the relay removes its socket and file and exits with
+  Chromium's code, so the unit stops. A pipe that breaks under a live Chromium ends it too.
 
 ## The page (`src/page.rs`) and the frames (`src/frame.rs`)
 

@@ -2045,9 +2045,14 @@ impl BrowserHub {
     }
 
     /// Keeps a Playwright script's start, or its end with its exit code, in the page's minute
-    /// (#523).
+    /// (#523), whether or not a tab draws the page at that moment: the run's terminal takes the
+    /// tab's place in its pane before it moves beside it, and a start kept only while a tab drew
+    /// the page was lost in a release build, whose run starts inside that moment.
     pub(crate) fn record_script(&mut self, target: &str, name: String, exit_code: Option<i32>) {
-        self.record_entry(target, RecordedEntry::Script { name, exit_code });
+        if let Some(page) = self.page_state_mut(target) {
+            page.recorder
+                .push(RecordedEntry::Script { name, exit_code }, Instant::now());
+        }
     }
 
     /// Keeps `entry` in the page's minute, while a tab draws the page (#499).
@@ -3062,30 +3067,53 @@ async fn wait_for_start_pages(
     }
 }
 
-/// Connects to the Marley Chromium whose profile is `profile`, a project's (#507), starting it
-/// first when none answers.
+/// Connects to the Marley Chromium whose profile is `profile`, a project's (#507), through its
+/// relay (#583), starting it first when none answers.
 async fn open_browser(
     profile: &Path,
     executor: &BackgroundExecutor,
     cx: &AsyncApp,
 ) -> anyhow::Result<(Connection, mpsc::UnboundedReceiver<Event>)> {
-    if let Some(opened) = try_connect(profile, executor, cx).await {
+    if let Some(opened) = try_connect(profile, executor).await {
         return Ok(opened);
     }
+    let socket = service::relay_socket_in(profile);
+    anyhow::ensure!(
+        service::socket_fits(&socket),
+        "The browser's socket path is too long for a Unix socket ({} bytes): {}. Start Marley \
+         with a shorter --user-data-dir.",
+        socket.as_os_str().len(),
+        socket.display()
+    );
     let unit = service::unit_name(profile);
+    // A unit an earlier build started runs Chromium on a port with no relay (#583); a relay's
+    // Chromium listens on none. It is closed over its port, and starts again as a relay.
+    if service::unit_state(&unit).await?.is_up()
+        && let Some((connection, _)) = try_connect_port(profile, executor, cx).await
+    {
+        log::info!("browser: {unit} was started by an earlier build; closing it for the relay");
+        stop_chromium(profile, Some(connection), cx).await?;
+    }
     if !service::unit_state(&unit).await?.is_up() {
         let stale = profile.to_path_buf();
         let binary_override = std::env::var_os(service::BINARY_OVERRIDE).map(PathBuf::from);
-        let binary = cx
+        let (executable, binary) = cx
             .background_spawn(futures::future::lazy(move |_| {
                 service::remove_endpoint_in(&stale)?;
-                service::find_binary(binary_override.as_deref())
+                anyhow::Ok((
+                    service::relay_executable()?,
+                    service::find_binary(binary_override.as_deref())?,
+                ))
             }))
             .await?;
-        service::start(&unit, &binary, profile).await?;
+        service::start(
+            &unit,
+            &service::relay_command(&executable, &binary, profile),
+        )
+        .await?;
     }
     for poll in 1..=START_POLLS {
-        if let Some(opened) = try_connect(profile, executor, cx).await {
+        if let Some(opened) = try_connect(profile, executor).await {
             return Ok(opened);
         }
         // Once a second: a unit that is down again stopped as it started.
@@ -3111,11 +3139,16 @@ async fn stop_chromium(
 ) -> anyhow::Result<()> {
     let unit = service::unit_name(profile);
     let executor = cx.background_executor().clone();
+    // Through the relay, or, for a Chromium an earlier build or #507's legacy profile started,
+    // over its port.
     let connection = match connection {
         Some(connection) => Some(connection),
-        None => try_connect(profile, &executor, cx)
-            .await
-            .map(|(connection, _)| connection),
+        None => match try_connect(profile, &executor).await {
+            Some((connection, _)) => Some(connection),
+            None => try_connect_port(profile, &executor, cx)
+                .await
+                .map(|(connection, _)| connection),
+        },
     };
     if let Some(connection) = connection {
         // Chromium may close the connection before it answers.
@@ -3139,8 +3172,20 @@ async fn stop_chromium(
     Ok(())
 }
 
-/// The connection to the Chromium `DevToolsActivePort` in `profile` names, when it answers.
+/// The connection to the Chromium whose profile is `profile`, through its relay's socket (#583),
+/// when the relay answers.
 async fn try_connect(
+    profile: &Path,
+    executor: &BackgroundExecutor,
+) -> Option<(Connection, mpsc::UnboundedReceiver<Event>)> {
+    cdp::connect_unix(&service::relay_socket_in(profile), executor.clone())
+        .await
+        .ok()
+}
+
+/// The connection to a Chromium an earlier build started, over the port `DevToolsActivePort` in
+/// `profile` names, when it answers: since #583 only such a Chromium listens on one.
+async fn try_connect_port(
     profile: &Path,
     executor: &BackgroundExecutor,
     cx: &AsyncApp,

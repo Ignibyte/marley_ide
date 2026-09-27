@@ -201,11 +201,13 @@ pub fn installed_in(data: &Path) -> bool {
 
 /// The command a run types, or none when a path cannot be quoted for the shell.
 ///
-/// It runs the runner with the tab's Chromium and page in its environment, after an install into
-/// `install` when Marley's Playwright is not there yet.
+/// It runs the runner with the file that holds the tab's relay's endpoint and token (#583) and
+/// the tab's page in its environment, after an install into `install` when Marley's Playwright is
+/// not there yet. The command names the file, never the token, which would stay in the block and
+/// in the shell's history.
 #[must_use]
 pub fn command(
-    endpoint: &str,
+    endpoint_file: &Path,
     tab: &str,
     runner: &Path,
     script: &Path,
@@ -213,8 +215,8 @@ pub fn command(
 ) -> Option<String> {
     let quote = |text: &str| ShellKind::Posix.try_quote(text).map(Cow::into_owned);
     let run = format!(
-        "MARLEY_CDP_URL={} MARLEY_TAB={} node {} {}",
-        quote(endpoint)?,
+        "MARLEY_CDP_FILE={} MARLEY_TAB={} node {} {}",
+        quote(endpoint_file.to_str()?)?,
         quote(tab)?,
         quote(runner.to_str()?)?,
         quote(script.to_str()?)?
@@ -277,8 +279,8 @@ async fn run_on(
         .background_spawn(futures::future::lazy({
             let data = data.clone();
             move |_| -> anyhow::Result<_> {
-                let endpoint = service::endpoint_in(&profile)?
-                    .context("the project's browser is not running")?;
+                let endpoint = service::relay_endpoint_file_in(&profile);
+                anyhow::ensure!(endpoint.is_file(), "the project's browser is not running");
                 let runner = write_runner_in(&data).context("writing Marley's runner")?;
                 Ok((endpoint, runner, installed_in(&data)))
             }
@@ -312,14 +314,13 @@ async fn run_on(
 async fn run_command(
     target: &RunTarget,
     script: &Script,
-    endpoint: &service::Endpoint,
+    endpoint_file: &Path,
     runner: &Path,
     install: Option<&Path>,
     window: AnyWindowHandle,
     cx: &mut AsyncApp,
 ) -> anyhow::Result<()> {
-    let url = format!("ws://127.0.0.1:{}{}", endpoint.port, endpoint.path);
-    let line = command(&url, &target.tab, runner, &script.path, install)
+    let line = command(endpoint_file, &target.tab, runner, &script.path, install)
         .context("a path Marley cannot quote for the shell")?;
     let terminal = open_terminal(target, window, cx).await?;
     let startup = terminal.update(cx, |terminal, _| {

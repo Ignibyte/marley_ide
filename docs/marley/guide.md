@@ -579,10 +579,10 @@ failed, the tab says why, and "Run “marley: open browser” to try again."
 The first Browser tab starts Chromium in the background as a transient systemd user unit named
 `marley-browser-` and twelve hex digits, one per Marley data directory (#488).
 
-- It runs headless, with its own profile in `~/.local/share/marley/browser/profile`, apart from
-  your own browser's. Its debugging endpoint listens on a loopback port Chromium picks and writes to
-  `DevToolsActivePort` in the profile. It keeps cookies without the desktop keyring, so it never
-  waits on an unlock prompt, and it opens no page of its own.
+- It runs headless, with a profile of its own for each project under
+  `~/.local/share/marley/browser/projects/`, apart from your own browser's. It talks only to
+  Marley's relay, which runs beside it, and listens on no network port. It keeps cookies without
+  the desktop keyring, so it never waits on an unlock prompt, and it opens no page of its own.
 - The binary is `$MARLEY_CHROMIUM` when that is set, and no other is tried. Otherwise it is
   `/usr/lib/chromium/chromium`, the browser behind Arch's and Debian's `/usr/bin/chromium`
   launcher (which would add your `chromium-flags.conf`), else `chromium` or `chromium-browser` on
@@ -591,7 +591,10 @@ The first Browser tab starts Chromium in the background as a transient systemd u
   last Browser tab leaves it running with no page.
 
 Any tool that speaks the Chrome DevTools Protocol can attach to the same Chromium through the
-endpoint in `DevToolsActivePort`, and what it does shows in the tab.
+relay: `relay.json` beside the project's profile holds its WebSocket address and a token, new at
+each start, which the tool sends as `Authorization: Bearer <token>` (Playwright's
+`connectOverCDP(url, { headers })`, or Playwright MCP's `--cdp-header`). What it does shows in the
+tab.
 
 ### The toolbar and the address bar
 
@@ -844,7 +847,7 @@ Environment variables and flags:
 | `~/.local/share/marley/mcp/marley-mcp-bridge` | The bridge Zed's agents run, written at each start |
 | `~/.local/share/marley/claude-code/` | The Claude Code plugin, as a local marketplace |
 | `~/.local/share/marley/shell_integration/` | `marley.bash` and `zsh/.zshenv` |
-| `~/.local/share/marley/browser/profile/` | Chromium's profile, with `DevToolsActivePort` |
+| `~/.local/share/marley/browser/projects/<key>/` | A project's browser: `profile/`, `project.json`, and while it runs the relay's `relay.sock` and `relay.json` (mode 0600) |
 | `~/.local/share/marley/browser/recordings/<id>/` | A saved recording: `timeline.json` and `frames/` |
 | `~/.cache/marley/` | Zed's cache |
 | `~/.local/bin/marley`, `~/.local/lib/marley/marley` | The installed launcher and binary |

@@ -10781,8 +10781,10 @@ name = "marley_browser"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-signal",
  "async-tungstenite",
  "base64 0.22.1",
+ "command-fds",
  "futures 0.3.34",
  "gpui",
  "hex",

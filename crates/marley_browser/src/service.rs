@@ -3,10 +3,15 @@
 //! A project's first Browser tab starts its Chromium with `systemd-run --user`, on a profile in
 //! the project's folder under Marley's data directory, so each project keeps its own cookies and
 //! logins, and an e2e run's Marley starts its own. The unit runs the browser binary itself, not a
-//! distribution's launcher, which would add the user's `chromium-flags.conf`. Chromium runs
-//! headless and puts its debugging endpoint on a port it picks, which it writes to
-//! `DevToolsActivePort` in the profile, where every client finds it. The unit outlives Marley, so
-//! a restored tab finds its page, and stops when its project is removed from Marley, or at logout.
+//! distribution's launcher, which would add the user's `chromium-flags.conf`. The unit outlives
+//! Marley, so a restored tab finds its page, and stops when its project is removed from Marley,
+//! or at logout.
+//!
+//! Since #583 the unit's main process is Marley's relay ([`crate::relay`]), and Chromium, its
+//! child, speaks CDP on its pipe and listens on no port: Marley reaches it through the
+//! relay's Unix socket in the project's folder, and other clients through the relay's loopback
+//! WebSocket, whose address and token the relay writes beside it. A Chromium an earlier build
+//! started still writes its port to `DevToolsActivePort`, which is read to close it.
 
 use std::ffi::{OsStr, OsString};
 use std::io::ErrorKind;
@@ -27,8 +32,19 @@ const BINARY_PATHS: &[&str] = &["/usr/lib/chromium/chromium"];
 /// The names distributions install the browser under, looked up on the PATH.
 const BINARY_NAMES: &[&str] = &["chromium", "chromium-browser"];
 
-/// The file Chromium writes its debugging endpoint to, in its profile.
+/// The file Chromium writes its debugging endpoint to, in its profile, when it listens on a port:
+/// since #583 only a Chromium an earlier build started does.
 const ENDPOINT_FILE: &str = "DevToolsActivePort";
+
+/// The relay's Unix socket, in a project's folder beside its profile (#583).
+const RELAY_SOCKET: &str = "relay.sock";
+
+/// The relay's loopback endpoint and token, in a project's folder beside its profile (#583).
+const RELAY_ENDPOINT_FILE: &str = "relay.json";
+
+/// The longest path a Unix socket can be bound at on Linux: `sun_path` holds 108 bytes with the
+/// ending NUL.
+const MAX_SOCKET_PATH: usize = 107;
 
 /// The file in a project's folder that names the project (#507).
 const PROJECT_FILE: &str = "project.json";
@@ -224,17 +240,18 @@ pub fn unit_name(profile: &Path) -> String {
 
 /// The arguments Chromium runs with.
 ///
-/// It is headless, its profile is `profile`, its debugging endpoint is on a port it picks, it
-/// opens no first-run pages, and it keeps cookies without the desktop's keyring: a headless
-/// service must never wait on the keyring's unlock prompt. It opens no page of its own either
-/// (#494): Marley opens the pages its tabs and agents ask for, and a restored tab its saved URL.
+/// It is headless, its profile is `profile`, it speaks CDP on its pipe (fds 3 and 4, the
+/// relay's, #583) and listens on no port, it opens no first-run pages, and it keeps cookies
+/// without the desktop's keyring: a headless service must never wait on the keyring's unlock
+/// prompt. It opens no page of its own either (#494): Marley opens the pages its tabs and agents
+/// ask for, and a restored tab its saved URL.
 #[must_use]
 pub fn chromium_args(profile: &Path) -> Vec<OsString> {
     let mut profile_arg = OsString::from("--user-data-dir=");
     profile_arg.push(profile);
     vec![
         OsString::from("--headless"),
-        OsString::from("--remote-debugging-port=0"),
+        OsString::from("--remote-debugging-pipe"),
         profile_arg,
         OsString::from("--no-first-run"),
         OsString::from("--no-default-browser-check"),
@@ -243,10 +260,71 @@ pub fn chromium_args(profile: &Path) -> Vec<OsString> {
     ]
 }
 
-/// The `systemd-run` arguments that start `binary` with `profile` as the transient user unit
-/// `unit`: removed once it stops, its helpers stopped with it.
+/// The relay's Unix socket for the Chromium whose profile is `profile`, in the project's folder
+/// beside the profile, which #581's clear leaves (#583).
 #[must_use]
-pub fn systemd_run_args(unit: &str, binary: &Path, profile: &Path) -> Vec<OsString> {
+pub fn relay_socket_in(profile: &Path) -> PathBuf {
+    profile.with_file_name(RELAY_SOCKET)
+}
+
+/// The file the relay writes its loopback endpoint and token to, beside its socket (#583).
+#[must_use]
+pub fn relay_endpoint_file_in(profile: &Path) -> PathBuf {
+    profile.with_file_name(RELAY_ENDPOINT_FILE)
+}
+
+/// Whether a Unix socket can be bound at `path`: its bytes fit `sun_path`
+/// (PR-claude-check-a-unix-socket-path-against-sun-path-001).
+#[must_use]
+pub fn socket_fits(path: &Path) -> bool {
+    path.as_os_str().len() <= MAX_SOCKET_PATH
+}
+
+/// Marley's own executable, which runs the relay (#583): `current_exe`, or, when an install
+/// replaced the file while Marley ran and Linux names the old one `… (deleted)`, the file that
+/// took its place.
+///
+/// # Errors
+///
+/// When the system cannot say which executable runs.
+pub fn relay_executable() -> anyhow::Result<PathBuf> {
+    let running = std::env::current_exe().context("finding Marley's executable")?;
+    if running.is_file() {
+        return Ok(running);
+    }
+    let replaced = running
+        .file_name()
+        .and_then(OsStr::to_str)
+        .and_then(|name| name.strip_suffix(" (deleted)"))
+        .map(|name| running.with_file_name(name));
+    Ok(replaced.unwrap_or(running))
+}
+
+/// The command the unit runs (#583): Marley's `executable` as the relay, with its socket and
+/// endpoint file beside `profile`, then Chromium's `binary` and its arguments.
+#[must_use]
+pub fn relay_command(executable: &Path, binary: &Path, profile: &Path) -> Vec<OsString> {
+    let mut command = vec![
+        executable.as_os_str().to_os_string(),
+        OsString::from(crate::relay::RELAY_FLAG),
+        OsString::from("--socket"),
+        relay_socket_in(profile).into_os_string(),
+        OsString::from("--endpoint-file"),
+        relay_endpoint_file_in(profile).into_os_string(),
+        OsString::from("--"),
+        binary.as_os_str().to_os_string(),
+    ];
+    command.extend(chromium_args(profile));
+    command
+}
+
+/// The `systemd-run` arguments that start `command` as the transient user unit `unit`.
+///
+/// The unit is removed once it stops, its helpers stopped with it. A stop sends SIGTERM to the
+/// main process alone (`KillMode=mixed`), the relay, which closes Chromium over its pipe first
+/// (#583).
+#[must_use]
+pub fn systemd_run_args(unit: &str, command: &[OsString]) -> Vec<OsString> {
     let mut args: Vec<OsString> = [
         "--user",
         "--quiet",
@@ -261,8 +339,7 @@ pub fn systemd_run_args(unit: &str, binary: &Path, profile: &Path) -> Vec<OsStri
     .iter()
     .map(OsString::from)
     .collect();
-    args.push(binary.as_os_str().to_os_string());
-    args.extend(chromium_args(profile));
+    args.extend(command.iter().cloned());
     args
 }
 
@@ -275,14 +352,15 @@ pub enum Started {
     AlreadyThere,
 }
 
-/// Starts Chromium as the transient user unit `unit`.
+/// Starts `command` (the relay with Chromium, [`relay_command`]) as the transient user unit
+/// `unit`.
 ///
 /// # Errors
 ///
 /// When `systemd-run` cannot run, or refuses for another reason than the unit being there.
-pub async fn start(unit: &str, binary: &Path, profile: &Path) -> anyhow::Result<Started> {
+pub async fn start(unit: &str, command: &[OsString]) -> anyhow::Result<Started> {
     let output = util::command::new_command("systemd-run")
-        .args(systemd_run_args(unit, binary, profile))
+        .args(systemd_run_args(unit, command))
         .output()
         .await
         .context("running systemd-run")?;

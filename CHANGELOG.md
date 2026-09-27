@@ -569,6 +569,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Marley's browser listens on no network port** (#583, 2026-09-27). Each project's Chromium
+  used to take DevTools connections on a port on 127.0.0.1 with no password, which any program
+  on the machine could reach, other users' included, and then read the project's cookies or
+  drive its pages. Chromium now talks only to Marley's relay, a small part of Marley that runs
+  beside it. Marley reaches the relay through a file only you can open. Other tools, such as a
+  Playwright script, connect to the relay with a token that is new each time the browser starts,
+  kept in a file only you can read. A browser an earlier build started is closed and started
+  again the new way the first time Marley opens it.
 - **The flight recorder keeps what you type into ordinary fields** (#506, 2026-09-27). Until
   now a recording held typing only as a count of characters. It now also keeps the text of
   each fill of an ordinary field (an e-mail, a search), up to 4,096 characters, which a
@@ -657,6 +665,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A failed Playwright run's recording keeps the run's start** (#583, 2026-09-27). In the
+  installed build, the recording a failed script saves could hold the run's end and not its
+  start, when the run began in the moment its terminal took the tab's place before moving beside
+  it. The start is now kept either way.
 - **Marley's tool server bounds what it reads before it knows who asks** (#524, 2026-09-27). A
   program on the same machine could send Marley's MCP server one endless header line and make
   Marley take memory until it stopped, or keep connections open for good. A request line or

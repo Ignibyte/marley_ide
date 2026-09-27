@@ -15,7 +15,9 @@
 //! [`favicon`] reads a page's icon for its row in the rail (#504). Since #506 the recorder also
 //! keeps what the user did with the target's locators, and [`playwright`] drafts a test from a
 //! recording. [`title`] reports a title a page's script sets after the load, which Chromium
-//! sends no event for (#582).
+//! sends no event for (#582). Since #583 Chromium speaks CDP on its pipe to [`relay`], a
+//! hidden mode of Marley's executable in the same unit, which Marley reaches through a Unix
+//! socket and other clients through a loopback WebSocket that takes a token.
 //! The Browser tab that shows the page is `marley_workbench`'s
 //! (`docs/marley/three-prong-plan.md`, prong 3).
 
@@ -45,6 +47,7 @@ pub mod pick;
 pub mod playwright;
 pub mod ports;
 pub mod recorder;
+pub mod relay;
 pub mod select;
 pub mod service;
 pub mod snapshot;

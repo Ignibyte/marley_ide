@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #583 (feature, prong 3; slice 2 of #524's three)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet
+- **Pipeline doc:** ../../pipeline/completed/583-chromium-devtools-off-tcp.spec.md
 - **Source ticket:** #524's split (docs/planning/pipeline/completed/524-trusted-outside-browser-access.notes.md, "The split")
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Each project's Chromium listens for DevTools on a TCP port on 127.0.0.1 with no credential, and a

@@ -1,10 +1,12 @@
-//! A client of CDP, Chromium's debugging protocol, over a WebSocket on loopback.
+//! A client of CDP, Chromium's debugging protocol, over a WebSocket.
 //!
 //! One connection to the browser's endpoint carries every session: a request goes out with an
 //! id and, for a page, the session it is for (CDP's flat sessions); its response comes back to
 //! the call waiting on that id, and events go to one channel, tagged with their session. When
 //! the socket ends, every waiting call fails with the reason and the event channel closes, so
-//! a browser that went away reads as such rather than as silence.
+//! a browser that went away reads as such rather than as silence. Since #583 Marley reaches its
+//! browser through the relay's Unix socket ([`connect_unix`]), with the same frames; a port is
+//! left for closing a Chromium an earlier build started ([`connect`]).
 
 use std::collections::HashMap;
 use std::fmt;
@@ -14,10 +16,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use anyhow::Context as _;
+use async_tungstenite::WebSocketStream;
 use async_tungstenite::tungstenite::Message;
 use futures::StreamExt as _;
 use futures::channel::{mpsc, oneshot};
 use futures::future::{self, Either};
+use futures::io::{AsyncRead, AsyncWrite};
 use gpui::{BackgroundExecutor, Task};
 use parking_lot::Mutex;
 use serde::Deserialize;
@@ -87,8 +91,10 @@ impl fmt::Debug for Connection {
     }
 }
 
-/// Connects to the browser's endpoint `path` on 127.0.0.1 at `port`, and returns the
-/// connection and the channel its events arrive on, which ends when the connection does.
+/// Connects to the browser's endpoint `path` on 127.0.0.1 at `port`.
+///
+/// It returns the connection and the channel its events arrive on, which ends when the
+/// connection does. Since #583 only a Chromium an earlier build started listens on a port.
 ///
 /// # Errors
 ///
@@ -105,6 +111,38 @@ pub async fn connect(
         async_tungstenite::client_async(format!("ws://127.0.0.1:{port}{path}"), stream)
             .await
             .context("opening the browser's DevTools socket")?;
+    Ok(run(socket, executor))
+}
+
+/// Connects to the browser through the relay's Unix socket `socket` (#583), with the frames
+/// [`connect`] uses, and returns the connection and the channel its events arrive on.
+///
+/// # Errors
+///
+/// When the socket cannot be reached or the WebSocket handshake fails.
+pub async fn connect_unix(
+    socket: &std::path::Path,
+    executor: BackgroundExecutor,
+) -> anyhow::Result<(Connection, mpsc::UnboundedReceiver<Event>)> {
+    let stream = smol::net::unix::UnixStream::connect(socket)
+        .await
+        .with_context(|| format!("connecting to the browser's relay at {}", socket.display()))?;
+    let (socket, _response) =
+        async_tungstenite::client_async("ws://localhost/devtools/browser", stream)
+            .await
+            .context("opening the browser relay's socket")?;
+    Ok(run(socket, executor))
+}
+
+/// Runs a connection over `socket`, a WebSocket open to the browser: the writer and reader
+/// tasks, and the calls waiting on their answers.
+fn run<S>(
+    socket: WebSocketStream<S>,
+    executor: BackgroundExecutor,
+) -> (Connection, mpsc::UnboundedReceiver<Event>)
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
     let (mut sink, mut source) = socket.split();
     let (outgoing, mut outgoing_rx) = mpsc::unbounded::<String>();
     let (events, events_rx) = mpsc::unbounded();
@@ -151,7 +189,7 @@ pub async fn connect(
             _writer: writer,
         }),
     };
-    Ok((connection, events_rx))
+    (connection, events_rx)
 }
 
 /// One message from the browser, a response or an event.

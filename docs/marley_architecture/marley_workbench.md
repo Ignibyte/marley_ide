@@ -802,10 +802,13 @@ alike.
   whose folders are added before its items) or an agent's new page. The process's first start
   moves the profile of earlier builds to its project, once, after closing that profile's
   Chromium (`move_legacy_profile`, a shared task every start waits for); then the project's
-  `project.json` is written. `start` connects through the project profile's
-  `DevToolsActivePort` when a Chromium answers there; otherwise, unless the unit is up, it
-  removes a stale endpoint file, starts the unit and waits up to fifteen seconds, failing early
-  when the unit stops. It then turns on target discovery and attaches the pages the
+  `project.json` is written. `start` connects through the project's relay socket when a relay
+  answers there (#583); otherwise it checks the socket's path against `sun_path`, closes over its
+  port a unit an earlier build started (a Chromium that answers on `DevToolsActivePort`'s port),
+  and, unless the unit is up, removes a stale endpoint file, starts the unit with the relay's
+  command (`service::relay_executable` and the browser binary, found off the main thread) and
+  waits up to fifteen seconds, failing early when the unit stops. It then turns on target
+  discovery and attaches the pages the
   browser lists, each once and each in a task of its own, with the page's observers on before
   the page is announced; a start opens no page (#494). The event loop routes each
   event to the page whose session it came from, or whose iframe's; attaches each `page` target
@@ -829,8 +832,10 @@ alike.
   of it, or while a Browser tab of it sits in a held workspace, which keeps a workspace whose
   folders changed on its tabs' browser. A browser whose project is not live gets a numbered
   stop; two seconds later it stops if that stop is still pending and the project is still not
-  live: its pages go, their tabs with them, and `stop_chromium` sends `Browser.close`, waits up
-  to five seconds for the unit to stop, then runs `systemctl --user stop` for whatever is left.
+  live: its pages go, their tabs with them, and `stop_chromium` sends `Browser.close` (through the
+  relay, else over the port of a Chromium an earlier build or the pre-#507 profile started, #583),
+  waits up to five seconds for the unit to stop, then runs `systemctl --user stop` for whatever
+  is left.
   `on_app_quit` sets `quitting` and drops the pending stops, so a quit, by the palette or the
   last window's close, leaves every unit running for the restored tabs.
 - **Clear Browser Data (#581).** `clear_project_browser_data`, from the rail's project menu or
@@ -858,9 +863,13 @@ alike.
   there; a second first run is refused while one installs (the `Installing` global). It opens a
   terminal with `add_center_terminal` and moves it from the tab's pane into the pane on its right
   (`move_active_item`), or a new split (`split_and_move`); after the startup handshake it types
-  one command, `[npm install --prefix … --no-audit --no-fund &&] MARLEY_CDP_URL=… MARLEY_TAB=…
-  node run.mjs <script>` (each part quoted by `ShellKind::Posix`), and puts
-  `Entry::Script { name, exit_code: None }` in the page's minute. `block_end` polls the terminal
+  one command, `[npm install --prefix … --no-audit --no-fund &&] MARLEY_CDP_FILE=… MARLEY_TAB=…
+  node run.mjs <script>` (each part quoted by `ShellKind::Posix`); since #583 it names the relay's
+  `relay.json` and never the token, and `run.mjs` reads the file, attaches with
+  `connectOverCDP(url, { headers })` and hands `MARLEY_CDP_URL` and `MARLEY_CDP_TOKEN` to what the
+  script starts. It puts
+  `Entry::Script { name, exit_code: None }` in the page's minute, whether or not a tab draws the
+  page at that moment (#583: the terminal takes the tab's place before it moves beside it). `block_end` polls the terminal
   for the block whose command is that line (a new terminal's startup opens a block first) until
   it finishes: a code of 0 ends the run; another saves the page's minute through
   `BrowserHub::record` with the `Script` entry's end, and a toast names the recording; a block

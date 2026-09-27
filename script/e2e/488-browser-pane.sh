@@ -59,7 +59,8 @@ steps() {
   settle 1
   shot 488-01-starting
   settle 4
-  port=$(head -1 "$(browser_profile "$E2E_WORK/repo")/DevToolsActivePort")
+  # Since #583 the relay listens, not Chromium: its port is in relay.json beside the profile.
+  port=$(jq -r .url "$(dirname "$(browser_profile "$E2E_WORK/repo")")/relay.json" | sed -E 's|.*:([0-9]+)/.*|\1|')
   echo "unit $(browser_unit "$E2E_WORK/repo"): $(systemctl --user is-active "$(browser_unit "$E2E_WORK/repo")")"
   systemctl --user show -p ExecStart --value "$(browser_unit "$E2E_WORK/repo")" | grep -oE 'path=[^ ;]+|--[a-z-]+(=[^ ;]*)?' | tr '\n' ' '
   echo
