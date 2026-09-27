@@ -1,7 +1,7 @@
 ---
 pipeline_id: 6b14f3cd-3063-4a40-afe1-808950e78dae
-ticket: docs/planning/tickets/open/TICKET-505-pick-fix-check.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-505-pick-fix-check.md
+status: Phase 4 — Complete PASS
 title: "Pick, fix, check: a pick re-found after the page changed, before and after side by side, and a tool"
 type: feature
 slice: prong 3 (after wave 2), item 2 of the list after the browser waves; after #518
@@ -36,8 +36,9 @@ both see whether the fix took.
   the row shows its verdict ("2 changes", "no change", "not found"), which opens the card again.
 - **For agents.** `browser_check_pick {id}`: a write tool (it may scroll the page the user
   watches), with the Agent chip and the tab brought forward as the other write tools do; the
-  answer gives `found`, `found_by`, `changes`, the new bundle (through #516's `Redactor`, as
-  `browser_pick`'s is after #518) and the new crop as its image.
+  answer gives `found`, `found_by`, `changes`, the new bundle and the new crop as its image. The
+  bundle and each change line pass through `pick_for_agents` (#518) as the pick's own fields do,
+  and so does the check that `browser_pick` returns with the pick.
 - **The fixture.** `mcp_agent check-pick <id> [<image file>]` in `script/e2e/browser-fixture.sh`.
 
 ### Out (explicitly deferred)
@@ -126,6 +127,7 @@ locators) and `mcp_agent check-pick` (the answer and the saved crop).
 | REQ-006 | WHEN an agent calls `browser_check_pick` with a pick's id, the answer shall say whether and how the element was found and what changed, with the new bundle and the new crop as its image. | The run log's `mcp_agent check-pick` and the saved crop |
 | REQ-007 | WHEN a pick has been checked, its tray row shall show the verdict, and a click on the verdict shall open the comparison. | Shot `505-06-verdict` |
 | REQ-008 | WHEN only an element's generated id and hashed class changed since the pick, the check shall still find it. | Shot `505-02-generated-names` |
+| REQ-009 | WHEN an agent reads a check, through `browser_check_pick` or with the pick through `browser_pick`, each text from the page in it, the change lines included, shall have passed #516's redaction before any cut. | The run log: after Save's label is rewritten to hold a fake token made at run time, the saved answers show the redaction's marker and no piece of the token |
 
 ## Phase Plan
 - **P1 Plan** — promote this pair once #518 has shipped; re-verify the seams (the tray, `crop`,

@@ -2247,3 +2247,16 @@ the load that set the title and the host, so on its arrival the pure snapshot wo
 the last one, the rail would not have redrawn, and the row would have kept its globe until
 something else changed. Fixed in #504: `BrowserSnapshot.icon` carries the image's id, so an
 icon's arrival, change or loss changes the snapshot.
+
+## F-claude-505-a-clipped-capture-left-the-tab-showing-only-the-crop-001
+*severity: medium · found in: pipeline 505's Test phase (the second run's `505-03-nearest`, read after all 12 checks passed) · class: a CDP call's rendering reaching a running screencast · prevented by: PR-claude-capture-a-screencast-page-whole-and-cut-it-locally-001*
+
+`Page::crop` took `Page.captureScreenshot` with a `clip` of the element's box and margin. In
+one run, that capture reached the page's running screencast as a frame of the clip alone, 152 × 72
+pixels. The Browser tab drew it at the page area's top left in place of the page. Nothing on
+the page changed afterwards, so no newer frame came, and the tab showed the patch until one did.
+A standalone Chromium 152 with a screencast running on a still page got full frames from both a
+clipped and a full capture, so it is a race with a frame being captured. Picks had cropped the
+same way since #496 and hid it, because the tray row a pick adds resizes the viewport and a fresh
+frame follows. A check resizes nothing. Fixed in #505: `crop` captures the whole viewport and
+`pick::cut` cuts the box out, so a raced frame is a whole viewport.

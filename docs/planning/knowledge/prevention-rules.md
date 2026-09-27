@@ -2382,3 +2382,11 @@ snapshot a value for everything its render reads from elsewhere: an id, a count 
 an image, a handle or a side map. Otherwise a change that touches only the side value draws
 nothing until an unrelated change. When a row gains something drawn from a side map, add its key
 to the row's pure snapshot in the same change.
+
+## PR-claude-capture-a-screencast-page-whole-and-cut-it-locally-001
+*severity: medium · prevents: F-claude-505-a-clipped-capture-left-the-tab-showing-only-the-crop-001*
+
+While a page's screencast runs, capture it whole (`Page.captureScreenshot` with no `clip`) and cut
+the part you want in Rust: `pick::crop` does this. A clipped capture can race into the stream as a
+frame of the clip, and the tab draws that frame as the page. The next frame comes only when the
+page changes, so a still page stays wrong.

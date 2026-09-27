@@ -25,7 +25,7 @@ use marley_browser::cdp::CdpError;
 use marley_browser::input::{self, KeyPress};
 use marley_browser::observe::redact_url;
 use marley_browser::page::Page;
-use marley_browser::pick::{self, PageBox};
+use marley_browser::pick::{self, PageBox, PickBundle};
 use marley_browser::recorder;
 use marley_browser::snapshot::{self, FrameTree, RefTarget, Snapshot};
 use marley_mcp::redact::Redactor;
@@ -36,8 +36,8 @@ use ui::SharedString;
 use workspace::{MultiWorkspace, ProjectGroup, Workspace};
 
 use crate::browser::{
-    BrowserHub, Maker, Pick, TabSummary, new_page, open_url_tab, recordings_dir, show_for_agent,
-    showing, tab_workspaces, window_of,
+    BrowserHub, Maker, Pick, SCROLL_SETTLE, TabSummary, new_page, open_url_tab, recordings_dir,
+    show_for_agent, showing, tab_workspaces, window_of,
 };
 use crate::links;
 
@@ -46,9 +46,6 @@ const ATTACH_WAIT: Duration = Duration::from_secs(5);
 
 /// How often it looks.
 const POLL: Duration = Duration::from_millis(100);
-
-/// How long a scroll is given to land before its call answers.
-const SCROLL_SETTLE: Duration = Duration::from_millis(300);
 
 /// The tools that act in a page they find, which bring its tab to the front first.
 const WRITES: &[&str] = &[
@@ -212,6 +209,7 @@ async fn run(
     match tool {
         "browser_tabs" => return tabs(hub, scope, cx).await,
         "browser_navigate" => return navigate(arguments, named_tab, scope, hub, cx).await,
+        "browser_check_pick" => return check_pick(arguments, hub, cx).await,
         _ => {}
     }
     let (tab, page) = page_of(hub, named_tab, scope, cx).await?;
@@ -515,13 +513,76 @@ fn picks(hub: &Entity<BrowserHub>, cx: &AsyncApp) -> ToolAnswer {
     }
 }
 
-/// `browser_pick`: the pick `id` with its bundle, and its crop as the image.
-fn pick(arguments: &Value, hub: &Entity<BrowserHub>, cx: &AsyncApp) -> Result<ToolAnswer, String> {
-    let id = arguments
+/// The pick id `arguments` give a pick tool, `tool`.
+fn pick_id(arguments: &Value, tool: &str) -> Result<usize, String> {
+    arguments
         .get("id")
         .and_then(Value::as_u64)
         .and_then(|id| usize::try_from(id).ok())
-        .ok_or_else(|| "browser_pick needs the pick's id, from browser_picks".to_string())?;
+        .ok_or_else(|| format!("{tool} needs the pick's id, from browser_picks"))
+}
+
+/// `browser_check_pick` (#505): the pick's element found again in the pick's own tab, brought
+/// forward as the write tools bring theirs, cropped and compared with the pick; what changed, the
+/// element now and its crop as the image. The check stays on the pick for `browser_pick` and the
+/// tray, whose row shows its verdict.
+async fn check_pick(
+    arguments: &Value,
+    hub: &Entity<BrowserHub>,
+    cx: &mut AsyncApp,
+) -> Result<ToolAnswer, String> {
+    let id = pick_id(arguments, "browser_check_pick")?;
+    let tab = hub
+        .read_with(cx, |hub, _| hub.pick(id).map(|pick| pick.tab.clone()))
+        .ok_or_else(|| format!("the user made no pick {id}; browser_picks lists them"))?;
+    let (tab, _) = page_of(hub, Some(&tab), None, cx)
+        .await
+        .map_err(|_| format!("pick {id}'s tab is closed"))?;
+    cx.update(|cx| show_for_agent(&tab, cx));
+    let did = format!("checked pick {id}");
+    hub.update(cx, |hub, cx| {
+        hub.agent_started(&tab, format!("checking pick {id}"), cx);
+    });
+    let checked = hub.update(cx, |hub, cx| hub.check_pick(id, cx)).await;
+    let shown = if checked.is_ok() {
+        did
+    } else {
+        format!("failed: {did}")
+    };
+    hub.update(cx, |hub, cx| {
+        hub.agent_ended(&tab, SharedString::from(shown), cx);
+    });
+    checked?;
+    let redactor = cx.update(|cx| crate::mcp::agent_redactor(cx));
+    let check = hub
+        .read_with(cx, |hub, _| {
+            hub.pick(id)
+                .map(|pick| pick_for_agents(pick, redactor.as_deref()))
+        })
+        .and_then(|pick| pick.check)
+        .ok_or_else(|| format!("pick {id} went while it was checked"))?;
+    let image = check.crop.clone().map(|data| ToolImage {
+        mime_type: "image/jpeg".to_string(),
+        data,
+    });
+    Ok(ToolAnswer {
+        structured: json!({
+            "id": id,
+            "tab": tab,
+            "found": check.found_by.is_some(),
+            "found_by": check.found_by,
+            "changes": check.changes,
+            "bundle": check.bundle,
+            "checked_at": check.checked_at,
+        }),
+        text: None,
+        image,
+    })
+}
+
+/// `browser_pick`: the pick `id` with its bundle, and its crop as the image.
+fn pick(arguments: &Value, hub: &Entity<BrowserHub>, cx: &AsyncApp) -> Result<ToolAnswer, String> {
+    let id = pick_id(arguments, "browser_pick")?;
     let redactor = cx.update(|cx| crate::mcp::agent_redactor(cx));
     let pick = hub
         .read_with(cx, |hub, _| {
@@ -545,7 +606,8 @@ fn pick(arguments: &Value, hub: &Entity<BrowserHub>, cx: &AsyncApp) -> Result<To
 /// then cut to its budget, so no rule misses a secret a cut split
 /// (PR-claude-redact-the-whole-text-before-cutting-it-001); the summary is made again from what
 /// is left, and a listener's script URL loses its secret-looking values. With redaction off, the
-/// texts are only cut.
+/// texts are only cut. A check's bundle goes the same way, and its change lines, which quote the
+/// page's texts, are made again from the two redacted bundles before each is cut (#505).
 fn pick_for_agents(pick: &Pick, redactor: Option<&Redactor>) -> Pick {
     let redact = |text: &str| {
         redactor.map_or_else(|| text.to_string(), |redactor| redactor.redact(text).text)
@@ -553,17 +615,38 @@ fn pick_for_agents(pick: &Pick, redactor: Option<&Redactor>) -> Pick {
     let mut pick = pick.clone();
     pick.title = redact(&pick.title);
     pick.caption = redact(&pick.caption);
-    let bundle = &mut pick.bundle;
-    bundle.name = bundle.name.as_deref().map(redact);
-    bundle.text = pick::within(&redact(&bundle.text), pick::TEXT_BUDGET);
-    bundle.html = pick::within(&redact(&bundle.html), pick::HTML_BUDGET);
-    for text in &mut bundle.nearby_text {
-        *text = pick::within(&redact(text), pick::TEXT_BUDGET);
+    let before = redacted(&pick.bundle, &redact);
+    if let Some(check) = pick.check.as_mut() {
+        let after = check
+            .bundle
+            .as_ref()
+            .map(|bundle| redacted(bundle, &redact));
+        check.changes = after
+            .as_ref()
+            .map(|after| {
+                pick::changes(&before, after)
+                    .iter()
+                    .map(|line| pick::within(line, pick::CHANGE_BUDGET))
+                    .collect()
+            })
+            .unwrap_or_default();
+        check.bundle = after.map(within_budgets);
     }
-    bundle.selected_text = bundle
-        .selected_text
-        .as_deref()
-        .map(|text| pick::within(&redact(text), pick::SELECTION_BUDGET));
+    pick.bundle = within_budgets(before);
+    pick.summary = pick.bundle.summary();
+    pick
+}
+
+/// `bundle` with each text the page gave redacted whole, nothing cut yet.
+fn redacted(bundle: &PickBundle, redact: &impl Fn(&str) -> String) -> PickBundle {
+    let mut bundle = bundle.clone();
+    bundle.name = bundle.name.as_deref().map(redact);
+    bundle.text = redact(&bundle.text);
+    bundle.html = redact(&bundle.html);
+    for text in &mut bundle.nearby_text {
+        *text = redact(text);
+    }
+    bundle.selected_text = bundle.selected_text.as_deref().map(redact);
     for locator in &mut bundle.locators {
         locator.value = redact(&locator.value);
     }
@@ -574,8 +657,21 @@ fn pick_for_agents(pick: &Pick, redactor: Option<&Redactor>) -> Pick {
         listener.on = redact(&listener.on);
         listener.script = listener.script.as_deref().map(redact_url);
     }
-    pick.summary = pick.bundle.summary();
-    pick
+    bundle
+}
+
+/// `bundle`'s texts cut to what an agent gets of each (#518).
+fn within_budgets(mut bundle: PickBundle) -> PickBundle {
+    bundle.text = pick::within(&bundle.text, pick::TEXT_BUDGET);
+    bundle.html = pick::within(&bundle.html, pick::HTML_BUDGET);
+    for text in &mut bundle.nearby_text {
+        *text = pick::within(text, pick::TEXT_BUDGET);
+    }
+    bundle.selected_text = bundle
+        .selected_text
+        .as_deref()
+        .map(|text| pick::within(text, pick::SELECTION_BUDGET));
+    bundle
 }
 
 /// What `browser_look` says of the page, beside its image.

@@ -5,7 +5,7 @@ status: QUEUED — Phase 1 Plan drafted; ready to promote to active
 title: "A recording turned into a Playwright test the project keeps: locators at event time, secrets as env placeholders"
 type: feature
 slice: prong 3 (after wave 2), item 3 of the list after the browser waves; after B5 (#499) and #505
-references: [docs/orca_architecture/README.md, docs/orca_architecture/03-browser-and-design-mode.md, docs/planning/pipeline/completed/499-flight-recorder.spec.md, docs/planning/pipeline/completed/495-select-picker.spec.md, docs/planning/tickets/open/TICKET-505-pick-fix-check.md]
+references: [docs/orca_architecture/README.md, docs/orca_architecture/03-browser-and-design-mode.md, docs/planning/pipeline/completed/499-flight-recorder.spec.md, docs/planning/pipeline/completed/495-select-picker.spec.md, docs/planning/tickets/closed/TICKET-505-pick-fix-check.md]
 ---
 
 ## Title

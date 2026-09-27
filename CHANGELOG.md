@@ -13,6 +13,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Check a pick after a fix** (#505, 2026-09-26). Each pick in a Browser tab's tray has a
+  Check button. Once you or an agent have changed the page, Check finds the picked element again
+  by the most durable of its locators that still finds anything: its test id, its id, its role
+  and name, its text, then its CSS path, and the one nearest where it was when several match.
+  It scrolls the element into view when it is off screen, and opens a card over the page with
+  the crop at the pick beside the crop now and what changed: the box, the computed styles, the
+  text, the role and name, or only the HTML. The row keeps the verdict ("2 changes", "no
+  change", "not found"), which opens the card again. Agents get the same through
+  `browser_check_pick`, redacted as a pick is, and `browser_pick` now includes the pick's latest
+  check. A pick's locators no longer rest on ids a framework generates, such as React's `useId`,
+  Radix, Headless UI or a hash.
 - **A fuller pick for agents** (#518, 2026-09-26). `browser_pick` now also gives an agent the
   picked element's HTML, sixteen of its computed styles, up to ten texts of the elements beside
   it, and the page's selection. On a React dev build it adds the components around the element

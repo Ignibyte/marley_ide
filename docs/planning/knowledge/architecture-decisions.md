@@ -2364,3 +2364,22 @@ The tray and the pick line are unchanged, and agents read the fields when they a
 - redacting visible text as Orca does, which blanks a "Reset password" label that the screen and
   the crop show anyway;
 - picking React's frames by URL, which a bundle defeats.
+
+## AD-claude-505-a-check-finds-a-pick-again-and-compares-it-from-the-dom-001
+*decided at: 2026-09-26 · status: shipped*
+
+A pick is checked by finding its element again in the page's main document by the most durable
+locator that still finds anything: test id, id, role and name, text, then CSS path. Of several
+matches, the one nearest the old box is taken. No locator rests on a generated id, which
+`DESCRIBE` leaves out at the pick, or on a class. The element is scrolled into view when it lies
+outside it, then read and cropped as the pick was. Both crops cut the box and 16 px from a
+capture of the whole viewport. What changed comes from the two bundles, not the pixels: the box,
+each computed style, the text, the role and name, else the HTML. The latest check stays on the
+pick for the session. The tray shows its verdict, and the user's own Check opens a comparison card
+over the page. Agents check through the write tool `browser_check_pick`. Their copy's change lines
+are made again from the redacted bundles, so a secret in a change is redacted before any cut.
+Rejected:
+- comparing the crops' pixels: a reflow or an anti-aliased edge would read as a change;
+- a history of checks per pick (the latest is what the user and the agent act on);
+- a check that scrolls the page without saying so (it is a write, with the Agent chip);
+- a clipped capture for the crop (F-claude-505-a-clipped-capture-left-the-tab-showing-only-the-crop-001).

@@ -185,8 +185,13 @@ for.
   document and the window (`DOMDebugger.getEventListeners` on each), at most 24, with their
   script's URL and source map from `scripts`. `PickBundle::summary` names it as the tray does:
   its role and name, else its tag and text.
-- `Page::crop(page_box)` is `Page.captureScreenshot` of the box with a 16-pixel margin, in page
-  coordinates, as a base64 JPEG.
+- `Page::crop(page_box)` is the box with a 16-pixel margin, at one pixel to the CSS pixel, as a
+  base64 JPEG at 80. Since #505 it captures the whole viewport (`Page.captureScreenshot` as a
+  PNG, with `Page.getLayoutMetrics` giving the visual viewport's place and size) and cuts the
+  box out on `smol::unblock`'s pool (`cut`), scaling by the capture's pixels to the CSS pixel.
+  A capture with a clip can reach the page's running screencast as a frame of the clip alone,
+  which the tab then draws in place of the page until the page next changes. The box must lie
+  in the viewport, and a margin past its edge is left out.
 
 ## The fuller bundle (`src/pick.rs`, #518)
 
@@ -220,6 +225,26 @@ for.
   `stack_frames` parses V8's `at` lines into `StackFrame`s (lines and columns from 1), and
   `StackFrame::is_reacts` names React's own (`jsxDEV`, `jsx`, `jsxs`, `createElement`, the stack's
   bottom frame).
+
+## Checking a pick (`src/pick.rs`, #505)
+
+- The page functions share pieces of JavaScript through `macro_rules!` spliced in with `concat!`:
+  `interactive!`, the test of an element a user acts on and the step up through shadow roots, which
+  `INTERACTIVE_ANCESTOR` and `REFIND` take; and `generated_name!`, the test of an id a framework
+  made (React's `useId` as `:r1:`, `«r1»`, `_r_1_` or `_R_1_`, `radix-…`, `headlessui-…`,
+  `react-aria…`, `mui-7`, `ember12`, or 12 or more characters with a digit and a capital), which
+  `DESCRIBE` takes. `DESCRIBE`'s id locator leaves such an id out, and its CSS path walks past one
+  to the next ancestor's.
+- `Page::refind(bundle)` finds the pick's element in the page's main document by the first kind
+  of locator that finds anything, in `REFIND_ORDER`: the test id, the id, the role and name
+  (`Accessibility.queryAXTree` on the document's object, each node resolved and its box read with
+  `PAGE_BOX`), the text, the CSS path. `REFIND` runs the selector kinds and the text on the
+  document. For a text, it takes each element whose text reads the pick's, walked up to its
+  interactive ancestor, the innermost kept. Of several matches, the one whose center lies nearest
+  the old box's wins. It answers a `Refound { found_by, backend_node_id }`, or none.
+- `changes(before, after)` says what changed, a line each: the box moved or resized by at least a
+  CSS pixel, each computed style that differs, the text, the role and the name, and, when nothing
+  else did, `its HTML changed`. `CHANGE_BUDGET` (420) is what an agent gets of each line.
 
 ## Boxes (`src/page.rs`, #498)
 

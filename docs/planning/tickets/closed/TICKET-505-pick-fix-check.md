@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #505 (feature, prong 3, after #518)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/505-pick-fix-check.spec.md
+- **Pipeline doc:** ../../pipeline/completed/505-pick-fix-check.spec.md
 - **Source ticket:** Chad, 2026-09-25: "lets do 1 through 8" (item 2 of the list after the browser waves), with the Orca survey's rules for #505 folded in (`docs/orca_architecture/README.md`, "What it changes in the queued sprint"; report 03 §2.7 and item 2)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 A pick sends an element to the agent, but nothing shows whether the agent's fix worked; Orca's

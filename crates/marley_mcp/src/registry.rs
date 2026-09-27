@@ -166,8 +166,8 @@ const REGISTRY: &[ToolSpec] = &[
          box in the page; its HTML, without scripts, field values, secret-looking attribute values \
          or URL queries, at most 4,096 characters; sixteen of its computed styles; its siblings' \
          texts and the page's selection; on a React dev build, the components around it and the \
-         file and line it was written at; and the page around it as an image. Secret-looking \
-         text is redacted.",
+         file and line it was written at; the page around it as an image; and its latest \
+         check from browser_check_pick, when one ran. Secret-looking text is redacted.",
     ),
     browser_read(
         "recordings",
@@ -195,6 +195,17 @@ const REGISTRY: &[ToolSpec] = &[
          element by its ref from browser_snapshot, scrolled into view, or over an area of the \
          viewport; it stays on that content as the page scrolls, marked as the agent's. \
          `clear` removes the agent's own boxes instead.",
+    ),
+    browser_write(
+        "check_pick",
+        "Check an element the user picked, by its id from the user's line or browser_picks, \
+         after a change such as your fix: find it again in the pick's own tab by the most \
+         durable locator that still finds anything (its test id, id, role and name, text, then \
+         CSS path; of several matches, the one nearest its old box), scroll it into view when it \
+         is off screen, crop it as the pick was cropped, and say what changed since the pick: \
+         its box, its computed styles, its text, role and name, or its HTML. Answers whether and \
+         by what it was found, the changes, the element as it is now, and the new crop as the \
+         image. Secret-looking text is redacted. The user's tray shows the check's verdict.",
     ),
     browser_write(
         "navigate",
@@ -358,6 +369,7 @@ fn browser_schemas(verb: &str) -> (Value, Value) {
         "recording" => recording_schemas(),
         "picks" => picks_schemas(),
         "pick" => pick_schemas(),
+        "check_pick" => check_pick_schemas(),
         "open_url" => open_url_schemas(),
         _ => browser_write_schemas(verb),
     }
@@ -742,9 +754,102 @@ fn element_context_properties() -> Value {
     })
 }
 
-/// `browser_pick`: a pick's id; the pick with its bundle, and its crop as the answer's image.
+/// `browser_pick`: a pick's id; the pick with its bundle and its latest check, and its crop as the
+/// answer's image.
 fn pick_schemas() -> (Value, Value) {
     let mut properties = pick_properties();
+    if let Some(properties) = properties.as_object_mut() {
+        properties.extend([
+            ("bundle".to_string(), bundle_schema()),
+            ("check".to_string(), check_schema()),
+        ]);
+    }
+    (
+        pick_id_schema(),
+        json!({
+            "type": "object",
+            "properties": properties,
+            "required": ["id", "tab", "url", "title", "summary", "caption", "sent", "bundle"]
+        }),
+    )
+}
+
+/// The arguments of a tool that takes a pick: its id.
+fn pick_id_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "A pick's id, as the user's line or browser_picks names it."
+            }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+    })
+}
+
+/// A pick's latest check (#505), as `browser_pick` gives it.
+fn check_schema() -> Value {
+    let bundle = nullable(bundle_schema());
+    json!({
+        "type": ["object", "null"],
+        "description": "The pick's latest check from browser_check_pick; none before one ran.",
+        "properties": {
+            "found_by": {
+                "type": ["string", "null"],
+                "description": "The kind of locator that found the element again: test id, id, role and name, text or css; none when nothing did."
+            },
+            "changes": {
+                "type": "array",
+                "description": "What changed since the pick, a line each.",
+                "items": { "type": "string" }
+            },
+            "bundle": bundle,
+            "checked_at": { "type": "integer", "description": "When it ran, in milliseconds since the Unix epoch." }
+        },
+        "required": ["found_by", "changes", "checked_at"]
+    })
+}
+
+/// `browser_check_pick` (#505): a pick's id; whether and how its element was found again, what
+/// changed, and the element now, with its crop as the answer's image.
+fn check_pick_schemas() -> (Value, Value) {
+    let bundle = nullable(bundle_schema());
+    (
+        pick_id_schema(),
+        json!({
+            "type": "object",
+            "properties": {
+                "id": { "type": "integer" },
+                "tab": { "type": "string", "description": "The pick's tab, where the check ran." },
+                "found": { "type": "boolean" },
+                "found_by": {
+                    "type": ["string", "null"],
+                    "description": "The kind of locator that found it: test id, id, role and name, text or css."
+                },
+                "changes": {
+                    "type": "array",
+                    "description": "What changed since the pick, a line each: the box, each computed style, the text, the role, the name, or that only the HTML did.",
+                    "items": { "type": "string" }
+                },
+                "bundle": bundle,
+                "checked_at": { "type": "integer", "description": "In milliseconds since the Unix epoch." }
+            },
+            "required": ["id", "tab", "found", "found_by", "changes", "checked_at"]
+        }),
+    )
+}
+
+/// `schema`, an object's, taking null too.
+fn nullable(mut schema: Value) -> Value {
+    schema["type"] = json!(["object", "null"]);
+    schema
+}
+
+/// A pick's bundle: the element as a pick or a check read it.
+fn bundle_schema() -> Value {
     let mut bundle = json!({
         "type": "object",
         "properties": {
@@ -814,28 +919,7 @@ fn pick_schemas() -> (Value, Value) {
     ) {
         bundle_properties.extend(added);
     }
-    if let Some(properties) = properties.as_object_mut() {
-        properties.extend([("bundle".to_string(), bundle)]);
-    }
-    (
-        json!({
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "description": "A pick's id, as the user's line or browser_picks names it."
-                }
-            },
-            "required": ["id"],
-            "additionalProperties": false
-        }),
-        json!({
-            "type": "object",
-            "properties": properties,
-            "required": ["id", "tab", "url", "title", "summary", "caption", "sent", "bundle"]
-        }),
-    )
+    bundle
 }
 
 /// The write tools' arguments; each answers with what it did, and in which tab.

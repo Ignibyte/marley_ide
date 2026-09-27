@@ -22,7 +22,9 @@
 #   this caller (#574).
 #   `picks` lists the user's picks and `pick <id> [<image file>]` reads one, saving its crop
 #   (#496), with its HTML, styles, sibling texts, selection and React component since #518;
-#   `pick-json <id> <file>` saves the whole answer as JSON (#518). `annotate <role> <name> <note>` draws the agent's box around an element,
+#   `pick-json <id> <file>` saves the whole answer as JSON (#518). `check-pick <id> [<image file>
+#   [<json file>]]` checks a pick (#505): what found it again, each change and the box now,
+#   with the new crop and the answer saved when named. `annotate <role> <name> <note>` draws the agent's box around an element,
 #   `annotations` lists a tab's boxes, and `annotate-clear` removes the agent's (#498).
 #   `recordings` lists the saved recordings, and `recording <id> [<frame> <image file>]` prints
 #   one's timeline and saves a frame (#499). `terminal-read <text>` reads the newest block, in
@@ -462,6 +464,29 @@ def main():
         for pick in picks:
             sent = f"sent with {pick['caption']!r}" if pick["sent"] else "not sent"
             print(f"  pick {pick['id']}: {pick['summary']} at {pick['url']} in tab {pick['tab']}, {sent}")
+    elif command == "check-pick":
+        result = client.tool("browser_check_pick", {"id": int(rest[0])})
+        if result:
+            check = result["structuredContent"]
+            found = f"found by {check['found_by']}" if check["found"] else "not found"
+            print(f"  check of pick {check['id']}: {found}")
+            for change in check["changes"]:
+                print(f"  change: {change}")
+            bundle = check.get("bundle")
+            if bundle:
+                box = bundle["page_box"]
+                print(f"  box now: {box['x']:.0f},{box['y']:.0f} {box['width']:.0f}x{box['height']:.0f}")
+            images = [block for block in result["content"] if block["type"] == "image"]
+            if not images:
+                print("  no crop")
+            elif len(rest) > 1:
+                with open(rest[1], "wb") as file:
+                    file.write(base64.b64decode(images[0]["data"]))
+                print(f"  the crop: {images[0]['mimeType']}, saved as {os.path.basename(rest[1])}")
+            if len(rest) > 2:
+                with open(rest[2], "w") as file:
+                    json.dump(check, file, indent=1)
+                print(f"  the check: saved as {os.path.basename(rest[2])}")
     elif command == "pick-json":
         result = client.tool("browser_pick", {"id": int(rest[0])})
         if result:
@@ -503,6 +528,10 @@ def main():
                     print("  component source: none")
             else:
                 print("  component: none")
+            check = pick.get("check")
+            if check:
+                found = f"found by {check['found_by']}" if check["found_by"] else "not found"
+                print(f"  latest check: {found}, {len(check['changes'])} change(s)")
             images = [block for block in result["content"] if block["type"] == "image"]
             if not images:
                 print("  no crop")

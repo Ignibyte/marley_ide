@@ -671,6 +671,14 @@ alike.
   cut to `pick`'s budgets (the HTML 4,096 characters, each text 200, the selection 500). Each
   listener's script URL goes through `redact_url`, and the summary is made again from the
   redacted bundle.
+- `browser_check_pick {id}` (#505) is a write tool, answered after the browser shows: it acts in
+  the pick's own tab through `page_of`, brings it forward with `show_for_agent`, says "checking
+  pick N" and "checked pick N" in the Agent chip, and runs the hub's `check_pick`. It answers
+  whether and by what the element was found, the changes, the element now, and its crop as the
+  image, from `pick_for_agents`. That function redacts each page text of a pick and its check
+  whole (`redacted`) before cutting it (`within_budgets`). It makes the check's change lines
+  again from the two redacted bundles, then cuts each to `CHANGE_BUDGET`, so a secret in a text
+  change reaches no agent.
 - The read tools: `browser_look` (the hub's URL and title, `Page::viewport`,
   `focused_element`, the selection unless a password field has the focus, and
   `Page::screenshot` as the image), `browser_snapshot` (the main frame's tree, each same-site
@@ -893,6 +901,20 @@ alike.
   script without a map, whose URL does. `pick_sources` sets it as the component's source with its
   `file` from `find_source`, and gives a React 18 `_debugSource` its `file` the same way.
   `MapCache` loads each map once per pick, for the listeners and the stack together.
+- **Checks (#505).** `BrowserHub::check_pick(id)` runs a pick's check in the pick's own tab:
+  pick mode off first, then `check_element`, which finds the element again (`Page::refind`),
+  scrolls it into view on the page's session, gives the scroll `SCROLL_SETTLE`, reads it through
+  `capture_pick` and crops it. The result is `Pick.check: Option<PickCheck { found_by, changes,
+  bundle, crop, checked_at }>`, the latest only, and a check changes nothing the rail shows. Each
+  tray row ends in `render_check`: the latest check's verdict ("2 changes", "no change", "not
+  found"), which opens the comparison, and Check ("Checking…" while it runs). The user's Check
+  opens the card when it answers; an agent's does not. The card (`render_comparison`,
+  `render_crop`) is an absolute child of the page area at its top right, occluding. It holds the
+  pick's number and summary, what found it again, the crop at the pick beside the crop now, and
+  the change lines, each cut to 300 characters on the card only. The tab decodes both crops once,
+  when the card opens (`open_comparison`), drops them from the window's atlas when it closes, and
+  at each render follows a newer check of its pick, or closes on a discarded one
+  (`refresh_comparison`).
 - **Annotations (#498).** A page's `annotations` live in the hub (`Annotation { id, page_box,
   note, maker, made_at }`, numbered across the session) until its main frame shows another
   document (`frameNavigated`); a fragment or history move keeps them. The view's render reads
@@ -989,6 +1011,10 @@ microphone through a fake Voxtype whose `record toggle` moves its status on, and
   delegates its events (React's root listener) shows the framework's listener, whose source is
   the framework's code, not the handler the app wrote (#497). Since #518 `browser_pick` gives
   agents the React component and the file it was written at; the tray still shows the listener.
+- A check looks for its element in the page's main document only: a pick made in a cross-site
+  iframe or a shadow root checks as not found (#505). The crop at a check, like the pick's, is
+  the page's pixels, so the card and `browser_check_pick`'s image show the visible text
+  unredacted.
 - The tray's Send types a pick's summary as the page shows it (#496). Redaction covers what
   agents read through Marley's tools (#516, #518). A Send is typed at the user's prompt, where
   the user sees it before Enter, as with #549's selection.

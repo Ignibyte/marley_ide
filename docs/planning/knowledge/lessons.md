@@ -3105,3 +3105,24 @@ log each event and the selection at that moment to its console, read the whole s
 `mcp_agent console`, and find the event after which the result goes wrong. In a scenario, end a
 drag inside the text or give the page a layout in flow. A glyph's columns in a shot come from an
 ImageMagick threshold of the text's row, read as `txt:`.
+
+## L-claude-505-a-shot-that-proves-something-gets-a-pixel-check-001
+*category: testing · topic: e2e scenarios · from: pipeline 505*
+
+#505's second run passed all 12 checks, which read the saved answers, while its
+`505-03-nearest` showed a blank page with one crop in its corner. Only reading the shot caught
+it. The fix added `page_drawn`: ImageMagick reads one pixel of the page area in the shot
+(`-crop 1x1+x+y -format "%[fx:luminance]" info:`) and the check fails unless it is the page's
+light background. It read 0.17 on the bad shot and 0.95 on the good ones, so it fails on the bug
+it guards against. When a criterion rests on what a shot shows, turn that into a pixel check, and
+test it on a bad shot first. Also move the pointer off a clicked button before the shot, or its
+tooltip covers what the shot is for.
+
+## L-claude-505-queryaxtree-finds-by-role-and-name-in-headless-chromium-001
+*category: code · topic: CDP accessibility · from: pipeline 505*
+
+`Accessibility.queryAXTree` (experimental) answers in headless Chromium 152 with no
+`Accessibility.enable`. Called on the document's object (`Runtime.evaluate("document")` in the
+main world) with `accessibleName` and `role`, it returns every matching node with its
+`backendDOMNodeId`, none for a name the page lacks, and `DOM.resolveNode` turns each into an
+element whose box can be read. A standalone probe proved it before #505 relied on it.

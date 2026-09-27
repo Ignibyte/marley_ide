@@ -7,9 +7,17 @@
 //! a crop of the page around it. Since #518 the pass also reads the element's HTML, its computed
 //! styles, its siblings' texts, the page's selection and, on a React dev build, the components
 //! around it and where it was written.
+//!
+//! Since #505 a pick can be checked: [`Page::refind`] finds its element again by the most durable
+//! locator that still finds anything, and [`changes`] says what changed since the pick. No locator
+//! rests on a generated id or on a class.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+use base64::Engine as _;
+use image::ImageFormat;
+use image::codecs::jpeg::JpegEncoder;
+use image::imageops::FilterType;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -54,6 +62,12 @@ pub const HTML_BUDGET: usize = 4_096;
 pub const TEXT_BUDGET: usize = 200;
 /// The characters of the page's selection an agent gets.
 pub const SELECTION_BUDGET: usize = 500;
+/// The characters of each of a check's change lines an agent gets (#505): room for two texts of
+/// [`TEXT_BUDGET`] and the words around them.
+pub const CHANGE_BUDGET: usize = 2 * TEXT_BUDGET + 20;
+
+/// The kinds of locator a check tries, in order (#505): the first that finds anything decides.
+const REFIND_ORDER: [&str; 5] = ["test id", "id", "role and name", "text", "css"];
 
 /// The functions of React's own that its debug stacks start with.
 const REACT_FRAMES: &[&str] = &[
@@ -65,21 +79,49 @@ const REACT_FRAMES: &[&str] = &[
     "react-stack-bottom-frame",
 ];
 
-/// The function, run on the picked node, that gives its nearest interactive ancestor, the node's
-/// own element when none is, through open shadow roots.
-const INTERACTIVE_ANCESTOR: &str = r#"function () {
-  const roles = new Set(['button', 'link', 'checkbox', 'radio', 'tab', 'menuitem', 'option', 'switch',
+/// The page's test of an element a user acts on, and its step up through open shadow roots, as
+/// JavaScript that the pick's walk up and the check's text search both take (#505). A macro, since
+/// `concat!` splices literals and macros but not a `const`.
+macro_rules! interactive {
+    () => {
+        r#"  const roles = new Set(['button', 'link', 'checkbox', 'radio', 'tab', 'menuitem', 'option', 'switch',
     'textbox', 'combobox', 'slider', 'treeitem', 'gridcell', 'searchbox', 'spinbutton']);
   const interactive = (element) => element.matches('a[href], button, input, select, textarea, summary, label, '
     + '[tabindex]:not([tabindex="-1"]), [contenteditable=""], [contenteditable="true"], [onclick]')
     || roles.has(element.getAttribute('role'));
   const up = (node) => node.parentElement || (node.parentNode instanceof ShadowRoot ? node.parentNode.host : null);
-  const start = this.nodeType === Node.ELEMENT_NODE ? this : this.parentElement;
+"#
+    };
+}
+
+/// The page's test of an id that looks generated (#505), as JavaScript: React's `useId` (`:r1:`,
+/// `«r1»`, and React 19.2's `_r_1_` and `_R_1_`), a component library's (`radix-…`,
+/// `headlessui-…`, `react-aria…`, `mui-7`, `ember12`), or a hash of 12 or more characters with a
+/// digit and a capital in it. Such an id changes between renders or builds, so no locator rests
+/// on it. Each page function that makes locators takes this one, #506's recorder too.
+macro_rules! generated_name {
+    () => {
+        r#"  const generatedName = (value) => typeof value === 'string' && (/[:«»]/.test(value)
+    || /^_.*[rR]_[0-9A-Za-z]+_$/.test(value)
+    || /^(radix-|headlessui-|react-aria)/.test(value)
+    || /^(mui-|ember)\d+$/.test(value)
+    || (/^[A-Za-z0-9_-]{12,}$/.test(value) && /\d/.test(value) && /[A-Z]/.test(value)));
+"#
+    };
+}
+
+/// The function, run on the picked node, that gives its nearest interactive ancestor, the node's
+/// own element when none is, through open shadow roots.
+const INTERACTIVE_ANCESTOR: &str = concat!(
+    "function () {\n",
+    interactive!(),
+    r"  const start = this.nodeType === Node.ELEMENT_NODE ? this : this.parentElement;
   for (let element = start; element; element = up(element)) {
     if (interactive(element)) return element;
   }
   return start;
-}"#;
+}"
+);
 
 /// The function, run on the element in the page's main world, that reads what the bundle needs of
 /// it: its tag and text, its locators and whether each finds it alone, its box in the page through
@@ -92,8 +134,13 @@ const INTERACTIVE_ANCESTOR: &str = r#"function () {
 /// page's selection, unless a field has the focus; and React's fiber, which only the main world
 /// sees. Each text comes cut to its trip cap, never to its budget, which [`within`] applies after
 /// redaction.
-const DESCRIBE: &str = r#"function (secretNames) {
-  const element = this;
+///
+/// Since #505 no locator rests on a generated id: the id locator leaves one out, and the CSS path
+/// walks past one to the next ancestor. Classes stay out of every locator.
+const DESCRIBE: &str = concat!(
+    "function (secretNames) {\n",
+    generated_name!(),
+    r#"  const element = this;
   const document = element.ownerDocument;
   const cap = (value, limit) => {
     const whole = value.toWellFormed ? value.toWellFormed() : value;
@@ -115,7 +162,7 @@ const DESCRIBE: &str = r#"function (secretNames) {
       break;
     }
   }
-  if (element.id) {
+  if (element.id && !generatedName(element.id)) {
     const selector = '#' + CSS.escape(element.id);
     locators.push({ kind: 'id', value: selector, unique: unique(selector) });
   }
@@ -123,7 +170,7 @@ const DESCRIBE: &str = r#"function (secretNames) {
   if (text && text.length <= 80) locators.push({ kind: 'text', value: text, unique: null });
   const path = [];
   for (let node = element; node && node.nodeType === Node.ELEMENT_NODE && path.length < 8; node = node.parentElement) {
-    if (node.id) { path.unshift('#' + CSS.escape(node.id)); break; }
+    if (node.id && !generatedName(node.id)) { path.unshift('#' + CSS.escape(node.id)); break; }
     const siblings = node.parentElement ? [...node.parentElement.children].filter((child) => child.localName === node.localName) : [];
     path.unshift(siblings.length > 1 ? node.localName + ':nth-of-type(' + (siblings.indexOf(node) + 1) + ')' : node.localName);
   }
@@ -282,7 +329,65 @@ const DESCRIBE: &str = r#"function (secretNames) {
   return { tag: element.localName, text: cap(text, 4096), locators,
     box: { x: left + scrollX, y: top + scrollY, width: box.width, height: box.height }, blockers,
     html, styles, nearby_text: nearby, selected_text: selected, react };
-}"#;
+}"#
+);
+
+/// The function, run on the page's document (#505), that finds what a pick's locator of `kind`
+/// finds there: a selector's matches for a test id, an id or a CSS path, or, for a text, each
+/// element whose text reads `value`, walked up to its nearest interactive ancestor as the pick
+/// was, the innermost kept when one holds another. Of those it answers the one whose box's center
+/// lies nearest `oldBox`'s, in the document's CSS pixels, or null.
+const REFIND: &str = concat!(
+    "function (kind, value, oldBox) {\n",
+    interactive!(),
+    r"  const document = this;
+  const view = document.defaultView;
+  let found = [];
+  if (kind === 'text') {
+    const first = value.split(' ')[0];
+    const root = document.body || document.documentElement;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+    for (let node = walker.nextNode(), seen = 0; node && seen < 20000 && found.length < 500; node = walker.nextNode(), seen += 1) {
+      const labelled = node.localName === 'input' && ['button', 'submit', 'reset'].includes(node.type);
+      if (!labelled && !(node.textContent || '').includes(first)) continue;
+      const text = (node.innerText || (labelled ? node.value : '') || '').trim().replace(/\s+/g, ' ');
+      if (text !== value) continue;
+      let element = node;
+      for (let step = node; step; step = up(step)) {
+        if (interactive(step)) { element = step; break; }
+      }
+      if (!found.includes(element)) found.push(element);
+    }
+  } else {
+    try { found = [...document.querySelectorAll(value)].slice(0, 500); } catch (error) { found = []; }
+  }
+  const middle = (element) => {
+    const box = element.getBoundingClientRect();
+    return [box.left + view.scrollX + box.width / 2, box.top + view.scrollY + box.height / 2];
+  };
+  const target = [oldBox.x + oldBox.width / 2, oldBox.y + oldBox.height / 2];
+  let nearest = null;
+  let nearestDistance = Infinity;
+  for (const element of found) {
+    if (found.some((other) => other !== element && element.contains(other))) continue;
+    const [x, y] = middle(element);
+    const distance = Math.hypot(x - target[0], y - target[1]);
+    if (distance < nearestDistance) {
+      nearest = element;
+      nearestDistance = distance;
+    }
+  }
+  return nearest;
+}"
+);
+
+/// The function, run on an element of the page's document, that gives its box in the document's
+/// CSS pixels, as a pick's box is (#505).
+const PAGE_BOX: &str = r"function () {
+  const box = this.getBoundingClientRect();
+  const view = this.ownerDocument.defaultView;
+  return { x: box.left + view.scrollX, y: box.top + view.scrollY, width: box.width, height: box.height };
+}";
 
 /// The function, run on the element, that gives it, its ancestors through open shadow roots, the
 /// document and the window: where its listeners can sit.
@@ -349,6 +454,24 @@ pub struct PageBox {
     pub width: f64,
     /// Its height.
     pub height: f64,
+}
+
+impl PageBox {
+    /// How far its center lies from `other`'s, in CSS pixels.
+    fn distance_to(self, other: Self) -> f64 {
+        let (x, y) = (self.x + self.width / 2.0, self.y + self.height / 2.0);
+        let (other_x, other_y) = (other.x + other.width / 2.0, other.y + other.height / 2.0);
+        (x - other_x).hypot(y - other_y)
+    }
+}
+
+/// Where a check found its pick's element again (#505).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Refound {
+    /// The kind of locator that found it: `test id`, `id`, `role and name`, `text` or `css`.
+    pub found_by: String,
+    /// The element, as the page's backend node.
+    pub backend_node_id: i64,
 }
 
 /// What a pick captured of its element, at the moment of the pick.
@@ -485,6 +608,128 @@ pub fn within(text: &str, budget: usize) -> String {
         Some((end, _)) => format!("{}{CUT}", text.get(..end).unwrap_or(text)),
         None => text.to_string(),
     }
+}
+
+/// What changed between a pick's element, `before`, and the element a check found, `after`
+/// (#505), a line each.
+///
+/// The lines say the box's move and size, by a CSS pixel at least; each computed style that
+/// differs; the text, the role and the name; and, when nothing else did, that the HTML changed.
+/// None when the element is as the pick saw it, as far as a bundle tells.
+#[must_use]
+pub fn changes(before: &PickBundle, after: &PickBundle) -> Vec<String> {
+    let mut changes = Vec::new();
+    let (was, now) = (before.page_box, after.page_box);
+    let (moved_x, moved_y) = (now.x - was.x, now.y - was.y);
+    if moved_x.abs() >= 1.0 || moved_y.abs() >= 1.0 {
+        changes.push(format!(
+            "box: moved {}, {} px",
+            pixels(moved_x),
+            pixels(moved_y)
+        ));
+    }
+    if (now.width - was.width).abs() >= 1.0 || (now.height - was.height).abs() >= 1.0 {
+        changes.push(format!(
+            "box: {} \u{d7} {} \u{2192} {} \u{d7} {}",
+            pixels(was.width),
+            pixels(was.height),
+            pixels(now.width),
+            pixels(now.height)
+        ));
+    }
+    let properties: BTreeSet<&String> = before.styles.keys().chain(after.styles.keys()).collect();
+    for property in properties {
+        let (old, new) = (before.styles.get(property), after.styles.get(property));
+        if old != new {
+            changes.push(format!(
+                "{property}: {} \u{2192} {}",
+                old.map_or("none", String::as_str),
+                new.map_or("none", String::as_str)
+            ));
+        }
+    }
+    if before.text != after.text {
+        changes.push(format!(
+            "text: \u{201c}{}\u{201d} \u{2192} \u{201c}{}\u{201d}",
+            before.text, after.text
+        ));
+    }
+    if before.role != after.role {
+        changes.push(format!(
+            "role: {} \u{2192} {}",
+            before.role.as_deref().unwrap_or("none"),
+            after.role.as_deref().unwrap_or("none")
+        ));
+    }
+    if before.name != after.name {
+        changes.push(format!(
+            "name: \u{201c}{}\u{201d} \u{2192} \u{201c}{}\u{201d}",
+            before.name.as_deref().unwrap_or_default(),
+            after.name.as_deref().unwrap_or_default()
+        ));
+    }
+    if changes.is_empty() && before.html != after.html {
+        changes.push("its HTML changed".to_string());
+    }
+    changes
+}
+
+/// A length in CSS pixels as a change line writes it: whole, and never `-0`.
+fn pixels(length: f64) -> String {
+    format!("{:.0}", length.round() + 0.0)
+}
+
+/// The part of `capture`, a base64 PNG of the viewport `viewport` (its place in the document and
+/// its size, in CSS pixels), that shows `page_box` and [`CROP_MARGIN`] around it within the
+/// viewport, at one pixel to the CSS pixel, as a base64 JPEG (#505).
+fn cut(capture: &str, page_box: PageBox, viewport: PageBox) -> Result<String, CdpError> {
+    let unexpected = |what: &str, error: &dyn std::fmt::Display| {
+        CdpError::Unexpected(format!("the crop's {what}: {error}"))
+    };
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(capture)
+        .map_err(|error| unexpected("capture", &error))?;
+    let image = image::load_from_memory_with_format(&bytes, ImageFormat::Png)
+        .map_err(|error| unexpected("capture", &error))?
+        .into_rgb8();
+    let left = (page_box.x - viewport.x - CROP_MARGIN).max(0.0);
+    let top = (page_box.y - viewport.y - CROP_MARGIN).max(0.0);
+    let right = (page_box.x - viewport.x + page_box.width + CROP_MARGIN).min(viewport.width);
+    let bottom = (page_box.y - viewport.y + page_box.height + CROP_MARGIN).min(viewport.height);
+    if right - left < 1.0 || bottom - top < 1.0 || viewport.width < 1.0 {
+        return Err(CdpError::Unexpected(
+            "the element lies outside the viewport".to_string(),
+        ));
+    }
+    // The capture has as many pixels to a CSS pixel as the device's scale and the pinch give it.
+    let ratio = f64::from(image.width()) / viewport.width;
+    let device = |css: f64, limit: u32| whole_pixels(css * ratio, limit);
+    let (x, y) = (device(left, image.width()), device(top, image.height()));
+    let width = device(right, image.width()).saturating_sub(x).max(1);
+    let height = device(bottom, image.height()).saturating_sub(y).max(1);
+    let piece = image::imageops::crop_imm(&image, x, y, width, height).to_image();
+    let (css_width, css_height) = (
+        whole_pixels(right - left, u32::MAX).max(1),
+        whole_pixels(bottom - top, u32::MAX).max(1),
+    );
+    let piece = if (piece.width(), piece.height()) == (css_width, css_height) {
+        piece
+    } else {
+        image::imageops::resize(&piece, css_width, css_height, FilterType::Triangle)
+    };
+    let mut jpeg = Vec::new();
+    piece
+        .write_with_encoder(JpegEncoder::new_with_quality(&mut jpeg, 80))
+        .map_err(|error| unexpected("JPEG", &error))?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(jpeg))
+}
+
+/// `length` rounded to whole pixels, from 0 to `limit`.
+fn whole_pixels(length: f64, limit: u32) -> u32 {
+    let clamped = length.round().clamp(0.0, f64::from(limit));
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // rounded, from 0 to a u32
+    let whole = clamped as u32;
+    whole
 }
 
 /// `text` held to its trip cap on arrival. The page's read cuts at the cap and marks the cut, so
@@ -703,33 +948,165 @@ impl Page {
         })
     }
 
-    /// The page around `page_box`, as a base64 JPEG.
+    /// The page around `page_box`, as a base64 JPEG: the box and 16 CSS pixels on each side, at
+    /// one pixel to the CSS pixel.
+    ///
+    /// The viewport is captured whole and the box cut out of it here (#505). A capture with a clip
+    /// can reach the page's running screencast as a frame of the clip alone, which the tab then
+    /// draws in place of the page until the page next changes. So the box must lie in the
+    /// viewport, as a clicked or a scrolled-to element does, and a margin past its edge is left
+    /// out.
     ///
     /// # Errors
     ///
-    /// When the call fails or its answer holds no image.
+    /// When a call fails, its answer holds no image, or the box lies outside the viewport.
     pub async fn crop(&self, page_box: PageBox) -> Result<String, CdpError> {
+        let metrics = self.call("Page.getLayoutMetrics", json!({})).await?;
+        let viewport = metrics
+            .get("cssVisualViewport")
+            .and_then(|viewport| {
+                Some(PageBox {
+                    x: viewport.get("pageX")?.as_f64()?,
+                    y: viewport.get("pageY")?.as_f64()?,
+                    width: viewport.get("clientWidth")?.as_f64()?,
+                    height: viewport.get("clientHeight")?.as_f64()?,
+                })
+            })
+            .ok_or_else(|| CdpError::Unexpected("the page's layout has no viewport".to_string()))?;
         let answer = self
-            .call(
-                "Page.captureScreenshot",
-                json!({
-                    "format": "jpeg",
-                    "quality": 80,
-                    "clip": {
-                        "x": (page_box.x - CROP_MARGIN).max(0.0),
-                        "y": (page_box.y - CROP_MARGIN).max(0.0),
-                        "width": 2.0f64.mul_add(CROP_MARGIN, page_box.width),
-                        "height": 2.0f64.mul_add(CROP_MARGIN, page_box.height),
-                        "scale": 1,
-                    },
-                }),
-            )
+            .call("Page.captureScreenshot", json!({ "format": "png" }))
             .await?;
-        answer
+        let capture = answer
             .get("data")
             .and_then(Value::as_str)
             .map(str::to_string)
-            .ok_or_else(|| CdpError::Unexpected("the crop holds no image".to_string()))
+            .ok_or_else(|| CdpError::Unexpected("the crop holds no image".to_string()))?;
+        smol::unblock(move || cut(&capture, page_box, viewport)).await
+    }
+
+    /// Finds the element `bundle` was picked from in the page's main document again (#505).
+    ///
+    /// The first kind of locator that finds anything decides: its test id, its id, its role and
+    /// name, its text, its CSS path. Of several matches it takes the one whose box lies nearest
+    /// the pick's; none when no locator matches.
+    ///
+    /// # Errors
+    ///
+    /// When a call fails.
+    pub async fn refind(&self, bundle: &PickBundle) -> Result<Option<Refound>, CdpError> {
+        self.call("DOM.enable", json!({})).await?;
+        let document = self
+            .call("Runtime.evaluate", json!({ "expression": "document" }))
+            .await?;
+        let document = object_id(&document, "/result/objectId")?;
+        for kind in REFIND_ORDER {
+            let found = if kind == "role and name" {
+                match (
+                    bundle.role.as_deref(),
+                    bundle.name.as_deref().filter(|name| !name.is_empty()),
+                ) {
+                    (Some(role), Some(name)) => {
+                        self.nearest_with_role(&document, role, name, bundle.page_box)
+                            .await?
+                    }
+                    _ => None,
+                }
+            } else {
+                match bundle.locators.iter().find(|locator| locator.kind == kind) {
+                    Some(locator) => {
+                        self.nearest_matching(&document, kind, &locator.value, bundle.page_box)
+                            .await?
+                    }
+                    None => None,
+                }
+            };
+            if let Some(backend_node_id) = found {
+                return Ok(Some(Refound {
+                    found_by: kind.to_string(),
+                    backend_node_id,
+                }));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Of the elements a locator of `kind` finds in `document`, the one nearest `old_box`.
+    async fn nearest_matching(
+        &self,
+        document: &str,
+        kind: &str,
+        value: &str,
+        old_box: PageBox,
+    ) -> Result<Option<i64>, CdpError> {
+        let answer = self
+            .call_on_with(
+                document,
+                REFIND,
+                false,
+                &[json!(kind), json!(value), json!(old_box)],
+            )
+            .await?;
+        match answer.pointer("/result/objectId").and_then(Value::as_str) {
+            Some(element) => self.backend_node(element).await.map(Some),
+            None => Ok(None),
+        }
+    }
+
+    /// Of the elements in `document` whose accessible role is `role` and name is `name`, the one
+    /// nearest `old_box`.
+    async fn nearest_with_role(
+        &self,
+        document: &str,
+        role: &str,
+        name: &str,
+        old_box: PageBox,
+    ) -> Result<Option<i64>, CdpError> {
+        let answer = self
+            .call(
+                "Accessibility.queryAXTree",
+                json!({ "objectId": document, "accessibleName": name, "role": role }),
+            )
+            .await?;
+        let mut nearest: Option<(f64, i64)> = None;
+        for backend_node_id in answer
+            .get("nodes")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|node| node.get("backendDOMNodeId").and_then(Value::as_i64))
+        {
+            let node = self
+                .call(
+                    "DOM.resolveNode",
+                    json!({ "backendNodeId": backend_node_id }),
+                )
+                .await?;
+            let element = object_id(&node, "/object/objectId")?;
+            let page_box = self.call_on(&element, PAGE_BOX, true).await?;
+            let Ok(page_box) = serde_json::from_value::<PageBox>(
+                page_box
+                    .pointer("/result/value")
+                    .cloned()
+                    .unwrap_or_default(),
+            ) else {
+                continue;
+            };
+            let distance = page_box.distance_to(old_box);
+            if nearest.is_none_or(|(nearest_distance, _)| distance < nearest_distance) {
+                nearest = Some((distance, backend_node_id));
+            }
+        }
+        Ok(nearest.map(|(_, backend_node_id)| backend_node_id))
+    }
+
+    /// The backend node of the element `object`.
+    async fn backend_node(&self, object: &str) -> Result<i64, CdpError> {
+        let node = self
+            .call("DOM.describeNode", json!({ "objectId": object }))
+            .await?;
+        node.pointer("/node/backendNodeId")
+            .and_then(Value::as_i64)
+            .ok_or_else(|| CdpError::Unexpected("the element found has no node".to_string()))
     }
 
     /// Calls `function` on the object `object`, answering by value or with an object.

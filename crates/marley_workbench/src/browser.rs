@@ -43,10 +43,10 @@ use gpui::{
     Anchor, AnyWindowHandle, App, AsyncApp, BackgroundExecutor, Bounds, ClipboardItem, Corners,
     DismissEvent, DispatchPhase, Element, ElementId, ElementInputHandler, Entity,
     EntityInputHandler, EventEmitter, FocusHandle, Focusable, Global, GlobalElementId, Hitbox,
-    HitboxBehavior, Image, InspectorElementId, KeyDownEvent, LayoutId, Modifiers, MouseButton,
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point, RenderImage, ScrollWheelEvent,
-    Size, Style, Subscription, Task, UTF16Selection, WeakEntity, WindowHandle, anchored, deferred,
-    point, relative,
+    HitboxBehavior, Image, ImageSource, InspectorElementId, KeyDownEvent, LayoutId, Modifiers,
+    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, Pixels, Point,
+    RenderImage, ScrollWheelEvent, Size, Style, StyledImage, Subscription, Task, UTF16Selection,
+    WeakEntity, WindowHandle, anchored, deferred, img, point, relative,
 };
 use marley_browser::cdp::{self, CdpError, Connection, Event};
 use marley_browser::favicon;
@@ -57,7 +57,7 @@ use marley_browser::page::{
     TargetInfo,
 };
 use marley_browser::pick::{
-    ComponentSource, Listener, PageBox, PickBundle, ScriptInfo, SourceKind, SourcePosition,
+    self, ComponentSource, Listener, PageBox, PickBundle, ScriptInfo, SourceKind, SourcePosition,
     StackFrame,
 };
 use marley_browser::recorder::{self, Entry as RecordedEntry, Recorder, Recording};
@@ -240,7 +240,42 @@ pub struct Pick {
     /// The page around the element, a base64 JPEG.
     #[serde(skip)]
     pub crop: Option<String>,
+    /// Its latest check (#505), once one ran.
+    pub check: Option<PickCheck>,
 }
+
+/// A pick's check (#505): whether its element was found again, by what, and what changed since
+/// the pick.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PickCheck {
+    /// The kind of locator that found the element: `test id`, `id`, `role and name`, `text` or
+    /// `css`; none when nothing did.
+    pub found_by: Option<String>,
+    /// What changed since the pick, a line each, when it was found.
+    pub changes: Vec<String>,
+    /// The element as it is now, when found.
+    pub bundle: Option<PickBundle>,
+    /// The page around it now, a base64 JPEG.
+    #[serde(skip)]
+    pub crop: Option<String>,
+    /// When it ran, in milliseconds since the Unix epoch.
+    pub checked_at: u64,
+}
+
+impl PickCheck {
+    /// What its tray row says of it: how many changes, no change, or not found.
+    fn verdict(&self) -> SharedString {
+        match (&self.found_by, self.changes.len()) {
+            (None, _) => SharedString::new_static("not found"),
+            (Some(_), 0) => SharedString::new_static("no change"),
+            (Some(_), 1) => SharedString::new_static("1 change"),
+            (Some(_), count) => SharedString::from(format!("{count} changes")),
+        }
+    }
+}
+
+/// How long a scroll a tool or a check asked for is given to land.
+pub(crate) const SCROLL_SETTLE: Duration = Duration::from_millis(300);
 
 /// Who drew an annotation (#498).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -1393,6 +1428,7 @@ impl BrowserHub {
                     sources_read: false,
                     bundle,
                     crop,
+                    check: None,
                 });
                 cx.emit(BrowserEvent::PickStaged {
                     target: target.to_string(),
@@ -1537,6 +1573,47 @@ impl BrowserHub {
             Self::status_changed(&tab, cx);
         }
         cx.notify();
+    }
+
+    /// Finds the element of the pick `id` again in its own tab's page, crops it, and keeps what
+    /// changed since the pick as the pick's check (#505): what the tray's Check and
+    /// `browser_check_pick` run. The page's pick mode goes off first, since its highlight would be
+    /// in the crop. A check changes nothing the rail shows.
+    pub fn check_pick(
+        &mut self,
+        id: usize,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<PickCheck, String>> {
+        let Some(pick) = self.pick(id).cloned() else {
+            return Task::ready(Err(format!(
+                "the user made no pick {id}; browser_picks lists them"
+            )));
+        };
+        let Some(page) = self.page_state_mut(&pick.tab) else {
+            return Task::ready(Err(format!("pick {id}'s tab is closed")));
+        };
+        let picking = std::mem::replace(&mut page.picking, false);
+        let session = page.page.clone();
+        let scripts = page.scripts.clone().unwrap_or_default();
+        if picking {
+            cx.notify();
+        }
+        cx.spawn(async move |this, cx| {
+            if picking {
+                session.set_inspect(false).await.log_err();
+            }
+            let check = check_element(&session, &pick.bundle, &scripts, cx)
+                .await
+                .map_err(|error| error.to_string())?;
+            this.update(cx, |this, cx| {
+                if let Some(pick) = this.picks.iter_mut().find(|pick| pick.id == id) {
+                    pick.check = Some(check.clone());
+                }
+                cx.notify();
+            })
+            .map_err(|error| error.to_string())?;
+            Ok(check)
+        })
     }
 
     /// Tells the rail what a page's row shows changed (#504).
@@ -3332,7 +3409,20 @@ pub struct BrowserView {
     annotate_mode: AnnotateMode,
     /// The annotation whose note the user clicked, which Delete removes.
     selected_annotation: Option<usize>,
+    /// The comparison card open over the page (#505).
+    comparison: Option<Comparison>,
+    /// The picks whose check runs.
+    checking: HashSet<usize>,
     _subscriptions: Vec<Subscription>,
+}
+
+/// A pick's comparison card (#505): the crop at the pick beside the crop at its latest check,
+/// each decoded once, when the card opens or the check it shows is replaced.
+struct Comparison {
+    id: usize,
+    checked_at: u64,
+    before: Option<Arc<RenderImage>>,
+    after: Option<Arc<RenderImage>>,
 }
 
 /// Annotate mode (#498): a drag in the page reaches the page, draws a box, or has drawn one that
@@ -3359,6 +3449,10 @@ struct TrayRow {
     /// The caption it was sent with, once sent.
     sent: Option<String>,
     place: Option<ListenerPlace>,
+    /// What its latest check found (#505), once one ran.
+    verdict: Option<SharedString>,
+    /// Whether a check of it runs.
+    checking: bool,
 }
 
 /// What a tray row says of its pick's listeners (#497): the first whose file is in the project,
@@ -3494,6 +3588,8 @@ impl BrowserView {
             tray_error: None,
             annotate_mode: AnnotateMode::Off,
             selected_annotation: None,
+            comparison: None,
+            checking: HashSet::new(),
             _subscriptions: subscriptions,
         };
         view.show_address(window, cx);
@@ -4045,6 +4141,85 @@ impl BrowserView {
     fn discard_pick(&mut self, id: usize, cx: &mut Context<Self>) {
         self.captions.remove(&id);
         self.hub.update(cx, |hub, cx| hub.discard_pick(id, cx));
+    }
+
+    /// Runs the pick `id`'s check (#505) and opens its comparison once it answers: the user's
+    /// own Check shows what it found at once.
+    fn check_pick(&mut self, id: usize, window: &Window, cx: &mut Context<Self>) {
+        if !self.checking.insert(id) {
+            return;
+        }
+        self.tray_error = None;
+        let check = self.hub.update(cx, |hub, cx| hub.check_pick(id, cx));
+        cx.notify();
+        cx.spawn_in(window, async move |this, cx| {
+            let checked = check.await;
+            this.update_in(cx, |this, window, cx| {
+                this.checking.remove(&id);
+                match checked {
+                    Ok(_) => this.open_comparison(id, window, cx),
+                    Err(error) => {
+                        this.tray_error = Some(format!("The check did not run: {error}").into());
+                    }
+                }
+                cx.notify();
+            })
+            .log_err();
+        })
+        .detach();
+    }
+
+    /// Opens the comparison card of the pick `id`'s latest check, its crops decoded, in place of
+    /// any card open before.
+    fn open_comparison(&mut self, id: usize, window: &mut Window, cx: &App) {
+        self.close_comparison(window);
+        let Some((checked_at, before, after)) = self.hub.read(cx).pick(id).and_then(|pick| {
+            let check = pick.check.as_ref()?;
+            Some((check.checked_at, pick.crop.clone(), check.crop.clone()))
+        }) else {
+            return;
+        };
+        let decode = |crop: Option<String>| crop.and_then(|data| frame::decode(&data).log_err());
+        self.comparison = Some(Comparison {
+            id,
+            checked_at,
+            before: decode(before),
+            after: decode(after),
+        });
+    }
+
+    /// Closes the comparison card and frees its crops.
+    fn close_comparison(&mut self, window: &mut Window) {
+        let Some(comparison) = self.comparison.take() else {
+            return;
+        };
+        for image in [comparison.before, comparison.after].into_iter().flatten() {
+            window.drop_image(image).log_err();
+        }
+    }
+
+    /// Keeps the card on the check its pick has now: an agent's check replaces the one it shows,
+    /// and a discarded pick closes it.
+    fn refresh_comparison(&mut self, window: &mut Window, cx: &App) {
+        let Some((id, shown)) = self
+            .comparison
+            .as_ref()
+            .map(|comparison| (comparison.id, comparison.checked_at))
+        else {
+            return;
+        };
+        let current = self
+            .hub
+            .read(cx)
+            .pick(id)
+            .filter(|pick| !pick.dismissed)
+            .and_then(|pick| pick.check.as_ref())
+            .map(|check| check.checked_at);
+        match current {
+            None => self.close_comparison(window),
+            Some(checked_at) if checked_at != shown => self.open_comparison(id, window, cx),
+            Some(_) => {}
+        }
     }
 
     fn dismiss_pick_error(&mut self, cx: &mut Context<Self>) {
@@ -4732,6 +4907,127 @@ impl BrowserView {
             )
     }
 
+    /// One of the comparison card's crops (#505), under what it shows.
+    fn render_crop(label: &'static str, image: Option<Arc<RenderImage>>) -> impl IntoElement {
+        v_flex()
+            .flex_1()
+            .min_w_0()
+            .gap_1()
+            .child(
+                Label::new(label)
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            )
+            .child(image.map_or_else(
+                || {
+                    Label::new("No crop")
+                        .size(LabelSize::Small)
+                        .color(Color::Muted)
+                        .into_any_element()
+                },
+                |image| {
+                    img(ImageSource::Render(image))
+                        .max_w_full()
+                        .max_h(rems(16.))
+                        .object_fit(ObjectFit::ScaleDown)
+                        .into_any_element()
+                },
+            ))
+    }
+
+    /// The comparison card (#505) at the page area's top right: the pick and what found it
+    /// again, the crop at the pick beside the crop now, and what changed.
+    fn render_comparison(&self, cx: &Context<Self>) -> Option<impl IntoElement + use<>> {
+        let comparison = self.comparison.as_ref()?;
+        let hub = self.hub.read(cx);
+        let picked = hub.pick(comparison.id)?;
+        let check = picked.check.as_ref()?;
+        let colors = cx.theme().colors();
+        let found = check.found_by.is_some();
+        // The card shows a line's start; an agent reads each line through `browser_pick`.
+        let lines: Vec<SharedString> = if !found {
+            vec![SharedString::new_static(
+                "Not on the page now: none of the pick's locators finds it.",
+            )]
+        } else if check.changes.is_empty() {
+            vec![SharedString::new_static(
+                "Nothing Marley compares has changed.",
+            )]
+        } else {
+            check
+                .changes
+                .iter()
+                .map(|line| SharedString::from(pick::within(line, 300)))
+                .collect()
+        };
+        let found_by = check.found_by.as_ref().map_or_else(
+            || "not found".to_string(),
+            |kind| format!("found by {kind}"),
+        );
+        Some(
+            v_flex()
+                .id("browser-comparison")
+                .absolute()
+                .top_2()
+                .right_2()
+                .w(rems(36.))
+                .max_h_full()
+                .overflow_y_scroll()
+                .occlude()
+                .p_2()
+                .gap_2()
+                .rounded_md()
+                .border_1()
+                .border_color(colors.border)
+                .bg(colors.elevated_surface_background)
+                .shadow_md()
+                .child(
+                    h_flex()
+                        .gap_2()
+                        .child(
+                            Label::new(format!("Pick {}", picked.id))
+                                .size(LabelSize::Small)
+                                .color(Color::Accent),
+                        )
+                        .child(
+                            div().flex_1().min_w_0().child(
+                                Label::new(picked.summary.clone())
+                                    .size(LabelSize::Small)
+                                    .truncate(),
+                            ),
+                        )
+                        .child(
+                            Label::new(found_by)
+                                .size(LabelSize::Small)
+                                .color(Color::Muted),
+                        )
+                        .child(
+                            IconButton::new("browser-comparison-close", IconName::Close)
+                                .icon_size(IconSize::Small)
+                                .tooltip(Tooltip::text("Close"))
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.close_comparison(window);
+                                    cx.notify();
+                                })),
+                        ),
+                )
+                .child(
+                    h_flex()
+                        .gap_2()
+                        .items_start()
+                        .child(Self::render_crop("At the pick", comparison.before.clone()))
+                        .when(found, |row| {
+                            row.child(Self::render_crop("Now", comparison.after.clone()))
+                        }),
+                )
+                .children(
+                    lines
+                        .into_iter()
+                        .map(|line| Label::new(line).size(LabelSize::Small)),
+                ),
+        )
+    }
+
     /// The page's picks under the toolbar, newest first, each with its caption, Send and Discard,
     /// and what went wrong with the last pick or Send (#496).
     fn render_tray(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
@@ -4748,6 +5044,8 @@ impl BrowserView {
                     summary: pick.summary.clone(),
                     sent: pick.sent.then(|| pick.caption.clone()),
                     place: listener_place(pick),
+                    verdict: pick.check.as_ref().map(PickCheck::verdict),
+                    checking: self.checking.contains(&pick.id),
                 })
                 .collect();
             (picks, hub.pick_error(&target))
@@ -4818,6 +5116,8 @@ impl BrowserView {
             summary,
             sent,
             place,
+            verdict,
+            checking,
         } = row;
         let sent_already = sent.is_some();
         // One height for every row, sent or not, so the page below moves by whole rows.
@@ -4891,16 +5191,57 @@ impl BrowserView {
                     })),
             )
         };
-        body.child(
-            IconButton::new(("browser-pick-discard", id), IconName::Close)
-                .icon_size(IconSize::Small)
-                .tooltip(Tooltip::text(if sent_already {
-                    "Remove from the tray; the agent can still read it"
-                } else {
-                    "Discard"
-                }))
-                .on_click(cx.listener(move |this, _, _, cx| this.discard_pick(id, cx))),
-        )
+        body.child(Self::render_check(id, verdict, checking, cx))
+            .child(
+                IconButton::new(("browser-pick-discard", id), IconName::Close)
+                    .icon_size(IconSize::Small)
+                    .tooltip(Tooltip::text(if sent_already {
+                        "Remove from the tray; the agent can still read it"
+                    } else {
+                        "Discard"
+                    }))
+                    .on_click(cx.listener(move |this, _, _, cx| this.discard_pick(id, cx))),
+            )
+    }
+
+    /// A pick's check in its tray row (#505): the latest check's verdict, which opens the
+    /// comparison, and Check.
+    fn render_check(
+        id: usize,
+        verdict: Option<SharedString>,
+        checking: bool,
+        cx: &Context<Self>,
+    ) -> impl IntoElement + use<> {
+        h_flex()
+            .flex_none()
+            .gap_1()
+            .when_some(verdict, |row, verdict| {
+                row.child(
+                    Button::new(("browser-pick-verdict", id), verdict)
+                        .style(ButtonStyle::Transparent)
+                        .label_size(LabelSize::Small)
+                        .color(Color::Accent)
+                        .tooltip(Tooltip::text("Show the pick beside the element now"))
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            this.open_comparison(id, window, cx);
+                            cx.notify();
+                        })),
+                )
+            })
+            .child(
+                Button::new(
+                    ("browser-pick-check", id),
+                    if checking { "Checking…" } else { "Check" },
+                )
+                .label_size(LabelSize::Small)
+                .disabled(checking)
+                .tooltip(Tooltip::text(
+                    "Find this element again and compare it with the pick",
+                ))
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    this.check_pick(id, window, cx);
+                })),
+            )
     }
 
     /// A pick's listener and where it is: a link that opens its file when the file is in the
@@ -4994,6 +5335,7 @@ impl Render for BrowserView {
         if let Some(frame) = &frame {
             self.drew(frame, window);
         }
+        self.refresh_comparison(window, cx);
         let message = self.message(state, attached);
         let placement = frame
             .as_deref()
@@ -5003,6 +5345,7 @@ impl Render for BrowserView {
         let annotating = !matches!(self.annotate_mode, AnnotateMode::Off);
         let tray = self.render_tray(window, cx);
         let toolbar = self.render_toolbar(cx);
+        let comparison = self.render_comparison(cx);
         let dialog = dialog.map(|dialog| self.render_dialog(&dialog, cx));
         v_flex()
             .track_focus(&self.focus_handle)
@@ -5060,6 +5403,7 @@ impl Render for BrowserView {
                                 }),
                         )
                     })
+                    .children(comparison)
                     .children(dialog),
             )
             // Over everything, as Chromium's own popup would be.
@@ -5898,6 +6242,44 @@ async fn stack_source(
         }
     }
     None
+}
+
+/// A pick's check (#505) on its page's session: the element `before` describes found again,
+/// scrolled into view when it lies outside it, as the pick's element was in view when clicked,
+/// read as the pick read it and cropped the same way. Its listeners' source maps stay unread.
+async fn check_element(
+    session: &Page,
+    before: &PickBundle,
+    scripts: &HashMap<String, ScriptInfo>,
+    cx: &AsyncApp,
+) -> Result<PickCheck, CdpError> {
+    let checked_at = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |since| {
+            u64::try_from(since.as_millis()).unwrap_or(u64::MAX)
+        });
+    let Some(found) = session.refind(before).await? else {
+        return Ok(PickCheck {
+            found_by: None,
+            changes: Vec::new(),
+            bundle: None,
+            crop: None,
+            checked_at,
+        });
+    };
+    session
+        .scroll_into_view(session.session_id(), found.backend_node_id)
+        .await?;
+    cx.background_executor().timer(SCROLL_SETTLE).await;
+    let after = session.capture_pick(found.backend_node_id, scripts).await?;
+    let crop = session.crop(after.page_box).await.log_err();
+    Ok(PickCheck {
+        found_by: Some(found.found_by),
+        changes: pick::changes(before, &after),
+        bundle: Some(after),
+        crop,
+        checked_at,
+    })
 }
 
 /// The source map `script` names, loaded through the page or read from its `data:` URL.
