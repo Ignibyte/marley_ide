@@ -4,14 +4,17 @@
 //! clicks. The pick is then read in one pass into a [`PickBundle`] that outlives the page's
 //! changes: the element walked up to its nearest interactive ancestor, its locators, its role
 //! and name, its listeners with their script locations, what blocks a click on it, its box, and
-//! a crop of the page around it.
+//! a crop of the page around it. Since #518 the pass also reads the element's HTML, its computed
+//! styles, its siblings' texts, the page's selection and, on a React dev build, the components
+//! around it and where it was written.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::cdp::CdpError;
+use crate::observe::SECRET_NAMES;
 use crate::page::Page;
 
 /// The most listeners a bundle lists, the element's first.
@@ -19,6 +22,48 @@ const LISTENER_CAP: usize = 24;
 
 /// The space kept around the element in its crop, in CSS pixels.
 const CROP_MARGIN: f64 = 16.0;
+
+/// What marks a text [`within`] or a trip cap cut.
+const CUT: &str = " (truncated)";
+
+/// The most of the HTML the page's read hands back (#518). The trip caps only bound what crosses
+/// the socket: a text keeps them until the tool that gives it to an agent has redacted it whole
+/// and cut it to its budget.
+const HTML_TRIP: usize = 65_536;
+/// The most of each other text the read hands back: the element's, a sibling's, the selection.
+const TEXT_TRIP: usize = 4_096;
+/// The most of a computed style's value kept.
+const STYLE_TRIP: usize = 500;
+/// The most of a component's name kept.
+const NAME_TRIP: usize = 200;
+/// The most of a debug source's file name kept.
+const SOURCE_TRIP: usize = 500;
+/// The most of a debug stack kept.
+const STACK_TRIP: usize = 4_000;
+
+/// How many computed styles a bundle keeps.
+const STYLE_COUNT: usize = 16;
+/// How many sibling texts a bundle keeps.
+const NEARBY_COUNT: usize = 10;
+/// How many component names a bundle keeps.
+const CHAIN_COUNT: usize = 6;
+
+/// The characters of a pick's HTML an agent gets (#518, Orca's budget).
+pub const HTML_BUDGET: usize = 4_096;
+/// The characters of the element's text, and of each sibling's, an agent gets.
+pub const TEXT_BUDGET: usize = 200;
+/// The characters of the page's selection an agent gets.
+pub const SELECTION_BUDGET: usize = 500;
+
+/// The functions of React's own that its debug stacks start with.
+const REACT_FRAMES: &[&str] = &[
+    "jsxDEV",
+    "jsx",
+    "jsxs",
+    "createElement",
+    "react_stack_bottom_frame",
+    "react-stack-bottom-frame",
+];
 
 /// The function, run on the picked node, that gives its nearest interactive ancestor, the node's
 /// own element when none is, through open shadow roots.
@@ -36,13 +81,27 @@ const INTERACTIVE_ANCESTOR: &str = r#"function () {
   return start;
 }"#;
 
-/// The function, run on the element, that reads what the bundle needs of it: its tag and text,
-/// its locators and whether each finds it alone, its box in the page through same-origin frames,
-/// and what would block a click on it. A field's value is what the user typed, a password's
-/// included, so the text is a button's label only.
-const DESCRIBE: &str = r"function () {
+/// The function, run on the element in the page's main world, that reads what the bundle needs of
+/// it: its tag and text, its locators and whether each finds it alone, its box in the page through
+/// same-origin frames, and what would block a click on it. A field's value is what the user
+/// typed, a password's included, so the text is a button's label only.
+///
+/// Since #518 it also reads the element's HTML, from a clone that loses its scripts, its fields'
+/// values, each attribute whose name holds one of `secretNames` or whose value holds a secret
+/// pattern, and its URLs' queries and fragments; sixteen computed styles; its siblings' texts; the
+/// page's selection, unless a field has the focus; and React's fiber, which only the main world
+/// sees. Each text comes cut to its trip cap, never to its budget, which [`within`] applies after
+/// redaction.
+const DESCRIBE: &str = r#"function (secretNames) {
   const element = this;
   const document = element.ownerDocument;
+  const cap = (value, limit) => {
+    const whole = value.toWellFormed ? value.toWellFormed() : value;
+    if (whole.length <= limit) return whole;
+    const code = whole.charCodeAt(limit - 1);
+    return whole.slice(0, code >= 0xd800 && code <= 0xdbff ? limit - 1 : limit) + ' (truncated)';
+  };
+  const read = (fallback, reader) => { try { return reader(); } catch (error) { return fallback; } };
   const labelled = element.localName === 'input' && ['button', 'submit', 'reset'].includes(element.type);
   const name = (node) => node.localName + (node.id ? '#' + node.id : '')
     + [...node.classList].slice(0, 2).map((token) => '.' + token).join('');
@@ -95,9 +154,135 @@ const DESCRIBE: &str = r"function () {
   if (element.disabled || element.getAttribute('aria-disabled') === 'true') blockers.push('disabled');
   const onTop = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
   if (onTop && onTop !== element && !element.contains(onTop)) blockers.push('covered by ' + name(onTop));
-  return { tag: element.localName, text: text.slice(0, 200), locators,
-    box: { x: left + scrollX, y: top + scrollY, width: box.width, height: box.height }, blockers };
-}";
+  const html = read('', () => {
+    const secretValues = ['access_token', 'auth_token', 'api_key', 'apikey', 'client_secret', 'oauth_state',
+      'x-amz-', 'session_id', 'sessionid', 'csrf', 'secret', 'password', 'passwd'];
+    // These name things rather than hold data: `type="password"` is no secret.
+    const keywords = new Set(['type', 'autocomplete', 'inputmode', 'role', 'id', 'name', 'for', 'class']);
+    const addresses = new Set(['href', 'src', 'action', 'formaction', 'poster', 'cite', 'data', 'ping', 'xlink:href']);
+    const buttons = new Set(['button', 'submit', 'reset', 'image']);
+    const bare = (value) => {
+      const trimmed = value.trim();
+      let url;
+      try { url = new URL(trimmed, document.baseURI); } catch (error) { return '[redacted]'; }
+      if (url.protocol === 'data:') return 'data:…';
+      if (!['http:', 'https:', 'file:', 'about:', 'mailto:', 'tel:'].includes(url.protocol)) return '[redacted]';
+      if (url.username || url.password) {
+        url.username = '';
+        url.password = '';
+        url.search = '';
+        url.hash = '';
+        return url.href;
+      }
+      const end = trimmed.search(/[?#]/);
+      return end === -1 ? trimmed : trimmed.slice(0, end);
+    };
+    const clone = element.cloneNode(true);
+    for (const script of clone.querySelectorAll('script')) script.remove();
+    // Each element takes four characters at least (`<br>`), so none past these can start within
+    // the trip cap.
+    const walker = document.createTreeWalker(clone, NodeFilter.SHOW_ELEMENT);
+    for (let node = clone, seen = 0; node && seen < 20000; node = walker.nextNode(), seen += 1) {
+      if (node.localName === 'input' && !buttons.has((node.getAttribute('type') || '').toLowerCase())) {
+        node.removeAttribute('value');
+      }
+      if (node.localName === 'textarea') node.textContent = '';
+      for (const attribute of [...node.attributes]) {
+        const attributeName = attribute.name.toLowerCase();
+        const value = attribute.value.toLowerCase();
+        if (secretNames.some((secret) => attributeName.includes(secret))
+          || (!keywords.has(attributeName) && secretValues.some((secret) => value.includes(secret)))) {
+          node.setAttribute(attribute.name, '[redacted]');
+        } else if (addresses.has(attributeName)) {
+          node.setAttribute(attribute.name, bare(attribute.value));
+        } else if (attributeName === 'srcset' || attributeName === 'imagesrcset') {
+          node.setAttribute(attribute.name, attribute.value.split(',').map((candidate) => {
+            const [address, ...descriptor] = candidate.trim().split(/\s+/);
+            return [bare(address || ''), ...descriptor].join(' ');
+          }).join(', '));
+        }
+      }
+    }
+    return cap(clone.outerHTML || '', 65536);
+  });
+  const styles = read({}, () => Object.fromEntries(['display', 'position', 'width', 'height', 'margin', 'padding',
+    'color', 'background-color', 'border', 'border-radius', 'font-family', 'font-size', 'font-weight',
+    'line-height', 'text-align', 'z-index'].map((property) => [property, cap(String(style.getPropertyValue(property) || ''), 500)])));
+  const textOf = (root) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: (node) =>
+      node.parentElement && node.parentElement.closest('script, style, template, noscript, textarea')
+        ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+    let collected = '';
+    for (let node = walker.nextNode(), seen = 0; node && collected.length <= 4096 && seen < 400; node = walker.nextNode(), seen += 1) {
+      collected += ' ' + node.nodeValue.slice(0, 4097 - collected.length);
+    }
+    return cap(collected.trim().replace(/\s+/g, ' '), 4096);
+  };
+  const nearby = read([], () => {
+    const texts = [];
+    let previous = element.previousElementSibling;
+    let next = element.nextElementSibling;
+    for (let seen = 0; texts.length < 10 && seen < 80 && (previous || next);) {
+      for (const sibling of [previous, next]) {
+        if (!sibling || texts.length >= 10) continue;
+        seen += 1;
+        const siblingText = textOf(sibling);
+        if (siblingText) texts.push(siblingText);
+      }
+      previous = previous && previous.previousElementSibling;
+      next = next && next.nextElementSibling;
+    }
+    return texts;
+  });
+  // A selection inside a field is what the user typed there.
+  const selected = read(null, () => {
+    const active = document.activeElement;
+    if (active && (active.localName === 'input' || active.localName === 'textarea')) return null;
+    const selection = document.getSelection();
+    const selectedText = selection ? selection.toString().trim() : '';
+    return selectedText ? cap(selectedText, 4096) : null;
+  });
+  const react = read(null, () => {
+    const key = Object.keys(element).find((property) => property.startsWith('__reactFiber$')
+      || property.startsWith('__reactInternalInstance$'));
+    const host = key ? element[key] : null;
+    if (!host || typeof host !== 'object') return null;
+    const skipped = (component) => component.length <= 2
+      || /^(Fragment|Root|Routes|Route|Outlet|Provider|Consumer|Profiler|Suspense)$/.test(component)
+      || /(Boundary|BoundaryHandler|Router|Provider|Consumer|Context|Wrapper)$/.test(component)
+      || /^(Inner|Outer|Client|Server|RSC|Dev|React|Hot)/.test(component);
+    const named = (type) => {
+      if (!type || typeof type === 'string') return null;
+      for (const candidate of [type, type.render, type.type]) {
+        const component = candidate && (candidate.displayName || candidate.name);
+        if (typeof component === 'string' && component) return component;
+      }
+      return null;
+    };
+    const chain = [];
+    let source = null;
+    let stack = null;
+    let fiber = host;
+    for (let depth = 0; fiber && depth < 35; depth += 1, fiber = fiber.return) {
+      const component = named(fiber.type || fiber.elementType);
+      if (component && !skipped(component) && !chain.includes(component) && chain.length < 6) {
+        chain.push(cap(component, 200));
+      }
+      const debug = fiber._debugSource || (fiber._debugOwner && fiber._debugOwner._debugSource);
+      if (!source && debug && typeof debug.fileName === 'string' && Number.isFinite(debug.lineNumber)) {
+        source = { file: cap(debug.fileName, 500), line: debug.lineNumber,
+          column: Number.isFinite(debug.columnNumber) ? debug.columnNumber : null };
+      }
+      if (!stack && fiber._debugStack && typeof fiber._debugStack.stack === 'string') {
+        stack = cap(fiber._debugStack.stack, 4000);
+      }
+    }
+    return { chain: chain.reverse(), source, stack: source ? null : stack };
+  });
+  return { tag: element.localName, text: cap(text, 4096), locators,
+    box: { x: left + scrollX, y: top + scrollY, width: box.width, height: box.height }, blockers,
+    html, styles, nearby_text: nearby, selected_text: selected, react };
+}"#;
 
 /// The function, run on the element, that gives it, its ancestors through open shadow roots, the
 /// document and the window: where its listeners can sit.
@@ -175,7 +360,7 @@ pub struct PickBundle {
     pub role: Option<String>,
     /// Its accessible name.
     pub name: Option<String>,
-    /// Its text, at most 200 characters.
+    /// Its text, a button's label only; agents get [`TEXT_BUDGET`] characters of it.
     pub text: String,
     /// Ways to find it again, the most durable first.
     pub locators: Vec<Locator>,
@@ -185,6 +370,80 @@ pub struct PickBundle {
     pub blockers: Vec<String>,
     /// Its box in the page.
     pub page_box: PageBox,
+    /// Its HTML, without scripts, field values, secret-looking attribute values or URL queries
+    /// (#518); agents get [`HTML_BUDGET`] characters of it.
+    pub html: String,
+    /// Sixteen of its computed styles, by their CSS names.
+    pub styles: BTreeMap<String, String>,
+    /// Its siblings' texts, the nearest first, before and after in turn.
+    pub nearby_text: Vec<String>,
+    /// The page's selection at the pick, unless it lay in a field.
+    pub selected_text: Option<String>,
+    /// The React component around it, on a React dev build.
+    pub component: Option<Component>,
+}
+
+/// The React components around a picked element, and where it was written (#518).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Component {
+    /// The components around it, the outermost first, at most six.
+    pub chain: Vec<String>,
+    /// Where it was written, once known: React's debug source at once, React 19's debug stack
+    /// once the frames' source maps are read.
+    pub source: Option<ComponentSource>,
+    /// React 19's debug stack, for the workbench to map through the scripts' source maps.
+    #[serde(skip)]
+    pub frames: Vec<StackFrame>,
+}
+
+/// Where React says a picked element was written.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ComponentSource {
+    /// Which of React's fields said it.
+    pub from: SourceKind,
+    /// The source as React or the source map names it.
+    pub source: String,
+    /// The file in the user's project that holds it, relative to its worktree, when one does.
+    pub file: Option<String>,
+    /// Its line, from 1.
+    pub line: u32,
+    /// Its column: from 1 for a debug stack, as the JSX transform wrote it for a debug source.
+    pub column: Option<u32>,
+}
+
+/// Which of React's fields names an element's source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub enum SourceKind {
+    /// `_debugSource`, which React 18 and older copy from the JSX transform's `__source`.
+    #[serde(rename = "debug source")]
+    DebugSource,
+    /// React 19's `_debugStack`, mapped through its scripts' source maps.
+    #[serde(rename = "debug stack")]
+    DebugStack,
+}
+
+/// One frame of a V8 stack.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StackFrame {
+    /// The function, when V8 names one.
+    pub function: Option<String>,
+    /// The script's URL.
+    pub url: String,
+    /// Its line, from 1.
+    pub line: u32,
+    /// Its column, from 1.
+    pub column: u32,
+}
+
+impl StackFrame {
+    /// Whether the frame is one of React's own functions, which its debug stacks start with.
+    #[must_use]
+    pub fn is_reacts(&self) -> bool {
+        self.function.as_deref().is_some_and(|function| {
+            let last = function.rsplit('.').next().unwrap_or(function);
+            REACT_FRAMES.contains(&last)
+        })
+    }
 }
 
 /// A script the page loaded, as `Debugger.scriptParsed` names it.
@@ -196,7 +455,9 @@ pub struct ScriptInfo {
     pub source_map: Option<String>,
 }
 
-/// What [`DESCRIBE`] answers.
+/// What [`DESCRIBE`] answers. A read that fails in the page gives its field's empty value, so the
+/// pick still comes; the React part is read from its JSON by hand, since the page's own objects
+/// fill it.
 #[derive(Deserialize)]
 struct Described {
     tag: String,
@@ -205,6 +466,97 @@ struct Described {
     #[serde(rename = "box")]
     page_box: PageBox,
     blockers: Vec<String>,
+    #[serde(default)]
+    html: String,
+    #[serde(default)]
+    styles: BTreeMap<String, String>,
+    #[serde(default)]
+    nearby_text: Vec<String>,
+    #[serde(default)]
+    selected_text: Option<String>,
+    #[serde(default)]
+    react: Option<Value>,
+}
+
+/// `text` cut to `budget` characters, with the cut marked.
+#[must_use]
+pub fn within(text: &str, budget: usize) -> String {
+    match text.char_indices().nth(budget) {
+        Some((end, _)) => format!("{}{CUT}", text.get(..end).unwrap_or(text)),
+        None => text.to_string(),
+    }
+}
+
+/// `text` held to its trip cap on arrival. The page's read cuts at the cap and marks the cut, so
+/// only a page that rewrote the read sends more.
+fn trip(text: &str, cap: usize) -> String {
+    if text.chars().count() > cap + CUT.chars().count() {
+        within(text, cap)
+    } else {
+        text.to_string()
+    }
+}
+
+/// The frames of a V8 stack, `at <function> (<url>:<line>:<column>)` or `at <url>:<line>:<column>`
+/// a line; its first line, the error's message, and any other line are passed over.
+#[must_use]
+pub fn stack_frames(stack: &str) -> Vec<StackFrame> {
+    stack
+        .lines()
+        .filter_map(|line| {
+            let frame = line.trim().strip_prefix("at ")?;
+            let (function, place) = match frame.strip_suffix(')') {
+                Some(called) => {
+                    let (function, place) = called.rsplit_once(" (")?;
+                    (Some(function.to_string()), place)
+                }
+                None => (None, frame),
+            };
+            let (rest, column) = place.rsplit_once(':')?;
+            let (url, line) = rest.rsplit_once(':')?;
+            Some(StackFrame {
+                function,
+                url: url.to_string(),
+                line: line.parse().ok()?,
+                column: column.parse().ok()?,
+            })
+        })
+        .collect()
+}
+
+/// The React part of [`DESCRIBE`]'s answer as a [`Component`], when the element has a fiber.
+fn component_of(react: &Value) -> Option<Component> {
+    let chain: Vec<String> = react
+        .get("chain")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .take(CHAIN_COUNT)
+        .map(|component| trip(component, NAME_TRIP))
+        .collect();
+    let source = react.get("source").and_then(|source| {
+        Some(ComponentSource {
+            from: SourceKind::DebugSource,
+            source: trip(source.get("file")?.as_str()?, SOURCE_TRIP),
+            file: None,
+            line: u32::try_from(source.get("line")?.as_u64()?).ok()?,
+            column: source
+                .get("column")
+                .and_then(Value::as_u64)
+                .and_then(|column| u32::try_from(column).ok()),
+        })
+    });
+    let frames = react
+        .get("stack")
+        .and_then(Value::as_str)
+        .map(|stack| stack_frames(&trip(stack, STACK_TRIP)))
+        .unwrap_or_default();
+    (!chain.is_empty() || source.is_some() || !frames.is_empty()).then_some(Component {
+        chain,
+        source,
+        frames,
+    })
 }
 
 impl PickBundle {
@@ -296,7 +648,9 @@ impl Page {
         let node = object_id(&node, "/object/objectId")?;
         let element = self.call_on(&node, INTERACTIVE_ANCESTOR, false).await?;
         let element = object_id(&element, "/result/objectId")?;
-        let described = self.call_on(&element, DESCRIBE, true).await?;
+        let described = self
+            .call_on_with(&element, DESCRIBE, true, &[json!(SECRET_NAMES)])
+            .await?;
         let described: Described = serde_json::from_value(
             described
                 .pointer("/result/value")
@@ -323,11 +677,29 @@ impl Page {
             tag: described.tag,
             role,
             name,
-            text: described.text,
+            text: trip(&described.text, TEXT_TRIP),
             locators: described.locators,
             listeners,
             blockers: described.blockers,
             page_box: described.page_box,
+            html: trip(&described.html, HTML_TRIP),
+            styles: described
+                .styles
+                .into_iter()
+                .take(STYLE_COUNT)
+                .map(|(property, value)| (property, trip(&value, STYLE_TRIP)))
+                .collect(),
+            nearby_text: described
+                .nearby_text
+                .iter()
+                .take(NEARBY_COUNT)
+                .map(|text| trip(text, TEXT_TRIP))
+                .collect(),
+            selected_text: described
+                .selected_text
+                .as_deref()
+                .map(|text| trip(text, TEXT_TRIP)),
+            component: described.react.as_ref().and_then(component_of),
         })
     }
 
@@ -367,12 +739,28 @@ impl Page {
         function: &str,
         by_value: bool,
     ) -> Result<Value, CdpError> {
+        self.call_on_with(object, function, by_value, &[]).await
+    }
+
+    /// Calls `function` on the object `object` with `arguments`, each passed by value.
+    async fn call_on_with(
+        &self,
+        object: &str,
+        function: &str,
+        by_value: bool,
+        arguments: &[Value],
+    ) -> Result<Value, CdpError> {
+        let arguments: Vec<Value> = arguments
+            .iter()
+            .map(|value| json!({ "value": value }))
+            .collect();
         let answer = self
             .call(
                 "Runtime.callFunctionOn",
                 json!({
                     "objectId": object,
                     "functionDeclaration": function,
+                    "arguments": arguments,
                     "returnByValue": by_value,
                 }),
             )

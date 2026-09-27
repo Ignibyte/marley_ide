@@ -665,7 +665,12 @@ alike.
 - `browser_picks` and `browser_pick {id}` (#496) answer from the hub alone, before the browser
   needs to show, so a pick outlives its page and a restart: the list gives each pick's id, tab,
   URL and title, summary, caption and whether it was sent; `browser_pick` gives the pick with
-  its bundle, and its crop as the image.
+  its bundle, and its crop as the image. Since #518 both answer from `pick_for_agents`, a copy
+  whose page title, caption, blockers and listeners' events, and whose bundle's name, text, HTML,
+  nearby texts, selection and locator values, pass through `agent_redactor` whole and are then
+  cut to `pick`'s budgets (the HTML 4,096 characters, each text 200, the selection 500). Each
+  listener's script URL goes through `redact_url`, and the summary is made again from the
+  redacted bundle.
 - The read tools: `browser_look` (the hub's URL and title, `Page::viewport`,
   `focused_element`, the selection unless a password field has the focus, and
   `Page::screenshot` as the image), `browser_snapshot` (the main frame's tree, each same-site
@@ -882,6 +887,12 @@ alike.
   listener. The link opens the file with `Workspace::open_path` and
   `Editor::go_to_singleton_buffer_point` at the line, from a task, since the file opens in the
   tab's own pane; a file gone since, or an open that fails, says so in the tray.
+- **The component's source (#518).** The same task maps a React 19 pick's `_debugStack` frames
+  (`stack_source`): through each frame's script's source map, the first frame that is not React's
+  own (`StackFrame::is_reacts`) and whose original source lies outside `node_modules`, or, for a
+  script without a map, whose URL does. `pick_sources` sets it as the component's source with its
+  `file` from `find_source`, and gives a React 18 `_debugSource` its `file` the same way.
+  `MapCache` loads each map once per pick, for the listeners and the stack together.
 - **Annotations (#498).** A page's `annotations` live in the hub (`Annotation { id, page_box,
   note, maker, made_at }`, numbered across the session) until its main frame shows another
   document (`frameNavigated`); a fragment or history move keeps them. The view's render reads
@@ -976,7 +987,13 @@ microphone through a fake Voxtype whose `record toggle` moves its status on, and
   the tab. Escape reaches the page since #496. Pick mode runs in the page's own session, not a
   cross-site iframe's, so picking inside such an iframe is outside #496. A page whose framework
   delegates its events (React's root listener) shows the framework's listener, whose source is
-  the framework's code, not the handler the app wrote (#497).
+  the framework's code, not the handler the app wrote (#497). Since #518 `browser_pick` gives
+  agents the React component and the file it was written at; the tray still shows the listener.
+- The tray's Send types a pick's summary as the page shows it (#496). Redaction covers what
+  agents read through Marley's tools (#516, #518). A Send is typed at the user's prompt, where
+  the user sees it before Enter, as with #549's selection.
+- A drag across a Browser tab's text leaves no selection once the button is up, so a pick after
+  it has no `selected_text`. The word a double click selects stays selected (#580).
 - A Browser row keeps a page's first icon while the page stays on its origin: an icon the page
   swaps without a navigation (an unread count), or another page of the same origin with an icon
   of its own, still shows the first. A page whose load event never comes keeps the globe.

@@ -5,7 +5,7 @@ status: QUEUED — Phase 1 Plan drafted; ready to promote to active
 title: "Pick, fix, check: a pick re-found after the page changed, before and after side by side, and a tool"
 type: feature
 slice: prong 3 (after wave 2), item 2 of the list after the browser waves; after #518
-references: [docs/orca_architecture/README.md, docs/orca_architecture/03-browser-and-design-mode.md, docs/planning/pipeline/completed/496-element-picker.spec.md, docs/planning/tickets/open/TICKET-518-fuller-pick-bundle.md]
+references: [docs/orca_architecture/README.md, docs/orca_architecture/03-browser-and-design-mode.md, docs/planning/pipeline/completed/496-element-picker.spec.md, docs/planning/tickets/closed/TICKET-518-fuller-pick-bundle.md]
 ---
 
 ## Title

@@ -188,6 +188,39 @@ for.
 - `Page::crop(page_box)` is `Page.captureScreenshot` of the box with a 16-pixel margin, in page
   coordinates, as a base64 JPEG.
 
+## The fuller bundle (`src/pick.rs`, #518)
+
+- `DESCRIBE` takes `observe::SECRET_NAMES` as its argument (`call_on_with` passes it), and in
+  the same call, in the page's main world where React keeps its fiber, also reads:
+  - `html`: the element cloned; its scripts removed; the `value` of every `input` but button,
+    submit, reset and image, and every `textarea`'s text, removed; an attribute whose name holds a
+    secret name, or whose value holds one of Orca's secret patterns, set to `[redacted]` (the
+    value check skips `type`, `autocomplete`, `inputmode`, `role`, `id`, `name`, `for` and
+    `class`, which name things); each URL attribute (`href`, `src`, `action`, `formaction`,
+    `poster`, `cite`, `data`, `ping`, `xlink:href`, each `srcset` candidate) cut at `?` or `#`
+    and stripped of a user and a password, a `data:` URL as `data:…`, and any scheme but http,
+    https, file, about, mailto and tel as `[redacted]`. The walk stops after 20,000 elements.
+  - `styles`: sixteen computed properties, Orca's list.
+  - `nearby_text`: up to ten of the siblings' texts, before and after in turn; `selected_text`:
+    the page's selection, none while a field has the focus.
+  - `react`: the fiber under `__reactFiber$…` (or `__reactInternalInstance$…`) walked up
+    `.return` for 35 levels: six component names with Orca's skip list, the first `_debugSource`
+    on a fiber or its `_debugOwner`, and, when there is none, the host fiber's
+    `_debugStack.stack`.
+  Each read is its own `try`, so a failure empties one field and the pick still comes. Each
+  text is made well formed, and each cut steps back from a lone surrogate, since one in the
+  answer fails the parse of the whole CDP message. The page caps each text for the trip only,
+  marked ` (truncated)`: the HTML at 65,536 characters, a text at 4,096, a stack at 4,000, a
+  debug source and a style's value at 500, a component's name at 200.
+- `PickBundle` gains `html`, `styles`, `nearby_text`, `selected_text` and `component`
+  (`Component { chain, source }`, `ComponentSource { from, source, file, line, column }`, whose
+  `from` is `debug source` or `debug stack`). `trip` holds each field to its cap again on
+  arrival. `within(text, budget)` and `HTML_BUDGET` (4,096), `TEXT_BUDGET` (200) and
+  `SELECTION_BUDGET` (500) are the cuts the workbench's `browser_pick` makes after its redaction.
+  `stack_frames` parses V8's `at` lines into `StackFrame`s (lines and columns from 1), and
+  `StackFrame::is_reacts` names React's own (`jsxDEV`, `jsx`, `jsxs`, `createElement`, the stack's
+  bottom frame).
+
 ## Boxes (`src/page.rs`, #498)
 
 - `Page::border_box(session, backend_node_id)` gives a node's border box in its frame's

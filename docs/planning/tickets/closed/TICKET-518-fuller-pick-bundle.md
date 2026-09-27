@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #518 (feature, prong 3, before #505)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/518-fuller-pick-bundle.spec.md
+- **Pipeline doc:** ../../pipeline/completed/518-fuller-pick-bundle.spec.md
 - **Source ticket:** Chad, 2026-09-25: the Orca survey's items are taken (his decision on the survey, relayed with the night's drafting brief). This is its "fuller pick" (`docs/orca_architecture/README.md`, "What Orca does well that Marley lacks, first", item 4, and "New tickets these imply": "a fuller pick bundle (item 4, before #505)"; report 03 §2.4 and item 1)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 A pick gives the agent the element's locators, listeners, blockers, box and crop, but not its

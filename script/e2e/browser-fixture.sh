@@ -21,7 +21,8 @@
 #   `tabs` gives each tab's project and marks `default` the one a call naming no tab acts on for
 #   this caller (#574).
 #   `picks` lists the user's picks and `pick <id> [<image file>]` reads one, saving its crop
-#   (#496). `annotate <role> <name> <note>` draws the agent's box around an element,
+#   (#496), with its HTML, styles, sibling texts, selection and React component since #518;
+#   `pick-json <id> <file>` saves the whole answer as JSON (#518). `annotate <role> <name> <note>` draws the agent's box around an element,
 #   `annotations` lists a tab's boxes, and `annotate-clear` removes the agent's (#498).
 #   `recordings` lists the saved recordings, and `recording <id> [<frame> <image file>]` prints
 #   one's timeline and saves a frame (#499). `terminal-read <text>` reads the newest block, in
@@ -461,6 +462,12 @@ def main():
         for pick in picks:
             sent = f"sent with {pick['caption']!r}" if pick["sent"] else "not sent"
             print(f"  pick {pick['id']}: {pick['summary']} at {pick['url']} in tab {pick['tab']}, {sent}")
+    elif command == "pick-json":
+        result = client.tool("browser_pick", {"id": int(rest[0])})
+        if result:
+            with open(rest[1], "w") as file:
+                json.dump(result["structuredContent"], file, indent=1)
+            print(f"  pick {rest[0]}: saved as {os.path.basename(rest[1])}")
     elif command == "pick":
         result = client.tool("browser_pick", {"id": int(rest[0])})
         if result:
@@ -479,6 +486,23 @@ def main():
             print(f"  blockers: {', '.join(bundle['blockers']) or 'none'}")
             box = bundle["page_box"]
             print(f"  box in the page: {box['x']:.0f},{box['y']:.0f} {box['width']:.0f}x{box['height']:.0f}")
+            html = bundle.get("html", "")
+            print(f"  html: {len(html)} characters: {html[:300]!r}")
+            styles = bundle.get("styles", {})
+            print(f"  styles: {len(styles)}: " + "; ".join(f"{name} {value}" for name, value in styles.items()))
+            nearby = bundle.get("nearby_text", [])
+            print(f"  nearby texts: {len(nearby)}: {nearby[:4]!r}")
+            print(f"  selected text: {bundle.get('selected_text')!r}")
+            component = bundle.get("component")
+            if component:
+                print(f"  component chain: {' '.join('<' + name + '>' for name in component['chain'])}")
+                source = component.get("source")
+                if source:
+                    print(f"  component source ({source['from']}): {source['source']} line {source['line']} column {source.get('column')}, file {source.get('file')}")
+                else:
+                    print("  component source: none")
+            else:
+                print("  component: none")
             images = [block for block in result["content"] if block["type"] == "image"]
             if not images:
                 print("  no crop")

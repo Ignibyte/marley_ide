@@ -13,6 +13,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A fuller pick for agents** (#518, 2026-09-26). `browser_pick` now also gives an agent the
+  picked element's HTML, sixteen of its computed styles, up to ten texts of the elements beside
+  it, and the page's selection. On a React dev build it adds the components around the element
+  and the file, line and column it was written at, found in the project: React 18 names the
+  file, and on React 19 Marley finds it through the page's source maps. The HTML comes without
+  scripts, field values or URL queries, with secret-looking attributes replaced, and is cut at
+  4,096 characters. What a pick hands an agent, through `browser_pick` and `browser_picks`, now
+  passes the secret redaction first (`marley.redact_secrets_for_agents`): the page's title, your
+  caption, the element's text and name, the HTML, the nearby texts and the selection. Each
+  field is redacted whole and only then cut, so a token that straddles a cut never leaks in
+  part.
 - **Browser tabs in the rail** (#504, 2026-09-26). Each Browser tab now has a row under its
   project in the rail, after the project's terminals. The row shows the page's icon (a globe when
   it has none, a spinner while it loads), the page's title, and its host and port. It counts the

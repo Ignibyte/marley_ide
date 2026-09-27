@@ -17,8 +17,9 @@ pub const RING: usize = 200;
 /// The most characters of a message kept.
 const MAX_TEXT: usize = 2_000;
 
-/// Parts of a parameter's name that mark its value secret.
-const SECRET_NAMES: &[&str] = &[
+/// Parts of a parameter's name that mark its value secret; a picked element's attributes are read
+/// by them too (#518).
+pub(crate) const SECRET_NAMES: &[&str] = &[
     "token", "key", "secret", "password", "auth", "code", "sig", "session",
 ];
 

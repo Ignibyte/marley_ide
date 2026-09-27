@@ -3080,3 +3080,23 @@ function). A crate that fails stops the build, so the crates that depend on it g
 until it is fixed, and their errors show only on the next run. Before the gate, run
 `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` with a `-p` for each of the scope's crates, after
 clippy.
+
+## L-claude-518-a-lone-surrogate-fails-the-whole-cdp-message-001
+*category: code · topic: text read from a page over CDP · from: pipeline 518*
+
+A page's strings are UTF-16, and a cut at a code-unit index can split a surrogate pair. A lone
+surrogate that reaches a CDP answer arrives as a `\ud800` escape, which serde_json refuses, so
+the parse of the whole message fails and the call that asked for it fails with it: one bad
+character in a sibling's text would lose the pick. #518's `DESCRIBE` makes each text well formed
+(`toWellFormed`) and steps each cut back from a lone surrogate before anything crosses the
+socket. Any page function that cuts or builds strings for Marley needs the same.
+
+## L-claude-518-select-with-a-double-click-in-a-scenario-001
+*category: testing · topic: e2e scenarios in headless sway · from: pipeline 518*
+
+To give a page a selection in a scenario, double-click a word (two `click`s at the same point,
+as #489 does). A drag does not work there. A press and two long moves select nothing, since
+the page sees the pointer jump. Steps of 60 px with pauses do select while the button is down,
+but the selection is gone once it comes up (F-claude-518-a-drag-in-a-browser-tab-leaves-no-selection-001, TICKET-580).
+Find the word's columns in a shot first: an ImageMagick threshold of the text's row, read as
+`txt:`, gives each glyph's ink.

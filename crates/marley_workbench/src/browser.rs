@@ -56,7 +56,10 @@ use marley_browser::page::{
     DialogKind, FrameMetadata, JavaScriptDialog, NavigationHistory, Page, ScreencastFrame,
     TargetInfo,
 };
-use marley_browser::pick::{Listener, PageBox, PickBundle, ScriptInfo, SourcePosition};
+use marley_browser::pick::{
+    ComponentSource, Listener, PageBox, PickBundle, ScriptInfo, SourceKind, SourcePosition,
+    StackFrame,
+};
 use marley_browser::recorder::{self, Entry as RecordedEntry, Recorder, Recording};
 use marley_browser::select::{self, SelectRequest};
 use marley_browser::snapshot::{self, FrameTree, RefTarget};
@@ -1338,21 +1341,28 @@ impl BrowserHub {
         cx.spawn(async move |this, cx| {
             session.set_inspect(false).await.log_err();
             let captured = session.capture_pick(backend_node_id, &scripts).await;
-            let (crop, listeners) = match &captured {
+            let (crop, listeners, frames) = match &captured {
                 Ok(bundle) => (
                     session.crop(bundle.page_box).await.log_err(),
                     bundle.listeners.clone(),
+                    bundle
+                        .component
+                        .as_ref()
+                        .map(|component| component.frames.clone())
+                        .unwrap_or_default(),
                 ),
-                Err(_) => (None, Vec::new()),
+                Err(_) => (None, Vec::new(), Vec::new()),
             };
             let Ok(Some(id)) = this.update(cx, |this, cx| {
                 this.pick_captured(&target, (url, title), captured, crop, cx)
             }) else {
                 return;
             };
-            // The tray shows the pick at once; the listeners' places follow.
-            let positions = original_positions(&session, &listeners, cx).await;
-            this.update(cx, |this, cx| this.pick_sources(id, positions, cx))
+            // The tray shows the pick at once; the listeners' places and the component's follow.
+            let mut maps = MapCache::default();
+            let positions = original_positions(&session, &listeners, &mut maps, cx).await;
+            let stack = stack_source(&session, &frames, &scripts, &mut maps, cx).await;
+            this.update(cx, |this, cx| this.pick_sources(id, positions, stack, cx))
                 .ok();
         })
         .detach();
@@ -1404,11 +1414,13 @@ impl BrowserHub {
     }
 
     /// Sets each listener's place in its original source in the pick `id`, with the file in its
-    /// tab's project that holds it (#497).
+    /// tab's project that holds it (#497), and the place React says the element was written: its
+    /// debug source, or `stack`, where its debug stack's frames led (#518).
     fn pick_sources(
         &mut self,
         id: usize,
         positions: Vec<Option<OriginalPosition>>,
+        stack: Option<ComponentSource>,
         cx: &mut Context<Self>,
     ) {
         let Some(tab) = self.pick(id).map(|pick| pick.tab.clone()) else {
@@ -1417,17 +1429,34 @@ impl BrowserHub {
         let project = view_of(&tab, cx)
             .and_then(|view| view.read(cx).workspace.upgrade())
             .map(|workspace| workspace.read(cx).project().clone());
+        let file_of = |source: &str| {
+            let project = project.as_ref()?;
+            find_source(project.read(cx), source, cx)
+                .map(|path| path.path.as_unix_str().to_string())
+        };
         let files: Vec<Option<String>> = positions
             .iter()
-            .map(|position| {
-                let (position, project) = (position.as_ref()?, project.as_ref()?);
-                find_source(project.read(cx), &position.source, cx)
-                    .map(|path| path.path.as_unix_str().to_string())
-            })
+            .map(|position| file_of(&position.as_ref()?.source))
             .collect();
+        let debug_source = self
+            .pick(id)
+            .and_then(|pick| pick.bundle.component.as_ref())
+            .and_then(|component| component.source.as_ref())
+            .map(|source| source.source.clone());
+        let debug_file = debug_source.as_deref().and_then(file_of);
+        let stack = stack.map(|source| ComponentSource {
+            file: file_of(&source.source),
+            ..source
+        });
         let Some(pick) = self.picks.iter_mut().find(|pick| pick.id == id) else {
             return;
         };
+        if let Some(component) = pick.bundle.component.as_mut() {
+            match component.source.as_mut() {
+                Some(source) => source.file = debug_file,
+                None => component.source = stack,
+            }
+        }
         for ((listener, position), file) in
             pick.bundle.listeners.iter_mut().zip(positions).zip(files)
         {
@@ -5757,50 +5786,118 @@ pub(crate) fn reveal_terminal(terminal: &Entity<TerminalView>, window: &mut Wind
     }
 }
 
-/// Each listener's place in its original source, through its script's source map (#497): each
-/// map loaded once for the pick, and parsed and scanned off the main thread.
+/// The source maps a pick's reads loaded, each once: the script's URL, the map's as the script
+/// names it, and the map when it loaded (#497, #518).
+#[derive(Default)]
+struct MapCache(Vec<(String, String, Option<Arc<SourceMap>>)>);
+
+impl MapCache {
+    async fn get(
+        &mut self,
+        session: &Page,
+        script: &str,
+        map_url: &str,
+        cx: &AsyncApp,
+    ) -> Option<Arc<SourceMap>> {
+        if let Some((_, _, map)) = self
+            .0
+            .iter()
+            .find(|(known_script, known_map, _)| known_script == script && known_map == map_url)
+        {
+            return map.clone();
+        }
+        let map = load_map(session, script, map_url, cx).await;
+        self.0
+            .push((script.to_string(), map_url.to_string(), map.clone()));
+        map
+    }
+}
+
+/// Where `map` puts the script's `line` and `column`, both from 1, scanned off the main thread.
+async fn original_in(
+    map: Arc<SourceMap>,
+    line: u32,
+    column: u32,
+    cx: &AsyncApp,
+) -> Option<OriginalPosition> {
+    let (line, column) = (line.saturating_sub(1), column.saturating_sub(1));
+    cx.background_spawn(futures::future::lazy(move |_| map.original(line, column)))
+        .await
+}
+
+/// Each listener's place in its original source, through its script's source map (#497), each
+/// map loaded once for the pick and parsed and scanned off the main thread.
 async fn original_positions(
     session: &Page,
     listeners: &[Listener],
+    maps: &mut MapCache,
     cx: &AsyncApp,
 ) -> Vec<Option<OriginalPosition>> {
-    let mut maps: Vec<(&str, &str, Option<Arc<SourceMap>>)> = Vec::new();
-    for listener in listeners {
-        let (Some(script), Some(map_url)) = (&listener.script, &listener.source_map) else {
-            continue;
-        };
-        if maps
-            .iter()
-            .any(|(known_script, known_map, _)| known_script == script && known_map == map_url)
-        {
-            continue;
-        }
-        let map = load_map(session, script, map_url, cx).await;
-        maps.push((script, map_url, map));
-    }
     let mut positions = Vec::with_capacity(listeners.len());
     for listener in listeners {
-        let map = maps
-            .iter()
-            .find(|(script, map_url, _)| {
-                listener.script.as_deref() == Some(*script)
-                    && listener.source_map.as_deref() == Some(*map_url)
-            })
-            .and_then(|(_, _, map)| map.clone());
+        let map = match (&listener.script, &listener.source_map) {
+            (Some(script), Some(map_url)) => maps.get(session, script, map_url, cx).await,
+            _ => None,
+        };
         let position = match map {
-            Some(map) => {
-                let (line, column) = (
-                    listener.line.saturating_sub(1),
-                    listener.column.saturating_sub(1),
-                );
-                cx.background_spawn(futures::future::lazy(move |_| map.original(line, column)))
-                    .await
-            }
+            Some(map) => original_in(map, listener.line, listener.column, cx).await,
             None => None,
         };
         positions.push(position);
     }
     positions
+}
+
+/// Where React 19's debug stack says the picked element was written (#518): the first frame
+/// that is not React's own whose original source, through its script's source map, lies outside
+/// `node_modules`. A bundle serves React and the app from one script, so the map, not the
+/// script's URL, tells them apart; a frame whose script has no map is judged by its URL.
+async fn stack_source(
+    session: &Page,
+    frames: &[StackFrame],
+    scripts: &HashMap<String, ScriptInfo>,
+    maps: &mut MapCache,
+    cx: &AsyncApp,
+) -> Option<ComponentSource> {
+    let outside_packages = |source: &str| {
+        !source_map::source_path(source)
+            .components
+            .iter()
+            .any(|component| component == "node_modules")
+    };
+    for frame in frames.iter().filter(|frame| !frame.is_reacts()) {
+        let map_url = scripts
+            .values()
+            .find(|script| script.url == frame.url)
+            .and_then(|script| script.source_map.clone());
+        let Some(map_url) = map_url else {
+            if outside_packages(&frame.url) {
+                return Some(ComponentSource {
+                    from: SourceKind::DebugStack,
+                    source: frame.url.clone(),
+                    file: None,
+                    line: frame.line,
+                    column: Some(frame.column),
+                });
+            }
+            continue;
+        };
+        let Some(map) = maps.get(session, &frame.url, &map_url, cx).await else {
+            continue;
+        };
+        if let Some(position) = original_in(map, frame.line, frame.column, cx).await
+            && outside_packages(&position.source)
+        {
+            return Some(ComponentSource {
+                from: SourceKind::DebugStack,
+                source: position.source,
+                file: None,
+                line: position.line.saturating_add(1),
+                column: Some(position.column.saturating_add(1)),
+            });
+        }
+    }
+    None
 }
 
 /// The source map `script` names, loaded through the page or read from its `data:` URL.

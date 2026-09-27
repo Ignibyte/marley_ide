@@ -2340,3 +2340,27 @@ CDP has no favicon event. Rejected:
 - observing the hub's notify (it fires on every frame);
 - Browser tabs in the switcher and a right-click menu (deferred);
 - `ui::CountBadge` for the counts (an error-tinted notification badge).
+
+## AD-claude-518-a-pick-carries-its-html-styles-texts-and-component-001
+*decided at: 2026-09-26 · status: shipped*
+
+A pick's bundle carries what an agent needs to change an element and find its code: the
+element's HTML, sixteen computed styles (Orca's list), up to ten sibling texts, the page's
+selection, and on a React dev build six component names and the file, line and column the
+element was written at. It is read in `DESCRIBE`'s one call in the page's main world, where
+React keeps its fiber. React 18 gives the source as `_debugSource`. React 19 dropped it, so the
+source is the first frame of the fiber's `_debugStack` that is not React's own and whose original
+source, through the script's source map, lies outside `node_modules`. The frames are judged by
+their mapped source, not their URL, because a bundle serves React and the app from one file.
+Secrets are kept out in two layers. The page works on a clone: scripts, field values and URL
+queries removed, secret-looking attributes set to `[redacted]`. Then `browser_pick` and
+`browser_picks` hand agents a copy whose every field from the page has passed #516's
+`Redactor` whole before it is cut to Orca's budgets. The page caps each field only for the trip.
+The tray and the pick line are unchanged, and agents read the fields when they ask. Rejected:
+- cutting to the budgets in the page, which would let a token straddling a cut reach agents as
+  a piece no rule matches (PR-claude-redact-the-whole-text-before-cutting-it-001);
+- a second pass over the HTML in Rust with `html5ever` or `lol_html`: the page's clone sees the
+  live attributes, and Rust clamps what arrives;
+- redacting visible text as Orca does, which blanks a "Reset password" label that the screen and
+  the crop show anyway;
+- picking React's frames by URL, which a bundle defeats.

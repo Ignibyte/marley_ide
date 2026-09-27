@@ -25,9 +25,10 @@ use marley_browser::cdp::CdpError;
 use marley_browser::input::{self, KeyPress};
 use marley_browser::observe::redact_url;
 use marley_browser::page::Page;
-use marley_browser::pick::PageBox;
+use marley_browser::pick::{self, PageBox};
 use marley_browser::recorder;
 use marley_browser::snapshot::{self, FrameTree, RefTarget, Snapshot};
+use marley_mcp::redact::Redactor;
 use marley_mcp::{AppCall, Caller, ToolAnswer, ToolImage};
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -35,8 +36,8 @@ use ui::SharedString;
 use workspace::{MultiWorkspace, ProjectGroup, Workspace};
 
 use crate::browser::{
-    BrowserHub, Maker, TabSummary, new_page, open_url_tab, recordings_dir, show_for_agent, showing,
-    tab_workspaces, window_of,
+    BrowserHub, Maker, Pick, TabSummary, new_page, open_url_tab, recordings_dir, show_for_agent,
+    showing, tab_workspaces, window_of,
 };
 use crate::links;
 
@@ -489,10 +490,12 @@ async fn recording(arguments: &Value, cx: &AsyncApp) -> Result<ToolAnswer, Strin
 
 /// `browser_picks`: each pick of the session, without its bundle.
 fn picks(hub: &Entity<BrowserHub>, cx: &AsyncApp) -> ToolAnswer {
+    let redactor = cx.update(|cx| crate::mcp::agent_redactor(cx));
     let picks: Vec<Value> = hub.read_with(cx, |hub, _| {
         hub.picks()
             .iter()
             .map(|pick| {
+                let pick = pick_for_agents(pick, redactor.as_deref());
                 json!({
                     "id": pick.id,
                     "tab": pick.tab,
@@ -519,8 +522,12 @@ fn pick(arguments: &Value, hub: &Entity<BrowserHub>, cx: &AsyncApp) -> Result<To
         .and_then(Value::as_u64)
         .and_then(|id| usize::try_from(id).ok())
         .ok_or_else(|| "browser_pick needs the pick's id, from browser_picks".to_string())?;
+    let redactor = cx.update(|cx| crate::mcp::agent_redactor(cx));
     let pick = hub
-        .read_with(cx, |hub, _| hub.pick(id).cloned())
+        .read_with(cx, |hub, _| {
+            hub.pick(id)
+                .map(|pick| pick_for_agents(pick, redactor.as_deref()))
+        })
         .ok_or_else(|| format!("the user made no pick {id}; browser_picks lists them"))?;
     let image = pick.crop.clone().map(|data| ToolImage {
         mime_type: "image/jpeg".to_string(),
@@ -532,6 +539,43 @@ fn pick(arguments: &Value, hub: &Entity<BrowserHub>, cx: &AsyncApp) -> Result<To
         text: None,
         image,
     })
+}
+
+/// The pick as an agent may read it (#518). Each text the page gave is redacted whole and only
+/// then cut to its budget, so no rule misses a secret a cut split
+/// (PR-claude-redact-the-whole-text-before-cutting-it-001); the summary is made again from what
+/// is left, and a listener's script URL loses its secret-looking values. With redaction off, the
+/// texts are only cut.
+fn pick_for_agents(pick: &Pick, redactor: Option<&Redactor>) -> Pick {
+    let redact = |text: &str| {
+        redactor.map_or_else(|| text.to_string(), |redactor| redactor.redact(text).text)
+    };
+    let mut pick = pick.clone();
+    pick.title = redact(&pick.title);
+    pick.caption = redact(&pick.caption);
+    let bundle = &mut pick.bundle;
+    bundle.name = bundle.name.as_deref().map(redact);
+    bundle.text = pick::within(&redact(&bundle.text), pick::TEXT_BUDGET);
+    bundle.html = pick::within(&redact(&bundle.html), pick::HTML_BUDGET);
+    for text in &mut bundle.nearby_text {
+        *text = pick::within(&redact(text), pick::TEXT_BUDGET);
+    }
+    bundle.selected_text = bundle
+        .selected_text
+        .as_deref()
+        .map(|text| pick::within(&redact(text), pick::SELECTION_BUDGET));
+    for locator in &mut bundle.locators {
+        locator.value = redact(&locator.value);
+    }
+    for blocker in &mut bundle.blockers {
+        *blocker = redact(blocker);
+    }
+    for listener in &mut bundle.listeners {
+        listener.on = redact(&listener.on);
+        listener.script = listener.script.as_deref().map(redact_url);
+    }
+    pick.summary = pick.bundle.summary();
+    pick
 }
 
 /// What `browser_look` says of the page, beside its image.

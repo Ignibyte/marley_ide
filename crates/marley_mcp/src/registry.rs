@@ -154,7 +154,7 @@ const REGISTRY: &[ToolSpec] = &[
         "picks",
         "List the elements the user picked in the Browser tabs this session, oldest first: each \
          pick's id, its tab, the page's URL and title, what the element is, the user's caption, \
-         and whether the user sent it to you.",
+         and whether the user sent it to you. Secret-looking text is redacted.",
     ),
     browser_read(
         "pick",
@@ -163,7 +163,11 @@ const REGISTRY: &[ToolSpec] = &[
          whether each finds it alone; its role and name; the listeners on it and its ancestors \
          with their scripts, lines and columns, and, through each script's source map, the file \
          in the project and the line they were written at; what would block a click on it; its \
-         box in the page; and the page around it as an image.",
+         box in the page; its HTML, without scripts, field values, secret-looking attribute values \
+         or URL queries, at most 4,096 characters; sixteen of its computed styles; its siblings' \
+         texts and the page's selection; on a React dev build, the components around it and the \
+         file and line it was written at; and the page around it as an image. Secret-looking \
+         text is redacted.",
     ),
     browser_read(
         "recordings",
@@ -683,10 +687,65 @@ fn picks_schemas() -> (Value, Value) {
     )
 }
 
+/// What #518 adds to a pick's bundle: the element's HTML, styles, sibling texts, the page's
+/// selection and the React component.
+fn element_context_properties() -> Value {
+    json!({
+        "html": {
+            "type": "string",
+            "description": "The element's HTML without scripts, field values, secret-looking attribute values or URL queries and fragments; at most 4,096 characters, ending ' (truncated)' when cut."
+        },
+        "styles": {
+            "type": "object",
+            "description": "Sixteen of its computed styles, by their CSS names.",
+            "additionalProperties": { "type": "string" }
+        },
+        "nearby_text": {
+            "type": "array",
+            "description": "Its siblings' texts, the nearest first, before and after in turn; at most ten of 200 characters.",
+            "items": { "type": "string" }
+        },
+        "selected_text": {
+            "type": ["string", "null"],
+            "description": "The page's selection at the pick, at most 500 characters; none when it lay in a field."
+        },
+        "component": {
+            "type": ["object", "null"],
+            "description": "On a React dev build: the components around the element and where it was written.",
+            "properties": {
+                "chain": {
+                    "type": "array",
+                    "description": "The components around it, the outermost first, at most six.",
+                    "items": { "type": "string" }
+                },
+                "source": {
+                    "type": ["object", "null"],
+                    "description": "Where it was written: React's debug source, or React 19's debug stack through the scripts' source maps.",
+                    "properties": {
+                        "from": { "type": "string", "enum": ["debug source", "debug stack"] },
+                        "source": { "type": "string", "description": "The source as React or the source map names it." },
+                        "file": {
+                            "type": ["string", "null"],
+                            "description": "The file in the user's project that holds it, relative to its worktree."
+                        },
+                        "line": { "type": "integer", "description": "From 1." },
+                        "column": {
+                            "type": ["integer", "null"],
+                            "description": "From 1 for a debug stack; as the JSX transform wrote it for a debug source."
+                        }
+                    },
+                    "required": ["from", "source", "line"]
+                }
+            },
+            "required": ["chain"]
+        }
+    })
+}
+
 /// `browser_pick`: a pick's id; the pick with its bundle, and its crop as the answer's image.
 fn pick_schemas() -> (Value, Value) {
     let mut properties = pick_properties();
-    let bundle = json!({
+    let mut bundle = json!({
         "type": "object",
         "properties": {
             "tag": { "type": "string" },
@@ -747,8 +806,14 @@ fn pick_schemas() -> (Value, Value) {
                 "required": ["x", "y", "width", "height"]
             }
         },
-        "required": ["tag", "text", "locators", "listeners", "blockers", "page_box"]
+        "required": ["tag", "text", "locators", "listeners", "blockers", "page_box", "html", "styles", "nearby_text"]
     });
+    if let (Some(bundle_properties), Value::Object(added)) = (
+        bundle.get_mut("properties").and_then(Value::as_object_mut),
+        element_context_properties(),
+    ) {
+        bundle_properties.extend(added);
+    }
     if let Some(properties) = properties.as_object_mut() {
         properties.extend([("bundle".to_string(), bundle)]);
     }

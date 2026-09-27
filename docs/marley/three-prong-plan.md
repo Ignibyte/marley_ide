@@ -351,6 +351,7 @@ reaching his desktop.
 | B6b | #579 | A plain click on a terminal URL opens a menu (a Browser tab, the system browser, Copy Link), the right-click menu starts with it, the default is offered until chosen, and a URL a program wrapped at the edge or drew in a box opens whole (shipped) | M |
 | B6c | #561 | Programs that open a browser through `BROWSER` open a local URL in a Browser tab of their project: Marley's opener in every local terminal, `browser_open_url`, the system browser for the rest (shipped) | S |
 | B7a | #504 | Browser tabs as rows of their project in the rail: the page's icon, a spinner while it loads, host and port, the tray's picks and the page's annotations, and the agent's mark until the user looks; a click, the keys, the filter and a close button (shipped) | M |
+| B3c | #518 | A fuller pick for agents: the element's HTML (no scripts, field values or URL queries, secret-looking attributes replaced, 4,096 characters), sixteen computed styles, the siblings' texts and the selection, and on a React dev build the component chain and the file and line it was written at (React 19 through the source maps); every field redacted whole before it is cut (shipped) | M |
 
 Wave 2 was specced on 2026-09-25, once wave 1 had landed (#496 to #499; the shelf note is
 `docs/planning/design-notes/browser-wave-2-shelf.md`).
