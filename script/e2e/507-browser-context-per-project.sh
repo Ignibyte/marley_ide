@@ -25,7 +25,7 @@ setup() {
   local repo
   offline_chromium
   mkdir -p "$E2E_WORK/site"
-  write_site
+  write_login_site site
   SITE=http://127.0.0.1:$(serve_site site)
   write_mcp_agent
   for repo in alpha beta; do
@@ -40,54 +40,6 @@ setup() {
 
 teardown() {
   browser_teardown
-}
-
-# The site: `signin.html?as=<name>` keeps the login as a cookie that outlives the browser, in
-# `localStorage` and in an IndexedDB record, then goes to `whoami.html`, which shows all three and
-# puts them in its title.
-write_site() {
-  cat >"$E2E_WORK/site/signin.html" <<'HTML'
-<!doctype html><html><head><title>Signing in</title></head>
-<body style="font:28px sans-serif;margin:40px">Signing in…
-<script>
-const name = new URLSearchParams(location.search).get('as') || 'nobody';
-document.cookie = 'login=' + name + '; Max-Age=86400; path=/; SameSite=Lax';
-localStorage.setItem('login', name);
-const opening = indexedDB.open('marley-507', 1);
-opening.onupgradeneeded = () => opening.result.createObjectStore('login');
-opening.onsuccess = () => {
-  const transaction = opening.result.transaction('login', 'readwrite');
-  transaction.objectStore('login').put(name, 'name');
-  transaction.oncomplete = () => location.replace('whoami.html');
-};
-</script></body></html>
-HTML
-  cat >"$E2E_WORK/site/whoami.html" <<'HTML'
-<!doctype html><html><head><title>whoami</title></head>
-<body style="margin:0;font:34px sans-serif;background:#f4f1ea">
-<h1 style="margin:40px 40px 24px">Who is signed in</h1>
-<p style="margin:0 40px 12px">cookie: <b id="cookie">…</b></p>
-<p style="margin:0 40px 12px">localStorage: <b id="local">…</b></p>
-<p style="margin:0 40px 12px">IndexedDB: <b id="idb">…</b></p>
-<script>
-const cookie = (document.cookie.match(/(?:^|; )login=([^;]*)/) || [])[1] || 'none';
-const local = localStorage.getItem('login') || 'none';
-const show = (idb) => {
-  document.getElementById('cookie').textContent = cookie;
-  document.getElementById('local').textContent = local;
-  document.getElementById('idb').textContent = idb;
-  document.title = 'whoami: cookie=' + cookie + ' local=' + local + ' idb=' + idb;
-};
-const opening = indexedDB.open('marley-507', 1);
-opening.onupgradeneeded = () => opening.result.createObjectStore('login');
-opening.onerror = () => show('error');
-opening.onsuccess = () => {
-  const reading = opening.result.transaction('login').objectStore('login').get('name');
-  reading.onsuccess = () => show(reading.result || 'none');
-  reading.onerror = () => show('error');
-};
-</script></body></html>
-HTML
 }
 
 # The unit an earlier build left running: the same name, flags and profile as Marley gave it

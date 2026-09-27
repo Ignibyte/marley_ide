@@ -2431,3 +2431,20 @@ moved once to the first project whose Chromium started: renamed, never deleted. 
   pages (L-claude-493), and the project's tabs may come back;
 - `systemctl stop` alone, which loses the cookies Chromium set in its last 30 seconds
   (F-claude-507-a-stopped-unit-lost-the-cookie-set-before-the-stop-001).
+
+## AD-claude-581-clearing-a-projects-browser-data-deletes-its-profile-001
+*decided at: 2026-09-27 · status: shipped · builds on: AD-claude-507-a-chromium-and-a-profile-per-project-001*
+
+Clear Browser Data resets one project's browser by deleting its profile once its Chromium has
+closed, not by clearing storage through CDP in a running browser: CDP clears one origin at a
+time (`Storage.clearDataForOrigin`), and no command clears every origin a project ever visited,
+while an empty profile holds no cookie, storage, cache or service worker of any. It always asks
+first with Zed's prompt, naming the project; on Clear it closes every Browser tab of the project
+in every window, closes the Chromium over CDP and stops its unit (`stop_chromium`,
+PR-claude-close-chromium-over-cdp-before-stopping-its-unit-001), then removes `profile/` and keeps
+`project.json`. A toast reports it or its error. A start of the project waits for its running
+clear, so a tab opened meanwhile gets the new profile. Rejected:
+- clearing through CDP while the browser runs (one origin at a time, and a page open meanwhile
+  writes again);
+- moving the profile aside as an undo, which keeps the logins the user asked to be rid of;
+- clearing without asking.

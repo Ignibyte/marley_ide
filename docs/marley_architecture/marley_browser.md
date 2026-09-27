@@ -25,7 +25,9 @@ for.
   build before #507 used, to a project's folder, unless a project has a profile already
   (`LegacyMove`: moved, none, or kept); the caller stops its Chromium first. `stop` runs
   `systemctl --user stop`, which answers once the unit has stopped; a unit that is not loaded
-  is stopped already.
+  is stopped already. `remove_profile_in` (#581) deletes a project's `profile/`, keeping
+  `project.json`, after its Chromium has stopped; a profile that is not there is deleted
+  already.
 - The binary is `MARLEY_CHROMIUM` when that is set, and nothing else then; else
   `/usr/lib/chromium/chromium`, the browser behind Arch's and Debian's `/usr/bin/chromium`
   launcher, which would add the user's `chromium-flags.conf` (on Omarchy, three extensions and

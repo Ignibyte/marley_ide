@@ -1192,6 +1192,7 @@ impl Rail {
         let key = group.key.clone();
         let rail = cx.entity().downgrade();
         let menu_key = group.key.clone();
+        let menu_workspace = group.workspace.clone();
         // A project's name reads as a section label, as Warp's tab list labels its tabs.
         let name_color = if row.selected {
             Color::Default
@@ -1251,34 +1252,64 @@ impl Rail {
                     .child(header)
             })
             .menu(move |window, cx| {
-                let (rail, key) = (rail.clone(), menu_key.clone());
-                ContextMenu::build(window, cx, move |menu, _, _| {
-                    let menu = [
-                        ("Move Project Up", true, index == 0),
-                        ("Move Project Down", false, last),
-                    ]
-                    .into_iter()
-                    .fold(menu, |menu, (label, up, at_the_end)| {
-                        let (rail, key) = (rail.clone(), key.clone());
-                        menu.item(ContextMenuEntry::new(label).disabled(at_the_end).handler(
-                            move |window, cx| {
-                                rail.update(cx, |rail, cx| {
-                                    rail.move_project(&key, up, window, cx);
-                                })
-                                .log_err();
-                            },
-                        ))
-                    });
-                    // Removing a project is what stops its browser (#507).
-                    menu.separator()
-                        .item(
-                            ContextMenuEntry::new("Remove Project").handler(move |window, cx| {
-                                rail.update(cx, |rail, cx| rail.remove_project(&key, window, cx))
-                                    .log_err();
-                            }),
-                        )
-                })
+                let at = (index == 0, last);
+                Self::project_context_menu(
+                    rail.clone(),
+                    menu_key.clone(),
+                    menu_workspace.clone(),
+                    at,
+                    window,
+                    cx,
+                )
             })
+    }
+
+    /// A project row's right-click menu: Move Project Up and Down, disabled at the ends `at`
+    /// (first, last), then Clear Browser Data… (#581) and Remove Project (#507).
+    fn project_context_menu(
+        rail: WeakEntity<Self>,
+        key: ProjectGroupKey,
+        workspace: WeakEntity<Workspace>,
+        (first, last): (bool, bool),
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Entity<ContextMenu> {
+        ContextMenu::build(window, cx, move |menu, _, _| {
+            let menu = [
+                ("Move Project Up", true, first),
+                ("Move Project Down", false, last),
+            ]
+            .into_iter()
+            .fold(menu, |menu, (label, up, at_the_end)| {
+                let (rail, key) = (rail.clone(), key.clone());
+                menu.item(ContextMenuEntry::new(label).disabled(at_the_end).handler(
+                    move |window, cx| {
+                        rail.update(cx, |rail, cx| {
+                            rail.move_project(&key, up, window, cx);
+                        })
+                        .log_err();
+                    },
+                ))
+            });
+            // Clearing resets the project's browser (#581); removing the project is what stops
+            // it (#507).
+            menu.separator()
+                .item(
+                    ContextMenuEntry::new("Clear Browser Data…").handler(move |window, cx| {
+                        workspace
+                            .update(cx, |workspace, cx| {
+                                browser::clear_project_browser_data(workspace, window, cx);
+                            })
+                            .log_err();
+                    }),
+                )
+                .item(
+                    ContextMenuEntry::new("Remove Project").handler(move |window, cx| {
+                        rail.update(cx, |rail, cx| rail.remove_project(&key, window, cx))
+                            .log_err();
+                    }),
+                )
+        })
     }
 
     fn render_project_menu(

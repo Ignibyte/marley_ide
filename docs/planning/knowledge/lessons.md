@@ -3190,3 +3190,16 @@ Zed's `async_block_without_await` lint, an error in the Marley crates (AD-claude
 nothing to wait for returns `futures::future::ready(())`. `cargo clippy` does not load the lint;
 only the gate's dylint stage (gate:21) does, so #507's Code phase passed clippy and its first
 gate run failed on four such blocks.
+
+## L-claude-581-a-prompt-opened-from-a-context-menu-keeps-the-keys-001
+*category: gpui · topic: prompts and focus · from: pipeline 581*
+
+A context menu entry's handler can open Zed's prompt (`Window::prompt`) directly.
+`PromptHandle::with_view` focuses the prompt as it opens, and the right-click menu's dismissal
+gives the focus back to what had it only while the menu still holds the focus, so Enter and
+Escape reach the prompt; Enter picks the first button, Escape the one named "Cancel". Once
+answered, the prompt returns the focus to what had it when it opened: the menu, which is gone,
+so the window has no focused element. A scenario clicks into a pane before its next keys, as
+#581's does. Work the answer starts that updates panes in their windows (closing tabs) runs from
+the app, not inside an `AsyncWindowContext` update of the same window, which is out of the app's
+map during its own update (L-claude-515).

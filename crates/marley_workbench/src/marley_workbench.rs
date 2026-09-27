@@ -110,13 +110,17 @@ actions!(
         /// terminal's program.
         #[derive(Eq)]
         AcceptSuggestion,
-        /// Opens the Browser tab: the page Marley's own Chromium shows, starting Chromium the
-        /// first time.
+        /// Opens the Browser tab: the page Marley's own Chromium shows, starting the project's
+        /// Chromium the first time.
         #[derive(Eq)]
         OpenBrowser,
         /// Opens a blank page in a new Browser tab, with the focus in its address bar.
         #[derive(Eq)]
         NewBrowserTab,
+        /// Clears this project's browser data, after asking: its Browser tabs close, and every
+        /// site in it signs out.
+        #[derive(Eq)]
+        ClearProjectBrowserData,
         /// Puts the focus in the Browser tab's address bar, with its text selected.
         #[derive(Eq)]
         FocusAddressBar,

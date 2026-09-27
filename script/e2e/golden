@@ -30,3 +30,4 @@
 505-pick-fix-check.sh  # a pick checked after a fix: found again by its most durable locator, the crops side by side, what changed, the verdicts, the agent's check redacted
 506-recording-to-playwright-test.sh  # a recording drafted as a Playwright test: actions with locators at the event, secrets as env placeholders; the draft passes, fails on a regression, names an unset variable
 507-browser-context-per-project.sh  # a Chromium and a profile per project: the old profile moved, logins kept apart, a worktree shares its project's, all three kept across a restart, a removed project's Chromium stopped
+581-clear-a-projects-browser-data.sh  # Clear Browser Data for one project: asks first, Escape keeps all, Clear closes its tabs, stops its Chromium, deletes its profile; the next tab signed out, the other project untouched, a failed removal named

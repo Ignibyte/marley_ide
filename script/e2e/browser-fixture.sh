@@ -36,6 +36,10 @@
 #   naming none (#520), and `terminals` marks that one `(self)` and gives each `terminal_id`. `fleet` lists `fleet_snapshot`'s seats: each one's id, state and
 #   the labels an agent row shows, or `no seats` (#547). `open-url <url> <directory>` asks
 #   `browser_open_url` to open a URL for a program in that folder (#561).
+# - `write_login_site <dir>` writes a site that keeps a login three ways into `$E2E_WORK/<dir>`
+#   (#507, #581): `signin.html?as=<name>` keeps it as a cookie that outlives the browser, in
+#   `localStorage` and in an IndexedDB record, then goes to `whoami.html`, which shows all three
+#   and puts them in its title, `whoami: cookie=… local=… idb=…`, which `browser_tabs` reads.
 # - `browser_profile [root]` and `browser_unit [root]` name the Chromium profile and the user
 #   unit of the project whose one folder is `root`, `$E2E_WORK/repo` by default: a Chromium per
 #   project since #507. `browser_close [root]` asks that project's Chromium to close over CDP, as
@@ -136,6 +140,51 @@ browser_teardown() {
   if [[ -f $E2E_WORK/servers ]]; then
     xargs kill <"$E2E_WORK/servers" 2>/dev/null || true
   fi
+}
+
+write_login_site() {
+  cat >"$E2E_WORK/$1/signin.html" <<'HTML'
+<!doctype html><html><head><title>Signing in</title></head>
+<body style="font:28px sans-serif;margin:40px">Signing in…
+<script>
+const name = new URLSearchParams(location.search).get('as') || 'nobody';
+document.cookie = 'login=' + name + '; Max-Age=86400; path=/; SameSite=Lax';
+localStorage.setItem('login', name);
+const opening = indexedDB.open('marley-507', 1);
+opening.onupgradeneeded = () => opening.result.createObjectStore('login');
+opening.onsuccess = () => {
+  const transaction = opening.result.transaction('login', 'readwrite');
+  transaction.objectStore('login').put(name, 'name');
+  transaction.oncomplete = () => location.replace('whoami.html');
+};
+</script></body></html>
+HTML
+  cat >"$E2E_WORK/$1/whoami.html" <<'HTML'
+<!doctype html><html><head><title>whoami</title></head>
+<body style="margin:0;font:34px sans-serif;background:#f4f1ea">
+<h1 style="margin:40px 40px 24px">Who is signed in</h1>
+<p style="margin:0 40px 12px">cookie: <b id="cookie">…</b></p>
+<p style="margin:0 40px 12px">localStorage: <b id="local">…</b></p>
+<p style="margin:0 40px 12px">IndexedDB: <b id="idb">…</b></p>
+<script>
+const cookie = (document.cookie.match(/(?:^|; )login=([^;]*)/) || [])[1] || 'none';
+const local = localStorage.getItem('login') || 'none';
+const show = (idb) => {
+  document.getElementById('cookie').textContent = cookie;
+  document.getElementById('local').textContent = local;
+  document.getElementById('idb').textContent = idb;
+  document.title = 'whoami: cookie=' + cookie + ' local=' + local + ' idb=' + idb;
+};
+const opening = indexedDB.open('marley-507', 1);
+opening.onupgradeneeded = () => opening.result.createObjectStore('login');
+opening.onerror = () => show('error');
+opening.onsuccess = () => {
+  const reading = opening.result.transaction('login').objectStore('login').get('name');
+  reading.onsuccess = () => show(reading.result || 'none');
+  reading.onerror = () => show('error');
+};
+</script></body></html>
+HTML
 }
 
 write_server() {

@@ -150,6 +150,24 @@ pub fn move_legacy_profile_in(data: &Path, project_dir: &Path) -> anyhow::Result
     Ok(LegacyMove::Moved(profile))
 }
 
+/// Deletes the profile in the project folder `project_dir` (#581), keeping `project.json`.
+///
+/// The project's next Chromium then starts on an empty profile. A profile that is not there is
+/// deleted already. The caller has stopped the Chromium that used it.
+///
+/// # Errors
+///
+/// When the profile, or anything in it, cannot be removed.
+pub fn remove_profile_in(project_dir: &Path) -> anyhow::Result<()> {
+    let profile = profile_in(project_dir);
+    match std::fs::remove_dir_all(&profile) {
+        Err(error) if error.kind() != ErrorKind::NotFound => {
+            Err(error).context(format!("removing {}", profile.display()))
+        }
+        _ => Ok(()),
+    }
+}
+
 /// Makes `dir` and the folders above it that are missing, readable by their owner alone.
 fn make_private_dir(dir: &Path) -> anyhow::Result<()> {
     let mut builder = std::fs::DirBuilder::new();

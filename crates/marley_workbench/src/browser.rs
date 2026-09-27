@@ -48,8 +48,8 @@ use gpui::{
     EntityInputHandler, EventEmitter, FocusHandle, Focusable, Global, GlobalElementId, Hitbox,
     HitboxBehavior, Image, ImageSource, InspectorElementId, KeyDownEvent, LayoutId, Modifiers,
     MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, Pixels, Point,
-    RenderImage, ScrollWheelEvent, Size, Style, StyledImage, Subscription, Task, UTF16Selection,
-    WeakEntity, WindowHandle, anchored, deferred, img, point, relative,
+    PromptLevel, RenderImage, ScrollWheelEvent, Size, Style, StyledImage, Subscription, Task,
+    UTF16Selection, WeakEntity, WindowHandle, anchored, deferred, img, point, relative,
 };
 use marley_browser::cdp::{self, CdpError, Connection, Event};
 use marley_browser::favicon;
@@ -86,9 +86,9 @@ use workspace::{
 };
 
 use crate::{
-    Annotate, AnswerDialog, BrowserBack, BrowserForward, BrowserReload, DismissDialog,
-    DropAnnotation, FocusAddressBar, GoToAddress, KeepAnnotation, NewBrowserTab, OpenBrowser,
-    PickElement, RecordThis, RestoreAddress, SendPick,
+    Annotate, AnswerDialog, BrowserBack, BrowserForward, BrowserReload, ClearProjectBrowserData,
+    DismissDialog, DropAnnotation, FocusAddressBar, GoToAddress, KeepAnnotation, NewBrowserTab,
+    OpenBrowser, PickElement, RecordThis, RestoreAddress, SendPick,
 };
 
 /// How many times, a tenth of a second apart, a start waits for Chromium to write its endpoint
@@ -535,6 +535,10 @@ struct ProjectBrowser {
     stop_pending: Option<usize>,
 }
 
+/// A clear of a project's browser data (#581), shared by everything that waits for it: its
+/// outcome, or why it failed.
+pub type Clearing = Shared<Task<Result<(), SharedString>>>;
+
 /// Marley's browsers as the Browser tabs see them: each project's Chromium and every page.
 pub struct BrowserHub {
     /// Each project's browser, oldest first (#507).
@@ -553,6 +557,9 @@ pub struct BrowserHub {
     generation: u64,
     /// The move of the profile of earlier builds, which every start waits for (#507).
     legacy_move: Option<Shared<Task<()>>>,
+    /// The clears of projects' browser data that run, each with its project's key, which a start
+    /// of the project waits for (#581).
+    clears: Vec<(SharedString, Clearing)>,
     /// The last stop's number.
     stops: usize,
     /// Whether Marley is quitting: then no browser stops (#507).
@@ -686,6 +693,7 @@ impl BrowserHub {
             next_annotation: 1,
             generation: 0,
             legacy_move: None,
+            clears: Vec::new(),
             stops: 0,
             quitting: false,
         });
@@ -965,8 +973,17 @@ impl BrowserHub {
             .clone();
         let profile = service::profile_in(&project_dir);
         let (paths, host) = (project.paths.clone(), project.host.clone());
+        let clearing = self.clearing(&project.key);
+        let name = project.name.clone();
         let executor = cx.background_executor().clone();
         let run = cx.spawn(async move |this, cx| {
+            // A clear of the project ends first, so its new Chromium opens on the new profile
+            // (#581); the clear's own toast says how it went.
+            if let Some(clearing) = clearing
+                && let Err(reason) = clearing.await
+            {
+                log::info!("browser: {name} starts after a clear that failed: {reason}");
+            }
             legacy_move.await;
             let written = cx
                 .background_spawn(futures::future::lazy(move |_| {
@@ -1111,20 +1128,26 @@ impl BrowserHub {
         }
     }
 
+    /// Forgets the browser of the project `key` and its pages, whose tabs close if any is left,
+    /// and answers the browser, whose start ends when it is dropped (#507).
+    fn forget_browser(&mut self, key: &str, cx: &mut Context<Self>) -> Option<ProjectBrowser> {
+        let index = self
+            .browsers
+            .iter()
+            .position(|browser| browser.project.key == key)?;
+        let browser = self.browsers.remove(index);
+        self.forget_pages(browser.generation, cx);
+        cx.notify();
+        Some(browser)
+    }
+
     /// Stops the browser of the project `key` (#507): forgets it and its pages, whose tabs close
     /// if any is left, and stops its unit.
     fn stop_browser(&mut self, key: &str, cx: &mut Context<Self>) {
-        let Some(index) = self
-            .browsers
-            .iter()
-            .position(|browser| browser.project.key == key)
-        else {
+        let Some(browser) = self.forget_browser(key, cx) else {
             return;
         };
-        let browser = self.browsers.remove(index);
         let connection = browser.connection.clone();
-        self.forget_pages(browser.generation, cx);
-        cx.notify();
         let profile = service::profile_in(&service::project_dir_in(paths::data_dir(), key));
         log::info!(
             "browser: {} left Marley's windows, so {} stops",
@@ -1135,6 +1158,54 @@ impl BrowserHub {
             stop_chromium(&profile, connection, cx).await.log_err();
         })
         .detach();
+    }
+
+    /// Clears the browser data of `project` (#581): forgets its browser and pages, closes its
+    /// Chromium over CDP and stops its unit, whichever Marley started it, then removes its
+    /// profile off the main thread, keeping `project.json`. A start of the project waits for the
+    /// clear, and a clear of it asked while one runs answers with that one.
+    pub fn clear_browser_data(
+        &mut self,
+        project: &BrowserProject,
+        cx: &mut Context<Self>,
+    ) -> Clearing {
+        if let Some(clearing) = self.clearing(&project.key) {
+            return clearing;
+        }
+        let connection = self
+            .forget_browser(&project.key, cx)
+            .and_then(|browser| browser.connection);
+        let project_dir = service::project_dir_in(paths::data_dir(), &project.key);
+        let key = project.key.clone();
+        let clearing = cx
+            .spawn(async move |this, cx| {
+                let profile = service::profile_in(&project_dir);
+                let cleared = match stop_chromium(&profile, connection, cx).await {
+                    Ok(()) => {
+                        cx.background_spawn(futures::future::lazy(move |_| {
+                            service::remove_profile_in(&project_dir)
+                        }))
+                        .await
+                    }
+                    Err(error) => Err(error),
+                };
+                this.update(cx, |hub, _| {
+                    hub.clears.retain(|(cleared, _)| *cleared != key);
+                })
+                .ok();
+                cleared.map_err(|error| SharedString::from(format!("{error:#}")))
+            })
+            .shared();
+        self.clears.push((project.key.clone(), clearing.clone()));
+        clearing
+    }
+
+    /// The clear of the project `key`'s browser data that runs, if one does.
+    fn clearing(&self, key: &str) -> Option<Clearing> {
+        self.clears
+            .iter()
+            .find(|(clearing, _)| clearing == key)
+            .map(|(_, clearing)| clearing.clone())
     }
 
     /// Marley quits: the pending stops are dropped, and no other begins (#507).
@@ -3738,20 +3809,32 @@ fn reveal(view: &Entity<BrowserView>, cx: &mut App) {
 
 /// The page `target` closed: each tab of it closes.
 fn close_tabs(target: &str, cx: &mut App) {
-    for view in live_views(cx) {
-        let (shows, workspace, window) = {
-            let view = view.read(cx);
-            (
-                view.target.as_deref() == Some(target),
-                view.workspace.upgrade(),
-                view.window,
-            )
-        };
-        if !shows {
-            continue;
-        }
-        // The tab's removal must not close the page again.
+    let views = live_views(cx)
+        .into_iter()
+        .filter(|view| view.read(cx).target.as_deref() == Some(target))
+        .collect();
+    close_views(views, cx);
+}
+
+/// Closes every Browser tab of the project `key`, in every window, a tab still waiting for its
+/// page too (#581).
+fn close_project_tabs(key: &str, cx: &mut App) {
+    let views = live_views(cx)
+        .into_iter()
+        .filter(|view| view.read(cx).project == key)
+        .collect();
+    close_views(views, cx);
+}
+
+/// Closes each of `views`, each forgetting its page first: a removed tab must not close its page
+/// again.
+fn close_views(views: Vec<Entity<BrowserView>>, cx: &mut App) {
+    for view in views {
         view.update(cx, |view, _| view.forget_page());
+        let (workspace, window) = {
+            let view = view.read(cx);
+            (view.workspace.upgrade(), view.window)
+        };
         let Some(pane) = workspace.and_then(|workspace| pane_of(&workspace, &view, cx)) else {
             continue;
         };
@@ -6523,6 +6606,9 @@ pub fn init(cx: &mut App) {
         workspace.register_action(|workspace, _: &NewBrowserTab, window, cx| {
             new_tab(workspace, window, cx);
         });
+        workspace.register_action(|workspace, _: &ClearProjectBrowserData, window, cx| {
+            clear_project_browser_data(workspace, window, cx);
+        });
     })
     .detach();
     // A project's browser stops when the project leaves every window (#507): a window's
@@ -7143,6 +7229,54 @@ fn open(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspa
             cx,
         );
     }
+}
+
+/// Asks, then clears the browser data of the workspace's project (#581): its Browser tabs close,
+/// its Chromium closes and its profile goes, so every site in it signs out. A toast in the
+/// workspace says how it went; anything but Clear changes nothing.
+pub(crate) fn clear_project_browser_data(
+    workspace: &Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    let project = BrowserProject::of(workspace.project().read(cx), cx);
+    let answer = window.prompt(
+        PromptLevel::Warning,
+        &format!("Clear the browser data of {}?", project.name),
+        Some(
+            "Its Browser tabs close, and every site in it signs out: its cookies, local storage \
+             and IndexedDB are deleted.",
+        ),
+        &["Clear", "Cancel"],
+        cx,
+    );
+    // The tabs close from the app, outside this window's update, since each tab's pane is
+    // updated in its own window.
+    cx.spawn(async move |workspace, cx| {
+        if !matches!(answer.await, Ok(0)) {
+            return;
+        }
+        let clearing = cx.update(|cx| {
+            close_project_tabs(&project.key, cx);
+            BrowserHub::global(cx).update(cx, |hub, cx| hub.clear_browser_data(&project, cx))
+        });
+        let message = match clearing.await {
+            Ok(()) => format!("Cleared the browser data of {}.", project.name),
+            Err(reason) => format!(
+                "Could not clear the browser data of {}: {reason}",
+                project.name
+            ),
+        };
+        workspace
+            .update(cx, |workspace, cx| {
+                workspace.show_toast(
+                    Toast::new(NotificationId::unique::<ClearProjectBrowserData>(), message),
+                    cx,
+                );
+            })
+            .ok();
+    })
+    .detach();
 }
 
 /// Opens a blank page in a new tab after the active one, with the focus in its address bar: what

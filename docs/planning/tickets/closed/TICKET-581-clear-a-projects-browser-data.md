@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #581 (feature, prong 3, after #507)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet; `/pipeline:plan` mints the pair. The design is D6 and REQ-006 of
-  #507's pair, split off at #507's promotion (`docs/planning/pipeline/completed/507-browser-context-per-project.spec.md`
-  once #507 closes).
+- **Pipeline doc:** ../../pipeline/completed/581-clear-a-projects-browser-data.spec.md (the design
+  began as D6 and REQ-006 of #507's pair,
+  `docs/planning/pipeline/completed/507-browser-context-per-project.spec.md`)
 - **Source ticket:** split from TICKET-507 at its promotion, 2026-09-27
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Since #507 each project has a Chromium of its own on a profile of its own, which keeps its

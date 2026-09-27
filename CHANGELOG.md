@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Clear a project's browser data** (#581, 2026-09-27). The rail's project menu has Clear
+  Browser Data…, and the command palette `marley: clear project browser data`. After asking,
+  it closes the project's Browser tabs, closes its Chromium and deletes its profile, so every
+  site in the project is signed out and its next Browser tab starts clean. Other projects keep
+  their logins. A toast says when it is done, or what stopped it.
 - **A Chromium and a profile per project** (#507, 2026-09-27). Each project now has a Chromium
   of its own on a profile of its own, so a site you sign in to in one project stays signed out
   in another, and each project's cookies, `localStorage` and IndexedDB survive restarts. A

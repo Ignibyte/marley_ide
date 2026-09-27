@@ -147,9 +147,10 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   subscription drops it. Left folds an open project or climbs to its header, right unfolds, and
   Enter runs the row's click handler. A project header's right-click menu has Move Project Up
   and Move Project Down (`MultiWorkspace::move_project_group_up`, `move_project_group_down`),
-  disabled at the ends, and since #507, after a separator, Remove Project
-  (`MultiWorkspace::remove_project_group`, as Zed's sidebar's Remove calls it), which closes the
-  project's workspaces after their save prompts and so stops its Chromium. Zed's `multi_workspace::FocusWorkspaceSidebar` (`ctrl-alt-;`) focuses
+  disabled at the ends, and after a separator Clear Browser Data… (#581) and Remove Project
+  (#507: `MultiWorkspace::remove_project_group`, as Zed's sidebar's Remove calls it), which closes
+  the project's workspaces after their save prompts and so stops its Chromium.
+  `project_context_menu` builds it. Zed's `multi_workspace::FocusWorkspaceSidebar` (`ctrl-alt-;`) focuses
   the rail as it does Zed's sidebar.
 - **The filter (#457).** A single-line editor under the header ("Filter…") narrows the rail as
   Zed's Threads Sidebar's filter does. `build_snapshot` matches each project's name and each
@@ -796,6 +797,17 @@ alike.
   to five seconds for the unit to stop, then runs `systemctl --user stop` for whatever is left.
   `on_app_quit` sets `quitting` and drops the pending stops, so a quit, by the palette or the
   last window's close, leaves every unit running for the restored tabs.
+- **Clear Browser Data (#581).** `clear_project_browser_data`, from the rail's project menu or
+  the action `marley::ClearProjectBrowserData`, asks with Zed's prompt (Warning; Clear, then
+  Cancel, which Escape picks), naming the workspace's project. On Clear it closes every Browser
+  tab of the project in every window (`close_project_tabs`, over `close_views`, which forgets
+  each tab's page so its removal closes nothing), from the app rather than inside the window's
+  update, and runs `BrowserHub::clear_browser_data`: `forget_browser`, then `stop_chromium` on
+  the browser's connection (or a new one, for a Chromium an earlier Marley left running), then
+  `service::remove_profile_in` off the main thread. The clear is a `Clearing`, a shared task the
+  hub keeps in `clears` while it runs: `start` waits for the project's before anything else, and
+  a clear asked while one runs gets that one. A toast in the workspace reports it, or the error
+  text.
 - **Tabs as pages (#493).** The hub emits `PageOpened` once a page is attached and
   `PageClosed` when it goes, each naming the page's target id, and a subscription made with the
   hub's global answers them. A tab that shows the page already keeps it. A page a start found
