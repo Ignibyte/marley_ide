@@ -206,7 +206,7 @@ lock screen shows and ntfy's log of the poll request to ntfy.sh.
   F-claude-547-a-timer-armed-at-the-first-event-fired-before-the-last-was-a-minute-old-001 (the
   cooldown is measured from the last post, per project). Brain consultation
   a7148ae197fb4de586e54d0eb6666ac0: nothing on this seam.
-- **Seams re-verified at `b6103917ba`** (#519 and #547 have landed):
+- **Seams re-verified at `ca19a9dd15`** (#519 and #547 have landed):
   - `crates/marley_workbench/src/agent_events.rs`: `AgentEvents` (one `FleetSnapshot`, a seat per
     terminal view, keyed by the view's id), `on_frame` (drops a frame unless Claude Code is the
     foreground, decodes, folds, applies), `end`, `forget`, `next_quiet_change`. It emits nothing

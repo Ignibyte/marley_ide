@@ -29,7 +29,7 @@
   - #565's D1, D2 and D5 (the verdict handed with each ask; `rules` answers it; a set is
     compiled in, named and versioned) and #566's D3 (a derived kind as seat labels).
   - Brain: not consulted in this drafting session; promotion asks.
-- **Discovery** (at `51bfe04034` with #547's working-tree changes; promotion re-verifies):
+- **Discovery** (at `ca70b6488d` with #547's working-tree changes; promotion re-verifies):
   - `crates/marley_agent/src/claude_events.rs`: `HookEvent` (55-90, `tool`, `preview`,
     `tool_use_id`, `is_interrupt`), `fold` (141-159), `seat_status` (172), `seat_line` (189-209,
     the `no update` form), `seat_activity` (214-224), `Moving::take` (278-341), `tool_starts`

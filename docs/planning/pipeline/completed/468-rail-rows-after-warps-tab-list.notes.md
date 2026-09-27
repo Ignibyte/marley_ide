@@ -11,7 +11,7 @@
   more padding around the project + terminal to make is a bit better. makes the icons bigger
   etc."
 - **Classification / tier:** feature, medium; `marley_workbench` and `marley_rail` only.
-- **Pre-flight:** #467 committed (`f3a89b9788`); no other active pipeline; README marker
+- **Pre-flight:** #467 committed (`0a8598f5bd`); no other active pipeline; README marker
   present; cargo idle.
 - **Recall (§18.3).**
   - `AD-claude-439-the-rail-does-not-claim-zeds-threads-list-001` and the workbench record: the

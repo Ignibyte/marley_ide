@@ -12,7 +12,7 @@
   tab behind the one in front, whose first paint came after its page); #488's viewer rule (a tab
   streams its page from its first paint in front until it is deactivated). Brain consultation
   b0f5bbf415b84b14a59f263e9d018f63: nothing on this seam.
-- **Discovery (at `1dfedc01aa`):** `browser.rs` `show_page` (sets `target`, never touches
+- **Discovery (at `9d9b8ffa66`):** `browser.rs` `show_page` (sets `target`, never touches
   `viewing`), `start_viewing` (returns early while `viewing`), `stop_viewing`, and
   `PageElement`'s paint, which calls `start_viewing` each paint.
 - **Decisions:** D1 in the spec.

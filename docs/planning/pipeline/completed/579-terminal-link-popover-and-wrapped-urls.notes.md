@@ -209,7 +209,7 @@ checks `over_ssh`), and a TUI in mouse mode (the review checks `mouse_mode`).
 - **Green, the debug build, first run:** all 9 pass. The edge-wrapped URL came out whole
   (`https://example.com/edge/a…a/end`), and so did the framed one
   (`https://example.com/framed/b…b/end`). `leak.log` stayed empty.
-- **Red, the installed build (`bd2b1a0066`, before the change):** `check the menu opened a Browser
+- **Red, the installed build (`e83b5e943c`, before the change):** `check the menu opened a Browser
   tab of the project: FAIL`. With no menu, the Return went to the waiting program.
 - **Shots, read:**
   - `579-01-link-menu`: a plain click on `local: http://127.0.0.1:<port>/` opens the menu at the

@@ -179,7 +179,7 @@ a remote project's terminal (read in the review through `is_remote_terminal`).
 - The bridge's second copy and the opener sit under `<data_dir>/mcp/`; the profile copy an e2e
   run makes has its own, so the scenario's `$BROWSER` names the copy's path (`561-01-env`).
 
-## Promotion (2026-09-26, at `bd2b1a0066`)
+## Promotion (2026-09-26, at `e83b5e943c`)
 - **What has landed since the draft:**
   - #503: `links.rs` (`destination`, `over_ssh`), `browser::open_url_tab` and
     `address::local_url`.
@@ -302,7 +302,7 @@ a remote project's terminal (read in the review through `is_remote_terminal`).
     and a timed run of the opener.
 - **Green, the debug build, first run:** all 16 pass. The fallback with no endpoint took 30 ms,
   and `leak.log` stayed empty.
-- **Red, the installed build (`bd2b1a0066`, before the change):** `check BROWSER is Marley's
+- **Red, the installed build (`e83b5e943c`, before the change):** `check BROWSER is Marley's
   opener: FAIL`, since the terminal carried the `.bashrc`'s fake.
 - **Shots, read:**
   - `561-01-env`: `echo "$BROWSER"` prints `/run/user/1000/marley-e2e/profile.…/mcp/marley-open-url`,

@@ -31,7 +31,7 @@
   - #565's D1, D2 and D5 (the verdict handed with each ask; `rules` answers it; a compiled-in
     set) and its budget row for reviewer-less approvals (a 1.5 s deadline, one retry).
   - Brain: not consulted in this drafting session; promotion asks.
-- **Discovery** (an Explore sweep at `51bfe04034`; `browser.rs`, `browser_tools.rs`,
+- **Discovery** (an Explore sweep at `ca70b6488d`; `browser.rs`, `browser_tools.rs`,
   `marley_browser` and `marley_mcp` are at HEAD; promotion re-verifies):
   - `crates/marley_workbench/src/browser_tools.rs`: `run` (63-111), `WRITES` (42-49),
     `show_for_agent` (85-87), `click` (494-532), `target_point` (690-709), `ref_target` (678-686),

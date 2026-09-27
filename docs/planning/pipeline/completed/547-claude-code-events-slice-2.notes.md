@@ -23,7 +23,7 @@
   - #519's completed notes: the seats, their ids, the labels, and what slice 1 left for here.
   - Brain: consultation 3bd3ea0a7f9a492bb24a3360bdecc2c7, nothing on this seam (a narrower
     repeat, 4a697073…, was closed with no decision).
-- **Discovery (re-verified at `51bfe04034`):**
+- **Discovery (re-verified at `ca70b6488d`):**
   - `crates/marley_workbench/src/mcp.rs:51-55` (`McpServer { failure }`), `:62-120` (`start`:
     the `Shared` is built and moved into `transport::spawn`, then dropped from scope).
   - `crates/marley_mcp/src/transport.rs:34-46` (`ServerData.snapshot`, `version`), `:369`

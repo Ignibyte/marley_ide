@@ -18,7 +18,7 @@
   - L-claude-494-zed-item-ids-change-at-each-launch-001: rows stay one per live item only while
     a cleanup deletes the rest.
   - Brain consultation 821a9c0e70b74de79a3cb480a7190646: nothing on this seam.
-- **Discovery (at `6b441aba60`):**
+- **Discovery (at `2fdaa12769`):**
   - `crates/terminal_view/src/terminal_panel.rs:311-404` (`restore_serialized_state`: the panel's
     restore when a serialized panel exists, then, always, `TerminalView::cleanup(workspace_id,
     alive_item_ids)` with the panel's items, then the panel's items not in that list marked for a
@@ -52,7 +52,7 @@ Fixtures: a scratch repository with `alpha/` and `beta/`; a HOME whose `.bashrc`
 | — | the left terminal `cd alpha`, a split, the right `cd beta`, `here` in each | `577-01-before` |
 | REQ-001 | quit, launch; a click in each pane, `here`: `alpha` and `beta`, pane by pane | `577-02-restored`; the run log |
 | REQ-002 | a third terminal opened and closed before the quit; after the launch, `terminal_list` counts two | the run log |
-| — | the same scenario on the build before (the installed release at `d0939a6fc4`): red on REQ-001 | the run log |
+| — | the same scenario on the build before (the installed release at `93b87ee807`): red on REQ-001 | the run log |
 | REQ-003 | the golden set with 577 added; the diff gate | `just regress`; `script/gates.sh --diff` |
 
 ### Risks
@@ -82,7 +82,7 @@ Fixtures: a scratch repository with `alpha/` and `beta/`; a HOME whose `.bashrc`
   `pwd`, teed to `here.log`). Steps: `cd alpha && here left-0`; a split, `cd ../beta && here
   right-0`; a new terminal, `here third`, closed with `ctrl-shift-w`; quit and launch; a click in
   each pane and `here left-1`, `here right-1`; `mcp_agent terminals` counts the terminals.
-- **Red on the build before the fix** (`E2E_BINARY=~/.local/bin/marley`, `d0939a6fc4`): the left
+- **Red on the build before the fix** (`E2E_BINARY=~/.local/bin/marley`, `93b87ee807`): the left
   terminal came back in `alpha`, the right one in the repository's root instead of `beta`, and the
   run failed there: the bug.
 - **Green on the fix:** both terminals came back in their folders, and the tools listed two

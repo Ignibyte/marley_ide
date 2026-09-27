@@ -21,7 +21,7 @@ reviewed at inspect (the §18.1 provenance check).
 
 ## Captures
 
-### `250-warp-monospace-grid-caret.png` — the monospace cell grid + block caret (ticket #250)
+### `250-warp-monospace-grid-caret` — the monospace cell grid + block caret (ticket #250)
 Warp renders all text on a **fixed-width monospace cell grid**: every `char` occupies exactly one cell, so a
 character's offset in a line maps **1:1** to its display column (indentation, tree-drawing glyphs `└`, and bullets
 `●` all land on identical columns down the view). Tabs advance to the next tab-stop (a multiple of the tab width),
@@ -33,8 +33,9 @@ grid, so on-screen columns equal char offsets — the prerequisite for the caret
 save (#252) not to corrupt. #250 reproduces the offset↔column contract as a pure, tested mapping fn (tab-stop
 aware, one char = one column in v1) — the single source of truth the render uses now and the caret/#251 +
 mouse/#254 consume next. Captured non-invasively from a running Warp window (no interaction); clean-room —
-observed rendering behavior only, no Warp source read. (The visible content is this Marley work session; the
-grid + block caret are the reference, not the text.)
+observed rendering behavior only, no Warp source read. Notes only since 2026-09-26: the capture showed a
+private work session, so it was taken out of the repository's history before the branch's first push, and this
+note is the record.
 
 ### `468-warp-vertical-tabs-notes.md` — the vertical tab list (ticket #468)
 Warp's left pane: padded two-line rows with a 28px round icon, the selected row as a bordered card, a muted

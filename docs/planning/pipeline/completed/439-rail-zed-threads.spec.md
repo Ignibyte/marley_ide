@@ -80,7 +80,7 @@ click.
   (`crates/acp_thread/src/acp_thread.rs:2434`); the shared row component
   `crates/ui/src/components/ai/thread_item.rs` (Zed's own UI building block, reused as is);
   `cx.build_action` for the private-field action.
-- **Re-swept at promotion (2026-09-22).** None of these crates changed since `b1c5a38a26`, so
+- **Re-swept at promotion (2026-09-22).** None of these crates changed since `51595b05f7`, so
   every line cited here and in the notes holds. Newly adopted:
   - `project::AgentRegistryStore` (the agent menu's name and icon fallbacks) and
     `AgentPanel::active_thread_id`, `is_retained_thread` and `AgentPanel::is_visible`;

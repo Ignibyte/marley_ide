@@ -27,7 +27,7 @@
   `sidebar.rs:832`, `:7328-7418` (behavior reference only).
 - **Human confirmation:** Chad's goal authorizes autonomous execution through commit
   (2026-09-22). No `TaskCreate` in this harness; checklists live here.
-- **Promoted to active (2026-09-22, after W1's commit `c7143be`).** Seams re-verified against
+- **Promoted to active (2026-09-22, after W1's commit `30e5d15`).** Seams re-verified against
   the committed tree: the `Sidebar` trait at `multi_workspace.rs:121-160`, `register_sidebar` at
   :387, `project_groups` :849, `workspaces_for_project_group` :932, `find_or_create_workspace`
   :1092, `ProjectGroup` :272; `zed.rs:536-546` (the deferred callback that builds Zed's

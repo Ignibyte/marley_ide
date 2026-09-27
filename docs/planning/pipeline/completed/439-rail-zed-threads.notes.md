@@ -17,7 +17,7 @@
   (2026-09-22). No `TaskCreate` in this harness; checklists live here.
 
 ## Seams re-verified (2026-09-22, before the pair was parked for #447)
-Two Explore sweeps checked every seam the spec cites at `b1c5a38a26`. Line numbers hold; the
+Two Explore sweeps checked every seam the spec cites at `51595b05f7`. Line numbers hold; the
 semantics differ in ways the design must take in.
 - **Thread rows.** `ThreadMetadataStore::entries_for_main_worktree_path(&PathList,
   Option<&RemoteConnectionOptions>)` (`thread_metadata_store.rs:643`) matches the group's main
@@ -82,7 +82,7 @@ semantics differ in ways the design must take in.
     `sidebar.rs`.
   - Brain: consultation `563eb50299964dc58e333be51f661abc`, nothing on this seam (a duplicate
     ask, `935da436…`, was closed with `no-decision`).
-- **Re-verified at promotion.** No Zed crate this ticket uses changed since `b1c5a38a26`
+- **Re-verified at promotion.** No Zed crate this ticket uses changed since `51595b05f7`
   (`git diff` over `agent_ui`, `sidebar`, `acp_thread`, `project`, `ui`, `workspace`,
   `title_bar`, `agent`, `agent_servers` and `agent_settings` is empty), so the cited lines
   hold. On the Marley side, #447 changed the rail's shape:

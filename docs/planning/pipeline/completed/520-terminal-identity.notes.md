@@ -26,7 +26,7 @@
     follows `MarleyBrowserTabsDb`'s shape without copying Zed's terminal queries.
   - Brain: not consulted in this drafting session (the brief is read-only); promotion asks.
 - **Discovery:** each seam opened and checked on 2026-09-25; line numbers are at commit
-  `520a6e22a7`. #516, active the same night, edits `mcp.rs`, `browser_tools.rs` and
+  `484a7f18cb`. #516, active the same night, edits `mcp.rs`, `browser_tools.rs` and
   `marley_mcp`, so promotion re-reads those.
   - `crates/terminal/src/terminal.rs:1153` (`TerminalBuilder::new`, taking `env` by value),
     `:1207` (`insert_zed_terminal_env`), `:1209-1219` (#474's nonce, local terminals only),
@@ -187,7 +187,7 @@ if the promotion wants the proof beyond the stand-in client).
   scope (items 9 and 10, REQ-007, REQ-008) is TICKET-574; the restore (items 4 and 5, D3, D4,
   REQ-004) is TICKET-575, so this slice touches `terminal_view` not at all and an id lasts one
   launch.
-- **Seams re-verified at `236fd6999b`:** `TerminalBuilder::new` at `terminal.rs:1153`, #474's
+- **Seams re-verified at `b1972f62d6`:** `TerminalBuilder::new` at `terminal.rs:1153`, #474's
   nonce at `:1213-1215`, the shell integration at `:1225`, `insert_zed_terminal_env` at `:716`,
   `clone_builder` at `:3385`; `first_project_directory` at `project/src/terminals.rs:54`,
   `create_terminal_shell` at `:284`, `create_terminal_shell_internal` at `:312`,

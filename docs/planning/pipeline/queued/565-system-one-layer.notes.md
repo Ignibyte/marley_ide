@@ -45,7 +45,7 @@
   - prevention-rules.md:692: `dirs` pulls an MPL crate; the crate takes its directory as an
     argument (`paths::data_dir()` from the workbench) and depends on no directory crate.
   - Brain: not consulted in this drafting session (the brief is read-only); promotion asks.
-- **Discovery** (each seam opened on 2026-09-26 at the working tree of `51bfe04034` with #547 in
+- **Discovery** (each seam opened on 2026-09-26 at the working tree of `ca70b6488d` with #547 in
   Test; line numbers are of that tree):
   - `crates/http_client/src/http_client.rs`: `RequestTimeout` (31), `HttpRequestExt::timeout`
     (56, 65), `HttpClient::send` (128), `post_json` (154), `FakeHttpClient` behind

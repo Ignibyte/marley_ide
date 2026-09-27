@@ -17,7 +17,7 @@
   sizes, the One Light / One Dark theme pair.
 - **Human confirmation:** Chad's goal authorizes autonomous execution through commit
   (2026-09-22). No `TaskCreate` in this harness; checklists live here.
-- **Promoted to active (2026-09-22, after W0's commits `a016129` and `9ac446e`).** Seams
+- **Promoted to active (2026-09-22, after W0's commits `5c80fb7` and `7abdd3e`).** Seams
   re-verified against the committed tree: `APP_NAME` at `crates/paths/src/paths.rs:17` (the
   fork comment above it at :16), `APP_NAME_LOWERCASE` at :21; `default-run = "zed"` at
   `crates/zed/Cargo.toml:9` and the main `[[bin]]` at :56-58; the compile-time assert at

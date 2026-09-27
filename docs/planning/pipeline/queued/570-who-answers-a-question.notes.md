@@ -26,7 +26,7 @@
     outcome line reads; #568's D1 to D3 and D6 (the chips and the order this ticket builds on);
     #565's D1 and D5 (the verdict handed with each ask; a compiled-in set).
   - Brain: not consulted in this drafting session; promotion asks.
-- **Discovery** (at `51bfe04034` with #547's working-tree changes; promotion re-verifies):
+- **Discovery** (at `ca70b6488d` with #547's working-tree changes; promotion re-verifies):
   - `crates/marley_agent/src/claude_events.rs`: `HookEvent` (55-90), the `PermissionRequest` arm
     (303-313), `tool_starts` with `AskUserQuestion` (353-358), `wait` (403-411), `tool_line`
     (461-467), `one_line` (470).

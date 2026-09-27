@@ -23,7 +23,7 @@
 - **Human confirmation:** Chad's goal authorizes autonomous execution of this sprint through
   commit on `marley/workbench-shell` (2026-09-22). This harness has no `TaskCreate`, so each
   phase's checklist is kept in these notes.
-- **Promoted to active (2026-09-22, after the #443 baseline commit `f67d7b0`).** Seams
+- **Promoted to active (2026-09-22, after the #443 baseline commit `906ab7b`).** Seams
   re-verified against the committed tree: `run_gate` at `script/gates.sh:60`,
   `UPSTREAM_BASE_FALLBACK` at :73 and `upstream_base` at :74 unchanged; the static gate block
   moved to :385-395 (gate:12 grew the mask ban in #443); `normalize_path` at

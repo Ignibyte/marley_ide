@@ -13,7 +13,7 @@
 - **Checklist (no TaskCreate in this harness):** select ✓, mint ✓, prior art ✓, spec ✓.
 
 ## Phase 1 — Plan (promoted 2026-09-25)
-- **Pre-flight:** #497 committed (12f07ffbe4); no other active pipeline; cargo idle; the README
+- **Pre-flight:** #497 committed (ce9432941b); no other active pipeline; cargo idle; the README
   marker present.
 - **Recall:**
   - The brain (consultation `b55fa8d231c942a0bc93698a5eea5989`): nothing on this seam.

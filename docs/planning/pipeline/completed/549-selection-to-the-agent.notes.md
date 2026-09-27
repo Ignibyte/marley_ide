@@ -59,7 +59,7 @@
   - `crates/gpui/src/window.rs:5946`: the bindings of a keystroke are tried in order until one
     is not propagated.
 - **Decisions:** D1 to D7 in the spec.
-- **Promotion (2026-09-26, at `cbe6141460`).** Every cited seam re-found by name (the line numbers
+- **Promotion (2026-09-26, at `d7c9ef1972`).** Every cited seam re-found by name (the line numbers
   moved): `marley_workbench.rs` `register_action_renderer` and `capture_action` (:318),
   `layout_preset` (:495), `marley_layout` (:513); `browser.rs` `send_pick` (:3748),
   `LastTerminal` (:5528), `track_terminals` (:5537), `reveal_terminal` (:5558), `pick_line`

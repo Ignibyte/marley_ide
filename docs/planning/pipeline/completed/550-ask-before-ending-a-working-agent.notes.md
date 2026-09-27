@@ -162,7 +162,7 @@ review's (no Marley work in `on_app_quit`, no wait outside the two paths).
   quit and relaunch carry no agent); L-claude-547-marleys-path-is-the-login-shells-001 (the
   stand-in runs in a terminal, first on the PATH through the scenario's `.bashrc`). Brain
   consultation 3c055621c9a148c5a7082fff438d9cff: nothing on this seam.
-- **Seams re-verified at `465f15dcc5`:** `Pane::close_items` at `pane.rs:1954`; `CloseIntent` at
+- **Seams re-verified at `686a760b54`:** `Pane::close_items` at `pane.rs:1954`; `CloseIntent` at
   `workspace.rs:720` and `prepare_to_close` at `:3643`; the rail's `close_terminal` at
   `rail.rs:612`, its `close_item_by_id` at `:625`; `AgentEvents::seat` at `agent_events.rs:30`.
   One correction: Zed binds `ctrl-shift-t` to `pane::ReopenClosedItem` in the `Workspace`

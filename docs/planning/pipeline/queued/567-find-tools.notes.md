@@ -25,7 +25,7 @@
   - The 491 completed notes: the stand-in agent's shape and the bridge's 40-second wait; the
     508 queued notes record `APP_CALL_TIMEOUT_SECONDS` at 30, which bounds the deadline (D8).
   - Brain: not consulted in this drafting session (the brief is read-only); promotion asks.
-- **Discovery** (2026-09-26, at the working tree of `51bfe04034`):
+- **Discovery** (2026-09-26, at the working tree of `ca70b6488d`):
   - `crates/marley_mcp/src/registry.rs`: `Family` (12-21), `is_served` (38: `Terminal` and
     `Browser`), `ToolSpec` (46-57: `family`, `verb`, `tier`, `grant_class`, `description`),
     `REGISTRY` (78-218), `browser_read` (221), `lookup` (251), `tools_list` (264-279: filters

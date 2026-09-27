@@ -27,7 +27,7 @@
     session; the harness-side `fleet_snapshot` client does the same.
   - Brain: not consulted in this drafting session (the brief is read-only); promotion asks.
 - **Discovery:** each seam opened and checked on 2026-09-25; line numbers are at commit
-  `520a6e22a7`. #516, active the same night, edits `mcp.rs`, `browser_tools.rs` and
+  `484a7f18cb`. #516, active the same night, edits `mcp.rs`, `browser_tools.rs` and
   `marley_mcp`, so promotion re-reads those.
   - The plugin: `crates/marley_workbench/claude_plugin/marley/hooks/hooks.json` (Notification
     for `permission_prompt` and `idle_prompt`, and Stop, all to `notify.sh`);
@@ -98,7 +98,7 @@
   cf47828359624003b1ffa447279c2a19: nothing on this seam.
 - **Cut to slice 1** (#547 takes the rest): the design's items 1 to 6 without the stale form
   (D7), the version bump without the update chip (D9's chip), and no MCP publishing (item 7).
-- **Seams re-verified** (an Explore sweep at `edccce539f`). What it changed:
+- **Seams re-verified** (an Explore sweep at `3dbeb53d86`). What it changed:
   - The rail never sees a notification: the view re-emits only `Wakeup`. The rail observes the
     `AgentEvents` global instead (`cx.observe_global`), which `on_frame` updates.
   - The branch goes in `notifications::init`'s subscription, before `notify`, which returns early

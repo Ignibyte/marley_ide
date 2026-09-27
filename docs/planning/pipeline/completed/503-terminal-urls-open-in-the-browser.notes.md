@@ -225,7 +225,7 @@ review checks through `project.is_local()`; the real system browser, faked by `x
 - #507 later gives each project its own Chromium; `open_url_tab` takes the workspace, so #507 can
   route it to that project's browser without a change here.
 
-## Promotion (2026-09-26, at `ce3f4038a8`)
+## Promotion (2026-09-26, at `b71069c8a8`)
 - **Seams re-read**, with where the lines are now:
   - `terminal_view.rs`: `MarleyFooterContext` is at 130, `MarleyTerminalFooter` at 141, the
     `Event::Open` URL arm at 1284 and the footer call at 1419-1430.
@@ -347,7 +347,7 @@ review checks through `project.is_local()`; the real system browser, faked by `x
   - The coordinates are now the defaults at the file's top.
   - The `Public` icon drew a broadcast glyph and became `ToolWeb`, the Browser tab's globe.
 - **Green, the debug build:** all 15 checks pass.
-- **Red, the installed build (`d0939a6fc4`, before the change):** `check a Browser tab of the
+- **Red, the installed build (`93b87ee807`, before the change):** `check a Browser tab of the
   project on the dev server, focused: FAIL`. The local URL went to the system browser, and the
   old `503-01` shows no strip under the dev server.
 - **Shots, read** (all Marley's headless sway window, kept in the scratchpad):

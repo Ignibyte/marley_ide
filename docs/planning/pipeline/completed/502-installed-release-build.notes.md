@@ -133,14 +133,14 @@ Not reachable by a scenario: the menu itself (it is Chad's shell on his screen) 
   - `502-01-installed` — the installed release binary (`<prefix>/lib/marley/marley`, 2.1 GB) in
     the Marley layout on the scratch repository: the rail's `repo` group with its `repo — bash`
     row, the terminal, the project panel, branch `installed`. REQ-003; the startup line reads
-    `sha 644f50b`, which is `HEAD`.
+    `sha f88be51`, which is `HEAD`.
   - `502-02-reinstalled` — after `script/install-marley --prefix` ran again while that Marley ran
     (exit 0, "Marley is running (pid …)"), the process still alive and its palette open on
     Ctrl+Shift+P, Marley's own commands at the top. REQ-004.
   - `502-03-from-the-menu` — the Marley that `uwsm-app -- gtk-launch marley.desktop <repo>`
     started through the entry's launcher, on a fresh profile under scratch `XDG_DATA_HOME` and
     `XDG_CONFIG_HOME`, open on the repository from `%U`, alive after ten seconds. REQ-005.
-- **Logs (run 4):** the install's output names `bin/marley at 644f50b667, with changes not
+- **Logs (run 4):** the install's output names `bin/marley at f88be51198, with changes not
   committed` (REQ-001); `desktop-file-validate` printed nothing (REQ-002); the scratch
   `logs/stderr.log` holds the menu start's line and, after the launcher ran with
   `--no-such-flag` (exit 2), clap's `unexpected argument '--no-such-flag'` (REQ-006).

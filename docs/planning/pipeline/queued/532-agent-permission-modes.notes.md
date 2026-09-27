@@ -27,7 +27,7 @@
     from there.
   - L-claude-480: a fake acts the program out; here the fakes print the arguments they got.
   - Brain: not consulted in this drafting session (the brief is read-only); promotion asks.
-- **Discovery:** each seam opened and checked on 2026-09-25, at commit `520a6e22a7`, with #516's
+- **Discovery:** each seam opened and checked on 2026-09-25, at commit `484a7f18cb`, with #516's
   working-tree changes read the same night.
   - `crates/marley_agent/src/marley_agent.rs:84-92` (`send_payload`, `launch_input`: the
     program and Enter), `:73-79` (`agent_kind_of` ignores arguments, so `claude --flag` is still

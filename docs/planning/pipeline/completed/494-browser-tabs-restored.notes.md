@@ -11,7 +11,7 @@
 - **Checklist (no TaskCreate in this harness):** mint ✓, prior art ✓, spec ✓.
 
 ## Phase 1 — Plan (promoted 2026-09-25)
-- **Pre-flight:** #493 committed (0c7f938d80); no other active pipeline; cargo idle.
+- **Pre-flight:** #493 committed (33af3fafad); no other active pipeline; cargo idle.
 - **Recall (§18.3):**
   - `PR-claude-persist-verify-trigger-not-just-codec-001` and its failure: a restore that only
     round-trips its codec can pass while nothing ever saves. Zed saves an item when it joins a

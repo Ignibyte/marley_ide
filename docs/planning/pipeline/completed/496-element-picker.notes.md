@@ -20,7 +20,7 @@
 - **Checklist (no TaskCreate in this harness):** select ✓, mint ✓, prior art ✓, spec ✓.
 
 ## Phase 1 — Plan (promoted 2026-09-25)
-- **Pre-flight:** wave 2 queued (02e0cb8225); no other active pipeline; cargo idle.
+- **Pre-flight:** wave 2 queued (9b8f459a6e); no other active pipeline; cargo idle.
 - **Recall:** as the draft's, and the brain (consultation `bffa9a7903b24036832132e8746faaaa`):
   nothing on this seam.
 - **Seams re-verified:** #480's attach reaches a terminal through `blocks::focused_terminal`,

@@ -28,7 +28,7 @@
   - The 547 spec's D5: `fleet_snapshot` publishes the fold's labels as they are; the new labels
     ride the same way (REQ-010).
   - Brain: not consulted in this drafting session (the brief is read-only); promotion asks.
-- **Discovery** (2026-09-26, at the working tree of `51bfe04034` with #547 in Test):
+- **Discovery** (2026-09-26, at the working tree of `ca70b6488d` with #547 in Test):
   - `crates/marley_agent/src/claude_events.rs`: `HookEvent` (55-90), `decode` (123), `fold`
     (141-159), `seat_status` (172), `seat_line` (189-209: the state word, the subagents, the
     prompt), `seat_activity` (214-224: the message for an idle seat), `Moving` (227),

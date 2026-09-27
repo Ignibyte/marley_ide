@@ -22,7 +22,7 @@
   picker). #493 keeps tabs as pages, the base the other two build on; #494 (restore) and #495
   (the select picker) are minted and queued, each with its ticket, its queued pair and its
   BACKLOG row.
-- **Pre-flight:** #492 committed (2b5423f0b1); no other active pipeline; cargo idle.
+- **Pre-flight:** #492 committed (ef2953825a); no other active pipeline; cargo idle.
 - **Recall:** the old gpui-era Browser tab dropped its resident on last close
   (`AD-claude-registry-lifecycle-fork-pinned-vs-dropped-001`); here the page closes with its tab.
   `PR-claude-watch-before-you-announce-ready-001` (#492): a page is observed before it is

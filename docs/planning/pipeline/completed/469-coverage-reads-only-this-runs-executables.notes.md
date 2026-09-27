@@ -8,7 +8,7 @@
   prior-art sweep · [x] spec · [x] design · [x] present (autonomous; the queue's top row).
 - **Classification / tier:** chore, small; a gate-is-test change (§7): verified by the gate's
   exit codes and a negative smoke.
-- **Pre-flight:** #465 committed (`748dcddd28`); no other active pipeline; cargo idle.
+- **Pre-flight:** #465 committed (`0c1f962583`); no other active pipeline; cargo idle.
 - **Recall (§18.3).**
   - `F-claude-465-gate4-counted-lines-from-a-stale-executable-001`: the failure and the one
     executable that caused it.

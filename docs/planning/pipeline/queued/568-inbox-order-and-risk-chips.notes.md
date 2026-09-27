@@ -29,7 +29,7 @@
     row; #508's scenario clicks its buttons by coordinates, so Test reruns it with the use off
     and reads its log.
   - Brain: not consulted in this drafting session (the brief is read-only); promotion asks.
-- **Discovery** (2026-09-26, at the working tree of `51bfe04034`; #508 and #565 are queued, so
+- **Discovery** (2026-09-26, at the working tree of `ca70b6488d`; #508 and #565 are queued, so
   their seams are their specs' designs, re-read at promotion as built):
   - #508's spec and notes: the entries (Agent Panel: `ConversationView::pending_tool_call`, the
     thread's `tool_call` with `label`, `tool_name`, `raw_input`; terminal: #519's waiting seats

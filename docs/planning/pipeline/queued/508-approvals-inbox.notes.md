@@ -21,7 +21,7 @@
     handler into another entity (`ThreadView`), so it defers out of the rail's own update, and the
     rail reads the entries at refresh, never in render.
   - Brain: not consulted in this drafting session (the brief is read-only); promotion asks.
-- **Discovery:** each seam opened and checked on 2026-09-25, at commit `520a6e22a7`.
+- **Discovery:** each seam opened and checked on 2026-09-25, at commit `484a7f18cb`.
   - `crates/acp_thread/src/acp_thread.rs:947` (`ToolCall`: `id`, `label`, `kind`, `status`,
     `raw_input`, `tool_name` public), `:1356` (`SelectedPermissionOutcome::new(option_id,
     option_kind)`), `:1402` (`AuthorizationKind`: `PermissionGrant`, `ActionChoice`), `:1417`

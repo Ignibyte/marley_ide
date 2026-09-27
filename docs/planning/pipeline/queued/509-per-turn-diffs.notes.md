@@ -21,7 +21,7 @@
     `Repository`'s public methods and `CommitView::open`; nothing of their bodies is carried over.
   - L-claude-480: the fake acts the program out; here it also makes real edits in the repository.
   - Brain: not consulted in this drafting session (the brief is read-only); promotion asks.
-- **Discovery:** each seam opened and checked on 2026-09-25, at commit `520a6e22a7`.
+- **Discovery:** each seam opened and checked on 2026-09-25, at commit `484a7f18cb`.
   - `crates/project/src/git_store.rs:488` (`GitStoreCheckpoint`, its per-repository map
     private), `:2133` (`GitStore::checkpoint` over every repository), `:9853`
     (`Repository::checkpoint`, a job returning `GitRepositoryCheckpoint`), `:10027`

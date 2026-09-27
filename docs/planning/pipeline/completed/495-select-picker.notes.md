@@ -10,7 +10,7 @@
 - **Checklist (no TaskCreate in this harness):** mint ✓, prior art ✓, spec ✓.
 
 ## Phase 1 — Plan (promoted 2026-09-25)
-- **Pre-flight:** #494 committed (ff7dd1c9dc); no other active pipeline; cargo idle.
+- **Pre-flight:** #494 committed (1bb52d739a); no other active pipeline; cargo idle.
 - **Recall (§18.3):** nothing in the ledgers on select popups. #489's press path in
   `PageElement` and the view's `last_press`; #492's isolated world (`Page::isolated_context`)
   and `observe`, which each cross-site iframe's session gets too; #493's `BrowserEvent` per

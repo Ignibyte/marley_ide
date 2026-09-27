@@ -156,7 +156,7 @@ as terminal rows are).
   in an iframe does not, only the main frame counts) would rebuild often. `refresh` notifies only
   on a changed snapshot, so the cost is the rebuild itself.
 
-## Promotion (2026-09-26, at `628bb59dab`)
+## Promotion (2026-09-26, at `bfa88a1a58`)
 - **Seams re-read:**
   - `marley_rail`: `ProjectSnapshot` (30), `TerminalSnapshot` (46), `Focus` (159), `Selection`
     (185), `Row` (258), `SwitcherRow::selection` (279), `selection` (295), `cycle_row` (456),
@@ -291,7 +291,7 @@ as terminal rows are).
   launch and before the first tab, passed. Marley's log does not record the unit's start, so that
   check is the evidence, not the log.
 - **Red run:** the same scenario on the installed build (`E2E_BINARY=~/.local/bin/marley`, at
-  `bd2b1a0066`, without #504) fails its first rail check, "the page's icon shows on the Checkout
+  `e83b5e943c`, without #504) fails its first rail check, "the page's icon shows on the Checkout
   row"; its shot shows only `repo — bash` under the project while the tab bar holds both tabs.
 - **Focus:** under sway, `hyprland: 0 Marley windows before the run, 0 after; the run added no
   rule and did not reload it`. Nothing reached Chad's session.

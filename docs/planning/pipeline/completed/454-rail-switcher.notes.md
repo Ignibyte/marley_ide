@@ -20,7 +20,7 @@
   - `PR-claude-a-negative-assert-must-prove-the-machinery-ran-001`: the "not from a center
     terminal" check runs in the same test that first opens the switcher from the rail.
   - The draft criterion was REQ-007 of #442's queued spec (`git show
-    f67d7b0d23:docs/planning/pipeline/queued/442-rail-polish.spec.md`, lines 32-33 and 87). Its
+    906ab7be42:docs/planning/pipeline/queued/442-rail-polish.spec.md`, lines 32-33 and 87). Its
     Warp citation, `session-tabs-vs-sidebar.md`, describes clicks only.
   - Brain: consultation `7cdae1242c134e97862ac5016bc9d563`, nothing on this seam.
 - **Discovery.** Two Explore sweeps.

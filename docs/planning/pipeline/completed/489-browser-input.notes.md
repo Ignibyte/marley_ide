@@ -19,7 +19,7 @@
 - **Checklist (no TaskCreate in this harness):** select ✓, mint ✓, prior art ✓, spec ✓.
 
 ## Phase 1 — Plan (promoted 2026-09-24)
-- **Pre-flight:** no active pipeline before this one; #488 committed (71c745ad4f); cargo idle.
+- **Pre-flight:** no active pipeline before this one; #488 committed (cc5e338ca3); cargo idle.
 - **Seams re-verified:** #488's `BrowserHub` (the page, the frame) and `PageElement` (bounds in
   `prepaint`, paint); gpui's `EntityInputHandler` (text_for_range, selected_text_range,
   marked_text_range, unmark_text, replace_text_in_range, replace_and_mark_text_in_range,

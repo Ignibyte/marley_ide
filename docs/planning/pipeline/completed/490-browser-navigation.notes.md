@@ -16,7 +16,7 @@
 - **Checklist (no TaskCreate in this harness):** select ✓, mint ✓, prior art ✓, spec ✓.
 
 ## Phase 1 — Plan (promoted 2026-09-24)
-- **Pre-flight:** #489 committed (32604e7d41); no other active pipeline; cargo idle.
+- **Pre-flight:** #489 committed (9a87647c68); no other active pipeline; cargo idle.
 - **Seams re-verified:** `Editor::single_line(window, cx)`, `set_text`, `select_all(&SelectAll,
   …)`, `text(cx)`, `focus_handle(cx)`; the rich input's keymap pattern (`"MarleyRichInput >
   Editor"` binding Enter and Escape to Marley actions, which beats the editor's own and the

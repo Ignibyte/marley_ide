@@ -87,7 +87,7 @@ same tool an agent uses.
 - The order matters and is easy to get wrong in a later edit: the module's comment says why the
   `authorization` rule follows `bearer token`, and #516's golden scenario catches a regression.
 
-## Promotion (2026-09-26, at `0b53d83ec0`)
+## Promotion (2026-09-26, at `e78229210a`)
 - **Seams re-read:** `crates/marley_mcp/src/redact.rs` as cited: `Rule` (19-28), `BUILT_IN`
   (30-97: `private key`, `secret` at 40-45, `bearer token` at 46-51, the two `url password`
   rules, the provider shapes, `jwt`), `BUILT_IN_RULES` (99-113), `redact` (150-166), `apply`
@@ -164,7 +164,7 @@ same tool an agent uses.
   JSON body's `", "Accept": "application/json"}` kept, each name with `[redacted: secret]`, each
   cookie value as `[redacted: cookie]` with the curl line's `" https://api.example.test/v2` kept,
   the bearer line once, and `PATH` and the plain line as printed (REQ-001 to REQ-005).
-- **Red, the installed build (`d0939a6fc4`, before the change, `E2E_BINARY=~/.local/bin/marley`):**
+- **Red, the installed build (`93b87ee807`, before the change, `E2E_BINARY=~/.local/bin/marley`):**
   `check each line reads as expected: FAIL`, with 13 of the 15 lines missing from the read. Only
   #516's bearer line was hidden. The Basic, Token, Digest, cookie and hyphenated-name values came
   through as printed.

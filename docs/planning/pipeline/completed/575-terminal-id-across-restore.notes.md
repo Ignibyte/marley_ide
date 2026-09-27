@@ -25,7 +25,7 @@
     follows `MarleyBrowserTabsDb`'s shape, not Zed's terminal queries.
   - Brain consultation d2e7b3bdb03742d083c9e08764bc2401: nothing on this seam (it listed other
     projects' follow-ups).
-- **Discovery (at `d0939a6fc4`):**
+- **Discovery (at `93b87ee807`):**
   - `crates/terminal/src/terminal.rs:1155` (`TerminalBuilder::new`, `env` by value), `:1214`
     (#474's nonce), `:1229-1240` (#520's id: minted for a local interactive terminal, the id and
     the project emptied otherwise), `:1451-1453` (the `CopyTemplate` keeps `env` after those
@@ -171,7 +171,7 @@ Not reached: the terminal panel's terminals (the Zed layout). They come back thr
   --no-deps` on the two Marley crates: clean.
 - **The release install** (`just install`, started after #574's commit) overlapped this phase's
   first edits; `strings` found none of #575's names in its binary (the constant's literal among
-  them), so the installed build is `d0939a6fc4`'s code.
+  them), so the installed build is `93b87ee807`'s code.
 
 ## Phase 3 — Test
 - **Checklist (no TaskCreate in this harness):** 575-01 · REQ-001 (first relaunch) · REQ-002 ·

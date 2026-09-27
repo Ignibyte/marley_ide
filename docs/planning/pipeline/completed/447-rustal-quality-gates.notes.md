@@ -11,7 +11,7 @@
 - **Request:** Chad, 2026-09-22: "lets mimic the quality gates on rustal, clean up your mutation
   packages, recalibrate the workflow to make sense, clean up anything and make sure high quality
   rust items are here and lets continue working on the remaining tickets". The workflow and the
-  mutation clean-up shipped first (`8a7b97fcda`, `2da3df079b`); this ticket is the gates.
+  mutation clean-up shipped first (`952f27ace4`, `dbad7c4c45`); this ticket is the gates.
 - **Classification / tier:** chore, large. Marley-owned files, plus one Zed file (`clippy.toml`)
   with its ledger row. #439 was parked back in `queued/` so this pipeline could be the only
   active one; its re-verified seams are in its notes.

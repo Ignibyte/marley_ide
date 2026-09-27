@@ -13,7 +13,7 @@
   and title); #575's run showed restored items' entity ids nearly the same from run to run, so a
   collision across launches is likely in a scripted sequence. Brain consultation
   28b969832d7341bc987c3de50d763c16: nothing on this seam.
-- **Discovery (at `474071d6a4`):** `crates/marley_workbench/src/browser.rs:5020-5038`
+- **Discovery (at `df92370178`):** `crates/marley_workbench/src/browser.rs:5020-5038`
   (`MarleyBrowserTabsDb`, one migration with `item_id INTEGER UNIQUE`), `:5040-5063` (`save_tab`,
   `INSERT OR REPLACE`; `get_tab`), `:4966-4988` (`deserialize` fails with "no Browser tab was saved
   for the item" when the row is gone); `crates/terminal_view/src/persistence.rs:426-445` (Zed's
@@ -38,7 +38,7 @@ Chromium's unit stopped after each quit.
 | — | launch on repo-b; `navigate b.html`; quit; the saved rows, read-only | `576-02-b`; the run log |
 | REQ-001 | launch on repo-a; `browser_tabs`: a tab at a.html, `project repo-a` | `576-03-a-again`; the run log |
 | REQ-002 | the table's schema and rows, read-only, after the new build's first launch | the run log |
-| — | the same on the build before (installed, `d0939a6fc4`): red when the item ids meet | the run log |
+| — | the same on the build before (installed, `93b87ee807`): red when the item ids meet | the run log |
 | REQ-003 | the golden set with 576 added; the diff gate | `just regress`; `script/gates.sh --diff` |
 
 ### Risks
@@ -67,7 +67,7 @@ Chromium's unit stopped after each quit.
   while Marley is stopped (it does nothing when the ids met already); `saved_tabs` prints this
   run's workspaces' rows (a join on `workspaces.paths`, since the profile is a copy of the user's)
   and the table's schema, read-only; repo-a again, `browser_tabs`, a click on the tab, the shot.
-- **Red on the build before the fix** (`E2E_BINARY=~/.local/bin/marley`, `d0939a6fc4`): the two
+- **Red on the build before the fix** (`E2E_BINARY=~/.local/bin/marley`, `93b87ee807`): the two
   tabs met on item id 12884902150 by themselves; after the second launch one row was left, repo-b's
   (`8|12884902150|…/b.html`), the schema still `item_id INTEGER UNIQUE`, and repo-a's tab did not
   come back: the bug.

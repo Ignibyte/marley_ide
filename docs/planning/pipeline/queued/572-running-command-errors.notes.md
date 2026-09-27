@@ -27,7 +27,7 @@
     are the source), D3 (never for agent terminals) and D7 (the row's command line); #565's D1
     and D5.
   - Brain: not consulted in this drafting session; promotion asks.
-- **Discovery** (at `51bfe04034`; promotion re-verifies):
+- **Discovery** (at `ca70b6488d`; promotion re-verifies):
   - `crates/terminal/src/terminal.rs`: `apply_shell_hook` (1817-1841, `stamp` at 1834),
     `blocks` (1845), `marley_anchored` (1852), `block_output` (1859-1865),
     `block_output_kept` (1869-1872), `last_n_non_empty_lines` (2635), `foreground_process_command_name`

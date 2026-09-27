@@ -20,7 +20,7 @@
   - #520's notes: the hub's focus value is filtered to live pages (`page_state`); the history keeps
     that filter.
   - Brain consultation 1a3ef1f18c0a4cbaacbb1b919c7dd868: nothing on this seam.
-- **Discovery (at `81d5f15cda`):** `browser_tools.rs:53` (`answer`, which spawns `run` without
+- **Discovery (at `1970a49f4f`):** `browser_tools.rs:53` (`answer`, which spawns `run` without
   the caller today), `:115` (`page_of`: the named tab, else `hub.focused()`), `:143` (`tabs`),
   `:432` (`navigate`: a new page when asked or when the browser has none, else `page_of`);
   `browser.rs:398` (`BrowserHub`, its `focused: Option<String>`), `:520` (`focused`), `:527`
@@ -161,7 +161,7 @@ from the project's root with blank variables).
   Browser tab of the project repo-a shows a page; browser_navigate opens one there` inside the
   server's `refused` envelope). The fourth run: every check passes.
 - **Red on the build before this ticket:** run with `E2E_BINARY=~/.local/bin/marley` (the installed
-  release, at 236fd6999b), `agent look` from repo-a's terminal read repo-b's tab (`Page one`, the
+  release, at b1972f62d6), `agent look` from repo-a's terminal read repo-b's tab (`Page one`, the
   tab the user focused last), and the run failed at the refusal check: the failure this ticket
   stops.
 - **Checks in the final run (all pass):** the look from repo-a with no tab refused with its next

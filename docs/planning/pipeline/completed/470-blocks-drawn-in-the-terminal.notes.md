@@ -10,7 +10,7 @@
 - **Classification / tier:** feature, medium; `marley_terminal`, and small additive hunks in
   Zed's `terminal` and `terminal_view`. T1 split: T1a here, hover actions (T1b) and navigation
   keys (T1c) after.
-- **Pre-flight:** #469 committed (`9f5028bd02`); no other active pipeline; README marker present;
+- **Pre-flight:** #469 committed (`75ed92f863`); no other active pipeline; README marker present;
   cargo idle.
 - **Recall (§18.3).**
   - The plan's D3 (stage one draws over the grid; stage two changes the row model) and D2

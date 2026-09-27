@@ -32,7 +32,7 @@
     the shell's), D3 (the marker rule), D4 (the hint rides the suggestion slot, never the
     footer); #565's D1 and D5.
   - Brain: not consulted in this drafting session; promotion asks.
-- **Discovery** (at `51bfe04034`; promotion re-verifies, and reads #557 as shipped):
+- **Discovery** (at `ca70b6488d`; promotion re-verifies, and reads #557 as shipped):
   - `crates/marley_workbench/src/autosuggest.rs`: `init` (29-52, the suggestion hook and
     `AcceptSuggestion`), `suggestion` (56-72), `typed_text` (76-105), `read_history` (120-149).
   - `crates/terminal_view/src/terminal_view.rs`: `MarleyFooterContext` (130-139),

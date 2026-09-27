@@ -150,7 +150,7 @@ Negative checks: `PS0` not set (no block opens); `$?` taken after the quote call
 - **Brain:** consultation `b4976182ea8d45aa8bf643bede62228c` closed with a decision, follow-up
   by 2026-10-07.
 - **Ticket:** #463 closed. #465 (zsh) is queued, and #466 (fish) waits in Deliberate.
-- **Live check (after the commit, 11:29):** Marley built from `23f5acde1b` and opened on this
+- **Live check (after the commit, 11:29):** Marley built from `d95c13ee81` and opened on this
   repository at Chad's request. `ps` shows both restored terminals' shells as
   `/usr/bin/bash --rcfile /home/cpeppers/.local/share/marley/shell_integration/marley.bash`.
   The script was already there with the same content, so the app did not rewrite it. The owed

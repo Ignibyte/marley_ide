@@ -18,7 +18,7 @@
 - **Checklist (no TaskCreate in this harness):** select ✓, mint ✓, prior art ✓, spec ✓.
 
 ## Phase 1 — Plan (promoted 2026-09-25)
-- **Pre-flight:** #491 committed (3181a9efd6); no other active pipeline; cargo idle.
+- **Pre-flight:** #491 committed (ca27e1f0fd); no other active pipeline; cargo idle.
 - **Recall:** the #491 registry and deferred calls are the seam (the prevention rule: the list
   derives from `REGISTRY`); D15's redaction (no headers or bodies, secret-looking query values);
   #489's key and mouse mappings for the write tools. Brain consultation

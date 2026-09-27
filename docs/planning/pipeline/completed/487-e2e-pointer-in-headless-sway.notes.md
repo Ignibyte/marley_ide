@@ -104,7 +104,7 @@ spec ✓, design ✓.
   Hyprland. `script/e2e/seat-pointer.c` (the helper, built on first use into
   `$SHOT_DIR/.seat-pointer-<hash>`) and `script/e2e/wlr-virtual-pointer-unstable-v1.xml`
   (vendored, MIT, header kept). CONSTITUTION §7 and the amending record in their own commit
-  (6983683f15).
+  (20369a93c7).
 - **Deviations:** `COMPOSITOR` and `SIZE` also come from the environment, so
   `COMPOSITOR=sway just shot <name>` works without a scenario of its own. The Hyprland
   signature lookup no longer exports `WAYLAND_DISPLAY` by itself, so the sway path's read-only
@@ -146,7 +146,7 @@ spec ✓, design ✓.
 
 ## Phase 4 — Complete
 - **Docs (§21):** CHANGELOG (Changed: e2e scenarios can click, drag and scroll); CONSTITUTION §7
-  and its amending record (6983683f15, its own commit); `.claude/commands/pipeline/test.md` and
+  and its amending record (20369a93c7, its own commit); `.claude/commands/pipeline/test.md` and
   `plan.md`; the spec template's UI proof; `docs/marley/README.md`'s standards line; the plan's
   prong 3 slices table (#487 shipped). No Marley crate and no Zed path changed.
 - **Ledger:** L-claude-487-a-headless-seat-has-no-devices-until-a-client-adds-them-001,

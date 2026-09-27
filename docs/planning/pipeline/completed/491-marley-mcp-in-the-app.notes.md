@@ -21,7 +21,7 @@
 - **Checklist (no TaskCreate in this harness):** select ✓, mint ✓, prior art ✓, spec ✓.
 
 ## Phase 1 — Plan (promoted 2026-09-25)
-- **Pre-flight:** #490 committed (e0b4f92e07); no other active pipeline; cargo idle; the README
+- **Pre-flight:** #490 committed (cb995b8c9f); no other active pipeline; cargo idle; the README
   marker present.
 - **Recall (§18.3):**
   - `BF-mcp-pre-auth-body-alloc-001`: the transport caps a body at 1 MiB before it allocates;

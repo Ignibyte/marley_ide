@@ -319,7 +319,7 @@ https://code.claude.com/docs/en/hooks, https://docs.kernel.org/filesystems/overl
 https://github.com/containers/bubblewrap/releases/tag/v0.11.0, and Gemini CLI's
 https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/checkpointing.md.
 
-Code read, in the fork (upstream `78648aaf7d` plus the Marley branch at `51bfe04034`):
+Code read, in the fork (upstream `78648aaf7d` plus the Marley branch at `ca70b6488d`):
 `crates/acp_thread/src/acp_thread.rs`, `crates/agent_ui/src/conversation_view/thread_view.rs`,
 `crates/agent_ui/src/thread_worktree_archive.rs`, `crates/action_log/src/action_log.rs`,
 `crates/agent_servers/src/acp.rs`, `crates/project/src/git_store.rs`,
