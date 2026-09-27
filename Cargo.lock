@@ -10908,6 +10908,7 @@ dependencies = [
  "url",
  "util",
  "which",
+ "whoami",
  "workspace",
  "zed_actions",
 ]

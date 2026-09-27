@@ -49,6 +49,7 @@ ui.workspace = true
 url.workspace = true
 util.workspace = true
 which.workspace = true
+whoami = { version = "1.6.1", default-features = false }
 workspace.workspace = true
 zed_actions.workspace = true
 

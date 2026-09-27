@@ -311,7 +311,7 @@ pub(crate) fn allow(name: String, write: bool, cx: &App) -> Task<anyhow::Result<
 
 /// Cuts the client `name` off (#524): at once for the main thread (the Browser tab's mark, a call
 /// still waiting), then off it for the server (its token opens nothing, its sessions end), its
-/// endpoint file and its entry in the registry.
+/// entry in the registry and then its endpoint file.
 pub(crate) fn cut_off(name: String, cx: &mut App) -> Task<anyhow::Result<()>> {
     if !cx.has_global::<ClientsState>() {
         return Task::ready(Err(anyhow!("Marley's MCP server is not running")));
@@ -333,12 +333,15 @@ pub(crate) fn cut_off(name: String, cx: &mut App) -> Task<anyhow::Result<()>> {
     }
     cx.background_spawn(futures::future::lazy(move |_| {
         let _was_allowed = transport::cut_off_client(&shared, &table, &name);
+        // The list changes before the file goes, so a bridge that finds the file gone finds the
+        // client unlisted too, and says it is cut off rather than that Marley is not running
+        // (#584).
+        write_registry_in(&data_dir, &registry)?;
         discovery::remove_endpoint_file_in(
             &mcp_dir_in(&data_dir).join(CLIENTS_DIR),
             &format!("{name}.json"),
         )
-        .with_context(|| format!("removing {}", client_file_in(&data_dir, &name).display()))?;
-        write_registry_in(&data_dir, &registry)
+        .with_context(|| format!("removing {}", client_file_in(&data_dir, &name).display()))
     }))
 }
 
@@ -550,6 +553,14 @@ impl BrowserClientsModal {
             quote(&file_text),
             quote(&bridge.to_string_lossy())
         );
+        // From another machine the same bridge runs here over SSH (#584). `env` sets the variable
+        // in any login shell, csh's included, and `BatchMode` makes an SSH that would ask for a
+        // password fail at once rather than prompt inside the client's own terminal.
+        let over_ssh = format!(
+            "ssh -T -o BatchMode=yes {} {}",
+            this_machine(),
+            quote(&format!("env {command}"))
+        );
         let colors = cx.theme().colors();
         let copyable = |id: &'static str, text: String| {
             h_flex()
@@ -580,7 +591,17 @@ impl BrowserClientsModal {
             .child(copyable("browser-client-copy-file", file_text))
             .child(Label::new("Point Marley's bridge at it:").size(LabelSize::Small))
             .child(copyable("browser-client-copy-command", command))
+            .child(Label::new("From another machine, run it over SSH:").size(LabelSize::Small))
+            .child(copyable("browser-client-copy-ssh", over_ssh))
     }
+}
+
+/// This machine as another one names it over SSH, the user and the host; a word for the user to
+/// replace stands in for either one that cannot be read.
+fn this_machine() -> String {
+    let user = whoami::fallible::username().unwrap_or_else(|_| "<user>".to_string());
+    let host = whoami::fallible::hostname().unwrap_or_else(|_| "<this machine>".to_string());
+    format!("{user}@{host}")
 }
 
 impl ModalView for BrowserClientsModal {}

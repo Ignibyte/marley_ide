@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Marley's MCP server, over stdio, for Claude Code.
+"""Marley's MCP server, over stdio, for Claude Code and for Marley's outside clients.
 
-Claude Code runs this for the `marley` server the plugin declares. It passes each JSON-RPC message
-from stdin to the Marley that is running, found through the endpoint file Marley writes, and writes
-each answer to stdout. While no Marley answers, it answers `initialize` itself and lists no tools,
-so a Claude Code session outside Marley sees an empty server rather than a failed one; when Marley
-starts or quits, it tells the client that its tool list changed.
+Claude Code runs this for the `marley` server the plugin declares. An outside client (#524) runs it
+pointed at its own endpoint file, on this machine or from another one over SSH (#584). It passes
+each JSON-RPC message from stdin to the Marley that is running, found through the endpoint file
+Marley writes, and writes each answer to stdout. While no Marley answers, it answers `initialize`
+itself and lists no tools, so a session outside Marley sees an empty server rather than a failed
+one; when Marley starts or quits, it tells the client that its tool list changed.
 
 The endpoint file is `$MARLEY_MCP_ENDPOINT`, else
 `${XDG_DATA_HOME:-~/.local/share}/marley/mcp-endpoint.json`. The bearer in it goes only to a
@@ -38,6 +39,11 @@ NOT_RUNNING = "Marley is not running, so its tools are not there. Start Marley a
 REFUSED = (
     "Marley refused this endpoint file's token: the user cut this client off, or the file is "
     "older than the Marley that runs. Ask the user to allow the client again in Browser Clients."
+)
+
+NOT_ALLOWED = (
+    "Marley does not allow this client: the user cut it off in Browser Clients, or never allowed "
+    "it. Ask the user to allow the client again in Browser Clients."
 )
 
 output_lock = threading.Lock()
@@ -89,12 +95,45 @@ def read_endpoint():
     return url, authorization
 
 
+def not_allowed():
+    """Whether the endpoint file is an outside client's that is gone while Marley's list of clients
+    beside its folder no longer names it (#584): cut off or never allowed. A Marley that is not
+    running keeps its clients listed while their files are gone."""
+    path = endpoint_path()
+    folder = os.path.dirname(path)
+    if os.path.basename(folder) != "clients" or os.path.exists(path):
+        return False
+    try:
+        with open(os.path.join(os.path.dirname(folder), "clients.json"), encoding="utf-8") as file:
+            listed = json.load(file).get("clients")
+    except (OSError, ValueError, AttributeError):
+        return False
+    if not isinstance(listed, list):
+        return False
+    name = os.path.basename(path).removesuffix(".json")
+    return not any(isinstance(client, dict) and client.get("name") == name for client in listed)
+
+
 class Unreachable(Exception):
     """No Marley answered at the endpoint."""
+
+    # What a tool call is told, and how an unknown method's error ends.
+    why = NOT_RUNNING
+    state = "which is not running"
 
 
 class Refused(Unreachable):
     """Marley answered, and refused the endpoint file's token (#524)."""
+
+    why = REFUSED
+    state = "which refused this endpoint file's token"
+
+
+class NotAllowed(Unreachable):
+    """The endpoint file's client is no longer on Marley's list of clients (#584)."""
+
+    why = NOT_ALLOWED
+    state = "which does not allow this client"
 
 
 class SessionGone(Exception):
@@ -190,13 +229,13 @@ def answers(endpoint):
         return False
 
 
-def local_answer(message, refused=False):
-    """What the bridge answers itself while no Marley does, or while Marley refuses its token."""
+def local_answer(message, reason):
+    """What the bridge answers itself while no Marley lets it in, `reason` being the error that
+    says why."""
     method = message.get("method")
-    why = REFUSED if refused else NOT_RUNNING
     results = {
         "tools/list": {"tools": []},
-        "tools/call": {"content": [{"type": "text", "text": why}], "isError": True},
+        "tools/call": {"content": [{"type": "text", "text": reason.why}], "isError": True},
         "resources/list": {"resources": []},
         "prompts/list": {"prompts": []},
         "ping": {},
@@ -206,7 +245,7 @@ def local_answer(message, refused=False):
     return {
         "jsonrpc": "2.0",
         "id": message.get("id"),
-        "error": {"code": -32601, "message": f"{method} needs Marley, which is not running"},
+        "error": {"code": -32601, "message": f"{method} needs Marley, {reason.state}"},
     }
 
 
@@ -234,6 +273,8 @@ class Bridge:
         """Opens a session with the Marley that runs, with the client's own `initialize`."""
         endpoint = read_endpoint()
         if endpoint is None:
+            if not_allowed():
+                raise NotAllowed("Marley's list of clients does not name this one")
             raise Unreachable("no endpoint file")
         params = self.client_initialize or {
             "protocolVersion": PROTOCOL_VERSION,
@@ -297,7 +338,7 @@ class Bridge:
             replies = self.forward(message)
         except Unreachable as error:
             log(f"answering alone: {error}")
-            send(local_answer(message, refused=isinstance(error, Refused)))
+            send(local_answer(message, error))
             return
         for reply in replies:
             send(reply)
@@ -326,7 +367,12 @@ class Bridge:
                 if changed and not up:
                     self.session = None
             if changed:
-                log("Marley started" if up else "Marley quit")
+                if up:
+                    log("Marley started")
+                elif not_allowed():
+                    log("Marley no longer allows this client")
+                else:
+                    log("Marley quit")
                 send({"jsonrpc": "2.0", "method": "notifications/tools/list_changed"})
 
 

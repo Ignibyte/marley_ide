@@ -2522,3 +2522,20 @@ token. On SIGTERM it closes Chromium over the pipe. Rejected:
 - one connection for all clients through the pipe's root: clients would share discovery and
   auto-attach state, and a Playwright client's pause-on-start would stop Marley's pages;
 - CDP for #524's outside clients: CDP evaluates script, which no Marley tool does.
+
+## AD-claude-584-other-machines-run-marleys-bridge-over-ssh-001
+*decided at: 2026-09-27 · status: shipped · builds on: AD-claude-524-outside-clients-reach-a-list-of-browser-tools-by-name-001*
+
+A client on another machine reaches Marley's browser tools by running Marley's stdio bridge on
+this machine over SSH, pointed at its own endpoint file: `ssh -T -o BatchMode=yes <user>@<host>
+'env MARLEY_MCP_ENDPOINT=<file> <data>/mcp/marley-mcp-bridge'`, which Browser Clients shows and
+copies. Nothing new listens. SSH checks who connects, and the bridge reads the token Marley
+minted at its latest start where Marley wrote it, so the other machine keeps no token and its
+line outlives restarts. Rejected:
+- a fixed loopback port behind `ssh -L` or `tailscale serve`, the ticket's first idea: the
+  client's token, minted at each start (AD-524), would sit in the other machine's config and be
+  refused after the next start;
+- tokens that last across starts for such clients: AD-524 rejected them, and the phone path (the
+  Orca survey's item 12) decides them with Chad;
+- Tailscale Serve's identity headers as a credential: any process on the machine can send the
+  same headers to 127.0.0.1.

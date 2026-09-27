@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Browser clients on other machines, over SSH** (#584, 2026-09-27). A program on another
+  computer can now drive Marley's browser as an allowed client. Browser Clients shows, under the
+  line for this machine, a line that runs Marley's bridge here over SSH, with Copy. The other
+  machine's MCP client runs that line as its server. It holds no token: SSH checks who connects,
+  and the bridge reads the client's token on this machine, so the line keeps working when Marley
+  restarts. Marley listens on nothing new.
 - **Programs outside Marley drive its browser, by name** (#524, 2026-09-27). Browser Clients
   (`marley: browser clients`) lets a program in by name, to read pages or also to act in them.
   Each gets a token of its own, new at each start of Marley, in an endpoint file only you can
@@ -665,6 +671,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A client that was cut off is told so** (#584, 2026-09-27). After Cut Off, a program using
+  Marley's bridge was told that Marley was not running and to start it, while Marley ran. It is
+  now told that Marley does not allow it, and that the user can allow it again in Browser
+  Clients.
+- **The secrets gate reads Marley's e2e scenarios before they are committed** (#584,
+  2026-09-27). gate:10 scanned the scenarios, their runner, `script/regress` and the installer
+  only once they were committed, so a new line reached the public repository before gitleaks saw
+  it. They are now scanned in the working tree too. `.gitleaks.toml` also allows RFC 6455's
+  sample WebSocket key, which #583's scenario sends.
 - **A failed Playwright run's recording keeps the run's start** (#583, 2026-09-27). In the
   installed build, the recording a failed script saves could hold the run's end and not its
   start, when the run began in the moment its terminal took the tab's place before moving beside

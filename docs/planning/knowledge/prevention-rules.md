@@ -2434,3 +2434,18 @@ whatever state the page's view is in: a rule that keeps entries only while a vie
 what the page does on its own, and a command that moves views around can run inside the moment
 no view draws. Timing that only a release build hits is found by the install's golden set, so a
 check on such a record stays in a golden scenario.
+
+## PR-claude-prove-what-a-program-says-on-the-file-it-reads-001
+*severity: medium · prevents: F-claude-584-a-cut-off-clients-bridge-said-marley-was-not-running-001*
+
+A scenario that checks what a program tells its user after Marley changes the program's state
+points the program at the file it really reads, as Marley left it (gone, rewritten, emptied),
+never at a copy the scenario saved before the change. A copy proves how the program handles the
+copy; the user's program sees what Marley did to the real file.
+
+## PR-claude-every-marley-folder-a-commit-adds-to-is-in-gate-10s-tree-scan-001
+*severity: high · prevents: F-claude-584-gitleaks-saw-a-scenario-only-after-it-was-pushed-001*
+
+Every folder or script of Marley's own that a commit can add to is in gate:10's working-tree
+scan. The history scan sees a file only after it is committed, and on this branch a push follows
+the commit. A new Marley-owned folder or script joins the list in the change that creates it.

@@ -336,8 +336,9 @@ accessibility snapshot including cross-site iframes, the frame on his screen, th
 network) and act in the same tab. Since #524 (Chad, 2026-09-25) programs outside Marley that
 the user allows by name reach the browser tools too, each with a token of its own, new at each
 start, and a grant to read pages or also to act in them over an explicit list of tools; a tab
-one drives names it, and Cut Off refuses its token at once. Other machines come through slice 3
-(#584).
+one drives names it, and Cut Off refuses its token at once. Since #584 a client on another
+machine runs Marley's bridge on this one over SSH, from the line Browser Clients shows; nothing
+new listens.
 
 **D18. Scenarios that click run Marley in a headless sway (#487).** Hyprland cannot send a
 pointer event to one window, and a real click would move Chad's pointer. A headless sway with
@@ -374,7 +375,7 @@ reaching his desktop.
 | B7b | #507 | A Chromium and a profile per project: logins (cookies, `localStorage`, IndexedDB) kept apart and across restarts, a linked worktree on its repository's, the unit started by the project's first tab, kept at a quit and stopped when the project is removed (the rail's Remove Project), the old profile moved to the first project, the tools across every project's browser (shipped; clearing one project's data is #581) | L |
 | B8a | #524 | Trusted outside clients, slice 1: named clients with per-start tokens in endpoint files of their own, a read or act grant over an explicit list of browser tools, the tab's "Driven by" mark and Cut Off, owned sessions, and the MCP server's read bounded before authentication (shipped) | L |
 | B8b | #583 | Slice 2: Chromium's DevTools off TCP, on its pipe behind Marley's relay, which gives each client a browser session, serves Marley over a 0600 Unix socket and other clients a loopback CDP WebSocket that takes a token it mints at each start (shipped) | L |
-| B8c | #584 | Slice 3: a client on another machine, through `ssh -L` or `tailscale serve` to a fixed loopback port | M |
+| B8c | #584 | Slice 3: a client on another machine runs Marley's bridge here over SSH, from the line Browser Clients shows and copies; a cut-off client is told it is not allowed (shipped) | S |
 
 Wave 2 was specced on 2026-09-25, once wave 1 had landed (#496 to #499; the shelf note is
 `docs/planning/design-notes/browser-wave-2-shelf.md`).

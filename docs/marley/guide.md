@@ -461,6 +461,14 @@ the server or the file fails, Marley logs it, shows it once as a toast, and runs
 | The Zed Agent and the external agents of the Agent Panel | The context server `marley`, which runs the same bridge |
 | Any other MCP client | Run the bridge as a stdio server, or read the endpoint file (its URL and token change at every start) |
 
+A client allowed in Browser Clients (`marley: browser clients`) can run on another machine. Its
+MCP client runs, as its stdio server, the line Browser Clients shows under "From another
+machine, run it over SSH", `ssh -T -o BatchMode=yes <you>@<this machine> 'env
+MARLEY_MCP_ENDPOINT=… …/marley-mcp-bridge'`. The line holds no token and still works after
+Marley restarts. SSH must log in without a prompt, with a key or an agent, so connect once by
+hand first to accept the host key. If the other machine knows this one by another name (an SSH
+alias, a tailnet name), change the host in the line.
+
 ### The bridge
 
 `marley-mcp-bridge` is a Python 3 script that uses the standard library only.

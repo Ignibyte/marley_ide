@@ -167,7 +167,10 @@ secrets_g() {
     echo "secrets: upstream fork point unknown (fetch the upstream remote or set MARLEY_UPSTREAM_BASE) — history scan skipped"
   fi
   local d
-  for d in crates/marley_* .claude script/gates.sh docs/marley docs/planning CONSTITUTION.md CHANGELOG.md; do
+  # The e2e runner and its scenarios are Marley's too: a scenario scanned only once committed
+  # reaches the public origin before any scan sees it (#584).
+  for d in crates/marley_* .claude script/gates.sh script/e2e.sh script/e2e script/regress \
+    script/install-marley docs/marley docs/planning CONSTITUTION.md CHANGELOG.md; do
     [ -e "$d" ] || continue
     gitleaks dir "$d" --no-banner -c .gitleaks.toml || return 1
   done

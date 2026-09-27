@@ -728,13 +728,17 @@ alike.
 - Browser Clients (`marley: browser clients`, `BrowserClientsModal`): each client with "reads" or
   "reads and acts", its last call (read off the main thread every five seconds) and Cut Off;
   a name field (Enter allows), "May act in pages" (`ui::Checkbox`) and Allow; after an Allow,
-  the client's endpoint file and the line that points Marley's bridge at it
-  (`MARLEY_MCP_ENDPOINT=<file> <data>/mcp/marley-mcp-bridge`), each with Copy. Escape closes it.
+  the client's endpoint file, the line that points Marley's bridge at it
+  (`MARLEY_MCP_ENDPOINT=<file> <data>/mcp/marley-mcp-bridge`), and the line that runs that bridge
+  here from another machine (#584): `ssh -T -o BatchMode=yes <user>@<host> 'env
+  MARLEY_MCP_ENDPOINT=<file> <bridge>'`, the names from `whoami::fallible` (`this_machine`), a
+  placeholder standing in for a name that cannot be read. Each has Copy. Escape closes it.
 - `clients::allow` checks the name, mints, writes the file and then the registry, and takes the
   token back when a write fails. `clients::cut_off` changes the main thread's registry first, so
   `is_allowed` answers at once for a call still waiting and for the tab's mark, and clears the
   mark (`BrowserHub::forget_client`); then, off the main thread, `transport::cut_off_client`, the
-  file and the registry.
+  registry and then the file, so a bridge that finds the file gone finds the client unlisted
+  too (#584).
 - `mcp::answer` runs `marley_mcp::permits` before any app call, the second wall behind the
   server's. `browser_tools` takes the client's name from `AppCall::principal` and passes it to
   `acting`, `check_pick` and `annotate`; `still_allowed` refuses a cut-off client's call at the
@@ -745,7 +749,11 @@ alike.
   `by`.
 - The bridge (`claude_plugin/marley/bin/marley-mcp-bridge`) raises `Refused` on a 403 and answers
   a tool call with `REFUSED` ("Marley refused this endpoint file's token …") in place of "Marley
-  is not running".
+  is not running". Since #584 a bridge whose client file (`<data>/mcp/clients/<name>.json`) is
+  gone while `clients.json` beside the folder no longer lists the client raises `NotAllowed` and
+  answers `NOT_ALLOWED` ("Marley does not allow this client …"); a listed client with no file
+  (Marley quit or is starting) still hears that Marley is not running. Each error class carries
+  its call's text and its unknown method's phrase (`why`, `state`).
 
 ## Marley's plugin for Claude Code (`src/claude_plugin.rs`, `claude_plugin/`, #482)
 

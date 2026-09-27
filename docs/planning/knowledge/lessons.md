@@ -3294,3 +3294,24 @@ program that is not a literal, and Marley's relay had to start the Chromium that
 script `exec "$0" "$@"` and the program and its arguments as positional parameters, each one
 word: nothing in them is read as a name or as shell, and the exec keeps fds a caller mapped
 (`command-fds`). `env` would read a path holding `=` as a variable.
+
+## L-claude-584-a-scenario-runs-an-sshd-of-its-own-001
+*category: testing · topic: e2e scenarios over SSH · from: pipeline 584*
+
+An unprivileged sshd runs on the dev box for a scenario: `/usr/bin/sshd -D -e -f <config>`
+with `ListenAddress 127.0.0.1`, a free port, its own `HostKey`, `AuthorizedKeysFile` and
+`PidFile` in the scenario's folder, `UsePAM no` and `StrictModes no`. The client takes
+`ssh -F /dev/null -i <key> -o IdentitiesOnly=yes -o IdentityAgent=none -o
+UserKnownHostsFile=<file> -o StrictHostKeyChecking=accept-new -o BatchMode=yes`, so neither
+side reads or writes `~/.ssh` or asks the keyring's agent. A remote command runs through the
+account's login shell, as a login from another machine does; the account's shell start-up
+printed nothing into it.
+
+## L-claude-584-a-tabs-toolbar-moves-with-the-last-actions-text-001
+*category: testing · topic: e2e click targets · from: pipeline 584*
+
+The Browser tab's toolbar ends with the last action's text ("went to
+http://127.0.0.1:<port>/…"), so "Driven by <name>" and its Cut Off sit left of it by an amount
+that changes with the URL, the port included: #524's point (1330, 87) landed on that text in
+#584's run. A scenario cuts a client off with the client's row in Browser Clients, whose place
+depends only on how many clients are listed.

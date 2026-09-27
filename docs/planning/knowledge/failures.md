@@ -2345,3 +2345,32 @@ run's recording held its end with exit code 1 and no start. The debug build reco
 tab was drawn again, so every run until the release install passed. Nothing was installed (the
 golden set gates the install). Fixed in #583: `record_script` pushes to the page's recorder
 whether or not a tab draws the page.
+
+## F-claude-584-a-cut-off-clients-bridge-said-marley-was-not-running-001
+*severity: medium · found in: pipeline 584's Plan (reading the bridge against the Cut Off flow) · class: a message proved on a copy of the state, not on the state the program reads · prevented by: PR-claude-prove-what-a-program-says-on-the-file-it-reads-001*
+
+#524's Cut Off deletes the client's endpoint file. A bridge pointed at that file then found no
+file and answered as it does while Marley is down: "Marley is not running, so its tools are not
+there. Start Marley and call again". Marley was running and had cut the client off; an agent
+reading the answer would tell its user to start Marley, or try again. #524's REQ-011 (say the
+token was refused, not that Marley is not running) passed because its scenario pointed the
+bridge at a copy of the old file, `driver-old.json`, whose refused token got a 403. No client
+holds such a copy. After the next start the cut-off client's file is still missing, and the
+answer was the same. Fixed in #584: the bridge reads the registry beside the clients' folder, a
+client whose file is gone and whose name is no longer listed is told that Marley does not allow
+it, and Cut Off writes the registry before it removes the file.
+
+## F-claude-584-gitleaks-saw-a-scenario-only-after-it-was-pushed-001
+*severity: high · found in: pipeline 584's Test phase (gate:10 red on #583's pushed commit) · class: a secrets scan that reaches a folder of Marley's files only once they are committed · prevented by: PR-claude-every-marley-folder-a-commit-adds-to-is-in-gate-10s-tree-scan-001*
+
+gate:10 scans the commits since the fork point and, in the working tree, the Marley crates,
+`.claude`, the gate, `docs/marley`, `docs/planning`, the constitution and the changelog.
+`script/e2e`, its runner, `script/regress` and the installer were in neither scan until
+committed, so a scenario's new lines met gitleaks only in the next ticket's history scan, after
+the push to the public origin. #583's scenario sends RFC 6455's sample `Sec-WebSocket-Key`,
+which the default `generic-api-key` rule reads as a key. #583's gate passed, the commit was
+pushed, and #584's gate went red on it. The value is public, but a real token written into a
+scenario would have been pushed the same way. Fixed in #584: the working-tree scan covers
+`script/e2e.sh`, `script/e2e`, `script/regress` and `script/install-marley`, and
+`.gitleaks.toml` names the RFC's sample key beside the one other public value it allows, Warp's
+public Firebase key.
