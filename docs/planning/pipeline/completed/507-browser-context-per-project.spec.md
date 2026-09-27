@@ -1,7 +1,7 @@
 ---
 pipeline_id: e82dc7ba-ca2a-4c3a-98c3-4d43b16ab144
-ticket: docs/planning/tickets/open/TICKET-507-browser-context-per-project.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-507-browser-context-per-project.md
+status: Phase 4 — Complete PASS
 title: "A Chromium and a profile per project"
 type: feature
 slice: prong 3, after the browser waves (item 4, second half); Chad's answer to the Orca survey's open question 2
@@ -13,8 +13,8 @@ Each project gets its own Chromium, a transient user unit on a profile directory
 keyed on the project's main worktree paths, so a project's logins (cookies, `localStorage`,
 IndexedDB) are its own, survive restarts, and are shared by the project's linked worktrees. A
 project's Chromium starts with its first Browser tab and stops when the project is removed from
-Marley. Clear Browser Data resets one project, and the single profile of earlier builds becomes
-the first project's.
+Marley. The single profile of earlier builds becomes the first project's. Clearing one
+project's data is #581's, split off at promotion.
 
 ## Scope
 ### In
@@ -29,14 +29,12 @@ the first project's.
   project. `open`, `new_tab`, `open_page_in`, `place_tab`, `show_for_agent` and the restore's
   `deserialize` find the project from their workspace. A tab shows its own project's browser
   state. The hub stops a project's browser when the project leaves every window while Marley
-  runs, and never during a quit. `marley::ClearProjectBrowserData` on every workspace.
+  runs, and never during a quit.
 - `crates/marley_workbench/src/browser_tools.rs`: `browser_tabs` lists every project's pages,
-  each with its `project`; a named `tab` resolves to its project's browser; a new page opens in
-  the project of the tab the user focused last, else in the active workspace's.
-- `crates/marley_workbench/src/rail.rs`: the project row's context menu gains "Clear Browser
-  Data…" and "Remove Project" (`MultiWorkspace::remove_project_group`, as Zed's own sidebar
-  offers it).
-- `crates/marley_workbench/src/marley_workbench.rs`: the action in `actions!`.
+  each with its `project`; a named `tab` acts in its own project's browser; a new page opens in
+  the caller's project's browser (#574's scope), else in the active workspace's.
+- `crates/marley_workbench/src/rail.rs`: the project row's context menu gains "Remove Project"
+  (`MultiWorkspace::remove_project_group`, as Zed's own sidebar offers it).
 - `script/e2e/browser-fixture.sh`: `browser_profile [root]` and `browser_unit [root]` name a
   project's profile and unit (the scenario's `$E2E_WORK/repo` by default, which every browser
   scenario since #488 opens), found through `project.json`; `browser_teardown` stops every unit
@@ -44,9 +42,11 @@ the first project's.
 - `script/e2e/507-browser-context-per-project.sh`.
 
 ### Out (explicitly deferred)
-- Agent tools scoped to the caller's project (report 03 §3 item 4): it needs terminal identity
-  (`docs/orca_architecture/README.md` item 2). Until then an agent in one project can still act
-  on another project's tab by its id, as it can today.
+- Clear Browser Data for one project (D6, REQ-006): #581, split off at promotion, next in the
+  queue.
+- Refusing a named tab of another project: #574 (with #520's terminal identity) made a call that
+  names no tab act in the caller's project, and left a named tab the caller's choice
+  (AD-claude-574). #507 keeps that and runs the named tab in its own project's Chromium.
 - Named profiles inside a project, cloning a tab into another profile, cookie import (Orca's
   profile menu and importer, report 03 §2.8 and §2.9).
 - A cap on how many project Chromiums run, and stopping an idle project's Chromium while the
@@ -85,9 +85,9 @@ browser.
 - **The code we already ship.** `service.rs` names each unit by its profile path's hash
   (`unit_name`, `service.rs:66`), so a profile per project is a unit per project with nothing new
   in the naming; `chromium_args` (`service.rs:81`) and `open_browser`/`try_connect`
-  (`browser.rs:2209`, `2245`) already take the profile as an argument, and only
-  `BrowserHub::start` hard-codes the one profile (`browser.rs:627`). The tab restore (#494) keys
-  each saved tab by workspace and item (`MarleyBrowserTabsDb`, `browser.rs:4907`), and a tab's
+  (`browser.rs:2557`, `2593`, at f21b8aea6b) already take the profile as an argument, and only
+  `BrowserHub::start` hard-codes the one profile (`browser.rs:793`). The tab restore (#494) keys
+  each saved tab by workspace and item (`MarleyBrowserTabsDb`, `browser.rs:5613`), and a tab's
   workspace names its project, so the saved rows need no project column. Zed already signals a
   project leaving (`MultiWorkspace::remove_project_group`, `multi_workspace.rs:945`, and
   `MultiWorkspaceEvent::ProjectGroupsChanged`, line 114) and offers Remove in its own sidebar
@@ -101,14 +101,14 @@ UI-AFFECTING (the Browser tabs' logins, the rail's menu). `script/e2e/507-browse
 `signin.html?as=<name>` sets a `login` cookie, `localStorage.login` and an IndexedDB record, and
 whose `whoami.html` prints all three; scratch repositories `alpha` and `beta` and a linked worktree `alpha-wt`
 (`git worktree add`); the profile of earlier builds, made at `$E2E_PROFILE/browser/profile` by a
-scratch Chromium that signs in as `legacy` and stops; `use_system_path_prompts: false` in the
-copied settings, so Zed's own prompt takes a typed path. Shots: alpha's tab signed in as
+scratch Chromium that signs in as `legacy` and stops. Marley opens alpha; beta and `alpha-wt`
+reach it by a second launch, as #574's scenario hands a project over (#513). Shots: alpha's tab signed in as
 `legacy` after the move (`507-01-migrated`); beta signed in as `beta` in a tab of its own
 (`507-02-beta-signed-in`); alpha's tab reloaded, still `legacy` (`507-03-alpha-kept`); a tab
 opened from the worktree's workspace, `legacy` (`507-04-worktree-shares`); after a quit, both
 units stopped and a launch, each project's tab back at its URL and signed in
-(`507-05-alpha-after-restart`, `507-06-beta-after-restart`); beta's Clear Browser Data, then a
-new tab signed out (`507-07-cleared`); beta removed from the rail (`507-08-removed`). The run log
+(`507-05-alpha-after-restart`, `507-06-beta-after-restart`); beta removed from the rail
+(`507-07-removed`). The run log
 carries the unit list and `browser/` listing after each state, the stand-in agent's
 `browser_tabs`, and beta's unit going inactive after the removal.
 
@@ -135,16 +135,18 @@ carries the unit list and `browser/` listing after each state, the stand-in agen
   a workspace swap that adds the project back does not stop it. It keeps running at a quit,
   whether through the palette or the last window closing: the unit outlives Marley (plan D16),
   which is what lets #494's tabs take their pages back.
-- D6: Clear Browser Data asks first, naming the project; then it closes the project's Browser
-  tabs, stops the unit, waits until systemd reports it inactive, and deletes `profile/`, keeping
-  `project.json`. The project's next Browser tab starts a clean Chromium.
+- D6: Clear Browser Data moved to #581 at promotion, with its design as drafted here: it asks
+  first, naming the project; closes the project's Browser tabs; stops the unit and waits until
+  systemd reports it inactive; deletes `profile/`, keeping `project.json`.
 - D7: The old profile moves once, by rename, to the first project whose Chromium starts after the
   update, after its own unit has been stopped and its `DevToolsActivePort` removed. It is never
   deleted: when any project profile already exists, it stays where it is and the log says so.
   Tabs restored at that launch find their pages gone and open their saved URLs, the #494 path.
 - D8: The agent tools span every project's browser. `browser_tabs` names each tab's project; a
-  named tab acts in its own project's Chromium; with no tab named, the tab the user focused last,
-  as today; a new page opens in that tab's project, else in the active workspace's.
+  named tab acts in its own project's Chromium; with no tab named, the caller's project's tab the
+  user focused last, as #574 made it; a new page opens in the caller's project's Chromium, in
+  the caller's own workspace (#574's placement), and for a caller in no project, in the active
+  workspace's project.
 - D9: The rail's project menu gains Remove Project, the way Zed's sidebar offers it: without it
   the rail has no way to remove a project, and removing one is what stops its Chromium.
 
@@ -157,8 +159,8 @@ carries the unit list and `browser/` listing after each state, the stand-in agen
 | REQ-003 | WHEN a linked worktree of a project opens a Browser tab, the system shall run the tab in its project's Chromium, signed in as the project is, and start no new unit. | Shot `507-04-worktree-shares`; the unit list |
 | REQ-004 | WHEN Marley quits, the system shall leave every project's Chromium unit running. | The run log after `quit_marley` |
 | REQ-005 | WHEN Marley starts after the projects' Chromiums were stopped, the system shall open each restored tab's saved URL in its own project's new Chromium, still signed in through its cookie, its `localStorage` and its IndexedDB record. | Shots `507-05-alpha-after-restart`, `507-06-beta-after-restart` |
-| REQ-006 | WHEN the user confirms Clear Browser Data for a project, the system shall close that project's Browser tabs, stop its Chromium and delete its profile, so that the project's next Browser tab starts signed out. | Shot `507-07-cleared`; the run log's listing of the project's folder |
-| REQ-007 | WHEN the user removes a project from the rail while Marley runs, the system shall stop that project's Chromium unit within five seconds and leave the other projects' running. | Shot `507-08-removed`; the run log's unit states |
+| REQ-006 | Moved to #581 at promotion: Clear Browser Data for one project. | — |
+| REQ-007 | WHEN the user removes a project from the rail while Marley runs, the system shall stop that project's Chromium unit within five seconds and leave the other projects' running. | Shot `507-07-removed`; the run log's unit states |
 | REQ-008 | WHEN the first project Chromium starts and `<data>/browser/profile` exists with no project profile yet, the system shall move that profile to the starting project, whose tabs then keep its cookies, `localStorage` and IndexedDB. | Shot `507-01-migrated`; the listing (no `browser/profile` left) |
 | REQ-009 | WHEN an agent calls a browser tool, the system shall list every project's tabs with each tab's project in `browser_tabs`, and act on a named tab in that tab's own project's Chromium. | The run log: the stand-in agent's `browser_tabs` and `browser_look` on beta's tab |
 
@@ -167,11 +169,11 @@ carries the unit list and `browser/` listing after each state, the stand-in agen
   (the knowledge ledger moves daily) and check #503 and #504, which run first and touch the same
   hub.
 - **P2 Code:** the key and folders in `service.rs`, the per-project browsers in the hub, the tools,
-  the rail's menu, the action, the fixture; fmt and clippy clean; a review of the diff against
+  the rail's Remove Project, the fixture; fmt and clippy clean; a review of the diff against
   each REQ, the gpui re-entrancy rules and errors reaching the tab.
-- **P3 Test:** write and run the scenario and read every shot; rerun one earlier browser scenario
-  (`494-browser-restore.sh`) to show the fixture's new profile lookup; `script/gates.sh --diff`
-  green.
+- **P3 Test:** write and run the scenario and read every shot; rerun the earlier browser
+  scenarios that read the profile (`494-browser-restore.sh`, `574-…`, and the golden set) to show
+  the fixture's new profile lookup; `script/gates.sh --diff` green.
 - **P4 Complete:** CHANGELOG, the prong's slice status in `docs/marley/three-prong-plan.md` and
   its D16 paragraph (one unit per project), the ledger capture, close the ticket, archive,
   commit.

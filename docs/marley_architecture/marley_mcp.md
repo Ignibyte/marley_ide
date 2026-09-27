@@ -40,7 +40,10 @@ OR Apache-2.0, with the Marley crates' lint table.
   acts in a page takes `tab`, a page's id from `browser_tabs` (`browser_arguments` adds it to
   each schema), `browser_navigate` takes `new_tab`, and every answer from a page names its tab.
   Since #574 the `tab` argument's and the tools' descriptions say that a call naming none acts in
-  the project the agent runs in, and `browser_tabs`' output adds `project` and `default`.
+  the project the agent runs in, and `browser_tabs`' output adds `project` and `default`. Since
+  #507 `browser_tabs`' description says it lists every project's browser, each project with a
+  Chromium and a profile of its own, and `browser_navigate`'s that a new tab opens in the
+  caller's project's browser, with that project's cookies and logins.
   Since #501 Zed's own agents reach the server too, through the workbench's context server
   `marley`, which runs the same bridge over stdio.
   `browser_pick` takes a pick's `id`; its output schema spells out the bundle (`pick_schemas`,

@@ -13,6 +13,18 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A Chromium and a profile per project** (#507, 2026-09-27). Each project now has a Chromium
+  of its own on a profile of its own, so a site you sign in to in one project stays signed out
+  in another, and each project's cookies, `localStorage` and IndexedDB survive restarts. A
+  project is what the rail groups, its main folders, so a linked worktree shares its
+  repository's browser and logins. A project's Chromium starts with its first Browser tab,
+  keeps running when Marley quits so that restored tabs find their pages, and stops when you
+  remove the project, which the rail's project menu now offers (Remove Project). The one profile
+  of earlier builds moves, once, to the first project whose Chromium starts, logins and all; it
+  is renamed, never deleted. Agents see every project's tabs in `browser_tabs`, a named tab acts
+  in its own project's browser, and a new tab opens in the caller's project's browser. Before
+  Marley stops a Chromium it asks Chromium to close: stopped by a signal alone, Chromium loses
+  the cookies it set in its last 30 seconds, which a stop at logout still can.
 - **A recording drafted as a Playwright test** (#506, 2026-09-27). A saved recording now holds
   each click, fill and key press you or an agent made in the page, with the target's locators
   as they were at that moment: a test id, the role and name, the label, the placeholder, the

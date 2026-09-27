@@ -126,7 +126,7 @@ steps() {
   press "" Return
   settle 2
   echo "== no browser before the first Browser tab"
-  expect "no browser unit runs yet" bash -c "! systemctl --user is-active --quiet '$(browser_unit)'"
+  expect "no browser unit runs yet" bash -c "! systemctl --user is-active --quiet '$(browser_unit "$E2E_WORK/repo")'"
   echo "== two Browser tabs: rows under the project, after its terminal"
   new_tab "$SITE/index.html" 5
   new_tab "$SITE/plain.html" 4

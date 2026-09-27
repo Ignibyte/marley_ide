@@ -1,13 +1,15 @@
 //! The Browser tabs (prong 3 B0a, B1b): the pages Marley's own Chromium renders, in the main
 //! area.
 //!
-//! One [`BrowserHub`] per app owns the connection to the browser and every page of it, so the
-//! user and an agent attached to the same Chromium see the same pages. The hub starts Chromium
-//! when no Marley Chromium answers, attaches to each page as the browser reports it, streams a
-//! page as screencast frames while a tab draws it, and lays the page out at its tab's size. Each
-//! [`BrowserView`] is one page's tab (#493): it draws the page's newest frame and frees each
-//! frame from the window's GPU atlas two paints after it was first drawn, as Zed's screen-share
-//! view does, since the window may present the last frame again.
+//! One [`BrowserHub`] per app owns a connection to each project's browser (#507) and every page
+//! of them, so the user and an agent attached to the same Chromium see the same pages. The hub
+//! starts a project's Chromium, on the project's own profile, when none answers there, attaches
+//! to each page as the browser reports it, streams a page as screencast frames while a tab draws
+//! it, and lays the page out at its tab's size. A project's Chromium stops when the project
+//! leaves Marley's windows while Marley runs. Each [`BrowserView`] is one page's tab (#493): it
+//! draws the page's newest frame and frees each frame from the window's GPU atlas two paints
+//! after it was first drawn, as Zed's screen-share view does, since the window may present the
+//! last frame again.
 //!
 //! A page a page opens gets a tab beside its opener's, with the focus, as in a browser. A page an
 //! agent or another client opens gets a tab that leaves the focus where it is: behind the tab in
@@ -37,8 +39,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use anyhow::Context as _;
 use editor::Editor;
 use editor::actions::SelectAll;
-use futures::StreamExt as _;
 use futures::channel::{mpsc, oneshot};
+use futures::future::Shared;
+use futures::{FutureExt as _, StreamExt as _};
 use gpui::{
     Anchor, AnyWindowHandle, App, AsyncApp, BackgroundExecutor, Bounds, ClipboardItem, Corners,
     DismissEvent, DispatchPhase, Element, ElementId, ElementInputHandler, Entity,
@@ -62,10 +65,11 @@ use marley_browser::pick::{
 };
 use marley_browser::recorder::{self, Entry as RecordedEntry, Recorder, Recording, ReportedAction};
 use marley_browser::select::{self, SelectRequest};
+use marley_browser::service::LegacyMove;
 use marley_browser::snapshot::{self, FrameTree, RefTarget};
 use marley_browser::source_map::{self, MapLocation, OriginalPosition, SourceMap};
 use marley_browser::{address, frame, service};
-use project::{Project, ProjectPath};
+use project::{Project, ProjectGroupKey, ProjectPath};
 use serde_json::Value;
 use terminal_view::TerminalView;
 use terminal_view::terminal_panel::TerminalPanel;
@@ -76,7 +80,10 @@ use util::paths::PathStyle;
 use util::rel_path::RelPath;
 use workspace::item::{Item, ItemEvent, SerializableItem};
 use workspace::notifications::NotificationId;
-use workspace::{ItemId, MultiWorkspace, Pane, SplitDirection, Toast, Workspace, WorkspaceId};
+use workspace::{
+    ItemId, MultiWorkspace, MultiWorkspaceEvent, Pane, SplitDirection, Toast, Workspace,
+    WorkspaceId,
+};
 
 use crate::{
     Annotate, AnswerDialog, BrowserBack, BrowserForward, BrowserReload, DismissDialog,
@@ -120,6 +127,16 @@ const USER_PRESS: Duration = Duration::from_secs(1);
 
 /// How many of the pages the user focused the hub remembers, newest last (#574).
 const FOCUS_HISTORY: usize = 64;
+
+/// How long a project's browser runs on after the project left every window, so a change that
+/// brings the project back at once keeps it (#507).
+const STOP_GRACE: Duration = Duration::from_secs(2);
+
+/// Why a tab of a project whose browser is not running shows no page (#507).
+const STOPPED: &str = "This project's browser is not running.";
+
+/// How long a Chromium asked to close gets to stop before systemd stops it (#507).
+const CLOSE_WAIT: Duration = Duration::from_secs(5);
 
 /// A cross-site iframe of a page, attached with a session of its own (#492).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -324,6 +341,8 @@ struct SelectState {
 /// One page of Marley's Chromium, as its tab shows it (#493).
 struct PageState {
     page: Page,
+    /// The start of its project's browser that attached it (#507).
+    generation: u64,
     frame: Option<Arc<RenderImage>>,
     /// The newest frame's geometry, which maps a point in the tab to the page.
     metadata: Option<FrameMetadata>,
@@ -378,9 +397,10 @@ struct PageState {
 }
 
 impl PageState {
-    fn new(page: Page) -> Self {
+    fn new(page: Page, generation: u64) -> Self {
         Self {
             page,
+            generation,
             frame: None,
             metadata: None,
             title: None,
@@ -447,35 +467,108 @@ pub struct TabSummary {
     pub focused: bool,
 }
 
-/// Marley's browser as the Browser tabs see it: the connection's state and every page.
-pub struct BrowserHub {
+/// A project as its browser knows it (#507): Zed's project group.
+///
+/// The group's main worktree paths, and its host for a remote project, key the project's Chromium
+/// and the profile it runs on. A linked worktree's group is its main repository's, so it shares
+/// that project's browser.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BrowserProject {
+    /// The key, which names the project's folder: `service::project_key`'s.
+    pub key: SharedString,
+    /// The project's name, as Zed names the group.
+    pub name: SharedString,
+    /// The group's main worktree paths.
+    pub paths: Vec<PathBuf>,
+    /// The group's host, for a remote project: the connection's kind and host.
+    pub host: Option<String>,
+}
+
+impl BrowserProject {
+    /// The project `project` belongs to.
+    #[must_use]
+    pub fn of(project: &Project, cx: &App) -> Self {
+        Self::of_group(&project.project_group_key(cx))
+    }
+
+    /// The project of the group `group`.
+    #[must_use]
+    pub fn of_group(group: &ProjectGroupKey) -> Self {
+        let paths = group.path_list().paths().to_vec();
+        let host = group
+            .host()
+            .map(|host| format!("{} {}", host.connection_type(), host.host()));
+        Self {
+            key: service::project_key(&paths, host.as_deref()).into(),
+            name: group.display_name(&HashMap::new()),
+            paths,
+            host,
+        }
+    }
+
+    /// The project of `workspace`.
+    #[must_use]
+    pub fn of_workspace(workspace: &Entity<Workspace>, cx: &App) -> Self {
+        Self::of(workspace.read(cx).project().read(cx), cx)
+    }
+}
+
+/// A project's Chromium as the hub follows it (#507): the connection's state, and what its start
+/// attaches.
+struct ProjectBrowser {
+    project: BrowserProject,
     state: HubState,
     connection: Option<Connection>,
-    pages: Vec<PageState>,
     /// The pages being attached, so a page is attached once.
     attaching: Vec<String>,
     /// The pages closing or gone while they were attached: an attach that ends for one drops it.
     closing: Vec<String>,
-    /// The pages whose tabs the user focused, each once, the newest last (#574).
-    focus_history: Vec<String>,
     /// The workspace each page an agent asked for gets its tab in, until the tab opens (#574).
     placements: Vec<(String, WeakEntity<Workspace>)>,
+    /// The start it runs, which its late results are checked against.
+    generation: u64,
+    /// The start's task, which follows the browser until the connection ends; dropped with the
+    /// browser, it stops.
+    _run: Task<()>,
+    /// The stop that waits out [`STOP_GRACE`], by its number, since its project left every
+    /// window.
+    stop_pending: Option<usize>,
+}
+
+/// Marley's browsers as the Browser tabs see them: each project's Chromium and every page.
+pub struct BrowserHub {
+    /// Each project's browser, oldest first (#507).
+    browsers: Vec<ProjectBrowser>,
+    pages: Vec<PageState>,
+    /// The pages whose tabs the user focused, each once, the newest last (#574).
+    focus_history: Vec<String>,
     /// The picks of the session, oldest first (#496).
     picks: Vec<Pick>,
     /// The next pick's number.
     next_pick: usize,
     /// The next annotation's number (#498).
     next_annotation: usize,
-    /// Bumped at each start, so a superseded start's late results are dropped.
+    /// The last start's number. Each start of any project's browser takes the next, so a number
+    /// names one start of one browser, and a superseded start's late results are dropped.
     generation: u64,
-    run: Option<Task<()>>,
+    /// The move of the profile of earlier builds, which every start waits for (#507).
+    legacy_move: Option<Shared<Task<()>>>,
+    /// The last stop's number.
+    stops: usize,
+    /// Whether Marley is quitting: then no browser stops (#507).
+    quitting: bool,
 }
 
 impl fmt::Debug for BrowserHub {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let browsers: Vec<(&SharedString, &HubState)> = self
+            .browsers
+            .iter()
+            .map(|browser| (&browser.project.name, &browser.state))
+            .collect();
         formatter
             .debug_struct("BrowserHub")
-            .field("state", &self.state)
+            .field("browsers", &browsers)
             .field("pages", &self.pages.len())
             .field("focused", &self.focused())
             .finish_non_exhaustive()
@@ -524,7 +617,7 @@ async fn read_favicon(
         }
     };
     this.update(cx, |hub, cx| {
-        if generation != hub.generation {
+        if !hub.is_current(generation) {
             return;
         }
         let Some(page) = hub.page_state_mut(target) else {
@@ -570,36 +663,31 @@ struct BrowserViews(Vec<WeakEntity<BrowserView>>);
 impl Global for BrowserViews {}
 
 impl BrowserHub {
-    /// The app's hub when something has made it, never making it: asking [`Self::global`] starts
-    /// the browser, which the rail must not do (#504).
+    /// The app's hub when something has made it, never making it: the rail reads it this way
+    /// (#504), and so does the review of which projects' browsers run (#507).
     pub fn try_global(cx: &App) -> Option<Entity<Self>> {
         cx.try_global::<HubHandle>()
             .map(|handle| handle.hub.clone())
     }
 
-    /// The app's hub, created and started the first time it is asked for, with the tabs it opens
-    /// and closes as pages come and go.
+    /// The app's hub, created the first time it is asked for, with the tabs it opens and closes as
+    /// pages come and go. Making it starts no browser: [`Self::browser_for`] starts a project's
+    /// (#507).
     pub fn global(cx: &mut App) -> Entity<Self> {
         if let Some(handle) = cx.try_global::<HubHandle>() {
             return handle.hub.clone();
         }
-        let hub = cx.new(|cx| {
-            let mut hub = Self {
-                state: HubState::Starting,
-                connection: None,
-                pages: Vec::new(),
-                attaching: Vec::new(),
-                closing: Vec::new(),
-                focus_history: Vec::new(),
-                placements: Vec::new(),
-                picks: Vec::new(),
-                next_pick: 1,
-                next_annotation: 1,
-                generation: 0,
-                run: None,
-            };
-            hub.start(cx);
-            hub
+        let hub = cx.new(|_| Self {
+            browsers: Vec::new(),
+            pages: Vec::new(),
+            focus_history: Vec::new(),
+            picks: Vec::new(),
+            next_pick: 1,
+            next_annotation: 1,
+            generation: 0,
+            legacy_move: None,
+            stops: 0,
+            quitting: false,
         });
         let tabs = cx.subscribe(&hub, |hub, event: &BrowserEvent, cx| match event {
             BrowserEvent::PageOpened {
@@ -618,10 +706,69 @@ impl BrowserHub {
         hub
     }
 
-    /// What the hub is doing.
+    /// What the browser of the project `key` is doing; a project with none reads as stopped
+    /// (#507).
     #[must_use]
-    pub const fn state(&self) -> &HubState {
-        &self.state
+    pub fn state_of(&self, key: &str) -> HubState {
+        self.browser(key).map_or_else(
+            || HubState::Failed(SharedString::new_static(STOPPED)),
+            |browser| browser.state.clone(),
+        )
+    }
+
+    fn browser(&self, key: &str) -> Option<&ProjectBrowser> {
+        self.browsers
+            .iter()
+            .find(|browser| browser.project.key == key)
+    }
+
+    fn browser_mut(&mut self, key: &str) -> Option<&mut ProjectBrowser> {
+        self.browsers
+            .iter_mut()
+            .find(|browser| browser.project.key == key)
+    }
+
+    /// The browser whose running start is `generation`.
+    fn started(&self, generation: u64) -> Option<&ProjectBrowser> {
+        self.browsers
+            .iter()
+            .find(|browser| browser.generation == generation)
+    }
+
+    fn started_mut(&mut self, generation: u64) -> Option<&mut ProjectBrowser> {
+        self.browsers
+            .iter_mut()
+            .find(|browser| browser.generation == generation)
+    }
+
+    /// Whether `generation` is a browser's running start: any other start's results are late.
+    fn is_current(&self, generation: u64) -> bool {
+        self.started(generation).is_some()
+    }
+
+    /// The project whose browser has the page `target`, attached or being attached (#507).
+    #[must_use]
+    pub fn project_of(&self, target: &str) -> Option<&BrowserProject> {
+        let browser = self.page_state(target).map_or_else(
+            || {
+                self.browsers.iter().find(|browser| {
+                    browser
+                        .attaching
+                        .iter()
+                        .any(|attaching| attaching == target)
+                })
+            },
+            |page| self.started(page.generation),
+        );
+        browser.map(|browser| &browser.project)
+    }
+
+    /// Whether a browser is starting or connecting (#507).
+    #[must_use]
+    pub fn is_starting(&self) -> bool {
+        self.browsers
+            .iter()
+            .any(|browser| matches!(browser.state, HubState::Starting | HubState::Connecting))
     }
 
     fn page_state(&self, target: &str) -> Option<&PageState> {
@@ -638,16 +785,24 @@ impl BrowserHub {
         self.page_state(target).map(|page| page.page.clone())
     }
 
-    /// Whether the browser has pages, attached or being attached.
+    /// Whether a browser has pages, attached or being attached.
     #[must_use]
-    pub const fn has_pages(&self) -> bool {
-        !self.pages.is_empty() || !self.attaching.is_empty()
+    pub fn has_pages(&self) -> bool {
+        !self.pages.is_empty() || self.is_attaching()
     }
 
     /// Whether a page is being attached.
     #[must_use]
-    pub const fn is_attaching(&self) -> bool {
-        !self.attaching.is_empty()
+    pub fn is_attaching(&self) -> bool {
+        self.browsers
+            .iter()
+            .any(|browser| !browser.attaching.is_empty())
+    }
+
+    /// Whether the browser of the project `key` attaches a page.
+    fn is_attaching_in(&self, key: &str) -> bool {
+        self.browser(key)
+            .is_some_and(|browser| !browser.attaching.is_empty())
     }
 
     /// The page whose tab the user focused last while it lives, else the newest page.
@@ -688,11 +843,13 @@ impl BrowserHub {
     /// The workspace the page `target` gets its tab in, when an agent's call asked for one
     /// (#574); asked once.
     fn take_placement(&mut self, target: &str) -> Option<WeakEntity<Workspace>> {
-        let index = self
-            .placements
-            .iter()
-            .position(|(placed, _)| placed == target)?;
-        Some(self.placements.remove(index).1)
+        self.browsers.iter_mut().find_map(|browser| {
+            let index = browser
+                .placements
+                .iter()
+                .position(|(placed, _)| placed == target)?;
+            Some(browser.placements.remove(index).1)
+        })
     }
 
     /// Every page, oldest first, as `browser_tabs` lists them.
@@ -764,35 +921,65 @@ impl BrowserHub {
             .and_then(|page| page.dialog.as_ref())
     }
 
-    /// Starts over when the hub stopped, and says whether it did.
-    pub fn start_if_failed(&mut self, cx: &mut Context<Self>) -> bool {
-        let failed = matches!(self.state, HubState::Failed(_));
-        if failed {
-            self.start(cx);
+    /// Starts the browser of `project` when it has none, or when its browser stopped for a
+    /// reason (#507). A browser whose stop waits out its grace keeps running.
+    pub fn browser_for(&mut self, project: &BrowserProject, cx: &mut Context<Self>) {
+        if let Some(browser) = self.browser_mut(&project.key) {
+            browser.stop_pending = None;
+            if !matches!(browser.state, HubState::Failed(_)) {
+                return;
+            }
         }
-        failed
+        self.start(project.clone(), cx);
     }
 
-    /// Starts over: finds or starts Chromium, connects, attaches to each of its pages (a blank
-    /// one made when it has none) and to each it reports later, and follows their events until
-    /// the connection ends. The tabs of the pages it had close.
-    pub fn start(&mut self, cx: &mut Context<Self>) {
+    /// Starts the browser of the project `key` again when it stopped for a reason.
+    pub fn restart_if_failed(&mut self, key: &str, cx: &mut Context<Self>) {
+        if let Some(browser) = self.browser(key)
+            && matches!(browser.state, HubState::Failed(_))
+        {
+            let project = browser.project.clone();
+            self.start(project, cx);
+        }
+    }
+
+    /// Starts the browser of `project` over: finds or starts its Chromium, connects, attaches to
+    /// each of its pages and to each it reports later, and follows their events until the
+    /// connection ends. The tabs of the pages its last start had close.
+    fn start(&mut self, project: BrowserProject, cx: &mut Context<Self>) {
         self.generation += 1;
         let generation = self.generation;
-        self.state = HubState::Starting;
-        self.connection = None;
-        self.attaching.clear();
-        self.closing.clear();
-        self.placements.clear();
-        for page in std::mem::take(&mut self.pages) {
-            cx.emit(BrowserEvent::PageClosed {
-                target: page.target().to_string(),
-            });
+        if let Some(index) = self
+            .browsers
+            .iter()
+            .position(|browser| browser.project.key == project.key)
+        {
+            let previous = self.browsers.remove(index);
+            self.forget_pages(previous.generation, cx);
         }
-        cx.notify();
-        let profile = paths::data_dir().join("browser").join("profile");
+        let data = paths::data_dir().clone();
+        let project_dir = service::project_dir_in(&data, &project.key);
+        let legacy_move = self
+            .legacy_move
+            .get_or_insert_with(|| move_legacy_profile(data, project_dir.clone(), cx).shared())
+            .clone();
+        let profile = service::profile_in(&project_dir);
+        let (paths, host) = (project.paths.clone(), project.host.clone());
         let executor = cx.background_executor().clone();
-        self.run = Some(cx.spawn(async move |this, cx| {
+        let run = cx.spawn(async move |this, cx| {
+            legacy_move.await;
+            let written = cx
+                .background_spawn(futures::future::lazy(move |_| {
+                    service::write_project_file_in(&project_dir, &paths, host.as_deref())
+                }))
+                .await;
+            if let Err(error) = written {
+                this.update(cx, |this, cx| {
+                    this.fail(generation, format!("{error:#}"), cx);
+                })
+                .ok();
+                return;
+            }
             let (connection, events) = match open_browser(&profile, &executor, cx).await {
                 Ok(opened) => opened,
                 Err(error) => {
@@ -804,9 +991,9 @@ impl BrowserHub {
                 }
             };
             this.update(cx, |this, cx| {
-                if this.generation == generation {
-                    this.connection = Some(connection.clone());
-                    this.state = HubState::Connecting;
+                if let Some(browser) = this.started_mut(generation) {
+                    browser.connection = Some(connection.clone());
+                    browser.state = HubState::Connecting;
                     cx.notify();
                 }
             })
@@ -814,14 +1001,15 @@ impl BrowserHub {
             match pages_at_start(&connection).await {
                 Ok(pages) => {
                     this.update(cx, |this, cx| {
-                        if this.generation == generation {
-                            this.state = HubState::Showing;
-                            // Discovery reports these again, and each is attached once.
-                            for target in pages {
-                                this.attach(generation, target, None, true, cx);
-                            }
-                            cx.notify();
+                        let Some(browser) = this.started_mut(generation) else {
+                            return;
+                        };
+                        browser.state = HubState::Showing;
+                        // Discovery reports these again, and each is attached once.
+                        for target in pages {
+                            this.attach(generation, target, None, true, cx);
                         }
+                        cx.notify();
                     })
                     .ok();
                 }
@@ -838,22 +1026,123 @@ impl BrowserHub {
                 }
             }
             follow(this, events, generation, cx).await;
-        }));
+        });
+        self.browsers.push(ProjectBrowser {
+            project,
+            state: HubState::Starting,
+            connection: None,
+            attaching: Vec::new(),
+            closing: Vec::new(),
+            placements: Vec::new(),
+            generation,
+            _run: run,
+            stop_pending: None,
+        });
+        cx.notify();
+    }
+
+    /// Forgets the pages the start `generation` attached: their tabs close.
+    fn forget_pages(&mut self, generation: u64, cx: &mut Context<Self>) {
+        let (gone, kept): (Vec<PageState>, Vec<PageState>) = std::mem::take(&mut self.pages)
+            .into_iter()
+            .partition(|page| page.generation == generation);
+        self.pages = kept;
+        for page in gone {
+            cx.emit(BrowserEvent::PageClosed {
+                target: page.target().to_string(),
+            });
+        }
     }
 
     fn fail(&mut self, generation: u64, reason: String, cx: &mut Context<Self>) {
-        if generation != self.generation {
+        let Some(browser) = self.started_mut(generation) else {
             return;
-        }
-        log::warn!("browser: {reason}");
-        self.state = HubState::Failed(reason.into());
-        self.connection = None;
-        self.attaching.clear();
+        };
+        log::warn!("browser: {}: {reason}", browser.project.name);
+        browser.state = HubState::Failed(reason.into());
+        browser.connection = None;
+        browser.attaching.clear();
         // The tabs stay, and say why, until the browser is opened again.
         for page in &mut self.pages {
-            page.load_waiters.clear();
+            if page.generation == generation {
+                page.load_waiters.clear();
+            }
         }
         cx.notify();
+    }
+
+    /// Reviews which projects' browsers run (#507): the browser of a project no window holds
+    /// stops after [`STOP_GRACE`], unless a window holds the project again by then, and one whose
+    /// project is held again keeps running. Nothing stops while Marley quits: the units outlive
+    /// it, so its restored tabs find their pages.
+    fn review(&mut self, live: &HashSet<SharedString>, cx: &Context<Self>) {
+        if self.quitting {
+            return;
+        }
+        let mut waiting = Vec::new();
+        for browser in &mut self.browsers {
+            if live.contains(&browser.project.key) {
+                browser.stop_pending = None;
+            } else if browser.stop_pending.is_none() {
+                self.stops += 1;
+                browser.stop_pending = Some(self.stops);
+                waiting.push((browser.project.key.clone(), self.stops));
+            }
+        }
+        for (key, stop) in waiting {
+            cx.spawn(async move |this, cx| {
+                cx.background_executor().timer(STOP_GRACE).await;
+                let live = cx.update(live_projects);
+                this.update(cx, |this, cx| {
+                    let Some(browser) = this.browser_mut(&key) else {
+                        return;
+                    };
+                    if browser.stop_pending != Some(stop) {
+                        return;
+                    }
+                    browser.stop_pending = None;
+                    if !this.quitting && !live.contains(&key) {
+                        this.stop_browser(&key, cx);
+                    }
+                })
+                .ok();
+            })
+            .detach();
+        }
+    }
+
+    /// Stops the browser of the project `key` (#507): forgets it and its pages, whose tabs close
+    /// if any is left, and stops its unit.
+    fn stop_browser(&mut self, key: &str, cx: &mut Context<Self>) {
+        let Some(index) = self
+            .browsers
+            .iter()
+            .position(|browser| browser.project.key == key)
+        else {
+            return;
+        };
+        let browser = self.browsers.remove(index);
+        let connection = browser.connection.clone();
+        self.forget_pages(browser.generation, cx);
+        cx.notify();
+        let profile = service::profile_in(&service::project_dir_in(paths::data_dir(), key));
+        log::info!(
+            "browser: {} left Marley's windows, so {} stops",
+            browser.project.name,
+            service::unit_name(&profile)
+        );
+        cx.spawn(async move |_, cx| {
+            stop_chromium(&profile, connection, cx).await.log_err();
+        })
+        .detach();
+    }
+
+    /// Marley quits: the pending stops are dropped, and no other begins (#507).
+    fn quit(&mut self) {
+        self.quitting = true;
+        for browser in &mut self.browsers {
+            browser.stop_pending = None;
+        }
     }
 
     /// Attaches to the page `target` in a task of its own, unless it is attached or attaching;
@@ -866,28 +1155,31 @@ impl BrowserHub {
         listed: bool,
         cx: &Context<Self>,
     ) {
-        if generation != self.generation
-            || self.page_state(&target).is_some()
-            || self.attaching.contains(&target)
-        {
+        if self.page_state(&target).is_some() {
             return;
         }
-        let Some(connection) = self.connection.clone() else {
+        let Some(browser) = self.started_mut(generation) else {
             return;
         };
-        self.attaching.push(target.clone());
+        if browser.attaching.contains(&target) {
+            return;
+        }
+        let Some(connection) = browser.connection.clone() else {
+            return;
+        };
+        browser.attaching.push(target.clone());
         cx.spawn(async move |this, cx| {
             let attached = Page::attach(&connection, &target).await;
             this.update(cx, |this, cx| {
-                if this.generation != generation {
+                let Some(browser) = this.started_mut(generation) else {
                     return;
-                }
-                this.attaching.retain(|attaching| *attaching != target);
+                };
+                browser.attaching.retain(|attaching| *attaching != target);
                 match attached {
-                    Ok(page) => this.attached(page, opener, listed, cx),
+                    Ok(page) => this.attached(generation, page, opener, listed, cx),
                     Err(error) => {
-                        this.closing.retain(|closing| *closing != target);
-                        this.placements.retain(|(placed, _)| *placed != target);
+                        browser.closing.retain(|closing| *closing != target);
+                        browser.placements.retain(|(placed, _)| *placed != target);
                         log::warn!("browser: could not attach to a page: {error}");
                     }
                 }
@@ -899,14 +1191,22 @@ impl BrowserHub {
 
     fn attached(
         &mut self,
+        generation: u64,
         page: Page,
         opener: Option<String>,
         listed: bool,
         cx: &mut Context<Self>,
     ) {
         let target = page.target_id().to_string();
-        if let Some(index) = self.closing.iter().position(|closing| *closing == target) {
-            self.closing.remove(index);
+        let Some(browser) = self.started_mut(generation) else {
+            return;
+        };
+        if let Some(index) = browser
+            .closing
+            .iter()
+            .position(|closing| *closing == target)
+        {
+            browser.closing.remove(index);
             return;
         }
         if self.page_state(&target).is_some() {
@@ -922,7 +1222,7 @@ impl BrowserHub {
         let viewport = beside
             .and_then(|beside| self.page_state(&beside))
             .and_then(|beside| beside.viewport);
-        self.pages.push(PageState::new(page.clone()));
+        self.pages.push(PageState::new(page.clone(), generation));
         if let Some(viewport) = viewport {
             self.lay_out(&target, viewport, cx);
         }
@@ -933,7 +1233,6 @@ impl BrowserHub {
             focus,
             listed,
         });
-        let generation = self.generation;
         cx.spawn(async move |this, cx| {
             page.watch_selects(page.session_id()).await.log_err();
             page.watch_actions(page.session_id()).await.log_err();
@@ -952,18 +1251,22 @@ impl BrowserHub {
 
     /// The page `target` went away: its tab closes.
     fn page_gone(&mut self, generation: u64, target: &str, cx: &mut Context<Self>) {
-        if generation != self.generation {
+        let Some(browser) = self.started_mut(generation) else {
             return;
-        }
-        if self.attaching.iter().any(|attaching| attaching == target) {
-            if !self.closing.iter().any(|closing| closing == target) {
-                self.closing.push(target.to_string());
+        };
+        if browser
+            .attaching
+            .iter()
+            .any(|attaching| attaching == target)
+        {
+            if !browser.closing.iter().any(|closing| closing == target) {
+                browser.closing.push(target.to_string());
             }
         } else {
-            self.closing.retain(|closing| closing != target);
+            browser.closing.retain(|closing| closing != target);
         }
+        browser.placements.retain(|(placed, _)| placed != target);
         self.focus_history.retain(|focused| focused != target);
-        self.placements.retain(|(placed, _)| placed != target);
         let before = self.pages.len();
         self.pages.retain(|page| page.target() != target);
         if self.pages.len() != before {
@@ -974,16 +1277,20 @@ impl BrowserHub {
         }
     }
 
-    /// Opens a new page at `url` and answers with its id once the browser has made it; the page
-    /// attaches, and its tab opens as any page's does, a moment later (#493), in `place_in` when
-    /// given (#574).
+    /// Opens a new page at `url` in the browser of the project `key` and answers with its id once
+    /// the browser has made it; the page attaches, and its tab opens as any page's does, a moment
+    /// later (#493), in `place_in` when given (#574).
     pub fn create_page_task(
         &self,
+        key: &str,
         url: String,
         place_in: Option<WeakEntity<Workspace>>,
         cx: &Context<Self>,
     ) -> Task<Result<String, String>> {
-        let Some(connection) = self.connection.clone() else {
+        let Some((connection, generation)) = self
+            .browser(key)
+            .and_then(|browser| Some((browser.connection.clone()?, browser.generation)))
+        else {
             return Task::ready(Err("the browser is not connected".to_string()));
         };
         cx.spawn(async move |this, cx| {
@@ -994,7 +1301,9 @@ impl BrowserHub {
             // finds it.
             if let Some(workspace) = place_in {
                 this.update(cx, |hub, _| {
-                    hub.placements.push((target.clone(), workspace));
+                    if let Some(browser) = hub.started_mut(generation) {
+                        browser.placements.push((target.clone(), workspace));
+                    }
                 })
                 .ok();
             }
@@ -1002,14 +1311,17 @@ impl BrowserHub {
         })
     }
 
-    /// Closes the page `target`, attached or not, as closing its tab in a browser does; its tab
-    /// goes when the browser reports the page gone.
-    pub fn close_page(&mut self, target: &str, cx: &Context<Self>) {
-        let Some(connection) = self.connection.clone() else {
+    /// Closes the page `target` of the project `key`'s browser, attached or not, as closing its
+    /// tab in a browser does; its tab goes when the browser reports the page gone.
+    pub fn close_page(&mut self, key: &str, target: &str, cx: &Context<Self>) {
+        let Some(browser) = self.browser_mut(key) else {
             return;
         };
-        if !self.closing.iter().any(|closing| closing == target) {
-            self.closing.push(target.to_string());
+        let Some(connection) = browser.connection.clone() else {
+            return;
+        };
+        if !browser.closing.iter().any(|closing| closing == target) {
+            browser.closing.push(target.to_string());
         }
         let target = target.to_string();
         cx.spawn(async move |_, _| {
@@ -1042,11 +1354,11 @@ impl BrowserHub {
         };
         state.pending_url = Some(SharedString::from(&url));
         let loaded = state.load_waiter();
+        let generation = state.generation;
         cx.emit(BrowserEvent::PageInfoChanged {
             target: target.to_string(),
         });
         cx.notify();
-        let generation = self.generation;
         let target = target.to_string();
         cx.spawn(async move |this, cx| {
             if dismiss {
@@ -1076,7 +1388,7 @@ impl BrowserHub {
         url: &str,
         cx: &mut Context<Self>,
     ) {
-        if generation != self.generation {
+        if !self.is_current(generation) {
             return;
         }
         if let Some(page) = self.page_state_mut(target)
@@ -1205,7 +1517,7 @@ impl BrowserHub {
         dialog: JavaScriptDialog,
         cx: &mut Context<Self>,
     ) {
-        if generation != self.generation {
+        if !self.is_current(generation) {
             return;
         }
         if let Some(page) = self.page_state_mut(target) {
@@ -1225,7 +1537,7 @@ impl BrowserHub {
         params: &Value,
         cx: &mut Context<Self>,
     ) {
-        if generation != self.generation
+        if !self.is_current(generation)
             || params.get("name").and_then(Value::as_str) != Some(select::BINDING)
         {
             return;
@@ -1316,7 +1628,7 @@ impl BrowserHub {
     }
 
     fn script_parsed(&mut self, generation: u64, target: &str, params: &Value) {
-        if generation != self.generation {
+        if !self.is_current(generation) {
             return;
         }
         // A script with no URL, an `eval`'s say, names no place a pick could show.
@@ -1357,7 +1669,7 @@ impl BrowserHub {
         backend_node_id: i64,
         cx: &mut Context<Self>,
     ) {
-        if generation != self.generation {
+        if !self.is_current(generation) {
             return;
         }
         let url = self.url(target);
@@ -1509,7 +1821,7 @@ impl BrowserHub {
     }
 
     fn inspect_canceled(&mut self, generation: u64, target: &str, cx: &mut Context<Self>) {
-        if generation != self.generation {
+        if !self.is_current(generation) {
             return;
         }
         if let Some(page) = self.page_state_mut(target)
@@ -1665,7 +1977,7 @@ impl BrowserHub {
         url: Option<&str>,
         within: bool,
     ) {
-        if generation != self.generation {
+        if !self.is_current(generation) {
             return;
         }
         if let Some(url) = url {
@@ -1682,7 +1994,7 @@ impl BrowserHub {
     /// Keeps what the page's action listener reported the user did (#506), while a tab draws the
     /// page.
     fn action_reported(&mut self, generation: u64, session: &str, params: &Value) {
-        if generation != self.generation {
+        if !self.is_current(generation) {
             return;
         }
         let Some(target) = self.target_of_session(session) else {
@@ -1802,7 +2114,7 @@ impl BrowserHub {
 
     /// The page's main frame shows another document: what was drawn over the old one goes.
     fn left_document(&mut self, generation: u64, target: &str, cx: &mut Context<Self>) {
-        if generation != self.generation {
+        if !self.is_current(generation) {
             return;
         }
         if let Some(page) = self.page_state_mut(target)
@@ -1822,7 +2134,7 @@ impl BrowserHub {
     }
 
     fn dialog_closed(&mut self, generation: u64, target: &str, cx: &mut Context<Self>) {
-        if generation == self.generation {
+        if self.is_current(generation) {
             self.leave_dialog(target, cx);
         }
     }
@@ -1836,7 +2148,7 @@ impl BrowserHub {
         loading: bool,
         cx: &mut Context<Self>,
     ) {
-        if generation != self.generation || frame_id != Some(target) {
+        if !self.is_current(generation) || frame_id != Some(target) {
             return;
         }
         if let Some(page) = self.page_state_mut(target)
@@ -1861,7 +2173,7 @@ impl BrowserHub {
         history: Option<NavigationHistory>,
         cx: &mut Context<Self>,
     ) {
-        if generation != self.generation {
+        if !self.is_current(generation) {
             return;
         }
         let Some(page) = self.page_state_mut(target) else {
@@ -2036,7 +2348,7 @@ impl BrowserHub {
         params: &Value,
         cx: &Context<Self>,
     ) {
-        if generation != self.generation {
+        if !self.is_current(generation) {
             return;
         }
         let Some(target) = self.target_of_session(&parent_session) else {
@@ -2079,7 +2391,7 @@ impl BrowserHub {
     }
 
     fn iframe_detached(&mut self, generation: u64, params: &Value) {
-        if generation != self.generation {
+        if !self.is_current(generation) {
             return;
         }
         if let Some(session) = params.get("sessionId").and_then(Value::as_str) {
@@ -2090,7 +2402,7 @@ impl BrowserHub {
     }
 
     fn observed(&mut self, generation: u64, session: &str, method: &str, params: &Value) {
-        if generation != self.generation {
+        if !self.is_current(generation) {
             return;
         }
         let Some(target) = self.target_of_session(session) else {
@@ -2202,7 +2514,7 @@ impl BrowserHub {
         metadata: FrameMetadata,
         cx: &mut Context<Self>,
     ) -> Option<Page> {
-        if generation != self.generation {
+        if !self.is_current(generation) {
             return None;
         }
         let page = self
@@ -2435,7 +2747,7 @@ impl BrowserHub {
     }
 
     fn target_changed(&mut self, generation: u64, info: TargetInfo, cx: &mut Context<Self>) {
-        if generation != self.generation {
+        if !self.is_current(generation) {
             return;
         }
         for page in &mut self.pages {
@@ -2491,15 +2803,19 @@ async fn pages_at_start(connection: &Connection) -> Result<Vec<String>, CdpError
     Page::page_ids(connection).await
 }
 
-/// Waits until the hub shows the browser's pages.
+/// Waits until the hub shows the pages of the project `key`'s browser.
 ///
 /// # Errors
 ///
 /// The hub's reason when the browser could not start, or a note when 20 seconds pass first.
-pub(crate) async fn showing(hub: &Entity<BrowserHub>, cx: &AsyncApp) -> Result<(), String> {
+pub(crate) async fn showing(
+    hub: &Entity<BrowserHub>,
+    key: &str,
+    cx: &AsyncApp,
+) -> Result<(), String> {
     let mut waited = Duration::ZERO;
     loop {
-        match hub.read_with(cx, |hub, _| hub.state().clone()) {
+        match hub.read_with(cx, |hub, _| hub.state_of(key)) {
             HubState::Showing => return Ok(()),
             HubState::Failed(reason) => return Err(reason.to_string()),
             HubState::Starting | HubState::Connecting if waited >= SHOW_WAIT => {
@@ -2512,48 +2828,62 @@ pub(crate) async fn showing(hub: &Entity<BrowserHub>, cx: &AsyncApp) -> Result<(
     }
 }
 
-/// Opens a page at `url` once the hub shows the browser's pages, and gives its id; its tab opens
-/// as any page's does, in `place_in` when given (#574).
+/// Waits, up to 20 seconds, while a project's browser starts or connects (#507), so a tool finds
+/// the pages its start brings.
+pub(crate) async fn settled(hub: &Entity<BrowserHub>, cx: &AsyncApp) {
+    let mut waited = Duration::ZERO;
+    while waited < SHOW_WAIT && hub.read_with(cx, |hub, _| hub.is_starting()) {
+        cx.background_executor().timer(POLL_INTERVAL).await;
+        waited += POLL_INTERVAL;
+    }
+}
+
+/// Opens a page at `url` in the browser of the project `key` once the hub shows its pages, and
+/// gives its id; its tab opens as any page's does, in `place_in` when given (#574).
 ///
 /// # Errors
 ///
 /// As [`showing`], or the browser's reason when it made no page.
 pub(crate) async fn new_page(
     hub: &Entity<BrowserHub>,
+    key: &str,
     url: String,
     place_in: Option<WeakEntity<Workspace>>,
     cx: &mut AsyncApp,
 ) -> Result<String, String> {
-    showing(hub, cx).await?;
-    let task = hub.update(cx, |hub, cx| hub.create_page_task(url, place_in, cx));
+    showing(hub, key, cx).await?;
+    let task = hub.update(cx, |hub, cx| hub.create_page_task(key, url, place_in, cx));
     task.await
 }
 
-/// Waits until the hub shows the browser's pages, however long that takes: a tab waiting for its
-/// page shows why the browser stopped, and waits on for it to be opened again.
-async fn shown(hub: &Entity<BrowserHub>, cx: &AsyncApp) {
-    while hub.read_with(cx, |hub, _| hub.state() != &HubState::Showing) {
+/// Waits until the hub shows the pages of the project `key`'s browser, however long that takes:
+/// a tab waiting for its page shows why the browser stopped, and waits on for it to be opened
+/// again.
+async fn shown(hub: &Entity<BrowserHub>, key: &str, cx: &AsyncApp) {
+    while hub.read_with(cx, |hub, _| hub.state_of(key) != HubState::Showing) {
         cx.background_executor().timer(SHOWN_POLL).await;
     }
 }
 
-/// Waits, up to ten seconds, while the hub attaches pages a start found and `waiting` holds.
+/// Waits, up to ten seconds, while the browser of the project `key` attaches pages a start found
+/// and `waiting` holds.
 async fn wait_for_start_pages(
     hub: &Entity<BrowserHub>,
+    key: &str,
     cx: &AsyncApp,
     waiting: impl Fn(&BrowserHub) -> bool,
 ) {
     let mut waited = Duration::ZERO;
     while waited < START_PAGES_WAIT
-        && hub.read_with(cx, |hub, _| hub.is_attaching() && waiting(hub))
+        && hub.read_with(cx, |hub, _| hub.is_attaching_in(key) && waiting(hub))
     {
         cx.background_executor().timer(POLL_INTERVAL).await;
         waited += POLL_INTERVAL;
     }
 }
 
-/// Connects to the Marley Chromium whose profile is `profile`, starting it first when none
-/// answers.
+/// Connects to the Marley Chromium whose profile is `profile`, a project's (#507), starting it
+/// first when none answers.
 async fn open_browser(
     profile: &Path,
     executor: &BackgroundExecutor,
@@ -2587,6 +2917,46 @@ async fn open_browser(
         executor.timer(POLL_INTERVAL).await;
     }
     anyhow::bail!("Chromium did not answer within 15 seconds; see `journalctl --user -u {unit}`.")
+}
+
+/// Stops the Chromium whose profile is `profile`, and answers once systemd says it stopped (#507).
+///
+/// Chromium is asked to close first, over `connection` or a new one: stopped by a signal, it loses
+/// the cookies it has not written yet, which it writes every 30 seconds. systemd stops what is
+/// left after [`CLOSE_WAIT`].
+async fn stop_chromium(
+    profile: &Path,
+    connection: Option<Connection>,
+    cx: &AsyncApp,
+) -> anyhow::Result<()> {
+    let unit = service::unit_name(profile);
+    let executor = cx.background_executor().clone();
+    let connection = match connection {
+        Some(connection) => Some(connection),
+        None => try_connect(profile, &executor, cx)
+            .await
+            .map(|(connection, _)| connection),
+    };
+    if let Some(connection) = connection {
+        // Chromium may close the connection before it answers.
+        if let Err(error) = connection
+            .call("Browser.close", serde_json::json!({}), None)
+            .await
+        {
+            log::debug!("browser: closing {unit}: {error}");
+        }
+        let mut waited = Duration::ZERO;
+        while waited < CLOSE_WAIT && service::unit_state(&unit).await?.is_up() {
+            executor.timer(POLL_INTERVAL).await;
+            waited += POLL_INTERVAL;
+        }
+    }
+    service::stop(&unit).await?;
+    anyhow::ensure!(
+        !service::unit_state(&unit).await?.is_up(),
+        "{unit} did not stop"
+    );
+    Ok(())
 }
 
 /// The connection to the Chromium `DevToolsActivePort` in `profile` names, when it answers.
@@ -2875,7 +3245,7 @@ async fn record_snapshot(
     let page = this
         .read_with(cx, |this, _| {
             this.page_state(target)
-                .filter(|page| this.generation == generation && page.viewers > 0)
+                .filter(|page| this.is_current(generation) && page.viewers > 0)
                 .map(|page| page.page.clone())
         })
         .ok()
@@ -3126,18 +3496,19 @@ fn active_multi_workspace(cx: &App) -> Option<WindowHandle<MultiWorkspace>> {
 
 fn new_view(
     hub: Entity<BrowserHub>,
+    project: SharedString,
     target: Option<String>,
     adopts: bool,
     workspace: WeakEntity<Workspace>,
     window: &mut Window,
     cx: &mut App,
 ) -> Entity<BrowserView> {
-    cx.new(|cx| BrowserView::new(hub, target, adopts, workspace, window, cx))
+    cx.new(|cx| BrowserView::new(hub, project, target, adopts, workspace, window, cx))
 }
 
-/// A page was attached. A tab that claims it shows it. A page a start found goes to a tab opened
-/// while the browser started, or else waits without a tab until one claims it or the user opens
-/// the browser (#494); any other page gets a tab of its own.
+/// A page was attached. A tab that claims it shows it. A page a start found goes to a tab of its
+/// project opened while the browser started, or else waits without a tab until one claims it or
+/// the user opens the browser (#494); any other page gets a tab of its own.
 fn open_tab(
     hub: &Entity<BrowserHub>,
     target: &str,
@@ -3163,9 +3534,13 @@ fn open_tab(
         place_tab(hub, target, beside.as_ref(), focus, cx);
         return;
     }
+    let project = hub
+        .read(cx)
+        .project_of(target)
+        .map(|project| project.key.clone());
     let waiting = views.iter().find(|view| {
         let view = view.read(cx);
-        view.target.is_none() && view.adopts
+        view.target.is_none() && view.adopts && project.as_ref() == Some(&view.project)
     });
     if let Some(view) = waiting {
         let window = view.read(cx).window;
@@ -3180,9 +3555,10 @@ fn open_tab(
 }
 
 /// Opens a tab for the page `target`: beside `beside`, the tab of the page that opened it, or
-/// else after the tab the user focused last, or else in the active workspace. A page an agent's
-/// call asked for in a workspace (#574) looks only among that workspace's tabs, and else opens
-/// in that workspace. A tab that does not take the focus leaves the tab that has it in front.
+/// else after the tab of its project (#507) the user focused last, or else in a workspace of its
+/// project. A page an agent's call asked for in a workspace (#574) looks only among that
+/// workspace's tabs, and else opens in that workspace. A tab that does not take the focus leaves
+/// the tab that has it in front.
 fn place_tab(
     hub: &Entity<BrowserHub>,
     target: &str,
@@ -3190,45 +3566,18 @@ fn place_tab(
     focus: bool,
     cx: &mut App,
 ) {
-    let placed_in = hub
-        .update(cx, |hub, _| hub.take_placement(target))
-        .and_then(|workspace| workspace.upgrade());
-    let views: Vec<Entity<BrowserView>> = live_views(cx)
-        .into_iter()
-        .filter(|view| {
-            placed_in
-                .as_ref()
-                .is_none_or(|placed_in| view.read(cx).workspace == *placed_in)
-        })
-        .collect();
-    let focused = {
-        let hub = hub.read(cx);
-        if placed_in.is_some() {
-            let targets = views
-                .iter()
-                .filter_map(|view| view.read(cx).target.clone())
-                .collect();
-            hub.focused_among(&targets)
-        } else {
-            hub.focused()
-        }
+    let (placed_in, project) = hub.update(cx, |hub, _| {
+        (
+            hub.take_placement(target),
+            hub.project_of(target).map(|project| project.key.clone()),
+        )
+    });
+    let Some(project) = project else {
+        log::warn!("browser: a page that no project's browser has wants a tab");
+        return;
     };
-    let anchor = beside
-        .cloned()
-        .or_else(|| {
-            views
-                .iter()
-                .find(|view| focused.is_some() && view.read(cx).target == focused)
-                .cloned()
-        })
-        .or_else(|| {
-            views
-                .iter()
-                .rev()
-                .find(|view| view.read(cx).target.is_some())
-                .cloned()
-        });
-    if let Some(anchor) = anchor {
+    let placed_in = placed_in.and_then(|workspace| workspace.upgrade());
+    if let Some(anchor) = anchor_tab(hub, &project, placed_in.as_ref(), beside, cx) {
         let (workspace, window) = {
             let anchor = anchor.read(cx);
             (anchor.workspace.clone(), anchor.window)
@@ -3241,14 +3590,15 @@ fn place_tab(
             let target = target.to_string();
             window
                 .update(cx, |_, window, cx| {
-                    let view = new_view(hub, Some(target), false, workspace, window, cx);
+                    let view = new_view(hub, project, Some(target), false, workspace, window, cx);
                     add_to_pane(&pane, view, index, focus, window, cx);
                 })
                 .log_err();
             return;
         }
     }
-    let window = placed_in.as_ref().map_or_else(
+    let home = placed_in.or_else(|| workspace_of_project(&project, cx));
+    let window = home.as_ref().map_or_else(
         || active_multi_workspace(cx),
         |workspace| window_of(workspace, cx),
     );
@@ -3260,8 +3610,16 @@ fn place_tab(
     let target = target.to_string();
     window
         .update(cx, |multi_workspace, window, cx| {
-            let workspace = placed_in.unwrap_or_else(|| multi_workspace.workspace().clone());
-            let view = new_view(hub, Some(target), false, workspace.downgrade(), window, cx);
+            let workspace = home.unwrap_or_else(|| multi_workspace.workspace().clone());
+            let view = new_view(
+                hub,
+                project,
+                Some(target),
+                false,
+                workspace.downgrade(),
+                window,
+                cx,
+            );
             workspace.update(cx, |workspace, cx| {
                 let pane = workspace.active_pane().clone();
                 let busy = !focus
@@ -3284,6 +3642,46 @@ fn place_tab(
             });
         })
         .log_err();
+}
+
+/// The tab a page's new tab goes after: `beside`, else the tab of the project `project` the user
+/// focused last, else its newest showing a page; among the tabs of `placed_in` alone when given
+/// (#574).
+fn anchor_tab(
+    hub: &Entity<BrowserHub>,
+    project: &SharedString,
+    placed_in: Option<&Entity<Workspace>>,
+    beside: Option<&Entity<BrowserView>>,
+    cx: &mut App,
+) -> Option<Entity<BrowserView>> {
+    if let Some(beside) = beside {
+        return Some(beside.clone());
+    }
+    let views: Vec<Entity<BrowserView>> = live_views(cx)
+        .into_iter()
+        .filter(|view| {
+            let view = view.read(cx);
+            view.project == *project
+                && placed_in.is_none_or(|placed_in| view.workspace == *placed_in)
+        })
+        .collect();
+    let focused = {
+        let targets = views
+            .iter()
+            .filter_map(|view| view.read(cx).target.clone())
+            .collect();
+        hub.read(cx).focused_among(&targets)
+    };
+    views
+        .iter()
+        .find(|view| focused.is_some() && view.read(cx).target == focused)
+        .or_else(|| {
+            views
+                .iter()
+                .rev()
+                .find(|view| view.read(cx).target.is_some())
+        })
+        .cloned()
 }
 
 /// Adds `view` to `pane` at `index`, or after its active tab. A tab that does not take the
@@ -3368,18 +3766,20 @@ fn close_tabs(target: &str, cx: &mut App) {
     }
 }
 
-/// Opens a page at `url` for `view`, a tab in `window`, which shows it once the browser has made
-/// it. A tab closed by then takes its page with it.
+/// Opens a page at `url` in the browser of the project `key` for `view`, a tab in `window`, which
+/// shows it once the browser has made it. A tab closed by then takes its page with it.
 fn open_page_in(
     hub: &Entity<BrowserHub>,
+    key: &SharedString,
     view: WeakEntity<BrowserView>,
     window: AnyWindowHandle,
     url: String,
     cx: &App,
 ) {
     let hub = hub.clone();
+    let key = key.clone();
     cx.spawn(async move |cx| {
-        let created = new_page(&hub, url, None, cx).await;
+        let created = new_page(&hub, &key, url, None, cx).await;
         let shown = window
             .update(cx, |_, window, cx| {
                 view.update(cx, |view, cx| {
@@ -3390,7 +3790,7 @@ fn open_page_in(
         if shown.is_err()
             && let Ok(target) = created
         {
-            hub.update(cx, |hub, cx| hub.close_page(&target, cx));
+            hub.update(cx, |hub, cx| hub.close_page(&key, &target, cx));
         }
     })
     .detach();
@@ -3400,6 +3800,8 @@ fn open_page_in(
 /// with the address bar.
 pub struct BrowserView {
     hub: Entity<BrowserHub>,
+    /// The key of the project whose browser has its page (#507).
+    project: SharedString,
     /// The page it shows; none while it waits for one.
     target: Option<String>,
     /// Whether it takes the first page a start attaches: a tab opened while the browser starts.
@@ -3534,6 +3936,7 @@ impl BrowserView {
 
     fn new(
         hub: Entity<BrowserHub>,
+        project: SharedString,
         target: Option<String>,
         adopts: bool,
         workspace: WeakEntity<Workspace>,
@@ -3573,16 +3976,17 @@ impl BrowserView {
         // one when the start brings none, after a failure and the start that follows it too.
         let waiting = adopts.then(|| {
             let hub = hub.clone();
+            let project = project.clone();
             cx.spawn(async move |this, cx| {
-                shown(&hub, cx).await;
-                wait_for_start_pages(&hub, cx, |_| true).await;
+                shown(&hub, &project, cx).await;
+                wait_for_start_pages(&hub, &project, cx, |_| true).await;
                 let Ok(Some(window)) = this.read_with(cx, |this, _| {
                     (this.target.is_none() && this.adopts).then_some(this.window)
                 }) else {
                     return;
                 };
                 this.update(cx, |this, _| this.adopts = false).ok();
-                cx.update(|cx| open_page_in(&hub, this, window, BLANK.to_string(), cx));
+                cx.update(|cx| open_page_in(&hub, &project, this, window, BLANK.to_string(), cx));
             })
         });
         let window_handle = window.window_handle();
@@ -3604,6 +4008,7 @@ impl BrowserView {
         .detach();
         let view = Self {
             hub,
+            project,
             target,
             adopts,
             restoring: false,
@@ -3650,10 +4055,11 @@ impl BrowserView {
             return;
         };
         let hub = self.hub.clone();
+        let project = self.project.clone();
         let window_handle = self.window;
         self.waiting = Some(cx.spawn(async move |this, cx| {
-            shown(&hub, cx).await;
-            wait_for_start_pages(&hub, cx, |hub| hub.page(&target).is_none()).await;
+            shown(&hub, &project, cx).await;
+            wait_for_start_pages(&hub, &project, cx, |hub| hub.page(&target).is_none()).await;
             let back = hub.read_with(cx, |hub, _| hub.page(&target).is_some());
             let settled = window_handle.update(cx, |_, window, cx| {
                 this.update(cx, |this, cx| {
@@ -3664,7 +4070,7 @@ impl BrowserView {
             });
             if !back && matches!(settled, Ok(Ok(()))) {
                 // The browser no longer has the page, after a restart say: its URL opens again.
-                cx.update(|cx| open_page_in(&hub, this, window_handle, url, cx));
+                cx.update(|cx| open_page_in(&hub, &project, this, window_handle, url, cx));
             }
         }));
     }
@@ -4589,7 +4995,8 @@ impl BrowserView {
         let hub = self.hub.read(cx);
         // A tab still waiting for its page asks the hub of no page.
         let target = self.target.as_deref().unwrap_or_default();
-        let showing = hub.state == HubState::Showing && hub.page_state(target).is_some();
+        let showing =
+            hub.state_of(&self.project) == HubState::Showing && hub.page_state(target).is_some();
         let loading = hub.is_loading(target);
         let picking = hub.is_picking(target);
         let annotating = !matches!(self.annotate_mode, AnnotateMode::Off);
@@ -5375,7 +5782,7 @@ impl Render for BrowserView {
                 .as_deref()
                 .and_then(|target| hub.page_state(target));
             (
-                hub.state.clone(),
+                hub.state_of(&self.project),
                 page.and_then(|page| page.frame.clone()),
                 page.and_then(|page| page.metadata),
                 page.and_then(|page| page.dialog.clone()),
@@ -5517,6 +5924,7 @@ impl Item for BrowserView {
             return;
         };
         let hub = self.hub.clone();
+        let project = self.project.clone();
         // A move to another pane removes the tab and adds it again before the effects run: the
         // page closes only when no pane holds a tab of it once they have.
         cx.defer(move |cx| {
@@ -5525,7 +5933,7 @@ impl Item for BrowserView {
                 view.read(cx).target.as_deref() == Some(target.as_str()) && in_a_pane(view, cx)
             });
             if !shown {
-                hub.update(cx, |hub, cx| hub.close_page(&target, cx));
+                hub.update(cx, |hub, cx| hub.close_page(&project, &target, cx));
             }
         });
     }
@@ -5554,7 +5962,7 @@ impl SerializableItem for BrowserView {
     }
 
     fn deserialize(
-        _project: Entity<Project>,
+        project: Entity<Project>,
         workspace: WeakEntity<Workspace>,
         workspace_id: WorkspaceId,
         item_id: ItemId,
@@ -5567,10 +5975,16 @@ impl SerializableItem for BrowserView {
                 .get_tab(item_id, workspace_id)?
                 .context("no Browser tab was saved for the item")?;
             cx.update(|window, cx| {
+                // Zed adds a workspace's folders before it restores its items, so the project's
+                // key is whole here (#507).
+                let project = BrowserProject::of(project.read(cx), cx);
                 let hub = BrowserHub::global(cx);
+                hub.update(cx, |hub, cx| hub.browser_for(&project, cx));
                 // The tab claims its page before the browser's start can report it, so the page
                 // gets no second tab.
-                let view = cx.new(|cx| Self::new(hub, Some(target), false, workspace, window, cx));
+                let view = cx.new(|cx| {
+                    Self::new(hub, project.key, Some(target), false, workspace, window, cx)
+                });
                 view.update(cx, |view, cx| view.restore(url, title, window, cx));
                 view
             })
@@ -6111,7 +6525,150 @@ pub fn init(cx: &mut App) {
         });
     })
     .detach();
+    // A project's browser stops when the project leaves every window (#507): a window's
+    // projects change with these events, and all of its go when it closes.
+    cx.observe_new(
+        |_: &mut MultiWorkspace, _, cx: &mut Context<MultiWorkspace>| {
+            cx.subscribe_self(|_, event: &MultiWorkspaceEvent, cx| {
+                if matches!(
+                    event,
+                    MultiWorkspaceEvent::WorkspaceAdded(_)
+                        | MultiWorkspaceEvent::WorkspaceRemoved(_)
+                        | MultiWorkspaceEvent::ProjectGroupsChanged
+                ) {
+                    cx.defer(review_browsers);
+                }
+            })
+            .detach();
+            cx.on_release(|_, cx| cx.defer(review_browsers)).detach();
+        },
+    )
+    .detach();
+    cx.on_app_quit(|cx| {
+        if let Some(hub) = BrowserHub::try_global(cx) {
+            hub.update(cx, |hub, _| hub.quit());
+        }
+        futures::future::ready(())
+    })
+    .detach();
     track_terminals(cx);
+}
+
+/// Has the hub review which projects' browsers run, against the projects Marley's windows hold
+/// now (#507).
+fn review_browsers(cx: &mut App) {
+    let Some(hub) = BrowserHub::try_global(cx) else {
+        return;
+    };
+    let live = live_projects(cx);
+    hub.update(cx, |hub, cx| hub.review(&live, cx));
+}
+
+/// The projects Marley's windows hold (#507): each window's project groups, the project of each
+/// workspace it holds, and the project of each Browser tab in those workspaces, which a workspace
+/// whose folders changed keeps until the tab closes.
+fn live_projects(cx: &mut App) -> HashSet<SharedString> {
+    let mut live = HashSet::new();
+    let mut held = HashSet::new();
+    for window in cx.windows() {
+        let Some(multi_workspace) = window
+            .downcast::<MultiWorkspace>()
+            .and_then(|window| window.read(cx).ok())
+        else {
+            continue;
+        };
+        for group in multi_workspace.project_group_keys() {
+            live.insert(BrowserProject::of_group(&group).key);
+        }
+        for workspace in multi_workspace.workspaces() {
+            held.insert(workspace.entity_id());
+            live.insert(BrowserProject::of_workspace(workspace, cx).key);
+        }
+    }
+    for view in live_views(cx) {
+        let view = view.read(cx);
+        if view
+            .workspace
+            .upgrade()
+            .is_some_and(|workspace| held.contains(&workspace.entity_id()))
+        {
+            live.insert(view.project.clone());
+        }
+    }
+    live
+}
+
+/// A workspace of the project `key` for a page's tab with no other to go beside (#507): the one
+/// the active window shows when it is the project's, else the one another window shows, else any
+/// a window holds.
+fn workspace_of_project(key: &str, cx: &App) -> Option<Entity<Workspace>> {
+    let windows: Vec<&MultiWorkspace> = active_multi_workspace(cx)
+        .into_iter()
+        .chain(
+            cx.windows()
+                .into_iter()
+                .filter_map(|window| window.downcast::<MultiWorkspace>()),
+        )
+        .filter_map(|window| window.read(cx).ok())
+        .collect();
+    let is_project =
+        |workspace: &&Entity<Workspace>| BrowserProject::of_workspace(workspace, cx).key == key;
+    windows
+        .iter()
+        .map(|multi_workspace| multi_workspace.workspace())
+        .find(is_project)
+        .or_else(|| {
+            windows
+                .iter()
+                .flat_map(|multi_workspace| multi_workspace.workspaces())
+                .find(is_project)
+        })
+        .cloned()
+}
+
+/// Moves the profile of earlier builds to the folder `project_dir` of the first project whose
+/// Chromium starts in this run (#507), once the Chromium that used it has closed; when a project
+/// has a profile already it stays where it is. The log says which.
+fn move_legacy_profile(data: PathBuf, project_dir: PathBuf, cx: &Context<BrowserHub>) -> Task<()> {
+    cx.spawn(async move |_, cx| {
+        let legacy = service::legacy_profile_in(&data);
+        let moved = async {
+            let found = {
+                let legacy = legacy.clone();
+                cx.background_spawn(futures::future::lazy(move |_| legacy.is_dir()))
+                    .await
+            };
+            if !found {
+                return Ok(LegacyMove::NoLegacy);
+            }
+            if service::unit_state(&service::unit_name(&legacy))
+                .await?
+                .is_up()
+            {
+                stop_chromium(&legacy, None, cx).await?;
+            }
+            cx.background_spawn(futures::future::lazy(move |_| {
+                service::remove_endpoint_in(&service::legacy_profile_in(&data))?;
+                service::move_legacy_profile_in(&data, &project_dir)
+            }))
+            .await
+        };
+        match moved.await {
+            Ok(LegacyMove::Moved(profile)) => log::info!(
+                "browser: the profile of earlier builds is now {}",
+                profile.display()
+            ),
+            Ok(LegacyMove::KeptBecauseAProjectHasOne) => log::info!(
+                "browser: the profile of earlier builds stays at {}, as a project has one",
+                legacy.display()
+            ),
+            Ok(LegacyMove::NoLegacy) => {}
+            Err(error) => log::warn!(
+                "browser: the profile of earlier builds stays at {}: {error:#}",
+                legacy.display()
+            ),
+        }
+    })
 }
 
 /// The terminal the user focused last, where Send types a pick (#496).
@@ -6511,18 +7068,28 @@ pub(crate) fn show_for_agent(target: &str, cx: &mut App) {
     place_tab(&hub, target, None, false, cx);
 }
 
-/// Shows the Browser: tabs for the pages that have none, the first with the focus; else the
-/// workspace's tab of the page the user focused last, or its first; else a new tab. A hub that
-/// stopped starts again, and the tabs of its old pages close.
+/// Shows the Browser of the workspace's project (#507): tabs for its pages that have none, the
+/// first with the focus; else the workspace's tab of the page the user focused last, or its
+/// first; else a new tab. A project's browser that stopped starts again, and the tabs of its old
+/// pages close.
 fn open(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
+    let project = BrowserProject::of(workspace.project().read(cx), cx);
     let hub = BrowserHub::global(cx);
-    hub.update(cx, BrowserHub::start_if_failed);
+    hub.update(cx, |hub, cx| hub.browser_for(&project, cx));
     let this = cx.weak_entity();
-    let untabbed = untabbed(&hub, cx);
+    let untabbed = untabbed(&hub, &project.key, cx);
     if !untabbed.is_empty() {
         let mut first = None;
         for target in untabbed {
-            let view = new_view(hub.clone(), Some(target), false, this.clone(), window, cx);
+            let view = new_view(
+                hub.clone(),
+                project.key.clone(),
+                Some(target),
+                false,
+                this.clone(),
+                window,
+                cx,
+            );
             first.get_or_insert_with(|| view.clone());
             workspace.add_item_to_active_pane(Box::new(view), None, false, window, cx);
         }
@@ -6554,27 +7121,58 @@ fn open(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspa
         workspace.activate_item(&view, true, true, window, cx);
         return;
     }
-    let showing = hub.read(cx).state == HubState::Showing;
-    let view = new_view(hub.clone(), None, !showing, this, window, cx);
+    let showing = hub.read(cx).state_of(&project.key) == HubState::Showing;
+    let view = new_view(
+        hub.clone(),
+        project.key.clone(),
+        None,
+        !showing,
+        this,
+        window,
+        cx,
+    );
     workspace.add_item_to_active_pane(Box::new(view.clone()), None, true, window, cx);
     if showing {
         let window_handle = view.read(cx).window;
-        open_page_in(&hub, view.downgrade(), window_handle, BLANK.to_string(), cx);
+        open_page_in(
+            &hub,
+            &project.key,
+            view.downgrade(),
+            window_handle,
+            BLANK.to_string(),
+            cx,
+        );
     }
 }
 
 /// Opens a blank page in a new tab after the active one, with the focus in its address bar: what
 /// Ctrl+T does, and the rail's New Browser Tab (#500).
 pub(crate) fn new_tab(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
+    let project = BrowserProject::of(workspace.project().read(cx), cx);
     let hub = BrowserHub::global(cx);
-    hub.update(cx, BrowserHub::start_if_failed);
-    let view = new_view(hub.clone(), None, false, cx.weak_entity(), window, cx);
+    hub.update(cx, |hub, cx| hub.browser_for(&project, cx));
+    let view = new_view(
+        hub.clone(),
+        project.key.clone(),
+        None,
+        false,
+        cx.weak_entity(),
+        window,
+        cx,
+    );
     workspace.add_item_to_active_pane(Box::new(view.clone()), None, true, window, cx);
     view.update(cx, |view, cx| {
         view.focus_address_bar(&FocusAddressBar, window, cx);
     });
     let window_handle = view.read(cx).window;
-    open_page_in(&hub, view.downgrade(), window_handle, BLANK.to_string(), cx);
+    open_page_in(
+        &hub,
+        &project.key,
+        view.downgrade(),
+        window_handle,
+        BLANK.to_string(),
+        cx,
+    );
 }
 
 /// Opens `url` in a Browser tab of `workspace` with the focus, or brings forward the tab of
@@ -6606,23 +7204,36 @@ pub(crate) fn open_url_tab(
         workspace.activate_item(&view, true, true, window, cx);
         return;
     }
-    hub.update(cx, BrowserHub::start_if_failed);
-    let view = new_view(hub.clone(), None, false, this, window, cx);
+    let project = BrowserProject::of(workspace.project().read(cx), cx);
+    hub.update(cx, |hub, cx| hub.browser_for(&project, cx));
+    let view = new_view(
+        hub.clone(),
+        project.key.clone(),
+        None,
+        false,
+        this,
+        window,
+        cx,
+    );
     workspace.add_item_to_active_pane(Box::new(view.clone()), None, true, window, cx);
     let window_handle = view.read(cx).window;
-    open_page_in(&hub, view.downgrade(), window_handle, url, cx);
+    open_page_in(&hub, &project.key, view.downgrade(), window_handle, url, cx);
 }
 
-/// The pages no tab shows: those a start found that no tab claimed, and those whose tab closed
-/// with its window.
-fn untabbed(hub: &Entity<BrowserHub>, cx: &mut App) -> Vec<String> {
+/// The pages of the project `key`'s browser that no tab shows: those a start found that no tab
+/// claimed, and those whose tab closed with its window.
+fn untabbed(hub: &Entity<BrowserHub>, key: &str, cx: &mut App) -> Vec<String> {
     let shown: Vec<String> = live_views(cx)
         .iter()
         .filter_map(|view| view.read(cx).target.clone())
         .collect();
-    hub.read(cx)
-        .pages
+    let hub = hub.read(cx);
+    hub.pages
         .iter()
+        .filter(|page| {
+            hub.started(page.generation)
+                .is_some_and(|browser| browser.project.key == key)
+        })
         .map(|page| page.target().to_string())
         .filter(|target| !shown.contains(target))
         .collect()

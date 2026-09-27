@@ -10,7 +10,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-507](open/TICKET-507-browser-context-per-project.md) | feature | prong 3 · a Chromium and a profile per project; worktrees share their project's |
+| [TICKET-581](open/TICKET-581-clear-a-projects-browser-data.md) | feature | prong 3 · Clear Browser Data for one project: ask, close its tabs, stop its Chromium, delete its profile; split from #507 |
 | [TICKET-523](open/TICKET-523-saved-playwright-scripts.md) | feature | prong 3 · Playwright scripts saved in Marley and run on a Browser tab |
 | [TICKET-524](open/TICKET-524-trusted-outside-browser-access.md) | feature | prong 3 with prong 2 · trusted outside clients drive Marley's browser, slice 1 of 3 |
 | [TICKET-539](open/TICKET-539-headless-chrome-user-agent.md) | chore | prong 3 · Marley's Chromium introduces itself as Chrome, not HeadlessChrome |

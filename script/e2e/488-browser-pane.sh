@@ -59,9 +59,9 @@ steps() {
   settle 1
   shot 488-01-starting
   settle 4
-  port=$(head -1 "$(browser_profile)/DevToolsActivePort")
-  echo "unit $(browser_unit): $(systemctl --user is-active "$(browser_unit)")"
-  systemctl --user show -p ExecStart --value "$(browser_unit)" | grep -oE 'path=[^ ;]+|--[a-z-]+(=[^ ;]*)?' | tr '\n' ' '
+  port=$(head -1 "$(browser_profile "$E2E_WORK/repo")/DevToolsActivePort")
+  echo "unit $(browser_unit "$E2E_WORK/repo"): $(systemctl --user is-active "$(browser_unit "$E2E_WORK/repo")")"
+  systemctl --user show -p ExecStart --value "$(browser_unit "$E2E_WORK/repo")" | grep -oE 'path=[^ ;]+|--[a-z-]+(=[^ ;]*)?' | tr '\n' ' '
   echo
   echo "listening: $(ss -ltnH "sport = :$port" | awk '{print $4}' | tr '\n' ' ')"
   agent navigate "$SITE"
@@ -80,5 +80,5 @@ steps() {
   palette "marley: open browser"
   settle 3
   shot 488-05-reopened
-  echo "units: $(systemctl --user list-units --plain --no-legend 'marley-browser-*' | wc -l) running; this run's is $(systemctl --user is-active "$(browser_unit)")"
+  echo "units: $(systemctl --user list-units --plain --no-legend 'marley-browser-*' | wc -l) running; this run's is $(systemctl --user is-active "$(browser_unit "$E2E_WORK/repo")")"
 }

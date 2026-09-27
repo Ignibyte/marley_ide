@@ -124,10 +124,11 @@ const REGISTRY: &[ToolSpec] = &[
     },
     browser_read(
         "tabs",
-        "List Marley's Browser tabs, one per page of its browser: each tab's id, which the other \
-         browser tools take as `tab`, its title and URL, whether it loads, its project, whether \
-         the user focused it last, and `default`, the one the tools act on when a call names no \
-         tab: the one the user focused last in the project you run in.",
+        "List Marley's Browser tabs, one per page, across every project's browser (each project \
+         has a Chromium and a profile of its own): each tab's id, which the other browser tools \
+         take as `tab`, its title and URL, whether it loads, its project, whether the user \
+         focused it last, and `default`, the one the tools act on when a call names no tab: the \
+         one the user focused last in the project you run in.",
     ),
     browser_read(
         "look",
@@ -226,7 +227,8 @@ const REGISTRY: &[ToolSpec] = &[
         "navigate",
         "Load an http or https URL in a Browser tab, or in a new tab with `new_tab`; with no \
          `tab`, in the tab the user focused last in the project you run in, opening one there \
-         when it has none. Answers once the page has loaded, with the tab's id.",
+         when it has none. A new tab opens in your project's browser, with that project's \
+         cookies and logins. Answers once the page has loaded, with the tab's id.",
     ),
     browser_write(
         "open_url",

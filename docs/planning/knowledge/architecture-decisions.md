@@ -2407,3 +2407,27 @@ first. Rejected:
 - Marley writing the test into the project, or keeping a copy (D4);
 - recording Marley's own `<select>` choices, which reach the page as untrusted events (a later
   ticket, from `choose_option`).
+
+## AD-claude-507-a-chromium-and-a-profile-per-project-001
+*decided at: 2026-09-27 · status: shipped · refines: AD-claude-488-marleys-browser-is-a-transient-unit-streamed-into-a-tab-001*
+
+Each project, as Zed's project group keys it (its main worktree paths, and its host for a remote
+project), has a Chromium of its own: a transient user unit on the profile
+`browser/projects/<key>/profile`, where the key is sixteen hex digits of the SHA-256 of the
+sorted paths and the host, the same at every launch. A linked worktree's group is its main
+repository's, so it shares its project's browser and logins. The app's one hub stays
+(AD-claude-488) and holds a browser per project; pages, picks, annotations, recordings and the
+focus history stay the app's, and one start counter across projects names each start, so each
+late result's guard stays one check. A project's Chromium starts with its first Browser tab or an
+agent's new page there, keeps running at a quit so restored tabs find their pages, and stops two
+seconds after its project leaves every window while Marley runs, closed over CDP first
+(PR-claude-close-chromium-over-cdp-before-stopping-its-unit-001). The rail's project menu offers
+Remove Project, as Zed's sidebar does, which is what stops it. The profile of earlier builds
+moved once to the first project whose Chromium started: renamed, never deleted. Rejected:
+- CDP browser contexts (`Target.createBrowserContext`), which keep no `localStorage` or
+  IndexedDB across a restart (report 03 §3 item 3);
+- a hub per project, which would split the pages the user and agents share;
+- stopping a project's Chromium when its last tab closes: headless Chromium lives on with no
+  pages (L-claude-493), and the project's tabs may come back;
+- `systemctl stop` alone, which loses the cookies Chromium set in its last 30 seconds
+  (F-claude-507-a-stopped-unit-lost-the-cookie-set-before-the-stop-001).

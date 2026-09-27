@@ -9,10 +9,10 @@
 #   `localhost` and 127.0.0.1 (its resolver rules map IP literals too): a search or a typed
 #   name fails in the page, and nothing leaves the machine.
 # - `agent <command> ...` runs a stand-in agent that attaches to the run's Chromium the way any
-#   CDP client can, through the `DevToolsActivePort` in Marley's profile, and drives the browser's
-#   first page: `navigate <url>`, and `highlight <selector> <seconds>`, which keeps the
-#   highlight, drawn for its own session, for that long; `close <text>` closes the page whose URL
-#   holds the text.
+#   CDP client can, through the `DevToolsActivePort` in the profile of the project
+#   `$E2E_WORK/repo` (#507), and drives the browser's first page: `navigate <url>`, and
+#   `highlight <selector> <seconds>`, which keeps the highlight, drawn for its own session, for
+#   that long; `close <text>` closes the page whose URL holds the text.
 # - `mcp_agent <command> ...` runs a stand-in agent that reaches Marley's MCP server through the
 #   Claude Code plugin's bridge, as Claude Code in a terminal does, and calls the browser tools
 #   (#492): `tools`, `tabs`, `navigate <url>`, `look [<image file>]`, `snapshot [full]`, `console`,
@@ -36,16 +36,53 @@
 #   naming none (#520), and `terminals` marks that one `(self)` and gives each `terminal_id`. `fleet` lists `fleet_snapshot`'s seats: each one's id, state and
 #   the labels an agent row shows, or `no seats` (#547). `open-url <url> <directory>` asks
 #   `browser_open_url` to open a URL for a program in that folder (#561).
-# - `browser_profile` and `browser_unit` name the run's Chromium profile and its user unit;
-#   `browser_teardown`, for the scenario's `teardown`, stops the unit and the servers.
+# - `browser_profile [root]` and `browser_unit [root]` name the Chromium profile and the user
+#   unit of the project whose one folder is `root`, `$E2E_WORK/repo` by default: a Chromium per
+#   project since #507. `browser_close [root]` asks that project's Chromium to close over CDP, as
+#   Marley does before it stops a unit, and waits up to five seconds for the unit to stop: stopped
+#   by a signal, Chromium loses the cookies it has not written yet. `browser_teardown`, for the
+#   scenario's `teardown`, stops every unit of the run, the profile of earlier builds' too, and the
+#   servers.
 
-browser_profile() {
-  printf '%s/browser/profile' "$(realpath "$E2E_PROFILE")"
+# The folder of the project whose one main folder is `root`, keyed as
+# `marley_browser::service::project_key` keys it (#507).
+browser_project_dir() {
+  local root
+  root=$(realpath -m "${1:-$E2E_WORK/repo}")
+  printf '%s/browser/projects/%s' "$(realpath "$E2E_PROFILE")" \
+    "$(printf '%s\n' "$root" | sha256sum | cut -c1-16)"
 }
 
-# The unit's name, as `marley_browser::service::unit_name` makes it.
+browser_profile() {
+  printf '%s/profile' "$(browser_project_dir "$@")"
+}
+
+# The unit of the Chromium on profile `profile`, as `marley_browser::service::unit_name` names it.
+browser_unit_of() {
+  printf 'marley-browser-%s' "$(printf '%s' "$1" | sha256sum | cut -c1-12)"
+}
+
 browser_unit() {
-  printf 'marley-browser-%s' "$(printf '%s' "$(browser_profile)" | sha256sum | cut -c1-12)"
+  browser_unit_of "$(browser_profile "$@")"
+}
+
+browser_close() {
+  local profile unit
+  profile=$(browser_profile "$@")
+  unit=$(browser_unit_of "$profile")
+  node --input-type=module -e '
+    import { readFileSync } from "node:fs";
+    const [port, path] = readFileSync(process.argv[1] + "/DevToolsActivePort", "utf8").trim().split("\n");
+    const socket = new WebSocket("ws://127.0.0.1:" + port + path);
+    socket.onopen = () => socket.send(JSON.stringify({ id: 1, method: "Browser.close" }));
+    socket.onclose = () => process.exit(0);
+    setTimeout(() => process.exit(0), 5000);
+  ' "$profile" 2>/dev/null || true
+  for _ in $(seq 50); do
+    systemctl --user is-active --quiet "$unit" || return 0
+    sleep 0.1
+  done
+  return 1
 }
 
 serve_site() {
@@ -78,7 +115,7 @@ SH
 
 agent() {
   [[ -f $E2E_WORK/agent.mjs ]] || write_agent
-  node "$E2E_WORK/agent.mjs" "$(browser_profile)" "$@"
+  node "$E2E_WORK/agent.mjs" "$(browser_profile "$E2E_WORK/repo")" "$@"
 }
 
 mcp_agent() {
@@ -89,7 +126,13 @@ mcp_agent() {
 }
 
 browser_teardown() {
-  systemctl --user stop "$(browser_unit)" 2>/dev/null || true
+  local data project
+  data=$(realpath "$E2E_PROFILE")
+  for project in "$data"/browser/projects/*/; do
+    [[ -d $project ]] || continue
+    systemctl --user stop "$(browser_unit_of "${project%/}/profile")" 2>/dev/null || true
+  done
+  systemctl --user stop "$(browser_unit_of "$data/browser/profile")" 2>/dev/null || true
   if [[ -f $E2E_WORK/servers ]]; then
     xargs kill <"$E2E_WORK/servers" 2>/dev/null || true
   fi

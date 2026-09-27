@@ -37,8 +37,8 @@ use ui::SharedString;
 use workspace::{MultiWorkspace, ProjectGroup, Workspace};
 
 use crate::browser::{
-    BrowserHub, Maker, Pick, SCROLL_SETTLE, TabSummary, new_page, open_url_tab, recordings_dir,
-    show_for_agent, showing, tab_workspaces, window_of,
+    BrowserHub, BrowserProject, Maker, Pick, SCROLL_SETTLE, TabSummary, new_page, open_url_tab,
+    recordings_dir, settled, show_for_agent, tab_workspaces, window_of,
 };
 use crate::links;
 
@@ -82,12 +82,16 @@ struct Scope {
     name: String,
 }
 
-/// Answers `call`, a `browser_*` tool, from a task of its own. A browser that stopped starts
-/// again, as `marley: open browser` starts it.
+/// Answers `call`, a `browser_*` tool, from a task of its own.
+///
+/// The browser of the caller's project starts again when it stopped for a reason, as `marley:
+/// open browser` starts it; asking starts no browser that is not running (#507).
 pub fn answer(call: AppCall, cx: &mut App) {
     let hub = BrowserHub::global(cx);
-    hub.update(cx, BrowserHub::start_if_failed);
     let scope = caller_scope(call.caller(), cx);
+    if let Some(project) = caller_project(scope.as_ref(), cx) {
+        hub.update(cx, |hub, cx| hub.restart_if_failed(&project.key, cx));
+    }
     cx.spawn(async move |cx| {
         let result = run(&call.tool, &call.arguments, scope.as_ref(), &hub, cx).await;
         call.answer(result);
@@ -122,6 +126,23 @@ fn caller_scope(caller: &Caller, cx: &App) -> Option<Scope> {
         home: home.downgrade(),
         name,
     })
+}
+
+/// The project a page a call opens goes to (#507): the caller's, else the one the active window
+/// shows. None with no window.
+fn caller_project(scope: Option<&Scope>, cx: &App) -> Option<BrowserProject> {
+    let home = scope.and_then(|scope| scope.home.upgrade()).or_else(|| {
+        cx.active_window()
+            .and_then(|window| window.downcast::<MultiWorkspace>())
+            .or_else(|| {
+                cx.windows()
+                    .into_iter()
+                    .find_map(|window| window.downcast::<MultiWorkspace>())
+            })
+            .and_then(|window| window.read(cx).ok())
+            .map(|multi_workspace| multi_workspace.workspace().clone())
+    })?;
+    Some(BrowserProject::of_workspace(&home, cx))
 }
 
 /// The local workspace one of whose folders holds `path`, the longest folder winning. Folders are
@@ -219,7 +240,8 @@ async fn run(
         "browser_open_url" => return Ok(cx.update(|cx| open_url(arguments, cx))),
         _ => {}
     }
-    showing(hub, cx).await?;
+    // Each project's browser has its own pages (#507): a call sees them once none starts.
+    settled(hub, cx).await;
     let named_tab = arguments.get("tab").and_then(Value::as_str);
     match tool {
         "browser_tabs" => return tabs(hub, scope, cx).await,
@@ -387,10 +409,16 @@ async fn tabs(
             .into_iter()
             .map(|mut summary| {
                 summary.url = redact_url(&summary.url);
+                // A page no tab shows yet is named by its browser's project (#507).
                 let project = placed
                     .iter()
                     .find(|(target, _)| *target == summary.id)
-                    .and_then(|(_, workspace)| names.get(&workspace.entity_id()).cloned());
+                    .and_then(|(_, workspace)| names.get(&workspace.entity_id()).cloned())
+                    .or_else(|| {
+                        hub.read(cx)
+                            .project_of(&summary.id)
+                            .map(|project| project.name.to_string())
+                    });
                 TabRow {
                     default: default.as_deref() == Some(summary.id.as_str()),
                     project,
@@ -1000,7 +1028,8 @@ async fn acting<T>(
 /// `browser_navigate`: in the tab named, else in the tab a call that names no tab acts on; in a
 /// new tab with `new_tab`, or when the caller's project has no tab showing a page, or, for a
 /// caller in no project, when the browser has none. A new tab for a caller's project opens in the
-/// caller's workspace (#574).
+/// caller's workspace (#574), its page in that project's browser, which starts when it is not
+/// running; a caller in no project gets a page of the project the active window shows (#507).
 async fn navigate(
     arguments: &Value,
     named_tab: Option<&str>,
@@ -1023,7 +1052,11 @@ async fn navigate(
     });
     let tab = if new_tab || (named_tab.is_none() && !has_pages) {
         let home = scope.map(|scope| scope.home.clone());
-        let created = new_page(hub, "about:blank".to_string(), home, cx).await?;
+        let project = cx
+            .update(|cx| caller_project(scope, cx))
+            .ok_or("Marley has no window to open a page in")?;
+        hub.update(cx, |hub, cx| hub.browser_for(&project, cx));
+        let created = new_page(hub, &project.key, "about:blank".to_string(), home, cx).await?;
         page_of(hub, Some(&created), None, cx).await?.0
     } else {
         page_of(hub, named_tab, scope, cx).await?.0

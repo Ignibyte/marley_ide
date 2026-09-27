@@ -2390,3 +2390,12 @@ While a page's screencast runs, capture it whole (`Page.captureScreenshot` with 
 the part you want in Rust: `pick::crop` does this. A clipped capture can race into the stream as a
 frame of the clip, and the tab draws that frame as the page. The next frame comes only when the
 page changes, so a still page stays wrong.
+
+## PR-claude-close-chromium-over-cdp-before-stopping-its-unit-001
+*severity: medium · prevents: F-claude-507-a-stopped-unit-lost-the-cookie-set-before-the-stop-001*
+
+Before Marley stops a Chromium unit, it closes Chromium over CDP (`Browser.close`), waits for the
+unit to stop, and only then runs `systemctl --user stop` for what is left:
+`browser::stop_chromium` does this. A scenario that stops a unit to test what a profile keeps
+closes it the same way (`browser_close` in the fixture), or signs in more than 30 seconds before
+the stop.

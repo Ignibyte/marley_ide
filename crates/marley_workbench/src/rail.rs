@@ -1017,6 +1017,17 @@ impl Rail {
         }
     }
 
+    /// Removes a project from the window, as Zed's own sidebar does: its workspaces close, asking
+    /// first about unsaved work, and its browser stops (#507).
+    fn remove_project(&self, key: &ProjectGroupKey, window: &mut Window, cx: &mut Context<Self>) {
+        let removed = self.multi_workspace.update(cx, |multi_workspace, cx| {
+            multi_workspace.remove_project_group(key, window, cx)
+        });
+        if let Some(task) = removed.log_err() {
+            task.detach_and_log_err(cx);
+        }
+    }
+
     /// Moves a project one place up or down in the window, as Zed's own reorder does.
     fn move_project(
         &mut self,
@@ -1242,7 +1253,7 @@ impl Rail {
             .menu(move |window, cx| {
                 let (rail, key) = (rail.clone(), menu_key.clone());
                 ContextMenu::build(window, cx, move |menu, _, _| {
-                    [
+                    let menu = [
                         ("Move Project Up", true, index == 0),
                         ("Move Project Down", false, last),
                     ]
@@ -1257,7 +1268,15 @@ impl Rail {
                                 .log_err();
                             },
                         ))
-                    })
+                    });
+                    // Removing a project is what stops its browser (#507).
+                    menu.separator()
+                        .item(
+                            ContextMenuEntry::new("Remove Project").handler(move |window, cx| {
+                                rail.update(cx, |rail, cx| rail.remove_project(&key, window, cx))
+                                    .log_err();
+                            }),
+                        )
                 })
             })
     }
@@ -2144,7 +2163,7 @@ fn active_rows(
 }
 
 /// The Browser tabs of `member` as rows show them (#504), each tab's entities and page icon kept
-/// in `snapshot`. The hub is read without being made, which would start the browser.
+/// in `snapshot`. The hub is read without being made: with none, no browser has started.
 fn member_browsers(
     member: &Entity<Workspace>,
     filter: &str,

@@ -64,18 +64,23 @@ click_page() {
   click $((PAGE_X + $1)) $((PAGE_Y + $2)) "${3:-left}"
 }
 
-# The tabs as the agent tools list them, and the profile database's rows for them.
+# The tabs as the agent tools list them, and the profile database's rows for them. The profile is
+# a copy of the user's, with a database per channel, so each is read, and only this run's
+# workspaces' rows.
 report() {
   local database
   echo "== $1"
   mcp_agent tabs
-  database=$(find "$E2E_PROFILE/db" -name db.sqlite | head -1)
-  sqlite3 "$database" \
-    "SELECT '  item ' || item_id || ': kind ' || kind FROM items
-     WHERE kind = 'MarleyBrowserTab' ORDER BY position"
-  sqlite3 "$database" \
-    "SELECT '  saved ' || item_id || ': page ' || target_id || ', ' || url || ', ' || quote(title)
-     FROM marley_browser_tabs ORDER BY item_id"
+  for database in "$E2E_PROFILE"/db/*/db.sqlite; do
+    sqlite3 -readonly "$database" \
+      "SELECT '  item ' || i.item_id || ': kind ' || i.kind FROM items i
+       JOIN workspaces w ON w.workspace_id = i.workspace_id
+       WHERE i.kind = 'MarleyBrowserTab' AND w.paths LIKE '%$E2E_WORK%' ORDER BY i.position;
+       SELECT '  saved ' || t.item_id || ': page ' || t.target_id || ', ' || t.url || ', ' ||
+         quote(t.title)
+       FROM marley_browser_tabs t JOIN workspaces w ON w.workspace_id = t.workspace_id
+       WHERE w.paths LIKE '%$E2E_WORK%' ORDER BY t.item_id" 2>/dev/null || true
+  done
 }
 
 steps() {
@@ -110,8 +115,8 @@ steps() {
   report "after the relaunch"
   echo "== Marley quits, its Chromium stops, and Marley starts again"
   quit_marley
-  systemctl --user stop "$(browser_unit)"
-  echo "the unit: $(systemctl --user is-active "$(browser_unit)" || true)"
+  systemctl --user stop "$(browser_unit "$E2E_WORK/repo")"
+  echo "the unit: $(systemctl --user is-active "$(browser_unit "$E2E_WORK/repo")" || true)"
   launch_marley
   settle 15
   click "$FIRST_TAB_X" "$TAB_Y"

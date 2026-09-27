@@ -2270,3 +2270,18 @@ the element's whole subtree, so the walk is quadratic in the page's size. It ran
 capture-phase `pointerdown` listener, and the page's own handlers wait for it to finish.
 Fixed in #506: `textsFound` starts from the text nodes that hold the text's first word and
 walks up from each until an ancestor's text grows past the one sought.
+
+## F-claude-507-a-stopped-unit-lost-the-cookie-set-before-the-stop-001
+*severity: medium · found in: pipeline 507's Test (the first run: the moved profile's tab read no cookie) · class: a process killed before it wrote what it held · prevented by: PR-claude-close-chromium-over-cdp-before-stopping-its-unit-001*
+
+The first run moved the profile of earlier builds to alpha after `systemctl --user stop` of its
+unit, and alpha's tab read the `localStorage` and IndexedDB login but no cookie: the page had
+set it seconds before. Chromium writes cookies to disk every 30 seconds, from its network
+process. `systemctl stop` sends SIGTERM to the browser process, and with `KillMode=mixed`
+systemd kills the unit's other processes the moment the browser exits, the network process and
+its unwritten cookies among them. A probe on scratch profiles showed it: stopped at once, the
+cookie went and the other two stayed; closed over CDP (`Browser.close`), all three stayed; with
+the network service in the browser process (`NetworkServiceInProcess2`), the cookie still went;
+stopped 35 seconds after the sign-in, all three stayed. Fixed in #507: `stop_chromium` sends
+`Browser.close`, waits up to five seconds for the unit to stop, then stops what is left. A stop
+at logout still loses a login made in its last 30 seconds.

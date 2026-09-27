@@ -9,16 +9,28 @@ for.
 
 ## The service (`src/service.rs`)
 
-- Marley's Chromium is a transient user unit, `marley-browser-<id>`, where `<id>` is the first
-  twelve hex digits of the SHA-256 of the profile's path, so each Marley data directory (an
-  e2e run's included) has its own. `systemd-run --user --quiet --collect --service-type=exec`
-  starts it, with `KillMode=mixed` and a ten-second stop timeout; the unit outlives the tab,
-  the window and Marley, and ends at logout (plan D16).
+- Each project's Chromium is a transient user unit, `marley-browser-<id>`, where `<id>` is the
+  first twelve hex digits of the SHA-256 of its profile's path, so each project in each Marley
+  data directory (an e2e run's included) has its own (#507). `systemd-run --user --quiet
+  --collect --service-type=exec` starts it, with `KillMode=mixed` and a ten-second stop
+  timeout; the unit outlives the tab, the window and Marley, and ends at logout or when its
+  project is removed (plan D16).
+- A project's folder is `<data dir>/browser/projects/<key>/` (`project_dir_in`), its profile
+  `profile/` in it (`profile_in`). `project_key` is the first sixteen hex digits of the SHA-256
+  of the project's main worktree paths, sorted, each followed by a newline, then of the host
+  and a newline for a remote project: nothing in it changes at a restart. `write_project_file_in`
+  makes the folder, which only its owner reads, and writes `project.json` once, through a
+  temporary name: the paths, the host and when it was made (Unix seconds), for anyone reading
+  the folder. `move_legacy_profile_in` renames `<data dir>/browser/profile`, the profile every
+  build before #507 used, to a project's folder, unless a project has a profile already
+  (`LegacyMove`: moved, none, or kept); the caller stops its Chromium first. `stop` runs
+  `systemctl --user stop`, which answers once the unit has stopped; a unit that is not loaded
+  is stopped already.
 - The binary is `MARLEY_CHROMIUM` when that is set, and nothing else then; else
   `/usr/lib/chromium/chromium`, the browser behind Arch's and Debian's `/usr/bin/chromium`
   launcher, which would add the user's `chromium-flags.conf` (on Omarchy, three extensions and
   the keyring password store); else `chromium` or `chromium-browser` on the PATH.
-- Chromium runs `--headless --remote-debugging-port=0 --user-data-dir=<data dir>/browser/profile
+- Chromium runs `--headless --remote-debugging-port=0 --user-data-dir=<project's profile>
   --no-first-run --no-default-browser-check --password-store=basic --no-startup-window`: it
   opens no page of its own (#494), and Marley opens the pages its tabs and agents ask for; without
   the flag or a URL, headless Chromium opens `chrome://newtab/`. Port 0 lets

@@ -3151,3 +3151,42 @@ the names Playwright computes: a mismatch would have failed there and nowhere el
 resolves `@playwright/test` from a `node_modules` link beside the scratch repository, never
 inside it, so Marley's project scan never walks the modules. Its output directory lives in the
 repository, so nothing is written into the project that lends the modules.
+
+## L-claude-507-a-window-restores-only-its-active-workspace-001
+*category: gpui · topic: Zed's restore · from: pipeline 507*
+
+At launch Zed's `restore_multiworkspace` opens only the window's active workspace; the window's
+other project groups come back as keys, and the rail lists only groups with an open workspace.
+Their items, Browser tabs among them, deserialize when the workspace opens: a click on its row,
+or its path handed over. After a relaunch #507's scenario hands beta's path over again to see
+beta's tab come back, and nothing in Marley may assume every project's tabs exist after a launch.
+
+## L-claude-507-subscribe-self-calls-back-inside-the-entitys-update-001
+*category: gpui · topic: entity re-entrancy · from: pipeline 507*
+
+`Context::subscribe_self` runs its callback inside `this.update`, so the emitting entity is being
+updated while the callback runs, and reading it there (a `read`, or `WindowHandle::read` of the
+window's root) panics. #507's review of which projects' browsers run reads every window's
+`MultiWorkspace`, so it is deferred (`cx.defer`) from the multi-workspace's events and from its
+`on_release`.
+
+## L-claude-507-the-rails-project-row-is-its-header-001
+*category: testing · topic: e2e coordinates · from: pipeline 507*
+
+In the 1600×1000 headless sway window the rail's first project header sits at y 95; the row at
+y 136 is the project's first member, a terminal, whose right-click menu is Rename and Close.
+#507's first run right-clicked y 136, taken from #574's constants, which name repo-b's terminal
+row, and End then Enter closed the scratch terminal instead of removing the project. Take a
+scenario's rail coordinates from its own first run's shot, and shoot a context menu before Enter
+(L-claude-500).
+
+## L-claude-507-sync-work-for-the-background-executor-goes-in-future-lazy-001
+*category: rust · topic: the dylint gate · from: pipeline 507*
+
+Zed's `async_block_without_await` lint, an error in the Marley crates (AD-claude-448), rejects
+`cx.background_spawn(async move { blocking_io() })` and an `on_app_quit` callback that returns
+`async {}`. Blocking work for the background executor goes in
+`futures::future::lazy(move |_| blocking_io())`, as `open_browser` does, and a callback with
+nothing to wait for returns `futures::future::ready(())`. `cargo clippy` does not load the lint;
+only the gate's dylint stage (gate:21) does, so #507's Code phase passed clippy and its first
+gate run failed on four such blocks.

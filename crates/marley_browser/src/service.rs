@@ -1,15 +1,17 @@
-//! Marley's Chromium as a transient user unit (plan D16).
+//! Marley's Chromium as transient user units (plan D16), one per project since #507.
 //!
-//! The first Browser tab starts it with `systemd-run --user`, one unit per Marley data
-//! directory, so an e2e run's Marley starts its own. The unit runs the browser binary itself,
-//! not a distribution's launcher, which would add the user's `chromium-flags.conf`. Chromium
-//! runs headless and puts its debugging endpoint on a port it picks, which it writes to
-//! `DevToolsActivePort` in the profile, where every client finds it. The unit outlives Marley
-//! and ends at logout.
+//! A project's first Browser tab starts its Chromium with `systemd-run --user`, on a profile in
+//! the project's folder under Marley's data directory, so each project keeps its own cookies and
+//! logins, and an e2e run's Marley starts its own. The unit runs the browser binary itself, not a
+//! distribution's launcher, which would add the user's `chromium-flags.conf`. Chromium runs
+//! headless and puts its debugging endpoint on a port it picks, which it writes to
+//! `DevToolsActivePort` in the profile, where every client finds it. The unit outlives Marley, so
+//! a restored tab finds its page, and stops when its project is removed from Marley, or at logout.
 
 use std::ffi::{OsStr, OsString};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Context as _;
 use sha2::{Digest as _, Sha256};
@@ -27,6 +29,137 @@ const BINARY_NAMES: &[&str] = &["chromium", "chromium-browser"];
 
 /// The file Chromium writes its debugging endpoint to, in its profile.
 const ENDPOINT_FILE: &str = "DevToolsActivePort";
+
+/// The file in a project's folder that names the project (#507).
+const PROJECT_FILE: &str = "project.json";
+
+/// The key of the project whose main worktree paths are `paths` and whose host, for a remote
+/// project, is `host` (#507).
+///
+/// It is the first sixteen hex digits of the SHA-256 of the paths, sorted, each followed by a
+/// newline, then of the host and a newline. Nothing in it changes at a restart, so the project's
+/// profile stays its own.
+#[must_use]
+pub fn project_key(paths: &[PathBuf], host: Option<&str>) -> String {
+    let mut sorted: Vec<&PathBuf> = paths.iter().collect();
+    sorted.sort();
+    let mut hasher = Sha256::new();
+    for path in sorted {
+        hasher.update(path.as_os_str().as_encoded_bytes());
+        hasher.update(b"\n");
+    }
+    if let Some(host) = host {
+        hasher.update(host.as_bytes());
+        hasher.update(b"\n");
+    }
+    hex::encode(&hasher.finalize()[..8])
+}
+
+/// The folder of the project `key` in the Marley data directory `data`: its profile and its
+/// `project.json`.
+#[must_use]
+pub fn project_dir_in(data: &Path, key: &str) -> PathBuf {
+    data.join("browser").join("projects").join(key)
+}
+
+/// The Chromium profile in the project folder `project_dir`.
+#[must_use]
+pub fn profile_in(project_dir: &Path) -> PathBuf {
+    project_dir.join("profile")
+}
+
+/// The one profile every build before #507 used, in the Marley data directory `data`.
+#[must_use]
+pub fn legacy_profile_in(data: &Path) -> PathBuf {
+    data.join("browser").join("profile")
+}
+
+/// Makes the project folder `project_dir` and writes `project.json` in it.
+///
+/// Only the folder's owner reads it, as Chromium keeps a profile. The file names the project's
+/// paths, its host and when the folder was made, for anyone reading the folder. A folder that
+/// has the file keeps it.
+///
+/// # Errors
+///
+/// When the folder cannot be made or the file written.
+pub fn write_project_file_in(
+    project_dir: &Path,
+    paths: &[PathBuf],
+    host: Option<&str>,
+) -> anyhow::Result<()> {
+    let file = project_dir.join(PROJECT_FILE);
+    if file.is_file() {
+        return Ok(());
+    }
+    make_private_dir(project_dir)?;
+    let made = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs());
+    let text = serde_json::to_string_pretty(&serde_json::json!({
+        "paths": paths.iter().map(|path| path.to_string_lossy()).collect::<Vec<_>>(),
+        "host": host,
+        "made": made,
+    }))?;
+    let written = project_dir.join(format!("{PROJECT_FILE}.new"));
+    std::fs::write(&written, text).with_context(|| format!("writing {}", written.display()))?;
+    std::fs::rename(&written, &file).with_context(|| format!("writing {}", file.display()))
+}
+
+/// What became of the profile of earlier builds (#507).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LegacyMove {
+    /// It is the project's profile now, at this path.
+    Moved(PathBuf),
+    /// There is none.
+    NoLegacy,
+    /// It stays where it is, since a project has a profile already.
+    KeptBecauseAProjectHasOne,
+}
+
+/// Moves the profile every build before #507 used to the project folder `project_dir`.
+///
+/// That is the first project whose Chromium starts, so the profile's cookies and logins become
+/// that project's, unless a project has a profile already. The profile is renamed, never copied
+/// or deleted, after the caller has stopped the Chromium that used it.
+///
+/// # Errors
+///
+/// When the folders cannot be read or made, or the profile cannot be renamed.
+pub fn move_legacy_profile_in(data: &Path, project_dir: &Path) -> anyhow::Result<LegacyMove> {
+    let legacy = legacy_profile_in(data);
+    if !legacy.is_dir() {
+        return Ok(LegacyMove::NoLegacy);
+    }
+    let projects = data.join("browser").join("projects");
+    let entries = match std::fs::read_dir(&projects) {
+        Ok(entries) => Some(entries),
+        Err(error) if error.kind() == ErrorKind::NotFound => None,
+        Err(error) => return Err(error).context(format!("reading {}", projects.display())),
+    };
+    for entry in entries.into_iter().flatten() {
+        let entry = entry.with_context(|| format!("reading {}", projects.display()))?;
+        if profile_in(&entry.path()).is_dir() {
+            return Ok(LegacyMove::KeptBecauseAProjectHasOne);
+        }
+    }
+    make_private_dir(project_dir)?;
+    let profile = profile_in(project_dir);
+    std::fs::rename(&legacy, &profile)
+        .with_context(|| format!("moving {} to {}", legacy.display(), profile.display()))?;
+    Ok(LegacyMove::Moved(profile))
+}
+
+/// Makes `dir` and the folders above it that are missing, readable by their owner alone.
+fn make_private_dir(dir: &Path) -> anyhow::Result<()> {
+    let mut builder = std::fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+    builder
+        .create(dir)
+        .with_context(|| format!("making {}", dir.display()))
+}
 
 /// Finds the browser binary: `override_path` alone when given, else the first of the known
 /// binaries that exists, else the first known name on the PATH.
@@ -143,6 +276,28 @@ pub async fn start(unit: &str, binary: &Path, profile: &Path) -> anyhow::Result<
         return Ok(Started::AlreadyThere);
     }
     anyhow::bail!("systemd-run could not start Chromium: {}", stderr.trim())
+}
+
+/// Stops the unit `unit` (#507); `systemctl` answers once it has stopped. A unit that is not
+/// there is stopped already.
+///
+/// # Errors
+///
+/// When `systemctl` cannot run, or refuses for another reason.
+pub async fn stop(unit: &str) -> anyhow::Result<()> {
+    let output = util::command::new_command("systemctl")
+        .args([OsStr::new("--user"), OsStr::new("stop"), OsStr::new(unit)])
+        .output()
+        .await
+        .context("running systemctl")?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if stderr.contains("not loaded") {
+        return Ok(());
+    }
+    anyhow::bail!("systemctl could not stop {unit}: {}", stderr.trim())
 }
 
 /// What `systemctl --user is-active` says of a unit.

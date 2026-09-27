@@ -58,10 +58,14 @@ collide() {
   done
 }
 
-# Quits Marley and stops its Chromium, so the next launch starts one with no pages.
+# Quits Marley and stops its Chromiums, one per project since #507, so the next launch starts
+# them with no pages.
 quit_all() {
+  local repo
   quit_marley
-  systemctl --user stop "$(browser_unit)" 2>/dev/null || true
+  for repo in repo-a repo-b; do
+    systemctl --user stop "$(browser_unit "$E2E_WORK/$repo")" 2>/dev/null || true
+  done
   settle 2
 }
 

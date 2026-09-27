@@ -147,7 +147,9 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   subscription drops it. Left folds an open project or climbs to its header, right unfolds, and
   Enter runs the row's click handler. A project header's right-click menu has Move Project Up
   and Move Project Down (`MultiWorkspace::move_project_group_up`, `move_project_group_down`),
-  disabled at the ends. Zed's `multi_workspace::FocusWorkspaceSidebar` (`ctrl-alt-;`) focuses
+  disabled at the ends, and since #507, after a separator, Remove Project
+  (`MultiWorkspace::remove_project_group`, as Zed's sidebar's Remove calls it), which closes the
+  project's workspaces after their save prompts and so stops its Chromium. Zed's `multi_workspace::FocusWorkspaceSidebar` (`ctrl-alt-;`) focuses
   the rail as it does Zed's sidebar.
 - **The filter (#457).** A single-line editor under the header ("Filter…") narrows the rail as
   Zed's Threads Sidebar's filter does. `build_snapshot` matches each project's name and each
@@ -629,9 +631,11 @@ alike.
 
 ## The browser's agent tools (`src/browser_tools.rs`, #492, #493, #574)
 
-- `mcp.rs` hands each `browser_*` call to `browser_tools::answer`, which starts a hub that
-  failed again and answers the call from a task of its own once the hub shows its pages
-  (starting Chromium if it must, and waiting up to 20 seconds). A call acts on the page its
+- `mcp.rs` hands each `browser_*` call to `browser_tools::answer`, which starts the caller's
+  project's browser again when it failed and answers the call from a task of its own once no
+  project's browser is starting (`browser::settled`, 20 seconds at most). Asking starts no
+  browser that is not running (#507): `browser_navigate`'s new page starts its project's. A call
+  acts on the page its
   `tab` names, a target id from `browser_tabs`, waiting up to five seconds for a page still
   being attached (#493). A write tool first calls `browser::show_for_agent`, which brings the
   page's tab to the front of its pane unless that pane has the focus, and gives a page with no
@@ -648,11 +652,14 @@ alike.
   anywhere, the newest page when the user focused none, as before. `browser_navigate` opens a new
   page with `new_tab`, or when the caller's project has no tab showing a page (for a caller in no
   project, when the browser has none); a page opened for a caller's project gets its tab in the
-  caller's own workspace.
-- `browser_tabs` lists each page: its id, title, URL (with secret-looking values hidden),
-  whether it loads, its `project` (the rail's name for its tab's workspace; null for a page with
-  no tab), whether the user focused it last (`focused`), and `default`, the one a call from this
-  caller that names no tab acts on.
+  caller's own workspace. Since #507 that page is made in the caller's project's browser
+  (`caller_project`: the scope's `home`, else the workspace the active window shows), started by
+  `BrowserHub::browser_for` when it is not running, and a named tab acts in whichever project's
+  browser holds it, since each `Page` carries its own browser's connection.
+- `browser_tabs` lists each page of every project's browser: its id, title, URL (with
+  secret-looking values hidden), whether it loads, its `project` (the rail's name for its tab's
+  workspace; for a page with no tab, its browser's project, #507), whether the user focused it
+  last (`focused`), and `default`, the one a call from this caller that names no tab acts on.
 - `browser_annotate` (#498, a write tool) draws the agent's box around a ref's element, scrolled
   into view first (`ref_origin`, which `place` shares, then `Page::border_box` plus the scroll
   from `Page::viewport`), or over an area of the viewport, and names the annotation; `clear`
@@ -749,13 +756,23 @@ alike.
 
 ## The Browser tab (`src/browser.rs`, #488 to #490, #493 to #499, #504)
 
-- `BrowserHub` is one entity per app, behind a global: the connection to Marley's Chromium
-  (`marley_browser`) and a `PageState` for each of its pages (#493): the `Page`, its newest
+- `BrowserHub` is one entity per app, behind a global: a `ProjectBrowser` for each project's
+  Chromium (#507: its `BrowserProject`, state, connection, the pages it is attaching or closing,
+  the agents' placements, its start's generation and task, and a pending stop) and a
+  `PageState` for each page of them (#493): the `Page`, the start that attached it, its newest
   frame, title and URL, its loading, history and dialog, its iframes, rings and refs, the
-  agent's last action, its viewport and how many tabs draw it. `start` connects through the
-  profile's `DevToolsActivePort` when a Chromium answers there; otherwise, unless the unit is
-  up, it removes a stale endpoint file, starts the unit and waits up to fifteen seconds, failing
-  early when the unit stops. It then turns on target discovery and attaches the pages the
+  agent's last action, its viewport and how many tabs draw it. A `BrowserProject` is Zed's
+  project group (`ProjectGroupKey`): its main folders and host, the key `service::project_key`
+  makes of them, and Zed's name for it. Making the hub starts nothing; `browser_for` starts a
+  project's browser when it has none or it failed, from `marley: open browser`, `New Browser
+  Tab`, a terminal URL's tab, a restored tab (`deserialize` reads the project Zed hands it,
+  whose folders are added before its items) or an agent's new page. The process's first start
+  moves the profile of earlier builds to its project, once, after closing that profile's
+  Chromium (`move_legacy_profile`, a shared task every start waits for); then the project's
+  `project.json` is written. `start` connects through the project profile's
+  `DevToolsActivePort` when a Chromium answers there; otherwise, unless the unit is up, it
+  removes a stale endpoint file, starts the unit and waits up to fifteen seconds, failing early
+  when the unit stops. It then turns on target discovery and attaches the pages the
   browser lists, each once and each in a task of its own, with the page's observers on before
   the page is announced; a start opens no page (#494). The event loop routes each
   event to the page whose session it came from, or whose iframe's; attaches each `page` target
@@ -765,20 +782,34 @@ alike.
   acknowledges it; follows each page's URL and title (asking for the title after
   DOMContentLoaded, load and same-document navigations, since no target event reports it); and
   fails with "The browser closed its connection." when the socket ends. A generation number
-  drops a superseded start's late results. A page streams while a tab draws it and its size is
-  known.
+  drops a superseded start's late results: one counter for every project's starts, so a number
+  names its browser and each result's guard reads `is_current(generation)`. A page streams
+  while a tab draws it and its size is known.
+- **A project's browser stops when the project leaves (#507).** `init` observes each
+  `MultiWorkspace`: its `WorkspaceAdded`, `WorkspaceRemoved` and `ProjectGroupsChanged`, and its
+  release when a window closes, each defer `review_browsers` (the event arrives inside the
+  window's own update). A project is live while any window lists its group or holds a workspace
+  of it, or while a Browser tab of it sits in a held workspace, which keeps a workspace whose
+  folders changed on its tabs' browser. A browser whose project is not live gets a numbered
+  stop; two seconds later it stops if that stop is still pending and the project is still not
+  live: its pages go, their tabs with them, and `stop_chromium` sends `Browser.close`, waits up
+  to five seconds for the unit to stop, then runs `systemctl --user stop` for whatever is left.
+  `on_app_quit` sets `quitting` and drops the pending stops, so a quit, by the palette or the
+  last window's close, leaves every unit running for the restored tabs.
 - **Tabs as pages (#493).** The hub emits `PageOpened` once a page is attached and
   `PageClosed` when it goes, each naming the page's target id, and a subscription made with the
   hub's global answers them. A tab that shows the page already keeps it. A page a start found
-  (`listed`, #494) goes to a tab opened while the browser started, or else waits without a tab
-  until a restored tab claims it or `marley: open browser` gives it one. Any other page gets a
+  (`listed`, #494) goes to a tab of its project opened while the browser started, or else waits
+  without a tab until a restored tab claims it or `marley: open browser` gives it one. Any other page gets a
   tab of its own. A page a page opened goes beside
   its opener's tab, with the focus. A page an agent's call opened for a project (#574) goes to
   the workspace the hub keeps for it (`placements`, which `create_page_task` records when
   `Target.createTarget` answers, several round trips before the page can attach, and which goes
   with a failed attach, a start or the page): after that workspace's tab the user focused last,
-  else its newest, else in its active pane. Any other page goes after the tab the user focused
-  last, or else after the newest Browser tab. None of these takes the focus: in a pane that has
+  else its newest, else in its active pane. Any other page goes after its project's tab the user
+  focused last, or else after its project's newest Browser tab, or else into a workspace of its
+  project (#507: the active window's when it shows the project, else another window's, else any
+  held one). None of these takes the focus: in a pane that has
   the focus it
   joins the tab bar behind the active tab, since Zed gives a lost focus to the pane's new front
   item; when no Browser tab is open and the active pane shows other work with the focus in it,
@@ -787,7 +818,8 @@ alike.
   will show. `PageClosed` closes each tab of the page, which first forgets the page so that its
   removal closes nothing. A registry of weak `BrowserView`s finds a page's tab.
 - `BrowserView` is one page's tab, a `workspace::Item` that holds the page's target id (none
-  while it waits for one), its workspace and its window: its text is the page's title (else
+  while it waits for one), its project's key (#507: the page's project, or its workspace's while
+  it waits), its workspace and its window: its text is the page's title (else
   "Browser"), its tooltip the URL, its icon the globe. It draws the hub's state ("Starting
   Chromium…", "Connecting to Chromium…", "Opening a page…", or the reason it stopped, with how
   to try again) or its page. It counts as its page's viewer from its first paint in front of its

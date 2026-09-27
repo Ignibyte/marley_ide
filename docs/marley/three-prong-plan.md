@@ -315,7 +315,13 @@ itself (`/usr/lib/chromium/chromium` where the distribution wraps it in a launch
 only Marley's flags, headless, with its profile under Marley's data directory and
 `--remote-debugging-port=0`; Chromium writes the port it chose into the profile's
 `DevToolsActivePort`, where Marley and any other CDP client find it. The unit outlives
-Marley's windows and Marley itself; it ends at logout.
+Marley's windows and Marley itself; it ends at logout. Since #507 (Chad, 2026-09-25) it is one
+unit per project: each project, as the rail groups it, has a profile of its own under
+`browser/projects/<key>/`, keyed on its main folders, so its logins stay its own and a linked
+worktree shares its repository's. A project's unit starts with its first Browser tab, outlives
+Marley's quit, and stops when the project is removed; Marley asks Chromium to close over CDP
+before it stops a unit. The one profile of earlier builds moved to the first project whose
+Chromium started.
 
 **D17. Agents reach the browser through Marley's MCP server.** C0 (#491) starts `marley_mcp`
 in the app, and the Marley Claude Code plugin (#482) carries a small stdio bridge to it, so
@@ -354,6 +360,7 @@ reaching his desktop.
 | B3c | #518 | A fuller pick for agents: the element's HTML (no scripts, field values or URL queries, secret-looking attributes replaced, 4,096 characters), sixteen computed styles, the siblings' texts and the selection, and on a React dev build the component chain and the file and line it was written at (React 19 through the source maps); every field redacted whole before it is cut (shipped) | M |
 | B3d | #505 | Pick, fix, check: a pick found again after a change (test id, id, role and name, text, CSS path; the nearest of several), scrolled into view, the crop at the pick beside the crop now and what changed, the tray's verdict, and `browser_check_pick`; no generated id in a locator (shipped) | M |
 | B5b | #506 | A recording drafted as a Playwright test the project keeps: clicks, fills and presses recorded with the target's locators at the event, ordinary fields' text kept and secret fields' not, and `browser_draft_test` (the first locator found alone, `baseURL`, `toHaveURL` after each navigation, secrets from the environment, a path in the project) (shipped) | M |
+| B7b | #507 | A Chromium and a profile per project: logins (cookies, `localStorage`, IndexedDB) kept apart and across restarts, a linked worktree on its repository's, the unit started by the project's first tab, kept at a quit and stopped when the project is removed (the rail's Remove Project), the old profile moved to the first project, the tools across every project's browser (shipped; clearing one project's data is #581) | L |
 
 Wave 2 was specced on 2026-09-25, once wave 1 had landed (#496 to #499; the shelf note is
 `docs/planning/design-notes/browser-wave-2-shelf.md`).
@@ -369,6 +376,10 @@ Wave 2 was specced on 2026-09-25, once wave 1 had landed (#496 to #499; the shel
   file choosers, downloads, context menus and the page's cursor shape are not yet.
 - The unit outlives Marley, so a Chromium that crashed or was stopped must read as such in
   the tab, with a way back (the #406 lesson: transport failures arrive as silence).
+- Each open project's Chromium holds about 290 MB, and no cap stops an idle one (#507).
+- A unit stopped by a signal, at logout say, loses the cookies Chromium set in its last 30
+  seconds: Chromium writes them every 30 seconds from its network process, which systemd kills
+  once the browser exits. Marley's own stops close Chromium over CDP first (#507).
 - Screencast is frame-streamed; fine for browsing and agent work, wrong for video. Accepted.
 
 ## Cross-cutting
