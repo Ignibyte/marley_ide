@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #506 (feature, prong 3, after B5 and #505)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/506-recording-to-playwright-test.spec.md
+- **Pipeline doc:** ../../pipeline/completed/506-recording-to-playwright-test.spec.md
 - **Source ticket:** Chad, 2026-09-25: "lets do 1 through 8" (item 3 of the list after the browser waves), and his direction the same day, as relayed with the night's drafting brief: the app being built keeps its Playwright regressions in its own code, runnable in Marley or outside it, so the draft test is a file in the project, not Marley's. The Orca survey's rules for #506 are folded in (`docs/orca_architecture/README.md`, "What it changes in the queued sprint"; report 03 item 9)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The flight recorder keeps clicks as page coordinates and typing as counts, which no test can

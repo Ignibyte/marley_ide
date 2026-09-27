@@ -179,9 +179,24 @@ const REGISTRY: &[ToolSpec] = &[
         "recording",
         "Read a recording the user saved with Record this, the minute before it, by its id \
          from browser_recordings: what the user did (presses with their places, keys by name, \
-         typing as counts, never the characters), what the agent did, the console, the \
-         requests with secret-looking URL values hidden, navigations, accessibility snapshots, \
-         and the frames; `frame` gives one frame, from 1, as an image.",
+         typing as counts, and each click, fill and key press with the target's locators; a \
+         fill keeps an ordinary field's text, at most 1,000 characters, and only the fact of it \
+         for a password or other secret field), what the agent did, the console, the requests \
+         with secret-looking URL values hidden, navigations, accessibility snapshots, and the \
+         frames; `frame` gives one frame, from 1, as an image. Secret-looking text is redacted.",
+    ),
+    browser_read(
+        "draft_test",
+        "Draft a Playwright test from a recording, by its id from browser_recordings, for the \
+         project it was recorded in, writing nothing: the test replays each click, fill and key \
+         press with the most durable locator that found its target alone at the event \
+         (getByTestId, getByRole with the exact name, getByLabel, getByPlaceholder, getByText, \
+         then a CSS path), sets baseURL from the first action's origin, and expects the URL \
+         after each navigation an action caused. A password or other secret field's fill reads \
+         an environment variable, which the test names when it is unset. Answers the test, a \
+         path for it in the project (the testDir its playwright.config sets, else tests/), the \
+         variables it reads, what it skipped and why, and the command that runs it. Write the \
+         file with your own tools.",
     ),
     browser_read(
         "annotations",
@@ -367,6 +382,7 @@ fn browser_schemas(verb: &str) -> (Value, Value) {
         "annotations" => annotations_schemas(),
         "recordings" => recordings_schemas(),
         "recording" => recording_schemas(),
+        "draft_test" => draft_test_schemas(),
         "picks" => picks_schemas(),
         "pick" => pick_schemas(),
         "check_pick" => check_pick_schemas(),
@@ -609,7 +625,7 @@ fn recording_schemas() -> (Value, Value) {
                 "entries".to_string(),
                 json!({
                     "type": "array",
-                    "description": "What happened, oldest first: each entry's `kind` (click, scroll, key, typed, navigation, console, request, snapshot, agent or frame), `at_ms` from the recording's start, and its details.",
+                    "description": "What happened, oldest first: each entry's `kind` (click, scroll, key, typed, navigation, action, console, request, snapshot, agent or frame), `at_ms` from the recording's start, and its details. An action is a click, fill or press with the target's locators, most durable first, each marked `unique` when it found the element alone.",
                     "items": { "type": "object", "properties": { "kind": { "type": "string" }, "at_ms": { "type": "integer" } }, "required": ["kind", "at_ms"] }
                 }),
             ),
@@ -661,6 +677,43 @@ fn annotations_schemas() -> (Value, Value) {
                 }
             },
             "required": ["tab", "annotations"]
+        }),
+    )
+}
+
+/// `browser_draft_test` (#506): a recording's id; the drafted test and where it goes.
+fn draft_test_schemas() -> (Value, Value) {
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "id": { "type": "string", "description": "A recording's id from browser_recordings." }
+            },
+            "required": ["id"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" },
+                "test": { "type": "string", "description": "The Playwright test, a TypeScript file's text." },
+                "path": { "type": "string", "description": "Where the test goes: in the recording's project, when it names one." },
+                "project": { "type": ["string", "null"], "description": "The root of the project the recording was made in." },
+                "env": {
+                    "type": "array",
+                    "description": "The environment variables the test reads, one per secret field it fills.",
+                    "items": { "type": "string" }
+                },
+                "skipped": {
+                    "type": "array",
+                    "description": "What the test leaves out, and why.",
+                    "items": { "type": "string" }
+                },
+                "start": { "type": "string", "description": "The page the test starts on." },
+                "run": { "type": "string", "description": "The command that runs it, from the project's root." },
+                "note": { "type": ["string", "null"] }
+            },
+            "required": ["id", "test", "path", "env", "skipped", "start", "run"]
         }),
     )
 }

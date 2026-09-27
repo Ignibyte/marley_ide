@@ -24,7 +24,8 @@
 #   (#496), with its HTML, styles, sibling texts, selection and React component since #518;
 #   `pick-json <id> <file>` saves the whole answer as JSON (#518). `check-pick <id> [<image file>
 #   [<json file>]]` checks a pick (#505): what found it again, each change and the box now,
-#   with the new crop and the answer saved when named. `annotate <role> <name> <note>` draws the agent's box around an element,
+#   with the new crop and the answer saved when named. `draft-test <id> [<json file>]` drafts
+#   a Playwright test from a recording (#506) and prints it, saving the answer when named. `annotate <role> <name> <note>` draws the agent's box around an element,
 #   `annotations` lists a tab's boxes, and `annotate-clear` removes the agent's (#498).
 #   `recordings` lists the saved recordings, and `recording <id> [<frame> <image file>]` prints
 #   one's timeline and saves a frame (#499). `terminal-read <text>` reads the newest block, in
@@ -444,6 +445,23 @@ def main():
                 with open(rest[2], "wb") as file:
                     file.write(base64.b64decode(images[0]["data"]))
                 print(f"  frame {rest[1]}: {images[0]['mimeType']}, saved as {os.path.basename(rest[2])}")
+    elif command == "draft-test":
+        result = client.tool("browser_draft_test", {"id": rest[0]})
+        if result:
+            draft = result["structuredContent"]
+            print(f"  draft of recording {draft['id']}: {draft['path']}")
+            print(f"  starts at {draft['start']}; reads {', '.join(draft['env']) or 'no variables'}")
+            for skipped in draft["skipped"]:
+                print(f"  skipped: {skipped}")
+            if draft.get("note"):
+                print(f"  note: {draft['note']}")
+            print(f"  run: {draft['run']}")
+            for line in draft["test"].splitlines():
+                print(f"  | {line}")
+            if len(rest) > 1:
+                with open(rest[1], "w") as file:
+                    json.dump(draft, file, indent=1)
+                print(f"  the draft: saved as {os.path.basename(rest[1])}")
     elif command == "annotate-clear":
         result = client.tool("browser_annotate", {"clear": True, **options})
         if result:

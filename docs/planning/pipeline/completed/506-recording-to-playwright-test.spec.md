@@ -1,7 +1,7 @@
 ---
 pipeline_id: 22eec7fe-5cee-40c4-9cdf-64aea79a0317
-ticket: docs/planning/tickets/open/TICKET-506-recording-to-playwright-test.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-506-recording-to-playwright-test.md
+status: Phase 4 — Complete PASS
 title: "A recording turned into a Playwright test the project keeps: locators at event time, secrets as env placeholders"
 type: feature
 slice: prong 3 (after wave 2), item 3 of the list after the browser waves; after B5 (#499) and #505
@@ -129,7 +129,7 @@ are for reading.
   field keeps a count only, and its fill is drafted as a `process.env` placeholder that fails the
   test by name when unset. This narrows #499's D3 ("no typed character is ever recorded") to secret
   fields: the recorder's frames already show an ordinary field's text on the screen, and a
-  password field shows dots. Chad reviews this change before the ticket is promoted.
+  password field shows dots. Chad confirmed this on 2026-09-26.
 - D4 — The draft is the project's: the tool returns the test and a suggested path, the agent writes
   the file with its own tools and prompts, and Marley keeps no copy. It is plain Playwright with
   `baseURL` from the recording, so it runs in a Marley terminal or anywhere the dev server runs.

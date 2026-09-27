@@ -268,6 +268,46 @@ for.
   `list_in`, `read_in` and `frame_in` read them back and refuse an id that is not letters,
   digits and dashes.
 - `ConsoleLog::apply` answers the entry it kept, which the recorder copies.
+- Since #506 the page's own session also runs an action listener (`LISTENER`, `WORLD`
+  `marley-record`, `BINDING` `marleyRecord`), which `Page::watch_actions` sets up as
+  `watch_selects` does: the binding, the script for new documents in the world, and a world in
+  the main frame's loaded document. It works in the top frame only, at the window, in the
+  capture phase, on trusted events:
+  - a primary-button `pointerdown`, walked up to the interactive ancestor;
+  - an `input` on a fillable field, with the text capped at 4,096 for the trip, or no text for
+    a secret field (a password or hidden input, or an `autocomplete` of `current-password`,
+    `new-password`, `one-time-code` or `cc-…`);
+  - Enter, Tab or Escape pressed, on the focused element.
+  Each report carries the target's locators, most durable first, each with `unique`: the test id
+  and its attribute; the role (explicit, else ARIA in HTML's implicit one) and the accessible
+  name; the label; the placeholder; the text; the CSS path. It also carries the page's URL and,
+  for a fill, the field's `name` or its id when that was not generated. The listener takes its
+  JavaScript pieces (`interactive!`, `generated_name!`, `css_path!`) from `pick.rs`, which
+  re-exports them with `pub(crate) use`.
+- `ReportedAction::parse` and `into_entry` make an `Entry::Action { action, locators, url, text,
+  secret, key, field }`: the URL through `redact_url`, each text held to its trip cap, no text for
+  a secret field whatever the page sent, and only Enter, Tab and Escape as keys.
+  `Recorder::push` merges a fill into the last action when that is a fill with the same first
+  locator, keeping its first time. `Entry::Navigation` gains `within` for a move within the
+  document, and `Recording` gains `project`, the root of the tab's project.
+
+## Drafting a Playwright test (`src/playwright.rs`, #506)
+
+- `draft(timeline) -> Result<Draft { text, env, skipped, start }, DraftError>`, pure, over a saved
+  timeline. It fails with no action to replay, or with a first action's page that is not http
+  or https.
+- The test imports `@playwright/test`. When a secret field is filled, it adds a `secret(name)`
+  helper that throws `set <NAME> to run this test` for an unset variable. It sets `test.use({
+  baseURL })` to the first action's origin and runs one test, named for the recording's title
+  and id: `page.goto` to the first action's path, then a step per action.
+- Each step uses the first locator marked `unique` that Playwright can name: `getByTestId`
+  (`data-testid`; a `locator('[attr="…"]')` for the other test attributes), `getByRole` with
+  the exact name, `getByLabel`, `getByPlaceholder`, `getByText` (each `exact: true`), or
+  `locator(<css>)`. A fill writes its text, or `secret('<NAME>')` named for the field's name, id
+  or label in upper snake case. A press with no locator presses on the page's keyboard.
+- After each action that a navigation followed, it writes `expect(page).toHaveURL(<path>)`, or a
+  `RegExp` on the path when the recorder hid a value in the URL. An action it cannot replay
+  becomes a `// Skipped …` comment and a line in `skipped`.
 
 ## Source maps (`src/source_map.rs`, #497)
 

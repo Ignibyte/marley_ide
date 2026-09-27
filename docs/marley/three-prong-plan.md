@@ -353,6 +353,7 @@ reaching his desktop.
 | B7a | #504 | Browser tabs as rows of their project in the rail: the page's icon, a spinner while it loads, host and port, the tray's picks and the page's annotations, and the agent's mark until the user looks; a click, the keys, the filter and a close button (shipped) | M |
 | B3c | #518 | A fuller pick for agents: the element's HTML (no scripts, field values or URL queries, secret-looking attributes replaced, 4,096 characters), sixteen computed styles, the siblings' texts and the selection, and on a React dev build the component chain and the file and line it was written at (React 19 through the source maps); every field redacted whole before it is cut (shipped) | M |
 | B3d | #505 | Pick, fix, check: a pick found again after a change (test id, id, role and name, text, CSS path; the nearest of several), scrolled into view, the crop at the pick beside the crop now and what changed, the tray's verdict, and `browser_check_pick`; no generated id in a locator (shipped) | M |
+| B5b | #506 | A recording drafted as a Playwright test the project keeps: clicks, fills and presses recorded with the target's locators at the event, ordinary fields' text kept and secret fields' not, and `browser_draft_test` (the first locator found alone, `baseURL`, `toHaveURL` after each navigation, secrets from the environment, a path in the project) (shipped) | M |
 
 Wave 2 was specced on 2026-09-25, once wave 1 had landed (#496 to #499; the shelf note is
 `docs/planning/design-notes/browser-wave-2-shelf.md`).

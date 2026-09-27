@@ -661,7 +661,16 @@ alike.
 - `browser_recordings` and `browser_recording {id, frame?}` (#499) read the recordings' files
   off the main thread, before the browser needs to show: the list (each id, tab, URL, title,
   time, length, frame and entry counts), and one timeline with frame `frame`, from 1, as the
-  image.
+  image. Since #506 `timeline_for_agents` passes every string of the timeline through
+  `agent_redactor` whole, and `browser_recording` then cuts each fill's text to `FILL_BUDGET`
+  (1,000).
+- `browser_draft_test {id}` (#506) reads the recording off the main thread, redacts it (a fill
+  the redactor changes becomes secret) and drafts the test with `playwright::draft`. It writes
+  nothing. It suggests `<project>/<testDir>/<slug of the title>-<id>.spec.ts`, where `testDir`
+  is the plain relative path the project's `playwright.config.*` sets (`test_dir_in`), else
+  `tests`. It answers the test, that path, the project, the variables, the skips, the start,
+  `run` (`npx playwright test <path>`) and a note when the recording names no project or the
+  project has no config.
 - `browser_picks` and `browser_pick {id}` (#496) answer from the hub alone, before the browser
   needs to show, so a pick outlives its page and a restart: the list gives each pick's id, tab,
   URL and title, summary, caption and whether it was sent; `browser_pick` gives the pick with
@@ -936,12 +945,19 @@ alike.
   shortcut), `agent_ended`, `observed` (console entries; requests as they start, then their
   status or failure), the main frame's `frameNavigated`, a snapshot after each load
   (`record_snapshot`, spawned so the event loop does not wait on the tree), and `show`, which the
-  frame loop hands each frame's base64 back to. An agent's own clicks and keys go to the page
-  directly, so only its Agent chip text reaches the minute. `record(target, dir)` takes the
-  minute, adds a snapshot of the moment and writes it off the main thread into
-  `recordings_dir()`, `browser/recordings` under Marley's data directory. The toolbar's red dot
-  (`IconName::Circle` in the error color) and `marley::RecordThis` save it, and a toast in the
-  tab's workspace names the recording or the failure.
+  frame loop hands each frame's base64 back to. `record(target, dir, project)` takes the minute,
+  adds a snapshot of the moment and writes it off the main thread into `recordings_dir()`,
+  `browser/recordings` under Marley's data directory. The toolbar's red dot (`IconName::Circle`
+  in the error color) and `marley::RecordThis` save it, and a toast in the tab's workspace names
+  the recording or the failure. Since #506:
+  - `watch_actions` runs beside `watch_selects` for the page's own session, and
+    `Runtime.bindingCalled` goes by the binding's name to `action_reported` or
+    `select_requested`;
+  - an action the listener reports is kept through `record_entry` like any entry, and a move
+    within the document is a navigation with `within`;
+  - `record_this` passes the tab's project root, its workspace's first visible worktree.
+  An agent's own clicks and keys go to the page as the same trusted input as the user's, so the
+  listener records them as actions too; the Agent chip's text says whose they were.
 - **What the rail reads (#504).** `BrowserHub::try_global` answers the hub when something made
   it, and never makes one. `BrowserEvent::PageStatusChanged { target }` says that a page's
   loading, its icon, its picks or annotations, or the agent's mark changed, beside

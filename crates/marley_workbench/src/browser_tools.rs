@@ -12,7 +12,7 @@
 //! tell them apart.
 
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use base64::Engine as _;
@@ -26,6 +26,7 @@ use marley_browser::input::{self, KeyPress};
 use marley_browser::observe::redact_url;
 use marley_browser::page::Page;
 use marley_browser::pick::{self, PageBox, PickBundle};
+use marley_browser::playwright;
 use marley_browser::recorder;
 use marley_browser::snapshot::{self, FrameTree, RefTarget, Snapshot};
 use marley_mcp::redact::Redactor;
@@ -46,6 +47,19 @@ const ATTACH_WAIT: Duration = Duration::from_secs(5);
 
 /// How often it looks.
 const POLL: Duration = Duration::from_millis(100);
+
+/// The most of a fill's text an agent reads in a recording (#506), cut after the redaction.
+const FILL_BUDGET: usize = 1_000;
+
+/// The names Playwright looks for its config under, in the project's root.
+const PLAYWRIGHT_CONFIGS: [&str; 6] = [
+    "playwright.config.ts",
+    "playwright.config.js",
+    "playwright.config.mjs",
+    "playwright.config.cjs",
+    "playwright.config.mts",
+    "playwright.config.cts",
+];
 
 /// The tools that act in a page they find, which bring its tab to the front first.
 const WRITES: &[&str] = &[
@@ -200,6 +214,7 @@ async fn run(
         "browser_pick" => return pick(arguments, hub, cx),
         "browser_recordings" => return recordings(cx).await,
         "browser_recording" => return recording(arguments, cx).await,
+        "browser_draft_test" => return draft_test(arguments, cx).await,
         // Before the browser is up: a new tab waits for it by itself.
         "browser_open_url" => return Ok(cx.update(|cx| open_url(arguments, cx))),
         _ => {}
@@ -466,12 +481,14 @@ async fn recording(arguments: &Value, cx: &AsyncApp) -> Result<ToolAnswer, Strin
         .and_then(Value::as_u64)
         .and_then(|frame| usize::try_from(frame).ok());
     let dir = recordings_dir();
+    let redactor = cx.update(|cx| crate::mcp::agent_redactor(cx));
     let (timeline, jpeg) = cx
         .background_spawn(futures::future::lazy(move |_| {
             let timeline = recorder::read_in(&dir, &id)?;
             let jpeg = frame
                 .map(|frame| recorder::frame_in(&dir, &id, frame))
                 .transpose()?;
+            let timeline = timeline_for_agents(timeline, redactor.as_deref(), false);
             Ok::<_, recorder::RecordingError>((timeline, jpeg))
         }))
         .await
@@ -484,6 +501,188 @@ async fn recording(arguments: &Value, cx: &AsyncApp) -> Result<ToolAnswer, Strin
             data: base64::engine::general_purpose::STANDARD.encode(bytes),
         }),
     })
+}
+
+/// `browser_draft_test` (#506): a Playwright test drafted from a recording, with where it would
+/// go in the recording's project; it writes nothing, and the agent puts the test in place.
+async fn draft_test(arguments: &Value, cx: &AsyncApp) -> Result<ToolAnswer, String> {
+    let id = arguments
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            "browser_draft_test needs a recording's id, from browser_recordings".to_string()
+        })?
+        .to_string();
+    let redactor = cx.update(|cx| crate::mcp::agent_redactor(cx));
+    let dir = recordings_dir();
+    let structured = cx
+        .background_spawn(futures::future::lazy(move |_| {
+            draft_in(&dir, &id, redactor.as_deref())
+        }))
+        .await?;
+    Ok(ToolAnswer {
+        structured,
+        text: None,
+        image: None,
+    })
+}
+
+/// The test drafted from the recording `id` in `dir`, as `browser_draft_test` answers it: the
+/// test, its suggested path in the recording's project, the variables it reads, what it left
+/// out, where it starts and how to run it.
+fn draft_in(dir: &Path, id: &str, redactor: Option<&Redactor>) -> Result<Value, String> {
+    let timeline = recorder::read_in(dir, id).map_err(|error| error.to_string())?;
+    let timeline = timeline_for_agents(timeline, redactor, true);
+    let draft = playwright::draft(&timeline).map_err(|error| error.to_string())?;
+    let project = timeline
+        .get("project")
+        .and_then(Value::as_str)
+        .map(PathBuf::from);
+    let configured = project.as_deref().and_then(configured_test_dir);
+    let test_dir = configured
+        .as_ref()
+        .and_then(|(_, test_dir)| test_dir.clone())
+        .unwrap_or_else(|| "tests".to_string());
+    let title = timeline
+        .get("title")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let relative = Path::new(&test_dir).join(format!("{}-{id}.spec.ts", slug(title)));
+    let note = match (&project, &configured) {
+        (None, _) => Some(
+            "The recording names no project: put the test where the project's Playwright config \
+             looks for tests.",
+        ),
+        (Some(_), None) => Some(
+            "The project has no playwright.config; `npm init playwright@latest` sets Playwright \
+             up.",
+        ),
+        (Some(_), Some(_)) => None,
+    };
+    Ok(json!({
+        "id": id,
+        "test": draft.text,
+        "path": project.as_ref().map_or_else(
+            || relative.to_string_lossy().into_owned(),
+            |root| root.join(&relative).to_string_lossy().into_owned(),
+        ),
+        "project": project.map(|root| root.to_string_lossy().into_owned()),
+        "env": draft.env,
+        "skipped": draft.skipped,
+        "start": draft.start,
+        "run": format!("npx playwright test {}", relative.to_string_lossy()),
+        "note": note,
+    }))
+}
+
+/// The recording `timeline` as an agent may read it (#506): every string passed through the
+/// redactor whole. For a draft, a fill whose text the redactor changed becomes a secret one,
+/// its text gone, which the draft reads from the environment. For `browser_recording`, each
+/// fill's text is then cut to [`FILL_BUDGET`].
+fn timeline_for_agents(mut timeline: Value, redactor: Option<&Redactor>, for_draft: bool) -> Value {
+    let redact = |text: &str| {
+        redactor.map_or_else(|| text.to_string(), |redactor| redactor.redact(text).text)
+    };
+    if let Some(fields) = timeline.as_object_mut() {
+        for (key, value) in fields.iter_mut() {
+            if key != "entries" {
+                redact_strings(value, &redact);
+            }
+        }
+    }
+    let Some(entries) = timeline.get_mut("entries").and_then(Value::as_array_mut) else {
+        return timeline;
+    };
+    for entry in entries {
+        let fill = entry.get("kind").and_then(Value::as_str) == Some("action")
+            && entry.get("action").and_then(Value::as_str) == Some("fill");
+        let flagged = fill
+            && entry
+                .get_mut("text")
+                .is_some_and(|text| redact_strings(text, &redact));
+        redact_strings(entry, &redact);
+        if !fill {
+            continue;
+        }
+        if for_draft && flagged {
+            entry["text"] = Value::Null;
+            entry["secret"] = Value::Bool(true);
+        } else if !for_draft && let Some(Value::String(text)) = entry.get_mut("text") {
+            *text = pick::within(text, FILL_BUDGET);
+        }
+    }
+    timeline
+}
+
+/// Passes each string in `value` through `redact` whole; whether any changed.
+fn redact_strings(value: &mut Value, redact: &impl Fn(&str) -> String) -> bool {
+    match value {
+        Value::String(text) => {
+            let redacted = redact(text);
+            let changed = redacted != *text;
+            *text = redacted;
+            changed
+        }
+        Value::Array(items) => items.iter_mut().fold(false, |changed, item| {
+            redact_strings(item, redact) | changed
+        }),
+        Value::Object(fields) => fields.values_mut().fold(false, |changed, item| {
+            redact_strings(item, redact) | changed
+        }),
+        _ => false,
+    }
+}
+
+/// The Playwright config in the project `root`, when it has one, and the `testDir` it sets as a
+/// plain string inside the project.
+fn configured_test_dir(root: &Path) -> Option<(PathBuf, Option<String>)> {
+    PLAYWRIGHT_CONFIGS.iter().find_map(|name| {
+        let path = root.join(name);
+        let text = std::fs::read_to_string(&path).ok()?;
+        Some((path, test_dir_in(&text)))
+    })
+}
+
+/// The directory a Playwright config's `testDir: '<dir>'` names, when it is a plain relative
+/// path inside the project.
+fn test_dir_in(config: &str) -> Option<String> {
+    let after = &config[config.find("testDir")? + "testDir".len()..];
+    let after = after.trim_start().strip_prefix(':')?.trim_start();
+    let quote = after
+        .chars()
+        .next()
+        .filter(|quote| "'\"`".contains(*quote))?;
+    let rest = &after[quote.len_utf8()..];
+    let dir = &rest[..rest.find(quote)?];
+    let dir = dir.trim_start_matches("./").trim_end_matches('/');
+    let inside = !dir.is_empty()
+        && !dir.starts_with('/')
+        && Path::new(dir)
+            .components()
+            .all(|component| matches!(component, std::path::Component::Normal(_)));
+    inside.then(|| dir.to_string())
+}
+
+/// `title` as a file name's start: lower case letters and digits, dashes between, at most 40
+/// characters; `recording` when nothing is left.
+fn slug(title: &str) -> String {
+    let mut slug = String::new();
+    for character in title.chars() {
+        if character.is_ascii_alphanumeric() {
+            slug.push(character.to_ascii_lowercase());
+        } else if !slug.is_empty() && !slug.ends_with('-') {
+            slug.push('-');
+        }
+        if slug.len() >= 40 {
+            break;
+        }
+    }
+    let slug = slug.trim_end_matches('-');
+    if slug.is_empty() {
+        "recording".to_string()
+    } else {
+        slug.to_string()
+    }
 }
 
 /// `browser_picks`: each pick of the session, without its bundle.

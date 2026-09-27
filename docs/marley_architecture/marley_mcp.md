@@ -24,14 +24,18 @@ OR Apache-2.0, with the Marley crates' lint table.
   output), or a tool error that names the tool: the app's reason, no answer within
   `APP_CALL_TIMEOUT_SECONDS` (30), or an app that takes no calls.
 
-- The `browser` family (#492) is served too: ten read tools (`browser_tabs`, since #493,
+- The `browser` family (#492) is served too: eleven read tools (`browser_tabs`, since #493,
   `browser_look`, `browser_snapshot`, `browser_console`, `browser_network`, since #496
-  `browser_picks` and `browser_pick`, since #498 `browser_annotations`, and since #499
-  `browser_recordings` and `browser_recording`) and eight write
+  `browser_picks` and `browser_pick`, since #498 `browser_annotations`, since #499
+  `browser_recordings` and `browser_recording`, and since #506 `browser_draft_test`, which takes
+  a recording's `id` and answers a Playwright test and where it goes, through
+  `draft_test_schemas`) and nine write
   tools (`browser_navigate`, `browser_back`, `browser_click`, `browser_type`, `browser_press`,
-  `browser_scroll`, since #498 `browser_annotate`, and since #561 `browser_open_url`, which takes
+  `browser_scroll`, since #498 `browser_annotate`, since #561 `browser_open_url`, which takes
   a `url` and a program's `directory` and answers `opened` with the project, or a `reason`,
-  through `open_url_schemas`) whose grant class,
+  through `open_url_schemas`, and since #505 `browser_check_pick`, which takes a pick's `id` and
+  answers whether and how its element was found again and what changed, through
+  `check_pick_schemas`) whose grant class,
   `browser.write`, Marley grants when it starts the server. Since #493 every browser tool that
   acts in a page takes `tab`, a page's id from `browser_tabs` (`browser_arguments` adds it to
   each schema), `browser_navigate` takes `new_tab`, and every answer from a page names its tab.
@@ -39,9 +43,12 @@ OR Apache-2.0, with the Marley crates' lint table.
   the project the agent runs in, and `browser_tabs`' output adds `project` and `default`.
   Since #501 Zed's own agents reach the server too, through the workbench's context server
   `marley`, which runs the same bridge over stdio.
-  `browser_pick` takes a pick's `id`; its output schema spells out the bundle (`pick_schemas`),
-  each listener with its `original` place through the script's source map since #497, and
-  every line and column counted from 1.
+  `browser_pick` takes a pick's `id`; its output schema spells out the bundle (`pick_schemas`,
+  built on `bundle_schema`), each listener with its `original` place through the script's source
+  map since #497, and every line and column counted from 1. Since #518 the bundle adds the
+  element's HTML, styles, sibling texts, the selection and the React component
+  (`element_context_properties`), and since #505 the pick adds its latest `check`
+  (`check_schema`).
   A `ToolAnswer` can carry an image (`ToolImage`), which reaches the client as an MCP image block
   after the text.
 

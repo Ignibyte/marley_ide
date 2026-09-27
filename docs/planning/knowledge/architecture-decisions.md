@@ -2383,3 +2383,27 @@ Rejected:
 - a history of checks per pick (the latest is what the user and the agent act on);
 - a check that scrolls the page without saying so (it is a write, with the Agent chip);
 - a clipped capture for the crop (F-claude-505-a-clipped-capture-left-the-tab-showing-only-the-crop-001).
+
+## AD-claude-506-a-recording-becomes-a-test-the-project-keeps-001
+*decided at: 2026-09-27 · status: shipped · supersedes: the typing clause of AD-claude-499-the-flight-recorder-keeps-a-drawn-pages-minute-in-memory-001*
+
+The flight recorder keeps each click, fill and key press with the target's locators as they
+were at the event. A listener in an isolated world computes them in the page, in the capture
+phase, from trusted events only, before the page's handlers change the DOM. The order is test
+id, role and name, label, placeholder, text, CSS path, each marked when it found the element
+alone, and generated ids never enter. A fill of an ordinary field keeps its text (Chad,
+2026-09-26, D3). A password, hidden, one-time-code or card field keeps nothing but the fact of
+the fill, and a test drafted from it reads an environment variable instead. `browser_draft_test`
+drafts a plain Playwright test from a recording: `baseURL` from where it started, the first
+locator found alone for each step, `toHaveURL` after each navigation a step caused. It writes
+nothing and suggests a path under the project's `testDir`: the test is the project's, and the
+agent puts it in place. Everything an agent reads from a recording passes the redactor whole
+first. Rejected:
+- keeping only counts for every field (#499's rule), which would leave every drafted fill a
+  variable to supply;
+- vendoring Playwright's own selector generator, a 3.3 MB bundle written for its injected
+  runtime; running each draft through Playwright in the scenario checks Marley's locators
+  instead;
+- Marley writing the test into the project, or keeping a copy (D4);
+- recording Marley's own `<select>` choices, which reach the page as untrusted events (a later
+  ticket, from `choose_option`).

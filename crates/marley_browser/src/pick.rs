@@ -110,6 +110,26 @@ macro_rules! generated_name {
     };
 }
 
+/// The page's CSS path to an element, as JavaScript: its tag and place among its like siblings up
+/// to the nearest ancestor with an id that was not generated, eight steps at most. It needs
+/// [`generated_name!`] before it. `DESCRIBE`'s path locator and #506's recorder both take it.
+macro_rules! css_path {
+    () => {
+        r"  const cssPath = (element) => {
+    const path = [];
+    for (let node = element; node && node.nodeType === Node.ELEMENT_NODE && path.length < 8; node = node.parentElement) {
+      if (node.id && !generatedName(node.id)) { path.unshift('#' + CSS.escape(node.id)); break; }
+      const siblings = node.parentElement ? [...node.parentElement.children].filter((child) => child.localName === node.localName) : [];
+      path.unshift(siblings.length > 1 ? node.localName + ':nth-of-type(' + (siblings.indexOf(node) + 1) + ')' : node.localName);
+    }
+    return path.join(' > ');
+  };
+"
+    };
+}
+
+pub(crate) use {css_path, generated_name, interactive};
+
 /// The function, run on the picked node, that gives its nearest interactive ancestor, the node's
 /// own element when none is, through open shadow roots.
 const INTERACTIVE_ANCESTOR: &str = concat!(
@@ -140,6 +160,7 @@ const INTERACTIVE_ANCESTOR: &str = concat!(
 const DESCRIBE: &str = concat!(
     "function (secretNames) {\n",
     generated_name!(),
+    css_path!(),
     r#"  const element = this;
   const document = element.ownerDocument;
   const cap = (value, limit) => {
@@ -168,13 +189,7 @@ const DESCRIBE: &str = concat!(
   }
   const text = (element.innerText || (labelled ? element.value : '') || '').trim().replace(/\s+/g, ' ');
   if (text && text.length <= 80) locators.push({ kind: 'text', value: text, unique: null });
-  const path = [];
-  for (let node = element; node && node.nodeType === Node.ELEMENT_NODE && path.length < 8; node = node.parentElement) {
-    if (node.id && !generatedName(node.id)) { path.unshift('#' + CSS.escape(node.id)); break; }
-    const siblings = node.parentElement ? [...node.parentElement.children].filter((child) => child.localName === node.localName) : [];
-    path.unshift(siblings.length > 1 ? node.localName + ':nth-of-type(' + (siblings.indexOf(node) + 1) + ')' : node.localName);
-  }
-  const css = path.join(' > ');
+  const css = cssPath(element);
   locators.push({ kind: 'css', value: css, unique: unique(css) });
   const box = element.getBoundingClientRect();
   let left = box.left;

@@ -6,8 +6,9 @@
 # `marley: record this` saves the minute and says so in a toast. The stand-in agent lists the
 # recordings and reads the new one with a frame; the run log shows the timeline (presses, keys by
 # name, typing as counts, the console, the request with its token hidden, the snapshots, the
-# frames at least half a second apart) and a grep that finds neither the e-mail, the password nor
-# the token in the recording's files. Chromium runs offline.
+# frames at least half a second apart) and a grep that finds neither the password nor the token
+# in the recording's files, and the e-mail kept as a fill: since #506 an ordinary field's text is
+# recorded, a password field's never. Chromium runs offline.
 compositor sway
 
 # shellcheck source=script/e2e/browser-fixture.sh
@@ -117,9 +118,17 @@ steps() {
   recordings="$E2E_PROFILE/browser/recordings"
   find "$recordings" -type f | sed "s|^$recordings/||" | sort | head -5
   echo "  $(find "$recordings" -name '*.jpg' | wc -l) frames on disk"
-  if grep -rlF -e "$EMAIL" -e "$PASSWORD" -e "$TOKEN" "$recordings"; then
-    echo "  FOUND the e-mail, the password or the token in the recording"
-  else
-    echo "  none of the e-mail, the password or the token is in the recording"
-  fi
+  expect "neither the password nor the token is in the recording" none_in "$recordings" "$PASSWORD" "$TOKEN"
+  expect "the e-mail is kept as a fill (#506)" grep -rqF "\"text\": \"$EMAIL\"" "$recordings"
+}
+
+# Whether none of the strings after the folder `$1` is in a file under it.
+none_in() {
+  local dir=$1 pattern
+  local -a patterns=()
+  shift
+  for pattern; do
+    patterns+=(-e "$pattern")
+  done
+  ! grep -rqF "${patterns[@]}" "$dir"
 }

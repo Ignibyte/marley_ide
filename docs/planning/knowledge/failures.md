@@ -2260,3 +2260,13 @@ clipped and a full capture, so it is a race with a frame being captured. Picks h
 same way since #496 and hid it, because the tray row a pick adds resizes the viewport and a fresh
 frame follows. A check resizes nothing. Fixed in #505: `crop` captures the whole viewport and
 `pick::cut` cuts the box out, so a raced frame is a whole viewport.
+
+## F-claude-506-a-text-count-read-every-elements-inner-text-001
+*severity: low · found in: pipeline 506's Code phase (the review, before any run) · class: a quadratic walk in a handler the page waits on*
+
+The action listener's first draft counted how many elements read a click target's text by
+walking every element of the document and reading each one's `innerText`. Each read covers
+the element's whole subtree, so the walk is quadratic in the page's size. It ran inside a
+capture-phase `pointerdown` listener, and the page's own handlers wait for it to finish.
+Fixed in #506: `textsFound` starts from the text nodes that hold the text's first word and
+walks up from each until an ancestor's text grows past the one sought.

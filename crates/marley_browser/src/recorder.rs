@@ -2,10 +2,15 @@
 //! draws the page, and saved as a recording when the user asks.
 //!
 //! The minute holds what reached the page and what came of it: presses, wheels and keys (a key
-//! that types counts as a character, and the character itself is never kept), the agent's
+//! that types counts as a character, the character itself not kept there), the agent's
 //! actions, console entries, requests with their URLs' secrets hidden, navigations, the page's
 //! accessibility snapshot after each load, and a frame every half second, as the JPEG Chromium
 //! sent. A recording is a folder: `timeline.json` and `frames/NNNN.jpg`.
+//!
+//! Since #506 a listener in the page reports each click, fill and press with the target's
+//! locators as they were at the event, which a recording turns into a Playwright test
+//! (`crate::playwright`). A fill keeps what an ordinary field holds; a password or other secret
+//! field keeps nothing but the fact that it was filled.
 
 use std::collections::VecDeque;
 use std::fs;
@@ -14,8 +19,13 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use base64::Engine as _;
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Serialize, Serializer};
 use serde_json::{Value, json};
+
+use crate::cdp::CdpError;
+use crate::observe::redact_url;
+use crate::page::Page;
+use crate::pick::{css_path, generated_name, interactive, within};
 
 /// How much the recorder keeps.
 pub const WINDOW: Duration = Duration::from_secs(60);
@@ -34,6 +44,195 @@ const TIMELINE: &str = "timeline.json";
 
 /// A recording's frames, in its folder.
 const FRAMES: &str = "frames";
+
+/// The isolated world the action listener runs in (#506), apart from the page's own scripts.
+pub const WORLD: &str = "marley-record";
+
+/// The binding the action listener reports through, as `Runtime.bindingCalled`.
+pub const BINDING: &str = "marleyRecord";
+
+/// The most of a fill's text the listener hands back. It only bounds what crosses the socket: a
+/// tool redacts the text whole before it cuts it for an agent.
+const FILL_TRIP: usize = 4_096;
+
+/// The most of a locator's value, or a field's name, kept.
+const LOCATOR_TRIP: usize = 500;
+
+/// The action listener (#506), which a world runs once however many times it is evaluated there,
+/// in the top frame only.
+///
+/// At the window, in the capture phase, before the page's own handlers change
+/// anything, it takes trusted events: a primary-button `pointerdown` (walked up to the
+/// interactive ancestor, as a pick is), an `input` (a fill, with the field's text unless the
+/// field is a secret one), and Enter, Tab or Escape pressed (on the focused element). It reports
+/// each with the target's locators, most durable first, each marked when it finds the element
+/// alone: a test id, the role and name, a form field's label, the placeholder, the text, a CSS
+/// path. No locator rests on a generated id or a class.
+pub const LISTENER: &str = concat!(
+    "(() => {\n",
+    r"  if (globalThis.__marleyRecordListener || window !== window.top) return;
+  globalThis.__marleyRecordListener = true;
+",
+    interactive!(),
+    generated_name!(),
+    css_path!(),
+    r#"  const cap = (value, limit) => {
+    const whole = value.toWellFormed ? value.toWellFormed() : value;
+    if (whole.length <= limit) return whole;
+    const code = whole.charCodeAt(limit - 1);
+    return whole.slice(0, code >= 0xd800 && code <= 0xdbff ? limit - 1 : limit) + ' (truncated)';
+  };
+  const squeeze = (value) => String(value || '').trim().replace(/\s+/g, ' ');
+  const unique = (selector) => { try { return document.querySelectorAll(selector).length === 1; } catch (error) { return false; } };
+  const shown = (element) => !element.checkVisibility || element.checkVisibility();
+  const typeOf = (element) => (element.getAttribute('type') || 'text').toLowerCase();
+  const textTypes = ['text', 'email', 'tel', 'url'];
+  const roleOf = (element) => {
+    const explicit = (element.getAttribute('role') || '').trim().split(/\s+/)[0];
+    if (explicit) return explicit;
+    const tag = element.localName;
+    if (tag === 'button') return 'button';
+    if ((tag === 'a' || tag === 'area') && element.hasAttribute('href')) return 'link';
+    if (tag === 'textarea') return 'textbox';
+    if (tag === 'select') return element.multiple || element.size > 1 ? 'listbox' : 'combobox';
+    if (/^h[1-6]$/.test(tag)) return 'heading';
+    if (tag === 'img' && element.getAttribute('alt')) return 'img';
+    if (tag !== 'input') return null;
+    const type = typeOf(element);
+    if (['button', 'submit', 'reset', 'image'].includes(type)) return 'button';
+    if (type === 'checkbox') return 'checkbox';
+    if (type === 'radio') return 'radio';
+    if (type === 'number') return 'spinbutton';
+    if (type === 'range') return 'slider';
+    if (type === 'search') return element.hasAttribute('list') ? 'combobox' : 'searchbox';
+    if (textTypes.includes(type) || !['password', 'hidden', 'file', 'color', 'date',
+      'datetime-local', 'month', 'time', 'week'].includes(type)) {
+      return element.hasAttribute('list') ? 'combobox' : 'textbox';
+    }
+    return null;
+  };
+  const labelOf = (element) => {
+    const labels = element.labels ? [...element.labels] : [];
+    return squeeze(labels.map((label) => label.innerText).join(' '));
+  };
+  const nameOf = (element) => {
+    const labelledBy = (element.getAttribute('aria-labelledby') || '').trim();
+    if (labelledBy) {
+      const named = squeeze(labelledBy.split(/\s+/).map((id) => {
+        const target = document.getElementById(id);
+        return target ? target.innerText || target.textContent : '';
+      }).join(' '));
+      if (named) return named;
+    }
+    const label = squeeze(element.getAttribute('aria-label'));
+    if (label) return label;
+    const tag = element.localName;
+    const field = tag === 'input' || tag === 'select' || tag === 'textarea';
+    if (field && ['button', 'submit', 'reset'].includes(typeOf(element)) && tag === 'input') {
+      return squeeze(element.value);
+    }
+    if (field && labelOf(element)) return labelOf(element);
+    if (tag === 'img') return squeeze(element.getAttribute('alt'));
+    if (!field) {
+      const text = squeeze(element.innerText);
+      if (text) return text;
+    }
+    return squeeze(element.getAttribute('title')) || squeeze(element.getAttribute('placeholder'));
+  };
+  const rolesFound = (role, name) => {
+    let count = 0;
+    for (const element of document.querySelectorAll('*')) {
+      if (roleOf(element) === role && shown(element) && nameOf(element) === name) count += 1;
+      if (count > 1) break;
+    }
+    return count;
+  };
+  const labelsFound = (label) => {
+    let count = 0;
+    for (const element of document.querySelectorAll('input, select, textarea')) {
+      if (labelOf(element) === label && shown(element)) count += 1;
+    }
+    return count;
+  };
+  // The innermost elements that read `text`, found from the text nodes that hold its first word.
+  const textsFound = (text) => {
+    const first = text.split(' ')[0];
+    const found = new Set();
+    const walker = document.createTreeWalker(document.body || document.documentElement, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(), seen = 0; node && seen < 20000 && found.size < 2; node = walker.nextNode(), seen += 1) {
+      if (!node.data.includes(first)) continue;
+      for (let element = node.parentElement; element; element = element.parentElement) {
+        const own = squeeze(element.innerText);
+        if (own === text) { found.add(element); break; }
+        if (own.length > text.length) break;
+      }
+    }
+    return found.size;
+  };
+  const locate = (element) => {
+    const locators = [];
+    for (const attribute of ['data-testid', 'data-test', 'data-cy', 'data-qa']) {
+      const value = element.getAttribute(attribute);
+      if (value) {
+        locators.push({ kind: 'test id', attribute, value,
+          unique: unique('[' + attribute + '=' + JSON.stringify(value) + ']') });
+        break;
+      }
+    }
+    const role = roleOf(element);
+    const name = role ? nameOf(element) : '';
+    if (role && name) locators.push({ kind: 'role', role, value: cap(name, 200), unique: rolesFound(role, name) === 1 });
+    const label = labelOf(element);
+    if (label) locators.push({ kind: 'label', value: cap(label, 200), unique: labelsFound(label) === 1 });
+    const placeholder = squeeze(element.getAttribute('placeholder'));
+    if (placeholder) locators.push({ kind: 'placeholder', value: cap(placeholder, 200),
+      unique: unique('[placeholder=' + JSON.stringify(element.getAttribute('placeholder')) + ']') });
+    const text = element.localName === 'input' || element.localName === 'textarea' ? '' : squeeze(element.innerText);
+    if (text && text.length <= 80) locators.push({ kind: 'text', value: text, unique: textsFound(text) === 1 });
+    const css = cssPath(element);
+    locators.push({ kind: 'css', value: css, unique: unique(css) });
+    return locators;
+  };
+  // A field Playwright fills: a text-like input, a text area, an editable element. A checkbox,
+  // a radio or a file input is recorded by its click.
+  const fillable = (element) => element.localName === 'textarea' || element.isContentEditable
+    || element.localName === 'input' && !['checkbox', 'radio', 'file', 'range', 'color', 'button',
+      'submit', 'reset', 'image'].includes(typeOf(element));
+  // A field whose value is a secret: a password, a hidden field, or one the page marks as a
+  // password, a one-time code or a card's.
+  const secretField = (element) => {
+    const autocomplete = (element.getAttribute('autocomplete') || '').toLowerCase();
+    return element.localName === 'input' && ['password', 'hidden'].includes(typeOf(element))
+      || /(^|\s)(current-password|new-password|one-time-code|cc-[a-z-]+)(\s|$)/.test(autocomplete);
+  };
+  const report = (action, element, extra) => {
+    try {
+      marleyRecord(JSON.stringify(Object.assign({ action, locators: locate(element), url: location.href,
+        field: element.getAttribute('name') || (element.id && !generatedName(element.id) ? element.id : null) }, extra)));
+    } catch (error) {}
+  };
+  addEventListener('pointerdown', (event) => {
+    if (!event.isTrusted || event.button !== 0 || !(event.target instanceof Element)) return;
+    let element = event.target;
+    for (let step = element; step; step = up(step)) {
+      if (interactive(step)) { element = step; break; }
+    }
+    report('click', element, {});
+  }, true);
+  addEventListener('input', (event) => {
+    const field = event.target;
+    if (!event.isTrusted || !(field instanceof Element) || !fillable(field)) return;
+    const secret = secretField(field);
+    const text = secret ? null : cap(String(field.value !== undefined ? field.value : field.textContent || ''), 4096);
+    report('fill', field, { text, secret });
+  }, true);
+  addEventListener('keydown', (event) => {
+    if (!event.isTrusted || !['Enter', 'Tab', 'Escape'].includes(event.key)) return;
+    const focused = document.activeElement instanceof Element ? document.activeElement : document.body;
+    report('press', focused, { key: event.key });
+  }, true);
+})()"#
+);
 
 /// Something that happened in the page, as the recorder keeps it.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -67,10 +266,33 @@ pub enum Entry {
         /// How many; the characters themselves are never kept.
         characters: usize,
     },
-    /// The main frame showed a document.
+    /// The main frame showed a document, or moved within it.
     Navigation {
         /// Its URL, secret-looking values hidden.
         url: String,
+        /// Whether a fragment or the history API moved it within its document (#506).
+        within: bool,
+    },
+    /// What the user did to an element (#506): a click, a fill or a key pressed, with the
+    /// element's locators as they were then.
+    Action {
+        /// `click`, `fill` or `press`.
+        action: String,
+        /// Ways to find the element again, the most durable first.
+        locators: Vec<ActionLocator>,
+        /// The page's URL then, secret-looking values hidden.
+        url: String,
+        /// A fill's text, an ordinary field's; none for a secret one.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        text: Option<String>,
+        /// Whether the field is a secret one, whose text is not kept.
+        secret: bool,
+        /// A press's key: `Enter`, `Tab` or `Escape`.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        key: Option<String>,
+        /// The field's `name`, or its id when not generated, which names a secret's variable.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        field: Option<String>,
     },
     /// A console message, an uncaught error or a browser log entry.
     Console {
@@ -108,6 +330,85 @@ pub enum Entry {
         /// Its number, from 1, and its file's: `frames/0001.jpg`.
         index: usize,
     },
+}
+
+/// One way to find an action's target again (#506), as the listener found it at the event.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActionLocator {
+    /// `test id`, `role`, `label`, `placeholder`, `text` or `css`.
+    pub kind: String,
+    /// The test id, the accessible name, the label, the placeholder, the text or the selector.
+    pub value: String,
+    /// A test id's attribute: `data-testid`, `data-test`, `data-cy` or `data-qa`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attribute: Option<String>,
+    /// A role locator's role.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    /// Whether it found the element alone at the event.
+    #[serde(default)]
+    pub unique: bool,
+}
+
+/// An action as the listener reports it (#506).
+#[derive(Debug, Clone, Deserialize)]
+pub struct ReportedAction {
+    action: String,
+    locators: Vec<ActionLocator>,
+    url: String,
+    #[serde(default)]
+    text: Option<String>,
+    #[serde(default)]
+    secret: bool,
+    #[serde(default)]
+    key: Option<String>,
+    #[serde(default)]
+    field: Option<String>,
+}
+
+impl ReportedAction {
+    /// Reads a report the listener sent.
+    ///
+    /// # Errors
+    ///
+    /// When the report is not an action's.
+    pub fn parse(payload: &str) -> Result<Self, serde_json::Error> {
+        serde_json::from_str(payload)
+    }
+
+    /// The report as the minute keeps it: the URL's secret-looking values hidden, each text held
+    /// to its trip cap, and no text for a secret field whatever the page sent. None for an action
+    /// or a key the listener does not report.
+    #[must_use]
+    pub fn into_entry(self) -> Option<Entry> {
+        if !matches!(self.action.as_str(), "click" | "fill" | "press") {
+            return None;
+        }
+        let key = match self.key {
+            Some(key) if matches!(key.as_str(), "Enter" | "Tab" | "Escape") => Some(key),
+            Some(_) => return None,
+            None => None,
+        };
+        Some(Entry::Action {
+            locators: self
+                .locators
+                .into_iter()
+                .map(|locator| ActionLocator {
+                    value: within(&locator.value, LOCATOR_TRIP),
+                    ..locator
+                })
+                .collect(),
+            url: redact_url(&self.url),
+            text: self
+                .text
+                .filter(|_| !self.secret)
+                .map(|text| within(&text, FILL_TRIP)),
+            secret: self.secret,
+            key,
+            field: self.field.map(|field| within(&field, LOCATOR_TRIP)),
+            action: self.action,
+        })
+    }
 }
 
 /// An entry and when it came, in milliseconds from the recording's start.
@@ -150,6 +451,9 @@ pub struct Recording {
     pub entries: Vec<TimedEntry>,
     /// The page's accessibility snapshot when it was saved.
     pub snapshot: String,
+    /// The root of the project whose tab it was recorded in (#506), where a test drafted from it
+    /// goes.
+    pub project: Option<String>,
 }
 
 /// What went wrong with a recording's files.
@@ -186,9 +490,35 @@ pub struct Recorder {
 }
 
 impl Recorder {
-    /// Keeps `entry`, which came `now`: typing adds to the typing just before it, and a wheel
-    /// turn to the scroll just before it.
+    /// Keeps `entry`, which came `now`: typing adds to the typing just before it, a wheel turn to
+    /// the scroll just before it, and a fill to the fill of the same field when no other action
+    /// came between (#506), whose text it takes. The merged fill keeps its first time, so the
+    /// minute stays in time order.
     pub fn push(&mut self, entry: Entry, now: Instant) {
+        if let Entry::Action {
+            action,
+            locators,
+            text,
+            ..
+        } = &entry
+            && action == "fill"
+            && let Some(last) = self
+                .entries
+                .iter_mut()
+                .rev()
+                .find(|timed| matches!(timed.value, Entry::Action { .. }))
+            && let Entry::Action {
+                action: last_action,
+                locators: last_locators,
+                text: last_text,
+                ..
+            } = &mut last.value
+            && last_action == "fill"
+            && last_locators.first() == locators.first()
+        {
+            last_text.clone_from(text);
+            return;
+        }
         if let Some(last) = self.entries.back_mut() {
             match (&mut last.value, &entry) {
                 (Entry::Typed { characters }, Entry::Typed { characters: more }) => {
@@ -335,6 +665,56 @@ impl Recorder {
             }
         }
         (timeline, jpegs, now.duration_since(start).as_secs_f64())
+    }
+}
+
+impl Page {
+    /// Watches what the user does in the page (#506): the binding for the action listener's
+    /// world, the listener in that world of each document `session` loads from now on, and in a
+    /// new world of the main frame's document already loaded. The listener acts in the top frame
+    /// only.
+    ///
+    /// # Errors
+    ///
+    /// When a call fails or the browser's answer lacks the main frame or a context.
+    pub async fn watch_actions(&self, session: &str) -> Result<(), CdpError> {
+        self.call_in(
+            session,
+            "Runtime.addBinding",
+            json!({ "name": BINDING, "executionContextName": WORLD }),
+        )
+        .await?;
+        self.call_in(
+            session,
+            "Page.addScriptToEvaluateOnNewDocument",
+            json!({ "source": LISTENER, "worldName": WORLD }),
+        )
+        .await?;
+        let tree = self
+            .call_in(session, "Page.getFrameTree", json!({}))
+            .await?;
+        let frame = tree
+            .pointer("/frameTree/frame/id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| CdpError::Unexpected("the page has no main frame".to_string()))?;
+        let world = self
+            .call_in(
+                session,
+                "Page.createIsolatedWorld",
+                json!({ "frameId": frame, "worldName": WORLD }),
+            )
+            .await?;
+        let context = world
+            .get("executionContextId")
+            .and_then(Value::as_i64)
+            .ok_or_else(|| CdpError::Unexpected("the record world has no context".to_string()))?;
+        self.call_in(
+            session,
+            "Runtime.evaluate",
+            json!({ "expression": LISTENER, "contextId": context }),
+        )
+        .await
+        .map(drop)
     }
 }
 

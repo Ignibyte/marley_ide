@@ -13,6 +13,18 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A recording drafted as a Playwright test** (#506, 2026-09-27). A saved recording now holds
+  each click, fill and key press you or an agent made in the page, with the target's locators
+  as they were at that moment: a test id, the role and name, the label, the placeholder, the
+  text, a CSS path, each marked when it found the element alone. Agents turn a recording into a
+  test with `browser_draft_test`. The test replays each step with the first locator that
+  found its target alone (`getByTestId`, `getByRole`, `getByLabel` and the rest), sets
+  `baseURL` from where the recording started, and checks the URL after each navigation a step
+  caused. A password or other secret field is filled from an environment variable, and the
+  test fails naming the variable when it is unset. The tool writes nothing: it answers the
+  test and a path in the project (the `testDir` of its `playwright.config`, else `tests/`),
+  and the agent puts the file there, where it runs with `npx playwright test` in Marley or
+  anywhere else.
 - **Check a pick after a fix** (#505, 2026-09-26). Each pick in a Browser tab's tray has a
   Check button. Once you or an agent have changed the page, Check finds the picked element again
   by the most durable of its locators that still finds anything: its test id, its id, its role
@@ -523,6 +535,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The flight recorder keeps what you type into ordinary fields** (#506, 2026-09-27). Until
+  now a recording held typing only as a count of characters. It now also keeps the text of
+  each fill of an ordinary field (an e-mail, a search), up to 4,096 characters, which a
+  drafted test needs. A password, hidden, one-time-code or card field still keeps nothing but
+  the fact that it was filled. `browser_recording` now passes the whole recording through the
+  secret redaction (`marley.redact_secrets_for_agents`) and gives agents at most 1,000
+  characters of a fill.
 - **More secrets hidden from what agents read** (#562, 2026-09-26). An `Authorization` or
   `Proxy-Authorization` header now loses its credential under any common scheme, not only
   `Bearer`: `Basic`, `Token`, `Negotiate`, `NTLM`, `ApiKey`, and `Digest` with its whole parameter

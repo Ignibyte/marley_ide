@@ -3126,3 +3126,28 @@ tooltip covers what the shot is for.
 main world) with `accessibleName` and `role`, it returns every matching node with its
 `backendDOMNodeId`, none for a name the page lacks, and `DOM.resolveNode` turns each into an
 element whose box can be read. A standalone probe proved it before #505 relied on it.
+
+## L-claude-506-a-macro-shares-javascript-between-const-page-functions-001
+*category: code · topic: page functions in Rust constants · from: pipeline 506*
+
+Marley's page functions are `const &str`s, and `concat!` joins only literals and macro calls,
+not other constants. A piece of JavaScript that several functions need (`interactive!`,
+`generated_name!`, `css_path!`) is a `macro_rules!` that expands to a raw string literal,
+spliced in with `concat!(..., generated_name!(), ...)`. `pub(crate) use {css_path,
+generated_name, interactive};` after the macros lets another module (the recorder) import them
+by path. Each piece defines its helpers as `const`s at the top of the function's body, so the
+pieces a function takes must come before the code that calls them, and `node --check` on the
+assembled text catches a piece in the wrong place.
+
+## L-claude-506-prove-a-generator-by-running-what-it-makes-001
+*category: testing · topic: e2e scenarios · from: pipeline 506*
+
+A drafted Playwright test is proven by running it, not by reading it. #506's scenario writes
+the draft where the tool says and runs it with the Playwright of a project on the box, three
+times: with its variable set (it must pass), against a page whose step no longer works (it must
+fail at that step), and without the variable (it must fail and name it). Grepping the draft
+checked its locators. The passing run is what showed that Marley's role and name agree with
+the names Playwright computes: a mismatch would have failed there and nowhere else. Playwright
+resolves `@playwright/test` from a `node_modules` link beside the scratch repository, never
+inside it, so Marley's project scan never walks the modules. Its output directory lives in the
+repository, so nothing is written into the project that lends the modules.

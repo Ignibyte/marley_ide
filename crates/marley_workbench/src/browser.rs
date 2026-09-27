@@ -60,7 +60,7 @@ use marley_browser::pick::{
     self, ComponentSource, Listener, PageBox, PickBundle, ScriptInfo, SourceKind, SourcePosition,
     StackFrame,
 };
-use marley_browser::recorder::{self, Entry as RecordedEntry, Recorder, Recording};
+use marley_browser::recorder::{self, Entry as RecordedEntry, Recorder, Recording, ReportedAction};
 use marley_browser::select::{self, SelectRequest};
 use marley_browser::snapshot::{self, FrameTree, RefTarget};
 use marley_browser::source_map::{self, MapLocation, OriginalPosition, SourceMap};
@@ -936,6 +936,7 @@ impl BrowserHub {
         let generation = self.generation;
         cx.spawn(async move |this, cx| {
             page.watch_selects(page.session_id()).await.log_err();
+            page.watch_actions(page.session_id()).await.log_err();
             if let Some(info) = page.target_info().await.log_err() {
                 this.update(cx, |this, cx| this.target_changed(generation, info, cx))
                     .ok();
@@ -1657,7 +1658,13 @@ impl BrowserHub {
         }
     }
 
-    fn record_navigation(&mut self, generation: u64, target: &str, url: Option<&str>) {
+    fn record_navigation(
+        &mut self,
+        generation: u64,
+        target: &str,
+        url: Option<&str>,
+        within: bool,
+    ) {
         if generation != self.generation {
             return;
         }
@@ -1666,17 +1673,42 @@ impl BrowserHub {
                 target,
                 RecordedEntry::Navigation {
                     url: redact_url(url),
+                    within,
                 },
             );
         }
     }
 
+    /// Keeps what the page's action listener reported the user did (#506), while a tab draws the
+    /// page.
+    fn action_reported(&mut self, generation: u64, session: &str, params: &Value) {
+        if generation != self.generation {
+            return;
+        }
+        let Some(target) = self.target_of_session(session) else {
+            return;
+        };
+        let Some(payload) = params.get("payload").and_then(Value::as_str) else {
+            return;
+        };
+        match ReportedAction::parse(payload) {
+            Ok(action) => {
+                if let Some(entry) = action.into_entry() {
+                    self.record_entry(&target, entry);
+                }
+            }
+            Err(error) => log::debug!("browser: an action report did not parse: {error}"),
+        }
+    }
+
     /// Saves the page's minute, with a snapshot of the moment, as a recording in `dir`, off the
-    /// main thread; the recording's id (#499).
+    /// main thread; the recording's id (#499). `project` is the root of the project whose tab it
+    /// is, where a test drafted from it goes (#506).
     pub fn record(
         &self,
         target: &str,
         dir: PathBuf,
+        project: Option<String>,
         cx: &Context<Self>,
     ) -> Task<anyhow::Result<String>> {
         let Some(page) = self.page_state(target) else {
@@ -1699,6 +1731,7 @@ impl BrowserHub {
             frames: frames.len(),
             entries,
             snapshot: String::new(),
+            project,
         };
         let session = page.page.clone();
         cx.spawn(async move |_, cx| {
@@ -2704,7 +2737,7 @@ async fn follow_navigation(
                     .map(str::to_string);
                 this.update(cx, |this, cx| {
                     this.left_document(generation, &target, cx);
-                    this.record_navigation(generation, &target, url.as_deref());
+                    this.record_navigation(generation, &target, url.as_deref(), false);
                 })
                 .ok();
                 refresh_history(this, generation, &target, url, cx).await;
@@ -2720,8 +2753,11 @@ async fn follow_navigation(
                     .and_then(Value::as_str)
                     .map(str::to_string);
                 // A move within the document is all the load a waiting call will see.
-                this.update(cx, |this, _| this.within_document(&target))
-                    .ok();
+                this.update(cx, |this, _| {
+                    this.within_document(&target);
+                    this.record_navigation(generation, &target, url.as_deref(), true);
+                })
+                .ok();
                 refresh_history(this, generation, &target, url, cx).await;
                 refresh_info(this, generation, &target, cx).await;
             }
@@ -2813,8 +2849,14 @@ fn follow_observed(
         }
         "Runtime.bindingCalled" => {
             if let Some(session) = event.session_id.as_deref() {
+                let recorded =
+                    event.params.get("name").and_then(Value::as_str) == Some(recorder::BINDING);
                 this.update(cx, |this, cx| {
-                    this.select_requested(generation, session, &event.params, cx);
+                    if recorded {
+                        this.action_reported(generation, session, &event.params);
+                    } else {
+                        this.select_requested(generation, session, &event.params, cx);
+                    }
                 })
                 .ok();
             }
@@ -4236,9 +4278,17 @@ impl BrowserView {
         let Some(target) = self.target.clone() else {
             return;
         };
-        let saved = self
-            .hub
-            .update(cx, |hub, cx| hub.record(&target, recordings_dir(), cx));
+        // Where a test drafted from the recording goes: the tab's project (#506).
+        let project = self.workspace.upgrade().and_then(|workspace| {
+            workspace
+                .read(cx)
+                .visible_worktrees(cx)
+                .next()
+                .map(|worktree| worktree.read(cx).abs_path().to_string_lossy().into_owned())
+        });
+        let saved = self.hub.update(cx, |hub, cx| {
+            hub.record(&target, recordings_dir(), project, cx)
+        });
         let workspace = self.workspace.clone();
         cx.spawn(async move |_, cx| {
             let message = match saved.await {
