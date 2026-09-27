@@ -2285,3 +2285,13 @@ the network service in the browser process (`NetworkServiceInProcess2`), the coo
 stopped 35 seconds after the sign-in, all three stayed. Fixed in #507: `stop_chromium` sends
 `Browser.close`, waits up to five seconds for the unit to stop, then stops what is left. A stop
 at logout still loses a login made in its last 30 seconds.
+
+## F-claude-523-a-runs-watcher-read-the-startups-block-001
+*severity: medium · found in: pipeline 523's Test (a failed script saved no recording) · class: a block found by its position · prevented by: PR-claude-find-a-typed-commands-block-by-its-command-001*
+
+The first draft of the run's watcher waited for the first block of the terminal it had opened
+and read that block's exit code. A new terminal's startup opens a block of its own before the
+typed command's, which `terminal_read` numbered 1, so the watcher read the startup's block: it
+had finished with exit code 0 before the script began. Every run looked like a pass, and a
+failed script saved no recording and showed no toast. Fixed in #523: `block_end` finds the
+block whose command is the line it typed, and reads that one.

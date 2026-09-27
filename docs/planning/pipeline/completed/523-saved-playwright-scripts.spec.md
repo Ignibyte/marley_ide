@@ -1,7 +1,7 @@
 ---
 pipeline_id: c8124685-3a11-49ab-b17b-406739d3e88b
-ticket: docs/planning/tickets/open/TICKET-523-saved-playwright-scripts.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-523-saved-playwright-scripts.md
+status: Phase 4 — Complete PASS
 title: "Saved Playwright scripts, run on a Browser tab"
 type: feature
 slice: prong 3, after the browser waves; plan D16 (Playwright attaches to Marley's Chromium)
@@ -26,11 +26,13 @@ tab's last minute as a recording that names the script.
   `chromium.connectOverCDP(MARLEY_CDP_URL)`, finds the page whose target id is `MARLEY_TAB`, calls
   the script's default export with `{ page, context, browser }`, prints how it ended, and
   disconnects without closing the page or its context.
-- `crates/marley_workbench/src/playwright.rs` (new): listing and creating scripts, writing the
-  runner, building the run's command line, starting it in a terminal of the tab's project, and
-  watching that terminal's block for its exit code.
-- `crates/marley_workbench/src/browser.rs`: a Scripts button in the Browser tab's toolbar, and a
-  Scripts tray under the toolbar: each script with its scope, Run and Edit; a name field with
+- `crates/marley_workbench/src/playwright_scripts.rs` (new; named apart from #506's
+  `marley_browser::playwright`): listing and creating scripts, writing the runner, building the
+  run's command line, starting it in a terminal of the tab's project, and watching that
+  terminal's block for its exit code.
+- `crates/marley_workbench/src/browser.rs`: a Scripts button in the Browser tab's toolbar, between
+  the address bar and Pick, so the buttons after it keep their places, and a Scripts tray under
+  the toolbar: each script with its scope, Run and Edit; a name field with
   "For this project" and "For all projects". `marley::PlaywrightScripts` toggles the tray on the
   focused Browser tab. On a failed run, the tab's minute saved through `BrowserHub::record`.
 - `crates/marley_browser/src/recorder.rs`: a `Script` entry (the script's name, and at the end its
@@ -99,9 +101,10 @@ user-written files: global ones in the config folder, as `paths::snippets_dir()`
 UI-AFFECTING (the Browser tab's toolbar and tray, a terminal beside it, a toast).
 `script/e2e/523-saved-playwright-scripts.sh` (`compositor sway`: it clicks the tray). Setup: the
 offline Chromium; a loopback site whose `login.html` has a name field and a Sign in button that
-shows "Signed in as <name>"; a scratch HOME whose `.bashrc` puts the box's Node on the PATH; the
-pinned `playwright-core` copied from npx's cache into `$E2E_PROFILE/playwright/node_modules`, so
-the run needs no network (setup stops, saying so, when no copy is found); three scripts: the
+shows "Signed in as <name>"; a scratch HOME whose `.bashrc` puts the box's Node on the PATH and
+points npm at a loopback registry that serves the pinned `playwright-core`, packed from a copy on
+the box, so the first run's real install needs no network (setup stops, saying so, when no copy
+is found); three scripts: the
 project's `log-in.mjs` (fills the field, clicks Sign in, waits for the text) and `broken.mjs`
 (clicks a button the page does not have, with a two-second timeout), and the global `where.mjs`
 (prints `MARLEY_TAB` and the page's URL). Shots: the tray listing the three with their scopes
@@ -116,8 +119,7 @@ against the stand-in agent's `browser_tabs`, and the saved recording's timeline 
 - D1: Scripts are files in Marley's config folder, never in a project:
   `<config>/playwright/global/` and `<config>/playwright/projects/<key>/`. They survive branch
   switches, never enter a client's repository, and a project's worktrees share them through #507's
-  key. If #523 lands before #507, it adds the key function where #507's spec puts it
-  (`marley_browser::service`).
+  key (`marley_browser::service::project_key`, landed).
 - D2: A script is an ES module whose default export is an async function of
   `{ page, context, browser }`; a throw or a rejected promise fails the run. Scripts never import
   Playwright themselves (nothing is installed beside them for Node to find). `MARLEY_CDP_URL` and
@@ -153,18 +155,18 @@ against the stand-in agent's `browser_tabs`, and the saved recording's timeline 
 | REQ-005 | WHEN the system runs a script, it shall set `MARLEY_CDP_URL` to the WebSocket endpoint of the tab's Chromium and `MARLEY_TAB` to the tab's target id in the run's environment. | The run log: `where.mjs`'s output against `browser_tabs` |
 | REQ-006 | WHEN a script's block ends with a non-zero exit code, the system shall save the tab's last minute as a recording with the script's start and end in its timeline, and name the recording in a toast. | Shot `523-04-failed`; the log: the recording's timeline |
 | REQ-007 | WHEN a script's block ends with exit code 0, the system shall save no recording. | The log: `browser_recordings` before and after `log-in` |
-| REQ-008 | WHEN a run finds no `playwright-core` in Marley's data folder, the system shall install the pinned version there, in the run's own block, before the script runs. | Chad's first real run at Test, recorded in the notes; the scenario's command line, which skips the install over its seeded copy |
+| REQ-008 | WHEN a run finds no `playwright-core` in Marley's data folder, the system shall install the pinned version there, in the run's own block, before the script runs. | The run log: the first run's block (`terminal-read`), npm's install from the loopback registry, then the script's output |
 
 ## Phase Plan
-- **P1 Plan:** this spec; the design and the test plan in the notes. On promotion, check whether
-  #507 has landed (the project key), and confirm that `connectOverCDP` leaves the tab's viewport
-  alone on Chromium 152 with a scratch Chromium before Code relies on it.
+- **P1 Plan:** this spec; the design and the test plan in the notes. Done at promotion: #507's
+  key is there, and a scratch Chromium showed `connectOverCDP` leaving the page's viewport and
+  the page itself alone.
 - **P2 Code:** the library, the runner and its template, the tray, the run and its watcher, the
   recorder's entry; fmt and clippy clean; a review of the diff against each REQ and against
   AD-claude-492.
-- **P3 Test:** write and run the scenario and read every shot; Chad's first run on his machine,
-  with the real install; rerun `496-element-picker.sh`, the one scenario that clicks the toolbar by
-  its coordinates (`PICK_X=1288`), which the new button moves (L-claude-498); `script/gates.sh
+- **P3 Test:** write and run the scenario and read every shot; rerun the scenarios that click the
+  toolbar by coordinates (490 and 496; 505 and 518 run in the golden set), which the new button,
+  left of Pick, must not move (L-claude-498); the golden set with 523 added; `script/gates.sh
   --diff` green.
 - **P4 Complete:** CHANGELOG; the plan's prong 3 section; `docs/marley_architecture/marley_browser.md`
   (the recorder's new entry); the ledger capture; close the ticket, archive, commit.

@@ -34,6 +34,7 @@ pub mod links;
 pub mod marley_workbench_tests;
 pub mod mcp;
 pub mod notifications;
+pub mod playwright_scripts;
 pub mod push;
 mod rail;
 pub mod rich_input;
@@ -121,6 +122,14 @@ actions!(
         /// site in it signs out.
         #[derive(Eq)]
         ClearProjectBrowserData,
+        /// Opens or closes the Browser tab's Playwright scripts: the ones kept for this project
+        /// and for every project, each run on the tab's page.
+        #[derive(Eq)]
+        PlaywrightScripts,
+        /// Keeps a new Playwright script for this project, named in the Browser tab's scripts
+        /// tray.
+        #[derive(Eq)]
+        NewPlaywrightScript,
         /// Puts the focus in the Browser tab's address bar, with its text selected.
         #[derive(Eq)]
         FocusAddressBar,

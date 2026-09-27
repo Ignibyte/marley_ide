@@ -271,7 +271,8 @@ for.
 - `Recorder` keeps a page's last minute (`WINDOW`, 60 seconds): `Entry`s (a press with its
   place, button and count; a scroll; a key by its name or a shortcut; typing as a count; a
   navigation; a console entry; a request with its method, redacted URL, status and failure; a
-  snapshot; an agent's action), each with the `Instant` it came, typing added up and wheel
+  snapshot; an agent's action; since #523 a Playwright script's start and its end with its exit
+  code, `Script { name, exit_code }`), each with the `Instant` it came, typing added up and wheel
   turns within half a second added up; and frames as the base64 JPEGs Chromium sent, one at
   most every 500 ms (`FRAME_GAP`), 16 MiB of them at most (`FRAME_BYTES`). `request_ended`
   adds a status or a failure. `take(now)` gives the minute in time order, each frame an

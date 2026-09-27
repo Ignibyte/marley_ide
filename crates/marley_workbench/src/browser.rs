@@ -79,16 +79,18 @@ use util::ResultExt as _;
 use util::paths::PathStyle;
 use util::rel_path::RelPath;
 use workspace::item::{Item, ItemEvent, SerializableItem};
-use workspace::notifications::NotificationId;
+use workspace::notifications::{DetachAndPromptErr as _, NotificationId};
 use workspace::{
-    ItemId, MultiWorkspace, MultiWorkspaceEvent, Pane, SplitDirection, Toast, Workspace,
-    WorkspaceId,
+    ItemId, MultiWorkspace, MultiWorkspaceEvent, OpenOptions, Pane, SplitDirection, Toast,
+    Workspace, WorkspaceId,
 };
 
+use crate::playwright_scripts::{self, RunTarget, Scope, Script};
 use crate::{
     Annotate, AnswerDialog, BrowserBack, BrowserForward, BrowserReload, ClearProjectBrowserData,
     DismissDialog, DropAnnotation, FocusAddressBar, GoToAddress, KeepAnnotation, NewBrowserTab,
-    OpenBrowser, PickElement, RecordThis, RestoreAddress, SendPick,
+    NewPlaywrightScript, OpenBrowser, PickElement, PlaywrightScripts, RecordThis, RestoreAddress,
+    SendPick,
 };
 
 /// How many times, a tenth of a second apart, a start waits for Chromium to write its endpoint
@@ -2032,6 +2034,12 @@ impl BrowserHub {
             .count()
     }
 
+    /// Keeps a Playwright script's start, or its end with its exit code, in the page's minute
+    /// (#523).
+    pub(crate) fn record_script(&mut self, target: &str, name: String, exit_code: Option<i32>) {
+        self.record_entry(target, RecordedEntry::Script { name, exit_code });
+    }
+
     /// Keeps `entry` in the page's minute, while a tab draws the page (#499).
     fn record_entry(&mut self, target: &str, entry: RecordedEntry) {
         if let Some(page) = self.page_state_mut(target)
@@ -3940,7 +3948,19 @@ pub struct BrowserView {
     comparison: Option<Comparison>,
     /// The picks whose check runs.
     checking: HashSet<usize>,
+    /// The Playwright scripts tray, while it is open (#523).
+    scripts_tray: Option<ScriptsTray>,
     _subscriptions: Vec<Subscription>,
+}
+
+/// A Browser tab's Playwright scripts tray (#523), while it is open.
+struct ScriptsTray {
+    /// The scripts it lists, read when it opened and after one was made.
+    scripts: Vec<Script>,
+    /// Its field that names a new script.
+    name: Entity<Editor>,
+    /// Why its last read or new script failed.
+    error: Option<SharedString>,
 }
 
 /// A pick's comparison card (#505): the crop at the pick beside the crop at its latest check,
@@ -4120,6 +4140,7 @@ impl BrowserView {
             selected_annotation: None,
             comparison: None,
             checking: HashSet::new(),
+            scripts_tray: None,
             _subscriptions: subscriptions,
         };
         view.show_address(window, cx);
@@ -4762,6 +4783,163 @@ impl BrowserView {
         cx.notify();
     }
 
+    /// `marley::PlaywrightScripts`: opens or closes the tab's Playwright scripts tray (#523).
+    fn toggle_scripts(
+        &mut self,
+        _: &PlaywrightScripts,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.scripts_tray.take().is_none() {
+            let name = cx.new(|cx| {
+                let mut editor = Editor::single_line(window, cx);
+                editor.set_placeholder_text("A new script's name", window, cx);
+                editor
+            });
+            self.scripts_tray = Some(ScriptsTray {
+                scripts: Vec::new(),
+                name,
+                error: None,
+            });
+            self.read_scripts(cx);
+        }
+        cx.notify();
+    }
+
+    /// Reads the scripts kept for the tab's project and for every project into the tray, off the
+    /// main thread; a tray closed by then takes nothing.
+    fn read_scripts(&self, cx: &Context<Self>) {
+        let config = paths::config_dir().clone();
+        let key = self.project.clone();
+        cx.spawn(async move |this, cx| {
+            let read = cx
+                .background_spawn(futures::future::lazy(move |_| {
+                    playwright_scripts::library_in(&config, &key)
+                }))
+                .await;
+            this.update(cx, |this, cx| {
+                if let Some(tray) = this.scripts_tray.as_mut() {
+                    match read {
+                        Ok(scripts) => tray.scripts = scripts,
+                        Err(error) => {
+                            tray.error =
+                                Some(format!("Could not read the scripts: {error}").into());
+                        }
+                    }
+                    cx.notify();
+                }
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    /// `marley::NewPlaywrightScript`, Enter in the tray's field: a new script for this project.
+    fn new_project_script(
+        &mut self,
+        _: &NewPlaywrightScript,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.create_script(Scope::Project, window, cx);
+    }
+
+    /// Makes a script in `scope` named by the tray's field, from Marley's template, and opens it
+    /// in an editor tab.
+    fn create_script(&self, scope: Scope, window: &Window, cx: &Context<Self>) {
+        let Some(field) = self.scripts_tray.as_ref().map(|tray| tray.name.clone()) else {
+            return;
+        };
+        let name = field.read(cx).text(cx);
+        let config = paths::config_dir().clone();
+        let key = self.project.clone();
+        let workspace = self.workspace.clone();
+        cx.spawn_in(window, async move |this, cx| {
+            let created = cx
+                .background_spawn(futures::future::lazy(move |_| {
+                    playwright_scripts::create_in(&config, scope, &key, &name)
+                }))
+                .await;
+            match created {
+                Ok(path) => {
+                    this.update(cx, |this, cx| {
+                        if let Some(tray) = this.scripts_tray.as_mut() {
+                            tray.error = None;
+                        }
+                        this.read_scripts(cx);
+                    })
+                    .ok();
+                    field
+                        .update_in(cx, |field, window, cx| field.set_text("", window, cx))
+                        .ok();
+                    workspace
+                        .update_in(cx, |workspace, window, cx| {
+                            workspace
+                                .open_abs_path(path, OpenOptions::default(), window, cx)
+                                .detach_and_prompt_err(
+                                    "Could not open the script",
+                                    window,
+                                    cx,
+                                    |_, _, _| None,
+                                );
+                        })
+                        .ok();
+                }
+                Err(error) => {
+                    this.update(cx, |this, cx| {
+                        if let Some(tray) = this.scripts_tray.as_mut() {
+                            tray.error = Some(format!("{error:#}").into());
+                        }
+                        cx.notify();
+                    })
+                    .ok();
+                }
+            }
+        })
+        .detach();
+    }
+
+    /// Opens a script's file in an editor tab of the tab's workspace.
+    fn edit_script(&self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
+        self.workspace
+            .update(cx, |workspace, cx| {
+                workspace
+                    .open_abs_path(path, OpenOptions::default(), window, cx)
+                    .detach_and_prompt_err("Could not open the script", window, cx, |_, _, _| None);
+            })
+            .log_err();
+    }
+
+    /// Runs `script` on the tab's page (#523), in a terminal opened beside the tab.
+    fn run_script(&self, script: Script, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(tab) = self.attached_target(cx) else {
+            return;
+        };
+        let Some(workspace) = self.workspace.upgrade() else {
+            return;
+        };
+        let Some(pane) = pane_of(&workspace, &cx.entity(), cx) else {
+            return;
+        };
+        // The run's terminal goes into the active pane, which the tab's pane becomes with the
+        // focus before the terminal is made.
+        window.focus(&self.focus_handle, cx);
+        let root = workspace
+            .read(cx)
+            .visible_worktrees(cx)
+            .next()
+            .map(|worktree| worktree.read(cx).abs_path().to_string_lossy().into_owned());
+        let target = RunTarget {
+            hub: self.hub.clone(),
+            project: self.project.clone(),
+            tab,
+            pane: pane.downgrade(),
+            workspace: self.workspace.clone(),
+            root,
+        };
+        playwright_scripts::run(target, script, window, cx);
+    }
+
     /// Saves the page's last minute as a recording, and says so, or why not, in a toast (#499).
     fn record_this(&mut self, _: &RecordThis, _: &mut Window, cx: &mut Context<Self>) {
         let Some(target) = self.target.clone() else {
@@ -5138,6 +5316,7 @@ impl BrowserView {
                     .bg(colors.editor_background)
                     .child(self.address_bar.clone()),
             )
+            .child(Self::render_scripts_button(self.scripts_tray.is_some(), cx))
             .child(Self::render_pick_button(showing, picking, cx))
             .child(Self::render_annotate_button(showing, annotating, cx))
             .child(Self::render_record_button(showing, cx))
@@ -5174,6 +5353,20 @@ impl BrowserView {
                         .bg(colors.text_accent),
                 )
             })
+    }
+
+    /// The toolbar's Playwright scripts button (#523), lit while the tray is open.
+    fn render_scripts_button(open: bool, cx: &Context<Self>) -> IconButton {
+        IconButton::new("browser-scripts", IconName::PlayOutlined)
+            .toggle_state(open)
+            .selected_icon_color(Color::Accent)
+            .tooltip(Tooltip::for_action_title(
+                "Playwright Scripts",
+                &PlaywrightScripts,
+            ))
+            .on_click(cx.listener(|this, _, window, cx| {
+                this.toggle_scripts(&PlaywrightScripts, window, cx);
+            }))
     }
 
     /// The toolbar's pick button, lit while the page is in pick mode.
@@ -5570,6 +5763,127 @@ impl BrowserView {
 
     /// The page's picks under the toolbar, newest first, each with its caption, Send and Discard,
     /// and what went wrong with the last pick or Send (#496).
+    /// The Playwright scripts tray (#523), while it is open: a row per script with its scope, Run
+    /// and Edit, then the field that names a new one.
+    fn render_scripts_tray(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        let tray = self.scripts_tray.as_ref()?;
+        let attached = self.attached_target(cx).is_some();
+        let colors = cx.theme().colors();
+        let (border_variant, background) = (colors.border_variant, colors.panel_background);
+        let rows: Vec<_> = tray
+            .scripts
+            .iter()
+            .enumerate()
+            .map(|(index, script)| Self::render_script_row(index, script, attached, cx))
+            .collect();
+        let empty = tray.scripts.is_empty().then(|| {
+            h_flex().h_9().px_2().child(
+                Label::new("No scripts yet: name one below.")
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
+            )
+        });
+        let error = tray.error.clone().map(|error| {
+            h_flex()
+                .px_2()
+                .pb_1()
+                .child(Label::new(error).size(LabelSize::Small).color(Color::Error))
+        });
+        Some(
+            v_flex()
+                .id("browser-scripts")
+                .flex_none()
+                .w_full()
+                .max_h(rems(14.))
+                .overflow_y_scroll()
+                .border_b_1()
+                .border_color(border_variant)
+                .bg(background)
+                .children(rows)
+                .children(empty)
+                .child(Self::render_new_script(tray.name.clone(), cx))
+                .children(error)
+                .into_any_element(),
+        )
+    }
+
+    /// A script's row in the tray: its name and scope, Run on the tab's page, and Edit.
+    fn render_script_row(
+        index: usize,
+        script: &Script,
+        attached: bool,
+        cx: &Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let (run, path) = (script.clone(), script.path.clone());
+        h_flex()
+            .w_full()
+            .h_9()
+            .gap_2()
+            .px_2()
+            .child(Label::new(script.name.clone()).size(LabelSize::Small))
+            .child(
+                Label::new(format!("for {}", script.scope.label()))
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
+            )
+            .child(div().flex_1())
+            .child(
+                Button::new(("browser-script-run", index), "Run")
+                    .start_icon(Icon::new(IconName::PlayFilled).size(IconSize::XSmall))
+                    .disabled(!attached)
+                    .tooltip(Tooltip::text("Run it on this tab's page"))
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.run_script(run.clone(), window, cx);
+                    })),
+            )
+            .child(
+                IconButton::new(("browser-script-edit", index), IconName::FileCode)
+                    .icon_size(IconSize::Small)
+                    .tooltip(Tooltip::text("Edit"))
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.edit_script(path.clone(), window, cx);
+                    })),
+            )
+    }
+
+    /// The tray's last row: the field that names a new script, and where to keep it.
+    fn render_new_script(field: Entity<Editor>, cx: &Context<Self>) -> impl IntoElement + use<> {
+        let colors = cx.theme().colors();
+        h_flex()
+            .w_full()
+            .h_9()
+            .gap_2()
+            .px_2()
+            .child(
+                div()
+                    .key_context("MarleyScriptName")
+                    .on_action(cx.listener(Self::new_project_script))
+                    .flex_1()
+                    .min_w_0()
+                    .px_2()
+                    .py_0p5()
+                    .rounded_md()
+                    .border_1()
+                    .border_color(colors.border)
+                    .bg(colors.editor_background)
+                    .child(field),
+            )
+            .child(
+                Button::new("browser-script-new-project", "For This Project").on_click(
+                    cx.listener(|this, _, window, cx| {
+                        this.create_script(Scope::Project, window, cx);
+                    }),
+                ),
+            )
+            .child(
+                Button::new("browser-script-new-global", "For All Projects").on_click(cx.listener(
+                    |this, _, window, cx| {
+                        this.create_script(Scope::Global, window, cx);
+                    },
+                )),
+            )
+    }
+
     fn render_tray(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let target = self.target.clone()?;
         let (picks, error) = {
@@ -5883,7 +6197,7 @@ impl Render for BrowserView {
             .and_then(|(frame, metadata)| Placement::new(frame, metadata, window));
         let annotations = self.render_annotations(placement, cx);
         let annotating = !matches!(self.annotate_mode, AnnotateMode::Off);
-        let tray = self.render_tray(window, cx);
+        let trays = [self.render_scripts_tray(cx), self.render_tray(window, cx)];
         let toolbar = self.render_toolbar(cx);
         let comparison = self.render_comparison(cx);
         let dialog = dialog.map(|dialog| self.render_dialog(&dialog, cx));
@@ -5898,12 +6212,13 @@ impl Render for BrowserView {
             .on_action(cx.listener(Self::pick_element))
             .on_action(cx.listener(Self::annotate))
             .on_action(cx.listener(Self::record_this))
+            .on_action(cx.listener(Self::toggle_scripts))
             .on_action(cx.listener(Self::keep_annotation))
             .on_action(cx.listener(Self::drop_annotation))
             .size_full()
             .bg(cx.theme().colors().editor_background)
             .child(toolbar)
-            .children(tray)
+            .children(trays.into_iter().flatten())
             .child(
                 div()
                     .relative()

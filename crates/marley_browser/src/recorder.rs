@@ -325,6 +325,15 @@ pub enum Entry {
         /// As the Agent chip said it.
         did: String,
     },
+    /// A Playwright script the user ran on the page (#523): where it started, and where it
+    /// ended with its exit code.
+    Script {
+        /// The script's name, its file's without `.mjs`.
+        name: String,
+        /// How the run ended; none where it started.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        exit_code: Option<i32>,
+    },
     /// A frame of the page.
     Frame {
         /// Its number, from 1, and its file's: `frames/0001.jpg`.

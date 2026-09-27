@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Playwright scripts kept in Marley** (#523, 2026-09-27). A Browser tab's toolbar has a
+  Scripts button, which opens a tray of Playwright scripts: the ones kept for the tab's project
+  and the ones kept for every project, in Marley's config folder, so they never go into a
+  repository. A name typed there makes a new script from Marley's template and opens it. Run
+  runs a script on the tab's page, in a terminal beside the tab, while the tab stays in front: the
+  script's default export gets the tab's page, its context and the browser, reached over the
+  tab's own Chromium. The first run installs Marley's own Playwright (`playwright-core` 1.63.0)
+  into its data folder, in that run's block. When a script fails, Marley saves the tab's last
+  minute as a recording, with the run's start and end in its timeline, and names it in a toast.
+  `marley: playwright scripts` opens the tray too.
 - **Clear a project's browser data** (#581, 2026-09-27). The rail's project menu has Clear
   Browser Data…, and the command palette `marley: clear project browser data`. After asking,
   it closes the project's Browser tabs, closes its Chromium and deletes its profile, so every

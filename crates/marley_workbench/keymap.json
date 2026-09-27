@@ -68,6 +68,13 @@
     }
   },
   {
+    // The Playwright scripts tray's name field: Enter keeps a new script for this project.
+    "context": "MarleyScriptName > Editor",
+    "bindings": {
+      "enter": "marley::NewPlaywrightScript"
+    }
+  },
+  {
     // An annotation's note: Enter keeps the annotation, Escape drops it.
     "context": "MarleyAnnotationNote > Editor",
     "bindings": {

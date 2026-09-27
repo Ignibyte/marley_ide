@@ -808,6 +808,27 @@ alike.
   hub keeps in `clears` while it runs: `start` waits for the project's before anything else, and
   a clear asked while one runs gets that one. A toast in the workspace reports it, or the error
   text.
+- **Playwright scripts (#523, `src/playwright_scripts.rs`).** The toolbar's Scripts button,
+  between the address bar and Pick so the buttons after it keep their places, or
+  `marley::PlaywrightScripts`, toggles the tab's `ScriptsTray` (an `Option`, open while `Some`),
+  drawn above the picks tray: a row per script (`library_in`: the project's `.mjs` files under
+  `<config>/playwright/projects/<key>/`, then every project's under `…/global/`, each sorted), each
+  with its scope, Run (disabled while the tab has no page) and Edit, then a name field with For
+  This Project and For All Projects (`create_in`, from the embedded `template.mjs`, refusing a
+  name that exists; Enter is `marley::NewPlaywrightScript`); a made script opens in an editor tab.
+  Run focuses the tab, so its pane is active, and hands `playwright_scripts::run` a `RunTarget`:
+  off the main thread it reads the endpoint of the tab's project's Chromium, writes the embedded
+  runner and its `package.json` into `<data>/playwright`, and checks for `playwright-core`
+  there; a second first run is refused while one installs (the `Installing` global). It opens a
+  terminal with `add_center_terminal` and moves it from the tab's pane into the pane on its right
+  (`move_active_item`), or a new split (`split_and_move`); after the startup handshake it types
+  one command, `[npm install --prefix … --no-audit --no-fund &&] MARLEY_CDP_URL=… MARLEY_TAB=…
+  node run.mjs <script>` (each part quoted by `ShellKind::Posix`), and puts
+  `Entry::Script { name, exit_code: None }` in the page's minute. `block_end` polls the terminal
+  for the block whose command is that line (a new terminal's startup opens a block first) until
+  it finishes: a code of 0 ends the run; another saves the page's minute through
+  `BrowserHub::record` with the `Script` entry's end, and a toast names the recording; a block
+  with no code says so.
 - **Tabs as pages (#493).** The hub emits `PageOpened` once a page is attached and
   `PageClosed` when it goes, each naming the page's target id, and a subscription made with the
   hub's global answers them. A tab that shows the page already keeps it. A page a start found

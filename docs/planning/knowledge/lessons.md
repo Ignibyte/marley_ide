@@ -3203,3 +3203,39 @@ so the window has no focused element. A scenario clicks into a pane before its n
 #581's does. Work the answer starts that updates panes in their windows (closing tabs) runs from
 the app, not inside an `AsyncWindowContext` update of the same window, which is out of the app's
 map during its own update (L-claude-515).
+
+## L-claude-523-chromium-sends-no-event-for-a-scripts-title-001
+*category: browser · topic: page titles · from: pipeline 523*
+
+Chromium sends no CDP event when a script sets `document.title`: with discovery on, a scratch
+Chromium 152 reported the first title in `Target.targetInfoChanged` and nothing when a timer
+changed it. Marley reads a title at DOMContentLoaded, at load and after a move within the
+document, so a title set later is seen only when one of those reads comes after it. The debug
+build usually read late enough; the release build, faster, read before the login site's
+IndexedDB read set its title, and `just install`'s golden set failed #507's and #581's scenarios.
+A scenario that shows a page's state through its title sets the title and then moves within its
+document (`history.replaceState`), as the fixture's login site does; the product's gap is #582.
+
+## L-claude-523-a-terminal-beside-a-tab-through-zeds-public-calls-001
+*category: gpui · topic: workspace panes · from: pipeline 523*
+
+`TerminalPanel::add_center_terminal` puts the terminal in the workspace's active pane, and a pane
+becomes active only when its focus event is handled (`set_active_pane` is private), so a split
+made just before does not receive it. To open a terminal beside a tab without copying Zed's body
+into a Marley crate: focus the tab (its pane is active by the time the terminal is made), call
+`add_center_terminal`, then move the terminal from the tab's pane with `move_active_item` into
+the pane `find_pane_in_direction(Right)` finds, or with `split_and_move` when there is none.
+Later runs then reuse the right-hand pane.
+
+## L-claude-523-an-npm-install-in-a-scenario-uses-a-loopback-registry-001
+*category: testing · topic: e2e scenarios · from: pipeline 523*
+
+A scenario runs a real `npm install` with no network through a loopback registry. It packs a
+copy of the package already on the box (`npm pack <dir> --pack-destination`), writes the
+package's document (`name`, `dist-tags`, `versions.<v>` with `dist.tarball`,
+`dist.integrity` as `sha512-<base64>` and `dist.shasum`) as `<name>/index.html` under the
+fixture's `serve_site`, and points the terminal at it (`npm_config_registry`, `npm_config_cache`
+in the scratch HOME, `npm_config_update_notifier=false`, which also keeps `npm` from asking the
+public registry for its own version). npm then asks for `/<name>`, follows the redirect to
+`/<name>/` and fetches the tarball. #523's scenario installs `playwright-core` 1.63.0 this way
+in under 200 ms.

@@ -2448,3 +2448,22 @@ clear, so a tab opened meanwhile gets the new profile. Rejected:
   writes again);
 - moving the profile aside as an undo, which keeps the logins the user asked to be rid of;
 - clearing without asking.
+
+## AD-claude-523-saved-playwright-scripts-run-in-a-terminal-beside-the-tab-001
+*decided at: 2026-09-27 · status: shipped · builds on: AD-claude-507-a-chromium-and-a-profile-per-project-001*
+
+Marley keeps Playwright scripts in its config folder, `playwright/projects/<key>/` per project
+(#507's key, so a project's worktrees share them) and `playwright/global/`, never in a project,
+and runs one on a Browser tab only when the user asks (AD-claude-492). A run is one command
+typed into a terminal beside the tab: Marley's runner (`run.mjs`, embedded and written into its
+data folder) attaches Marley's own `playwright-core`, pinned to 1.63.0 in `<data>/playwright` and
+installed by the first run in that run's block, to the tab's project's Chromium with
+`connectOverCDP`, finds the tab's page by its target id, hands the script `{ page, context,
+browser }`, and at the end only disconnects. The block shows the command, its output and its
+exit code; a non-zero code saves the tab's last minute as a recording with the run's start and
+end in its timeline, and a toast names it. Rejected:
+- Zed's tasks, whose terminals have no Marley shell integration and so no blocks, and whose
+  per-project file lives in the repository;
+- a project's own Playwright, which a script can still start through `MARLEY_CDP_URL` and
+  `MARLEY_TAB`;
+- an MCP tool that runs scripts for agents (AD-claude-492).

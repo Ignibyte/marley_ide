@@ -2399,3 +2399,10 @@ unit to stop, and only then runs `systemctl --user stop` for what is left:
 `browser::stop_chromium` does this. A scenario that stops a unit to test what a profile keeps
 closes it the same way (`browser_close` in the fixture), or signs in more than 30 seconds before
 the stop.
+
+## PR-claude-find-a-typed-commands-block-by-its-command-001
+*severity: medium · prevents: F-claude-523-a-runs-watcher-read-the-startups-block-001*
+
+Code that types a command into a terminal and waits for it to finish finds the command's block
+by its command (`AnchoredBlock::command`, compared with the line typed), never by its position
+among the terminal's blocks: a new terminal's startup opens a block of its own first.

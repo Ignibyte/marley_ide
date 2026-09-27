@@ -10,7 +10,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-523](open/TICKET-523-saved-playwright-scripts.md) | feature | prong 3 · Playwright scripts saved in Marley and run on a Browser tab |
+| [TICKET-582](open/TICKET-582-browser-tab-title-follows-the-page.md) | bug | prong 3 · a Browser tab's title follows a title its page's script sets after the load; Chromium sends no event for it |
 | [TICKET-524](open/TICKET-524-trusted-outside-browser-access.md) | feature | prong 3 with prong 2 · trusted outside clients drive Marley's browser, slice 1 of 3 |
 | [TICKET-539](open/TICKET-539-headless-chrome-user-agent.md) | chore | prong 3 · Marley's Chromium introduces itself as Chrome, not HeadlessChrome |
 | [TICKET-521](open/TICKET-521-ports-per-project.md) | feature | prong 3 · listening ports per project in the rail, with Open, Copy and Stop |
