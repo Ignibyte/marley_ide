@@ -7382,6 +7382,13 @@ struct LastTerminal {
 
 impl Global for LastTerminal {}
 
+/// The terminal the focus entered last, while it is open: the one the System One check asks
+/// about (#565).
+pub(crate) fn last_terminal(cx: &App) -> Option<Entity<TerminalView>> {
+    cx.try_global::<LastTerminal>()
+        .and_then(|last| last.view.upgrade())
+}
+
 /// Keeps [`LastTerminal`]: each terminal view, center or docked, marks itself when the focus
 /// enters it.
 fn track_terminals(cx: &App) {

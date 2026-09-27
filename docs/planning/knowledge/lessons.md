@@ -3362,3 +3362,40 @@ Marley's reads (`rchar` in `/proc/<pid>/io`) cannot tell them apart. On the dev 
 both tables is about 66 KB. A scenario that measures one loop runs before any terminal prints a
 URL. Per-thread counts (`/proc/<pid>/task/*/io` with each thread's `comm`) show which threads
 read, which is how #521's Test phase found #503's share.
+
+## L-claude-565-jevs-answer-shape-as-recorded-001
+*category: code · topic: the System One API · from: pipeline 565*
+
+Read from Chad's own recorded Jev runs (922 answers, 574 from `jev-1.13.0`) and his working
+client, since no key was at hand for a live request:
+- a noul answers `{type: "noul", noul}` alone: no `confidence`, no `probabilities`;
+- a choice answers `choice`, `confidence` and `probabilities` by option;
+- a score answers a fractional `score` (5,516 of 5,740 were fractional: the expected level, not a
+  level), `confidence`, `probabilities` keyed by the level as a string, and a `legend` that maps
+  each level to `{summary, signals}`, where one client's types say a string;
+- a score's question sends its levels as `criteria`, an array; a noul's `criteria` is `{true,
+  false}`, a choice's a map of option to meaning;
+- the working client retries 429, 503 and 529 and cuts an error body to 300 characters.
+So a reader keeps `legend` as JSON, reads a score's number as fractional, and ignores fields it
+does not know.
+
+## L-claude-565-a-poll-in-setup-dies-under-set-e-001
+*category: e2e · topic: writing a scenario's setup · from: pipeline 565*
+
+`script/e2e.sh` runs `setup` in its own shell under `set -e` and `pipefail`, so `port=$(grep -oE
+'port [0-9]+' out | cut …)` in a wait loop ends the whole run at the first pass, before the
+server has printed its port: `grep` finds nothing, exits 1, and the assignment fails. The fixture's
+`serve_site` uses the same pipeline and survives only because it runs inside `$(serve_site …)`,
+where `set -e` does not reach. In a loop that waits for a line, use a command that succeeds with
+no match, such as `sed -n 's/^port \([0-9]*\)$/\1/p'`.
+
+## L-claude-565-a-scenario-reaches-the-users-own-keyring-001
+*category: e2e · topic: what the headless sway shares with the user's session · from: pipeline 565*
+
+The headless sway `script/e2e.sh` starts keeps the user's session bus, so a scenario's Marley
+reaches the user's own Secret Service (gnome-keyring on the dev box). gpui's `write_credentials`,
+`read_credentials` and `delete_credentials` would write and read the user's real items, and an
+`unlock()` can prompt on the user's screen. A scenario never presses a control that writes or
+reads the keyring; it passes a secret through the environment, as #565's does with
+`MARLEY_SYSTEM_ONE_KEY`, and the code reads the keyring only when a feature is on and nothing
+else holds the key.

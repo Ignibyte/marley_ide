@@ -12,8 +12,9 @@ use std::sync::LazyLock;
 
 use regex::{Captures, Regex};
 
-/// What stands in for a hidden value.
-fn marker(kind: &str) -> String {
+/// What stands in for a hidden value of `kind`, such as `[redacted: secret]`.
+#[must_use]
+pub fn marker(kind: &str) -> String {
     format!("[redacted: {kind}]")
 }
 

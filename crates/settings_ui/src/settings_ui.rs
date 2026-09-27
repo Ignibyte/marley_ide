@@ -559,6 +559,9 @@ fn init_renderers(cx: &mut App) {
         .add_basic_renderer::<settings::MarleyLayout>(render_dropdown)
         // Marley: the terminal links' dropdown (#503).
         .add_basic_renderer::<settings::MarleyTerminalLinks>(render_dropdown)
+        // Marley: the System One section's provider and mode dropdowns (#565).
+        .add_basic_renderer::<settings::SystemOneProvider>(render_dropdown)
+        .add_basic_renderer::<settings::SystemOneMode>(render_dropdown)
         .add_basic_renderer::<settings::RestoreOnStartupBehavior>(render_dropdown)
         .add_basic_renderer::<settings::OnNewWindow>(render_dropdown)
         .add_basic_renderer::<settings::BottomDockLayout>(render_dropdown)

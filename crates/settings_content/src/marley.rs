@@ -1,5 +1,7 @@
 // Marley: the `marley` settings block. The content types live here because the settings derive
 // macros only resolve inside this crate; `crates/marley_workbench` reads them.
+use std::collections::BTreeMap;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use settings_macros::{MergeFrom, with_fallible_options};
@@ -44,6 +46,9 @@ pub struct MarleySettingsContent {
     ///
     /// Default: "local_in_browser_tab"
     pub terminal_links: Option<MarleyTerminalLinks>,
+    /// The System One layer (#565): typed questions to a model about states Marley builds from
+    /// what it knows. Off until it is turned on.
+    pub system_one: Option<SystemOneSettingsContent>,
 }
 
 /// The ntfy server and topic agent events are pushed to.
@@ -56,6 +61,103 @@ pub struct MarleyPushSettingsContent {
     pub topic: Option<String>,
     /// A file holding an ntfy access token, readable by its owner alone.
     pub token_file: Option<String>,
+}
+
+/// The System One layer's settings (#565). The key is never a setting: Marley reads it from
+/// `MARLEY_SYSTEM_ONE_KEY`, else from the system keyring.
+#[with_fallible_options]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema, MergeFrom)]
+pub struct SystemOneSettingsContent {
+    /// Whether Marley asks at all. Off, it makes no request, reads no key and writes no file.
+    ///
+    /// Default: false
+    pub enabled: Option<bool>,
+    /// Who answers.
+    ///
+    /// Default: "typesafe"
+    pub provider: Option<SystemOneProvider>,
+    /// The `compatible` provider's URL: `https`, or `http` on this machine.
+    pub endpoint: Option<String>,
+    /// The model asked, pinned to a version.
+    ///
+    /// Default: "jev-1.13.0"
+    pub model: Option<String>,
+    /// Folders whose projects may send their state: facts and text.
+    ///
+    /// Default: []
+    pub projects: Option<Vec<String>>,
+    /// Folders whose projects send only the facts Marley computes, and none of their text.
+    ///
+    /// Default: []
+    pub metadata_only_projects: Option<Vec<String>>,
+    /// The most the layer spends in a day, in cents; once it is spent, calls wait for the next day.
+    ///
+    /// Default: 50
+    pub daily_budget_cents: Option<u64>,
+    /// The `compatible` provider's price, in cents per million input tokens.
+    ///
+    /// Default: 0
+    pub price_cents_per_million_tokens: Option<f32>,
+    /// Each use's mode, by the use's name.
+    ///
+    /// Default: {"check": "act"}
+    pub uses: Option<BTreeMap<String, SystemOneMode>>,
+}
+
+/// Who answers the System One layer's questions (#565).
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum SystemOneProvider {
+    /// TypeSafe's API.
+    #[default]
+    Typesafe,
+    /// Another server that speaks the same request, at `endpoint`.
+    Compatible,
+    /// Each use's own rules, with no request.
+    Rules,
+    /// Answers recorded in `system_one/replay.jsonl` under Marley's data directory.
+    Replay,
+}
+
+/// How a use of the System One layer acts on what it reads (#565).
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum SystemOneMode {
+    /// The use asks nothing.
+    #[default]
+    Off,
+    /// The use asks and logs; what it read shows only in the Decisions view.
+    Shadow,
+    /// The use shows what it read, for you to confirm.
+    Suggest,
+    /// The use acts on what it read, as far as its own rules allow.
+    Act,
 }
 
 /// Where a URL clicked in a terminal opens (#503).

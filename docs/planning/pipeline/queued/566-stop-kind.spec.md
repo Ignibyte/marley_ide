@@ -5,7 +5,7 @@ status: QUEUED — Phase 1 Plan drafted; ready to promote to active
 title: "What a stopped turn needs"
 type: feature
 slice: prong 2 (attention); the Jev note's use 1, on #519's seats and #565's layer
-references: [docs/planning/design-notes/jev-system-one-2026-09-25.md, docs/planning/pipeline/queued/565-system-one-layer.spec.md, docs/planning/pipeline/completed/519-claude-code-events-in-the-rail.spec.md, docs/planning/pipeline/queued/538-notifications-with-content.spec.md, docs/planning/pipeline/queued/542-rail-attention-order.spec.md]
+references: [docs/planning/design-notes/jev-system-one-2026-09-25.md, docs/planning/pipeline/completed/565-system-one-layer.spec.md, docs/planning/pipeline/completed/519-claude-code-events-in-the-rail.spec.md, docs/planning/pipeline/queued/538-notifications-with-content.spec.md, docs/planning/pipeline/queued/542-rail-attention-order.spec.md]
 ---
 
 ## Title

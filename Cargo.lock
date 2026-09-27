@@ -10844,6 +10844,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "marley_system_one"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "marley_terminal"
 version = "0.1.0"
 dependencies = [
@@ -10871,6 +10880,7 @@ dependencies = [
  "collections",
  "db",
  "editor",
+ "env_var",
  "fs",
  "futures 0.3.34",
  "fuzzy",
@@ -10884,6 +10894,7 @@ dependencies = [
  "marley_fleet",
  "marley_mcp",
  "marley_rail",
+ "marley_system_one",
  "marley_terminal",
  "menu",
  "paths",

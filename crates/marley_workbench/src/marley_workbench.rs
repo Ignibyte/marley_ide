@@ -30,6 +30,7 @@ pub mod browser_tools;
 pub mod claude_plugin;
 pub mod clients;
 pub mod close_guard;
+pub mod decisions;
 pub mod links;
 #[cfg(test)]
 pub mod marley_workbench_tests;
@@ -44,6 +45,7 @@ pub mod routing;
 pub mod send_selection;
 #[cfg(unix)]
 pub mod single_instance;
+pub mod system_one;
 pub mod terminal_ids;
 pub mod voice;
 
@@ -192,6 +194,14 @@ actions!(
         /// terminal of this window; with several, a picker asks which.
         #[derive(Eq)]
         SendSelectionToAgent,
+        /// Asks the System One layer whether the last command of the terminal you used last
+        /// failed, and shows what came back.
+        #[derive(Eq)]
+        SystemOneCheck,
+        /// Opens Decisions: the System One layer's calls today, the day's spend and where the
+        /// key comes from.
+        #[derive(Eq)]
+        OpenDecisions,
     ]
 );
 
@@ -218,6 +228,8 @@ pub struct MarleySettings {
     pub undo_close_seconds: u64,
     /// Where a URL Ctrl+clicked in a terminal opens (#503).
     pub terminal_links: MarleyTerminalLinks,
+    /// The System One layer (#565).
+    pub system_one: system_one::SystemOneSettings,
 }
 
 /// The ntfy server agent events are pushed to (#535), as the user set it; [`push`] checks it.
@@ -272,6 +284,9 @@ impl Settings for MarleySettings {
             terminal_links: marley
                 .and_then(|marley| marley.terminal_links)
                 .unwrap_or_default(),
+            system_one: system_one::SystemOneSettings::from_content(
+                marley.and_then(|marley| marley.system_one.as_ref()),
+            ),
         }
     }
 }
@@ -359,6 +374,7 @@ pub fn init(cx: &mut App) {
     browser::init(cx);
     clients::init(cx);
     links::init(cx);
+    system_one::init(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action_renderer(|div, _, _, cx| {
             div.capture_action(cx.listener(layout_preset::<UseClassicLayout>))

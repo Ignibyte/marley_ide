@@ -5,7 +5,7 @@ status: QUEUED — Phase 1 Plan drafted; ready to promote to active
 title: "English at the prompt, second stage: a System One reading for the lines the rules leave open"
 type: feature
 slice: prong 1 T3 (after #484 and #557, the local rules); the System One layer's typed-line use, on #565
-references: [docs/planning/design-notes/warp-blocks-and-natural-language-2026-09-25.md, docs/planning/design-notes/jev-system-one-2026-09-25.md, docs/planning/pipeline/queued/557-inline-assist-and-english-at-the-prompt.spec.md, docs/planning/pipeline/queued/565-system-one-layer.spec.md, docs/planning/pipeline/completed/484-autosuggestions.spec.md, docs/planning/pipeline/completed/516-secret-redaction-for-agents.spec.md, docs/warp_architecture/subsystems/04-agent-ai-mcp.md, docs/warp_architecture/crates/input_classifier.md, docs/warp_architecture/crates/natural_language_detection.md]
+references: [docs/planning/design-notes/warp-blocks-and-natural-language-2026-09-25.md, docs/planning/design-notes/jev-system-one-2026-09-25.md, docs/planning/pipeline/queued/557-inline-assist-and-english-at-the-prompt.spec.md, docs/planning/pipeline/completed/565-system-one-layer.spec.md, docs/planning/pipeline/completed/484-autosuggestions.spec.md, docs/planning/pipeline/completed/516-secret-redaction-for-agents.spec.md, docs/warp_architecture/subsystems/04-agent-ai-mcp.md, docs/warp_architecture/crates/input_classifier.md, docs/warp_architecture/crates/natural_language_detection.md]
 ---
 
 ## Title

@@ -1,14 +1,15 @@
 # TICKET-565 — The System One layer: typed decisions, off by default
 
 - **Ticket:** LOCAL #565 (feature, prong 2; the Jev note's use 0, the layer #566, #567, #568 and #548 build on)
-- **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/565-system-one-layer.spec.md
+- **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
+- **Pipeline doc:** ../../pipeline/completed/565-system-one-layer.spec.md
 - **Source ticket:** Chad, 2026-09-26, approving the System One layer and all seven ranked uses of
   `docs/planning/design-notes/jev-system-one-2026-09-25.md`, with three rules: "local first and
   then jev second"; "we need probably every aspect of this configurable and turned off / on where
   the system will use or wont use it. Otherwise this becomes a jev required system"; TypeSafe
   direct first, and data leaves the box only for projects on an allow list
-- **Status:** open
+- **Status:** closed
+- **As built:** six files in `marley_system_one`, not eight; the mode and provider enums only in `settings_content`; dynamic question options wait for #567, their first user; the palette names the view `marley: open decisions`. The live request with Chad's key did not run (no key at hand); his recorded Jev answers settled the shape.
 
 ## Summary
 A `marley_system_one` crate asks a System One model (Jev, through TypeSafe's API, first) typed

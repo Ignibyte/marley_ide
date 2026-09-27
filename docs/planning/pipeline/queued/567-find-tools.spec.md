@@ -5,7 +5,7 @@ status: QUEUED — Phase 1 Plan drafted; ready to promote to active
 title: "browser_find and terminal_find for agents"
 type: feature
 slice: prong 2 (the MCP server's tools) with prong 3 (the Browser tab); the Jev note's use 2, on #565's layer
-references: [docs/planning/design-notes/jev-system-one-2026-09-25.md, docs/planning/pipeline/queued/565-system-one-layer.spec.md, docs/planning/pipeline/completed/492-browser-tools-for-agents.spec.md, docs/planning/pipeline/completed/491-marley-mcp-in-the-app.spec.md, docs/planning/pipeline/completed/516-secret-redaction-for-agents.spec.md]
+references: [docs/planning/design-notes/jev-system-one-2026-09-25.md, docs/planning/pipeline/completed/565-system-one-layer.spec.md, docs/planning/pipeline/completed/492-browser-tools-for-agents.spec.md, docs/planning/pipeline/completed/491-marley-mcp-in-the-app.spec.md, docs/planning/pipeline/completed/516-secret-redaction-for-agents.spec.md]
 ---
 
 ## Title

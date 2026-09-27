@@ -2580,3 +2580,26 @@ Rejected:
 - a confirmation before Stop, SIGKILL, or the process group: the button sits on the row it acts
   on, and the row's tooltip names the process;
 - port rows in the rail's cycle actions and the switcher: a port is not a place to switch to.
+
+## AD-claude-565-the-system-one-layer-is-a-pure-core-behind-an-adapter-off-by-default-001
+*decided at: 2026-09-27 · status: shipped · builds on: AD-claude-516-redact-at-the-tool-boundary-on-by-default-001*
+
+Marley asks a System One model typed questions through `marley_system_one`, a pure crate with the
+question sets, the masked state, the `/v1/systemone` request and answer, the readings, the policy
+and the files. `marley_workbench::system_one` is its adapter: it owns the network, the key, the
+settings and the log, and the Decisions view shows each call. The layer ships off, and off it
+makes no request, reads no key and writes no file. A use hands it its own verdict, which the
+`rules` provider answers with, and a reading may only display, rank, route or refuse. What leaves
+the box is decided in code: only listed project folders send, a metadata-only project sends facts
+alone, and every text value is masked with #516's rules and the user's patterns, whatever agents'
+redaction says, plus the key. The key comes from `MARLEY_SYSTEM_ONE_KEY`, else gpui's keychain at
+the provider's URL, and is read only while the layer is on. A daily budget in cents, a breaker, a
+rate cap and a repeat check stand in front of each request. Rejected:
+- a TypeSafe SDK (`s1-rs` and the others): they bring a runtime into a gpui app, as `marley_mcp`
+  found; `http_client` carries the request;
+- the key in settings, or Zed's dev-channel credentials file, which keeps plain JSON;
+- one live request with Chad's key before code: no key was at hand and key files are not read;
+  Chad's recorded answers and his client settled the shape, and the check makes the first real
+  call;
+- the pure crate keeping its own mode and provider enums: they live once, in `settings_content`,
+  where the dropdowns' derives resolve.

@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-565](open/TICKET-565-system-one-layer.md) | feature | prong 2 · the System One layer: TypeSafe, compatible, rules and replay providers; compiled-in question sets, masked state, the call log and replay, modes and switches, the Decisions view; off by default |
 | [TICKET-566](open/TICKET-566-stop-kind.md) | feature | prong 2 · what a stopped Claude Code turn needs (done · checked, done · claimed, asks you, blocked, still going) as the row's word from #519's seats; code decides the clear cases, the model the rest; on #565 |
 | [TICKET-567](open/TICKET-567-find-tools.md) | feature | prong 2 with prong 3 · browser_find and terminal_find: a match by words first, the model ranks what the words leave open, over tagged refs and lines; not listed while off; on #565 |
 | [TICKET-569](open/TICKET-569-stalled-or-looping-agents.md) | feature | prong 2 · a flag on a working agent's row when it loops or stalls, from local facts first (repeats, the process tree's CPU, Marley's own waits) and a System One kind second; never a stop; on #565 |

@@ -1,0 +1,64 @@
+# `marley_system_one`
+
+The System One layer's pure core (#565): typed questions about a state Marley builds, the
+`/v1/systemone` request and its answer, the reading a use may act on, the policy that decides
+whether a call goes out, and the files that keep each call. It has no gpui, no HTTP and no clock:
+the workbench's adapter (`marley_workbench::system_one`) sends the request, holds the key, keeps
+the time and names the folder. MIT OR Apache-2.0, with rustal's lint table; its dependencies are
+`serde`, `serde_json` and `sha2`.
+
+## What it holds
+
+- **The root.** `QuestionSet { id, model, questions }` is compiled in, named and versioned
+  (`check/1`): a change to a question makes a new version, so a logged call always names what it
+  asked. `Question` is a `Noul` (its key, what is asked, what yes and no mean), a `Choice` (at most
+  255 options, one of them `cannot_tell` wherever the state may not settle it) or a `Score` (2 to
+  10 levels). `UseSpec { name, set, deadline }` is a use. `DEFAULT_MODEL` is `jev-1.13.0`, and
+  `CHECK_SET` and `CHECK` are the check's: one noul, `command_failed`, with a 2 s deadline.
+- **`state`.** `StateBuilder::new(detail, mask)` takes facts, kept at every `Detail`, and text,
+  left out at `Detail::Facts`, each value through the host's mask. A text value is masked whole
+  and then cut to 300 characters (`cut`), since a cut can split a secret the mask would find.
+  `build` renders `label: value` lines with their SHA-256, or answers `None` for an empty state,
+  which is refused, never asked.
+- **`request`.** `build(model, state, set)` renders `{model, state, questions}`: a noul's
+  `criteria` as `{true, false}`, a choice's as a map of option to meaning, a score's as an array of
+  its levels. `parse(body)` reads the answer as Jev gives it, the shape Chad's own recorded runs
+  and working client showed: a noul's `noul`; a choice's `choice`, `confidence` and
+  `probabilities`; a score's fractional `score` (the expected level), `confidence`, `probabilities`
+  by level and `legend`, kept as JSON; then `model` and `usage.input_tokens`. Unknown fields are
+  ignored, and an answer of an unknown kind is listed in `unreadable`. `error_excerpt` cuts an
+  error body to 300 characters, since a body can echo the request.
+- **`reading`.** `read(set, answers)` reads each question against its threshold. A choice or a
+  score counts at a confidence of 0.5 or more, and never for `cannot_tell` or `none`; a noul
+  between 0.35 and 0.65, the band widened by 1e-9, is no signal. `Reading` is `Off`, `Rules`,
+  `Model`, `Refused` or `Unavailable`, never an error, and `summary` is its line: `command failed:
+  yes (0.92)`, `Refused: project not listed`.
+- **`policy`.** `may_send(folders, local, projects, metadata_only)` decides what a project may
+  send. A remote project sends nothing; a folder on the metadata-only list lets a project send
+  facts alone, and one on the projects list facts and text; the metadata-only list wins. `cost`
+  and `budget` count billionths of a cent, since a 1,200-token call at Jev's 4.2 cents per million
+  costs about 0.005 cents. `Gate::admit` holds a call back past the day's budget, while the breaker
+  is open (two minutes after five failures in a row), past 1,000 calls a minute, and for a
+  subject's state already answered. `answered` and `failed` tell the gate what came of a call.
+- **`files`.** A `CallRow` holds a call's id, time, use, set, model, provider, project, mode and
+  verdict, the masked state and its hash, the questions, the answers, the reading, whether it
+  failed, the thresholds, the latency, the tokens, the cost and any error. An `OutcomeRow` is a
+  later outcome naming a call, and both are `Row` lines. `append_in(dir, day, row)` appends to
+  `calls-<day>.jsonl`, the file readable by its owner alone, and `read_day_in` reads a day back.
+  `Replay::load_in(dir)` reads `replay.jsonl`, and `answer(set, state)` gives the first row whose
+  set, `match` text and `state_hash` fit, once unless the row repeats.
+
+## Why a crate of its own
+
+Plan D8, the house pattern: a pure core the uses (#566 to #571) share, apart from the network, the
+keychain and the settings, which the workbench owns.
+
+## Consumers
+
+`marley_workbench::system_one` (the adapter and the check) and `marley_workbench::decisions` (the
+view).
+
+## Tests
+
+None written (§7). `script/e2e/565-system-one-layer.sh` drives the crate through the app against a
+fake `/v1/systemone`.

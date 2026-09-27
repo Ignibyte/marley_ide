@@ -1682,6 +1682,30 @@
     // any other in the system browser), "all_in_browser_tab" or "system_browser".
     // Shift+Ctrl+click opens it in the other place.
     "terminal_links": "local_in_browser_tab",
+    // The System One layer (#565): typed questions to a model about states Marley builds from
+    // what it knows. Off, it makes no request, reads no key and writes no file. The key is
+    // never a setting: Marley reads MARLEY_SYSTEM_ONE_KEY, else the system keyring.
+    "system_one": {
+      "enabled": false,
+      // "typesafe", "compatible" (another server at `endpoint` that speaks the same request),
+      // "rules" (each use's own rules, no request) or "replay" (answers recorded in
+      // system_one/replay.jsonl under Marley's data directory).
+      "provider": "typesafe",
+      "model": "jev-1.13.0",
+      // Folders whose projects may send their state, and folders whose projects send the facts
+      // Marley computes and none of their text.
+      "projects": [],
+      "metadata_only_projects": [],
+      // The most the layer spends in a day, in cents.
+      "daily_budget_cents": 50,
+      // A "compatible" provider's price, in cents per million input tokens.
+      "price_cents_per_million_tokens": 0,
+      // Each use's mode: "off", "shadow" (ask and log, shown only in Decisions), "suggest" or
+      // "act". The check runs only when you run it.
+      "uses": {
+        "check": "act",
+      },
+    },
   },
   // Control what info is collected by Zed.
   "telemetry": {

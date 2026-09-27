@@ -382,6 +382,16 @@ pub(crate) fn agent_redactor(cx: &App) -> Option<Arc<Redactor>> {
     }
 }
 
+/// The redactor for what leaves the machine for a model (#565): the built-in rules and the
+/// user's patterns, whether or not agents' redaction is on, so the System One layer never sends
+/// unmasked text. Before the settings are read it is the built-in rules alone.
+pub(crate) fn model_redactor(cx: &App) -> Arc<Redactor> {
+    cx.try_global::<AgentRedaction>().map_or_else(
+        || Arc::new(Redactor::new(&[]).0),
+        |redaction| Arc::clone(&redaction.redactor),
+    )
+}
+
 /// `text` as an agent may read it.
 fn for_agents(text: &str, redactor: Option<&Redactor>) -> Redacted {
     redactor.map_or_else(

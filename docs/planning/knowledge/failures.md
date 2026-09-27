@@ -2412,3 +2412,15 @@ three seconds, for rows no one saw. The scenario's first two runs could not show
 neither closed the rail. Fixed before the commit: the rail watches while it is the window's sidebar
 and open, from the observer it already puts on its `MultiWorkspace`, and unwatches when it closes
 or goes. The scenario compares Marley's `rchar` over nine seconds with the rail open and closed.
+
+## F-claude-565-the-check-read-its-workspace-inside-that-workspaces-update-001
+*severity: high · found in: pipeline 565's Code phase (the review of the diff, before any run) · class: a workspace action that reads its own workspace · prevented by: PR-claude-a-callback-zed-calls-mid-update-defers-its-entity-work-001*
+
+`marley: system one check` is registered on the Workspace, so its handler runs inside the
+workspace's update. The first `check_asking` read the terminal's workspace through
+`marley_workspace().upgrade()` and `read(cx)`. For a terminal of that same workspace, which is the
+usual case, gpui would have panicked: "cannot read workspace::Workspace while it is already being
+updated". This is the class of F-claude-441-a-task-provider-read-the-workspace-inside-its-update-001
+again, through a handle a view holds. Fixed before the first run: the check compares the terminal's
+workspace with the one it runs in (`entity_id`) and takes the folders from the `&mut Workspace` it
+has, reading another workspace only when the terminal belongs to one.

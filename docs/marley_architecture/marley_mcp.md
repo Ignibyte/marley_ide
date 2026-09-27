@@ -65,6 +65,8 @@ OR Apache-2.0, with the Marley crates' lint table.
 - `Redactor::new(patterns)` builds the redactor from the user's regular expressions and returns
   the errors of those that did not compile, which it leaves out. `redact(text)` answers a
   `Redacted { text, count }`: each secret replaced by `[redacted: <kind>]`, and how many.
+- `marker(kind)` is that stand-in, public since #565: the System One layer hides its own key
+  with it, since no built-in rule names `MARLEY_SYSTEM_ONE_KEY`.
 - The built-in rules (`BUILT_IN`, compiled once) run in order:
   - private key blocks (PEM and PGP; one with no END line yet is hidden to the end of the text);
   - cookie headers (the label kept and the whole value hidden, up to a quote that closes the

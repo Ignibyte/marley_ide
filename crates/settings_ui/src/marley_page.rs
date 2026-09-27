@@ -1,7 +1,11 @@
 // Marley: the Settings window's Marley page (#515). It holds Marley's own settings, and each
 // Marley feature with a setting adds its section here.
 
-use crate::{SettingField, SettingItem, SettingsPage, SettingsPageItem, USER};
+use std::sync::Arc;
+
+use util::ResultExt as _;
+
+use crate::{ActionLink, SettingField, SettingItem, SettingsPage, SettingsPageItem, USER};
 
 pub(crate) fn marley_page() -> SettingsPage {
     SettingsPage {
@@ -11,6 +15,7 @@ pub(crate) fn marley_page() -> SettingsPage {
             .chain(agents_section())
             .chain(terminal_section())
             .chain(push_section())
+            .chain(system_one_section())
             .chain(privacy_section())
             .collect(),
     }
@@ -243,6 +248,192 @@ fn push_section() -> [SettingsPageItem; 4] {
                 },
             }),
             metadata: None,
+            files: USER,
+        }),
+    ]
+}
+
+// Marley: the System One layer's switch, provider and budget, and a way to its Decisions view
+// (#565). The project lists and each use's mode past the check's live in settings.json.
+fn system_one_section() -> [SettingsPageItem; 8] {
+    [
+        SettingsPageItem::SectionHeader("System One"),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "System One",
+            description: "Ask a System One model typed questions about the states Marley builds from what it knows. Off, Marley makes no request, reads no key and writes no file.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.system_one.enabled"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.system_one.as_ref())
+                        .and_then(|system_one| system_one.enabled.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .system_one
+                        .get_or_insert_default()
+                        .enabled = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Provider",
+            description: "TypeSafe's API; another server that speaks the same request, at the endpoint below; each use's own rules, with no request; or answers recorded in system_one/replay.jsonl under Marley's data directory.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.system_one.provider"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.system_one.as_ref())
+                        .and_then(|system_one| system_one.provider.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .system_one
+                        .get_or_insert_default()
+                        .provider = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Endpoint",
+            description: "The compatible provider's URL: https, or http on this machine.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.system_one.endpoint"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.system_one.as_ref())
+                        .and_then(|system_one| system_one.endpoint.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .system_one
+                        .get_or_insert_default()
+                        .endpoint = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Model",
+            description: "The model asked, pinned to a version, such as jev-1.13.0.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.system_one.model"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.system_one.as_ref())
+                        .and_then(|system_one| system_one.model.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .system_one
+                        .get_or_insert_default()
+                        .model = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Daily Budget",
+            description: "The most the layer spends in a day, in cents. Once it is spent, calls wait for the next day.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.system_one.daily_budget_cents"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.system_one.as_ref())
+                        .and_then(|system_one| system_one.daily_budget_cents.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .system_one
+                        .get_or_insert_default()
+                        .daily_budget_cents = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Check",
+            description: "The mode of the check (marley: system one check), which asks whether the last command of the terminal you used last failed. It runs only when you run it.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.system_one.uses.check"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.system_one.as_ref())
+                        .and_then(|system_one| system_one.uses.as_ref())
+                        .and_then(|uses| uses.get("check"))
+                },
+                write: |settings_content, value, _| {
+                    let uses = settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .system_one
+                        .get_or_insert_default()
+                        .uses
+                        .get_or_insert_default();
+                    let _before = match value {
+                        Some(mode) => uses.insert("check".to_string(), mode),
+                        None => uses.remove("check"),
+                    };
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::ActionLink(ActionLink {
+            title: "Decisions".into(),
+            description: Some("Every call the layer made today with what came back, the day's spend against the budget, and where the key comes from: MARLEY_SYSTEM_ONE_KEY or the keyring, never its value. The project lists (projects, metadata_only_projects) and each use's mode live under marley.system_one in settings.json.".into()),
+            button_text: "Open Decisions".into(),
+            on_click: Arc::new(|settings_window, window, cx| {
+                let Some(original_window) = settings_window.original_window else {
+                    return;
+                };
+                // By its name: this crate depends on no Marley crate.
+                let Some(action) = cx.build_action("marley::OpenDecisions", None).log_err() else {
+                    return;
+                };
+                original_window
+                    .update(cx, |_workspace, original_window, cx| {
+                        original_window.dispatch_action(action, cx);
+                        original_window.activate_window();
+                    })
+                    .log_err();
+                window.remove_window();
+            }),
             files: USER,
         }),
     ]

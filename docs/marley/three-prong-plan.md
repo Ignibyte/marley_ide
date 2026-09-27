@@ -208,6 +208,7 @@ an open decision for the owner, not something Marley forces.
 | C3 | Harness passthrough terminals (D10), observer first, controller claim second | L |
 | C4 | Dispatch: `session.send` and `session.answer` over Marley's MCP, harness messages with delivery states rendered as chips | M |
 | C5 | Work objects: brain tickets, runs and gate evidence as labels on seats and as a native pane; `rw` phase state in the status bar | M |
+| S1 | The System One layer (#565, shipped): typed questions to a model (TypeSafe's Jev first) about states Marley builds, off by default and sent only for listed projects, masked; providers `typesafe`, `compatible`, `rules` and `replay`; the check and Decisions. The uses it serves come next: the stop kind (#566), the find tools (#567), stalls (#569), the inbox's order (#568, #570) and consequential clicks (#571) | M |
 
 ### Risks
 

@@ -5,7 +5,7 @@ status: QUEUED — Phase 1 Plan drafted; ready to promote to active
 title: "A running command's error: a notification when a dev server prints an error and keeps running"
 type: feature
 slice: prong 1 T7b's follow-on (after #478 and #551, the long command's end); use 7 of the System One layer, on #565
-references: [docs/planning/design-notes/jev-system-one-2026-09-25.md, docs/planning/design-notes/warp-second-pass-2026-09-25.md, docs/planning/pipeline/queued/565-system-one-layer.spec.md, docs/planning/pipeline/queued/551-command-end-from-outside.spec.md, docs/planning/pipeline/completed/478-terminal-notifications.spec.md, docs/planning/pipeline/queued/538-notifications-with-content.spec.md, docs/planning/pipeline/queued/503-terminal-urls-open-in-the-browser.spec.md, docs/marley/three-prong-plan.md]
+references: [docs/planning/design-notes/jev-system-one-2026-09-25.md, docs/planning/design-notes/warp-second-pass-2026-09-25.md, docs/planning/pipeline/completed/565-system-one-layer.spec.md, docs/planning/pipeline/queued/551-command-end-from-outside.spec.md, docs/planning/pipeline/completed/478-terminal-notifications.spec.md, docs/planning/pipeline/queued/538-notifications-with-content.spec.md, docs/planning/pipeline/queued/503-terminal-urls-open-in-the-browser.spec.md, docs/marley/three-prong-plan.md]
 ---
 
 ## Title

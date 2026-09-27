@@ -611,6 +611,52 @@ alike.
   `question`, `white_check_mark` or `x`, the line as the body. `report` logs a refusal, and a
   failure too, with one toast (`Pushes::failing`) until a post succeeds.
 
+## System One (`src/system_one.rs`, `src/decisions.rs`, #565)
+
+- `SystemOneSettings`, in `MarleySettings`, is `marley.system_one` resolved: the switch, the
+  provider, the endpoint, the model, the two project lists (with `~/` as the home directory), the
+  day's budget in cents, a `compatible` provider's price in thousandths of a cent per million
+  tokens (the `f32` of the settings goes through a rounded decimal, since the lint table refuses
+  a lossy cast) and each use's mode.
+- The `SystemOne` global holds the settings it applied, the key and its source, the gate, the
+  recorded answers, this session's rows and the log's sender. `init` applies the settings and
+  follows them, and registers the check and `OpenDecisions` on each workspace.
+- **The key.** `Key` prints as `Key(***)` and leaves only as the `Authorization` header and as its
+  own mask. `load_key` reads it only while the layer is on and its provider sends requests: the
+  variable `MARLEY_SYSTEM_ONE_KEY`, else gpui's `read_credentials` at the endpoint's URL, never
+  Zed's dev-channel credentials file; a newer load wins over an older read that finishes late. So
+  a user who leaves the layer off never meets the keyring's unlock prompt. `store_key` and
+  `forget_key` write and remove the keyring's item and load the key again. On Linux gpui's
+  keychain is the Secret Service through `oo7`, and a scenario would reach the user's own, so no
+  scenario touches it.
+- **`ask(spec, asking, cx)`** is the one way a use asks. With the layer or the use off it answers
+  `Reading::Off` and does nothing else. Then `policy::may_send` decides the detail, and the state is
+  built with `mcp::model_redactor`, the rules and patterns whatever agents' redaction says, plus the
+  key's own mask. `rules` answers the use's verdict, and `replay` the recorded answers.
+  `typesafe` and `compatible` go through `send`: the endpoint is checked (`https`, or `http` on this
+  machine) before the key is used, then the key, then the gate.
+- `post`, on the background executor, builds the request with the key's header and
+  `HttpRequestExt::timeout`, and races it with a backstop timer (dropping the send cancels it). It
+  tries once more on 429, 503 or 529 while the deadline leaves time. `read_posted` spends on an
+  answer, counts a failure toward the breaker, and marks the key refused on a 401 until the key
+  changes; an error kept is cut to 300 characters and masked with the key.
+- `finish` fills in the row, keeps it for Decisions and sends it to the log task, which the first
+  call starts and which appends each row off the main thread (`files::append_in` under
+  `<data dir>/system_one/`).
+- **The check** (`SystemOneCheck`) asks about `browser::last_terminal`, the terminal the focus
+  entered last: the project's name, the block's index, the exit code and the program as facts, and
+  the terminal's title and the last command as text, with the exit code as the use's own verdict.
+  It runs inside the workspace's update, so a terminal of that workspace takes its folders from
+  the `&mut Workspace` the action has; reading the workspace entity there would panic. The program
+  is the command's first word after its `NAME=value` assignments, without its folder. A toast
+  gives the reading, the provider, the tokens and the time.
+- **Decisions** (`DecisionsView`, a workspace item) reads today's file when it opens and follows the
+  global for the calls made after, newest first; a click opens a row to the state as sent, the
+  answers and the error. Its header gives the day's calls and spend against the budget, the
+  provider and model, the key's source and an open breaker; Run Check dispatches the check, and Set
+  Key shows a masked single-line editor whose Enter (`menu::Confirm`) writes the keyring and whose
+  Escape (`editor::Cancel`, which the editor lets through) puts it away.
+
 ## Marley's MCP server (`src/mcp.rs`, #491, #501)
 
 - Since #520 every call carries its `marley_mcp::Caller` (the bridge's `Marley-Terminal`,
@@ -646,6 +692,8 @@ alike.
   `redaction_patterns`, with an app notification naming a pattern that did not compile.
   `agent_redactor(cx)` answers its `Arc<Redactor>`, `None` while redaction is off, and the
   built-in rules alone before `start` ran, so nothing leaves unredacted by accident.
+  `model_redactor(cx)` answers the same redactor whether or not agents' redaction is on, for
+  what leaves the machine for a System One model (#565).
   `terminal_blocks` runs each command through it and `terminal_read` the command and the whole
   output, before `tail` cuts it (a key whose BEGIN line fell before the cut would pass
   otherwise); both answer `redacted`, the count. `browser_tools`' `browser_console` runs each

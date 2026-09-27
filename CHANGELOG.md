@@ -13,6 +13,20 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A System One layer, off until you turn it on** (#565, 2026-09-27). Marley can ask a System One
+  model, TypeSafe's Jev first, typed questions about what it knows. A feature gets back a reading
+  it may show, rank or route on, never an approval. Off, which is the default, Marley makes no
+  request, reads no key and writes no file. On, it sends only for the project folders you list: it
+  masks every text value with #516's rules and your patterns, whatever agents' redaction is set to,
+  and hides the key itself, and a metadata-only project sends facts alone. The key comes from
+  `MARLEY_SYSTEM_ONE_KEY`, else the system keyring, and Decisions shows its source, never its
+  value. `marley: system one check` asks whether the last command of the terminal you used last
+  failed and shows the answer in a toast. `marley: open decisions` lists the day's calls with what
+  each sent and got back, the spend against a daily budget (50 cents by default) and the key's
+  source. The provider is TypeSafe's API, another server that speaks the same request, each use's
+  own rules, or recorded answers. A slow or failing provider reads as unavailable with its reason,
+  and five failures in a row hold calls for two minutes. The settings are the System One section
+  of the Marley settings page and `marley.system_one` in settings.json.
 - **A project's ports in the rail** (#521, 2026-09-27). Under each project the rail lists the TCP
   ports your processes listen on from inside its folders, such as a dev server started in its
   terminal: the port, the process's name and the URL, after the project's terminals, Browser tabs

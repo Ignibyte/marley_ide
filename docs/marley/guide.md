@@ -17,6 +17,7 @@ entry in `CHANGELOG.md` says more. Marley is pre-1.0.
 - [Zed's Agent Panel with Marley's tools](#zeds-agent-panel-with-marleys-tools)
 - [Marley's MCP server](#marleys-mcp-server)
 - [The Browser tab](#the-browser-tab)
+- [System One](#system-one)
 - [Key bindings](#key-bindings)
 - [Settings](#settings)
 - [Where data lives](#where-data-lives)
@@ -33,6 +34,7 @@ entry in `CHANGELOG.md` says more. Marley is pre-1.0.
 | Agents in terminals | Claude Code, Codex, Gemini CLI and OpenCode are recognized in any terminal. An agent bar shows the folder and branch, with rich input, Attach File and dictation. A Claude Code plugin adds desktop notifications and Marley's tools. |
 | Marley's MCP server | Tools that let an agent list your terminals, read each command's exit code and output, and see and drive the Browser tab. |
 | The Browser tab | A page from Marley's own Chromium, in a tab, with an address bar and one tab per page. An element picker, annotations and a flight recorder hand what you see to the agent. |
+| System One | Off until you turn it on: typed questions to a model (TypeSafe's Jev first) about what Marley knows, sent only for the projects you list and masked, with every call in Decisions. |
 
 Marley keeps its own settings, database, logs and cache in `~/.config/marley`,
 `~/.local/share/marley` and `~/.cache/marley`, apart from a stock Zed install's. To start from
@@ -766,6 +768,84 @@ with browser_recording." An agent you tell "it broke just now" can list the reco
 - Every tab shares one Chromium profile, so a login in one project is a login in all of them
   (TICKET-507 plans a browser context per project).
 
+## System One
+
+Marley can ask a System One model typed questions about what it knows (#565): a yes or no, a
+choice among fixed options, or a score. Jev, through TypeSafe's API, is the first model. What
+comes back is a reading a feature may show, rank or route on; it never approves, sends or stops
+anything. Nothing in Marley needs it, and it stays off until you turn it on. Off, Marley makes no
+request, reads no key and writes no file.
+
+### Turning it on
+
+1. Give Marley the key: set `MARLEY_SYSTEM_ONE_KEY` in the environment Marley starts from, or open
+   Decisions (`marley: open decisions`), choose Set Key, paste the key and press Enter, which
+   writes it to the system keyring at the provider's URL. The variable comes before the keyring.
+   Decisions shows where the key came from and never shows the key.
+2. List the folders whose projects may send their state, in `settings.json`:
+
+   ```jsonc
+   "marley": {
+     "system_one": {
+       "enabled": true,
+       "projects": ["~/code"],
+       // Projects that send the facts Marley computes and none of their text.
+       "metadata_only_projects": ["~/code/client-work"]
+     }
+   }
+   ```
+
+3. Turn it on: the System One switch on the Marley settings page, or `enabled` as above.
+
+### What leaves the machine
+
+A state is labeled lines. Some are facts Marley computed, such as a project's name, an exit code
+or a program. Others are text, such as a command or a terminal's title. Every value passes through
+#516's redaction rules and your `redaction_patterns`, whatever `redact_secrets_for_agents` says,
+and the key itself is hidden as well. A text value is masked first, then cut to 300 characters. A
+project on `metadata_only_projects` sends the facts alone. A project on neither list, or a remote
+one, sends nothing: the call is refused before any request.
+
+### The check
+
+`marley: system one check` asks whether the last command of the terminal you used last failed.
+It exists so you can see one request and one answer. A toast gives the reading, the provider, the
+tokens and the time, as in `System One: command failed: yes (0.92) · typesafe · 1,200 tokens ·
+310 ms`. Its mode, Check on the settings page, is Act; Off turns it off.
+
+### Decisions
+
+`marley: open decisions` opens a tab with the day's calls, newest first: the time, the use, the
+project, the provider and model, the reading (refused and unavailable calls in red), the time
+taken, the tokens and the cost. A click opens a row to the state as it was sent and the answers as
+they came. The header gives the day's calls and spend against the budget, the provider, where the
+key came from, and whether the breaker is open. Run Check runs the check, and Set Key and Forget
+Key write and remove the keyring's key.
+
+### Providers, budget and failures
+
+| `provider` | Who answers |
+|---|---|
+| `typesafe` (the default) | TypeSafe's API, `https://api.typesafe.ai/v1/systemone` |
+| `compatible` | Another server that speaks the same request, at `endpoint`: `https`, or `http` on this machine |
+| `rules` | Each feature's own rules, with no request |
+| `replay` | Answers recorded in `system_one/replay.jsonl` under Marley's data directory |
+
+- `model` is pinned (`jev-1.13.0`).
+- `daily_budget_cents` (50) caps the day's spend, counted from the input tokens at the model's
+  price: 0.042 USD per million for Jev, or `price_cents_per_million_tokens` for a compatible
+  server. Once it is spent, calls wait for the next day.
+- A call with no answer within its deadline (2 s for the check), a 5xx or an unreachable provider
+  reads as unavailable, with the reason. A 429, 503 or 529 is tried once more while the deadline
+  leaves time. Five failures in a row hold calls for two minutes.
+- A state the same as the last one answered for the same terminal makes no new call.
+- `uses` sets each feature's mode: `off`, `shadow` (ask and log, shown only in Decisions),
+  `suggest` or `act`. The check is the only one so far.
+
+Every call, refused and failed ones included, is a line in `system_one/calls-<day>.jsonl` under
+Marley's data directory, readable by you alone: the masked state as sent, the answers, the reading,
+the time, the tokens and the cost.
+
 ## Key bindings
 
 Marley's own bindings load after Zed's defaults and before your keymap, so they win over a Zed
@@ -861,6 +941,7 @@ Environment variables and flags:
 | Name | Read by | What it does |
 |---|---|---|
 | `MARLEY_CHROMIUM` | Marley | The Chromium binary to run; when set, nothing else is tried |
+| `MARLEY_SYSTEM_ONE_KEY` | Marley | The System One layer's key; it comes before the keyring |
 | `MARLEY_MCP_ENDPOINT` | The bridge | The endpoint file to read |
 | `CLAUDE_CONFIG_DIR` | Marley | Claude Code's configuration directory, for whether the plugin is installed (default `~/.claude`) |
 | `ZED_LOG`, `RUST_LOG` | Marley | The log filter. It matches the crate a line is logged from: `ZED_LOG=marley_browser=debug` logs each input-to-frame time, and `marley_workbench::browser` names the Browser tab's own lines |
@@ -883,6 +964,7 @@ Environment variables and flags:
 | `~/.local/share/marley/shell_integration/` | `marley.bash` and `zsh/.zshenv` |
 | `~/.local/share/marley/browser/projects/<key>/` | A project's browser: `profile/`, `project.json`, and while it runs the relay's `relay.sock` and `relay.json` (mode 0600) |
 | `~/.local/share/marley/browser/recordings/<id>/` | A saved recording: `timeline.json` and `frames/` |
+| `~/.local/share/marley/system_one/` | The System One layer's calls, a file a day (mode 0600), and `replay.jsonl` |
 | `~/.cache/marley/` | Zed's cache |
 | `~/.local/bin/marley`, `~/.local/lib/marley/marley` | The installed launcher and binary |
 | `~/.local/share/applications/marley.desktop` | The menu entry |
