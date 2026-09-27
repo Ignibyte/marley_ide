@@ -992,8 +992,6 @@ microphone through a fake Voxtype whose `record toggle` moves its status on, and
 - The tray's Send types a pick's summary as the page shows it (#496). Redaction covers what
   agents read through Marley's tools (#516, #518). A Send is typed at the user's prompt, where
   the user sees it before Enter, as with #549's selection.
-- A drag across a Browser tab's text leaves no selection once the button is up, so a pick after
-  it has no `selected_text`. The word a double click selects stays selected (#580).
 - A Browser row keeps a page's first icon while the page stays on its origin: an icon the page
   swaps without a navigation (an unread count), or another page of the same origin with an icon
   of its own, still shows the first. A page whose load event never comes keeps the globe.

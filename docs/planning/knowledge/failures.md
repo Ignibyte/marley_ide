@@ -2247,14 +2247,3 @@ the load that set the title and the host, so on its arrival the pure snapshot wo
 the last one, the rail would not have redrawn, and the row would have kept its globe until
 something else changed. Fixed in #504: `BrowserSnapshot.icon` carries the image's id, so an
 icon's arrival, change or loss changes the snapshot.
-
-## F-claude-518-a-drag-in-a-browser-tab-leaves-no-selection-001
-*severity: medium · found in: pipeline 518's Test phase (the selection check, in headless sway) · class: an input whose effect the page shows and then loses · prevented by: none yet; open as TICKET-580*
-
-#518's scenario selected a paragraph with a drag: a press, moves of 60 px with a pause after each,
-and a release. While the button was down, the page's own log showed each `mousemove` with
-`buttons` 1 and the selection growing. Right after the release, `browser_look` read no selection,
-and a pick after it had no `selected_text`. A press and two long moves selected nothing at all. A
-double click's word stays selected, as #489's Ctrl+C and #518's pick show, so the scenario
-selects with one. The cause is not known yet: the release Marley sends, the focus handling after
-it, or `browser_look`'s read. Only the headless pointer has shown it so far.

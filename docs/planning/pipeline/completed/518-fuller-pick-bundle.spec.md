@@ -160,7 +160,7 @@ agent's `browser_pick` answers, printed and saved, are the proof. Shots `518-01-
 | REQ-010 | WHEN a token-shaped secret straddles a field's budget, `browser_pick` shall hand agents no part of it. | The run log: the long list's pick, whose fake token spans the 4,096th character, holds no piece of the token |
 | REQ-011 | WHEN an agent lists or reads picks, the page's title, the caption, the summary and every text from the page shall reach it through #516's redaction. | The run log: `mcp_agent picks` and the saved answer for a button labelled with a fake token show the redaction's marker and no piece of the token |
 | REQ-007 | WHERE the page runs no React, the bundle shall have no component. | The run log: the secrets pick |
-| REQ-008 | WHEN the page has a selection at the pick, `browser_pick` shall return its text. | The run log: the list item's pick after a double click selects a word (a drag's selection does not last, #580) |
+| REQ-008 | WHEN the page has a selection at the pick, `browser_pick` shall return its text. | The run log: the list item's pick after a drag across the sentence that ends inside the text |
 | REQ-009 | WHEN the user picks an element, its locators, role and name, listeners, blockers, box and crop shall read as they did before this change. | #496's and #497's scenarios rerun, their logs and shots as before |
 
 ## Phase Plan

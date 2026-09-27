@@ -141,7 +141,7 @@ at run time from pieces, so the scenario file holds none for gitleaks.
 | REQ-002 | pick the Go button, whose style sets `padding: 8px 16px` and `color: rgb(10, 20, 30)` | the log: those two values among the sixteen |
 | REQ-006 | `mcp_agent pick-json` for each pick, then a grep of the files for the fake tokens and the typed e-mail | the log: nothing found |
 | REQ-001 | pick the long list (over 4,096 characters of HTML) | the log: 4,096 characters and ` (truncated)` |
-| REQ-003, REQ-008 | select a word of a paragraph by a double click, then pick a list item beside it (a drag was planned; its selection does not outlast the release, #580) | the log: the selection and the siblings' texts |
+| REQ-003, REQ-008 | select the paragraph's text by a drag that ends inside it, then pick a list item beside it (a double click stood in until #580, see the correction below) | the log: the selection and the siblings' texts |
 | REQ-009 | rerun `496-element-picker.sh` and `497-pick-source.sh` | their logs and shots as before |
 
 Not reachable here: Next.js's and Vite's own dev servers (the esbuild bundle stands in for the
@@ -293,13 +293,11 @@ hardest case, React and the app in one script), and React 17 and older.
   since the runner sources the scenario before it defines `expect`). The React builds come from
   `Ignibyte-Marketing-Site` (React 18.3.1's UMD files) and `scorchkit_home` (React 19.2.8 and
   esbuild), or from `E2E_REACT18_MODULES` and `E2E_REACT19_MODULES`.
-- **The selection (REQ-008): a double click, not a drag.** The plan selected the paragraph with a
-  drag. The first runs and four probes showed that a drag's selection in a Browser tab does not
-  outlast the release: a press and two long moves select nothing; steps of 60 px with pauses grow
-  the selection in the page's own log while the button is down, and `browser_look` reads none
-  right after the release. That is filed as TICKET-580, at the top of the Queue. The scenario
-  double-clicks "sentence" (page x 138 to 217, measured from a shot) as #489 does, and the pick's
-  `selected_text` is `sentence`.
+- **The selection (REQ-008).** The plan selected the paragraph with a drag. The first runs'
+  drags, from x 42 to 420, left no selection, which was read as the release losing it and filed as
+  TICKET-580; the scenario double-clicked "sentence" instead (page x 138 to 217, measured from a
+  shot), and the pick's `selected_text` was `sentence`. That reading was wrong: see the
+  correction below.
 - **The run** (`518-run2.log`, the last before the gate): 16 checks pass, none fail.
   - React 18 (REQ-004): chain `Card`, `SaveButton`; `debug source`, `src/SaveButton.jsx` line 4
     column 5.
@@ -351,16 +349,25 @@ hardest case, React and the app in one script), and React 17 and older.
 - **Documented:** `CHANGELOG.md` (Added: "A fuller pick for agents"); the plan's row B3c in
   `docs/marley/three-prong-plan.md`; `docs/marley_architecture/marley_browser.md` (a section,
   "The fuller bundle"); `docs/marley_architecture/marley_workbench.md` (the component's source
-  beside the listeners', `pick_for_agents` under the browser tools, and two known limits: the
-  tray's Send, and a drag's selection, #580). No Zed path was touched, so no ledger row.
-- **Knowledge appended:** F-claude-518-a-drag-in-a-browser-tab-leaves-no-selection-001 (open as
-  TICKET-580), L-claude-518-a-lone-surrogate-fails-the-whole-cdp-message-001,
-  L-claude-518-select-with-a-double-click-in-a-scenario-001,
-  AD-claude-518-a-pick-carries-its-html-styles-texts-and-component-001. No new prevention rule:
+  beside the listeners', `pick_for_agents` under the browser tools, and the known limit of the
+  tray's Send). No Zed path was touched, so no ledger row.
+- **Knowledge appended:** L-claude-518-a-lone-surrogate-fails-the-whole-cdp-message-001 and
+  AD-claude-518-a-pick-carries-its-html-styles-texts-and-component-001; also a failure and a
+  lesson on a drag's selection, which #580 replaced (see the correction below). No new prevention rule:
   PR-claude-redact-the-whole-text-before-cutting-it-001 already covers the order the design keeps.
 - **Brain:** consultation ef1154d6c93740a38d4fb5ade5e604ef closed with
   `decisions/a-pick-carries-its-html-styles-texts-and-react-component-518`, follow-up by
   2026-10-26 (whether agents use the component field, and whether the tray should show it).
-- **Filed:** TICKET-580, at the top of the Queue.
+- **Filed:** TICKET-580, at the top of the Queue; #580 closed it as no Marley bug.
 - **Closed and archived:** the ticket in `docs/planning/tickets/closed/`, this pair in
   `docs/planning/pipeline/completed/`.
+
+## Correction (2026-09-26, #580)
+A drag in a Browser tab keeps its selection. The drags of this ticket's first runs ran past the
+end of the text, and on `select.html`, whose paragraph and list are placed absolutely over a body
+with no height, the move past the line's end collapses the selection in Chromium itself, before
+any release. The page's full event log, read by #580's probes through `mcp_agent console`, shows
+it; this ticket's probe read the log through `browser_snapshot`, whose cut hid it. #580 put the
+scenario back on a drag, from x 42 to 300 inside the text, withdrew the known limit, and replaced
+the failure and the lesson with
+L-claude-580-a-drag-past-an-absolutely-placed-lines-end-collapses-the-selection-001.

@@ -3091,12 +3091,17 @@ character in a sibling's text would lose the pick. #518's `DESCRIBE` makes each 
 (`toWellFormed`) and steps each cut back from a lone surrogate before anything crosses the
 socket. Any page function that cuts or builds strings for Marley needs the same.
 
-## L-claude-518-select-with-a-double-click-in-a-scenario-001
-*category: testing · topic: e2e scenarios in headless sway · from: pipeline 518*
+## L-claude-580-a-drag-past-an-absolutely-placed-lines-end-collapses-the-selection-001
+*category: testing · topic: e2e scenarios in headless sway · from: pipeline 580*
 
-To give a page a selection in a scenario, double-click a word (two `click`s at the same point,
-as #489 does). A drag does not work there. A press and two long moves select nothing, since
-the page sees the pointer jump. Steps of 60 px with pauses do select while the button is down,
-but the selection is gone once it comes up (F-claude-518-a-drag-in-a-browser-tab-leaves-no-selection-001, TICKET-580).
-Find the word's columns in a shot first: an ImageMagick threshold of the text's row, read as
-`txt:`, gives each glyph's ink.
+A drag in a Browser tab keeps the selection it made. #518 reported that it did not, having read
+the page's event log through `browser_snapshot`, whose cut ("…") hid the moment the selection
+collapsed. That moment came on a mouse move, before the release: the pointer passed the end of a
+paragraph placed with `position: absolute`, over a body with no height, since all its children
+were absolute. A point right of the text there lies over no text box, and Chromium's hit test
+gives a position that collapses the selection. A drag that ends inside the text keeps it, and so
+does a drag past the end of a paragraph in normal flow. Before calling an input bug, have the page
+log each event and the selection at that moment to its console, read the whole sequence with
+`mcp_agent console`, and find the event after which the result goes wrong. In a scenario, end a
+drag inside the text or give the page a layout in flow. A glyph's columns in a shot come from an
+ImageMagick threshold of the text's row, read as `txt:`.

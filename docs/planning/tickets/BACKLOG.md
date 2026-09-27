@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-580](open/TICKET-580-drag-selection-in-a-browser-tab.md) | bug | prong 3 · a drag across a Browser tab's text leaves no selection once the button is up; a double click works (found in #518's Test) |
 | [TICKET-505](open/TICKET-505-pick-fix-check.md) | feature | prong 3 · a pick re-found after the fix: before and after in the tray, and a tool |
 | [TICKET-506](open/TICKET-506-recording-to-playwright-test.md) | feature | prong 3 · clicks and typing recorded as locators; a recording drafted as a Playwright test (D3 asks Chad about typed text) |
 | [TICKET-507](open/TICKET-507-browser-context-per-project.md) | feature | prong 3 · a Chromium and a profile per project; worktrees share their project's |

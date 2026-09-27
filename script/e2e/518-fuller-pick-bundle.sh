@@ -9,7 +9,7 @@
 #   attribute (as React does), a hidden CSRF input, a secret-named attribute, links and an action
 #   with queries, a script, a button labelled with a token, and a Go button with a known style;
 # - `long.html`, a list whose HTML carries a token across its 4,096th character;
-# - `select.html`, a paragraph with a word to select and a list beside it.
+# - `select.html`, a paragraph to select and a list beside it.
 # Each pick is read by a stand-in agent through `browser_pick` and saved as JSON; the checks read
 # the saved answers. The fake secrets are made in the setup from pieces and listed in the run's
 # folder, so this file holds none. The React builds come from projects on the box, or from
@@ -250,13 +250,24 @@ pick_at() {
   settle "${4:-3}"
 }
 
-# Double-clicks the page at (x, y), which selects the word there. A drag is the gesture a hand
-# would use, but in a Browser tab its selection does not outlast the release (#580).
-double_click_at() {
+# Drags along the page's row `$1` from x `$2` to x `$3`, in steps with pauses, as a hand does. It
+# ends inside the text: on this page, whose paragraph and list are placed absolutely over a body
+# with no height, a move past a line's end collapses the selection in Chromium itself (#580).
+drag_across() {
+  local y=$1 x=$2
   # shellcheck disable=SC2046
-  click $(page_point "$1" "$2")
-  # shellcheck disable=SC2046
-  click $(page_point "$1" "$2")
+  pointer_to $(page_point "$x" "$y")
+  settle 0.5
+  pointer_down
+  settle 0.3
+  while ((x < $3)); do
+    x=$((x + 60 < $3 ? x + 60 : $3))
+    # shellcheck disable=SC2046
+    pointer_to $(page_point "$x" "$y")
+    settle 0.1
+  done
+  settle 0.5
+  pointer_up
   settle 1
 }
 
@@ -346,13 +357,13 @@ steps() {
   save_pick 6 long
   expect "the HTML is cut at 4,096 characters and marked" answer long \
     'len(bundle["html"]) == 4096 + len(" (truncated)") and bundle["html"].endswith(" (truncated)")'
-  echo "== a word selected, then a list item beside it"
+  echo "== a selection by a drag, then a list item beside it"
   new_tab "$SITE/select.html" 4
-  double_click_at 177 52
+  drag_across 52 42 300
   pick_at 100 165 0
   shot 518-04-selection-pick
   save_pick 7 item
-  expect "the page's selection" answer item '(bundle["selected_text"] or "").strip() == "sentence"'
+  expect "the page's selection" answer item '(bundle["selected_text"] or "").startswith("Select this sentence")'
   expect "the siblings' texts" answer item 'bundle["nearby_text"] == ["First item", "Third item"]'
   echo "== no secret, and no piece of one, reached the agent"
   expect "the saved answers and the list hold none of the fake secrets" \
