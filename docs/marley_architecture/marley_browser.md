@@ -98,6 +98,17 @@ for.
   focus emulation and the observers before it hands the page back, and `close` closes one by id,
   attached or not. A fresh headless Chromium also lists `browser_ui` and extension targets, so
   only `page` is a tab; it keeps running with no page at all, and `create` works then too.
+- The identity (#539). `Identity::read` asks `Browser.getVersion` for Chromium's user agent,
+  and `from_browser` makes its `HeadlessChrome/` into `Chrome/`. The client-hint fields CDP
+  requires come from the build target: `platform`, `architecture` and `bitness`, with
+  `platformVersion` and `model` empty and `mobile` and `wow64` false. The brands and the full
+  versions are left out, and Chromium keeps its own: a probe of Chromium 152 found them identical
+  to what it gives unasked, and found no headless brand among them. `attach` sends the identity
+  (`Identity::apply`, `Emulation.setUserAgentOverride`) before `Page.enable`. `observe`'s
+  auto-attach holds each new target at its start (`waitForDebuggerOnStart`), so a cross-site
+  iframe gets the identity before its document commits, and `page::resume`
+  (`Runtime.runIfWaitingForDebugger`) lets a held target run. `reset_history`
+  (`Page.resetNavigationHistory`) forgets every history entry but the one the page shows.
 - The viewport is `Emulation.setDeviceMetricsOverride` at the tab's size and the window's
   scale, after `Browser.setWindowBounds` gives the page's own headless window the same size
   (#494): a page made by `Target.createTarget` keeps the window of its first size, and laid out

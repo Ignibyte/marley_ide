@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-539](open/TICKET-539-headless-chrome-user-agent.md) | chore | prong 3 · Marley's Chromium introduces itself as Chrome, not HeadlessChrome |
 | [TICKET-521](open/TICKET-521-ports-per-project.md) | feature | prong 3 · listening ports per project in the rail, with Open, Copy and Stop |
 | [TICKET-565](open/TICKET-565-system-one-layer.md) | feature | prong 2 · the System One layer: TypeSafe, compatible, rules and replay providers; compiled-in question sets, masked state, the call log and replay, modes and switches, the Decisions view; off by default |
 | [TICKET-566](open/TICKET-566-stop-kind.md) | feature | prong 2 · what a stopped Claude Code turn needs (done · checked, done · claimed, asks you, blocked, still going) as the row's word from #519's seats; code decides the clear cases, the model the rest; on #565 |

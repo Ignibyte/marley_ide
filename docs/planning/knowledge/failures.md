@@ -2374,3 +2374,30 @@ scenario would have been pushed the same way. Fixed in #584: the working-tree sc
 `script/e2e.sh`, `script/e2e`, `script/regress` and `script/install-marley`, and
 `.gitleaks.toml` names the RFC's sample key beside the one other public value it allows, Warp's
 public Firebase key.
+
+## F-claude-539-a-cross-site-iframes-script-kept-the-headless-name-001
+*severity: medium · found in: pipeline 539's Test phase (the scenario's first run on the change) · class: an override sent after the target it is for has already run · prevented by: PR-claude-hold-a-target-at-its-start-until-it-has-what-it-needs-001*
+
+With the identity set on each page's session and, on attach, on each cross-site iframe's, every
+request said `Chrome/`, the iframe's included, but the iframe's own script still read
+`HeadlessChrome`. The iframe's navigation used its page's override. Its document, though,
+committed before the iframe's own override arrived: the `attachedToTarget` event went through the
+relay and the hub's event loop, and a local iframe loads in less time than that. A probe that
+answered at once saw `Chrome/`, which hid the race. Bot checks run in exactly such iframes
+(Turnstile, reCAPTCHA). Fixed before the commit: a page's auto-attach holds each new target at
+its start (`waitForDebuggerOnStart: true`), the hub gives an iframe its identity and its
+observers, and every held target, handled or not, is let run with
+`Runtime.runIfWaitingForDebugger`.
+
+## F-claude-539-a-reopened-tab-drew-its-page-87-pixels-short-001
+*severity: medium · found in: pipeline 539's Test phase (494 run again on the change) · class: commands a page's session took during its first commit · prevented by: PR-claude-a-page-sent-on-from-blank-gets-its-size-and-stream-again-001*
+
+#539 opens every page Marley makes at `about:blank` and sends it to its URL once attached. A tab
+that a restart with a new Chromium reopened then drew its page 87 pixels short, over a dark band,
+though the page's own viewport read 1100 by 860. The URL went out first, and the tab's size and
+its stream arrived while the first commit replaced the blank document. `Page.startScreencast`
+failed there with "Not attached to an active page" in a probe, and the frames kept the window's
+content size (a headless window of 1100 by 860 shows 1100 by 773). The tab sends a size only when
+it changes, so nothing sent it again. #507's golden run of the same scenario, before #539, filled
+the pane. Fixed before the commit: when a page sent on from blank commits its URL, the hub sends
+its size again and restarts its stream, beside resetting its history.

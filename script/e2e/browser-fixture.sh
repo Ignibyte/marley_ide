@@ -357,13 +357,54 @@ HTML
 
 write_server() {
   cat >"$E2E_WORK/serve.py" <<'PY'
-# A loopback server for the browser's e2e scenarios: a directory's files, and /slow, a page that
-# answers after three seconds.
+# A loopback server for the browser's e2e scenarios: a directory's files, /slow, a page that
+# answers after three seconds, and /headers (#539).
+import html
 import http.server
+import json
 import sys
 import time
+import urllib.parse
 
 directory = sys.argv[1]
+
+# The /headers page (#539): what the request said of the browser, and what the page's script reads
+# of it, which the script sends back as ?report=<json>. It asks for the high-entropy hints, so the
+# next load carries them, and with ?frame=<url> it embeds that URL, another site's copy. Each
+# request's headers and each report go to the log as a line.
+HEADER_NAMES = ('User-Agent', 'Sec-CH-UA', 'Sec-CH-UA-Platform', 'Sec-CH-UA-Full-Version-List')
+HIGH_ENTROPY_HINTS = ('Sec-CH-UA-Full-Version-List, Sec-CH-UA-Platform-Version, Sec-CH-UA-Arch, '
+                      'Sec-CH-UA-Bitness, Sec-CH-UA-Model')
+HEADERS_PAGE = '''<!doctype html><html><head><meta charset="utf-8"><title>Headers</title><style>
+body {{ margin: 0; padding: 12px 20px; font: 15px monospace; background: #f4f5ee; }}
+h2 {{ font: bold 17px sans-serif; margin: 10px 0 4px; }}
+pre {{ margin: 0; white-space: pre-wrap; word-break: break-all; }}
+iframe {{ width: 100%; height: 300px; border: 2px solid #99a; margin-top: 8px; }}
+</style></head><body>
+<h2>What the request said</h2><pre id="request">{request}</pre>
+<h2>What the page's script reads</h2><pre id="script">reading</pre>
+{frame}
+<script>
+(async () => {{
+  const data = navigator.userAgentData;
+  const list = (entries) => entries.map((entry) => `"${{entry.brand}}";v="${{entry.version}}"`).join(', ');
+  const high = data ? await data.getHighEntropyValues(['fullVersionList']) : null;
+  const read = {{
+    page: location.href,
+    ua: navigator.userAgent,
+    brands: data ? list(data.brands) : 'none',
+    full: high ? list(high.fullVersionList) : 'none',
+    platform: data ? data.platform : 'none',
+  }};
+  document.getElementById('script').textContent = [
+    `navigator.userAgent: ${{read.ua}}`,
+    `brands: ${{read.brands}}`,
+    `fullVersionList: ${{read.full}}`,
+    `platform: ${{read.platform}}`,
+  ].join('\\n');
+  fetch('/headers?report=' + encodeURIComponent(JSON.stringify(read)));
+}})();
+</script></body></html>'''
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -371,7 +412,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         super().__init__(*args, directory=directory, **kwargs)
 
     def do_GET(self):
-        if self.path.split('?')[0] != '/slow':
+        path = self.path.split('?')[0]
+        if path == '/headers':
+            return self.send_headers_page()
+        if path != '/slow':
             return super().do_GET()
         time.sleep(3)
         body = b'<!doctype html><title>Slow page</title><p>This page took three seconds.</p>'
@@ -383,6 +427,32 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(body)
         except (BrokenPipeError, ConnectionResetError):
             # The browser stopped waiting.
+            pass
+
+    def send_headers_page(self):
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+        if 'report' in query:
+            sys.stderr.write('report ' + query['report'][0] + '\n')
+            sys.stderr.flush()
+            self.send_response(204)
+            self.end_headers()
+            return
+        said = {name: self.headers.get(name) for name in HEADER_NAMES}
+        sys.stderr.write('headers ' + json.dumps({'path': self.path, **said}) + '\n')
+        sys.stderr.flush()
+        frame = query.get('frame', [''])[0]
+        lines = '\n'.join(f'{name}: {said[name]}' for name in HEADER_NAMES)
+        embedded = f'<iframe src="{html.escape(frame, quote=True)}"></iframe>' if frame else ''
+        body = HEADERS_PAGE.format(request=html.escape(lines), frame=embedded).encode()
+        try:
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Accept-CH', HIGH_ENTROPY_HINTS)
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
             pass
 
 

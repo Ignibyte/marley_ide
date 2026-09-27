@@ -2539,3 +2539,20 @@ line outlives restarts. Rejected:
   Orca survey's item 12) decides them with Chad;
 - Tailscale Serve's identity headers as a credential: any process on the machine can send the
   same headers to 127.0.0.1.
+
+## AD-claude-539-pages-see-chrome-through-a-per-target-override-001
+*decided at: 2026-09-27 · status: shipped · builds on: AD-claude-583-chromium-on-its-pipe-behind-marleys-relay-001*
+
+Every page Marley's Chromium shows is told it runs Chrome. Each page's session, and each
+cross-site iframe's, gets `Emulation.setUserAgentOverride` before its domains come on. The
+override carries Chromium's own user agent with `HeadlessChrome/` made `Chrome/`, and the
+client-hint fields CDP requires, from the build target. The brands and full versions are left to
+Chromium. A page's auto-attach holds new targets at their start, and Marley resumes each once
+it has what it needs. Every page Marley makes starts at `about:blank` and goes to its URL once
+attached; its history then forgets the blank entry, and its size and stream are sent again.
+Rejected:
+- the `--user-agent` switch: it empties Chromium's full version list, a mismatch of its own;
+- a table of brands and versions, or hints read from a page: Chromium keeps its own when the
+  override leaves them out, and `about:blank` cannot report them;
+- a per-host identity or a setting (Orca's "Cleaned" and "Native", its Firefox identity for
+  Google's sign-in): one identity for every site, until Chad asks.

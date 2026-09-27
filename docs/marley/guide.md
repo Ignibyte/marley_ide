@@ -591,6 +591,10 @@ The first Browser tab starts Chromium in the background as a transient systemd u
   `~/.local/share/marley/browser/projects/`, apart from your own browser's. It talks only to
   Marley's relay, which runs beside it, and listens on no network port. It keeps cookies without
   the desktop keyring, so it never waits on an unlock prompt, and it opens no page of its own.
+- Websites see it as Chrome: its user agent says `Chrome/<version>`, not `HeadlessChrome`, with
+  Chromium's own client hints, in cross-site frames too, so bot checks that refuse a headless
+  browser let it in (#539). The first document of a popup a page opens, and service workers,
+  still see the headless name.
 - The binary is `$MARLEY_CHROMIUM` when that is set, and no other is tried. Otherwise it is
   `/usr/lib/chromium/chromium`, the browser behind Arch's and Debian's `/usr/bin/chromium`
   launcher (which would add your `chromium-flags.conf`), else `chromium` or `chromium-browser` on

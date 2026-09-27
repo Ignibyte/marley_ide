@@ -2449,3 +2449,22 @@ copy; the user's program sees what Marley did to the real file.
 Every folder or script of Marley's own that a commit can add to is in gate:10's working-tree
 scan. The history scan sees a file only after it is committed, and on this branch a push follows
 the commit. A new Marley-owned folder or script joins the list in the change that creates it.
+
+## PR-claude-hold-a-target-at-its-start-until-it-has-what-it-needs-001
+*severity: medium · prevents: F-claude-539-a-cross-site-iframes-script-kept-the-headless-name-001*
+
+When a target must have a setting before its first script runs (an identity, an emulation, a
+binding), attach it held at its start (`waitForDebuggerOnStart: true`), send the setting, then
+`Runtime.runIfWaitingForDebugger`. An override sent after an unheld attach races the target's
+own load. Resume every held target, including those not handled, so none stays paused. A probe
+that answers events at once does not show the race; Marley's path through the relay and the hub
+does.
+
+## PR-claude-a-page-sent-on-from-blank-gets-its-size-and-stream-again-001
+*severity: medium · prevents: F-claude-539-a-reopened-tab-drew-its-page-87-pixels-short-001*
+
+A page created at `about:blank` and then sent to its URL takes what its tab sends during the
+first commit unreliably: a command can fail with "Not attached to an active page", and the
+stream can keep the window's size. Send the size again and restart the stream once the URL
+commits, and do not count on the tab's size-change check, which sends nothing when the size
+has not changed.

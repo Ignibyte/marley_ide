@@ -3315,3 +3315,28 @@ http://127.0.0.1:<port>/…"), so "Driven by <name>" and its Cut Off sit left of
 that changes with the URL, the port included: #524's point (1330, 87) landed on that text in
 #584's run. A scenario cuts a client off with the client's row in Browser Clients, whose place
 depends only on how many clients are listed.
+
+## L-claude-539-chromium-152s-hints-name-no-headless-brand-001
+*category: code · topic: the browser's identity over CDP · from: pipeline 539*
+
+Probed on Chromium 152 before the design was locked:
+- Only the user agent string says `HeadlessChrome/`. `Sec-CH-UA` and the full version list are
+  Chromium's own (`"Not?A_Brand";v="24", "Chromium";v="152"`), with no headless brand; a 2024
+  capture of Chrome 126 showed one.
+- `about:blank` made by `Target.createTarget` is not a secure context and has no
+  `navigator.userAgentData`, so it cannot report the hints.
+- `--user-agent` fixes the string everywhere but empties the full version list.
+- `Emulation.setUserAgentOverride` with only the metadata fields CDP requires (and `bitness`,
+  `wow64`), leaving out `brands`, `fullVersionList` and `fullVersion`, keeps every hint as
+  Chromium gives it.
+
+So an override needs the string and the machine's platform, architecture and bitness, and no
+table of brands.
+
+## L-claude-539-a-page-created-at-about-blank-keeps-its-blank-entry-001
+*category: code · topic: page history over CDP · from: pipeline 539*
+
+A page `Target.createTarget` opens at `about:blank` keeps that entry once it navigates:
+`Page.getNavigationHistory` answers `["about:blank", url]`, where a page created at its URL
+answers `[url]`. `Page.resetNavigationHistory` after the URL commits leaves `[url]`. A tab opened
+at a URL through a blank start would otherwise gain a Back that leads to a blank page.

@@ -56,8 +56,8 @@ use marley_browser::favicon;
 use marley_browser::input::{self, KeyPress};
 use marley_browser::observe::{ConsoleEntry, ConsoleLog, NetworkEntry, NetworkLog, redact_url};
 use marley_browser::page::{
-    DialogKind, FrameMetadata, JavaScriptDialog, NavigationHistory, Page, ScreencastFrame,
-    TargetInfo,
+    self, DialogKind, FrameMetadata, Identity, JavaScriptDialog, NavigationHistory, Page,
+    ScreencastFrame, TargetInfo,
 };
 use marley_browser::pick::{
     self, ComponentSource, Listener, PageBox, PickBundle, ScriptInfo, SourceKind, SourcePosition,
@@ -530,6 +530,15 @@ struct ProjectBrowser {
     project: BrowserProject,
     state: HubState,
     connection: Option<Connection>,
+    /// Who its pages are told the browser is (#539), read once the connection is up; none when
+    /// the browser would not say, and its pages keep Chromium's own.
+    identity: Option<Identity>,
+    /// The URL each page Marley opened at `about:blank` goes to once it is attached, so that
+    /// its first request already carries the identity (#539).
+    pending_urls: Vec<(String, String)>,
+    /// The pages sent on from `about:blank`, whose blank entry leaves their history once their
+    /// URL commits, so Back does not lead to it (#539).
+    blank_entries: Vec<String>,
     /// The pages being attached, so a page is attached once.
     attaching: Vec<String>,
     /// The pages closing or gone while they were attached: an attach that ends for one drops it.
@@ -544,6 +553,26 @@ struct ProjectBrowser {
     /// The stop that waits out [`STOP_GRACE`], by its number, since its project left every
     /// window.
     stop_pending: Option<usize>,
+}
+
+impl ProjectBrowser {
+    /// The browser the start `generation` of `project` brings up, followed by `run`.
+    const fn starting(project: BrowserProject, generation: u64, run: Task<()>) -> Self {
+        Self {
+            project,
+            state: HubState::Starting,
+            connection: None,
+            identity: None,
+            pending_urls: Vec::new(),
+            blank_entries: Vec::new(),
+            attaching: Vec::new(),
+            closing: Vec::new(),
+            placements: Vec::new(),
+            generation,
+            _run: run,
+            stop_pending: None,
+        }
+    }
 }
 
 /// A clear of a project's browser data (#581), shared by everything that waits for it: its
@@ -1026,12 +1055,13 @@ impl BrowserHub {
                 }
             })
             .ok();
-            match pages_at_start(&connection).await {
-                Ok(pages) => {
+            match pages_and_identity(&connection, &name).await {
+                Ok((pages, identity)) => {
                     this.update(cx, |this, cx| {
                         let Some(browser) = this.started_mut(generation) else {
                             return;
                         };
+                        browser.identity = identity;
                         browser.state = HubState::Showing;
                         // Discovery reports these again, and each is attached once.
                         for target in pages {
@@ -1055,17 +1085,8 @@ impl BrowserHub {
             }
             follow(this, events, generation, cx).await;
         });
-        self.browsers.push(ProjectBrowser {
-            project,
-            state: HubState::Starting,
-            connection: None,
-            attaching: Vec::new(),
-            closing: Vec::new(),
-            placements: Vec::new(),
-            generation,
-            _run: run,
-            stop_pending: None,
-        });
+        self.browsers
+            .push(ProjectBrowser::starting(project, generation, run));
         cx.notify();
     }
 
@@ -1249,9 +1270,10 @@ impl BrowserHub {
         let Some(connection) = browser.connection.clone() else {
             return;
         };
+        let identity = browser.identity.clone();
         browser.attaching.push(target.clone());
         cx.spawn(async move |this, cx| {
-            let attached = Page::attach(&connection, &target).await;
+            let attached = Page::attach(&connection, &target, identity.as_ref()).await;
             this.update(cx, |this, cx| {
                 let Some(browser) = this.started_mut(generation) else {
                     return;
@@ -1262,6 +1284,9 @@ impl BrowserHub {
                     Err(error) => {
                         browser.closing.retain(|closing| *closing != target);
                         browser.placements.retain(|(placed, _)| *placed != target);
+                        browser
+                            .pending_urls
+                            .retain(|(pending, _)| *pending != target);
                         log::warn!("browser: could not attach to a page: {error}");
                     }
                 }
@@ -1289,6 +1314,9 @@ impl BrowserHub {
             .position(|closing| *closing == target)
         {
             browser.closing.remove(index);
+            browser
+                .pending_urls
+                .retain(|(pending, _)| *pending != target);
             return;
         }
         if self.page_state(&target).is_some() {
@@ -1307,6 +1335,17 @@ impl BrowserHub {
         self.pages.push(PageState::new(page.clone(), generation));
         if let Some(viewport) = viewport {
             self.lay_out(&target, viewport, cx);
+        }
+        let pending = self.started_mut(generation).and_then(|browser| {
+            let index = browser
+                .pending_urls
+                .iter()
+                .position(|(pending, _)| *pending == target)?;
+            browser.blank_entries.push(target.clone());
+            Some(browser.pending_urls.remove(index).1)
+        });
+        if let Some(url) = pending {
+            self.navigate(&target, url, cx);
         }
         cx.notify();
         cx.emit(BrowserEvent::PageOpened {
@@ -1349,6 +1388,10 @@ impl BrowserHub {
             browser.closing.retain(|closing| closing != target);
         }
         browser.placements.retain(|(placed, _)| placed != target);
+        browser
+            .pending_urls
+            .retain(|(pending, _)| pending != target);
+        browser.blank_entries.retain(|blank| blank != target);
         self.focus_history.retain(|focused| focused != target);
         let before = self.pages.len();
         self.pages.retain(|page| page.target() != target);
@@ -1377,19 +1420,28 @@ impl BrowserHub {
             return Task::ready(Err("the browser is not connected".to_string()));
         };
         cx.spawn(async move |this, cx| {
-            let target = Page::create(&connection, &url)
+            // At `about:blank` first, so the page's first request to `url` goes out after its
+            // attach has set the identity (#539).
+            let target = Page::create(&connection, BLANK)
                 .await
                 .map_err(|error| error.to_string())?;
             // Kept before the page can attach, which takes several round trips more, so its tab
-            // finds it.
-            if let Some(workspace) = place_in {
-                this.update(cx, |hub, _| {
-                    if let Some(browser) = hub.started_mut(generation) {
-                        browser.placements.push((target.clone(), workspace));
+            // finds it and its URL waits for the attach; a page attached already goes at once.
+            this.update(cx, |hub, cx| {
+                if url != BLANK {
+                    if hub.page_state(&target).is_some() {
+                        hub.navigate(&target, url, cx);
+                    } else if let Some(browser) = hub.started_mut(generation) {
+                        browser.pending_urls.push((target.clone(), url));
                     }
-                })
-                .ok();
-            }
+                }
+                if let Some(workspace) = place_in
+                    && let Some(browser) = hub.started_mut(generation)
+                {
+                    browser.placements.push((target.clone(), workspace));
+                }
+            })
+            .ok();
             Ok(target)
         })
     }
@@ -2524,9 +2576,11 @@ impl BrowserHub {
             .map(|page| page.target().to_string())
     }
 
-    /// A cross-site iframe attached from `parent_session`: its tools' domains come on, and its
-    /// own iframes attach in turn.
-    fn iframe_attached(
+    /// A target attached on its own from `parent_session`, which Chromium holds at its start
+    /// ([`Page::observe`]): a cross-site iframe takes the identity (#539) and, when its page is
+    /// known, its tools' domains, so its own iframes attach in turn; then it runs on, as every
+    /// held target must, whatever it is.
+    fn child_attached(
         &mut self,
         generation: u64,
         parent_session: String,
@@ -2536,29 +2590,64 @@ impl BrowserHub {
         if !self.is_current(generation) {
             return;
         }
-        let Some(target) = self.target_of_session(&parent_session) else {
+        let Some(session) = params.get("sessionId").and_then(Value::as_str) else {
             return;
         };
+        let session = session.to_string();
+        let waiting = params
+            .get("waitingForDebugger")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let Some(browser) = self.started_mut(generation) else {
+            return;
+        };
+        let Some(connection) = browser.connection.clone() else {
+            return;
+        };
+        let identity = browser.identity.clone();
         let info = params.get("targetInfo");
-        let kind = info
+        let iframe = info
             .and_then(|info| info.get("type"))
-            .and_then(Value::as_str);
-        let (Some("iframe"), Some(session), Some(frame_id)) = (
-            kind,
-            params.get("sessionId").and_then(Value::as_str),
-            info.and_then(|info| info.get("targetId"))
-                .and_then(Value::as_str),
-        ) else {
-            return;
+            .and_then(Value::as_str)
+            == Some("iframe");
+        let observed = if iframe {
+            self.record_iframe(parent_session, &session, info)
+        } else {
+            None
         };
+        cx.spawn(async move |_, _| {
+            if iframe && let Some(identity) = &identity {
+                identity.apply(&connection, &session).await.log_err();
+            }
+            if let Some(page) = observed {
+                page.observe(&session).await.log_err();
+                page.watch_selects(&session).await.log_err();
+            }
+            if waiting {
+                page::resume(&connection, &session).await.log_err();
+            }
+        })
+        .detach();
+    }
+
+    /// Keeps the cross-site iframe of `session` with the page `parent_session` belongs to, and
+    /// gives that page to observe it; none when the page is not attached yet.
+    fn record_iframe(
+        &mut self,
+        parent_session: String,
+        session: &str,
+        info: Option<&Value>,
+    ) -> Option<Page> {
+        let target = self.target_of_session(&parent_session)?;
+        let frame_id = info
+            .and_then(|info| info.get("targetId"))
+            .and_then(Value::as_str)?;
         let url = info
             .and_then(|info| info.get("url"))
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_string();
-        let Some(page) = self.page_state_mut(&target) else {
-            return;
-        };
+        let page = self.page_state_mut(&target)?;
         page.iframes.retain(|iframe| iframe.session != session);
         page.iframes.push(Iframe {
             session: session.to_string(),
@@ -2566,13 +2655,7 @@ impl BrowserHub {
             frame_id: frame_id.to_string(),
             url,
         });
-        let session = session.to_string();
-        let page = page.page.clone();
-        cx.spawn(async move |_, _| {
-            page.observe(&session).await.log_err();
-            page.watch_selects(&session).await.log_err();
-        })
-        .detach();
+        Some(page.page.clone())
     }
 
     fn iframe_detached(&mut self, generation: u64, params: &Value) {
@@ -2986,6 +3069,22 @@ fn whole_pixels(length: Pixels) -> u32 {
 async fn pages_at_start(connection: &Connection) -> Result<Vec<String>, CdpError> {
     Page::discover(connection).await?;
     Page::page_ids(connection).await
+}
+
+/// The browser's pages at a start, and the identity its pages get (#539), read first since each
+/// page takes it at its attach; a browser that will not say leaves its pages Chromium's own.
+async fn pages_and_identity(
+    connection: &Connection,
+    name: &str,
+) -> Result<(Vec<String>, Option<Identity>), CdpError> {
+    let identity = match Identity::read(connection).await {
+        Ok(identity) => Some(identity),
+        Err(error) => {
+            log::warn!("browser: {name}'s pages keep Chromium's own user agent: {error}");
+            None
+        }
+    };
+    Ok((pages_at_start(connection).await?, identity))
 }
 
 /// Waits until the hub shows the pages of the project `key`'s browser.
@@ -3431,7 +3530,7 @@ fn follow_observed(
         "Target.attachedToTarget" => {
             if let Some(parent) = event.session_id.clone() {
                 this.update(cx, |this, cx| {
-                    this.iframe_attached(generation, parent, &event.params, cx);
+                    this.child_attached(generation, parent, &event.params, cx);
                 })
                 .ok();
             }
@@ -3623,13 +3722,41 @@ async fn refresh_history(
     url: Option<String>,
     cx: &mut AsyncApp,
 ) {
-    let page = this
-        .read_with(cx, |this, _| this.page(target))
+    let read = this
+        .update(cx, |this, _| {
+            let forget_blank = url.as_deref().is_some_and(|url| url != BLANK)
+                && this.started_mut(generation).is_some_and(|browser| {
+                    let before = browser.blank_entries.len();
+                    browser.blank_entries.retain(|blank| blank != target);
+                    browser.blank_entries.len() < before
+                });
+            let state = this.page_state(target);
+            let viewport = state.and_then(|state| state.viewport);
+            let streaming = state.is_some_and(|state| state.screencasting);
+            this.page(target)
+                .map(|page| (page, forget_blank, viewport, streaming))
+        })
         .ok()
         .flatten();
-    let Some(page) = page else {
+    let Some((page, forget_blank, viewport, streaming)) = read else {
         return;
     };
+    if forget_blank {
+        page.reset_history().await.log_err();
+        // The first commit replaces the blank document the page was attached at, and what its
+        // tab sent meanwhile, the size and the stream it draws, can fail or keep the window's
+        // size ("Not attached to an active page"; #494's reopened tab drew 87 pixels short).
+        // The tab sends a size only when it changes, so both go again here.
+        if let Some(viewport) = viewport {
+            page.set_viewport(viewport.width, viewport.height, viewport.scale)
+                .await
+                .log_err();
+        }
+        if streaming {
+            page.stop_screencast().await.log_err();
+            page.start_screencast().await.log_err();
+        }
+    }
     let history = page.history().await.log_err();
     this.update(cx, |this, cx| {
         this.navigated(generation, target, url, history, cx);

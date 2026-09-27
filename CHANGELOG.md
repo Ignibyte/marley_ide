@@ -671,6 +671,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Websites see Marley's browser as Chrome** (#539, 2026-09-27). Pages in a Browser tab were
+  told they ran in headless Chrome (`HeadlessChrome/152` in the user agent), which bot checks
+  such as Cloudflare's refuse, so some sites would not load or let you sign in. Every page now
+  sees `Chrome/152`, with Chromium's own client hints, which agree with it. That holds in a tab,
+  in the cross-site frames a page holds, in an agent's new tab, and in a tab Marley opens from a
+  link or at a restart. The first document of a popup a page opens, and service workers, still
+  see the headless name.
 - **A client that was cut off is told so** (#584, 2026-09-27). After Cut Off, a program using
   Marley's bridge was told that Marley was not running and to start it, while Marley ran. It is
   now told that Marley does not allow it, and that the user can allow it again in Browser

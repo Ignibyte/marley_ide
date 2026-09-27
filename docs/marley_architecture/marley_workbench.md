@@ -903,6 +903,16 @@ alike.
   takes the viewport of the page it opens beside, so a page behind another tab lays out as it
   will show. `PageClosed` closes each tab of the page, which first forgets the page so that its
   removal closes nothing. A registry of weak `BrowserView`s finds a page's tab.
+- Pages see Chrome (#539). The hub reads the identity with the pages a start finds
+  (`pages_and_identity`) and hands it to each attach. `child_attached` handles every target a
+  page's auto-attach holds: a cross-site iframe gets the identity, and when its page is known the
+  hub keeps it and observes it (`record_iframe`); then every held target runs on, handled or not.
+  `create_page_task` opens every page at `about:blank`, with its URL in `pending_urls` until the
+  attach has set the identity, and `attached` then sends the page there and notes it in
+  `blank_entries`. When that URL commits, `refresh_history` resets the page's history, so Back
+  does not lead to the blank page, and sends the tab's size and restarts its stream, which the
+  first commit can leave at the window's size. `ProjectBrowser::starting` builds a starting
+  browser's state.
 - `BrowserView` is one page's tab, a `workspace::Item` that holds the page's target id (none
   while it waits for one), its project's key (#507: the page's project, or its workspace's while
   it waits), its workspace and its window: its text is the page's title (else

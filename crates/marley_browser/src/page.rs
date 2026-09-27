@@ -30,6 +30,98 @@ const DESCRIBE_ELEMENT: &str = "function () { return { tag: this.tagName.toLower
 kind: typeof this.type === 'string' ? this.type : null, \
 value: this.type === 'password' || typeof this.value !== 'string' ? null : this.value }; }";
 
+/// Who the browser says it is to the pages it shows (#539).
+///
+/// It is Chromium's own user agent without its headless marker, and the client-hint fields CDP
+/// requires. The brands and the full versions are left out, so Chromium keeps its own, which a
+/// probe of Chromium 152 found to be exactly what it gives unasked.
+#[derive(Debug, Clone)]
+pub struct Identity {
+    user_agent: String,
+    metadata: Value,
+}
+
+impl Identity {
+    /// The identity of a Chromium whose `Browser.getVersion` gives `user_agent`, on the kind of
+    /// machine Marley was built for.
+    #[must_use]
+    pub fn from_browser(user_agent: &str) -> Self {
+        Self {
+            user_agent: user_agent.replace("HeadlessChrome/", "Chrome/"),
+            metadata: json!({
+                "platform": hint_platform(),
+                "platformVersion": "",
+                "architecture": hint_architecture(),
+                "model": "",
+                "mobile": false,
+                "bitness": usize::BITS.to_string(),
+                "wow64": false,
+            }),
+        }
+    }
+
+    /// The identity of the browser on `connection`, from its own user agent.
+    ///
+    /// # Errors
+    ///
+    /// When the call fails or its answer has no user agent.
+    pub async fn read(connection: &Connection) -> Result<Self, CdpError> {
+        let version = connection
+            .call("Browser.getVersion", json!({}), None)
+            .await?;
+        Ok(Self::from_browser(&string_field(&version, "userAgent")?))
+    }
+
+    /// Gives `session`, a page's own or one of its cross-site iframes', this identity for its
+    /// requests and scripts from then on.
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::call`].
+    pub async fn apply(&self, connection: &Connection, session: &str) -> Result<(), CdpError> {
+        connection
+            .call(
+                "Emulation.setUserAgentOverride",
+                json!({ "userAgent": self.user_agent, "userAgentMetadata": self.metadata }),
+                Some(session),
+            )
+            .await?;
+        Ok(())
+    }
+}
+
+/// Lets the target of `session` run on, one Chromium holds at its start because it attached
+/// on its own ([`Page::observe`]).
+///
+/// # Errors
+///
+/// As [`Connection::call`].
+pub async fn resume(connection: &Connection, session: &str) -> Result<(), CdpError> {
+    connection
+        .call("Runtime.runIfWaitingForDebugger", json!({}), Some(session))
+        .await?;
+    Ok(())
+}
+
+/// The platform as the client hints name it (`Sec-CH-UA-Platform`).
+fn hint_platform() -> &'static str {
+    match std::env::consts::OS {
+        "linux" => "Linux",
+        "macos" => "macOS",
+        "windows" => "Windows",
+        other => other,
+    }
+}
+
+/// The processor's family as the client hints name it (`Sec-CH-UA-Arch`).
+fn hint_architecture() -> &'static str {
+    match std::env::consts::ARCH {
+        "x86" | "x86_64" => "x86",
+        "arm" | "aarch64" => "arm",
+        _ => "",
+    }
+}
+
 /// A page target, attached with its own session on the browser's connection.
 #[derive(Debug, Clone)]
 pub struct Page {
@@ -261,13 +353,18 @@ impl Page {
     }
 
     /// Attaches to the page `target_id` with a flat session of its own and turns on what the
-    /// Browser tab and the agent tools need: the page's events, focus as if the page had it, and
-    /// the observers ([`Page::observe`]), all before the page is handed back.
+    /// Browser tab and the agent tools need: the page's `identity` when there is one, the page's
+    /// events, focus as if the page had it, and the observers ([`Page::observe`]), all before
+    /// the page is handed back.
     ///
     /// # Errors
     ///
     /// When a call fails or the browser's answer lacks the session.
-    pub async fn attach(connection: &Connection, target_id: &str) -> Result<Self, CdpError> {
+    pub async fn attach(
+        connection: &Connection,
+        target_id: &str,
+        identity: Option<&Identity>,
+    ) -> Result<Self, CdpError> {
         let attached = connection
             .call(
                 "Target.attachToTarget",
@@ -280,6 +377,13 @@ impl Page {
             session_id: string_field(&attached, "sessionId")?,
             target_id: target_id.to_string(),
         };
+        // Before the page's domains come on; a page that refuses it still opens, as Chromium
+        // introduces it.
+        if let Some(identity) = identity
+            && let Err(error) = identity.apply(connection, &page.session_id).await
+        {
+            log::warn!("browser: a page keeps Chromium's own user agent: {error}");
+        }
         page.call("Page.enable", json!({})).await?;
         page.call(
             "Emulation.setFocusEmulationEnabled",
@@ -510,6 +614,16 @@ impl Page {
             .map_err(|error| CdpError::Unexpected(format!("the page's history: {error}")))
     }
 
+    /// Forgets every entry of the page's history but the one it shows.
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::call`].
+    pub async fn reset_history(&self) -> Result<(), CdpError> {
+        self.call("Page.resetNavigationHistory", json!({})).await?;
+        Ok(())
+    }
+
     /// Moves the page to the history entry `id`.
     ///
     /// # Errors
@@ -557,7 +671,9 @@ impl Page {
     }
 
     /// Turns on, in `session`, what the agent tools read: console messages and uncaught errors,
-    /// the network, the browser's log, and each cross-site iframe as a session of its own.
+    /// the network, the browser's log, and each cross-site iframe as a session of its own, which
+    /// Chromium holds at its start until [`resume`] lets it run, so what the iframe needs before
+    /// its first script (its identity, #539) reaches it in time.
     ///
     /// # Errors
     ///
@@ -569,7 +685,7 @@ impl Page {
             ("Log.enable", json!({})),
             (
                 "Target.setAutoAttach",
-                json!({ "autoAttach": true, "waitForDebuggerOnStart": false, "flatten": true }),
+                json!({ "autoAttach": true, "waitForDebuggerOnStart": true, "flatten": true }),
             ),
         ] {
             self.call_in(session, method, params).await?;
