@@ -35,7 +35,13 @@
 #   output is still kept (#546); `blocks-here` lists the blocks of the terminal the agent runs in,
 #   naming none (#520), and `terminals` marks that one `(self)` and gives each `terminal_id`. `fleet` lists `fleet_snapshot`'s seats: each one's id, state and
 #   the labels an agent row shows, or `no seats` (#547). `open-url <url> <directory>` asks
-#   `browser_open_url` to open a URL for a program in that folder (#561).
+#   `browser_open_url` to open a URL for a program in that folder (#561). `--endpoint <file>`,
+#   first, points the bridge at another endpoint file, an outside client's (#524).
+# - `mcp_http <endpoint file> <command> ...` talks to Marley's MCP server directly with the file's
+#   URL and token, printing statuses and messages and never the token (#524): `initialize`,
+#   `call <tool> [<json arguments>]`, `resources-read`, `get` (a standing stream), `sessions <n>`
+#   (opens n sessions, then uses the first and the last again), `long-header` (a request with a
+#   16 KiB header line) and `silent` (a connection that sends half a request and waits).
 # - `write_login_site <dir>` writes a site that keeps a login three ways into `$E2E_WORK/<dir>`
 #   (#507, #581): `signin.html?as=<name>` keeps it as a cookie that outlives the browser, in
 #   `localStorage` and in an IndexedDB record, then goes to `whoami.html`, which shows all three
@@ -123,10 +129,161 @@ agent() {
 }
 
 mcp_agent() {
+  local endpoint=$E2E_PROFILE/mcp-endpoint.json
+  if [[ ${1:-} == --endpoint ]]; then
+    endpoint=$2
+    shift 2
+  fi
   [[ -f $E2E_WORK/mcp-agent.py ]] || write_mcp_agent
   BRIDGE=$PWD/crates/marley_workbench/claude_plugin/marley/bin/marley-mcp-bridge \
-    MARLEY_MCP_ENDPOINT=$E2E_PROFILE/mcp-endpoint.json \
+    MARLEY_MCP_ENDPOINT=$endpoint \
     python3 "$E2E_WORK/mcp-agent.py" "$@"
+}
+
+mcp_http() {
+  [[ -f $E2E_WORK/mcp-http.py ]] || write_mcp_http
+  python3 "$E2E_WORK/mcp-http.py" "$@"
+}
+
+write_mcp_http() {
+  cat >"$E2E_WORK/mcp-http.py" <<'PY'
+"""Talks to Marley's MCP server with an endpoint file's URL and token, printing statuses and
+messages and never a token (#524)."""
+
+import json
+import socket
+import sys
+import time
+import urllib.parse
+
+
+def endpoint(path):
+    with open(path) as file:
+        entry = json.load(file)
+    parsed = urllib.parse.urlsplit(entry["url"])
+    return parsed.hostname, parsed.port, parsed.path, entry["headers"]["Authorization"]
+
+
+def exchange(target, method, body=None, session=None, extra=""):
+    """One request on a fresh connection: the status, the headers and the body."""
+    host, port, path, authorization = target
+    data = json.dumps(body).encode() if body is not None else b""
+    head = (
+        f"{method} {path} HTTP/1.1\r\nHost: {host}:{port}\r\nAuthorization: {authorization}\r\n"
+        "Accept: application/json, text/event-stream\r\nContent-Type: application/json\r\n"
+        f"Content-Length: {len(data)}\r\n"
+    )
+    if session:
+        head += f"Mcp-Session-Id: {session}\r\n"
+    head += extra + "\r\n"
+    with socket.create_connection((host, port), timeout=15) as connection:
+        connection.sendall(head.encode() + data)
+        if method == "GET":
+            connection.settimeout(2)
+        reply = b""
+        try:
+            while True:
+                chunk = connection.recv(65536)
+                if not chunk:
+                    break
+                reply += chunk
+        except socket.timeout:
+            pass
+    text = reply.decode("utf-8", "replace")
+    status_line, _, rest = text.partition("\r\n")
+    headers, _, payload = rest.partition("\r\n\r\n")
+    status = status_line.split(" ", 2)[1] if " " in status_line else "none"
+    fields = {}
+    for line in headers.split("\r\n"):
+        name, _, value = line.partition(":")
+        fields[name.strip().lower()] = value.strip()
+    messages = []
+    for line in payload.splitlines():
+        if line.startswith("data: "):
+            messages.append(json.loads(line[6:]))
+    return status, fields, messages
+
+
+INITIALIZE = {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "e2e", "version": "1"}},
+}
+
+
+def open_session(target):
+    status, fields, _ = exchange(target, "POST", INITIALIZE)
+    session = fields.get("mcp-session-id")
+    if session:
+        exchange(target, "POST", {"jsonrpc": "2.0", "method": "notifications/initialized"}, session)
+    return status, session
+
+
+def main():
+    target = endpoint(sys.argv[1])
+    command = sys.argv[2]
+    if command == "initialize":
+        status, session = open_session(target)
+        print(f"  initialize: {status}{', a session' if session else ''}")
+    elif command == "call":
+        status, session = open_session(target)
+        if not session:
+            print(f"  initialize: {status}")
+            return
+        arguments = json.loads(sys.argv[4]) if len(sys.argv) > 4 else {}
+        body = {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": sys.argv[3], "arguments": arguments}}
+        status, _, messages = exchange(target, "POST", body, session)
+        for message in messages:
+            if "error" in message:
+                print(f"  {sys.argv[3]}: error {message['error'].get('code')}: {message['error'].get('message')}")
+            else:
+                result = message.get("result", {})
+                text = (result.get("content") or [{}])[0].get("text", "")
+                print(f"  {sys.argv[3]}: {'refused' if result.get('isError') else 'answered'}: {text[:200]}")
+    elif command == "resources-read":
+        status, session = open_session(target)
+        body = {"jsonrpc": "2.0", "id": 3, "method": "resources/read", "params": {"uri": "fleet://snapshot"}}
+        status, _, messages = exchange(target, "POST", body, session)
+        for message in messages:
+            if "error" in message:
+                print(f"  resources/read: error {message['error'].get('code')}: {message['error'].get('message')}")
+            else:
+                print("  resources/read: answered")
+    elif command == "get":
+        status, session = open_session(target)
+        status, _, _ = exchange(target, "GET", session=session)
+        print(f"  GET: {status}")
+    elif command == "sessions":
+        count = int(sys.argv[3])
+        sessions = []
+        for index in range(count):
+            status, session = open_session(target)
+            print(f"  session {index + 1}: {status}")
+            sessions.append(session)
+            time.sleep(0.05)
+        body = {"jsonrpc": "2.0", "id": 4, "method": "tools/list"}
+        for index in (0, count - 1):
+            status, _, _ = exchange(target, "POST", body, sessions[index])
+            print(f"  session {index + 1} used again: {status}")
+    elif command == "long-header":
+        status, _, _ = exchange(target, "POST", INITIALIZE, extra="X-Filler: " + "a" * 16384 + "\r\n")
+        print(f"  a 16 KiB header line: {status}")
+    elif command == "silent":
+        host, port, _, _ = target
+        started = time.monotonic()
+        with socket.create_connection((host, port), timeout=30) as connection:
+            connection.sendall(b"POST /mcp HTTP/1.1\r\n")
+            try:
+                closed = connection.recv(1) == b""
+            except (ConnectionResetError, socket.timeout):
+                closed = True
+        print(f"  a connection that sent half a request: {'closed' if closed else 'open'} after {round(time.monotonic() - started)} s")
+
+
+if __name__ == "__main__":
+    main()
+PY
 }
 
 browser_teardown() {

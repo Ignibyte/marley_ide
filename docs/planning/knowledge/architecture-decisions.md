@@ -2484,3 +2484,23 @@ a move within the document stay. Rejected:
   behind another would never change;
 - a move within the document to make Marley read the title again (#523's stand-in in the
   fixture): only a page Marley wrote can do that.
+
+## AD-claude-524-outside-clients-reach-a-list-of-browser-tools-by-name-001
+*decided at: 2026-09-27 · status: shipped (slice 1; #583 and #584 follow) · builds on: AD-claude-491-marleys-mcp-server-runs-in-the-app-behind-a-stdio-bridge-001, AD-claude-492-agents-drive-the-browser-tab-through-the-mcp-server-001*
+
+Programs outside Marley reach its browser through its MCP server, never raw CDP, and only by
+name: the user allows each in Browser Clients to read pages or also to act in them, and the list
+lives in Marley's own `<data>/mcp/clients.json`, never Zed settings, which a project's own
+settings merge into. Each client's token is minted at each start and written only into its own
+endpoint file (0600), which it points Marley's bridge at; none outlives the run. A client calls
+only an explicit list of browser tools (ten to read, eight more to act), refused anything else in
+the server and again in the app, reads no resource and opens no stream; its sessions are its
+own, four at most. A tab it acts in names it and shows "Driven by <name>" with Cut Off, which
+refuses its token at once. Rejected:
+- a CDP proxy first, which would hand a client cookies, script evaluation and every page with
+  nothing on the screen (the relay of #583 serves Playwright clients later, behind the same
+  tokens);
+- the browser family by family and tier, which would hand clients every browser tool added
+  later, `browser_draft_test`'s project paths among them;
+- tokens that last across restarts, as Orca's direct tokens do (report 04 §2.13);
+- clients in Zed's settings, where a repository could grant itself one.

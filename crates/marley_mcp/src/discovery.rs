@@ -5,6 +5,7 @@
 //! correctness IS this ticket's payload, so the helpers take a dir param (the house `*_in(dir)`
 //! testable-IO idiom) and are proven by tempdir metadata-mode asserts. The bearer is a secret, so
 //! the file is owner-only (0600) and is removed on clean shutdown so a stale bearer never lingers.
+//! Since #524 an outside client's endpoint file is written the same way under a name of its own.
 
 use std::fs::{self, OpenOptions};
 use std::io;
@@ -15,7 +16,16 @@ use std::path::Path;
 /// The discovery file's fixed name within the config dir.
 const DISCOVERY_FILE: &str = "mcp-endpoint.json";
 
-/// Write `json` to `<dir>/mcp-endpoint.json` owner-only (0600).
+/// Write `json` to `<dir>/mcp-endpoint.json` owner-only (0600), as [`write_endpoint_file_in`] does.
+///
+/// # Errors
+///
+/// Any IO error opening, re-moding or writing the file.
+pub fn write_discovery_file_in(dir: &Path, json: &str) -> io::Result<()> {
+    write_endpoint_file_in(dir, DISCOVERY_FILE, json)
+}
+
+/// Write `json` to `<dir>/<name>` owner-only (0600).
 ///
 /// A fresh file is created 0600; a pre-existing looser file is corrected via an fchmod on the OPEN
 /// HANDLE (`OpenOptions::mode` only applies on create) BEFORE the new bearer bytes are written — so
@@ -25,8 +35,8 @@ const DISCOVERY_FILE: &str = "mcp-endpoint.json";
 /// # Errors
 ///
 /// Any IO error opening, re-moding or writing the file.
-pub fn write_discovery_file_in(dir: &Path, json: &str) -> io::Result<()> {
-    let path = dir.join(DISCOVERY_FILE);
+pub fn write_endpoint_file_in(dir: &Path, name: &str, json: &str) -> io::Result<()> {
+    let path = dir.join(name);
     let mut options = OpenOptions::new();
     let options = options.write(true).create(true).truncate(true);
     // Applies on create (the fresh-file path). Only Unix has file modes.
@@ -40,14 +50,24 @@ pub fn write_discovery_file_in(dir: &Path, json: &str) -> io::Result<()> {
     io::Write::write_all(&mut file, json.as_bytes())
 }
 
-/// Remove `<dir>/mcp-endpoint.json` (clean shutdown, REQ-006) so a stale bearer doesn't linger. Idempotent:
-/// an absent file is `Ok(())`, not an error.
+/// Remove `<dir>/mcp-endpoint.json` (clean shutdown, REQ-006) so a stale bearer doesn't linger, as
+/// [`remove_endpoint_file_in`] does.
 ///
 /// # Errors
 ///
 /// Any IO error removing the file other than its absence.
 pub fn remove_discovery_file_in(dir: &Path) -> io::Result<()> {
-    match fs::remove_file(dir.join(DISCOVERY_FILE)) {
+    remove_endpoint_file_in(dir, DISCOVERY_FILE)
+}
+
+/// Remove `<dir>/<name>` so a stale token doesn't linger. Idempotent: an absent file is `Ok(())`,
+/// not an error.
+///
+/// # Errors
+///
+/// Any IO error removing the file other than its absence.
+pub fn remove_endpoint_file_in(dir: &Path, name: &str) -> io::Result<()> {
+    match fs::remove_file(dir.join(name)) {
         Ok(()) => Ok(()),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(err) => Err(err),

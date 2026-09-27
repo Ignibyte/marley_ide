@@ -3,6 +3,7 @@
 //! app-side effect. Never panics; every business refusal is a typed `isError` result (D6), every unknown
 //! method/tool a protocol error.
 
+use crate::clients::{Principal, permits};
 use crate::jsonrpc::RpcRequest;
 use crate::permission::Decision;
 use crate::registry::Family;
@@ -23,9 +24,26 @@ pub fn handle_message(ctx: &RequestCtx, subs: &mut Subscriptions, message: &str)
         }
     };
     let id = request.response_id();
+    // An outside client (#524) reads no resource: the fleet snapshot carries every agent's prompt
+    // and folder.
+    if let Principal::Client(grant) = ctx.principal
+        && request.method.starts_with("resources/")
+    {
+        return respond(jsonrpc::error_response(
+            &id,
+            jsonrpc::METHOD_NOT_FOUND,
+            &format!(
+                "{} is not open to outside clients such as {}",
+                request.method, grant.name
+            ),
+        ));
+    }
     match request.method.as_str() {
         "initialize" => respond(jsonrpc::result_response(&id, initialize_result())),
-        "tools/list" => respond(jsonrpc::result_response(&id, registry::tools_list())),
+        "tools/list" => respond(jsonrpc::result_response(
+            &id,
+            registry::tools_list_for(ctx.principal),
+        )),
         "resources/list" => respond(jsonrpc::result_response(&id, resource::resources_list())),
         "resources/read" => resources_read(ctx, &request, &id),
         "resources/subscribe" => resources_subscribe(subs, &request, &id),
@@ -149,6 +167,11 @@ fn tools_call(ctx: &RequestCtx, request: &RpcRequest, id: &Value) -> Handled {
             &format!("unknown tool: {name}"),
         ));
     };
+    // An outside client calls only its grant's tools (#524), listed or not: `lookup` finds unlisted
+    // ones too.
+    if let Err(reason) = permits(ctx.principal, &spec.name()) {
+        return respond(jsonrpc::result_response(id, tools::tool_error(&reason)));
+    }
     // Permission (D5/REQ-006/007/008). A DENIAL is a tool-execution error (isError), NOT a protocol error.
     if let Decision::Deny(reason) = permission::decide(spec.tier, spec.grant_class, ctx.grants) {
         return respond(jsonrpc::result_response(id, tools::tool_error(&reason)));
@@ -246,6 +269,7 @@ mod tests {
             snapshot: snap,
             grants,
             surface_index: index,
+            principal: &crate::Principal::Marley,
         };
         let mut subs = Subscriptions::default();
         let handled = handle_message(&ctx, &mut subs, msg);
@@ -328,6 +352,7 @@ mod tests {
             snapshot: &snapshot(),
             grants: &grants,
             surface_index: &[("dev-1/a".to_string(), 42)],
+            principal: &crate::Principal::Marley,
         };
         let mut subs = Subscriptions::default();
         let handled = handle_message(
@@ -349,6 +374,7 @@ mod tests {
             snapshot: &snapshot(),
             grants: &grants,
             surface_index: &[("dev-1/a".to_string(), 42)],
+            principal: &crate::Principal::Marley,
         };
         let mut subs = Subscriptions::default();
         let handled = handle_message(
@@ -388,6 +414,7 @@ mod tests {
             snapshot: &snap,
             grants: &GrantTable::default(),
             surface_index: &[],
+            principal: &crate::Principal::Marley,
         };
         let mut subs = Subscriptions::default();
         let _subscribed = handle_message(
@@ -433,6 +460,7 @@ mod tests {
             snapshot: &snapshot(),
             grants: &grants,
             surface_index: &[],
+            principal: &crate::Principal::Marley,
         };
         let mut subs = Subscriptions::default();
         let handled = handle_message(
@@ -450,6 +478,7 @@ mod tests {
             snapshot: &snapshot(),
             grants: &GrantTable::default(),
             surface_index: &[],
+            principal: &crate::Principal::Marley,
         };
         let mut subs = Subscriptions::default();
         let init = handle_message(

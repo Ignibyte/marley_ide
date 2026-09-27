@@ -8,16 +8,18 @@
 //! as ACCEPTED-UNTESTABLE for the IO-error arms a loopback peer cannot provoke.
 //!
 //! Security (D1/D9): binds `127.0.0.1:0` ONLY (never 0.0.0.0), validates `Origin`, requires the per-boot
-//! bearer on every request, and NEVER logs the bearer.
+//! bearer or an allowed client's token (#524) on every request, bounds what it reads before it knows
+//! who is asking, and NEVER logs a bearer.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
 use std::sync::mpsc::{RecvTimeoutError, Sender};
-use std::sync::{Arc, Condvar, Mutex};
-use std::time::Duration;
+use std::sync::{Arc, Condvar, Mutex, RwLock};
+use std::time::{Duration, Instant};
 
 use marley_fleet::FleetSnapshot;
 
+use crate::clients::{ClientError, ClientGrant, ClientTable, Principal};
 use crate::permission::GrantTable;
 use crate::session::{SessionDecision, SessionRegistry, session_gate};
 use crate::{
@@ -47,11 +49,18 @@ pub struct ServerData {
 /// A shared, condvar-signalled `ServerData`.
 pub type Shared = Arc<(Mutex<ServerData>, Condvar)>;
 
-/// A handle to a running server (its loopback URL + the per-boot bearer). The bearer's `Debug` is
-/// redacted so it can never leak into a log.
+/// The outside clients a server lets in (#524).
+///
+/// It sits apart from [`Shared`], so resolving a bearer never takes the data lock: an
+/// unauthenticated request still never touches the session registry (#375 REQ-012).
+pub type Clients = Arc<RwLock<ClientTable>>;
+
+/// A handle to a running server (its loopback URL, the per-boot bearer, and its outside clients).
+/// The bearer's `Debug` is redacted so it can never leak into a log.
 pub struct ServerHandle {
     url: String,
     bearer: String,
+    clients: Clients,
 }
 
 impl std::fmt::Debug for ServerHandle {
@@ -59,6 +68,7 @@ impl std::fmt::Debug for ServerHandle {
         f.debug_struct("ServerHandle")
             .field("url", &self.url)
             .field("bearer", &"***")
+            .field("clients", &self.clients)
             .finish()
     }
 }
@@ -75,6 +85,51 @@ impl ServerHandle {
     pub fn bearer(&self) -> &str {
         &self.bearer
     }
+
+    /// The outside clients the server lets in (#524), for [`allow_client`] and
+    /// [`cut_off_client`].
+    #[must_use]
+    pub const fn clients(&self) -> &Clients {
+        &self.clients
+    }
+}
+
+/// Lets the client `name` in (#524), with the grant to act in pages when `write`: a new token,
+/// returned for its endpoint file only.
+///
+/// # Errors
+///
+/// A name the table refuses, one allowed already, or no OS entropy for the token.
+pub fn allow_client(clients: &Clients, name: &str, write: bool) -> Result<String, ClientError> {
+    let token = mint_secret(read_entropy()).map_err(|_| ClientError::NoEntropy)?;
+    clients
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .allow(
+            ClientGrant {
+                name: name.to_string(),
+                write,
+            },
+            token.clone(),
+        )?;
+    Ok(token)
+}
+
+/// Cuts the client `name` off (#524): its token opens nothing from now on, and every session it
+/// holds ends. Whether it was allowed.
+pub fn cut_off_client(shared: &Shared, clients: &Clients, name: &str) -> bool {
+    // One lock at a time, never both, so no request thread can wait on the other order.
+    let was_allowed = clients
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .cut_off(name);
+    let (data, _cv) = &**shared;
+    let _ended = data
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .sessions
+        .terminate_owned_by(name);
+    was_allowed
 }
 
 /// Epoch-millis from the system clock — the injected `now` for the #379 session-TTL gate. Ambient
@@ -119,35 +174,46 @@ pub fn spawn(
     let addr = listener.local_addr()?;
     let bearer = mint_secret(read_entropy()).map_err(std::io::Error::other)?;
     let url = format!("http://{addr}/mcp");
-    let bearer_for_thread = bearer.clone();
+    let clients: Clients = Arc::default();
+    let server = Server {
+        shared,
+        clients: Arc::clone(&clients),
+        effects,
+        caller,
+        bearer: bearer.clone(),
+    };
     // The accept loop runs for the life of the process; dropping its handle detaches it.
     drop(
         std::thread::Builder::new()
             .name("marley-mcp-server".into())
-            .spawn(move || {
-                accept_loop(&listener, &shared, &effects, &caller, &bearer_for_thread);
-            })?,
+            .spawn(move || accept_loop(&listener, &server))?,
     );
-    Ok(ServerHandle { url, bearer })
+    Ok(ServerHandle {
+        url,
+        bearer,
+        clients,
+    })
+}
+
+/// What every connection's thread shares: the state, the clients, the app's channels and the
+/// per-boot bearer. Cloning it clones the handles, never the state.
+#[derive(Clone)]
+struct Server {
+    shared: Shared,
+    clients: Clients,
+    effects: Sender<Effect>,
+    caller: AppCaller,
+    bearer: String,
 }
 
 /// Accept connections, one thread per connection (blocking IO — the search/syntax-worker idiom).
-fn accept_loop(
-    listener: &TcpListener,
-    shared: &Shared,
-    effects: &Sender<Effect>,
-    caller: &AppCaller,
-    bearer: &str,
-) {
+fn accept_loop(listener: &TcpListener, server: &Server) {
     for stream in listener.incoming().flatten() {
-        let shared = Arc::clone(shared);
-        let effects = effects.clone();
-        let caller = Arc::clone(caller);
-        let bearer = bearer.to_string();
+        let server = server.clone();
         let spawned = std::thread::Builder::new()
             .name("marley-mcp-conn".into())
             .spawn(move || {
-                if let Err(error) = serve_connection(stream, &shared, &effects, &caller, &bearer) {
+                if let Err(error) = serve_connection(stream, &server) {
                     // Mostly a client that hung up mid-exchange; the connection is over either way.
                     log::debug!("marley_mcp: a connection ended in an IO error: {error}");
                 }
@@ -161,23 +227,50 @@ fn accept_loop(
 
 /// Serve one connection: read the HTTP request, run the auth guards, then either answer a POST (via
 /// `handle_message`) or hold a GET open as the standing SSE notification stream.
-fn serve_connection(
-    mut stream: std::net::TcpStream,
-    shared: &Shared,
-    effects: &Sender<Effect>,
-    caller: &AppCaller,
-    bearer: &str,
-) -> std::io::Result<()> {
-    let mut reader = BufReader::new(stream.try_clone()?);
-    let Some(request) = read_http_request(&mut reader)? else {
-        return write_status(&mut stream, 400, "Bad Request");
+fn serve_connection(mut stream: std::net::TcpStream, server: &Server) -> std::io::Result<()> {
+    let Server {
+        shared,
+        clients,
+        bearer,
+        ..
+    } = server;
+    let mut reader = BufReader::new(Deadlined {
+        stream: stream.try_clone()?,
+        deadline: Instant::now() + REQUEST_READ_TIMEOUT,
+    });
+    let mut request = match read_http_request(&mut reader) {
+        Ok(Some(request)) => request,
+        Ok(None) => return write_status(&mut stream, 400, "Bad Request"),
+        Err(RequestError::TooLarge) => {
+            return write_status_then_drain(&mut stream, 431, "Request Header Fields Too Large");
+        }
+        Err(RequestError::Io(error)) => return Err(error),
     };
+    drop(reader);
+    stream.set_read_timeout(None)?;
     // Auth guards (D1/D9) — refuse BEFORE any dispatch. Order: cap (in read_http_request) → Origin →
     // bearer → session → dispatch (#375 REQ-012 — an unauthenticated request never touches the registry).
-    if !auth::origin_allowed(request.origin.as_deref())
-        || !auth::bearer_ok(request.bearer.as_deref(), bearer)
-    {
+    if !auth::origin_allowed(request.origin.as_deref()) {
         return write_status(&mut stream, 403, "Forbidden");
+    }
+    let principal = clients
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .resolve(request.bearer.as_deref(), bearer);
+    let Some(principal) = principal else {
+        return write_status(&mut stream, 403, "Forbidden");
+    };
+    if let Principal::Client(grant) = &principal {
+        clients
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .touch(&grant.name, now_epoch_ms());
+        // Its `Marley-*` headers name a Marley terminal, which an outside client is not (#524).
+        request.caller = Caller::default();
+        // A client gets no standing stream: the fleet's pushes are not its to see.
+        if request.method == "GET" {
+            return write_status(&mut stream, 405, "Method Not Allowed");
+        }
     }
     // Session gate (#375, MCP §Session Management) — POST-auth. Decide + mutate the registry under ONE
     // lock, then release before touching the socket. An `initialize` mints + assigns a fresh id (echoed on
@@ -195,6 +288,7 @@ fn serve_connection(
             &request.method,
             is_initialize,
             request.session.as_deref(),
+            &principal,
             &mut guard.sessions,
             now,
         ) {
@@ -204,7 +298,7 @@ fn serve_connection(
             }
             SessionDecision::Terminate => {
                 if let Some(id) = request.session.as_deref() {
-                    let _was_live = guard.sessions.terminate(id);
+                    let _was_live = guard.sessions.terminate(id, &principal);
                 }
                 drop(guard);
                 return write_status(&mut stream, 200, "OK");
@@ -214,7 +308,11 @@ fn serve_connection(
                     drop(guard);
                     return write_status(&mut stream, 500, "Internal Server Error");
                 };
-                if guard.sessions.assign(id.clone(), now).is_err() {
+                if guard
+                    .sessions
+                    .assign(id.clone(), principal.clone(), now)
+                    .is_err()
+                {
                     drop(guard);
                     return write_status(&mut stream, 503, "Service Unavailable");
                     // at SESSION_CAP
@@ -225,49 +323,13 @@ fn serve_connection(
         }
     };
     if request.method == "POST" {
-        let handled = {
-            let (data, _cv) = &**shared;
-            let guard = data
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            let ctx = RequestCtx {
-                snapshot: &guard.snapshot,
-                grants: &guard.grants,
-                surface_index: &guard.surface_index,
-            };
-            let mut subs = Subscriptions::default();
-            let handled = handle_message(&ctx, &mut subs, &request.body);
-            drop(guard);
-            handled
-        };
-        if let Some(effect) = handled.effect
-            && let Err(error) = effects.send(effect)
-        {
-            // The app's receiver is gone, so it is shutting down and has no pane to focus.
-            log::debug!("marley_mcp: the app dropped a surface effect: {error}");
-        }
-        let mut wrote_response = false;
-        for message in handled.outgoing {
-            let body = match message {
-                Outgoing::Response(body) => body,
-                // The lock is released by now, so the wait holds up no other connection.
-                Outgoing::Deferred(pending) => {
-                    let outcome = ask_app(caller, &pending, &request.caller);
-                    deferred_response(&pending, outcome)
-                }
-                Outgoing::Notification(_) => continue,
-            };
-            // The `Mcp-Session-Id` header rides ONLY the initialize response (session_id is Some only
-            // for an Initialize decision); subsequent responses carry no new id.
-            write_sse_response(&mut stream, &body, session_id.as_deref())?;
-            wrote_response = true;
-        }
-        // Inspect fix: a notification-only POST (no response body) still gets an HTTP reply — 202
-        // Accepted, per MCP Streamable-HTTP — so the client's read never hangs waiting for a body.
-        if !wrote_response {
-            write_status(&mut stream, 202, "Accepted")?;
-        }
-        Ok(())
+        serve_post(
+            &mut stream,
+            server,
+            &request,
+            &principal,
+            session_id.as_deref(),
+        )
     } else {
         // GET → the standing SSE stream (reached only for a valid session — the gate refused otherwise).
         // Its session is reclaimed when the stream drops, so a client that reconnects (re-initializing, per
@@ -276,14 +338,75 @@ fn serve_connection(
     }
 }
 
-/// Hands `pending`, from `who`, to the app and waits for its answer, up to
-/// [`APP_CALL_TIMEOUT_SECONDS`] (#491).
-fn ask_app(caller: &AppCaller, pending: &PendingCall, who: &Caller) -> AppOutcome {
+/// Answers an authenticated POST: its messages through the pure core, the app's calls through
+/// the app, one SSE reply per response. `session_id` rides only an `initialize`'s reply (#375).
+fn serve_post(
+    stream: &mut std::net::TcpStream,
+    server: &Server,
+    request: &HttpRequest,
+    principal: &Principal,
+    session_id: Option<&str>,
+) -> std::io::Result<()> {
+    let handled = {
+        let (data, _cv) = &*server.shared;
+        let guard = data
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let ctx = RequestCtx {
+            snapshot: &guard.snapshot,
+            grants: &guard.grants,
+            surface_index: &guard.surface_index,
+            principal,
+        };
+        let mut subs = Subscriptions::default();
+        let handled = handle_message(&ctx, &mut subs, &request.body);
+        drop(guard);
+        handled
+    };
+    if let Some(effect) = handled.effect
+        && let Err(error) = server.effects.send(effect)
+    {
+        // The app's receiver is gone, so it is shutting down and has no pane to focus.
+        log::debug!("marley_mcp: the app dropped a surface effect: {error}");
+    }
+    let mut wrote_response = false;
+    for message in handled.outgoing {
+        let body = match message {
+            Outgoing::Response(body) => body,
+            // The lock is released by now, so the wait holds up no other connection.
+            Outgoing::Deferred(pending) => {
+                let outcome = ask_app(&server.caller, &pending, &request.caller, principal);
+                deferred_response(&pending, outcome)
+            }
+            Outgoing::Notification(_) => continue,
+        };
+        // The `Mcp-Session-Id` header rides ONLY the initialize response (session_id is Some only
+        // for an Initialize decision); subsequent responses carry no new id.
+        write_sse_response(stream, &body, session_id)?;
+        wrote_response = true;
+    }
+    // Inspect fix: a notification-only POST (no response body) still gets an HTTP reply — 202
+    // Accepted, per MCP Streamable-HTTP — so the client's read never hangs waiting for a body.
+    if !wrote_response {
+        write_status(stream, 202, "Accepted")?;
+    }
+    Ok(())
+}
+
+/// Hands `pending`, from `who` with `principal`'s bearer, to the app and waits for its answer, up
+/// to [`APP_CALL_TIMEOUT_SECONDS`] (#491).
+fn ask_app(
+    caller: &AppCaller,
+    pending: &PendingCall,
+    who: &Caller,
+    principal: &Principal,
+) -> AppOutcome {
     let (answer, answered) = std::sync::mpsc::sync_channel(1);
     caller(AppCall::new(
         pending.tool.clone(),
         pending.arguments.clone(),
         who.clone(),
+        principal.clone(),
         answer,
     ));
     match answered.recv_timeout(Duration::from_secs(APP_CALL_TIMEOUT_SECONDS)) {
@@ -294,13 +417,14 @@ fn ask_app(caller: &AppCaller, pending: &PendingCall, who: &Caller) -> AppOutcom
 }
 
 /// Terminate `session` (if any) in the shared registry — the standing-stream reap on hang-up (#375).
+/// Only Marley's own sessions hold a stream: a client's GET is refused (#524).
 fn reap_session(shared: &Shared, session: Option<&str>) {
     if let Some(id) = session {
         let (data, _cv) = &**shared;
         let mut guard = data
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let _was_live = guard.sessions.terminate(id);
+        let _was_live = guard.sessions.terminate(id, &Principal::Marley);
     }
 }
 
@@ -422,13 +546,80 @@ fn caller_path(value: &str) -> Option<String> {
 /// process abort taking down the whole app, so anything over this cap is a bad request.
 const MAX_BODY_BYTES: usize = 1 << 20;
 
+/// The longest request line or header line the server reads, its line end included (#524).
+///
+/// Before #524 a line was read to its end whatever its length, before any guard: one endless line
+/// grew a string until the app aborted.
+const MAX_LINE_BYTES: usize = 8 << 10;
+
+/// The most header lines a request may carry (#524).
+const MAX_HEADER_LINES: usize = 100;
+
+/// How long a connection has to send its whole request, however slowly its bytes come (#524).
+/// Before, a connection that sent nothing held its thread for good.
+const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// The most a refused peer's unread bytes are read and dropped, so it gets its reply (#524).
+const MAX_DRAIN_BYTES: usize = 64 << 10;
+
+/// How long a refused peer's unread bytes are waited for.
+const DRAIN_TIMEOUT: Duration = Duration::from_secs(1);
+
+/// Why a request could not be read.
+#[derive(Debug)]
+enum RequestError {
+    /// A line or the header section passed its bound: 431, and nothing more is read.
+    TooLarge,
+    /// The connection failed or ran out of time: it ends with no reply.
+    Io(std::io::Error),
+}
+
+impl From<std::io::Error> for RequestError {
+    fn from(error: std::io::Error) -> Self {
+        Self::Io(error)
+    }
+}
+
+/// The connection, read against a deadline: each read waits only for the time left, so a peer
+/// that trickles bytes runs out of time as surely as one that sends none.
+struct Deadlined {
+    stream: std::net::TcpStream,
+    deadline: Instant,
+}
+
+impl Read for Deadlined {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let left = self.deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Err(std::io::ErrorKind::TimedOut.into());
+        }
+        self.stream.set_read_timeout(Some(left))?;
+        self.stream.read(buf)
+    }
+}
+
+/// Reads one line of at most [`MAX_LINE_BYTES`] into `line`; the bytes read, 0 at the end of the
+/// stream.
+fn read_bounded_line<R: Read>(
+    reader: &mut BufReader<R>,
+    line: &mut String,
+) -> Result<usize, RequestError> {
+    let bound = u64::try_from(MAX_LINE_BYTES).unwrap_or(u64::MAX) + 1;
+    let read = reader.by_ref().take(bound).read_line(line)?;
+    if read > MAX_LINE_BYTES {
+        return Err(RequestError::TooLarge);
+    }
+    Ok(read)
+}
+
 /// Read + parse an HTTP/1.1 request: the request line, the headers we care about (`Origin`,
-/// `Authorization`, `Content-Length`), and the body.
-fn read_http_request(
-    reader: &mut BufReader<std::net::TcpStream>,
-) -> std::io::Result<Option<HttpRequest>> {
+/// `Authorization`, `Content-Length`), and the body. Every line and the body are read through their
+/// bounds (#524), so nothing a peer sends before authentication grows without limit.
+fn read_http_request<R: Read>(
+    reader: &mut BufReader<R>,
+) -> Result<Option<HttpRequest>, RequestError> {
     let mut request_line = String::new();
-    if reader.read_line(&mut request_line)? == 0 {
+    if read_bounded_line(reader, &mut request_line)? == 0 {
         return Ok(None);
     }
     let method = request_line
@@ -438,14 +629,19 @@ fn read_http_request(
         .to_string();
     let (mut origin, mut bearer, mut session, mut content_length) = (None, None, None, 0usize);
     let mut caller = Caller::default();
+    let mut header_lines = 0;
     loop {
         let mut line = String::new();
-        if reader.read_line(&mut line)? == 0 {
+        if read_bounded_line(reader, &mut line)? == 0 {
             break;
         }
         let line = line.trim_end();
         if line.is_empty() {
             break;
+        }
+        header_lines += 1;
+        if header_lines > MAX_HEADER_LINES {
+            return Err(RequestError::TooLarge);
         }
         if let Some(value) = header_value(line, "origin") {
             origin = Some(value.to_string());
@@ -506,6 +702,29 @@ fn write_sse_response(
         payload.len(),
         payload
     )
+}
+
+/// Writes a bare status line to a peer whose request was not read to its end, and lets it read
+/// the reply (#524): closing with its bytes unread would reset the connection, and a reset can
+/// drop the reply before the peer reads it. The rest is read and dropped, up to
+/// [`MAX_DRAIN_BYTES`] and [`DRAIN_TIMEOUT`], after the write side is shut.
+fn write_status_then_drain(
+    stream: &mut std::net::TcpStream,
+    code: u16,
+    reason: &str,
+) -> std::io::Result<()> {
+    write_status(stream, code, reason)?;
+    stream.shutdown(std::net::Shutdown::Write)?;
+    stream.set_read_timeout(Some(DRAIN_TIMEOUT))?;
+    let mut sink = [0u8; 8192];
+    let mut drained = 0;
+    while drained < MAX_DRAIN_BYTES {
+        match stream.read(&mut sink) {
+            Ok(0) | Err(_) => break,
+            Ok(read) => drained += read,
+        }
+    }
+    Ok(())
 }
 
 /// Write a bare HTTP status line (for a refusal / bad request).
@@ -629,7 +848,7 @@ mod tests {
             data.lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .sessions
-                .validate(session)
+                .validate(session, &Principal::Marley)
         }
     }
 

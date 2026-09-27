@@ -2415,3 +2415,13 @@ Any script Marley runs in a page that hands Marley a string (a binding's payload
 `toWellFormed` (guarded, `value.toWellFormed ? value.toWellFormed() : value`) and cuts it off a
 surrogate pair, as `pick.rs`'s and `recorder.rs`'s `cap` do. The Plan's recall for a new page
 script searches the ledger for "surrogate" along with the ticket's own terms.
+
+## PR-claude-bound-every-read-before-auth-in-size-and-time-001
+*severity: high · prevents: F-claude-524-the-mcp-servers-read-before-auth-had-no-bound-001, F-claude-524-a-431-closed-with-the-request-unread-001*
+
+Every read a server makes before it knows who is asking has a bound in bytes per unit (a line, a
+frame, a body), in units (header lines), and in time over the whole request, not per read call:
+a peer that trickles a byte a second defeats a per-read timeout. A refusal written before the
+request was read to its end drains the rest (bounded) after shutting the write side, so the peer
+reads it. PR-claude-cap-client-size-before-alloc-pre-auth-001 covers the size of one allocation;
+this covers the rest of the path.

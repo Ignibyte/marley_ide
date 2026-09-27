@@ -6,6 +6,7 @@
 use std::fmt;
 
 use crate::auth::ct_eq;
+use crate::clients::Principal;
 
 /// The maximum number of concurrent sessions.
 ///
@@ -14,6 +15,14 @@ use crate::auth::ct_eq;
 /// session's bridge holds one, and a bridge that ends without closing its session keeps it until
 /// the TTL, so the bound leaves room for a desk of agents.
 pub const SESSION_CAP: usize = 32;
+
+/// The most sessions one outside client holds (#524), so no client uses up [`SESSION_CAP`].
+///
+/// A client opens no standing stream, whose hang-up is how Marley's own sessions are reaped
+/// (BF-375), so a client's next `initialize` at this bound ends that client's own least recently
+/// used session instead of being refused: a client that crashed four times is not locked out for
+/// half an hour. No other principal's session is ever ended for it.
+pub const CLIENT_SESSION_CAP: usize = 4;
 
 /// How long a session may sit IDLE (no validated use) before the sweep expires it (#379).
 ///
@@ -30,11 +39,18 @@ pub const SESSION_TTL_MS: u64 = 1_800_000;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionFull;
 
-/// One live session: its id + the epoch-millis of its last validated use (#379 — the idle clock).
+/// One live session: its id, the principal that opened it (#524), and the epoch-millis of its last
+/// validated use (#379 — the idle clock).
 #[derive(Clone, PartialEq, Eq)]
 struct SessionEntry {
     id: String,
+    owner: Principal,
     last_seen_ms: u64,
+}
+
+/// Whether `a` and `b` are the same principal for a session: Marley, or the client of one name.
+fn same_owner(a: &Principal, b: &Principal) -> bool {
+    a.client_name() == b.client_name()
 }
 
 /// The live session ids. Ids are secrets-adjacent (minted from the same entropy as the bearer), so the
@@ -55,29 +71,53 @@ impl fmt::Debug for SessionRegistry {
 }
 
 impl SessionRegistry {
-    /// Admit `id` as a live session stamped last-seen `now` (#379).
+    /// Admit `id` as a live session of `owner`, stamped last-seen `now` (#379). A client at
+    /// [`CLIENT_SESSION_CAP`] first loses its own least recently used session (#524).
     ///
     /// # Errors
     ///
     /// `Err(SessionFull)` when already at [`SESSION_CAP`] (reject-new, never evict — D4).
-    pub fn assign(&mut self, id: String, now: u64) -> Result<(), SessionFull> {
+    pub fn assign(&mut self, id: String, owner: Principal, now: u64) -> Result<(), SessionFull> {
+        if owner.client_name().is_some() {
+            let held = self
+                .entries
+                .iter()
+                .filter(|stored| same_owner(&stored.owner, &owner))
+                .count();
+            // `min_by_key` keeps the first of equal stamps, so a tie ends the earliest opened.
+            let oldest = self
+                .entries
+                .iter()
+                .enumerate()
+                .filter(|(_, stored)| same_owner(&stored.owner, &owner))
+                .min_by_key(|(_, stored)| stored.last_seen_ms)
+                .map(|(index, _)| index);
+            if held >= CLIENT_SESSION_CAP
+                && let Some(oldest) = oldest
+            {
+                let _ended = self.entries.remove(oldest);
+            }
+        }
         if self.entries.len() >= SESSION_CAP {
             return Err(SessionFull);
         }
         self.entries.push(SessionEntry {
             id,
+            owner,
             last_seen_ms: now,
         });
         Ok(())
     }
 
-    /// Whether `id` is a live session. Constant-time over ALL entries (no short-circuit on a match — D8),
-    /// so the compare doesn't leak which/whether an id matched.
+    /// Whether `id` is a live session of `owner`: another principal's session is unknown to it
+    /// (#524). Constant-time over ALL entries (no short-circuit on a match — D8), so the compare
+    /// doesn't leak which/whether an id matched.
     #[must_use]
-    pub fn validate(&self, id: &str) -> bool {
+    pub fn validate(&self, id: &str, owner: &Principal) -> bool {
         let mut found = false;
         for stored in &self.entries {
-            found |= ct_eq(&stored.id, id);
+            let matches = ct_eq(&stored.id, id);
+            found |= matches && same_owner(&stored.owner, owner);
         }
         found
     }
@@ -105,11 +145,21 @@ impl SessionRegistry {
         before - self.entries.len()
     }
 
-    /// Terminate `id`; returns whether it was live (idempotent — a second terminate returns `false`).
-    pub fn terminate(&mut self, id: &str) -> bool {
+    /// Terminate `owner`'s session `id`; returns whether it was live (idempotent — a second terminate
+    /// returns `false`).
+    pub fn terminate(&mut self, id: &str, owner: &Principal) -> bool {
         let before = self.entries.len();
-        self.entries.retain(|stored| !ct_eq(&stored.id, id));
+        self.entries
+            .retain(|stored| !(ct_eq(&stored.id, id) && same_owner(&stored.owner, owner)));
         self.entries.len() != before
+    }
+
+    /// Terminate every session of the client `name` (its cut-off, #524); how many there were.
+    pub fn terminate_owned_by(&mut self, name: &str) -> usize {
+        let before = self.entries.len();
+        self.entries
+            .retain(|stored| stored.owner.client_name() != Some(name));
+        before - self.entries.len()
     }
 
     /// The number of live sessions.
@@ -142,7 +192,8 @@ pub enum SessionDecision {
 /// Decide the session action for a request (MCP spec §Session Management).
 ///
 /// `is_initialize` is whether the JSON-RPC body is an `initialize` request; `session_header` is the
-/// presented `Mcp-Session-Id` (already parsed). Ordering: DELETE is handled first
+/// presented `Mcp-Session-Id` (already parsed); `owner` holds the request's bearer, and only its
+/// own sessions are valid for it (#524). Ordering: DELETE is handled first
 /// (terminate/refuse), then a POST `initialize` (assign), then every other request requires a valid
 /// session (missing → 400, unknown → 404). An `initialize` is a POST (its response header carries
 /// the new id) — a non-POST body claiming `initialize` is NOT treated as one (it would mint a
@@ -153,12 +204,13 @@ pub fn session_decision(
     http_method: &str,
     is_initialize: bool,
     session_header: Option<&str>,
+    owner: &Principal,
     registry: &SessionRegistry,
 ) -> SessionDecision {
     if http_method == "DELETE" {
         return match session_header {
             None => SessionDecision::Reject(400),
-            Some(id) if registry.validate(id) => SessionDecision::Terminate,
+            Some(id) if registry.validate(id, owner) => SessionDecision::Terminate,
             Some(_) => SessionDecision::Reject(404),
         };
     }
@@ -167,7 +219,7 @@ pub fn session_decision(
     }
     match session_header {
         None => SessionDecision::Reject(400),
-        Some(id) if registry.validate(id) => SessionDecision::Proceed,
+        Some(id) if registry.validate(id, owner) => SessionDecision::Proceed,
         Some(_) => SessionDecision::Reject(404),
     }
 }
@@ -186,11 +238,12 @@ pub fn session_gate(
     http_method: &str,
     is_initialize: bool,
     session_header: Option<&str>,
+    owner: &Principal,
     registry: &mut SessionRegistry,
     now: u64,
 ) -> SessionDecision {
     let _swept = registry.sweep(now);
-    let decision = session_decision(http_method, is_initialize, session_header, registry);
+    let decision = session_decision(http_method, is_initialize, session_header, owner, registry);
     if decision == SessionDecision::Proceed
         && let Some(id) = session_header
     {
@@ -203,6 +256,8 @@ pub fn session_gate(
 mod tests {
     use super::*;
 
+    const MARLEY: Principal = Principal::Marley;
+
     // REQ-011 — the cap is reject-new (never evict): 8 assigns succeed, the 9th is refused, and all 8
     // stay valid; a terminate frees exactly one slot.
     #[test]
@@ -210,76 +265,79 @@ mod tests {
         let mut reg = SessionRegistry::default();
         assert!(reg.is_empty()); // fresh → empty
         for i in 0..SESSION_CAP {
-            assert_eq!(reg.assign(format!("id-{i}"), 0), Ok(()));
+            assert_eq!(reg.assign(format!("id-{i}"), MARLEY, 0), Ok(()));
         }
         assert!(!reg.is_empty()); // after assigns → not empty
         assert_eq!(reg.len(), SESSION_CAP);
         // the 9th is refused — typed error, no eviction.
-        assert_eq!(reg.assign("id-overflow".to_string(), 0), Err(SessionFull));
+        assert_eq!(
+            reg.assign("id-overflow".to_string(), MARLEY, 0),
+            Err(SessionFull)
+        );
         for i in 0..SESSION_CAP {
             assert!(
-                reg.validate(&format!("id-{i}")),
+                reg.validate(&format!("id-{i}"), &MARLEY),
                 "existing session {i} survives the refusal"
             );
         }
-        assert!(!reg.validate("id-overflow"));
+        assert!(!reg.validate("id-overflow", &MARLEY));
         // terminating one frees a slot for a new assign.
-        assert!(reg.terminate("id-0"));
-        assert!(!reg.validate("id-0"));
-        assert!(!reg.terminate("id-0")); // idempotent
-        assert_eq!(reg.assign("id-new".to_string(), 0), Ok(()));
-        assert!(reg.validate("id-new"));
+        assert!(reg.terminate("id-0", &MARLEY));
+        assert!(!reg.validate("id-0", &MARLEY));
+        assert!(!reg.terminate("id-0", &MARLEY)); // idempotent
+        assert_eq!(reg.assign("id-new".to_string(), MARLEY, 0), Ok(()));
+        assert!(reg.validate("id-new", &MARLEY));
     }
 
     // REQ-007/008/009/010 — the gate arms.
     #[test]
     fn session_decision_covers_every_arm() {
         let mut reg = SessionRegistry::default();
-        reg.assign("live".to_string(), 0).unwrap();
+        reg.assign("live".to_string(), MARLEY, 0).unwrap();
 
         // a POST initialize → assign a fresh session (no prior id required).
         assert_eq!(
-            session_decision("POST", true, None, &reg),
+            session_decision("POST", true, None, &MARLEY, &reg),
             SessionDecision::Initialize
         );
         // a NON-POST body claiming initialize is NOT an Initialize — it falls through to the valid-session
         // requirement (here: no header → 400), so it can't mint a session the response would never echo.
         assert_eq!(
-            session_decision("GET", true, None, &reg),
+            session_decision("GET", true, None, &MARLEY, &reg),
             SessionDecision::Reject(400)
         );
         // a non-initialize request with a valid id → dispatch.
         assert_eq!(
-            session_decision("POST", false, Some("live"), &reg),
+            session_decision("POST", false, Some("live"), &MARLEY, &reg),
             SessionDecision::Proceed
         );
         // GET (non-initialize) with a valid id → dispatch (the standing stream requires a session too).
         assert_eq!(
-            session_decision("GET", false, Some("live"), &reg),
+            session_decision("GET", false, Some("live"), &MARLEY, &reg),
             SessionDecision::Proceed
         );
         // missing id on a non-initialize → 400.
         assert_eq!(
-            session_decision("POST", false, None, &reg),
+            session_decision("POST", false, None, &MARLEY, &reg),
             SessionDecision::Reject(400)
         );
         // unknown/terminated id → 404 (client re-initializes).
         assert_eq!(
-            session_decision("POST", false, Some("stale"), &reg),
+            session_decision("POST", false, Some("stale"), &MARLEY, &reg),
             SessionDecision::Reject(404)
         );
         // DELETE with a valid id → terminate.
         assert_eq!(
-            session_decision("DELETE", false, Some("live"), &reg),
+            session_decision("DELETE", false, Some("live"), &MARLEY, &reg),
             SessionDecision::Terminate
         );
         // DELETE with a missing id → 400; with an unknown id → 404.
         assert_eq!(
-            session_decision("DELETE", false, None, &reg),
+            session_decision("DELETE", false, None, &MARLEY, &reg),
             SessionDecision::Reject(400)
         );
         assert_eq!(
-            session_decision("DELETE", false, Some("stale"), &reg),
+            session_decision("DELETE", false, Some("stale"), &MARLEY, &reg),
             SessionDecision::Reject(404)
         );
     }
@@ -289,21 +347,28 @@ mod tests {
     #[test]
     fn t379_req001_sweep_expires_at_the_boundary() {
         let mut reg = SessionRegistry::default();
-        reg.assign("s".to_string(), 1_000).unwrap();
+        reg.assign("s".to_string(), MARLEY, 1_000).unwrap();
         assert_eq!(
             reg.sweep(1_000 + SESSION_TTL_MS - 1),
             0,
             "one ms fresh survives"
         );
-        assert!(reg.validate("s"));
+        assert!(reg.validate("s", &MARLEY));
         assert_eq!(
             reg.sweep(1_000 + SESSION_TTL_MS),
             1,
             "the boundary ages out"
         );
-        assert!(!reg.validate("s"));
+        assert!(!reg.validate("s", &MARLEY));
         assert_eq!(
-            session_gate("POST", false, Some("s"), &mut reg, 1_000 + SESSION_TTL_MS),
+            session_gate(
+                "POST",
+                false,
+                Some("s"),
+                &MARLEY,
+                &mut reg,
+                1_000 + SESSION_TTL_MS
+            ),
             SessionDecision::Reject(404),
             "a swept id answers with the SHIPPED 404 — the client re-initializes"
         );
@@ -314,18 +379,18 @@ mod tests {
     #[test]
     fn t379_req002_gate_touch_refreshes_last_seen() {
         let mut reg = SessionRegistry::default();
-        reg.assign("s".to_string(), 0).unwrap();
+        reg.assign("s".to_string(), MARLEY, 0).unwrap();
         // a validated use at t=10_000 (the gate touches on Proceed)…
         assert_eq!(
-            session_gate("POST", false, Some("s"), &mut reg, 10_000),
+            session_gate("POST", false, Some("s"), &MARLEY, &mut reg, 10_000),
             SessionDecision::Proceed
         );
         // …so the ORIGINAL expiry point no longer kills it (fatal WITHOUT the touch)…
         assert_eq!(reg.sweep(SESSION_TTL_MS), 0, "the touch moved the clock");
-        assert!(reg.validate("s"));
+        assert!(reg.validate("s", &MARLEY));
         // …and it expires from the TOUCHED stamp.
         assert_eq!(reg.sweep(10_000 + SESSION_TTL_MS), 1);
-        assert!(!reg.validate("s"));
+        assert!(!reg.validate("s", &MARLEY));
     }
 
     // #379 REQ-003 — the wedge, end-to-end: a registry FULL of idle sessions frees at the next
@@ -334,16 +399,22 @@ mod tests {
     fn t379_req003_full_of_idle_frees_for_a_new_initialize() {
         let mut reg = SessionRegistry::default();
         for i in 0..SESSION_CAP {
-            reg.assign(format!("idle-{i}"), 0).unwrap();
+            reg.assign(format!("idle-{i}"), MARLEY, 0).unwrap();
         }
-        assert_eq!(reg.assign("blocked".to_string(), 0), Err(SessionFull));
+        assert_eq!(
+            reg.assign("blocked".to_string(), MARLEY, 0),
+            Err(SessionFull)
+        );
         // the next request's gate sweeps the idle 8 and admits the initialize.
         assert_eq!(
-            session_gate("POST", true, None, &mut reg, SESSION_TTL_MS),
+            session_gate("POST", true, None, &MARLEY, &mut reg, SESSION_TTL_MS),
             SessionDecision::Initialize
         );
         assert!(reg.is_empty(), "the sweep freed every idle slot");
-        assert_eq!(reg.assign("fresh".to_string(), SESSION_TTL_MS), Ok(()));
+        assert_eq!(
+            reg.assign("fresh".to_string(), MARLEY, SESSION_TTL_MS),
+            Ok(())
+        );
     }
 
     // #379 REQ-004 — the #375 invariants hold: FRESH sessions are never swept (the gate removes
@@ -353,23 +424,32 @@ mod tests {
     fn t379_req004_fresh_sessions_and_invariants_unaffected() {
         let mut reg = SessionRegistry::default();
         for i in 0..SESSION_CAP {
-            reg.assign(format!("fresh-{i}"), 5_000).unwrap();
+            reg.assign(format!("fresh-{i}"), MARLEY, 5_000).unwrap();
         }
         assert_eq!(
-            session_gate("POST", false, Some("fresh-0"), &mut reg, 6_000),
+            session_gate("POST", false, Some("fresh-0"), &MARLEY, &mut reg, 6_000),
             SessionDecision::Proceed
         );
         assert_eq!(reg.len(), SESSION_CAP, "no fresh session was swept");
-        assert_eq!(reg.assign("ninth".to_string(), 6_000), Err(SessionFull));
+        assert_eq!(
+            reg.assign("ninth".to_string(), MARLEY, 6_000),
+            Err(SessionFull)
+        );
         // a swept id terminates as false (idempotence over absence): the sweep at 5_000+TTL ages
         // out the seven UNtouched seats; fresh-0 (touched at 6_000 by the gate above) survives.
         assert_eq!(reg.sweep(5_000 + SESSION_TTL_MS), SESSION_CAP - 1);
-        assert!(reg.validate("fresh-0"), "the touched seat survives");
-        assert!(!reg.terminate("fresh-1"), "a swept id terminates as false");
+        assert!(
+            reg.validate("fresh-0", &MARLEY),
+            "the touched seat survives"
+        );
+        assert!(
+            !reg.terminate("fresh-1", &MARLEY),
+            "a swept id terminates as false"
+        );
         // clock skew: a stamp in the FUTURE never underflows — it reads fresh.
-        reg.assign("future".to_string(), u64::MAX).unwrap();
+        reg.assign("future".to_string(), MARLEY, u64::MAX).unwrap();
         assert_eq!(reg.sweep(0), 0);
-        assert!(reg.validate("future"));
+        assert!(reg.validate("future", &MARLEY));
     }
 
     // #379 REQ-006 — expired ≡ unknown at the wire: the gate outcome for a swept id VALUE-EQUALS
@@ -377,13 +457,25 @@ mod tests {
     #[test]
     fn t379_req006_expired_is_indistinguishable_from_unknown() {
         let mut swept = SessionRegistry::default();
-        swept.assign("was-live".to_string(), 0).unwrap();
-        let outcome_swept =
-            session_gate("POST", false, Some("was-live"), &mut swept, SESSION_TTL_MS);
+        swept.assign("was-live".to_string(), MARLEY, 0).unwrap();
+        let outcome_swept = session_gate(
+            "POST",
+            false,
+            Some("was-live"),
+            &MARLEY,
+            &mut swept,
+            SESSION_TTL_MS,
+        );
 
         let mut never = SessionRegistry::default();
-        let outcome_unknown =
-            session_gate("POST", false, Some("was-live"), &mut never, SESSION_TTL_MS);
+        let outcome_unknown = session_gate(
+            "POST",
+            false,
+            Some("was-live"),
+            &MARLEY,
+            &mut never,
+            SESSION_TTL_MS,
+        );
 
         assert_eq!(outcome_swept, outcome_unknown, "value-equal refusals");
         assert_eq!(outcome_swept, SessionDecision::Reject(404));
@@ -393,7 +485,8 @@ mod tests {
     #[test]
     fn debug_redacts_session_ids() {
         let mut reg = SessionRegistry::default();
-        reg.assign("super-secret-session".to_string(), 0).unwrap();
+        reg.assign("super-secret-session".to_string(), MARLEY, 0)
+            .unwrap();
         let rendered = format!("{reg:?}");
         assert!(rendered.contains("***"), "not redacted: {rendered}");
         assert!(

@@ -92,11 +92,19 @@ pub fn start(cx: &mut App) {
         Condvar::new(),
     ));
     let published = Arc::clone(&shared);
+    let for_clients = Arc::clone(&shared);
     let (failure, snapshots) = match transport::spawn(shared, effects, caller) {
         Ok(handle) => {
             write_endpoint(
                 data_dir.clone(),
                 transport::discovery_json(handle.url(), handle.bearer()),
+                cx,
+            );
+            crate::clients::start(
+                data_dir.clone(),
+                handle.url().to_string(),
+                for_clients,
+                Arc::clone(handle.clients()),
                 cx,
             );
             offer_to_zeds_agents(data_dir.clone(), cx);
@@ -387,6 +395,12 @@ fn for_agents(text: &str, redactor: Option<&Redactor>) -> Redacted {
 
 /// Answers `call` from the app's state; a browser call answers from its own task.
 fn answer(call: AppCall, cx: &mut App) {
+    // The server refuses an outside client any tool off its grant's list (#524); this is the
+    // second wall.
+    if let Err(refusal) = marley_mcp::permits(call.principal(), &call.tool) {
+        call.answer(Err(refusal));
+        return;
+    }
     if call.tool.starts_with("browser_") {
         crate::browser_tools::answer(call, cx);
         return;

@@ -35,6 +35,11 @@ LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 
 NOT_RUNNING = "Marley is not running, so its tools are not there. Start Marley and call again."
 
+REFUSED = (
+    "Marley refused this endpoint file's token: the user cut this client off, or the file is "
+    "older than the Marley that runs. Ask the user to allow the client again in Browser Clients."
+)
+
 output_lock = threading.Lock()
 
 
@@ -86,6 +91,10 @@ def read_endpoint():
 
 class Unreachable(Exception):
     """No Marley answered at the endpoint."""
+
+
+class Refused(Unreachable):
+    """Marley answered, and refused the endpoint file's token (#524)."""
 
 
 class SessionGone(Exception):
@@ -160,6 +169,8 @@ def request(endpoint, method, message=None, session=None):
     except urllib.error.HTTPError as error:
         if error.code == 404:
             raise SessionGone() from None
+        if error.code == 403:
+            raise Refused("Marley refused the token") from None
         raise Unreachable(f"Marley answered HTTP {error.code}") from None
     except (urllib.error.URLError, OSError) as error:
         raise Unreachable(f"no answer: {error}") from None
@@ -179,12 +190,13 @@ def answers(endpoint):
         return False
 
 
-def local_answer(message):
-    """What the bridge answers itself while no Marley does."""
+def local_answer(message, refused=False):
+    """What the bridge answers itself while no Marley does, or while Marley refuses its token."""
     method = message.get("method")
+    why = REFUSED if refused else NOT_RUNNING
     results = {
         "tools/list": {"tools": []},
-        "tools/call": {"content": [{"type": "text", "text": NOT_RUNNING}], "isError": True},
+        "tools/call": {"content": [{"type": "text", "text": why}], "isError": True},
         "resources/list": {"resources": []},
         "prompts/list": {"prompts": []},
         "ping": {},
@@ -285,7 +297,7 @@ class Bridge:
             replies = self.forward(message)
         except Unreachable as error:
             log(f"answering alone: {error}")
-            send(local_answer(message))
+            send(local_answer(message, refused=isinstance(error, Refused)))
             return
         for reply in replies:
             send(reply)

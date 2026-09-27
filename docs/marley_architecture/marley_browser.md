@@ -319,6 +319,8 @@ for.
   `Recorder::push` merges a fill into the last action when that is a fill with the same first
   locator, keeping its first time. `Entry::Navigation` gains `within` for a move within the
   document, and `Recording` gains `project`, the root of the tab's project.
+- Since #524 an `Agent` entry carries `by`, the outside client whose action it was; Marley's own
+  agents leave it out, so recordings made before read as they did.
 
 ## Drafting a Playwright test (`src/playwright.rs`, #506)
 

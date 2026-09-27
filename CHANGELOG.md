@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Programs outside Marley drive its browser, by name** (#524, 2026-09-27). Browser Clients
+  (`marley: browser clients`) lets a program in by name, to read pages or also to act in them.
+  Each gets a token of its own, new at each start of Marley, in an endpoint file only you can
+  read, which the program points Marley's bridge at. It sees and calls only the browser tools its
+  grant allows, never a terminal tool or what the agents' sessions hold. A tab it acts in names
+  it, and shows "Driven by <name>" with Cut Off, which refuses its token at once. The server
+  still listens on 127.0.0.1 alone.
 - **Playwright scripts kept in Marley** (#523, 2026-09-27). A Browser tab's toolbar has a
   Scripts button, which opens a tray of Playwright scripts: the ones kept for the tab's project
   and the ones kept for every project, in Marley's config folder, so they never go into a
@@ -650,6 +657,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Marley's tool server bounds what it reads before it knows who asks** (#524, 2026-09-27). A
+  program on the same machine could send Marley's MCP server one endless header line and make
+  Marley take memory until it stopped, or keep connections open for good. A request line or
+  header line now stops at 8 KiB, a request at 100 header lines, and a connection has 10
+  seconds to send its request.
 - **A Browser tab's title follows its page** (#582, 2026-09-27). A page that set its title
   after it loaded, such as an unread count or a title set once its data came in, kept its old
   title in its Browser tab, in its row in the rail and in what agents read with `browser_tabs`:

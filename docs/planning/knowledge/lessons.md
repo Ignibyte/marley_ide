@@ -3249,3 +3249,19 @@ a killed cargo by another name, the thing the box's rules forbid. In #582 a `car
 head -20` stopped reading after twenty warnings; nothing was left running, and the rerun finished
 from its cache. Cargo's output goes to a log file in the scratchpad, and `grep` or `tail` reads
 the file afterwards.
+
+## L-claude-524-a-restarted-mcp-server-listens-on-a-new-port-001
+*category: testing · topic: tokens across a restart in an e2e scenario · from: pipeline 524*
+
+Marley's MCP server binds `127.0.0.1:0`, so a restart puts it on a new port, and an endpoint file
+kept from the run before names a port nothing listens on: a request with it is refused by the
+kernel before any token is read. A scenario that shows a stale token refused sends it to the new
+server: a copy of the new endpoint file with the old file's `headers` (`jq -s '.[0] * {headers:
+.[1].headers}' new old`).
+
+## L-claude-524-the-default-snapshot-holds-no-text-001
+*category: testing · topic: reading a page's text through the agent tools · from: pipeline 524*
+
+`browser_snapshot` without `full` lists the page's interactive elements with their refs (a
+textbox, a button) and none of its text, so a check that a line on the page changed finds
+nothing. The fixture's `mcp_agent snapshot full` returns the text as well.

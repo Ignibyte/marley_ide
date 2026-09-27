@@ -75,7 +75,7 @@ use serde_json::Value;
 use terminal_view::TerminalView;
 use terminal_view::terminal_panel::TerminalPanel;
 use ui::prelude::*;
-use ui::{AlertModal, Chip, ContextMenu, IconPosition, Tooltip};
+use ui::{AlertModal, Chip, ContextMenu, IconPosition, TintColor, Tooltip};
 use util::ResultExt as _;
 use util::paths::PathStyle;
 use util::rel_path::RelPath;
@@ -110,6 +110,9 @@ const WHEEL_LINE: f32 = 100.0 / 3.0;
 
 /// How long the Agent chip stays after an agent's action ends (#492).
 const AGENT_CHIP: Duration = Duration::from_secs(5);
+
+/// How long the toolbar keeps "Driven by" after an outside client's last action (#524).
+const DRIVEN_MARK: Duration = Duration::from_secs(60);
 
 /// How long a navigation an agent asked for may take to load before its call answers.
 const LOAD_TIMEOUT: Duration = Duration::from_secs(15);
@@ -160,6 +163,8 @@ struct AgentAction {
     text: SharedString,
     /// When it ended; none while it runs.
     ended: Option<Instant>,
+    /// The outside client that did it (#524); none for Marley's own agents.
+    client: Option<SharedString>,
 }
 
 /// What the hub is doing, as the Browser tabs show it.
@@ -391,6 +396,8 @@ struct PageState {
     favicon: Option<Favicon>,
     /// Since when an agent's action has waited for a tab to draw the page (#504).
     agent_unseen: Option<Instant>,
+    /// The outside client that acted in the page last, and when (#524).
+    driven_by: Option<(SharedString, Instant)>,
     screencasting: bool,
     /// The mouse buttons held in the page, in CDP's bits, so a drag that leaves the tab still
     /// reaches the page, its release too.
@@ -431,6 +438,7 @@ impl PageState {
             input_at: None,
             favicon: None,
             agent_unseen: None,
+            driven_by: None,
         }
     }
 
@@ -2367,27 +2375,35 @@ impl BrowserHub {
             .cloned()
     }
 
-    /// Shows the page's Agent chip with what an agent is doing, until it ends.
+    /// Shows the page's Agent chip with what an agent is doing, until it ends; `client` names the
+    /// outside client that does it (#524).
     pub fn agent_started(
         &mut self,
         target: &str,
         text: impl Into<SharedString>,
+        client: Option<SharedString>,
         cx: &mut Context<Self>,
     ) {
         if let Some(page) = self.page_state_mut(target) {
+            if let Some(client) = &client {
+                page.driven_by = Some((client.clone(), Instant::now()));
+            }
             page.agent = Some(AgentAction {
                 text: text.into(),
                 ended: None,
+                client,
             });
             cx.notify();
         }
     }
 
-    /// Shows the page's Agent chip with what an agent did, for five seconds more.
+    /// Shows the page's Agent chip with what an agent did, for five seconds more; `client` names
+    /// the outside client that did it, whose "Driven by" mark stays a minute (#524).
     pub fn agent_ended(
         &mut self,
         target: &str,
         text: impl Into<SharedString>,
+        client: Option<SharedString>,
         cx: &mut Context<Self>,
     ) {
         let text: SharedString = text.into();
@@ -2395,14 +2411,37 @@ impl BrowserHub {
             target,
             RecordedEntry::Agent {
                 did: text.to_string(),
+                by: client.as_ref().map(ToString::to_string),
             },
         );
         let Some(page) = self.page_state_mut(target) else {
             return;
         };
+        if let Some(client) = &client {
+            page.driven_by = Some((client.clone(), Instant::now()));
+            let target = target.to_string();
+            cx.spawn(async move |this, cx| {
+                cx.background_executor().timer(DRIVEN_MARK).await;
+                this.update(cx, |this, cx| {
+                    let over = this
+                        .page_state(&target)
+                        .and_then(|page| page.driven_by.as_ref())
+                        .is_some_and(|(_, at)| at.elapsed() >= DRIVEN_MARK);
+                    if over {
+                        if let Some(page) = this.page_state_mut(&target) {
+                            page.driven_by = None;
+                        }
+                        cx.notify();
+                    }
+                })
+                .ok();
+            })
+            .detach();
+        }
         page.agent = Some(AgentAction {
             text,
             ended: Some(Instant::now()),
+            client,
         });
         // An action no tab drew leaves the agent's mark on the page's row (#504).
         if page.viewers == 0 && page.agent_unseen.is_none() {
@@ -2432,12 +2471,40 @@ impl BrowserHub {
         .detach();
     }
 
-    /// What the page's Agent chip says, while it shows.
-    fn agent_chip(&self, target: &str) -> Option<SharedString> {
-        self.page_state(target)?
-            .agent
-            .as_ref()
-            .map(|action| action.text.clone())
+    /// What the page's Agent chip says, while it shows: who acts (the outside client's name, else
+    /// "Agent"), and what it does.
+    fn agent_chip(&self, target: &str) -> Option<(SharedString, SharedString)> {
+        self.page_state(target)?.agent.as_ref().map(|action| {
+            (
+                action
+                    .client
+                    .clone()
+                    .unwrap_or_else(|| SharedString::new_static("Agent")),
+                action.text.clone(),
+            )
+        })
+    }
+
+    /// The outside client that drives the page (#524): one the user still allows that acted in it
+    /// within [`DRIVEN_MARK`].
+    fn driven_by(&self, target: &str, cx: &App) -> Option<SharedString> {
+        let (client, at) = self.page_state(target)?.driven_by.as_ref()?;
+        (at.elapsed() < DRIVEN_MARK && crate::clients::is_allowed(client, cx))
+            .then(|| client.clone())
+    }
+
+    /// Takes the "Driven by" mark of the client `name` off every page (#524), once it is cut off.
+    pub(crate) fn forget_client(&mut self, name: &str, cx: &mut Context<Self>) {
+        for page in &mut self.pages {
+            if page
+                .driven_by
+                .as_ref()
+                .is_some_and(|(client, _)| client == name)
+            {
+                page.driven_by = None;
+            }
+        }
+        cx.notify();
     }
 
     /// The page an event from `session` belongs to: the page's own session, or one of its
@@ -5287,6 +5354,29 @@ impl EntityInputHandler for BrowserView {
 }
 
 impl BrowserView {
+    /// "Driven by <name>" and Cut Off, for an outside client that acts in the page (#524).
+    fn render_driven_by(client: SharedString, cx: &Context<Self>) -> impl IntoElement + use<> {
+        h_flex()
+            .flex_none()
+            .gap_1()
+            .child(
+                Label::new(format!("Driven by {client}"))
+                    .size(LabelSize::Small)
+                    .color(Color::Warning),
+            )
+            .child(
+                Button::new("browser-cut-off", "Cut Off")
+                    .style(ButtonStyle::Tinted(TintColor::Error))
+                    .label_size(LabelSize::Small)
+                    .tooltip(Tooltip::text(
+                        "Refuse this client's token and end its sessions",
+                    ))
+                    .on_click(cx.listener(move |_, _, _, cx| {
+                        crate::clients::cut_off(client.to_string(), cx).detach_and_log_err(cx);
+                    })),
+            )
+    }
+
     fn render_toolbar(&self, cx: &Context<Self>) -> impl IntoElement {
         let hub = self.hub.read(cx);
         // A tab still waiting for its page asks the hub of no page.
@@ -5355,15 +5445,20 @@ impl BrowserView {
             .child(Self::render_pick_button(showing, picking, cx))
             .child(Self::render_annotate_button(showing, annotating, cx))
             .child(Self::render_record_button(showing, cx))
+            // An outside client that acted in the page within the minute, and the way to stop it
+            // (#524).
+            .when_some(hub.driven_by(target, cx), |this, client| {
+                this.child(Self::render_driven_by(client, cx))
+            })
             // What an agent does in the page, while it does it and a moment after (#492).
-            .when_some(hub.agent_chip(target), |this, action| {
+            .when_some(hub.agent_chip(target), |this, (who, action)| {
                 this.child(
                     h_flex()
                         .flex_none()
                         .max_w(rems(24.))
                         .gap_1()
                         .child(
-                            Chip::new("Agent")
+                            Chip::new(who)
                                 .icon(IconName::Sparkle)
                                 .icon_color(Color::Accent)
                                 .label_color(Color::Accent),

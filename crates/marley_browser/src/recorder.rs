@@ -324,6 +324,9 @@ pub enum Entry {
     Agent {
         /// As the Agent chip said it.
         did: String,
+        /// The outside client that did it (#524); none for Marley's own agents.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        by: Option<String>,
     },
     /// A Playwright script the user ran on the page (#523): where it started, and where it
     /// ended with its exit code.

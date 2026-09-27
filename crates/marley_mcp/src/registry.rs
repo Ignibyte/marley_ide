@@ -3,6 +3,7 @@
 //! lists today. Adding `editor`/`browser` later is a new `Family` variant + a [`REGISTRY`] row + its
 //! `tool_schemas`/`dispatch` arm — additive, no rework of permissions (REQ-011). PURE.
 
+use crate::clients::{Principal, permits};
 use crate::permission::Tier;
 use serde_json::{Value, json};
 
@@ -307,9 +308,16 @@ pub fn lookup(wire_name: &str) -> Option<ToolSpec> {
 /// automatically listed once its family is served).
 #[must_use]
 pub fn tools_list() -> Value {
+    tools_list_for(&Principal::Marley)
+}
+
+/// The `tools/list` result for `principal` (#524): every served tool for Marley's own bearer, and
+/// for an outside client only the tools its grant's list names.
+#[must_use]
+pub fn tools_list_for(principal: &Principal) -> Value {
     let tools: Vec<Value> = REGISTRY
         .iter()
-        .filter(|spec| spec.family.is_served())
+        .filter(|spec| spec.family.is_served() && permits(principal, &spec.name()).is_ok())
         .map(|spec| {
             let (input, output) = tool_schemas(spec);
             json!({

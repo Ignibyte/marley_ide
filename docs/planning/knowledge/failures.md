@@ -2309,3 +2309,26 @@ L-claude-518-a-lone-surrogate-fails-the-whole-cdp-message-001 had said so for #5
 recall in #582's Plan searched the ledger for titles, bindings and listeners, never for
 surrogates. Fixed before commit: the watcher makes the title well formed (`toWellFormed`) before
 it cuts it, and the scenario checks a title that holds half a pair.
+
+## F-claude-524-the-mcp-servers-read-before-auth-had-no-bound-001
+*severity: high · found in: pipeline 524's Plan (re-reading the transport the queued spec cited) · class: a pre-auth read bounded in one dimension only · prevented by: PR-claude-bound-every-read-before-auth-in-size-and-time-001*
+
+`marley_mcp`'s transport capped a request's body at 1 MiB before it authenticated (#370), but it
+read the request line and every header line with `read_line`, which reads to the line's end
+however long, and it set no read timeout. A process on the machine could send one endless line
+and grow a `String` until Marley aborted, taking every terminal with it, or open connections that
+never finished a request and hold one thread each for good. Nobody exercised it; #524, which
+invites outside programs to that port, found it while re-reading the seams. Fixed in #524: each
+line is read through `Read::take` at 8 KiB, at most 100 header lines (431 past either), and the
+whole request against a 10-second deadline (`Deadlined`, which sets the socket's timeout to the
+time left before each read).
+
+## F-claude-524-a-431-closed-with-the-request-unread-001
+*severity: low · found in: pipeline 524's Code (the diff's review) · class: a reply lost to a reset · prevented by: PR-claude-bound-every-read-before-auth-in-size-and-time-001*
+
+The first draft of the bounded read wrote its 431 and closed the connection with the rest of the
+oversized header still unread. Closing a socket with unread bytes makes Linux send a reset, and a
+reset can drop a reply the peer has not read yet, so the client would have seen a connection
+reset and no 431. Fixed before any run: `write_status_then_drain` shuts the write side and reads
+and drops up to 64 KiB for a second before closing; the scenario's 16 KiB header line gets its
+431.

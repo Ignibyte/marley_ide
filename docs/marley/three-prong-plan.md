@@ -299,9 +299,11 @@ and network that "record this" saves retroactively.
 
 **D15. Security is designed in the first slice.** Chromium's debugging endpoint listens on
 127.0.0.1 only and takes no token (Chromium offers none); it refuses WebSocket connections
-from web pages (their `Origin`) and requests whose `Host` is not local, so the exposure is to
-processes of the same user, who could already read the profile directory. Agents are meant
-to come through Marley's MCP server (D17), which has its per-boot bearer. No tool evaluates
+from web pages (their `Origin`) and requests whose `Host` is not local. A TCP port on loopback
+checks no user, though, so every local process can reach it, other users' included (this
+decision first said "processes of the same user", which holds for the profile's files and not
+for the port, #524); slice 2 of #524 (#583) takes Chromium off TCP. Agents are meant to come
+through Marley's MCP server (D17), which has its per-boot bearer. No tool evaluates
 script in the page, agent navigation takes only `http` and `https`, and the network and trace
 readers redact headers and secret-looking query values before an agent or a file sees them.
 The 2026-07 idea of a navigation allowlist per project gives way to two checks an agent
@@ -328,7 +330,11 @@ in the app, and the Marley Claude Code plugin (#482) carries a small stdio bridg
 every Claude Code session on the machine finds Marley's tools while Marley runs, and an empty
 server when it does not. The `browser_*` tools (#492) read what Chad sees (the page, its
 accessibility snapshot including cross-site iframes, the frame on his screen, the console and
-network) and act in the same tab.
+network) and act in the same tab. Since #524 (Chad, 2026-09-25) programs outside Marley that
+the user allows by name reach the browser tools too, each with a token of its own, new at each
+start, and a grant to read pages or also to act in them over an explicit list of tools; a tab
+one drives names it, and Cut Off refuses its token at once. Other machines come through slice 3
+(#584).
 
 **D18. Scenarios that click run Marley in a headless sway (#487).** Hyprland cannot send a
 pointer event to one window, and a real click would move Chad's pointer. A headless sway with
@@ -363,6 +369,9 @@ reaching his desktop.
 | B5c | #523 | Playwright scripts kept in Marley, per project and for every project, and run on a Browser tab: the Scripts tray, a new script from the template, Marley's runner attached over the tab's Chromium in a terminal beside the tab, `playwright-core` installed by the first run, a failed run's minute saved as a recording (shipped) | M |
 | B7c | #581 | Clear Browser Data for one project: the rail's project menu and `marley: clear project browser data` ask, then close the project's tabs, close and stop its Chromium and delete its profile, keeping `project.json`; a toast reports it (shipped) | S |
 | B7b | #507 | A Chromium and a profile per project: logins (cookies, `localStorage`, IndexedDB) kept apart and across restarts, a linked worktree on its repository's, the unit started by the project's first tab, kept at a quit and stopped when the project is removed (the rail's Remove Project), the old profile moved to the first project, the tools across every project's browser (shipped; clearing one project's data is #581) | L |
+| B8a | #524 | Trusted outside clients, slice 1: named clients with per-start tokens in endpoint files of their own, a read or act grant over an explicit list of browser tools, the tab's "Driven by" mark and Cut Off, owned sessions, and the MCP server's read bounded before authentication (shipped) | L |
+| B8b | #583 | Slice 2: Chromium's DevTools off TCP, behind a Marley relay that serves Marley over a Unix socket and Playwright clients a CDP WebSocket that takes a client's token | M |
+| B8c | #584 | Slice 3: a client on another machine, through `ssh -L` or `tailscale serve` to a fixed loopback port | M |
 
 Wave 2 was specced on 2026-09-25, once wave 1 had landed (#496 to #499; the shelf note is
 `docs/planning/design-notes/browser-wave-2-shelf.md`).

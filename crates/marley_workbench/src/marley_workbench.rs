@@ -28,6 +28,7 @@ pub mod blocks;
 pub mod browser;
 pub mod browser_tools;
 pub mod claude_plugin;
+pub mod clients;
 pub mod close_guard;
 pub mod links;
 #[cfg(test)]
@@ -130,6 +131,13 @@ actions!(
         /// tray.
         #[derive(Eq)]
         NewPlaywrightScript,
+        /// Opens Browser Clients: the programs outside Marley allowed to read or act in its
+        /// Browser tabs, each with a token of its own, and a form to allow another.
+        #[derive(Eq)]
+        BrowserClients,
+        /// Allows the client named in Browser Clients.
+        #[derive(Eq)]
+        AllowBrowserClient,
         /// Puts the focus in the Browser tab's address bar, with its text selected.
         #[derive(Eq)]
         FocusAddressBar,
@@ -339,6 +347,7 @@ pub fn init(cx: &mut App) {
     send_selection::init(cx);
     autosuggest::init(cx);
     browser::init(cx);
+    clients::init(cx);
     links::init(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action_renderer(|div, _, _, cx| {

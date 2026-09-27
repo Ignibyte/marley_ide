@@ -16,7 +16,8 @@
 //! is `terminal`, whose answers are the app's: the core returns each such call as
 //! [`Outgoing::Deferred`], and the transport hands it to the app through an [`AppCaller`] and waits
 //! for the answer. The `browser` family (#492) is the app's too. The `fleet` and `session` families
-//! stay unlisted until prong 2's C1 feeds them.
+//! stay unlisted until prong 2's C1 feeds them. Since #524 programs outside Marley that the user
+//! allowed by name reach a list of browser tools with tokens of their own ([`Principal`]).
 
 // gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
 // Zed's crates keep them at warn (CONSTITUTION §0).
@@ -34,6 +35,7 @@
 )]
 
 mod auth;
+mod clients;
 mod config;
 pub mod discovery;
 mod dispatch;
@@ -49,19 +51,23 @@ mod tools;
 pub mod transport;
 
 pub use auth::{bearer_ok, ct_eq, is_loopback, origin_allowed};
+pub use clients::{
+    CLIENT_READ_TOOLS, CLIENT_WRITE_TOOLS, ClientError, ClientGrant, ClientInfo, ClientTable,
+    Principal, check_client_name, permits,
+};
 pub use config::{McpConfigError, McpServerConfig, McpTransport};
 pub use dispatch::{deferred_response, handle_message, snapshot_changed};
 pub use expose::ExposeConfig;
 pub use jsonrpc::{RpcRequest, parse_request};
 pub use permission::{Decision, GrantTable, Tier, decide};
-pub use registry::{Family, ToolSpec, lookup, registry, tool_name, tools_list};
+pub use registry::{Family, ToolSpec, lookup, registry, tool_name, tools_list, tools_list_for};
 pub use resource::{
     FLEET_RESOURCE_URI, resource_read, resource_updated_notification, resources_list,
 };
 pub use secret::{EntropyError, hex128, mint_secret};
 pub use session::{
-    SESSION_CAP, SESSION_TTL_MS, SessionDecision, SessionFull, SessionRegistry, session_decision,
-    session_gate,
+    CLIENT_SESSION_CAP, SESSION_CAP, SESSION_TTL_MS, SessionDecision, SessionFull, SessionRegistry,
+    session_decision, session_gate,
 };
 pub use tools::{
     SurfaceAck, fleet_snapshot_result, resolve_surface, surface_receipt, surface_result,
@@ -93,6 +99,8 @@ pub struct RequestCtx<'a> {
     pub grants: &'a GrantTable,
     /// The app-provided id→pane-handle index for `surface_to_human` resolution.
     pub surface_index: &'a [(String, u64)],
+    /// Who holds the request's bearer (#524): what it may list and call.
+    pub principal: &'a Principal,
 }
 
 /// Per-connection subscription state. L1 has ONE resource, so this is a single flag.
@@ -149,22 +157,26 @@ pub struct AppCall {
     /// Its arguments, as the client sent them.
     pub arguments: Value,
     caller: Caller,
+    principal: Principal,
     answer: SyncSender<Result<ToolAnswer, String>>,
 }
 
 impl AppCall {
-    /// A call for `tool` with `arguments` from `caller`, whose answer goes to `answer`.
+    /// A call for `tool` with `arguments` from `caller`, made with `principal`'s bearer, whose
+    /// answer goes to `answer`.
     #[must_use]
     pub const fn new(
         tool: String,
         arguments: Value,
         caller: Caller,
+        principal: Principal,
         answer: SyncSender<Result<ToolAnswer, String>>,
     ) -> Self {
         Self {
             tool,
             arguments,
             caller,
+            principal,
             answer,
         }
     }
@@ -173,6 +185,12 @@ impl AppCall {
     #[must_use]
     pub const fn caller(&self) -> &Caller {
         &self.caller
+    }
+
+    /// Whose bearer the call came with (#524): Marley's own, or an outside client's.
+    #[must_use]
+    pub const fn principal(&self) -> &Principal {
+        &self.principal
     }
 
     /// Gives the waiting connection the app's answer: the tool's result, or why it failed. An

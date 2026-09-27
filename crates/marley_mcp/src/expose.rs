@@ -70,6 +70,7 @@ mod tests {
             snapshot: &snapshot,
             grants: &grants,
             surface_index: &index,
+            principal: &crate::Principal::Marley,
         };
         let mut subs = Subscriptions::default();
         let body = response_body(&handle_message(&ctx, &mut subs, call));
@@ -88,6 +89,7 @@ mod tests {
             snapshot: &snapshot,
             grants: &grants,
             surface_index: &index,
+            principal: &crate::Principal::Marley,
         };
         let mut subs = Subscriptions::default();
         let body = response_body(&handle_message(&ctx, &mut subs, call));

@@ -715,6 +715,38 @@ alike.
   agent's last action. The toolbar's Agent chip shows that action while it runs and for five
   seconds after it ends; a typed text shows as its length, never itself.
 
+## Outside clients (`src/clients.rs`, #524)
+
+- The registry is `<data>/mcp/clients.json` (0600, written through a file renamed into place):
+  each client's name, grant (`write`) and when it was allowed, and no token. A file Marley cannot
+  read is left as it is, logged, and Allow and Cut Off refuse with the reason. At start, once
+  the server runs, `clients::start` removes the last run's endpoint files, reads the registry
+  and keeps it on the main thread, then mints each client a token (`transport::allow_client`)
+  and writes `<data>/mcp/clients/<name>.json` (0600, the folder 0700) in the shape of
+  `mcp-endpoint.json`; the files go at quit. The main thread never takes the server's locks:
+  the token and file work runs in background tasks.
+- Browser Clients (`marley: browser clients`, `BrowserClientsModal`): each client with "reads" or
+  "reads and acts", its last call (read off the main thread every five seconds) and Cut Off;
+  a name field (Enter allows), "May act in pages" (`ui::Checkbox`) and Allow; after an Allow,
+  the client's endpoint file and the line that points Marley's bridge at it
+  (`MARLEY_MCP_ENDPOINT=<file> <data>/mcp/marley-mcp-bridge`), each with Copy. Escape closes it.
+- `clients::allow` checks the name, mints, writes the file and then the registry, and takes the
+  token back when a write fails. `clients::cut_off` changes the main thread's registry first, so
+  `is_allowed` answers at once for a call still waiting and for the tab's mark, and clears the
+  mark (`BrowserHub::forget_client`); then, off the main thread, `transport::cut_off_client`, the
+  file and the registry.
+- `mcp::answer` runs `marley_mcp::permits` before any app call, the second wall behind the
+  server's. `browser_tools` takes the client's name from `AppCall::principal` and passes it to
+  `acting`, `check_pick` and `annotate`; `still_allowed` refuses a cut-off client's call at the
+  start of `run` and after `settled`. `BrowserHub::agent_started` and `agent_ended` take the
+  client: the chip names it in place of "Agent", `PageState::driven_by` keeps its name and last
+  action, and the toolbar draws "Driven by <name>" and Cut Off (`render_driven_by`) while the
+  client is allowed and acted within `DRIVEN_MARK` (a minute); the minute's `Agent` entry carries
+  `by`.
+- The bridge (`claude_plugin/marley/bin/marley-mcp-bridge`) raises `Refused` on a 403 and answers
+  a tool call with `REFUSED` ("Marley refused this endpoint file's token …") in place of "Marley
+  is not running".
+
 ## Marley's plugin for Claude Code (`src/claude_plugin.rs`, `claude_plugin/`, #482)
 
 - The plugin lives as files in the crate: a local marketplace named `marley` and the plugin,

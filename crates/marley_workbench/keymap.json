@@ -75,6 +75,21 @@
     }
   },
   {
+    // Browser Clients (#524): Enter in the name field allows the client, and Escape closes the
+    // list from the field too, where the editor's own Escape would keep it open.
+    "context": "BrowserClients > Editor",
+    "bindings": {
+      "enter": "marley::AllowBrowserClient",
+      "escape": "menu::Cancel"
+    }
+  },
+  {
+    "context": "BrowserClients",
+    "bindings": {
+      "escape": "menu::Cancel"
+    }
+  },
+  {
     // An annotation's note: Enter keeps the annotation, Escape drops it.
     "context": "MarleyAnnotationNote > Editor",
     "bindings": {

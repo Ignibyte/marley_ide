@@ -92,11 +92,32 @@ pub fn answer(call: AppCall, cx: &mut App) {
     if let Some(project) = caller_project(scope.as_ref(), cx) {
         hub.update(cx, |hub, cx| hub.restart_if_failed(&project.key, cx));
     }
+    // An outside client's name marks what it does in the tab (#524).
+    let by = call.principal().client_name().map(SharedString::from);
     cx.spawn(async move |cx| {
-        let result = run(&call.tool, &call.arguments, scope.as_ref(), &hub, cx).await;
+        let result = run(
+            &call.tool,
+            &call.arguments,
+            scope.as_ref(),
+            by.as_ref(),
+            &hub,
+            cx,
+        )
+        .await;
         call.answer(result);
     })
     .detach();
+}
+
+/// Refuses the call of a client the user cut off after its call reached Marley (#524): the call
+/// waited for the main thread or for the browser, and acts no more.
+fn still_allowed(by: Option<&SharedString>, cx: &AsyncApp) -> Result<(), String> {
+    match by {
+        Some(name) if !cx.update(|cx| crate::clients::is_allowed(name, cx)) => Err(format!(
+            "the user cut the client {name} off, so its call was not carried out"
+        )),
+        _ => Ok(()),
+    }
 }
 
 /// The project `caller` comes from (#574): the group of its terminal, else of the workspace one
@@ -226,9 +247,11 @@ async fn run(
     tool: &str,
     arguments: &Value,
     scope: Option<&Scope>,
+    by: Option<&SharedString>,
     hub: &Entity<BrowserHub>,
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, String> {
+    still_allowed(by, cx)?;
     // Picks are Marley's, kept while the browser restarts, and recordings are files.
     match tool {
         "browser_picks" => return Ok(picks(hub, cx)),
@@ -242,11 +265,12 @@ async fn run(
     }
     // Each project's browser has its own pages (#507): a call sees them once none starts.
     settled(hub, cx).await;
+    still_allowed(by, cx)?;
     let named_tab = arguments.get("tab").and_then(Value::as_str);
     match tool {
         "browser_tabs" => return tabs(hub, scope, cx).await,
-        "browser_navigate" => return navigate(arguments, named_tab, scope, hub, cx).await,
-        "browser_check_pick" => return check_pick(arguments, hub, cx).await,
+        "browser_navigate" => return navigate(arguments, named_tab, scope, hub, by, cx).await,
+        "browser_check_pick" => return check_pick(arguments, hub, by, cx).await,
         _ => {}
     }
     let (tab, page) = page_of(hub, named_tab, scope, cx).await?;
@@ -268,12 +292,12 @@ async fn run(
         }
         "browser_network" => entries(&tab, hub.read_with(cx, |hub, _| hub.network_entries(&tab))),
         "browser_annotations" => Ok(annotations(&tab, hub, cx)),
-        "browser_annotate" => annotate(&page, &tab, arguments, hub, cx).await,
-        "browser_back" => back(&tab, hub, cx).await,
-        "browser_click" => click(&page, &tab, arguments, hub, cx).await,
-        "browser_type" => type_text(&page, &tab, arguments, hub, cx).await,
-        "browser_press" => press(&page, &tab, arguments, hub, cx).await,
-        "browser_scroll" => scroll(&page, &tab, arguments, hub, cx).await,
+        "browser_annotate" => annotate(&page, &tab, arguments, hub, by, cx).await,
+        "browser_back" => back(&tab, hub, by, cx).await,
+        "browser_click" => click(&page, &tab, arguments, hub, by, cx).await,
+        "browser_type" => type_text(&page, &tab, arguments, hub, by, cx).await,
+        "browser_press" => press(&page, &tab, arguments, hub, by, cx).await,
+        "browser_scroll" => scroll(&page, &tab, arguments, hub, by, cx).await,
         other => Err(format!("Marley answers no tool named {other}")),
     }
 }
@@ -756,6 +780,7 @@ fn pick_id(arguments: &Value, tool: &str) -> Result<usize, String> {
 async fn check_pick(
     arguments: &Value,
     hub: &Entity<BrowserHub>,
+    by: Option<&SharedString>,
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, String> {
     let id = pick_id(arguments, "browser_check_pick")?;
@@ -768,7 +793,7 @@ async fn check_pick(
     cx.update(|cx| show_for_agent(&tab, cx));
     let did = format!("checked pick {id}");
     hub.update(cx, |hub, cx| {
-        hub.agent_started(&tab, format!("checking pick {id}"), cx);
+        hub.agent_started(&tab, format!("checking pick {id}"), by.cloned(), cx);
     });
     let checked = hub.update(cx, |hub, cx| hub.check_pick(id, cx)).await;
     let shown = if checked.is_ok() {
@@ -777,7 +802,7 @@ async fn check_pick(
         format!("failed: {did}")
     };
     hub.update(cx, |hub, cx| {
-        hub.agent_ended(&tab, SharedString::from(shown), cx);
+        hub.agent_ended(&tab, SharedString::from(shown), by.cloned(), cx);
     });
     checked?;
     let redactor = cx.update(|cx| crate::mcp::agent_redactor(cx));
@@ -1003,16 +1028,18 @@ fn done(did: &str, tab: &str, hub: &Entity<BrowserHub>, cx: &AsyncApp) -> ToolAn
     }
 }
 
-/// Shows `doing` in the tab's Agent chip, runs `action`, and shows `did`, or that it failed.
+/// Shows `doing` in the tab's Agent chip, runs `action`, and shows `did`, or that it failed; the
+/// chip names the outside client `by` when there is one (#524).
 async fn acting<T>(
     hub: &Entity<BrowserHub>,
     tab: &str,
     doing: String,
     did: String,
+    by: Option<&SharedString>,
     cx: &mut AsyncApp,
     action: impl AsyncFnOnce(&mut AsyncApp) -> Result<T, String>,
 ) -> Result<ToolAnswer, String> {
-    hub.update(cx, |hub, cx| hub.agent_started(tab, doing, cx));
+    hub.update(cx, |hub, cx| hub.agent_started(tab, doing, by.cloned(), cx));
     let result = action(cx).await;
     let shown = if result.is_ok() {
         did.clone()
@@ -1020,7 +1047,7 @@ async fn acting<T>(
         format!("failed: {did}")
     };
     hub.update(cx, |hub, cx| {
-        hub.agent_ended(tab, SharedString::from(shown), cx);
+        hub.agent_ended(tab, SharedString::from(shown), by.cloned(), cx);
     });
     result.map(|_| done(&did, tab, hub, cx))
 }
@@ -1035,6 +1062,7 @@ async fn navigate(
     named_tab: Option<&str>,
     scope: Option<&Scope>,
     hub: &Entity<BrowserHub>,
+    by: Option<&SharedString>,
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, String> {
     let url = arguments
@@ -1070,6 +1098,7 @@ async fn navigate(
         &tab,
         format!("going to {shown}"),
         format!("went to {shown}"),
+        by,
         cx,
         async move |cx| {
             let task =
@@ -1083,6 +1112,7 @@ async fn navigate(
 async fn back(
     tab: &str,
     hub: &Entity<BrowserHub>,
+    by: Option<&SharedString>,
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, String> {
     let hub_for_action = hub.clone();
@@ -1092,6 +1122,7 @@ async fn back(
         tab,
         "going back".to_string(),
         "went back".to_string(),
+        by,
         cx,
         async move |cx| {
             let task = hub_for_action.update(cx, |hub, cx| hub.go_task(&tab_for_action, -1, cx));
@@ -1106,6 +1137,7 @@ async fn click(
     tab: &str,
     arguments: &Value,
     hub: &Entity<BrowserHub>,
+    by: Option<&SharedString>,
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, String> {
     let button = match arguments
@@ -1131,6 +1163,7 @@ async fn click(
         tab,
         format!("clicking {what}"),
         format!("clicked {what}"),
+        by,
         cx,
         async move |_| {
             click_at(&page, point, button, count)
@@ -1146,6 +1179,7 @@ async fn type_text(
     tab: &str,
     arguments: &Value,
     hub: &Entity<BrowserHub>,
+    by: Option<&SharedString>,
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, String> {
     let text = arguments
@@ -1175,6 +1209,7 @@ async fn type_text(
         tab,
         format!("typing {into}"),
         format!("typed {count} characters {into}{then}"),
+        by,
         cx,
         async move |_| {
             for character in text.chars() {
@@ -1194,6 +1229,7 @@ async fn press(
     tab: &str,
     arguments: &Value,
     hub: &Entity<BrowserHub>,
+    by: Option<&SharedString>,
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, String> {
     let key = arguments
@@ -1207,6 +1243,7 @@ async fn press(
         tab,
         format!("pressing {key}"),
         format!("pressed {key}"),
+        by,
         cx,
         async move |_| send_press(&page, key_press).await,
     )
@@ -1218,6 +1255,7 @@ async fn scroll(
     tab: &str,
     arguments: &Value,
     hub: &Entity<BrowserHub>,
+    by: Option<&SharedString>,
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, String> {
     if let Some(reference) = arguments.get("ref").and_then(Value::as_str) {
@@ -1231,6 +1269,7 @@ async fn scroll(
             tab,
             format!("scrolling {what} into view"),
             format!("scrolled {what} into view"),
+            by,
             cx,
             async move |cx| {
                 place(&page, &tab_for_action, &target, &hub_for_action, cx)
@@ -1253,6 +1292,7 @@ async fn scroll(
         tab,
         format!("scrolling {}", scroll_words(delta_x, delta_y)),
         format!("scrolled {}", scroll_words(delta_x, delta_y)),
+        by,
         cx,
         async move |cx| {
             page.call(
@@ -1421,13 +1461,14 @@ async fn annotate(
     tab: &str,
     arguments: &Value,
     hub: &Entity<BrowserHub>,
+    by: Option<&SharedString>,
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, String> {
     if arguments.get("clear").and_then(Value::as_bool) == Some(true) {
         let removed = hub.update(cx, |hub, cx| hub.clear_agent_annotations(tab, cx));
         let did = format!("cleared {removed} annotations");
         hub.update(cx, |hub, cx| {
-            hub.agent_ended(tab, SharedString::from(did.clone()), cx);
+            hub.agent_ended(tab, SharedString::from(did.clone()), by.cloned(), cx);
         });
         return Ok(done(&did, tab, hub, cx));
     }
@@ -1469,7 +1510,7 @@ async fn annotate(
         .ok_or_else(|| format!("the browser has no tab {tab}"))?;
     let did = format!("annotated {what}");
     hub.update(cx, |hub, cx| {
-        hub.agent_ended(tab, SharedString::from(did.clone()), cx);
+        hub.agent_ended(tab, SharedString::from(did.clone()), by.cloned(), cx);
     });
     let mut answer = done(&did, tab, hub, cx);
     if let Some(structured) = answer.structured.as_object_mut() {

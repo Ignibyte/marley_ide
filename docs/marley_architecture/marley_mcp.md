@@ -99,9 +99,12 @@ OR Apache-2.0, with the Marley crates' lint table.
 
 - `spawn(shared, effects, caller)` binds `127.0.0.1:0`, mints a 32-hex bearer from
   `/dev/urandom`, and runs an accept thread for the life of the process; each connection gets a
-  thread and one request. Before dispatch: a 1 MiB body cap, then `Origin` (none, or loopback),
-  then the bearer, then the session (`Mcp-Session-Id`, minted at `initialize`; at most 32, never
-  evicted, expired after 30 idle minutes, ended by `DELETE`).
+  thread and one request. Before dispatch (#524 bounds the first three): the request line and
+  each header line at 8 KiB and at most 100 header lines (431, the rest drained for a second so
+  the peer reads the reply), 10 seconds to send the whole request (`Deadlined`), a 1 MiB body
+  cap, then `Origin` (none, or loopback), then the bearer or a client's token, then the session
+  (`Mcp-Session-Id`, minted at `initialize`; at most 32, never evicted, expired after 30 idle
+  minutes, ended by `DELETE`).
 - `handle_message` runs under the shared state's lock, and the answers go out after it is
   released. A deferred call goes to the app through `caller` (an `AppCaller`, which must return
   at once) as an `AppCall`, and the connection's thread waits on its answer channel.
@@ -118,6 +121,34 @@ OR Apache-2.0, with the Marley crates' lint table.
   the app on each `AppCall` (`AppCall::caller`). A malformed value names nothing and never refuses
   a call; the caller is a default for what a call that names no terminal acts on, never an
   authority, since the bearer gates every call.
+
+## Outside clients (`clients.rs`, #524)
+
+- `Principal` is who holds a request's bearer: `Marley` for the per-boot bearer, or
+  `Client(ClientGrant { name, write })` for a program the user allowed. It sits beside
+  `Caller`, which says where a call comes from and grants nothing. `ClientTable` keeps each
+  client's grant, token and last call; its `Debug` names no token. `resolve(presented,
+  marley_bearer)` compares with `ct_eq` against the bearer and every token, with no early exit.
+- `permits(principal, tool)`: Marley calls every tool; a client only `CLIENT_READ_TOOLS`
+  (`browser_tabs`, `look`, `snapshot`, `console`, `network`, `picks`, `pick`, `annotations`,
+  `recordings`, `recording`) and, with `write`, `CLIENT_WRITE_TOOLS` (`navigate`, `back`,
+  `click`, `type`, `press`, `scroll`, `annotate`, `check_pick`). The lists are explicit, so a tool
+  added later reaches no client until it is named there. `check_client_name` takes 1 to 32
+  letters, digits, `-` and `_`, and refuses `agent` and `marley`, which the Browser tab's chip
+  would show as Marley's own.
+- The transport keeps the table apart from the data lock (`Clients`, an `RwLock`), so resolving
+  a bearer never touches the session registry; `ServerHandle::clients` hands it to the app, and
+  `allow_client` (mints a token) and `cut_off_client` (takes the client out, then ends its
+  sessions, one lock at a time) change it. For a client, the `Marley-*` headers are dropped, a
+  GET gets 405, `resources/*` a JSON-RPC error, `tools/list` names its grant's tools
+  (`tools_list_for`), and `tools/call` runs `permits` after `lookup`, so an unlisted tool is
+  refused too.
+- Sessions record their owner: another principal's session id is unknown (404); a client holds
+  at most `CLIENT_SESSION_CAP` (4), and its fifth `initialize` ends its own least recently used
+  one, since a client opens no standing stream whose hang-up would reap it; `terminate_owned_by`
+  ends a cut-off client's.
+- `write_endpoint_file_in(dir, name, json)` and `remove_endpoint_file_in(dir, name)` write and
+  remove an endpoint file at 0600; the discovery helpers call them with `mcp-endpoint.json`.
 
 ## In the app (#491)
 
