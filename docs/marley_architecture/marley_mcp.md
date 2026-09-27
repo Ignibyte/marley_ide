@@ -54,6 +54,11 @@ OR Apache-2.0, with the Marley crates' lint table.
   (`check_schema`).
   A `ToolAnswer` can carry an image (`ToolImage`), which reaches the client as an MCP image block
   after the text.
+- The `ports` family (#521) is served with one read tool, `ports_list`: no arguments, and an
+  output of one `ports` array, each entry's `project`, `folder`, `address`, `port`, `url`,
+  `pid`, `name` and `cwd` (`ports_list_schemas`). `dispatch` defers it to the app, as it does the
+  terminal and browser families. It is not in `CLIENT_READ_TOOLS`, so outside clients (#524)
+  neither see nor call it.
 
 ## Redaction (`redact.rs`, #516, #562)
 

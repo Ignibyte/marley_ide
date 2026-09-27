@@ -676,6 +676,16 @@ def main():
             focused = ", focused" if tab["focused"] else ""
             default = ", default" if tab.get("default") else ""
             print(f"  tab {tab['id']}: {tab['title']!r} at {tab['url']}, project {tab.get('project')}{focused}{default}")
+    elif command == "ports":
+        # ports_list (#521): one line per listener, with the keys its entry carries.
+        result = client.tool("ports_list")
+        listed = (result or {}).get("structuredContent", {}).get("ports", [])
+        for entry in listed:
+            print(f"  port {entry['port']}: {entry['name']} pid {entry['pid']} at {entry['url']}, "
+                  f"project {entry['project']}, folder {entry['folder']}, cwd {entry['cwd']}; "
+                  f"keys {','.join(sorted(entry))}")
+        if not listed:
+            print("  no ports")
     elif command == "navigate":
         result = client.tool("browser_navigate", {"url": rest[0], **options})
         if result:

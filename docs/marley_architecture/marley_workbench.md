@@ -139,6 +139,25 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
     notify, which fires on every frame.
   - The page's image lives in `Snapshot.favicons`, beside the pure snapshot, and its id in
     `BrowserSnapshot.icon`, so an icon's arrival changes what `refresh` compares.
+- **Port rows (#521).** `build_snapshot` gives each project the listeners `ports::Ports` holds
+  for its group (`port_snapshots`): the title `:<port> <name>`, matched by the filter as a title
+  is, the URL as the second line (`marley_browser::ports::url`), and a tooltip with the command
+  line, `in <cwd>` and `pid <pid>`. `render_port_row` draws `Server` in the row's round icon, and
+  on hover (`visible_on_hover`) Open (`ToolWeb`), Copy and Stop, each in a div with its own
+  debug selector (`marley-rail-port-open-<port>` and so on).
+  - A click on the row, Enter, or Open runs `open_port`: the group's workspace is shown
+    (`activate_workspace`), then `browser::open_url_tab` opens the URL there, or brings forward
+    the tab already on it. The buttons stop the click's propagation, so the row does not open
+    it a second time.
+  - Copy writes the URL to the clipboard. Stop runs `ports::stop` off the main thread and shows a
+    toast in the window's workspace when the process no longer listens there or the signal
+    failed; the row goes with the next scan.
+  - The rail keeps the scan running only while it shows. `watch_ports_while_shown` calls
+    `ports::watch` once the rail is the window's sidebar, open, with AI on, and
+    `ports::unwatch` once it is not. The observer the rail puts on its `MultiWorkspace` runs
+    it, and so does one on the settings, since turning AI back on shows an open rail with no
+    word from the `MultiWorkspace`. `cx.on_release` unwatches a rail that goes while watching. The rail observes the `Ports` global (`observe_global_in`),
+    so it rebuilds when a scan changed what listens.
 - **Keys and reorder (#453).** The key context is `MarleyRail menu`, and the rail answers Zed's
   `menu::SelectNext`, `SelectPrevious`, `SelectFirst`, `SelectLast`, `SelectParent`,
   `SelectChild` and `Confirm`. Zed binds up, down, Home, End and Enter to them with no context,
@@ -205,6 +224,29 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
     `take_zed_sidebar` hands a fresh Zed sidebar the blob with the rail's width in it.
   - `serialized_state` and `restore_serialized_state` run inside the `MultiWorkspace`'s update,
     so they touch only the rail's fields and the kept Zed sidebar.
+
+## Ports (`src/ports.rs`, #521)
+
+- `Ports` is a global: the listeners of each project group (`ProjectGroupKey`), each with the
+  project folder that holds its working directory (`ProjectListener`), a count of the open rails
+  (`watchers`) and whether the scan runs.
+- `watch` counts an open rail in and starts the scan when none runs; `unwatch` counts it out. The
+  scan (`scan_while_watched`) is one foreground task. Each round it reads every window's project
+  groups and each local member workspace's root paths on the main thread (`project_folders`),
+  then reads `/proc` and attributes the listeners on the background executor, and waits three
+  seconds, or 30 after a round that took over 500 ms. It ends in the first round that finds no
+  rail open.
+- gpui's `global_mut` and `default_global` tell every observer of the global, changed or not, so
+  the round reads `Ports` through `try_global` and writes it only when the listeners changed.
+  A scan that fails leaves the last listeners and logs a warning.
+- `attribute` gives each listener to the group whose folder is the deepest one holding its
+  working directory, compared by path components, across every window; a listener in no folder
+  is dropped. So are Marley's own: its pid, any process named `marley` (another Marley's MCP
+  server, a project Chromium's relay, which runs Marley's executable), and any whose command line
+  names `<data dir>/browser`, a Chromium an earlier build started on a port.
+- `list` scans at once for `ports_list`, and `project_names` names each group as the rail does
+  (`crate::group_names`). `stop` runs `marley_browser::ports::stop_in` on the background
+  executor.
 
 ## Threads (#439)
 
@@ -594,7 +636,11 @@ alike.
     duration from `AnchoredBlocks::times` (a running block's duration is how long it has run),
     and `Terminal::block_output_kept`;
   - `terminal_read`: `Terminal::block_output`, the last 2,000 lines and at most 256 KiB, and
-    whether anything was left out.
+    whether anything was left out;
+  - `ports_list` (#521): a scan made at once (`ports::list`), off the main thread, each
+    listener with its project's rail name, the folder, the address, port, URL, pid, process name
+    and working directory, by project and port. The command line stays out, since it can carry a
+    token.
 - **Redaction (#516).** `start` builds the `AgentRedaction` global from `MarleySettings` and
   rebuilds it on each `SettingsStore` change that alters `redact_secrets` or
   `redaction_patterns`, with an app notification naming a pattern that did not compile.

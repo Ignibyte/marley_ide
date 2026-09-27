@@ -19,6 +19,8 @@ pub enum Family {
     Terminal,
     /// The page in Marley's Browser tab, seen and driven by the app (#492).
     Browser,
+    /// The ports each project's processes listen on, read by the app (#521).
+    Ports,
 }
 
 impl Family {
@@ -30,6 +32,7 @@ impl Family {
             Self::Session => "session",
             Self::Terminal => "terminal",
             Self::Browser => "browser",
+            Self::Ports => "ports",
         }
     }
 
@@ -37,7 +40,7 @@ impl Family {
     /// 2's C1 to feed them; a client that names one of their tools still reaches it.
     #[must_use]
     pub const fn is_served(self) -> bool {
-        matches!(self, Self::Terminal | Self::Browser)
+        matches!(self, Self::Terminal | Self::Browser | Self::Ports)
     }
 }
 
@@ -261,6 +264,17 @@ const REGISTRY: &[ToolSpec] = &[
         "scroll",
         "Scroll the page by pixels (dy down, dx right), or an element by its ref into view.",
     ),
+    ToolSpec {
+        family: Family::Ports,
+        verb: "list",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "List the TCP ports the processes of each open project listen on, its dev \
+                      servers among them: for each, the project, the project folder that holds \
+                      the process's working directory, the address and port, the URL that \
+                      reaches it, the pid, the process's name and its working directory. A \
+                      listener outside every project is not listed.",
+    },
 ];
 
 /// A browser tool that reads the page (#492).
@@ -339,6 +353,7 @@ fn tool_schemas(spec: &ToolSpec) -> (Value, Value) {
     match spec.family {
         Family::Terminal => terminal_schemas(spec.verb),
         Family::Browser => browser_schemas(spec.verb),
+        Family::Ports => ports_list_schemas(),
         Family::Fleet => (
             json!({ "type": "object", "properties": {}, "additionalProperties": false }),
             fleet_snapshot_schema(),
@@ -1086,6 +1101,40 @@ fn terminal_argument_schema() -> Value {
 }
 
 /// `terminal_list`: no arguments; each terminal.
+/// `ports_list` (#521): no arguments; each listener, never its command line, which can carry a
+/// token.
+fn ports_list_schemas() -> (Value, Value) {
+    (
+        json!({ "type": "object", "properties": {}, "additionalProperties": false }),
+        json!({
+            "type": "object",
+            "properties": {
+                "ports": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "project": { "type": "string" },
+                            "folder": {
+                                "type": "string",
+                                "description": "The project folder that holds the process's working directory."
+                            },
+                            "address": { "type": "string" },
+                            "port": { "type": "integer" },
+                            "url": { "type": "string" },
+                            "pid": { "type": "integer" },
+                            "name": { "type": "string", "description": "The process's name." },
+                            "cwd": { "type": "string" }
+                        },
+                        "required": ["project", "folder", "address", "port", "url", "pid", "name", "cwd"]
+                    }
+                }
+            },
+            "required": ["ports"]
+        }),
+    )
+}
+
 fn terminal_list_schemas() -> (Value, Value) {
     (
         json!({ "type": "object", "properties": {}, "additionalProperties": false }),

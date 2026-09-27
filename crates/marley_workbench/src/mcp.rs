@@ -405,6 +405,10 @@ fn answer(call: AppCall, cx: &mut App) {
         crate::browser_tools::answer(call, cx);
         return;
     }
+    if call.tool == "ports_list" {
+        ports_list(call, cx);
+        return;
+    }
     let result = match call.tool.as_str() {
         "terminal_list" => Ok(terminal_list(call.caller(), cx)),
         "terminal_blocks" => terminal_blocks(&call.arguments, call.caller(), cx),
@@ -412,6 +416,50 @@ fn answer(call: AppCall, cx: &mut App) {
         other => Err(format!("Marley answers no tool named {other}")),
     };
     call.answer(result);
+}
+
+/// `ports_list` (#521): each project's listeners from a scan made now, read off the main thread,
+/// by project and port; the command line stays out, since it can carry a token.
+fn ports_list(call: AppCall, cx: &App) {
+    let names = crate::ports::project_names(cx);
+    let scan = crate::ports::list(cx);
+    cx.spawn(async move |_| {
+        let result = scan
+            .await
+            .map_err(|error| format!("Marley could not read the listening ports: {error:#}"))
+            .map(|by_group| {
+                let mut listed: Vec<(String, u16, Value)> = by_group
+                    .into_iter()
+                    .flat_map(|(key, listeners)| {
+                        let project = names.get(&key).cloned().unwrap_or_default();
+                        listeners.into_iter().map(move |found| {
+                            let listener = found.listener;
+                            let port = listener.address.port();
+                            let entry = json!({
+                                "project": project,
+                                "folder": found.folder.display().to_string(),
+                                "address": listener.address.ip().to_string(),
+                                "port": port,
+                                "url": marley_browser::ports::url(listener.address),
+                                "pid": listener.pid,
+                                "name": listener.name,
+                                "cwd": listener.cwd.display().to_string(),
+                            });
+                            (project.clone(), port, entry)
+                        })
+                    })
+                    .collect();
+                listed.sort_by(|left, right| (&left.0, left.1).cmp(&(&right.0, right.1)));
+                let ports: Vec<Value> = listed.into_iter().map(|(_, _, entry)| entry).collect();
+                ToolAnswer {
+                    structured: json!({ "ports": ports }),
+                    text: None,
+                    image: None,
+                }
+            });
+        call.answer(result);
+    })
+    .detach();
 }
 
 /// Every terminal in Marley's windows, the center panes' and the terminal panel's, with the

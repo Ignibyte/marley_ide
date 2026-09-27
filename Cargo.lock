@@ -10793,6 +10793,7 @@ dependencies = [
  "parking_lot",
  "percent-encoding",
  "procfs-core",
+ "rustix",
  "serde",
  "serde_json",
  "sha2",

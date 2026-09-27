@@ -2468,3 +2468,12 @@ first commit unreliably: a command can fail with "Not attached to an active page
 stream can keep the window's size. Send the size again and restart the stream once the URL
 commits, and do not count on the tab's size-change check, which sends nothing when the size
 has not changed.
+
+## PR-claude-run-a-views-poll-while-it-shows-001
+*severity: low · prevents: F-claude-521-the-port-scan-ran-behind-a-closed-rail-001*
+
+When a view's rows come from a poll (a scan, a timer, a watch of the machine), start the poll
+when the view shows and stop it when the view hides, not when the view is built and dropped. A
+panel or sidebar that closes stays alive, so an entity's life says nothing about whether anyone
+sees it. Follow what shows it (for the rail, the `MultiWorkspace`'s open sidebar), keep a flag
+so a start and a stop pair up, and give the poll back on release when it is still held.

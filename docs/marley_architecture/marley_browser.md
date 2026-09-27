@@ -160,13 +160,31 @@ for.
   space, a quote or an angle bracket, less the sentence punctuation after it and a closing
   bracket it did not open (`(http://0.0.0.0:8000/)` from Python's `http.server`).
 
-## Listening ports (`src/ports.rs`, #503)
+## Listening ports (`src/ports.rs`, #503, #521)
 
 - `listening_ports_in(dir)` reads `dir/tcp` and `dir/tcp6` (`/proc/net` on the machine) through
   `procfs-core`, which the tree already builds for `crashes`, and keeps the ports of the
   sockets in `LISTEN` bound to a loopback or unspecified address, IPv4-mapped ones included:
   those a local URL reaches. It fails only when neither table reads, since a machine without
-  IPv6 has no `tcp6`. The workbench runs it off the main thread.
+  IPv6 has no `tcp6`. The workbench runs it off the main thread. Since #521 the tables are read
+  by `listening_entries_in`, which `listeners_in` shares.
+- `listeners_in(proc_root)` (#521) finds who listens. It maps each listening socket of
+  `proc_root/net`'s tables by its inode, then reads each numeric entry of `proc_root`: a
+  process's `fd` links that parse as `FDTarget::Socket` with a listening inode give it those
+  sockets. For each such process it reads `comm`, the `cmdline` (its arguments joined with
+  spaces) and the `cwd` link, and keeps one `Listener { address, pid, name, command, cwd }` per
+  port and process, sorted by port and pid. The addresses are sorted first, so a server on
+  `127.0.0.1` and `::1` keeps the same one from scan to scan. A process whose `fd` folder does
+  not read (another user's, or one that ended during the walk) gives nothing, and so does one
+  whose `cwd` does not read, since the working directory places the listener. Only both tables,
+  or `proc_root` itself, failing is an error.
+- `url(address)` is a listener's URL: `http://<host>:<port>/`, or `https` on 443 and 8443. The
+  unspecified address opens as its family's loopback (`127.0.0.1`, `[::1]`), and an IPv4-mapped
+  one as its IPv4.
+- `stop_in(proc_root, port, pid)` scans again and sends SIGTERM through
+  `rustix::process::kill_process` only when that pid still listens on that port, so a pid
+  given to another process since the last scan is left alone. It answers `Stopped::Sent`,
+  `Stopped::NotListening`, or `Stopped::Gone` when the process ended first (`ESRCH`).
 
 ## Page icons (`src/favicon.rs`, #504)
 

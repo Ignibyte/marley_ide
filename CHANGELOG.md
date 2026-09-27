@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A project's ports in the rail** (#521, 2026-09-27). Under each project the rail lists the TCP
+  ports your processes listen on from inside its folders, such as a dev server started in its
+  terminal: the port, the process's name and the URL, after the project's terminals, Browser tabs
+  and threads. A row comes within seconds of a server's start and goes when it stops. The
+  pointer on a row shows the command line, the working directory and the pid, with three buttons:
+  Open (a Browser tab of the project on the URL), Copy (the URL) and Stop, which ends the server
+  with SIGTERM once a fresh look finds it still listening there. A server on `0.0.0.0` or `::`
+  opens on `127.0.0.1` or `[::1]`, and one on two addresses of a port has one row. Marley's own
+  listeners, other users' and those outside every project get none. Agents get the same list,
+  without the command lines, from the new `ports_list` tool.
 - **Browser clients on other machines, over SSH** (#584, 2026-09-27). A program on another
   computer can now drive Marley's browser as an allowed client. Browser Clients shows, under the
   line for this machine, a line that runs Marley's bridge here over SSH, with Copy. The other

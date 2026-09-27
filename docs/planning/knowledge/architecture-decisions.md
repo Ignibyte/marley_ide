@@ -2556,3 +2556,27 @@ Rejected:
   override leaves them out, and `about:blank` cannot report them;
 - a per-host identity or a setting (Orca's "Cleaned" and "Native", its Firefox identity for
   Google's sign-in): one identity for every site, until Chad asks.
+
+## AD-claude-521-a-projects-ports-are-found-by-their-working-directory-001
+*decided at: 2026-09-27 · status: shipped · builds on: AD-claude-503-marley-routes-a-terminals-urls-and-offers-a-listening-dev-server-001, AD-claude-504-browser-tabs-are-rows-of-their-project-in-the-rail-001*
+
+Marley discovers a project's ports; it allocates none. While a rail is open it reads
+`/proc/net/tcp` and `tcp6` and the `fd` links of the user's processes every three seconds, off
+the main thread. It gives each listener to the project group whose folder is the deepest one
+holding the process's working directory, across every window. Each port and process gets a row
+after the project's terminals, Browser tabs and threads. The row carries the port, the process's
+name and a URL (`0.0.0.0` and `::` open as loopback), with Open through #503's `open_url_tab`,
+Copy, and Stop. Stop sends SIGTERM only after a fresh scan finds that pid still listening on that
+port. Marley's own listeners are left out: its pid, any process named `marley`, and a command line
+naming its `browser/` folder. `ports_list` gives agents the same list without the command line,
+which can carry a token, and outside clients do not get it. A round over 500 ms backs off to 30
+seconds; on the dev box, with 1,313 processes, no round in the scenario's runs crossed it. If
+the kernel drops the tables, `sock_diag` is the replacement, behind the same `listeners_in`.
+Rejected:
+- Orca's fallback to the command line when the working directory is in no project: it would
+  hand an editor's or a tool's listener to any project its arguments name;
+- `sysinfo` for the walk: it reads a process's working directory and arguments, but has no
+  socket table;
+- a confirmation before Stop, SIGKILL, or the process group: the button sits on the row it acts
+  on, and the row's tooltip names the process;
+- port rows in the rail's cycle actions and the switcher: a port is not a place to switch to.

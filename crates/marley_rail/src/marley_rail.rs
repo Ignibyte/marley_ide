@@ -38,6 +38,8 @@ pub struct ProjectSnapshot {
     pub browsers: Vec<BrowserSnapshot>,
     /// The group's agent threads, in the order the rail lists them (newest first).
     pub threads: Vec<ThreadSnapshot>,
+    /// The ports the group's processes listen on, by port (#521).
+    pub ports: Vec<PortSnapshot>,
     /// Where the filter matched the name, as the byte offsets of the matched characters; `None`
     /// when it did not. Read only while [`RailSnapshot::filtering`].
     pub matched: Option<Vec<usize>>,
@@ -82,6 +84,23 @@ pub struct BrowserSnapshot {
     pub agent_unseen: bool,
     /// The page's icon's identity, once one was read, so a new icon changes the snapshot.
     pub icon: Option<u64>,
+    /// Where the filter matched the title, as for [`ProjectSnapshot::matched`].
+    pub matched: Option<Vec<usize>>,
+}
+
+/// A port a process of the group listens on (#521).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PortSnapshot {
+    /// The port.
+    pub port: u16,
+    /// The process that listens: with the port, the row's identity across rebuilds.
+    pub pid: u32,
+    /// The row's title: the port and the process's name.
+    pub title: String,
+    /// The URL that reaches it.
+    pub url: String,
+    /// The process's command line, working directory and pid, for the row's tooltip.
+    pub tooltip: String,
     /// Where the filter matched the title, as for [`ProjectSnapshot::matched`].
     pub matched: Option<Vec<usize>>,
 }
@@ -220,6 +239,8 @@ pub enum Selection {
     Browser(u64),
     /// A thread row, by the thread's key.
     Thread(String),
+    /// A port's row, by the port and the pid that listens on it (#521).
+    Port(u16, u32),
 }
 
 /// A project group's header row.
@@ -307,6 +328,27 @@ pub struct ThreadRow {
     pub highlight: Vec<usize>,
 }
 
+/// A port's row under its project (#521).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PortRow {
+    /// The group's index in [`RailSnapshot::projects`].
+    pub project: usize,
+    /// The port.
+    pub port: u16,
+    /// The process that listens on it.
+    pub pid: u32,
+    /// The title.
+    pub title: String,
+    /// The URL, the second line.
+    pub url: String,
+    /// The tooltip.
+    pub tooltip: String,
+    /// Whether this is the selected row.
+    pub selected: bool,
+    /// The byte offsets of the title's characters the filter matched, to highlight.
+    pub highlight: Vec<usize>,
+}
+
 /// One row of the rail.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Row {
@@ -318,6 +360,8 @@ pub enum Row {
     Browser(BrowserRow),
     /// An agent thread under its project, after the project's terminals and Browser tabs.
     Thread(ThreadRow),
+    /// A port under its project, after everything else under it (#521).
+    Port(PortRow),
 }
 
 /// A row the switcher lists: a terminal or a thread, never a header.
@@ -378,6 +422,7 @@ enum Shown<'a> {
     Terminal(usize, &'a TerminalSnapshot),
     Browser(usize, &'a BrowserSnapshot),
     Thread(usize, &'a ThreadSnapshot),
+    Port(usize, &'a PortSnapshot),
 }
 
 impl<'a> Shown<'a> {
@@ -386,7 +431,8 @@ impl<'a> Shown<'a> {
             Self::Project(index, _)
             | Self::Terminal(index, _)
             | Self::Browser(index, _)
-            | Self::Thread(index, _) => index,
+            | Self::Thread(index, _)
+            | Self::Port(index, _) => index,
         }
     }
 
@@ -396,6 +442,7 @@ impl<'a> Shown<'a> {
             Self::Terminal(_, terminal) => Selection::Terminal(terminal.id),
             Self::Browser(_, browser) => Selection::Browser(browser.id),
             Self::Thread(_, thread) => Selection::Thread(thread.key.clone()),
+            Self::Port(_, port) => Selection::Port(port.port, port.pid),
         }
     }
 
@@ -406,13 +453,14 @@ impl<'a> Shown<'a> {
             Self::Terminal(_, terminal) => terminal.matched.as_deref(),
             Self::Browser(_, browser) => browser.matched.as_deref(),
             Self::Thread(_, thread) => thread.matched.as_deref(),
+            Self::Port(_, port) => port.matched.as_deref(),
         }
     }
 }
 
 /// Every row the rail shows, in its order: each shown project's header, then the terminals, the
-/// Browser tabs and the threads shown under it. The rows, the selection and the keyboard all read
-/// this one walk.
+/// Browser tabs, the threads and the ports shown under it. The rows, the selection and the
+/// keyboard all read this one walk.
 fn walk(snapshot: &RailSnapshot) -> Vec<Shown<'_>> {
     let mut rows = Vec::new();
     for (index, project) in snapshot.projects.iter().enumerate() {
@@ -431,7 +479,16 @@ fn walk(snapshot: &RailSnapshot) -> Vec<Shown<'_>> {
             .iter()
             .filter(|thread| row_shows(snapshot, project, thread.matched.as_deref()))
             .map(|thread| Shown::Thread(index, thread));
-        let under: Vec<Shown<'_>> = terminals.chain(browsers).chain(threads).collect();
+        let ports = project
+            .ports
+            .iter()
+            .filter(|port| row_shows(snapshot, project, port.matched.as_deref()))
+            .map(|port| Shown::Port(index, port));
+        let under: Vec<Shown<'_>> = terminals
+            .chain(browsers)
+            .chain(threads)
+            .chain(ports)
+            .collect();
         // The filter shows a project for its own name or for a row under it.
         if snapshot.filtering && project.matched.is_none() && under.is_empty() {
             continue;
@@ -517,7 +574,7 @@ pub fn cycle_project(snapshot: &RailSnapshot, forward: bool) -> Selection {
 }
 
 /// Zed's Next and Previous Thread in the rail, which reach terminals, Browser tabs and threads
-/// alike.
+/// alike, and not ports, which are no place to switch to (#521).
 ///
 /// The shown row under a project after the selected row, or before it, passing over project
 /// headers and wrapping at the ends. With nothing selected it is the first such row going
@@ -568,14 +625,20 @@ pub fn parent(snapshot: &RailSnapshot, selection: &Selection) -> Selection {
             .projects
             .iter()
             .position(|project| project.threads.iter().any(|thread| thread.key == *key)),
+        Selection::Port(port, pid) => snapshot.projects.iter().position(|project| {
+            project
+                .ports
+                .iter()
+                .any(|shown| shown.port == *port && shown.pid == *pid)
+        }),
     };
     owner.map_or(Selection::None, Selection::Project)
 }
 
 /// The rows, in display order.
 ///
-/// Each shown project's header comes first, then the terminals, the Browser tabs and the threads
-/// shown under it.
+/// Each shown project's header comes first, then the terminals, the Browser tabs, the threads
+/// and the ports shown under it.
 /// Without a filter a folded project shows its header alone. With one, a project shows when its
 /// name or a row under it matched, with every row when its name did, and each row carries the
 /// matched characters.
@@ -630,6 +693,16 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                 attention: thread.attention,
                 selected: matches!(&selected, Selection::Thread(key) if *key == thread.key),
                 highlight: highlight(thread.matched.as_deref()),
+            }),
+            Shown::Port(index, port) => Row::Port(PortRow {
+                project: index,
+                port: port.port,
+                pid: port.pid,
+                title: port.title.clone(),
+                url: port.url.clone(),
+                tooltip: port.tooltip.clone(),
+                selected: selected == Selection::Port(port.port, port.pid),
+                highlight: highlight(port.matched.as_deref()),
             }),
         })
         .collect()
@@ -787,6 +860,7 @@ mod tests {
             terminals,
             browsers: Vec::new(),
             threads: Vec::new(),
+            ports: Vec::new(),
             matched: None,
         }
     }
@@ -866,6 +940,7 @@ mod tests {
                 Row::Terminal(row) => row.selected,
                 Row::Browser(row) => row.selected,
                 Row::Thread(row) => row.selected,
+                Row::Port(row) => row.selected,
             })
             .count()
     }
@@ -1548,6 +1623,7 @@ mod tests {
                 Row::Terminal(row) => format!("  {}", row.title),
                 Row::Browser(row) => format!("  {}", row.title),
                 Row::Thread(row) => format!("  {}", row.title),
+                Row::Port(row) => format!("  {}", row.title),
             })
             .collect()
     }
@@ -1604,6 +1680,7 @@ mod tests {
                     Row::Terminal(row) => (row.title, row.highlight),
                     Row::Browser(row) => (row.title, row.highlight),
                     Row::Thread(row) => (row.title, row.highlight),
+                    Row::Port(row) => (row.title, row.highlight),
                 })
                 .collect()
         };
@@ -1639,6 +1716,7 @@ mod tests {
                 Row::Terminal(row) => row.highlight,
                 Row::Browser(row) => row.highlight,
                 Row::Thread(row) => row.highlight,
+                Row::Port(row) => row.highlight,
             };
             assert!(highlight.is_empty());
         }
@@ -1653,7 +1731,7 @@ mod tests {
                 .into_iter()
                 .filter_map(|row| match row {
                     Row::Project(row) => Some(row.attention),
-                    Row::Terminal(_) | Row::Browser(_) | Row::Thread(_) => None,
+                    Row::Terminal(_) | Row::Browser(_) | Row::Thread(_) | Row::Port(_) => None,
                 })
                 .collect()
         };

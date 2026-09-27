@@ -16,15 +16,16 @@ use agent_ui::{Agent, AgentPanel, AgentPanelEvent, AgentThreadSource};
 use anyhow::Context as _;
 use editor::{Editor, EditorEvent};
 use gpui::{
-    Anchor, AnyElement, AnyView, App, ClickEvent, Context, Div, ElementId, Entity, EntityId,
-    EventEmitter, FocusHandle, Focusable, Hsla, Image, Pixels, Render, Stateful, Subscription,
-    Task, WeakEntity, Window, img, px,
+    Anchor, AnyElement, AnyView, App, ClickEvent, ClipboardItem, Context, Div, ElementId, Entity,
+    EntityId, EventEmitter, FocusHandle, Focusable, Hsla, Image, Pixels, Render, Stateful,
+    Subscription, Task, WeakEntity, Window, img, px,
 };
 use marley_agent::{AgentKind, WAITING_AFTER, claude_events};
+use marley_browser::ports::Stopped;
 use marley_rail::{
-    BrowserRow, BrowserSnapshot, Focus, ProjectRow, ProjectSnapshot, RailSnapshot, Row, Selection,
-    SwitcherRow, TerminalAgent, TerminalRow, TerminalSnapshot, ThreadRow, ThreadSnapshot,
-    ThreadStatus,
+    BrowserRow, BrowserSnapshot, Focus, PortRow, PortSnapshot, ProjectRow, ProjectSnapshot,
+    RailSnapshot, Row, Selection, SwitcherRow, TerminalAgent, TerminalRow, TerminalSnapshot,
+    ThreadRow, ThreadSnapshot, ThreadStatus,
 };
 use menu::{
     Cancel, Confirm, SelectChild, SelectFirst, SelectLast, SelectNext, SelectParent, SelectPrevious,
@@ -44,15 +45,16 @@ use util::ResultExt as _;
 use util::path_list::PathList;
 use workspace::{
     MultiWorkspace, MultiWorkspaceEvent, ProjectGroup, SaveIntent, Sidebar, SidebarEvent,
-    SidebarSide, Workspace,
+    SidebarSide, Toast, Workspace,
     item::{Item as _, ItemEvent},
-    notifications::DetachAndPromptErr as _,
+    notifications::{DetachAndPromptErr as _, NotificationId},
 };
 use zed_actions::agents_sidebar::FocusSidebarFilter;
 
 use crate::agent_events::{self, AgentEvents};
 use crate::agents::{self, AgentIcon};
 use crate::browser::{BrowserEvent, BrowserHub, BrowserView};
+use crate::ports::{self, Ports};
 use crate::{MarleySettings, browser};
 
 #[path = "rail_switcher.rs"]
@@ -81,6 +83,8 @@ pub struct Rail {
     width_set_by_user: bool,
     /// Whether the user closed the rail, which the window's saved state keeps.
     closed: bool,
+    /// Whether this rail keeps the port scan running, which it does while it shows (#521).
+    watching_ports: bool,
     /// The row the keyboard is on while the rail holds focus.
     cursor: Option<Selection>,
     /// The filter's field, under the header.
@@ -137,6 +141,9 @@ pub struct Rail {
     _multi_workspace_subscriptions: [Subscription; 2],
     /// Claude Code's hook events, which move its terminals' rows (#519).
     _agent_events: Subscription,
+    /// The rows' ports, from the scan an open rail keeps running (#521), and the settings that
+    /// can show the rail again.
+    _ports: [Subscription; 2],
     _focus_out: Subscription,
     _filter_edits: Subscription,
 }
@@ -224,6 +231,7 @@ impl Rail {
                 window,
                 |rail, multi_workspace, window, cx| {
                     rail.note_open(&multi_workspace, cx);
+                    rail.watch_ports_while_shown(&multi_workspace, cx);
                     rail.refresh(window, cx);
                 },
             ),
@@ -258,6 +266,20 @@ impl Rail {
             },
         );
         let agent_events = cx.observe_global_in::<AgentEvents>(window, Self::refresh);
+        cx.on_release(|rail, cx| {
+            if rail.watching_ports {
+                ports::unwatch(cx);
+            }
+        })
+        .detach();
+        let ports_scanned = cx.observe_global_in::<Ports>(window, Self::refresh);
+        // Turning AI back on shows an open rail again without a word from the `MultiWorkspace`.
+        let settings_changed =
+            cx.observe_global_in::<settings::SettingsStore>(window, |rail, _, cx| {
+                if let Some(multi_workspace) = rail.multi_workspace.upgrade() {
+                    rail.watch_ports_while_shown(&multi_workspace, cx);
+                }
+            });
         Self {
             multi_workspace: multi_workspace.downgrade(),
             focus_handle,
@@ -266,6 +288,7 @@ impl Rail {
                 .map_or(DEFAULT_WIDTH, |width| px(width).clamp(MIN_WIDTH, MAX_WIDTH)),
             width_set_by_user: saved.width.is_some(),
             closed: false,
+            watching_ports: false,
             cursor: None,
             filter_editor,
             shown_at: HashMap::default(),
@@ -293,6 +316,7 @@ impl Rail {
             noted_threads: HashSet::default(),
             _multi_workspace_subscriptions: subscriptions,
             _agent_events: agent_events,
+            _ports: [ports_scanned, settings_changed],
             _focus_out: focus_out,
             _filter_edits: filter_edits,
         }
@@ -311,6 +335,33 @@ impl Rail {
         let multi_workspace = multi_workspace.read(cx);
         if multi_workspace.multi_workspace_enabled(cx) {
             self.closed = !multi_workspace.sidebar_open();
+        }
+    }
+
+    /// Keeps the port scan running while this rail is the window's sidebar and open, and lets it
+    /// stop while it is closed.
+    fn watch_ports_while_shown(
+        &mut self,
+        multi_workspace: &Entity<MultiWorkspace>,
+        cx: &mut Context<Self>,
+    ) {
+        let rail = cx.entity_id();
+        let shown = {
+            let multi_workspace = multi_workspace.read(cx);
+            multi_workspace.multi_workspace_enabled(cx)
+                && multi_workspace.sidebar_open()
+                && multi_workspace
+                    .sidebar()
+                    .is_some_and(|sidebar| sidebar.to_any().entity_id() == rail)
+        };
+        if shown == self.watching_ports {
+            return;
+        }
+        self.watching_ports = shown;
+        if shown {
+            ports::watch(cx);
+        } else {
+            ports::unwatch(cx);
         }
     }
 
@@ -965,7 +1016,67 @@ impl Rail {
                 })
             }
             Selection::Thread(key) => self.open_thread(&key, window, cx),
+            Selection::Port(port, pid) => {
+                let found =
+                    self.snapshot
+                        .rail
+                        .projects
+                        .iter()
+                        .enumerate()
+                        .find_map(|(index, project)| {
+                            let shown = project
+                                .ports
+                                .iter()
+                                .find(|shown| shown.port == port && shown.pid == pid)?;
+                            let group = self.snapshot.groups.get(index)?;
+                            Some((group.workspace.clone(), shown.url.clone()))
+                        });
+                found.map_or(Ok(()), |(workspace, url)| {
+                    self.open_port(&workspace, url, window, cx)
+                })
+            }
         }
+    }
+
+    /// Shows `workspace` and opens `url` there in a Browser tab of its project, or brings forward
+    /// the tab already on it (#521).
+    fn open_port(
+        &self,
+        workspace: &WeakEntity<Workspace>,
+        url: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let workspace = self.activate_workspace(workspace, window, cx)?;
+        workspace.update(cx, |workspace, cx| {
+            browser::open_url_tab(workspace, url, window, cx);
+        });
+        Ok(())
+    }
+
+    /// Stops the server on `port` (#521) once a scan made now finds process `pid` listening there
+    /// still; why not, when it could not, shows as a toast in the window's workspace.
+    fn stop_port(&self, port: u16, pid: u32, window: &Window, cx: &Context<Self>) {
+        let stop = ports::stop(port, pid, cx);
+        let multi_workspace = self.multi_workspace.clone();
+        cx.spawn_in(window, async move |_, cx| {
+            let failure = match stop.await {
+                Ok(Stopped::Sent | Stopped::Gone) => return,
+                Ok(Stopped::NotListening) => format!(
+                    "Process {pid} no longer listens on port {port}, so Marley left it alone."
+                ),
+                Err(error) => format!("Could not stop the server on port {port}: {error:#}"),
+            };
+            let shown = multi_workspace
+                .read_with(cx, |multi_workspace, _| multi_workspace.workspace().clone());
+            if let Ok(workspace) = shown {
+                workspace.update(cx, |workspace, cx| {
+                    workspace
+                        .show_toast(Toast::new(NotificationId::unique::<Ports>(), failure), cx);
+                });
+            }
+        })
+        .detach();
     }
 
     /// The switcher's rows, from the window as the rail last read it.
@@ -1665,6 +1776,119 @@ impl Rail {
     }
 }
 
+impl Rail {
+    /// A port's row (#521): the port and its process, the URL under them, and on hover Open,
+    /// Copy and Stop; its tooltip names the process, and a click opens it as Open does.
+    fn render_port_row(
+        row: PortRow,
+        workspace: WeakEntity<Workspace>,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
+        let (port, pid) = (row.port, row.pid);
+        let key = (u64::from(port) << 32) | u64::from(pid);
+        let button = |id: &'static str, icon: IconName, tooltip: &'static str| {
+            IconButton::new((id, key), icon)
+                .icon_size(IconSize::Small)
+                .icon_color(Color::Muted)
+                .tooltip(Tooltip::text(tooltip))
+        };
+        let (open_workspace, open_url) = (workspace.clone(), row.url.clone());
+        let open = button(
+            "marley-rail-port-open",
+            IconName::ToolWeb,
+            "Open in a Browser Tab",
+        )
+        .on_click(cx.listener(move |rail, _, window, cx| {
+            // The row under the button would open it a second time.
+            cx.stop_propagation();
+            rail.open_port(&open_workspace, open_url.clone(), window, cx)
+                .log_err();
+        }));
+        let copy_url = row.url.clone();
+        let copy = button("marley-rail-port-copy", IconName::Copy, "Copy URL").on_click(
+            move |_, _, cx| {
+                cx.stop_propagation();
+                cx.write_to_clipboard(ClipboardItem::new_string(copy_url.clone()));
+            },
+        );
+        let stop = button("marley-rail-port-stop", IconName::Stop, "Stop the Server").on_click(
+            cx.listener(move |rail, _, window, cx| {
+                cx.stop_propagation();
+                rail.stop_port(port, pid, window, cx);
+            }),
+        );
+        let end = h_flex()
+            .flex_none()
+            .gap_0p5()
+            .visible_on_hover(ROW_GROUP)
+            .child(
+                div()
+                    .debug_selector(move || format!("marley-rail-port-open-{port}"))
+                    .child(open),
+            )
+            .child(
+                div()
+                    .debug_selector(move || format!("marley-rail-port-copy-{port}"))
+                    .child(copy),
+            )
+            .child(
+                div()
+                    .debug_selector(move || format!("marley-rail-port-stop-{port}"))
+                    .child(stop),
+            );
+        let url = row.url.clone();
+        let item = row_card(
+            ("marley-rail-port", key),
+            format!("marley-rail-port-icon-{port}"),
+            row.selected,
+            Icon::new(IconName::Server)
+                .size(IconSize::Small)
+                .color(Color::Muted)
+                .into_any_element(),
+            row_label(row.title, row.highlight, Color::Default),
+            vec![row.url],
+            cx,
+        )
+        .child(end)
+        .tooltip(Tooltip::text(row.tooltip))
+        .on_click(cx.listener(move |rail, _: &ClickEvent, window, cx| {
+            rail.open_port(&workspace, url.clone(), window, cx)
+                .log_err();
+        }));
+        div()
+            .debug_selector(move || format!("marley-rail-port-{port}"))
+            .pl_2()
+            .child(item)
+    }
+}
+
+/// The project group `key`'s listeners as rows (#521): the port and the process's name as the
+/// title, the URL, and a tooltip with the command line, the working directory and the pid.
+fn port_snapshots(key: &ProjectGroupKey, filter: &str, cx: &App) -> Vec<PortSnapshot> {
+    Ports::of(key, cx)
+        .into_iter()
+        .map(|found| {
+            let listener = found.listener;
+            let port = listener.address.port();
+            let title = format!(":{port} {}", listener.name);
+            let matched = filter_match(filter, &title);
+            PortSnapshot {
+                port,
+                pid: listener.pid,
+                url: marley_browser::ports::url(listener.address),
+                tooltip: format!(
+                    "{}\nin {}\npid {}",
+                    listener.command,
+                    listener.cwd.display(),
+                    listener.pid
+                ),
+                title,
+                matched,
+            }
+        })
+        .collect()
+}
+
 /// Everything in a window the rail follows.
 #[derive(Default)]
 struct Watched {
@@ -2130,6 +2354,7 @@ fn build_snapshot(
             snapshot.threads.insert(thread.key.clone(), entry);
             threads.push(thread);
         }
+        let ports = port_snapshots(&group.key, filter, cx);
         let matched = filter_match(filter, &name);
         snapshot.rail.projects.push(ProjectSnapshot {
             name,
@@ -2137,6 +2362,7 @@ fn build_snapshot(
             terminals,
             browsers,
             threads,
+            ports,
             matched,
         });
         snapshot.groups.push(GroupEntry {
@@ -2587,6 +2813,9 @@ impl Render for Rail {
                     .threads
                     .get(&row.key)
                     .map(|thread| Self::render_thread_row(row, thread, cx).into_any_element()),
+                Row::Port(row) => self.snapshot.groups.get(row.project).map(|group| {
+                    Self::render_port_row(row, group.workspace.clone(), cx).into_any_element()
+                }),
             })
             .collect();
         v_flex()

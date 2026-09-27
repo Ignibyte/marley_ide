@@ -2401,3 +2401,14 @@ content size (a headless window of 1100 by 860 shows 1100 by 773). The tab sends
 it changes, so nothing sent it again. #507's golden run of the same scenario, before #539, filled
 the pane. Fixed before the commit: when a page sent on from blank commits its URL, the hub sends
 its size again and restarts its stream, beside resetting its history.
+
+## F-claude-521-the-port-scan-ran-behind-a-closed-rail-001
+*severity: low · found in: pipeline 521's Test phase (a review while the golden set ran) · class: a poll tied to a view's life rather than to its showing · prevented by: PR-claude-run-a-views-poll-while-it-shows-001*
+
+D3 says Marley reads the ports while a rail shows. The rail took its watch in `Rail::new` and gave
+it back on release, so the scan went on while the user had closed the rail with Ctrl+Alt+J: a read
+of both TCP tables (66 KB on the dev box) and of every `fd` link of the user's processes every
+three seconds, for rows no one saw. The scenario's first two runs could not show it, since
+neither closed the rail. Fixed before the commit: the rail watches while it is the window's sidebar
+and open, from the observer it already puts on its `MultiWorkspace`, and unwatches when it closes
+or goes. The scenario compares Marley's `rchar` over nine seconds with the rail open and closed.

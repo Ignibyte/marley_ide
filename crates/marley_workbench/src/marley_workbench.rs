@@ -36,6 +36,7 @@ pub mod marley_workbench_tests;
 pub mod mcp;
 pub mod notifications;
 pub mod playwright_scripts;
+pub mod ports;
 pub mod push;
 mod rail;
 pub mod rich_input;

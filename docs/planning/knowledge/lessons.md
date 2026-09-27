@@ -3340,3 +3340,25 @@ A page `Target.createTarget` opens at `about:blank` keeps that entry once it nav
 `Page.getNavigationHistory` answers `["about:blank", url]`, where a page created at its URL
 answers `[url]`. `Page.resetNavigationHistory` after the URL commits leaves `[url]`. A tab opened
 at a URL through a blank start would otherwise gain a Back that leads to a blank page.
+
+## L-claude-521-gpuis-mutable-global-access-tells-every-observer-001
+*category: gpui · topic: globals and observers · from: pipeline 521*
+
+`App::global_mut`, `default_global` and `set_global` each push
+`Effect::NotifyGlobalObservers`, whether or not the caller changes anything; `try_global` and
+`global` push nothing (`crates/gpui/src/app.rs`). A task that polls into a global that views
+observe (`observe_global`, `observe_global_in`) redraws them every round unless it reads through
+`try_global` and writes only when the value changed. #521's port scan runs every three seconds
+and writes `Ports` only when the listeners differ, so the rail rebuilds on a change, not on
+every round.
+
+## L-claude-521-two-loops-read-the-tcp-tables-001
+*category: e2e · topic: measuring what Marley reads · from: pipeline 521*
+
+Two loops read `/proc/net/tcp` and `tcp6` whole: #521's port scan, every three seconds while a
+rail shows, and #503's offer of a printed URL (`links.rs`, `PORTS_POLL`), every two seconds while
+any terminal holds one. Both run on the background executor's `Worker` threads, so a count of
+Marley's reads (`rchar` in `/proc/<pid>/io`) cannot tell them apart. On the dev box one read of
+both tables is about 66 KB. A scenario that measures one loop runs before any terminal prints a
+URL. Per-thread counts (`/proc/<pid>/task/*/io` with each thread's `comm`) show which threads
+read, which is how #521's Test phase found #503's share.

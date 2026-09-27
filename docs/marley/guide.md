@@ -157,14 +157,15 @@ filter field sits under the header.
 
 Each project has a header row: its name as a muted label, a chevron that folds it, an attention
 dot when a row it hides (folded, or filtered out) needs you, and a `+`. Under the header come the
-project's terminals, then its Zed agent threads, newest first. A line separates one project from
-the next.
+project's terminals, its Browser tabs, its Zed agent threads, newest first, and the ports its
+servers listen on. A line separates one project from the next.
 
 | Row | What it shows | A click |
 |---|---|---|
 | Terminal | A `>_` icon, the title, and the working directory relative to the project root (`~` for your home outside it, empty at the root) | Shows its project, focuses the terminal, clears its bell |
 | Agent CLI | The agent's icon, the title the CLI sets (or the agent's name), and "Claude Code · working" or "Claude Code · waiting" | As a terminal row |
 | Zed agent thread | The agent's icon, the thread's title, and "Zed Agent · working" (or idle, waiting, failed) | Shows the project and opens the thread, focused, in the Agent Panel on the right |
+| Port | A server icon, `:<port>` and the process's name, and the URL | Opens the URL in a Browser tab of the project |
 
 One row is highlighted at a time: the Agent Panel's thread while the panel has the focus, else the
 active terminal, else the displayed project's header.
@@ -184,6 +185,21 @@ Terminal rows rename and close from the rail (#452):
   rename does. The name survives restarts, and stays on the row while an agent CLI runs.
 - Right-click and choose Close, or use the close button that appears under the pointer. Marley
   closes the tab as Zed does, asking first while a task runs in it.
+
+Port rows (#521) are the TCP ports your processes listen on from inside the project's folders:
+a dev server you started in its terminal, or anywhere else in the project. Marley looks every
+three seconds while the rail is open, so a row comes within seconds of a server's start and
+goes when it stops.
+
+- A server on `0.0.0.0` or `::` gets a URL on `127.0.0.1` or `[::1]`, and a server on two
+  addresses of one port gets one row.
+- The pointer on a row shows the process's command line, working directory and pid, and three
+  buttons: Open (the URL in a Browser tab of the project, or the tab already on it), Copy (the URL
+  on the clipboard) and Stop. Stop sends the process SIGTERM once a fresh look finds it still
+  listening on that port; otherwise a message says Marley left it alone.
+- Marley's own listeners and other users' processes get no row, and neither does a server whose
+  working directory is in no project, such as one that moved to `/` when it went to the
+  background.
 
 A project header's right-click menu has Move Project Up and Move Project Down. Ctrl+Alt+J closes
 and opens the rail. A rail you close stays closed after a restart, and its width is saved with
@@ -496,6 +512,12 @@ The terminal family:
 | `terminal_list` | Every terminal in every window, center and Terminal Panel: its id, tab title, project, working directory, running command, and how many blocks it holds |
 | `terminal_blocks` | A terminal's newest blocks, oldest first (50 unless `last` says otherwise, 500 at most): each command, whether the shell's hook reported it (`verified`), exit code, working directory, start time, duration, whether it runs, and whether its output is still in the scrollback; `redacted` counts the secrets hidden in the commands |
 | `terminal_read` | One block's command and output as text, at most 2,000 lines and 256 KiB with the end kept, whether the start was cut, and `redacted`, how many secrets were hidden |
+
+The ports family (#521):
+
+| Tool | What it gives |
+|---|---|
+| `ports_list` | The ports the rail's port rows show: each listener's project, the project folder its working directory is in, its address, port, URL, pid, process name and working directory; never its command line, which can carry a token |
 
 The browser family, reading:
 

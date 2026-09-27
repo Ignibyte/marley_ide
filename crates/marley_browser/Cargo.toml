@@ -22,6 +22,7 @@ log.workspace = true
 parking_lot.workspace = true
 percent-encoding.workspace = true
 procfs-core.workspace = true
+rustix = { workspace = true, features = ["process"] }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
