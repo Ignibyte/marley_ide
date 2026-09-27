@@ -1,7 +1,7 @@
 ---
 pipeline_id: 0c49c625-4cba-4377-9c12-5bcca1b1055e
 ticket: docs/planning/tickets/open/TICKET-504-browser-tabs-in-the-rail.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Browser tabs as rows of their project in the rail, with favicon, loading, host, counts and the agent's mark"
 type: feature
 slice: prong 3 with the rail (after wave 2), item 4 (first half) of the list after the browser waves

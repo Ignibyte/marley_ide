@@ -3044,3 +3044,39 @@ failed to compile `marley_terminal` while clippy was green. A `const fn` clippy 
 written with what both toolchains take: comparisons on `character as u32` instead of a
 recently-const method. After a red gate, read the whole log: the summary line names the gate
 but not the error.
+
+## L-claude-504-cdp-has-no-favicon-event-so-read-the-icon-after-load-001
+*category: code · topic: the browser · from: pipeline 504*
+
+CDP has no favicon event: Electron's `page-favicon-updated`, which Orca uses, is not part of it.
+So a page's icon is read after `Page.loadEventFired`. The page's `link[rel~="icon" i]` hrefs are
+read in an isolated world, where the page's scripts cannot see the read, and the first http,
+https or `data:image/` one wins (Orca's rule; `data:,` means none), else `/favicon.ico` at the
+page's origin. `Network.loadNetworkResource` loads it for the page's frame, without credentials,
+and the stream reader stops past a cap. A missing icon answers 404, which fails the load's
+`success` before any bytes are read, and the row keeps the globe. A server's content type is often
+wrong for icons, so the format comes from the first bytes.
+
+## L-claude-504-a-click-that-passes-can-still-miss-its-target-001
+*category: validate · topic: e2e checks · from: pipeline 504*
+
+Twice in #504 a click passed its checks without landing where the scenario says. #504's first
+run passed on guessed coordinates, since a pixel square and a close button a few pixels off still
+hit. In the golden set, #574's click on repo-a's terminal row landed on repo-a's header once a
+Browser row pushed the row down (L-claude-498). The header also shows the project, and the next
+click focused the terminal, so all nine checks passed. A check proves the outcome, not the path.
+Read the shots of every scenario that clicks near a changed layout, measure, and write the
+measured values. To see what a click hit, take a shot straight after it, while the pointer still
+hovers: the hovered row shows its hover state (a terminal row, its close button).
+
+## L-claude-504-rustdoc-checks-what-clippy-and-dylint-do-not-001
+*category: code · topic: the gate's toolchains · from: pipeline 504*
+
+Gate:14 builds the scope's docs with `RUSTDOCFLAGS="-D warnings"`, and neither clippy nor dylint
+reads intra-doc links. #504's new module doc failed it twice while both were clean: a public
+module's doc linked a `pub(crate)` constant (`private_intra_doc_links`), and ``[`format`]`` was
+ambiguous, since `format!` is a macro (`broken_intra_doc_links`; ``[`format()`]`` names the
+function). A crate that fails stops the build, so the crates that depend on it go undocumented
+until it is fixed, and their errors show only on the next run. Before the gate, run
+`RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` with a `-p` for each of the scope's crates, after
+clippy.

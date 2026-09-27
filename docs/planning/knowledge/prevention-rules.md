@@ -2373,3 +2373,12 @@ environment) finds the Marley that wrote it from where it was written: a file be
 `<data_dir>`, or a variable Marley set for it. It never uses the default data directory, where
 the user's main Marley lives. A second Marley (`--user-data-dir`, an e2e profile copy) would
 otherwise reach the main one, and a scenario would drive the user's own window.
+
+## PR-claude-a-view-that-redraws-on-a-changed-snapshot-keeps-what-it-draws-in-it-001
+*severity: medium · prevents: F-claude-504-a-favicons-arrival-changed-nothing-the-rail-compares-001*
+
+A view that redraws only when a compared snapshot changes (the rail's `refresh`) must put in that
+snapshot a value for everything its render reads from elsewhere: an id, a count or a version for
+an image, a handle or a side map. Otherwise a change that touches only the side value draws
+nothing until an unrelated change. When a row gains something drawn from a side map, add its key
+to the row's pure snapshot in the same change.

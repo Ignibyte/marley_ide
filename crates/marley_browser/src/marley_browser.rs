@@ -12,6 +12,7 @@
 //! inspect mode (#496), [`source_map`] follows a script's source map to the file it was built
 //! from (#497), and [`recorder`] keeps each page's last minute for the flight recorder (#499).
 //! [`ports`] reads which ports listen, for the dev server URLs a terminal offers (#503).
+//! [`favicon`] reads a page's icon for its row in the rail (#504).
 //! The Browser tab that shows the page is `marley_workbench`'s
 //! (`docs/marley/three-prong-plan.md`, prong 3).
 
@@ -32,6 +33,7 @@
 
 pub mod address;
 pub mod cdp;
+pub mod favicon;
 pub mod frame;
 pub mod input;
 pub mod observe;

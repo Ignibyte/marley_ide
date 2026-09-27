@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #504 (feature, prong 3 with the rail)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/504-browser-tabs-in-the-rail.spec.md
+- **Pipeline doc:** ../../pipeline/completed/504-browser-tabs-in-the-rail.spec.md
 - **Source ticket:** Chad, 2026-09-25: "lets do 1 through 8" (item 4 (first half) of the list after the browser waves), with the Orca survey's details for #504 folded in (`docs/orca_architecture/README.md`, "What it changes in the queued sprint"; report 03 §2.1 and item 8)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The rail lists a project's terminals and agent threads but not its Browser tabs, so a page an

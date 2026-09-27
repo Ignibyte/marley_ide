@@ -441,6 +441,29 @@ impl Page {
             .to_string())
     }
 
+    /// The URL of the page's icon (#504), read in an isolated world: see [`crate::favicon`].
+    ///
+    /// # Errors
+    ///
+    /// When a call fails or the page has no main frame.
+    pub async fn favicon_href(&self) -> Result<Option<String>, CdpError> {
+        let context = self.isolated_context().await?;
+        let evaluated = self
+            .call(
+                "Runtime.evaluate",
+                json!({
+                    "expression": crate::favicon::FAVICON_HREF,
+                    "contextId": context,
+                    "returnByValue": true,
+                }),
+            )
+            .await?;
+        Ok(evaluated
+            .pointer("/result/value")
+            .and_then(Value::as_str)
+            .map(str::to_string))
+    }
+
     /// Navigates the page to `url`. Chromium answers once the navigation commits or fails.
     ///
     /// # Errors

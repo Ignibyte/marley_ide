@@ -6,6 +6,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use acp_thread::{AcpThread, AcpThreadEvent};
@@ -16,13 +17,14 @@ use anyhow::Context as _;
 use editor::{Editor, EditorEvent};
 use gpui::{
     Anchor, AnyElement, AnyView, App, ClickEvent, Context, Div, ElementId, Entity, EntityId,
-    EventEmitter, FocusHandle, Focusable, Hsla, Pixels, Render, Stateful, Subscription, Task,
-    WeakEntity, Window, px,
+    EventEmitter, FocusHandle, Focusable, Hsla, Image, Pixels, Render, Stateful, Subscription,
+    Task, WeakEntity, Window, img, px,
 };
 use marley_agent::{AgentKind, WAITING_AFTER, claude_events};
 use marley_rail::{
-    Focus, ProjectRow, ProjectSnapshot, RailSnapshot, Row, Selection, SwitcherRow, TerminalAgent,
-    TerminalRow, TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus,
+    BrowserRow, BrowserSnapshot, Focus, ProjectRow, ProjectSnapshot, RailSnapshot, Row, Selection,
+    SwitcherRow, TerminalAgent, TerminalRow, TerminalSnapshot, ThreadRow, ThreadSnapshot,
+    ThreadStatus,
 };
 use menu::{
     Cancel, Confirm, SelectChild, SelectFirst, SelectLast, SelectNext, SelectParent, SelectPrevious,
@@ -50,6 +52,7 @@ use zed_actions::agents_sidebar::FocusSidebarFilter;
 
 use crate::agent_events::{self, AgentEvents};
 use crate::agents::{self, AgentIcon};
+use crate::browser::{BrowserEvent, BrowserHub, BrowserView};
 use crate::{MarleySettings, browser};
 
 #[path = "rail_switcher.rs"]
@@ -115,6 +118,10 @@ pub struct Rail {
     /// subtitles.
     project_subscriptions: HashMap<EntityId, Subscription>,
     terminal_subscriptions: HashMap<EntityId, [Subscription; 2]>,
+    /// Per Browser tab: its item events (#504).
+    browser_subscriptions: HashMap<EntityId, Subscription>,
+    /// The browser's hub, once something made it: its pages' titles, icons and counts (#504).
+    hub_subscription: Option<Subscription>,
     /// Per Agent Panel: its events, and focus entering and leaving it.
     panel_subscriptions: HashMap<EntityId, [Subscription; 3]>,
     /// Per live thread: the events that can change its row.
@@ -162,6 +169,12 @@ struct TerminalEntry {
     view: WeakEntity<TerminalView>,
 }
 
+/// The entities behind a Browser tab's row (#504), held weakly.
+struct BrowserEntry {
+    workspace: WeakEntity<Workspace>,
+    view: WeakEntity<BrowserView>,
+}
+
 /// What a thread row opens, and the icon it draws.
 struct ThreadEntry {
     workspace: WeakEntity<Workspace>,
@@ -180,6 +193,9 @@ struct Snapshot {
     rail: RailSnapshot,
     groups: Vec<GroupEntry>,
     terminals: HashMap<u64, TerminalEntry>,
+    /// The Browser tabs' rows' entities, and the icons their pages have (#504).
+    browsers: HashMap<u64, BrowserEntry>,
+    favicons: HashMap<u64, Arc<Image>>,
     /// The terminal views an agent CLI is running in.
     agent_terminals: HashSet<EntityId>,
     threads: HashMap<String, ThreadEntry>,
@@ -270,6 +286,8 @@ impl Rail {
             panel_subscriptions: HashMap::default(),
             thread_subscriptions: HashMap::default(),
             agent_server_subscriptions: HashMap::default(),
+            browser_subscriptions: HashMap::default(),
+            hub_subscription: None,
             thread_store_subscription: None,
             thread_statuses: HashMap::default(),
             noted_threads: HashSet::default(),
@@ -441,6 +459,7 @@ impl Rail {
             workspaces,
             projects,
             views,
+            browsers,
             panels,
             threads,
             agent_servers,
@@ -488,6 +507,7 @@ impl Rail {
                     }),
                 ]
             });
+        self.follow_browsers(&browsers, window, cx);
         self.panel_subscriptions = resubscribe(&mut self.panel_subscriptions, &panels, |panel| {
             // The panel's own focus handle wraps whatever view it shows, so focus inside a
             // thread counts as focus in the panel.
@@ -586,6 +606,80 @@ impl Rail {
             workspace.activate_item(&view, true, true, window, cx)
         });
         view.update(cx, TerminalView::clear_bell);
+        Ok(())
+    }
+
+    /// Follows each Browser tab's item events, and the hub once something made it: its pages'
+    /// titles, icons and counts (#504). The hub is read without being made, which would start
+    /// the browser.
+    fn follow_browsers(
+        &mut self,
+        browsers: &[Entity<BrowserView>],
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.browser_subscriptions =
+            resubscribe(&mut self.browser_subscriptions, browsers, |view| {
+                cx.subscribe_in(view, window, |rail, _, _: &ItemEvent, window, cx| {
+                    rail.refresh(window, cx);
+                })
+            });
+        if self.hub_subscription.is_none()
+            && let Some(hub) = BrowserHub::try_global(cx)
+        {
+            self.hub_subscription =
+                Some(
+                    cx.subscribe_in(&hub, window, |rail, _, event: &BrowserEvent, window, cx| {
+                        if matches!(
+                            event,
+                            BrowserEvent::PageInfoChanged { .. }
+                                | BrowserEvent::PageStatusChanged { .. }
+                                | BrowserEvent::PageOpened { .. }
+                                | BrowserEvent::PageClosed { .. }
+                        ) {
+                            rail.refresh(window, cx);
+                        }
+                    }),
+                );
+        }
+    }
+
+    /// Shows a Browser tab's project and brings the tab forward with the focus (#504).
+    fn activate_browser(
+        &self,
+        workspace: &WeakEntity<Workspace>,
+        view: &WeakEntity<BrowserView>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let view = view.upgrade().context("the Browser tab was closed")?;
+        let workspace = self.activate_workspace(workspace, window, cx)?;
+        workspace.update(cx, |workspace, cx| {
+            workspace.activate_item(&view, true, true, window, cx)
+        });
+        Ok(())
+    }
+
+    /// Closes a Browser tab through its pane, as its tab's close does, which closes its page
+    /// (#504).
+    fn close_browser(
+        workspace: &WeakEntity<Workspace>,
+        view: &WeakEntity<BrowserView>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> anyhow::Result<()> {
+        let view = view.upgrade().context("the Browser tab was closed")?;
+        let workspace = workspace.upgrade().context("the project was closed")?;
+        let pane = workspace
+            .read(cx)
+            .pane_for(&view)
+            .context("the Browser tab is in no pane")?;
+        let closing = pane.update(cx, |pane, cx| {
+            pane.close_item_by_id(view.entity_id(), SaveIntent::Close, window, cx)
+        });
+        closing.detach_and_prompt_err("Could not close the Browser tab", window, cx, |_, _, _| {
+            None
+        });
         Ok(())
     }
 
@@ -860,6 +954,14 @@ impl Rail {
                     terminal.map(|terminal| (terminal.workspace.clone(), terminal.view.clone()));
                 terminal.map_or(Ok(()), |(workspace, view)| {
                     self.activate_terminal(&workspace, &view, window, cx)
+                })
+            }
+            Selection::Browser(id) => {
+                let browser = self.snapshot.browsers.get(&id);
+                let browser =
+                    browser.map(|browser| (browser.workspace.clone(), browser.view.clone()));
+                browser.map_or(Ok(()), |(workspace, view)| {
+                    self.activate_browser(&workspace, &view, window, cx)
                 })
             }
             Selection::Thread(key) => self.open_thread(&key, window, cx),
@@ -1411,12 +1513,115 @@ impl Rail {
     }
 }
 
+impl Rail {
+    /// A Browser tab's row (#504): the page's icon, a spinner while it loads, or the globe; the
+    /// title and the host; the tray's picks, the page's annotations and the agent's mark; and
+    /// the close button over the row.
+    fn render_browser_row(
+        row: BrowserRow,
+        browser: &BrowserEntry,
+        favicon: Option<Arc<Image>>,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
+        let id = row.id;
+        let (workspace, view) = (browser.workspace.clone(), browser.view.clone());
+        let (close_workspace, close_view) = (browser.workspace.clone(), browser.view.clone());
+        let icon = if row.loading {
+            Icon::new(IconName::LoadCircle)
+                .size(IconSize::Small)
+                .color(Color::Muted)
+                .with_rotate_animation(2)
+                .into_any_element()
+        } else if let Some(favicon) = favicon {
+            div()
+                .debug_selector(move || format!("marley-rail-browser-favicon-{id}"))
+                .child(img(favicon).size_3p5())
+                .into_any_element()
+        } else {
+            Icon::new(IconName::ToolWeb)
+                .size(IconSize::Small)
+                .color(Color::Muted)
+                .into_any_element()
+        };
+        let count = |icon: IconName, count: usize, selector: &'static str| {
+            (count > 0).then(|| {
+                h_flex()
+                    .debug_selector(move || format!("{selector}-{id}"))
+                    .gap_0p5()
+                    .child(Icon::new(icon).size(IconSize::XSmall).color(Color::Muted))
+                    .child(
+                        Label::new(count.to_string())
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    )
+            })
+        };
+        let close = div()
+            .debug_selector(move || format!("marley-rail-browser-close-{id}"))
+            .child(
+                IconButton::new(("marley-rail-browser-close", id), IconName::Close)
+                    .icon_size(IconSize::Small)
+                    .icon_color(Color::Muted)
+                    .tooltip(Tooltip::text("Close Browser Tab"))
+                    .on_click(cx.listener(move |_, _, window, cx| {
+                        // The row under the button would show the tab it closes.
+                        cx.stop_propagation();
+                        Self::close_browser(&close_workspace, &close_view, window, cx).log_err();
+                    })),
+            );
+        let end = h_flex()
+            .flex_none()
+            .gap_1()
+            .children(count(
+                IconName::Crosshair,
+                row.picks,
+                "marley-rail-browser-picks",
+            ))
+            .children(count(
+                IconName::Pencil,
+                row.annotations,
+                "marley-rail-browser-annotations",
+            ))
+            .when(row.agent_unseen, |end| {
+                end.child(
+                    div()
+                        .debug_selector(move || format!("marley-rail-browser-agent-{id}"))
+                        .child(
+                            Icon::new(IconName::Sparkle)
+                                .size(IconSize::XSmall)
+                                .color(Color::Accent),
+                        ),
+                )
+            })
+            .child(h_flex().visible_on_hover(ROW_GROUP).child(close));
+        let item = row_card(
+            ("marley-rail-browser", id),
+            format!("marley-rail-browser-icon-{id}"),
+            row.selected,
+            icon,
+            row_label(row.title, row.highlight, Color::Default),
+            row.host.into_iter().collect(),
+            cx,
+        )
+        .child(end)
+        .on_click(cx.listener(move |rail, _: &ClickEvent, window, cx| {
+            rail.activate_browser(&workspace, &view, window, cx)
+                .log_err();
+        }));
+        div()
+            .debug_selector(move || format!("marley-rail-browser-{id}"))
+            .pl_2()
+            .child(item)
+    }
+}
+
 /// Everything in a window the rail follows.
 #[derive(Default)]
 struct Watched {
     workspaces: Vec<Entity<Workspace>>,
     projects: Vec<Entity<Project>>,
     views: Vec<Entity<TerminalView>>,
+    browsers: Vec<Entity<BrowserView>>,
     panels: Vec<Entity<AgentPanel>>,
     threads: Vec<Entity<AcpThread>>,
     agent_servers: Vec<Entity<AgentServerStore>>,
@@ -1429,6 +1634,10 @@ impl Watched {
         let views = workspaces
             .iter()
             .flat_map(|workspace| workspace.read(cx).items_of_type::<TerminalView>(cx))
+            .collect();
+        let browsers = workspaces
+            .iter()
+            .flat_map(|workspace| workspace.read(cx).items_of_type::<BrowserView>(cx))
             .collect();
         let panels: Vec<Entity<AgentPanel>> = workspaces
             .iter()
@@ -1450,6 +1659,7 @@ impl Watched {
             workspaces,
             projects,
             views,
+            browsers,
             panels,
             threads,
             agent_servers,
@@ -1828,6 +2038,7 @@ fn build_snapshot(
     });
     for (group, name, workspace) in listed {
         let mut terminals = Vec::new();
+        let mut browsers = Vec::new();
         for member in &group.workspaces {
             // Subtitles read against the member's own first root: a linked worktree's, not the
             // main repository's the group is keyed by.
@@ -1861,6 +2072,7 @@ fn build_snapshot(
                     },
                 );
             }
+            browsers.extend(member_browsers(member, filter, &mut snapshot, cx));
         }
         let mut threads = Vec::new();
         for (mut thread, entry) in group_threads(group, &workspace, cx) {
@@ -1873,6 +2085,7 @@ fn build_snapshot(
             name,
             expanded: group.expanded,
             terminals,
+            browsers,
             threads,
             matched,
         });
@@ -1890,20 +2103,15 @@ fn build_snapshot(
         .clone()
         .filter(|_| AgentPanel::is_visible(displayed, cx));
     snapshot.rail.filtering = !filter.is_empty();
-    let active_terminal = displayed
-        .read(cx)
-        .active_item(cx)
-        .and_then(|item| item.downcast::<TerminalView>());
+    let (terminal, terminal_focused, browser) = active_rows(displayed, window, cx);
     snapshot.rail.focus = Focus {
         cursor: None,
         project: groups
             .iter()
             .position(|group| group.workspaces.contains(displayed)),
-        terminal: active_terminal
-            .as_ref()
-            .map(|view| view.entity_id().as_u64()),
-        terminal_focused: active_terminal
-            .is_some_and(|view| view.focus_handle(cx).contains_focused(window, cx)),
+        terminal,
+        browser,
+        terminal_focused,
         thread: panel_thread.filter(|_| {
             panel
                 .as_ref()
@@ -1911,6 +2119,99 @@ fn build_snapshot(
         }),
     };
     snapshot
+}
+
+/// The rows the displayed workspace's active center item makes current: a terminal's, with
+/// whether it holds the focus, or a Browser tab's (#504).
+fn active_rows(
+    displayed: &Entity<Workspace>,
+    window: &Window,
+    cx: &App,
+) -> (Option<u64>, bool, Option<u64>) {
+    let active_item = displayed.read(cx).active_item(cx);
+    let terminal = active_item
+        .as_ref()
+        .and_then(|item| item.downcast::<TerminalView>());
+    let browser = active_item.and_then(|item| item.downcast::<BrowserView>());
+    let focused = terminal
+        .as_ref()
+        .is_some_and(|view| view.focus_handle(cx).contains_focused(window, cx));
+    (
+        terminal.map(|view| view.entity_id().as_u64()),
+        focused,
+        browser.map(|view| view.entity_id().as_u64()),
+    )
+}
+
+/// The Browser tabs of `member` as rows show them (#504), each tab's entities and page icon kept
+/// in `snapshot`. The hub is read without being made, which would start the browser.
+fn member_browsers(
+    member: &Entity<Workspace>,
+    filter: &str,
+    snapshot: &mut Snapshot,
+    cx: &App,
+) -> Vec<BrowserSnapshot> {
+    let hub = BrowserHub::try_global(cx);
+    let hub = hub.as_ref();
+    let mut browsers = Vec::new();
+    for view in member.read(cx).items_of_type::<BrowserView>(cx) {
+        let id = view.entity_id().as_u64();
+        let (mut browser, favicon) = browser_snapshot(&view, hub, cx);
+        browser.matched = filter_match(filter, &browser.title);
+        browsers.push(browser);
+        if let Some(favicon) = favicon {
+            snapshot.favicons.insert(id, favicon);
+        }
+        snapshot.browsers.insert(
+            id,
+            BrowserEntry {
+                workspace: member.downgrade(),
+                view: view.downgrade(),
+            },
+        );
+    }
+    browsers
+}
+
+/// A Browser tab as its row shows it (#504), and its page's icon once one was read. Without a hub
+/// nothing has started the browser, and the tab has no page yet.
+fn browser_snapshot(
+    view: &Entity<BrowserView>,
+    hub: Option<&Entity<BrowserHub>>,
+    cx: &App,
+) -> (BrowserSnapshot, Option<Arc<Image>>) {
+    let tab = view.read(cx);
+    let page = tab.target().zip(hub.map(|hub| hub.read(cx)));
+    let host = page
+        .and_then(|(target, hub)| hub.url(target))
+        .and_then(|url| host_and_port(&url));
+    let favicon = page.and_then(|(target, hub)| hub.favicon(target));
+    let snapshot = BrowserSnapshot {
+        id: view.entity_id().as_u64(),
+        title: tab.tab_content_text(0, cx).to_string(),
+        host,
+        loading: page.is_some_and(|(target, hub)| hub.is_loading(target)),
+        picks: page.map_or(0, |(target, hub)| hub.pick_count(target)),
+        annotations: page.map_or(0, |(target, hub)| hub.annotations(target).len()),
+        agent_unseen: page.is_some_and(|(target, hub)| hub.agent_unseen(target)),
+        icon: favicon.as_ref().map(|favicon| favicon.id()),
+        matched: None,
+    };
+    (snapshot, favicon)
+}
+
+/// An http or https URL's host, with its port when the URL names one: a Browser row's second
+/// line.
+fn host_and_port(url: &str) -> Option<String> {
+    let url = url::Url::parse(url).ok()?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return None;
+    }
+    let host = url.host_str()?;
+    Some(
+        url.port()
+            .map_or_else(|| host.to_string(), |port| format!("{host}:{port}")),
+    )
 }
 
 /// Where the rail's filter matches `text`, by the matcher Zed's Threads Sidebar uses; `None`
@@ -2226,6 +2527,10 @@ impl Render for Rail {
                 }),
                 Row::Terminal(row) => self.snapshot.terminals.get(&row.id).map(|terminal| {
                     Self::render_terminal_row(row, terminal, cx).into_any_element()
+                }),
+                Row::Browser(row) => self.snapshot.browsers.get(&row.id).map(|browser| {
+                    let favicon = self.snapshot.favicons.get(&row.id).cloned();
+                    Self::render_browser_row(row, browser, favicon, cx).into_any_element()
                 }),
                 Row::Thread(row) => self
                     .snapshot

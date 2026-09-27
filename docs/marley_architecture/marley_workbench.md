@@ -86,10 +86,11 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
 
 - It implements `workspace::Sidebar`, so the `MultiWorkspace` keeps the resize handle, the open
   state, persistence and the toggle actions.
-- It follows every workspace and every listed terminal view. On each event it rebuilds the
-  snapshot and redraws only when the pure `marley_rail::RailSnapshot` changed. `render` reads
-  nothing but the rail, so a background terminal's output never redraws the window through it,
-  and `has_notifications` reads the stored snapshot, so it holds while the rail is closed.
+- It follows every workspace, every listed terminal view and every Browser tab (#504). On each
+  event it rebuilds the snapshot and redraws only when the pure `marley_rail::RailSnapshot`
+  changed. `render` reads nothing but the rail, so a background terminal's output never redraws
+  the window through it, and `has_notifications` reads the stored snapshot, so it holds while the
+  rail is closed.
 - It lists the groups that have an open workspace, named through Zed's public functions
   (`compute_disambiguation_details`, `ProjectGroupKey::display_name`) in `crate::group_names`,
   which the browser tools share for a tab's project (#574).
@@ -109,7 +110,7 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
     `raised` is the theme's text color at 10%, a step lighter than what it sits on in a dark
     theme and darker in a light one; `border` and `element_background` match the fills under
     them in One Dark.
-  - `row_card`, for terminal and thread rows: `h_11`, a `size_7` round icon container in
+  - `row_card`, for terminal, Browser and thread rows: `h_11`, a `size_7` round icon container in
     `raised`, the title over the second line when there is one. A shell's icon is a `>_` in the
     buffer font (`rail_terminal_icon`), since each of Zed's terminal icons boxes the prompt; an
     agent CLI's is its own.
@@ -122,6 +123,22 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   `TerminalView::rename_terminal`, which edits the name in the tab and keeps it through
   `set_custom_title`. Close goes through the pane (`close_item_by_id`, `SaveIntent::Close`), so
   Zed asks first while a task runs. A custom title beats an agent CLI's own on its row.
+- **Browser rows (#504).** Each `BrowserView` in a project's workspaces is a row after its
+  terminals (`member_browsers`, in the order the workspace lists its items), keyed by the view's
+  entity id. Its title is the tab's own text, and its second line the URL's host and port
+  (`host_and_port`; none for `about:blank`). The icon is the page's (`img`, 14 px), a spinning
+  `LoadCircle` while the main frame loads, or `ToolWeb`. At the end come `Crosshair` and the
+  tray's picks, `Pencil` and the page's annotations, each above zero, then the agent's `Sparkle`,
+  and on hover a close button that closes the tab through its pane (`close_item_by_id`), which
+  closes the page. A click or Enter shows the tab with the focus (`activate_browser`).
+  `active_rows` reports the displayed workspace's active item as `Focus.browser` when it is a
+  Browser tab, so its row is selected while it is in front.
+  - The rail reads the hub only through `BrowserHub::try_global`, so it never starts the
+    browser. It follows each tab's `ItemEvent`s and the hub's `PageInfoChanged`,
+    `PageStatusChanged`, `PageOpened` and `PageClosed` (`follow_browsers`), never the hub's
+    notify, which fires on every frame.
+  - The page's image lives in `Snapshot.favicons`, beside the pure snapshot, and its id in
+    `BrowserSnapshot.icon`, so an icon's arrival changes what `refresh` compares.
 - **Keys and reorder (#453).** The key context is `MarleyRail menu`, and the rail answers Zed's
   `menu::SelectNext`, `SelectPrevious`, `SelectFirst`, `SelectLast`, `SelectParent`,
   `SelectChild` and `Confirm`. Zed binds up, down, Home, End and Enter to them with no context,
@@ -134,7 +151,7 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   the rail as it does Zed's sidebar.
 - **The filter (#457).** A single-line editor under the header ("Filter…") narrows the rail as
   Zed's Threads Sidebar's filter does. `build_snapshot` matches each project's name and each
-  terminal's and thread's title with Zed's own `fuzzy_match_positions` (a substring match that
+  terminal's, Browser tab's and thread's title with Zed's own `fuzzy_match_positions` (a substring match that
   ignores ASCII case), and `marley_rail` decides what shows. A header's name and a terminal's
   title and a thread's draw with `HighlightedLabel`.
   - While filtering, the chevrons are left out and `fold` does nothing. "No matches" draws when
@@ -708,7 +725,7 @@ alike.
   `MARLEY_CLAUDE` names the `claude` to run: the app's PATH can come from the login shell, which
   finds the real one before a scenario's stand-in.
 
-## The Browser tab (`src/browser.rs`, #488 to #490, #493 to #499)
+## The Browser tab (`src/browser.rs`, #488 to #490, #493 to #499, #504)
 
 - `BrowserHub` is one entity per app, behind a global: the connection to Marley's Chromium
   (`marley_browser`) and a `PageState` for each of its pages (#493): the `Page`, its newest
@@ -892,6 +909,16 @@ alike.
   `recordings_dir()`, `browser/recordings` under Marley's data directory. The toolbar's red dot
   (`IconName::Circle` in the error color) and `marley::RecordThis` save it, and a toast in the
   tab's workspace names the recording or the failure.
+- **What the rail reads (#504).** `BrowserHub::try_global` answers the hub when something made
+  it, and never makes one. `BrowserEvent::PageStatusChanged { target }` says that a page's
+  loading, its icon, its picks or annotations, or the agent's mark changed, beside
+  `PageInfoChanged` for the title and URL. After each `Page.loadEventFired` whose origin has no
+  icon yet, `read_favicon` asks `Page::favicon_href`, loads the bytes (or decodes a `data:` URL),
+  names their format, and keeps `Favicon { origin, image }` on the page when the generation and
+  the origin still match. `navigated` drops it when the page goes to another origin or to a URL
+  with none (`about:blank`, `file://`), as Orca's `browserNavigationLeavesFaviconOrigin` does. A
+  read that fails logs at debug and leaves the globe. `agent_ended` sets `agent_unseen` when the
+  page has no viewer, and `add_viewer` clears it.
 
 ## Tests
 
@@ -950,6 +977,11 @@ microphone through a fake Voxtype whose `record toggle` moves its status on, and
   cross-site iframe's, so picking inside such an iframe is outside #496. A page whose framework
   delegates its events (React's root listener) shows the framework's listener, whose source is
   the framework's code, not the handler the app wrote (#497).
+- A Browser row keeps a page's first icon while the page stays on its origin: an icon the page
+  swaps without a navigation (an unread count), or another page of the same origin with an icon
+  of its own, still shows the first. A page whose load event never comes keeps the globe.
+  Browser tabs are not in the rail's switcher, and a Browser row lights no attention dot on a
+  folded project (#504).
 - A Browser tab's page outlives its window: closing a window, or quitting, closes no page. A
   tab restored at launch takes its page back (#494); a page no restored tab claims gets a tab
   the next time `marley: open browser` runs, or when an agent acts in it. A navigation in the

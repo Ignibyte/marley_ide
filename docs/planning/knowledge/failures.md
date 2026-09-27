@@ -2236,3 +2236,14 @@ directory, or any e2e run's profile copy, would have had its terminals' programs
 tabs in the user's main Marley, and a scenario would have driven the user's real window. Found
 before any code was written. Fixed in #561: the opener lives at `<data_dir>/mcp/marley-open-url`
 and reads `<data_dir>/mcp-endpoint.json` beside it; `$MARLEY_MCP_ENDPOINT` still wins.
+
+## F-claude-504-a-favicons-arrival-changed-nothing-the-rail-compares-001
+*severity: medium · found in: pipeline 504's Code phase (the review, reading `refresh` against the icon's path, before any run) · class: a redraw gate that misses what the view draws · prevented by: PR-claude-a-view-that-redraws-on-a-changed-snapshot-keeps-what-it-draws-in-it-001*
+
+The rail redraws only when its pure `marley_rail::RailSnapshot` changes (`refresh`: `if
+snapshot.rail != self.snapshot.rail { cx.notify() }`). #504's first draft kept each page's icon
+beside the snapshot, in `Snapshot.favicons`, which the comparison never reads. The icon comes after
+the load that set the title and the host, so on its arrival the pure snapshot would have equalled
+the last one, the rail would not have redrawn, and the row would have kept its globe until
+something else changed. Fixed in #504: `BrowserSnapshot.icon` carries the image's id, so an
+icon's arrival, change or loss changes the snapshot.

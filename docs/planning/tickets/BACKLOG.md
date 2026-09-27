@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-504](open/TICKET-504-browser-tabs-in-the-rail.md) | feature | prong 3 · Browser tabs as rows of their project in the rail |
 | [TICKET-518](open/TICKET-518-fuller-pick-bundle.md) | feature | prong 3 · the pick bundle gains HTML, styles and the React component with its source; before #505 |
 | [TICKET-505](open/TICKET-505-pick-fix-check.md) | feature | prong 3 · a pick re-found after the fix: before and after in the tray, and a tool |
 | [TICKET-506](open/TICKET-506-recording-to-playwright-test.md) | feature | prong 3 · clicks and typing recorded as locators; a recording drafted as a Playwright test (D3 asks Chad about typed text) |

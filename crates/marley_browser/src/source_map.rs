@@ -354,6 +354,18 @@ impl Page {
     /// When a call fails, the load does not succeed, or the resource is larger than 32 MiB or
     /// not UTF-8.
     pub async fn load_resource(&self, url: &str) -> Result<String, CdpError> {
+        let bytes = self.load_bytes(url, MAP_CAP).await?;
+        String::from_utf8(bytes)
+            .map_err(|_| CdpError::Unexpected("the source map is not UTF-8".to_string()))
+    }
+
+    /// Loads `url` for the page's main frame, as [`Self::load_resource`] does, and gives its
+    /// bytes, at most `cap` of them (#504, a favicon).
+    ///
+    /// # Errors
+    ///
+    /// When a call fails, the load does not succeed, or the resource is larger than `cap`.
+    pub async fn load_bytes(&self, url: &str, cap: usize) -> Result<Vec<u8>, CdpError> {
         let answer = self
             .call(
                 "Network.loadNetworkResource",
@@ -385,14 +397,14 @@ impl Page {
             .get("stream")
             .and_then(Value::as_str)
             .ok_or_else(|| CdpError::Unexpected(format!("{url} loaded with no stream")))?;
-        let read = self.read_stream(stream).await;
+        let read = self.read_stream(stream, cap).await;
         self.call("IO.close", json!({ "handle": stream }))
             .await
             .log_err();
         read
     }
 
-    async fn read_stream(&self, handle: &str) -> Result<String, CdpError> {
+    async fn read_stream(&self, handle: &str, cap: usize) -> Result<Vec<u8>, CdpError> {
         let mut bytes = Vec::new();
         loop {
             let chunk = self
@@ -405,21 +417,22 @@ impl Page {
             if chunk.get("base64Encoded").and_then(Value::as_bool) == Some(true) {
                 let decoded = base64::engine::general_purpose::STANDARD
                     .decode(data)
-                    .map_err(|error| CdpError::Unexpected(format!("a map's bytes: {error}")))?;
+                    .map_err(|error| {
+                        CdpError::Unexpected(format!("a resource's bytes: {error}"))
+                    })?;
                 bytes.extend(decoded);
             } else {
                 bytes.extend_from_slice(data.as_bytes());
             }
-            if bytes.len() > MAP_CAP {
-                return Err(CdpError::Unexpected(
-                    "the source map is larger than 32 MiB".to_string(),
-                ));
+            if bytes.len() > cap {
+                return Err(CdpError::Unexpected(format!(
+                    "the resource is larger than {cap} bytes"
+                )));
             }
             if data.is_empty() || chunk.get("eof").and_then(Value::as_bool) != Some(false) {
                 break;
             }
         }
-        String::from_utf8(bytes)
-            .map_err(|_| CdpError::Unexpected("the source map is not UTF-8".to_string()))
+        Ok(bytes)
     }
 }

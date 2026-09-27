@@ -19,9 +19,10 @@ compositor sway
 . script/e2e/browser-fixture.sh
 
 # The rail's row of each project's terminal, a point in the terminal's pane and one in repo-b's
-# page, measured from the first run: the rail lists repo-b, handed over last, above repo-a.
+# page, measured from the first run: the rail lists repo-b, handed over last, above repo-a. Since
+# #504 repo-b's Browser tab has a row under its terminal, which puts repo-a's row 46 px lower.
 RAIL_A_X=100
-RAIL_A_Y=229
+RAIL_A_Y=275
 RAIL_B_X=100
 RAIL_B_Y=136
 TERMINAL_X=500

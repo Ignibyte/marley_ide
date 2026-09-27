@@ -107,6 +107,18 @@ for.
   those a local URL reaches. It fails only when neither table reads, since a machine without
   IPv6 has no `tcp6`. The workbench runs it off the main thread.
 
+## Page icons (`src/favicon.rs`, #504)
+
+- CDP has no favicon event, so the workbench reads a page's icon after its load.
+  `Page::favicon_href` runs `FAVICON_HREF` in the isolated world: the first
+  `link[rel~="icon" i]` whose href is http, https or `data:image/` (not `data:,`), else
+  `/favicon.ico` at an http or https origin, else nothing, as Orca's `browser-favicon-url.ts`
+  picks one.
+- `format(bytes)` names the image format from its first bytes (PNG, ICO, GIF, JPEG, WebP, SVG),
+  for gpui's `Image::from_bytes`; a server's content type is not trusted. `data_url_bytes`
+  decodes a `data:` URL, base64 or percent-encoded, and `Page::load_bytes` loads any other; both
+  stop at `MAX_BYTES`, 256 KiB.
+
 ## For agents (`src/snapshot.rs`, `src/observe.rs`, #492)
 
 - `snapshot::render` writes one or more frames' accessibility trees (`AxNode`, from
@@ -203,9 +215,10 @@ for.
 
 - `map_location(script_url, source_map_url)` decodes a `data:` map (base64 or percent-encoded)
   as `Inline`, and joins any other URL to the script's as `Remote`. `Page::load_resource(url)`
-  loads a remote map as Chromium's own tools do, through `Network.loadNetworkResource` in the
-  page's main frame (its frame id is the target's), reads its stream with `IO.read` to the end
-  and closes it; 32 MiB at most, and a failed load names its status.
+  loads a remote map as Chromium's own tools do, through `Page::load_bytes(url, cap)`:
+  `Network.loadNetworkResource` in the page's main frame (its frame id is the target's), its
+  stream read with `IO.read` to the end and closed, and past `cap` an error (#504). A map is 32
+  MiB at most and must be UTF-8, and a failed load names its status.
 - `SourceMap::parse(text, base)` takes a version 3 map: its `sources` joined to `sourceRoot` and
   resolved against the map's URL (the script's for an inline map), its `mappings` kept as text,
   and one level of an index map's `sections`, each with its offset. `SourceMap::original(line,

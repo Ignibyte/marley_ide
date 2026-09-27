@@ -2322,3 +2322,21 @@ from Zed's link search after its own match. Rejected:
 - a hover over several ranges for framed URLs (the clicked row is marked; the rest needs a
   change to Zed's element);
 - a setting to turn the menu off (deferred until someone asks).
+
+## AD-claude-504-browser-tabs-are-rows-of-their-project-in-the-rail-001
+*decided at: 2026-09-26 · status: shipped*
+
+Each Browser tab is a row under the project whose workspace holds it, keyed by the tab's entity
+id, after the project's terminals and before its agent threads, with the tab's own title and the
+page's host and port. The row shows the page's icon, a spinner while the main frame loads or the
+globe; the tray's picks and the page's annotations when above zero; and the agent's mark when an
+agent acted in the page while no tab drew it, until a tab draws it again. The rail never starts
+the browser: it reads the hub through `BrowserHub::try_global`, and the hub tells it about loads,
+icons, counts and the mark through `BrowserEvent::PageStatusChanged`, not its notify, so a
+screencast frame never rebuilds the rail. Icons follow Orca's rules, read after each load since
+CDP has no favicon event. Rejected:
+- a row per page rather than per tab (a page is reached through its tab, and the tab carries the
+  title the user sees);
+- observing the hub's notify (it fires on every frame);
+- Browser tabs in the switcher and a right-click menu (deferred);
+- `ui::CountBadge` for the counts (an error-tinted notification badge).

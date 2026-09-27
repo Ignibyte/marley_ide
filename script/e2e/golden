@@ -25,3 +25,4 @@
 503-terminal-urls-open-in-the-browser.sh  # a terminal's URL: a Browser tab or the system browser, the dev server's offer, ssh
 561-browser-env-opener.sh  # programs that open a browser through BROWSER: a Browser tab of their project, or the system browser
 579-terminal-link-menus-and-wrapped-urls.sh  # the menu on a clicked link, the right-click entries, the default offered until chosen, wrapped URLs joined
+504-browser-tabs-in-the-rail.sh  # Browser tabs as rows of their project: icon, spinner, host, counts, the agent's mark, click, keys, filter, close

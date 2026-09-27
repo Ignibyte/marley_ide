@@ -350,6 +350,7 @@ reaching his desktop.
 | B6a | #503 | A terminal's local URLs open in a Browser tab of its project, Shift+Ctrl+click and `marley.terminal_links` choosing the other place; an OSC 8 link on a plain click; a terminal over ssh keeps the system browser; the footer offers a dev server's printed URL while its port listens (shipped) | M |
 | B6b | #579 | A plain click on a terminal URL opens a menu (a Browser tab, the system browser, Copy Link), the right-click menu starts with it, the default is offered until chosen, and a URL a program wrapped at the edge or drew in a box opens whole (shipped) | M |
 | B6c | #561 | Programs that open a browser through `BROWSER` open a local URL in a Browser tab of their project: Marley's opener in every local terminal, `browser_open_url`, the system browser for the rest (shipped) | S |
+| B7a | #504 | Browser tabs as rows of their project in the rail: the page's icon, a spinner while it loads, host and port, the tray's picks and the page's annotations, and the agent's mark until the user looks; a click, the keys, the filter and a close button (shipped) | M |
 
 Wave 2 was specced on 2026-09-25, once wave 1 had landed (#496 to #499; the shelf note is
 `docs/planning/design-notes/browser-wave-2-shelf.md`).

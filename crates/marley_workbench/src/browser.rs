@@ -43,12 +43,13 @@ use gpui::{
     Anchor, AnyWindowHandle, App, AsyncApp, BackgroundExecutor, Bounds, ClipboardItem, Corners,
     DismissEvent, DispatchPhase, Element, ElementId, ElementInputHandler, Entity,
     EntityInputHandler, EventEmitter, FocusHandle, Focusable, Global, GlobalElementId, Hitbox,
-    HitboxBehavior, InspectorElementId, KeyDownEvent, LayoutId, Modifiers, MouseButton,
+    HitboxBehavior, Image, InspectorElementId, KeyDownEvent, LayoutId, Modifiers, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point, RenderImage, ScrollWheelEvent,
     Size, Style, Subscription, Task, UTF16Selection, WeakEntity, WindowHandle, anchored, deferred,
     point, relative,
 };
 use marley_browser::cdp::{self, CdpError, Connection, Event};
+use marley_browser::favicon;
 use marley_browser::input::{self, KeyPress};
 use marley_browser::observe::{ConsoleEntry, ConsoleLog, NetworkEntry, NetworkLog, redact_url};
 use marley_browser::page::{
@@ -174,6 +175,12 @@ pub enum BrowserEvent {
     },
     /// A page's title or URL changed, or the address it is going to.
     PageInfoChanged {
+        /// The page.
+        target: String,
+    },
+    /// What a page's row in the rail shows changed (#504): its loading, its icon, its picks or
+    /// annotations, or the agent's mark.
+    PageStatusChanged {
         /// The page.
         target: String,
     },
@@ -320,6 +327,10 @@ struct PageState {
     viewport: Option<Viewport>,
     /// How many tabs draw the page.
     viewers: usize,
+    /// The page's icon, for the origin it was read for (#504).
+    favicon: Option<Favicon>,
+    /// Since when an agent's action has waited for a tab to draw the page (#504).
+    agent_unseen: Option<Instant>,
     screencasting: bool,
     /// The mouse buttons held in the page, in CDP's bits, so a drag that leaves the tab still
     /// reaches the page, its release too.
@@ -357,6 +368,8 @@ impl PageState {
             screencasting: false,
             held_buttons: 0,
             input_at: None,
+            favicon: None,
+            agent_unseen: None,
         }
     }
 
@@ -433,6 +446,78 @@ impl fmt::Debug for BrowserHub {
 
 impl EventEmitter<BrowserEvent> for BrowserHub {}
 
+/// A page's icon, and the origin it was read for (#504).
+struct Favicon {
+    origin: String,
+    image: Arc<Image>,
+}
+
+/// The origin of an http or https URL, as `scheme://host:port`.
+fn web_origin(url: &str) -> Option<String> {
+    let url = url::Url::parse(url).ok()?;
+    matches!(url.scheme(), "http" | "https").then(|| url.origin().ascii_serialization())
+}
+
+/// Reads the page's icon after a load (#504), unless its origin has one already. An icon that
+/// cannot be read leaves the row's globe.
+async fn read_favicon(
+    this: &WeakEntity<BrowserHub>,
+    generation: u64,
+    target: &str,
+    cx: &mut AsyncApp,
+) {
+    let wanted = this.read_with(cx, |hub, _| {
+        let page = hub.page_state(target)?;
+        let origin = web_origin(page.url.as_deref()?)?;
+        let known = page
+            .favicon
+            .as_ref()
+            .is_some_and(|favicon| favicon.origin == origin);
+        (!known).then(|| (page.page.clone(), origin))
+    });
+    let Ok(Some((page, origin))) = wanted else {
+        return;
+    };
+    let image = match favicon_image(&page).await {
+        Ok(image) => image,
+        Err(error) => {
+            log::debug!("browser: no icon for {origin}: {error:#}");
+            return;
+        }
+    };
+    this.update(cx, |hub, cx| {
+        if generation != hub.generation {
+            return;
+        }
+        let Some(page) = hub.page_state_mut(target) else {
+            return;
+        };
+        // The page may have gone to another origin while its icon loaded.
+        if page.url.as_deref().and_then(web_origin).as_deref() != Some(origin.as_str()) {
+            return;
+        }
+        page.favicon = Some(Favicon { origin, image });
+        BrowserHub::status_changed(target, cx);
+        cx.notify();
+    })
+    .ok();
+}
+
+/// The page's icon as an image: its declared icon or its origin's `/favicon.ico`.
+async fn favicon_image(page: &Page) -> anyhow::Result<Arc<Image>> {
+    let href = page
+        .favicon_href()
+        .await?
+        .context("the page names no icon")?;
+    let bytes = if href.starts_with("data:") {
+        favicon::data_url_bytes(&href).context("an icon's data URL that does not read")?
+    } else {
+        page.load_bytes(&href, favicon::MAX_BYTES).await?
+    };
+    let format = favicon::format(&bytes).context("the icon is no image Marley draws")?;
+    Ok(Arc::new(Image::from_bytes(format, bytes)))
+}
+
 struct HubHandle {
     hub: Entity<BrowserHub>,
     _tabs: Subscription,
@@ -447,6 +532,13 @@ struct BrowserViews(Vec<WeakEntity<BrowserView>>);
 impl Global for BrowserViews {}
 
 impl BrowserHub {
+    /// The app's hub when something has made it, never making it: asking [`Self::global`] starts
+    /// the browser, which the rail must not do (#504).
+    pub fn try_global(cx: &App) -> Option<Entity<Self>> {
+        cx.try_global::<HubHandle>()
+            .map(|handle| handle.hub.clone())
+    }
+
     /// The app's hub, created and started the first time it is asked for, with the tabs it opens
     /// and closes as pages come and go.
     pub fn global(cx: &mut App) -> Entity<Self> {
@@ -1296,6 +1388,7 @@ impl BrowserHub {
                     target: target.to_string(),
                     id,
                 });
+                Self::status_changed(target, cx);
                 Some(id)
             }
             Err(error) => {
@@ -1397,6 +1490,11 @@ impl BrowserHub {
     /// Drops the pick `id` from its tray: a pick not sent goes, and a sent one stays for the
     /// agent, whose line names it.
     fn discard_pick(&mut self, id: usize, cx: &mut Context<Self>) {
+        let tab = self
+            .picks
+            .iter()
+            .find(|pick| pick.id == id)
+            .map(|pick| pick.tab.clone());
         if let Some(pick) = self
             .picks
             .iter_mut()
@@ -1406,7 +1504,42 @@ impl BrowserHub {
         } else {
             self.picks.retain(|pick| pick.id != id);
         }
+        if let Some(tab) = tab {
+            Self::status_changed(&tab, cx);
+        }
         cx.notify();
+    }
+
+    /// Tells the rail what a page's row shows changed (#504).
+    fn status_changed(target: &str, cx: &mut Context<Self>) {
+        cx.emit(BrowserEvent::PageStatusChanged {
+            target: target.to_string(),
+        });
+    }
+
+    /// The page's icon, once one was read for the origin it shows (#504).
+    #[must_use]
+    pub fn favicon(&self, target: &str) -> Option<Arc<Image>> {
+        self.page_state(target)?
+            .favicon
+            .as_ref()
+            .map(|favicon| Arc::clone(&favicon.image))
+    }
+
+    /// Whether an agent acted in the page since a tab last drew it (#504).
+    #[must_use]
+    pub fn agent_unseen(&self, target: &str) -> bool {
+        self.page_state(target)
+            .is_some_and(|page| page.agent_unseen.is_some())
+    }
+
+    /// How many picks the page's tray holds, staged or sent and not dismissed (#504).
+    #[must_use]
+    pub fn pick_count(&self, target: &str) -> usize {
+        self.picks
+            .iter()
+            .filter(|pick| pick.tab == target && !pick.dismissed)
+            .count()
     }
 
     /// Keeps `entry` in the page's minute, while a tab draws the page (#499).
@@ -1501,6 +1634,7 @@ impl BrowserHub {
             made_at,
         });
         self.next_annotation += 1;
+        Self::status_changed(target, cx);
         cx.notify();
         Some(id)
     }
@@ -1508,6 +1642,7 @@ impl BrowserHub {
     fn remove_annotation(&mut self, target: &str, id: usize, cx: &mut Context<Self>) {
         if let Some(page) = self.page_state_mut(target) {
             page.annotations.retain(|annotation| annotation.id != id);
+            Self::status_changed(target, cx);
             cx.notify();
         }
     }
@@ -1521,6 +1656,7 @@ impl BrowserHub {
         page.annotations
             .retain(|annotation| annotation.maker != Maker::Agent);
         let removed = before - page.annotations.len();
+        Self::status_changed(target, cx);
         cx.notify();
         removed
     }
@@ -1534,6 +1670,7 @@ impl BrowserHub {
             && !page.annotations.is_empty()
         {
             page.annotations.clear();
+            Self::status_changed(target, cx);
             cx.notify();
         }
     }
@@ -1570,6 +1707,7 @@ impl BrowserHub {
             if !loading {
                 page.loaded();
             }
+            Self::status_changed(target, cx);
             cx.notify();
         }
     }
@@ -1601,6 +1739,15 @@ impl BrowserHub {
             }
             _ => false,
         };
+        // The icon belongs to its origin, and a page that leaves it loses the icon (#504).
+        let icon_gone = moved
+            && page.favicon.as_ref().is_some_and(|favicon| {
+                page.url.as_deref().and_then(web_origin).as_deref() != Some(favicon.origin.as_str())
+            });
+        if icon_gone {
+            page.favicon = None;
+            Self::status_changed(target, cx);
+        }
         if arrived || moved {
             cx.emit(BrowserEvent::PageInfoChanged {
                 target: target.to_string(),
@@ -1693,6 +1840,11 @@ impl BrowserHub {
             text,
             ended: Some(Instant::now()),
         });
+        // An action no tab drew leaves the agent's mark on the page's row (#504).
+        if page.viewers == 0 && page.agent_unseen.is_none() {
+            page.agent_unseen = Some(Instant::now());
+            Self::status_changed(target, cx);
+        }
         cx.notify();
         let target = target.to_string();
         cx.spawn(async move |this, cx| {
@@ -1856,9 +2008,15 @@ impl BrowserHub {
         self.sync_screencast(target, cx);
     }
 
-    fn add_viewer(&mut self, target: &str, cx: &Context<Self>) {
-        if let Some(page) = self.page_state_mut(target) {
+    fn add_viewer(&mut self, target: &str, cx: &mut Context<Self>) {
+        let seen = if let Some(page) = self.page_state_mut(target) {
             page.viewers += 1;
+            page.agent_unseen.take().is_some()
+        } else {
+            false
+        };
+        if seen {
+            Self::status_changed(target, cx);
         }
         self.sync_screencast(target, cx);
     }
@@ -2351,6 +2509,7 @@ async fn follow(
                         let target = target.clone();
                         cx.spawn(async move |cx| {
                             record_snapshot(&this, generation, &target, cx).await;
+                            read_favicon(&this, generation, &target, cx).await;
                         })
                         .detach();
                     }
@@ -3203,6 +3362,11 @@ impl fmt::Debug for BrowserView {
 }
 
 impl BrowserView {
+    /// The page the tab shows, once it has one (#504).
+    pub(crate) fn target(&self) -> Option<&str> {
+        self.target.as_deref()
+    }
+
     fn new(
         hub: Entity<BrowserHub>,
         target: Option<String>,

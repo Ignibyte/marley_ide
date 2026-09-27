@@ -34,6 +34,8 @@ pub struct ProjectSnapshot {
     pub expanded: bool,
     /// The group's center terminals, in the order the rail lists them.
     pub terminals: Vec<TerminalSnapshot>,
+    /// The group's Browser tabs, in the order its workspaces list them (#504).
+    pub browsers: Vec<BrowserSnapshot>,
     /// The group's agent threads, in the order the rail lists them (newest first).
     pub threads: Vec<ThreadSnapshot>,
     /// Where the filter matched the name, as the byte offsets of the matched characters; `None`
@@ -57,6 +59,29 @@ pub struct TerminalSnapshot {
     /// A third line under an agent's status, from the agent's own events (#519): the tool in
     /// flight, what the agent waits on, its last message or its error.
     pub activity: Option<String>,
+    /// Where the filter matched the title, as for [`ProjectSnapshot::matched`].
+    pub matched: Option<Vec<usize>>,
+}
+
+/// One Browser tab (#504).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BrowserSnapshot {
+    /// The tab's view entity id: the row's identity across rebuilds.
+    pub id: u64,
+    /// The title the tab shows.
+    pub title: String,
+    /// The page's host and port, for an http or https page.
+    pub host: Option<String>,
+    /// Whether the page's main frame is loading.
+    pub loading: bool,
+    /// How many picks the tab holds in its tray.
+    pub picks: usize,
+    /// How many annotations the page has, the user's and the agents'.
+    pub annotations: usize,
+    /// Whether an agent acted in the page since a tab last drew it.
+    pub agent_unseen: bool,
+    /// The page's icon's identity, once one was read, so a new icon changes the snapshot.
+    pub icon: Option<u64>,
     /// Where the filter matched the title, as for [`ProjectSnapshot::matched`].
     pub matched: Option<Vec<usize>>,
 }
@@ -161,6 +186,8 @@ pub struct Focus {
     pub project: Option<usize>,
     /// The displayed workspace's active center item, when that item is a terminal.
     pub terminal: Option<u64>,
+    /// The displayed workspace's active center item, when that item is a Browser tab (#504).
+    pub browser: Option<u64>,
     /// Whether that terminal holds the window's focus.
     pub terminal_focused: bool,
     /// The thread the displayed workspace's Agent Panel shows, while the panel holds focus.
@@ -189,6 +216,8 @@ pub enum Selection {
     Project(usize),
     /// A terminal row, by the terminal's id.
     Terminal(u64),
+    /// A Browser tab's row, by the tab's view id (#504).
+    Browser(u64),
     /// A thread row, by the thread's key.
     Thread(String),
 }
@@ -234,6 +263,31 @@ pub struct TerminalRow {
     pub highlight: Vec<usize>,
 }
 
+/// A Browser tab's row under its project (#504).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BrowserRow {
+    /// The group's index in [`RailSnapshot::projects`].
+    pub project: usize,
+    /// The tab's view entity id.
+    pub id: u64,
+    /// The title.
+    pub title: String,
+    /// The page's host and port, the second line.
+    pub host: Option<String>,
+    /// Whether the page is loading, which draws the spinner.
+    pub loading: bool,
+    /// How many picks the tab holds.
+    pub picks: usize,
+    /// How many annotations the page has.
+    pub annotations: usize,
+    /// Whether the agent's mark shows.
+    pub agent_unseen: bool,
+    /// Whether this is the selected row.
+    pub selected: bool,
+    /// The byte offsets of the title's characters the filter matched, to highlight.
+    pub highlight: Vec<usize>,
+}
+
 /// An agent thread row under its project.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ThreadRow {
@@ -260,7 +314,9 @@ pub enum Row {
     Project(ProjectRow),
     /// A terminal under its project.
     Terminal(TerminalRow),
-    /// An agent thread under its project, after the project's terminals.
+    /// A Browser tab under its project, after the project's terminals (#504).
+    Browser(BrowserRow),
+    /// An agent thread under its project, after the project's terminals and Browser tabs.
     Thread(ThreadRow),
 }
 
@@ -304,7 +360,8 @@ pub fn selection(snapshot: &RailSnapshot) -> Selection {
     };
     let thread = snapshot.focus.thread.clone().map(Selection::Thread);
     let terminal = snapshot.focus.terminal.map(Selection::Terminal);
-    [thread, terminal, Some(Selection::Project(index))]
+    let browser = snapshot.focus.browser.map(Selection::Browser);
+    [thread, terminal, browser, Some(Selection::Project(index))]
         .into_iter()
         .flatten()
         .find(|wanted| {
@@ -319,13 +376,17 @@ pub fn selection(snapshot: &RailSnapshot) -> Selection {
 enum Shown<'a> {
     Project(usize, &'a ProjectSnapshot),
     Terminal(usize, &'a TerminalSnapshot),
+    Browser(usize, &'a BrowserSnapshot),
     Thread(usize, &'a ThreadSnapshot),
 }
 
 impl<'a> Shown<'a> {
     const fn project(self) -> usize {
         match self {
-            Self::Project(index, _) | Self::Terminal(index, _) | Self::Thread(index, _) => index,
+            Self::Project(index, _)
+            | Self::Terminal(index, _)
+            | Self::Browser(index, _)
+            | Self::Thread(index, _) => index,
         }
     }
 
@@ -333,6 +394,7 @@ impl<'a> Shown<'a> {
         match self {
             Self::Project(index, _) => Selection::Project(index),
             Self::Terminal(_, terminal) => Selection::Terminal(terminal.id),
+            Self::Browser(_, browser) => Selection::Browser(browser.id),
             Self::Thread(_, thread) => Selection::Thread(thread.key.clone()),
         }
     }
@@ -342,13 +404,15 @@ impl<'a> Shown<'a> {
         match self {
             Self::Project(_, project) => project.matched.as_deref(),
             Self::Terminal(_, terminal) => terminal.matched.as_deref(),
+            Self::Browser(_, browser) => browser.matched.as_deref(),
             Self::Thread(_, thread) => thread.matched.as_deref(),
         }
     }
 }
 
-/// Every row the rail shows, in its order: each shown project's header, then the terminals and
-/// the threads shown under it. The rows, the selection and the keyboard all read this one walk.
+/// Every row the rail shows, in its order: each shown project's header, then the terminals, the
+/// Browser tabs and the threads shown under it. The rows, the selection and the keyboard all read
+/// this one walk.
 fn walk(snapshot: &RailSnapshot) -> Vec<Shown<'_>> {
     let mut rows = Vec::new();
     for (index, project) in snapshot.projects.iter().enumerate() {
@@ -357,12 +421,17 @@ fn walk(snapshot: &RailSnapshot) -> Vec<Shown<'_>> {
             .iter()
             .filter(|terminal| row_shows(snapshot, project, terminal.matched.as_deref()))
             .map(|terminal| Shown::Terminal(index, terminal));
+        let browsers = project
+            .browsers
+            .iter()
+            .filter(|browser| row_shows(snapshot, project, browser.matched.as_deref()))
+            .map(|browser| Shown::Browser(index, browser));
         let threads = project
             .threads
             .iter()
             .filter(|thread| row_shows(snapshot, project, thread.matched.as_deref()))
             .map(|thread| Shown::Thread(index, thread));
-        let under: Vec<Shown<'_>> = terminals.chain(threads).collect();
+        let under: Vec<Shown<'_>> = terminals.chain(browsers).chain(threads).collect();
         // The filter shows a project for its own name or for a row under it.
         if snapshot.filtering && project.matched.is_none() && under.is_empty() {
             continue;
@@ -447,15 +516,19 @@ pub fn cycle_project(snapshot: &RailSnapshot, forward: bool) -> Selection {
     })
 }
 
-/// Zed's Next and Previous Thread in the rail, which reach terminals and threads alike.
+/// Zed's Next and Previous Thread in the rail, which reach terminals, Browser tabs and threads
+/// alike.
 ///
-/// The shown terminal or thread row after the selected row, or before it, passing over project
+/// The shown row under a project after the selected row, or before it, passing over project
 /// headers and wrapping at the ends. With nothing selected it is the first such row going
 /// forward and the last going back.
 #[must_use]
 pub fn cycle_row(snapshot: &RailSnapshot, forward: bool) -> Selection {
     cycle(snapshot, &selection(snapshot), forward, |row| {
-        matches!(row, Selection::Terminal(_) | Selection::Thread(_))
+        matches!(
+            row,
+            Selection::Terminal(_) | Selection::Browser(_) | Selection::Thread(_)
+        )
     })
 }
 
@@ -487,6 +560,10 @@ pub fn parent(snapshot: &RailSnapshot, selection: &Selection) -> Selection {
             .projects
             .iter()
             .position(|project| project.terminals.iter().any(|terminal| terminal.id == *id)),
+        Selection::Browser(id) => snapshot
+            .projects
+            .iter()
+            .position(|project| project.browsers.iter().any(|browser| browser.id == *id)),
         Selection::Thread(key) => snapshot
             .projects
             .iter()
@@ -497,7 +574,8 @@ pub fn parent(snapshot: &RailSnapshot, selection: &Selection) -> Selection {
 
 /// The rows, in display order.
 ///
-/// Each shown project's header comes first, then the terminals and the threads shown under it.
+/// Each shown project's header comes first, then the terminals, the Browser tabs and the threads
+/// shown under it.
 /// Without a filter a folded project shows its header alone. With one, a project shows when its
 /// name or a row under it matched, with every row when its name did, and each row carries the
 /// matched characters.
@@ -531,6 +609,18 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                 activity: terminal.activity.clone(),
                 selected: selected == Selection::Terminal(terminal.id),
                 highlight: highlight(terminal.matched.as_deref()),
+            }),
+            Shown::Browser(index, browser) => Row::Browser(BrowserRow {
+                project: index,
+                id: browser.id,
+                title: browser.title.clone(),
+                host: browser.host.clone(),
+                loading: browser.loading,
+                picks: browser.picks,
+                annotations: browser.annotations,
+                agent_unseen: browser.agent_unseen,
+                selected: selected == Selection::Browser(browser.id),
+                highlight: highlight(browser.matched.as_deref()),
             }),
             Shown::Thread(index, thread) => Row::Thread(ThreadRow {
                 project: index,
@@ -695,6 +785,7 @@ mod tests {
             name: name.to_string(),
             expanded,
             terminals,
+            browsers: Vec::new(),
             threads: Vec::new(),
             matched: None,
         }
@@ -725,6 +816,7 @@ mod tests {
             focus: Focus {
                 project,
                 terminal,
+                browser: None,
                 terminal_focused: false,
                 thread: None,
                 cursor: None,
@@ -772,6 +864,7 @@ mod tests {
             .filter(|row| match row {
                 Row::Project(row) => row.selected,
                 Row::Terminal(row) => row.selected,
+                Row::Browser(row) => row.selected,
                 Row::Thread(row) => row.selected,
             })
             .count()
@@ -1453,6 +1546,7 @@ mod tests {
             .map(|row| match row {
                 Row::Project(row) => row.name,
                 Row::Terminal(row) => format!("  {}", row.title),
+                Row::Browser(row) => format!("  {}", row.title),
                 Row::Thread(row) => format!("  {}", row.title),
             })
             .collect()
@@ -1508,6 +1602,7 @@ mod tests {
                 .map(|row| match row {
                     Row::Project(row) => (row.name, row.highlight),
                     Row::Terminal(row) => (row.title, row.highlight),
+                    Row::Browser(row) => (row.title, row.highlight),
                     Row::Thread(row) => (row.title, row.highlight),
                 })
                 .collect()
@@ -1542,6 +1637,7 @@ mod tests {
             let highlight = match row {
                 Row::Project(row) => row.highlight,
                 Row::Terminal(row) => row.highlight,
+                Row::Browser(row) => row.highlight,
                 Row::Thread(row) => row.highlight,
             };
             assert!(highlight.is_empty());
@@ -1557,7 +1653,7 @@ mod tests {
                 .into_iter()
                 .filter_map(|row| match row {
                     Row::Project(row) => Some(row.attention),
-                    Row::Terminal(_) | Row::Thread(_) => None,
+                    Row::Terminal(_) | Row::Browser(_) | Row::Thread(_) => None,
                 })
                 .collect()
         };

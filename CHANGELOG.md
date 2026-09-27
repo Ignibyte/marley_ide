@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Browser tabs in the rail** (#504, 2026-09-26). Each Browser tab now has a row under its
+  project in the rail, after the project's terminals. The row shows the page's icon (a globe when
+  it has none, a spinner while it loads), the page's title, and its host and port. It counts the
+  picks in the tab's tray and the page's annotations, and marks a page an agent acted in while no
+  tab showed it, until you look at it. A click shows the tab with the focus. Up, Down and Enter,
+  the filter and a close button on hover work as they do on terminal rows. The rail never starts
+  the browser.
 - **A menu on a clicked terminal link, and wrapped URLs opened whole** (#579, 2026-09-26). A
   plain click on a web URL in a terminal opens a small menu at the pointer: Open in Browser Tab,
   Open in System Browser and Copy Link. The right-click menu starts with the same entries when it
