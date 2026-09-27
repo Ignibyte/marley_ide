@@ -21,6 +21,8 @@
 //!   [`ShellSessionId`] → `SessionId` registry, and the `apply_hook` transition machine.
 //! - [`session`] — [`TerminalSession`]: the write re-queue loop, the `pump` read/decode/apply/render
 //!   orchestration, and `resize`, all driven over a small `PtyChannel` trait so they are mock-tested.
+//! - [`links`] — a URL a program wrapped itself at the edge or drew inside a box frame, joined
+//!   across its rows for the terminal's link search (#579).
 //!
 //! The only **shim** is the private `pty_os` module: the raw `alacritty_terminal::tty` spawn, the
 //! leader-fd read/write, the `rustix` `tcsetwinsize`, and the `next_child_event` reap. These four
@@ -48,6 +50,7 @@ pub mod block;
 pub mod dcs;
 pub mod identity;
 pub mod keys;
+pub mod links;
 pub mod mouse;
 pub mod session;
 pub mod shell_integration;

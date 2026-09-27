@@ -178,6 +178,18 @@ real, reusable session. The Block model is the unit the **brain** later observes
   `MARLEY_ZSH_ZDOTDIR`. The script restores it, sources the user's `.zshenv`, and at the first
   prompt puts `__marley_precmd` first in `precmd_functions` and `__marley_preexec` last in
   `preexec_functions`.
+  Since #561 it also keeps the opener a new local terminal gives its programs as `BROWSER`
+  (`set_browser_opener`, `browser_opener`, a process-wide setting the workbench sets, none under
+  `system_browser`).
+- `links.rs` (#579): `joined_url(rows, row, column, last_column)`, pure. It joins a URL a program
+  wrapped itself at the right edge, or drew inside a box frame, from the `LinkRow`s Zed's
+  `hyperlinks.rs` builds around a point.
+  - The edge rule: a row filled to the last column runs on unless the next starts with a space, a
+    new scheme or a `label:` form, or holds a frame.
+  - The frame rule: the same frame columns and prefix on each row, each part ending in a
+    continuation character or filling most of the width.
+  - Both follow Orca's. Zed keeps the joined URL when it is longer than the row's own match, and
+    marks every row of an edge-wrapped one and the clicked row of a framed one.
 - `session.rs` — `classify_write` + the `PtyChannel`-trait `TerminalSession` (`write_bytes` re-queue,
   `pump`, `resize`) — unit-tested via a `MockPtyChannel` (the logic is reachable headlessly).
   **M1.C (TICKET-023):** `pump` gained an IDLE FAST-PATH — a LEADING `WouldBlock` (nothing read this

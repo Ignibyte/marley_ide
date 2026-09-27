@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #579 (feature, prong 3 with prong 1, slice 2 of #503's routing, B6b)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet; `/pipeline:plan` mints the pair
+- **Pipeline doc:** ../../pipeline/completed/579-terminal-link-popover-and-wrapped-urls.spec.md
 - **Source ticket:** TICKET-503's Out (slice 2, minted at its Complete, 2026-09-26); the Orca survey's `LinkActionPopover` and the two wrapped-link files (report 03 §2.3)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 #503 routes a Ctrl+clicked URL and an OSC 8 link's plain click, and offers a dev server's URL in

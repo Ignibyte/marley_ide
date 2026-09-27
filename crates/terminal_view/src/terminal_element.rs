@@ -1045,6 +1045,32 @@ impl TerminalElement {
                 },
             ),
         );
+        // Marley: one plain click on a link, with nothing selected and the program not taking the
+        // mouse, shows the link's menu once the terminal's own mouse-up has ended the click (#579).
+        self.interactivity.on_mouse_up(MouseButton::Left, {
+            let terminal = terminal.clone();
+            let terminal_view = self.terminal_view.downgrade();
+            move |e, window, cx| {
+                let terminal = terminal.read(cx);
+                let plain = e.click_count == 1 && !e.modifiers.modified();
+                let quiet = !terminal.mouse_mode(e.modifiers.shift)
+                    && terminal
+                        .last_content
+                        .selection_text
+                        .as_deref()
+                        .is_none_or(str::is_empty);
+                if plain && quiet {
+                    let (position, terminal_view) = (e.position, terminal_view.clone());
+                    window.defer(cx, move |window, cx| {
+                        terminal_view
+                            .update(cx, |view, cx| {
+                                view.marley_deploy_link_menu(position, window, cx);
+                            })
+                            .ok();
+                    });
+                }
+            }
+        });
         self.interactivity.on_mouse_down(
             MouseButton::Middle,
             TerminalElement::generic_button_handler(

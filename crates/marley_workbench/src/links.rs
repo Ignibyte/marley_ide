@@ -15,15 +15,16 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use fs::Fs;
 use gpui::{
     Anchor, AnyElement, App, AppContext as _, ClipboardItem, Context, Entity, EntityId, Global,
     Task, WeakEntity, Window,
 };
 use marley_browser::address::{self, LocalUrl};
 use project::Project;
-use settings::{MarleyTerminalLinks, Settings as _};
-use terminal::Terminal;
-use terminal_view::{MarleyFooterContext, MarleyTerminalUrl, TerminalView};
+use settings::{MarleyTerminalLinks, Settings as _, SettingsStore};
+use terminal::{MarleyLink, Terminal};
+use terminal_view::{MarleyFooterContext, MarleyTerminalLinkMenu, MarleyTerminalUrl, TerminalView};
 use ui::{
     ButtonLike, ContextMenu, Icon, IconName, IconSize, Label, LabelSize, PopoverMenu, SplitButton,
     SplitButtonStyle, Tooltip, prelude::*,
@@ -93,6 +94,7 @@ enum Destination {
 /// [`crate::init`] calls it once, before any window opens.
 pub fn init(cx: &mut App) {
     cx.set_global(MarleyTerminalUrl(Arc::new(open_clicked)));
+    cx.set_global(MarleyTerminalLinkMenu(Arc::new(link_menu)));
     cx.set_global(ServedUrls::default());
     cx.observe_new(|_: &mut TerminalView, _, cx: &mut Context<TerminalView>| follow(cx))
         .detach();
@@ -137,6 +139,89 @@ fn destination(url: &str, over_ssh: bool, inverted: bool, cx: &App) -> Option<De
     } else {
         Destination::BrowserTab(url)
     })
+}
+
+/// The entries of a menu on a clicked link (#579): the URL as a header, Open in Browser Tab
+/// (none over SSH), Open in System Browser and Copy Link, and, while the user has not chosen
+/// where local links open, the two ways to choose. A plain click shows them alone, and the
+/// terminal's right-click menu starts with them.
+fn link_menu(
+    context: &MarleyFooterContext,
+    link: &MarleyLink,
+    menu: ContextMenu,
+    _: &mut Window,
+    cx: &mut App,
+) -> ContextMenu {
+    let over_ssh = over_ssh(context.project.upgrade(), context.terminal, cx);
+    let target = link.target.clone();
+    // A local URL opens at an address a browser reaches (`0.0.0.0` as `127.0.0.1`); over SSH the
+    // URL is the other machine's, as printed.
+    let opened = if over_ssh {
+        target.clone()
+    } else {
+        address::local_url(&target).map_or_else(|| target.clone(), |local| local.url)
+    };
+    let workspace = context.workspace.clone();
+    let (tab_url, system_url) = (opened.clone(), opened);
+    let menu = menu
+        .header(shortened(&target))
+        .when(!over_ssh, |menu| {
+            menu.entry("Open in Browser Tab", None, move |window, cx| {
+                open(
+                    Destination::BrowserTab(tab_url.clone()),
+                    workspace.clone(),
+                    window,
+                    cx,
+                );
+            })
+        })
+        .entry("Open in System Browser", None, move |_, cx| {
+            cx.open_url(&system_url);
+        })
+        .entry("Copy Link", None, move |_, cx| {
+            cx.write_to_clipboard(ClipboardItem::new_string(target.clone()));
+        });
+    if default_chosen(cx) {
+        return menu;
+    }
+    menu.separator()
+        .entry("Always Open Local Links in a Browser Tab", None, |_, cx| {
+            choose_default(MarleyTerminalLinks::LocalInBrowserTab, cx);
+        })
+        .entry(
+            "Always Open Local Links in the System Browser",
+            None,
+            |_, cx| {
+                choose_default(MarleyTerminalLinks::SystemBrowser, cx);
+            },
+        )
+}
+
+/// A long URL for the menu's header: its start and its end.
+fn shortened(url: &str) -> String {
+    const KEPT: usize = 60;
+    let characters: Vec<char> = url.chars().collect();
+    if characters.len() <= KEPT {
+        return url.to_string();
+    }
+    let head: String = characters[..KEPT - 20].iter().collect();
+    let tail: String = characters[characters.len() - 19..].iter().collect();
+    format!("{head}…{tail}")
+}
+
+/// Whether the user's own settings file names where local links open.
+fn default_chosen(cx: &App) -> bool {
+    cx.global::<SettingsStore>()
+        .raw_user_settings()
+        .and_then(|user| user.content.marley.as_ref())
+        .is_some_and(|marley| marley.terminal_links.is_some())
+}
+
+/// Writes where local links open into the user's settings, which also ends the offer.
+fn choose_default(links: MarleyTerminalLinks, cx: &App) {
+    settings::update_settings_file(<dyn Fs>::global(cx), cx, move |content, _| {
+        content.marley.get_or_insert_default().terminal_links = Some(links);
+    });
 }
 
 /// The URL to open in a Browser tab for a program that opened `url` through `BROWSER` (#561), or

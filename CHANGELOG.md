@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A menu on a clicked terminal link, and wrapped URLs opened whole** (#579, 2026-09-26). A
+  plain click on a web URL in a terminal opens a small menu at the pointer: Open in Browser Tab,
+  Open in System Browser and Copy Link. The right-click menu starts with the same entries when it
+  lands on a link, and Copy Link there copies an OSC 8 link's hidden target. Until you choose,
+  both menus also offer to make a Browser tab or the system browser the default for local links,
+  which writes `marley.terminal_links`. A URL a program wrapped itself at the terminal's edge, or
+  drew inside a box such as an agent's frame, now opens whole from any of its rows. A plain click
+  on an OSC 8 link still opens it.
 - **Programs that open a browser open a Browser tab** (#561, 2026-09-26). `gh pr view --web`,
   Vite's `--open`, Python's `webbrowser` and any other program that opens a URL through `BROWSER`
   now open a local one (`localhost`, a loopback address) in a Browser tab of the project their

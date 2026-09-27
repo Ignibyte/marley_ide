@@ -348,6 +348,7 @@ reaching his desktop.
 | B5 | #499 | Pillar C, the flight recorder and "record this" (shipped) | L |
 | B2b | #574 | The browser tools act in the caller's project (#520's caller): a call with no tab takes the tab of the agent's project the user focused last, `browser_navigate` opens one beside the agent's terminal when the project has none, and `browser_tabs` names each tab's project and the default (shipped) | M |
 | B6a | #503 | A terminal's local URLs open in a Browser tab of its project, Shift+Ctrl+click and `marley.terminal_links` choosing the other place; an OSC 8 link on a plain click; a terminal over ssh keeps the system browser; the footer offers a dev server's printed URL while its port listens (shipped) | M |
+| B6b | #579 | A plain click on a terminal URL opens a menu (a Browser tab, the system browser, Copy Link), the right-click menu starts with it, the default is offered until chosen, and a URL a program wrapped at the edge or drew in a box opens whole (shipped) | M |
 | B6c | #561 | Programs that open a browser through `BROWSER` open a local URL in a Browser tab of their project: Marley's opener in every local terminal, `browser_open_url`, the system browser for the rest (shipped) | S |
 
 Wave 2 was specced on 2026-09-25, once wave 1 had landed (#496 to #499; the shelf note is

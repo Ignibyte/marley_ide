@@ -3024,3 +3024,23 @@ things:
 - sets `BROWSER` to that fake in its `.bashrc` whenever the value under test is absent;
 - fakes the browsers after `xdg-open` into a log;
 - checks that the log stays empty.
+
+## L-claude-579-a-program-waiting-on-read-proves-no-menu-opened-001
+*category: validate · topic: e2e checks · from: pipeline 579*
+
+A scenario can show that a click opened no menu by pressing the keys that would choose one of its
+entries (Down, Return) and checking that nothing was chosen. With no menu, the keys go to the
+terminal: a program waiting on `read` echoes the arrow as `^[[B` and ends on Return, and the log
+that an entry would have written stays as it was. The same shot then shows the echo where a menu
+would have been.
+
+## L-claude-579-clippys-const-fn-and-dylints-nightly-disagree-001
+*category: code · topic: the gate's toolchains · from: pipeline 579*
+
+Clippy runs on the pinned stable toolchain and gate:21's dylint on its own older nightly
+(`nightly-2026-03-21`), so they can disagree about what a `const fn` may call. Stable clippy asked
+for `in_url` to be a `const fn`. On the nightly, `char::is_control` is not const, so gate:21
+failed to compile `marley_terminal` while clippy was green. A `const fn` clippy asks for is
+written with what both toolchains take: comparisons on `character as u32` instead of a
+recently-const method. After a red gate, read the whole log: the summary line names the gate
+but not the error.

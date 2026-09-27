@@ -750,6 +750,16 @@ pub struct PathLikeTarget {
     pub working_directory: Option<PathBuf>,
 }
 
+// Marley: a link a click landed on, for the terminal view's menus (#579).
+/// An http or https link under a point.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MarleyLink {
+    /// The URL: an OSC 8 link's hidden target for one.
+    pub target: String,
+    /// Whether the program made it a link with OSC 8, which a plain click opens.
+    pub osc8: bool,
+}
+
 /// A string inside terminal, potentially useful as a URI that can be opened.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MaybeNavigationTarget {
@@ -2148,6 +2158,35 @@ impl Terminal {
         if self.last_content.last_hovered_word.take().is_some() {
             cx.emit(Event::NewNavigationTarget(None));
         }
+    }
+
+    // Marley: the link a click lands on, for the terminal view's link menus (#579).
+    /// The http or https link at `position`, in the window's pixels: a URL in the text, or an
+    /// OSC 8 link's target.
+    pub fn marley_link_at(&mut self, position: GpuiPoint<Pixels>) -> Option<MarleyLink> {
+        let position = position - self.last_content.terminal_bounds.bounds.origin;
+        let osc8 = self
+            .last_content
+            .cells
+            .get(content_index_for_mouse(
+                position,
+                &self.last_content.terminal_bounds,
+            ))
+            .and_then(|cell| cell.hyperlink())
+            .is_some();
+        let point = grid_point(
+            position,
+            self.last_content.terminal_bounds,
+            self.last_content.display_offset,
+        );
+        let found = self.find_hyperlink_at_point(point)?;
+        let web = found.text.split_once(':').is_some_and(|(scheme, _)| {
+            scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https")
+        });
+        (found.is_url && web).then(|| MarleyLink {
+            target: found.text,
+            osc8,
+        })
     }
 
     fn find_hyperlink_at_point(&mut self, point: Point) -> Option<HyperlinkMatch> {

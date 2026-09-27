@@ -385,6 +385,15 @@ alike.
     Copy URL.
   - `agent_bar::render` puts it before the folder chip, or alone in a one-row strip under a
     terminal with no agent.
+- The link menus (#579):
+  - `link_menu`, which `init` sets as Zed's `terminal_view::MarleyTerminalLinkMenu`, fills a
+    `ContextMenu`. It gives a header of the URL (shortened to 60 characters), Open in Browser
+    Tab (not over SSH), Open in System Browser and Copy Link, the target for an OSC 8 link.
+  - While the user's settings file names no `terminal_links`, it adds "Always Open Local Links in
+    a Browser Tab" and "… in the System Browser". They write it with `update_settings_file`,
+    which ends the offer.
+  - The terminal view shows these entries alone for one plain click on a link in the text, and
+    first in its right-click menu for any link. Both open through `destination` and `open`.
 - Programs that open a URL themselves (#561):
   - `mcp::offer_browser_opener` writes `bin/marley-open-url` beside the bridge's copy
     (`<data_dir>/mcp/`), and gives its path to `marley_terminal::shell_integration::set_browser_opener`

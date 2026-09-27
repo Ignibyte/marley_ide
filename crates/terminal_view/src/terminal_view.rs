@@ -153,6 +153,22 @@ pub struct MarleyTerminalUrl(
 
 impl gpui::Global for MarleyTerminalUrl {}
 
+// Marley: the entries a menu on a clicked link starts with; Marley's workbench sets it (#579).
+#[derive(Clone)]
+pub struct MarleyTerminalLinkMenu(
+    pub  Arc<
+        dyn Fn(
+            &MarleyFooterContext,
+            &terminal::MarleyLink,
+            ContextMenu,
+            &mut Window,
+            &mut App,
+        ) -> ContextMenu,
+    >,
+);
+
+impl gpui::Global for MarleyTerminalLinkMenu {}
+
 // Marley: the autosuggestion a terminal shows after its cursor, or none; Marley's workbench
 // sets it (#484).
 #[derive(Clone)]
@@ -587,7 +603,31 @@ impl TerminalView {
             .upgrade()
             .and_then(|workspace| workspace.read(cx).panel::<TerminalPanel>(cx))
             .is_some_and(|terminal_panel| terminal_panel.read(cx).assistant_enabled());
-        let context_menu = ContextMenu::build(window, cx, |menu, _, _| {
+        // Marley: a click on a link starts the menu with the link's entries (#579).
+        let marley_link = cx
+            .try_global::<MarleyTerminalLinkMenu>()
+            .cloned()
+            .and_then(|hook| {
+                let link = self
+                    .terminal
+                    .update(cx, |terminal, _| terminal.marley_link_at(position))?;
+                Some((hook, link))
+            });
+        let marley_view = cx.entity().downgrade();
+        let context_menu = ContextMenu::build(window, cx, |menu, window, cx| {
+            let menu = match marley_link {
+                Some((hook, link)) => {
+                    let context = MarleyFooterContext {
+                        view: marley_view,
+                        terminal: &self.terminal,
+                        project: &self.project,
+                        workspace: &self.workspace,
+                        focus_handle: &self.focus_handle,
+                    };
+                    (hook.0)(&context, &link, menu, window, cx).separator()
+                }
+                None => menu,
+            };
             menu.context(self.focus_handle.clone())
                 .when(self.shows_workspace_actions(), |menu| {
                     menu.action("New Terminal", Box::new(NewTerminal::default()))
@@ -647,6 +687,60 @@ impl TerminalView {
         );
 
         self.context_menu = Some((context_menu, position, subscription));
+    }
+
+    // Marley: a menu of a clicked link's entries alone, for a plain click on it; an OSC 8 link's
+    // plain click opens it instead (#579).
+    /// Shows the link menu at `position` when a plain click there lands on a link in the text.
+    pub fn marley_deploy_link_menu(
+        &mut self,
+        position: GpuiPoint<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(hook) = cx.try_global::<MarleyTerminalLinkMenu>().cloned() else {
+            return;
+        };
+        let Some(link) = self
+            .terminal
+            .update(cx, |terminal, _| terminal.marley_link_at(position))
+            .filter(|link| !link.osc8)
+        else {
+            return;
+        };
+        let view = cx.entity().downgrade();
+        let context_menu = ContextMenu::build(window, cx, |menu, window, cx| {
+            let context = MarleyFooterContext {
+                view,
+                terminal: &self.terminal,
+                project: &self.project,
+                workspace: &self.workspace,
+                focus_handle: &self.focus_handle,
+            };
+            (hook.0)(
+                &context,
+                &link,
+                menu.context(self.focus_handle.clone()),
+                window,
+                cx,
+            )
+        });
+        window.focus(&context_menu.focus_handle(cx), cx);
+        let subscription = cx.subscribe_in(
+            &context_menu,
+            window,
+            |this, _, _: &DismissEvent, window, cx| {
+                if this.context_menu.as_ref().is_some_and(|context_menu| {
+                    context_menu.0.focus_handle(cx).contains_focused(window, cx)
+                }) {
+                    cx.focus_self(window);
+                }
+                this.context_menu.take();
+                cx.notify();
+            },
+        );
+        self.context_menu = Some((context_menu, position, subscription));
+        cx.notify();
     }
 
     fn settings_changed(&mut self, cx: &mut Context<Self>) {

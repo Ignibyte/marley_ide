@@ -131,6 +131,15 @@ pub(crate) fn find_from_grid_point<T: EventListener>(
                     sanitize_url_punctuation(url, url_match, term)
                 })
         });
+        // Marley: a URL a program wrapped at the edge or drew inside a box runs on in the rows
+        // the search above does not join; the whole of it wins over its part on this row (#579).
+        let url_match = marley_joined_url(term, point)
+            .filter(|(joined, _)| {
+                url_match
+                    .as_ref()
+                    .is_none_or(|(url, _)| joined.chars().count() > url.chars().count())
+            })
+            .or(url_match);
 
         if let Some((url, url_match)) = url_match {
             Some((url, true, url_match))
@@ -148,6 +157,41 @@ pub(crate) fn find_from_grid_point<T: EventListener>(
     };
 
     found_word.map(|found_word| normalize_found_word(found_word, path_style))
+}
+
+// Marley: the rows around a point as `marley_terminal::links` reads them, and the URL it joins
+// there, as a match (#579).
+fn marley_joined_url<T: EventListener>(
+    term: &Term<T>,
+    point: AlacPoint,
+) -> Option<(String, Match)> {
+    const AROUND: i32 = 20;
+    let grid = term.grid();
+    let first = (point.line.0 - AROUND).max(grid.topmost_line().0);
+    let last = (point.line.0 + AROUND).min(grid.bottommost_line().0);
+    let columns = term.columns();
+    let last_column = columns.saturating_sub(1);
+    let rows: Vec<marley_terminal::links::LinkRow> = (first..=last)
+        .map(|line| {
+            let row = &grid[alacritty_terminal::index::Line(line)];
+            let cells = (0..columns).map(|column| {
+                let cell = &row[Column(column)];
+                (!cell.flags.intersects(WIDE_CHAR_SPACERS)).then_some(cell.c)
+            });
+            let wrapped = row[Column(last_column)].flags.contains(Flags::WRAPLINE);
+            marley_terminal::links::LinkRow::from_cells(cells, wrapped)
+        })
+        .collect();
+    let row = usize::try_from(point.line.0 - first).ok()?;
+    let joined = marley_terminal::links::joined_url(&rows, row, point.column.0, last_column)?;
+    let at = |(row, column): (usize, usize)| {
+        let line = first + i32::try_from(row).ok()?;
+        Some(AlacPoint::new(
+            alacritty_terminal::index::Line(line),
+            Column(column),
+        ))
+    };
+    Some((joined.url, at(joined.start)?..=at(joined.end)?))
 }
 
 fn normalize_found_word(

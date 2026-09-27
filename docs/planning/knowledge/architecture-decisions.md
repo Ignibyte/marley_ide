@@ -2304,3 +2304,21 @@ run without `BROWSER` so nothing loops back. Rejected: exporting only when unset
 template (Rust's `opener` runs the whole value as a program); an in-band escape the terminal
 reads (any output could print one); `file://` pages in a Browser tab (plan D15, left to Chad's
 open question).
+
+## AD-claude-579-a-clicked-terminal-link-gets-zeds-menu-with-marleys-entries-001
+*decided at: 2026-09-26 · status: shipped*
+
+A plain click on a web URL in a terminal's text opens Zed's `ContextMenu` at the pointer, deployed
+by the terminal view where its right-click menu is. The entries come from Marley's
+`MarleyTerminalLinkMenu`: Open in Browser Tab (none over SSH), Open in System Browser and Copy
+Link. The right-click menu starts with the same entries when it lands on any link. An OSC 8
+link's plain click still opens it, since the program made it a link. The default is offered as
+two entries of these menus while the user's settings name no `marley.terminal_links`, and
+choosing writes it and ends the offer, so there is no dialog and no second flag. URLs a program
+wrapped at the edge or drew in a box are joined by pure code in `marley_terminal::links`, called
+from Zed's link search after its own match. Rejected:
+- a dialog on the first click (it stops the click it came from);
+- a popover of Marley's own drawing (Zed's menu brings keys and dismissal);
+- a hover over several ranges for framed URLs (the clicked row is marked; the rest needs a
+  change to Zed's element);
+- a setting to turn the menu off (deferred until someone asks).
