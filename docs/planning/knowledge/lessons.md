@@ -3239,3 +3239,13 @@ in the scratch HOME, `npm_config_update_notifier=false`, which also keeps `npm` 
 public registry for its own version). npm then asks for `/<name>`, follows the redirect to
 `/<name>/` and fetches the tarball. #523's scenario installs `playwright-core` 1.63.0 this way
 in under 200 ms.
+
+## L-claude-582-cargo-piped-into-head-can-end-mid-build-001
+*category: process · topic: cargo on the shared dev box · from: pipeline 582*
+
+A cargo command piped into `head` (or any reader that stops early) can die partway: once `head`
+has its lines it exits, and cargo's next write to the closed pipe ends it with SIGPIPE, which is
+a killed cargo by another name, the thing the box's rules forbid. In #582 a `cargo dylint | grep |
+head -20` stopped reading after twenty warnings; nothing was left running, and the rerun finished
+from its cache. Cargo's output goes to a log file in the scratchpad, and `grep` or `tail` reads
+the file afterwards.

@@ -781,8 +781,12 @@ alike.
   drops a page on `targetDestroyed` or `targetCrashed`, and one that went while it was being
   attached (`closing`); decodes each frame off the main thread, keeps it for its page and
   acknowledges it; follows each page's URL and title (asking for the title after
-  DOMContentLoaded, load and same-document navigations, since no target event reports it); and
-  fails with "The browser closed its connection." when the socket ends. A generation number
+  DOMContentLoaded, load and same-document navigations, since no target event reports it, and
+  taking a title the page's script sets later from the page's title watcher, #582:
+  `title_reported` accepts it from the page's own session only and emits `PageInfoChanged` when
+  it differs); and fails with "The browser closed its connection." when the socket ends.
+  `Runtime.bindingCalled` goes by the binding's name: the recorder's to `action_reported`, the
+  title watcher's to `title_reported`, the rest to `select_requested`. A generation number
   drops a superseded start's late results: one counter for every project's starts, so a number
   names its browser and each result's guard reads `is_current(generation)`. A page streams
   while a tab draws it and its size is known.

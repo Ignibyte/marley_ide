@@ -14,7 +14,8 @@
 //! [`ports`] reads which ports listen, for the dev server URLs a terminal offers (#503).
 //! [`favicon`] reads a page's icon for its row in the rail (#504). Since #506 the recorder also
 //! keeps what the user did with the target's locators, and [`playwright`] drafts a test from a
-//! recording.
+//! recording. [`title`] reports a title a page's script sets after the load, which Chromium
+//! sends no event for (#582).
 //! The Browser tab that shows the page is `marley_workbench`'s
 //! (`docs/marley/three-prong-plan.md`, prong 3).
 
@@ -48,3 +49,4 @@ pub mod select;
 pub mod service;
 pub mod snapshot;
 pub mod source_map;
+pub mod title;

@@ -650,6 +650,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A Browser tab's title follows its page** (#582, 2026-09-27). A page that set its title
+  after it loaded, such as an unread count or a title set once its data came in, kept its old
+  title in its Browser tab, in its row in the rail and in what agents read with `browser_tabs`:
+  Chromium tells Marley nothing about such a change. A watcher in each page now reports every
+  new title, and all three follow it, for a tab behind another too.
 - **A project's Browser tabs come back after another project's** (#576, 2026-09-26). A Browser
   tab saved in one project could replace another project's saved tab when Marley happened to give
   both the same internal item id in different launches, and that project's tab then did not come

@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #582 (bug, prong 3)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet; `/pipeline:plan` mints the pair
+- **Pipeline doc:** ../../pipeline/completed/582-browser-tab-title-follows-the-page.spec.md
 - **Source ticket:** found in #523's Plan, 2026-09-27: the release build's golden set failed #507's
   and #581's scenarios, whose page set its title after an IndexedDB read
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Marley reads a page's title when its main frame fires DOMContentLoaded or load, or moves within

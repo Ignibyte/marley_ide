@@ -2406,3 +2406,12 @@ the stop.
 Code that types a command into a terminal and waits for it to finish finds the command's block
 by its command (`AnchoredBlock::command`, compared with the line typed), never by its position
 among the terminal's blocks: a new terminal's startup opens a block of its own first.
+
+## PR-claude-a-string-a-page-script-hands-marley-is-made-well-formed-001
+*severity: low · prevents: F-claude-582-a-title-watcher-cut-its-title-without-making-it-well-formed-001*
+
+Any script Marley runs in a page that hands Marley a string (a binding's payload, a value
+`Runtime.evaluate` or `Runtime.callFunctionOn` returns) passes each string through
+`toWellFormed` (guarded, `value.toWellFormed ? value.toWellFormed() : value`) and cuts it off a
+surrogate pair, as `pick.rs`'s and `recorder.rs`'s `cap` do. The Plan's recall for a new page
+script searches the ledger for "surrogate" along with the ticket's own terms.

@@ -2295,3 +2295,17 @@ typed command's, which `terminal_read` numbered 1, so the watcher read the start
 had finished with exit code 0 before the script began. Every run looked like a pass, and a
 failed script saved no recording and showed no toast. Fixed in #523: `block_end` finds the
 block whose command is the line it typed, and reads that one.
+
+## F-claude-582-a-title-watcher-cut-its-title-without-making-it-well-formed-001
+*severity: low · found in: pipeline 582's Test (a review against the ledger, before any commit) · class: a page string sent over CDP as it came · prevented by: PR-claude-a-string-a-page-script-hands-marley-is-made-well-formed-001*
+
+The title watcher as Code left it sent `document.title` cut at 1,000 UTF-16 units, the cut
+stepped back off half a surrogate pair, but a page's title can hold half a pair of its own. That
+half reaches the `Runtime.bindingCalled` event as a lone `\ud83d` escape, serde_json refuses the
+whole message, and `cdp::dispatch` drops it with a warning, so the tab keeps its old title. The
+golden set's run on that build showed it: `half.html` stayed "Half page", and Marley's log said
+`a DevTools message that is not JSON-RPC: unexpected end of hex escape`.
+L-claude-518-a-lone-surrogate-fails-the-whole-cdp-message-001 had said so for #518's texts;
+recall in #582's Plan searched the ledger for titles, bindings and listeners, never for
+surrogates. Fixed before commit: the watcher makes the title well formed (`toWellFormed`) before
+it cuts it, and the scenario checks a title that holds half a pair.

@@ -39,8 +39,7 @@
 # - `write_login_site <dir>` writes a site that keeps a login three ways into `$E2E_WORK/<dir>`
 #   (#507, #581): `signin.html?as=<name>` keeps it as a cookie that outlives the browser, in
 #   `localStorage` and in an IndexedDB record, then goes to `whoami.html`, which shows all three
-#   and puts them in its title, `whoami: cookie=… local=… idb=…`, which `browser_tabs` reads,
-#   then moves within its document (`#read`) so that Marley reads that title (#582).
+#   and puts them in its title, `whoami: cookie=… local=… idb=…`, which `browser_tabs` reads.
 # - `browser_profile [root]` and `browser_unit [root]` name the Chromium profile and the user
 #   unit of the project whose one folder is `root`, `$E2E_WORK/repo` by default: a Chromium per
 #   project since #507. `browser_close [root]` asks that project's Chromium to close over CDP, as
@@ -175,9 +174,6 @@ const show = (idb) => {
   document.getElementById('local').textContent = local;
   document.getElementById('idb').textContent = idb;
   document.title = 'whoami: cookie=' + cookie + ' local=' + local + ' idb=' + idb;
-  // Chromium reports no title a script sets (#582); a move within the document makes Marley read
-  // it again.
-  history.replaceState(null, '', location.pathname + '#read');
 };
 const opening = indexedDB.open('marley-507', 1);
 opening.onupgradeneeded = () => opening.result.createObjectStore('login');

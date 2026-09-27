@@ -32,3 +32,4 @@
 507-browser-context-per-project.sh  # a Chromium and a profile per project: the old profile moved, logins kept apart, a worktree shares its project's, all three kept across a restart, a removed project's Chromium stopped
 581-clear-a-projects-browser-data.sh  # Clear Browser Data for one project: asks first, Escape keeps all, Clear closes its tabs, stops its Chromium, deletes its profile; the next tab signed out, the other project untouched, a failed removal named
 523-saved-playwright-scripts.sh  # Playwright scripts saved in Marley: the tray lists the project's and every project's, a new one from the template, the first run installs from a loopback registry, runs in a terminal beside the tab, a failed run saves the tab's minute
+582-browser-tab-title-follows-the-page.sh  # a title a page's script sets after the load: the tab, its rail row and browser_tabs follow, behind another tab too, after an IndexedDB read; an iframe's title leaves its page's alone

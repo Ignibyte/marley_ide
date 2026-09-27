@@ -133,6 +133,20 @@ for.
   decodes a `data:` URL, base64 or percent-encoded, and `Page::load_bytes` loads any other; both
   stop at `MAX_BYTES`, 256 KiB.
 
+## Titles (`src/title.rs`, #582)
+
+- Chromium sends no CDP event for a title a script sets after the load:
+  `Target.targetInfoChanged` carries a page's first title and not a later one. `WATCHER`, run in
+  the isolated world `WORLD` (`marley-title`) of the page's main frame, keeps the last title it
+  reported and calls the binding `BINDING` (`marleyTitle`) with `document.title` whenever a
+  change in the document leaves it different. It reports from the top frame only, makes the title
+  well formed (`toWellFormed`) and cuts it at 1,000 characters, never inside a surrogate pair,
+  since half of one fails the whole CDP message (#518). A `MutationObserver` watches the whole
+  document until `DOMContentLoaded` and the head alone after.
+- `Page::watch_title(session)` sets it up as `watch_actions` does: the binding for the world,
+  the script for each new document in the world, and a world in the main frame's loaded
+  document.
+
 ## For agents (`src/snapshot.rs`, `src/observe.rs`, #492)
 
 - `snapshot::render` writes one or more frames' accessibility trees (`AxNode`, from

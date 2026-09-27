@@ -2467,3 +2467,20 @@ end in its timeline, and a toast names it. Rejected:
 - a project's own Playwright, which a script can still start through `MARLEY_CDP_URL` and
   `MARLEY_TAB`;
 - an MCP tool that runs scripts for agents (AD-claude-492).
+
+## AD-claude-582-a-watcher-in-the-page-reports-a-scripts-title-001
+*decided at: 2026-09-27 · status: shipped · builds on: L-claude-495-a-listener-and-a-binding-catch-what-headless-chromium-hides-001*
+
+A title a page's script sets after the load reaches Marley from a watcher in the page:
+`marley_browser::title`'s script, in the isolated world `marley-title` of the page's main frame,
+reports each new `document.title` through the binding `marleyTitle`, from the top frame only and
+only when it differs from the last one it reported; a `MutationObserver` watches the whole
+document until `DOMContentLoaded` and the head after. The hub takes a report only from the
+page's own session and treats it as `target_changed` treats a target's title, so the tab, the
+rail and `browser_tabs` follow with nothing of their own. The reads at DOMContentLoaded, load and
+a move within the document stay. Rejected:
+- asking every page for its title on a timer: a CDP call per page each tick, and still late;
+- reading the title at each screencast frame: a page streams only while a tab draws it, so a tab
+  behind another would never change;
+- a move within the document to make Marley read the title again (#523's stand-in in the
+  fixture): only a page Marley wrote can do that.

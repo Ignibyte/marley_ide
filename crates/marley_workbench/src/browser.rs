@@ -68,6 +68,7 @@ use marley_browser::select::{self, SelectRequest};
 use marley_browser::service::LegacyMove;
 use marley_browser::snapshot::{self, FrameTree, RefTarget};
 use marley_browser::source_map::{self, MapLocation, OriginalPosition, SourceMap};
+use marley_browser::title;
 use marley_browser::{address, frame, service};
 use project::{Project, ProjectGroupKey, ProjectPath};
 use serde_json::Value;
@@ -1309,6 +1310,7 @@ impl BrowserHub {
         cx.spawn(async move |this, cx| {
             page.watch_selects(page.session_id()).await.log_err();
             page.watch_actions(page.session_id()).await.log_err();
+            page.watch_title(page.session_id()).await.log_err();
             if let Some(info) = page.target_info().await.log_err() {
                 this.update(cx, |this, cx| this.target_changed(generation, info, cx))
                     .ok();
@@ -2089,6 +2091,38 @@ impl BrowserHub {
                 }
             }
             Err(error) => log::debug!("browser: an action report did not parse: {error}"),
+        }
+    }
+
+    /// Takes the title the page's watcher reported its script set (#582), from the page's own
+    /// session: an iframe's title is not the page's.
+    fn title_reported(
+        &mut self,
+        generation: u64,
+        session: &str,
+        params: &Value,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.is_current(generation) {
+            return;
+        }
+        let Some(title) = params.get("payload").and_then(Value::as_str) else {
+            return;
+        };
+        let Some(page) = self
+            .pages
+            .iter_mut()
+            .find(|page| page.page.session_id() == session)
+        else {
+            return;
+        };
+        let title = Some(SharedString::from(title));
+        if title != page.title {
+            page.title = title;
+            cx.emit(BrowserEvent::PageInfoChanged {
+                target: page.target().to_string(),
+            });
+            cx.notify();
         }
     }
 
@@ -3298,14 +3332,15 @@ fn follow_observed(
         }
         "Runtime.bindingCalled" => {
             if let Some(session) = event.session_id.as_deref() {
-                let recorded =
-                    event.params.get("name").and_then(Value::as_str) == Some(recorder::BINDING);
-                this.update(cx, |this, cx| {
-                    if recorded {
+                let name = event.params.get("name").and_then(Value::as_str);
+                this.update(cx, |this, cx| match name {
+                    Some(recorder::BINDING) => {
                         this.action_reported(generation, session, &event.params);
-                    } else {
-                        this.select_requested(generation, session, &event.params, cx);
                     }
+                    Some(title::BINDING) => {
+                        this.title_reported(generation, session, &event.params, cx);
+                    }
+                    _ => this.select_requested(generation, session, &event.params, cx),
                 })
                 .ok();
             }
