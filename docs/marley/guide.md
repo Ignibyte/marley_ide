@@ -464,6 +464,36 @@ for Codex `--sandbox danger-full-access` (or `-s`), a `--config` of `sandbox_mod
 
 The first time Claude Code starts in bypass it asks you to accept its warning, in the terminal.
 
+### Worktree agents
+
+Several agents can work on one repository at once, each in a git worktree and on a branch of its
+own (#510). In a project's `+`, New Agent in Worktree lists the installed agent CLIs; it shows for
+a local project whose folder is a git repository.
+
+1. Choose an agent. A prompt opens with a line under it that names what it will make:
+   `agent/<name> from main`, the name one Zed makes, the base the main checkout's branch (its
+   commit when it is detached).
+2. Type the agent's first prompt, or nothing (Shift-Enter adds a line, Escape closes it), and
+   press Enter.
+3. Marley makes the worktree through Zed's worktree service, where Zed puts its own
+   (`git.worktree_directory`, `<parent>/worktrees/<project>/<name>/<project>` by default), on the
+   new branch, which tracks nothing. Zed carries the folder's trust over and runs the repository's
+   `create_worktree` tasks, as for its own worktrees. Marley writes the base as
+   `branch.agent/<name>.base` in the repository's config, for review and merge later, and starts
+   the agent in a terminal of the worktree's workspace with the prompt on its command line and
+   the project's permission mode. The workspace opens beside the project's, and you stay where
+   you are.
+
+The rail lists each linked worktree of a project's repository as a row under the project, after
+the main checkout's terminals: its name, its branch, and while its workspace is open, its
+terminals under it. A click shows an open worktree, or opens one that is not. Left on a worktree's
+terminal selects the worktree's row. Worktrees under the main checkout's `.claude/worktrees/`,
+which Claude Code makes for itself, get no row; their terminals list under the project.
+
+A create that fails, such as for a folder Marley cannot write, says so in Zed's toast and leaves
+no row and no agent. Claude Code saves its trust per folder, so in a new worktree it asks once;
+the prompt waits on its command line until you answer.
+
 ### The Claude Code plugin
 
 While Claude Code runs in a terminal and its plugin list has no Marley plugin, the agent bar shows

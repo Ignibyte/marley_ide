@@ -277,6 +277,7 @@ impl Render for WorktreeFetchFailedToast {
                                 RemoteBranchFetchMode::UseLocal,
                                 // User-initiated retry of a foreground create.
                                 true,
+                                None,
                                 cx,
                             );
                             task.detach_and_log_err(cx);
@@ -466,6 +467,8 @@ fn start_worktree_creations(
     existing_worktree_names: &[String],
     existing_worktree_paths: &HashSet<PathBuf>,
     base_ref: Option<String>,
+    // Marley: a new branch for the worktree instead of a detached HEAD (#510).
+    new_branch: Option<String>,
     worktree_directory_setting: &str,
     rng: &mut impl rand::Rng,
     cx: &mut gpui::App,
@@ -501,8 +504,16 @@ fn start_worktree_creations(
             let receiver = if scheduled_paths.contains(&new_path) {
                 None
             } else {
-                let target = git::repository::CreateWorktreeTarget::Detached {
-                    base_sha: base_ref.clone(),
+                // Marley: a worktree agent's own branch, started where a detached worktree would
+                // be (#510).
+                let target = match &new_branch {
+                    Some(branch_name) => git::repository::CreateWorktreeTarget::NewBranch {
+                        branch_name: branch_name.clone(),
+                        base_sha: base_ref.clone(),
+                    },
+                    None => git::repository::CreateWorktreeTarget::Detached {
+                        base_sha: base_ref.clone(),
+                    },
                 };
                 Some(repo.create_worktree(target, new_path.clone()))
             };
@@ -700,6 +711,7 @@ pub fn handle_create_worktree(
         RemoteBranchFetchMode::Fetch,
         // The user explicitly asked to create a worktree, so foreground it.
         true,
+        None,
         cx,
     );
     task.detach_and_log_err(cx);
@@ -748,6 +760,30 @@ pub fn create_worktree_workspace(
         RemoteBranchFetchMode::Fetch,
         // Agent-created worktree workspaces open in the background.
         false,
+        None,
+        cx,
+    )
+}
+
+// Marley: a worktree agent's worktree, on a branch of its own (#510).
+/// Same as [`create_worktree_workspace`], but the worktree is made on a new branch named
+/// `branch_name`, started from the action's branch target, instead of a detached HEAD.
+pub fn create_worktree_workspace_on_branch(
+    workspace: &mut Workspace,
+    action: &zed_actions::CreateWorktree,
+    branch_name: String,
+    window: &mut gpui::Window,
+    fallback_focused_dock: Option<DockPosition>,
+    cx: &mut gpui::Context<Workspace>,
+) -> Task<anyhow::Result<CreatedWorktreeWorkspace>> {
+    create_worktree_workspace_inner(
+        workspace,
+        action,
+        window,
+        fallback_focused_dock,
+        RemoteBranchFetchMode::Fetch,
+        false,
+        Some(branch_name),
         cx,
     )
 }
@@ -759,6 +795,8 @@ fn create_worktree_workspace_inner(
     fallback_focused_dock: Option<DockPosition>,
     remote_branch_fetch_mode: RemoteBranchFetchMode,
     activate: bool,
+    // Marley: a new branch for the worktree (#510).
+    new_branch: Option<String>,
     cx: &mut gpui::Context<Workspace>,
 ) -> Task<anyhow::Result<CreatedWorktreeWorkspace>> {
     let project = workspace.project().clone();
@@ -862,6 +900,7 @@ fn create_worktree_workspace_inner(
             window_handle,
             remote_connection_options,
             activate,
+            new_branch,
             &mut cx,
         )
         .await;
@@ -976,6 +1015,8 @@ async fn do_create_worktree(
     window_handle: Option<gpui::WindowHandle<MultiWorkspace>>,
     remote_connection_options: Option<RemoteConnectionOptions>,
     activate: bool,
+    // Marley: a new branch for the worktree (#510).
+    new_branch: Option<String>,
     cx: &mut AsyncWindowContext,
 ) -> anyhow::Result<CreatedWorktreeWorkspace> {
     // List existing worktrees from all repos to detect name collisions
@@ -1049,6 +1090,7 @@ async fn do_create_worktree(
             &existing_worktree_names,
             &existing_worktree_paths,
             base_ref,
+            new_branch,
             &worktree_directory_setting,
             &mut rng,
             cx,

@@ -456,6 +456,39 @@ alike.
   wins over it. A keymap that fails to load binds nothing and is logged. No Zed default uses
   the chord in any context; JetBrains's base keymap does, and wins inside its editors.
 
+## Worktree agents (`src/worktree_agents.rs`, #510)
+
+- The rail's `+` has New Agent in Worktree (`worktree_agent_entries`), a submenu of the installed
+  CLIs, when `worktree_agents::offered` finds the project local and its first folder a git
+  repository's work directory. A choice runs `open_prompt`, whose plan is the repository, the
+  main checkout's branch (its commit when detached; from a linked member, the `is_main` entry of
+  its `linked_worktrees`) and a name from `worktree_names::generate_worktree_name` past the
+  worktrees' folders and the `agent/` branches, and opens the `WorktreePrompt` modal: an
+  auto-height editor in `MarleyWorktreePrompt` (Enter is `marley::StartWorktreeAgent`,
+  Shift-Enter a new line, Escape `menu::Cancel`) over `agent/<name> from <base>`.
+- The create, spawned on the window once the modal closes: one at a time per project (the
+  `WorktreeAgents` global's `creating`, a toast for a second); a folder check with `fs.metadata`
+  at `path_for_new_linked_worktree`, three names at most, since Zed's rollback of a refused create
+  removes the target folder with force; the seed's mark; Zed's
+  `create_worktree_workspace_on_branch` with `ExistingBranch { name: base }` and
+  `agent/<name>`, whose failures Zed's toast reports; the mark cleared either way; `git config
+  branch.<branch>.base <base>` through `util::command` in the new worktree (a failure is a toast,
+  and the agent still starts); `agents::start_cli_with_prompt` in the new workspace, which reads
+  the project's permission mode and types `marley_agent::launch_line`.
+- `routing::seed_first_terminal` asks `take_seed_skip`, which matches the mark by the root's
+  last two parts, since `new_local` canonicalizes a root.
+- The rail's rows: `group_worktrees` reads each member's repository (`member_git`: the
+  repository whose work directory is the member's first folder), and `worktree_rows` makes the
+  union of the members' `linked_worktrees` and each member that is a linked worktree, minus the
+  main checkout and `.claude/worktrees/`, named by `project::linked_worktree_short_name`, with
+  the branch or a short commit. A linked member's terminals are tagged with its folder;
+  `note_focus` names the displayed workspace's worktree. The rows need no git call: the snapshots
+  hold them. `follow_folders` also follows each project's `GitStore` (`changes_the_worktrees`:
+  a repository added or removed, and its worktrees, `HEAD` or branches). `render_worktree_row`
+  draws the branch icon, the name (muted while not open) and the branch; a worktree's terminals
+  sit deeper. `open_worktree` shows an open worktree's workspace, else runs Zed's
+  `handle_switch_worktree` on the project's workspace.
+
 ## The block keys (`src/blocks.rs`, #473)
 
 - `marley::PreviousBlock` and `marley::NextBlock` are caught at each workspace's root with

@@ -5,7 +5,7 @@ status: QUEUED — Phase 1 Plan drafted; ready to promote to active
 title: "Which files a worktree agent's branch would conflict on, before anyone merges"
 type: feature
 slice: prong 2, worktree agents, on #510's rows and beside #511; the Orca second pass, finding 2
-references: [docs/planning/design-notes/orca-second-pass-2026-09-25.md, docs/orca_architecture/02-worktrees-and-review.md, docs/planning/pipeline/queued/510-worktree-agents.spec.md, docs/planning/pipeline/queued/511-review-and-merge-a-worktree.spec.md]
+references: [docs/planning/design-notes/orca-second-pass-2026-09-25.md, docs/orca_architecture/02-worktrees-and-review.md, docs/planning/pipeline/completed/510-worktree-agents.spec.md, docs/planning/pipeline/queued/511-review-and-merge-a-worktree.spec.md]
 ---
 
 ## Title

@@ -3,7 +3,8 @@
 //! Marley starts agent CLIs (Claude Code, Codex, …) in its terminals and recognizes them there.
 //! This crate is the pure, gpui-free model for that: [`agent_kind_of`] recognizes an agent from
 //! the command a terminal runs, [`launch_input`] is what starts one in a shell, with or without
-//! its permission prompts, [`permission_mark`] says whether one runs without them (#532), and
+//! its permission prompts, and [`launch_line`] with a first prompt (#510), [`permission_mark`]
+//! says whether one runs without them (#532), and
 //! [`agent_status`] judges from its terminal whether it is working or waiting on the user.
 //! [`claude_events`] reads Claude Code's own hook events, which Marley's plugin sends, and folds
 //! them into a fleet seat (#519), [`stop_kind`] says what a stopped turn needs (#566),
@@ -140,6 +141,38 @@ const fn bypass_arguments(kind: AgentKind) -> &'static [&'static str] {
 /// Every word is Marley's own.
 #[must_use]
 pub fn launch_input(kind: AgentKind, mode: LaunchMode) -> Vec<u8> {
+    send_payload(&command(kind, mode))
+}
+
+/// What starts `kind` in a shell with `prompt` as its first prompt (#510).
+///
+/// [`launch_input`]'s words, then the prompt as one quoted argument, the way each agent takes
+/// one, and Enter. A prompt that starts with `-` follows a `--` for Claude Code and Codex, and
+/// Gemini CLI and `OpenCode` take theirs in an option's `=` form, so no prompt is read as an
+/// option. An empty prompt starts the agent with none.
+#[must_use]
+pub fn launch_line(kind: AgentKind, mode: LaunchMode, prompt: &str) -> Vec<u8> {
+    let prompt = prompt.trim();
+    if prompt.is_empty() {
+        return launch_input(kind, mode);
+    }
+    let mut line = command(kind, mode);
+    line.push(' ');
+    match kind {
+        AgentKind::Claude | AgentKind::Codex => {
+            if prompt.starts_with('-') {
+                line.push_str("-- ");
+            }
+        }
+        AgentKind::Gemini => line.push_str("--prompt-interactive="),
+        AgentKind::OpenCode => line.push_str("--prompt="),
+    }
+    line.push_str(&quote_argument(prompt));
+    send_payload(&line)
+}
+
+/// The program and the arguments `mode` asks for.
+fn command(kind: AgentKind, mode: LaunchMode) -> String {
     let mut line = kind.program().to_string();
     if mode == LaunchMode::Bypass {
         for argument in bypass_arguments(kind) {
@@ -147,7 +180,42 @@ pub fn launch_input(kind: AgentKind, mode: LaunchMode) -> Vec<u8> {
             line.push_str(argument);
         }
     }
-    send_payload(&line)
+    line
+}
+
+/// `argument` quoted so bash, zsh and fish all read it as one word.
+///
+/// Its runs of anything but an apostrophe or a backslash go in single quotes, and each of those
+/// two in double quotes. Fish reads `\'` and `\\` as escapes even inside single quotes, so sh's
+/// `'\''` breaks there; this form, Orca's (`src/shared/tui-agent-startup-shell.ts`, MIT), is read
+/// the same by all three.
+#[must_use]
+pub fn quote_argument(argument: &str) -> String {
+    let mut quoted = String::new();
+    let mut run = String::new();
+    for character in argument.chars() {
+        let alone = match character {
+            '\'' => "\"'\"",
+            '\\' => "\"\\\\\"",
+            _ => {
+                run.push(character);
+                continue;
+            }
+        };
+        if !run.is_empty() {
+            quoted.push('\'');
+            quoted.push_str(&run);
+            quoted.push('\'');
+            run.clear();
+        }
+        quoted.push_str(alone);
+    }
+    if !run.is_empty() || quoted.is_empty() {
+        quoted.push('\'');
+        quoted.push_str(&run);
+        quoted.push('\'');
+    }
+    quoted
 }
 
 /// The permission mode Claude Code reports while it asks for no permission.

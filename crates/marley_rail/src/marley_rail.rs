@@ -42,8 +42,28 @@ pub struct ProjectSnapshot {
     pub threads: Vec<ThreadSnapshot>,
     /// The ports the group's processes listen on, by port (#521).
     pub ports: Vec<PortSnapshot>,
+    /// The linked worktrees of the group's repository, each a row with its terminals under it
+    /// (#510).
+    pub worktrees: Vec<WorktreeSnapshot>,
     /// Where the filter matched the name, as the byte offsets of the matched characters; `None`
     /// when it did not. Read only while [`RailSnapshot::filtering`].
+    pub matched: Option<Vec<usize>>,
+}
+
+/// One linked worktree of a project's repository (#510).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorktreeSnapshot {
+    /// The worktree's folder: the row's identity, and what its terminals'
+    /// [`TerminalSnapshot::worktree`] names.
+    pub path: String,
+    /// The name Zed gives a linked worktree.
+    pub name: String,
+    /// Its branch, or its short commit when it is detached.
+    pub branch: Option<String>,
+    /// Whether the window has its workspace open.
+    pub open: bool,
+    /// Where the filter matched the name, as for [`ProjectSnapshot::matched`]; empty when it
+    /// matched the branch alone.
     pub matched: Option<Vec<usize>>,
 }
 
@@ -70,6 +90,9 @@ pub struct TerminalSnapshot {
     pub turns: Vec<TurnSnapshot>,
     /// Whether the row's turns are listed under it.
     pub turns_open: bool,
+    /// The folder of the linked worktree whose workspace holds the terminal, which lists it under
+    /// that worktree's row (#510); `None` for the main checkout's.
+    pub worktree: Option<String>,
     /// Where the filter matched the title, as for [`ProjectSnapshot::matched`].
     pub matched: Option<Vec<usize>>,
 }
@@ -233,6 +256,8 @@ pub struct Focus {
     pub terminal: Option<u64>,
     /// The displayed workspace's active center item, when that item is a Browser tab (#504).
     pub browser: Option<u64>,
+    /// The displayed workspace's folder, when it is a listed linked worktree (#510).
+    pub worktree: Option<String>,
     /// Whether that terminal holds the window's focus.
     pub terminal_focused: bool,
     /// The thread the displayed workspace's Agent Panel shows, while the panel holds focus.
@@ -325,6 +350,8 @@ pub enum Selection {
     Thread(String),
     /// A port's row, by the port and the pid that listens on it (#521).
     Port(u16, u32),
+    /// A linked worktree's row, by its folder (#510).
+    Worktree(String),
 }
 
 /// A project group's header row.
@@ -368,9 +395,30 @@ pub struct TerminalRow {
     pub turns: Vec<TurnSnapshot>,
     /// Whether the turns are listed.
     pub turns_open: bool,
+    /// The folder of the worktree whose row the row sits under (#510), if one.
+    pub worktree: Option<String>,
     /// Whether this is the selected row.
     pub selected: bool,
     /// The byte offsets of the title's characters the filter matched, to highlight.
+    pub highlight: Vec<usize>,
+}
+
+/// A linked worktree's row under its project (#510).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorktreeRow {
+    /// The group's index in [`RailSnapshot::projects`].
+    pub project: usize,
+    /// The worktree's folder.
+    pub path: String,
+    /// The name.
+    pub name: String,
+    /// The branch, the second line.
+    pub branch: Option<String>,
+    /// Whether its workspace is open.
+    pub open: bool,
+    /// Whether this is the selected row.
+    pub selected: bool,
+    /// The byte offsets of the name's characters the filter matched, to highlight.
     pub highlight: Vec<usize>,
 }
 
@@ -452,6 +500,9 @@ pub enum Row {
     Thread(ThreadRow),
     /// A port under its project, after everything else under it (#521).
     Port(PortRow),
+    /// A linked worktree under its project, after the main checkout's terminals, with its own
+    /// terminals under it (#510).
+    Worktree(WorktreeRow),
 }
 
 /// A row the switcher lists: a terminal or a thread, never a header.
@@ -495,14 +546,21 @@ pub fn selection(snapshot: &RailSnapshot) -> Selection {
     let thread = snapshot.focus.thread.clone().map(Selection::Thread);
     let terminal = snapshot.focus.terminal.map(Selection::Terminal);
     let browser = snapshot.focus.browser.map(Selection::Browser);
-    [thread, terminal, browser, Some(Selection::Project(index))]
-        .into_iter()
-        .flatten()
-        .find(|wanted| {
-            rows.iter()
-                .any(|row| row.project() == index && row.selection() == *wanted)
-        })
-        .unwrap_or(Selection::None)
+    let worktree = snapshot.focus.worktree.clone().map(Selection::Worktree);
+    [
+        thread,
+        terminal,
+        browser,
+        worktree,
+        Some(Selection::Project(index)),
+    ]
+    .into_iter()
+    .flatten()
+    .find(|wanted| {
+        rows.iter()
+            .any(|row| row.project() == index && row.selection() == *wanted)
+    })
+    .unwrap_or(Selection::None)
 }
 
 /// A row the rail shows, before it is drawn, with the index of the project it sits under.
@@ -513,6 +571,7 @@ enum Shown<'a> {
     Browser(usize, &'a BrowserSnapshot),
     Thread(usize, &'a ThreadSnapshot),
     Port(usize, &'a PortSnapshot),
+    Worktree(usize, &'a WorktreeSnapshot),
 }
 
 impl<'a> Shown<'a> {
@@ -522,7 +581,8 @@ impl<'a> Shown<'a> {
             | Self::Terminal(index, _)
             | Self::Browser(index, _)
             | Self::Thread(index, _)
-            | Self::Port(index, _) => index,
+            | Self::Port(index, _)
+            | Self::Worktree(index, _) => index,
         }
     }
 
@@ -533,6 +593,7 @@ impl<'a> Shown<'a> {
             Self::Browser(_, browser) => Selection::Browser(browser.id),
             Self::Thread(_, thread) => Selection::Thread(thread.key.clone()),
             Self::Port(_, port) => Selection::Port(port.port, port.pid),
+            Self::Worktree(_, worktree) => Selection::Worktree(worktree.path.clone()),
         }
     }
 
@@ -544,21 +605,38 @@ impl<'a> Shown<'a> {
             Self::Browser(_, browser) => browser.matched.as_deref(),
             Self::Thread(_, thread) => thread.matched.as_deref(),
             Self::Port(_, port) => port.matched.as_deref(),
+            Self::Worktree(_, worktree) => worktree.matched.as_deref(),
         }
     }
 }
 
-/// Every row the rail shows, in its order: each shown project's header, then the terminals, the
-/// Browser tabs, the threads and the ports shown under it. The rows, the selection and the
-/// keyboard all read this one walk.
+/// Every row the rail shows, in its order: each shown project's header, then the main
+/// checkout's terminals, each linked worktree's row with its terminals (#510), the Browser tabs,
+/// the threads and the ports shown under it. The rows, the selection and the keyboard all read
+/// this one walk.
 fn walk(snapshot: &RailSnapshot) -> Vec<Shown<'_>> {
     let mut rows = Vec::new();
     for (index, project) in snapshot.projects.iter().enumerate() {
         let terminals = project
             .terminals
             .iter()
-            .filter(|terminal| row_shows(snapshot, project, terminal.matched.as_deref()))
+            .filter(|terminal| worktree_of(project, terminal).is_none())
+            .filter(|terminal| terminal_shows(snapshot, project, terminal))
             .map(|terminal| Shown::Terminal(index, terminal));
+        let worktrees = project.worktrees.iter().flat_map(|worktree| {
+            let terminals: Vec<Shown<'_>> = project
+                .terminals
+                .iter()
+                .filter(|terminal| terminal.worktree.as_deref() == Some(worktree.path.as_str()))
+                .filter(|terminal| terminal_shows(snapshot, project, terminal))
+                .map(|terminal| Shown::Terminal(index, terminal))
+                .collect();
+            // A shown terminal keeps its worktree's row above it.
+            let row = (row_shows(snapshot, project, worktree.matched.as_deref())
+                || !terminals.is_empty())
+            .then_some(Shown::Worktree(index, worktree));
+            row.into_iter().chain(terminals)
+        });
         let browsers = project
             .browsers
             .iter()
@@ -575,6 +653,7 @@ fn walk(snapshot: &RailSnapshot) -> Vec<Shown<'_>> {
             .filter(|port| row_shows(snapshot, project, port.matched.as_deref()))
             .map(|port| Shown::Port(index, port));
         let under: Vec<Shown<'_>> = terminals
+            .chain(worktrees)
             .chain(browsers)
             .chain(threads)
             .chain(ports)
@@ -601,6 +680,30 @@ const fn row_shows(
     } else {
         project.expanded
     }
+}
+
+/// The listed worktree whose workspace holds `terminal`, if one does.
+fn worktree_of<'a>(
+    project: &'a ProjectSnapshot,
+    terminal: &TerminalSnapshot,
+) -> Option<&'a WorktreeSnapshot> {
+    let path = terminal.worktree.as_deref()?;
+    project
+        .worktrees
+        .iter()
+        .find(|worktree| worktree.path == path)
+}
+
+/// Whether a terminal row shows: as [`row_shows`] says, and with a filter also when its
+/// worktree's name or branch matched.
+fn terminal_shows(
+    snapshot: &RailSnapshot,
+    project: &ProjectSnapshot,
+    terminal: &TerminalSnapshot,
+) -> bool {
+    row_shows(snapshot, project, terminal.matched.as_deref())
+        || (snapshot.filtering
+            && worktree_of(project, terminal).is_some_and(|worktree| worktree.matched.is_some()))
 }
 
 /// Every shown row, as the selection it would be, in the rail's order.
@@ -657,7 +760,10 @@ pub fn last_row(snapshot: &RailSnapshot) -> Selection {
 /// ends. With nothing selected it is the first header going forward and the last going back.
 #[must_use]
 pub fn cycle_project(snapshot: &RailSnapshot, forward: bool) -> Selection {
-    let project = parent(snapshot, &selection(snapshot));
+    let project = match parent(snapshot, &selection(snapshot)) {
+        worktree @ Selection::Worktree(_) => parent(snapshot, &worktree),
+        project => project,
+    };
     cycle(snapshot, &project, forward, |row| {
         matches!(row, Selection::Project(_))
     })
@@ -698,15 +804,28 @@ fn cycle(
     rows.into_iter().find(wanted).unwrap_or(Selection::None)
 }
 
-/// The project header a row sits under; a header is its own.
+/// The row a row sits under: a linked worktree's terminal under the worktree's row (#510), any
+/// other row under its project's header; a header is its own.
 #[must_use]
 pub fn parent(snapshot: &RailSnapshot, selection: &Selection) -> Selection {
     let owner = match selection {
         Selection::None | Selection::Project(_) => return selection.clone(),
-        Selection::Terminal(id) => snapshot
-            .projects
-            .iter()
-            .position(|project| project.terminals.iter().any(|terminal| terminal.id == *id)),
+        Selection::Terminal(id) => {
+            let under = snapshot.projects.iter().find_map(|project| {
+                let terminal = project
+                    .terminals
+                    .iter()
+                    .find(|terminal| terminal.id == *id)?;
+                Some(worktree_of(project, terminal))
+            });
+            if let Some(Some(worktree)) = under {
+                return Selection::Worktree(worktree.path.clone());
+            }
+            snapshot
+                .projects
+                .iter()
+                .position(|project| project.terminals.iter().any(|terminal| terminal.id == *id))
+        }
         Selection::Browser(id) => snapshot
             .projects
             .iter()
@@ -720,6 +839,12 @@ pub fn parent(snapshot: &RailSnapshot, selection: &Selection) -> Selection {
                 .ports
                 .iter()
                 .any(|shown| shown.port == *port && shown.pid == *pid)
+        }),
+        Selection::Worktree(path) => snapshot.projects.iter().position(|project| {
+            project
+                .worktrees
+                .iter()
+                .any(|worktree| worktree.path == *path)
         }),
     };
     owner.map_or(Selection::None, Selection::Project)
@@ -763,6 +888,11 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                 flag: terminal.flag.clone(),
                 turns: terminal.turns.clone(),
                 turns_open: terminal.turns_open,
+                worktree: snapshot
+                    .projects
+                    .get(index)
+                    .and_then(|project| worktree_of(project, terminal))
+                    .map(|worktree| worktree.path.clone()),
                 selected: selected == Selection::Terminal(terminal.id),
                 highlight: highlight(terminal.matched.as_deref()),
             }),
@@ -796,6 +926,15 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                 tooltip: port.tooltip.clone(),
                 selected: selected == Selection::Port(port.port, port.pid),
                 highlight: highlight(port.matched.as_deref()),
+            }),
+            Shown::Worktree(index, worktree) => Row::Worktree(WorktreeRow {
+                project: index,
+                path: worktree.path.clone(),
+                name: worktree.name.clone(),
+                branch: worktree.branch.clone(),
+                open: worktree.open,
+                selected: matches!(&selected, Selection::Worktree(path) if *path == worktree.path),
+                highlight: highlight(worktree.matched.as_deref()),
             }),
         })
         .collect()
@@ -851,6 +990,7 @@ pub fn switcher_rows(
                 flag: terminal.flag.clone(),
                 turns: terminal.turns.clone(),
                 turns_open: terminal.turns_open,
+                worktree: None,
                 selected: false,
                 highlight: Vec::new(),
             })
@@ -878,7 +1018,7 @@ fn hidden_rows_need_the_user(snapshot: &RailSnapshot, project: &ProjectSnapshot)
     project
         .terminals
         .iter()
-        .any(|terminal| terminal.bell && hidden(terminal.matched.as_deref()))
+        .any(|terminal| terminal.bell && !terminal_shows(snapshot, project, terminal))
         || project
             .threads
             .iter()
@@ -948,6 +1088,7 @@ mod tests {
             flag: None,
             turns: Vec::new(),
             turns_open: false,
+            worktree: None,
             matched: None,
         }
     }
@@ -960,6 +1101,7 @@ mod tests {
             browsers: Vec::new(),
             threads: Vec::new(),
             ports: Vec::new(),
+            worktrees: Vec::new(),
             matched: None,
         }
     }
@@ -990,6 +1132,7 @@ mod tests {
                 project,
                 terminal,
                 browser: None,
+                worktree: None,
                 terminal_focused: false,
                 thread: None,
                 cursor: None,
@@ -1043,6 +1186,7 @@ mod tests {
                 Row::Browser(row) => row.selected,
                 Row::Thread(row) => row.selected,
                 Row::Port(row) => row.selected,
+                Row::Worktree(row) => row.selected,
             })
             .count()
     }
@@ -1112,6 +1256,7 @@ mod tests {
                     flag: None,
                     turns: Vec::new(),
                     turns_open: false,
+                    worktree: None,
                     selected: false,
                     highlight: Vec::new(),
                 }),
@@ -1126,6 +1271,7 @@ mod tests {
                     flag: None,
                     turns: Vec::new(),
                     turns_open: false,
+                    worktree: None,
                     selected: false,
                     highlight: Vec::new(),
                 }),
@@ -1148,6 +1294,7 @@ mod tests {
                     flag: None,
                     turns: Vec::new(),
                     turns_open: false,
+                    worktree: None,
                     selected: true,
                     highlight: Vec::new(),
                 }),
@@ -1188,6 +1335,7 @@ mod tests {
                     flag: None,
                     turns: Vec::new(),
                     turns_open: false,
+                    worktree: None,
                     selected: false,
                     highlight: Vec::new(),
                 }),
@@ -1336,6 +1484,7 @@ mod tests {
                     flag: None,
                     turns: Vec::new(),
                     turns_open: false,
+                    worktree: None,
                     selected: false,
                     highlight: Vec::new(),
                 }),
@@ -1376,6 +1525,7 @@ mod tests {
                     flag: None,
                     turns: Vec::new(),
                     turns_open: false,
+                    worktree: None,
                     selected: false,
                     highlight: Vec::new(),
                 }),
@@ -1744,6 +1894,7 @@ mod tests {
                 Row::Browser(row) => format!("  {}", row.title),
                 Row::Thread(row) => format!("  {}", row.title),
                 Row::Port(row) => format!("  {}", row.title),
+                Row::Worktree(row) => format!("  {}", row.name),
             })
             .collect()
     }
@@ -1801,6 +1952,7 @@ mod tests {
                     Row::Browser(row) => (row.title, row.highlight),
                     Row::Thread(row) => (row.title, row.highlight),
                     Row::Port(row) => (row.title, row.highlight),
+                    Row::Worktree(row) => (row.name, row.highlight),
                 })
                 .collect()
         };
@@ -1837,6 +1989,7 @@ mod tests {
                 Row::Browser(row) => row.highlight,
                 Row::Thread(row) => row.highlight,
                 Row::Port(row) => row.highlight,
+                Row::Worktree(row) => row.highlight,
             };
             assert!(highlight.is_empty());
         }
@@ -1851,7 +2004,11 @@ mod tests {
                 .into_iter()
                 .filter_map(|row| match row {
                     Row::Project(row) => Some(row.attention),
-                    Row::Terminal(_) | Row::Browser(_) | Row::Thread(_) | Row::Port(_) => None,
+                    Row::Terminal(_)
+                    | Row::Browser(_)
+                    | Row::Thread(_)
+                    | Row::Port(_)
+                    | Row::Worktree(_) => None,
                 })
                 .collect()
         };

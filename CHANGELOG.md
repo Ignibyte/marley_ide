@@ -13,6 +13,18 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Worktree agents** (#510, 2026-09-28). A project's `+` in the rail has New Agent in Worktree,
+  with each installed agent CLI under it, for a local project that is a git repository. Its prompt
+  names what it will make, `agent/<name> from main`; Enter makes a git worktree through Zed's own
+  worktree service, on a new branch `agent/<name>` that starts at the main checkout's branch and
+  tracks nothing, writes that base as `branch.agent/<name>.base` in the repository's config, and
+  starts the agent in the worktree's workspace with the first prompt on its command line, as one
+  argument whatever quotes it holds, and with the project's permission mode (#532). The rail lists
+  every linked worktree of a project's repository as a row under it, with its branch and, while
+  its workspace is open, its terminals; a click opens one that is not open. Claude Code's own
+  `.claude/worktrees/` get no row. The worktree lands where Zed puts its own
+  (`git.worktree_directory`); a create that fails says why in Zed's toast and leaves no row.
+
 - **Agent permission modes** (#532, 2026-09-28). Two settings, both off by default, choose what
   Marley starts Claude Code and Codex with from the rail's `+` and the New Agent picker:
   `marley.claude_code_permissions`, `"ask"` or `"bypass"` (`--dangerously-skip-permissions`),

@@ -1,11 +1,11 @@
 ---
 pipeline_id: 6bac336b-5131-4521-bb8a-57d21fb2447a
-ticket: docs/planning/tickets/open/TICKET-510-worktree-agents.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-510-worktree-agents.md
+status: Phase 4 — Complete PASS
 title: "Worktree agents: an agent on its own branch and worktree, nested under its project"
 type: feature
 slice: prong 2, worktree agents, slice 1 of 2 (the worktree's environment is slice 2)
-references: [docs/orca_architecture/02-worktrees-and-review.md, docs/orca_architecture/01-agents-and-sessions.md, docs/orca_architecture/06-cli-automations-skills.md, docs/planning/pipeline/completed/455-a-first-terminal.spec.md, docs/planning/pipeline/completed/458-rail-follows-folder-changes.spec.md]
+references: [docs/orca_architecture/02-worktrees-and-review.md, docs/orca_architecture/01-agents-and-sessions.md, docs/orca_architecture/06-cli-automations-skills.md, docs/planning/pipeline/completed/455-a-first-terminal.spec.md, docs/planning/pipeline/completed/458-rail-follows-folder-changes.spec.md, docs/planning/pipeline/completed/532-agent-permission-modes.spec.md, docs/planning/pipeline/completed/509-per-turn-diffs.spec.md]
 ---
 
 ## Title
@@ -24,17 +24,21 @@ other's files; the rail shows each worktree as a row nested under its project.
   and branches. An empty prompt starts the agent with no prompt.
 - **The worktree,** made by Zed's worktree service on a new branch (D1, a Zed touch in
   `crates/git_ui_core`): at Zed's `git.worktree_directory` layout
-  (`<parent>/worktrees/<name>/<project>` by default), on `agent/<name>` (D3), started from the
+  (`<parent>/worktrees/<project>/<name>/<project>` by default; corrected at promotion), on `agent/<name>` (D3), started from the
   main checkout's branch, or its commit when the main checkout is detached (D4), created with
   `--no-track` (D2, a Zed touch in `crates/git`). Zed keeps doing the rest: the created-worktree
   record, trust carried over from the main checkout, the `create_worktree` task hooks, the new
   workspace opened in the background as a member of the project's group.
 - **The base,** written as `branch.agent/<name>.base <base>` with `git config` in the main
   checkout, so #511 and a later branch cleanup read it back without Marley state (D4).
-- **The agent** in the worktree's one center terminal (D7): the routing's first-terminal seed
-  skips a workspace Marley opens for an agent, and Marley opens the agent's terminal itself,
-  writing the command after the shell's startup handshake, as `agents::start_cli` does, with the
-  prompt on the command line (D5).
+- **The agent** in a center terminal of the worktree's workspace (D7): the routing's
+  first-terminal seed skips a workspace Marley opens for an agent, and Marley opens the agent's
+  terminal itself, writing the command after the shell's startup handshake, as
+  `agents::start_cli` does, with the prompt on the command line (D5). Changed at promotion: the
+  command takes the project's permission mode (#532, `AgentPermissions::launch_mode` over the
+  group's main folders), so a worktree agent starts as its project's agents do and carries the
+  same mark; a repository's own `create_worktree` task hooks still open their terminals beside
+  it.
 - **The rail's worktree rows** (D8, D9): under each project row, one row per linked worktree of
   the project's repository, named with Zed's `linked_worktree_short_name`, its branch (or short
   commit) on the second line; the terminals of a worktree whose workspace is open listed under
@@ -43,8 +47,14 @@ other's files; the rail shows each worktree as a row nested under its project.
   shows its workspace; on one not open, Zed's `handle_switch_worktree` opens it. The keyboard
   (up, down, left to climb, Enter), the filter (a worktree matches by name or branch) and the
   switcher cover the new rows. The rail refreshes on the repository's worktree, head and branch
-  events.
-- **Errors:** a create that fails says why in a prompt, starts no agent and leaves no row.
+  events. Changed at promotion: each terminal stays in its project's list, tagged with its
+  worktree, and the rows group them (D8); a worktree member's Browser tabs stay under the project
+  row (D12); after a restart that brought back only a worktree, the rows still list the others
+  (D8).
+- **Errors:** a create that fails says why, once, starts no agent and leaves no row (D11).
+- **The name** (changed at promotion): generated past the existing worktree names, the
+  `agent/<name>` branches and any folder already at the target path, since Zed's rollback of a
+  refused create removes the target folder with force (D13).
 
 ### Out (explicitly deferred)
 - **Slice 2, its own ticket (the worktree's environment):** copying the gitignored files a
@@ -58,7 +68,7 @@ other's files; the rail shows each worktree as a row nested under its project.
 - Zed agent threads nested under their worktree: they stay under the project row.
 - A worktree agent from the New Agent picker (`ctrl-alt-n`) or from an MCP tool
   (`worktree_create`, report 06 §3 item 4).
-- The setting for agents' permission-bypass flags (Chad's decision of 2026-09-25, its own ticket).
+- A worktree member's Browser tabs as rows of their worktree (D12).
 - Remote (SSH) projects: the entry is not offered there.
 
 ## Reference (§20)
@@ -102,6 +112,29 @@ ruled worktrees out as planned here.
   `agents::start_cli`, `marley_agent::launch_input`, `routing::seed_first_terminal` and the rail's
   `build_snapshot`. The sweep's win: Zed already owns naming, layout, creation, rollback, trust and
   hooks, so the Zed side of this ticket is one parameter and one flag.
+- **Read again at promotion** (2026-09-28, an Explore report over `d90671dfc7`): every Zed seam
+  in the notes holds at its line (`worktree_service.rs` 359-1387, `repository.rs` 290-342 and
+  2265-2274, `git_store.rs` 597-624, 834-842, 3889-3918, 9144-9236, 10872, 12330-12371,
+  `zed_actions` 305-334, `worktree_names.rs:61`, `created_worktrees.rs`, `tasks.rs:235`,
+  `task_template.rs:95`, `persistence.rs:327`); `Worktree` also carries `is_bare`; the default
+  path is `<parent>/worktrees/<project>/<name>/<project>` (`worktrees_directory_for_repo`,
+  `git_store.rs:10749-10758`, and Zed's own tests); `create_worktree_workspace_inner` toasts most
+  failures itself (`worktree_service.rs:793-891`) and returns three early refusals without one
+  (`766-783`: no repository, a collab project, a creation in progress); a refused create rolls
+  back with `remove_worktree(path, true)`, which deletes the target folder before git runs
+  (`worktree_service.rs:566`, `git_store.rs:9481-9493`), and `do_create_worktree` checks a given
+  name only against registered worktree paths (`494-496`); `refresh_branch_list` emits
+  `HeadChanged` and `BranchListChanged` without refreshing `linked_worktrees`, which only
+  `compute_snapshot` does, with `GitWorktreeListChanged`; a window restores only its active
+  workspace, and a linked worktree's repository lists the main checkout (`is_main`) but not
+  itself. The Marley side moved: `launch_input(kind, mode)` and `start_cli`'s mode (#532);
+  `ProjectSnapshot { name, expanded, terminals, browsers, threads, ports, matched }` walked as
+  header, terminals, Browser tabs, threads, ports; the flat `terminals` read by `walk`, `parent`,
+  `window_row`, `switcher_rows`, the attention roll-ups, `note_turns_open` and `note_claude_code`,
+  which ends a Claude Code seat that left without `SessionEnd` (#547) and closes its turn (#509);
+  the rail follows no git store; `GroupEntry.workspace` is the group's last active member. Zed's
+  Threads Sidebar nests no worktree rows: its threads carry a worktree chip. The thread archive
+  removes a Zed-recorded worktree only through a Zed thread, draft or Agent Panel terminal in it.
 
 ## UI proof
 UI-AFFECTING. `script/e2e/510-worktree-agents.sh` (`compositor sway`: it clicks the rail). Setup:
@@ -117,8 +150,10 @@ one bracketed argument in the terminal), `510-04-branch` (the main checkout's te
 `git branch -vv --list 'agent/*'` with no upstream, `git config --get-regexp 'branch\..*\.base'`
 naming `main`), `510-05-opened` (a click on `manual`: its workspace open, its row selected, its
 terminal under it), `510-06-keys` (Left from the agent's row selects the worktree row), and
-`510-07-refused` (the worktrees folder made read-only, a second New Agent in Worktree: the reason
-shown, no new row).
+`510-07-refused` (the project's level of the worktrees folder, `worktrees/<project>`, made
+read-only, a second New Agent in Worktree: the reason shown once, no new row). Changed at
+promotion: the stand-in `claude` also prints its arguments, so `510-03-agent` shows the project's
+permission mode's flag when the scenario sets one, and the run log records it.
 
 ## Locked-In Decisions
 - D1 — Zed's worktree service makes the worktree, with one added parameter, the branch: a new pub
@@ -141,7 +176,8 @@ shown, no new row).
 - D5 — The first prompt goes on the agent's command line, never typed into its TUI: `claude <p>`,
   `codex <p>`, `gemini --prompt-interactive <p>`, `opencode --prompt <p>` (Orca's table), quoted by
   Orca's portable rule, so bash, zsh and fish read the same argument. The quoting lives in
-  `marley_agent`, pure, beside `launch_input`.
+  `marley_agent`, pure, beside `launch_input`. Changed at promotion: the permission mode's
+  arguments (#532) come before the prompt, `claude --dangerously-skip-permissions <p>`.
 - D6 — Marley writes nothing into another tool's configuration to trust the new folder. Claude
   Code saves trust per directory, so a new worktree shows its trust dialog; the prompt sits on the
   command line, where the dialog cannot take it, and runs once Chad answers. The rail shows the
@@ -149,17 +185,38 @@ shown, no new row).
 - D7 — The agent's terminal is the worktree's only one: Marley marks the worktree's path before the
   create, the Marley layout's first-terminal seed skips a workspace so marked, and Marley opens the
   agent's center terminal itself. Rejected: reusing the seeded terminal, which the seed opens
-  asynchronously, so the agent's start would race it.
+  asynchronously, so the agent's start would race it. Changed at promotion: `new_local`
+  canonicalizes a root, so the seed compares the workspace's first root with the mark by their
+  last two components (`<name>/<project>`), with no filesystem call; and a repository's
+  `create_worktree` task hooks open center terminals of their own, so the agent's is the only one
+  only when the repository has none.
 - D8 — The rows come from git, not from what the window holds open: every linked worktree of the
   project's repository (`RepositorySnapshot::linked_worktrees`) except the main checkout and those
   under the main checkout's `.claude/worktrees/`, so a worktree keeps its row after a restart,
-  which restores only each window's active workspace. A workspace open on a `.claude/worktrees/`
+  which restores only each window's active workspace. Changed at promotion: a linked
+  worktree's repository lists the main checkout but not itself, so the rows are the union of an
+  open member's `linked_worktrees` and that member when it is a linked worktree; the terminals
+  stay in the project's flat list, tagged with their worktree (D15). A workspace open on a `.claude/worktrees/`
   folder lists its terminals under the project row, as every member does today.
 - D9 — A click on an open worktree's row shows its workspace, as a project header does; on a row
   whose workspace is not open it runs Zed's `handle_switch_worktree`, which opens the worktree in
   the window.
 - D10 — The entry is offered for a local project with a git repository; the rail builds the rows
   from pure data in `marley_rail`, and the rebuild runs no git.
+- D11 (at promotion) — One report per failure: Zed's toast for the failures its create reports;
+  Marley offers the entry only for a local project with a repository, keeps its own creation in
+  flight per project, and shows its own toast only for a second request while one runs. The
+  `git config` of the base, if it fails, is shown and the agent still starts.
+- D12 (at promotion) — A worktree member's Browser tabs stay under the project row: a worktree
+  shares its project's Chromium profile (#507), and the tabs are the project's.
+- D13 (at promotion) — The name is generated past the existing worktree names, the `agent/*`
+  branches and a folder already at the target path, checked off the main thread before the
+  create, since Zed's rollback deletes the target folder with force.
+- D14 (at promotion) — The prompt follows a `--` for Claude Code and Codex when it starts with
+  `-`, and the `=` form for Gemini CLI and OpenCode, so no prompt is read as an option.
+- D15 (at promotion) — The terminals keep their place in the project's flat list, each tagged with
+  its worktree's path, and the rows group them: every reader of the list (the Claude Code
+  seats' ends, the turns, the switcher, the attention roll-ups) keeps working unchanged.
 
 ## Acceptance Criteria (EARS)
 One observable behavior per row, with a verification method.
@@ -170,23 +227,26 @@ One observable behavior per row, with a verification method.
 | REQ-002 | WHEN the user chooses an agent CLI under New Agent in Worktree, the system shall open a prompt for the agent's first prompt that names the branch and the base it will create. | Shot `510-02-prompt` |
 | REQ-003 | WHEN the user submits the prompt, the system shall create a linked worktree under Zed's `git.worktree_directory` on a new branch `agent/<name>` that starts at the main checkout's branch and has no upstream. | Shot `510-04-branch`; the run log's `git worktree list` |
 | REQ-004 | WHEN the worktree is created, the system shall write the main checkout's branch as `branch.agent/<name>.base` in the repository's git config. | Shot `510-04-branch` |
-| REQ-005 | WHEN the worktree is created, the system shall start the chosen agent CLI in the worktree's only center terminal with the first prompt, quotes and apostrophe included, as a single argument on its command line. | Shot `510-03-agent` |
+| REQ-005 | WHEN the worktree is created, the system shall start the chosen agent CLI in a center terminal of the worktree's workspace with the first prompt, quotes and apostrophe included, as a single argument on its command line, and with the project's permission mode. | Shot `510-03-agent`; the run log |
 | REQ-006 | WHILE a project has linked worktrees, the rail shall show one row for each under the project's row, with the worktree's name and its branch. | Shots `510-01-menu`, `510-03-agent` |
 | REQ-007 | WHILE a worktree's workspace is open, the rail shall list that workspace's terminals under the worktree's row, and the main checkout's terminals under the project's row. | Shot `510-03-agent` |
 | REQ-008 | WHERE a linked worktree lies under the main checkout's `.claude/worktrees/`, the rail shall show no row for it. | Shot `510-01-menu` |
 | REQ-009 | WHEN the user clicks the row of a worktree whose workspace is not open, the system shall open that worktree's workspace in the window and show it. | Shot `510-05-opened` |
 | REQ-010 | WHILE the rail holds focus, Left on a terminal row under a worktree shall move the selection to the worktree's row. | Shot `510-06-keys` |
-| REQ-011 | IF the worktree cannot be created, THEN the system shall show the reason, start no agent and add no row. | Shot `510-07-refused` |
+| REQ-011 | IF the worktree cannot be created, THEN the system shall show the reason once, start no agent and add no row. | Shot `510-07-refused` |
+| REQ-012 | The diff gate shall be green, and the golden set shall pass. | `script/gates.sh --diff`; `just regress` |
 
 ## Phase Plan
-- **P1 Plan** — this spec, and the design and the E2E plan in the notes.
+- **P1 Plan** — this spec, and the design and the E2E plan in the notes; at promotion
+  (2026-09-28): the seams re-verified, #532's mode and the report's findings taken in.
 - **P2 Code** — the two Zed touches with their rows in `docs/marley/zed-touchpoints.md` first;
   `marley_agent`'s prompt launch and quoting; `marley_rail`'s worktree rows; the workbench's menu
   entry, modal, create flow, base write, agent start and rows; the routing's seed skip; fmt and
   clippy clean; a review of the diff (§18.1).
-- **P3 Test** — write and run `script/e2e/510-worktree-agents.sh`, read every shot; once, by hand,
-  the real Claude Code in a new worktree to see the trust dialog keep the prompt (notes);
-  `script/gates.sh --diff` green.
+- **P3 Test** — write and run `script/e2e/510-worktree-agents.sh`, read every shot; the golden set;
+  `script/gates.sh --diff` green. Changed at promotion: the real Claude Code's trust dialog in a
+  new worktree is not run by this session (the real `claude` never starts here): it is recorded
+  as a check for Chad.
 - **P4 Complete** — CHANGELOG, `docs/marley_architecture/marley_rail.md` and `marley_workbench.md`,
   the plan's prong 2, the touchpoint rows checked against what shipped, ledger capture, close,
   archive, commit; file slice 2's ticket.

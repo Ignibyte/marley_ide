@@ -2786,3 +2786,22 @@ from its reported mode; otherwise from its arguments. Rejected:
 - words in the status line: a row with events names no agent, and no line under a title is
   colored;
 - the arguments alone: Claude Code's settings and Shift+Tab change the mode without them.
+
+## AD-claude-510-a-worktree-agent-is-zeds-worktree-on-a-branch-of-its-own-001
+*decided at: 2026-09-28 · status: shipped*
+
+A worktree agent is a git worktree Zed's own worktree service makes, on a new branch
+`agent/<name>` started at the main checkout's branch and tracking nothing, with the base written
+as `branch.agent/<name>.base` in the repository's config, and the agent CLI started in the
+worktree's workspace with its first prompt as one argument on its command line and its project's
+permission mode. Zed keeps naming, placement, rollback, the created-worktree record, trust and the
+`create_worktree` hooks; Marley adds one parameter and one flag to Zed. The rail lists every
+linked worktree of a project's repository from git, not from what the window holds, so a
+worktree keeps its row after a restart. Rejected:
+- a detached create followed by a checkout of the branch: the hooks would run on a detached HEAD,
+  and a failed checkout would leave a detached worktree;
+- typing the prompt into the agent's TUI: a trust dialog would take it;
+- writing trust into another tool's configuration: Claude Code saves trust per folder, and asks
+  once;
+- worktree terminals out of the project's flat list: every reader of the list (the ends of Claude
+  Code seats, the turns, the switcher) would have needed changing.

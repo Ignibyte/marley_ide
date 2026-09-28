@@ -75,10 +75,15 @@ fn seed_first_terminal(
         .map(|worktree| worktree.read(cx).abs_path().to_path_buf());
     let fresh = workspace.opened_from_saved_state() == Some(false);
     let no_terminal = workspace.items_of_type::<TerminalView>(cx).next().is_none();
+    // A worktree agent's workspace gets the agent's terminal instead (#510).
+    let agents_own = root
+        .as_deref()
+        .is_some_and(|root| crate::worktree_agents::take_seed_skip(root, cx));
     if let Some(window) = window
         && let Some(root) = root
         && fresh
         && no_terminal
+        && !agents_own
         && marley_layout(cx)
     {
         open_center_terminal(workspace, false, Some(root), window, cx);

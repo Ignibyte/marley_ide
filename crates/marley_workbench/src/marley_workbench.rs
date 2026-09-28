@@ -53,6 +53,7 @@ pub mod terminal_ids;
 pub mod turn_git;
 pub mod turns;
 pub mod voice;
+pub mod worktree_agents;
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::OsStr;
@@ -116,6 +117,9 @@ actions!(
         /// Closes the rich input, keeping its text for the next time it opens.
         #[derive(Eq)]
         CloseRichInput,
+        /// Makes the worktree and starts its agent with the prompt typed (#510).
+        #[derive(Eq)]
+        StartWorktreeAgent,
         /// Types the autosuggestion shown after the cursor; without one, the key goes to the
         /// terminal's program.
         #[derive(Eq)]

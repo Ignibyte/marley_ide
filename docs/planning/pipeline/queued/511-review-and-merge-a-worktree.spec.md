@@ -5,7 +5,7 @@ status: QUEUED — Phase 1 Plan drafted; ready to promote to active
 title: "Review and merge a worktree agent's branch, leaving the merge to the Rustal workflow where it runs"
 type: feature
 slice: prong 2, worktree agents, review and merge, slice 1 of 2 (removal is slice 2); after #510
-references: [docs/planning/pipeline/queued/510-worktree-agents.spec.md, docs/orca_architecture/02-worktrees-and-review.md]
+references: [docs/planning/pipeline/completed/510-worktree-agents.spec.md, docs/orca_architecture/02-worktrees-and-review.md]
 ---
 
 ## Title

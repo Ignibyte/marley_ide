@@ -371,7 +371,10 @@ OpenCode shows as an agent row with the CLI's title and a working or waiting sta
 project's `+` starts any installed CLI in one click; #532 adds permission modes to it: a
 setting, off by default and per project in the user's own settings, starts Claude Code with its
 bypass or Codex with its full access, and an agent row carries a chip whenever its agent runs
-without its prompts, however it was started. W5 shipped as #441: in the Marley layout
+without its prompts, however it was started; #510 adds worktree agents: New Agent in Worktree
+makes a git worktree on a branch of its own through Zed's worktree service and starts the agent
+there with its first prompt, and the rail lists each linked worktree of a project under it with
+its own terminals. W5 shipped as #441: in the Marley layout
 tasks, New Terminal and Open in Terminal open center terminals, and nothing opens the bottom
 panel. W5b shipped as #449: `` ctrl-` ``, `ctrl-~` and `ctrl-j` work on the center terminals,
 by catching Zed's actions rather than rebinding keys. W5c shipped as #450: `ctrl-alt-n` opens

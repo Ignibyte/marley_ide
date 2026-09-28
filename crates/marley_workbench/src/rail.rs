@@ -7,7 +7,7 @@
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -32,13 +32,15 @@ use marley_mcp::redact::Redactor;
 use marley_rail::{
     BrowserRow, BrowserSnapshot, Focus, InboxEntry, InboxKind, PortRow, PortSnapshot, ProjectRow,
     ProjectSnapshot, RailSnapshot, Row, Selection, SwitcherRow, TerminalAgent, TerminalRow,
-    TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus, TurnSnapshot,
+    TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus, TurnSnapshot, WorktreeRow,
+    WorktreeSnapshot,
 };
 use marley_system_one::reading::{Reading, Signal};
 use marley_system_one::{INBOX_RISK, QUESTION_ROUTE};
 use menu::{
     Cancel, Confirm, SelectChild, SelectFirst, SelectLast, SelectNext, SelectParent, SelectPrevious,
 };
+use project::git_store::{GitStoreEvent, RepositoryEvent};
 use project::{AgentId, AgentServerStore, AgentServersUpdated, Project, ProjectGroupKey};
 use recent_projects::sidebar_recent_projects::SidebarRecentProjects;
 use settings::{Settings as _, SystemOneMode};
@@ -66,7 +68,7 @@ use crate::browser::{BrowserEvent, BrowserHub, BrowserView};
 use crate::ports::{self, Ports};
 use crate::system_one::{self, Asking};
 use crate::turns::Turns;
-use crate::{MarleySettings, browser};
+use crate::{MarleySettings, browser, worktree_agents};
 
 #[path = "rail_switcher.rs"]
 mod switcher;
@@ -141,7 +143,7 @@ pub struct Rail {
     workspace_subscriptions: HashMap<EntityId, Subscription>,
     /// Per project: its folders, which decide its row, the row's name and its terminals'
     /// subtitles.
-    project_subscriptions: HashMap<EntityId, Subscription>,
+    project_subscriptions: HashMap<EntityId, [Subscription; 2]>,
     terminal_subscriptions: HashMap<EntityId, [Subscription; 2]>,
     /// Per Browser tab: its item events (#504).
     browser_subscriptions: HashMap<EntityId, Subscription>,
@@ -237,6 +239,18 @@ struct Snapshot {
     /// Beside each tool entry of the inbox, what the question route logs or asks, while its use
     /// is on (#570).
     inbox_route: HashMap<String, RouteAsking>,
+    /// The entities behind each worktree's row, by its folder (#510).
+    worktrees: HashMap<String, WorktreeEntry>,
+}
+
+/// The entities behind a worktree's row (#510), held weakly.
+struct WorktreeEntry {
+    /// Its workspace, while the window has it open.
+    member: Option<WeakEntity<Workspace>>,
+    /// Its project's workspace, which opens it when it is not open.
+    project: WeakEntity<Workspace>,
+    path: PathBuf,
+    name: String,
 }
 
 /// What the question route logs or asks about one tool entry (#570).
@@ -1333,24 +1347,37 @@ impl Rail {
         }
     }
 
-    /// Rebuilds the rail after each change to `project`'s folders.
+    /// Rebuilds the rail after each change to `project`'s folders, and to its repositories'
+    /// worktrees and branches, which make the worktree rows (#510).
     fn follow_folders(
         project: &Entity<Project>,
         window: &Window,
         cx: &mut Context<Self>,
-    ) -> Subscription {
-        cx.subscribe_in(
-            project,
-            window,
-            |_, _, event: &project::Event, window, cx| {
-                // The project reports a folder before the `MultiWorkspace` rekeys the project's
-                // group. A rebuild in between would find the project in no group and forget its
-                // rows' recency and attention dots.
-                if changes_the_folders(event) {
-                    cx.defer_in(window, Self::refresh);
-                }
-            },
-        )
+    ) -> [Subscription; 2] {
+        let git_store = project.read(cx).git_store().clone();
+        [
+            cx.subscribe_in(
+                project,
+                window,
+                |_, _, event: &project::Event, window, cx| {
+                    // The project reports a folder before the `MultiWorkspace` rekeys the
+                    // project's group. A rebuild in between would find the project in no group and
+                    // forget its rows' recency and attention dots.
+                    if changes_the_folders(event) {
+                        cx.defer_in(window, Self::refresh);
+                    }
+                },
+            ),
+            cx.subscribe_in(
+                &git_store,
+                window,
+                |_, _, event: &GitStoreEvent, window, cx| {
+                    if changes_the_worktrees(event) {
+                        cx.defer_in(window, Self::refresh);
+                    }
+                },
+            ),
+        ]
     }
 
     /// Shows `workspace` in the window. The rows hold their entities weakly, so the project may
@@ -1760,7 +1787,37 @@ impl Rail {
                     self.open_port(&workspace, url, window, cx)
                 })
             }
+            Selection::Worktree(path) => self.open_worktree(&path, window, cx),
         }
+    }
+
+    /// Shows a worktree's workspace, or opens the worktree in the window as Zed's worktree
+    /// picker does, when the window has it not open (#510).
+    fn open_worktree(
+        &self,
+        path: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let entry = self
+            .snapshot
+            .worktrees
+            .get(path)
+            .context("the worktree is gone")?;
+        if let Some(member) = &entry.member {
+            return self.activate_workspace(member, window, cx).map(drop);
+        }
+        let workspace = entry.project.upgrade().context("the project was closed")?;
+        let action = zed_actions::SwitchWorktree {
+            path: entry.path.clone(),
+            display_name: entry.name.clone(),
+        };
+        workspace.update(cx, |workspace, cx| {
+            git_ui_core::worktree_service::handle_switch_worktree(
+                workspace, &action, window, None, cx,
+            );
+        });
+        Ok(())
     }
 
     /// Shows `workspace` and opens `url` there in a Browser tab of its project, or brings forward
@@ -2217,7 +2274,7 @@ impl Rail {
                         let rail = rail.clone();
                         let workspace = workspace.clone();
                         let agent_search_path = agent_search_path.clone();
-                        Some(ContextMenu::build(window, cx, move |menu, _, _| {
+                        Some(ContextMenu::build(window, cx, move |menu, _, cx| {
                             let terminal_rail = rail.clone();
                             let terminal_workspace = workspace.clone();
                             let browser_rail = rail.clone();
@@ -2244,11 +2301,17 @@ impl Rail {
                                 .submenu("New Agent Thread", move |menu, _, cx| {
                                     Self::agent_menu(menu, &rail, &workspace, cx)
                                 });
-                            Self::agent_cli_entries(
+                            let menu = Self::agent_cli_entries(
                                 menu,
                                 &cli_rail,
                                 &cli_workspace,
                                 agent_search_path.as_deref(),
+                            );
+                            Self::worktree_agent_entries(
+                                menu,
+                                &cli_workspace,
+                                agent_search_path.as_deref(),
+                                cx,
                             )
                         }))
                     })
@@ -2316,6 +2379,67 @@ impl Rail {
                         }),
                 )
             })
+    }
+
+    /// New Agent in Worktree (#510): a submenu of the installed agent CLIs, after the Agent CLIs,
+    /// for a local project whose folder is a git repository.
+    fn worktree_agent_entries(
+        menu: ContextMenu,
+        workspace: &WeakEntity<Workspace>,
+        search_path: Option<&OsStr>,
+        cx: &App,
+    ) -> ContextMenu {
+        let offered = workspace
+            .upgrade()
+            .is_some_and(|workspace| worktree_agents::offered(workspace.read(cx), cx));
+        let agents = agents::installed_clis(search_path);
+        if !offered || agents.is_empty() {
+            return menu;
+        }
+        let workspace = workspace.clone();
+        menu.submenu("New Agent in Worktree", move |menu, _, _| {
+            agents.iter().fold(menu, |menu, kind| {
+                let (workspace, kind) = (workspace.clone(), *kind);
+                menu.item(
+                    ContextMenuEntry::new(kind.display_name())
+                        .icon(agents::cli_icon(kind))
+                        .icon_color(Color::Muted)
+                        .handler(move |window, cx| {
+                            worktree_agents::open_prompt(&workspace, kind, window, cx).log_err();
+                        }),
+                )
+            })
+        })
+    }
+
+    /// A linked worktree's row (#510): the branch icon, its name and branch, muted while its
+    /// workspace is not open; a click shows the workspace, or opens it.
+    fn render_worktree_row(row: WorktreeRow, cx: &Context<Self>) -> impl IntoElement {
+        let path = row.path.clone();
+        let selector = format!("marley-rail-worktree-{}", row.name);
+        let icon = Icon::new(IconName::GitBranch)
+            .size(IconSize::Small)
+            .color(Color::Muted)
+            .into_any_element();
+        let color = if row.open {
+            Color::Default
+        } else {
+            Color::Muted
+        };
+        let item = row_card(
+            SharedString::from(format!("marley-rail-worktree-{}", row.path)),
+            format!("{selector}-icon"),
+            row.selected,
+            icon,
+            row_label(row.name, row.highlight, color),
+            row.branch.into_iter().collect(),
+            cx,
+        )
+        .on_click(cx.listener(move |rail, _: &ClickEvent, window, cx| {
+            rail.open_row(Selection::Worktree(path.clone()), window, cx)
+                .log_err();
+        }));
+        div().debug_selector(move || selector).pl_2().child(item)
     }
 
     fn render_thread_row(
@@ -2423,6 +2547,7 @@ impl Rail {
                     .log_err();
             }
         }));
+        let nested = row.worktree.is_some();
         let turns = Self::render_turns(id, row.turns, row.turns_open, &terminal.workspace, cx);
         let rail = cx.entity().downgrade();
         let (menu_workspace, menu_view) = (terminal.workspace.clone(), terminal.view.clone());
@@ -2430,7 +2555,7 @@ impl Rail {
             .trigger(move |_, _, _| {
                 div()
                     .debug_selector(move || format!("marley-rail-terminal-{id}"))
-                    .pl_2()
+                    .map(|row| if nested { row.pl_6() } else { row.pl_2() })
                     .child(item)
             })
             .menu(move |window, cx| {
@@ -2863,6 +2988,24 @@ fn write_rail_state(zed_state: Option<&str>, state: RailState) -> String {
     blob.insert("width_set_by_user".into(), state.width.is_some().into());
     blob.insert("marley_rail_closed".into(), state.closed.into());
     serde_json::Value::Object(blob).to_string()
+}
+
+/// Whether a git store's event can change a project's worktree rows (#510): a repository come or
+/// gone, and a repository's worktrees, `HEAD` or branches, never its file statuses, which change
+/// with every save.
+const fn changes_the_worktrees(event: &GitStoreEvent) -> bool {
+    matches!(
+        event,
+        GitStoreEvent::RepositoryAdded
+            | GitStoreEvent::RepositoryRemoved(_)
+            | GitStoreEvent::RepositoryUpdated(
+                _,
+                RepositoryEvent::GitWorktreeListChanged
+                    | RepositoryEvent::HeadChanged
+                    | RepositoryEvent::BranchListChanged,
+                _,
+            )
+    )
 }
 
 fn resubscribe<E: 'static, S>(
@@ -3550,8 +3693,8 @@ fn group_threads(
 /// the CLI's own title and its status, else the terminal's title and working directory.
 fn terminal_snapshot(
     view: &Entity<TerminalView>,
-    root: Option<&std::path::Path>,
-    home: &std::path::Path,
+    root: Option<&Path>,
+    home: &Path,
     foreground_command: ForegroundCommand,
     last_output: Option<Instant>,
     now: Instant,
@@ -3645,6 +3788,7 @@ fn terminal_snapshot(
             })
             .collect(),
         turns_open: false,
+        worktree: None,
         matched: None,
     }
 }
@@ -3693,10 +3837,16 @@ fn build_snapshot(
             .or_else(|| group.workspaces.first().cloned())?;
         Some((group, name, workspace))
     });
+    let mut displayed_worktree = None;
     for (group, name, workspace) in listed {
+        let (worktrees, tags) = group_worktrees(group, &workspace, filter, &mut snapshot, cx);
+        if group.workspaces.contains(displayed) {
+            displayed_worktree = tags.get(&displayed.entity_id()).cloned();
+        }
         let mut terminals = Vec::new();
         let mut browsers = Vec::new();
         for member in &group.workspaces {
+            let worktree = tags.get(&member.entity_id()).cloned();
             // Subtitles read against the member's own first root: a linked worktree's, not the
             // main repository's the group is keyed by.
             let root = member
@@ -3717,6 +3867,7 @@ fn build_snapshot(
                     cx,
                 );
                 terminal.matched = filter_match(filter, &terminal.title);
+                terminal.worktree.clone_from(&worktree);
                 if terminal.agent.is_some() {
                     snapshot.agent_terminals.insert(view.entity_id());
                 }
@@ -3746,6 +3897,7 @@ fn build_snapshot(
             browsers,
             threads,
             ports: port_snapshots(&group.key, filter, cx),
+            worktrees,
             matched,
         });
         snapshot.groups.push(GroupEntry {
@@ -3753,6 +3905,28 @@ fn build_snapshot(
             workspace: workspace.downgrade(),
         });
     }
+    snapshot.rail.filtering = !filter.is_empty();
+    note_focus(
+        &mut snapshot,
+        &groups,
+        displayed,
+        displayed_worktree,
+        window,
+        cx,
+    );
+    snapshot
+}
+
+/// What the window shows, for the one selected row: the displayed workspace's project, its active
+/// terminal or Browser tab, its worktree (#510), and the Agent Panel's thread.
+fn note_focus(
+    snapshot: &mut Snapshot,
+    groups: &[ProjectGroup],
+    displayed: &Entity<Workspace>,
+    worktree: Option<String>,
+    window: &Window,
+    cx: &App,
+) {
     let panel = displayed.read(cx).panel::<AgentPanel>(cx);
     let panel_thread = panel
         .as_ref()
@@ -3761,7 +3935,6 @@ fn build_snapshot(
     snapshot.shown_thread = panel_thread
         .clone()
         .filter(|_| AgentPanel::is_visible(displayed, cx));
-    snapshot.rail.filtering = !filter.is_empty();
     let (terminal, terminal_focused, browser) = active_rows(displayed, window, cx);
     snapshot.rail.focus = Focus {
         cursor: None,
@@ -3770,6 +3943,7 @@ fn build_snapshot(
             .position(|group| group.workspaces.contains(displayed)),
         terminal,
         browser,
+        worktree,
         terminal_focused,
         thread: panel_thread.filter(|_| {
             panel
@@ -3777,7 +3951,159 @@ fn build_snapshot(
                 .is_some_and(|panel| panel.focus_handle(cx).contains_focused(window, cx))
         }),
     };
-    snapshot
+}
+
+/// A group's worktree rows (#510), their entities put in `snapshot`, and the folder of each
+/// member that is a listed linked worktree, which its terminals list under.
+fn group_worktrees(
+    group: &ProjectGroup,
+    workspace: &Entity<Workspace>,
+    filter: &str,
+    snapshot: &mut Snapshot,
+    cx: &App,
+) -> (Vec<WorktreeSnapshot>, HashMap<EntityId, String>) {
+    let gits: Vec<(Entity<Workspace>, MemberGit)> = group
+        .workspaces
+        .iter()
+        .filter_map(|member| Some((member.clone(), member_git(member, cx)?)))
+        .collect();
+    let rows = worktree_rows(&gits, filter);
+    let tags = gits
+        .iter()
+        .filter(|(_, git)| git.linked)
+        .map(|(member, git)| (member.entity_id(), git.root.display().to_string()))
+        .filter(|(_, path)| rows.iter().any(|(row, _)| row.path == *path))
+        .collect();
+    let rows = rows
+        .into_iter()
+        .map(|(row, member)| {
+            snapshot.worktrees.insert(
+                row.path.clone(),
+                WorktreeEntry {
+                    member,
+                    project: workspace.downgrade(),
+                    path: PathBuf::from(&row.path),
+                    name: row.name.clone(),
+                },
+            );
+            row
+        })
+        .collect();
+    (rows, tags)
+}
+
+/// A member workspace's place in its repository (#510): its first folder, whether that is a
+/// linked worktree, the repository's main checkout, and the linked worktrees the repository
+/// lists, which leave out the member itself.
+struct MemberGit {
+    root: PathBuf,
+    linked: bool,
+    main: Option<PathBuf>,
+    /// The member's branch, or its short commit when it is detached.
+    branch: Option<String>,
+    others: Vec<git::repository::Worktree>,
+}
+
+/// `member`'s place in the repository whose folder is its first, when it is one.
+fn member_git(member: &Entity<Workspace>, cx: &App) -> Option<MemberGit> {
+    let project = member.read(cx).project().read(cx);
+    let root = project.visible_worktrees(cx).next()?.read(cx).abs_path();
+    let repository = project
+        .git_store()
+        .read(cx)
+        .repositories()
+        .values()
+        .find(|repository| *repository.read(cx).work_directory_abs_path == *root)?;
+    let snapshot = repository.read(cx);
+    Some(MemberGit {
+        root: root.to_path_buf(),
+        linked: snapshot.is_linked_worktree(),
+        main: snapshot.main_worktree_abs_path().map(Path::to_path_buf),
+        branch: snapshot
+            .branch
+            .as_ref()
+            .map(|branch| branch.name().to_string())
+            .or_else(|| {
+                snapshot
+                    .head_commit
+                    .as_ref()
+                    .map(|commit| short_commit(&commit.sha))
+            }),
+        others: snapshot.linked_worktrees().to_vec(),
+    })
+}
+
+/// A commit's first seven characters, as git abbreviates one.
+fn short_commit(sha: &str) -> String {
+    sha.chars().take(7).collect()
+}
+
+/// A group's worktree rows (#510), each with its open workspace: the linked worktrees the open
+/// members' repositories list, and each open member that is a linked worktree, since a linked
+/// repository lists the main checkout but not itself; none for the main checkout, and none under
+/// its `.claude/worktrees/`, which are Claude Code's own.
+fn worktree_rows(
+    gits: &[(Entity<Workspace>, MemberGit)],
+    filter: &str,
+) -> Vec<(WorktreeSnapshot, Option<WeakEntity<Workspace>>)> {
+    let main = gits.iter().find_map(|(_, git)| git.main.clone());
+    let scratch = main
+        .as_ref()
+        .map(|main| main.join(".claude").join("worktrees"));
+    let mut found: Vec<(PathBuf, Option<String>)> = Vec::new();
+    let mut add = |path: &Path, branch: Option<String>| {
+        let listed = main.as_deref() != Some(path)
+            && !scratch
+                .as_ref()
+                .is_some_and(|scratch| path.starts_with(scratch))
+            && !found.iter().any(|(known, _)| known == path);
+        if listed {
+            found.push((path.to_path_buf(), branch));
+        }
+    };
+    for (_, git) in gits {
+        for other in git.others.iter().filter(|other| !other.is_main) {
+            let branch = other
+                .branch_name()
+                .map_or_else(|| short_commit(&other.sha), str::to_string);
+            add(&other.path, Some(branch));
+        }
+        if git.linked {
+            add(&git.root, git.branch.clone());
+        }
+    }
+    found
+        .into_iter()
+        .map(|(path, branch)| {
+            let member = gits
+                .iter()
+                .find(|(_, git)| git.linked && git.root == path)
+                .map(|(member, _)| member.downgrade());
+            let name = main
+                .as_deref()
+                .and_then(|main| project::linked_worktree_short_name(main, &path))
+                .map(|name| name.to_string())
+                .or_else(|| {
+                    path.file_name()
+                        .map(|name| name.to_string_lossy().into_owned())
+                })
+                .unwrap_or_else(|| path.display().to_string());
+            let matched = filter_match(filter, &name).or_else(|| {
+                branch
+                    .as_deref()
+                    .and_then(|branch| filter_match(filter, branch))
+                    .map(|_| Vec::new())
+            });
+            let row = WorktreeSnapshot {
+                path: path.display().to_string(),
+                name,
+                branch,
+                open: member.is_some(),
+                matched,
+            };
+            (row, member)
+        })
+        .collect()
 }
 
 /// The rows the displayed workspace's active center item makes current: a terminal's, with
@@ -4234,6 +4560,7 @@ impl Render for Rail {
                 Row::Port(row) => self.snapshot.groups.get(row.project).map(|group| {
                     Self::render_port_row(row, group.workspace.clone(), cx).into_any_element()
                 }),
+                Row::Worktree(row) => Some(Self::render_worktree_row(row, cx).into_any_element()),
             })
             .collect();
         v_flex()

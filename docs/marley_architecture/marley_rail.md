@@ -68,6 +68,16 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
 - **`TerminalSnapshot::flag`** (#569) is the tooltip of a working agent's warning mark, when the
   stall kind flagged it `looping?` or `stalled?`; the builders copy it to `TerminalRow::flag`, and
   it too decides no order or visibility.
+- **Worktree rows** (#510). `ProjectSnapshot::worktrees` lists a project's linked worktrees as
+  `WorktreeSnapshot { path, name, branch, open, matched }`, and `TerminalSnapshot::worktree`
+  tags a terminal with its worktree's folder. The walk puts a project's header, the main
+  checkout's terminals, then each worktree's row with its terminals under it, then the Browser
+  tabs, the threads and the ports; a shown terminal keeps its worktree's row above it, and under a
+  filter a worktree shows for its name or branch, with its terminals. `Selection::Worktree` and
+  `Row::Worktree` carry the folder; `parent` climbs from a worktree's terminal to its row and from
+  the row to the project, and `cycle_project` climbs through it; `Focus::worktree` puts the
+  displayed worktree's row before the project header in the selection. The terminals stay in the
+  project's flat list, so every other reader of it is unchanged.
 - **`TerminalAgent::mark`** (#532) is the agent's permission mark, `marley_agent`'s
   `PermissionMark`, when it runs without its permission prompts; the builders copy it with the
   agent, and it decides no order or visibility.

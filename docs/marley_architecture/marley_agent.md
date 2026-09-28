@@ -25,6 +25,8 @@ pub fn send_payload(line: &str) -> Vec<u8>;        // the line and a carriage re
 pub enum LaunchMode { Ask, Bypass }                // #532
 pub fn launch_input(kind: AgentKind, mode: LaunchMode) -> Vec<u8>;
                                                      // the program, the mode's arguments, Enter
+pub fn launch_line(kind: AgentKind, mode: LaunchMode, prompt: &str) -> Vec<u8>;   // #510
+pub fn quote_argument(argument: &str) -> String;     // one word for bash, zsh and fish
 pub const BYPASS_MODE: &str;                         // "bypassPermissions"
 pub enum MarkKind { Bypass, FullAccess }
 pub enum MarkSource { Reported, Argument(&'static str) }
@@ -50,6 +52,12 @@ pub fn event_line(project: &str, kind: AgentKind, event: TurnEvent) -> String;
   `--dangerously-skip-permissions`; Codex's `--sandbox danger-full-access --ask-for-approval
   never`, never `--dangerously-bypass-approvals-and-sandbox`), and Enter. No text from a user
   or a file reaches the shell this way (#532 keeps it: the arguments are constants).
+- **`launch_line`** (#510) adds a first prompt as one quoted argument: positional for Claude Code
+  and Codex, after a `--` when it starts with `-`; `--prompt-interactive=` for Gemini CLI and
+  `--prompt=` for OpenCode. `quote_argument` puts runs of anything but an apostrophe or a
+  backslash in single quotes and each of those two in double quotes, Orca's form (MIT), which
+  bash, zsh and fish read alike; fish reads `\'` and `\\` as escapes inside single quotes, so sh's
+  `'\''` breaks there.
 - **`permission_mark`** (#532) says whether an agent runs without its prompts. For Claude Code a
   reported mode decides (`BYPASS_MODE` marks, any other clears), else its arguments
   (`--dangerously-skip-permissions`, `--permission-mode bypassPermissions` and its `=` form);

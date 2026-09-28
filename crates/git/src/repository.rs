@@ -2266,6 +2266,9 @@ impl GitRepository for RealGitRepository {
                 branch_name,
                 base_sha: start_point,
             } => {
+                // Marley: a worktree agent's branch tracks nothing, so `git status` never calls it
+                // behind before it is pushed (#510).
+                args.push(OsString::from("--no-track"));
                 args.push(OsString::from("-b"));
                 args.push(OsString::from(branch_name));
                 args.push(OsString::from("--"));

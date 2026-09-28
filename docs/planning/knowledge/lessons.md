@@ -3614,3 +3614,24 @@ Claude Code 2.1.283 can enter bypass without `--dangerously-skip-permissions` in
 leave it with Shift+Tab after starting with it. Its arguments say how it started; the
 `permission_mode` every hook event carries says what it does now, as of its latest event. Read
 the reported mode first, and the arguments only for a session that sends no events.
+
+## L-claude-510-a-scenario-clicks-a-context-menus-submenu-entry-001
+*category: process · topic: e2e scenarios · from: pipeline 510*
+
+In the headless e2e runs, a submenu of the rail's `+` (Zed's `ContextMenu`) does not follow the
+keyboard: Right opened nothing, Enter opened the submenu without moving the keys into it, so a
+second Enter confirmed the parent again, and the submenu drew only after the pointer came over
+its entry. A scenario reaches a submenu's entry by Down steps to the parent, Enter, then a click
+on the entry's measured point, and hovers the parent entry before a shot of the open submenu.
+
+## L-claude-510-zeds-worktree-create-names-places-and-rolls-back-001
+*category: code · topic: git worktrees · from: pipeline 510*
+
+Zed's worktree service puts a worktree at `<parent>/worktrees/<project>/<name>/<project>` with the
+default `git.worktree_directory`, names it `<name>` (`linked_worktree_short_name`), checks a given
+name only against the registered worktree paths, and rolls a refused create back with
+`remove_worktree(path, true)`, which deletes the target folder before git runs. A caller that
+names its worktree keeps the name off existing folders and branches itself. Its create shows its
+own toast for every failure after three early refusals (no repository, a collab project, a create
+in flight), so a caller reports only its own steps. A linked worktree's repository lists the main
+checkout (`is_main`) but not itself.

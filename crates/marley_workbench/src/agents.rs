@@ -274,6 +274,17 @@ pub fn start_cli(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
+    start_cli_with_prompt(workspace, kind, String::new(), window, cx);
+}
+
+/// As [`start_cli`], with `prompt` as the agent's first prompt on its command line (#510).
+pub fn start_cli_with_prompt(
+    workspace: &mut Workspace,
+    kind: AgentKind,
+    prompt: String,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
     let mode = {
         let project = workspace.project().read(cx);
         let folders = if project.is_local() {
@@ -300,7 +311,7 @@ pub fn start_cli(
         // A terminal without a PTY is ready at once; the timeout covers a shell that never
         // echoes the handshake's marker.
         futures::future::select(startup, timeout).await;
-        let input = marley_agent::launch_input(kind, mode);
+        let input = marley_agent::launch_line(kind, mode, &prompt);
         let launch = |terminal: &mut Terminal, cx: &mut Context<Terminal>| {
             terminal.write_init_command_after_startup(input, cx)
         };
