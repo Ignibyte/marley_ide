@@ -105,6 +105,8 @@ pub struct HookEvent {
     pub trigger: Option<String>,
     /// Whether the user interrupted the tool, for `PostToolUseFailure`.
     pub is_interrupt: Option<bool>,
+    /// The first question's option labels, for an `AskUserQuestion` (#570).
+    pub options: Option<Vec<String>>,
 }
 
 /// What the user's request has done so far (#566), for the stop kind. The fold starts from the
@@ -439,7 +441,7 @@ impl Moving {
                 if !call.is_empty() {
                     let _added = self.facts.pending.insert(call);
                 }
-                self.wait(format!("Permission for {asked}"), &waiting_on);
+                self.wait(format!("Permission for {asked}"), Vec::new(), &waiting_on);
             }
             "Stop" if lead => {
                 self.end_turn(State::Idle);
@@ -494,7 +496,12 @@ impl Moving {
                 .preview
                 .as_deref()
                 .map_or_else(|| "A question".to_string(), one_line);
-            self.wait(question, event.tool_use_id.as_deref().unwrap_or_default());
+            let options = event.options.clone().unwrap_or_default();
+            self.wait(
+                question,
+                options,
+                event.tool_use_id.as_deref().unwrap_or_default(),
+            );
         } else if lead {
             self.set(TOOL_LABEL, &shown);
             if self.state != State::Waiting {
@@ -575,12 +582,12 @@ impl Moving {
             .map(|(_, shown)| shown.as_str())
     }
 
-    fn wait(&mut self, prompt: String, waiting_on: &str) {
+    fn wait(&mut self, prompt: String, options: Vec<String>, waiting_on: &str) {
         self.set(WAITING_ON_LABEL, waiting_on);
         self.state = State::Waiting;
         self.question = Some(Question {
             prompt,
-            options: Vec::new(),
+            options,
             context_refs: Vec::new(),
         });
     }

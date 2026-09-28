@@ -220,6 +220,33 @@ pub fn level(tool: ToolClass, chips: &[Chip]) -> u8;    // 1 to 5
 - `ChipKind::noul` names the model's question about each of the seven a tool's action can carry,
   and `from_noul` reads it back; `pays` and `changes account` come from #571's classes alone.
 
+## Who should answer an inbox entry (`src/route.rs`, #570)
+
+```rust
+pub enum Route { Owner, Manager, CouldProceed, Unclear }  // words, rank: 0, 1, 2, and 0
+pub enum RouteSource { Rule(&'static str), Reading }
+pub struct RouteMark { route: Route, source: RouteSource }
+pub struct Facts<'a> { action: &Action<'a>, tool_name: &str, chips: &[Chip], options: &[String] }
+pub enum Class { Owner(&'static str), CouldProceed(&'static str), Open }  // mark()
+pub fn classify(facts: &Facts) -> Class;
+pub fn route_of_choice(option: &str) -> Route;
+```
+
+- `classify` decides, first match winning: the owner's for a #568 chip of `destroys`,
+  `credentials`, `rewrites history`, `sends out`, `outside project`, `pays` or `changes account`,
+  for words that name money (and, outside a command, whose `$` is a variable, a currency sign
+  next to a figure) or a message to people; open for a claim of approval, which no rule lets
+  through; could proceed for a local read tool whose every path lies inside the project, or a
+  command whose every simple command is a read-only program (`ls`, `cat`, `grep`, `git status`,
+  `git log`, `find` without a delete or an exec …) with no redirection; open for the rest. The
+  rule's name, such as `rewrites history`, is what the mark's tooltip gives. It shares
+  `risk.rs`'s tokenizer, `program`, `words` and `resolve`.
+- `route_of_choice` reads the System One choice: `owner`, `manager`, `agent_proceeds`, and
+  `unclear` for `cannot_tell` or anything else. `rank` puts the owner's and the unclear first,
+  since a person is the floor.
+- `claude_events::HookEvent.options` (#570) carries an AskUserQuestion's first question's option
+  labels, which `wait` puts in the seat's `Question.options`.
+
 ## Consumers
 
 - `marley_rail`: a terminal row carries `TerminalAgent { kind, status }` when an agent runs in
@@ -232,7 +259,8 @@ pub fn level(tool: ToolClass, chips: &[Chip]) -> u8;    // 1 to 5
 - `marley_workbench::stall` (#569): `repeats`, `tool_name`, `judge`, `checks`, `quiet_words`,
   `labels`, `active`, `ticks_since_boot`, `boot_time_in` and `tree_cpu_in` for the watch.
 - `marley_workbench::rail` (#568): `classify`, `level`, `ToolClass::of_claude_tool` and the
-  chips' words for the inbox, whose entries in `marley_rail` carry the `Chip`s.
+  chips' words for the inbox, whose entries in `marley_rail` carry the `Chip`s; since #570
+  `route::classify`, `route_of_choice` and the `RouteMark` an entry carries.
 - `marley_workbench::rail`:
   - recognition through `agent_kind_of`;
   - the `+` menu's Agent CLIs section (`AgentKind::ALL`, filtered to what the search path

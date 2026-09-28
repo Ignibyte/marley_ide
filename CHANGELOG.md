@@ -13,6 +13,24 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The inbox says who should answer each waiting agent** (#570, 2026-09-28). With the question
+  route's mode on, each entry of the rail's "Needs you" section carries a mark: `for you`, `for
+  the manager`, `could proceed` or `unclear`. Marley's own rules decide first: what #568 marks as
+  destroying, touching credentials, rewriting history, sending out or reaching outside the
+  project, a held click, and anything that names money or a message to people is yours; a read
+  inside the project, or a command that only reads, is one the agent could proceed on. The rest,
+  such as `npm test` or an agent's question, the System One layer may read for a listed project,
+  with the question's options and your prompt as masked text; a reading that cannot tell, or
+  falls under the floor, is `unclear`, which sorts with yours. In Act the marks order the entries
+  within each of #568's levels: yours and the unclear first, then the manager's, then what could
+  proceed. A mark's tooltip names the rule or the reading and its confidence. Nothing here
+  answers anything, and no manager is connected yet: a `for the manager` entry stays yours. When
+  an entry leaves, its outcome records `owner` if you answered it from the inbox or had its
+  terminal or thread in front while it waited, and `agent` otherwise. Off by default: Question
+  Route on the Marley page, or `marley.system_one.uses.question_route`. Marley's Claude Code
+  plugin goes to 1.4.0: an agent's question now carries its options, and the agent bar offers the
+  update.
+
 - **The inbox marks what each waiting action would do, and puts what matters most first** (#568,
   2026-09-28). With the inbox's risk use on, each entry of the rail's "Needs you" section carries
   chips from Marley's own rules, read from the tool and what it acts on: `destroys` (`rm -rf`,

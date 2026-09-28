@@ -776,6 +776,10 @@ def main():
         for seat in seats:
             labels = seat.get("labels", {})
             shown = "".join(f", {key} {labels[key]!r}" for key in ("prompt", "tool", "message", "error") if key in labels)
+            # A waiting question's options (#570).
+            options = (seat.get("question") or {}).get("options") or []
+            if options:
+                shown += f", options {options!r}"
             print(f"  seat {seat['id']}: {seat['state']}{shown}")
         if not seats:
             print("  no seats")

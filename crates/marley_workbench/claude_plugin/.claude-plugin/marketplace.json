@@ -8,7 +8,7 @@
       "name": "marley",
       "source": "./marley",
       "description": "Desktop notifications from Claude Code in Marley's terminals, and Marley's own tools over MCP",
-      "version": "1.3.0"
+      "version": "1.4.0"
     }
   ]
 }

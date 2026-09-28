@@ -301,9 +301,9 @@ fn push_section() -> [SettingsPageItem; 4] {
 
 // Marley: the System One layer's switch, provider and budget, and a way to its Decisions view
 // (#565). The project lists, and each use's mode past the check's, the stop kind's (#566), the
-// find tools' (#567), the stall kind's (#569), the click consequence's (#571) and the inbox's
-// (#568), live in settings.json.
-fn system_one_section() -> [SettingsPageItem; 14] {
+// find tools' (#567), the stall kind's (#569), the click consequence's (#571), the inbox's
+// (#568) and the question route's (#570), live in settings.json.
+fn system_one_section() -> [SettingsPageItem; 15] {
     [
         SettingsPageItem::SectionHeader("System One"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -648,6 +648,38 @@ fn system_one_section() -> [SettingsPageItem; 14] {
                     let _before = match value {
                         Some(mode) => uses.insert("inbox".to_string(), mode),
                         None => uses.remove("inbox"),
+                    };
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: the mode of the question route (#570).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Question Route",
+            description: "The mode of the question route, which marks each entry of the rail's inbox with who should answer it: you, a manager agent, the agent itself (could proceed), or unclear, from Marley's own rules first and the model for what the rules leave open. Nothing here answers anything. Off shows no marks. Shadow shows the rules' marks and logs the model, Suggest shows the model's marks with a question mark, and Act lets the marks order the inbox within each level too.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.system_one.uses.question_route"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.system_one.as_ref())
+                        .and_then(|system_one| system_one.uses.as_ref())
+                        .and_then(|uses| uses.get("question_route"))
+                },
+                write: |settings_content, value, _| {
+                    let uses = settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .system_one
+                        .get_or_insert_default()
+                        .uses
+                        .get_or_insert_default();
+                    let _before = match value {
+                        Some(mode) => uses.insert("question_route".to_string(), mode),
+                        None => uses.remove("question_route"),
                     };
                 },
             }),

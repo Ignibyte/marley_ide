@@ -1716,7 +1716,8 @@
       // of a block from words, listed only while not "off"; the stall kind flags a working Claude
       // Code that loops or has gone quiet; the click consequence holds an agent's consequential
       // click in a Browser tab for Allow or Refuse; the inbox marks what waits in the rail's inbox
-      // with risk chips and orders it by them.
+      // with risk chips and orders it by them; the question route marks who should answer each
+      // entry: you, a manager, the agent itself, or unclear.
       "uses": {
         "check": "act",
         "stop_kind": "off",
@@ -1725,6 +1726,7 @@
         "stall_kind": "off",
         "click_consequence": "off",
         "inbox": "off",
+        "question_route": "off",
       },
     },
   },

@@ -3556,3 +3556,22 @@ several terminal entries in the inbox runs the stand-in `claude` in a terminal e
 case from its first argument. `palette "workspace: new terminal"` opens each in the center with
 the focus, from anywhere and with no point to measure, where the rail's `+` moves as the inbox
 grows above it.
+
+## L-claude-570-an-outcome-read-from-the-focus-needs-its-wait-to-start-unwatched-001
+*category: process · topic: e2e scenarios · from: pipeline 570*
+
+#570 counts a wait as the owner's when its terminal held the focus at any refresh while it
+waited. A scenario opens a terminal and types into it, so a stand-in whose request comes at its
+first Enter is watched from its first moment and can never read `agent`. To prove `agent`, the
+stand-in sends its request after a delay, once the scenario has moved the focus on, and ends the
+wait itself later with no input (a step marked `auto` with an `after`, and a `sleep` event),
+while nothing brings its terminal forward.
+
+## L-claude-570-a-choice-that-abstains-reads-as-no-signal-001
+*category: code · topic: the System One layer · from: pipeline 570*
+
+#565's reader turns a choice of `cannot_tell` (or `none`) into `Signal::Nothing`, as it does a
+confidence under the floor, so a use never sees the abstaining option by name. A use that must
+show its own floor for those, as the question route's `unclear` does, maps a `Nothing` on its
+key, and a `Refused` or `Unavailable` reading, to that floor itself, and keeps no confidence to
+show for it.

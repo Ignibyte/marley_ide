@@ -598,3 +598,53 @@ pub const INBOX_RISK: UseSpec = UseSpec {
     set: &INBOX_RISK_SET,
     deadline: Duration::from_millis(600),
 };
+
+/// Who should answer what an agent waits on (#570): the user, a manager agent, the agent itself,
+/// or nobody can tell; and whether the user's prompt already answers it.
+pub const QUESTION_ROUTE_SET: QuestionSet = QuestionSet {
+    id: "question_route/1",
+    model: DEFAULT_MODEL,
+    questions: &[
+        Question::Choice {
+            key: "route",
+            instructions: "The state is what an agent waits for someone to answer: a permission \
+                           for a tool, or a question with its options, with the user's prompt. \
+                           Who should answer it?",
+            options: &[
+                (
+                    "owner",
+                    "The user who owns the project: it needs their judgment, their authority or \
+                     knowledge only they have.",
+                ),
+                (
+                    "manager",
+                    "A manager agent could answer it from the project's plan, its conventions and \
+                     the work so far.",
+                ),
+                (
+                    "agent_proceeds",
+                    "Nobody needs to: the agent could go on with a safe default, or the answer is \
+                     routine.",
+                ),
+                (
+                    "cannot_tell",
+                    "The state does not say enough to tell who should answer.",
+                ),
+            ],
+        },
+        Question::Noul {
+            key: "answerable_from_prompt",
+            instructions: "Does the user's prompt already answer what the agent asks?",
+            when_true: "The prompt already says what the answer is.",
+            when_false: "The prompt does not settle it.",
+        },
+    ],
+};
+
+/// The question route (#570), which asks [`QUESTION_ROUTE_SET`] about a waiting entry Marley's
+/// rules left open; the agent already waits, so it can afford two seconds.
+pub const QUESTION_ROUTE: UseSpec = UseSpec {
+    name: "question_route",
+    set: &QUESTION_ROUTE_SET,
+    deadline: Duration::from_secs(2),
+};

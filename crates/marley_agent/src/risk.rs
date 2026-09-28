@@ -243,14 +243,14 @@ pub fn level(tool: ToolClass, chips: &[Chip]) -> u8 {
 /// One simple command of a line: its words without their quotes, and whether the line piped the
 /// command before it into this one.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Command {
-    words: Vec<String>,
-    piped: bool,
+pub(crate) struct Command {
+    pub(crate) words: Vec<String>,
+    pub(crate) piped: bool,
 }
 
 /// The simple commands of `line`, split at `;`, `&&`, `||`, `|`, `&`, `(`, `)` and new lines
 /// outside quotes.
-fn commands(line: &str) -> Vec<Command> {
+pub(crate) fn commands(line: &str) -> Vec<Command> {
     let mut commands = Vec::new();
     let mut words = Vec::new();
     let mut word = String::new();
@@ -339,13 +339,13 @@ fn is_assignment(word: &str) -> bool {
 }
 
 /// The program's name: the last part of its path.
-fn program(command: &Command) -> Option<&str> {
+pub(crate) fn program(command: &Command) -> Option<&str> {
     let first = command.words.first()?;
     Some(first.rsplit('/').next().unwrap_or(first))
 }
 
 /// The words after the program.
-fn arguments(command: &Command) -> &[String] {
+pub(crate) fn arguments(command: &Command) -> &[String] {
     command.words.get(1..).unwrap_or_default()
 }
 
@@ -661,7 +661,7 @@ fn reaches_outside(action: &Action, commands: &[Command]) -> bool {
 
 /// `path` as an absolute path: `~` read as the home folder and a relative path against `cwd`,
 /// with `.` and `..` taken out; none when it cannot be told.
-fn resolve(path: &Path, cwd: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> {
+pub(crate) fn resolve(path: &Path, cwd: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> {
     let text = path.to_str()?;
     let joined = if text == "~" {
         home?.to_path_buf()
@@ -721,7 +721,7 @@ const APPROVAL_CLAIMS: &[&str] = &[
 
 /// `text` lowercased, as words separated by single spaces with a space before and after, so a
 /// phrase matches whole words only.
-fn words(text: &str) -> String {
+pub(crate) fn words(text: &str) -> String {
     let joined = text
         .to_lowercase()
         .split(|character: char| !character.is_alphanumeric())
@@ -732,7 +732,7 @@ fn words(text: &str) -> String {
 }
 
 /// Whether the `words` of a text hold one of `phrases` as whole words.
-fn holds_any(words: &str, phrases: &[&str]) -> bool {
+pub(crate) fn holds_any(words: &str, phrases: &[&str]) -> bool {
     phrases
         .iter()
         .any(|phrase| words.contains(&format!(" {phrase} ")))

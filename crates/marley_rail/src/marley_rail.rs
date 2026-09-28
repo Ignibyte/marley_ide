@@ -24,6 +24,7 @@
 use std::path::Path;
 
 use marley_agent::risk::Chip;
+use marley_agent::route::RouteMark;
 use marley_agent::{AgentKind, AgentStatus};
 
 /// One project group as the rail sees it: Zed's project group flattened to what a row shows.
@@ -253,6 +254,9 @@ pub struct InboxEntry {
     pub chips: Vec<Chip>,
     /// Its level, from 1 to 5, which orders the inbox while the use is on (#568).
     pub level: u8,
+    /// Who should answer it, and where that came from (#570); none while the question route's use
+    /// is off, or while nothing has said.
+    pub route: Option<RouteMark>,
 }
 
 /// How long an inbox entry has waited, in words, from `seconds`: `now` under a minute, then
@@ -281,6 +285,8 @@ pub struct RailSnapshot {
     /// Whether a model's chips in the inbox show as suggestions, with a question mark, rather
     /// than with a dashed border (#568).
     pub inbox_suggests: bool,
+    /// Whether a route a model read shows as a suggestion, with a question mark (#570).
+    pub route_suggests: bool,
 }
 
 /// The single selected row.
@@ -960,6 +966,7 @@ mod tests {
             filtering: false,
             inbox: Vec::new(),
             inbox_suggests: false,
+            route_suggests: false,
         }
     }
 

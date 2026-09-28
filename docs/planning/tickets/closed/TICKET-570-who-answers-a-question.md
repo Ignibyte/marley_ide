@@ -2,13 +2,13 @@
 
 - **Ticket:** LOCAL #570 (feature, prong 2, C1's attention on #508's inbox with #568's chips; use 5 of the System One layer, on #565)
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/570-who-answers-a-question.spec.md
+- **Pipeline doc:** ../../pipeline/completed/570-who-answers-a-question.spec.md
 - **Source ticket:** Chad, 2026-09-26, approving the seven ranked uses of
   `docs/planning/design-notes/jev-system-one-2026-09-25.md` (use 5, "Who answers a question") on
   the layer TICKET-565 builds, with his rules: "local first and then jev second", and "we need
   probably every aspect of this configurable and turned off / on where the system will use or
   wont use it. Otherwise this becomes a jev required system."
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 #508 gathers every agent's pending question into one list, and #568 marks each entry's risk and

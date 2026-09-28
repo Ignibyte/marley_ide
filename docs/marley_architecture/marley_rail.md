@@ -78,7 +78,10 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
   `chips` (`marley_agent::risk::Chip`: what the action would do, and whether Marley's rules or a
   model put it there) and its `level`, 1 to 5, which orders the inbox while the risk use is on;
   `inbox_suggests` says a model's chips show as suggestions, with a question mark, rather than
-  dashed, so a change of the use's mode changes the snapshot and redraws.
+  dashed, so a change of the use's mode changes the snapshot and redraws. Since #570 an entry
+  carries its `route` (`marley_agent::route::RouteMark`: who should answer it, and whether a rule
+  or a reading said so), and `route_suggests` says a reading's route shows with a question
+  mark.
 - **`working_directory_label`** is a terminal row's second line: the directory relative to the
   project root, or with the home directory written as `~` outside it. It is empty at the root
   itself and when the terminal cannot tell (no path, or an empty one).

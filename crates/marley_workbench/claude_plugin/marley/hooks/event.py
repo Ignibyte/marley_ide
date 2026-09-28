@@ -17,6 +17,9 @@ MAX_SUMMARY = 2900
 MAX_PROMPT = 300
 MAX_MESSAGE = 300
 MAX_PREVIEW = 200
+# An AskUserQuestion's options, which the inbox's question route reads (#570).
+MAX_OPTIONS = 8
+MAX_OPTION = 40
 # The input field that says what a tool acts on, by tool.
 PREVIEW_KEYS = {
     "Read": "file_path",
@@ -75,6 +78,20 @@ def preview(tool, tool_input):
     return cut(value, MAX_PREVIEW) if value else None
 
 
+def options(tool_input):
+    if not isinstance(tool_input, dict):
+        return None
+    questions = tool_input.get("questions")
+    if not (isinstance(questions, list) and questions and isinstance(questions[0], dict)):
+        return None
+    listed = questions[0].get("options")
+    if not isinstance(listed, list):
+        return None
+    labels = [cut(option["label"], MAX_OPTION) for option in listed
+              if isinstance(option, dict) and isinstance(option.get("label"), str)]
+    return labels[:MAX_OPTIONS] or None
+
+
 def summary(event):
     name = event.get("hook_event_name")
     out = {"v": 1, "event": name}
@@ -90,6 +107,10 @@ def summary(event):
             shown = preview(tool, event.get("tool_input"))
             if shown:
                 out["preview"] = shown
+            if tool == "AskUserQuestion":
+                labels = options(event.get("tool_input"))
+                if labels:
+                    out["options"] = labels
         if isinstance(event.get("tool_use_id"), str):
             out["tool_use_id"] = event["tool_use_id"]
     if name == "PostToolUseFailure" and event.get("is_interrupt") is True:
@@ -103,9 +124,9 @@ def summary(event):
     for key in ("source", "trigger", "reason"):
         if isinstance(event.get(key), str):
             out[key] = event[key]
-    # Bound the frame. Paths are short but have no bound, so an overlong one goes first; then the
-    # fields the row shows, longest first.
-    for key in ("transcript_path", "cwd", "message", "preview", "prompt"):
+    # Bound the frame. Paths are short but have no bound, so an overlong one goes first; then a
+    # question's options, which no row shows; then the fields the row shows, longest first.
+    for key in ("transcript_path", "cwd", "options", "message", "preview", "prompt"):
         if len(json.dumps(out, separators=(",", ":"))) <= MAX_SUMMARY:
             break
         out.pop(key, None)

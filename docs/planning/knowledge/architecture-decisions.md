@@ -2732,3 +2732,21 @@ on. Rejected:
   commands read a cut line and err toward a chip;
 - the working directory as a fact: it is a path, text the agent's environment wrote;
 - asking about held clicks again: #571 already decided and logged each one.
+
+## AD-claude-570-the-inbox-marks-who-should-answer-and-answers-nothing-001
+*decided at: 2026-09-28 · status: shipped · builds on: AD-claude-568-inbox-risk-chips-come-from-code-and-a-reading-only-adds-001*
+
+Each entry of the approvals inbox carries who should answer it: the owner, a manager agent, the
+agent itself (could proceed), or unclear. Code decides first: #568's dangerous chips, a held
+click, money and messages to people are the owner's, and a read inside the project or a command
+that only reads could proceed; the System One layer reads only the rest, and a reading that
+abstains or falls under the floor is unclear, which sorts with the owner's, since a person is the
+floor. In act the route orders entries within #568's level, never across it. The outcome records
+`owner` when the user answered from the inbox or had the entry's terminal or thread in front with
+the focus, and `agent` otherwise. Nothing answers a permission or a question, and until a manager
+connects a manager's entry stays the user's. Rejected:
+- a reading that could lower an owner's entry, or any rule that lets a claim of approval through:
+  the waiting text is the agent's own (the note's safety rule 6);
+- ordering across levels by the route: what could destroy or leak stays first whoever answers;
+- asking about held clicks: they are the owner's by their class, and #571 logged them;
+- a turn's last message in the state: a waiting seat's is empty.

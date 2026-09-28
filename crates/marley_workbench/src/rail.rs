@@ -24,6 +24,7 @@ use gpui::{
     Subscription, Task, WeakEntity, Window, img, px,
 };
 use marley_agent::risk::{self, Action, Chip, ChipKind, ChipSource, ToolClass};
+use marley_agent::route::{self, Route, RouteMark, RouteSource};
 use marley_agent::{AgentKind, WAITING_AFTER, claude_events};
 use marley_browser::consequence::Class;
 use marley_browser::ports::Stopped;
@@ -33,8 +34,8 @@ use marley_rail::{
     ProjectSnapshot, RailSnapshot, Row, Selection, SwitcherRow, TerminalAgent, TerminalRow,
     TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus,
 };
-use marley_system_one::INBOX_RISK;
 use marley_system_one::reading::{Reading, Signal};
+use marley_system_one::{INBOX_RISK, QUESTION_ROUTE};
 use menu::{
     Cancel, Confirm, SelectChild, SelectFirst, SelectLast, SelectNext, SelectParent, SelectPrevious,
 };
@@ -121,6 +122,8 @@ pub struct Rail {
     inbox_timer: Option<Task<()>>,
     /// What the inbox's risk use keeps of each tool entry, by its key (#568).
     risk: HashMap<String, Risk>,
+    /// What the question route keeps of each tool entry, by its key (#570).
+    routes: HashMap<String, RouteState>,
     /// The window as the rail last read it. `render` draws from this alone, so another entity's
     /// notify does not redraw the window, and an event that changes nothing shown does not either:
     /// workspaces and terminal views report every chunk of terminal output.
@@ -228,6 +231,35 @@ struct Snapshot {
     /// Beside each tool entry of the inbox, what its risk use logs or asks, while the use is on
     /// (#568).
     inbox_risk: HashMap<String, RiskAsking>,
+    /// Beside each tool entry of the inbox, what the question route logs or asks, while its use
+    /// is on (#570).
+    inbox_route: HashMap<String, RouteAsking>,
+}
+
+/// What the question route logs or asks about one tool entry (#570).
+struct RouteAsking {
+    /// The entry's ask, which a row or a reading belongs to.
+    ask: String,
+    /// The state: with the rules' verdict when they marked the entry, and none when they left it
+    /// open, which is asked.
+    asking: Asking,
+}
+
+/// The question route for one tool entry (#570).
+struct RouteState {
+    /// The ask it belongs to.
+    ask: String,
+    /// When the entry was first seen.
+    seen: Instant,
+    /// The row that logged it, a call or a `rules` row, for its outcome.
+    row: Option<String>,
+    /// The model's reading, once it came: the route, and its confidence when there was an answer.
+    reading: Option<(Route, Option<f64>)>,
+    /// Whether the user answered it from the inbox, or had its terminal or its thread in front
+    /// with the focus while it waited.
+    owner_seen: bool,
+    /// The ask in flight.
+    _task: Option<Task<()>>,
 }
 
 /// What the inbox's risk use logs or asks about one tool entry (#568).
@@ -264,11 +296,14 @@ struct RiskReading {
     urgency: Option<u8>,
 }
 
-/// What one workspace's inbox entries are read against (#568).
+/// What one workspace's inbox entries are read against (#568), and which uses read them: the
+/// risk use (#568) and the question route (#570).
 struct RiskScope {
     folders: Vec<PathBuf>,
     local: bool,
     redactor: Arc<Redactor>,
+    marking: bool,
+    routing: bool,
 }
 
 /// What a tool entry waits to do, as the risk rules read it (#568).
@@ -283,6 +318,10 @@ struct Waiting {
     cwd: Option<PathBuf>,
     /// Who waits, in words, a fact of the state.
     agent: String,
+    /// A question's options (#570).
+    options: Vec<String>,
+    /// The user's prompt the wait belongs to, when the seat has it (#570).
+    prompt: Option<String>,
 }
 
 /// What an inbox entry acts on (#508).
@@ -398,6 +437,7 @@ impl Rail {
             inbox_seen: HashMap::default(),
             inbox_timer: None,
             risk: HashMap::default(),
+            routes: HashMap::default(),
             snapshot: Snapshot::default(),
             zed_sidebar,
             zed_sidebar_state: None,
@@ -502,6 +542,95 @@ impl Rail {
         }
         self.snapshot = snapshot;
         self.follow_risk(window, cx);
+        self.follow_route(window, cx);
+    }
+
+    /// Logs each new tool entry of the inbox once for the question route (#570), a `rules` row
+    /// when Marley's rules marked it and a call when they left it open, whose reading lands with a
+    /// refresh; notes who had each entry's place in front with the focus; and logs who answered
+    /// each entry with a row once it leaves: `owner`, or `agent`.
+    fn follow_route(&mut self, window: &Window, cx: &mut Context<Self>) {
+        if system_one::use_mode(QUESTION_ROUTE.name, cx) == SystemOneMode::Off {
+            self.routes.clear();
+            return;
+        }
+        let now = cx.background_executor().now();
+        let focus = &self.snapshot.rail.focus;
+        if window.is_window_active() {
+            for (key, state) in &mut self.routes {
+                let watched = match self.snapshot.inbox.get(key) {
+                    Some(InboxTarget::Terminal(id)) => {
+                        focus.terminal == Some(*id) && focus.terminal_focused
+                    }
+                    Some(InboxTarget::Thread { thread_key, .. }) => {
+                        focus.thread.as_deref() == Some(thread_key.as_str())
+                    }
+                    Some(InboxTarget::Click(_)) | None => false,
+                };
+                state.owner_seen |= watched;
+            }
+        }
+        let gone: Vec<String> = self
+            .routes
+            .keys()
+            .filter(|key| !self.snapshot.inbox_route.contains_key(*key))
+            .cloned()
+            .collect();
+        for key in gone {
+            let Some(RouteState {
+                row: Some(row),
+                seen,
+                owner_seen,
+                ..
+            }) = self.routes.remove(&key)
+            else {
+                continue;
+            };
+            let who = if owner_seen { "owner" } else { "agent" };
+            let waited = now.saturating_duration_since(seen).as_secs();
+            system_one::outcome(&row, format!("{who} after {waited} s"), cx);
+        }
+        for (key, item) in &self.snapshot.inbox_route {
+            if self
+                .routes
+                .get(key)
+                .is_some_and(|state| state.ask == item.ask)
+            {
+                continue;
+            }
+            let (row, task) = if item.asking.verdict.is_some() {
+                let row = system_one::record(QUESTION_ROUTE, &item.asking, cx)
+                    .row
+                    .map(|row| row.id);
+                (row, None)
+            } else {
+                let asked = system_one::ask(QUESTION_ROUTE, &item.asking, cx);
+                let (key, ask) = (key.clone(), item.ask.clone());
+                let task = cx.spawn_in(window, async move |rail, cx| {
+                    let asked = asked.await;
+                    rail.update_in(cx, |rail, window, cx| {
+                        if let Some(state) = rail.routes.get_mut(&key)
+                            && state.ask == ask
+                        {
+                            state.row = asked.row.as_ref().map(|row| row.id.clone());
+                            state.reading = route_reading(&asked.reading);
+                            rail.refresh(window, cx);
+                        }
+                    })
+                    .log_err();
+                });
+                (None, Some(task))
+            };
+            let state = RouteState {
+                ask: item.ask.clone(),
+                seen: self.inbox_seen.get(key).copied().unwrap_or(now),
+                row,
+                reading: None,
+                owner_seen: false,
+                _task: task,
+            };
+            self.routes.insert(key.clone(), state);
+        }
     }
 
     /// Logs each new tool entry of the inbox once (#568): as a `rules` row when Marley's rules
@@ -625,8 +754,34 @@ impl Rail {
                 }
             }
         }
+        let routing = system_one::use_mode(QUESTION_ROUTE.name, cx);
+        snapshot.rail.route_suggests = routing == SystemOneMode::Suggest;
+        if matches!(routing, SystemOneMode::Suggest | SystemOneMode::Act) {
+            for entry in &mut snapshot.rail.inbox {
+                if entry.route.is_some() {
+                    continue;
+                }
+                entry.route = self
+                    .routes
+                    .get(&entry.key)
+                    .filter(|state| state.ask == entry.ask)
+                    .and_then(|state| state.reading)
+                    .map(|(route, _)| RouteMark {
+                        route,
+                        source: RouteSource::Reading,
+                    });
+            }
+        }
         let seen = &self.inbox_seen;
-        if mode == SystemOneMode::Off {
+        if routing == SystemOneMode::Act {
+            // An entry the route has not marked yet waits for a person, as `unclear` does (D5).
+            snapshot.rail.inbox.sort_by_key(|entry| {
+                let rank = entry
+                    .route
+                    .map_or(Route::Unclear.rank(), |mark| mark.route.rank());
+                (Reverse(entry.level), rank, seen.get(&entry.key).copied())
+            });
+        } else if mode == SystemOneMode::Off {
             snapshot
                 .rail
                 .inbox
@@ -783,7 +938,8 @@ impl Rail {
         .on_click(cx.listener(move |rail, _, window, cx| {
             rail.open_inbox_entry(&open_key, window, cx);
         }));
-        let chips = self.render_chips(entry, cx);
+        let mut chips = self.render_chips(entry, cx);
+        chips.extend(self.render_route(entry));
         let buttons = entry.answers.then(|| {
             let (allow_key, deny_key) = (key.clone(), key.clone());
             let refuse = if entry.kind == InboxKind::Click {
@@ -820,7 +976,7 @@ impl Rail {
                 )
         });
         let selector = format!("marley-rail-inbox-entry-{key}");
-        let line = (!entry.chips.is_empty() || buttons.is_some()).then(|| {
+        let line = (!chips.is_empty() || buttons.is_some()).then(|| {
             h_flex()
                 .pl_2()
                 .gap_1()
@@ -888,11 +1044,63 @@ impl Rail {
             .collect()
     }
 
+    /// An inbox entry's route (#570): who should answer it, with a question mark while a reading's
+    /// is a suggestion, and the rule or the reading in a tooltip.
+    fn render_route(&self, entry: &InboxEntry) -> Option<AnyElement> {
+        let mark = entry.route?;
+        let (words, tooltip) = match mark.source {
+            RouteSource::Rule(rule) => (
+                mark.route.words().to_string(),
+                format!("Marley's rule: {rule}"),
+            ),
+            RouteSource::Reading => {
+                let confidence = self
+                    .routes
+                    .get(&entry.key)
+                    .and_then(|state| state.reading)
+                    .and_then(|(_, confidence)| confidence);
+                let suffix = if self.snapshot.rail.route_suggests {
+                    "?"
+                } else {
+                    ""
+                };
+                (
+                    format!("{}{suffix}", mark.route.words()),
+                    confidence.map_or_else(
+                        || "System One could not tell".to_string(),
+                        |confidence| {
+                            format!("System One: {} ({confidence:.2})", mark.route.words())
+                        },
+                    ),
+                )
+            }
+        };
+        Some(
+            div()
+                .id(SharedString::from(format!(
+                    "marley-rail-inbox-route-{}",
+                    entry.key
+                )))
+                .px_1()
+                .child(
+                    Label::new(words)
+                        .size(LabelSize::XSmall)
+                        .color(Color::Accent),
+                )
+                .tooltip(Tooltip::text(tooltip))
+                .into_any_element(),
+        )
+    }
+
     /// Allow or Deny, or for a paused click Allow or Refuse, on the inbox entry `key` (#508).
     fn answer_inbox(&mut self, key: &str, allow: bool, window: &Window, cx: &mut Context<Self>) {
-        // For the outcome of the risk use's row (#568); a held click has none.
+        // For the outcome of the risk use's row (#568) and the route's (#570); a held click has
+        // neither.
         if let Some(risk) = self.risk.get_mut(key) {
             risk.answered = Some(if allow { "allowed" } else { "denied" });
+        }
+        if let Some(state) = self.routes.get_mut(key) {
+            state.owner_seen = true;
         }
         match self.snapshot.inbox.get(key) {
             Some(InboxTarget::Thread { .. }) => self.answer_thread(key, allow, window, cx),
@@ -2601,8 +2809,9 @@ const fn changes_the_folders(event: &project::Event) -> bool {
 fn inbox_entries(project: &str, members: &[Entity<Workspace>], snapshot: &mut Snapshot, cx: &App) {
     let hub = BrowserHub::try_global(cx);
     let marking = system_one::use_mode(INBOX_RISK.name, cx) != SystemOneMode::Off;
+    let routing = system_one::use_mode(QUESTION_ROUTE.name, cx) != SystemOneMode::Off;
     for member in members {
-        let scope = marking.then(|| RiskScope::of(member, cx));
+        let scope = (marking || routing).then(|| RiskScope::of(member, marking, routing, cx));
         let conversations = member
             .read(cx)
             .panel::<AgentPanel>(cx)
@@ -2639,7 +2848,14 @@ fn inbox_entries(project: &str, members: &[Entity<Workspace>], snapshot: &mut Sn
             snapshot.rail.inbox.push(entry);
         }
         if let Some(hub) = &hub {
-            click_entries(project, member, hub.read(cx), marking, snapshot, cx);
+            click_entries(
+                project,
+                member,
+                hub.read(cx),
+                (marking, routing),
+                snapshot,
+                cx,
+            );
         }
     }
 }
@@ -2660,16 +2876,19 @@ fn seat_entry(project: &str, id: u64, seat: &marley_fleet::Session) -> InboxEntr
         answers: false,
         chips: Vec::new(),
         level: 0,
+        route: None,
     }
 }
 
 /// Each Browser tab of `member` that holds an agent's click, as an inbox entry, once a page; with
-/// the chip of the click's class while the risk use is on (#568).
+/// the chip of the click's class while the risk use is on (#568), and the owner's route while the
+/// question route is (#570): the click waits because it could pay, delete, send or change an
+/// account.
 fn click_entries(
     project: &str,
     member: &Entity<Workspace>,
     hub: &BrowserHub,
-    marking: bool,
+    (marking, routing): (bool, bool),
     snapshot: &mut Snapshot,
     cx: &App,
 ) {
@@ -2681,12 +2900,12 @@ fn click_entries(
             continue;
         };
         let key = format!("click:{target}");
-        let chips: Vec<Chip> = hub
-            .pause_class(&target)
-            .and_then(click_chip)
-            .filter(|_| marking)
-            .into_iter()
-            .collect();
+        let class_chip = hub.pause_class(&target).and_then(click_chip);
+        let route = class_chip.filter(|_| routing).map(|chip| RouteMark {
+            route: Route::Owner,
+            source: RouteSource::Rule(chip.kind.words()),
+        });
+        let chips: Vec<Chip> = class_chip.filter(|_| marking).into_iter().collect();
         if let std::collections::hash_map::Entry::Vacant(vacant) = snapshot.inbox.entry(key.clone())
         {
             vacant.insert(InboxTarget::Click(target));
@@ -2704,6 +2923,7 @@ fn click_entries(
                     0
                 },
                 chips,
+                route,
             });
         }
     }
@@ -2723,19 +2943,23 @@ const fn click_chip(class: Class) -> Option<Chip> {
 
 impl RiskScope {
     /// What `workspace`'s entries are read against: its folders, whether it is on this machine,
-    /// and the redactor that finds a secret in a line.
-    fn of(workspace: &Entity<Workspace>, cx: &App) -> Self {
+    /// the redactor that finds a secret in a line, and which uses read them.
+    fn of(workspace: &Entity<Workspace>, marking: bool, routing: bool, cx: &App) -> Self {
         let (folders, local) = system_one::project_of(workspace.read(cx), cx);
         Self {
             folders,
             local,
             redactor: crate::mcp::model_redactor(cx),
+            marking,
+            routing,
         }
     }
 }
 
-/// Marks `entry` with the chips Marley's rules give what it waits on, and its level, and keeps
-/// beside it what the risk use logs or asks (#568).
+/// Reads what `entry` waits on with Marley's rules: while the risk use is on, marks it with its
+/// chips and level and keeps beside it what that use logs or asks (#568); while the question
+/// route is on, marks who should answer it by the rules and keeps what the route logs or asks
+/// (#570), with the chips as its facts whether the risk use is on or not.
 fn mark(entry: &mut InboxEntry, waiting: &Waiting, scope: &RiskScope, snapshot: &mut Snapshot) {
     let root = scope.folders.first();
     let cwd = waiting
@@ -2752,46 +2976,87 @@ fn mark(entry: &mut InboxEntry, waiting: &Waiting, scope: &RiskScope, snapshot: 
         home: Some(util::paths::home_dir().as_path()),
         secret: scope.redactor.redact(&waiting.line).count > 0,
     };
-    entry.chips = risk::classify(&action);
-    entry.level = risk::level(waiting.tool, &entry.chips);
-    let nouls: Vec<&str> = entry
-        .chips
-        .iter()
-        .filter_map(|chip| chip.kind.noul())
-        .collect();
-    let found = if entry.chips.is_empty() {
+    let chips = risk::classify(&action);
+    let found = if chips.is_empty() {
         "nothing".to_string()
     } else {
-        entry
-            .chips
+        chips
             .iter()
             .map(|chip| chip.kind.words())
             .collect::<Vec<_>>()
             .join(", ")
     };
     let project = system_one::project_name(&scope.folders);
-    let asking = Asking {
-        subject: entry.key.clone(),
-        facts: vec![
-            ("tool", waiting.tool_name.clone()),
-            ("agent", waiting.agent.clone()),
-            ("project", project.clone()),
-            ("code found", found),
-        ],
-        texts: vec![("ask", entry.ask.clone())],
-        verdict: (!nouls.is_empty()).then(|| system_one::nouls_verdict(&nouls)),
-        project,
-        folders: scope.folders.clone(),
-        local: scope.local,
-    };
-    snapshot.inbox_risk.insert(
-        entry.key.clone(),
-        RiskAsking {
-            ask: entry.ask.clone(),
-            tool: waiting.tool,
-            asking,
-        },
-    );
+    if scope.marking {
+        let nouls: Vec<&str> = chips.iter().filter_map(|chip| chip.kind.noul()).collect();
+        let asking = Asking {
+            subject: entry.key.clone(),
+            facts: vec![
+                ("tool", waiting.tool_name.clone()),
+                ("agent", waiting.agent.clone()),
+                ("project", project.clone()),
+                ("code found", found.clone()),
+            ],
+            texts: vec![("ask", entry.ask.clone())],
+            verdict: (!nouls.is_empty()).then(|| system_one::nouls_verdict(&nouls)),
+            project: project.clone(),
+            folders: scope.folders.clone(),
+            local: scope.local,
+        };
+        snapshot.inbox_risk.insert(
+            entry.key.clone(),
+            RiskAsking {
+                ask: entry.ask.clone(),
+                tool: waiting.tool,
+                asking,
+            },
+        );
+        entry.level = risk::level(waiting.tool, &chips);
+        entry.chips.clone_from(&chips);
+    }
+    if scope.routing {
+        let class = route::classify(&route::Facts {
+            action: &action,
+            tool_name: &waiting.tool_name,
+            chips: &chips,
+            options: &waiting.options,
+        });
+        entry.route = class.mark();
+        let mut texts = vec![("ask", entry.ask.clone())];
+        if !waiting.options.is_empty() {
+            texts.push(("options", waiting.options.join(", ")));
+        }
+        if let Some(prompt) = &waiting.prompt {
+            texts.push(("prompt", prompt.clone()));
+        }
+        let asking = Asking {
+            subject: entry.key.clone(),
+            facts: vec![
+                ("tool", waiting.tool_name.clone()),
+                ("agent", waiting.agent.clone()),
+                ("project", project.clone()),
+                ("chips", found),
+            ],
+            texts,
+            verdict: match class {
+                route::Class::Owner(_) => Some(system_one::choice_verdict("route", "owner")),
+                route::Class::CouldProceed(_) => {
+                    Some(system_one::choice_verdict("route", "agent_proceeds"))
+                }
+                route::Class::Open => None,
+            },
+            project,
+            folders: scope.folders.clone(),
+            local: scope.local,
+        };
+        snapshot.inbox_route.insert(
+            entry.key.clone(),
+            RouteAsking {
+                ask: entry.ask.clone(),
+                asking,
+            },
+        );
+    }
 }
 
 /// What an Agent Panel tool call waits to do (#568): its kind's class, the command it runs or its
@@ -2836,6 +3101,8 @@ fn thread_waiting(call: &acp_thread::ToolCall, agent: &str, cx: &App) -> Waiting
         paths,
         cwd: text("cd").map(PathBuf::from),
         agent: format!("{agent} in the Agent Panel"),
+        options: Vec::new(),
+        prompt: None,
     }
 }
 
@@ -2844,6 +3111,11 @@ fn thread_waiting(call: &acp_thread::ToolCall, agent: &str, cx: &App) -> Waiting
 fn seat_waiting(seat: &marley_fleet::Session, ask: &str) -> Waiting {
     let cwd = seat.labels.get(claude_events::CWD_LABEL).map(PathBuf::from);
     let agent = "Claude Code in a terminal".to_string();
+    let prompt = seat
+        .labels
+        .get(claude_events::PROMPT_LABEL)
+        .filter(|prompt| !prompt.is_empty())
+        .cloned();
     let Some(asked) = ask.strip_prefix("Permission for ") else {
         return Waiting {
             tool: ToolClass::Question,
@@ -2852,6 +3124,12 @@ fn seat_waiting(seat: &marley_fleet::Session, ask: &str) -> Waiting {
             paths: Vec::new(),
             cwd,
             agent,
+            options: seat
+                .question
+                .as_ref()
+                .map(|question| question.options.clone())
+                .unwrap_or_default(),
+            prompt,
         };
     };
     let (name, preview) = asked.split_once(": ").unwrap_or((asked, ""));
@@ -2868,6 +3146,8 @@ fn seat_waiting(seat: &marley_fleet::Session, ask: &str) -> Waiting {
         paths,
         cwd,
         agent,
+        options: Vec::new(),
+        prompt,
     }
 }
 
@@ -2884,6 +3164,28 @@ fn unescape(markdown: &str) -> String {
         }
     }
     plain.replace("&lt;", "<")
+}
+
+/// A model's reading of who should answer an entry (#570): the choice at or above the floor, and
+/// `unclear` for `cannot_tell`, a reading under the floor, no signal, a refusal or no answer at
+/// all; none while the use is off or for a rule's row.
+fn route_reading(reading: &Reading) -> Option<(Route, Option<f64>)> {
+    match reading {
+        Reading::Model(reads) => Some(
+            reads
+                .iter()
+                .find(|read| read.key == "route")
+                .and_then(|read| match &read.signal {
+                    Signal::Choice { option, confidence } => {
+                        Some((route::route_of_choice(option), Some(*confidence)))
+                    }
+                    Signal::Noul { .. } | Signal::Score { .. } | Signal::Nothing(_) => None,
+                })
+                .unwrap_or((Route::Unclear, None)),
+        ),
+        Reading::Refused(_) | Reading::Unavailable(_) => Some((Route::Unclear, None)),
+        Reading::Off | Reading::Rules(_) => None,
+    }
 }
 
 /// A model's reading of a tool entry (#568): each noul that holds as a chip, with its
@@ -2955,6 +3257,7 @@ fn thread_entry(
         answers: answers.is_some(),
         chips: Vec::new(),
         level: 0,
+        route: None,
     };
     let target = InboxTarget::Thread {
         thread_key,

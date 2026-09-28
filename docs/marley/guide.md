@@ -448,7 +448,7 @@ directory (`$CLAUDE_CONFIG_DIR`, else `~/.claude`), read when Marley starts, and
 `claude` it found on the PATH then. With no `claude` there, the install fails with "`claude` is not
 on the PATH".
 
-The plugin, `marley` 1.3.0, brings three things:
+The plugin, `marley` 1.4.0, brings three things:
 
 - **Notifications.** Its hooks run when Claude Code needs your permission, when it waits for you,
   and when it finishes, and ask Claude Code to write an OSC 777 notify to its terminal. You get a
@@ -463,8 +463,9 @@ The plugin, `marley` 1.3.0, brings three things:
 - **The rail's rows.** Its event hook writes a short summary of each of Claude Code's hook events
   to the terminal, and the rail's row shows the prompt, the tool in flight, what it waits on and
   the last message (#519). Since 1.3.0 a message over 300 characters keeps its start and its last
-  whole sentences, where a question or a status sits (#566). The agent bar offers the update to a
-  plugin that is older than Marley's.
+  whole sentences, where a question or a status sits (#566). Since 1.4.0 an agent's question
+  carries its options, which the inbox's question route reads (#570). The agent bar offers the
+  update to a plugin that is older than Marley's.
 
 ## Zed's Agent Panel with Marley's tools
 
@@ -978,6 +979,31 @@ longest.
   border and lets them order the inbox too.
 - Each entry is a row in Decisions, a rule's under the provider `rules`, and how it was cleared,
   from the inbox or elsewhere, is its outcome.
+
+### The question route
+
+With its mode on, each entry of the rail's "Needs you" section also says who should answer it
+(#570): `for you`, `for the manager`, `could proceed` (the agent could go on by itself) or
+`unclear`. Nothing here answers anything; the mark tells you what to look at first.
+
+- Marley's own rules decide first, with no call: what the inbox risk marks as destroying,
+  touching credentials, rewriting history, sending out or reaching outside the project, a held
+  click, and anything that names money or a message to people is yours; a read inside the
+  project, or a command that only reads (`ls`, `cat`, `git status` and the like), could proceed.
+- The rest, such as `npm test` or an agent's question with its options, may be read by the model
+  for a listed project, with your prompt and the question's options as masked text. A reading
+  that cannot tell, falls under the floor or gets no answer is `unclear`, which sorts with yours.
+- The pointer on a mark says where it came from: "Marley's rule: rewrites history", or "System
+  One: for the manager (0.88)".
+- No manager agent is connected yet, so a `for the manager` entry stays yours to answer; the mark
+  is what the manager will take once rustal-harness's manager runs.
+- The mode is Question Route on the settings page, or `uses.question_route`: Off (the default)
+  shows no marks; Shadow shows the rules' marks and logs the model's; Suggest shows the model's
+  with a question mark; Act shows them and orders the entries within each level: yours and the
+  unclear first, then the manager's, then what could proceed.
+- Each entry is a row in Decisions, and its outcome says who answered it: `owner` when you
+  answered it from the inbox, or had its terminal or thread in front while it waited, and `agent`
+  when it went on without you.
 
 ### Decisions
 

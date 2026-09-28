@@ -205,6 +205,21 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
     is on. `render_chips` draws the chips on the line under the card, before #508's buttons: the
     rules' plain, in the error color at level 5, a reading's with a question mark in `suggest`
     and a dashed border in `act`, with its probability in a tooltip.
+  - **Who should answer (#570).** `RiskScope` names which uses read the entries, and `mark`
+    classifies each tool entry once for both: #568's chips and level while `inbox` is on, and,
+    while `question_route` is, `route::classify` over those chips, the tool's name and a
+    question's options (`seat_waiting` carries them and the seat's `prompt` label), its rule's
+    mark on the entry and a `RouteAsking` in the snapshot (facts `tool`, `agent`, `project`,
+    `chips`; texts `ask`, `options`, `prompt`; the rules' `choice_verdict`). A held click is the
+    owner's by its class. `follow_route`, after `follow_risk`, notes whether each entry's terminal
+    is the rail's focused terminal holding the focus, or its thread the one the panel shows with
+    the focus, in an active window; logs `owner` or `agent after … s` for an entry with a row that
+    leaves (`owner` too when an inbox button answered it); and logs a `rules` row or starts one
+    ask (`QUESTION_ROUTE`) per new entry, whose reading (`route_reading`: the choice at or above
+    the floor, else `unclear`) lands by key and ask. `note_inbox` puts a reading's route on its
+    entry in `suggest` and `act`, sets `route_suggests`, and in `act` sorts by `(Reverse(level),
+    rank, first seen)`, an entry not marked yet ranking as unclear. `render_route` draws the mark
+    after the chips, with "Marley's rule: …" or "System One: … (0.88)" in its tooltip.
 - **Keys and reorder (#453). The key context is `MarleyRail menu`, and the rail answers Zed's
   `menu::SelectNext`, `SelectPrevious`, `SelectFirst`, `SelectLast`, `SelectParent`,
   `SelectChild` and `Confirm`. Zed binds up, down, Home, End and Enter to them with no context,
@@ -1066,6 +1081,10 @@ alike.
   preview to 200; an overlong path goes first, then those fields), which keeps the sequence
   under Claude Code's 4,096-byte cap and Marley's scanner's 4 KiB. `FILES` ships it as a
   program; it takes about 14 ms a call.
+- Since #570 (version 1.4.0) an AskUserQuestion's summary carries `options`, its first
+  question's option labels, at most eight, each cut to 40 characters; under the bound they go
+  after the working directory and before the message, so a long list never pushes out what a row
+  shows.
 - Since #566 (version 1.3.0) a message over 300 characters keeps its end (`cut_ends`): its start,
   cut back to a word, then ` … ` and its last whole sentences up to 147 characters, where a final
   message's question or status sits; a last sentence longer than that leaves the plain cut. Marley

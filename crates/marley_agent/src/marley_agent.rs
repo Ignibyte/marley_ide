@@ -6,9 +6,9 @@
 //! [`agent_status`] judges from its terminal whether it is working or waiting on the user.
 //! [`claude_events`] reads Claude Code's own hook events, which Marley's plugin sends, and folds
 //! them into a fleet seat (#519), [`stop_kind`] says what a stopped turn needs (#566),
-//! [`stall`] what flags a looping or quiet working one (#569), and [`risk`] what an action waiting
-//! in the rail's inbox would do (#568). The launching and the watching live in
-//! `marley_workbench`.
+//! [`stall`] what flags a looping or quiet working one (#569), [`risk`] what an action waiting in
+//! the rail's inbox would do (#568), and [`route`] who should answer it (#570). The launching and
+//! the watching live in `marley_workbench`.
 
 // gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
 // Zed's crates keep them at warn (CONSTITUTION §0).
@@ -31,6 +31,7 @@ use marley_fleet::State;
 
 pub mod claude_events;
 pub mod risk;
+pub mod route;
 pub mod stall;
 pub mod stop_kind;
 

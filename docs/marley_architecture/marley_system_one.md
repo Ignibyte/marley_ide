@@ -47,6 +47,11 @@ the time and names the folder. MIT OR Apache-2.0, with rustal's lint table; its 
   inside the project to an action that destroys data or cannot be undone, the first set to ask a
   score. `INBOX_RISK` is its use, `inbox`, with a 600 ms deadline. The rules' chips are logged
   as one `rules` row with each chip's noul held.
+- **The question route's set** (#570). `QUESTION_ROUTE_SET` (`question_route/1`) asks who should
+  answer what an agent waits on: the choice `route` (`owner`, `manager`, `agent_proceeds`,
+  `cannot_tell`) and the noul `answerable_from_prompt`. `QUESTION_ROUTE` is its use,
+  `question_route`, with a 2 s deadline, since the agent already waits. A rule's mark is logged
+  as a `rules` row with the choice it settled.
 - **`state`.** `StateBuilder::new(detail, mask)` takes facts, kept at every `Detail`, and text,
   left out at `Detail::Facts`, each value through the host's mask. A text value is masked whole
   and then cut to 300 characters (`cut`), since a cut can split a secret the mask would find.
