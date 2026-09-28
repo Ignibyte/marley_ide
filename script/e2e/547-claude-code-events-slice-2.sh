@@ -1,7 +1,8 @@
 # shellcheck shell=bash
 # #547's e2e test: #519's second slice. Claude Code's list (a scratch CLAUDE_CONFIG_DIR) has
 # Marley's plugin at 1.1.0, so the agent bar offers the update; a click runs the stand-in
-# `claude`'s `plugin` commands, which log themselves and write 1.2.0 into the list. The stand-in
+# `claude`'s `plugin` commands, which log themselves and write the version Marley ships into the
+# list. The stand-in
 # then acts out a turn through the plugin's real hook, and the stand-in agent reads
 # `fleet_snapshot` as it goes: the terminal's seat working, then idle, then done once the
 # stand-in exits, then gone once the terminal closes. With `marley.no_update_after_minutes` at 1,
@@ -11,6 +12,9 @@ compositor sway
 . script/e2e/browser-fixture.sh
 
 HOOK=$PWD/crates/marley_workbench/claude_plugin/marley/hooks/event.py
+# The plugin's version as Marley ships it, which the update writes into Claude Code's list.
+SHIPPED=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' \
+  crates/marley_workbench/claude_plugin/marley/.claude-plugin/plugin.json)
 # The agent bar's plugin chip, measured from the first runs (519's shots put its left end at 452).
 CHIP_X=${CHIP_X:-520}
 CHIP_Y=${CHIP_Y:-953}
@@ -61,12 +65,12 @@ JSON
 ]
 JSON
   sed -e "s|@HOOK@|$HOOK|" -e "s|@STEPS@|$E2E_WORK/steps.json|" -e "s|@LOG@|$E2E_WORK/plugin.log|" \
-    >"$bin/claude" <<'FAKE'
+    -e "s|@SHIPPED@|$SHIPPED|" >"$bin/claude" <<'FAKE'
 #!/usr/bin/env python3
 # A stand-in Claude Code. `claude plugin ...` logs its arguments; `plugin update marley@marley`
-# also writes 1.2.0 into Claude Code's list, as the real update does. Otherwise, at each line it
-# reads, it runs the plugin's hook with the next step's payloads, as Claude Code runs a hook,
-# and writes each answer's sequence to its terminal.
+# also writes the shipped version into Claude Code's list, as the real update does. Otherwise, at
+# each line it reads, it runs the plugin's hook with the next step's payloads, as Claude Code runs
+# a hook, and writes each answer's sequence to its terminal.
 import json
 import os
 import subprocess
@@ -78,7 +82,7 @@ if sys.argv[1:2] == ["plugin"]:
     if sys.argv[1:] == ["plugin", "update", "marley@marley"]:
         path = os.path.join(os.environ["CLAUDE_CONFIG_DIR"], "plugins/installed_plugins.json")
         listed = json.load(open(path, encoding="utf-8"))
-        listed["plugins"]["marley@marley"][0]["version"] = "1.2.0"
+        listed["plugins"]["marley@marley"][0]["version"] = "@SHIPPED@"
         json.dump(listed, open(path, "w", encoding="utf-8"))
     sys.exit(0)
 

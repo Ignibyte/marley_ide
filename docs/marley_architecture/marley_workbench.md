@@ -579,6 +579,21 @@ alike.
   third line from `seat_activity`. `row_card` takes the lines under the title, and a row with
   a third line is 3.5 rem tall; every other row keeps `h_11`. A row without a seat keeps the
   quiet timer's reading.
+- **The stop kind** (#566). After each fold, `after_fold` runs the use when its mode is not off:
+  on a lead `Stop`, or the interrupt that ended a running turn, `ask_stop_kind` reads the seat's
+  message and `turn` facts through `marley_agent::stop_kind::rules`. The project and its folders
+  come from the view's workspace, which no update holds while a terminal's event reaches the view.
+  A verdict the rules settle goes to `system_one::record` as a `rules` row; `Open` goes to
+  `system_one::ask` with `STOP_KIND[parts]`, the prompt's parts in the state when the project
+  sends text. In `suggest` or `act` the answer lands through `land_stop_kind`, an `Upsert` at the
+  seat's own time, only while the seat is idle on the same `prompt_id` with no stop since, since an
+  `Upsert` would bring back a forgotten seat. `shadow` lands nothing, as `fleet_snapshot`
+  publishes every label to agents.
+- The global keeps each seat's last stop that read something, with its session, and the user's
+  next prompt in that session logs an outcome through `system_one::outcome`: `next prompt after
+  12 s, 48 characters`, and `within a minute of asks you` for a stop that asked or was blocked.
+  A new session, `end` and `forget` drop it. `stop_kind_shown` gives the rail the mode as a
+  `StopKindShown`, and the rail's settings observer refreshes the rows, so a new mode shows at once.
 
 ## Asking before a close ends a working agent (`src/close_guard.rs`, #550)
 
@@ -650,6 +665,11 @@ alike.
   the `&mut Workspace` the action has; reading the workspace entity there would panic. The program
   is the command's first word after its `NAME=value` assignments, without its folder. A toast
   gives the reading, the provider, the tokens and the time.
+- Since #566 the adapter has three more ways in for a use: `use_mode(name)` (off while the layer
+  is off), `detail(asking)` (what the project may send, read before a use picks its set), `record`
+  (a verdict the use's own rules settled, logged as a `rules` row whatever the provider, with the
+  state the project may send) and `outcome(call, text)` (an `OutcomeRow`). `state_for` builds the
+  masked state for `ask` and `record` alike.
 - **Decisions** (`DecisionsView`, a workspace item) reads today's file when it opens and follows the
   global for the calls made after, newest first; a click opens a row to the state as sent, the
   answers and the error. Its header gives the day's calls and spend against the budget, the
@@ -880,9 +900,14 @@ alike.
   preview to 200; an overlong path goes first, then those fields), which keeps the sequence
   under Claude Code's 4,096-byte cap and Marley's scanner's 4 KiB. `FILES` ships it as a
   program; it takes about 14 ms a call.
+- Since #566 (version 1.3.0) a message over 300 characters keeps its end (`cut_ends`): its start,
+  cut back to a word, then ` … ` and its last whole sentences up to 147 characters, where a final
+  message's question or status sits; a last sentence longer than that leaves the plain cut. Marley
+  redacts after the hook cuts, so the end starts at a sentence and the start stops at a word:
+  neither cut parts a secret from the name or the `Bearer` that marks it.
 - Since #547 `ClaudePlugin` keeps the installed version (`installed_version_in`, the user-scope
   entry of `marley@marley`), and `needs_update` compares it with the embedded manifest's
-  (`shipped_version`, `semver`); an unparseable or newer one needs none. The chip then reads
+  (`shipped_version`, `semver`); an unparsable or newer one needs none. The chip then reads
   "Update Marley's plugin", and `update` writes the marketplace again (`write_marketplace`,
   shared with `install`), runs `claude plugin marketplace update marley` (or `add` when Claude
   Code forgot it) and `claude plugin update marley@marley`, and shows a toast or the error.

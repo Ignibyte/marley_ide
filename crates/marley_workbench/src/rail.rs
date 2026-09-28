@@ -273,12 +273,14 @@ impl Rail {
         })
         .detach();
         let ports_scanned = cx.observe_global_in::<Ports>(window, Self::refresh);
-        // Turning AI back on shows an open rail again without a word from the `MultiWorkspace`.
+        // Turning AI back on shows an open rail again without a word from the `MultiWorkspace`,
+        // and the stop kind's mode changes what an idle agent's row says (#566).
         let settings_changed =
-            cx.observe_global_in::<settings::SettingsStore>(window, |rail, _, cx| {
+            cx.observe_global_in::<settings::SettingsStore>(window, |rail, window, cx| {
                 if let Some(multi_workspace) = rail.multi_workspace.upgrade() {
                     rail.watch_ports_while_shown(&multi_workspace, cx);
                 }
+                rail.refresh(window, cx);
             });
         Self {
             multi_workspace: multi_workspace.downgrade(),
@@ -2216,6 +2218,7 @@ fn terminal_snapshot(
     let seat = kind
         .filter(|kind| *kind == AgentKind::Claude)
         .and_then(|_| cx.try_global::<AgentEvents>()?.seat(view.entity_id()));
+    let shown = agent_events::stop_kind_shown(cx);
     let agent = kind.map(|kind| TerminalAgent {
         kind,
         status: seat.map_or_else(
@@ -2249,7 +2252,12 @@ fn terminal_snapshot(
             let status = seat.map_or_else(
                 || marley_agent::status_line(agent.kind, agent.status),
                 |seat| {
-                    claude_events::seat_line(seat, agent_events::now_ms(), no_update_after_ms(cx))
+                    claude_events::seat_line(
+                        seat,
+                        agent_events::now_ms(),
+                        no_update_after_ms(cx),
+                        shown,
+                    )
                 },
             );
             (title, Some(status))
@@ -2261,7 +2269,7 @@ fn terminal_snapshot(
         subtitle,
         bell,
         agent,
-        activity: seat.and_then(claude_events::seat_activity),
+        activity: seat.and_then(|seat| claude_events::seat_activity(seat, shown)),
         matched: None,
     }
 }

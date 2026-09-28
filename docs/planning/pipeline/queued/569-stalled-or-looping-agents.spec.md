@@ -5,7 +5,7 @@ status: QUEUED — Phase 1 Plan drafted; ready to promote to active
 title: "Stalled or looping agents: a flag on the rail row, never a stop"
 type: feature
 slice: prong 2, C1's attention (after #519, #547 and #566); use 4 of the System One layer, on #565
-references: [docs/planning/design-notes/jev-system-one-2026-09-25.md, docs/planning/pipeline/completed/565-system-one-layer.spec.md, docs/planning/pipeline/queued/566-stop-kind.spec.md, docs/planning/pipeline/completed/519-claude-code-events-in-the-rail.spec.md, docs/planning/pipeline/active/547-claude-code-events-slice-2.spec.md, docs/planning/pipeline/queued/542-rail-attention-order.spec.md, docs/orca_architecture/01-agents-and-sessions.md]
+references: [docs/planning/design-notes/jev-system-one-2026-09-25.md, docs/planning/pipeline/completed/565-system-one-layer.spec.md, docs/planning/pipeline/completed/566-stop-kind.spec.md, docs/planning/pipeline/completed/519-claude-code-events-in-the-rail.spec.md, docs/planning/pipeline/completed/547-claude-code-events-slice-2.spec.md, docs/planning/pipeline/queued/542-rail-attention-order.spec.md, docs/orca_architecture/01-agents-and-sessions.md]
 ---
 
 ## Title

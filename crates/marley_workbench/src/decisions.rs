@@ -190,9 +190,12 @@ impl DecisionsView {
                 let settings = layer.settings();
                 let mut lines = Vec::new();
                 if settings.enabled {
+                    let calls = match self.rows.len() {
+                        1 => "1 call".to_string(),
+                        count => format!("{count} calls"),
+                    };
                     lines.push(SharedString::from(format!(
-                        "{} calls today · {} spent of the {}¢ budget",
-                        self.rows.len(),
+                        "{calls} today · {} spent of the {}¢ budget",
                         system_one::cents(layer.spent_today()),
                         settings.daily_budget_cents
                     )));

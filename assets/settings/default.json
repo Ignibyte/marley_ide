@@ -1701,9 +1701,11 @@
       // A "compatible" provider's price, in cents per million input tokens.
       "price_cents_per_million_tokens": 0,
       // Each use's mode: "off", "shadow" (ask and log, shown only in Decisions), "suggest" or
-      // "act". The check runs only when you run it.
+      // "act". The check runs only when you run it; the stop kind says on an idle Claude Code's
+      // rail row what its stop needs.
       "uses": {
         "check": "act",
+        "stop_kind": "off",
       },
     },
   },

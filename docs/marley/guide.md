@@ -430,7 +430,7 @@ directory (`$CLAUDE_CONFIG_DIR`, else `~/.claude`), read when Marley starts, and
 `claude` it found on the PATH then. With no `claude` there, the install fails with "`claude` is not
 on the PATH".
 
-The plugin, `marley` 1.1.0, brings two things:
+The plugin, `marley` 1.3.0, brings three things:
 
 - **Notifications.** Its hooks run when Claude Code needs your permission, when it waits for you,
   and when it finishes, and ask Claude Code to write an OSC 777 notify to its terminal. You get a
@@ -442,6 +442,11 @@ The plugin, `marley` 1.1.0, brings two things:
 - **Marley's tools.** It declares an MCP server named `marley` that runs Marley's bridge, so
   Claude Code started in any terminal on the machine finds Marley's tools while Marley runs, and an
   empty server while it does not.
+- **The rail's rows.** Its event hook writes a short summary of each of Claude Code's hook events
+  to the terminal, and the rail's row shows the prompt, the tool in flight, what it waits on and
+  the last message (#519). Since 1.3.0 a message over 300 characters keeps its start and its last
+  whole sentences, where a question or a status sits (#566). The agent bar offers the update to a
+  plugin that is older than Marley's.
 
 ## Zed's Agent Panel with Marley's tools
 
@@ -813,6 +818,32 @@ It exists so you can see one request and one answer. A toast gives the reading, 
 tokens and the time, as in `System One: command failed: yes (0.92) · typesafe · 1,200 tokens ·
 310 ms`. Its mode, Check on the settings page, is Act; Off turns it off.
 
+### The stop kind
+
+With its mode on, an idle Claude Code's rail row says what the stop needs (#566): `done · checked`
+(the work is done and a command ran after the last edit), `done · claimed` (done, with no check
+behind it), `asks you`, `blocked`, `still going` or `interrupted`. When the prompt has parts, such
+as "Add a README. Add a license.", the row's last line names a part the message leaves out: `not
+covered: "Add a license."`.
+
+- Marley's own rules come first and send nothing: an interrupt, a permission never answered, or a
+  last sentence that asks you something (a question mark, or an opening such as "Should I" or
+  "Let me know") settle the kind with no call. Only the rest is asked, and only for a listed
+  project.
+- A state sent for a stop holds the facts (the tools and how many times each ran, the failures,
+  the permissions pending, whether a command ran after the last edit, how long the turn took),
+  the prompt, the last message as the plugin cut it, and the prompt's parts, masked as above. A
+  metadata-only project sends the facts alone and is not asked about parts.
+- The model can take a check away but never add one: `done · checked` needs the command after the
+  edit that Marley saw.
+- The mode is Stop Kind on the settings page, or `uses.stop_kind`: Off (the default) makes no
+  call; Shadow asks and logs, and the row keeps saying `idle`; Suggest adds the kind after `idle`
+  with a question mark (`idle · still going?`); Act shows it in place of `idle`. The next prompt you
+  type clears it. Agents reading `fleet_snapshot` see the kind as the seat's `stop_kind` labels.
+- Each stop is a row in Decisions, the ones the rules settled under the provider `rules`, and your
+  next prompt adds an outcome to the day's file: how long it came after the stop and how long it
+  was.
+
 ### Decisions
 
 `marley: open decisions` opens a tab with the day's calls, newest first: the time, the use, the
@@ -840,7 +871,7 @@ Key write and remove the keyring's key.
   leaves time. Five failures in a row hold calls for two minutes.
 - A state the same as the last one answered for the same terminal makes no new call.
 - `uses` sets each feature's mode: `off`, `shadow` (ask and log, shown only in Decisions),
-  `suggest` or `act`. The check is the only one so far.
+  `suggest` or `act`. The check and the stop kind are the two so far.
 
 Every call, refused and failed ones included, is a line in `system_one/calls-<day>.jsonl` under
 Marley's data directory, readable by you alone: the masked state as sent, the answers, the reading,

@@ -2603,3 +2603,26 @@ rate cap and a repeat check stand in front of each request. Rejected:
   call;
 - the pure crate keeping its own mode and provider enums: they live once, in `settings_content`,
   where the dropdowns' derives resolve.
+
+## AD-claude-566-the-stop-kind-is-rules-first-and-rides-on-the-seat-001
+*decided at: 2026-09-27 · status: shipped · builds on: AD-claude-565-the-system-one-layer-is-a-pure-core-behind-an-adapter-off-by-default-001, AD-claude-519-claude-codes-hook-events-ride-in-band-into-marley-fleet-001*
+
+What a stopped Claude Code turn needs is the stop kind, the System One layer's first use.
+`marley_agent::stop_kind` is pure: the rules settle what code can see (an interrupt, a permission
+never finished, a last sentence that asks), and only the rest is asked, for listed projects, with
+seven compiled-in sets by the prompt's number of parts. The kind rides on the seat as four labels,
+so the rail's row, `fleet_snapshot`, #538's banner and #542's order read one thing; only `suggest`
+and `act` land them. `done · checked` needs the command after the last edit that the fold saw, so
+the model can demote a claim and never promote one. The use only changes what a row says.
+Rejected:
+- questions made at call time for the parts: #565's sets are compiled in, a caller never supplies
+  its own, and a set's id must name what it asked;
+- turn facts kept outside the seat: the fold is pure from the seat, so the facts are its `turn`
+  label;
+- labels in `shadow`: `fleet_snapshot` publishes every label, so agents would see what the row
+  does not;
+- a fixed 150 and 147 character cut of a long message: the hook cuts before Marley redacts, so the
+  end is whole sentences and the start stops at a word;
+- a live measurement of a failing Bash with the real Claude Code: the real `claude` is not
+  started from a session; the hooks reference answered what it could, and the design holds either
+  way.

@@ -7,7 +7,9 @@
 //! use's deadline. Every call, refused and failed ones included, becomes a row under
 //! `<data dir>/system_one/`, and the `SystemOne` global keeps this session's rows for the
 //! Decisions view. The check (`marley: system one check`) is the first use: it asks whether the
-//! last command of the terminal used last failed, and shows the answer in a toast.
+//! last command of the terminal used last failed, and shows the answer in a toast. The stop kind
+//! (#566) is the second: `agent_events` asks it when a Claude Code turn stops, logs what its own
+//! rules settle through `record`, and logs the user's next prompt through `outcome`.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -25,11 +27,11 @@ use gpui::{
 };
 use http_client::{AsyncBody, Host, HttpClient, HttpRequestExt as _, Method, Request, Url};
 use marley_mcp::redact::marker;
-use marley_system_one::files::{self, CallRow, Replay, Row};
+use marley_system_one::files::{self, CallRow, OutcomeRow, Replay, Row};
 use marley_system_one::policy::{self, Refusal};
 use marley_system_one::reading::{self, Read, Reading, Signal};
 use marley_system_one::request::{self, Answer, Answers};
-use marley_system_one::state::{State, StateBuilder};
+use marley_system_one::state::{Detail, State, StateBuilder};
 use marley_system_one::{CHECK, DEFAULT_MODEL, UseSpec};
 use settings::{
     Settings as _, SettingsStore, SystemOneMode, SystemOneProvider, SystemOneSettingsContent,
@@ -631,27 +633,7 @@ pub(crate) fn ask(spec: &'static UseSpec, asking: &Asking, cx: &mut App) -> Task
         Ok(detail) => detail,
         Err(refusal) => return Task::ready(finish(draft, refused(refusal), mode, cx)),
     };
-    let redactor = mcp::model_redactor(cx);
-    let key = cx
-        .try_global::<SystemOne>()
-        .and_then(|layer| layer.key.clone());
-    let mask = |text: &str| {
-        let masked = redactor.redact(text).text;
-        match &key {
-            Some(key) => key.mask(&masked),
-            None => masked,
-        }
-    };
-    let facts = asking.facts.iter().fold(
-        StateBuilder::new(detail, &mask),
-        |builder, (label, value)| builder.fact(label, value),
-    );
-    let Some(state) = asking
-        .texts
-        .iter()
-        .fold(facts, |builder, (label, value)| builder.text(label, value))
-        .build()
-    else {
+    let Some(state) = state_for(asking, detail, cx) else {
         return Task::ready(finish(
             draft,
             Reading::Refused("nothing to ask about".to_string()),
@@ -659,6 +641,9 @@ pub(crate) fn ask(spec: &'static UseSpec, asking: &Asking, cx: &mut App) -> Task
             cx,
         ));
     };
+    let key = cx
+        .try_global::<SystemOne>()
+        .and_then(|layer| layer.key.clone());
     draft.row.state = Some(state.text.clone());
     draft.row.state_hash = Some(state.hash.clone());
     match settings.provider {
@@ -689,6 +674,105 @@ pub(crate) fn ask(spec: &'static UseSpec, asking: &Asking, cx: &mut App) -> Task
         SystemOneProvider::Typesafe | SystemOneProvider::Compatible => {
             send(spec, &settings, draft, &state, key, mode, cx)
         }
+    }
+}
+
+/// The state of `asking` at `detail`, each value masked with #516's rules and the user's patterns,
+/// whatever agents' redaction says, and with the key's value; `None` when it holds nothing.
+fn state_for(asking: &Asking, detail: Detail, cx: &App) -> Option<State> {
+    let redactor = mcp::model_redactor(cx);
+    let key = cx
+        .try_global::<SystemOne>()
+        .and_then(|layer| layer.key.clone());
+    let mask = |text: &str| {
+        let masked = redactor.redact(text).text;
+        match &key {
+            Some(key) => key.mask(&masked),
+            None => masked,
+        }
+    };
+    let facts = asking.facts.iter().fold(
+        StateBuilder::new(detail, &mask),
+        |builder, (label, value)| builder.fact(label, value),
+    );
+    asking
+        .texts
+        .iter()
+        .fold(facts, |builder, (label, value)| builder.text(label, value))
+        .build()
+}
+
+/// A use's mode as the layer applies it: `off` while the layer is off.
+pub(crate) fn use_mode(name: &str, cx: &App) -> SystemOneMode {
+    cx.try_global::<SystemOne>()
+        .filter(|layer| layer.settings.enabled)
+        .and_then(|layer| layer.settings.uses.get(name).copied())
+        .unwrap_or(SystemOneMode::Off)
+}
+
+/// What `asking`'s project may send: its facts and text, its facts alone, or nothing and why. A
+/// use that asks different questions by detail reads it before it picks its set (#566).
+pub(crate) fn detail(asking: &Asking, cx: &App) -> Result<Detail, Refusal> {
+    cx.try_global::<SystemOne>().map_or_else(
+        || Err(Refusal::Refused("the layer is off".to_string())),
+        |layer| {
+            policy::may_send(
+                &asking.folders,
+                asking.local,
+                &layer.settings.projects,
+                &layer.settings.metadata_only_projects,
+            )
+        },
+    )
+}
+
+/// Logs the verdict `asking` carries, which the use's own rules settled, so that no provider is
+/// asked whatever the settings name: every verdict is a row (#565's D6), under the `rules`
+/// provider. The row keeps the state the project may send, and none when it may send nothing.
+pub(crate) fn record(spec: &'static UseSpec, asking: &Asking, cx: &mut App) -> Asked {
+    let mode = use_mode(spec.name, cx);
+    let Some(settings) = cx
+        .try_global::<SystemOne>()
+        .map(|layer| layer.settings.clone())
+        .filter(|_| mode != SystemOneMode::Off)
+    else {
+        return Asked {
+            reading: Reading::Off,
+            mode: SystemOneMode::Off,
+            layer_on: cx
+                .try_global::<SystemOne>()
+                .is_some_and(|layer| layer.settings.enabled),
+            row: None,
+        };
+    };
+    let mut draft = Draft::new(spec, &settings, asking, mode);
+    draft.row.provider = provider_name(SystemOneProvider::Rules).to_string();
+    if let Some(state) = detail(asking, cx)
+        .ok()
+        .and_then(|detail| state_for(asking, detail, cx))
+    {
+        draft.row.state = Some(state.text);
+        draft.row.state_hash = Some(state.hash);
+    }
+    let reads = asking.verdict.as_ref().map_or_else(
+        || nothing(spec, "the use gave no verdict"),
+        |verdict| reading::read(spec.set, verdict),
+    );
+    finish(draft, Reading::Rules(reads), mode, cx)
+}
+
+/// Logs what came after the call `call`, as its use learned it, such as the user's next prompt:
+/// the outcomes a report can fit thresholds on (#566).
+pub(crate) fn outcome(call: &str, outcome: String, cx: &mut App) {
+    let now = chrono::Local::now();
+    let row = OutcomeRow {
+        call: call.to_string(),
+        time: now.to_rfc3339(),
+        outcome,
+    };
+    let day = now.format("%Y-%m-%d").to_string();
+    if let Err(error) = log_sender(cx).unbounded_send((day, Row::Outcome(row))) {
+        log::warn!("system one: an outcome came as Marley shut down: {error}");
     }
 }
 
@@ -999,7 +1083,7 @@ fn run_check(workspace: &mut Workspace, window: &Window, cx: &mut Context<Worksp
 }
 
 /// A workspace's folders, and whether its project is on this machine.
-fn project_of(workspace: &Workspace, cx: &App) -> (Vec<PathBuf>, bool) {
+pub(crate) fn project_of(workspace: &Workspace, cx: &App) -> (Vec<PathBuf>, bool) {
     let folders = workspace
         .root_paths(cx)
         .into_iter()
@@ -1052,9 +1136,28 @@ fn check_asking(
 
 /// A use's own yes or no as answers, which the `rules` provider gives back.
 fn noul_verdict(key: &str, holds: bool) -> Answers {
-    let answer = Answer::Noul {
-        noul: if holds { 1.0 } else { 0.0 },
-    };
+    verdict(
+        key,
+        Answer::Noul {
+            noul: if holds { 1.0 } else { 0.0 },
+        },
+    )
+}
+
+/// A use's own choice of `option` as answers, which a `rules` row keeps (#566).
+pub(crate) fn choice_verdict(key: &str, option: &str) -> Answers {
+    verdict(
+        key,
+        Answer::Choice {
+            choice: option.to_string(),
+            confidence: 1.0,
+            probabilities: BTreeMap::from([(option.to_string(), 1.0)]),
+        },
+    )
+}
+
+/// A use's own `answer` to its question `key`, as answers.
+fn verdict(key: &str, answer: Answer) -> Answers {
     let by_key = BTreeMap::from([(key.to_string(), answer)]);
     Answers {
         model: None,

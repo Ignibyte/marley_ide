@@ -1,13 +1,13 @@
 # TICKET-566 — What a stopped turn needs
 
 - **Ticket:** LOCAL #566 (feature, prong 2; the Jev note's use 1, on #519's seats and #565's layer)
-- **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/566-stop-kind.spec.md
+- **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
+- **Pipeline doc:** ../../pipeline/completed/566-stop-kind.spec.md
 - **Source ticket:** Chad, 2026-09-26, approving the seven ranked uses of
   `docs/planning/design-notes/jev-system-one-2026-09-25.md`; use 1, "What a stopped turn
   needs", the first use the note recommends turning on, under his rules "local first and then
   jev second" and every use off by default with its own switch and mode
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 When Claude Code's turn ends with `Stop`, its rail row reads `idle` and shows the last message

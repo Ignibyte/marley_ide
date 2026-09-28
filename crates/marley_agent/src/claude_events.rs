@@ -10,21 +10,24 @@
 //! - `Stop` makes it idle with the last message, and `StopFailure` failed with its error;
 //! - a subagent's events move a count and leave the lead's state, except that a subagent's
 //!   permission request makes the seat wait too;
-//! - `SessionEnd` ends the seat, and a new session in the same terminal starts it over.
+//! - `SessionEnd` ends the seat, and a new session in the same terminal starts it over;
+//! - what the user's request has done so far, [`TurnFacts`], rides on the seat as its `turn`
+//!   label for the stop kind (#566), which every turn's start and end clears.
 //!
 //! A prompt a harness injects (a task notification, a system reminder, a slash command's
 //! envelope) is not the user's, so the seat keeps the user's prompt; the continuation after a
 //! compaction changes nothing. The tags and prefixes are the ones Orca observed, from
 //! `src/shared/harness-injected-user-turns.ts` in stablyai/orca (MIT).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use base64::Engine as _;
 use marley_fleet::{Question, Session, SessionEvent, State, Transport};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::AgentStatus;
+use crate::stop_kind::{self, StopKindShown};
 
 /// The largest summary a frame carries, decoded; the plugin keeps its summaries under it.
 const MAX_SUMMARY: usize = 3_000;
@@ -45,6 +48,10 @@ pub const SUBAGENTS_LABEL: &str = "subagents";
 pub const SESSION_LABEL: &str = "session_id";
 /// The label for the session's working directory, where Claude Code started (#535).
 pub const CWD_LABEL: &str = "cwd";
+/// The label for the user's prompt the lead's latest event belongs to.
+pub const PROMPT_ID_LABEL: &str = "prompt_id";
+/// The label for the user's request's [`TurnFacts`], as JSON (#566).
+pub const TURN_LABEL: &str = "turn";
 /// A lead's tool in flight, by its tool call's id.
 const LEAD_TOOL_PREFIX: &str = "lead_tool:";
 /// A subagent's tool in flight, by its tool call's id.
@@ -89,6 +96,48 @@ pub struct HookEvent {
     pub trigger: Option<String>,
     /// Whether the user interrupted the tool, for `PostToolUseFailure`.
     pub is_interrupt: Option<bool>,
+}
+
+/// What the user's request has done so far (#566), for the stop kind. The fold starts from the
+/// seat at each event, so the facts ride on it as its `turn` label.
+///
+/// A prompt the user types starts them over. A prompt a harness injects continues the request,
+/// so it keeps the tools and the checks and starts only the turn's own `interrupted` and
+/// `pending` over.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TurnFacts {
+    /// When the user's prompt came, in the fleet's epoch milliseconds.
+    pub started_ms: u64,
+    /// The lead's tools by name, with how many times each started.
+    pub tools: BTreeMap<String, u32>,
+    /// How many tools the subagents started.
+    pub subagent_tools: u32,
+    /// How many tools failed, the lead's and the subagents', interrupts aside.
+    pub failures: u32,
+    /// Whether the user interrupted the turn.
+    pub interrupted: bool,
+    /// How many permissions were asked for.
+    pub permissions_asked: u32,
+    /// The tool calls a permission was asked for that have not finished.
+    pub pending: BTreeSet<String>,
+    /// Whether a Write, Edit, `MultiEdit` or `NotebookEdit` finished.
+    pub edited: bool,
+    /// Whether a Bash finished without failing after the last edit, or with no edit, at all.
+    pub checked_after_edit: bool,
+    /// How many times the request has stopped, which tells one stop from the next.
+    pub stops: u32,
+}
+
+impl TurnFacts {
+    /// The facts a seat's labels hold. None yet, or a label this Marley does not read, is none.
+    #[must_use]
+    pub fn of(labels: &BTreeMap<String, String>) -> Self {
+        labels
+            .get(TURN_LABEL)
+            .and_then(|facts| serde_json::from_str(facts).ok())
+            .unwrap_or_default()
+    }
 }
 
 /// Why a frame's body is not an event.
@@ -154,7 +203,7 @@ pub fn fold(
     }
     let mut moving = Moving::from_seat(previous);
     moving.note_session(event);
-    if !moving.take(event) {
+    if !moving.take(event, now_ms) {
         return Vec::new();
     }
     moving.into_events(seat, now_ms)
@@ -186,15 +235,24 @@ pub const fn seat_status(state: State) -> AgentStatus {
 /// names the agent, so the line starts with the state. A working seat whose last event is at
 /// least `no_update_after_ms` old at `now_ms` reads `no update in N m` in place of `working`
 /// (#547): an Escape fires no hook, so the seat cannot know the turn stopped. A threshold of 0
-/// never marks it.
+/// never marks it. An idle seat with a stop kind reads it as `shown` says (#566).
 #[must_use]
-pub fn seat_line(seat: &Session, now_ms: u64, no_update_after_ms: u64) -> String {
+pub fn seat_line(
+    seat: &Session,
+    now_ms: u64,
+    no_update_after_ms: u64,
+    shown: StopKindShown,
+) -> String {
     let state = if seat.state == State::Working
         && no_update_after_ms > 0
         && marley_fleet::is_stale(seat, now_ms, no_update_after_ms)
     {
         let minutes = now_ms.saturating_sub(seat.last_event_ms) / 60_000;
         format!("no update in {minutes} m")
+    } else if let Some(word) =
+        stop_kind::row_word(&seat.labels, shown).filter(|_| seat.state == State::Idle)
+    {
+        word
     } else {
         seat_status(seat.state).label().to_string()
     };
@@ -211,16 +269,25 @@ pub fn seat_line(seat: &Session, now_ms: u64, no_update_after_ms: u64) -> String
 }
 
 /// An agent row's third line: what the agent waits on, its error, the tool in flight, or the
-/// turn's last message.
+/// turn's last message, after the prompt's parts the stop kind found it does not cover, as
+/// `shown` says (#566).
 #[must_use]
-pub fn seat_activity(seat: &Session) -> Option<String> {
+pub fn seat_activity(seat: &Session, shown: StopKindShown) -> Option<String> {
     match seat.state {
         State::Waiting => seat
             .question
             .as_ref()
             .map(|question| question.prompt.clone()),
         State::Error => seat.labels.get(ERROR_LABEL).cloned(),
-        State::Idle | State::Done => seat.labels.get(MESSAGE_LABEL).cloned(),
+        State::Idle => {
+            let not_covered = stop_kind::not_covered(&seat.labels, shown);
+            let message = seat.labels.get(MESSAGE_LABEL).cloned();
+            match (not_covered, message) {
+                (Some(not_covered), Some(message)) => Some(format!("{not_covered} · {message}")),
+                (not_covered, message) => not_covered.or(message),
+            }
+        }
+        State::Done => seat.labels.get(MESSAGE_LABEL).cloned(),
         State::Starting | State::Working => seat.labels.get(TOOL_LABEL).cloned(),
     }
 }
@@ -230,6 +297,7 @@ struct Moving {
     labels: BTreeMap<String, String>,
     state: State,
     question: Option<Question>,
+    facts: TurnFacts,
 }
 
 impl Moving {
@@ -239,11 +307,13 @@ impl Moving {
                 labels: BTreeMap::new(),
                 state: State::Starting,
                 question: None,
+                facts: TurnFacts::default(),
             },
             |session| Self {
                 labels: session.labels.clone(),
                 state: session.state,
                 question: session.question.clone(),
+                facts: TurnFacts::of(&session.labels),
             },
         )
     }
@@ -264,7 +334,7 @@ impl Moving {
         self.set(AGENT_LABEL, "claude-code");
         if event.agent_id.is_none() {
             for (key, value) in [
-                ("prompt_id", &event.prompt_id),
+                (PROMPT_ID_LABEL, &event.prompt_id),
                 ("permission_mode", &event.permission_mode),
                 (CWD_LABEL, &event.cwd),
                 ("transcript_path", &event.transcript_path),
@@ -276,8 +346,8 @@ impl Moving {
         }
     }
 
-    /// Moves the seat for `event`; false when the event changes nothing.
-    fn take(&mut self, event: &HookEvent) -> bool {
+    /// Moves the seat for `event` at `now_ms`; false when the event changes nothing.
+    fn take(&mut self, event: &HookEvent, now_ms: u64) -> bool {
         let lead = event.agent_id.is_none();
         match event.event.as_str() {
             "SessionStart" => {
@@ -287,6 +357,7 @@ impl Moving {
                 ) {
                     self.end_turn(State::Idle);
                     self.clear(&[PROMPT_LABEL, MESSAGE_LABEL, ERROR_LABEL]);
+                    self.facts = TurnFacts::default();
                 }
             }
             "UserPromptSubmit" if lead => {
@@ -296,12 +367,22 @@ impl Moving {
                 }
                 self.end_turn(State::Working);
                 self.clear(&[MESSAGE_LABEL, ERROR_LABEL]);
-                if !is_harness_injected(prompt) {
+                if is_harness_injected(prompt) {
+                    self.facts.interrupted = false;
+                    self.facts.pending.clear();
+                } else {
                     self.set(PROMPT_LABEL, &one_line(prompt));
+                    self.facts = TurnFacts {
+                        started_ms: now_ms,
+                        ..TurnFacts::default()
+                    };
                 }
             }
             "PreToolUse" => self.tool_starts(event, lead),
-            "PostToolUse" | "PostToolUseFailure" => self.tool_ends(event, lead),
+            "PostToolUse" | "PostToolUseFailure" => {
+                self.note_tool_end(event, lead);
+                self.tool_ends(event, lead);
+            }
             "PermissionRequest" => {
                 let asked = tool_line(event);
                 let waiting_on = self
@@ -311,10 +392,21 @@ impl Moving {
                     .find_map(|(key, _)| tool_call(key))
                     .unwrap_or_default()
                     .to_string();
+                self.facts.permissions_asked = self.facts.permissions_asked.saturating_add(1);
+                // A request that names no call Marley saw start is not pending: nothing would
+                // ever finish it, and the stop would read `blocked` after the call ran.
+                let call = event
+                    .tool_use_id
+                    .clone()
+                    .unwrap_or_else(|| waiting_on.clone());
+                if !call.is_empty() {
+                    let _added = self.facts.pending.insert(call);
+                }
                 self.wait(format!("Permission for {asked}"), &waiting_on);
             }
             "Stop" if lead => {
                 self.end_turn(State::Idle);
+                self.facts.stops = self.facts.stops.saturating_add(1);
                 if let Some(message) = &event.message {
                     self.set(MESSAGE_LABEL, &one_line(message));
                 }
@@ -343,6 +435,14 @@ impl Moving {
     }
 
     fn tool_starts(&mut self, event: &HookEvent, lead: bool) {
+        if lead {
+            if let Some(tool) = &event.tool {
+                let count = self.facts.tools.entry(tool.clone()).or_default();
+                *count = count.saturating_add(1);
+            }
+        } else {
+            self.facts.subagent_tools = self.facts.subagent_tools.saturating_add(1);
+        }
         let shown = tool_line(event);
         if let Some(id) = &event.tool_use_id {
             let prefix = if lead {
@@ -394,6 +494,35 @@ impl Moving {
         }
     }
 
+    /// Counts what a finished tool tells the stop kind: a failure, an interrupt, an edit, or a
+    /// command after the last edit. An interrupt of the lead's tool ends the turn, which counts
+    /// as a stop.
+    fn note_tool_end(&mut self, event: &HookEvent, lead: bool) {
+        if let Some(call) = &event.tool_use_id {
+            let _was_pending = self.facts.pending.remove(call);
+        }
+        if event.event == "PostToolUseFailure" {
+            if event.is_interrupt == Some(true) {
+                // Tools in parallel each report the one interrupt.
+                if lead && !self.facts.interrupted {
+                    self.facts.interrupted = true;
+                    self.facts.stops = self.facts.stops.saturating_add(1);
+                }
+            } else {
+                self.facts.failures = self.facts.failures.saturating_add(1);
+            }
+            return;
+        }
+        match event.tool.as_deref() {
+            Some("Write" | "Edit" | "MultiEdit" | "NotebookEdit") => {
+                self.facts.edited = true;
+                self.facts.checked_after_edit = false;
+            }
+            Some("Bash") => self.facts.checked_after_edit = true,
+            _ => {}
+        }
+    }
+
     /// The lead's tools in flight, each as `Tool: preview`.
     fn lead_tools(&self) -> impl Iterator<Item = &str> {
         self.labels
@@ -412,12 +541,15 @@ impl Moving {
         });
     }
 
-    /// Forgets the turn's tools, its wait and its subagents, and moves the seat to `state`.
+    /// Forgets the turn's tools, its wait, its subagents and the last stop's kind, and moves the
+    /// seat to `state`. The stop kind of the turn that ends now lands after the fold, when it
+    /// is asked for.
     fn end_turn(&mut self, state: State) {
         self.labels.retain(|key, _| {
             !key.starts_with(LEAD_TOOL_PREFIX)
                 && !key.starts_with(SUBAGENT_TOOL_PREFIX)
                 && ![WAITING_ON_LABEL, TOOL_LABEL, SUBAGENTS_LABEL].contains(&key.as_str())
+                && !stop_kind::STOP_LABELS.contains(&key.as_str())
         });
         self.question = None;
         self.state = state;
@@ -431,7 +563,12 @@ impl Moving {
         self.labels.retain(|key, _| !keys.contains(&key.as_str()));
     }
 
-    fn into_events(self, seat: &str, now_ms: u64) -> Vec<SessionEvent> {
+    fn into_events(mut self, seat: &str, now_ms: u64) -> Vec<SessionEvent> {
+        // A map of strings and numbers always serializes: the label is the facts, or none.
+        match serde_json::to_string(&self.facts) {
+            Ok(facts) => self.set(TURN_LABEL, &facts),
+            Err(_) => self.clear(&[TURN_LABEL]),
+        }
         let waiting = self.state == State::Waiting;
         let mut events = vec![SessionEvent::Upsert {
             id: seat.to_string(),

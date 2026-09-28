@@ -2477,3 +2477,21 @@ when the view shows and stop it when the view hides, not when the view is built 
 panel or sidebar that closes stays alive, so an entity's life says nothing about whether anyone
 sees it. Follow what shows it (for the rail, the `MultiWorkspace`'s open sidebar), keep a flag
 so a start and a stop pair up, and give the poll back on release when it is still held.
+
+## PR-claude-count-one-user-action-once-when-each-call-reports-it-001
+*severity: low · prevents: F-claude-566-parallel-tools-counted-one-interrupt-twice-001*
+
+Claude Code reports one user action once per call in flight: an Escape during parallel tools is a
+`PostToolUseFailure` with `is_interrupt` for each. A fold or a use that counts the action (a stop,
+an interrupt, a refusal) counts its first report in the turn and lets the rest only end their
+calls, and anything it asks or logs for the action keys on the change the first report made (the
+seat leaving `working`), not on each frame.
+
+## PR-claude-an-answer-for-a-seat-names-the-session-prompt-and-stop-it-belongs-to-001
+*severity: low · prevents: F-claude-566-an-outcome-crossed-sessions-in-one-terminal-001, F-claude-566-an-earlier-stops-kind-would-show-at-a-later-stop-001*
+
+A seat is its terminal's, and in it sessions, prompts and stops follow one another. What one event
+of a seat leaves for a later one, such as an answer that lands after a model call or an outcome
+the next prompt logs, carries the session, the prompt and the stop it belongs to, and the later
+event checks all three before it acts. What describes one stop is cleared at every turn's start
+and end, not at the user's prompt alone, since a harness's prompt starts a turn too.

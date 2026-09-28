@@ -254,8 +254,9 @@ fn push_section() -> [SettingsPageItem; 4] {
 }
 
 // Marley: the System One layer's switch, provider and budget, and a way to its Decisions view
-// (#565). The project lists and each use's mode past the check's live in settings.json.
-fn system_one_section() -> [SettingsPageItem; 8] {
+// (#565). The project lists, and each use's mode past the check's and the stop kind's (#566),
+// live in settings.json.
+fn system_one_section() -> [SettingsPageItem; 9] {
     [
         SettingsPageItem::SectionHeader("System One"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -408,6 +409,38 @@ fn system_one_section() -> [SettingsPageItem; 8] {
                     let _before = match value {
                         Some(mode) => uses.insert("check".to_string(), mode),
                         None => uses.remove("check"),
+                    };
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: the stop kind's mode (#566).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Stop Kind",
+            description: "The mode of the stop kind, which says on an idle Claude Code's rail row what its stop needs: done and checked, done and only claimed, a question for you, a block, or work still going. Shadow logs it in Decisions, Suggest adds it after idle with a question mark, and Act shows it in place of idle.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.system_one.uses.stop_kind"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.system_one.as_ref())
+                        .and_then(|system_one| system_one.uses.as_ref())
+                        .and_then(|uses| uses.get("stop_kind"))
+                },
+                write: |settings_content, value, _| {
+                    let uses = settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .system_one
+                        .get_or_insert_default()
+                        .uses
+                        .get_or_insert_default();
+                    let _before = match value {
+                        Some(mode) => uses.insert("stop_kind".to_string(), mode),
+                        None => uses.remove("stop_kind"),
                     };
                 },
             }),

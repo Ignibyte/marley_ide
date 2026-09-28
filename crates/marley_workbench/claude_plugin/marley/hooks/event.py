@@ -7,6 +7,7 @@
 import base64
 import json
 import os
+import re
 import sys
 
 TITLE = "marley-event"
@@ -31,11 +32,31 @@ PREVIEW_KEYS = {
     "Task": "description",
 }
 COMMON = ("session_id", "prompt_id", "agent_id", "permission_mode", "cwd", "transcript_path")
+# Where a sentence ends, once runs of whitespace are single spaces.
+SENTENCE_END = re.compile(r"[.!?] ")
 
 
 def cut(text, limit):
     text = " ".join(str(text).split())
     return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+# A final message's question or status sits at its end, so a long one keeps its last whole
+# sentences after its start (#566). Marley redacts after this cut, so the end starts at a
+# sentence and the start stops at a word: neither cut parts a secret from the name that marks it.
+def cut_ends(text, limit):
+    text = " ".join(str(text).split())
+    if len(text) <= limit:
+        return text
+    room = limit // 2 - 3
+    starts = [match.end() for match in SENTENCE_END.finditer(text) if len(text) - match.end() <= room]
+    if not starts:
+        return cut(text, limit)
+    tail = text[starts[0]:]
+    head = text[: limit - 3 - len(tail)]
+    if not text[len(head)].isspace() and " " in head:
+        head = head.rsplit(" ", 1)[0]
+    return head.rstrip() + " … " + tail
 
 
 def preview(tool, tool_input):
@@ -76,7 +97,7 @@ def summary(event):
     if name in ("Stop", "StopFailure", "SubagentStop"):
         message = event.get("last_assistant_message")
         if isinstance(message, str):
-            out["message"] = cut(message, MAX_MESSAGE)
+            out["message"] = cut_ends(message, MAX_MESSAGE)
     if name == "StopFailure" and isinstance(event.get("error"), str):
         out["error"] = cut(event["error"], 80)
     for key in ("source", "trigger", "reason"):

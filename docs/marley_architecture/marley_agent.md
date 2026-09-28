@@ -54,9 +54,13 @@ pub fn decode(body: &str) -> Result<HookEvent, DecodeError>;   // base64, ≤ 3,
 pub fn fold(seat: &str, previous: Option<&Session>, event: &HookEvent, now_ms: u64)
     -> Vec<SessionEvent>;
 pub const fn seat_status(state: State) -> AgentStatus;
-pub fn seat_line(seat: &Session, now_ms: u64, no_update_after_ms: u64) -> String;
-                                                     // "working · 1 subagent · Add a README"
-pub fn seat_activity(seat: &Session) -> Option<String>;   // "Bash: ls -la", the question, …
+pub fn seat_line(seat: &Session, now_ms: u64, no_update_after_ms: u64, shown: StopKindShown)
+    -> String;                                       // "working · 1 subagent · Add a README"
+pub fn seat_activity(seat: &Session, shown: StopKindShown) -> Option<String>;
+                                                     // "Bash: ls -la", the question, …
+pub struct TurnFacts { started_ms, tools, subagent_tools, failures, interrupted,
+                       permissions_asked, pending, edited, checked_after_edit, stops }
+impl TurnFacts { pub fn of(labels: &BTreeMap<String, String>) -> Self; }   // the `turn` label
 pub fn is_harness_injected(prompt: &str) -> bool;
 pub fn is_compact_continuation(prompt: &str) -> bool;
 ```
@@ -75,17 +79,68 @@ pub fn is_compact_continuation(prompt: &str) -> bool;
   wait ends with (`waiting_on`), so `fold` needs nothing but the previous seat.
 - `seat_line` gives a working seat whose last event is at least `no_update_after_ms` old
   `no update in N m` in place of `working` (#547, through `marley_fleet::is_stale`); 0 never.
+- `TurnFacts` (#566) is what the user's request has done so far: when its prompt came, the lead's
+  tools by name and count, the subagents' tool count, the failures, whether the user interrupted
+  the turn, the permissions asked and the calls still waiting on one, whether a file was edited,
+  whether a Bash finished after the last edit (or with no edit, at all), and how many times the
+  request has stopped. `fold` starts from the seat at each event, so the facts ride on the seat as
+  the `turn` label, in JSON. A prompt the user types starts them over; a prompt a harness injects
+  keeps them and starts only `interrupted` and the waiting calls over. The first interrupt of the
+  lead's tool ends the turn and counts as a stop: tools in parallel each report it. Every turn's
+  start and end clears the stop's four labels, so a kind never outlives its stop.
+- An idle seat's `seat_line` reads its stop kind as `shown` says, and `seat_activity` puts the
+  prompt's parts the message does not cover before the message: `not covered: "Add a license." ·
+  Added the README.`
 - A prompt with one of the tags or openings Orca observed harnesses inject
   (`src/shared/harness-injected-user-turns.ts` in stablyai/orca, MIT) keeps the user's prompt on
   the seat; the continuation after a compaction changes nothing.
+
+## What a stopped turn needs (`src/stop_kind.rs`, #566)
+
+```rust
+pub enum Verdict { Interrupted, Blocked, AsksYou, Open }
+pub fn rules(message: Option<&str>, facts: &TurnFacts) -> Verdict;
+pub fn parts(prompt: &str) -> Vec<String>;            // "Add a README.", "Add a license."
+pub enum Kind { DoneChecked, DoneClaimed, AsksYou, Blocked, StillGoing, Interrupted }
+pub const fn apply_evidence(kind: Kind, facts: &TurnFacts) -> Kind;
+pub fn labels(kind: Option<(Kind, Source, f64)>, missing_parts: &[String])
+    -> Vec<(&'static str, String)>;
+pub enum StopKindShown { Hidden, Suggest, Act }
+pub fn row_word(labels: &BTreeMap<String, String>, shown: StopKindShown) -> Option<String>;
+pub fn not_covered(labels: &BTreeMap<String, String>, shown: StopKindShown) -> Option<String>;
+pub fn state_facts(facts: &TurnFacts, now_ms: u64) -> Vec<(&'static str, String)>;
+```
+
+- `rules` settles what code can see before anything is asked ("local first"): an interrupt, a
+  permission whose call never finished (refused, or never answered), or a last message whose last
+  sentence ends in a question mark or opens with an asking phrase (`should I`, `do you want`,
+  `would you like`, `which`, `shall I`, `let me know`, `can you confirm`). Anything else is `Open`,
+  for the System One layer. A sentence ends at `.`, `?`, `!` or `;` and a space, not after an
+  abbreviation or a list's number.
+- `parts` splits the prompt into what the layer is asked about: its sentences and numbered items,
+  and the items of a bullet the prompt opens with (the plugin sends a prompt on one line, so a
+  dash elsewhere is a dash), each of two words or more, without an introduction ending in `:` or a
+  last part the plugin cut short, at most six.
+- `Kind`'s `value` is its label and its option in the question (`done_checked`), and `words` how a
+  row says it (`done · checked`). `apply_evidence` holds the model to what code saw: a
+  `done_checked` with no Bash after the last edit is `done_claimed`. The model can take a check
+  away, never add one.
+- The four labels are `stop_kind`, `stop_kind_source` (`rules` or `model`),
+  `stop_kind_confidence` (`0.91`) and `stop_parts_missing`, a JSON array of the parts not covered.
+- `row_word` gives the kind in place of `idle` (`Act`), after it with a question mark (`Suggest`,
+  `idle · still going?`), or nothing (`Hidden`), and `not_covered` likewise.
+- `state_facts` gives the facts a stop's state carries: the agent, the tools (`Bash 1, Edit 1`),
+  the failed tools, the permissions pending, `checked after edit` and the turn's length in words
+  (`under a minute`, `4 minutes`), since a phrase reads better to a model than a count.
 
 ## Consumers
 
 - `marley_rail`: a terminal row carries `TerminalAgent { kind, status }` when an agent runs in
   its foreground, and `activity` from `seat_activity` when its events gave one.
-- `marley_workbench::agent_events`: `decode` and `fold` for each `marley-event` frame;
-  `marley_workbench::rail`: `seat_status`, `seat_line` and `seat_activity` for a Claude Code
-  row with a seat.
+- `marley_workbench::agent_events`: `decode` and `fold` for each `marley-event` frame, and
+  since #566 `TurnFacts`, `rules`, `parts`, `state_facts`, `apply_evidence` and `labels` for the
+  stop kind; `marley_workbench::rail`: `seat_status`, `seat_line` and `seat_activity` for a
+  Claude Code row with a seat, with the `StopKindShown` the use's mode gives.
 - `marley_workbench::rail`:
   - recognition through `agent_kind_of`;
   - the `+` menu's Agent CLIs section (`AgentKind::ALL`, filtered to what the search path

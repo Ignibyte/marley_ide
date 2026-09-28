@@ -13,6 +13,20 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **What a stopped Claude Code turn needs, on its rail row** (#566, 2026-09-27). With the stop
+  kind's mode on, an idle Claude Code's row says `done · checked`, `done · claimed`, `asks you`,
+  `blocked`, `still going` or `interrupted` in place of `idle`, and names a part of the prompt the
+  last message leaves out (`not covered: "Add a license."`). Marley's own rules come first and
+  send nothing: an interrupt, a permission never answered, or a last sentence that asks settles
+  the kind. The System One layer is asked the rest, for listed projects only, and `done · checked`
+  needs a command Marley saw run after the last edit, so the model can take a check away but never
+  add one. Off by default: Stop Kind on the Marley settings page, or
+  `marley.system_one.uses.stop_kind`, with Shadow (logged in Decisions, the row unchanged),
+  Suggest (`idle · still going?`) and Act. Agents see the kind as the seat's `stop_kind` labels in
+  `fleet_snapshot`, and your next prompt clears it and logs how soon it came. Marley's Claude Code
+  plugin goes to 1.3.0: a message over 300 characters now keeps its last whole sentences after
+  its start, where a final question or status sits, and the agent bar offers the update.
+
 - **A System One layer, off until you turn it on** (#565, 2026-09-27). Marley can ask a System One
   model, TypeSafe's Jev first, typed questions about what it knows. A feature gets back a reading
   it may show, rank or route on, never an approval. Off, which is the default, Marley makes no

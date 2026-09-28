@@ -3399,3 +3399,42 @@ reaches the user's own Secret Service (gnome-keyring on the dev box). gpui's `wr
 reads the keyring; it passes a secret through the environment, as #565's does with
 `MARLEY_SYSTEM_ONE_KEY`, and the code reads the keyring only when a feature is on and nothing
 else holds the key.
+
+## L-claude-566-the-folds-state-rides-on-the-seat-001
+*category: code · topic: `marley_agent::claude_events` · from: pipeline 566*
+
+`fold` builds its `Moving` from the seat at every event and keeps nothing between events, so
+anything the fold must remember across a turn is a label on the seat: #566's `TurnFacts` is the
+`turn` label, in JSON, parsed at the start of `take` and written back in `into_events`. Labels are
+published whole to agents through `fleet_snapshot` (#547), so a label is also what agents see: the
+stop kind lands no label in `shadow`, which would have shown agents what the row does not.
+
+## L-claude-566-a-use-whose-questions-vary-needs-a-set-per-shape-001
+*category: code · topic: the System One layer · from: pipeline 566*
+
+#565's question sets are compiled in, and a caller never supplies its own questions. A use whose
+questions depend on its input, such as a noul for each part of a prompt, needs one set for each
+shape, each with its own id (`stop_kind_0/1` to `stop_kind_6/1`), and puts the varying text in the
+state as labeled lines (`part 1: …`), where it is masked and cut like any text. The sets and uses
+are `static`, not `const`: a `const` array indexed at run time gives a reference to a temporary,
+and `ask` takes a `&'static UseSpec`. A replay row names the set of its shape.
+
+## L-claude-566-the-hooks-reference-leaves-a-failing-bash-open-001
+*category: process · topic: Claude Code's hooks · from: pipeline 566*
+
+Claude Code's hooks reference (code.claude.com/docs/en/hooks, read 2026-09-27) says `PostToolUse`
+fires "after a tool call succeeds" and `PostToolUseFailure` "after a tool call fails", and says
+nothing on a Bash whose command exits non-zero; it gives neither event's `tool_response` for Bash.
+`PermissionDenied` fires only when auto mode denies a call, so a refusal in the dialog sends no
+event of its own. Every input carries `prompt_id`, and `Stop` carries `last_assistant_message`. A
+design that counts a Bash as a check must hold either way: #566 counts a Bash that ended by
+`PostToolUse`, and asks the model to find the check in the message too.
+
+## L-claude-566-an-edit-script-fed-through-the-heredoc-it-edits-ends-early-001
+*category: tooling · topic: editing scenarios from the shell · from: pipeline 566*
+
+A scenario's helpers embed Python in `<<'PY'` heredocs. A Python edit script fed to `python3 -`
+through `<<'PY'` that holds such a block ends at the block's own `PY` line: Python gets half a
+script, fails, and the shell runs the rest of the edit's text as commands. Write an edit script
+that holds a heredoc to a file in the scratchpad and run the file, or give the outer heredoc a
+delimiter the text does not hold.

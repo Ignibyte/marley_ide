@@ -2424,3 +2424,47 @@ updated". This is the class of F-claude-441-a-task-provider-read-the-workspace-i
 again, through a handle a view holds. Fixed before the first run: the check compares the terminal's
 workspace with the one it runs in (`entity_id`) and takes the folders from the `&mut Workspace` it
 has, reading another workspace only when the terminal belongs to one.
+
+## F-claude-566-a-cut-that-kept-a-messages-end-could-part-a-secret-from-its-name-001
+*severity: medium · found in: pipeline 566's Code phase (the recall before the first edit) · class: a cut before redaction · prevented by: PR-claude-redact-the-whole-text-before-cutting-it-001*
+
+The plan's D9 kept a long message's end by cutting it to its first 150 and last 147 characters.
+The plugin's hook cuts in Python before Marley's redaction runs, so the kept end could start
+inside `Authorization: Bearer <token>` or `API_KEY=<value>` with the name or the `Bearer` in the
+dropped middle, and the value would pass every rule that anchors on it. The head-only cut never
+had this: a head keeps a value's anchor whenever it keeps any of the value. Fixed before it was
+written: the end is the message's last whole sentences, up to 147 characters, and the start is cut
+back to a word, so neither cut splits a sentence from what marks its secret.
+
+## F-claude-566-parallel-tools-counted-one-interrupt-twice-001
+*severity: low · found in: pipeline 566's Code phase (the review of the diff, before any run) · class: one user action reported once per call in flight · prevented by: PR-claude-count-one-user-action-once-when-each-call-reports-it-001*
+
+An Escape while the lead runs two tools in parallel sends a `PostToolUseFailure` with
+`is_interrupt` for each. The first fold of the stop kind counted a stop and set `interrupted` for
+every one, and `after_fold` asked for each, so one interrupt would have logged two `rules` rows
+and moved the stop counter twice, dropping a landing for the first. Fixed before the first run:
+only the first interrupt of a turn counts, and the ask needs the seat to have been running
+before the frame (`before`).
+
+## F-claude-566-an-outcome-crossed-sessions-in-one-terminal-001
+*severity: low · found in: pipeline 566's Test phase (drafting the scenario) · class: session state kept under the terminal's key · prevented by: PR-claude-an-answer-for-a-seat-names-the-session-prompt-and-stop-it-belongs-to-001*
+
+A seat is its terminal's, and the stop kind kept each seat's last stop for the outcome its next
+prompt logs. A new Claude Code session in the same terminal need not send `SessionStart` first
+(the scenario's sessions change without one), so the new session's first prompt would have been
+logged as the outcome of the old session's stop. Fixed before the first run: the last stop keeps
+its session, and a prompt in another one logs nothing.
+
+## F-claude-566-an-earlier-stops-kind-would-show-at-a-later-stop-001
+*severity: low · found in: pipeline 566's Code phase (writing `end_turn`) · class: a label that describes one stop, cleared at the wrong boundary · prevented by: PR-claude-an-answer-for-a-seat-names-the-session-prompt-and-stop-it-belongs-to-001*
+
+The plan cleared the four stop labels only on a prompt the user typed. A prompt a harness injects
+starts a new turn that stops again; with the use turned to `shadow` or `off` by then, nothing
+would land for the second stop, and the row would have shown the first stop's kind. Fixed before
+it was written: every turn's start and end clears the labels, and the stop's own land after the
+fold.
+
+## F-claude-566-decisions-said-1-calls-today-001
+*severity: low · found in: pipeline 566's Test phase (the first run's shots) · class: a count's plural · prevented by: none*
+
+#565's Decisions header read `1 calls today` for one call. It now says `1 call`.

@@ -15,6 +15,15 @@ the time and names the folder. MIT OR Apache-2.0, with rustal's lint table; its 
   255 options, one of them `cannot_tell` wherever the state may not settle it) or a `Score` (2 to
   10 levels). `UseSpec { name, set, deadline }` is a use. `DEFAULT_MODEL` is `jev-1.13.0`, and
   `CHECK_SET` and `CHECK` are the check's: one noul, `command_failed`, with a 2 s deadline.
+- **The stop kind's sets** (#566). A caller never supplies its own questions, so a use whose
+  questions depend on its input has a set for each shape. `STOP_KIND_SETS` holds seven,
+  `stop_kind_0/1` to `stop_kind_6/1`, by the number of parts of the prompt (`MAX_PARTS` is six):
+  the `kind` choice (`done_checked`, `done_claimed`, `asks_you`, `blocked`, `still_going`,
+  `cannot_tell`) and a noul per part, `part_1_done` to `part_N_done`, about the part of the
+  request the state labels `part N`. The parts are the state's text, so they are masked and cut
+  like any text, and a metadata-only project, whose state has no text, asks `stop_kind_0/1`.
+  `STOP_KIND` holds the seven `UseSpec`s, all named `stop_kind` with a 2 s deadline, as statics,
+  so the one `stop_kind(parts)` picks at run time is `&'static`.
 - **`state`.** `StateBuilder::new(detail, mask)` takes facts, kept at every `Detail`, and text,
   left out at `Detail::Facts`, each value through the host's mask. A text value is masked whole
   and then cut to 300 characters (`cut`), since a cut can split a secret the mask would find.
@@ -55,10 +64,11 @@ keychain and the settings, which the workbench owns.
 
 ## Consumers
 
-`marley_workbench::system_one` (the adapter and the check) and `marley_workbench::decisions` (the
-view).
+`marley_workbench::system_one` (the adapter and the check), `marley_workbench::decisions` (the
+view) and, since #566, `marley_workbench::agent_events` (the stop kind).
 
 ## Tests
 
 None written (§7). `script/e2e/565-system-one-layer.sh` drives the crate through the app against a
-fake `/v1/systemone`.
+fake `/v1/systemone`, and `script/e2e/566-stop-kind.sh` the stop kind's sets on the `replay`
+provider.
