@@ -172,7 +172,7 @@ pub(crate) fn on_frame(
 
 /// The stop kind's part after `event` moved `seat` on from `before` (#566): the user's prompt
 /// logs the outcome of the seat's last stop, and a lead `Stop`, or the interrupt that ended the
-/// lead's turn, asks what the stop needs.
+/// lead's turn, asks what the stop needs. The lead's turns open and close with it (#509).
 fn after_fold(
     view: &TerminalView,
     event: &HookEvent,
@@ -183,6 +183,7 @@ fn after_fold(
     if event.agent_id.is_some() {
         return;
     }
+    crate::turns::on_event(view, cx.entity_id().as_u64(), event, seat, cx);
     match event.event.as_str() {
         "UserPromptSubmit" => {
             let prompt = event.prompt.as_deref().unwrap_or_default();
@@ -505,6 +506,8 @@ pub(crate) fn end(terminals: &[u64], cx: &mut App) {
     if live.is_empty() {
         return;
     }
+    let ended: Vec<u64> = live.iter().filter_map(|seat| seat.parse().ok()).collect();
+    crate::turns::on_end(&ended, cx);
     let ts_ms = now_ms();
     let agent_events = cx.default_global::<AgentEvents>();
     for id in live {
@@ -516,8 +519,9 @@ pub(crate) fn end(terminals: &[u64], cx: &mut App) {
     }
 }
 
-/// Forgets the seat of the terminal view `view`, which is closing.
+/// Forgets the seat of the terminal view `view`, which is closing, and its turns (#509).
 pub(crate) fn forget(view: EntityId, cx: &mut App) {
+    crate::turns::forget(view.as_u64(), cx);
     let seat = seat_id(view);
     let known = cx
         .try_global::<AgentEvents>()

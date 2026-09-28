@@ -467,7 +467,7 @@ progress, and the last five from `docs/marley/three-prong-plan.md`.
 | Turn a recording into a Playwright test | After lesson 32 | TICKET-506 |
 | Keep a separate login per project | After lesson 27 | TICKET-507 |
 | Answer every agent's permission prompt from one list in the rail | After lesson 23 | TICKET-508 |
-| Review Claude Code's work turn by turn | After lesson 21 | TICKET-509 |
+| Review Claude Code's work turn by turn | After lesson 21 | TICKET-509 (shipped) |
 | Run agents side by side, each on its own worktree and branch | A new part after part 5 | TICKET-510 |
 | Review and merge a worktree agent's branch | In that new part | TICKET-511 |
 | A long two-line prompt in the first terminal of a launch | Removes lesson 14's note | TICKET-486 |

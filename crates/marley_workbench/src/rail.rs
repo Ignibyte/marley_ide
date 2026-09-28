@@ -32,7 +32,7 @@ use marley_mcp::redact::Redactor;
 use marley_rail::{
     BrowserRow, BrowserSnapshot, Focus, InboxEntry, InboxKind, PortRow, PortSnapshot, ProjectRow,
     ProjectSnapshot, RailSnapshot, Row, Selection, SwitcherRow, TerminalAgent, TerminalRow,
-    TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus,
+    TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus, TurnSnapshot,
 };
 use marley_system_one::reading::{Reading, Signal};
 use marley_system_one::{INBOX_RISK, QUESTION_ROUTE};
@@ -65,6 +65,7 @@ use crate::agents::{self, AgentIcon};
 use crate::browser::{BrowserEvent, BrowserHub, BrowserView};
 use crate::ports::{self, Ports};
 use crate::system_one::{self, Asking};
+use crate::turns::Turns;
 use crate::{MarleySettings, browser};
 
 #[path = "rail_switcher.rs"]
@@ -124,6 +125,8 @@ pub struct Rail {
     risk: HashMap<String, Risk>,
     /// What the question route keeps of each tool entry, by its key (#570).
     routes: HashMap<String, RouteState>,
+    /// The terminals whose turns are listed under their rows, by the rail's terminal id (#509).
+    turns_open: HashSet<u64>,
     /// The window as the rail last read it. `render` draws from this alone, so another entity's
     /// notify does not redraw the window, and an event that changes nothing shown does not either:
     /// workspaces and terminal views report every chunk of terminal output.
@@ -157,8 +160,8 @@ pub struct Rail {
     /// The threads whose attention dot is lit.
     noted_threads: HashSet<String>,
     _multi_workspace_subscriptions: [Subscription; 2],
-    /// Claude Code's hook events, which move its terminals' rows (#519).
-    _agent_events: Subscription,
+    /// Claude Code's hook events, which move its terminals' rows (#519), and its turns (#509).
+    _agent_events: [Subscription; 2],
     /// The rows' ports, from the scan an open rail keeps running (#521), and the settings that
     /// can show the rail again.
     _ports: [Subscription; 2],
@@ -384,21 +387,11 @@ impl Rail {
             rail.cursor = None;
             rail.refresh(window, cx);
         });
-        let filter_editor = cx.new(|cx| {
-            let mut editor = Editor::single_line(window, cx);
-            editor.set_placeholder_text("Filter…", window, cx);
-            editor
-        });
-        let filter_edits = cx.subscribe_in(
-            &filter_editor,
-            window,
-            |rail, _, event: &EditorEvent, window, cx| {
-                if matches!(event, EditorEvent::BufferEdited) {
-                    rail.filter_edited(window, cx);
-                }
-            },
-        );
-        let agent_events = cx.observe_global_in::<AgentEvents>(window, Self::refresh);
+        let (filter_editor, filter_edits) = Self::filter_field(window, cx);
+        let agent_events = [
+            cx.observe_global_in::<AgentEvents>(window, Self::refresh),
+            cx.observe_global_in::<Turns>(window, Self::refresh),
+        ];
         cx.on_release(|rail, cx| {
             if rail.watching_ports {
                 ports::unwatch(cx);
@@ -438,6 +431,7 @@ impl Rail {
             inbox_timer: None,
             risk: HashMap::default(),
             routes: HashMap::default(),
+            turns_open: HashSet::default(),
             snapshot: Snapshot::default(),
             zed_sidebar,
             zed_sidebar_state: None,
@@ -459,6 +453,25 @@ impl Rail {
             _focus_out: focus_out,
             _filter_edits: filter_edits,
         }
+    }
+
+    /// The filter's field under the header, and its edits, which refilter the rows.
+    fn filter_field(window: &mut Window, cx: &mut Context<Self>) -> (Entity<Editor>, Subscription) {
+        let filter_editor = cx.new(|cx| {
+            let mut editor = Editor::single_line(window, cx);
+            editor.set_placeholder_text("Filter…", window, cx);
+            editor
+        });
+        let filter_edits = cx.subscribe_in(
+            &filter_editor,
+            window,
+            |rail, _, event: &EditorEvent, window, cx| {
+                if matches!(event, EditorEvent::BufferEdited) {
+                    rail.filter_edited(window, cx);
+                }
+            },
+        );
+        (filter_editor, filter_edits)
     }
 
     /// Hands Zed's sidebar back for the switch to the Zed layout: the one the rail kept, and the
@@ -530,6 +543,7 @@ impl Rail {
                 )
             })
             .unwrap_or_default();
+        self.note_turns_open(&mut snapshot);
         self.note_ended_runs(&mut snapshot);
         self.note_inbox(&mut snapshot, window, cx);
         self.note_window_row(&snapshot.rail);
@@ -1887,6 +1901,53 @@ impl Rail {
         self.refresh(window, cx);
     }
 
+    /// Lists the turns of the terminal `id` under its row, or folds them (#509).
+    fn toggle_turns(&mut self, id: u64, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.turns_open.remove(&id) {
+            self.turns_open.insert(id);
+        }
+        self.refresh(window, cx);
+    }
+
+    /// Marks the rows whose turns are listed, and forgets the terminals that closed (#509).
+    fn note_turns_open(&mut self, snapshot: &mut Snapshot) {
+        self.turns_open
+            .retain(|id| snapshot.terminals.contains_key(id));
+        for terminal in snapshot
+            .rail
+            .projects
+            .iter_mut()
+            .flat_map(|project| project.terminals.iter_mut())
+        {
+            terminal.turns_open = self.turns_open.contains(&terminal.id);
+        }
+    }
+
+    /// Opens the turn `sha` of the terminal `id` in Zed's commit view, in the terminal's project,
+    /// which it shows (#509). The view diffs the turn's commit against its parent, the turn's
+    /// start.
+    fn open_turn(
+        &self,
+        id: u64,
+        sha: String,
+        workspace: &WeakEntity<Workspace>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let repository = Turns::repository_of(id, &sha, cx).context("the turn is gone")?;
+        let workspace = self.activate_workspace(workspace, window, cx)?;
+        git_ui::commit_view::CommitView::open(
+            sha,
+            repository,
+            workspace.downgrade(),
+            None,
+            None,
+            window,
+            cx,
+        );
+        Ok(())
+    }
+
     fn render_header(&self, window: &Window, cx: &Context<Self>) -> impl IntoElement {
         let header = h_flex()
             .h(platform_title_bar_height(window))
@@ -2370,9 +2431,10 @@ impl Rail {
                     .log_err();
             }
         }));
+        let turns = Self::render_turns(id, row.turns, row.turns_open, &terminal.workspace, cx);
         let rail = cx.entity().downgrade();
         let (menu_workspace, menu_view) = (terminal.workspace.clone(), terminal.view.clone());
-        right_click_menu(("marley-rail-terminal-menu", id))
+        let menu = right_click_menu(("marley-rail-terminal-menu", id))
             .trigger(move |_, _, _| {
                 div()
                     .debug_selector(move || format!("marley-rail-terminal-{id}"))
@@ -2396,7 +2458,106 @@ impl Rail {
                         Self::close_terminal(&close_workspace, &close_view, window, cx).log_err();
                     })
                 })
+            });
+        v_flex().child(menu).children(turns)
+    }
+
+    /// Under a terminal's card, its turns (#509): a "Turns (N)" line whose disclosure lists them,
+    /// newest first, each with its title, the files it changed, and whether it failed or a
+    /// harness started it. A click on a turn opens its diff.
+    fn render_turns(
+        id: u64,
+        turns: Vec<TurnSnapshot>,
+        open: bool,
+        workspace: &WeakEntity<Workspace>,
+        cx: &Context<Self>,
+    ) -> Option<AnyElement> {
+        if turns.is_empty() {
+            return None;
+        }
+        let hover = cx.theme().colors().ghost_element_hover;
+        let header = h_flex()
+            .id(("marley-rail-turns", id))
+            .debug_selector(move || format!("marley-rail-turns-{id}"))
+            .h_6()
+            .gap_1()
+            .px_1()
+            .rounded_md()
+            .cursor_pointer()
+            .hover(|style| style.bg(hover))
+            .child(
+                Disclosure::new(("marley-rail-turns-disclosure", id), open).on_click(
+                    cx.listener(move |rail, _, window, cx| rail.toggle_turns(id, window, cx)),
+                ),
+            )
+            .child(
+                Label::new(format!("Turns ({})", turns.len()))
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            )
+            .on_click(cx.listener(move |rail, _, window, cx| rail.toggle_turns(id, window, cx)));
+        let rows = open.then(|| {
+            turns.into_iter().enumerate().map(|(index, turn)| {
+                let files = if turn.files == 1 {
+                    "1 file".to_string()
+                } else {
+                    format!("{} files", turn.files)
+                };
+                let (sha, workspace) = (turn.sha, workspace.clone());
+                h_flex()
+                    .id(("marley-rail-turn", index))
+                    .debug_selector(move || format!("marley-rail-turn-{id}-{index}"))
+                    .h_6()
+                    .gap_1()
+                    .pl_6()
+                    .pr_1()
+                    .rounded_md()
+                    .cursor_pointer()
+                    .hover(|style| style.bg(hover))
+                    .tooltip(Tooltip::text(turn.title.clone()))
+                    .child(
+                        div()
+                            .min_w_0()
+                            .child(Label::new(turn.title).size(LabelSize::XSmall).truncate()),
+                    )
+                    .child(
+                        h_flex()
+                            .flex_none()
+                            .gap_1()
+                            .child(
+                                Label::new(format!("· {files}"))
+                                    .size(LabelSize::XSmall)
+                                    .color(Color::Muted),
+                            )
+                            .when(turn.failed, |marks| {
+                                marks.child(
+                                    Label::new("· failed")
+                                        .size(LabelSize::XSmall)
+                                        .color(Color::Error),
+                                )
+                            })
+                            .when(turn.injected, |marks| {
+                                marks.child(
+                                    Label::new("· injected")
+                                        .size(LabelSize::XSmall)
+                                        .color(Color::Muted),
+                                )
+                            }),
+                    )
+                    .on_click(cx.listener(move |rail, _, window, cx| {
+                        rail.open_turn(id, sha.clone(), &workspace, window, cx)
+                            .log_err();
+                    }))
             })
+        });
+        Some(
+            v_flex()
+                .id(("marley-rail-turn-list", id))
+                .pl_4()
+                .child(header)
+                .children(rows.into_iter().flatten())
+                .into_any_element(),
+        )
     }
 }
 
@@ -3471,6 +3632,18 @@ fn terminal_snapshot(
         flag: seat
             .filter(|seat| seat.state == marley_fleet::State::Working)
             .and_then(|seat| marley_agent::stall::tooltip(&seat.labels, flag)),
+        turns: Turns::of(view.entity_id().as_u64(), cx)
+            .iter()
+            .rev()
+            .map(|turn| TurnSnapshot {
+                title: turn.title.clone(),
+                files: turn.files,
+                failed: turn.failed,
+                injected: turn.injected,
+                sha: turn.sha.clone(),
+            })
+            .collect(),
+        turns_open: false,
         matched: None,
     }
 }

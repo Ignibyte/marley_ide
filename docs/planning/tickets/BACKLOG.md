@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-509](open/TICKET-509-per-turn-diffs.md) | feature | prong 2 · Claude Code's turns as snapshots, each turn's diff in Zed's commit view; on #519 |
 | [TICKET-532](open/TICKET-532-agent-permission-modes.md) | feature | prong 2 · Claude Code's bypass or Codex's full access as a setting, shown on the rail row |
 | [TICKET-510](open/TICKET-510-worktree-agents.md) | feature | prong 2 · New Agent in Worktree: an agent on its own branch and worktree, under its project in the rail |
 | [TICKET-560](open/TICKET-560-conflict-chip.md) | feature | prong 2 · a chip on worktree rows: commits behind the base and the files a merge would stop on, from three read-only git calls; after #510 |

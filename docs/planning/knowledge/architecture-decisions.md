@@ -2750,3 +2750,20 @@ connects a manager's entry stays the user's. Rejected:
 - ordering across levels by the route: what could destroy or leak stays first whoever answers;
 - asking about held clicks: they are the owner's by their class, and #571 logged them;
 - a turn's last message in the state: a waiting seat's is empty.
+
+## AD-claude-509-a-turn-is-a-commit-of-its-end-on-its-start-under-marleys-refs-001
+*decided at: 2026-09-28 · status: shipped*
+
+A turn of a terminal's Claude Code, from a prompt to its stop, is kept as a git commit: the tree
+of Zed's checkpoint at its end, with the checkpoint at its start as its one parent, written by
+Marley and pinned under `refs/marley/turns/<session>/<n>`, the number counting on from the refs
+the session has, so a resumed session adds turns. Zed's commit view shows it against its first
+parent, the turn alone, with shell commands' edits as much as the agent's. A turn that changed
+nothing writes nothing; a session's first pin deletes the repository's turn refs older than 30
+days. Nothing touches the user's index, branches or `HEAD`. Rejected:
+- rebuilding a turn from the agent's tool calls: a shell command's edits would be missed;
+- a diff of the two checkpoints as text (`diff_checkpoints`): no view shows it as a multibuffer;
+- keeping turns in Marley's own store: git keeps the objects, and a ref keeps them past a
+  restart for #540 to list;
+- `git2` or `gix` for the commit: neither is in `Cargo.lock`, and one `git` spawn in an adapter
+  does it.

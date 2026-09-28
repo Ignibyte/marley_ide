@@ -7,11 +7,14 @@
 # shellcheck source=script/e2e/browser-fixture.sh
 . script/e2e/browser-fixture.sh
 
-# Whether the stand-in's block holds each line named.
+# Whether the stand-in's block holds each line named. The rich input writes the paste and its
+# carriage return in two writes, so the stand-in's reply to the paste's first line can land on the
+# echo of the next, before the carriage return's: each reply is read from where it starts.
 stand_in_got() {
   local line
   for line in "$@"; do
-    grep -qxF "claude got: $line" "$E2E_WORK/stand-in.txt" || return 1
+    sed -n 's/.*claude got: /claude got: /p' "$E2E_WORK/stand-in.txt" |
+      grep -qxF "claude got: $line" || return 1
   done
 }
 

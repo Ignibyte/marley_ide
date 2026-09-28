@@ -2520,3 +2520,21 @@ subscriber (`cx.subscribe`) hears only the events the entity emits; `cx.notify()
 observers alone. The rail subscribes to the Browser hub's events because the hub notifies on
 every frame. A change the listing must show emits an event the view already refreshes on, when
 the state begins and when it ends.
+
+## PR-claude-a-check-on-terminal-text-reads-a-reply-from-where-it-starts-001
+*severity: low · prevents: F-claude-481-the-rich-inputs-check-raced-the-echo-of-its-paste-001*
+
+A scenario that reads a terminal's text for a program's reply to typed or pasted input cannot
+count on the reply starting a line: the tty echoes the input as it arrives, and a program that
+answers a line before the rest of the input comes writes into the middle of the echo. Take the
+reply from its own marker to the line's end and match that, never the whole screen line.
+
+## PR-claude-a-number-taken-across-awaits-is-taken-by-one-task-at-a-time-001
+*severity: medium · prevents: F-claude-509-two-quick-closes-could-pin-one-turn-number-twice-001*
+
+When a task reads shared state (a listing, a counter, a flag), awaits, and then writes what it
+read decides (the next number, a ref, "done once"), and a second task of the same kind can start
+before the first writes, the two can read the same value. Chain such tasks (each awaits the one
+before it, kept as a shared task), or read and write in one step on the main thread with nothing
+awaited between. A detached task that must finish keeps a detached waiter when the owner of its
+handle can drop.

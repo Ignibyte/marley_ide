@@ -3575,3 +3575,22 @@ confidence under the floor, so a use never sees the abstaining option by name. A
 show its own floor for those, as the question route's `unclear` does, maps a `Nothing` on its
 key, and a `Refused` or `Unavailable` reading, to that floor itself, and keeps no confidence to
 show for it.
+
+## L-claude-509-a-zed-checkpoint-is-a-commit-on-head-of-the-whole-tree-001
+*category: code · topic: git · from: pipeline 509*
+
+`Repository::checkpoint` runs, in a temporary index copied from the user's, `add --update`, adds
+the untracked files `checkpoint.gitignore` lets through (no ignored files, nothing of 2 MB or
+more, no binaries, archives or media), `write-tree`, and `commit-tree <tree> -p HEAD -m
+Checkpoint` as Zed; the user's index, branches and `HEAD` stay as they were. So two checkpoints
+compare the working trees, staged and unstaged alike, and a commit of one's tree on the other,
+which `CommitView` diffs against its first parent, shows exactly what changed between them.
+`Repository` has no job to write a commit from a tree or to list refs; those take a `git` spawn.
+
+## L-claude-509-a-scenario-agent-edits-after-its-prompts-checkpoint-001
+*category: process · topic: e2e scenarios · from: pipeline 509*
+
+Per-turn diffs take the turn's start checkpoint when the prompt's frame reaches Marley. A
+stand-in agent that edits a file at once can beat that checkpoint, and its edit lands in the
+turn before. #509's stand-in sleeps two seconds after each prompt's event before its edits, as a
+model's first reply would, and a second before its stop.

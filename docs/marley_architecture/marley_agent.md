@@ -65,6 +65,8 @@ pub struct ToolLine { pub line: String, pub failed: bool }          // #569
 impl TurnFacts { pub fn of(labels: &BTreeMap<String, String>) -> Self; }   // the `turn` label
 pub fn is_harness_injected(prompt: &str) -> bool;
 pub fn is_compact_continuation(prompt: &str) -> bool;
+pub enum PromptOrigin { User, SlashCommand(String), Injected(Option<&'static str>), Continuation }
+pub fn prompt_origin(prompt: &str) -> PromptOrigin;                 // #509
 ```
 
 - The plugin's `hooks/event.py` sends each hook event as an OSC 777 notify titled
@@ -102,6 +104,10 @@ pub fn is_compact_continuation(prompt: &str) -> bool;
 - A prompt with one of the tags or openings Orca observed harnesses inject
   (`src/shared/harness-injected-user-turns.ts` in stablyai/orca, MIT) keeps the user's prompt on
   the seat; the continuation after a compaction changes nothing.
+- `prompt_origin` (#509) says where a prompt came from, for a turn's title: the continuation
+  first, then the tag at the head, where a slash command's envelope (`command-name`,
+  `command-message`, `command-args`) is the user's and gives the name inside `<command-name>`,
+  then the openings with no tag, else the user's.
 
 ## What a stopped turn needs (`src/stop_kind.rs`, #566)
 

@@ -13,6 +13,18 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Per-turn diffs for Claude Code in a terminal** (#509, 2026-09-28). Each turn of a terminal's
+  Claude Code that changes the tree, from your prompt to its stop, is kept as a commit of its
+  own: Marley takes a checkpoint of the repository when the prompt comes and another when the
+  turn ends, and a turn whose tree changed becomes a commit of the end on the start, pinned under
+  `refs/marley/turns/<session>/<n>`. Under the terminal's rail row, "Turns (N)" opens to the
+  session's turns, newest first, each with its title, the files it changed, and `failed` after an
+  API error or `injected` for a turn a harness started (titled by what injected it, such as `task
+  notification`); a slash command's turn is titled by the command. A click opens the turn in Zed's
+  commit view, which shows that turn's changes and nothing else, shell commands' edits included.
+  Your index, your branches and `HEAD` are never touched. A turn that changed nothing lists
+  nothing, and a session's first turn prunes the turn refs older than 30 days.
+
 - **The inbox says who should answer each waiting agent** (#570, 2026-09-28). With the question
   route's mode on, each entry of the rail's "Needs you" section carries a mark: `for you`, `for
   the manager`, `could proceed` or `unclear`. Marley's own rules decide first: what #568 marks as

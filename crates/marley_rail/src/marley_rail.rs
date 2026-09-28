@@ -66,8 +66,27 @@ pub struct TerminalSnapshot {
     /// The agent's stall or loop flag (#569), as the warning mark's tooltip says it; `None` when
     /// the row carries no flag.
     pub flag: Option<String>,
+    /// The turns of the terminal's Claude Code that changed the tree (#509), newest first.
+    pub turns: Vec<TurnSnapshot>,
+    /// Whether the row's turns are listed under it.
+    pub turns_open: bool,
     /// Where the filter matched the title, as for [`ProjectSnapshot::matched`].
     pub matched: Option<Vec<usize>>,
+}
+
+/// One turn of a terminal's Claude Code that changed the tree (#509).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TurnSnapshot {
+    /// The prompt on one line, the slash command, or what injected it.
+    pub title: String,
+    /// How many files it changed.
+    pub files: usize,
+    /// Whether it ended in an error.
+    pub failed: bool,
+    /// Whether a harness's prompt started it.
+    pub injected: bool,
+    /// Its commit, in full: what a click on its row opens.
+    pub sha: String,
 }
 
 /// One Browser tab (#504).
@@ -343,6 +362,10 @@ pub struct TerminalRow {
     pub activity: Option<String>,
     /// The warning mark's tooltip, when the agent is flagged (see [`TerminalSnapshot::flag`]).
     pub flag: Option<String>,
+    /// The turns listed under the row (see [`TerminalSnapshot::turns`]).
+    pub turns: Vec<TurnSnapshot>,
+    /// Whether the turns are listed.
+    pub turns_open: bool,
     /// Whether this is the selected row.
     pub selected: bool,
     /// The byte offsets of the title's characters the filter matched, to highlight.
@@ -736,6 +759,8 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                 agent: terminal.agent,
                 activity: terminal.activity.clone(),
                 flag: terminal.flag.clone(),
+                turns: terminal.turns.clone(),
+                turns_open: terminal.turns_open,
                 selected: selected == Selection::Terminal(terminal.id),
                 highlight: highlight(terminal.matched.as_deref()),
             }),
@@ -822,6 +847,8 @@ pub fn switcher_rows(
                 agent: terminal.agent,
                 activity: terminal.activity.clone(),
                 flag: terminal.flag.clone(),
+                turns: terminal.turns.clone(),
+                turns_open: terminal.turns_open,
                 selected: false,
                 highlight: Vec::new(),
             })
@@ -917,6 +944,8 @@ mod tests {
             agent: None,
             activity: None,
             flag: None,
+            turns: Vec::new(),
+            turns_open: false,
             matched: None,
         }
     }
@@ -1079,6 +1108,8 @@ mod tests {
                     agent: None,
                     activity: None,
                     flag: None,
+                    turns: Vec::new(),
+                    turns_open: false,
                     selected: false,
                     highlight: Vec::new(),
                 }),
@@ -1091,6 +1122,8 @@ mod tests {
                     agent: None,
                     activity: None,
                     flag: None,
+                    turns: Vec::new(),
+                    turns_open: false,
                     selected: false,
                     highlight: Vec::new(),
                 }),
@@ -1111,6 +1144,8 @@ mod tests {
                     agent: None,
                     activity: None,
                     flag: None,
+                    turns: Vec::new(),
+                    turns_open: false,
                     selected: true,
                     highlight: Vec::new(),
                 }),
@@ -1149,6 +1184,8 @@ mod tests {
                     agent: None,
                     activity: None,
                     flag: None,
+                    turns: Vec::new(),
+                    turns_open: false,
                     selected: false,
                     highlight: Vec::new(),
                 }),
@@ -1295,6 +1332,8 @@ mod tests {
                     agent: None,
                     activity: None,
                     flag: None,
+                    turns: Vec::new(),
+                    turns_open: false,
                     selected: false,
                     highlight: Vec::new(),
                 }),
@@ -1333,6 +1372,8 @@ mod tests {
                     agent: None,
                     activity: None,
                     flag: None,
+                    turns: Vec::new(),
+                    turns_open: false,
                     selected: false,
                     highlight: Vec::new(),
                 }),

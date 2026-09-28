@@ -663,6 +663,43 @@ alike.
   A new session, `end` and `forget` drop it. `stop_kind_shown` gives the rail the mode as a
   `StopKindShown`, and the rail's settings observer refreshes the rows, so a new mode shows at once.
 
+## Per-turn diffs (`src/turns.rs`, `src/turn_git.rs`, #509)
+
+- `Turns`, a global made at the first write, holds a seat per terminal view whose Claude Code
+  opened a turn: the session, the repository (weak) and its work directory, the open turn (its
+  title, whether a harness started it, and its checkpoint as a shared task), the listed turns
+  (`Turn { title, files, failed, injected, sha, repository }`, oldest first, each with the
+  repository it was taken in), and the last record as a shared task; and the sessions that have
+  pinned a turn. `Turns::of(view)` and `Turns::repository_of(view, sha)` serve the rail.
+- `after_fold` calls `turns::on_event` for each lead event. A UserPromptSubmit that is not the
+  compaction's continuation (`claude_events::prompt_origin`) closes the open turn and opens one in
+  the innermost local repository holding the event's `cwd`, else the seat's `cwd` label, else the
+  terminal's working directory, reusing the close's checkpoint when the repository is the same.
+  `Stop`, `SessionEnd`, `SessionStart`, a manual `PostCompact`, an interrupt and a new session id
+  close; `StopFailure` closes as failed. `agent_events::end` calls `on_end`, and `forget` calls
+  `turns::forget`, which closes and drops the seat. A session id that is not ASCII letters,
+  digits, `-` and `_` opens no turn, since it names the refs.
+- A close takes `Repository::checkpoint` in the repository's job queue and spawns the record,
+  which awaits the seat's record before it, so each takes the next number and lists in order: both
+  checkpoints, `compare_checkpoints` (equal ends it), `turn_git::turn_refs_in` for the session's
+  highest number, `turn_git::commit_tree_in` of `<end>^{tree}` on the start with the title and
+  the `Marley-Session` and `Marley-Turn` trailers, `Repository::update_ref`, the file count from
+  `diff_tree(Since)`, and on the session's first pin, `delete_ref` for each turn ref whose commit
+  is older than 30 days. A detached waiter keeps a record running when its terminal closes.
+- `turn_git.rs` is the adapter for the two programs `Repository` has no job for: `git
+  commit-tree <tree> -p <parent> --no-gpg-sign -m …` with the author and committer `Marley
+  <marley@localhost>`, and `git for-each-ref` over `refs/marley/turns/`, through `util::command`
+  in the work directory, never a shell. #541's `process.rs` takes them over.
+- The rail observes the global beside `AgentEvents`. `terminal_snapshot` fills
+  `TerminalSnapshot.turns` newest first, and `note_turns_open` marks the rows in the rail's
+  `turns_open` set (by terminal id, not saved, pruned to the live terminals). `render_turns` draws
+  under the terminal's card a "Turns (N)" line with a `Disclosure` (a click on either toggles) and,
+  while open, a row per turn: the title (truncated, whole in its tooltip), `· N files`, `· failed`
+  in the error color and `· injected`. `open_turn` shows the terminal's project and calls
+  `git_ui::commit_view::CommitView::open` with the turn's full sha and the repository the turn
+  was taken in; the view diffs against the first parent, the turn's start. The keyboard walk does
+  not step into the turns.
+
 ## Stalled or looping agents (`src/stall.rs`, #569)
 
 - `on_frame` calls `stall::moved` after each fold and arms `stall::watch` while the seat works,

@@ -2576,3 +2576,46 @@ question mark in `suggest`, a dashed border in `act`. The rail redraws only when
 snapshot changes, so a switch from `suggest` to `act` that moved no entry's level would have
 kept the question marks until something else changed. Fixed before the first run:
 `RailSnapshot.inbox_suggests` carries the difference, so the switch changes the snapshot.
+
+## F-claude-509-two-quick-closes-could-pin-one-turn-number-twice-001
+*severity: medium · found in: pipeline 509's Code phase (the review of the diff, before any run) · class: a read then a write of shared state across awaits, in tasks that can overlap · prevented by: PR-claude-a-number-taken-across-awaits-is-taken-by-one-task-at-a-time-001 (new)*
+
+Each closed turn's record listed the session's turn refs, took the highest number plus one,
+wrote the commit and pinned it with `update_ref`, awaiting git between each step. Two closes of
+one terminal in quick succession, a prompt's close and then a quick `Stop`, ran two records at
+once: both could list the refs before either pinned, take the same number, and the second
+`update_ref` would overwrite the first ref, leaving its commit to `git gc` and its row pointing
+at an unpinned commit; the rows could also list out of order. The first draft's prune flag had
+the same shape: read at the close, set at the pin, so two quick closes both pruned. Fixed before
+the first run: each seat keeps its last record as a shared task, and the next record awaits it
+first; the prune keys on a set of sessions on the global, checked and set in one step at the pin.
+
+## F-claude-509-a-turn-would-have-opened-in-the-repository-its-terminal-moved-to-001
+*severity: low · found in: pipeline 509's Code phase (the review of the diff) · class: a lookup by the owner's current state for an item made under an earlier state · prevented by: none*
+
+The rail's click on a turn asked `Turns::repository_of(view)` for the terminal's repository,
+which is the one its latest turn opened in. A Claude Code that moved to another repository of the
+project mid-session would have opened an older turn's sha in the new repository, where the commit
+does not exist. Fixed before the first run: each `Turn` keeps the repository it was taken in, and
+`repository_of(view, sha)` finds it by the turn's sha.
+
+## F-claude-509-an-event-with-no-usable-session-id-would-have-failed-every-pin-001
+*severity: low · found in: pipeline 509's Code phase (the review of the diff) · class: an outside value used as a name component unchecked · prevented by: none*
+
+The turn's refs are named by the event's session id. The first draft took it with
+`unwrap_or_default`, so an event without one would have opened turns under
+`refs/marley/turns//<n>`, a name git refuses, and every pin would have failed into the log; an id
+with a slash would have nested the refs. Fixed before the first run: the event's id, else the
+seat's session label, and a turn opens only for an id of ASCII letters, digits, `-` and `_`, as
+Claude Code's UUIDs are.
+
+## F-claude-481-the-rich-inputs-check-raced-the-echo-of-its-paste-001
+*severity: low · found in: #570's release install, the golden set on the release build · class: an e2e check that matches whole lines of terminal text where the tty's echo and a program's output interleave · prevented by: PR-claude-a-check-on-terminal-text-reads-a-reply-from-where-it-starts-001 (new)*
+
+Scenario 481 checked that the stand-in printed `claude got: <line>` as a whole line. The rich
+input writes the paste and its carriage return in two writes, so the stand-in can read the
+paste's first line and reply before the carriage return arrives: its reply lands on the echo of
+the paste's second line (`second lineclaude got: hello rich input`) and the whole-line match
+misses it. It failed once in 45 on the release build and passed when run again. Fixed in #509:
+the check reads each reply from where it starts (`sed -n 's/.*claude got: /claude got: /p'`) and
+matches that whole.

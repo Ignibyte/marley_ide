@@ -467,6 +467,42 @@ The plugin, `marley` 1.4.0, brings three things:
   carries its options, which the inbox's question route reads (#570). The agent bar offers the
   update to a plugin that is older than Marley's.
 
+### Per-turn diffs
+
+With the plugin connected, Marley keeps each turn of a terminal's Claude Code that changed the
+repository's tree (#509). A turn runs from a prompt to its stop: Claude Code's `Stop`, an API
+error, a manual `/compact`, an interrupt, the next prompt, a new session, or Claude Code leaving
+the terminal. At the prompt and at the turn's end Marley takes a checkpoint of the innermost
+repository that holds Claude Code's directory, as Zed's agent does, through a temporary index. A
+turn whose tree changed becomes a commit of its end on its start, pinned under
+`refs/marley/turns/<session>/<n>` with Marley as its author; your index, your branches and `HEAD`
+are never touched, and a turn that changed nothing leaves nothing.
+
+Under the terminal's rail row, **Turns (N)** and its chevron open the turns of the terminal's
+Claude Code, newest first:
+
+| A turn row | What it says |
+|---|---|
+| The title | The prompt on one line; a slash command's name, such as `/review`; what a harness injected, such as `task notification` |
+| `· 2 files` | How many files the turn changed |
+| `· failed` | The turn ended in an API error |
+| `· injected` | A harness's prompt started it, not yours |
+
+A click opens the turn in Zed's commit view in the terminal's project: the files the turn changed
+against its start, shell commands' edits as much as the agent's, and nothing of the turns before
+or after it. The turns stay listed after Claude Code exits, until the terminal closes; the refs
+keep the commits after that. A session's first turn deletes the repository's turn refs whose
+commits are older than 30 days.
+
+Worth knowing:
+
+- The checkpoint leaves out what Zed's checkpoints do: ignored files, untracked files of 2 MB or
+  more, and untracked binaries, archives and media.
+- The turn is the tree's change, whoever made it: your own edits while a turn runs, or another
+  agent's in the same checkout, land in it.
+- A remote project's terminals get no turns.
+- Marley runs the `git` on its PATH for the turn's commit and its refs.
+
 ## Zed's Agent Panel with Marley's tools
 
 Zed's Agent Panel works as it does in Zed. In the Marley layout it docks on the right (Ctrl+?

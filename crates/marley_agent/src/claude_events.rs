@@ -727,3 +727,55 @@ pub fn is_harness_injected(prompt: &str) -> bool {
 pub fn is_compact_continuation(prompt: &str) -> bool {
     opening(prompt).starts_with(COMPACT_CONTINUATION)
 }
+
+/// Where a prompt came from, as per-turn diffs title its turn (#509).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PromptOrigin {
+    /// The user typed it.
+    User,
+    /// The user ran a slash command, whose envelope names it, such as `/review`.
+    SlashCommand(String),
+    /// A harness injected it: by the tag at its head, or by an opening with no tag.
+    Injected(Option<&'static str>),
+    /// Claude Code's own continuation after a compaction, which starts no turn.
+    Continuation,
+}
+
+/// The tags of a slash command's envelope, which the user's own command carries.
+const COMMAND_TAGS: [&str; 3] = ["command-name", "command-message", "command-args"];
+
+/// Where `prompt` came from (#509): the compaction's continuation, a slash command the user ran,
+/// a harness's injection with its tag, or the user.
+#[must_use]
+pub fn prompt_origin(prompt: &str) -> PromptOrigin {
+    if is_compact_continuation(prompt) {
+        return PromptOrigin::Continuation;
+    }
+    let opening = opening(prompt);
+    let tag = opening.strip_prefix('<').and_then(|rest| {
+        rest.split(|character: char| character.is_whitespace() || character == '>')
+            .next()
+    });
+    if let Some(tag) = tag.and_then(|tag| HARNESS_TAGS.iter().copied().find(|known| *known == tag))
+    {
+        if COMMAND_TAGS.contains(&tag) {
+            return PromptOrigin::SlashCommand(command_name(prompt).unwrap_or_default());
+        }
+        return PromptOrigin::Injected(Some(tag));
+    }
+    if HARNESS_PREFIXES
+        .iter()
+        .any(|prefix| opening.starts_with(prefix))
+    {
+        return PromptOrigin::Injected(None);
+    }
+    PromptOrigin::User
+}
+
+/// The command a slash command's envelope names, between `<command-name>` and its close.
+fn command_name(prompt: &str) -> Option<String> {
+    let (_, rest) = prompt.split_once("<command-name>")?;
+    let (name, _) = rest.split_once("</command-name>")?;
+    let name = name.trim();
+    (!name.is_empty()).then(|| name.to_string())
+}
