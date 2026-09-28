@@ -68,6 +68,9 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
 - **`TerminalSnapshot::flag`** (#569) is the tooltip of a working agent's warning mark, when the
   stall kind flagged it `looping?` or `stalled?`; the builders copy it to `TerminalRow::flag`, and
   it too decides no order or visibility.
+- **`TerminalAgent::mark`** (#532) is the agent's permission mark, `marley_agent`'s
+  `PermissionMark`, when it runs without its permission prompts; the builders copy it with the
+  agent, and it decides no order or visibility.
 - **`TerminalSnapshot::turns`** (#509) are the turns of the terminal's Claude Code that changed
   the tree, newest first, as `TurnSnapshot { title, files, failed, injected, sha }`, and
   `turns_open` whether the rail lists them under the row. The builders copy both to

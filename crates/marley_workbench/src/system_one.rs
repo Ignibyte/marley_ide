@@ -138,7 +138,7 @@ impl SystemOneSettings {
 }
 
 /// A folder from the settings, with `~/` as the home directory; an empty one is none.
-fn folder_path(folder: &str) -> Option<PathBuf> {
+pub(crate) fn folder_path(folder: &str) -> Option<PathBuf> {
     let folder = folder.trim();
     if folder.is_empty() {
         return None;

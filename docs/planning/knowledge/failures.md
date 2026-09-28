@@ -2619,3 +2619,13 @@ the paste's second line (`second lineclaude got: hello rich input`) and the whol
 misses it. It failed once in 45 on the release build and passed when run again. Fixed in #509:
 the check reads each reply from where it starts (`sed -n 's/.*claude got: /claude got: /p'`) and
 matches that whole.
+
+## F-claude-532-the-enter-check-counted-a-log-every-stand-in-writes-001
+*severity: low · found in: pipeline 532's Test phase (run 1's shot 532-05) · class: a count over a log several stand-ins write, naming none · prevented by: PR-claude-a-check-on-a-shared-log-names-its-writer-001 (new)*
+
+REQ-008's step clicks the bypass terminal's row and presses Enter, whose fake then reports
+`default`, and checked that the stand-in read one Enter. Every fake `claude` wrote to the same
+`stdin.log`. In run 1 the row's measured point was the first Claude Code row's, not the bypass
+one's: that terminal took the Enter, the bypass chip stayed, and the check passed, since one line
+was read. The shot showed it. Fixed: each read records its fake's arguments and whether it sends
+events, and the check names the one fake that must have read the Enter.

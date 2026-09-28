@@ -1691,6 +1691,18 @@
     // "agents_without_prompts" (agents with no permission prompt of their own, and callers Marley
     // cannot name) or "all_agents".
     "browser_click_pause_agents": "agents_without_prompts",
+    // What Marley starts Claude Code with (#532): "ask" (its own permission prompts) or
+    // "bypass" (--dangerously-skip-permissions). A rail row carries a mark while an agent runs
+    // without its prompts, however it was started.
+    "claude_code_permissions": "ask",
+    // What Marley starts Codex with (#532): "ask" (its own approvals and sandbox) or
+    // "full_access" (--sandbox danger-full-access --ask-for-approval never).
+    "codex_permissions": "ask",
+    // Per project, by folder ("~/" for your home folder), over the two above, for example
+    // {"~/scratch": {"claude_code": "bypass", "codex": "full_access"}}. An entry applies to a
+    // local project whose main folder is its folder or inside it, the longest folder winning.
+    // A project's own .zed/settings.json cannot set these.
+    "agent_permissions_by_project": {},
     // The System One layer (#565): typed questions to a model about states Marley builds from
     // what it knows. Off, it makes no request, reads no key and writes no file. The key is
     // never a setting: Marley reads MARLEY_SYSTEM_ONE_KEY, else the system keyring.

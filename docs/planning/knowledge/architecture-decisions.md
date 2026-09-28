@@ -2767,3 +2767,22 @@ days. Nothing touches the user's index, branches or `HEAD`. Rejected:
   restart for #540 to list;
 - `git2` or `gix` for the commit: neither is in `Cargo.lock`, and one `git` spawn in an adapter
   does it.
+
+## AD-claude-532-agents-start-with-their-prompts-unless-your-own-settings-say-otherwise-001
+*decided at: 2026-09-28 · status: shipped*
+
+Marley starts Claude Code and Codex with their own permission prompts. Two settings, off by
+default, start Claude Code with `--dangerously-skip-permissions` and Codex with `--sandbox
+danger-full-access --ask-for-approval never`, and a per-project map sets either by folder, the
+longest folder holding the project's main folder winning; a remote project takes the defaults.
+Only the user's own settings can set them. Whenever an agent runs without its prompts, however
+it was started, its rail row carries a chip in the warning color: for Claude Code with events,
+from its reported mode; otherwise from its arguments. Rejected:
+- Orca's bypass by default: the approvals inbox and deny-by-default grants assume prompts;
+- `--dangerously-bypass-approvals-and-sandbox` for Codex: its help keeps it for machines
+  sandboxed from outside (the mark still recognizes it);
+- a repository's `.zed/settings.json` setting them: a repository could turn off its agent's
+  prompts;
+- words in the status line: a row with events names no agent, and no line under a title is
+  colored;
+- the arguments alone: Claude Code's settings and Shift+Tab change the mode without them.

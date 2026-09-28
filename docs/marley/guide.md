@@ -430,6 +430,40 @@ Choose a CLI under Agent CLIs in a project's `+` menu, or a Terminal entry in th
 after five seconds), types the program's name and Enter, nothing more. The shell outlives the CLI.
 After a restart, an agent's terminal comes back as a shell in its old directory, without the CLI.
 
+### Permission modes
+
+Marley starts each agent with its own permission prompts unless you ask for otherwise (#532):
+
+| Setting | Values | What Marley types |
+|---|---|---|
+| `marley.claude_code_permissions` | `"ask"` (the default), `"bypass"` | `claude`, or `claude --dangerously-skip-permissions` |
+| `marley.codex_permissions` | `"ask"` (the default), `"full_access"` | `codex`, or `codex --sandbox danger-full-access --ask-for-approval never` |
+
+Both sit in the Marley page's Agents section. `marley.agent_permissions_by_project` sets either
+for a project, by its folder:
+
+```json
+"agent_permissions_by_project": {
+  "~/scratch": { "claude_code": "bypass", "codex": "full_access" }
+}
+```
+
+An entry applies to a local project whose main folder is its folder or inside it, and the
+longest folder wins; a remote project takes the defaults. Only your own settings can set these:
+a repository's `.zed/settings.json` that asks for bypass changes nothing.
+
+An agent row that runs without its prompts carries a chip at its end, `bypass` or `full access`,
+in the warning color, however the agent was started: from the `+`, a task, or typed by hand. Its
+tooltip says where Marley read it. For Claude Code with the plugin connected, the permission mode
+its events report decides, so a bypass Claude Code's own settings chose shows, and one you left
+with Shift+Tab goes at its next event. Otherwise the arguments it was started with decide:
+`--dangerously-skip-permissions` or `--permission-mode bypassPermissions` for Claude Code, and
+for Codex `--sandbox danger-full-access` (or `-s`), a `--config` of `sandbox_mode` to
+`danger-full-access`, or `--dangerously-bypass-approvals-and-sandbox`. A full access Codex's own
+`config.toml` sets shows no chip: Codex tells Marley nothing but its arguments.
+
+The first time Claude Code starts in bypass it asks you to accept its warning, in the terminal.
+
 ### The Claude Code plugin
 
 While Claude Code runs in a terminal and its plugin list has no Marley plugin, the agent bar shows

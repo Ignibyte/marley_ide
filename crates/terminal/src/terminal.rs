@@ -3199,6 +3199,21 @@ impl Terminal {
         }
     }
 
+    // Marley: the rail marks an agent that runs without its permission prompts from the
+    // arguments it was started with (#532).
+    /// The foreground process's arguments, if one is known, from the process info the terminal
+    /// keeps.
+    pub fn marley_foreground_argv(&self) -> Option<Vec<String>> {
+        match &self.terminal_type {
+            TerminalType::Pty { info, .. } => info
+                .current
+                .read()
+                .as_ref()
+                .map(|process| process.argv.clone()),
+            TerminalType::DisplayOnly => None,
+        }
+    }
+
     /// Returns the working directory of the process that's connected to the PTY.
     /// That means it returns the working directory of the local shell or program
     /// that's running inside the terminal.

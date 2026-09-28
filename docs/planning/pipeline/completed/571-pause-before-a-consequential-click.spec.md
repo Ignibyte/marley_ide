@@ -5,7 +5,7 @@ status: Phase 4 — Complete PASS
 title: "A pause before a consequential click in the Browser tab"
 type: feature
 slice: prong 3 (the Browser tab's agent tools, after #492 and #501) with prong 2's C0; use 6 of the System One layer, on #565; narrowed by #520's terminal identity (shipped) and by #532 when it lands
-references: [docs/planning/design-notes/jev-system-one-2026-09-25.md, docs/planning/design-notes/warp-blocks-and-natural-language-2026-09-25.md, docs/planning/pipeline/completed/565-system-one-layer.spec.md, docs/planning/pipeline/completed/520-terminal-identity.spec.md, docs/planning/pipeline/completed/569-stalled-or-looping-agents.spec.md, docs/planning/pipeline/completed/492-browser-tools-for-agents.spec.md, docs/planning/pipeline/completed/501-zeds-agents-drive-the-browser.spec.md, docs/planning/pipeline/queued/525-agent-drives-a-running-program.spec.md, docs/planning/pipeline/queued/532-agent-permission-modes.spec.md, docs/marley/three-prong-plan.md, docs/orca_architecture/03-browser-and-design-mode.md]
+references: [docs/planning/design-notes/jev-system-one-2026-09-25.md, docs/planning/design-notes/warp-blocks-and-natural-language-2026-09-25.md, docs/planning/pipeline/completed/565-system-one-layer.spec.md, docs/planning/pipeline/completed/520-terminal-identity.spec.md, docs/planning/pipeline/completed/569-stalled-or-looping-agents.spec.md, docs/planning/pipeline/completed/492-browser-tools-for-agents.spec.md, docs/planning/pipeline/completed/501-zeds-agents-drive-the-browser.spec.md, docs/planning/pipeline/queued/525-agent-drives-a-running-program.spec.md, docs/planning/pipeline/completed/532-agent-permission-modes.spec.md, docs/marley/three-prong-plan.md, docs/orca_architecture/03-browser-and-design-mode.md]
 ---
 
 ## Title

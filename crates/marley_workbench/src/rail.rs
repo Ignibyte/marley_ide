@@ -2396,20 +2396,11 @@ impl Rail {
                         ),
                 )
             });
-        // A stall or loop flag's mark stays while the pointer is over the row, for its tooltip
-        // (#569).
-        let flag = row.flag.map(|flag| {
-            div()
-                .id(("marley-rail-flag", id))
-                .debug_selector(move || format!("marley-rail-flag-{id}"))
-                .flex_none()
-                .child(
-                    Icon::new(IconName::Warning)
-                        .size(IconSize::XSmall)
-                        .color(Color::Warning),
-                )
-                .tooltip(Tooltip::text(flag))
-        });
+        let mark = row
+            .agent
+            .and_then(|agent| agent.mark)
+            .map(|mark| permission_chip(id, mark, cx));
+        let flag = row.flag.map(|flag| stall_flag(id, flag));
         let item = row_card(
             ("marley-rail-terminal", id),
             format!("marley-rail-terminal-icon-{id}"),
@@ -2419,6 +2410,7 @@ impl Rail {
             row.subtitle.into_iter().chain(row.activity).collect(),
             cx,
         )
+        .children(mark)
         .children(flag)
         .child(end)
         .on_click(cx.listener(move |rail, event: &ClickEvent, window, cx| {
@@ -3589,6 +3581,15 @@ fn terminal_snapshot(
             },
             |seat| claude_events::seat_status(seat.state),
         ),
+        mark: marley_agent::permission_mark(
+            kind,
+            &terminal
+                .read(cx)
+                .marley_foreground_argv()
+                .unwrap_or_default(),
+            seat.and_then(|seat| seat.labels.get(claude_events::PERMISSION_MODE_LABEL))
+                .map(String::as_str),
+        ),
     });
     let (title, subtitle) = agent.map_or_else(
         || {
@@ -3931,6 +3932,41 @@ fn row_frame(id: impl Into<ElementId>, selected: bool, cx: &App) -> Stateful<Div
                     .hover(|style| style.bg(hover))
             }
         })
+}
+
+/// An agent row's permission mark (#532): a pill in the warning color, whose tooltip says what
+/// the agent runs without and where Marley read it. It stays in sight, however the agent was
+/// started.
+fn permission_chip(id: u64, mark: marley_agent::PermissionMark, cx: &App) -> Stateful<Div> {
+    div()
+        .id(("marley-rail-mark", id))
+        .debug_selector(move || format!("marley-rail-mark-{id}"))
+        .flex_none()
+        .px_1()
+        .rounded_sm()
+        .border_1()
+        .border_color(cx.theme().colors().border)
+        .child(
+            Label::new(mark.words())
+                .size(LabelSize::XSmall)
+                .color(Color::Warning),
+        )
+        .tooltip(Tooltip::text(mark.tooltip()))
+}
+
+/// A stall or loop flag's mark (#569), which stays while the pointer is over the row, for its
+/// tooltip.
+fn stall_flag(id: u64, flag: String) -> Stateful<Div> {
+    div()
+        .id(("marley-rail-flag", id))
+        .debug_selector(move || format!("marley-rail-flag-{id}"))
+        .flex_none()
+        .child(
+            Icon::new(IconName::Warning)
+                .size(IconSize::XSmall)
+                .color(Color::Warning),
+        )
+        .tooltip(Tooltip::text(flag))
 }
 
 /// A terminal's or a thread's row, laid out as Warp's tab list lays out a tab: a round icon, then

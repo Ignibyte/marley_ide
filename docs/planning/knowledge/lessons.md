@@ -3594,3 +3594,23 @@ Per-turn diffs take the turn's start checkpoint when the prompt's frame reaches 
 stand-in agent that edits a file at once can beat that checkpoint, and its edit lands in the
 turn before. #509's stand-in sleeps two seconds after each prompt's event before its edits, as a
 model's first reply would, and a second before its stop.
+
+## L-claude-532-the-plus-lists-marleys-path-and-types-into-the-terminals-001
+*category: process · topic: e2e scenarios · from: pipeline 532*
+
+The rail's `+` lists the agent CLIs `which` finds on Marley's own PATH, which under the e2e
+runner is the login shell's (Marley's stdout goes to a log), so its entries show wherever the
+real CLIs are installed. What it types runs on the terminal's PATH, from the scenario's
+`.bashrc`. A scenario that launches from the `+` puts its fakes first there and checks, before
+the first launch, that the terminal's `command -v` names the fakes, writing it to a file and
+stopping the run if not. The menu opens on New Terminal; Down steps to New Browser Tab, New
+Agent Thread and then the CLIs in `AgentKind::ALL`'s order, skipping the header.
+
+## L-claude-532-claude-codes-arguments-say-how-it-started-not-its-mode-001
+*category: code · topic: agent CLIs · from: pipeline 532*
+
+Claude Code 2.1.283 can enter bypass without `--dangerously-skip-permissions` in its arguments
+(its settings' default mode, or Shift+Tab after `--allow-dangerously-skip-permissions`) and can
+leave it with Shift+Tab after starting with it. Its arguments say how it started; the
+`permission_mode` every hook event carries says what it does now, as of its latest event. Read
+the reported mode first, and the arguments only for a session that sends no events.

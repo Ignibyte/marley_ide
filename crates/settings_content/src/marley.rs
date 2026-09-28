@@ -56,6 +56,25 @@ pub struct MarleySettingsContent {
     ///
     /// Default: "agents_without_prompts"
     pub browser_click_pause_agents: Option<MarleyClickPauseAgents>,
+    /// Whether Marley starts Claude Code with its own permission prompts or with
+    /// `--dangerously-skip-permissions` (#532). An entry of `agent_permissions_by_project` wins
+    /// for its project.
+    ///
+    /// Default: "ask"
+    pub claude_code_permissions: Option<ClaudeCodePermissions>,
+    /// Whether Marley starts Codex with its own approvals and sandbox or with full access,
+    /// `--sandbox danger-full-access --ask-for-approval never` (#532). An entry of
+    /// `agent_permissions_by_project` wins for its project.
+    ///
+    /// Default: "ask"
+    pub codex_permissions: Option<CodexPermissions>,
+    /// What Marley starts Claude Code and Codex with in a project, by the project's folder (`~/`
+    /// for your home folder), over the two defaults. An entry applies to a local project whose main
+    /// folder is its folder or inside it, and the longest folder wins. Only your own settings set
+    /// this: a project's `.zed/settings.json` cannot.
+    ///
+    /// Default: {}
+    pub agent_permissions_by_project: Option<BTreeMap<String, AgentPermissionsContent>>,
     /// The System One layer (#565): typed questions to a model about states Marley builds from
     /// what it knows. Off until it is turned on.
     pub system_one: Option<SystemOneSettingsContent>,
@@ -220,6 +239,64 @@ pub enum MarleyClickPauseAgents {
     AgentsWithoutPrompts,
     /// Every agent.
     AllAgents,
+}
+
+/// What Marley starts Claude Code and Codex with in one project (#532).
+#[with_fallible_options]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema, MergeFrom)]
+pub struct AgentPermissionsContent {
+    /// Claude Code's, over `claude_code_permissions`.
+    pub claude_code: Option<ClaudeCodePermissions>,
+    /// Codex's, over `codex_permissions`.
+    pub codex: Option<CodexPermissions>,
+}
+
+/// What Marley starts Claude Code with (#532).
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum ClaudeCodePermissions {
+    /// Its own permission prompts.
+    #[default]
+    Ask,
+    /// `--dangerously-skip-permissions`: it asks for no permission.
+    Bypass,
+}
+
+/// What Marley starts Codex with (#532).
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum CodexPermissions {
+    /// Its own approvals and sandbox.
+    #[default]
+    Ask,
+    /// `--sandbox danger-full-access --ask-for-approval never`: no sandbox and no approvals.
+    FullAccess,
 }
 
 /// A window layout.

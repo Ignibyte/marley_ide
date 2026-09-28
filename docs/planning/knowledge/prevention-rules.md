@@ -2538,3 +2538,10 @@ before the first writes, the two can read the same value. Chain such tasks (each
 before it, kept as a shared task), or read and write in one step on the main thread with nothing
 awaited between. A detached task that must finish keeps a detached waiter when the owner of its
 handle can drop.
+
+## PR-claude-a-check-on-a-shared-log-names-its-writer-001
+*severity: low · prevents: F-claude-532-the-enter-check-counted-a-log-every-stand-in-writes-001*
+
+When several stand-ins write one log, a check on it names which one wrote what it counts: its
+case, its arguments or its pid, written with each line. A count alone passes when the wrong one
+did the thing, and a click that lands on the wrong row does exactly that.

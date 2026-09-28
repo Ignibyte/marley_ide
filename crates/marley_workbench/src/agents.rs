@@ -17,10 +17,10 @@ use gpui::{
     App, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable, Global, Render, Task,
     WeakEntity, Window,
 };
-use marley_agent::AgentKind;
+use marley_agent::{AgentKind, LaunchMode};
 use picker::{Picker, PickerDelegate};
 use project::{AgentId, AgentRegistryStore, DisableAiSettings, Project};
-use settings::Settings as _;
+use settings::{ClaudeCodePermissions, CodexPermissions, MarleySettingsContent, Settings as _};
 use terminal::Terminal;
 use terminal_view::terminal_panel::TerminalPanel;
 use ui::{HighlightedLabel, IconName, ListItem, ListItemSpacing, prelude::*};
@@ -181,16 +181,110 @@ pub fn start_thread(
     Ok(())
 }
 
+/// What Marley starts Claude Code and Codex with (#532), from the `marley` settings.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AgentPermissions {
+    claude_code: ClaudeCodePermissions,
+    codex: CodexPermissions,
+    /// The per-project entries, their folders with `~/` expanded.
+    by_project: Vec<ProjectPermissions>,
+}
+
+/// One project's entry of `agent_permissions_by_project`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ProjectPermissions {
+    folder: PathBuf,
+    claude_code: Option<ClaudeCodePermissions>,
+    codex: Option<CodexPermissions>,
+}
+
+impl AgentPermissions {
+    /// The permissions `content` sets, and the defaults where it sets none.
+    #[must_use]
+    pub fn from_content(content: Option<&MarleySettingsContent>) -> Self {
+        Self {
+            claude_code: content
+                .and_then(|content| content.claude_code_permissions)
+                .unwrap_or_default(),
+            codex: content
+                .and_then(|content| content.codex_permissions)
+                .unwrap_or_default(),
+            by_project: content
+                .and_then(|content| content.agent_permissions_by_project.as_ref())
+                .into_iter()
+                .flatten()
+                .filter_map(|(folder, permissions)| {
+                    Some(ProjectPermissions {
+                        folder: crate::system_one::folder_path(folder)?,
+                        claude_code: permissions.claude_code,
+                        codex: permissions.codex,
+                    })
+                })
+                .collect(),
+        }
+    }
+
+    /// How `kind` starts in a local project whose main folders are `folders`: as the entry says
+    /// whose folder holds one of them, the longest of those that sets `kind`, else as the default
+    /// says.
+    #[must_use]
+    pub fn launch_mode(&self, kind: AgentKind, folders: &[PathBuf]) -> LaunchMode {
+        let bypasses = |entry: &ProjectPermissions| match kind {
+            AgentKind::Claude => entry
+                .claude_code
+                .map(|permissions| permissions == ClaudeCodePermissions::Bypass),
+            AgentKind::Codex => entry
+                .codex
+                .map(|permissions| permissions == CodexPermissions::FullAccess),
+            AgentKind::Gemini | AgentKind::OpenCode => None,
+        };
+        let by_project = self
+            .by_project
+            .iter()
+            .filter(|entry| {
+                folders
+                    .iter()
+                    .any(|folder| folder.starts_with(&entry.folder))
+            })
+            .filter_map(|entry| Some((entry.folder.components().count(), bypasses(entry)?)))
+            .max_by_key(|(depth, _)| *depth)
+            .map(|(_, bypass)| bypass);
+        let bypass = by_project.unwrap_or(match kind {
+            AgentKind::Claude => self.claude_code == ClaudeCodePermissions::Bypass,
+            AgentKind::Codex => self.codex == CodexPermissions::FullAccess,
+            AgentKind::Gemini | AgentKind::OpenCode => false,
+        });
+        if bypass {
+            LaunchMode::Bypass
+        } else {
+            LaunchMode::Ask
+        }
+    }
+}
+
 /// Starts `kind` in a new center terminal of `workspace`, where New Terminal would start one.
 ///
-/// The command goes in once the shell says it is ready, as Zed's terminal threads start theirs,
-/// and it is only the agent's program name. An error reaches a prompt.
+/// The command goes in once the shell says it is ready, as Zed's terminal threads start theirs:
+/// the agent's program name, with the arguments its permission setting asks for in this project
+/// (#532). A remote project takes the defaults, since the per-project entries name local folders.
+/// An error reaches a prompt.
 pub fn start_cli(
     workspace: &mut Workspace,
     kind: AgentKind,
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
+    let mode = {
+        let project = workspace.project().read(cx);
+        let folders = if project.is_local() {
+            project.project_group_key(cx).path_list().paths().to_vec()
+        } else {
+            Vec::new()
+        };
+        crate::MarleySettings::get_global(cx)
+            .agent_permissions
+            .launch_mode(kind, &folders)
+    };
     let factory = launcher(cx).terminal_factory;
     let directory = terminal_view::default_working_directory(workspace, cx);
     let terminal = TerminalPanel::add_center_terminal(workspace, window, cx, move |project, cx| {
@@ -206,7 +300,7 @@ pub fn start_cli(
         // A terminal without a PTY is ready at once; the timeout covers a shell that never
         // echoes the handshake's marker.
         futures::future::select(startup, timeout).await;
-        let input = marley_agent::launch_input(kind);
+        let input = marley_agent::launch_input(kind, mode);
         let launch = |terminal: &mut Terminal, cx: &mut Context<Terminal>| {
             terminal.write_init_command_after_startup(input, cx)
         };

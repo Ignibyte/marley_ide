@@ -362,6 +362,15 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   New Terminal would, and once the shell's startup handshake completes, or after 5 s,
   `write_init_command_after_startup` writes the program's name and Enter. An error reaches a
   prompt.
+- **Permission modes** (#532). `MarleySettings.agent_permissions` (`agents::AgentPermissions`)
+  holds the two defaults and `agent_permissions_by_project`'s entries, their folders through
+  `system_one::folder_path`; `launch_mode(kind, folders)` takes the longest entry whose folder
+  holds one of the project's main folders and sets that agent, else the default. `start_cli`
+  asks it for a local project's main folders (`project_group_key`), none for a remote one, and
+  passes the mode to `launch_input`. `terminal_snapshot` sets `TerminalAgent.mark` from
+  `marley_agent::permission_mark` with the seat's `PERMISSION_MODE_LABEL` and the terminal's
+  `marley_foreground_argv`; `render_terminal_row` draws `permission_chip`, a pill as the inbox's
+  chips are, in `Color::Warning` with the mark's tooltip, before #569's `stall_flag`.
 
 - **`is_threads_list_view_active` stays `false`.** `true` would make Zed treat every thread
   in the window as seen while the rail is open. That would silence the OS pop-ups and sounds

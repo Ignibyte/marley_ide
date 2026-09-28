@@ -13,6 +13,19 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Agent permission modes** (#532, 2026-09-28). Two settings, both off by default, choose what
+  Marley starts Claude Code and Codex with from the rail's `+` and the New Agent picker:
+  `marley.claude_code_permissions`, `"ask"` or `"bypass"` (`--dangerously-skip-permissions`),
+  and `marley.codex_permissions`, `"ask"` or `"full_access"` (`--sandbox danger-full-access
+  --ask-for-approval never`). `marley.agent_permissions_by_project` sets either for a project by
+  its folder, the longest folder winning; only your own settings can set these, never a
+  repository's `.zed/settings.json`. Whenever an agent runs without its prompts, however it was
+  started, its rail row carries a `bypass` or `full access` chip in the warning color whose
+  tooltip says where Marley read it: for Claude Code with Marley's plugin, the permission mode
+  its events report, so a bypass its own settings chose shows and one left with Shift+Tab goes;
+  otherwise the arguments it was started with. The Marley page's Agents section has both
+  defaults.
+
 - **Per-turn diffs for Claude Code in a terminal** (#509, 2026-09-28). Each turn of a terminal's
   Claude Code that changes the tree, from your prompt to its stop, is kept as a commit of its
   own: Marley takes a checkpoint of the repository when the prompt comes and another when the

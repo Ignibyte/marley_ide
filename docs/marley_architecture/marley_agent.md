@@ -22,7 +22,15 @@ impl AgentKind {
 }
 pub fn agent_kind_of(command: &str) -> Option<AgentKind>;
 pub fn send_payload(line: &str) -> Vec<u8>;        // the line and a carriage return
-pub fn launch_input(kind: AgentKind) -> Vec<u8>;   // the program's name and a carriage return
+pub enum LaunchMode { Ask, Bypass }                // #532
+pub fn launch_input(kind: AgentKind, mode: LaunchMode) -> Vec<u8>;
+                                                     // the program, the mode's arguments, Enter
+pub const BYPASS_MODE: &str;                         // "bypassPermissions"
+pub enum MarkKind { Bypass, FullAccess }
+pub enum MarkSource { Reported, Argument(&'static str) }
+pub struct PermissionMark { pub kind: MarkKind, pub source: MarkSource }  // words(), tooltip()
+pub fn permission_mark(kind: AgentKind, argv: &[String], reported: Option<&str>)
+    -> Option<PermissionMark>;
 
 pub enum AgentStatus { Working, Waiting, Idle, Failed }  // label(): "working", "waiting", …
 pub const WAITING_AFTER: Duration;                  // 2 s
@@ -38,7 +46,16 @@ pub fn event_line(project: &str, kind: AgentKind, event: TurnEvent) -> String;
   are case-sensitive. The rail feeds it a terminal's foreground argv, never a process name:
   Claude Code's binary on the dev box is named after its version.
 - **`launch_input`** is everything the rail writes to start an agent: a program name from the
-  fixed list and Enter. No text from a user or a file reaches the shell this way.
+  fixed list, for `LaunchMode::Bypass` the agent's own bypass arguments (Claude Code's
+  `--dangerously-skip-permissions`; Codex's `--sandbox danger-full-access --ask-for-approval
+  never`, never `--dangerously-bypass-approvals-and-sandbox`), and Enter. No text from a user
+  or a file reaches the shell this way (#532 keeps it: the arguments are constants).
+- **`permission_mark`** (#532) says whether an agent runs without its prompts. For Claude Code a
+  reported mode decides (`BYPASS_MODE` marks, any other clears), else its arguments
+  (`--dangerously-skip-permissions`, `--permission-mode bypassPermissions` and its `=` form);
+  for Codex its arguments (`--sandbox danger-full-access`, `-s` and the `=` and joined forms, a
+  `-c`/`--config` of `sandbox_mode` in TOML, `--dangerously-bypass-approvals-and-sandbox`).
+  Arguments after a `--` are not options. The mark's `tooltip` names the source.
 - **`agent_status`** reads waiting on a bell, or once the terminal has been quiet for
   `WAITING_AFTER`; otherwise working. Claude Code and Codex redraw a spinner while they work,
   so output keeps flowing until they stop. An agent that thinks without printing reads as

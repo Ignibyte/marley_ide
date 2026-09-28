@@ -25,7 +25,7 @@ use std::path::Path;
 
 use marley_agent::risk::Chip;
 use marley_agent::route::RouteMark;
-use marley_agent::{AgentKind, AgentStatus};
+use marley_agent::{AgentKind, AgentStatus, PermissionMark};
 
 /// One project group as the rail sees it: Zed's project group flattened to what a row shows.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -136,6 +136,8 @@ pub struct TerminalAgent {
     pub kind: AgentKind,
     /// Whether it is working or waiting on the user.
     pub status: AgentStatus,
+    /// Whether it runs without its permission prompts, and where Marley read it (#532).
+    pub mark: Option<PermissionMark>,
 }
 
 /// One agent thread.
@@ -2016,6 +2018,7 @@ mod tests {
         let agent = TerminalAgent {
             kind: AgentKind::Claude,
             status: AgentStatus::Waiting,
+            mark: None,
         };
         let mut claude = terminal(7, false);
         claude.agent = Some(agent);

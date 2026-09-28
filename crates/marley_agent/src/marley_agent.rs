@@ -2,7 +2,8 @@
 //!
 //! Marley starts agent CLIs (Claude Code, Codex, …) in its terminals and recognizes them there.
 //! This crate is the pure, gpui-free model for that: [`agent_kind_of`] recognizes an agent from
-//! the command a terminal runs, [`launch_input`] is what starts one in a shell, and
+//! the command a terminal runs, [`launch_input`] is what starts one in a shell, with or without
+//! its permission prompts, [`permission_mark`] says whether one runs without them (#532), and
 //! [`agent_status`] judges from its terminal whether it is working or waiting on the user.
 //! [`claude_events`] reads Claude Code's own hook events, which Marley's plugin sends, and folds
 //! them into a fleet seat (#519), [`stop_kind`] says what a stopped turn needs (#566),
@@ -108,10 +109,204 @@ pub fn send_payload(line: &str) -> Vec<u8> {
     format!("{line}\r").into_bytes()
 }
 
-/// What starts `kind` in a shell: its program name and Enter, and nothing else.
+/// Whether Marley starts an agent CLI with its own permission prompts (#532).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LaunchMode {
+    /// With them.
+    #[default]
+    Ask,
+    /// Without them: Claude Code's bypass, Codex's full access. The other agents start as they
+    /// are.
+    Bypass,
+}
+
+/// The arguments that start `kind` without its permission prompts: for Codex, the two its Full
+/// Access preset stands for, and never `--dangerously-bypass-approvals-and-sandbox`, which its
+/// own help keeps for machines sandboxed from outside.
+const fn bypass_arguments(kind: AgentKind) -> &'static [&'static str] {
+    match kind {
+        AgentKind::Claude => &["--dangerously-skip-permissions"],
+        AgentKind::Codex => &[
+            "--sandbox",
+            FULL_ACCESS_SANDBOX,
+            "--ask-for-approval",
+            "never",
+        ],
+        AgentKind::Gemini | AgentKind::OpenCode => &[],
+    }
+}
+
+/// What starts `kind` in a shell: its program name, the arguments `mode` asks for, and Enter.
+/// Every word is Marley's own.
 #[must_use]
-pub fn launch_input(kind: AgentKind) -> Vec<u8> {
-    send_payload(kind.program())
+pub fn launch_input(kind: AgentKind, mode: LaunchMode) -> Vec<u8> {
+    let mut line = kind.program().to_string();
+    if mode == LaunchMode::Bypass {
+        for argument in bypass_arguments(kind) {
+            line.push(' ');
+            line.push_str(argument);
+        }
+    }
+    send_payload(&line)
+}
+
+/// The permission mode Claude Code reports while it asks for no permission.
+pub const BYPASS_MODE: &str = "bypassPermissions";
+
+/// Codex's sandbox mode with no sandbox.
+const FULL_ACCESS_SANDBOX: &str = "danger-full-access";
+
+/// What an agent that runs without its permission prompts runs without (#532).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MarkKind {
+    /// Claude Code asks for no permission.
+    Bypass,
+    /// Codex runs with no sandbox and no approvals.
+    FullAccess,
+}
+
+/// Where Marley read that an agent runs without its permission prompts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MarkSource {
+    /// Claude Code's hook events report [`BYPASS_MODE`].
+    Reported,
+    /// The agent's process was started with this argument.
+    Argument(&'static str),
+}
+
+/// The mark on the rail row of an agent that runs without its permission prompts (#532).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PermissionMark {
+    /// What it runs without.
+    pub kind: MarkKind,
+    /// Where Marley read it.
+    pub source: MarkSource,
+}
+
+impl PermissionMark {
+    /// The mark's words.
+    #[must_use]
+    pub const fn words(self) -> &'static str {
+        match self.kind {
+            MarkKind::Bypass => "bypass",
+            MarkKind::FullAccess => "full access",
+        }
+    }
+
+    /// What the mark means, and where Marley read it.
+    #[must_use]
+    pub fn tooltip(self) -> String {
+        let what = match self.kind {
+            MarkKind::Bypass => "Claude Code asks for no permission",
+            MarkKind::FullAccess => "Codex runs with no sandbox and no approvals",
+        };
+        match self.source {
+            MarkSource::Reported => format!("{what}: its events report {BYPASS_MODE}"),
+            MarkSource::Argument(argument) => format!("{what}: started with {argument}"),
+        }
+    }
+}
+
+/// The mark for `kind` if it runs without its permission prompts (#532).
+///
+/// `argv` is the process's arguments and `reported` the permission mode its hook events last
+/// reported. For Claude Code a reported mode decides: its own settings can start it in bypass
+/// with no argument, and Shift+Tab can leave bypass. Otherwise the arguments do.
+#[must_use]
+pub fn permission_mark(
+    kind: AgentKind,
+    argv: &[String],
+    reported: Option<&str>,
+) -> Option<PermissionMark> {
+    let (kind, argument) = match kind {
+        AgentKind::Claude => {
+            if let Some(mode) = reported {
+                return (mode == BYPASS_MODE).then_some(PermissionMark {
+                    kind: MarkKind::Bypass,
+                    source: MarkSource::Reported,
+                });
+            }
+            (MarkKind::Bypass, claude_bypass_argument(options(argv))?)
+        }
+        AgentKind::Codex => (
+            MarkKind::FullAccess,
+            codex_full_access_argument(options(argv))?,
+        ),
+        AgentKind::Gemini | AgentKind::OpenCode => return None,
+    };
+    Some(PermissionMark {
+        kind,
+        source: MarkSource::Argument(argument),
+    })
+}
+
+/// The arguments before a `--`, after which they are no options.
+fn options(argv: &[String]) -> &[String] {
+    argv.split(|argument| argument == "--")
+        .next()
+        .unwrap_or_default()
+}
+
+/// The argument in `arguments` that starts Claude Code asking for no permission.
+fn claude_bypass_argument(arguments: &[String]) -> Option<&'static str> {
+    let mut arguments = arguments.iter().map(String::as_str);
+    while let Some(argument) = arguments.next() {
+        if argument == "--dangerously-skip-permissions" {
+            return Some("--dangerously-skip-permissions");
+        }
+        let mode = if argument == "--permission-mode" {
+            arguments.next()
+        } else {
+            argument.strip_prefix("--permission-mode=")
+        };
+        if mode == Some(BYPASS_MODE) {
+            return Some("--permission-mode bypassPermissions");
+        }
+    }
+    None
+}
+
+/// The argument in `arguments` that starts Codex with no sandbox.
+fn codex_full_access_argument(arguments: &[String]) -> Option<&'static str> {
+    let mut arguments = arguments.iter().map(String::as_str);
+    while let Some(argument) = arguments.next() {
+        if argument == "--dangerously-bypass-approvals-and-sandbox" {
+            return Some("--dangerously-bypass-approvals-and-sandbox");
+        }
+        let sandbox = match argument {
+            "--sandbox" | "-s" => arguments.next(),
+            _ => argument
+                .strip_prefix("--sandbox=")
+                .or_else(|| argument.strip_prefix("-s")),
+        };
+        if sandbox.map(|mode| mode.trim_start_matches('=')) == Some(FULL_ACCESS_SANDBOX) {
+            return Some("--sandbox danger-full-access");
+        }
+        let config = match argument {
+            "--config" | "-c" => arguments.next(),
+            _ => argument
+                .strip_prefix("--config=")
+                .or_else(|| argument.strip_prefix("-c")),
+        };
+        if config.is_some_and(sets_full_access) {
+            return Some("--config sandbox_mode=\"danger-full-access\"");
+        }
+    }
+    None
+}
+
+/// Whether a Codex `--config` override, `key=value` in TOML, sets the sandbox to full access.
+fn sets_full_access(config: &str) -> bool {
+    config
+        .trim_start_matches('=')
+        .split_once('=')
+        .is_some_and(|(key, value)| {
+            key.trim() == "sandbox_mode"
+                && value
+                    .trim()
+                    .trim_matches(|quote| quote == '"' || quote == '\'')
+                    == FULL_ACCESS_SANDBOX
+        })
 }
 
 /// What an agent CLI is doing, as far as its terminal shows, or as its hook events say.
@@ -244,7 +439,8 @@ mod tests {
                 Some(kind)
             );
             // The command the launch writes is recognized back as the same agent.
-            let launched = String::from_utf8(launch_input(kind)).expect("the launch is text");
+            let launched =
+                String::from_utf8(launch_input(kind, LaunchMode::Ask)).expect("the launch is text");
             assert_eq!(agent_kind_of(&launched), Some(kind));
         }
         assert_eq!(agent_kind_of("ls"), None);
@@ -260,8 +456,14 @@ mod tests {
 
     #[test]
     fn the_launch_is_the_program_and_enter() {
-        assert_eq!(launch_input(AgentKind::Claude), b"claude\r");
-        assert_eq!(launch_input(AgentKind::OpenCode), b"opencode\r");
+        assert_eq!(
+            launch_input(AgentKind::Claude, LaunchMode::Ask),
+            b"claude\r"
+        );
+        assert_eq!(
+            launch_input(AgentKind::OpenCode, LaunchMode::Ask),
+            b"opencode\r"
+        );
         assert_eq!(send_payload("ls"), b"ls\r");
         assert_eq!(send_payload(""), b"\r");
         assert_eq!(send_payload("café"), "café\r".as_bytes());

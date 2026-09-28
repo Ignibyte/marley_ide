@@ -46,7 +46,7 @@ fn layout_section() -> [SettingsPageItem; 2] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 7] {
+fn agents_section() -> [SettingsPageItem; 9] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -180,6 +180,52 @@ fn agents_section() -> [SettingsPageItem; 7] {
                         .marley
                         .get_or_insert_default()
                         .browser_click_pause_agents = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: what Marley starts Claude Code and Codex with (#532); the per-project entries
+        // are set in settings.json.
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Claude Code Permissions",
+            description: "What Marley starts Claude Code with: its own permission prompts, or --dangerously-skip-permissions, which asks for none. An entry of agent_permissions_by_project in settings.json wins for its project. A rail row marks an agent that runs without its prompts.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.claude_code_permissions"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.claude_code_permissions.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .claude_code_permissions = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Codex Permissions",
+            description: "What Marley starts Codex with: its own approvals and sandbox, or full access (--sandbox danger-full-access --ask-for-approval never), with no sandbox and no approvals. An entry of agent_permissions_by_project in settings.json wins for its project.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.codex_permissions"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.codex_permissions.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .codex_permissions = value;
                 },
             }),
             metadata: None,
