@@ -52,6 +52,7 @@ use gpui::{
     UTF16Selection, WeakEntity, WindowHandle, anchored, deferred, img, point, relative,
 };
 use marley_browser::cdp::{self, CdpError, Connection, Event};
+use marley_browser::consequence::Class;
 use marley_browser::favicon;
 use marley_browser::input::{self, KeyPress};
 use marley_browser::observe::{ConsoleEntry, ConsoleLog, NetworkEntry, NetworkLog, redact_url};
@@ -413,6 +414,8 @@ struct PageState {
 struct PendingClick {
     /// What the card says: who wants to click what, and why it waits.
     sentence: SharedString,
+    /// What the click would do, which the rail's inbox shows as a chip (#568).
+    class: Class,
     /// The outside client that asked, for the recorder (#524).
     by: Option<SharedString>,
     /// Where the answer goes: true to allow.
@@ -2453,6 +2456,7 @@ impl BrowserHub {
         &mut self,
         target: &str,
         sentence: SharedString,
+        class: Class,
         by: Option<SharedString>,
         cx: &mut Context<Self>,
     ) -> Option<oneshot::Receiver<bool>> {
@@ -2467,6 +2471,7 @@ impl BrowserHub {
         };
         page.pause = Some(PendingClick {
             sentence,
+            class,
             by,
             answer: Some(sender),
         });
@@ -2489,6 +2494,14 @@ impl BrowserHub {
             .pause
             .as_ref()
             .map(|pause| pause.sentence.clone())
+    }
+
+    /// What the click `target`'s tab holds would do (#571), which the rail's inbox marks (#568).
+    pub(crate) fn pause_class(&self, target: &str) -> Option<Class> {
+        self.page_state(target)?
+            .pause
+            .as_ref()
+            .map(|pause| pause.class)
     }
 
     /// Answers the click `target`'s tab holds: `allow`, or refuse (#571).

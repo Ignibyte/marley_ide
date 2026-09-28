@@ -195,7 +195,9 @@ on it shows where it waits.
   tab's card does. Its click brings the tab forward with the focus on the card.
 
 An entry leaves once its wait ends, wherever you answered it, and the section leaves with the
-last one. The filter and folded projects never hide it.
+last one. The filter and folded projects never hide it. With the inbox's risk use on, each entry
+also says what its action would do, and the entries that matter most come first (see "The inbox
+risk" under System One).
 
 Terminal rows rename and close from the rail (#452):
 
@@ -949,6 +951,33 @@ shop.example", with Refuse and Allow, and a toast with Show points you to it.
   notice after a click the model reads as consequential; Act pauses on that reading too.
 - Each pause is a row in Decisions, a rule's under the provider `rules`, with how it ended, and
   the flight recorder keeps the pause and its end.
+
+### The inbox risk
+
+With its mode on, each entry of the rail's "Needs you" section carries chips that say what the
+waiting action would do (#568), and the entries order by them: what could destroy data, touch
+credentials or rewrite history first, then what sends data out, installs software or changes an
+account, then what reaches outside the project, and among equals the one that has waited
+longest.
+
+- Marley's own rules read the tool and what it acts on, with no call: `destroys` for `rm -rf
+  build` or `git reset --hard`, `credentials` for `~/.ssh/config`, a `.env` or a token in the
+  command, `rewrites history` for a rebase or a forced push, `sends out` for a `curl` that posts
+  or a `git push`, `installs` for `npm install` or `curl … | sh`, `outside project` for a write
+  or a command that reaches outside the project's folders, and `claims approval` for text that
+  says the action was already approved, which puts the entry higher, never lower. A click a
+  Browser tab holds carries its own chip: `pays`, `destroys`, `sends out` or `changes account`.
+- What the rules find nothing on may be read by the model, for a listed project only, with the
+  tool's name, the agent and the project as facts and the waiting line, masked, as text. A
+  reading can add a chip and move an entry up, never take a chip away or move an entry down.
+- Nothing here answers anything: Allow and Deny stay your clicks, and Claude Code's own
+  permission checks keep their say.
+- The mode is Inbox Risk on the settings page, or `uses.inbox`: Off (the default) keeps the inbox
+  oldest first with no chips; Shadow shows the rules' chips and order and logs the model's
+  reading; Suggest shows the model's chips with a question mark; Act shows them with a dashed
+  border and lets them order the inbox too.
+- Each entry is a row in Decisions, a rule's under the provider `rules`, and how it was cleared,
+  from the inbox or elsewhere, is its outcome.
 
 ### Decisions
 

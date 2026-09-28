@@ -2567,3 +2567,12 @@ typed space and Enter as three presses of Save profile. Nothing was sent because
 picked, and the check passed; the shot showed it. Fixed in the scenario: no navigate before the
 pick, the pointer over the element before the click as #496 does, a shot of the staged pick, and a
 check that `browser_picks` lists pick 1 unsent.
+
+## F-claude-568-a-mode-switch-that-moved-no-level-would-not-have-redrawn-001
+*severity: low · found in: pipeline 568's Code phase (the review of the diff, before any run) · class: render read state the compared snapshot does not hold · prevented by: none; the rail's own rule, that `render` draws from its snapshot alone (`marley_workbench.md`), was not applied*
+
+The inbox's chips read the risk use's mode from the layer's settings while rendering: a
+question mark in `suggest`, a dashed border in `act`. The rail redraws only when its pure
+snapshot changes, so a switch from `suggest` to `act` that moved no entry's level would have
+kept the question marks until something else changed. Fixed before the first run:
+`RailSnapshot.inbox_suggests` carries the difference, so the switch changes the snapshot.

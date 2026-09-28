@@ -23,6 +23,7 @@
 
 use std::path::Path;
 
+use marley_agent::risk::Chip;
 use marley_agent::{AgentKind, AgentStatus};
 
 /// One project group as the rail sees it: Zed's project group flattened to what a row shows.
@@ -247,6 +248,11 @@ pub struct InboxEntry {
     pub waited: String,
     /// Whether it answers in place, with Allow and Deny, or Allow and Refuse for a click.
     pub answers: bool,
+    /// What its action would do, as Marley's rules and a model's reading mark it (#568); none
+    /// while the inbox's risk use is off.
+    pub chips: Vec<Chip>,
+    /// Its level, from 1 to 5, which orders the inbox while the use is on (#568).
+    pub level: u8,
 }
 
 /// How long an inbox entry has waited, in words, from `seconds`: `now` under a minute, then
@@ -272,6 +278,9 @@ pub struct RailSnapshot {
     pub filtering: bool,
     /// The agents that wait on the user, the one that has waited longest first (#508).
     pub inbox: Vec<InboxEntry>,
+    /// Whether a model's chips in the inbox show as suggestions, with a question mark, rather
+    /// than with a dashed border (#568).
+    pub inbox_suggests: bool,
 }
 
 /// The single selected row.
@@ -950,6 +959,7 @@ mod tests {
             },
             filtering: false,
             inbox: Vec::new(),
+            inbox_suggests: false,
         }
     }
 

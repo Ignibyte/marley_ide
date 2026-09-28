@@ -4,8 +4,10 @@
 //! state, persistence and the toggle actions; the rows and the one selected row come from
 //! `marley_rail`.
 
+use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -21,19 +23,24 @@ use gpui::{
     EntityId, EventEmitter, FocusHandle, Focusable, Hsla, Image, Pixels, Render, Stateful,
     Subscription, Task, WeakEntity, Window, img, px,
 };
+use marley_agent::risk::{self, Action, Chip, ChipKind, ChipSource, ToolClass};
 use marley_agent::{AgentKind, WAITING_AFTER, claude_events};
+use marley_browser::consequence::Class;
 use marley_browser::ports::Stopped;
+use marley_mcp::redact::Redactor;
 use marley_rail::{
     BrowserRow, BrowserSnapshot, Focus, InboxEntry, InboxKind, PortRow, PortSnapshot, ProjectRow,
     ProjectSnapshot, RailSnapshot, Row, Selection, SwitcherRow, TerminalAgent, TerminalRow,
     TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus,
 };
+use marley_system_one::INBOX_RISK;
+use marley_system_one::reading::{Reading, Signal};
 use menu::{
     Cancel, Confirm, SelectChild, SelectFirst, SelectLast, SelectNext, SelectParent, SelectPrevious,
 };
 use project::{AgentId, AgentServerStore, AgentServersUpdated, Project, ProjectGroupKey};
 use recent_projects::sidebar_recent_projects::SidebarRecentProjects;
-use settings::Settings as _;
+use settings::{Settings as _, SystemOneMode};
 use terminal::Terminal;
 use terminal_view::{RenameTerminal, TerminalView, terminal_panel::TerminalPanel};
 use ui::{
@@ -56,6 +63,7 @@ use crate::agent_events::{self, AgentEvents};
 use crate::agents::{self, AgentIcon};
 use crate::browser::{BrowserEvent, BrowserHub, BrowserView};
 use crate::ports::{self, Ports};
+use crate::system_one::{self, Asking};
 use crate::{MarleySettings, browser};
 
 #[path = "rail_switcher.rs"]
@@ -111,6 +119,8 @@ pub struct Rail {
     inbox_seen: HashMap<String, Instant>,
     /// While the inbox shows, a refresh every half minute, so its ages move.
     inbox_timer: Option<Task<()>>,
+    /// What the inbox's risk use keeps of each tool entry, by its key (#568).
+    risk: HashMap<String, Risk>,
     /// The window as the rail last read it. `render` draws from this alone, so another entity's
     /// notify does not redraw the window, and an event that changes nothing shown does not either:
     /// workspaces and terminal views report every chunk of terminal output.
@@ -215,6 +225,64 @@ struct Snapshot {
     shown_thread: Option<String>,
     /// What each inbox entry acts on, by its key (#508).
     inbox: HashMap<String, InboxTarget>,
+    /// Beside each tool entry of the inbox, what its risk use logs or asks, while the use is on
+    /// (#568).
+    inbox_risk: HashMap<String, RiskAsking>,
+}
+
+/// What the inbox's risk use logs or asks about one tool entry (#568).
+struct RiskAsking {
+    /// The entry's ask, which a row or a reading belongs to.
+    ask: String,
+    /// The entry's tool, which sets its level when nothing marks it.
+    tool: ToolClass,
+    /// The state: with the verdict of Marley's rules when they marked the entry.
+    asking: Asking,
+}
+
+/// The inbox's risk use for one tool entry (#568).
+struct Risk {
+    /// The ask it belongs to.
+    ask: String,
+    /// When the entry was first seen.
+    seen: Instant,
+    /// The row that logged it, a call or a `rules` row, for its outcome.
+    row: Option<String>,
+    /// The model's reading, once it came.
+    reading: Option<RiskReading>,
+    /// How the inbox answered the entry: `allowed` or `denied`.
+    answered: Option<&'static str>,
+    /// The ask in flight.
+    _task: Option<Task<()>>,
+}
+
+/// A model's reading of a tool entry (#568): the chips it adds, each with its probability, and
+/// its urgency as a level.
+#[derive(Default)]
+struct RiskReading {
+    chips: Vec<(ChipKind, f64)>,
+    urgency: Option<u8>,
+}
+
+/// What one workspace's inbox entries are read against (#568).
+struct RiskScope {
+    folders: Vec<PathBuf>,
+    local: bool,
+    redactor: Arc<Redactor>,
+}
+
+/// What a tool entry waits to do, as the risk rules read it (#568).
+struct Waiting {
+    tool: ToolClass,
+    /// The tool's name, a fact of the state.
+    tool_name: String,
+    /// What it acts on: a command, a path or a question.
+    line: String,
+    paths: Vec<PathBuf>,
+    /// Where it runs, absolute or against the project's first folder.
+    cwd: Option<PathBuf>,
+    /// Who waits, in words, a fact of the state.
+    agent: String,
 }
 
 /// What an inbox entry acts on (#508).
@@ -329,6 +397,7 @@ impl Rail {
             minute_timer: None,
             inbox_seen: HashMap::default(),
             inbox_timer: None,
+            risk: HashMap::default(),
             snapshot: Snapshot::default(),
             zed_sidebar,
             zed_sidebar_state: None,
@@ -432,10 +501,84 @@ impl Rail {
             cx.notify();
         }
         self.snapshot = snapshot;
+        self.follow_risk(window, cx);
+    }
+
+    /// Logs each new tool entry of the inbox once (#568): as a `rules` row when Marley's rules
+    /// marked it, and as a call to the System One layer when they found nothing, whose reading
+    /// lands with a refresh. Logs how each entry with a row was cleared once it leaves.
+    fn follow_risk(&mut self, window: &Window, cx: &mut Context<Self>) {
+        if system_one::use_mode(INBOX_RISK.name, cx) == SystemOneMode::Off {
+            self.risk.clear();
+            return;
+        }
+        let now = cx.background_executor().now();
+        let gone: Vec<String> = self
+            .risk
+            .keys()
+            .filter(|key| !self.snapshot.inbox_risk.contains_key(*key))
+            .cloned()
+            .collect();
+        for key in gone {
+            let Some(Risk {
+                row: Some(row),
+                seen,
+                answered,
+                ..
+            }) = self.risk.remove(&key)
+            else {
+                continue;
+            };
+            let how = answered.map_or_else(
+                || "cleared elsewhere".to_string(),
+                |how| format!("{how} from the inbox"),
+            );
+            let waited = now.saturating_duration_since(seen).as_secs();
+            system_one::outcome(&row, format!("{how} after {waited} s"), cx);
+        }
+        for (key, item) in &self.snapshot.inbox_risk {
+            if self.risk.get(key).is_some_and(|risk| risk.ask == item.ask) {
+                continue;
+            }
+            let (row, task) = if item.asking.verdict.is_some() {
+                let row = system_one::record(INBOX_RISK, &item.asking, cx)
+                    .row
+                    .map(|row| row.id);
+                (row, None)
+            } else {
+                let asked = system_one::ask(INBOX_RISK, &item.asking, cx);
+                let (key, ask) = (key.clone(), item.ask.clone());
+                let task = cx.spawn_in(window, async move |rail, cx| {
+                    let asked = asked.await;
+                    rail.update_in(cx, |rail, window, cx| {
+                        if let Some(risk) = rail.risk.get_mut(&key)
+                            && risk.ask == ask
+                        {
+                            risk.row = asked.row.as_ref().map(|row| row.id.clone());
+                            risk.reading = Some(risk_reading(&asked.reading));
+                            rail.refresh(window, cx);
+                        }
+                    })
+                    .log_err();
+                });
+                (None, Some(task))
+            };
+            let risk = Risk {
+                ask: item.ask.clone(),
+                seen: self.inbox_seen.get(key).copied().unwrap_or(now),
+                row,
+                reading: None,
+                answered: None,
+                _task: task,
+            };
+            self.risk.insert(key.clone(), risk);
+        }
     }
 
     /// Orders the inbox by when the rail first saw each entry, oldest first, and says how long each
     /// has waited (#508). The ages move by a refresh every half minute while any entry waits.
+    /// While the risk use is on, a reading's chips join its entry's in `suggest` and `act`, the
+    /// reading may raise the level in `act`, and the entries go by level first (#568).
     fn note_inbox(&mut self, snapshot: &mut Snapshot, window: &Window, cx: &Context<Self>) {
         let now = cx.background_executor().now();
         let keys: HashSet<&str> = snapshot
@@ -449,11 +592,51 @@ impl Rail {
             let seen = *self.inbox_seen.entry(entry.key.clone()).or_insert(now);
             entry.waited = marley_rail::waited_words(now.saturating_duration_since(seen).as_secs());
         }
+        let mode = system_one::use_mode(INBOX_RISK.name, cx);
+        snapshot.rail.inbox_suggests = mode == SystemOneMode::Suggest;
+        if matches!(mode, SystemOneMode::Suggest | SystemOneMode::Act) {
+            for entry in &mut snapshot.rail.inbox {
+                let Some(reading) = self
+                    .risk
+                    .get(&entry.key)
+                    .filter(|risk| risk.ask == entry.ask)
+                    .and_then(|risk| risk.reading.as_ref())
+                else {
+                    continue;
+                };
+                let added: Vec<Chip> = reading
+                    .chips
+                    .iter()
+                    .filter(|(kind, _)| !entry.chips.iter().any(|chip| chip.kind == *kind))
+                    .map(|(kind, _)| Chip {
+                        kind: *kind,
+                        source: ChipSource::Model,
+                    })
+                    .collect();
+                entry.chips.extend(added);
+                if mode == SystemOneMode::Act {
+                    let tool = snapshot
+                        .inbox_risk
+                        .get(&entry.key)
+                        .map_or(ToolClass::Other, |item| item.tool);
+                    entry.level = risk::level(tool, &entry.chips)
+                        .max(reading.urgency.unwrap_or_default())
+                        .max(entry.level);
+                }
+            }
+        }
         let seen = &self.inbox_seen;
-        snapshot
-            .rail
-            .inbox
-            .sort_by_key(|entry| seen.get(&entry.key).copied());
+        if mode == SystemOneMode::Off {
+            snapshot
+                .rail
+                .inbox
+                .sort_by_key(|entry| seen.get(&entry.key).copied());
+        } else {
+            snapshot
+                .rail
+                .inbox
+                .sort_by_key(|entry| (Reverse(entry.level), seen.get(&entry.key).copied()));
+        }
         if snapshot.rail.inbox.is_empty() {
             self.inbox_timer = None;
         } else if self.inbox_timer.is_none() {
@@ -600,6 +783,7 @@ impl Rail {
         .on_click(cx.listener(move |rail, _, window, cx| {
             rail.open_inbox_entry(&open_key, window, cx);
         }));
+        let chips = self.render_chips(entry, cx);
         let buttons = entry.answers.then(|| {
             let (allow_key, deny_key) = (key.clone(), key.clone());
             let refuse = if entry.kind == InboxKind::Click {
@@ -636,16 +820,80 @@ impl Rail {
                 )
         });
         let selector = format!("marley-rail-inbox-entry-{key}");
+        let line = (!entry.chips.is_empty() || buttons.is_some()).then(|| {
+            h_flex()
+                .pl_2()
+                .gap_1()
+                .justify_between()
+                .child(h_flex().flex_wrap().gap_1().children(chips))
+                .children(buttons)
+        });
         v_flex()
             .debug_selector(move || selector)
             .gap_0p5()
             .child(card)
-            .children(buttons)
+            .children(line)
             .into_any_element()
     }
 
+    /// An inbox entry's chips (#568): Marley's plain, a reading's with a question mark in
+    /// `suggest` and a dashed border in `act`, with its probability in a tooltip.
+    fn render_chips(&self, entry: &InboxEntry, cx: &Context<Self>) -> Vec<AnyElement> {
+        let suggests = self.snapshot.rail.inbox_suggests;
+        let reading = self
+            .risk
+            .get(&entry.key)
+            .and_then(|risk| risk.reading.as_ref());
+        entry
+            .chips
+            .iter()
+            .enumerate()
+            .map(|(index, chip)| {
+                let model = chip.source == ChipSource::Model;
+                let words = if model && suggests {
+                    format!("{}?", chip.kind.words())
+                } else {
+                    chip.kind.words().to_string()
+                };
+                let color = if chip.kind.level() == Some(risk::TOP_LEVEL) {
+                    Color::Error
+                } else {
+                    Color::Warning
+                };
+                let probability = reading.and_then(|reading| {
+                    reading
+                        .chips
+                        .iter()
+                        .find(|(kind, _)| *kind == chip.kind)
+                        .map(|(_, probability)| *probability)
+                });
+                div()
+                    .id(SharedString::from(format!(
+                        "marley-rail-inbox-chip-{}-{index}",
+                        entry.key
+                    )))
+                    .px_1()
+                    .rounded_sm()
+                    .border_1()
+                    .border_color(cx.theme().colors().border)
+                    .when(model && !suggests, Styled::border_dashed)
+                    .child(Label::new(words).size(LabelSize::XSmall).color(color))
+                    .when_some(probability.filter(|_| model), |this, probability| {
+                        this.tooltip(Tooltip::text(format!(
+                            "The model reads it at {probability:.2}"
+                        )))
+                    })
+                    .into_any_element()
+            })
+            .collect()
+    }
+
     /// Allow or Deny, or for a paused click Allow or Refuse, on the inbox entry `key` (#508).
-    fn answer_inbox(&self, key: &str, allow: bool, window: &Window, cx: &mut Context<Self>) {
+    fn answer_inbox(&mut self, key: &str, allow: bool, window: &Window, cx: &mut Context<Self>) {
+        // For the outcome of the risk use's row (#568); a held click has none.
+        if let Some(risk) = self.risk.get_mut(key) {
+            risk.answered = Some(if allow { "allowed" } else { "denied" });
+        }
         match self.snapshot.inbox.get(key) {
             Some(InboxTarget::Thread { .. }) => self.answer_thread(key, allow, window, cx),
             Some(InboxTarget::Click(target)) => {
@@ -2352,14 +2600,21 @@ const fn changes_the_folders(event: &project::Event) -> bool {
 /// on a permission or a question, and each Browser tab's paused click, listed once per page.
 fn inbox_entries(project: &str, members: &[Entity<Workspace>], snapshot: &mut Snapshot, cx: &App) {
     let hub = BrowserHub::try_global(cx);
+    let marking = system_one::use_mode(INBOX_RISK.name, cx) != SystemOneMode::Off;
     for member in members {
+        let scope = marking.then(|| RiskScope::of(member, cx));
         let conversations = member
             .read(cx)
             .panel::<AgentPanel>(cx)
             .map(|panel| panel.read(cx).conversation_views())
             .unwrap_or_default();
         for conversation in conversations {
-            if let Some((entry, target)) = thread_entry(project, member, &conversation, cx) {
+            if let Some((mut entry, target, waiting)) =
+                thread_entry(project, member, &conversation, cx)
+            {
+                if let Some(scope) = &scope {
+                    mark(&mut entry, &waiting, scope, snapshot);
+                }
                 snapshot.inbox.insert(entry.key.clone(), target);
                 snapshot.rail.inbox.push(entry);
             }
@@ -2372,52 +2627,291 @@ fn inbox_entries(project: &str, members: &[Entity<Workspace>], snapshot: &mut Sn
             let Some(seat) = waiting else {
                 continue;
             };
-            let ask = seat.question.as_ref().map_or_else(
-                || "Waits for you".to_string(),
-                |question| one_line(&question.prompt),
-            );
             let id = view.entity_id().as_u64();
-            let key = format!("terminal:{id}:{ask}");
+            let mut entry = seat_entry(project, id, seat);
+            if let Some(scope) = &scope {
+                let waiting = seat_waiting(seat, &entry.ask);
+                mark(&mut entry, &waiting, scope, snapshot);
+            }
             snapshot
                 .inbox
-                .insert(key.clone(), InboxTarget::Terminal(id));
-            snapshot.rail.inbox.push(InboxEntry {
-                key,
-                kind: InboxKind::Terminal,
-                agent: "Claude Code".to_string(),
-                project: project.to_string(),
-                ask,
-                waited: String::new(),
-                answers: false,
-            });
+                .insert(entry.key.clone(), InboxTarget::Terminal(id));
+            snapshot.rail.inbox.push(entry);
         }
-        for view in member.read(cx).items_of_type::<BrowserView>(cx) {
-            let Some(target) = view.read(cx).target().map(str::to_string) else {
-                continue;
-            };
-            let Some(sentence) = hub
-                .as_ref()
-                .and_then(|hub| hub.read(cx).pause_sentence(&target))
-            else {
-                continue;
-            };
-            let key = format!("click:{target}");
-            if let std::collections::hash_map::Entry::Vacant(vacant) =
-                snapshot.inbox.entry(key.clone())
-            {
-                vacant.insert(InboxTarget::Click(target));
-                snapshot.rail.inbox.push(InboxEntry {
-                    key,
-                    kind: InboxKind::Click,
-                    agent: "Browser tab".to_string(),
-                    project: project.to_string(),
-                    ask: sentence.to_string(),
-                    waited: String::new(),
-                    answers: true,
-                });
-            }
+        if let Some(hub) = &hub {
+            click_entries(project, member, hub.read(cx), marking, snapshot, cx);
         }
     }
+}
+
+/// A terminal's Claude Code that waits, as an inbox entry.
+fn seat_entry(project: &str, id: u64, seat: &marley_fleet::Session) -> InboxEntry {
+    let ask = seat.question.as_ref().map_or_else(
+        || "Waits for you".to_string(),
+        |question| one_line(&question.prompt),
+    );
+    InboxEntry {
+        key: format!("terminal:{id}:{ask}"),
+        kind: InboxKind::Terminal,
+        agent: "Claude Code".to_string(),
+        project: project.to_string(),
+        ask,
+        waited: String::new(),
+        answers: false,
+        chips: Vec::new(),
+        level: 0,
+    }
+}
+
+/// Each Browser tab of `member` that holds an agent's click, as an inbox entry, once a page; with
+/// the chip of the click's class while the risk use is on (#568).
+fn click_entries(
+    project: &str,
+    member: &Entity<Workspace>,
+    hub: &BrowserHub,
+    marking: bool,
+    snapshot: &mut Snapshot,
+    cx: &App,
+) {
+    for view in member.read(cx).items_of_type::<BrowserView>(cx) {
+        let Some(target) = view.read(cx).target().map(str::to_string) else {
+            continue;
+        };
+        let Some(sentence) = hub.pause_sentence(&target) else {
+            continue;
+        };
+        let key = format!("click:{target}");
+        let chips: Vec<Chip> = hub
+            .pause_class(&target)
+            .and_then(click_chip)
+            .filter(|_| marking)
+            .into_iter()
+            .collect();
+        if let std::collections::hash_map::Entry::Vacant(vacant) = snapshot.inbox.entry(key.clone())
+        {
+            vacant.insert(InboxTarget::Click(target));
+            snapshot.rail.inbox.push(InboxEntry {
+                key,
+                kind: InboxKind::Click,
+                agent: "Browser tab".to_string(),
+                project: project.to_string(),
+                ask: sentence.to_string(),
+                waited: String::new(),
+                answers: true,
+                level: if marking {
+                    risk::level(ToolClass::Other, &chips)
+                } else {
+                    0
+                },
+                chips,
+            });
+        }
+    }
+}
+
+/// The chip a held click's class gives its inbox entry (#568).
+const fn click_chip(class: Class) -> Option<Chip> {
+    let kind = match class {
+        Class::Pays => ChipKind::Pays,
+        Class::Deletes => ChipKind::Destroys,
+        Class::Sends => ChipKind::SendsOut,
+        Class::ChangesAccount => ChipKind::ChangesAccount,
+        Class::Open | Class::Plain => return None,
+    };
+    Some(Chip::rules(kind))
+}
+
+impl RiskScope {
+    /// What `workspace`'s entries are read against: its folders, whether it is on this machine,
+    /// and the redactor that finds a secret in a line.
+    fn of(workspace: &Entity<Workspace>, cx: &App) -> Self {
+        let (folders, local) = system_one::project_of(workspace.read(cx), cx);
+        Self {
+            folders,
+            local,
+            redactor: crate::mcp::model_redactor(cx),
+        }
+    }
+}
+
+/// Marks `entry` with the chips Marley's rules give what it waits on, and its level, and keeps
+/// beside it what the risk use logs or asks (#568).
+fn mark(entry: &mut InboxEntry, waiting: &Waiting, scope: &RiskScope, snapshot: &mut Snapshot) {
+    let root = scope.folders.first();
+    let cwd = waiting
+        .cwd
+        .as_ref()
+        .map(|cwd| root.map_or_else(|| cwd.clone(), |root| root.join(cwd)))
+        .or_else(|| root.cloned());
+    let action = Action {
+        tool: waiting.tool,
+        line: &waiting.line,
+        paths: &waiting.paths,
+        cwd: cwd.as_deref(),
+        folders: &scope.folders,
+        home: Some(util::paths::home_dir().as_path()),
+        secret: scope.redactor.redact(&waiting.line).count > 0,
+    };
+    entry.chips = risk::classify(&action);
+    entry.level = risk::level(waiting.tool, &entry.chips);
+    let nouls: Vec<&str> = entry
+        .chips
+        .iter()
+        .filter_map(|chip| chip.kind.noul())
+        .collect();
+    let found = if entry.chips.is_empty() {
+        "nothing".to_string()
+    } else {
+        entry
+            .chips
+            .iter()
+            .map(|chip| chip.kind.words())
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let project = system_one::project_name(&scope.folders);
+    let asking = Asking {
+        subject: entry.key.clone(),
+        facts: vec![
+            ("tool", waiting.tool_name.clone()),
+            ("agent", waiting.agent.clone()),
+            ("project", project.clone()),
+            ("code found", found),
+        ],
+        texts: vec![("ask", entry.ask.clone())],
+        verdict: (!nouls.is_empty()).then(|| system_one::nouls_verdict(&nouls)),
+        project,
+        folders: scope.folders.clone(),
+        local: scope.local,
+    };
+    snapshot.inbox_risk.insert(
+        entry.key.clone(),
+        RiskAsking {
+            ask: entry.ask.clone(),
+            tool: waiting.tool,
+            asking,
+        },
+    );
+}
+
+/// What an Agent Panel tool call waits to do (#568): its kind's class, the command it runs or its
+/// label as plain text, the paths it names, and a terminal tool's `cd`.
+fn thread_waiting(call: &acp_thread::ToolCall, agent: &str, cx: &App) -> Waiting {
+    let tool = match call.kind {
+        acp::ToolKind::Read
+        | acp::ToolKind::Search
+        | acp::ToolKind::Fetch
+        | acp::ToolKind::Think => ToolClass::Read,
+        acp::ToolKind::Edit | acp::ToolKind::Move => ToolClass::Write,
+        acp::ToolKind::Delete => ToolClass::Delete,
+        acp::ToolKind::Execute => ToolClass::Execute,
+        _ => ToolClass::Other,
+    };
+    let text = |key: &str| {
+        call.raw_input
+            .as_ref()
+            .and_then(|input| input.get(key))
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string)
+    };
+    let line = text("command").unwrap_or_else(|| unescape(call.label.read(cx).source()));
+    let mut paths: Vec<PathBuf> = call
+        .locations
+        .iter()
+        .map(|location| location.path.clone())
+        .collect();
+    paths.extend(
+        ["path", "file_path", "abs_path"]
+            .into_iter()
+            .filter_map(text)
+            .map(PathBuf::from),
+    );
+    Waiting {
+        tool,
+        tool_name: call.tool_name.as_ref().map_or_else(
+            || format!("{:?}", call.kind).to_lowercase(),
+            ToString::to_string,
+        ),
+        line: one_line(&line),
+        paths,
+        cwd: text("cd").map(PathBuf::from),
+        agent: format!("{agent} in the Agent Panel"),
+    }
+}
+
+/// What a terminal's Claude Code waits on (#568): the tool and its preview of a
+/// `Permission for <Tool: preview>` wait, or a question.
+fn seat_waiting(seat: &marley_fleet::Session, ask: &str) -> Waiting {
+    let cwd = seat.labels.get(claude_events::CWD_LABEL).map(PathBuf::from);
+    let agent = "Claude Code in a terminal".to_string();
+    let Some(asked) = ask.strip_prefix("Permission for ") else {
+        return Waiting {
+            tool: ToolClass::Question,
+            tool_name: "AskUserQuestion".to_string(),
+            line: ask.to_string(),
+            paths: Vec::new(),
+            cwd,
+            agent,
+        };
+    };
+    let (name, preview) = asked.split_once(": ").unwrap_or((asked, ""));
+    let tool = ToolClass::of_claude_tool(name);
+    let paths = if tool == ToolClass::Write && !preview.is_empty() {
+        vec![PathBuf::from(preview)]
+    } else {
+        Vec::new()
+    };
+    Waiting {
+        tool,
+        tool_name: name.to_string(),
+        line: preview.to_string(),
+        paths,
+        cwd,
+        agent,
+    }
+}
+
+/// A label's Markdown source as plain text: the backslash before an escaped character dropped,
+/// and `&lt;` read back.
+fn unescape(markdown: &str) -> String {
+    let mut plain = String::with_capacity(markdown.len());
+    let mut characters = markdown.chars();
+    while let Some(character) = characters.next() {
+        if character == '\\' {
+            plain.extend(characters.next());
+        } else {
+            plain.push(character);
+        }
+    }
+    plain.replace("&lt;", "<")
+}
+
+/// A model's reading of a tool entry (#568): each noul that holds as a chip, with its
+/// probability, and the urgency's expected level, rounded.
+fn risk_reading(reading: &Reading) -> RiskReading {
+    let Reading::Model(reads) = reading else {
+        return RiskReading::default();
+    };
+    let mut found = RiskReading::default();
+    for read in reads {
+        match &read.signal {
+            Signal::Noul {
+                holds: true,
+                probability,
+            } => {
+                if let Some(kind) = ChipKind::from_noul(&read.key) {
+                    found.chips.push((kind, *probability));
+                }
+            }
+            Signal::Score { score, .. } if read.key == "urgency" => {
+                found.urgency = (1..=risk::TOP_LEVEL)
+                    .rev()
+                    .find(|level| *score >= f64::from(*level) - 0.5);
+            }
+            _ => {}
+        }
+    }
+    found
 }
 
 /// A conversation's first tool call waiting for confirmation, as an inbox entry, with the
@@ -2429,7 +2923,7 @@ fn thread_entry(
     member: &Entity<Workspace>,
     conversation: &Entity<ConversationView>,
     cx: &App,
-) -> Option<(InboxEntry, InboxTarget)> {
+) -> Option<(InboxEntry, InboxTarget, Waiting)> {
     let view = conversation.read(cx);
     let (session, tool_call, options) = view.pending_tool_call(cx)?;
     let thread_view = view.thread_view(&session)?;
@@ -2449,14 +2943,18 @@ fn thread_entry(
     let key = format!("thread:{thread_key}:{tool_call}");
     let workspace_project = member.read(cx).project();
     let icon = agents::thread_icon(&thread_view.agent_id, workspace_project, cx);
+    let agent = agents::thread_agent_name(&thread_view.agent_id, workspace_project, cx).to_string();
+    let waiting = thread_waiting(call, &agent, cx);
     let entry = InboxEntry {
         key,
         kind: InboxKind::Thread,
-        agent: agents::thread_agent_name(&thread_view.agent_id, workspace_project, cx).to_string(),
+        agent,
         project: project.to_string(),
         ask,
         waited: String::new(),
         answers: answers.is_some(),
+        chips: Vec::new(),
+        level: 0,
     };
     let target = InboxTarget::Thread {
         thread_key,
@@ -2466,7 +2964,7 @@ fn thread_entry(
         answers,
         icon,
     };
-    Some((entry, target))
+    Some((entry, target, waiting))
 }
 
 /// `text` on one line: its runs of whitespace, line breaks included, as single spaces.
@@ -2558,7 +3056,7 @@ fn group_threads(
         .filter(|row| seen.insert(row.thread_id))
         .filter(|row| !row.is_draft() || active.contains(&row.thread_id))
         .collect();
-    rows.sort_by_key(|row| std::cmp::Reverse(row.interacted_at.unwrap_or(row.updated_at)));
+    rows.sort_by_key(|row| Reverse(row.interacted_at.unwrap_or(row.updated_at)));
     rows.into_iter()
         .map(|row| {
             let workspace = members

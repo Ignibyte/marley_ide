@@ -1709,12 +1709,14 @@
       "daily_budget_cents": 50,
       // A "compatible" provider's price, in cents per million input tokens.
       "price_cents_per_million_tokens": 0,
-      // Each use's mode: "off", "shadow" (ask and log, shown only in Decisions), "suggest" or
-      // "act". The check runs only when you run it; the stop kind says on an idle Claude Code's
-      // rail row what its stop needs; browser_find and terminal_find are agents' tools that find
-      // an element of a page or a line of a block from words, listed only while not "off"; the
-      // stall kind flags a working Claude Code that loops or has gone quiet; the click
-      // consequence holds an agent's consequential click in a Browser tab for Allow or Refuse.
+      // Each use's mode: "off", "shadow" (the model asked and logged, its reading shown only in
+      // Decisions, while a use's own rules still act), "suggest" or "act". The check runs only when
+      // you run it; the stop kind says on an idle Claude Code's rail row what its stop needs;
+      // browser_find and terminal_find are agents' tools that find an element of a page or a line
+      // of a block from words, listed only while not "off"; the stall kind flags a working Claude
+      // Code that loops or has gone quiet; the click consequence holds an agent's consequential
+      // click in a Browser tab for Allow or Refuse; the inbox marks what waits in the rail's inbox
+      // with risk chips and orders it by them.
       "uses": {
         "check": "act",
         "stop_kind": "off",
@@ -1722,6 +1724,7 @@
         "terminal_find": "off",
         "stall_kind": "off",
         "click_consequence": "off",
+        "inbox": "off",
       },
     },
   },

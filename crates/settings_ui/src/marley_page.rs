@@ -301,9 +301,9 @@ fn push_section() -> [SettingsPageItem; 4] {
 
 // Marley: the System One layer's switch, provider and budget, and a way to its Decisions view
 // (#565). The project lists, and each use's mode past the check's, the stop kind's (#566), the
-// find tools' (#567), the stall kind's (#569) and the click consequence's (#571), live in
-// settings.json.
-fn system_one_section() -> [SettingsPageItem; 13] {
+// find tools' (#567), the stall kind's (#569), the click consequence's (#571) and the inbox's
+// (#568), live in settings.json.
+fn system_one_section() -> [SettingsPageItem; 14] {
     [
         SettingsPageItem::SectionHeader("System One"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -616,6 +616,38 @@ fn system_one_section() -> [SettingsPageItem; 13] {
                     let _before = match value {
                         Some(mode) => uses.insert("click_consequence".to_string(), mode),
                         None => uses.remove("click_consequence"),
+                    };
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: the mode of the inbox's risk chips (#568).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Inbox Risk",
+            description: "The mode of the inbox's risk chips, which mark what an agent waits on in the rail's inbox (destroys, credentials, rewrites history, sends out, installs, outside project, claims approval) and put what matters most first, from Marley's own rules first and the model for what the rules found nothing on. Nothing here answers a prompt. Off keeps the inbox oldest first with no chips. Shadow shows the rules' chips and order and logs the model, Suggest shows the model's chips with a question mark, and Act lets them order the inbox too.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.system_one.uses.inbox"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.system_one.as_ref())
+                        .and_then(|system_one| system_one.uses.as_ref())
+                        .and_then(|uses| uses.get("inbox"))
+                },
+                write: |settings_content, value, _| {
+                    let uses = settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .system_one
+                        .get_or_insert_default()
+                        .uses
+                        .get_or_insert_default();
+                    let _before = match value {
+                        Some(mode) => uses.insert("inbox".to_string(), mode),
+                        None => uses.remove("inbox"),
                     };
                 },
             }),

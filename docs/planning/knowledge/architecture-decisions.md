@@ -2713,3 +2713,22 @@ the view again at the click. An entry leaves only on evidence that its wait ende
   characters, which the inbox would go around;
 - clearing an entry on a timer, or when some other tool ends: a prompt still waiting would leave
   the list.
+
+## AD-claude-568-inbox-risk-chips-come-from-code-and-a-reading-only-adds-001
+*decided at: 2026-09-28 · status: shipped · builds on: AD-claude-508-one-inbox-lists-every-agent-that-waits-on-the-user-001, AD-claude-565-the-system-one-layer-is-a-pure-core-behind-an-adapter-off-by-default-001*
+
+Each entry of the approvals inbox carries chips that say what its action would do, and the
+entries order by the chips' level, then age. Code reads the tool and what it acts on first, with
+word tables and no model: `destroys`, `credentials`, `rewrites history`, `sends out`, `installs`,
+`outside project`, and `claims approval`, which raises an entry. A click a Browser tab holds
+carries its #571 class. The System One layer is asked only about tool entries the rules found
+nothing on, with facts code computed and the line as masked text; its reading may add chips and
+raise a level, never remove a chip or lower a level. Nothing approves: the chips and the order
+change no answer, and Claude Code's own reviewer keeps its verdict. The use is off until turned
+on. Rejected:
+- a model that can clear a chip or lower an entry: the waiting line is the agent's own text, and
+  a hostile line could talk it down (the note's safety rule 6);
+- a shell parse of the line: the plugin cuts a preview at 200 characters, and words over simple
+  commands read a cut line and err toward a chip;
+- the working directory as a fact: it is a path, text the agent's environment wrote;
+- asking about held clicks again: #571 already decided and logged each one.

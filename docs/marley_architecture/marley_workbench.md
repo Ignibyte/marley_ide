@@ -186,6 +186,25 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   - The rail hears of a thread's prompt from the thread's `ToolAuthorizationRequested` and
     `ToolAuthorizationReceived`, of a seat's wait from its observer on `AgentEvents`, and of a held
     click from the hub's `PageStatusChanged`.
+  - **Risk chips (#568).** While the use `inbox` is on, each tool entry is read into a `Waiting`:
+    a thread's call through `thread_waiting` (its kind's class, the raw input's `command` or the
+    label with its Markdown escapes taken out, its locations and the raw input's `path`, a
+    terminal tool's `cd`), a seat's wait through `seat_waiting` (`Permission for <Tool:
+    preview>` split into the tool and its preview, the seat's `cwd` label, or a question). `mark`
+    classifies it (`marley_agent::risk`, with `secret` from `mcp::model_redactor`), sets its
+    chips and level, and keeps its `RiskAsking` in the snapshot: the `Asking` with the tool's
+    name, the agent, the project's name and `code found` as facts and the ask as text, and
+    `system_one::nouls_verdict` when the rules marked it. A held click's entry takes the chip of
+    its class (`BrowserHub::pause_class`) and nothing more. `follow_risk`, at the end of each
+    refresh, logs each new tool entry once, a `rules` row for a chipped one and a call
+    (`INBOX_RISK`) for the rest, whose reading (`risk_reading`: the nouls that hold, and the
+    urgency's expected level rounded by comparison) lands by key and ask and refreshes; when an
+    entry with a row leaves, its outcome says `allowed` or `denied from the inbox`, or `cleared
+    elsewhere`, and after how long. `note_inbox` adds a reading's chips in `suggest` and `act`,
+    lets it raise the level in `act`, and sorts by `(Reverse(level), first seen)` while the use
+    is on. `render_chips` draws the chips on the line under the card, before #508's buttons: the
+    rules' plain, in the error color at level 5, a reading's with a question mark in `suggest`
+    and a dashed border in `act`, with its probability in a tooltip.
 - **Keys and reorder (#453). The key context is `MarleyRail menu`, and the rail answers Zed's
   `menu::SelectNext`, `SelectPrevious`, `SelectFirst`, `SelectLast`, `SelectParent`,
   `SelectChild` and `Confirm`. Zed binds up, down, Home, End and Enter to them with no context,
@@ -699,7 +718,9 @@ alike.
   active, the focus on the card), and `dismiss_pause_toast` takes it away.
 - The rail's inbox lists the held click (#508): `pause_click` and `end_pause` emit
   `PageStatusChanged`, the entry says what the card says (`pause_sentence`), and its Refuse and
-  Allow call `answer_pause` as the card's buttons do.
+  Allow call `answer_pause` as the card's buttons do. Since #568 the pause keeps its `Class`
+  (`PendingClick.class`, from `hold`'s `Held { sentence, class, call }`), which
+  `BrowserHub::pause_class` gives the inbox for the entry's chip.
 
 ## Asking before a close ends a working agent (`src/close_guard.rs`, #550)
 

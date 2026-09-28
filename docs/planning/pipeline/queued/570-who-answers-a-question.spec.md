@@ -5,7 +5,7 @@ status: QUEUED — Phase 1 Plan drafted; ready to promote to active
 title: "Who answers an agent's question: owner, manager, the agent proceeds, cannot tell"
 type: feature
 slice: prong 2, C1's attention (after #508, #565 and #568); use 5 of the System One layer; routing to the manager after M10 and #534
-references: [docs/planning/design-notes/jev-system-one-2026-09-25.md, docs/planning/pipeline/completed/565-system-one-layer.spec.md, docs/planning/pipeline/queued/568-inbox-order-and-risk-chips.spec.md, docs/planning/pipeline/completed/508-approvals-inbox.spec.md, docs/planning/pipeline/completed/519-claude-code-events-in-the-rail.spec.md, docs/planning/pipeline/queued/534-harness-sessions-in-the-rail.spec.md, docs/orca_architecture/01-agents-and-sessions.md]
+references: [docs/planning/design-notes/jev-system-one-2026-09-25.md, docs/planning/pipeline/completed/565-system-one-layer.spec.md, docs/planning/pipeline/completed/568-inbox-order-and-risk-chips.spec.md, docs/planning/pipeline/completed/508-approvals-inbox.spec.md, docs/planning/pipeline/completed/519-claude-code-events-in-the-rail.spec.md, docs/planning/pipeline/queued/534-harness-sessions-in-the-rail.spec.md, docs/orca_architecture/01-agents-and-sessions.md]
 ---
 
 ## Title

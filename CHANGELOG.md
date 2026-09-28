@@ -13,6 +13,24 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The inbox marks what each waiting action would do, and puts what matters most first** (#568,
+  2026-09-28). With the inbox's risk use on, each entry of the rail's "Needs you" section carries
+  chips from Marley's own rules, read from the tool and what it acts on: `destroys` (`rm -rf`,
+  `git reset --hard`, `DROP TABLE`, a delete), `credentials` (`~/.ssh`, `.env`, a key file, a
+  secret in the line), `rewrites history` (a rebase, an amend, a forced push), `sends out` (a
+  `curl` that posts, `scp`, `git push`, a publish), `installs` (`npm install`, `pip install`,
+  `curl … | sh`), `outside project` (a write or a command reaching outside the project's
+  folders) and `claims approval` (text saying the action was already approved, which raises the
+  entry rather than lowering it). A click a Browser tab holds carries its own: `pays`,
+  `destroys`, `sends out` or `changes account`. Entries order by level, then age. What the rules
+  find nothing on, such as `python3 scripts/cleanup.py`, the System One layer may read for a
+  listed project, with the tool's name, the agent and the project as facts and the line masked;
+  a reading may add chips and raise an entry, never remove a chip or lower one. Nothing here
+  answers a prompt: Allow and Deny stay your clicks. Off by default: Inbox Risk on the Marley
+  page, or `marley.system_one.uses.inbox`, with Shadow (the rules' chips and order, the model
+  logged), Suggest (the model's chips with a question mark) and Act (dashed chips that order the
+  inbox too). Each entry is a row in Decisions, and how it was cleared is its outcome.
+
 - **One list at the top of the rail of every agent that waits on you** (#508, 2026-09-28). While
   an agent waits, "Needs you" and a count sit between the rail's filter and its projects, with an
   entry per wait, the longest waiting first: the agent and its project, what it asks, and how long

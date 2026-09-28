@@ -5,9 +5,10 @@
 //! the command a terminal runs, [`launch_input`] is what starts one in a shell, and
 //! [`agent_status`] judges from its terminal whether it is working or waiting on the user.
 //! [`claude_events`] reads Claude Code's own hook events, which Marley's plugin sends, and folds
-//! them into a fleet seat (#519), [`stop_kind`] says what a stopped turn needs (#566), and
-//! [`stall`] what flags a looping or quiet working one (#569). The launching and the watching live
-//! in `marley_workbench`.
+//! them into a fleet seat (#519), [`stop_kind`] says what a stopped turn needs (#566),
+//! [`stall`] what flags a looping or quiet working one (#569), and [`risk`] what an action waiting
+//! in the rail's inbox would do (#568). The launching and the watching live in
+//! `marley_workbench`.
 
 // gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
 // Zed's crates keep them at warn (CONSTITUTION §0).
@@ -29,6 +30,7 @@ use std::time::Duration;
 use marley_fleet::State;
 
 pub mod claude_events;
+pub mod risk;
 pub mod stall;
 pub mod stop_kind;
 

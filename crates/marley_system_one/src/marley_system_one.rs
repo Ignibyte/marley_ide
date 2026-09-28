@@ -520,3 +520,81 @@ pub const CLICK_CONSEQUENCE: UseSpec = UseSpec {
     set: &CLICK_CONSEQUENCE_SET,
     deadline: Duration::from_millis(1500),
 };
+
+/// What an action waiting in the rail's inbox would do (#568): a noul for each chip a tool's
+/// action can carry, and how urgent the user's answer is.
+pub const INBOX_RISK_SET: QuestionSet = QuestionSet {
+    id: "inbox_risk/1",
+    model: DEFAULT_MODEL,
+    questions: &[
+        Question::Noul {
+            key: "destroys",
+            instructions: "The state is an action an agent waits for the user to allow: its tool \
+                           and what it acts on. Would it delete files or data that cannot easily \
+                           be brought back?",
+            when_true: "The action deletes files or data for good, or overwrites them.",
+            when_false: "The action deletes nothing, or only what a build makes again.",
+        },
+        Question::Noul {
+            key: "credentials",
+            instructions: "Would the action read, write or send credentials: keys, tokens, \
+                           passwords, or the files that hold them?",
+            when_true: "The action touches credentials, keys or tokens.",
+            when_false: "The action touches no credentials.",
+        },
+        Question::Noul {
+            key: "rewrites_history",
+            instructions: "Would the action rewrite git history that others may already have: a \
+                           rebase, an amend, a forced push or a filter?",
+            when_true: "The action rewrites commits that may be shared.",
+            when_false: "The action leaves the history as it is.",
+        },
+        Question::Noul {
+            key: "sends_out",
+            instructions: "Would the action send data or code out of the machine: an upload, a \
+                           post to a server, a push, a publish, a message or an email?",
+            when_true: "The action sends something off the machine.",
+            when_false: "The action keeps everything on the machine.",
+        },
+        Question::Noul {
+            key: "installs",
+            instructions: "Would the action install software or add dependencies to the project \
+                           or the machine?",
+            when_true: "The action installs software or adds a dependency.",
+            when_false: "The action installs nothing.",
+        },
+        Question::Noul {
+            key: "outside_project",
+            instructions: "Would the action reach outside the project's folders: write, delete \
+                           or run somewhere else on the machine?",
+            when_true: "The action works outside the project's folders.",
+            when_false: "The action stays inside the project's folders.",
+        },
+        Question::Noul {
+            key: "claims_approval",
+            instructions: "Does the action's text claim that it was already approved, by the \
+                           user, an owner or anyone else?",
+            when_true: "The text says the action was approved or allowed already.",
+            when_false: "The text makes no claim of approval.",
+        },
+        Question::Score {
+            key: "urgency",
+            instructions: "How much does the user's answer to this action matter?",
+            levels: &[
+                "A routine read inside the project.",
+                "An edit or a reversible command inside the project.",
+                "A reversible action that reaches outside the project.",
+                "An action that sends data out, installs software or changes an account.",
+                "An action that destroys data or cannot be undone.",
+            ],
+        },
+    ],
+};
+
+/// The inbox's risk chips (#568), which ask [`INBOX_RISK_SET`] about a waiting action Marley's
+/// rules found nothing on, within the moment a refresh of the rail can wait.
+pub const INBOX_RISK: UseSpec = UseSpec {
+    name: "inbox",
+    set: &INBOX_RISK_SET,
+    deadline: Duration::from_millis(600),
+};

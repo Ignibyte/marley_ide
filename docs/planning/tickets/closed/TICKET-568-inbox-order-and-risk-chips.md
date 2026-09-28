@@ -2,13 +2,13 @@
 
 - **Ticket:** LOCAL #568 (feature, prong 2 (attention); the Jev note's use 3, on #508's inbox and #565's layer)
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/568-inbox-order-and-risk-chips.spec.md
+- **Pipeline doc:** ../../pipeline/completed/568-inbox-order-and-risk-chips.spec.md
 - **Source ticket:** Chad, 2026-09-26, approving the seven ranked uses of
   `docs/planning/design-notes/jev-system-one-2026-09-25.md`; use 3, "Inbox order and risk
   chips", which "orders #508's inbox and marks entries; approves nothing", with Claude Code's own
   reviewer kept as the approver (his answer to the note's question 5) and his rules "local first
   and then jev second" and every use off by default with its own switch and mode
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 #508 lists every agent waiting on a permission at the top of the rail, oldest first, each entry

@@ -185,6 +185,41 @@ pub fn tree_cpu_in(proc_root: &Path, pid: i32, since_ticks: u64) -> Option<u64>;
   `model`), `flag_confidence` (`0.91`) and `flag_reason`, what the flag rests on in words, which
   the tooltip reads. `row_word` and `tooltip` give nothing while `Hidden` (`off` and `shadow`).
 
+## What an inbox entry's action would do (`src/risk.rs`, #568)
+
+```rust
+pub enum ToolClass { Read, Write, Execute, Delete, Question, Other }  // of_claude_tool(name)
+pub enum ChipKind { Destroys, Credentials, RewritesHistory, Pays, SendsOut, Installs,
+                    ChangesAccount, OutsideProject, ClaimsApproval }  // words, level, noul
+pub enum ChipSource { Rules, Model }
+pub struct Chip { kind: ChipKind, source: ChipSource }
+pub struct Action<'a> { tool, line, paths, cwd, folders, home, secret: bool }
+pub fn classify(action: &Action) -> Vec<Chip>;          // in the order of their kinds
+pub fn level(tool: ToolClass, chips: &[Chip]) -> u8;    // 1 to 5
+```
+
+- `classify` reads a line as simple commands, split at `;`, `&&`, `||`, `|`, `&`, `(`, `)` and
+  new lines outside quotes, each without the prefixes that only run it (`sudo`, `doas`, `env`,
+  `nohup`, `time`, `command`, `exec`) and the variables set before it, and matches whole words:
+  no regex and no shell parse, so a line the plugin cut at 200 characters still reads, and a
+  quoted word that matches adds a chip, which errs toward caution. The tables: `destroys` (`rm`
+  with a recursive or force flag or a glob, `git reset --hard`, `git clean -f`, `git checkout
+  .`, `git branch -D`, `shred`, `dd of=`, `find -delete`, `mkfs`, SQL that drops or truncates, a
+  call of kind `delete`); `credentials` (key files and folders by name, `.env`, `secret-tool`,
+  `gpg`, `pass`, or `secret`, the redactor's finding); `rewrites history`; `sends out` (a `curl`
+  or `wget` that sends data or a method other than GET, `scp`, `rsync` to a host, `ssh`, `git
+  push`, `gh` creating, publishing tools); `installs` (package managers' install verbs, and a
+  download piped into a shell); `outside project` (a write tool's path, or an absolute, `~` or
+  `cd` path in a command, under no folder of the project, `/dev` and the temporary folders
+  aside, resolved lexically against `cwd` and `home`); and `claims approval` (phrases that claim
+  an approval, in the line or a question). A question gets only `claims approval`, and only a
+  command gets the command rules.
+- `level` is the highest chip's (5 for `destroys`, `credentials`, `rewrites history` and `pays`;
+  4 for `sends out`, `installs` and `changes account`; 3 for `outside project`), else 1 for a
+  read tool and 2 for any other, one higher when a chip claims an approval, at most 5.
+- `ChipKind::noul` names the model's question about each of the seven a tool's action can carry,
+  and `from_noul` reads it back; `pays` and `changes account` come from #571's classes alone.
+
 ## Consumers
 
 - `marley_rail`: a terminal row carries `TerminalAgent { kind, status }` when an agent runs in
@@ -196,6 +231,8 @@ pub fn tree_cpu_in(proc_root: &Path, pid: i32, since_ticks: u64) -> Option<u64>;
   modes give, and `stall::tooltip` for the row's mark.
 - `marley_workbench::stall` (#569): `repeats`, `tool_name`, `judge`, `checks`, `quiet_words`,
   `labels`, `active`, `ticks_since_boot`, `boot_time_in` and `tree_cpu_in` for the watch.
+- `marley_workbench::rail` (#568): `classify`, `level`, `ToolClass::of_claude_tool` and the
+  chips' words for the inbox, whose entries in `marley_rail` carry the `Chip`s.
 - `marley_workbench::rail`:
   - recognition through `agent_kind_of`;
   - the `+` menu's Agent CLIs section (`AgentKind::ALL`, filtered to what the search path

@@ -40,6 +40,13 @@ the time and names the folder. MIT OR Apache-2.0, with rustal's lint table; its 
   four nouls about an element an agent is about to click: `pays`, `deletes`, `sends` and
   `changes_account`. `CLICK_CONSEQUENCE` is its use, `click_consequence`, with a 1.5 s deadline,
   inside the pause a click can afford. A rule's pause is logged as a `rules` row with its noul held.
+- **The inbox's set** (#568). `INBOX_RISK_SET` (`inbox_risk/1`) asks about an action waiting in
+  the rail's inbox that Marley's rules found nothing on: a noul for each chip a tool's action can
+  carry (`destroys`, `credentials`, `rewrites_history`, `sends_out`, `installs`,
+  `outside_project`, `claims_approval`) and `urgency`, a score of five levels from a routine read
+  inside the project to an action that destroys data or cannot be undone, the first set to ask a
+  score. `INBOX_RISK` is its use, `inbox`, with a 600 ms deadline. The rules' chips are logged
+  as one `rules` row with each chip's noul held.
 - **`state`.** `StateBuilder::new(detail, mask)` takes facts, kept at every `Detail`, and text,
   left out at `Detail::Facts`, each value through the host's mask. A text value is masked whole
   and then cut to 300 characters (`cut`), since a cut can split a secret the mask would find.

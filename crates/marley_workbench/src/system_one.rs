@@ -1160,6 +1160,21 @@ pub(crate) fn noul_verdict(key: &str, holds: bool) -> Answers {
     )
 }
 
+/// A use's own yes to each of the nouls `keys` as answers, which a `rules` row keeps (#568).
+pub(crate) fn nouls_verdict(keys: &[&str]) -> Answers {
+    let by_key: BTreeMap<String, Answer> = keys
+        .iter()
+        .map(|key| ((*key).to_string(), Answer::Noul { noul: 1.0 }))
+        .collect();
+    Answers {
+        model: None,
+        raw: serde_json::to_value(&by_key).unwrap_or(serde_json::Value::Null),
+        by_key,
+        unreadable: Vec::new(),
+        input_tokens: 0,
+    }
+}
+
 /// A use's own choice of `option` as answers, which a `rules` row keeps (#566).
 pub(crate) fn choice_verdict(key: &str, option: &str) -> Answers {
     verdict(

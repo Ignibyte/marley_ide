@@ -3536,3 +3536,23 @@ with `allow_once` and `reject_once` options, and reads stdin until the response 
 comes. It logs `outcome.optionId`, sends the `tool_call_update` and ends the turn. The panel draws
 the prompt as it draws a real agent's, so the panel's buttons and Marley's can both be driven, and
 the answer read from the log. `script/e2e/508-approvals-inbox.sh` has it.
+
+## L-claude-568-unused-results-wants-every-returned-value-used-001
+*category: code · topic: the Marley lint table · from: pipeline 568*
+
+Marley's lint table denies `unused_results`, so a call whose value is dropped fails clippy even
+where rustc says nothing: `BTreeSet::insert` and `PathBuf::pop` return a `bool`, and
+`Peekable::next` an `Option`. Collect into a `Vec` with `push`, then `sort` and `dedup`; test
+`next_if_eq(..).is_some()` inside the condition that needs it; walk up with `parent()` rather
+than `pop()`. A float that becomes a small integer, such as a score's expected level, can come
+from a comparison ladder (`(1..=5).rev().find(|level| score >= f64::from(*level) - 0.5)`) instead
+of an `as` cast, which the pedantic table flags and §0 forbids allowing.
+
+## L-claude-568-a-seat-holds-one-wait-so-each-entry-needs-its-own-terminal-001
+*category: process · topic: e2e scenarios · from: pipeline 568*
+
+A Claude Code seat holds one question at a time, keyed by its terminal, so a scenario that needs
+several terminal entries in the inbox runs the stand-in `claude` in a terminal each, taking its
+case from its first argument. `palette "workspace: new terminal"` opens each in the center with
+the focus, from anywhere and with no point to measure, where the rail's `+` moves as the inbox
+grows above it.

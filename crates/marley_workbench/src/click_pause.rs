@@ -149,6 +149,14 @@ enum Answer {
     Expired,
 }
 
+/// A click that waits: what the card says, the class it waits for, which the rail's inbox shows
+/// as a chip (#568), and the call that decided it.
+struct Held {
+    sentence: String,
+    class: Class,
+    call: Option<String>,
+}
+
 /// The element a paused click names, as it was when the click waited, read again at Allow.
 struct Identity {
     url: Option<SharedString>,
@@ -208,7 +216,7 @@ pub(crate) async fn before_click(
         return Ok(Checked::Go);
     }
     let asking = cx.update(|cx| asking(tab, &facts, &verdict, title.as_ref(), cx));
-    let (why, call) = match verdict.class {
+    let (why, call, class) = match verdict.class {
         Class::Open => {
             let asked = cx
                 .update(|cx| system_one::ask(CLICK_CONSEQUENCE, &asking, cx))
@@ -224,6 +232,7 @@ pub(crate) async fn before_click(
                         class.words()
                     ),
                     call,
+                    class,
                 ),
                 SystemOneMode::Suggest => {
                     let notice = format!(
@@ -247,31 +256,37 @@ pub(crate) async fn before_click(
             (
                 format!("which {} ({})", class.words(), verdict.because),
                 asked.row.map(|row| row.id),
+                class,
             )
         }
     };
     let host = host_of(url.as_deref().unwrap_or_default());
-    let sentence = format!("{} wants to click {what}, {why}, on {host}", who.words);
+    let held = Held {
+        sentence: format!("{} wants to click {what}, {why}, on {host}", who.words),
+        class,
+        call,
+    };
     let identity = Identity { url, node, read };
-    hold(click, &sentence, &identity, who, call, hub, cx).await
+    hold(click, &held, &identity, who, hub, cx).await
 }
 
-/// Holds `click`, which `sentence` describes, until the user answers, or 25 seconds pass, and
-/// logs how it ended as the outcome of the call that decided it.
+/// Holds `click` as `held` says, until the user answers, or 25 seconds pass, and logs how it
+/// ended as the outcome of the call that decided it.
 async fn hold(
     click: &Click<'_>,
-    sentence: &str,
+    held: &Held,
     identity: &Identity,
     who: &Who,
-    call: Option<String>,
     hub: &Entity<BrowserHub>,
     cx: &mut AsyncApp,
 ) -> Result<Checked, String> {
     let tab = click.tab;
+    let sentence = held.sentence.as_str();
     let receiver = hub.update(cx, |hub, cx| {
         hub.pause_click(
             tab,
             SharedString::from(sentence.to_string()),
+            held.class,
             who.by.clone(),
             cx,
         )
@@ -328,9 +343,9 @@ async fn hold(
         ),
     };
     hub.update(cx, |hub, cx| hub.end_pause(tab, how, cx));
-    if let Some(call) = call {
+    if let Some(call) = &held.call {
         let seconds = started.elapsed().as_secs();
-        cx.update(|cx| system_one::outcome(&call, format!("{how} after {seconds} s"), cx));
+        cx.update(|cx| system_one::outcome(call, format!("{how} after {seconds} s"), cx));
     }
     result
 }
