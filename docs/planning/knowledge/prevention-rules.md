@@ -2511,3 +2511,12 @@ out at `Detail::Facts`. Name the tool as a fact and put its line in as text.
 A gpui element whose `on_click` takes the focus hands it the clicks of its children too, since a
 click bubbles up after the child's handler. A button inside such an element calls
 `cx.stop_propagation()` in its own handler, above all when the handler removes the element.
+
+## PR-claude-a-state-another-view-lists-is-announced-by-an-event-001
+*severity: medium · prevents: F-claude-508-a-held-click-reached-the-inbox-only-with-another-refresh-001*
+
+Before a view lists a state another entity keeps, check how the view listens to that entity. A
+subscriber (`cx.subscribe`) hears only the events the entity emits; `cx.notify()` reaches
+observers alone. The rail subscribes to the Browser hub's events because the hub notifies on
+every frame. A change the listing must show emits an event the view already refreshes on, when
+the state begins and when it ends.

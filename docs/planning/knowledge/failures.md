@@ -2537,3 +2537,33 @@ The pause waited on a one-shot channel whose sender lives on the page's state, a
 dropped sender as "refused". A page closed during a pause would have told the agent the user
 refused it, and logged that outcome. Fixed before the first run: a dropped sender is its own end,
 `gone`, and the agent reads that the page went away.
+
+## F-claude-508-a-held-click-reached-the-inbox-only-with-another-refresh-001
+*severity: medium · found in: pipeline 508's Test phase (run 2's shot 508-08) · class: a state change announced by a notify to a view that listens for events · prevented by: PR-claude-a-state-another-view-lists-is-announced-by-an-event-001*
+
+The inbox lists each Browser tab's held click (#571), and the rail rebuilds on the Browser hub's
+events, never on its notify, which fires on every frame (#504's rule for the rail). `pause_click`
+and `end_pause` only notified, so a held click reached the inbox with the next refresh that had
+another cause, and its entry would have outlived its end the same way. The design read "the hub
+already notifies the rail" as if the rail heard the notify. Run 2's shot showed the tab's card
+and the toast and no entry; the Refuse click still found one, since a refresh came in between.
+Fixed: both emit `PageStatusChanged`, which the rail refreshes on.
+
+## F-claude-508-the-inbox-drew-a-custom-agent-with-the-panels-icon-001
+*severity: low · found in: pipeline 508's Test phase (run 1's shots) · class: one thing drawn from two sources · prevented by: none*
+
+The inbox's thread entry took the agent's icon and name from Zed's thread view, whose icon for a
+custom agent server is a terminal, while the thread's own row takes them from
+`agents::thread_icon` and `thread_agent_name`, which give a sparkle. One thread showed two icons
+in one rail. Fixed: `thread_entry` asks the rail's helpers, with the member workspace's project.
+
+## F-claude-508-the-pick-check-passed-with-nothing-picked-001
+*severity: medium · found in: pipeline 508's Test phase (run 2's shot 508-06) · class: a check of absence without a control · prevented by: PR-claude-suppression-test-needs-a-positive-control-001 (not applied when the scenario was written)*
+
+REQ-007's check read that the waiting terminal got nothing but the scenario's Enters. In run 2 no
+pick was made: the agent's navigate just before had put the Agent chip in the toolbar, which moved
+Pick left, so the click on Pick's measured point fell on the chip, and the page took the click, the
+typed space and Enter as three presses of Save profile. Nothing was sent because nothing was
+picked, and the check passed; the shot showed it. Fixed in the scenario: no navigate before the
+pick, the pointer over the element before the click as #496 does, a shot of the staged pick, and a
+check that `browser_picks` lists pick 1 unsent.

@@ -5,7 +5,7 @@ status: Phase 4 — Complete PASS
 title: "Send the editor's selection to a terminal agent"
 type: feature
 slice: prong 2 with prong 1 (the editor feeds the CLI agent in a terminal); the Warp second pass's finding 1
-references: [docs/planning/design-notes/warp-second-pass-2026-09-25.md, docs/planning/pipeline/queued/508-approvals-inbox.spec.md, docs/planning/pipeline/queued/520-terminal-identity.spec.md, docs/planning/pipeline/completed/519-claude-code-events-in-the-rail.spec.md]
+references: [docs/planning/design-notes/warp-second-pass-2026-09-25.md, docs/planning/pipeline/completed/508-approvals-inbox.spec.md, docs/planning/pipeline/queued/520-terminal-identity.spec.md, docs/planning/pipeline/completed/519-claude-code-events-in-the-rail.spec.md]
 ---
 
 ## Title

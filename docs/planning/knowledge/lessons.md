@@ -3517,3 +3517,22 @@ The accessibility snapshot splits a paragraph's inline text into several nodes, 
 running log does not come back as one line an agent can grep. A test page that writes its state
 into `document.title` gives it whole through `browser_tabs` (#582 keeps the title current), and
 the rail's row and the tab show it in every shot too.
+
+## L-claude-508-the-agent-chip-moves-the-browser-toolbar-001
+*category: process · topic: e2e scenarios · from: pipeline 508*
+
+For a few seconds after an agent's action, the Browser tab's toolbar carries the Agent chip
+("went to http://…"), which narrows the address field and moves every toolbar button left. A
+scenario that clicks a toolbar button by its point runs no agent action in the seconds before, or
+settles until the chip has gone; points measured in a shot without the chip hold only then.
+
+## L-claude-508-a-stand-in-acp-agent-asks-for-permission-001
+*category: process · topic: e2e scenarios · from: pipeline 508*
+
+A scenario reaches an Agent Panel permission prompt with no model. A stand-in agent server in
+Python, a `custom` entry in the run's `agent_servers`, answers `initialize` and `session/new`;
+on each `session/prompt` it sends a `tool_call` update, then its own `session/request_permission`
+with `allow_once` and `reject_once` options, and reads stdin until the response with that id
+comes. It logs `outcome.optionId`, sends the `tool_call_update` and ends the turn. The panel draws
+the prompt as it draws a real agent's, so the panel's buttons and Marley's can both be driven, and
+the answer read from the log. `script/e2e/508-approvals-inbox.sh` has it.

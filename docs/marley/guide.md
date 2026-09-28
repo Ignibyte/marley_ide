@@ -181,6 +181,22 @@ Dots mark what needs you:
   project's header.
 - Zed's own desktop notifications for threads still fire.
 
+While an agent waits on you, **Needs you** and a count sit between the filter and the projects
+(#508), with an entry for each wait, the one that has waited longest first. An entry names the
+agent and its project, what it asks, and how long it has waited (`now`, `3 m`, `1 h 5 m`); a click
+on it shows where it waits.
+
+- A tool call in a Zed agent thread that waits for your confirmation has Deny and Allow under its
+  entry, which answer that one call as the thread's own buttons do. A prompt that offers more than
+  allowing or denying once, or a sandbox escalation, has no buttons: its click opens the thread.
+- Claude Code in a Marley terminal that waits on a permission or a question is listed with what it
+  asks. Its click shows the terminal, where you answer it.
+- An agent's click a Browser tab holds (see "The click consequence") has Refuse and Allow, as the
+  tab's card does. Its click brings the tab forward with the focus on the card.
+
+An entry leaves once its wait ends, wherever you answered it, and the section leaves with the
+last one. The filter and folded projects never hide it.
+
 Terminal rows rename and close from the rail (#452):
 
 - Double-click a row, or right-click it and choose Rename, to edit the name in its tab as Zed's tab
@@ -731,8 +747,10 @@ line such as
 into the terminal you used last and takes you there; press Enter to hand it to the agent, which
 reads the pick with `browser_pick`. A sent pick shows what was sent, and its Discard takes it out
 of the tray while the agent can still read it. With no terminal used yet, the tray reads "No
-terminal to send to: click in one, then Send." Picks last for the session. Pick mode works in the
-page's own frames, not inside a cross-site iframe.
+terminal to send to: click in one, then Send." While Claude Code in that terminal waits for your
+answer, Send types nothing, since the line would land in its prompt: the tray says so, and the pick
+keeps its caption for a Send once you have answered (#508). Picks last for the session. Pick mode
+works in the page's own frames, not inside a cross-site iframe.
 
 ### From a pick to its source
 

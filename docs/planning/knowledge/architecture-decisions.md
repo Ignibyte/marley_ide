@@ -2692,3 +2692,24 @@ Code seat's permission mode (#520), Zed's tool permissions for a session that na
   frame;
 - the client's name as an authority: it and the terminal id are courtesies with the bearer's
   trust, and `all_agents` is the setting for anyone who wants no sorting.
+
+## AD-claude-508-one-inbox-lists-every-agent-that-waits-on-the-user-001
+*decided at: 2026-09-28 · status: shipped · builds on: AD-claude-571-a-consequential-click-waits-in-the-tab-for-callers-with-no-prompt-001*
+
+Everything an agent waits on the user for is listed in one place, a "Needs you" section between
+the rail's filter and its rows, while anything waits: Agent Panel tool calls waiting for
+confirmation, Claude Code in a terminal waiting on a permission or a question, and clicks a
+Browser tab holds. Entries are ordered by when the rail first saw them, the longest waiting first,
+and say how long each has waited. The inbox answers in place only what needs no further choice:
+an Agent Panel prompt's allow-once and deny-once, through the panel's own `authorize_tool_call`,
+and a held click's Allow and Refuse, as the tab's card does. Everything else opens where it waits.
+It keeps nothing but when it first saw each entry, and it holds no thread view: the answer finds
+the view again at the click. An entry leaves only on evidence that its wait ended. Rejected:
+- a section that is always there: it would mostly show nothing;
+- typing a digit into Claude Code's dialog from the rail: it depends on the dialog's numbering, so
+  a terminal's entry opens the terminal, and answering in place waits for a hook that waits on
+  Marley (the second slice in the notes);
+- buttons on a sandbox escalation: the panel gates its Allow behind a check for confusable
+  characters, which the inbox would go around;
+- clearing an entry on a timer, or when some other tool ends: a prompt still waiting would leave
+  the list.

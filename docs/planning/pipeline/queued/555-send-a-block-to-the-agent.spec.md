@@ -5,7 +5,7 @@ status: QUEUED — Phase 1 Plan drafted; ready to promote to active
 title: "Send a block to the agent, and Ask the agent under a failed block"
 type: feature
 slice: prong 2 with prong 1 (a block into a CLI agent's prompt); the Warp blocks note's recommendation 2; after #549 and #554
-references: [docs/planning/design-notes/warp-blocks-and-natural-language-2026-09-25.md, docs/planning/pipeline/queued/549-selection-to-the-agent.spec.md, docs/planning/pipeline/queued/554-block-selection-and-menu.spec.md, docs/planning/pipeline/completed/516-secret-redaction-for-agents.spec.md, docs/planning/pipeline/queued/508-approvals-inbox.spec.md]
+references: [docs/planning/design-notes/warp-blocks-and-natural-language-2026-09-25.md, docs/planning/pipeline/queued/549-selection-to-the-agent.spec.md, docs/planning/pipeline/queued/554-block-selection-and-menu.spec.md, docs/planning/pipeline/completed/516-secret-redaction-for-agents.spec.md, docs/planning/pipeline/completed/508-approvals-inbox.spec.md]
 ---
 
 ## Title

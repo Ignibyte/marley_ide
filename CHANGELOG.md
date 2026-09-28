@@ -13,6 +13,19 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **One list at the top of the rail of every agent that waits on you** (#508, 2026-09-28). While
+  an agent waits, "Needs you" and a count sit between the rail's filter and its projects, with an
+  entry per wait, the longest waiting first: the agent and its project, what it asks, and how long
+  it has waited (`now`, `3 m`, `1 h 5 m`). A Zed agent thread's tool call waiting for your
+  confirmation has Deny and Allow under its entry, which answer that call once, as the thread's
+  own buttons do; a prompt with other choices, or a sandbox escalation, opens its thread instead.
+  Claude Code in a Marley terminal waiting on a permission or a question is listed with what it
+  asks, and its entry shows the terminal. An agent's click a Browser tab holds (#571) has Refuse
+  and Allow, as the tab's card does. An entry leaves once its wait ends, wherever it was answered,
+  and the section leaves with the last one; the filter and a folded project never hide it. A pick
+  from the Browser tab is no longer typed into a terminal whose Claude Code waits, where the line
+  would land in its prompt: the tray says why and keeps the pick and its caption for Send.
+
 - **An agent's click that pays, deletes, sends or changes an account waits for you** (#571,
   2026-09-28). With the click consequence's mode on, an agent's `browser_click` (or the click a
   `browser_type` with a ref makes first) on such an element waits in the Browser tab: a card

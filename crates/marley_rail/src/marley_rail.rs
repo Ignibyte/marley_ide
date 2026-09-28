@@ -218,6 +218,49 @@ pub struct Focus {
     pub cursor: Option<Selection>,
 }
 
+/// Where an entry of the rail's inbox waits (#508).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InboxKind {
+    /// An Agent Panel thread's tool call, waiting for confirmation.
+    Thread,
+    /// An agent CLI in a terminal, waiting on a permission or a question.
+    Terminal,
+    /// An agent's click a Browser tab holds (#571).
+    Click,
+}
+
+/// An agent that waits on the user, as the rail's inbox lists it (#508).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InboxEntry {
+    /// What waits and on what: the entry's identity across rebuilds.
+    pub key: String,
+    /// Where it waits.
+    pub kind: InboxKind,
+    /// The agent: `Claude Code`, an Agent Panel agent's name, or `Browser tab` for a held click,
+    /// whose `ask` names the caller.
+    pub agent: String,
+    /// The project it waits in.
+    pub project: String,
+    /// What it asks, on one line.
+    pub ask: String,
+    /// How long it has waited, in words: `now`, `3 m`.
+    pub waited: String,
+    /// Whether it answers in place, with Allow and Deny, or Allow and Refuse for a click.
+    pub answers: bool,
+}
+
+/// How long an inbox entry has waited, in words, from `seconds`: `now` under a minute, then
+/// `3 m`, then `1 h 5 m`.
+#[must_use]
+pub fn waited_words(seconds: u64) -> String {
+    let minutes = seconds / 60;
+    match minutes {
+        0 => "now".to_string(),
+        1..=59 => format!("{minutes} m"),
+        _ => format!("{} h {} m", minutes / 60, minutes % 60),
+    }
+}
+
 /// The window, as the rail sees it.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RailSnapshot {
@@ -227,6 +270,8 @@ pub struct RailSnapshot {
     pub focus: Focus,
     /// Whether the filter holds text, so the rail shows only what it matched.
     pub filtering: bool,
+    /// The agents that wait on the user, the one that has waited longest first (#508).
+    pub inbox: Vec<InboxEntry>,
 }
 
 /// The single selected row.
@@ -904,6 +949,7 @@ mod tests {
                 cursor: None,
             },
             filtering: false,
+            inbox: Vec::new(),
         }
     }
 

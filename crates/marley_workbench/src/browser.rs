@@ -207,7 +207,8 @@ pub enum BrowserEvent {
         target: String,
     },
     /// What a page's row in the rail shows changed (#504): its loading, its icon, its picks or
-    /// annotations, or the agent's mark.
+    /// annotations, or the agent's mark; or what the rail's inbox shows, a click the page holds
+    /// (#508).
     PageStatusChanged {
         /// The page.
         target: String,
@@ -2077,7 +2078,7 @@ impl BrowserHub {
         })
     }
 
-    /// Tells the rail what a page's row shows changed (#504).
+    /// Tells the rail what a page's row shows changed (#504), or its inbox (#508).
     fn status_changed(target: &str, cx: &mut Context<Self>) {
         cx.emit(BrowserEvent::PageStatusChanged {
             target: target.to_string(),
@@ -2470,6 +2471,7 @@ impl BrowserHub {
             answer: Some(sender),
         });
         self.record_entry(target, recorded);
+        Self::status_changed(target, cx);
         cx.notify();
         Some(receiver)
     }
@@ -2480,8 +2482,9 @@ impl BrowserHub {
             .is_some_and(|page| page.pause.is_some())
     }
 
-    /// What the card of the click `target`'s tab holds says (#571).
-    fn pause_sentence(&self, target: &str) -> Option<SharedString> {
+    /// What the card of the click `target`'s tab holds says (#571), which the rail's inbox lists
+    /// too (#508).
+    pub(crate) fn pause_sentence(&self, target: &str) -> Option<SharedString> {
         self.page_state(target)?
             .pause
             .as_ref()
@@ -2517,6 +2520,7 @@ impl BrowserHub {
                 by: pause.by.as_ref().map(ToString::to_string),
             },
         );
+        Self::status_changed(target, cx);
         cx.notify();
     }
 
@@ -3920,9 +3924,10 @@ pub(crate) fn show_click_notice(target: &str, message: String, cx: &mut App) {
     });
 }
 
-/// The user's Show on a paused click's toast (#571): its tab in front, its workspace active, and
-/// the focus on the card, where Enter allows and Escape refuses.
-fn show_paused(target: &str, window: &mut Window, cx: &mut App) {
+/// The user's Show on a paused click's toast (#571), or a click on its entry in the rail's inbox
+/// (#508): its tab in front, its workspace active, and the focus on the card, where Enter allows
+/// and Escape refuses.
+pub(crate) fn show_paused(target: &str, window: &mut Window, cx: &mut App) {
     let Some(view) = view_of(target, cx) else {
         return;
     };
@@ -5126,6 +5131,15 @@ impl BrowserView {
             cx.notify();
             return;
         };
+        // A paste into an agent that waits on a permission or a question would answer it, so the
+        // pick and its caption wait too (#508).
+        if crate::agent_events::waiting(terminal.entity_id(), cx) {
+            self.tray_error = Some(SharedString::new_static(
+                "Claude Code in that terminal waits for your answer: answer it there, then Send.",
+            ));
+            cx.notify();
+            return;
+        }
         let caption = self
             .captions
             .remove(&id)

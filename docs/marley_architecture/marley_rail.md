@@ -2,8 +2,8 @@
 
 The Marley rail's row model, written in the fork for the workbench shell's W2 (#438) and grown
 with agent threads in W3 (#439), agent CLIs in W4 (#440), the keyboard's row in W6d (#453), the
-filter in W6h (#457), the switcher's order in W6e (#454), Browser tabs in B7a (#504) and ports
-(#521). Pure and
+filter in W6h (#457), the switcher's order in W6e (#454), Browser tabs in B7a (#504), ports
+(#521) and the inbox (#508). Pure and
 gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_agent`.
 
 ## What it decides
@@ -68,6 +68,13 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
 - **`TerminalSnapshot::flag`** (#569) is the tooltip of a working agent's warning mark, when the
   stall kind flagged it `looping?` or `stalled?`; the builders copy it to `TerminalRow::flag`, and
   it too decides no order or visibility.
+- **The inbox (#508).** `RailSnapshot.inbox` holds what waits on the user as `InboxEntry`s: a
+  key naming what waits and on what, the kind (`InboxKind::Thread` for an Agent Panel tool call
+  waiting for confirmation, `Terminal` for an agent CLI waiting on a permission or a question,
+  `Click` for an agent's click a Browser tab holds), the agent, the project, what it asks on one
+  line, how long it has waited in words, and whether it answers in place. `waited_words` gives the
+  words: `now` under a minute, then `3 m`, then `1 h 5 m`. The inbox decides no row's order or
+  visibility, and the fold and the filter leave it whole.
 - **`working_directory_label`** is a terminal row's second line: the directory relative to the
   project root, or with the home directory written as `~` outside it. It is empty at the root
   itself and when the terminal cannot tell (no path, or an empty one).
@@ -83,7 +90,8 @@ its tests.
 `marley_workbench`'s `Rail` builds the snapshot from the live window, stores it, and draws the
 rows this crate returns. It decides no ordering or visibility of its own. It hands in two
 things it keeps: the keyboard's row, as `Focus::cursor` while it holds focus, and what the
-filter matched.
+filter matched. The one order it decides is the inbox's: it keeps when it first saw each entry
+and lists the entries by that, the longest waiting first (#508).
 
 ## Tests
 

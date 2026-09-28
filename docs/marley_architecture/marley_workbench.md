@@ -136,7 +136,8 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   - The rail reads the hub only through `BrowserHub::try_global`, so it never starts the
     browser. It follows each tab's `ItemEvent`s and the hub's `PageInfoChanged`,
     `PageStatusChanged`, `PageOpened` and `PageClosed` (`follow_browsers`), never the hub's
-    notify, which fires on every frame.
+    notify, which fires on every frame. A click the hub begins or stops holding (#571) is a
+    `PageStatusChanged` too, for the inbox (#508).
   - The page's image lives in `Snapshot.favicons`, beside the pure snapshot, and its id in
     `BrowserSnapshot.icon`, so an icon's arrival changes what `refresh` compares.
 - **Port rows (#521).** `build_snapshot` gives each project the listeners `ports::Ports` holds
@@ -158,7 +159,34 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
     it, and so does one on the settings, since turning AI back on shows an open rail with no
     word from the `MultiWorkspace`. `cx.on_release` unwatches a rail that goes while watching. The rail observes the `Ports` global (`observe_global_in`),
     so it rebuilds when a scan changed what listens.
-- **Keys and reorder (#453).** The key context is `MarleyRail menu`, and the rail answers Zed's
+- **The inbox (#508).** `build_snapshot` gathers, for each project group, what waits on the
+  user (`inbox_entries`): each Agent Panel conversation's `pending_tool_call`, through
+  `thread_entry` (the tool call's label on one line, and the agent's name and icon from
+  `agents::thread_agent_name` and `thread_icon`, as its thread's row has them); each center
+  terminal whose `AgentEvents` seat is `State::Waiting`, with the seat's question or "Waits for
+  you"; and each Browser tab whose page holds a click (`BrowserHub::pause_sentence`), once a page.
+  Each is a `marley_rail::InboxEntry` in `RailSnapshot.inbox`, with an `InboxTarget` beside it in
+  the workbench's snapshot: for a thread, the thread's key, the conversation's weak handle, the
+  session, the tool call and the allow-once and reject-once options with their kinds
+  (`first_option_of_kind`), or no options when the prompt lacks either or carries
+  `sandbox_authorization_details`; for a terminal, its id; for a click, the page.
+  - `note_inbox` keeps when the rail first saw each key (`inbox_seen`, pruned at each refresh),
+    sorts the entries by it and gives each its age through `waited_words`. While any entry shows,
+    a 30-second timer refreshes the rail, so the ages move.
+  - `render_inbox` draws "Needs you" and the count between the filter and the rows, and each entry
+    as a `row_card` with its age at the end; Deny (Refuse for a click) and Allow sit under an
+    entry that answers in place. The buttons stop their click's propagation, so the card's click
+    does not open the entry as well.
+  - Allow and Deny on a thread run `answer_thread`: out of the rail's update (`defer_in`), it finds
+    the conversation's thread view again (`thread_view(&session)`) and calls the panel's own
+    `authorize_tool_call` with the option and its kind, so a closed thread answers nothing. Allow
+    and Refuse on a click call `BrowserHub::answer_pause`. A click on an entry runs
+    `open_inbox_entry`: the thread (`open_thread`), the terminal (`activate_terminal`), or the tab
+    with the focus on its card (`browser::show_paused`).
+  - The rail hears of a thread's prompt from the thread's `ToolAuthorizationRequested` and
+    `ToolAuthorizationReceived`, of a seat's wait from its observer on `AgentEvents`, and of a held
+    click from the hub's `PageStatusChanged`.
+- **Keys and reorder (#453). The key context is `MarleyRail menu`, and the rail answers Zed's
   `menu::SelectNext`, `SelectPrevious`, `SelectFirst`, `SelectLast`, `SelectParent`,
   `SelectChild` and `Confirm`. Zed binds up, down, Home, End and Enter to them with no context,
   and left and right in `menu`, so the rail binds no key. Each moves `cursor`, the keyboard's
@@ -560,7 +588,8 @@ alike.
 
 - `AgentEvents`, a global made at the first frame, holds one `marley_fleet::FleetSnapshot`: a
   seat per terminal view whose Claude Code has sent an event, keyed by the view's entity id as
-  `terminal_list` gives it. `seat(view)` gives the seat until its session ends.
+  `terminal_list` gives it. `seat(view)` gives the seat until its session ends, and
+  `waiting(view)` says whether it waits on the user (#508).
 - `on_frame` drops a frame unless `agent_bar::agent_in` says Claude Code is the terminal's
   foreground program (a `cat` of an old log moves nothing; spec D4), decodes it, folds it
   against the seat with `marley_agent::claude_events::fold`, and applies the events. A frame
@@ -668,6 +697,9 @@ alike.
   (`MarleyBrowserPause`, `marley::AllowPausedClick`, `marley::RefusePausedClick`).
   `show_pause_toast` names the click with Show (`show_paused`: the tab in front, its workspace
   active, the focus on the card), and `dismiss_pause_toast` takes it away.
+- The rail's inbox lists the held click (#508): `pause_click` and `end_pause` emit
+  `PageStatusChanged`, the entry says what the card says (`pause_sentence`), and its Refuse and
+  Allow call `answer_pause` as the card's buttons do.
 
 ## Asking before a close ends a working agent (`src/close_guard.rs`, #550)
 
@@ -1251,7 +1283,9 @@ alike.
   or Terminal Panel, in whichever workspace of the window holds it, and focusing it; that work
   is deferred, since the terminal's pane may hold the tab itself. A sent pick's Discard takes it
   out of the tray and keeps it for the agent. A pick that did not read, or a Send with no
-  terminal used yet, says so in the tray.
+  terminal used yet, says so in the tray. So does a Send while that terminal's Claude Code waits
+  on the user (#508, `agent_events::waiting`), which types nothing and leaves the pick and its
+  caption unsent: the line would land in the agent's prompt.
 - **Listener sources (#497).** Once a pick is staged, its capture task reads each distinct source
   map of its listeners (`original_positions`, `load_map`; the parse and the scans on the
   background executor, as `futures::future::lazy`) and `pick_sources` sets each listener's
@@ -1399,6 +1433,9 @@ microphone through a fake Voxtype whose `record toggle` moves its status on, and
   of its own, still shows the first. A page whose load event never comes keeps the globe.
   Browser tabs are not in the rail's switcher, and a Browser row lights no attention dot on a
   folded project (#504).
+- The inbox lists the center terminals' agents, as the rail does, so a Claude Code waiting in a
+  docked Terminal Panel has no entry. A terminal agent's entry opens the terminal; answering it
+  from the rail is the second slice in #508's notes.
 - A Browser tab's page outlives its window: closing a window, or quitting, closes no page. A
   tab restored at launch takes its page back (#494); a page no restored tab claims gets a tab
   the next time `marley: open browser` runs, or when an agent acts in it. A navigation in the

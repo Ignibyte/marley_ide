@@ -107,6 +107,14 @@ fn seat_id(view: EntityId) -> String {
     view.as_u64().to_string()
 }
 
+/// Whether the Claude Code in the terminal `view` waits on the user: a permission or a question
+/// (#508), which a paste into it would answer.
+pub(crate) fn waiting(view: EntityId, cx: &App) -> bool {
+    cx.try_global::<AgentEvents>()
+        .and_then(|events| events.seat(view))
+        .is_some_and(|seat| seat.state == State::Waiting)
+}
+
 /// Now, in the fleet's epoch milliseconds.
 pub(crate) fn now_ms() -> u64 {
     SystemTime::now()

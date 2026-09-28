@@ -9,10 +9,11 @@ use std::ffi::{OsStr, OsString};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use acp_thread::{AcpThread, AcpThreadEvent};
+use acp_thread::{AcpThread, AcpThreadEvent, SelectedPermissionOutcome};
+use agent_client_protocol::schema::v1 as acp;
 use agent_ui::thread_metadata_store::{ThreadId, ThreadMetadata, ThreadMetadataStore};
 use agent_ui::threads_archive_view::fuzzy_match_positions;
-use agent_ui::{Agent, AgentPanel, AgentPanelEvent, AgentThreadSource};
+use agent_ui::{Agent, AgentPanel, AgentPanelEvent, AgentThreadSource, ConversationView};
 use anyhow::Context as _;
 use editor::{Editor, EditorEvent};
 use gpui::{
@@ -23,9 +24,9 @@ use gpui::{
 use marley_agent::{AgentKind, WAITING_AFTER, claude_events};
 use marley_browser::ports::Stopped;
 use marley_rail::{
-    BrowserRow, BrowserSnapshot, Focus, PortRow, PortSnapshot, ProjectRow, ProjectSnapshot,
-    RailSnapshot, Row, Selection, SwitcherRow, TerminalAgent, TerminalRow, TerminalSnapshot,
-    ThreadRow, ThreadSnapshot, ThreadStatus,
+    BrowserRow, BrowserSnapshot, Focus, InboxEntry, InboxKind, PortRow, PortSnapshot, ProjectRow,
+    ProjectSnapshot, RailSnapshot, Row, Selection, SwitcherRow, TerminalAgent, TerminalRow,
+    TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus,
 };
 use menu::{
     Cancel, Confirm, SelectChild, SelectFirst, SelectLast, SelectNext, SelectParent, SelectPrevious,
@@ -106,6 +107,10 @@ pub struct Rail {
     /// While a Claude Code seat works, a refresh due when a row's `no update in N m` next changes
     /// (#547).
     minute_timer: Option<Task<()>>,
+    /// When the rail first saw each inbox entry, by its key, on the executor's clock (#508).
+    inbox_seen: HashMap<String, Instant>,
+    /// While the inbox shows, a refresh every half minute, so its ages move.
+    inbox_timer: Option<Task<()>>,
     /// The window as the rail last read it. `render` draws from this alone, so another entity's
     /// notify does not redraw the window, and an event that changes nothing shown does not either:
     /// workspaces and terminal views report every chunk of terminal output.
@@ -208,6 +213,27 @@ struct Snapshot {
     threads: HashMap<String, ThreadEntry>,
     /// The thread the displayed workspace's visible Agent Panel shows, which is seen by now.
     shown_thread: Option<String>,
+    /// What each inbox entry acts on, by its key (#508).
+    inbox: HashMap<String, InboxTarget>,
+}
+
+/// What an inbox entry acts on (#508).
+#[derive(Clone)]
+enum InboxTarget {
+    /// An Agent Panel thread's tool call, and the allow-once and deny-once options that answer it
+    /// in place, when the prompt offers both and the panel does not gate its Allow.
+    Thread {
+        thread_key: String,
+        conversation: WeakEntity<ConversationView>,
+        session: acp::SessionId,
+        tool_call: acp::ToolCallId,
+        answers: Option<[(acp::PermissionOptionId, acp::PermissionOptionKind); 2]>,
+        icon: AgentIcon,
+    },
+    /// A terminal's Claude Code, by the rail's terminal id.
+    Terminal(u64),
+    /// A Browser tab's paused click, by its page (#571).
+    Click(String),
 }
 
 impl Rail {
@@ -301,6 +327,8 @@ impl Rail {
             terminal_output: HashMap::default(),
             quiet_timers: HashMap::default(),
             minute_timer: None,
+            inbox_seen: HashMap::default(),
+            inbox_timer: None,
             snapshot: Snapshot::default(),
             zed_sidebar,
             zed_sidebar_state: None,
@@ -394,6 +422,7 @@ impl Rail {
             })
             .unwrap_or_default();
         self.note_ended_runs(&mut snapshot);
+        self.note_inbox(&mut snapshot, window, cx);
         self.note_window_row(&snapshot.rail);
         self.note_claude_code(&snapshot.rail, window, cx);
         if self.focus_handle.contains_focused(window, cx) {
@@ -403,6 +432,230 @@ impl Rail {
             cx.notify();
         }
         self.snapshot = snapshot;
+    }
+
+    /// Orders the inbox by when the rail first saw each entry, oldest first, and says how long each
+    /// has waited (#508). The ages move by a refresh every half minute while any entry waits.
+    fn note_inbox(&mut self, snapshot: &mut Snapshot, window: &Window, cx: &Context<Self>) {
+        let now = cx.background_executor().now();
+        let keys: HashSet<&str> = snapshot
+            .rail
+            .inbox
+            .iter()
+            .map(|entry| entry.key.as_str())
+            .collect();
+        self.inbox_seen.retain(|key, _| keys.contains(key.as_str()));
+        for entry in &mut snapshot.rail.inbox {
+            let seen = *self.inbox_seen.entry(entry.key.clone()).or_insert(now);
+            entry.waited = marley_rail::waited_words(now.saturating_duration_since(seen).as_secs());
+        }
+        let seen = &self.inbox_seen;
+        snapshot
+            .rail
+            .inbox
+            .sort_by_key(|entry| seen.get(&entry.key).copied());
+        if snapshot.rail.inbox.is_empty() {
+            self.inbox_timer = None;
+        } else if self.inbox_timer.is_none() {
+            self.inbox_timer = Some(cx.spawn_in(window, async move |rail, cx| {
+                cx.background_executor()
+                    .timer(Duration::from_secs(30))
+                    .await;
+                rail.update_in(cx, |rail, window, cx| {
+                    rail.inbox_timer = None;
+                    rail.refresh(window, cx);
+                })
+                .log_err();
+            }));
+        }
+    }
+
+    /// Answers the Agent Panel prompt the inbox entry `key` lists, allowing it once or denying it
+    /// once, through the panel's own path (#508). Out of the rail's update, since the thread's
+    /// view updates its thread.
+    fn answer_thread(&self, key: &str, allow: bool, window: &Window, cx: &mut Context<Self>) {
+        let Some(InboxTarget::Thread {
+            conversation,
+            session,
+            tool_call,
+            answers: Some([allowing, denying]),
+            ..
+        }) = self.snapshot.inbox.get(key).cloned()
+        else {
+            return;
+        };
+        let (option, kind) = if allow { allowing } else { denying };
+        cx.defer_in(window, move |_, window, cx| {
+            let Some(conversation) = conversation.upgrade() else {
+                return;
+            };
+            let Some(view) = conversation.read(cx).thread_view(&session) else {
+                return;
+            };
+            view.update(cx, |view, cx| {
+                view.authorize_tool_call(
+                    session,
+                    tool_call,
+                    SelectedPermissionOutcome::new(option, kind),
+                    window,
+                    cx,
+                );
+            });
+        });
+    }
+
+    /// Shows what the inbox entry `key` waits in: its thread, its terminal, or its Browser tab
+    /// with the focus on the paused click's card (#508).
+    fn open_inbox_entry(&self, key: &str, window: &mut Window, cx: &mut Context<Self>) {
+        match self.snapshot.inbox.get(key).cloned() {
+            Some(InboxTarget::Thread { thread_key, .. }) => {
+                self.open_thread(&thread_key, window, cx).log_err();
+            }
+            Some(InboxTarget::Terminal(id)) => {
+                if let Some(terminal) = self.snapshot.terminals.get(&id) {
+                    self.activate_terminal(&terminal.workspace, &terminal.view, window, cx)
+                        .log_err();
+                }
+            }
+            Some(InboxTarget::Click(target)) => {
+                cx.defer_in(window, move |_, window, cx| {
+                    browser::show_paused(&target, window, cx);
+                });
+            }
+            None => {}
+        }
+    }
+
+    /// The inbox (#508): the agents that wait on the user, oldest first, over the projects,
+    /// while any waits. An entry that answers in place carries its two buttons under it.
+    fn render_inbox(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        let entries = &self.snapshot.rail.inbox;
+        if entries.is_empty() {
+            return None;
+        }
+        Some(
+            v_flex()
+                .id("marley-rail-inbox")
+                .debug_selector(|| "marley-rail-inbox".into())
+                .px_2()
+                .pt_1p5()
+                .gap_0p5()
+                .child(
+                    h_flex()
+                        .px_2()
+                        .gap_1()
+                        .child(
+                            Label::new("Needs you")
+                                .size(LabelSize::Small)
+                                .color(Color::Warning),
+                        )
+                        .child(
+                            Label::new(entries.len().to_string())
+                                .size(LabelSize::Small)
+                                .color(Color::Muted),
+                        ),
+                )
+                .children(
+                    entries
+                        .iter()
+                        .map(|entry| self.render_inbox_entry(entry, cx)),
+                )
+                .child(div().pt_1p5().child(Divider::horizontal()))
+                .into_any_element(),
+        )
+    }
+
+    /// One inbox entry: the agent and its project, what it asks and how long it has waited; a
+    /// click shows where it waits, and its buttons, when it has them, answer it there.
+    fn render_inbox_entry(&self, entry: &InboxEntry, cx: &Context<Self>) -> AnyElement {
+        let key = entry.key.clone();
+        let icon = match (entry.kind, self.snapshot.inbox.get(&entry.key)) {
+            (InboxKind::Thread, Some(InboxTarget::Thread { icon, .. })) => match icon {
+                AgentIcon::Named(icon) => Icon::new(*icon),
+                AgentIcon::Svg(path) => Icon::from_external_svg(path.clone()),
+            },
+            (InboxKind::Terminal, _) => Icon::new(IconName::AiClaude),
+            _ => Icon::new(IconName::ToolWeb),
+        };
+        let open_key = key.clone();
+        let card = row_card(
+            SharedString::from(format!("marley-rail-inbox-{key}")),
+            format!("marley-rail-inbox-icon-{key}"),
+            false,
+            icon.size(IconSize::Small)
+                .color(Color::Muted)
+                .into_any_element(),
+            Label::new(format!("{} · {}", entry.agent, entry.project))
+                .size(LabelSize::Small)
+                .truncate()
+                .into_any_element(),
+            vec![entry.ask.clone()],
+            cx,
+        )
+        .child(
+            Label::new(entry.waited.clone())
+                .size(LabelSize::XSmall)
+                .color(Color::Muted),
+        )
+        .on_click(cx.listener(move |rail, _, window, cx| {
+            rail.open_inbox_entry(&open_key, window, cx);
+        }));
+        let buttons = entry.answers.then(|| {
+            let (allow_key, deny_key) = (key.clone(), key.clone());
+            let refuse = if entry.kind == InboxKind::Click {
+                "Refuse"
+            } else {
+                "Deny"
+            };
+            h_flex()
+                .justify_end()
+                .gap_1()
+                .pr_1p5()
+                .child(
+                    Button::new(
+                        SharedString::from(format!("marley-rail-inbox-deny-{key}")),
+                        refuse,
+                    )
+                    .label_size(LabelSize::Small)
+                    .on_click(cx.listener(move |rail, _, window, cx| {
+                        cx.stop_propagation();
+                        rail.answer_inbox(&deny_key, false, window, cx);
+                    })),
+                )
+                .child(
+                    Button::new(
+                        SharedString::from(format!("marley-rail-inbox-allow-{key}")),
+                        "Allow",
+                    )
+                    .style(ButtonStyle::Filled)
+                    .label_size(LabelSize::Small)
+                    .on_click(cx.listener(move |rail, _, window, cx| {
+                        cx.stop_propagation();
+                        rail.answer_inbox(&allow_key, true, window, cx);
+                    })),
+                )
+        });
+        let selector = format!("marley-rail-inbox-entry-{key}");
+        v_flex()
+            .debug_selector(move || selector)
+            .gap_0p5()
+            .child(card)
+            .children(buttons)
+            .into_any_element()
+    }
+
+    /// Allow or Deny, or for a paused click Allow or Refuse, on the inbox entry `key` (#508).
+    fn answer_inbox(&self, key: &str, allow: bool, window: &Window, cx: &mut Context<Self>) {
+        match self.snapshot.inbox.get(key) {
+            Some(InboxTarget::Thread { .. }) => self.answer_thread(key, allow, window, cx),
+            Some(InboxTarget::Click(target)) => {
+                let target = target.clone();
+                if let Some(hub) = BrowserHub::try_global(cx) {
+                    hub.update(cx, |hub, cx| hub.answer_pause(&target, allow, cx));
+                }
+            }
+            Some(InboxTarget::Terminal(_)) | None => {}
+        }
     }
 
     /// Ends the seat of each terminal that no longer runs Claude Code (#547): it left without a
@@ -2094,6 +2347,133 @@ const fn changes_the_folders(event: &project::Event) -> bool {
     )
 }
 
+/// The agents of a group's workspaces that wait on the user (#508): each Agent Panel
+/// conversation's first tool call waiting for confirmation, each terminal's Claude Code that waits
+/// on a permission or a question, and each Browser tab's paused click, listed once per page.
+fn inbox_entries(project: &str, members: &[Entity<Workspace>], snapshot: &mut Snapshot, cx: &App) {
+    let hub = BrowserHub::try_global(cx);
+    for member in members {
+        let conversations = member
+            .read(cx)
+            .panel::<AgentPanel>(cx)
+            .map(|panel| panel.read(cx).conversation_views())
+            .unwrap_or_default();
+        for conversation in conversations {
+            if let Some((entry, target)) = thread_entry(project, member, &conversation, cx) {
+                snapshot.inbox.insert(entry.key.clone(), target);
+                snapshot.rail.inbox.push(entry);
+            }
+        }
+        for view in member.read(cx).items_of_type::<TerminalView>(cx) {
+            let waiting = cx
+                .try_global::<AgentEvents>()
+                .and_then(|events| events.seat(view.entity_id()))
+                .filter(|seat| seat.state == marley_fleet::State::Waiting);
+            let Some(seat) = waiting else {
+                continue;
+            };
+            let ask = seat.question.as_ref().map_or_else(
+                || "Waits for you".to_string(),
+                |question| one_line(&question.prompt),
+            );
+            let id = view.entity_id().as_u64();
+            let key = format!("terminal:{id}:{ask}");
+            snapshot
+                .inbox
+                .insert(key.clone(), InboxTarget::Terminal(id));
+            snapshot.rail.inbox.push(InboxEntry {
+                key,
+                kind: InboxKind::Terminal,
+                agent: "Claude Code".to_string(),
+                project: project.to_string(),
+                ask,
+                waited: String::new(),
+                answers: false,
+            });
+        }
+        for view in member.read(cx).items_of_type::<BrowserView>(cx) {
+            let Some(target) = view.read(cx).target().map(str::to_string) else {
+                continue;
+            };
+            let Some(sentence) = hub
+                .as_ref()
+                .and_then(|hub| hub.read(cx).pause_sentence(&target))
+            else {
+                continue;
+            };
+            let key = format!("click:{target}");
+            if let std::collections::hash_map::Entry::Vacant(vacant) =
+                snapshot.inbox.entry(key.clone())
+            {
+                vacant.insert(InboxTarget::Click(target));
+                snapshot.rail.inbox.push(InboxEntry {
+                    key,
+                    kind: InboxKind::Click,
+                    agent: "Browser tab".to_string(),
+                    project: project.to_string(),
+                    ask: sentence.to_string(),
+                    waited: String::new(),
+                    answers: true,
+                });
+            }
+        }
+    }
+}
+
+/// A conversation's first tool call waiting for confirmation, as an inbox entry, with the
+/// allow-once and deny-once options that answer it in place. A sandbox escalation gets no
+/// buttons: the panel gates its Allow behind a check the inbox would go around. The agent's name
+/// and icon are the ones its thread's row shows.
+fn thread_entry(
+    project: &str,
+    member: &Entity<Workspace>,
+    conversation: &Entity<ConversationView>,
+    cx: &App,
+) -> Option<(InboxEntry, InboxTarget)> {
+    let view = conversation.read(cx);
+    let (session, tool_call, options) = view.pending_tool_call(cx)?;
+    let thread_view = view.thread_view(&session)?;
+    let thread_view = thread_view.read(cx);
+    let (_, call) = thread_view.thread.read(cx).tool_call(&tool_call)?;
+    let ask = one_line(call.label.read(cx).source());
+    let option = |kind| {
+        options
+            .first_option_of_kind(kind)
+            .map(|option| (option.option_id.clone(), option.kind))
+    };
+    let answers = option(acp::PermissionOptionKind::AllowOnce)
+        .zip(option(acp::PermissionOptionKind::RejectOnce))
+        .filter(|_| call.sandbox_authorization_details.is_none())
+        .map(<[_; 2]>::from);
+    let thread_key = view.parent_id().to_key_string();
+    let key = format!("thread:{thread_key}:{tool_call}");
+    let workspace_project = member.read(cx).project();
+    let icon = agents::thread_icon(&thread_view.agent_id, workspace_project, cx);
+    let entry = InboxEntry {
+        key,
+        kind: InboxKind::Thread,
+        agent: agents::thread_agent_name(&thread_view.agent_id, workspace_project, cx).to_string(),
+        project: project.to_string(),
+        ask,
+        waited: String::new(),
+        answers: answers.is_some(),
+    };
+    let target = InboxTarget::Thread {
+        thread_key,
+        conversation: conversation.downgrade(),
+        session,
+        tool_call,
+        answers,
+        icon,
+    };
+    Some((entry, target))
+}
+
+/// `text` on one line: its runs of whitespace, line breaks included, as single spaces.
+fn one_line(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 /// The root thread of each conversation the panel holds, shown or kept in the background.
 fn live_threads(panel: &Entity<AgentPanel>, cx: &App) -> Vec<Entity<AcpThread>> {
     panel
@@ -2382,7 +2762,7 @@ fn build_snapshot(
             snapshot.threads.insert(thread.key.clone(), entry);
             threads.push(thread);
         }
-        let ports = port_snapshots(&group.key, filter, cx);
+        inbox_entries(&name, &group.workspaces, &mut snapshot, cx);
         let matched = filter_match(filter, &name);
         snapshot.rail.projects.push(ProjectSnapshot {
             name,
@@ -2390,7 +2770,7 @@ fn build_snapshot(
             terminals,
             browsers,
             threads,
-            ports,
+            ports: port_snapshots(&group.key, filter, cx),
             matched,
         });
         snapshot.groups.push(GroupEntry {
@@ -2864,6 +3244,7 @@ impl Render for Rail {
             .bg(cx.theme().colors().panel_background)
             .child(self.render_header(window, cx))
             .child(self.render_filter(cx))
+            .children(self.render_inbox(cx))
             .child(
                 v_flex()
                     .id("marley-rail-rows")
