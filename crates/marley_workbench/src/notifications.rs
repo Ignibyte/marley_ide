@@ -81,6 +81,34 @@ fn notify(
         || view.tab_content_text(0, cx),
         |title| SharedString::from(title.to_owned()),
     );
+    post(tag, title, body, window, cx);
+}
+
+/// Shows a desktop notification that `view`'s agent may be stuck (#569), unless the user is
+/// looking at it. Its tag is its own, so it neither replaces the terminal's other banners, such
+/// as Claude Code's own, nor is replaced by them; a click shows the terminal as theirs does.
+pub(crate) fn notify_stall(
+    view: &TerminalView,
+    title: &str,
+    body: &str,
+    window: &Window,
+    cx: &mut Context<TerminalView>,
+) {
+    if looking_at(view, window, cx) {
+        return;
+    }
+    let tag = SharedString::from(format!("marley-stall-{}", cx.entity_id()));
+    post(tag, SharedString::from(title.to_owned()), body, window, cx);
+}
+
+/// Shows the notification `tag` from the terminal of `cx`, and keeps its sender for the click.
+fn post(
+    tag: SharedString,
+    title: SharedString,
+    body: &str,
+    window: &Window,
+    cx: &mut Context<TerminalView>,
+) {
     let sender = (window.window_handle(), cx.entity().downgrade());
     cx.default_global::<Senders>().0.insert(tag.clone(), sender);
     cx.show_system_notification(SystemNotification {

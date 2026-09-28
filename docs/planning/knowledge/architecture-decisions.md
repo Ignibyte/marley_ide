@@ -2646,3 +2646,26 @@ takes its answer. Rejected:
   use does, so the tool and the Decisions row agree;
 - the tools for outside clients: they would spend the user's budget, and #524's lists stay
   explicit.
+
+## AD-claude-569-the-stall-kind-flags-from-code-facts-first-and-never-acts-on-the-agent-001
+*decided at: 2026-09-27 · status: shipped · builds on: AD-claude-566-the-stop-kind-is-rules-first-and-rides-on-the-seat-001, AD-claude-565-the-system-one-layer-is-a-pure-core-behind-an-adapter-off-by-default-001*
+
+A working Claude Code that loops or has gone quiet is flagged on its row, and nothing more: no
+path from a flag writes to its terminal, interrupts or stops it. A loop is code's alone, the same
+tool line ended three times or failing twice, with the file tools' runs left out, logged as a
+`rules` row. A quiet turn is judged at checks doubling from one setting (60 seconds, to eight
+minutes) by the CPU of the turn's own tools, its descendants born after the prompt: a tool that
+burns CPU is a long task, and only a quiet with nothing burning is asked of the layer
+(`stall_kind/1`), for listed projects. The flag rides on the seat as four labels, landed only in
+`suggest` and `act` behind #566's guard, taken off at the next event but a loop's while it goes on;
+`act` posts one banner an episode under its own tag. The watch is a global of its own with one
+timer for the app, sampling off the main thread, and every reading waits for its outcome in any
+mode. Rejected:
+- stopping, interrupting or nudging the agent on a flag: the flag is a suspicion, and the user
+  decides;
+- Claude Code's own CPU, or its whole tree's: its spinner and its servers burn CPU while it waits;
+- a model call for loops: the rule is exact and costs nothing;
+- the rail's minute timer: one per window, only in the Marley layout, and first at #547's 30
+  minutes;
+- labels in `shadow`: `fleet_snapshot` publishes every label to agents;
+- a flag taken off at every event: a loop is logged once, so its flag would leave mid-loop.

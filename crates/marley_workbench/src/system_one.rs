@@ -1093,6 +1093,17 @@ fn run_check(workspace: &mut Workspace, window: &Window, cx: &mut Context<Worksp
     .detach();
 }
 
+/// A project's name in a state: its first folder's, or `a project`.
+pub(crate) fn project_name(folders: &[PathBuf]) -> String {
+    folders
+        .first()
+        .and_then(|folder| folder.file_name())
+        .map_or_else(
+            || "a project".to_string(),
+            |name| name.to_string_lossy().into_owned(),
+        )
+}
+
 /// A workspace's folders, and whether its project is on this machine.
 pub(crate) fn project_of(workspace: &Workspace, cx: &App) -> (Vec<PathBuf>, bool) {
     let folders = workspace
@@ -1112,13 +1123,7 @@ fn check_asking(
     cx: &App,
 ) -> Result<Asking, String> {
     let terminal_view = view.read(cx);
-    let project = folders
-        .first()
-        .and_then(|folder| folder.file_name())
-        .map_or_else(
-            || "a project".to_string(),
-            |name| name.to_string_lossy().into_owned(),
-        );
+    let project = project_name(&folders);
     let title = terminal_view.tab_content_text(0, cx).to_string();
     let terminal = terminal_view.terminal().read(cx);
     let block = terminal
@@ -1146,7 +1151,7 @@ fn check_asking(
 }
 
 /// A use's own yes or no as answers, which the `rules` provider gives back.
-fn noul_verdict(key: &str, holds: bool) -> Answers {
+pub(crate) fn noul_verdict(key: &str, holds: bool) -> Answers {
     verdict(
         key,
         Answer::Noul {

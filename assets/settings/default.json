@@ -1671,6 +1671,10 @@
     // Minutes a working Claude Code may go without a hook event before its rail row says
     // "no update in N m" instead of "working" (#547); 0 turns this off.
     "no_update_after_minutes": 30,
+    // Seconds a working Claude Code may be quiet before the stall kind's first check, with the
+    // next at twice, four and eight times it (#569); 0 turns the quiet checks off. The stall kind
+    // runs only while system_one.uses.stall_kind is on.
+    "stall_check_after_seconds": 60,
     // Whether closing a terminal, a window or Marley asks first while an agent in it is working
     // (#550).
     "ask_before_ending_a_working_agent": true,
@@ -1709,6 +1713,7 @@
         "stop_kind": "off",
         "browser_find": "off",
         "terminal_find": "off",
+        "stall_kind": "off",
       },
     },
   },

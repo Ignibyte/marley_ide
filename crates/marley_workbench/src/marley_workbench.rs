@@ -46,6 +46,7 @@ pub mod routing;
 pub mod send_selection;
 #[cfg(unix)]
 pub mod single_instance;
+pub mod stall;
 pub mod system_one;
 pub mod terminal_ids;
 pub mod voice;
@@ -221,6 +222,9 @@ pub struct MarleySettings {
     /// Minutes a working Claude Code may go without an event before its row says so; 0 is never
     /// (#547).
     pub no_update_after_minutes: u64,
+    /// Seconds a working Claude Code may be quiet before the stall kind's first check; 0 is none
+    /// (#569).
+    pub stall_check_after_seconds: u64,
     /// Where agent events are pushed for the phone, when a server and a topic are set (#535).
     pub push: Option<PushSettings>,
     /// Whether a close or a quit asks first while an agent is working (#550).
@@ -260,6 +264,9 @@ impl Settings for MarleySettings {
             no_update_after_minutes: marley
                 .and_then(|marley| marley.no_update_after_minutes)
                 .unwrap_or(30),
+            stall_check_after_seconds: marley
+                .and_then(|marley| marley.stall_check_after_seconds)
+                .unwrap_or(60),
             push: marley
                 .and_then(|marley| marley.push.as_ref())
                 .and_then(|push| {
@@ -376,6 +383,7 @@ pub fn init(cx: &mut App) {
     clients::init(cx);
     links::init(cx);
     system_one::init(cx);
+    stall::init(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action_renderer(|div, _, _, cx| {
             div.capture_action(cx.listener(layout_preset::<UseClassicLayout>))

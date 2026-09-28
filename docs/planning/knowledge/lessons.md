@@ -3461,3 +3461,32 @@ lock on the main thread, which the server's threads hold: send the value down a 
 background task that sets it, as the fleet snapshot goes (`publish`, `enabler`). The server sends
 no `notifications/tools/list_changed` on such a change, and Claude Code lists its tools when it
 connects, so a running session sees a tool turned on only after it reconnects the server.
+
+## L-claude-569-a-turns-tools-are-the-descendants-born-in-it-001
+*category: code · topic: reading Claude Code's processes · from: pipeline 569*
+
+`Terminal::pid()` is the PTY's foreground process group, which for an interactive `claude` is its
+own pid. That process burns CPU while it waits (its spinner), and its tree holds long-lived
+children from before the turn (MCP servers, a plugin's language server), so neither its CPU nor
+its tree's says a tool is at work. The turn's tools are its descendants started after the turn's
+prompt: walk `/proc/<pid>/task/<tid>/children`, keep those whose `stat` `starttime` is at or after
+the prompt in boot ticks, and sum their `utime` and `stime` (`procfs-core`'s `Stat` parses the
+file). A descendant can end mid-walk, so skip what fails to read, and read it all off the main
+thread.
+
+## L-claude-569-proc-btime-is-whole-seconds-001
+*category: code · topic: `/proc` times · from: pipeline 569*
+
+`/proc/<pid>/stat`'s `starttime` counts clock ticks (`USER_HZ`, 100) from the boot, and the boot's
+wall time is `/proc/stat`'s `btime`, in whole seconds. A wall-clock moment turned into boot ticks
+through `btime` can read up to a second late, so a process started in that second reads as older
+than the moment. Compare with a second's slack, taken off the moment.
+
+## L-claude-569-a-stand-in-proves-a-cpu-rule-with-a-bounded-busy-child-001
+*category: process · topic: e2e scenarios · from: pipeline 569*
+
+A scenario proves a rule about CPU by having the stand-in agent start a child that burns a core
+(`python3 -c` over a busy loop), and end it later. Bound the loop (90 seconds) and keep its pid for
+the teardown: the stand-in dies with Marley's terminal at the end of a run, and an unbounded child
+would outlive it and burn a core on the box. Start it a second or two after the prompt's event, so
+it is plainly the turn's.

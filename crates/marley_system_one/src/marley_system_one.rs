@@ -413,3 +413,62 @@ pub fn find_label(item: usize) -> Option<&'static str> {
         .and_then(|index| text.labels.get(index))
         .map(String::as_str)
 }
+
+/// What a quiet working agent is doing (#569): its kind, whether it repeats itself, and whether
+/// it progresses.
+pub const STALL_KIND_SET: QuestionSet = QuestionSet {
+    id: "stall_kind/1",
+    model: DEFAULT_MODEL,
+    questions: &[
+        Question::Choice {
+            key: "kind",
+            instructions: "The state is a coding agent that has gone quiet while working: how long \
+                           it has been quiet, the tool it runs, whether that tool's processes use \
+                           the CPU, and the last lines on its terminal. What is it doing?",
+            options: &[
+                (
+                    "long_task",
+                    "It is working on something that takes long, such as a build, a test run or \
+                     a long answer, and will go on by itself.",
+                ),
+                (
+                    "waiting_for_input",
+                    "It waits for the user to answer or confirm something, though no event said \
+                     so.",
+                ),
+                (
+                    "stuck",
+                    "It waits on something that is not coming, such as a lock, a network request \
+                     or a process that hangs.",
+                ),
+                (
+                    "frozen",
+                    "It does nothing at all: no output, no progress, no sign of work.",
+                ),
+                (
+                    "cannot_tell",
+                    "The state does not settle which of these it is.",
+                ),
+            ],
+        },
+        Question::Noul {
+            key: "repeating",
+            instructions: "Does the agent repeat the same step without getting further?",
+            when_true: "The state shows the same step or output again and again.",
+            when_false: "The state shows no step repeated.",
+        },
+        Question::Noul {
+            key: "progress",
+            instructions: "Does the state show the agent's work moving forward?",
+            when_true: "The state shows progress: a count that grows, new output, a step done.",
+            when_false: "The state shows no progress.",
+        },
+    ],
+};
+
+/// The stall kind (#569), which asks [`STALL_KIND_SET`] about a working agent quiet past a check.
+pub const STALL_KIND: UseSpec = UseSpec {
+    name: "stall_kind",
+    set: &STALL_KIND_SET,
+    deadline: Duration::from_secs(2),
+};

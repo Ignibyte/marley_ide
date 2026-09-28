@@ -13,6 +13,23 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A working Claude Code that loops or has gone quiet is flagged on its rail row** (#569,
+  2026-09-27). With the stall kind's mode on, the row reads `looping?` with a warning mark when the
+  turn ends the same tool line three times in a row, such as `Bash: cargo test`, or fails the same
+  line twice, from Marley's own rule with no call; a run of edits to one file is not a loop. A turn
+  quiet past a check with no tool of its own using the CPU is asked of the System One layer, for
+  listed projects only, and reads `stalled?` with the mark when the model says it waits for input,
+  is stuck or is frozen; the mark's tooltip says what the flag rests on and how sure the reading
+  is. A tool whose processes use the CPU, such as a build, is a long task and asks nothing. The
+  first check comes after Stall Check After Seconds on the Marley settings page
+  (`marley.stall_check_after_seconds`, 60; 0 turns the checks off), the next at twice, four and
+  eight times it. Off by default: Stall Kind on the settings page, or
+  `marley.system_one.uses.stall_kind`, with Shadow (logged in Decisions, the row unchanged),
+  Suggest (the flag) and Act (the flag and one desktop notification while the terminal is out of
+  sight). The agent's next event takes the flag off and logs how long it took, and agents see the
+  flag as the seat's `flag` labels in `fleet_snapshot`. Marley never stops, interrupts or types
+  into the agent on a flag.
+
 - **Agents find an element or a line from words** (#567, 2026-09-27). Two tools of Marley's MCP
   server answer a query such as "the sign in button" or "where the server refused the
   connection". `browser_find` gives the ref of the page's element, which `browser_click` takes,

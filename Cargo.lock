@@ -10772,6 +10772,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "marley_fleet",
+ "procfs-core",
  "serde",
  "serde_json",
 ]

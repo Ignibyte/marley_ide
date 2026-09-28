@@ -46,7 +46,7 @@ fn layout_section() -> [SettingsPageItem; 2] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 5] {
+fn agents_section() -> [SettingsPageItem; 6] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -89,6 +89,29 @@ fn agents_section() -> [SettingsPageItem; 5] {
                         .marley
                         .get_or_insert_default()
                         .no_update_after_minutes = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: when the stall kind's quiet checks come (#569).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Stall Check After Seconds",
+            description: "Seconds a working Claude Code may be quiet before the stall kind's first check, with the next at twice, four and eight times it. The checks run only while the stall kind's mode in the System One section is on. 0 turns them off.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.stall_check_after_seconds"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.stall_check_after_seconds.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .stall_check_after_seconds = value;
                 },
             }),
             metadata: None,
@@ -254,9 +277,9 @@ fn push_section() -> [SettingsPageItem; 4] {
 }
 
 // Marley: the System One layer's switch, provider and budget, and a way to its Decisions view
-// (#565). The project lists, and each use's mode past the check's, the stop kind's (#566) and
-// the find tools' (#567), live in settings.json.
-fn system_one_section() -> [SettingsPageItem; 11] {
+// (#565). The project lists, and each use's mode past the check's, the stop kind's (#566), the
+// find tools' (#567) and the stall kind's (#569), live in settings.json.
+fn system_one_section() -> [SettingsPageItem; 12] {
     [
         SettingsPageItem::SectionHeader("System One"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -505,6 +528,38 @@ fn system_one_section() -> [SettingsPageItem; 11] {
                     let _before = match value {
                         Some(mode) => uses.insert("terminal_find".to_string(), mode),
                         None => uses.remove("terminal_find"),
+                    };
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: the mode of the stall kind (#569).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Stall Kind",
+            description: "The mode of the stall kind, which flags a working Claude Code's rail row looping? when it repeats one step and stalled? when it has gone quiet with nothing running, from Marley's own facts first and the model for the quiet case. It never stops the agent. Shadow logs in Decisions, Suggest shows the flag, and Act adds a notification.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.system_one.uses.stall_kind"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.system_one.as_ref())
+                        .and_then(|system_one| system_one.uses.as_ref())
+                        .and_then(|uses| uses.get("stall_kind"))
+                },
+                write: |settings_content, value, _| {
+                    let uses = settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .system_one
+                        .get_or_insert_default()
+                        .uses
+                        .get_or_insert_default();
+                    let _before = match value {
+                        Some(mode) => uses.insert("stall_kind".to_string(), mode),
+                        None => uses.remove("stall_kind"),
                     };
                 },
             }),

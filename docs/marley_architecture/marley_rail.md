@@ -65,6 +65,9 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
 - **`TerminalSnapshot::activity`** (#519) is a third line under an agent's status, from its
   own events: the tool in flight, what it waits on, its last message or its error. `rail_rows`
   and `switcher_rows` copy it to `TerminalRow::activity`; it decides no order or visibility.
+- **`TerminalSnapshot::flag`** (#569) is the tooltip of a working agent's warning mark, when the
+  stall kind flagged it `looping?` or `stalled?`; the builders copy it to `TerminalRow::flag`, and
+  it too decides no order or visibility.
 - **`working_directory_label`** is a terminal row's second line: the directory relative to the
   project root, or with the home directory written as `~` outside it. It is empty at the root
   itself and when the terminal cannot tell (no path, or an empty one).

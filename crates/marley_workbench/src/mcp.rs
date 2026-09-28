@@ -685,13 +685,7 @@ impl FindLines {
             },
             |workspace| {
                 let (folders, local) = crate::system_one::project_of(workspace.read(cx), cx);
-                let project = folders
-                    .first()
-                    .and_then(|folder| folder.file_name())
-                    .map_or_else(
-                        || "a project".to_string(),
-                        |name| name.to_string_lossy().into_owned(),
-                    );
+                let project = crate::system_one::project_name(&folders);
                 Place {
                     project,
                     folders,
@@ -713,7 +707,7 @@ impl FindLines {
 
 /// Every terminal in Marley's windows, the center panes' and the terminal panel's, with the
 /// workspace it belongs to.
-fn terminals(cx: &App) -> Vec<(Entity<Workspace>, Entity<TerminalView>)> {
+pub(crate) fn terminals(cx: &App) -> Vec<(Entity<Workspace>, Entity<TerminalView>)> {
     let workspaces: Vec<Entity<Workspace>> = cx
         .windows()
         .into_iter()

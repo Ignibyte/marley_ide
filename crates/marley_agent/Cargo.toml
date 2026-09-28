@@ -11,6 +11,7 @@ path = "src/marley_agent.rs"
 [dependencies]
 base64.workspace = true
 marley_fleet.workspace = true
+procfs-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

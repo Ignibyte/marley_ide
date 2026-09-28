@@ -28,6 +28,11 @@ pub struct MarleySettingsContent {
     ///
     /// Default: 30
     pub no_update_after_minutes: Option<u64>,
+    /// Seconds a working Claude Code may be quiet before the stall kind's first check (#569);
+    /// the next come at twice, four and eight times it, and 0 turns the quiet checks off.
+    ///
+    /// Default: 60
+    pub stall_check_after_seconds: Option<u64>,
     /// Whether closing a terminal, a window or Marley asks first while an agent in it is working
     /// (#550).
     ///
@@ -100,7 +105,8 @@ pub struct SystemOneSettingsContent {
     pub price_cents_per_million_tokens: Option<f32>,
     /// Each use's mode, by the use's name.
     ///
-    /// Default: {"check": "act", "stop_kind": "off", "browser_find": "off", "terminal_find": "off"}
+    /// Default: {"check": "act", "stop_kind": "off", "browser_find": "off", "terminal_find": "off",
+    /// "stall_kind": "off"}
     pub uses: Option<BTreeMap<String, SystemOneMode>>,
 }
 

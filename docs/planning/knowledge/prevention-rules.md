@@ -2495,3 +2495,12 @@ of a seat leaves for a later one, such as an answer that lands after a model cal
 the next prompt logs, carries the session, the prompt and the stop it belongs to, and the later
 event checks all three before it acts. What describes one stop is cleared at every turn's start
 and end, not at the user's prompt alone, since a harness's prompt starts a turn too.
+
+## PR-claude-a-state-fact-holds-only-what-code-computed-001
+*severity: medium · prevents: F-claude-569-the-command-in-flight-went-out-as-a-fact-001*
+
+A System One state's facts are kept at every detail and never cut, so a metadata-only project
+sends them: a fact holds only what code computed, such as a name, a count, a state or a duration
+in words. Text an agent or the user wrote, such as a command, a tool's input, a path or a prompt,
+goes in with `StateBuilder::text`, which masks it whole, cuts it to 300 characters and leaves it
+out at `Detail::Facts`. Name the tool as a fact and put its line in as text.

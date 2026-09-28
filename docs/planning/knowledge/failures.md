@@ -2468,3 +2468,46 @@ fold.
 *severity: low · found in: pipeline 566's Test phase (the first run's shots) · class: a count's plural · prevented by: none*
 
 #565's Decisions header read `1 calls today` for one call. It now says `1 call`.
+
+## F-claude-569-the-command-in-flight-went-out-as-a-fact-001
+*severity: medium · found in: pipeline 569's Code phase (the review of the diff, before any run) · class: text an agent wrote, put in a state as a fact · prevented by: PR-claude-a-state-fact-holds-only-what-code-computed-001*
+
+The stall kind's first state named the tool in flight as a fact, `tool in flight: Bash: curl -H
+…`, and the loop's row did the same with its line. #565's `StateBuilder` keeps a fact at every
+detail and cuts no fact, so a metadata-only project, which sends facts alone, would have sent the
+agent's command to the model and logged it whole. Fixed before the first run: the facts name the
+tool (`tool_name`, `Bash`), and the line goes in as text, which is masked, cut to 300 and left out
+for a metadata-only project.
+
+## F-claude-569-a-loops-flag-would-have-left-at-its-next-event-for-good-001
+*severity: low · found in: pipeline 569's Code phase (the review of the diff) · class: a label an edge sets once, cleared by a rule that fires at every event · prevented by: none*
+
+The design took every flag's labels off at every event the fold takes, since any event is the
+agent moving again. A loop is logged once, at the end that makes it, so the loop's next
+`PreToolUse` would have taken `looping?` off and nothing would have put it back while the loop
+went on. Fixed before the first run: the fold keeps a `looping` flag while the seat works and its
+newest tool line still repeats, and a stall's flag still leaves at any event.
+
+## F-claude-569-edits-to-one-file-read-as-a-loop-001
+*severity: low · found in: pipeline 569's Code phase (reading the plugin's preview keys) · class: a rule that reads identity from a lossy key · prevented by: none*
+
+The loop rule took three equal tool lines in a row for a loop. The plugin's line for `Read`,
+`Write`, `Edit`, `MultiEdit` and `NotebookEdit` is the tool and its file alone (`PREVIEW_KEYS`),
+so three edits to one file, which is ordinary work, would have read `looping?`. Fixed before the
+first run: the file tools count toward the failure rule only (the same line failing twice).
+
+## F-claude-569-a-quiet-seat-read-busy-from-a-sample-before-its-last-event-001
+*severity: low · found in: pipeline 569's Code phase (the review of the diff) · class: a rate taken across two epochs · prevented by: none*
+
+The watch kept each seat's last two CPU samples across events, so the first sample of a new quiet
+was measured against one from before the seat's last event, when a tool may have run hot, and a
+seat whose tools had stopped read as a long task for a tick. Fixed before the first run: a sample
+counts beside another only when both were taken inside the same quiet.
+
+## F-claude-569-a-late-watch-would-ask-once-a-tick-for-each-passed-check-001
+*severity: low · found in: pipeline 569's Code phase (the review of the diff) · class: a counter stepped once where a clock had moved several steps · prevented by: none*
+
+An episode counted its checks asked one at a time. A seat already quiet past several checks when
+the use was turned on would have been asked at every tick, once for each check it had passed, as
+soon as each answer came back. Fixed before the first run: an ask counts every check the quiet has
+passed, so a late watch asks once.

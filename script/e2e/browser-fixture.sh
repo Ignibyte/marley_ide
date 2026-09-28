@@ -779,14 +779,15 @@ def main():
         if not seats:
             print("  no seats")
     elif command == "fleet-labels":
-        # The stop kind's labels on each seat (#566).
+        # The stop kind's labels on each seat (#566), and a stall or loop flag's (#569).
         answer = (client.tool("fleet_snapshot") or {}).get("structuredContent") or {}
         seats = answer.get("seats", [])
-        keys = ("stop_kind", "stop_kind_source", "stop_kind_confidence", "stop_parts_missing")
+        keys = ("stop_kind", "stop_kind_source", "stop_kind_confidence", "stop_parts_missing",
+                "flag", "flag_source", "flag_confidence", "flag_reason")
         for seat in seats:
             labels = seat.get("labels", {})
             shown = "".join(f", {key} {labels[key]!r}" for key in keys if key in labels)
-            print(f"  seat {seat['id']}: {seat['state']}{shown or ', no stop kind'}")
+            print(f"  seat {seat['id']}: {seat['state']}{shown or ', no stop kind or flag'}")
         if not seats:
             print("  no seats")
     elif command == "terminals":

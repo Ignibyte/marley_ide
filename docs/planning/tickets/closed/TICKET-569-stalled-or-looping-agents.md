@@ -1,14 +1,14 @@
 # TICKET-569 — Stalled or looping agents: a flag on the rail row, never a stop
 
 - **Ticket:** LOCAL #569 (feature, prong 2, C1's attention; use 4 of the System One layer, on #565)
-- **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/569-stalled-or-looping-agents.spec.md
+- **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
+- **Pipeline doc:** ../../pipeline/completed/569-stalled-or-looping-agents.spec.md
 - **Source ticket:** Chad, 2026-09-26, approving the seven ranked uses of
   `docs/planning/design-notes/jev-system-one-2026-09-25.md` (use 4, "Stalled or looping") on the
   layer TICKET-565 builds, with his rules: "local first and then jev second", and "we need
   probably every aspect of this configurable and turned off / on where the system will use or
   wont use it. Otherwise this becomes a jev required system."
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 A working Claude Code row says `working` until #547's thirty quiet minutes make it say `no update

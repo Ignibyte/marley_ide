@@ -871,6 +871,35 @@ a whole page or block.
   Act gives the element or the line to act on when the model found one and is sure.
 - An answer that is not sure names the tool to read with (`browser_snapshot`, `terminal_read`).
 
+### The stall kind
+
+With its mode on, a working Claude Code's rail row says when it may be stuck (#569), with a
+warning mark whose tooltip says why. Marley never stops, interrupts or types into the agent on a
+flag: the flag only marks the row.
+
+- `looping?`: the turn ended the same tool line three times in a row, such as `Bash: cargo test`,
+  or failed the same line twice. Marley's own rule decides, with no call. A run of edits or reads
+  of one file is not a loop, since the line names only the file.
+- `stalled?`: the turn has been quiet past a check with no tool of its own using the CPU, and the
+  model read it as waiting for input, stuck on something that is not coming, or frozen. A tool
+  whose processes use the CPU, such as a build or a test run, is a long task, and nothing is
+  asked however long it runs. The CPU counted is the turn's tools': Claude Code's own and its
+  servers' are left out.
+- The checks come after Stall Check After Seconds on the settings page
+  (`stall_check_after_seconds`, 60 by default) and at twice, four and eight times it, so a quiet
+  turn is asked about at most four times; 0 turns the quiet checks off and leaves the loop rule on.
+- A state sent for a quiet turn holds the facts (the project, how long it has been quiet, the tool
+  in flight by name, whether the tools use the CPU, the subagents, the permission mode) and the
+  prompt, the tool line and the terminal's last five lines, masked as above. A metadata-only
+  project sends the facts alone.
+- The mode is Stall Kind on the settings page, or `uses.stall_kind`: Off (the default) makes no
+  call and shows nothing; Shadow asks and logs, and the row is unchanged; Suggest shows the flag;
+  Act adds one desktop notification for the quiet spell, `repo: Claude Code may be stuck`, when the
+  terminal is not in front. The agent's next event takes the flag off, and a loop's leaves when the
+  loop ends. Agents reading `fleet_snapshot` see the flag as the seat's `flag` labels.
+- Each reading is a row in Decisions, a loop's under the provider `rules`, and what came next is
+  its outcome in the day's file: how long until the agent's next event, and which it was.
+
 ### Decisions
 
 `marley: open decisions` opens a tab with the day's calls, newest first: the time, the use, the

@@ -546,6 +546,10 @@ alike.
   The view has already set its bell, which marks its tab and its rail row.
 - `show_sender` answers a click: it activates the view's window, its workspace in the
   multi-workspace and its item, and clears the bell, as the rail's `activate_terminal` does.
+- `notify_stall` (#569) posts the stall kind's banner, `<project>: Claude Code may be stuck`,
+  behind the same focus rule, under a tag of its own (`marley-stall-<id>`), so it neither replaces
+  nor is replaced by the terminal's other banners, such as Claude Code's own. `post` is what the
+  two share, and a click shows the terminal as the others' does.
 
 - A notification titled `marley-event` (`marley_terminal::AGENT_EVENT_TITLE`) is a Claude Code
   hook event, not one for the user (#519): `init`'s subscription hands its body to
@@ -588,12 +592,50 @@ alike.
   sends text. In `suggest` or `act` the answer lands through `land_stop_kind`, an `Upsert` at the
   seat's own time, only while the seat is idle on the same `prompt_id` with no stop since, since an
   `Upsert` would bring back a forgotten seat. `shadow` lands nothing, as `fleet_snapshot`
-  publishes every label to agents.
+  publishes every label to agents. Since #569 the landing is `land_labels(session, holds,
+  labels)`, which the stall kind lands through too, each with its own `holds`.
 - The global keeps each seat's last stop that read something, with its session, and the user's
   next prompt in that session logs an outcome through `system_one::outcome`: `next prompt after
   12 s, 48 characters`, and `within a minute of asks you` for a stop that asked or was blocked.
   A new session, `end` and `forget` drop it. `stop_kind_shown` gives the rail the mode as a
   `StopKindShown`, and the rail's settings observer refreshes the rows, so a new mode shows at once.
+
+## Stalled or looping agents (`src/stall.rs`, #569)
+
+- `on_frame` calls `stall::moved` after each fold and arms `stall::watch` while the seat works,
+  and `after_fold` calls `stall::note_tool_end` at a working seat's tool end.
+- `StallWatch`, a global no view observes, holds each working seat's last two CPU samples, its
+  quiet episode (the event it is the quiet after, how many checks were asked, whether an ask is
+  out, whether the banner went), its call waiting for an outcome, the boot time and whether the
+  timer runs. Its ticks redraw nothing; only a landing writes `AgentEvents`.
+- `watch` starts one timer for the app while the use is on and `stall_check_after_seconds` gives
+  checks, armed by `on_frame` and by a settings change. It ticks every quarter of the first check,
+  between 2 and 10 seconds, and ends itself when no seat works. A tick plans on the main thread
+  (the working seats quiet half a check or more, each terminal's pid and its turn's start),
+  samples `/proc` on the background executor (`futures::future::lazy`), and decides on the main
+  thread. A sample counts beside another only when both are inside the quiet, and a seat at its
+  next check with nothing burning CPU is asked once; a watch that starts late asks once for all
+  the checks already passed.
+- `ask` builds the state in `asking_for`: the project, the agent, the quiet in words, the tool in
+  flight by name, whether the tools use the CPU, the subagents and the permission mode as facts;
+  the prompt, the tool line and the terminal's last five lines as text, masked and cut, and left
+  out for a metadata-only project. `answered` keeps the call for its outcome and, in `suggest` or
+  `act`, lands `stalled:<kind>` for `waiting_for_input`, `stuck` or `frozen` through `Landing`
+  (the seat working on the same session, prompt and stop count, with no event since), and posts
+  one banner for the episode in `act`.
+- `note_tool_end` flags a loop at once from the rule alone: a `rules` row through
+  `system_one::record` with `repeating` held, whatever the provider, logged once for each loop,
+  and in `suggest` or `act` the `looping` labels.
+- `moved` logs the outcome of the seat's call waiting for one at its next event (`the next event
+  12 seconds later: Stop`), or for a loop when the loop ends (`the loop ended … later: Stop`).
+  `hold` settles a call the next check replaces (`still quiet 20 seconds later`), and a reading
+  that came after the seat moved on logs `the agent moved on before the reading came back`.
+  Refused and failed calls wait for nothing.
+- Nothing here writes to the terminal, interrupts or stops the agent: a flag marks the row.
+- The rail: `terminal_snapshot` gives `seat_line` the `FlagShown` that `flag_shown` reads from
+  the mode, and `TerminalSnapshot.flag` the tooltip. `render_terminal_row` draws
+  `IconName::Warning` in `Color::Warning` before the row's end, with an id of its own for the
+  tooltip, so it stays while the pointer over the row shows the close button.
 
 ## Asking before a close ends a working agent (`src/close_guard.rs`, #550)
 
@@ -673,6 +715,9 @@ alike.
   (a verdict the use's own rules settled, logged as a `rules` row whatever the provider, with the
   state the project may send) and `outcome(call, text)` (an `OutcomeRow`). `state_for` builds the
   masked state for `ask` and `record` alike.
+- Since #569 `project_name(folders)` gives the name a state calls a project by, its first
+  folder's or `a project`, which the check, the stop kind, `terminal_find` and the stall kind
+  share.
 - **Decisions** (`DecisionsView`, a workspace item) reads today's file when it opens and follows the
   global for the calls made after, newest first; a click opens a row to the state as sent, the
   answers and the error. Its header gives the day's calls and spend against the budget, the

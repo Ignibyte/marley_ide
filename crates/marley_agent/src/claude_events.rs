@@ -27,10 +27,17 @@ use marley_fleet::{Question, Session, SessionEvent, State, Transport};
 use serde::{Deserialize, Serialize};
 
 use crate::AgentStatus;
+use crate::stall::{self, FlagShown};
 use crate::stop_kind::{self, StopKindShown};
 
 /// The largest summary a frame carries, decoded; the plugin keeps its summaries under it.
 const MAX_SUMMARY: usize = 3_000;
+
+/// How many of the request's tool lines [`TurnFacts`] keeps, for the loop rule (#569).
+const MAX_TOOL_LINES: usize = 12;
+
+/// The most characters of a tool line [`TurnFacts`] keeps.
+const MAX_TOOL_LINE: usize = 120;
 
 /// The label that names the seat's agent, `claude-code`.
 pub const AGENT_LABEL: &str = "agent";
@@ -127,6 +134,17 @@ pub struct TurnFacts {
     pub checked_after_edit: bool,
     /// How many times the request has stopped, which tells one stop from the next.
     pub stops: u32,
+    /// The lead's newest tool lines as they ended, oldest first, for the loop rule (#569).
+    pub tool_lines: Vec<ToolLine>,
+}
+
+/// A lead tool's line as it ended (#569).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ToolLine {
+    /// The tool and what it acted on, such as `Bash: cargo test`.
+    pub line: String,
+    /// Whether it ended in a failure.
+    pub failed: bool,
 }
 
 impl TurnFacts {
@@ -206,6 +224,17 @@ pub fn fold(
     if !moving.take(event, now_ms) {
         return Vec::new();
     }
+    // Any event is the agent moving again, which ends a stall's flag; a loop's stays while the
+    // loop goes on (#569).
+    let still_looping = moving
+        .labels
+        .get(stall::FLAG_LABEL)
+        .is_some_and(|flag| flag == "looping")
+        && moving.state == State::Working
+        && stall::repeats(&moving.facts.tool_lines).is_some();
+    if !still_looping {
+        moving.clear(&stall::FLAG_LABELS);
+    }
     moving.into_events(seat, now_ms)
 }
 
@@ -235,27 +264,33 @@ pub const fn seat_status(state: State) -> AgentStatus {
 /// names the agent, so the line starts with the state. A working seat whose last event is at
 /// least `no_update_after_ms` old at `now_ms` reads `no update in N m` in place of `working`
 /// (#547): an Escape fires no hook, so the seat cannot know the turn stopped. A threshold of 0
-/// never marks it. An idle seat with a stop kind reads it as `shown` says (#566).
+/// never marks it. An idle seat with a stop kind reads it as `shown` says (#566), and a working
+/// seat with a stall or loop flag reads `looping?` or `stalled?` as `flag` says, before `no update`
+/// (#569).
 #[must_use]
 pub fn seat_line(
     seat: &Session,
     now_ms: u64,
     no_update_after_ms: u64,
     shown: StopKindShown,
+    flag: FlagShown,
 ) -> String {
-    let state = if seat.state == State::Working
-        && no_update_after_ms > 0
-        && marley_fleet::is_stale(seat, now_ms, no_update_after_ms)
-    {
-        let minutes = now_ms.saturating_sub(seat.last_event_ms) / 60_000;
-        format!("no update in {minutes} m")
-    } else if let Some(word) =
-        stop_kind::row_word(&seat.labels, shown).filter(|_| seat.state == State::Idle)
-    {
-        word
-    } else {
-        seat_status(seat.state).label().to_string()
-    };
+    let flagged = stall::row_word(&seat.labels, flag).filter(|_| seat.state == State::Working);
+    let state = flagged.unwrap_or_else(|| {
+        if seat.state == State::Working
+            && no_update_after_ms > 0
+            && marley_fleet::is_stale(seat, now_ms, no_update_after_ms)
+        {
+            let minutes = now_ms.saturating_sub(seat.last_event_ms) / 60_000;
+            format!("no update in {minutes} m")
+        } else if let Some(word) =
+            stop_kind::row_word(&seat.labels, shown).filter(|_| seat.state == State::Idle)
+        {
+            word
+        } else {
+            seat_status(seat.state).label().to_string()
+        }
+    });
     let subagents = match subagents(&seat.labels) {
         0 => None,
         1 => Some("1 subagent".to_string()),
@@ -501,7 +536,14 @@ impl Moving {
         if let Some(call) = &event.tool_use_id {
             let _was_pending = self.facts.pending.remove(call);
         }
-        if event.event == "PostToolUseFailure" {
+        let failed = event.event == "PostToolUseFailure";
+        if lead && event.is_interrupt != Some(true) {
+            let line = tool_line(event).chars().take(MAX_TOOL_LINE).collect();
+            self.facts.tool_lines.push(ToolLine { line, failed });
+            let excess = self.facts.tool_lines.len().saturating_sub(MAX_TOOL_LINES);
+            self.facts.tool_lines.drain(..excess).for_each(drop);
+        }
+        if failed {
             if event.is_interrupt == Some(true) {
                 // Tools in parallel each report the one interrupt.
                 if lead && !self.facts.interrupted {

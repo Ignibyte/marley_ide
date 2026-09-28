@@ -148,6 +148,12 @@ pub(crate) fn on_frame(
         marley_fleet::apply(&mut agent_events.snapshot, event);
     }
     if let Some(after) = agent_events.snapshot.get(&seat).cloned() {
+        // The stall watch (#569): the event is the outcome of a call waiting for one, and a
+        // working seat is watched.
+        crate::stall::moved(&after, &event.event, cx);
+        if after.state == State::Working {
+            crate::stall::watch(cx);
+        }
         after_fold(view, &event, before, &after, cx);
     }
     cx.try_global::<AgentEvents>()
@@ -179,6 +185,10 @@ fn after_fold(
             }
         }
         "Stop" => ask_stop_kind(view, seat, cx),
+        // A lead tool's end may make a loop (#569).
+        "PostToolUse" | "PostToolUseFailure" if seat.state == State::Working => {
+            crate::stall::note_tool_end(view, seat, cx);
+        }
         "PostToolUseFailure"
             if event.is_interrupt == Some(true)
                 && before != State::Idle
@@ -263,13 +273,7 @@ fn ask_stop_kind(view: &TerminalView, seat: &Session, cx: &mut Context<TerminalV
         return;
     };
     let (folders, local) = system_one::project_of(workspace.read(cx), cx);
-    let project = folders
-        .first()
-        .and_then(|folder| folder.file_name())
-        .map_or_else(
-            || "a project".to_string(),
-            |name| name.to_string_lossy().into_owned(),
-        );
+    let project = system_one::project_name(&folders);
     let mut asking = Asking {
         subject: seat.id.clone(),
         facts: std::iter::once(("project", project.clone()))
@@ -410,9 +414,7 @@ fn part_number(key: &str) -> Option<usize> {
 }
 
 /// Puts a stop's `labels` on seat `session` while it is still at that stop: idle, on the prompt
-/// `prompt_id`, with no stop since (`stops`). An answer that comes later is dropped, since an
-/// `Upsert` would bring back a seat the terminal forgot, or move one that went on. The upsert keeps
-/// the seat's own time, so the landing is not an event of the agent's.
+/// `prompt_id`, with no stop since (`stops`).
 fn land_stop_kind(
     session: &str,
     prompt_id: Option<&str>,
@@ -420,14 +422,32 @@ fn land_stop_kind(
     labels: Vec<(&'static str, String)>,
     cx: &mut App,
 ) {
-    let Some(upsert) = cx
-        .try_global::<AgentEvents>()
-        .and_then(|events| events.snapshot.get(session))
-        .filter(|seat| {
+    let _landed = land_labels(
+        session,
+        |seat| {
             seat.state == State::Idle
                 && seat.labels.get(PROMPT_ID_LABEL).map(String::as_str) == prompt_id
                 && TurnFacts::of(&seat.labels).stops == stops
-        })
+        },
+        labels,
+        cx,
+    );
+}
+
+/// Puts `labels` on seat `session` while `holds` says it is still where the answer found it, and
+/// says whether they landed. An answer that comes later is dropped, since an `Upsert` would bring
+/// back a seat the terminal forgot, or move one that went on. The upsert keeps the seat's own
+/// time, so the landing is not an event of the agent's.
+pub(crate) fn land_labels(
+    session: &str,
+    holds: impl FnOnce(&Session) -> bool,
+    labels: Vec<(&'static str, String)>,
+    cx: &mut App,
+) -> bool {
+    let Some(upsert) = cx
+        .try_global::<AgentEvents>()
+        .and_then(|events| events.snapshot.get(session))
+        .filter(|seat| holds(seat))
         .map(|seat| {
             let mut kept = seat.labels.clone();
             kept.extend(
@@ -445,9 +465,10 @@ fn land_stop_kind(
             }
         })
     else {
-        return;
+        return false;
     };
     marley_fleet::apply(&mut cx.default_global::<AgentEvents>().snapshot, &upsert);
+    true
 }
 
 /// How the stop kind shows on an agent's row, from the use's mode (#566).

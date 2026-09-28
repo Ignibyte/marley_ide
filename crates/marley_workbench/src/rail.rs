@@ -1626,6 +1626,20 @@ impl Rail {
                         ),
                 )
             });
+        // A stall or loop flag's mark stays while the pointer is over the row, for its tooltip
+        // (#569).
+        let flag = row.flag.map(|flag| {
+            div()
+                .id(("marley-rail-flag", id))
+                .debug_selector(move || format!("marley-rail-flag-{id}"))
+                .flex_none()
+                .child(
+                    Icon::new(IconName::Warning)
+                        .size(IconSize::XSmall)
+                        .color(Color::Warning),
+                )
+                .tooltip(Tooltip::text(flag))
+        });
         let item = row_card(
             ("marley-rail-terminal", id),
             format!("marley-rail-terminal-icon-{id}"),
@@ -1635,6 +1649,7 @@ impl Rail {
             row.subtitle.into_iter().chain(row.activity).collect(),
             cx,
         )
+        .children(flag)
         .child(end)
         .on_click(cx.listener(move |rail, event: &ClickEvent, window, cx| {
             // The second click of a double-click renames, as a tab's does.
@@ -2219,6 +2234,7 @@ fn terminal_snapshot(
         .filter(|kind| *kind == AgentKind::Claude)
         .and_then(|_| cx.try_global::<AgentEvents>()?.seat(view.entity_id()));
     let shown = agent_events::stop_kind_shown(cx);
+    let flag = crate::stall::flag_shown(cx);
     let agent = kind.map(|kind| TerminalAgent {
         kind,
         status: seat.map_or_else(
@@ -2257,6 +2273,7 @@ fn terminal_snapshot(
                         agent_events::now_ms(),
                         no_update_after_ms(cx),
                         shown,
+                        flag,
                     )
                 },
             );
@@ -2270,6 +2287,9 @@ fn terminal_snapshot(
         bell,
         agent,
         activity: seat.and_then(|seat| claude_events::seat_activity(seat, shown)),
+        flag: seat
+            .filter(|seat| seat.state == marley_fleet::State::Working)
+            .and_then(|seat| marley_agent::stall::tooltip(&seat.labels, flag)),
         matched: None,
     }
 }
