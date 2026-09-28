@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-567](open/TICKET-567-find-tools.md) | feature | prong 2 with prong 3 · browser_find and terminal_find: a match by words first, the model ranks what the words leave open, over tagged refs and lines; not listed while off; on #565 |
 | [TICKET-569](open/TICKET-569-stalled-or-looping-agents.md) | feature | prong 2 · a flag on a working agent's row when it loops or stalls, from local facts first (repeats, the process tree's CPU, Marley's own waits) and a System One kind second; never a stop; on #565 |
 | [TICKET-571](open/TICKET-571-pause-before-a-consequential-click.md) | feature | prong 3 with prong 2 · an agent's click that pays, deletes, sends or changes an account waits on Allow or Refuse in the Browser tab, by default only for agents with no prompt of their own; rules first, a System One noul second; on #565 |
 | [TICKET-508](open/TICKET-508-approvals-inbox.md) | feature | prong 2 · every agent's pending permission prompt in one list in the rail; on #519 |

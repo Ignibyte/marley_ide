@@ -1,13 +1,13 @@
 # TICKET-567 — `browser_find` and `terminal_find` for agents
 
 - **Ticket:** LOCAL #567 (feature, prong 2 with prong 3; the Jev note's use 2, on #565's layer)
-- **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/567-find-tools.spec.md
+- **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
+- **Pipeline doc:** ../../pipeline/completed/567-find-tools.spec.md
 - **Source ticket:** Chad, 2026-09-26, approving the seven ranked uses of
   `docs/planning/design-notes/jev-system-one-2026-09-25.md`; use 2, "`browser_find`,
   `terminal_find`", under his rules "local first and then jev second" and every use off by
   default with its own switch and mode
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 An agent that wants one element of a page reads a whole `browser_snapshot` today (up to 30,000

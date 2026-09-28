@@ -1702,10 +1702,13 @@
       "price_cents_per_million_tokens": 0,
       // Each use's mode: "off", "shadow" (ask and log, shown only in Decisions), "suggest" or
       // "act". The check runs only when you run it; the stop kind says on an idle Claude Code's
-      // rail row what its stop needs.
+      // rail row what its stop needs; browser_find and terminal_find are agents' tools that find
+      // an element of a page or a line of a block from words, listed only while not "off".
       "uses": {
         "check": "act",
         "stop_kind": "off",
+        "browser_find": "off",
+        "terminal_find": "off",
       },
     },
   },

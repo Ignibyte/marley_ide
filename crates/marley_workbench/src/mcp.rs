@@ -14,6 +14,7 @@
 //! `fleet_snapshot` and the `fleet://snapshot` resource serve, is the app's Claude Code sessions,
 //! handed over at each change (#547).
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -27,7 +28,7 @@ use marley_mcp::{AppCall, AppCaller, Caller, GrantTable, ToolAnswer, discovery, 
 use marley_terminal::{AnchoredBlock, BlockState, BlockTimes};
 use serde_json::{Value, json};
 use settings::settings_content::{ContextServerCommand, ContextServerSettingsContent};
-use settings::{MarleyTerminalLinks, Settings as _, SettingsStore};
+use settings::{MarleyTerminalLinks, Settings as _, SettingsStore, SystemOneMode};
 use terminal_view::TerminalView;
 use terminal_view::terminal_panel::TerminalPanel;
 use util::ResultExt as _;
@@ -37,6 +38,7 @@ use workspace::notifications::{NotificationId, show_app_notification};
 use workspace::{MultiWorkspace, Toast, Workspace};
 
 use crate::agent_events::AgentEvents;
+use crate::find::{Found, Place};
 use crate::{MarleySettings, claude_plugin};
 
 /// How many of the newest blocks `terminal_blocks` lists when the call names no `last`.
@@ -51,11 +53,16 @@ const MAX_READ_LINES: usize = 2_000;
 /// The most bytes `terminal_read` gives, for output whose lines are long.
 const MAX_READ_BYTES: usize = 256 * 1024;
 
+/// The most bytes of a block's newest lines `terminal_find` asks about: about 24,000 tokens at
+/// four bytes a token (#567).
+const MAX_FIND_BYTES: usize = 96_000;
+
 /// The server in the app: why it could not start, until a workspace shows it, and where the
-/// app's fleet snapshot goes to reach it, while it runs.
+/// app's fleet snapshot and the tools the user turned on go to reach it, while it runs.
 struct McpServer {
     failure: Option<String>,
     snapshots: Option<mpsc::UnboundedSender<FleetSnapshot>>,
+    enabled: Option<mpsc::UnboundedSender<BTreeSet<String>>>,
 }
 
 impl Global for McpServer {}
@@ -93,7 +100,8 @@ pub fn start(cx: &mut App) {
     ));
     let published = Arc::clone(&shared);
     let for_clients = Arc::clone(&shared);
-    let (failure, snapshots) = match transport::spawn(shared, effects, caller) {
+    let for_tools = Arc::clone(&shared);
+    let (failure, snapshots, enabled) = match transport::spawn(shared, effects, caller) {
         Ok(handle) => {
             write_endpoint(
                 data_dir.clone(),
@@ -109,18 +117,29 @@ pub fn start(cx: &mut App) {
             );
             offer_to_zeds_agents(data_dir.clone(), cx);
             offer_browser_opener(data_dir.clone(), cx);
-            (None, Some(publisher(published, cx)))
+            (
+                None,
+                Some(publisher(published, cx)),
+                Some(enabler(for_tools, cx)),
+            )
         }
         Err(error) => (
             Some(format!("Marley's MCP server did not start: {error}")),
+            None,
             None,
         ),
     };
     if let Some(failure) = &failure {
         log::error!("mcp: {failure}");
     }
-    cx.set_global(McpServer { failure, snapshots });
+    cx.set_global(McpServer {
+        failure,
+        snapshots,
+        enabled,
+    });
     cx.observe_global::<AgentEvents>(publish).detach();
+    push_enabled(cx);
+    cx.observe_global::<SettingsStore>(push_enabled).detach();
     cx.on_app_quit(move |cx| {
         let data_dir = data_dir.clone();
         cx.background_spawn(futures::future::lazy(move |_| {
@@ -176,6 +195,50 @@ fn publisher(shared: transport::Shared, cx: &App) -> mpsc::UnboundedSender<Fleet
     })
     .detach();
     snapshots
+}
+
+/// The conditional tools the settings turn on (#567): each while System One is on and its use,
+/// of the tool's name, has a mode other than `off`.
+fn enabled_tools(cx: &App) -> BTreeSet<String> {
+    let settings = &MarleySettings::get_global(cx).system_one;
+    marley_mcp::CONDITIONAL_TOOLS
+        .iter()
+        .copied()
+        .filter(|tool| {
+            settings.enabled
+                && settings
+                    .uses
+                    .get(*tool)
+                    .is_some_and(|mode| *mode != SystemOneMode::Off)
+        })
+        .map(str::to_string)
+        .collect()
+}
+
+/// Sends the server the tools the settings turn on (#567), which it lists and calls from then on.
+fn push_enabled(cx: &mut App) {
+    let Some(enabled) = cx
+        .try_global::<McpServer>()
+        .and_then(|server| server.enabled.clone())
+    else {
+        return;
+    };
+    if let Err(error) = enabled.unbounded_send(enabled_tools(cx)) {
+        log::debug!("mcp: the tools turned on came as Marley shut down: {error}");
+    }
+}
+
+/// A background task that hands the server each set of tools turned on, in order: the server's
+/// threads hold the data's lock, so the main thread never waits on it.
+fn enabler(shared: transport::Shared, cx: &App) -> mpsc::UnboundedSender<BTreeSet<String>> {
+    let (sets, mut incoming) = mpsc::unbounded::<BTreeSet<String>>();
+    cx.background_spawn(async move {
+        while let Some(enabled) = incoming.next().await {
+            transport::set_enabled(&shared, enabled);
+        }
+    })
+    .detach();
+    sets
 }
 
 /// The context server Zed's own agents know Marley's server by (#501).
@@ -419,6 +482,10 @@ fn answer(call: AppCall, cx: &mut App) {
         ports_list(call, cx);
         return;
     }
+    if call.tool == "terminal_find" {
+        terminal_find(call, cx);
+        return;
+    }
     let result = match call.tool.as_str() {
         "terminal_list" => Ok(terminal_list(call.caller(), cx)),
         "terminal_blocks" => terminal_blocks(&call.arguments, call.caller(), cx),
@@ -470,6 +537,178 @@ fn ports_list(call: AppCall, cx: &App) {
         call.answer(result);
     })
     .detach();
+}
+
+/// `terminal_find` (#567): the line of a block's output `query` names. The words of the query
+/// come first, then the System One layer for what they leave open (`crate::find`), off the main
+/// thread.
+fn terminal_find(call: AppCall, cx: &App) {
+    let lines = match FindLines::of(&call.arguments, call.caller(), cx) {
+        Ok(lines) => lines,
+        Err(error) => {
+            call.answer(Err(error));
+            return;
+        }
+    };
+    cx.spawn(async move |cx| {
+        let FindLines {
+            terminal,
+            block,
+            query,
+            lines,
+            first,
+            cut,
+            place,
+        } = lines;
+        let subject = format!("{terminal}:{block}:{query}");
+        let found =
+            crate::find::find_items("terminal_find", &subject, &query, &lines, place, cx).await;
+        let line = |index: usize| first + index;
+        let candidates: Vec<Value> = found
+            .candidates
+            .iter()
+            .filter_map(|(index, probability)| {
+                let text = lines.get(*index)?;
+                Some(json!({ "line": line(*index), "text": text, "probability": probability }))
+            })
+            .collect();
+        let top = found.top.map(line);
+        let shown: Vec<String> = found
+            .candidates
+            .iter()
+            .filter_map(|(index, probability)| {
+                let text = lines.get(*index)?;
+                Some(probability.map_or_else(
+                    || format!("line {}: {text}", line(*index)),
+                    |probability| format!("line {}: {text} ({probability:.2})", line(*index)),
+                ))
+            })
+            .collect();
+        let named = top.map(|top| format!("line {top}"));
+        let text =
+            crate::browser_tools::found_text(&found, named.as_deref(), &shown, "terminal_read");
+        call.answer(Ok(ToolAnswer {
+            structured: found_lines(&found, terminal, block, &query, top, &candidates, cut),
+            text: Some(text),
+            image: None,
+        }));
+    })
+    .detach();
+}
+
+/// `terminal_find`'s answer as the tool's schema gives it.
+fn found_lines(
+    found: &Found,
+    terminal: u64,
+    block: usize,
+    query: &str,
+    line: Option<usize>,
+    candidates: &[Value],
+    cut: bool,
+) -> Value {
+    json!({
+        "terminal": terminal,
+        "block": block,
+        "query": query,
+        "source": found.source,
+        "sure": found.sure,
+        "line": line,
+        "candidates": candidates,
+        "present": found.present,
+        "verify": found.verify,
+        "next": (!found.sure).then_some("terminal_read"),
+        "cut": cut,
+        "note": found.note,
+    })
+}
+
+/// A block's lines as `terminal_find` looks among them (#567).
+struct FindLines {
+    terminal: u64,
+    block: usize,
+    query: String,
+    /// The newest lines of the block's output, masked.
+    lines: Vec<String>,
+    /// The number of the first of them in the block's output, from 1.
+    first: usize,
+    /// Whether they are less than the block's output.
+    cut: bool,
+    place: Place,
+}
+
+impl FindLines {
+    /// The block `arguments` names, in the terminal they name or the caller's own. The output is
+    /// masked whole with the rules models get, before any cut, since a cut can part a secret
+    /// from what marks it; the model and the answer both see the masked lines. Then the end is
+    /// kept as `terminal_read` keeps it, and of that the newest lines up to [`MAX_FIND_BYTES`].
+    fn of(arguments: &Value, caller: &Caller, cx: &App) -> Result<Self, String> {
+        let (terminal, view) = terminal_of(arguments, caller, cx)?;
+        let block = arguments
+            .get("block")
+            .and_then(Value::as_u64)
+            .and_then(|index| usize::try_from(index).ok())
+            .ok_or_else(|| "give `block`, a block's index from terminal_blocks".to_string())?;
+        let query = crate::browser_tools::find_query(arguments)?;
+        let terminal_view = view.read(cx);
+        let read = terminal_view.terminal().read(cx);
+        let found = read
+            .blocks()
+            .get(block)
+            .ok_or_else(|| format!("terminal {terminal} has no block {block}"))?;
+        let output = read
+            .block_output(found)
+            .ok_or_else(|| format!("block {block}'s output has left the terminal's scrollback"))?;
+        let masked = model_redactor(cx).redact(&output).text;
+        let total = masked.lines().count();
+        let (end, _) = tail(&masked);
+        let kept: Vec<&str> = end.lines().collect();
+        let mut bytes = 0;
+        let start = kept
+            .iter()
+            .rposition(|line| {
+                bytes += line.len() + 1;
+                bytes > MAX_FIND_BYTES
+            })
+            .map_or(0, |at| at + 1);
+        let lines: Vec<String> = kept
+            .get(start..)
+            .unwrap_or_default()
+            .iter()
+            .map(|line| (*line).to_string())
+            .collect();
+        let first = total.saturating_sub(kept.len()) + start + 1;
+        let place = terminal_view.marley_workspace().upgrade().map_or_else(
+            || Place {
+                project: "no project".to_string(),
+                folders: Vec::new(),
+                local: true,
+            },
+            |workspace| {
+                let (folders, local) = crate::system_one::project_of(workspace.read(cx), cx);
+                let project = folders
+                    .first()
+                    .and_then(|folder| folder.file_name())
+                    .map_or_else(
+                        || "a project".to_string(),
+                        |name| name.to_string_lossy().into_owned(),
+                    );
+                Place {
+                    project,
+                    folders,
+                    local,
+                }
+            },
+        );
+        Ok(Self {
+            terminal,
+            block,
+            query,
+            lines,
+            cut: first > 1,
+            first,
+            place,
+        })
+    }
 }
 
 /// Every terminal in Marley's windows, the center panes' and the terminal panel's, with the

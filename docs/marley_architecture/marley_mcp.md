@@ -15,9 +15,23 @@ OR Apache-2.0, with the Marley crates' lint table.
 - The registry is the one table of tools: a family and a verb per row, with its tier, its grant
   class and its description. `tool_name` joins family and verb with `_` (`terminal_blocks`),
   since Claude Code and the Anthropic API take tool names without dots (#491). `tools/list` lists
-  the served families: `terminal` today, while `fleet` and `session` wait for prong 2's C1. A
-  client that names one of their tools still reaches it: the fleet is empty, and a session write
-  is denied without a grant.
+  the served families, `terminal`, `browser` (#492) and `ports` (#521), while `fleet` and
+  `session` wait for prong 2's C1. A client that names one of their tools still reaches it: the
+  fleet is empty, and a session write is denied without a grant.
+- **Conditional tools (#567).** `CONDITIONAL_TOOLS` names the tools listed and called only while
+  the user turns them on: `browser_find` and `terminal_find`, each the System One use of its
+  name. `RequestCtx.enabled` holds the ones on, from `ServerData.enabled`, which the app sets
+  through `transport::set_enabled` off its main thread. `tools_list_for(principal, enabled)`
+  leaves an off tool out, and `tools_call` refuses one by name after `permits`, naming the
+  setting. The server sends no `notifications/tools/list_changed` when the set changes: a client
+  sees it at its next `tools/list`.
+- **`find` (#567)** is the find tools' match by words, pure: `words` (lowercased, split at
+  everything but letters and digits, stop words left out), `matches` (an item holding every word
+  as a whole word), `local` (`Sure`, `Several` or `Nothing`) and `windows(count, size)`. The
+  tools' schemas are `find_schemas` and `terminal_find_schemas`, over `query_schema` and
+  `found_properties`: `query` (200 characters), and back `source`, `sure`, the `ref` or `line`,
+  `candidates`, `present`, `verify`, `next` and `note`, and `cut` for a block. Neither tool is on
+  the outside clients' lists.
 - A call whose answer is the app's comes back as `Outgoing::Deferred(PendingCall)`; every
   terminal tool's does. `deferred_response(pending, outcome)` builds its response from the app's
   `ToolAnswer` (a structured result, and text of its own when it has some, such as a block's

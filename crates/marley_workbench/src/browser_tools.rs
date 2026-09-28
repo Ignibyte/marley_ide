@@ -280,6 +280,7 @@ async fn run(
     match tool {
         "browser_look" => look(&page, &tab, hub, cx).await,
         "browser_snapshot" => take_snapshot(&page, &tab, arguments, hub, cx).await,
+        "browser_find" => find_element(&page, &tab, arguments, hub, cx).await,
         "browser_console" => {
             let mut entries_read = hub.read_with(cx, |hub, _| hub.console_entries(&tab));
             let redactor = cx.update(|cx| crate::mcp::agent_redactor(cx));
@@ -949,6 +950,26 @@ async fn take_snapshot(
         .get("full")
         .and_then(Value::as_bool)
         .unwrap_or(false);
+    let Snapshot { text, refs, cut } = read_snapshot(page, tab, full, hub, cx).await?;
+    let count = refs.len();
+    hub.update(cx, |hub, _| hub.set_refs(tab, refs));
+    Ok(ToolAnswer {
+        structured: json!({ "tab": tab, "snapshot": text, "refs": count, "cut": cut }),
+        text: Some(text),
+        image: None,
+    })
+}
+
+/// The page's snapshot: its main tree, the same-site frames that tree leaves out, and the
+/// cross-site iframes, every node when `full`. `browser_snapshot` and `browser_find` (#567)
+/// read the page the same way, so their refs are the same currency.
+async fn read_snapshot(
+    page: &Page,
+    tab: &str,
+    full: bool,
+    hub: &Entity<BrowserHub>,
+    cx: &AsyncApp,
+) -> Result<Snapshot, String> {
     let iframes = hub.read_with(cx, |hub, _| hub.iframes(tab));
     let main = page
         .accessibility_tree(page.session_id(), None)
@@ -994,14 +1015,138 @@ async fn take_snapshot(
             Err(error) => log::debug!("browser: an iframe's accessibility tree: {error}"),
         }
     }
-    let Snapshot { text, refs, cut } = snapshot::render(&trees, full);
-    let count = refs.len();
+    Ok(snapshot::render(&trees, full))
+}
+
+/// `browser_find` (#567): the element of the page `query` names, from a snapshot taken now, whose
+/// refs the hub keeps, so `browser_click` takes the answer. The query's words come first, then
+/// the System One layer for what they leave open (`crate::find`).
+async fn find_element(
+    page: &Page,
+    tab: &str,
+    arguments: &Value,
+    hub: &Entity<BrowserHub>,
+    cx: &mut AsyncApp,
+) -> Result<ToolAnswer, String> {
+    let query = find_query(arguments)?;
+    let full = arguments
+        .get("full")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let Snapshot { refs, .. } = read_snapshot(page, tab, full, hub, cx).await?;
+    let items: Vec<String> = refs.iter().map(RefTarget::describe).collect();
+    let listed: Vec<(String, String, String)> = refs
+        .iter()
+        .map(|target| (target.id.clone(), target.role.clone(), target.name.clone()))
+        .collect();
     hub.update(cx, |hub, _| hub.set_refs(tab, refs));
+    let place = hub.read_with(cx, |hub, _| {
+        hub.project_of(tab).map_or_else(
+            || crate::find::Place {
+                project: "no project".to_string(),
+                folders: Vec::new(),
+                local: true,
+            },
+            |project| crate::find::Place {
+                project: project.name.to_string(),
+                folders: project.paths.clone(),
+                local: project.host.is_none(),
+            },
+        )
+    });
+    let found = crate::find::find_items(
+        "browser_find",
+        &format!("{tab}:{query}"),
+        &query,
+        &items,
+        place,
+        cx,
+    )
+    .await;
+    let element = |index: usize| listed.get(index);
+    let candidates: Vec<Value> = found
+        .candidates
+        .iter()
+        .filter_map(|(index, probability)| {
+            let (id, role, name) = element(*index)?;
+            Some(json!({ "ref": id, "role": role, "name": name, "probability": probability }))
+        })
+        .collect();
+    let top = found.top.and_then(element).map(|(id, _, _)| id.clone());
+    let lines: Vec<String> = found
+        .candidates
+        .iter()
+        .filter_map(|(index, probability)| {
+            let item = items.get(*index)?;
+            let id = &element(*index)?.0;
+            Some(probability.map_or_else(
+                || format!("{id} {item}"),
+                |probability| format!("{id} {item} ({probability:.2})"),
+            ))
+        })
+        .collect();
+    let text = found_text(&found, top.as_deref(), &lines, "browser_snapshot");
     Ok(ToolAnswer {
-        structured: json!({ "tab": tab, "snapshot": text, "refs": count, "cut": cut }),
+        structured: json!({
+            "tab": tab,
+            "query": query,
+            "source": found.source,
+            "sure": found.sure,
+            "ref": top,
+            "candidates": candidates,
+            "present": found.present,
+            "verify": found.verify,
+            "next": (!found.sure).then_some("browser_snapshot"),
+            "note": found.note,
+        }),
         text: Some(text),
         image: None,
     })
+}
+
+/// A find's `query`: its text, trimmed, of 200 characters at most (#567).
+pub(crate) fn find_query(arguments: &Value) -> Result<String, String> {
+    let query = arguments
+        .get("query")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|query| !query.is_empty())
+        .ok_or_else(|| "give `query`, what to find in words".to_string())?;
+    if query.chars().count() > 200 {
+        return Err("`query` holds at most 200 characters".to_string());
+    }
+    Ok(query.to_string())
+}
+
+/// A find's answer as text (#567): the item to act on, or why there is none, the candidates, and
+/// where to read when the answer is not sure.
+pub(crate) fn found_text(
+    found: &crate::find::Found,
+    top: Option<&str>,
+    candidates: &[String],
+    next: &str,
+) -> String {
+    let head = match top {
+        Some(top) => format!("{top}, by {}", found.source),
+        None if candidates.is_empty() => "Nothing found".to_string(),
+        None => "Not sure".to_string(),
+    };
+    let present = found
+        .present
+        .map(|present| format!("; the model reads a match as {present}"))
+        .unwrap_or_default();
+    let verify = if found.verify {
+        "; the model's suggestions, to look at first"
+    } else {
+        ""
+    };
+    let mut lines = vec![format!("{head}{present}{verify}")];
+    lines.extend(candidates.iter().map(|candidate| format!("- {candidate}")));
+    lines.extend(found.note.clone());
+    if !found.sure {
+        lines.push(format!("Read with {next} to be sure."));
+    }
+    lines.join("\n")
 }
 
 fn entries<T: Serialize>(tab: &str, entries: Vec<T>) -> Result<ToolAnswer, String> {

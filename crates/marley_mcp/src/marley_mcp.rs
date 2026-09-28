@@ -17,7 +17,9 @@
 //! [`Outgoing::Deferred`], and the transport hands it to the app through an [`AppCaller`] and waits
 //! for the answer. The `browser` family (#492) is the app's too. The `fleet` and `session` families
 //! stay unlisted until prong 2's C1 feeds them. Since #524 programs outside Marley that the user
-//! allowed by name reach a list of browser tools with tokens of their own ([`Principal`]).
+//! allowed by name reach a list of browser tools with tokens of their own ([`Principal`]). Since
+//! #567 `browser_find` and `terminal_find` are listed and called only while the user turns them
+//! on ([`CONDITIONAL_TOOLS`]), with [`find`]'s match by words as their first step.
 
 // gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
 // Zed's crates keep them at warn (CONSTITUTION §0).
@@ -40,6 +42,7 @@ mod config;
 pub mod discovery;
 mod dispatch;
 mod expose;
+pub mod find;
 pub mod jsonrpc;
 mod permission;
 pub mod redact;
@@ -60,7 +63,10 @@ pub use dispatch::{deferred_response, handle_message, snapshot_changed};
 pub use expose::ExposeConfig;
 pub use jsonrpc::{RpcRequest, parse_request};
 pub use permission::{Decision, GrantTable, Tier, decide};
-pub use registry::{Family, ToolSpec, lookup, registry, tool_name, tools_list, tools_list_for};
+pub use registry::{
+    CONDITIONAL_TOOLS, Family, ToolSpec, is_off, lookup, registry, tool_name, tools_list,
+    tools_list_for,
+};
 pub use resource::{
     FLEET_RESOURCE_URI, resource_read, resource_updated_notification, resources_list,
 };
@@ -74,6 +80,7 @@ pub use tools::{
     tool_answer_result, tool_error, tool_result,
 };
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::sync::mpsc::SyncSender;
 
@@ -101,6 +108,9 @@ pub struct RequestCtx<'a> {
     pub surface_index: &'a [(String, u64)],
     /// Who holds the request's bearer (#524): what it may list and call.
     pub principal: &'a Principal,
+    /// The conditional tools the user turned on (#567): each of [`CONDITIONAL_TOOLS`] is listed
+    /// and called only while it is here.
+    pub enabled: &'a BTreeSet<String>,
 }
 
 /// Per-connection subscription state. L1 has ONE resource, so this is a single flag.

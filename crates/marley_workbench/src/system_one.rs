@@ -535,6 +535,9 @@ pub(crate) struct Asked {
     pub(crate) layer_on: bool,
     /// The row the call left, when one was made.
     pub(crate) row: Option<CallRow>,
+    /// The answers the reading came from, when a provider or the replay gave some: a choice's
+    /// probability for each option, which a use can rank by (#567).
+    pub(crate) answers: Option<Answers>,
 }
 
 /// A row being filled in as a call goes on.
@@ -542,6 +545,7 @@ struct Draft {
     day: String,
     row: CallRow,
     subject: String,
+    answers: Option<Answers>,
 }
 
 impl Draft {
@@ -556,6 +560,7 @@ impl Draft {
         Self {
             day: now.format("%Y-%m-%d").to_string(),
             subject: format!("{}:{}", spec.name, asking.subject),
+            answers: None,
             row: CallRow {
                 id: format!("{}-{number}", now.format("%Y%m%dT%H%M%S%3f")),
                 time: now.to_rfc3339(),
@@ -590,14 +595,16 @@ impl Draft {
         self.row.answers = Some(answers.raw.clone());
         self.row.thresholds = Some(files::thresholds());
         self.row.input_tokens = Some(answers.input_tokens);
+        self.answers = Some(answers.clone());
     }
 }
 
 /// Asks `spec`'s questions about what `asking` describes.
 ///
 /// With the layer or the use off the answer is [`Reading::Off`] and nothing else happens. Every
-/// other ask leaves a row, and model trouble comes back as a reading that says so.
-pub(crate) fn ask(spec: &'static UseSpec, asking: &Asking, cx: &mut App) -> Task<Asked> {
+/// other ask leaves a row, and model trouble comes back as a reading that says so. A `UseSpec` is
+/// `Copy` and its references are `'static`, so a use may make one at call time (#567).
+pub(crate) fn ask(spec: UseSpec, asking: &Asking, cx: &mut App) -> Task<Asked> {
     let settings = cx.try_global::<SystemOne>().map_or_else(
         || SystemOneSettings::from_content(None),
         |layer| layer.settings.clone(),
@@ -608,6 +615,7 @@ pub(crate) fn ask(spec: &'static UseSpec, asking: &Asking, cx: &mut App) -> Task
             mode: SystemOneMode::Off,
             layer_on: false,
             row: None,
+            answers: None,
         });
     }
     let mode = settings
@@ -621,9 +629,10 @@ pub(crate) fn ask(spec: &'static UseSpec, asking: &Asking, cx: &mut App) -> Task
             mode,
             layer_on: true,
             row: None,
+            answers: None,
         });
     }
-    let mut draft = Draft::new(spec, &settings, asking, mode);
+    let mut draft = Draft::new(&spec, &settings, asking, mode);
     let detail = match policy::may_send(
         &asking.folders,
         asking.local,
@@ -649,7 +658,7 @@ pub(crate) fn ask(spec: &'static UseSpec, asking: &Asking, cx: &mut App) -> Task
     match settings.provider {
         SystemOneProvider::Rules => {
             let reads = asking.verdict.as_ref().map_or_else(
-                || nothing(spec, "the use gave no verdict"),
+                || nothing(&spec, "the use gave no verdict"),
                 |verdict| reading::read(spec.set, verdict),
             );
             Task::ready(finish(draft, Reading::Rules(reads), mode, cx))
@@ -664,7 +673,7 @@ pub(crate) fn ask(spec: &'static UseSpec, asking: &Asking, cx: &mut App) -> Task
                     draft.answered(&answers);
                     Reading::Model(reading::read(spec.set, &answers))
                 }
-                Ok(None) => Reading::Model(nothing(spec, "no replay row")),
+                Ok(None) => Reading::Model(nothing(&spec, "no replay row")),
                 Err(error) => {
                     Reading::Unavailable(format!("the replay row does not read: {error}"))
                 }
@@ -729,7 +738,7 @@ pub(crate) fn detail(asking: &Asking, cx: &App) -> Result<Detail, Refusal> {
 /// Logs the verdict `asking` carries, which the use's own rules settled, so that no provider is
 /// asked whatever the settings name: every verdict is a row (#565's D6), under the `rules`
 /// provider. The row keeps the state the project may send, and none when it may send nothing.
-pub(crate) fn record(spec: &'static UseSpec, asking: &Asking, cx: &mut App) -> Asked {
+pub(crate) fn record(spec: UseSpec, asking: &Asking, cx: &mut App) -> Asked {
     let mode = use_mode(spec.name, cx);
     let Some(settings) = cx
         .try_global::<SystemOne>()
@@ -743,9 +752,10 @@ pub(crate) fn record(spec: &'static UseSpec, asking: &Asking, cx: &mut App) -> A
                 .try_global::<SystemOne>()
                 .is_some_and(|layer| layer.settings.enabled),
             row: None,
+            answers: None,
         };
     };
-    let mut draft = Draft::new(spec, &settings, asking, mode);
+    let mut draft = Draft::new(&spec, &settings, asking, mode);
     draft.row.provider = provider_name(SystemOneProvider::Rules).to_string();
     if let Some(state) = detail(asking, cx)
         .ok()
@@ -755,7 +765,7 @@ pub(crate) fn record(spec: &'static UseSpec, asking: &Asking, cx: &mut App) -> A
         draft.row.state_hash = Some(state.hash);
     }
     let reads = asking.verdict.as_ref().map_or_else(
-        || nothing(spec, "the use gave no verdict"),
+        || nothing(&spec, "the use gave no verdict"),
         |verdict| reading::read(spec.set, verdict),
     );
     finish(draft, Reading::Rules(reads), mode, cx)
@@ -799,7 +809,7 @@ fn refused(refusal: Refusal) -> Reading {
 /// Sends the request to a `typesafe` or `compatible` provider, past the key's and the gate's
 /// checks, and reads what comes back.
 fn send(
-    spec: &'static UseSpec,
+    spec: UseSpec,
     settings: &SystemOneSettings,
     mut draft: Draft,
     state: &State,
@@ -861,7 +871,7 @@ fn send(
         let latency = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
         cx.update(|cx| {
             draft.row.latency_ms = Some(latency);
-            let reading = read_posted(posted, spec, &key, &hash, price, &mut draft, cx);
+            let reading = read_posted(posted, &spec, &key, &hash, price, &mut draft, cx);
             finish(draft, reading, mode, cx)
         })
     })
@@ -1018,6 +1028,7 @@ fn finish(mut draft: Draft, reading: Reading, mode: SystemOneMode, cx: &mut App)
         mode,
         layer_on: true,
         row: Some(row),
+        answers: draft.answers,
     }
 }
 
@@ -1070,7 +1081,7 @@ fn run_check(workspace: &mut Workspace, window: &Window, cx: &mut Context<Worksp
             return;
         }
     };
-    let asked = ask(&CHECK, &asking, cx);
+    let asked = ask(CHECK, &asking, cx);
     cx.spawn_in(window, async move |workspace, cx| {
         let asked = asked.await;
         workspace

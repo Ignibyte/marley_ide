@@ -3,6 +3,8 @@
 //! lists today. Adding `editor`/`browser` later is a new `Family` variant + a [`REGISTRY`] row + its
 //! `tool_schemas`/`dispatch` arm — additive, no rework of permissions (REQ-011). PURE.
 
+use std::collections::BTreeSet;
+
 use crate::clients::{Principal, permits};
 use crate::permission::Tier;
 use serde_json::{Value, json};
@@ -126,6 +128,20 @@ const REGISTRY: &[ToolSpec] = &[
                       left out: at most 2,000 lines, the end kept when there are more. Secrets come back as `[redacted: <kind>]`, counted in \
                       `redacted`, unless the user turned redaction off.",
     },
+    ToolSpec {
+        family: Family::Terminal,
+        verb: "find",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "Find the line of a block's output that matches a query in words, such as \
+                      \"where the server refused the connection\", from the calling terminal \
+                      when `terminal` is left out: the line's number and up to three \
+                      candidates. A line holding every word of the query answers at once; the \
+                      System One model ranks what the words leave open. When it is not sure, \
+                      read the block with terminal_read. Secrets come back as \
+                      `[redacted: <kind>]`. Listed while the user turns it on \
+                      (marley.system_one.uses.terminal_find).",
+    },
     browser_read(
         "tabs",
         "List Marley's Browser tabs, one per page, across every project's browser (each project \
@@ -144,6 +160,15 @@ const REGISTRY: &[ToolSpec] = &[
         "snapshot",
         "A page's accessibility tree as text: its interactive elements (every node with \
          `full`), each with a ref for the write tools, cross-site iframes included.",
+    ),
+    browser_read(
+        "find",
+        "Find the element of the page that matches a query in words, such as \"the sign in \
+         button\": its ref, which browser_click takes, and up to three candidates. An element \
+         whose role and name hold every word of the query answers at once; the System One model \
+         ranks what the words leave open. When it is not sure, read the page with \
+         browser_snapshot. The refs are a new snapshot's, as browser_snapshot's are. Listed while \
+         the user turns it on (marley.system_one.uses.browser_find).",
     ),
     browser_read(
         "console",
@@ -306,6 +331,16 @@ pub const fn registry() -> &'static [ToolSpec] {
     REGISTRY
 }
 
+/// The tools listed and called only while the user turns them on (#567): each is the System One
+/// use of the same name, on while its mode is not `off`.
+pub const CONDITIONAL_TOOLS: [&str; 2] = ["browser_find", "terminal_find"];
+
+/// Whether the tool `name` is off: one of [`CONDITIONAL_TOOLS`] that `enabled` leaves out.
+#[must_use]
+pub fn is_off(name: &str, enabled: &BTreeSet<String>) -> bool {
+    CONDITIONAL_TOOLS.contains(&name) && !enabled.contains(name)
+}
+
 /// Look up a tool by its wire name (`None` = unknown tool).
 #[must_use]
 pub fn lookup(wire_name: &str) -> Option<ToolSpec> {
@@ -322,16 +357,21 @@ pub fn lookup(wire_name: &str) -> Option<ToolSpec> {
 /// automatically listed once its family is served).
 #[must_use]
 pub fn tools_list() -> Value {
-    tools_list_for(&Principal::Marley)
+    tools_list_for(&Principal::Marley, &BTreeSet::new())
 }
 
-/// The `tools/list` result for `principal` (#524): every served tool for Marley's own bearer, and
-/// for an outside client only the tools its grant's list names.
+/// The `tools/list` result for `principal` (#524).
+///
+/// Marley's own bearer lists every served tool, and an outside client only the tools its grant's
+/// list names. A conditional tool is listed while `enabled` holds it (#567).
 #[must_use]
-pub fn tools_list_for(principal: &Principal) -> Value {
+pub fn tools_list_for(principal: &Principal, enabled: &BTreeSet<String>) -> Value {
     let tools: Vec<Value> = REGISTRY
         .iter()
-        .filter(|spec| spec.family.is_served() && permits(principal, &spec.name()).is_ok())
+        .filter(|spec| {
+            let name = spec.name();
+            spec.family.is_served() && permits(principal, &name).is_ok() && !is_off(&name, enabled)
+        })
         .map(|spec| {
             let (input, output) = tool_schemas(spec);
             json!({
@@ -403,6 +443,7 @@ fn browser_schemas(verb: &str) -> (Value, Value) {
         "tabs" => tabs_schemas(),
         "look" => look_schemas(),
         "snapshot" => snapshot_schemas(),
+        "find" => find_schemas(),
         "console" | "network" => entries_schemas(verb),
         "annotations" => annotations_schemas(),
         "recordings" => recordings_schemas(),
@@ -541,6 +582,80 @@ fn snapshot_schemas() -> (Value, Value) {
                 "cut": { "type": "boolean" }
             },
             "required": ["tab", "snapshot", "refs", "cut"]
+        }),
+    )
+}
+
+/// The schema of a find's `query`, for `browser_find` and `terminal_find` (#567).
+fn query_schema(example: &str) -> Value {
+    json!({
+        "type": "string",
+        "maxLength": 200,
+        "description": format!("What to find, in words, such as \"{example}\".")
+    })
+}
+
+/// The answer's fields both find tools give (#567).
+fn found_properties() -> Value {
+    json!({
+        "query": { "type": "string" },
+        "source": {
+            "type": "string",
+            "enum": ["rules", "model", "none"],
+            "description": "What found the answer: the query's words (rules), the System One model, or nothing."
+        },
+        "sure": { "type": "boolean", "description": "Whether the answer can be acted on without a look." },
+        "present": {
+            "type": ["string", "null"],
+            "enum": ["found", "absent", "unsure", null],
+            "description": "The model's reading of whether anything matches, when it was asked."
+        },
+        "verify": { "type": "boolean", "description": "The candidates are the model's suggestions: look before acting." },
+        "next": { "type": ["string", "null"], "description": "The tool to read with when the answer is not sure." },
+        "note": { "type": ["string", "null"], "description": "Why the model was not asked or did not answer, when it was not or did not." }
+    })
+}
+
+/// `browser_find` (#567): a query; the matching element's ref, and up to three candidates.
+fn find_schemas() -> (Value, Value) {
+    let mut output = found_properties();
+    if let Some(properties) = output.as_object_mut() {
+        properties.extend([
+            ("tab".to_string(), json!({ "type": "string" })),
+            (
+                "ref".to_string(),
+                json!({ "type": ["string", "null"], "description": "The element's ref, when the answer is sure." }),
+            ),
+            (
+                "candidates".to_string(),
+                json!({
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "ref": { "type": "string" },
+                            "role": { "type": "string" },
+                            "name": { "type": "string" },
+                            "probability": { "type": ["number", "null"] }
+                        },
+                        "required": ["ref", "role", "name"]
+                    }
+                }),
+            ),
+        ]);
+    }
+    (
+        browser_arguments(
+            json!({
+                "query": query_schema("the sign in button"),
+                "full": { "type": "boolean", "description": "Look among every node, not only the interactive ones." }
+            }),
+            &["query"],
+        ),
+        json!({
+            "type": "object",
+            "properties": output,
+            "required": ["tab", "query", "source", "sure", "candidates"]
         }),
     )
 }
@@ -1088,6 +1203,7 @@ fn terminal_schemas(verb: &str) -> (Value, Value) {
     match verb {
         "blocks" => terminal_blocks_schemas(),
         "read" => terminal_read_schemas(),
+        "find" => terminal_find_schemas(),
         _ => terminal_list_schemas(),
     }
 }
@@ -1264,6 +1380,64 @@ fn terminal_read_schemas() -> (Value, Value) {
                 }
             },
             "required": ["terminal", "block", "command", "running", "output", "truncated"]
+        }),
+    )
+}
+
+/// `terminal_find` (#567): a terminal, a block and a query; the matching line, and up to three
+/// candidates.
+fn terminal_find_schemas() -> (Value, Value) {
+    let mut output = found_properties();
+    if let Some(properties) = output.as_object_mut() {
+        properties.extend([
+            ("terminal".to_string(), json!({ "type": "integer" })),
+            ("block".to_string(), json!({ "type": "integer" })),
+            (
+                "line".to_string(),
+                json!({
+                    "type": ["integer", "null"],
+                    "description": "The line's number in the block's output, from 1, when the answer is sure."
+                }),
+            ),
+            (
+                "candidates".to_string(),
+                json!({
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "line": { "type": "integer" },
+                            "text": { "type": "string" },
+                            "probability": { "type": ["number", "null"] }
+                        },
+                        "required": ["line", "text"]
+                    }
+                }),
+            ),
+            (
+                "cut".to_string(),
+                json!({
+                    "type": "boolean",
+                    "description": "Whether the model saw less than the block: its newest lines, up to about 24,000 tokens."
+                }),
+            ),
+        ]);
+    }
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "terminal": terminal_argument_schema(),
+                "block": { "type": "integer", "description": "The block's index, from terminal_blocks." },
+                "query": query_schema("where the server refused the connection")
+            },
+            "required": ["block", "query"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": output,
+            "required": ["terminal", "block", "query", "source", "sure", "candidates", "cut"]
         }),
     )
 }

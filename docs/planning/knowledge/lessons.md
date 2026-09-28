@@ -3438,3 +3438,26 @@ through `<<'PY'` that holds such a block ends at the block's own `PY` line: Pyth
 script, fails, and the shell runs the rest of the edit's text as commands. Write an edit script
 that holds a heredoc to a file in the scratchpad and run the file, or give the outer heredoc a
 delimiter the text does not hold.
+
+## L-claude-567-a-choice-over-run-time-items-is-a-static-table-by-count-001
+*category: code · topic: the System One layer · from: pipeline 567*
+
+A choice whose options are items known only at run time, such as a page's refs, cannot be built
+per call: #565's questions are `&'static`, and a caller never supplies its own. Make a set for
+every item count, as #567's `find_1/1` to `find_254/1` are: one options table with `none`
+first, so each count's options are a prefix of it; the names, meanings, questions and sets in
+`static LazyLock` tables built once, whose `String`s a static holds, so a `&'static str` comes
+from them with nothing leaked. Put the query and the items in the state as labeled lines whose
+labels are the option names, and take a `UseSpec` by value, since it is `Copy`, rather than a
+static table of every use and count.
+
+## L-claude-567-a-tool-a-setting-lists-must-reach-the-servers-data-001
+*category: code · topic: Marley's MCP server · from: pipeline 567*
+
+`marley_mcp`'s listing and routing are pure over `RequestCtx`, which `serve_post` builds under
+the server's data lock, so a setting that lists or hides a tool has to become server data
+(`ServerData.enabled`) before any request sees it. The app's settings observers cannot take that
+lock on the main thread, which the server's threads hold: send the value down a channel to a
+background task that sets it, as the fleet snapshot goes (`publish`, `enabler`). The server sends
+no `notifications/tools/list_changed` on such a change, and Claude Code lists its tools when it
+connects, so a running session sees a tool turned on only after it reconnects the server.

@@ -2626,3 +2626,23 @@ Rejected:
 - a live measurement of a failing Bash with the real Claude Code: the real `claude` is not
   started from a session; the hooks reference answered what it could, and the design holds either
   way.
+
+## AD-claude-567-the-find-tools-answer-by-words-first-and-are-listed-only-while-on-001
+*decided at: 2026-09-27 · status: shipped · builds on: AD-claude-565-the-system-one-layer-is-a-pure-core-behind-an-adapter-off-by-default-001, AD-claude-492-agents-drive-the-browser-tab-through-the-mcp-server-001*
+
+`browser_find` and `terminal_find` answer an agent's query in words with a ref or a line and up
+to three candidates. The query's words come first and send nothing: an item that alone holds
+every word is the answer. The System One layer ranks the words' matches, or looks among every
+item when there are none, as a choice over at most 254 items a request and a noul on whether
+anything matches, for listed projects only; an answer that is not sure names the tool to read
+with. The tools are listed and called only while their use is on, the server told through its
+own data. `browser_find` takes its own snapshot and keeps its refs in the hub, so `browser_click`
+takes its answer. Rejected:
+- a template question with the query and the options built per call: #565's questions are
+  compiled in, so the query is state and there is a set per item count;
+- one request with a question per window: each window's options would differ, so each window is
+  a request, asked together;
+- the cookbook's 0.7 and 0.35 cutoffs: the tools read `present` with the layer's band, as every
+  use does, so the tool and the Decisions row agree;
+- the tools for outside clients: they would spend the user's budget, and #524's lists stay
+  explicit.

@@ -304,12 +304,12 @@ fn ask_stop_kind(view: &TerminalView, seat: &Session, cx: &mut Context<TerminalV
     };
     if let Some(kind) = kind {
         asking.verdict = Some(system_one::choice_verdict("kind", kind.value()));
-        let asked = system_one::record(spec, &asking, cx);
+        let asked = system_one::record(*spec, &asking, cx);
         landing.land(&asked, cx);
         return;
     }
     let asked = system_one::ask(
-        marley_system_one::stop_kind(landing.parts.len()),
+        *marley_system_one::stop_kind(landing.parts.len()),
         &asking,
         cx,
     );

@@ -31,6 +31,7 @@ pub mod claude_plugin;
 pub mod clients;
 pub mod close_guard;
 pub mod decisions;
+pub mod find;
 pub mod links;
 #[cfg(test)]
 pub mod marley_workbench_tests;

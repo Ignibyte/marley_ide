@@ -42,7 +42,7 @@ pub fn handle_message(ctx: &RequestCtx, subs: &mut Subscriptions, message: &str)
         "initialize" => respond(jsonrpc::result_response(&id, initialize_result())),
         "tools/list" => respond(jsonrpc::result_response(
             &id,
-            registry::tools_list_for(ctx.principal),
+            registry::tools_list_for(ctx.principal, ctx.enabled),
         )),
         "resources/list" => respond(jsonrpc::result_response(&id, resource::resources_list())),
         "resources/read" => resources_read(ctx, &request, &id),
@@ -172,6 +172,14 @@ fn tools_call(ctx: &RequestCtx, request: &RpcRequest, id: &Value) -> Handled {
     if let Err(reason) = permits(ctx.principal, &spec.name()) {
         return respond(jsonrpc::result_response(id, tools::tool_error(&reason)));
     }
+    // A conditional tool the user has not turned on is refused by name as well (#567).
+    if registry::is_off(&spec.name(), ctx.enabled) {
+        let reason = format!(
+            "{name} is off: turn System One on and set marley.system_one.uses.{name} to shadow, \
+             suggest or act"
+        );
+        return respond(jsonrpc::result_response(id, tools::tool_error(&reason)));
+    }
     // Permission (D5/REQ-006/007/008). A DENIAL is a tool-execution error (isError), NOT a protocol error.
     if let Decision::Deny(reason) = permission::decide(spec.tier, spec.grant_class, ctx.grants) {
         return respond(jsonrpc::result_response(id, tools::tool_error(&reason)));
@@ -270,6 +278,7 @@ mod tests {
             grants,
             surface_index: index,
             principal: &crate::Principal::Marley,
+            enabled: &std::collections::BTreeSet::new(),
         };
         let mut subs = Subscriptions::default();
         let handled = handle_message(&ctx, &mut subs, msg);
@@ -353,6 +362,7 @@ mod tests {
             grants: &grants,
             surface_index: &[("dev-1/a".to_string(), 42)],
             principal: &crate::Principal::Marley,
+            enabled: &std::collections::BTreeSet::new(),
         };
         let mut subs = Subscriptions::default();
         let handled = handle_message(
@@ -375,6 +385,7 @@ mod tests {
             grants: &grants,
             surface_index: &[("dev-1/a".to_string(), 42)],
             principal: &crate::Principal::Marley,
+            enabled: &std::collections::BTreeSet::new(),
         };
         let mut subs = Subscriptions::default();
         let handled = handle_message(
@@ -415,6 +426,7 @@ mod tests {
             grants: &GrantTable::default(),
             surface_index: &[],
             principal: &crate::Principal::Marley,
+            enabled: &std::collections::BTreeSet::new(),
         };
         let mut subs = Subscriptions::default();
         let _subscribed = handle_message(
@@ -461,6 +473,7 @@ mod tests {
             grants: &grants,
             surface_index: &[],
             principal: &crate::Principal::Marley,
+            enabled: &std::collections::BTreeSet::new(),
         };
         let mut subs = Subscriptions::default();
         let handled = handle_message(
@@ -479,6 +492,7 @@ mod tests {
             grants: &GrantTable::default(),
             surface_index: &[],
             principal: &crate::Principal::Marley,
+            enabled: &std::collections::BTreeSet::new(),
         };
         let mut subs = Subscriptions::default();
         let init = handle_message(

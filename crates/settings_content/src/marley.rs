@@ -100,7 +100,7 @@ pub struct SystemOneSettingsContent {
     pub price_cents_per_million_tokens: Option<f32>,
     /// Each use's mode, by the use's name.
     ///
-    /// Default: {"check": "act", "stop_kind": "off"}
+    /// Default: {"check": "act", "stop_kind": "off", "browser_find": "off", "terminal_find": "off"}
     pub uses: Option<BTreeMap<String, SystemOneMode>>,
 }
 

@@ -519,6 +519,7 @@ The terminal family:
 | `terminal_list` | Every terminal in every window, center and Terminal Panel: its id, tab title, project, working directory, running command, and how many blocks it holds |
 | `terminal_blocks` | A terminal's newest blocks, oldest first (50 unless `last` says otherwise, 500 at most): each command, whether the shell's hook reported it (`verified`), exit code, working directory, start time, duration, whether it runs, and whether its output is still in the scrollback; `redacted` counts the secrets hidden in the commands |
 | `terminal_read` | One block's command and output as text, at most 2,000 lines and 256 KiB with the end kept, whether the start was cut, and `redacted`, how many secrets were hidden |
+| `terminal_find` | The line of a block's output a `query` in words names, such as "where the server refused the connection": its number and up to three candidates, by the query's words first and the System One model for the rest (#567); listed only while its use is on |
 
 The ports family (#521):
 
@@ -533,6 +534,7 @@ The browser family, reading:
 | `browser_tabs` | Each page: its id (the `tab` the other tools take), title, URL, whether it loads, and which tab a call without `tab` acts on, the one you focused last |
 | `browser_look` | The page as you see it: URL, title, viewport, scroll, loading, the focused element and the selection, and the frame on your screen as an image |
 | `browser_snapshot` | The accessibility tree as text: the interactive elements with refs such as `e3` (every node with `full`), cross-site iframes included, no field values |
+| `browser_find` | The element a `query` in words names, such as "the sign in button": its ref, which `browser_click` takes, and up to three candidates, by the query's words first and the System One model for the rest (#567); listed only while its use is on |
 | `browser_console` | The latest console messages and uncaught errors, oldest first, 200 at most, with secrets hidden |
 | `browser_network` | The latest requests, 200 at most: method, URL with secret-looking values hidden, type, status, duration, failure; no headers or bodies |
 | `browser_picks` | The elements you picked this session: each pick's id, tab, URL, title, what it is, your caption, and whether you sent it |
@@ -555,6 +557,11 @@ The browser family, acting. These need the `browser.write` grant:
 
 The tools that read or act in one page take `tab`, an id from `browser_tabs`, and without it act
 on the tab you focused last. Every answer from a page names its tab.
+
+`browser_find` and `terminal_find` are listed and answered only while their use is on in the
+System One settings ([The find tools](#the-find-tools)). A client lists its tools when it
+connects, so a Claude Code already running sees a tool you turned on after you reconnect
+Marley's server (`/mcp`), or in its next session.
 
 The server also holds `fleet_snapshot` and `session_surface_to_human`, which it does not list. The
 fleet stays empty until prong 2 feeds it, and a session write is refused, since Marley grants no
@@ -844,6 +851,26 @@ covered: "Add a license."`.
   next prompt adds an outcome to the day's file: how long it came after the stop and how long it
   was.
 
+### The find tools
+
+`browser_find` and `terminal_find` (#567) are agents' tools: an agent asks for "the sign in
+button" or "where the server refused the connection" and gets a ref or a line instead of reading
+a whole page or block.
+
+- The query's words come first and send nothing: an element whose role and name, or a line,
+  hold every word of the query (short words such as "the", "where" and "did" aside) is the answer.
+- When several do, the model ranks them; when none does, it looks among every element of the
+  page, or every line of the block's newest part (about 24,000 tokens), up to 254 a request. It
+  also says whether anything matches at all.
+- The state sent holds the query and the items as labeled lines, masked as above: a block's
+  output is masked whole before any cut. A project on neither list, or a metadata-only one, gets
+  the words' answer and a note, with no call.
+- The modes are Browser Find and Terminal Find on the settings page, or `uses.browser_find` and
+  `uses.terminal_find`: Off (the default) takes the tool out of the agents' list; Shadow answers by
+  the words and logs the model in Decisions; Suggest gives the model's candidates marked to check;
+  Act gives the element or the line to act on when the model found one and is sure.
+- An answer that is not sure names the tool to read with (`browser_snapshot`, `terminal_read`).
+
 ### Decisions
 
 `marley: open decisions` opens a tab with the day's calls, newest first: the time, the use, the
@@ -871,7 +898,7 @@ Key write and remove the keyring's key.
   leaves time. Five failures in a row hold calls for two minutes.
 - A state the same as the last one answered for the same terminal makes no new call.
 - `uses` sets each feature's mode: `off`, `shadow` (ask and log, shown only in Decisions),
-  `suggest` or `act`. The check and the stop kind are the two so far.
+  `suggest` or `act`. The check, the stop kind and the two find tools are the four so far.
 
 Every call, refused and failed ones included, is a line in `system_one/calls-<day>.jsonl` under
 Marley's data directory, readable by you alone: the masked state as sent, the answers, the reading,

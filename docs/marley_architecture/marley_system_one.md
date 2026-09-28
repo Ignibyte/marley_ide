@@ -24,6 +24,13 @@ the time and names the folder. MIT OR Apache-2.0, with rustal's lint table; its 
   like any text, and a metadata-only project, whose state has no text, asks `stop_kind_0/1`.
   `STOP_KIND` holds the seven `UseSpec`s, all named `stop_kind` with a 2 s deadline, as statics,
   so the one `stop_kind(parts)` picks at run time is `&'static`.
+- **The find sets** (#567). `find_set(items)` answers one of 254 sets, `find_1/1` to `find_254/1`,
+  one per window of items (`FIND_WINDOW` is 254, since a choice holds 255 options and `none` is
+  one): a choice `which` over `none` and `1` to `N` ("Which item in the state matches its `query`
+  line?") and a noul `present` ("Does any item match the query?"). The options are one table,
+  `none` first, so each set's are a prefix of it; the names, their meanings, the questions and
+  the sets are `static LazyLock` tables built once, whose strings a static holds, so nothing is
+  leaked. `find_label(item)` gives the state's label for an item, the same as its option.
 - **`state`.** `StateBuilder::new(detail, mask)` takes facts, kept at every `Detail`, and text,
   left out at `Detail::Facts`, each value through the host's mask. A text value is masked whole
   and then cut to 300 characters (`cut`), since a cut can split a secret the mask would find.
@@ -65,10 +72,11 @@ keychain and the settings, which the workbench owns.
 ## Consumers
 
 `marley_workbench::system_one` (the adapter and the check), `marley_workbench::decisions` (the
-view) and, since #566, `marley_workbench::agent_events` (the stop kind).
+view), since #566 `marley_workbench::agent_events` (the stop kind), and since #567
+`marley_workbench::find` (the find tools).
 
 ## Tests
 
 None written (§7). `script/e2e/565-system-one-layer.sh` drives the crate through the app against a
-fake `/v1/systemone`, and `script/e2e/566-stop-kind.sh` the stop kind's sets on the `replay`
-provider.
+fake `/v1/systemone`, `script/e2e/566-stop-kind.sh` the stop kind's sets on the `replay`
+provider, and `script/e2e/567-find-tools.sh` the find sets on it too.

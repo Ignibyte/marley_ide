@@ -13,6 +13,20 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Agents find an element or a line from words** (#567, 2026-09-27). Two tools of Marley's MCP
+  server answer a query such as "the sign in button" or "where the server refused the
+  connection". `browser_find` gives the ref of the page's element, which `browser_click` takes,
+  and `terminal_find` the line of a block's output, each with up to three candidates. An element
+  or a line that alone holds every word of the query answers at once, and no call is made. The
+  System One layer ranks what the words leave open, for listed projects only, as a choice over
+  the items and a question of whether anything matches, and an answer that is not sure says to
+  read the page or the block. Both are off by default and, while off, agents do not see them: the
+  Browser Find and Terminal Find items of the Marley settings page, or
+  `marley.system_one.uses.browser_find` and `terminal_find`, with Shadow (the words answer and the
+  model is logged in Decisions), Suggest (the model's candidates, to check) and Act. A running
+  Claude Code sees a tool turned on once it lists its tools again. Decisions says "1 call" for one
+  call.
+
 - **What a stopped Claude Code turn needs, on its rail row** (#566, 2026-09-27). With the stop
   kind's mode on, an idle Claude Code's row says `done · checked`, `done · claimed`, `asks you`,
   `blocked`, `still going` or `interrupted` in place of `idle`, and names a part of the prompt the

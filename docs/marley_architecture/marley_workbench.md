@@ -665,6 +665,9 @@ alike.
   the `&mut Workspace` the action has; reading the workspace entity there would panic. The program
   is the command's first word after its `NAME=value` assignments, without its folder. A toast
   gives the reading, the provider, the tokens and the time.
+- Since #567 `ask` and `record` take a `UseSpec` by value, which is `Copy` with `'static`
+  references, so a use makes its own at call time, and `Asked.answers` carries the parsed answers,
+  whose per-option probabilities a use can rank by.
 - Since #566 the adapter has three more ways in for a use: `use_mode(name)` (off while the layer
   is off), `detail(asking)` (what the project may send, read before a use picks its set), `record`
   (a verdict the use's own rules settled, logged as a `rules` row whatever the provider, with the
@@ -706,7 +709,17 @@ alike.
   - `ports_list` (#521): a scan made at once (`ports::list`), off the main thread, each
     listener with its project's rail name, the folder, the address, port, URL, pid, process name
     and working directory, by project and port. The command line stays out, since it can carry a
-    token.
+    token;
+  - `terminal_find` (#567), on `ports_list`'s spawned route: `FindLines::of` takes the block by
+    index from `terminal_of`'s terminal, masks its whole output with `model_redactor` before any
+    cut, keeps `tail`'s end and of it the newest lines up to 96,000 bytes, with the first one's
+    number and the terminal's workspace as the place; then `crate::find::find_items`. The
+    candidates carry the lines as masked, whatever agents' redaction says, so the answer and the
+    model read one text.
+- **The tools turned on (#567).** `enabled_tools` reads which of `marley_mcp::CONDITIONAL_TOOLS`
+  the settings turn on (System One on and the use's mode not `off`), and `push_enabled` sends the
+  set at `start` and at each `SettingsStore` change to `enabler`, a background task that takes the
+  server's lock (`transport::set_enabled`), as the fleet snapshot goes.
 - **Redaction (#516).** `start` builds the `AgentRedaction` global from `MarleySettings` and
   rebuilds it on each `SettingsStore` change that alters `redact_secrets` or
   `redaction_patterns`, with an app notification naming a pattern that did not compile.
@@ -725,6 +738,25 @@ alike.
   each local project, where the Zed Agent's Write profile (`enable_all_context_servers`) takes
   its tools from, and `mcp_servers_for_project` hands it to each external agent's `session/new`.
   No bearer goes into a setting; a user's own `context_servers.marley` replaces the default.
+
+## The find tools (`src/find.rs`, #567)
+
+- `find_items(name, subject, query, items, place, cx)` is what `browser_find` and
+  `terminal_find` share. The query's words come first (`marley_mcp::find::local`): an item that
+  alone holds them is the answer, `source: rules` and sure, with no call. Otherwise the use's mode
+  decides (`system_one::use_mode`); `system_one::detail` is read before any ask, so an unlisted or
+  metadata-only project answers by the words with a note and makes no call. The items asked about
+  are the words' matches when there are several, else every item, in windows of `FIND_WINDOW`: a
+  window's `Asking` is its `query` line and its items as `1: …` to `N: …`, and its `ask` a
+  `UseSpec` of the tool's name, `find_set(N)` and 3 s. Shadow detaches the asks and answers by the
+  words.
+- `read_windows` joins the windows: found when a window's `present` reads yes, absent when every
+  window's reads no, else unsure; the candidates are the top three by the parsed probabilities
+  across windows; in `act` the item to act on is the model's confident choice when it found one.
+  A refused, unavailable or `rules`-provider window counts as no answer, and with none the words
+  answer, with the reason as the note.
+- `browser_tools::find_query` checks `query` (200 characters), and `found_text` writes an answer
+  as text: the item to act on or why there is none, the candidates, the note, and where to read.
 
 ## Terminal ids across a restore (`src/terminal_ids.rs`, #575)
 
@@ -771,6 +803,10 @@ alike.
   (`caller_project`: the scope's `home`, else the workspace the active window shows), started by
   `BrowserHub::browser_for` when it is not running, and a named tab acts in whichever project's
   browser holds it, since each `Page` carries its own browser's connection.
+- **`browser_find` (#567)** reads the page through `read_snapshot`, the walk `browser_snapshot`
+  uses, and keeps its refs in the hub, so its answer is the same currency and `browser_click`
+  takes it; the items are the refs as `RefTarget::describe` names them (`button “Sign in”`), and
+  the place is `hub.project_of(tab)`'s `BrowserProject` (its `paths`, and `host` for a remote one).
 - `browser_tabs` lists each page of every project's browser: its id, title, URL (with
   secret-looking values hidden), whether it loads, its `project` (the rail's name for its tab's
   workspace; for a page with no tab, its browser's project, #507), whether the user focused it

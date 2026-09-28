@@ -690,6 +690,32 @@ def main():
         result = client.tool("browser_navigate", {"url": rest[0], **options})
         if result:
             print(f"  {json.dumps(result['structuredContent'])}")
+    elif command == "find":
+        # browser_find (#567): the answer whole, as JSON on one line.
+        full = {"full": True} if rest[1:2] == ["full"] else {}
+        result = client.tool("browser_find", {"query": rest[0], **options, **full})
+        if result:
+            print(f"  {json.dumps(result['structuredContent'])}")
+    elif command == "tfind":
+        # terminal_find (#567) over the newest block whose command holds rest[0].
+        listed = client.tool("terminal_list")
+        found = None
+        for terminal in (listed or {}).get("structuredContent", {}).get("terminals", []):
+            blocks = client.tool("terminal_blocks", {"terminal": terminal["id"]})
+            matching = [block for block in (blocks or {}).get("structuredContent", {}).get("blocks", [])
+                        if rest[0] in block["command"]]
+            if matching:
+                found = (terminal["id"], matching[-1]["index"])
+        if not found:
+            sys.exit(f"no block runs {rest[0]!r}")
+        result = client.tool("terminal_find", {"terminal": found[0], "block": found[1], "query": rest[1]})
+        if result:
+            print(f"  {json.dumps(result['structuredContent'])}")
+    elif command == "click-ref":
+        # A click on a ref as given, with no new snapshot, which would number the refs again (#567).
+        result = client.tool("browser_click", {"ref": rest[0], **options})
+        if result:
+            print(f"  {json.dumps(result['structuredContent'])}")
     elif command == "open-url":
         result = client.tool("browser_open_url", {"url": rest[0], "directory": rest[1]})
         if result:

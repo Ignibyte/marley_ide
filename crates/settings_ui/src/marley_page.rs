@@ -254,9 +254,9 @@ fn push_section() -> [SettingsPageItem; 4] {
 }
 
 // Marley: the System One layer's switch, provider and budget, and a way to its Decisions view
-// (#565). The project lists, and each use's mode past the check's and the stop kind's (#566),
-// live in settings.json.
-fn system_one_section() -> [SettingsPageItem; 9] {
+// (#565). The project lists, and each use's mode past the check's, the stop kind's (#566) and
+// the find tools' (#567), live in settings.json.
+fn system_one_section() -> [SettingsPageItem; 11] {
     [
         SettingsPageItem::SectionHeader("System One"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -441,6 +441,70 @@ fn system_one_section() -> [SettingsPageItem; 9] {
                     let _before = match value {
                         Some(mode) => uses.insert("stop_kind".to_string(), mode),
                         None => uses.remove("stop_kind"),
+                    };
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: the mode of browser_find (#567).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Browser Find",
+            description: "The mode of browser_find, an agents' tool that finds the element of a page a query in words names, such as the sign in button: by the query's words first, then by the model for what the words leave open. Off, agents do not see the tool. Shadow answers by the words and logs the model in Decisions, Suggest gives the model's candidates to check, and Act gives the element to act on when the model is sure.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.system_one.uses.browser_find"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.system_one.as_ref())
+                        .and_then(|system_one| system_one.uses.as_ref())
+                        .and_then(|uses| uses.get("browser_find"))
+                },
+                write: |settings_content, value, _| {
+                    let uses = settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .system_one
+                        .get_or_insert_default()
+                        .uses
+                        .get_or_insert_default();
+                    let _before = match value {
+                        Some(mode) => uses.insert("browser_find".to_string(), mode),
+                        None => uses.remove("browser_find"),
+                    };
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: the mode of terminal_find (#567).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Terminal Find",
+            description: "The mode of terminal_find, an agents' tool that finds the line of a block's output a query in words names, such as where the server refused the connection: by the query's words first, then by the model for what the words leave open. Off, agents do not see the tool. Shadow answers by the words and logs the model in Decisions, Suggest gives the model's candidates to check, and Act gives the line when the model is sure.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.system_one.uses.terminal_find"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.system_one.as_ref())
+                        .and_then(|system_one| system_one.uses.as_ref())
+                        .and_then(|uses| uses.get("terminal_find"))
+                },
+                write: |settings_content, value, _| {
+                    let uses = settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .system_one
+                        .get_or_insert_default()
+                        .uses
+                        .get_or_insert_default();
+                    let _before = match value {
+                        Some(mode) => uses.insert("terminal_find".to_string(), mode),
+                        None => uses.remove("terminal_find"),
                     };
                 },
             }),

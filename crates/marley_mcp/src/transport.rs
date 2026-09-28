@@ -11,6 +11,7 @@
 //! bearer or an allowed client's token (#524) on every request, bounds what it reads before it knows
 //! who is asking, and NEVER logs a bearer.
 
+use std::collections::BTreeSet;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
 use std::sync::mpsc::{RecvTimeoutError, Sender};
@@ -44,6 +45,9 @@ pub struct ServerData {
     pub version: u64,
     /// The live `Mcp-Session-Id`s (#375). Its `Debug` redacts the ids (they are secrets-adjacent).
     pub sessions: SessionRegistry,
+    /// The conditional tools the user turned on (#567), which `tools/list` lists and `tools/call`
+    /// calls.
+    pub enabled: BTreeSet<String>,
 }
 
 /// A shared, condvar-signalled `ServerData`.
@@ -113,6 +117,16 @@ pub fn allow_client(clients: &Clients, name: &str, write: bool) -> Result<String
             token.clone(),
         )?;
     Ok(token)
+}
+
+/// Turns on the conditional tools `enabled` names, and off the others (#567). A client sees the
+/// change at its next `tools/list`. It takes the data's lock, so the app calls it off its main
+/// thread.
+pub fn set_enabled(shared: &Shared, enabled: BTreeSet<String>) {
+    let (data, _cv) = &**shared;
+    data.lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .enabled = enabled;
 }
 
 /// Cuts the client `name` off (#524): its token opens nothing from now on, and every session it
@@ -357,6 +371,7 @@ fn serve_post(
             grants: &guard.grants,
             surface_index: &guard.surface_index,
             principal,
+            enabled: &guard.enabled,
         };
         let mut subs = Subscriptions::default();
         let handled = handle_message(&ctx, &mut subs, &request.body);

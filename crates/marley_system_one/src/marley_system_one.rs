@@ -30,6 +30,7 @@ pub mod reading;
 pub mod request;
 pub mod state;
 
+use std::sync::LazyLock;
 use std::time::Duration;
 
 /// The model asked when the settings name none: Jev, pinned to the version the compiled-in
@@ -309,4 +310,106 @@ pub static STOP_KIND: [UseSpec; MAX_PARTS + 1] = [
 pub fn stop_kind(parts: usize) -> &'static UseSpec {
     let [.., most] = &STOP_KIND;
     STOP_KIND.get(parts).unwrap_or(most)
+}
+
+/// The most items a find asks about in one request (#567): a choice holds 255 options at most, and
+/// `none` is one of them.
+pub const FIND_WINDOW: usize = 254;
+
+/// What a find's choice asks. The query and the items are the state's lines: `query: …`, then
+/// `1: …` to `N: …`.
+const FIND_WHICH: &str = "The state gives a query on its `query` line and a list of items, each \
+                          on a line labeled with its number. Which item matches the query?";
+
+/// Whether anything in the state matches, which a find asks beside the choice.
+const FIND_PRESENT: Question = Question::Noul {
+    key: "present",
+    instructions: "The state gives a query on its `query` line and a list of items, each on a \
+                   line labeled with its number. Does any item match the query?",
+    when_true: "At least one item is the thing the query asks for, or states it.",
+    when_false: "No item is what the query asks for.",
+};
+
+/// The find's item labels, `1` to [`FIND_WINDOW`], what each option means, and each set's id.
+struct FindText {
+    labels: Vec<String>,
+    meanings: Vec<String>,
+    ids: Vec<String>,
+}
+
+static FIND_TEXT: LazyLock<FindText> = LazyLock::new(|| FindText {
+    labels: (1..=FIND_WINDOW).map(|item| item.to_string()).collect(),
+    meanings: (1..=FIND_WINDOW)
+        .map(|item| format!("The item the state labels {item}."))
+        .collect(),
+    ids: (1..=FIND_WINDOW)
+        .map(|items| format!("find_{items}/1"))
+        .collect(),
+});
+
+/// The options of every find's choice, `none` first, so each set's are a prefix of them. The
+/// strings are [`FIND_TEXT`]'s, which a `static` holds for good.
+static FIND_OPTIONS: LazyLock<Vec<(&'static str, &'static str)>> = LazyLock::new(|| {
+    let text: &'static FindText = &FIND_TEXT;
+    std::iter::once(("none", "No item in the state matches the query."))
+        .chain(
+            text.labels
+                .iter()
+                .zip(&text.meanings)
+                .map(|(label, meaning)| (label.as_str(), meaning.as_str())),
+        )
+        .collect()
+});
+
+/// Each find set's questions, by its number of items.
+static FIND_QUESTIONS: LazyLock<Vec<[Question; 2]>> = LazyLock::new(|| {
+    let options: &'static [(&'static str, &'static str)] = &FIND_OPTIONS;
+    (1..=FIND_WINDOW)
+        .map(|items| {
+            [
+                Question::Choice {
+                    key: "which",
+                    instructions: FIND_WHICH,
+                    options: options.get(..=items).unwrap_or(options),
+                },
+                FIND_PRESENT,
+            ]
+        })
+        .collect()
+});
+
+/// The find sets (#567), `find_1/1` to `find_254/1`, one for each number of items.
+static FIND_SETS: LazyLock<Vec<QuestionSet>> = LazyLock::new(|| {
+    let questions: &'static [[Question; 2]] = &FIND_QUESTIONS;
+    let text: &'static FindText = &FIND_TEXT;
+    questions
+        .iter()
+        .zip(&text.ids)
+        .map(|(questions, id)| QuestionSet {
+            id: id.as_str(),
+            model: DEFAULT_MODEL,
+            questions,
+        })
+        .collect()
+});
+
+/// The find set for a window of `items` items (#567).
+///
+/// It asks a choice `which` over `none` and `1` to `items`, and a noul `present`. Questions are
+/// compiled in, so each count is a set of its own, made once. `None` for no item or more than
+/// [`FIND_WINDOW`].
+#[must_use]
+pub fn find_set(items: usize) -> Option<&'static QuestionSet> {
+    let sets: &'static [QuestionSet] = &FIND_SETS;
+    items.checked_sub(1).and_then(|index| sets.get(index))
+}
+
+/// The label of a find's item `item`, from 1, as the state and the options name it; `None` past
+/// [`FIND_WINDOW`].
+#[must_use]
+pub fn find_label(item: usize) -> Option<&'static str> {
+    let text: &'static FindText = &FIND_TEXT;
+    item.checked_sub(1)
+        .and_then(|index| text.labels.get(index))
+        .map(String::as_str)
 }

@@ -208,7 +208,7 @@ an open decision for the owner, not something Marley forces.
 | C3 | Harness passthrough terminals (D10), observer first, controller claim second | L |
 | C4 | Dispatch: `session.send` and `session.answer` over Marley's MCP, harness messages with delivery states rendered as chips | M |
 | C5 | Work objects: brain tickets, runs and gate evidence as labels on seats and as a native pane; `rw` phase state in the status bar | M |
-| S1 | The System One layer (#565, shipped): typed questions to a model (TypeSafe's Jev first) about states Marley builds, off by default and sent only for listed projects, masked; providers `typesafe`, `compatible`, `rules` and `replay`; the check and Decisions. The stop kind (#566, shipped) is its first use: an idle Claude Code's row says what the stop needs, the rules first and the model for the rest, off by default. The uses that come next: the find tools (#567), stalls (#569), the inbox's order (#568, #570) and consequential clicks (#571) | M |
+| S1 | The System One layer (#565, shipped): typed questions to a model (TypeSafe's Jev first) about states Marley builds, off by default and sent only for listed projects, masked; providers `typesafe`, `compatible`, `rules` and `replay`; the check and Decisions. The stop kind (#566, shipped) is its first use: an idle Claude Code's row says what the stop needs, the rules first and the model for the rest, off by default. The find tools (#567, shipped) are the second: `browser_find` and `terminal_find` answer an element or a line from words, the words first and the model for the rest, listed only while on. The uses that come next: stalls (#569), the inbox's order (#568, #570) and consequential clicks (#571) | M |
 
 ### Risks
 
