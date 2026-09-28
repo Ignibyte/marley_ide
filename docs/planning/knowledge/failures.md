@@ -2511,3 +2511,29 @@ An episode counted its checks asked one at a time. A seat already quiet past sev
 the use was turned on would have been asked at every tick, once for each check it had passed, as
 soon as each answer came back. Fixed before the first run: an ask counts every check the quiet has
 passed, so a late watch asks once.
+
+## F-claude-571-a-click-by-a-point-would-read-as-plain-001
+*severity: medium · found in: pipeline 571's Code phase (the review of the diff, before any run) · class: a DOM read at a point takes the innermost node · prevented by: none*
+
+`DOM.getNodeForLocation` gives the deepest node under a point: the text or the span inside a
+button, not the button. A click by `x` and `y` also has no snapshot's role or name, so the first
+facts read gave a span with no name, and "Place order" clicked by its point would have read as
+plain and gone at once, around every name rule. Fixed before the first run: the facts function
+climbs from the node to the element a click commits and gives that element's role and name.
+
+## F-claude-571-the-cards-buttons-would-hand-it-the-focus-as-it-left-001
+*severity: low · found in: pipeline 571's Code phase (the review of the diff) · class: a child's click bubbling into a parent's focus handler · prevented by: PR-claude-a-button-in-a-card-that-takes-the-focus-stops-its-click-001*
+
+The pause's card takes the focus on a click, so Enter and Escape answer it only after the user
+chooses to. Its Refuse and Allow buttons answered the pause, and their clicks then bubbled to the
+card's own handler, which focused the card just as the answer removed it, leaving the window with
+no focused element and the page without its keys. Fixed before the first run: the buttons stop
+their clicks' propagation.
+
+## F-claude-571-a-page-gone-in-a-pause-read-as-a-refusal-001
+*severity: low · found in: pipeline 571's Code phase (the review of the diff) · class: a dropped channel read as one of its answers · prevented by: none*
+
+The pause waited on a one-shot channel whose sender lives on the page's state, and read a
+dropped sender as "refused". A page closed during a pause would have told the agent the user
+refused it, and logged that outcome. Fixed before the first run: a dropped sender is its own end,
+`gone`, and the agent reads that the page went away.

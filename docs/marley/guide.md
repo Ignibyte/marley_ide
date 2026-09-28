@@ -573,7 +573,8 @@ fleet stays empty until prong 2 feeds it, and a session write is refused, since 
   `browser.write`, and nothing else, when it starts the server. No setting changes that today.
 - The checks on the browser's write tools are your agent client's approval of each call (Claude
   Code asks by default) and the Browser tab, where every action happens in front of you and the
-  Agent chip names it.
+  Agent chip names it. With the click consequence on, a consequential click also waits for you
+  (see "The click consequence").
 - The server listens on 127.0.0.1 only, refuses a request whose `Origin` is not loopback, takes
   bodies up to 1 MiB, and never logs the token.
 - No tool runs script an agent supplies, and an agent may navigate to `http` and `https` URLs only.
@@ -900,6 +901,37 @@ flag: the flag only marks the row.
 - Each reading is a row in Decisions, a loop's under the provider `rules`, and what came next is
   its outcome in the day's file: how long until the agent's next event, and which it was.
 
+### The click consequence
+
+With its mode on, an agent's click in a Browser tab that pays, deletes, sends in your name or
+changes an account waits for you (#571). A card under the tab's toolbar says who wants to click
+what and why, as in "Claude Code wants to click button “Place order”, which pays (its name), on
+shop.example", with Refuse and Allow, and a toast with Show points you to it.
+
+- Allow clicks, but only the same element on the same page: if the page changed under the pause,
+  nothing is clicked. Refuse, or 25 seconds with no answer, tells the agent you did not allow it,
+  so its next move is to ask you. While a click waits, the tab's other writes wait too.
+- The card never takes the focus by itself, so a key you meant for the page never answers it.
+  Click Refuse or Allow, or click the card (or the toast's Show), then press Enter to allow or
+  Escape to refuse.
+- Marley's own rules decide first and send nothing: the element's name ("Place order", "Delete
+  account", "Send", "Change password" and the like), a form that posts to a checkout or a delete,
+  a link to one, and the page's words around the element. A plain click, such as "Next" or
+  "Cancel", goes at once.
+- What the rules leave open, a "Continue" among text about a charge, may be read by the model,
+  for a listed project only, with the element's name, its form's target, the page's path and
+  title and the text around it, masked as above. A reading can add a pause, never remove one.
+- By default only agents with no permission prompt of their own wait: Claude Code in a Marley
+  terminal running `bypassPermissions` or `dontAsk`, Zed's agent while its tool permissions let
+  `browser_click` run without asking, and any caller Marley cannot name. Browser Click Pause
+  Agents on the settings page (`browser_click_pause_agents`: `agents_without_prompts`, or
+  `all_agents`) makes every agent wait.
+- The mode is Click Consequence on the settings page, or `uses.click_consequence`: Off (the
+  default) pauses nothing; Shadow pauses on the rules and logs the model's reading; Suggest adds a
+  notice after a click the model reads as consequential; Act pauses on that reading too.
+- Each pause is a row in Decisions, a rule's under the provider `rules`, with how it ended, and
+  the flight recorder keeps the pause and its end.
+
 ### Decisions
 
 `marley: open decisions` opens a tab with the day's calls, newest first: the time, the use, the
@@ -972,6 +1004,7 @@ table lists Marley's bindings and the Zed keys whose meaning Marley changes or r
 | Enter, Escape | An annotation's note | Keeps the box; drops it |
 | Delete, Backspace | A selected annotation | Removes it |
 | Enter, Escape | A page's dialog | OK; Cancel |
+| Enter, Escape | A paused click's card, once clicked | Allow; Refuse |
 | Alt+Down, F4, Space | A focused select list | Opens Marley's list |
 | Up, Down, Enter, Escape | An open select list | Moves; chooses; closes |
 

@@ -597,7 +597,8 @@ class Client:
         threading.Thread(target=self.pump, daemon=True).start()
         self.call(
             "initialize",
-            {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "e2e", "version": "0"}},
+            {"protocolVersion": "2025-06-18", "capabilities": {},
+             "clientInfo": {"name": os.environ.get("MCP_CLIENT_NAME", "e2e"), "version": "0"}},
         )
         self.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
 

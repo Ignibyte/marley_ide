@@ -5,6 +5,8 @@
 
 use std::fmt;
 
+use serde_json::Value;
+
 use crate::auth::ct_eq;
 use crate::clients::Principal;
 
@@ -34,18 +36,40 @@ pub const CLIENT_SESSION_CAP: usize = 4;
 /// out).
 pub const SESSION_TTL_MS: u64 = 1_800_000;
 
+/// The most characters of a client's name a session keeps (#571).
+pub const MAX_CLIENT_NAME: usize = 64;
+
+/// The name an `initialize` request's `params` give their client (`clientInfo.name`, #571).
+///
+/// It keeps [`MAX_CLIENT_NAME`] printable ASCII characters. The name is the client's own word, a
+/// courtesy that sorts callers, never an authority.
+#[must_use]
+pub fn client_name_of(params: &Value) -> Option<String> {
+    let name: String = params
+        .get("clientInfo")?
+        .get("name")?
+        .as_str()?
+        .chars()
+        .filter(|character| character.is_ascii_graphic() || *character == ' ')
+        .take(MAX_CLIENT_NAME)
+        .collect();
+    let name = name.trim();
+    (!name.is_empty()).then(|| name.to_string())
+}
+
 /// A new session could not be admitted — the registry is at [`SESSION_CAP`]. The caller refuses the
 /// `initialize` (never evicts an existing session — D4).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionFull;
 
-/// One live session: its id, the principal that opened it (#524), and the epoch-millis of its last
-/// validated use (#379 — the idle clock).
+/// One live session: its id, the principal that opened it (#524), the epoch-millis of its last
+/// validated use (#379 — the idle clock), and the name its client gave (#571).
 #[derive(Clone, PartialEq, Eq)]
 struct SessionEntry {
     id: String,
     owner: Principal,
     last_seen_ms: u64,
+    client: Option<String>,
 }
 
 /// Whether `a` and `b` are the same principal for a session: Marley, or the client of one name.
@@ -105,8 +129,32 @@ impl SessionRegistry {
             id,
             owner,
             last_seen_ms: now,
+            client: None,
         });
         Ok(())
+    }
+
+    /// Keeps `client` as the name the client of session `id` gave at `initialize` (#571).
+    /// Constant-time over all entries, as [`Self::touch`] is.
+    pub fn name_client(&mut self, id: &str, client: Option<&str>) {
+        for stored in &mut self.entries {
+            if ct_eq(&stored.id, id) {
+                stored.client = client.map(str::to_string);
+            }
+        }
+    }
+
+    /// The name the client of session `id` gave at `initialize`, if it gave one (#571).
+    /// Constant-time over all entries, as [`Self::validate`] is.
+    #[must_use]
+    pub fn client_of(&self, id: &str) -> Option<String> {
+        let mut client = None;
+        for stored in &self.entries {
+            if ct_eq(&stored.id, id) {
+                client.clone_from(&stored.client);
+            }
+        }
+        client
     }
 
     /// Whether `id` is a live session of `owner`: another principal's session is unknown to it

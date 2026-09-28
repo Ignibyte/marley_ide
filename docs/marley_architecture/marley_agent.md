@@ -76,7 +76,8 @@ pub fn is_compact_continuation(prompt: &str) -> bool;
   for finishes or the turn ends, `Stop` idle, `StopFailure` failed, a subagent's events move
   only a count, and a new session id starts the seat over.
 - The labels carry the prompt, the lead's tool line, the last message, the error, the
-  subagent count and the session's id, transcript, directory and permission mode, and, for the
+  subagent count and the session's id, transcript, directory and permission mode (its key is
+  `PERMISSION_MODE_LABEL` since #571, which the stall watch and the click pause read), and, for the
   fold itself, the tools in flight by call id (`lead_tool:`, `subagent_tool:`) and the call a
   wait ends with (`waiting_on`), so `fold` needs nothing but the previous seat.
 - `seat_line` gives a working seat whose last event is at least `no_update_after_ms` old

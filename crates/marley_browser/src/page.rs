@@ -30,6 +30,80 @@ const DESCRIBE_ELEMENT: &str = "function () { return { tag: this.tagName.toLower
 kind: typeof this.type === 'string' ? this.type : null, \
 value: this.type === 'password' || typeof this.value !== 'string' ? null : this.value }; }";
 
+/// What an element an agent is about to click says of its form, its link and the text around it
+/// (#571). The node may be the text or the span inside a button, as a point's is, so it climbs to
+/// the element a click commits: its role and name come from there when no snapshot gave them. It
+/// runs in an isolated world and reads through the DOM's own prototypes, so neither the page's
+/// scripts nor its named elements, which shadow a form's and the document's properties, change
+/// what it finds. The text is cut to 4,000 characters, well past the 300 a state keeps.
+const CLICK_FACTS: &str = "function () { \
+const call = (method, target, ...rest) => Element.prototype[method].call(target, ...rest); \
+const attribute = (target, name) => (target ? call('getAttribute', target, name) : null); \
+const resolve = (value) => { try { return new URL(value || location.href, location.href).href; } \
+catch (error) { return ''; } }; \
+const text = (target) => Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'innerText').get.call(target); \
+const body = Object.getOwnPropertyDescriptor(Document.prototype, 'body').get.call(document); \
+const node = this.nodeType === 1 ? this : this.parentElement; \
+if (!node) { return null; } \
+const target = call('closest', node, 'button, a[href], input, select, textarea, summary, \
+[role=button], [role=link], [role=menuitem], [role=tab], [role=checkbox], [role=radio], \
+[role=switch], [role=option]') || node; \
+const tag = String(target.tagName || '').toLowerCase(); \
+const kind = typeof target.type === 'string' ? target.type.toLowerCase() : null; \
+const inputs = { checkbox: 'checkbox', radio: 'radio', submit: 'button', button: 'button', \
+image: 'button', reset: 'button', search: 'searchbox' }; \
+const implicit = tag === 'a' ? 'link' : tag === 'button' || tag === 'summary' ? 'button' \
+: tag === 'select' ? 'combobox' : tag === 'textarea' ? 'textbox' \
+: tag === 'input' ? (inputs[kind] || 'textbox') : ''; \
+const form = call('closest', target, 'form'); \
+const override = form ? call('querySelector', form, 'input[name=_method]') : null; \
+const link = call('closest', target, 'a[href]'); \
+const around = call('closest', target, 'form, dialog, [role=dialog], [role=alertdialog], section, main') || body; \
+const words = (value) => String(value || '').replace(/\\s+/g, ' ').trim(); \
+return { \
+tag, kind, \
+role: attribute(target, 'role') || implicit, \
+name: words(attribute(target, 'aria-label') || text(target) || attribute(target, 'value') \
+|| attribute(target, 'title')).slice(0, 200), \
+in_form: form !== null, \
+action: form ? resolve(attribute(target, 'formaction') || attribute(form, 'action')) : '', \
+method: form ? String(attribute(override, 'value') || attribute(target, 'formmethod') \
+|| attribute(form, 'method') || 'get').toLowerCase() : '', \
+text_area: form ? call('querySelector', form, 'textarea') !== null : false, \
+fields: form ? Array.from(call('querySelectorAll', form, 'input, textarea, select')) \
+.map((field) => String(attribute(field, 'name') || '').toLowerCase()).filter((name) => name).slice(0, 40) : [], \
+link: link ? resolve(attribute(link, 'href')) : null, \
+context: words(around && text(around)).slice(0, 4000) \
+}; }";
+
+/// What the element under an agent's click says of itself (#571): its role, name, tag and type,
+/// its form, its link and the text around it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NodeFacts {
+    /// The role of the element a click on it commits, from its `role` or its tag.
+    pub role: String,
+    /// That element's name: its `aria-label`, its text, its value or its title.
+    pub name: String,
+    /// Its tag, lowercased.
+    pub tag: String,
+    /// Its `type`, lowercased, for an input or a button.
+    pub input_type: Option<String>,
+    /// Whether it sits in a form.
+    pub in_form: bool,
+    /// Where its form posts, resolved.
+    pub form_action: String,
+    /// How its form posts, lowercased; a framework's `_method` field comes first.
+    pub form_method: String,
+    /// Whether its form holds a text area.
+    pub form_has_text_area: bool,
+    /// Its form's fields' names, lowercased, at most 40.
+    pub form_fields: Vec<String>,
+    /// The target of the link it is in, resolved.
+    pub link: Option<String>,
+    /// The text of the form, dialog, section or main around it, at most 4,000 characters.
+    pub context: String,
+}
+
 /// Who the browser says it is to the pages it shows (#539).
 ///
 /// It is Chromium's own user agent without its headless marker, and the client-hint fields CDP
@@ -959,13 +1033,22 @@ impl Page {
 
     /// An isolated world in the main frame, where Marley's own scripts run unseen by the page's.
     async fn isolated_context(&self) -> Result<i64, CdpError> {
-        let tree = self.call("Page.getFrameTree", json!({})).await?;
+        self.isolated_context_in(&self.session_id).await
+    }
+
+    /// An isolated world in the main frame of `session`, one of this browser's: the page's, or a
+    /// cross-site iframe's.
+    async fn isolated_context_in(&self, session: &str) -> Result<i64, CdpError> {
+        let tree = self
+            .call_in(session, "Page.getFrameTree", json!({}))
+            .await?;
         let frame_id = tree
             .pointer("/frameTree/frame/id")
             .and_then(Value::as_str)
             .ok_or_else(|| CdpError::Unexpected("the page has no main frame".to_string()))?;
         let world = self
-            .call(
+            .call_in(
+                session,
                 "Page.createIsolatedWorld",
                 json!({ "frameId": frame_id, "worldName": "marley" }),
             )
@@ -974,6 +1057,130 @@ impl Page {
             .get("executionContextId")
             .and_then(Value::as_i64)
             .ok_or_else(|| CdpError::Unexpected("the isolated world has no context".to_string()))
+    }
+
+    /// What the DOM node `backend_node_id` of `session` says of itself (#571), read in an
+    /// isolated world of the session's main frame, or in the node's own frame's world when the
+    /// node is in another frame of the session.
+    ///
+    /// # Errors
+    ///
+    /// When a call fails, as it does for a node that is gone.
+    pub async fn node_facts(
+        &self,
+        session: &str,
+        backend_node_id: i64,
+    ) -> Result<NodeFacts, CdpError> {
+        let isolated = match self.isolated_context_in(session).await {
+            Ok(context) => self
+                .call_in(
+                    session,
+                    "DOM.resolveNode",
+                    json!({ "backendNodeId": backend_node_id, "executionContextId": context }),
+                )
+                .await
+                .ok(),
+            Err(_) => None,
+        };
+        let resolved = match isolated {
+            Some(resolved) => resolved,
+            None => {
+                self.call_in(
+                    session,
+                    "DOM.resolveNode",
+                    json!({ "backendNodeId": backend_node_id }),
+                )
+                .await?
+            }
+        };
+        let object = resolved
+            .pointer("/object/objectId")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .ok_or_else(|| CdpError::Unexpected("the node resolved to no object".to_string()))?;
+        let read = self
+            .call_in(
+                session,
+                "Runtime.callFunctionOn",
+                json!({
+                    "objectId": object,
+                    "functionDeclaration": CLICK_FACTS,
+                    "returnByValue": true,
+                }),
+            )
+            .await;
+        self.call_in(
+            session,
+            "Runtime.releaseObject",
+            json!({ "objectId": object }),
+        )
+        .await?;
+        let read = read?;
+        let fields = read.pointer("/result/value").cloned().unwrap_or_default();
+        let text = |name: &str| {
+            fields
+                .get(name)
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .unwrap_or_default()
+        };
+        Ok(NodeFacts {
+            role: text("role"),
+            name: text("name"),
+            tag: text("tag"),
+            input_type: fields
+                .get("kind")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            in_form: fields
+                .get("in_form")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            form_action: text("action"),
+            form_method: text("method"),
+            form_has_text_area: fields
+                .get("text_area")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            form_fields: fields
+                .get("fields")
+                .and_then(Value::as_array)
+                .map(|names| {
+                    names
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default(),
+            link: fields
+                .get("link")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            context: text("context"),
+        })
+    }
+
+    /// The DOM node at the point `x`, `y` of the page's viewport, as its backend node id (#571).
+    ///
+    /// # Errors
+    ///
+    /// When the call fails, as it does where no node is.
+    pub async fn node_at(&self, x: f64, y: f64) -> Result<i64, CdpError> {
+        let found = self
+            .call(
+                "DOM.getNodeForLocation",
+                json!({
+                    "x": crate::pick::whole_pixels(x, u32::MAX),
+                    "y": crate::pick::whole_pixels(y, u32::MAX),
+                    "ignorePointerEventsNone": true,
+                }),
+            )
+            .await?;
+        found
+            .get("backendNodeId")
+            .and_then(Value::as_i64)
+            .ok_or_else(|| CdpError::Unexpected("no node is at the point".to_string()))
     }
 
     /// Acknowledges frame `frame`, which lets Chromium send the next: an unacknowledged stream

@@ -740,7 +740,7 @@ fn cut(capture: &str, page_box: PageBox, viewport: PageBox) -> Result<String, Cd
 }
 
 /// `length` rounded to whole pixels, from 0 to `limit`.
-fn whole_pixels(length: f64, limit: u32) -> u32 {
+pub(crate) fn whole_pixels(length: f64, limit: u32) -> u32 {
     let clamped = length.round().clamp(0.0, f64::from(limit));
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // rounded, from 0 to a u32
     let whole = clamped as u32;

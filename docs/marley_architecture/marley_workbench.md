@@ -637,6 +637,38 @@ alike.
   `IconName::Warning` in `Color::Warning` before the row's end, with an id of its own for the
   tooltip, so it stays while the pointer over the row shows the close button.
 
+## The pause before a consequential click (`src/click_pause.rs`, #571)
+
+- `Who::of(call)` sorts a browser call's caller when `browser_tools::answer` takes it: an
+  outside client (#524) is unknown; a call from a Marley terminal (#520, `mcp::caller_terminal`)
+  asks first unless its Claude Code seat's `permission_mode` is `bypassPermissions` or `dontAsk`,
+  and one with no Claude Code there is unknown; with no terminal, a session whose client named
+  itself `Zed` asks first unless Zed's `agent.tool_permissions` give `mcp:marley:browser_click`
+  (or, unset, the default) `allow`, and any other caller is unknown. Unknown callers do not ask.
+- `before_click(Click { page, tab, target, point, what }, who)` runs before `click` and before
+  the click `type_text` makes for a ref (`browser_tools::paused_point`). With the use off, or a
+  caller that asks first under `agents_without_prompts`, it does nothing. Else it reads the
+  element (`Page::node_facts`, or `node_at` for a point), classifies it, and: a plain click goes;
+  a rule's class is a `rules` row and a pause; an open one is asked (`system_one::ask`,
+  `CLICK_CONSEQUENCE`), and in `act` a noul that holds pauses, in `suggest` a notice follows the
+  click, in `shadow` the reading is only logged. A read that fails is open unless the rules
+  already pause.
+- `hold` parks the click on the tab's page state (`BrowserHub::pause_click`, a `PendingClick`
+  with a one-shot answer), shows the toast, and waits for the answer, the page's going or 25
+  seconds. Allow clicks only when `same_element` finds the same page and the same element, role,
+  name and tag, under the ref or the point; the refusal the agent reads says the user refused,
+  did not answer, or the page changed or went. The pause's end is the outcome of the call that
+  decided it (`allowed after 3 s`), and the recorder keeps `paused:` and how it ended.
+- While a click waits, `run` refuses the tab's other writes (`not_paused`: the `WRITES` set,
+  `browser_navigate` and `browser_check_pick` on that tab), and a second pause in the tab is
+  refused too.
+- The card (`BrowserView::render_pause`, drawn by `pause_bar` under the toolbar) has its own
+  focus handle and never takes the focus by itself: Refuse and Allow are buttons whose clicks go
+  no further, a click on the card focuses it, and only then do Enter and Escape answer it
+  (`MarleyBrowserPause`, `marley::AllowPausedClick`, `marley::RefusePausedClick`).
+  `show_pause_toast` names the click with Show (`show_paused`: the tab in front, its workspace
+  active, the focus on the card), and `dismiss_pause_toast` takes it away.
+
 ## Asking before a close ends a working agent (`src/close_guard.rs`, #550)
 
 - Zed's close paths ask `workspace::MarleyCloseGuard`, which `close_guard::init` sets: a tab's

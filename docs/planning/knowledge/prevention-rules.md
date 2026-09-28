@@ -2504,3 +2504,10 @@ sends them: a fact holds only what code computed, such as a name, a count, a sta
 in words. Text an agent or the user wrote, such as a command, a tool's input, a path or a prompt,
 goes in with `StateBuilder::text`, which masks it whole, cuts it to 300 characters and leaves it
 out at `Detail::Facts`. Name the tool as a fact and put its line in as text.
+
+## PR-claude-a-button-in-a-card-that-takes-the-focus-stops-its-click-001
+*severity: low · prevents: F-claude-571-the-cards-buttons-would-hand-it-the-focus-as-it-left-001*
+
+A gpui element whose `on_click` takes the focus hands it the clicks of its children too, since a
+click bubbles up after the child's handler. A button inside such an element calls
+`cx.stop_propagation()` in its own handler, above all when the handler removes the element.

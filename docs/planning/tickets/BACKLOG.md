@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-571](open/TICKET-571-pause-before-a-consequential-click.md) | feature | prong 3 with prong 2 · an agent's click that pays, deletes, sends or changes an account waits on Allow or Refuse in the Browser tab, by default only for agents with no prompt of their own; rules first, a System One noul second; on #565 |
 | [TICKET-508](open/TICKET-508-approvals-inbox.md) | feature | prong 2 · every agent's pending permission prompt in one list in the rail; on #519 |
 | [TICKET-568](open/TICKET-568-inbox-order-and-risk-chips.md) | feature | prong 2 · #508's inbox ordered by level then age, with risk chips from code's rules and chips the model may add but never remove; approves nothing; on #508 and #565 |
 | [TICKET-570](open/TICKET-570-who-answers-a-question.md) | feature | prong 2 · each inbox entry marked for you, the manager, could proceed or unclear, from #568's chips first and a System One choice second; refines #568's order within a level; Marley answers nothing; on #565 |

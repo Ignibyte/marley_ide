@@ -17,7 +17,8 @@
 //! recording. [`title`] reports a title a page's script sets after the load, which Chromium
 //! sends no event for (#582). Since #583 Chromium speaks CDP on its pipe to [`relay`], a
 //! hidden mode of Marley's executable in the same unit, which Marley reaches through a Unix
-//! socket and other clients through a loopback WebSocket that takes a token.
+//! socket and other clients through a loopback WebSocket that takes a token. [`consequence`]
+//! reads whether an agent's click pays, deletes, sends or changes an account (#571).
 //! The Browser tab that shows the page is `marley_workbench`'s
 //! (`docs/marley/three-prong-plan.md`, prong 3).
 
@@ -38,6 +39,7 @@
 
 pub mod address;
 pub mod cdp;
+pub mod consequence;
 pub mod favicon;
 pub mod frame;
 pub mod input;

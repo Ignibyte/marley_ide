@@ -238,6 +238,33 @@ for.
   `Ctrl+A` or `Shift+ArrowLeft` into a key press; `address::agent_url` lets an agent open `http`
   and `https` URLs only.
 
+## Consequential clicks (`src/consequence.rs`, `src/page.rs`, #571)
+
+- `consequence::classify(facts) -> Verdict { class, because }` decides what an agent's click
+  does from `ClickFacts` (the role and name, the tag and the input's type, the form's resolved
+  target, method, text area and fields, a link's target, the text around the element and the
+  page's URL). `Class` is `Pays`, `Deletes`, `Sends`, `ChangesAccount`, `Open` or `Plain`; the
+  first four pause (`pauses`), `noul` names the System One layer's question for each, and
+  `because` says what the class rests on (`its name`, `its form posts to /checkout`).
+- The rules, first match wins: a role that only chooses or types (a textbox, a checkbox, a tab,
+  an option and the like); a consequential name, as whole words (`place order`, `delete`,
+  `send`, `change password` and the rest of the lists); a plain name (`cancel`, `back`, `next`,
+  `close` and the like), so "Back" on a checkout page stays plain and "Cancel subscription"
+  still deletes; a form that deletes (a framework's `_method` field), or a form's or a link's
+  target whose path says what it does; an open name (`continue`, `confirm`, `ok`, …) on a link,
+  or any name on anything else, among text that speaks of a charge, a currency, a password or
+  what cannot be undone, which is `Open`; else `Plain`.
+- `Page::node_facts(session, backend_node_id) -> NodeFacts` reads the element in one call of a
+  fixed function (`CLICK_FACTS`), never an agent's script: it climbs from the node to the element
+  a click commits (a button, a link, an input, a role that clicks), whose role, name, tag, form,
+  link and nearby text (the form, dialog, section or main around it, 4,000 characters at most) it
+  gives. It runs in an isolated world of the session's main frame where the node resolves there,
+  else in the node's own, and it reads through the DOM's own prototypes, since a form's named
+  controls and the document's named elements shadow their properties even there.
+  `Page::node_at(x, y)` finds the node under a point (`DOM.getNodeForLocation`), with
+  `pick::whole_pixels` for its integers. `isolated_context_in(session)` makes the world in any of
+  the page's sessions.
+
 ## Select lists (`src/select.rs`, #495)
 
 - Headless Chromium opens a `<select>`'s popup in a widget no frame shows. `LISTENER`, a script

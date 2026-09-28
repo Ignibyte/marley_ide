@@ -142,6 +142,11 @@ OR Apache-2.0, with the Marley crates' lint table.
   the app on each `AppCall` (`AppCall::caller`). A malformed value names nothing and never refuses
   a call; the caller is a default for what a call that names no terminal acts on, never an
   authority, since the bearer gates every call.
+- Since #571 a session keeps the name its client gave at `initialize` (`client_name_of`,
+  `clientInfo.name`, printable ASCII, at most `MAX_CLIENT_NAME` characters): the session gate
+  (`gate`) names it on the new session (`SessionRegistry::name_client`), and `serve_post` reads it
+  under the same lock for each request (`client_of`) into `Caller::client`, a courtesy that sorts
+  callers, such as Zed's agent, which names itself `Zed`.
 
 ## Outside clients (`clients.rs`, #524)
 

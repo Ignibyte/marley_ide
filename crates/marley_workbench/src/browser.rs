@@ -88,10 +88,10 @@ use workspace::{
 
 use crate::playwright_scripts::{self, RunTarget, Scope, Script};
 use crate::{
-    Annotate, AnswerDialog, BrowserBack, BrowserForward, BrowserReload, ClearProjectBrowserData,
-    DismissDialog, DropAnnotation, FocusAddressBar, GoToAddress, KeepAnnotation, NewBrowserTab,
-    NewPlaywrightScript, OpenBrowser, PickElement, PlaywrightScripts, RecordThis, RestoreAddress,
-    SendPick,
+    AllowPausedClick, Annotate, AnswerDialog, BrowserBack, BrowserForward, BrowserReload,
+    ClearProjectBrowserData, DismissDialog, DropAnnotation, FocusAddressBar, GoToAddress,
+    KeepAnnotation, NewBrowserTab, NewPlaywrightScript, OpenBrowser, PickElement,
+    PlaywrightScripts, RecordThis, RefusePausedClick, RestoreAddress, SendPick,
 };
 
 /// How many times, a tenth of a second apart, a start waits for Chromium to write its endpoint
@@ -398,12 +398,24 @@ struct PageState {
     agent_unseen: Option<Instant>,
     /// The outside client that acted in the page last, and when (#524).
     driven_by: Option<(SharedString, Instant)>,
+    /// An agent's click the page's tab holds for the user (#571).
+    pause: Option<PendingClick>,
     screencasting: bool,
     /// The mouse buttons held in the page, in CDP's bits, so a drag that leaves the tab still
     /// reaches the page, its release too.
     held_buttons: u32,
     /// When the oldest input that no frame has shown yet was sent.
     input_at: Option<Instant>,
+}
+
+/// An agent's click a tab holds until the user allows or refuses it (#571).
+struct PendingClick {
+    /// What the card says: who wants to click what, and why it waits.
+    sentence: SharedString,
+    /// The outside client that asked, for the recorder (#524).
+    by: Option<SharedString>,
+    /// Where the answer goes: true to allow.
+    answer: Option<oneshot::Sender<bool>>,
 }
 
 impl PageState {
@@ -437,6 +449,7 @@ impl PageState {
             held_buttons: 0,
             input_at: None,
             favicon: None,
+            pause: None,
             agent_unseen: None,
             driven_by: None,
         }
@@ -2432,6 +2445,81 @@ impl BrowserHub {
             .cloned()
     }
 
+    /// Holds an agent's click in `target` until the user answers (#571): the card shows under the
+    /// tab's toolbar and the recorder notes it. The receiver gives true for Allow. None when the
+    /// page is gone or already holds a click.
+    pub(crate) fn pause_click(
+        &mut self,
+        target: &str,
+        sentence: SharedString,
+        by: Option<SharedString>,
+        cx: &mut Context<Self>,
+    ) -> Option<oneshot::Receiver<bool>> {
+        let page = self.page_state_mut(target)?;
+        if page.pause.is_some() {
+            return None;
+        }
+        let (sender, receiver) = oneshot::channel();
+        let recorded = RecordedEntry::Agent {
+            did: format!("paused: {sentence}"),
+            by: by.as_ref().map(ToString::to_string),
+        };
+        page.pause = Some(PendingClick {
+            sentence,
+            by,
+            answer: Some(sender),
+        });
+        self.record_entry(target, recorded);
+        cx.notify();
+        Some(receiver)
+    }
+
+    /// Whether `target`'s tab holds an agent's click (#571).
+    pub(crate) fn is_paused(&self, target: &str) -> bool {
+        self.page_state(target)
+            .is_some_and(|page| page.pause.is_some())
+    }
+
+    /// What the card of the click `target`'s tab holds says (#571).
+    fn pause_sentence(&self, target: &str) -> Option<SharedString> {
+        self.page_state(target)?
+            .pause
+            .as_ref()
+            .map(|pause| pause.sentence.clone())
+    }
+
+    /// Answers the click `target`'s tab holds: `allow`, or refuse (#571).
+    pub(crate) fn answer_pause(&mut self, target: &str, allow: bool, cx: &mut Context<Self>) {
+        let answer = self
+            .page_state_mut(target)
+            .and_then(|page| page.pause.as_mut())
+            .and_then(|pause| pause.answer.take());
+        if let Some(answer) = answer
+            && answer.send(allow).is_err()
+        {
+            log::debug!("browser: a paused click was answered after its call stopped waiting");
+        }
+        cx.notify();
+    }
+
+    /// Ends the pause of `target` as `how` (`allowed`, `refused`, …) for the recorder (#571).
+    pub(crate) fn end_pause(&mut self, target: &str, how: &str, cx: &mut Context<Self>) {
+        let Some(pause) = self
+            .page_state_mut(target)
+            .and_then(|page| page.pause.take())
+        else {
+            return;
+        };
+        self.record_entry(
+            target,
+            RecordedEntry::Agent {
+                did: format!("{how}: {}", pause.sentence),
+                by: pause.by.as_ref().map(ToString::to_string),
+            },
+        );
+        cx.notify();
+    }
+
     /// Shows the page's Agent chip with what an agent is doing, until it ends; `client` names the
     /// outside client that does it (#524).
     pub fn agent_started(
@@ -3789,6 +3877,72 @@ pub(crate) fn tab_workspaces(cx: &mut App) -> Vec<(String, WeakEntity<Workspace>
         .collect()
 }
 
+/// The toasts of paused clicks (#571), one per page.
+struct PausedClick;
+
+/// The workspace of the tab showing the page `target` (#571).
+pub(crate) fn tab_workspace(target: &str, cx: &mut App) -> Option<Entity<Workspace>> {
+    view_of(target, cx)?.read(cx).workspace.upgrade()
+}
+
+/// Shows the toast of the click `target`'s tab holds (#571), whose Show brings the tab forward
+/// with the focus on the card.
+pub(crate) fn show_pause_toast(target: &str, message: String, cx: &mut App) {
+    let Some(workspace) = tab_workspace(target, cx) else {
+        return;
+    };
+    let target = target.to_string();
+    let id = NotificationId::composite::<PausedClick>(SharedString::from(target.clone()));
+    let toast = Toast::new(id, message).on_click("Show", move |window, cx| {
+        show_paused(&target, window, cx);
+    });
+    workspace.update(cx, |workspace, cx| workspace.show_toast(toast, cx));
+}
+
+/// Takes the toast of `target`'s paused click away (#571).
+pub(crate) fn dismiss_pause_toast(target: &str, cx: &mut App) {
+    let Some(workspace) = tab_workspace(target, cx) else {
+        return;
+    };
+    let id = NotificationId::composite::<PausedClick>(SharedString::from(target.to_string()));
+    workspace.update(cx, |workspace, cx| workspace.dismiss_toast(&id, cx));
+}
+
+/// Shows a notice that is gone in a few seconds, in the workspace of `target`'s tab (#571).
+pub(crate) fn show_click_notice(target: &str, message: String, cx: &mut App) {
+    let Some(workspace) = tab_workspace(target, cx) else {
+        return;
+    };
+    let id =
+        NotificationId::composite::<PausedClick>(SharedString::from(format!("{target}-notice")));
+    workspace.update(cx, |workspace, cx| {
+        workspace.show_toast(Toast::new(id, message).autohide(), cx);
+    });
+}
+
+/// The user's Show on a paused click's toast (#571): its tab in front, its workspace active, and
+/// the focus on the card, where Enter allows and Escape refuses.
+fn show_paused(target: &str, window: &mut Window, cx: &mut App) {
+    let Some(view) = view_of(target, cx) else {
+        return;
+    };
+    let Some(workspace) = view.read(cx).workspace.upgrade() else {
+        return;
+    };
+    if let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten()
+        && multi_workspace.read(cx).workspace() != &workspace
+    {
+        multi_workspace.update(cx, |multi_workspace, cx| {
+            multi_workspace.activate(workspace.clone(), None, window, cx);
+        });
+    }
+    workspace.update(cx, |workspace, cx| {
+        workspace.activate_item(&view, true, true, window, cx);
+    });
+    let focus = view.read(cx).pause_focus.clone();
+    window.focus(&focus, cx);
+}
+
 /// The tab showing the page `target`.
 fn view_of(target: &str, cx: &mut App) -> Option<Entity<BrowserView>> {
     live_views(cx)
@@ -4192,6 +4346,8 @@ pub struct BrowserView {
     address_bar: Entity<Editor>,
     /// The focus of a dialog card with no field.
     dialog_focus: FocusHandle,
+    /// The focus of a paused click's card (#571), which only the user gives it.
+    pause_focus: FocusHandle,
     /// A `prompt` dialog's field.
     prompt_field: Entity<Editor>,
     /// The frame this tab drew last, which the window may present again.
@@ -4400,6 +4556,7 @@ impl BrowserView {
             focus_handle,
             address_bar,
             dialog_focus: cx.focus_handle(),
+            pause_focus: cx.focus_handle(),
             prompt_field,
             current_frame: None,
             previous_frame: None,
@@ -4693,6 +4850,93 @@ impl BrowserView {
             self.hub
                 .update(cx, |hub, cx| hub.answer_dialog(&target, false, None, cx));
         }
+    }
+
+    fn allow_paused_click(
+        &mut self,
+        _: &AllowPausedClick,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.answer_pause(true, window, cx);
+    }
+
+    fn refuse_paused_click(
+        &mut self,
+        _: &RefusePausedClick,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.answer_pause(false, window, cx);
+    }
+
+    /// Answers the click the tab holds (#571), and gives the focus back to the page when the card
+    /// had it.
+    fn answer_pause(&self, allow: bool, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(target) = self.target.clone() else {
+            return;
+        };
+        self.hub
+            .update(cx, |hub, cx| hub.answer_pause(&target, allow, cx));
+        if self.pause_focus.contains_focused(window, cx) {
+            window.focus(&self.focus_handle, cx);
+        }
+    }
+
+    /// The bar of the click the tab holds, when it holds one (#571).
+    fn pause_bar(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        let target = self.target.as_deref()?;
+        let sentence = self.hub.read(cx).pause_sentence(target)?;
+        Some(self.render_pause(sentence, cx).into_any_element())
+    }
+
+    /// The click the tab holds (#571), as a bar under the toolbar with Refuse and Allow. It takes
+    /// the focus only from the user, by a click on it or the toast's Show, so a key meant for the
+    /// page never answers it.
+    fn render_pause(&self, sentence: SharedString, cx: &Context<Self>) -> impl IntoElement + use<> {
+        let status = cx.theme().status();
+        h_flex()
+            .id("marley-browser-pause")
+            .debug_selector(|| "marley-browser-pause".to_string())
+            .key_context("MarleyBrowserPause")
+            .track_focus(&self.pause_focus)
+            .on_action(cx.listener(Self::allow_paused_click))
+            .on_action(cx.listener(Self::refuse_paused_click))
+            .on_click(cx.listener(|this, _, window, cx| {
+                window.focus(&this.pause_focus, cx);
+            }))
+            .w_full()
+            .flex_none()
+            .px_2()
+            .py_1()
+            .gap_2()
+            .border_b_1()
+            .border_color(status.warning_border)
+            .bg(status.warning_background.opacity(0.4))
+            .child(
+                Icon::new(IconName::Warning)
+                    .size(IconSize::Small)
+                    .color(Color::Warning),
+            )
+            .child(div().flex_1().min_w_0().child(Label::new(sentence)))
+            // A button's click answers the card and goes no further, so the card takes no focus
+            // as it leaves.
+            .child(
+                Button::new("marley-browser-pause-refuse", "Refuse").on_click(cx.listener(
+                    |this, _, window, cx| {
+                        cx.stop_propagation();
+                        this.answer_pause(false, window, cx);
+                    },
+                )),
+            )
+            .child(
+                Button::new("marley-browser-pause-allow", "Allow")
+                    .style(ButtonStyle::Filled)
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        cx.stop_propagation();
+                        this.answer_pause(true, window, cx);
+                    })),
+            )
     }
 
     /// Counts the tab among its page's viewers, from its first paint in front of its pane.
@@ -6520,6 +6764,7 @@ impl Render for BrowserView {
             .size_full()
             .bg(cx.theme().colors().editor_background)
             .child(toolbar)
+            .children(self.pause_bar(cx))
             .children(trays.into_iter().flatten())
             .child(
                 div()

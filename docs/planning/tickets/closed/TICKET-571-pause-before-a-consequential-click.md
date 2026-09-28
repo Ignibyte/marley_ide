@@ -2,13 +2,13 @@
 
 - **Ticket:** LOCAL #571 (feature, prong 3 with prong 2's agent tools; use 6 of the System One layer, on #565)
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/571-pause-before-a-consequential-click.spec.md
+- **Pipeline doc:** ../../pipeline/completed/571-pause-before-a-consequential-click.spec.md
 - **Source ticket:** Chad, 2026-09-26, approving the seven ranked uses of
   `docs/planning/design-notes/jev-system-one-2026-09-25.md` (use 6, "A pause before a
   consequential click") on the layer TICKET-565 builds, with his rules: "local first and then jev
   second", and "we need probably every aspect of this configurable and turned off / on where the
   system will use or wont use it. Otherwise this becomes a jev required system."
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 An agent driving the Browser tab through `browser_click` can press Place order, Delete account or

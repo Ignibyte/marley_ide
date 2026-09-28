@@ -2669,3 +2669,26 @@ mode. Rejected:
   minutes;
 - labels in `shadow`: `fleet_snapshot` publishes every label to agents;
 - a flag taken off at every event: a loop is logged once, so its flag would leave mid-loop.
+
+## AD-claude-571-a-consequential-click-waits-in-the-tab-for-callers-with-no-prompt-001
+*decided at: 2026-09-28 · status: shipped · builds on: AD-claude-565-the-system-one-layer-is-a-pure-core-behind-an-adapter-off-by-default-001, AD-claude-492-agents-drive-the-browser-tab-through-the-mcp-server-001*
+
+An agent's click that pays, deletes, sends in the user's name or changes an account waits in the
+Browser tab until the user allows it, and Allow clicks only the same element on the same page.
+Code decides first, from the element, its form's target, its link and the page's words, and a
+rule's pause is a `rules` row; the System One layer reads only what the rules leave open and may
+add a pause, never remove one. The pause is a card under the toolbar and a toast with Show, 25
+seconds under the transport's 30, and while it waits the tab takes no other write. By default it
+applies to callers with no prompt of their own, sorted per call: the calling terminal's Claude
+Code seat's permission mode (#520), Zed's tool permissions for a session that names itself
+`Zed`, and unknown callers, who wait. The use is off until turned on. Rejected:
+- pausing every agent by default: Claude Code asks before each write by default, so two
+  questions for one click would teach the user to click through;
+- a model that can remove a pause: the page's own words are the model's input, and a hostile page
+  could talk it out of one;
+- keys on the whole tab: an Enter meant for the page would allow a payment, so the card takes the
+  focus only from the user;
+- a host exemption for local servers: a local app can charge a real card through a provider's
+  frame;
+- the client's name as an authority: it and the terminal id are courtesies with the bearer's
+  trust, and `all_agents` is the setting for anyone who wants no sorting.

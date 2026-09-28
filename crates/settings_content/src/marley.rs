@@ -51,6 +51,11 @@ pub struct MarleySettingsContent {
     ///
     /// Default: "local_in_browser_tab"
     pub terminal_links: Option<MarleyTerminalLinks>,
+    /// Which agents' consequential clicks in the Browser tab wait for Allow or Refuse while the
+    /// click consequence's use is on (#571).
+    ///
+    /// Default: "agents_without_prompts"
+    pub browser_click_pause_agents: Option<MarleyClickPauseAgents>,
     /// The System One layer (#565): typed questions to a model about states Marley builds from
     /// what it knows. Off until it is turned on.
     pub system_one: Option<SystemOneSettingsContent>,
@@ -106,7 +111,7 @@ pub struct SystemOneSettingsContent {
     /// Each use's mode, by the use's name.
     ///
     /// Default: {"check": "act", "stop_kind": "off", "browser_find": "off", "terminal_find": "off",
-    /// "stall_kind": "off"}
+    /// "stall_kind": "off", "click_consequence": "off"}
     pub uses: Option<BTreeMap<String, SystemOneMode>>,
 }
 
@@ -191,6 +196,30 @@ pub enum MarleyTerminalLinks {
     AllInBrowserTab,
     /// Every URL in the system browser, as Zed opens them.
     SystemBrowser,
+}
+
+/// Which agents' consequential clicks in the Browser tab wait for Allow or Refuse (#571).
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum MarleyClickPauseAgents {
+    /// Agents that run without a permission prompt of their own, and callers Marley cannot name.
+    #[default]
+    AgentsWithoutPrompts,
+    /// Every agent.
+    AllAgents,
 }
 
 /// A window layout.

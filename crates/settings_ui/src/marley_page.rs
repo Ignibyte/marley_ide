@@ -46,7 +46,7 @@ fn layout_section() -> [SettingsPageItem; 2] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 6] {
+fn agents_section() -> [SettingsPageItem; 7] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -157,6 +157,29 @@ fn agents_section() -> [SettingsPageItem; 6] {
                         .marley
                         .get_or_insert_default()
                         .undo_close_seconds = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: which agents' consequential clicks in the Browser tab wait for Allow (#571).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Browser Click Pause Agents",
+            description: "Whose clicks in a Browser tab that pay, delete, send in your name or change an account wait for Allow or Refuse, while the Click Consequence mode in the System One section is on: agents that run without a permission prompt of their own and callers Marley cannot name, or every agent.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.browser_click_pause_agents"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.browser_click_pause_agents.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .browser_click_pause_agents = value;
                 },
             }),
             metadata: None,
@@ -278,8 +301,9 @@ fn push_section() -> [SettingsPageItem; 4] {
 
 // Marley: the System One layer's switch, provider and budget, and a way to its Decisions view
 // (#565). The project lists, and each use's mode past the check's, the stop kind's (#566), the
-// find tools' (#567) and the stall kind's (#569), live in settings.json.
-fn system_one_section() -> [SettingsPageItem; 12] {
+// find tools' (#567), the stall kind's (#569) and the click consequence's (#571), live in
+// settings.json.
+fn system_one_section() -> [SettingsPageItem; 13] {
     [
         SettingsPageItem::SectionHeader("System One"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -560,6 +584,38 @@ fn system_one_section() -> [SettingsPageItem; 12] {
                     let _before = match value {
                         Some(mode) => uses.insert("stall_kind".to_string(), mode),
                         None => uses.remove("stall_kind"),
+                    };
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: the mode of the click consequence (#571).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Click Consequence",
+            description: "The mode of the click consequence, which holds an agent's click in a Browser tab that pays, deletes, sends in your name or changes an account until you Allow or Refuse it, from Marley's own rules first and the model for a click the rules leave open. Off makes no pause. Shadow pauses on the rules and logs the model, Suggest adds a notice after an open click the model reads as consequential, and Act pauses on it too.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.system_one.uses.click_consequence"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.system_one.as_ref())
+                        .and_then(|system_one| system_one.uses.as_ref())
+                        .and_then(|uses| uses.get("click_consequence"))
+                },
+                write: |settings_content, value, _| {
+                    let uses = settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .system_one
+                        .get_or_insert_default()
+                        .uses
+                        .get_or_insert_default();
+                    let _before = match value {
+                        Some(mode) => uses.insert("click_consequence".to_string(), mode),
+                        None => uses.remove("click_consequence"),
                     };
                 },
             }),

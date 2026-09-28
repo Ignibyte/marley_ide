@@ -57,6 +57,8 @@ pub const SESSION_LABEL: &str = "session_id";
 pub const CWD_LABEL: &str = "cwd";
 /// The label for the user's prompt the lead's latest event belongs to.
 pub const PROMPT_ID_LABEL: &str = "prompt_id";
+/// The label for the session's permission mode, such as `default` or `bypassPermissions`.
+pub const PERMISSION_MODE_LABEL: &str = "permission_mode";
 /// The label for the user's request's [`TurnFacts`], as JSON (#566).
 pub const TURN_LABEL: &str = "turn";
 /// A lead's tool in flight, by its tool call's id.
@@ -370,7 +372,7 @@ impl Moving {
         if event.agent_id.is_none() {
             for (key, value) in [
                 (PROMPT_ID_LABEL, &event.prompt_id),
-                ("permission_mode", &event.permission_mode),
+                (PERMISSION_MODE_LABEL, &event.permission_mode),
                 (CWD_LABEL, &event.cwd),
                 ("transcript_path", &event.transcript_path),
             ] {

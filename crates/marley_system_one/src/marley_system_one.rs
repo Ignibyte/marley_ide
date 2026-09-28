@@ -472,3 +472,51 @@ pub const STALL_KIND: UseSpec = UseSpec {
     set: &STALL_KIND_SET,
     deadline: Duration::from_secs(2),
 };
+
+/// Whether an agent's click in the Browser tab has a consequence the user should allow first
+/// (#571): four nouls about the element the rules left open.
+pub const CLICK_CONSEQUENCE_SET: QuestionSet = QuestionSet {
+    id: "click_consequence/1",
+    model: DEFAULT_MODEL,
+    questions: &[
+        Question::Noul {
+            key: "pays",
+            instructions: "The state is an element of a web page an agent is about to click, with \
+                           its page and the text around it. Would the click spend money: pay, \
+                           buy, order, subscribe or donate?",
+            when_true: "The click spends money or commits to a charge.",
+            when_false: "The click spends no money.",
+        },
+        Question::Noul {
+            key: "deletes",
+            instructions: "Would the click delete or remove something that cannot easily be \
+                           brought back: an item, a file, a message, an account or a \
+                           subscription?",
+            when_true: "The click deletes or removes something for good.",
+            when_false: "The click deletes nothing.",
+        },
+        Question::Noul {
+            key: "sends",
+            instructions: "Would the click send or publish something in the user's name to other \
+                           people: a message, an email, a post, a reply or an invitation?",
+            when_true: "The click sends or publishes something in the user's name.",
+            when_false: "The click sends nothing to anyone.",
+        },
+        Question::Noul {
+            key: "changes_account",
+            instructions: "Would the click change the user's account or its security: a \
+                           password, an email address, two-factor sign-in, keys or tokens, \
+                           members, or access granted to an app?",
+            when_true: "The click changes the account or who can use it.",
+            when_false: "The click leaves the account as it is.",
+        },
+    ],
+};
+
+/// The click consequence (#571), which asks [`CLICK_CONSEQUENCE_SET`] about an agent's click the
+/// rules leave open, inside the pause a click can afford.
+pub const CLICK_CONSEQUENCE: UseSpec = UseSpec {
+    name: "click_consequence",
+    set: &CLICK_CONSEQUENCE_SET,
+    deadline: Duration::from_millis(1500),
+};

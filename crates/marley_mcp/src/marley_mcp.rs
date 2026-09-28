@@ -72,8 +72,8 @@ pub use resource::{
 };
 pub use secret::{EntropyError, hex128, mint_secret};
 pub use session::{
-    CLIENT_SESSION_CAP, SESSION_CAP, SESSION_TTL_MS, SessionDecision, SessionFull, SessionRegistry,
-    session_decision, session_gate,
+    CLIENT_SESSION_CAP, MAX_CLIENT_NAME, SESSION_CAP, SESSION_TTL_MS, SessionDecision, SessionFull,
+    SessionRegistry, client_name_of, session_decision, session_gate,
 };
 pub use tools::{
     SurfaceAck, fleet_snapshot_result, resolve_surface, surface_receipt, surface_result,
@@ -146,9 +146,10 @@ pub struct PendingCall {
 
 /// Who made a tool call, as the Claude Code plugin's bridge reports it (#520).
 ///
-/// It holds the Marley terminal the client runs in, that terminal's project, and the folder the
-/// client runs in. It is a convenience for what a call that names no terminal acts on, never an
-/// authority: the bearer gates every call, and a shell can set its own variables.
+/// It holds the Marley terminal the client runs in, that terminal's project, the folder the
+/// client runs in, and the name the client gave at `initialize` (#571). It is a convenience for
+/// what a call that names no terminal acts on and for sorting callers, never an authority: the
+/// bearer gates every call, and a shell can set its own variables.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Caller {
     /// The caller's `MARLEY_TERMINAL_ID`.
@@ -157,6 +158,8 @@ pub struct Caller {
     pub project: Option<String>,
     /// The folder the caller's client runs in.
     pub cwd: Option<String>,
+    /// The name the client gave at `initialize` (#571), such as `Zed`, which its session keeps.
+    pub client: Option<String>,
 }
 
 /// A tool call handed to the app. The connection's thread waits for [`AppCall::answer`].

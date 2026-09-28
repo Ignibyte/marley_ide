@@ -40,6 +40,7 @@ use crate::browser::{
     BrowserHub, BrowserProject, Maker, Pick, SCROLL_SETTLE, TabSummary, new_page, open_url_tab,
     recordings_dir, settled, show_for_agent, tab_workspaces, window_of,
 };
+use crate::click_pause::{self, Checked, Click, Who};
 use crate::links;
 
 /// How long a call waits, once the browser shows its pages, for the page it acts on to attach.
@@ -94,12 +95,14 @@ pub fn answer(call: AppCall, cx: &mut App) {
     }
     // An outside client's name marks what it does in the tab (#524).
     let by = call.principal().client_name().map(SharedString::from);
+    // Whether the caller asks the user first, for a consequential click's pause (#571).
+    let who = Who::of(&call, cx);
     cx.spawn(async move |cx| {
         let result = run(
             &call.tool,
             &call.arguments,
             scope.as_ref(),
-            by.as_ref(),
+            (by.as_ref(), &who),
             &hub,
             cx,
         )
@@ -107,6 +110,15 @@ pub fn answer(call: AppCall, cx: &mut App) {
         call.answer(result);
     })
     .detach();
+}
+
+/// Refuses a write in `tab` while a click waits there for the user (#571).
+fn not_paused(tab: &str, hub: &Entity<BrowserHub>, cx: &AsyncApp) -> Result<(), String> {
+    if hub.read_with(cx, |hub, _| hub.is_paused(tab)) {
+        Err(click_pause::PAUSED_WRITE.to_string())
+    } else {
+        Ok(())
+    }
 }
 
 /// Refuses the call of a client the user cut off after its call reached Marley (#524): the call
@@ -247,7 +259,7 @@ async fn run(
     tool: &str,
     arguments: &Value,
     scope: Option<&Scope>,
-    by: Option<&SharedString>,
+    (by, who): (Option<&SharedString>, &Who),
     hub: &Entity<BrowserHub>,
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, String> {
@@ -275,6 +287,7 @@ async fn run(
     }
     let (tab, page) = page_of(hub, named_tab, scope, cx).await?;
     if WRITES.contains(&tool) {
+        not_paused(&tab, hub, cx)?;
         cx.update(|cx| show_for_agent(&tab, cx));
     }
     match tool {
@@ -295,8 +308,8 @@ async fn run(
         "browser_annotations" => Ok(annotations(&tab, hub, cx)),
         "browser_annotate" => annotate(&page, &tab, arguments, hub, by, cx).await,
         "browser_back" => back(&tab, hub, by, cx).await,
-        "browser_click" => click(&page, &tab, arguments, hub, by, cx).await,
-        "browser_type" => type_text(&page, &tab, arguments, hub, by, cx).await,
+        "browser_click" => click(&page, &tab, arguments, hub, (by, who), cx).await,
+        "browser_type" => type_text(&page, &tab, arguments, hub, (by, who), cx).await,
         "browser_press" => press(&page, &tab, arguments, hub, by, cx).await,
         "browser_scroll" => scroll(&page, &tab, arguments, hub, by, cx).await,
         other => Err(format!("Marley answers no tool named {other}")),
@@ -791,6 +804,7 @@ async fn check_pick(
     let (tab, _) = page_of(hub, Some(&tab), None, cx)
         .await
         .map_err(|_| format!("pick {id}'s tab is closed"))?;
+    not_paused(&tab, hub, cx)?;
     cx.update(|cx| show_for_agent(&tab, cx));
     let did = format!("checked pick {id}");
     hub.update(cx, |hub, cx| {
@@ -1234,6 +1248,7 @@ async fn navigate(
     } else {
         page_of(hub, named_tab, scope, cx).await?.0
     };
+    not_paused(&tab, hub, cx)?;
     cx.update(|cx| show_for_agent(&tab, cx));
     let shown = redact_url(&url);
     let hub_for_action = hub.clone();
@@ -1282,7 +1297,7 @@ async fn click(
     tab: &str,
     arguments: &Value,
     hub: &Entity<BrowserHub>,
-    by: Option<&SharedString>,
+    (by, who): (Option<&SharedString>, &Who),
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, String> {
     let button = match arguments
@@ -1302,6 +1317,7 @@ async fn click(
         .unwrap_or(1)
         .clamp(1, 3);
     let (point, what) = target_point(page, tab, arguments, hub, cx).await?;
+    let point = paused_point(page, tab, arguments, (point, &what), who, hub, cx).await?;
     let page = page.clone();
     acting(
         hub,
@@ -1324,7 +1340,7 @@ async fn type_text(
     tab: &str,
     arguments: &Value,
     hub: &Entity<BrowserHub>,
-    by: Option<&SharedString>,
+    (by, who): (Option<&SharedString>, &Who),
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, String> {
     let text = arguments
@@ -1338,6 +1354,8 @@ async fn type_text(
         .unwrap_or(false);
     let into = if arguments.get("ref").is_some() {
         let (point, what) = target_point(page, tab, arguments, hub, cx).await?;
+        // Its first click is a click too (#571).
+        let point = paused_point(page, tab, arguments, (point, &what), who, hub, cx).await?;
         click_at(page, point, MouseButton::Left, 1)
             .await
             .map_err(|error| error.to_string())?;
@@ -1478,6 +1496,39 @@ fn ref_target(
 ) -> Result<RefTarget, String> {
     hub.read_with(cx, |hub, _| hub.ref_target(tab, reference))
         .ok_or_else(|| format!("no {reference} in the tab's newest snapshot; take a new one"))
+}
+
+/// Where an agent's click at `point`, which `what` describes, goes once the pause before a
+/// consequential click let it (#571): the same point when it did not wait, and the element
+/// placed again when the user allowed it.
+async fn paused_point(
+    page: &Page,
+    tab: &str,
+    arguments: &Value,
+    (point, what): ((f64, f64), &str),
+    who: &Who,
+    hub: &Entity<BrowserHub>,
+    cx: &mut AsyncApp,
+) -> Result<(f64, f64), String> {
+    let target = arguments
+        .get("ref")
+        .and_then(Value::as_str)
+        .map(|reference| ref_target(tab, reference, hub, cx))
+        .transpose()?;
+    let click = Click {
+        page,
+        tab,
+        target: target.as_ref(),
+        point,
+        what,
+    };
+    match click_pause::before_click(&click, who, hub, cx).await? {
+        Checked::Go => Ok(point),
+        Checked::Allowed => match &target {
+            Some(target) => place(page, tab, target, hub, cx).await,
+            None => Ok(point),
+        },
+    }
 }
 
 /// Where a click goes, in the page's viewport, and what the chip calls it: a ref's element,

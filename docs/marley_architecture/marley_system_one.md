@@ -36,6 +36,10 @@ the time and names the folder. MIT OR Apache-2.0, with rustal's lint table; its 
   `cannot_tell`) and the nouls `repeating` and `progress`. `STALL_KIND` is its use, `stall_kind`,
   with a 2 s deadline. A loop is the use's own rule, logged as a `rules` row with `repeating`
   held.
+- **The click consequence's set** (#571). `CLICK_CONSEQUENCE_SET` (`click_consequence/1`) asks
+  four nouls about an element an agent is about to click: `pays`, `deletes`, `sends` and
+  `changes_account`. `CLICK_CONSEQUENCE` is its use, `click_consequence`, with a 1.5 s deadline,
+  inside the pause a click can afford. A rule's pause is logged as a `rules` row with its noul held.
 - **`state`.** `StateBuilder::new(detail, mask)` takes facts, kept at every `Detail`, and text,
   left out at `Detail::Facts`, each value through the host's mask. A text value is masked whole
   and then cut to 300 characters (`cut`), since a cut can split a secret the mask would find.
@@ -78,12 +82,13 @@ keychain and the settings, which the workbench owns.
 
 `marley_workbench::system_one` (the adapter and the check), `marley_workbench::decisions` (the
 view), since #566 `marley_workbench::agent_events` (the stop kind), since #567
-`marley_workbench::find` (the find tools), and since #569 `marley_workbench::stall` (the stall
-kind).
+`marley_workbench::find` (the find tools), since #569 `marley_workbench::stall` (the stall
+kind), and since #571 `marley_workbench::click_pause` (the click consequence).
 
 ## Tests
 
 None written (§7). `script/e2e/565-system-one-layer.sh` drives the crate through the app against a
 fake `/v1/systemone`, `script/e2e/566-stop-kind.sh` the stop kind's sets on the `replay`
 provider, `script/e2e/567-find-tools.sh` the find sets on it too, and
-`script/e2e/569-stalled-or-looping-agents.sh` the stall kind's set.
+`script/e2e/569-stalled-or-looping-agents.sh` the stall kind's set, and
+`script/e2e/571-pause-before-a-consequential-click.sh` the click consequence's.

@@ -1686,6 +1686,11 @@
     // any other in the system browser), "all_in_browser_tab" or "system_browser".
     // Shift+Ctrl+click opens it in the other place.
     "terminal_links": "local_in_browser_tab",
+    // Whose clicks in a Browser tab that pay, delete, send in your name or change an account wait
+    // for Allow or Refuse while system_one.uses.click_consequence is on (#571):
+    // "agents_without_prompts" (agents with no permission prompt of their own, and callers Marley
+    // cannot name) or "all_agents".
+    "browser_click_pause_agents": "agents_without_prompts",
     // The System One layer (#565): typed questions to a model about states Marley builds from
     // what it knows. Off, it makes no request, reads no key and writes no file. The key is
     // never a setting: Marley reads MARLEY_SYSTEM_ONE_KEY, else the system keyring.
@@ -1707,13 +1712,16 @@
       // Each use's mode: "off", "shadow" (ask and log, shown only in Decisions), "suggest" or
       // "act". The check runs only when you run it; the stop kind says on an idle Claude Code's
       // rail row what its stop needs; browser_find and terminal_find are agents' tools that find
-      // an element of a page or a line of a block from words, listed only while not "off".
+      // an element of a page or a line of a block from words, listed only while not "off"; the
+      // stall kind flags a working Claude Code that loops or has gone quiet; the click
+      // consequence holds an agent's consequential click in a Browser tab for Allow or Refuse.
       "uses": {
         "check": "act",
         "stop_kind": "off",
         "browser_find": "off",
         "terminal_find": "off",
         "stall_kind": "off",
+        "click_consequence": "off",
       },
     },
   },

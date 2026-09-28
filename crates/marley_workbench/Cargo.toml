@@ -10,6 +10,7 @@ path = "src/marley_workbench.rs"
 
 [dependencies]
 acp_thread.workspace = true
+agent_settings.workspace = true
 agent_ui.workspace = true
 anyhow.workspace = true
 base64.workspace = true
@@ -59,7 +60,6 @@ zed_actions.workspace = true
 acp_thread = { workspace = true, features = ["test-support"] }
 agent = { workspace = true, features = ["test-support"] }
 agent-client-protocol.workspace = true
-agent_settings.workspace = true
 agent_ui = { workspace = true, features = ["test-support"] }
 chrono.workspace = true
 collections.workspace = true

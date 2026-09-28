@@ -28,6 +28,7 @@ pub mod blocks;
 pub mod browser;
 pub mod browser_tools;
 pub mod claude_plugin;
+pub mod click_pause;
 pub mod clients;
 pub mod close_guard;
 pub mod decisions;
@@ -64,8 +65,8 @@ use gpui::{
     WeakEntity, Window, actions,
 };
 use settings::{
-    DockPosition, KeybindSource, KeymapFile, KeymapFileLoadResult, MarleyLayout,
-    MarleyTerminalLinks, RegisterSetting, Settings, SettingsContent, SettingsStore,
+    DockPosition, KeybindSource, KeymapFile, KeymapFileLoadResult, MarleyClickPauseAgents,
+    MarleyLayout, MarleyTerminalLinks, RegisterSetting, Settings, SettingsContent, SettingsStore,
 };
 use title_bar::{UseAgenticLayout, UseClassicLayout};
 use util::ResultExt as _;
@@ -167,6 +168,12 @@ actions!(
         /// Answers the page's dialog with Cancel.
         #[derive(Eq)]
         DismissDialog,
+        /// Lets the agent's click the Browser tab holds go ahead.
+        #[derive(Eq)]
+        AllowPausedClick,
+        /// Refuses the agent's click the Browser tab holds.
+        #[derive(Eq)]
+        RefusePausedClick,
         /// Turns pick mode on or off in the Browser tab: the next click in the page picks the
         /// element under the pointer, for the agent.
         #[derive(Eq)]
@@ -233,6 +240,8 @@ pub struct MarleySettings {
     pub undo_close_seconds: u64,
     /// Where a URL Ctrl+clicked in a terminal opens (#503).
     pub terminal_links: MarleyTerminalLinks,
+    /// Whose consequential clicks in the Browser tab wait for Allow (#571).
+    pub browser_click_pause_agents: MarleyClickPauseAgents,
     /// The System One layer (#565).
     pub system_one: system_one::SystemOneSettings,
 }
@@ -291,6 +300,9 @@ impl Settings for MarleySettings {
                 .unwrap_or(60),
             terminal_links: marley
                 .and_then(|marley| marley.terminal_links)
+                .unwrap_or_default(),
+            browser_click_pause_agents: marley
+                .and_then(|marley| marley.browser_click_pause_agents)
                 .unwrap_or_default(),
             system_one: system_one::SystemOneSettings::from_content(
                 marley.and_then(|marley| marley.system_one.as_ref()),

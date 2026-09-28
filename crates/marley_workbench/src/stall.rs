@@ -15,7 +15,8 @@ use std::time::Duration;
 
 use gpui::{App, AppContext as _, AsyncApp, Entity, Global};
 use marley_agent::claude_events::{
-    self, PROMPT_ID_LABEL, PROMPT_LABEL, SESSION_LABEL, TOOL_LABEL, TurnFacts,
+    self, PERMISSION_MODE_LABEL, PROMPT_ID_LABEL, PROMPT_LABEL, SESSION_LABEL, TOOL_LABEL,
+    TurnFacts,
 };
 use marley_agent::stall::{self, Facts, Flag, FlagShown, Stalled, Verdict};
 use marley_fleet::{Session, State};
@@ -366,7 +367,7 @@ fn asking_for(seat: &Session, facts: &Facts, cx: &App) -> Option<Asking> {
             "subagents",
             claude_events::subagents(&seat.labels).to_string(),
         ),
-        ("permission mode", label("permission_mode")),
+        ("permission mode", label(PERMISSION_MODE_LABEL)),
     ];
     let lines = view
         .read(cx)

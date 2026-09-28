@@ -22,7 +22,7 @@ use marley_fleet::FleetSnapshot;
 
 use crate::clients::{ClientError, ClientGrant, ClientTable, Principal};
 use crate::permission::GrantTable;
-use crate::session::{SessionDecision, SessionRegistry, session_gate};
+use crate::session::{SessionDecision, SessionRegistry, client_name_of, session_gate};
 use crate::{
     APP_CALL_TIMEOUT_SECONDS, AppCall, AppCaller, AppOutcome, Caller, Effect, Outgoing,
     PendingCall, RequestCtx, Subscriptions, auth, deferred_response, handle_message, mint_secret,
@@ -286,55 +286,25 @@ fn serve_connection(mut stream: std::net::TcpStream, server: &Server) -> std::io
             return write_status(&mut stream, 405, "Method Not Allowed");
         }
     }
-    // Session gate (#375, MCP §Session Management) — POST-auth. Decide + mutate the registry under ONE
-    // lock, then release before touching the socket. An `initialize` mints + assigns a fresh id (echoed on
-    // the response); a valid session proceeds; a DELETE terminates; a missing/unknown id is refused.
-    let is_initialize = parse_request(&request.body).is_ok_and(|req| req.method == "initialize");
-    let session_id = {
-        let (data, _cv) = &**shared;
-        let mut guard = data
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        // One timeline value per request (#379): the gate's sweep and the Initialize arm's assign
-        // stamp share the same `now`.
-        let now = now_epoch_ms();
-        match session_gate(
-            &request.method,
-            is_initialize,
-            request.session.as_deref(),
-            &principal,
-            &mut guard.sessions,
-            now,
-        ) {
-            SessionDecision::Reject(code) => {
-                drop(guard);
-                return write_status(&mut stream, code, status_reason(code));
-            }
-            SessionDecision::Terminate => {
-                if let Some(id) = request.session.as_deref() {
-                    let _was_live = guard.sessions.terminate(id, &principal);
-                }
-                drop(guard);
-                return write_status(&mut stream, 200, "OK");
-            }
-            SessionDecision::Initialize => {
-                let Some(id) = mint_secret(read_entropy()).ok() else {
-                    drop(guard);
-                    return write_status(&mut stream, 500, "Internal Server Error");
-                };
-                if guard
-                    .sessions
-                    .assign(id.clone(), principal.clone(), now)
-                    .is_err()
-                {
-                    drop(guard);
-                    return write_status(&mut stream, 503, "Service Unavailable");
-                    // at SESSION_CAP
-                }
-                Some(id)
-            }
-            SessionDecision::Proceed => None,
-        }
+    // Session gate (#375, MCP §Session Management) — POST-auth: [`gate`].
+    let parsed = parse_request(&request.body).ok();
+    let is_initialize = parsed
+        .as_ref()
+        .is_some_and(|req| req.method == "initialize");
+    // The name an `initialize` gives its client, which its session keeps (#571).
+    let client = parsed
+        .as_ref()
+        .filter(|_| is_initialize)
+        .and_then(|initialize| client_name_of(&initialize.params));
+    let session_id = match gate(
+        shared,
+        &request,
+        &principal,
+        is_initialize,
+        client.as_deref(),
+    ) {
+        Gated::Go(session_id) => session_id,
+        Gated::Stop(code, reason) => return write_status(&mut stream, code, reason),
     };
     if request.method == "POST" {
         serve_post(
@@ -352,6 +322,76 @@ fn serve_connection(mut stream: std::net::TcpStream, server: &Server) -> std::io
     }
 }
 
+/// What the session gate lets a request do (#375): go on, with a new session's id for an
+/// `initialize`, or stop with this status.
+enum Gated {
+    Go(Option<String>),
+    Stop(u16, &'static str),
+}
+
+/// The session gate (#375, MCP §Session Management), after the bearer: decides and changes the
+/// registry under one lock, released before the socket is touched. An `initialize` mints and
+/// assigns a fresh id, echoed on the response, and keeps the name its `client` gave (#571); a
+/// valid session proceeds; a DELETE terminates; a missing or unknown id is refused.
+fn gate(
+    shared: &Shared,
+    request: &HttpRequest,
+    principal: &Principal,
+    is_initialize: bool,
+    client: Option<&str>,
+) -> Gated {
+    let (data, _cv) = &**shared;
+    let mut guard = data
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    // One timeline value per request (#379): the gate's sweep and the Initialize arm's assign
+    // stamp share the same `now`.
+    let now = now_epoch_ms();
+    let decision = session_gate(
+        &request.method,
+        is_initialize,
+        request.session.as_deref(),
+        principal,
+        &mut guard.sessions,
+        now,
+    );
+    match decision {
+        SessionDecision::Reject(code) => {
+            drop(guard);
+            Gated::Stop(code, status_reason(code))
+        }
+        SessionDecision::Terminate => {
+            if let Some(id) = request.session.as_deref() {
+                let _was_live = guard.sessions.terminate(id, principal);
+            }
+            drop(guard);
+            Gated::Stop(200, "OK")
+        }
+        SessionDecision::Initialize => {
+            let Some(id) = mint_secret(read_entropy()).ok() else {
+                drop(guard);
+                return Gated::Stop(500, "Internal Server Error");
+            };
+            if guard
+                .sessions
+                .assign(id.clone(), principal.clone(), now)
+                .is_err()
+            {
+                drop(guard);
+                // at SESSION_CAP
+                return Gated::Stop(503, "Service Unavailable");
+            }
+            guard.sessions.name_client(&id, client);
+            drop(guard);
+            Gated::Go(Some(id))
+        }
+        SessionDecision::Proceed => {
+            drop(guard);
+            Gated::Go(None)
+        }
+    }
+}
+
 /// Answers an authenticated POST: its messages through the pure core, the app's calls through
 /// the app, one SSE reply per response. `session_id` rides only an `initialize`'s reply (#375).
 fn serve_post(
@@ -361,11 +401,15 @@ fn serve_post(
     principal: &Principal,
     session_id: Option<&str>,
 ) -> std::io::Result<()> {
-    let handled = {
+    let (handled, client) = {
         let (data, _cv) = &*server.shared;
         let guard = data
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = request
+            .session
+            .as_deref()
+            .and_then(|id| guard.sessions.client_of(id));
         let ctx = RequestCtx {
             snapshot: &guard.snapshot,
             grants: &guard.grants,
@@ -376,7 +420,12 @@ fn serve_post(
         let mut subs = Subscriptions::default();
         let handled = handle_message(&ctx, &mut subs, &request.body);
         drop(guard);
-        handled
+        (handled, client)
+    };
+    // The session's client name rides with #520's headers, to the app's calls (#571).
+    let who = Caller {
+        client,
+        ..request.caller.clone()
     };
     if let Some(effect) = handled.effect
         && let Err(error) = server.effects.send(effect)
@@ -390,7 +439,7 @@ fn serve_post(
             Outgoing::Response(body) => body,
             // The lock is released by now, so the wait holds up no other connection.
             Outgoing::Deferred(pending) => {
-                let outcome = ask_app(&server.caller, &pending, &request.caller, principal);
+                let outcome = ask_app(&server.caller, &pending, &who, principal);
                 deferred_response(&pending, outcome)
             }
             Outgoing::Notification(_) => continue,

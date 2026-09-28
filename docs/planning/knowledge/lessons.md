@@ -3490,3 +3490,30 @@ A scenario proves a rule about CPU by having the stand-in agent start a child th
 the teardown: the stand-in dies with Marley's terminal at the end of a run, and an unbounded child
 would outlive it and burn a core on the box. Start it a second or two after the prompt's event, so
 it is plainly the turn's.
+
+## L-claude-571-a-forms-named-controls-shadow-it-even-in-an-isolated-world-001
+*category: code · topic: reading a page over CDP · from: pipeline 571*
+
+An isolated world (`Page.createIsolatedWorld`) keeps a page's scripts from changing the
+prototypes Marley's function sees, but not the DOM's named properties: a form's control named
+`action` is what `form.action` gives, and an `<img name="body">` is what `document.body` gives.
+A fixed function that reads a form or the document goes through the DOM's own methods and
+descriptors (`Element.prototype.getAttribute.call`, `Object.getOwnPropertyDescriptor(
+Document.prototype, 'body').get.call(document)`). `DOM.resolveNode` with the world's
+`executionContextId` fails for a node in another frame, so fall back to the node's own world.
+
+## L-claude-571-unreachable-pub-and-redundant-pub-crate-meet-at-a-re-export-001
+*category: tooling · topic: the Marley lint table · from: pipeline 571*
+
+In a private module, rustc's `unreachable_pub` asks for `pub(crate)` on an item another module
+uses, and clippy's `redundant_pub_crate` asks for `pub`, both as errors under `-D warnings`. The
+way out is the one `marley_mcp`'s other modules take: `pub` in the module, re-exported from the
+crate root (`pub use session::{…}`).
+
+## L-claude-571-a-scenario-reads-a-pages-state-from-its-title-001
+*category: process · topic: e2e scenarios · from: pipeline 571*
+
+The accessibility snapshot splits a paragraph's inline text into several nodes, so a page's own
+running log does not come back as one line an agent can grep. A test page that writes its state
+into `document.title` gives it whole through `browser_tabs` (#582 keeps the title current), and
+the rail's row and the tab show it in every shot too.

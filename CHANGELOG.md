@@ -13,6 +13,26 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **An agent's click that pays, deletes, sends or changes an account waits for you** (#571,
+  2026-09-28). With the click consequence's mode on, an agent's `browser_click` (or the click a
+  `browser_type` with a ref makes first) on such an element waits in the Browser tab: a card
+  under the toolbar names who wants to click what and why, with Refuse and Allow, and a toast's
+  Show brings you to it. Allow clicks, but only the same element on the same page; Refuse, or 25
+  seconds with no answer, tells the agent the user did not allow it, and while a click waits the
+  tab's other writes wait too. Marley's own rules decide from the element's name, its form's
+  target, its link and the page, with no call: "Place order", "Delete account" or a form that posts
+  to `/checkout` wait. What they leave open, a "Continue" among text about a charge, the System One
+  layer may read, for listed projects only, and a reading can add a pause, never remove one. The
+  card never takes the focus by itself: Enter allows and Escape refuses only once you click it or
+  press Show. By default only agents with no permission prompt of their own wait: Claude Code in
+  a Marley terminal running `bypassPermissions` or `dontAsk`, Zed's agent while its tool
+  permissions let `browser_click` run unasked, and any caller Marley cannot name; the Browser
+  Click Pause Agents item (`marley.browser_click_pause_agents`) makes every agent wait. Off by
+  default: Click Consequence on the Marley settings page, or
+  `marley.system_one.uses.click_consequence`, with Shadow (the rules pause and the model is
+  logged), Suggest (a notice after a click the model reads as consequential) and Act (the model's
+  reading pauses too). The flight recorder keeps each pause and how it ended.
+
 - **A working Claude Code that loops or has gone quiet is flagged on its rail row** (#569,
   2026-09-27). With the stall kind's mode on, the row reads `looping?` with a warning mark when the
   turn ends the same tool line three times in a row, such as `Bash: cargo test`, or fails the same

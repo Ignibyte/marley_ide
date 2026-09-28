@@ -122,6 +122,15 @@
     }
   },
   {
+    // An agent's click the Browser tab holds (#571): Enter allows and Escape refuses, only while
+    // the card has the focus, which only the user gives it.
+    "context": "MarleyBrowserPause",
+    "bindings": {
+      "enter": "marley::AllowPausedClick",
+      "escape": "marley::RefusePausedClick"
+    }
+  },
+  {
     // The rail's filter and switcher, as Zed's Threads Sidebar binds its own. The rail's context
     // also reaches the popovers it opens, so `!Picker` leaves the keys out of the add-project
     // picker.
