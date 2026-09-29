@@ -164,6 +164,10 @@ real, reusable session. The Block model is the unit the **brain** later observes
   `filter.rs` (#528) filters a block's output lines: `filter_lines(output, &FilterQuery)` with
   text or a regex (`regex`), case ignored unless asked, invert, and context with a `Gap` between
   groups, grep's meanings; nothing in the grid changes.
+  `paste.rs` (#536) holds the rules for an agent CLI's terminal, which Zed's `Terminal` and
+  `TerminalView` apply while `marley_agent_in_foreground` holds: `strip_shared_indent`, the
+  leading spaces every non-blank line of a copy shares taken off, and `is_raw_image_path`, an
+  image's path that can go to the agent raw inside a bracketed paste of its own.
   `sticky_block(spans, display_offset)` (#529) is the block whose command a scrolled-back view
   pins over its top row: the first span, when it covers row 0 and started above it; none at the
   live screen.

@@ -53,6 +53,7 @@ pub mod identity;
 pub mod keys;
 pub mod links;
 pub mod mouse;
+pub mod paste;
 pub mod ports;
 pub mod session;
 pub mod shell_integration;

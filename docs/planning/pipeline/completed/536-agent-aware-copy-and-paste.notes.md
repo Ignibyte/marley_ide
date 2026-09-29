@@ -64,6 +64,18 @@
     before a non-image path); `terminal-bracketed-paste.ts` (`wrapTerminalBracketedPasteText`).
 - **Decisions:** D1 to D6 in the spec.
 
+- **Promotion, 2026-09-29:** every seam re-read: `Terminal::paste` (`terminal.rs:2692`), the
+  `InternalEvent::Copy` arm (2050), `foreground_process_command_name` (3191) and
+  `foreground_process_command_from_argv` (3750); `add_paths_to_terminal`
+  (`terminal_view.rs:1240`) and its callers (1197 the clipboard's paths, 1965 and 2064 to 2090 the
+  drops, `agent_bar.rs:74` Attach File); rich input's `send` (`rich_input.rs:119`) now pastes
+  through `terminal_drive::paste_then` (#594), so it reaches `Terminal::paste`;
+  `marley_agent::agent_kind_of` (`marley_agent.rs:99`); `marley_agent` has no gpui and no
+  `terminal` dependency, so `terminal` can take it. PR-claude-594 (keys after a paste go in a later
+  write) weighed for the drop's pieces: its failure was an Enter absorbed into a paste, and a drop
+  presses none, so the pieces are written in order as Orca writes them. Brain (consultation
+  1bff15f3): nothing on this seam.
+
 ### Design
 - **`crates/marley_terminal/src/paste.rs`, a new pure module** (declared in `marley_terminal.rs`):
   - `strip_shared_indent(text) -> Cow<str>`: split on `\n`, keep a trailing `\r` with its line,
@@ -89,8 +101,7 @@
 - **`crates/terminal/Cargo.toml`:** `marley_agent.workspace = true`.
 - **Rich input:** no change; its send reaches the new condition in `Terminal::paste`.
 - **File manifest.** Marley: `crates/marley_terminal/src/paste.rs` (new),
-  `crates/marley_terminal/src/marley_terminal.rs`; `script/e2e/536-agent-aware-copy-and-paste.sh`
-  and the stand-in of `script/e2e/481-rich-input.sh` at Test. Zed: `crates/terminal/src/terminal.rs`,
+  `crates/marley_terminal/src/marley_terminal.rs`; `script/e2e/536-agent-aware-copy-and-paste.sh`. Zed: `crates/terminal/src/terminal.rs`,
   `crates/terminal_view/src/terminal_view.rs`, `crates/terminal/Cargo.toml`.
 - **Ledger rows.** The existing rows for those three paths grow by one clause each, written before
   the code (§14): what each hunk does, and at a merge, keep the agent condition in `paste`, the
@@ -103,7 +114,7 @@
 | REQ-001, REQ-002 | setup: `repo` with `shot.png` (a small PNG that Python writes) and `notes file.txt`; the scenario's HOME whose `.bashrc` sets `PS1='$ '` and defines `stand_in`, which runs `exec -a claude bash -c '<print "  first line of the reply", "    a nested line", "  last line">; stty -icanon -echo -icrnl; exec -a claude cat -v'`. Steps: trust the repository; type `stand_in`, Enter; drag from the first column of the reply's first line to the end of its last; Ctrl+Shift+C; print `wl-paste -n \| cat -A` to the run log; Ctrl+Shift+V | `536-01-copy-and-paste`: `^[[200~first line of the reply`, `  a nested line`, `last line^[[201~`; the log shows the clipboard flush left |
 | REQ-003 | drag `shot.png` from the project panel onto the terminal, then `notes file.txt` | `536-02-dropped-paths`: `^[[200~<repo>/shot.png^[[201~`, one space, `'<repo>/notes file.txt' ` |
 | REQ-004 | `wl-copy --foreground` of `one`, a newline, ESC `[201~two`, against the run's sway; Ctrl+Shift+V | `536-03-escape-stripped`: `^[[200~one`, then `[201~two^[[201~`, with no `^[` inside |
-| REQ-005 | #481's scenario, its stand-in changed to `cat -v` under the name `claude` | `481-04-sent` shows one bracketed paste and its Enter |
+| REQ-005 | Ctrl+G on the stand-in; two lines typed in rich input (Shift+Enter between); Enter | `536-05-rich-input`: one bracketed paste, then `^M` |
 | REQ-006 | Ctrl+~ for a new center terminal (plain bash); type `printf` of the same three lines, `; stty -icanon -echo -icrnl; cat -v`; drag over the three printed lines; Ctrl+Shift+C; Ctrl+Shift+V; then drag `shot.png` from the project panel onto it | `536-04-plain-shell`: the indentation kept, no markers, each line ended by `^M`, then ` <repo>/shot.png ` as Zed writes it (a space before and after, quotes only where the shell needs them), no markers |
 
 Not reachable by a scenario: Claude Code's own attachment of a dropped PNG, which needs a logged-in
@@ -126,3 +137,63 @@ or with him), and the notes record whether it shows as an attached image.
 - A selection copied with the keyboard in vi mode goes through the same `Copy` arm and is trimmed
   the same way while an agent runs.
 - `wl-copy` of text holding an ESC byte: the scenario builds it with `printf` so the byte is real.
+
+## Phase 2 — Code
+- **Built:**
+  - `marley_terminal/src/paste.rs` (new, pure): `strip_shared_indent` (Orca's rule: the run of
+    leading spaces every non-blank line shares) and `is_raw_image_path` (`png`, `jpg`, `jpeg`,
+    `gif`, `webp` in any case; no control character; none of the shell's special characters).
+  - `terminal.rs` (Zed): `marley_agent_in_foreground` (`agent_kind_of` on the foreground command's
+    name); an early return at the top of `paste` for a text holding a line break while an agent
+    runs, through `marley_paste_bracketed` (always bracketed, ESC bytes removed); in the
+    `InternalEvent::Copy` arm, the selection through `strip_shared_indent` while an agent runs.
+  - `terminal_view.rs` (Zed): an agent branch at the top of `add_paths_to_terminal`: a raw image
+    path through `marley_paste_bracketed`, any other path shell-quoted with a space after it and
+    a space before it when an image came just before.
+  - `crates/terminal/Cargo.toml`: `marley_agent`.
+- **Deviations:** the forced bracket is an early return before Zed's code rather than a wider
+  condition in its `if`: rustfmt re-indented Zed's whole `if`/`else` for the longer condition,
+  and the early return leaves every upstream line as it was.
+- **Review of the diff:** the agent check reads Zed's process info, so the copy, the paste and the
+  drop agree; the Copy arm's `&self` read does not collide with the locked grid, a separate
+  guard; a path that is not UTF-8 is skipped in the agent branch, as Zed's `filter_map` skips it;
+  no path presses Enter.
+- **Gate:** run 1: every gate passed, and the receipt failed, since the scenario was edited while
+  the run was going. Its warnings (`pty_info.rs`, `terminal.rs:1202`, `:3199`,
+  `terminal_panel.rs:327`, `terminal_view.rs:1689`, `:2129`) are Zed's own code: pre-existing,
+  not in scope. Run 2 on the final tree: GATE GREEN [diff].
+
+## Phase 3 — Test
+- **Scenario:** `script/e2e/536-agent-aware-copy-and-paste.sh` under `compositor sway`: a
+  stand-in Claude Code that runs as `claude` (bash, then `cat -v`), prints an indented reply and
+  shows every byte it gets.
+- **Runs 1 to 3, the scenario's faults:** the agent bar the stand-in brings moved the reply two
+  rows up (run 1's drag caught one line); the terminals' titles name the process Zed sees
+  (`cat -v`), so the screen reads match the project's name; a trailing space the screen reader
+  trims was in a check; Ctrl+J, meant to break lines, is Zed's dock toggle and was dropped; the
+  plain shell has no agent bar, so its rows are its own.
+- **Run 4:** exit 0, every check passes. Every shot read:
+  - `536-00-stand-in`: the stand-in's reply in its two-space gutter; the rail reads Claude Code.
+  - `536-01-copy-and-paste` (REQ-001, REQ-002): the copy pasted back as
+    `^[[200~first line of the reply`, `  a nested line`, `last line^[[201~`: flush left, the
+    nested line's two spaces kept, one bracketed paste; the log's `wl-paste` agrees.
+  - `536-02-dropped-paths` (REQ-003): `^[[200~…/shot.png^[[201~`, then
+    `'…/notes file.txt'` and a space.
+  - `536-03-escape-stripped` (REQ-004): `^[[200~one`, then `[201~two^[[201~`: the inner marker
+    lost its ESC.
+  - `536-05-rich-input` (REQ-005): `^[[200~first prompt line`, `second prompt line^[[201~^M`.
+  - `536-04-plain-shell` (REQ-006): in a new terminal, the same three lines copied with their
+    indent, pasted with no markers and each line break a `^M`, and the dropped PNG as
+    ` …/shot.png `.
+- **Not reached:** Claude Code's own attachment of a dropped PNG needs a logged-in Claude Code; it
+  waits for Chad's hand check in the installed Marley.
+
+## Phase 4 — Complete
+- **Documented:** `CHANGELOG.md` (Added); `docs/marley/three-prong-plan.md` T7;
+  `docs/marley_architecture/terminal_blocks.md` (`paste.rs`); the three touchpoint rows describe
+  what shipped.
+- **Knowledge:** `AD-claude-536-agent-terminals-get-their-own-copy-and-paste-001`,
+  `L-claude-536-an-agents-terminal-is-titled-by-its-process-001`. No `F-…` block: no product bug
+  was found in Code or Test. Brain: the decision on consultation 1bff15f3, follow-up by
+  2026-10-29.
+- **Closed** TICKET-536, archived the pair.

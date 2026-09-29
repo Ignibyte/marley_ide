@@ -2050,6 +2050,13 @@ impl Terminal {
             InternalEvent::Copy(keep_selection) => {
                 trace!("Copying selection: keep_selection={keep_selection:?}");
                 if let Some(txt) = selection_text(term) {
+                    // Marley: an agent's reply is copied without the gutter its lines share
+                    // (#536).
+                    let txt = if self.marley_agent_in_foreground() {
+                        marley_terminal::paste::strip_shared_indent(&txt).into_owned()
+                    } else {
+                        txt
+                    };
                     cx.write_to_clipboard(ClipboardItem::new_string(txt));
                     if !keep_selection.unwrap_or_else(|| {
                         let settings = TerminalSettings::get_global(cx);
@@ -2690,6 +2697,12 @@ impl Terminal {
 
     ///Paste text into the terminal
     pub fn paste(&mut self, text: &str) {
+        // Marley: while an agent CLI runs, a paste holding a line break is bracketed even when
+        // the program never asked, so no line of it submits early (#536).
+        if (text.contains('\n') || text.contains('\r')) && self.marley_agent_in_foreground() {
+            self.marley_paste_bracketed(text);
+            return;
+        }
         let paste_text = if self.last_content.mode.contains(Modes::BRACKETED_PASTE) {
             format!("{}{}{}", "\x1b[200~", text.replace('\x1b', ""), "\x1b[201~")
         } else {
@@ -2697,6 +2710,19 @@ impl Terminal {
         };
 
         self.input(paste_text.into_bytes());
+    }
+
+    // Marley: a paste bracketed whatever the program asked, with the same ESC removal, for an
+    // image's path dropped on an agent CLI (#536).
+    pub fn marley_paste_bracketed(&mut self, text: &str) {
+        self.input(format!("\x1b[200~{}\x1b[201~", text.replace('\x1b', "")).into_bytes());
+    }
+
+    // Marley: whether the foreground program is an agent CLI Marley knows, by the name Zed reads
+    // for it, as the rail and the agent bar tell (#536).
+    pub fn marley_agent_in_foreground(&self) -> bool {
+        self.foreground_process_command_name()
+            .is_some_and(|name| marley_agent::agent_kind_of(&name).is_some())
     }
 
     pub fn sync(&mut self, window: &mut Window, cx: &mut Context<Self>) {

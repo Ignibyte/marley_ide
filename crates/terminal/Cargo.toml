@@ -30,6 +30,8 @@ gpui.workspace = true
 itertools.workspace = true
 libc.workspace = true
 log.workspace = true
+# Marley: which foreground programs are agent CLIs, for their copy and paste (#536).
+marley_agent.workspace = true
 # Marley: the shell-hook decoder and the anchored blocks (#464).
 marley_terminal.workspace = true
 # Marley: where Marley's shell integration is written (#463).

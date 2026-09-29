@@ -1,7 +1,7 @@
 ---
 pipeline_id: ea76d9fa-7236-40bc-867b-7aad7e34df80
 ticket: docs/planning/tickets/open/TICKET-536-agent-aware-copy-and-paste.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Copy without the agent's gutter, bracketed pastes and raw image paths while an agent runs"
 type: feature
 slice: prong 1 T7 (CLI agents in the terminal), after #479 and #481
@@ -102,8 +102,8 @@ prints the clipboard through `wl-paste`); `shot.png`, then `notes file.txt`, dra
 project panel onto the terminal (`536-02-dropped-paths`); `wl-copy` of a two-line text holding an
 embedded `ESC [201~`, then Ctrl+Shift+V (`536-03-escape-stripped`); a New Terminal (plain bash)
 where the same reply is printed and `stty -icanon -echo -icrnl; cat -v` runs, then the same copy
-and paste, and `shot.png` dragged onto it (`536-04-plain-shell`). At Test, #481's scenario runs
-again with its stand-in changed to print raw bytes.
+and paste, and `shot.png` dragged onto it (`536-04-plain-shell`). Rich input (Ctrl+G) on the
+stand-in, a two-line prompt sent (`536-05-rich-input`).
 
 ## Locked-In Decisions
 - D1: "An agent runs in the terminal" has one definition, checked at the moment of the copy or
@@ -131,7 +131,7 @@ again with its stand-in changed to print raw bytes.
 | REQ-002 | WHILE an agent CLI is the foreground program, WHEN the user pastes text that holds a line break, the terminal shall send it inside bracketed-paste markers, whether or not the program enabled bracketed paste. | Shot `536-01-copy-and-paste` |
 | REQ-003 | WHILE an agent CLI is the foreground program, WHEN a PNG, JPEG, GIF or WebP file's path reaches the terminal by a drop or Attach File, the terminal shall send the raw path alone inside a bracketed paste, and any other path shell-quoted as before. | Shot `536-02-dropped-paths` |
 | REQ-004 | WHEN a forced bracketed paste's text holds ESC bytes, the terminal shall remove them, so no marker inside the text ends the paste early. | Shot `536-03-escape-stripped` |
-| REQ-005 | WHEN rich input sends a multi-line prompt to an agent that has not enabled bracketed paste, the prompt shall arrive as one bracketed paste followed by Enter. | #481's scenario, run again with its stand-in printing raw bytes |
+| REQ-005 | WHEN rich input sends a multi-line prompt to an agent that has not enabled bracketed paste, the prompt shall arrive as one bracketed paste followed by Enter. | Shot `536-05-rich-input` |
 | REQ-006 | WHERE no agent CLI is the foreground program, copy, paste and dropped paths shall behave as in upstream Zed. | Shot `536-04-plain-shell` |
 
 ## Phase Plan
@@ -139,8 +139,9 @@ again with its stand-in changed to print raw bytes.
 - **P2 Code:** the touchpoint rows first; `marley_terminal::paste`; the hunks in `terminal.rs` and
   `terminal_view.rs`; `marley_agent` in `crates/terminal/Cargo.toml`; fmt and clippy clean (Zed's
   `./script/clippy` for the Zed crates); a review of the diff.
-- **P3 Test:** write and run the scenario, read every shot; #481's scenario with its stand-in
-  updated, and #480's (the agent bar); `script/gates.sh --diff` green; Claude Code's own
-  attachment of a dropped PNG, tried by hand in Chad's Marley.
+- **P3 Test:** write and run the scenario, read every shot, rich input's send among them (the
+  2026-09-29 workflow runs no other ticket's scenario); `script/gates.sh --diff` green. Claude
+  Code's own attachment of a dropped PNG needs a logged-in Claude Code: it waits for Chad's hand
+  check in the installed Marley.
 - **P4 Complete:** CHANGELOG; prong 1's T7 row in `docs/marley/three-prong-plan.md`; the three
   touchpoint rows checked against what shipped; the ledger; close, archive, commit.

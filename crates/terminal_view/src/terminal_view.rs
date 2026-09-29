@@ -1238,6 +1238,29 @@ impl TerminalView {
     }
 
     pub fn add_paths_to_terminal(&self, paths: &[PathBuf], window: &mut Window, cx: &mut App) {
+        // Marley: while an agent CLI runs, an image's path goes in raw inside a bracketed paste
+        // of its own, the form in which Claude Code and Codex attach it; any other path is
+        // quoted with a space after it, and a space parts an image from a quoted path (#536).
+        if self.terminal.read(cx).marley_agent_in_foreground() {
+            window.focus(&self.focus_handle(cx), cx);
+            self.terminal.update(cx, |terminal, _| {
+                let mut after_image = false;
+                for path in paths {
+                    let Some(text) = path.to_str() else {
+                        continue;
+                    };
+                    if marley_terminal::paste::is_raw_image_path(path) {
+                        terminal.marley_paste_bracketed(text);
+                        after_image = true;
+                    } else if let Ok(quoted) = shlex::try_quote(text) {
+                        let separator = if after_image { " " } else { "" };
+                        terminal.paste(&format!("{separator}{quoted} "));
+                        after_image = false;
+                    }
+                }
+            });
+            return;
+        }
         let mut text = paths
             .iter()
             .filter_map(|path| Some(format!(" {}", shlex::try_quote(path.to_str()?).ok()?)))

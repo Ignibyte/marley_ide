@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #536 (feature, prong 1 T7: CLI agents in the terminal)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/536-agent-aware-copy-and-paste.spec.md
+- **Pipeline doc:** ../../pipeline/completed/536-agent-aware-copy-and-paste.spec.md
 - **Source ticket:** Chad, 2026-09-25: specced at his request with every item decided that day (the brief quotes no words for this one). From the Orca survey: `docs/orca_architecture/05-terminal-and-workspace.md` §3 item 7, with §2.6 and §2.15, and the README's "Smaller things worth a day each"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Three things go wrong when an agent CLI runs in Marley's terminal. Text copied out of Claude

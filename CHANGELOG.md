@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Copy and paste that know an agent runs** (#536, 2026-09-29). While Claude Code, Codex or
+  another agent CLI runs in a terminal, a copy of its reply drops the indent every line shares,
+  so it pastes flush left elsewhere. A paste of several lines always goes in as one bracketed
+  paste, so no line of it is sent early, even when the agent never asked for bracketed paste. A
+  PNG, JPEG, GIF or WebP dropped on the terminal, or attached, goes in as its raw path inside a
+  paste of its own, the form in which the agent attaches an image. In a plain shell all three
+  behave as in Zed.
+
 - **Shell commands in the Markdown preview go to the terminal** (#530, 2026-09-29). A code block
   in Zed's Markdown preview whose fence names `sh`, `shell`, `bash`, `zsh` or `fish`, or no
   language, shows Insert in Terminal beside Copy, as Warp's Markdown viewer does. A click clears

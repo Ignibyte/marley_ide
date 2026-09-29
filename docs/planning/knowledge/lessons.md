@@ -3804,3 +3804,13 @@ A terminal's screen keeps every earlier step's lines, including text a step past
 with Ctrl-C. A check that nothing was typed which greps the whole screen for the text matches an
 earlier step's copy and fails on a correct run. Read the prompt line only: the screen's last line,
 as `tail -1 file | grep -qE '^  \| \$ *$'` does with `mcp_agent terminal-screen` (#528, #530).
+
+## L-claude-536-an-agents-terminal-is-titled-by-its-process-001
+*category: e2e · topic: finding a stand-in agent's terminal in a scenario · from: #536's visual check*
+
+A stand-in agent run as `exec -a claude cat -v` is an agent to Marley, which reads the process's
+first argument (`foreground_process_command_from_argv`), but Zed titles the terminal from the
+process's own name, so its tab and `mcp_agent terminal-screen` see `repo — cat -v`, not `claude`.
+A scenario finds such a terminal by the project's name and by which terminal came last. The agent
+bar the stand-in brings also takes the terminal's bottom rows, so rows measured without an agent
+move up once one runs.

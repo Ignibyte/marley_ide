@@ -18444,6 +18444,7 @@ dependencies = [
  "itertools 0.14.0",
  "libc",
  "log",
+ "marley_agent",
  "marley_terminal",
  "parking_lot",
  "paths",

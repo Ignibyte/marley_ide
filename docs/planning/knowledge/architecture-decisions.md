@@ -3112,3 +3112,17 @@ generic, an element for a code block's hover row from its kind and text, and onl
 passes one; the rule of which blocks are shell commands is Marley's (Warp's list less its own
 tag). Rejected: running the command (Warp inserts only); opening a terminal when none was used
 (AD-claude-496 declined guessing one); a button in the Agent Panel's threads (later).
+
+## AD-claude-536-agent-terminals-get-their-own-copy-and-paste-001
+*decided at: 2026-09-29 · status: shipped*
+
+While an agent CLI Marley knows is a terminal's foreground program (`marley_agent::agent_kind_of`
+on Zed's foreground command name, one test for the copy, the paste and the drop), three of Zed's
+terminal behaviors change, after Orca: a copy loses the leading spaces every non-blank line
+shares; a paste holding a line break is always bracketed, ESC bytes removed, since an agent that
+never announces bracketed paste would otherwise take each line as a submit; and a dropped or
+attached image's path goes in raw inside a bracketed paste of its own, others quoted. Plain shells
+keep Zed's behavior, where a selection's indentation is usually wanted. The rules are pure in
+`marley_terminal::paste`; Zed's hunks are an early return in `paste`, a line in the `Copy` arm
+and a branch at the top of `add_paths_to_terminal`. Rejected: trimming in every terminal (Orca's
+default); a setting for each rule for now.
