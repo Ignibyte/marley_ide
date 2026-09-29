@@ -674,6 +674,26 @@ Worth knowing:
 - A remote project's terminals get no turns.
 - Marley runs the `git` on its PATH for the turn's commit and its refs.
 
+### Review notes to the agent
+
+In a project diff or a branch diff (`git: diff`, or Review on a worktree's row), hover a changed
+line and choose Add Review in the gutter, type a note and press Enter; notes on several lines and
+files add up. **Send Review to Agent (N)** in the diff's toolbar, or `editor: send review to
+agent` from the palette, opens a picker of the agent terminals whose folder holds every noted
+file (#522):
+
+| The row says | What happens when you pick it |
+|---|---|
+| `ready` | Claude Code idles at its prompt: Marley pastes the notes as one prompt, presses Enter and shows the terminal |
+| `working` | Nothing is sent: the agent is in a turn |
+| `asking for permission` | Nothing is sent: a paste would answer its question |
+| `no idle signal` | Nothing is sent: Marley cannot tell (another agent, or Claude Code without Marley's plugin) |
+| Copy notes | The same prompt goes on the clipboard, for any agent |
+
+The prompt gives each note as `File:` (relative to the agent's folder), `Line:` or `Lines:`, and
+`User comment: "…"`. Sent notes stay in the diff with Sent beside them, and the button counts only
+the ones not sent; Copy notes marks nothing sent.
+
 ## Zed's Agent Panel with Marley's tools
 
 Zed's Agent Panel works as it does in Zed. In the Marley layout it docks on the right (Ctrl+?

@@ -13,6 +13,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Review notes to a terminal agent** (#522, 2026-09-29). Zed's project and branch diffs now offer
+  Add Review in the gutter of a changed line (its feature flag is on for everyone), and their
+  Send Review to Agent (N) works: it opens a picker of the agent terminals whose folder holds
+  every noted file, each marked ready, working, asking for permission, or no idle signal, with
+  Copy notes at the end. Picking a ready Claude Code (idle at its prompt, as its plugin's events
+  say) pastes the notes as one prompt, `File:`, `Line:` or `Lines:`, and `User comment: "…"` per
+  note, presses Enter and shows that terminal. The notes stay in the diff marked Sent, and the
+  button counts only the ones not sent. An agent that is working, waits on a permission or a
+  question, or reports nothing is left alone with a toast; Copy notes puts the same text on the
+  clipboard and marks nothing sent.
+
 - **A worktree's teardown task before Remove** (#591, 2026-09-29). A task whose `hooks` hold
   `remove_worktree` (in the worktree's `.zed/tasks.json`, or your global tasks) now runs when you
   confirm Remove on the worktree's row, before the worktree goes, so the dev database, containers

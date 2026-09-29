@@ -116,6 +116,8 @@ pub use git::{
     HiddenUnstagedDiffHunkRenderer, render_diff_hunk_controls, set_blame_renderer,
 };
 pub(crate) use git::{DiffHunkKey, StoredReviewComment};
+// Marley: the review notes Marley sends to a terminal agent (#522).
+pub use git::ReviewNote;
 use git::{DiffReviewDragState, DiffReviewOverlay, InlineBlamePopover};
 pub(crate) use git::{DisplayDiffHunk, PhantomDiffReviewIndicator};
 pub use hover_popover::hover_markdown_style;

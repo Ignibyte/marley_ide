@@ -77,6 +77,32 @@
     `src/renderer/src/lib/active-agent-note-send-delivery.ts` (`sendPromptWithGuardedPasteAndEnter`).
 - **Decisions:** D1 to D9 in the spec.
 
+### Changed at promotion (2026-09-29; each item overrides the design below)
+- **Checklist** (no task tool): pre-flight ✓ (no other active pipeline; #591's release install
+  compiling, so no crate edits until it ends); recall ✓ (the brain: consultation
+  cbc64a2b0bee452bb67d01dce8aa3e80, nothing on this seam); promoted ✓; the seams re-verified by
+  an Explore agent at 4acf96521a ✓.
+- **Readiness** comes from #519's `AgentEvents` seat (`State::Idle` ready; `Starting`/`Working`
+  working; `Waiting` asking; no seat, no idle signal). The planned `agent_state` tracker, the
+  notification parsing, the quiet rule and D9's constants go.
+- **The picker** is #549's: `send_selection.rs`'s `Target`, `agent_targets` and `TargetPicker`,
+  generalized so its rows are `Row::Agent(target)` or `Row::Copy` and its confirm calls a handler;
+  `Target` gains `ready`. The selection's send keeps its behavior.
+- **The targets:** an agent whose working directory holds every noted file (the notes carry
+  absolute paths), not "under the diffed tree's root", which would need `ProjectDiff::repo` and
+  `BranchDiff::repo` made public.
+- **The editor:** the diff's editor comes from `active_item.act_as::<Editor>`, which both diffs
+  answer with their right-hand editor, so the test-only `BranchDiff::editor` is not needed. The
+  public read computes each note's buffer point through `point_to_buffer_point` and its file's
+  absolute path; `diff_review_line_range` and `take_all_review_comments` are test-only and stay
+  untouched. `total_review_comment_count` counts unsent notes, which every `ReviewCommentsChanged`
+  emitter uses.
+- **The flag:** `enabled_for_all` returns true, as `SandboxingFeatureFlag` does.
+- **The paste:** Zed's `Terminal::paste` strips ESC only when bracketed; the formatter drops every
+  control character other than the escaped CR and LF, so no ESC reaches an unbracketed paste.
+- **The handler** lives in a new `review_notes.rs` (the action, the picker's rows, the send, the
+  mark, Copy).
+
 ### Design
 - **Approach.**
   - *Zed touch 1, `crates/feature_flags/src/flags.rs`:* `fn enabled_for_all() -> bool { true }` on
@@ -130,19 +156,9 @@
   - `crates/editor/src/editor.rs`: `pub use git::ReviewNote` (#522). Why: the public read's type.
     On merge: keep the line.
 
-### E2E plan
-| REQ | Scenario part | Shot or log |
-|---|---|---|
-| REQ-001 | setup: `notes.txt` committed, its third line changed and not staged; steps: `git: diff` from the palette, the pointer on the changed line's gutter, click Add Review, type `Use the new label here`, Enter | `522-01-comment` |
-| REQ-002 | setup: the `.bashrc` stand-ins; steps: four terminals from the rail's New Terminal running `ready`, `busy`, `asking` and `codexish`; back to the diff, click Send Review to Agent (1) | `522-02-picker` |
-| REQ-003 | steps: select the ready agent, Enter | `522-03-sent` |
-| REQ-004 | steps: click the diff's tab | `522-04-marked` |
-| REQ-005 | the picker of REQ-002: `busy` reads working, `asking` asking for permission, `codexish` no idle signal, none of them choosable (Enter on one sends nothing, which the stand-ins' logs confirm) | `522-02-picker`; the run log |
-| REQ-006 | steps: a second note on another changed line, Send Review, Copy notes; a plain terminal from the rail, Ctrl+Shift+V | `522-05-copied` |
-| REQ-007 | none reachable in the same run without closing the agents; P2's review of the empty state, and P3 may add a run with no agent terminal | review |
-
-The run log keeps the ready stand-in's received lines (it echoes them to a file under
-`$E2E_WORK` too), so the format is checked byte for byte against D4, escapes included.
+### For the quality pass
+- No tests (§7, since 2026-09-29). The drafted scenario (a note on a changed line, four stand-in
+  agents, the picker, the send, the Sent mark, Copy notes) waits for the quality pass.
 
 ### Risks
 - D6 assumes Claude Code redraws while a turn runs (its spinner and elapsed time), so two quiet
@@ -158,3 +174,46 @@ The run log keeps the ready stand-in's received lines (it echoes them to a file 
   editor's tests, and Marley never does, so ids stay unique for the editor's life.
 - The `diff-review` flag also turns on the drag to select lines (`element/mouse.rs:116`); that
   is the same feature, wanted.
+
+## Phase 2 — Code
+- **Checklist** (no task tool): the ledger rows (`crates/editor/src/git.rs`,
+  `crates/editor/src/editor.rs`, `crates/feature_flags/src/flags.rs`) ✓; the flag ✓; the editor's
+  `sent`, count, `ReviewNote`, `unsent_review_notes`, `mark_review_notes_sent` and Sent label ✓;
+  `marley_agent::review_prompt` ✓; the picker shared in `send_selection.rs` ✓; `review_notes.rs` ✓;
+  the review ✓; the gate ✓.
+- **Built as the changes at promotion say.** Clippy's findings (a `Focusable` import, the
+  `ReviewLine` fields' docs, a doc's first paragraph, a `const fn`, an `&App` for `init`) were
+  fixed before the gate. The `editor.rs` export needed its own ledger row, added before the gate.
+- **The review**, against each criterion:
+  - REQ-001: `enabled_for_all` short-circuits the flag store for everyone; the gutter's other
+    check (AI not disabled for the buffer) stays Zed's.
+  - REQ-002: the rows are every agent terminal of the window whose folder holds each noted file,
+    with the readiness word, and Copy notes last; with none, the placeholder says so.
+  - REQ-003: a ready pick pastes the prompt and `\r` after the picker's update, then reveals and
+    focuses the terminal; the prompt comes from `review_prompt` with paths relative to the agent's
+    folder.
+  - REQ-004: `mark_review_notes_sent` sets `sent`, emits `ReviewCommentsChanged` with the unsent
+    count (which the diffs cache for the button) and repaints; the row shows Sent.
+  - REQ-005: a pick not `ready` gets a toast naming the state and nothing is typed.
+  - REQ-006: Copy writes the same prompt (absolute paths) and marks nothing.
+  - REQ-007: an empty target list leaves the Copy row alone.
+  - The selection's send (#549) keeps its rows, its placeholder and its `send`.
+  - Nothing re-enters an entity mid-update: the delivery runs deferred, outside the picker's
+    update. The Zed hunks are additive, each with its `// Marley:` comment and row.
+- **The gate:** `just gate-diff` green: 16 passed, 0 failed, `GATE GREEN [diff]`, the receipt
+  written.
+
+---
+## Phase 3 — Complete
+- **Checklist** (no task tool): document ✓; capture knowledge ✓; close the ticket ✓; archive ✓;
+  commit ✓.
+- **Documented:** `CHANGELOG.md` (Added: review notes to a terminal agent);
+  `docs/marley_architecture/marley_workbench.md` (the shared picker under #549, and "Review notes
+  to the agent"); `docs/marley_architecture/marley_agent.md` (`review_prompt`);
+  `docs/marley/guide.md` ("Review notes to the agent"). The three ledger rows describe what
+  shipped.
+- **Knowledge:** AD-claude-522-review-notes-go-to-an-idle-terminal-agent-and-stay-marked-sent-001.
+- **Brain:** consultation cbc64a2b0bee452bb67d01dce8aa3e80 closed with a decision (follow-up
+  2026-10-29).
+- **Closed:** TICKET-522 moved to `tickets/closed/`; its BACKLOG row went at promotion.
+- **No tests** (§7): the drafted scenario waits for the quality pass.

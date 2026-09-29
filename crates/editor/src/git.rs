@@ -177,6 +177,20 @@ pub(super) struct StoredReviewComment {
     pub(super) range: Range<Anchor>,
     /// Whether this comment is currently being edited inline.
     pub(super) is_editing: bool,
+    // Marley: sent to an agent, so kept in the diff and out of its count (#522).
+    pub(super) sent: bool,
+}
+
+// Marley: a review note as plain data, for Marley's handler of `SendReviewToAgent` (#522).
+/// A review note: its id, its file's absolute path, the lines it covers counted from 1, and the
+/// reviewer's words.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReviewNote {
+    pub id: usize,
+    pub path: std::path::PathBuf,
+    pub first_line: u32,
+    pub last_line: u32,
+    pub comment: String,
 }
 
 /// Represents an active diff review overlay that appears when clicking the "Add Review" button.
@@ -221,6 +235,7 @@ impl StoredReviewComment {
             comment,
             range: anchor_range,
             is_editing: false,
+            sent: false,
         }
     }
 }
@@ -749,8 +764,61 @@ impl Editor {
     pub(super) fn total_review_comment_count(&self) -> usize {
         self.stored_review_comments
             .iter()
-            .map(|(_, v)| v.len())
+            // Marley: a sent note stays in the diff but leaves the count (#522).
+            .map(|(_, v)| v.iter().filter(|comment| !comment.sent).count())
             .sum()
+    }
+
+    // Marley: the notes not yet sent, as plain data, for Marley's handler of
+    // `SendReviewToAgent`, which upstream left without one (#522).
+    /// The review notes not yet sent to an agent, each with its file's absolute path and its lines
+    /// from 1; a note whose file is not on this machine is left out.
+    pub fn unsent_review_notes(&self, cx: &App) -> Vec<ReviewNote> {
+        let snapshot = self.buffer.read(cx).snapshot(cx);
+        let mut notes = Vec::new();
+        for (_, comments) in &self.stored_review_comments {
+            for comment in comments.iter().filter(|comment| !comment.sent) {
+                let start = comment.range.start.to_point(&snapshot);
+                let end = comment.range.end.to_point(&snapshot);
+                let Some((buffer, start)) = snapshot.point_to_buffer_point(start) else {
+                    continue;
+                };
+                let Some(path) = buffer
+                    .file()
+                    .and_then(|file| file.as_local())
+                    .map(|file| file.abs_path(cx))
+                else {
+                    continue;
+                };
+                let end = snapshot
+                    .point_to_buffer_point(end)
+                    .map_or(start, |(_, end)| end);
+                notes.push(ReviewNote {
+                    id: comment.id,
+                    path,
+                    first_line: start.row + 1,
+                    last_line: end.row.max(start.row) + 1,
+                    comment: comment.comment.clone(),
+                });
+            }
+        }
+        notes
+    }
+
+    // Marley: marks notes sent, which keeps them in the diff and out of its count (#522).
+    /// Marks the review notes `ids` sent to an agent.
+    pub fn mark_review_notes_sent(&mut self, ids: &[usize], cx: &mut Context<Self>) {
+        for (_, comments) in &mut self.stored_review_comments {
+            for comment in comments
+                .iter_mut()
+                .filter(|comment| ids.contains(&comment.id))
+            {
+                comment.sent = true;
+            }
+        }
+        let total_count = self.total_review_comment_count();
+        cx.emit(EditorEvent::ReviewCommentsChanged { total_count });
+        cx.notify();
     }
 
     /// Adds a new review comment to a specific hunk.
@@ -2755,6 +2823,8 @@ impl Editor {
     ) -> impl IntoElement {
         let comment_id = comment.id;
         let is_editing = inline_editor.is_some();
+        // Marley: a sent note says so (#522).
+        let sent = comment.sent;
 
         h_flex()
             .w_full()
@@ -2840,6 +2910,12 @@ impl Editor {
                             );
                         }),
                     )
+                    .into_any_element()
+            } else if sent {
+                // Marley: a sent note says so where upstream draws nothing (#522).
+                Label::new("Sent")
+                    .size(LabelSize::Small)
+                    .color(Color::Muted)
                     .into_any_element()
             } else {
                 // Display mode: no action buttons for now (edit/delete not yet implemented)

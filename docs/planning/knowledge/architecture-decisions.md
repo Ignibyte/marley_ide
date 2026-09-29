@@ -2949,3 +2949,18 @@ question, one after another in terminals, resolved with the worktree's variables
 deadline for its archive script). A failure or the deadline asks Remove Anyway or Cancel rather
 than refusing. Rejected: a Marley-only setting for the command (tasks already carry commands,
 variables and a terminal); refusing outright on a failure (the user may know it does not matter).
+
+## AD-claude-522-review-notes-go-to-an-idle-terminal-agent-and-stay-marked-sent-001
+*decided at: 2026-09-29 · status: shipped*
+
+Zed's diff review notes, which upstream stores, anchors and counts but no longer sends, go to a
+terminal agent through Marley's handler of `SendReviewToAgent`: #549's agent picker, generalized
+to rows with a Copy row and a pick handler, lists the agents whose folder holds every noted file;
+only Claude Code whose #519 seat is `Idle` takes them, as one prompt in Orca's described
+`File:`/`Line:`/`User comment:` form pasted with Enter. The notes stay, marked Sent through a
+`sent` field in Zed's `StoredReviewComment`, and the button counts the unsent. Review notes are on
+for everyone through `DiffReviewFeatureFlag::enabled_for_all`. Changed at promotion: readiness
+from #519's events rather than the plugin's notifications and a quiet timer; the picker reused
+rather than a new one; targets by the files their folder holds rather than the diff's repository
+root. Rejected: Orca's delete-on-send; the Agent Panel as a target (upstream's removed path);
+holding notes until an agent goes idle.

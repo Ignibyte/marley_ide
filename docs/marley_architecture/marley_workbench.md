@@ -796,6 +796,29 @@ alike.
   front first; a seat in `State::Waiting` gets nothing and a toast; otherwise the window
   activated, the terminal revealed (`browser::reveal_terminal`) and focused, one
   `Terminal::paste`, no Enter.
+- Since #522 the picker is shared: `TargetPicker::new(rows, placeholder, on_pick, ..)`, each
+  `Row` a label and a `Pick` (`Agent(Target)` or `Copy`), and `on_pick` what the confirm does.
+  `Target` gains `ready` (its seat in `State::Idle`); `Target`, `agent_targets` and the picker are
+  `pub(crate)`.
+
+## Review notes to the agent (`src/review_notes.rs`, #522)
+
+- `init` registers Zed's `editor::actions::SendReviewToAgent` on every workspace; the diffs'
+  toolbar button focuses the diff and dispatches it. `open_picker` takes the active item as an
+  `Editor` (`act_as`, which a project diff and a branch diff answer with their right-hand
+  editor) and its `unsent_review_notes`; the rows are `send_selection::agent_targets` whose
+  working directory holds every note's file (`holds_every_file`), labeled "agent · project ·
+  ready | working | asking for permission | no idle signal", then Copy notes.
+- `deliver`: Copy writes `prompt(notes, None)` to the clipboard; an agent not `ready` gets a
+  toast; a ready one, after the picker's update, gets its window activated, its terminal revealed
+  and focused, `Terminal::paste` of `prompt(notes, cwd)` and `\r`, and the diff's editor
+  `mark_review_notes_sent(ids)`.
+- `prompt` makes each file relative to the agent's folder when it lies under it and hands the
+  notes to `marley_agent::review_prompt`.
+- The Zed side: `DiffReviewFeatureFlag::enabled_for_all`; `StoredReviewComment::sent`; the count
+  of unsent notes behind `ReviewCommentsChanged` and the button; `ReviewNote`,
+  `Editor::unsent_review_notes` (anchors to points, `point_to_buffer_point`, the buffer file's
+  `LocalFile::abs_path`, rows from 1) and `Editor::mark_review_notes_sent`; the row's Sent label.
 
 ## Voice (`src/voice.rs`, #480)
 

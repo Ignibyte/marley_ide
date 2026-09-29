@@ -47,20 +47,39 @@ impl Global for FocusOrder {}
 
 /// A terminal an agent runs in, and what a send needs of it.
 #[derive(Clone)]
-struct Target {
-    view: Entity<TerminalView>,
-    kind: AgentKind,
-    project: String,
+pub(crate) struct Target {
+    pub(crate) view: Entity<TerminalView>,
+    pub(crate) kind: AgentKind,
+    pub(crate) project: String,
     /// The seat's state word, for Claude Code with Marley's plugin.
-    status: Option<&'static str>,
+    pub(crate) status: Option<&'static str>,
     /// Whether the agent waits on a permission or a question.
-    waiting: bool,
+    pub(crate) waiting: bool,
+    /// Whether its seat says it is idle at its prompt (#522).
+    pub(crate) ready: bool,
     /// The folder its foreground program runs in.
-    cwd: Option<PathBuf>,
+    pub(crate) cwd: Option<PathBuf>,
 }
 
+/// What a row of the agent picker stands for: an agent, or copying what would be sent (#522).
+#[derive(Clone)]
+pub(crate) enum Pick {
+    Agent(Target),
+    Copy,
+}
+
+/// A row of the agent picker: its words and what it stands for.
+#[derive(Clone)]
+pub(crate) struct Row {
+    pub(crate) label: String,
+    pub(crate) pick: Pick,
+}
+
+/// What the picker does with the row chosen, in the window it opened in.
+pub(crate) type OnPick = Box<dyn FnMut(Pick, AnyWindowHandle, &mut App)>;
+
 impl Target {
-    fn label(&self) -> String {
+    pub(crate) fn label(&self) -> String {
         let mut label = format!("{} · {}", self.kind.display_name(), self.project);
         if let Some(status) = self.status {
             label.push_str(" · ");
@@ -150,8 +169,27 @@ fn send_selection(
             Ok(())
         }
         _ => {
+            let rows = targets
+                .into_iter()
+                .map(|target| Row {
+                    label: target.label(),
+                    pick: Pick::Agent(target),
+                })
+                .collect();
+            let on_pick: OnPick = Box::new(move |pick, window, cx| {
+                if let Pick::Agent(target) = pick {
+                    send(target, &selection, window, cx);
+                }
+            });
             workspace.toggle_modal(window, cx, |window, cx| {
-                TargetPicker::new(targets, selection, window_handle, window, cx)
+                TargetPicker::new(
+                    rows,
+                    "Send the selection to…",
+                    on_pick,
+                    window_handle,
+                    window,
+                    cx,
+                )
             });
             Ok(())
         }
@@ -227,7 +265,7 @@ fn reference(
 /// Every terminal of the window `workspace` is in, the center panes' and the Terminal Panel's,
 /// whose foreground program is a known agent, the one focused last first. `workspace` is read as
 /// given, since this runs in its update; the window's other workspaces through their entities.
-fn agent_targets(workspace: &Workspace, cx: &App) -> Vec<Target> {
+pub(crate) fn agent_targets(workspace: &Workspace, cx: &App) -> Vec<Target> {
     let current = workspace.weak_handle().entity_id();
     let others: Vec<Entity<Workspace>> = workspace
         .multi_workspace()
@@ -302,6 +340,7 @@ fn target_of(project: String, view: Entity<TerminalView>, cx: &App) -> Option<Ta
         project,
         status: seat.map(|seat| claude_events::seat_status(seat.state).label()),
         waiting: seat.is_some_and(|seat| seat.state == State::Waiting),
+        ready: seat.is_some_and(|seat| seat.state == State::Idle),
         cwd,
         view,
     })
@@ -355,24 +394,26 @@ fn show_toast(workspace: &mut Workspace, message: impl Into<String>, cx: &mut Co
     );
 }
 
-/// The picker for a selection when several agents run: one row an agent, the one focused last
-/// first.
-struct TargetPicker {
+/// The picker of an agent to send to: a selection's when several agents run (#549), review
+/// notes' (#522), one row an agent, the one focused last first.
+pub(crate) struct TargetPicker {
     picker: Entity<Picker<TargetDelegate>>,
 }
 
 impl TargetPicker {
-    fn new(
-        targets: Vec<Target>,
-        selection: Selection,
+    pub(crate) fn new(
+        rows: Vec<Row>,
+        placeholder: &'static str,
+        on_pick: OnPick,
         window_handle: AnyWindowHandle,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let delegate = TargetDelegate {
             modal: cx.entity().downgrade(),
-            targets,
-            selection,
+            rows,
+            placeholder,
+            on_pick,
             window: window_handle,
             matches: Vec::new(),
             selected_index: 0,
@@ -404,8 +445,9 @@ impl Render for TargetPicker {
 
 struct TargetDelegate {
     modal: WeakEntity<TargetPicker>,
-    targets: Vec<Target>,
-    selection: Selection,
+    rows: Vec<Row>,
+    placeholder: &'static str,
+    on_pick: OnPick,
     window: AnyWindowHandle,
     /// The targets the query matches, in order, each naming its target by index.
     matches: Vec<StringMatch>,
@@ -432,7 +474,7 @@ impl PickerDelegate for TargetDelegate {
     }
 
     fn placeholder_text(&self, _: &mut Window, _: &mut App) -> Arc<str> {
-        "Send the selection to…".into()
+        self.placeholder.into()
     }
 
     fn update_matches(
@@ -442,10 +484,10 @@ impl PickerDelegate for TargetDelegate {
         cx: &mut Context<Picker<Self>>,
     ) -> Task<()> {
         let candidates: Vec<StringMatchCandidate> = self
-            .targets
+            .rows
             .iter()
             .enumerate()
-            .map(|(index, target)| StringMatchCandidate::new(index, &target.label()))
+            .map(|(index, row)| StringMatchCandidate::new(index, &row.label))
             .collect();
         let executor = cx.background_executor().clone();
         cx.spawn_in(window, async move |picker, cx| {
@@ -477,13 +519,13 @@ impl PickerDelegate for TargetDelegate {
     }
 
     fn confirm(&mut self, _: bool, window: &mut Window, cx: &mut Context<Picker<Self>>) {
-        let target = self
+        let pick = self
             .matches
             .get(self.selected_index)
-            .and_then(|found| self.targets.get(found.candidate_id))
-            .cloned();
-        if let Some(target) = target {
-            send(target, &self.selection, self.window, cx);
+            .and_then(|found| self.rows.get(found.candidate_id))
+            .map(|row| row.pick.clone());
+        if let Some(pick) = pick {
+            (self.on_pick)(pick, self.window, cx);
         }
         self.dismissed(window, cx);
     }

@@ -36,6 +36,11 @@ impl FeatureFlag for DiffReviewFeatureFlag {
     fn enabled_for_staff() -> bool {
         false
     }
+
+    // Marley: review comments for everyone, which Marley sends to a terminal agent (#522).
+    fn enabled_for_all() -> bool {
+        true
+    }
 }
 register_feature_flag!(DiffReviewFeatureFlag);
 

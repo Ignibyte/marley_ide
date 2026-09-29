@@ -61,6 +61,9 @@ pub fn event_line(project: &str, kind: AgentKind, event: TurnEvent) -> String;
 - **`launch_line_after`** (#585) puts a setup command and `&&` before `launch_line`'s bytes, so the
   agent starts only once its worktree's install succeeded; an empty setup gives the launch line
   alone.
+- **`review_prompt`** (#522) turns `ReviewLine`s into the prompt review notes are sent as, in file
+  and line order: `File:`, `Line: N` or `Lines: A-B`, `User comment: "…"`, a blank line between
+  notes; the words' backslashes, quotes, CR and LF escaped and other control characters dropped.
 - **`permission_mark`** (#532) says whether an agent runs without its prompts. For Claude Code a
   reported mode decides (`BYPASS_MODE` marks, any other clears), else its arguments
   (`--dangerously-skip-permissions`, `--permission-mode bypassPermissions` and its `=` form);

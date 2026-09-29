@@ -43,6 +43,7 @@ pub mod playwright_scripts;
 pub mod ports;
 pub mod push;
 mod rail;
+pub mod review_notes;
 pub mod rich_input;
 pub mod routing;
 pub mod send_selection;
@@ -408,6 +409,7 @@ pub fn init(cx: &mut App) {
     voice::init(cx);
     rich_input::init(cx);
     send_selection::init(cx);
+    review_notes::init(cx);
     autosuggest::init(cx);
     browser::init(cx);
     clients::init(cx);

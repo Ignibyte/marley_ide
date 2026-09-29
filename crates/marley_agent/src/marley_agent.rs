@@ -236,6 +236,64 @@ pub fn quote_argument(argument: &str) -> String {
     quoted
 }
 
+/// A review note as an agent reads it (#522): its file as the agent finds it, its lines from 1,
+/// and the reviewer's words.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewLine {
+    /// The file, relative to the agent's folder when it lies under it.
+    pub path: String,
+    /// The first line the note covers, from 1.
+    pub first: u32,
+    /// The last line it covers.
+    pub last: u32,
+    /// The reviewer's words.
+    pub comment: String,
+}
+
+/// The prompt that hands review notes to an agent (#522).
+///
+/// It takes the form Orca's report describes for its diff notes
+/// (`src/shared/diff-comments-format.ts`): per note `File: <path>`, `Line: N` or `Lines: A-B`, and
+/// `User comment: "<words>"`, the notes in file and line order, a blank line between them. In the
+/// words a backslash, a quote, a CR and a LF are escaped, and any other control character is
+/// dropped, so the prompt holds no escape sequence.
+#[must_use]
+pub fn review_prompt(mut notes: Vec<ReviewLine>) -> String {
+    notes.sort_by(|a, b| (&a.path, a.first, a.last).cmp(&(&b.path, b.first, b.last)));
+    notes
+        .iter()
+        .map(|note| {
+            let lines = if note.first == note.last {
+                format!("Line: {}", note.first)
+            } else {
+                format!("Lines: {}-{}", note.first, note.last)
+            };
+            let path: String = note.path.chars().filter(|c| !c.is_control()).collect();
+            format!(
+                "File: {path}\n{lines}\nUser comment: \"{}\"",
+                escape_comment(&note.comment)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+/// The reviewer's words inside the prompt's quotes.
+fn escape_comment(comment: &str) -> String {
+    let mut escaped = String::with_capacity(comment.len());
+    for character in comment.chars() {
+        match character {
+            '\\' => escaped.push_str("\\\\"),
+            '"' => escaped.push_str("\\\""),
+            '\r' => escaped.push_str("\\r"),
+            '\n' => escaped.push_str("\\n"),
+            other if other.is_control() => {}
+            other => escaped.push(other),
+        }
+    }
+    escaped
+}
+
 /// The permission mode Claude Code reports while it asks for no permission.
 pub const BYPASS_MODE: &str = "bypassPermissions";
 
