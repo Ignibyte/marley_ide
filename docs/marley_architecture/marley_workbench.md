@@ -826,7 +826,9 @@ alike.
   text. It keeps the last write and answers after the Enter.
 - `footer`, called from `agent_bar`'s footer for a terminal with no agent CLI in front: the card
   (Allow and Deny first, since the toast stacks over the footer's right end (#593); then the
-  caller, the program, what it would type) or the bar (who typed what; Take Over,
+  caller, the program, what it would type) or the bar (who typed what, while that program is
+  still in the foreground, read through `program_of(context.terminal)` since the footer renders
+  inside its view (#595); Take Over,
   or "You have control" and Hand Back). `marley::TakeOverTerminal` (Ctrl-I in `Terminal`) toggles
   the take-over, advancing the generation, while an agent has typed into the focused terminal's
   program, and otherwise propagates so the key reaches the program.

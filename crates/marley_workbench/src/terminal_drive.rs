@@ -106,7 +106,12 @@ pub fn init(cx: &mut App) {
 
 /// The terminal's foreground process group's leader, none while its shell waits at its prompt.
 fn foreground_program(view: &Entity<TerminalView>, cx: &App) -> Option<u32> {
-    let terminal = view.read(cx).terminal().read(cx);
+    program_of(view.read(cx).terminal().read(cx))
+}
+
+/// [`foreground_program`] from the terminal itself, for the footer, which renders while its view
+/// is being updated and so cannot read it (#595).
+fn program_of(terminal: &Terminal) -> Option<u32> {
     let shell = terminal.pid_getter()?.fallback_pid();
     let program = terminal.pid().filter(|pid| *pid != shell)?;
     Some(program.as_u32())
@@ -577,7 +582,12 @@ pub(crate) fn footer(context: &MarleyFooterContext, cx: &App) -> Option<AnyEleme
     let (words, action) = if drive.taken_over {
         ("You have control".to_string(), "Hand Back")
     } else {
-        let written = drive.last_write.as_ref()?;
+        // The drive catches up with a new program only when something next reads it, so the
+        // bar checks that the program it names still runs (#595).
+        let written = drive
+            .last_write
+            .as_ref()
+            .filter(|_| drive.program == program_of(context.terminal.read(cx)))?;
         (
             format!(
                 "{} typed into {}: {}",

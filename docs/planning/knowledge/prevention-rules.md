@@ -2581,3 +2581,12 @@ an Enter above all, goes through `terminal_drive::paste_then`, which sends it af
 `AFTER_PASTE`. A visual check of a paste-then-Enter path runs a program that reads bracketed
 pastes (`python3 -q`), not a stand-in that reads lines, and checks the program's output on the
 screen, not the tool's answer.
+
+## PR-claude-a-render-hook-reads-its-context-not-its-view-001
+*severity: high · prevents: F-claude-595-the-footer-read-its-own-view-while-it-rendered-001*
+
+A hook a Zed view calls from its own `render` (`MarleyTerminalFooter`, `MarleyTerminalSuggestion`,
+an element callback) runs while that view is leased. It reads what its context hands it
+(`context.terminal`, `context.project`) and never `view.read(cx)` or a helper that does; a
+helper shared with non-render paths gets a variant that takes the inner entity. The weak handle
+in the context is for click handlers, which run later.

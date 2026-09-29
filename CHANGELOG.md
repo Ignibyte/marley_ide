@@ -1018,6 +1018,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **The note that an agent typed into a program goes when the program does** (#595,
+  2026-09-29). After an agent typed into a program in a terminal, the bar under it saying so, with
+  Take Over, stayed under the shell once that program had exited. It now shows only while the
+  program it names is still running.
 - **An agent's Enter runs the line** (#594, 2026-09-29). When an agent typed into a running
   program with `terminal_type` and pressed Enter, Python's REPL took the Enter as part of the
   pasted text: the line sat there with `...` and never ran, while the tool said it was typed.

@@ -273,7 +273,7 @@ agent reading his Claude Code terminal could take the half-typed prompt for outp
   - #594: the Enter went out in the same burst as the paste, and Python's REPL read it as part of
     the paste; nothing an agent submitted ran, while the tool said it typed. Keys and Enter now
     follow the paste after 200 ms, in the rich input and review notes too.
-  - #595 (filed): the drive bar and Ctrl-I's take-over outlive the program an agent typed into.
+  - #595: the drive bar outlived the program an agent typed into; it now goes with it.
 - **The shots, read (#594's run 2):** `525-01-repl` (the REPL, `terminal_screen` naming
   `python3`, REQ-001); `525-02-ask` (the card with Allow and Deny and the toast, REQ-002);
   `525-03-typed` (`42` under `print(6 * 7)`, the bar with Take Over, REQ-003, REQ-005);
@@ -284,5 +284,6 @@ agent reading his Claude Code terminal could take the half-typed prompt for outp
   `525-10-never-ask` (typed with no card, REQ-009); `525-11-shell-refused` (the shell at its
   prompt refused, REQ-011); `525-12-new-program-asks` (a new program asks again, REQ-002);
   `525-13-rich-input-open` and `525-14-rich-input-ran` (#594's rich-input check).
-- **Not reached:** REQ-012 (Ctrl-I reaching a program no agent typed into) waits on #595;
+- **Seen in #595's run:** REQ-012, Ctrl-I at the shell's prompt after Python exits completes
+  `ech` to `echo` (`525-11b-tab-completes`). **Not reached:**
   REQ-013 (the setting on the Marley page) was not opened.

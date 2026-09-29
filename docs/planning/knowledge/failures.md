@@ -2744,3 +2744,21 @@ and none ran, while the tool answered `typed 13 bytes`. #525's own review had pa
 stand-in; #481's and #522's stand-ins read lines, which an Enter in any read ends. Fixed in #594:
 `terminal_drive::paste_then` pastes, waits `AFTER_PASTE` (200 ms), then sends what follows, and
 all three paths use it.
+
+## F-claude-595-the-drive-bar-outlived-the-program-it-named-001
+*severity: low · found in: #525's visual check, after the fact (#594's run, shot 525-11-shell-refused) · class: a view drawn from stored state that another path brings up to date only when it reads it · prevented by: the visual check past the end of the thing a view names*
+
+#525's bar ("… typed into python3: …", Take Over) read the stored last write. `drive()` drops it
+when the foreground program changes, but only an agent's call or Ctrl-I runs `drive()`, so after
+Python exited the bar stayed under the shell. Ctrl-I itself was right: it calls `drive()` first.
+Fixed in #595: the bar shows only while the drive's program is the terminal's foreground program.
+
+## F-claude-595-the-footer-read-its-own-view-while-it-rendered-001
+*severity: high · found in: pipeline 595's Test phase (run 1 panicked at the first write) · class: gpui re-entrancy · prevented by: PR-claude-a-render-hook-reads-its-context-not-its-view-001 (new)*
+
+#595's first fix compared the drive's program with `foreground_program(&view, cx)` inside
+`footer`. The footer is drawn through `MarleyTerminalFooter` from `TerminalView::render`, while
+the view is leased, and `foreground_program` reads the view to reach its terminal: "cannot read
+terminal_view::TerminalView while it is already being updated", and Marley died at the first
+write. The gate and the review of the diff passed it. Fixed before the commit: `program_of`
+takes the `Terminal`, and the footer passes `context.terminal`.

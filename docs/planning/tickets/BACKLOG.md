@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-595](open/TICKET-595-drive-bar-outlives-its-program.md) | bug | prong 1 · the drive bar and Ctrl-I's take-over end with the program an agent typed into; found in #525's visual check |
 | [TICKET-554](open/TICKET-554-block-selection-and-menu.md) | feature | prong 1 T1 · a selected block and the block menu: Copy Command, Both, as Markdown, Reinput, Reinput with sudo |
 | [TICKET-555](open/TICKET-555-send-a-block-to-the-agent.md) | feature | prong 2 with prong 1 · a block sent into a terminal agent's prompt, and Ask the agent under a failed block; after #549 and #554 |
 | [TICKET-528](open/TICKET-528-block-filter.md) | feature | prong 1 T1 · filter a block's output |

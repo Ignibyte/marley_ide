@@ -10,6 +10,7 @@
 # types with no card (REQ-009); the shell at its prompt is refused (REQ-011); a program started
 # later asks again (REQ-002). Since #594 each line an agent submits runs, its output checked on
 # the screen, and the rich input's Enter runs a line in Python's REPL under an agent's name.
+# Since #595 the bar goes with the program it names, and Ctrl-I at the shell's prompt completes.
 compositor sway
 
 # shellcheck source=script/e2e/browser-fixture.sh
@@ -228,6 +229,16 @@ steps() {
   mcp_agent terminal-type bash "echo no" --submit | tee "$E2E_WORK/type10.txt"
   expect "a write at the shell's prompt is refused" holds "$E2E_WORK/type10.txt" "never at the shell's prompt"
   shot 525-11-shell-refused
+
+  echo "== #595: Ctrl-I at the shell's prompt completes, with no bar left from Python"
+  type_text "ech"
+  press "CTRL" i
+  settle 1
+  shot 525-11b-tab-completes
+  expect "Ctrl-I reached the shell" \
+    test "$(mcp_agent terminal-screen repo | grep -c '^  | \$ echo')" -ge 1
+  press "CTRL" u
+  settle 1
 
   echo "== a program started later asks again"
   python_repl

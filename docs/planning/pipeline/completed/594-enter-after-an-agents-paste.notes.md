@@ -88,9 +88,9 @@
 - **REQ-002, REQ-005:** the review in Phase 2; the keys share the Enter's `after`.
 - **Found, for #525 (not this ticket):** in 525-11 the bar "Stand-in agent typed into python3 …
   Take Over" stays under the shell after Python exits. The footer reads the stored last write
-  without asking whether its program still runs, and `toggle_control` takes over while any last
-  write is stored, so Ctrl-I (Tab) at the shell's prompt would take over instead of completing:
-  #525's REQ-012 says it reaches the program. Filed as #595.
+  without asking whether its program still runs. Filed as #595. (As first written here, this
+  said Ctrl-I at the shell's prompt would take over; #595's Plan read `toggle_control`, which
+  calls `drive()` first and so drops the stale write: the key reaches the shell.)
 - **Seen, not in scope:** the agent row in 525-13 and 522-05 is titled with the user and host
   name that the host's bash sets as the terminal's title; shots stay in the scratchpad.
 
