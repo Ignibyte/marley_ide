@@ -22,6 +22,10 @@ OR Apache-2.0, with the Marley crates' lint table.
   grant class `terminal.write`), with their schemas in `terminal_screen_schemas` and
   `terminal_type_schemas`; the terminal family's calls defer to the app as before. Outside
   clients reach neither: they are on no client list.
+- **Running at the prompt (#556).** `terminal_run` (write, grant class `terminal.write`), with
+  its schemas in `terminal_run_schemas`: a `command` of one line up to 4,096 bytes and
+  `wait_seconds` up to 20 in; the block's index, exit code, duration, output, `running`,
+  `truncated` and `redacted` out. The app answers it, as it answers `terminal_type`.
 - **Conditional tools (#567).** `CONDITIONAL_TOOLS` names the tools listed and called only while
   the user turns them on: `browser_find` and `terminal_find`, each the System One use of its
   name. `RequestCtx.enabled` holds the ones on, from `ServerData.enabled`, which the app sets

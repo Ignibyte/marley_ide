@@ -168,6 +168,22 @@ const REGISTRY: &[ToolSpec] = &[
                       it or does not answer within 25 seconds: Marley asks before the first \
                       write to each program unless the user chose otherwise.",
     },
+    ToolSpec {
+        family: Family::Terminal,
+        verb: "run",
+        tier: Tier::Write,
+        grant_class: "terminal.write",
+        description: "Run a command at a terminal's shell prompt, in the user's view, as a \
+                      block: typed as the user would type it, then answered with the block's \
+                      index, exit code, duration and output once it ends or `wait_seconds` \
+                      (at most 20) pass, when it answers `running: true` and terminal_read \
+                      reads the rest. Refused while a program or an agent CLI runs there, \
+                      while the user has typed at the prompt, while the user has taken over, \
+                      or when the user refuses: a command the user's denylist matches waits for \
+                      Run or Refuse under the terminal, one the allowlist matches runs at once, \
+                      and the user's setting decides the rest. One line, at most 4,096 bytes. \
+                      Secrets in the output come back as `[redacted: <kind>]`.",
+    },
     browser_read(
         "tabs",
         "List Marley's Browser tabs, one per page, across every project's browser (each project \
@@ -1234,6 +1250,7 @@ fn terminal_schemas(verb: &str) -> (Value, Value) {
         "find" => terminal_find_schemas(),
         "screen" => terminal_screen_schemas(),
         "type" => terminal_type_schemas(),
+        "run" => terminal_run_schemas(),
         _ => terminal_list_schemas(),
     }
 }
@@ -1487,6 +1504,47 @@ fn terminal_type_schemas() -> (Value, Value) {
                 "generation": { "type": "integer" }
             },
             "required": ["written", "program", "generation"]
+        }),
+    )
+}
+
+/// `terminal_run` (#556): a terminal, a command and how long to wait; the block it ran.
+fn terminal_run_schemas() -> (Value, Value) {
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "terminal": terminal_argument_schema(),
+                "command": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096,
+                    "description": "The command, one line, as the user would type it."
+                },
+                "wait_seconds": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 20,
+                    "description": "How long to wait for the block to end; 20 when left out."
+                }
+            },
+            "required": ["command"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "terminal": { "type": "integer" },
+                "block": { "type": "integer" },
+                "command": { "type": "string" },
+                "running": { "type": "boolean" },
+                "exit_code": { "type": ["integer", "null"] },
+                "duration_ms": { "type": ["integer", "null"] },
+                "output": { "type": "string" },
+                "truncated": { "type": "boolean" },
+                "redacted": { "type": "integer" }
+            },
+            "required": ["terminal", "block", "command", "running", "output", "truncated", "redacted"]
         }),
     )
 }

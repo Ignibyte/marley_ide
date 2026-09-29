@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Agents run commands at your prompt, as blocks** (#556, 2026-09-29). An agent connected to
+  Marley's MCP server can run a command in a terminal of yours with `terminal_run`, which types it
+  at the shell's prompt as Rerun does and answers with the block's exit code, duration and output.
+  Each block an agent ran carries a mark before its pill. A command on the denylist (Warp's
+  defaults: shells, `curl`, `ssh`, `rm` and more) waits on a card under the terminal with Run and
+  Refuse, which Enter and Escape answer; one on the allowlist (`cat`, `ls`, `grep` and the like)
+  runs at once; Agent Commands Outside Lists decides the rest, running them by default since the
+  agent's own permission prompt already asked. Nothing is typed while a program runs, while you
+  have typed at the prompt, or after Ctrl-I takes the terminal over.
+
 - **A dev server's error while it keeps running** (#572, 2026-09-29). A command that prints a
   failure and is still running five seconds later, such as a dev server whose build broke, marks
   its terminal's rail row with a red × and the line, and posts one desktop notification,

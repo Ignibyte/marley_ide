@@ -25,6 +25,10 @@
       "secondary-down": "marley::NextBlock",
       "ctrl-g": "marley::RichInput",
       "ctrl-i": "marley::TakeOverTerminal",
+      // An agent's command waiting under the terminal (#556): Enter runs it, Escape refuses it;
+      // with none waiting, both keys reach the program.
+      "enter": "marley::RunAgentCommand",
+      "escape": "marley::RefuseAgentCommand",
       "right": "marley::AcceptSuggestion",
       // A block's filter (#528), Warp's key on Linux; Zed's Linux keymap leaves it unbound.
       "alt-shift-f": "marley::FilterBlock",

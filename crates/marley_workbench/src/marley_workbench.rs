@@ -173,6 +173,14 @@ actions!(
         /// back; without such an agent, the key goes to the terminal's program (#525).
         #[derive(Eq)]
         TakeOverTerminal,
+        /// Runs the command an agent waits to run in the focused terminal; without one, the key
+        /// goes to the terminal's program (#556).
+        #[derive(Eq)]
+        RunAgentCommand,
+        /// Refuses the command an agent waits to run in the focused terminal; without one, the
+        /// key goes to the terminal's program (#556).
+        #[derive(Eq)]
+        RefuseAgentCommand,
         /// Sends the rich input's text to the agent as its prompt.
         #[derive(Eq)]
         SendRichInput,
@@ -316,6 +324,12 @@ pub struct MarleySettings {
     pub browser_click_pause_agents: MarleyClickPauseAgents,
     /// When an agent's writes into a running program ask the user (#525).
     pub agent_terminal_writes: settings::MarleyAgentTerminalWrites,
+    /// The commands an agent's `terminal_run` types at once, as regular expressions (#556).
+    pub agent_command_allowlist: Vec<String>,
+    /// The commands an agent's `terminal_run` always asks about (#556).
+    pub agent_command_denylist: Vec<String>,
+    /// Whether a command neither list matches asks (#556).
+    pub agent_commands_outside_lists: settings::MarleyAgentCommandsOutsideLists,
     /// What Marley starts Claude Code and Codex with (#532).
     pub agent_permissions: agents::AgentPermissions,
     /// Who answers Claude Code's trust question in a new worktree (#587).
@@ -333,6 +347,11 @@ pub struct PushSettings {
     pub topic: String,
     /// The file holding the access token, when there is one.
     pub token_file: Option<String>,
+}
+
+/// `patterns` as owned strings, for a list setting's fallback.
+fn owned(patterns: &[&str]) -> Vec<String> {
+    patterns.iter().map(ToString::to_string).collect()
 }
 
 impl Settings for MarleySettings {
@@ -390,6 +409,15 @@ impl Settings for MarleySettings {
                 .unwrap_or_default(),
             agent_terminal_writes: marley
                 .and_then(|marley| marley.agent_terminal_writes)
+                .unwrap_or_default(),
+            agent_command_allowlist: marley
+                .and_then(|marley| marley.agent_command_allowlist.clone())
+                .unwrap_or_else(|| owned(marley_terminal::agent_commands::WARP_ALLOWLIST)),
+            agent_command_denylist: marley
+                .and_then(|marley| marley.agent_command_denylist.clone())
+                .unwrap_or_else(|| owned(marley_terminal::agent_commands::WARP_DENYLIST)),
+            agent_commands_outside_lists: marley
+                .and_then(|marley| marley.agent_commands_outside_lists)
                 .unwrap_or_default(),
             agent_permissions: agents::AgentPermissions::from_content(marley),
             claude_code_worktree_trust: marley

@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #556 (feature, prong 2 with prong 1: plan D9's `terminal.run`; the Warp blocks note, recommendation 3)
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/556-terminal-run.spec.md
+- **Pipeline doc:** ../../pipeline/completed/556-terminal-run.spec.md
 - **Source ticket:** docs/planning/design-notes/warp-blocks-and-natural-language-2026-09-25.md (item 4 of "What Marley would do"; Chad, 2026-09-26: every remaining finding gets built)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 A new tool on Marley's MCP server, `terminal_run`, types a command at a terminal's shell prompt

@@ -9,27 +9,36 @@
 //! typed, and Take Over (Ctrl-I) stops its writes until Hand Back. Each terminal's generation
 //! advances when its foreground program changes and at each take-over and hand-back, so a write
 //! meant for what the agent last read never lands in something else.
+//!
+//! `terminal_run` (#556) types a command at the shell's prompt instead, as Rerun does, and answers
+//! with the block it ran: only at a prompt the terminal's own shell signed, with nothing typed and
+//! no program in the foreground. `marley.agent_command_allowlist` runs a command at once,
+//! `marley.agent_command_denylist` asks with the same card and toast, and
+//! `marley.agent_commands_outside_lists` decides the rest; Enter and Escape answer the card from
+//! its terminal. Each block an agent ran carries a mark, and the same take-over stops both tools.
 
 use std::pin::pin;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use collections::{BTreeMap, HashMap};
 use futures::channel::oneshot;
 use futures::future::{self, Either};
 use gpui::{AnyElement, App, Context, Entity, EntityId, Global, Keystroke, SharedString, Task};
 use marley_mcp::{AppCall, ToolAnswer};
+use marley_terminal::agent_commands::{self, Verdict};
+use marley_terminal::{BlockState, PromptShell};
 use serde_json::{Value, json};
-use settings::{MarleyAgentTerminalWrites, Settings as _};
+use settings::{MarleyAgentCommandsOutsideLists, MarleyAgentTerminalWrites, Settings as _};
 use terminal::Terminal;
 use terminal_view::{MarleyFooterContext, TerminalView};
-use ui::{Button, ButtonStyle, Label, LabelSize, prelude::*};
+use ui::{Button, ButtonStyle, Label, LabelSize, Tooltip, prelude::*};
 use util::ResultExt as _;
 use workspace::notifications::NotificationId;
 use workspace::{Toast, Workspace};
 
 use crate::agent_bar::agent_in;
 use crate::click_pause::Who;
-use crate::{MarleySettings, TakeOverTerminal};
+use crate::{MarleySettings, RefuseAgentCommand, RunAgentCommand, TakeOverTerminal};
 
 /// How long a write waits for the user's answer: under the transport's 30 seconds, so the agent
 /// reads the refusal rather than a timeout.
@@ -44,6 +53,13 @@ const MOST_BYTES: usize = 4096;
 
 /// What the card and the bar show of a write, at most.
 const SHOWN_CHARACTERS: usize = 120;
+
+/// How long a run waits for its block after typing it, at most, and when the call gives no
+/// `wait_seconds`: with the approval, under [`WAIT`].
+const RUN_WAIT_SECONDS: u64 = 20;
+
+/// How often a run looks for its block and the block's end.
+const RUN_POLL: Duration = Duration::from_millis(50);
 
 /// The control state of each terminal an agent has read or typed into, by its view.
 #[derive(Default)]
@@ -63,6 +79,17 @@ struct Drive {
     /// Who typed last, into which program, and what.
     last_write: Option<Written>,
     pending: Option<Pending>,
+    /// The blocks an agent's `terminal_run` typed, by index (#556).
+    runs: BTreeMap<usize, Ran>,
+    /// Whether a run has typed its command and not yet answered.
+    run_in_flight: bool,
+}
+
+/// A command an agent ran at the terminal's prompt, and who ran it.
+#[derive(Clone)]
+struct Ran {
+    who: String,
+    command: String,
 }
 
 struct Written {
@@ -71,11 +98,15 @@ struct Written {
     text: String,
 }
 
-/// A write that waits for the user.
+/// A write, or a run, that waits for the user.
 struct Pending {
-    who: String,
-    program: String,
-    text: String,
+    /// What the card says.
+    words: String,
+    /// The card's two buttons.
+    allow: &'static str,
+    deny: &'static str,
+    /// Whether it is a run, which Enter and Escape answer.
+    run: bool,
     answer: Option<oneshot::Sender<bool>>,
 }
 
@@ -97,6 +128,18 @@ pub fn init(cx: &mut App) {
             let toggled = view.is_some_and(|view| toggle_control(&view, cx));
             if !toggled {
                 // The key goes on to the terminal, which sends it to the program.
+                cx.propagate();
+            }
+        });
+        // Enter and Escape answer a run waiting under the focused terminal, and otherwise reach
+        // its program (#556).
+        workspace.register_action(|workspace, _: &RunAgentCommand, window, cx| {
+            if !answer_focused_run(workspace, true, window, cx) {
+                cx.propagate();
+            }
+        });
+        workspace.register_action(|workspace, _: &RefuseAgentCommand, window, cx| {
+            if !answer_focused_run(workspace, false, window, cx) {
                 cx.propagate();
             }
         });
@@ -386,13 +429,21 @@ async fn ask_then_type(typing: Typing, cx: &gpui::AsyncApp) -> Result<ToolAnswer
     let id = typing.view.entity_id();
     cx.update(|cx| {
         drive(&typing.view, cx).pending = Some(Pending {
-            who: typing.who.clone(),
-            program: typing.program.clone(),
-            text: text.clone(),
+            words: format!(
+                "{} wants to type into {}: {text}",
+                typing.who, typing.program
+            ),
+            allow: "Allow",
+            deny: "Deny",
+            run: false,
             answer: Some(sender),
         });
         typing.view.update(cx, |_, cx| cx.notify());
-        show_toast(&typing, cx);
+        let message = format!(
+            "{} wants to type into {}. Allow it or deny it under the terminal.",
+            typing.who, typing.program
+        );
+        show_toast(typing.workspace.as_ref(), &typing.view, message, cx);
     });
     let timer = pin!(cx.background_executor().timer(WAIT));
     let answer = match future::select(receiver, timer).await {
@@ -404,7 +455,7 @@ async fn ask_then_type(typing: Typing, cx: &gpui::AsyncApp) -> Result<ToolAnswer
             drive.pending = None;
         }
         typing.view.update(cx, |_, cx| cx.notify());
-        dismiss_toast(&typing, cx);
+        dismiss_toast(typing.workspace.as_ref(), &typing.view, cx);
         match answer {
             Some(true) => {
                 let drive = drive(&typing.view, cx);
@@ -474,25 +525,26 @@ const fn answer_of(structured: Value) -> ToolAnswer {
     }
 }
 
-/// The toast in the terminal's workspace for a pending write, with Show.
-fn show_toast(typing: &Typing, cx: &mut App) {
-    let Some(workspace) = typing.workspace.clone() else {
+/// The toast in the terminal's workspace for a pending write or run, with Show.
+fn show_toast(
+    workspace: Option<&Entity<Workspace>>,
+    view: &Entity<TerminalView>,
+    message: String,
+    cx: &mut App,
+) {
+    let Some(workspace) = workspace else {
         return;
     };
-    let view = typing.view.clone();
-    let message = format!(
-        "{} wants to type into {}. Allow it or deny it under the terminal.",
-        typing.who, typing.program
-    );
-    let toast = Toast::new(toast_id(&typing.view), message).on_click("Show", move |window, cx| {
-        crate::browser::reveal_terminal(&view, window, cx);
+    let shown = view.clone();
+    let toast = Toast::new(toast_id(view), message).on_click("Show", move |window, cx| {
+        crate::browser::reveal_terminal(&shown, window, cx);
     });
     workspace.update(cx, |workspace, cx| workspace.show_toast(toast, cx));
 }
 
-fn dismiss_toast(typing: &Typing, cx: &mut App) {
-    if let Some(workspace) = typing.workspace.clone() {
-        let id = toast_id(&typing.view);
+fn dismiss_toast(workspace: Option<&Entity<Workspace>>, view: &Entity<TerminalView>, cx: &mut App) {
+    if let Some(workspace) = workspace {
+        let id = toast_id(view);
         workspace.update(cx, |workspace, cx| workspace.dismiss_toast(&id, cx));
     }
 }
@@ -517,11 +569,11 @@ fn answer(view: EntityId, allowed: bool, cx: &mut App) {
     }
 }
 
-/// Takes over `view` from the agent that typed into its program, or hands it back; false when no
-/// agent has typed into it, so the key goes on to the program.
+/// Takes over `view` from the agent that typed into its program or ran a command at its prompt, or
+/// hands it back; false when no agent has done either, so the key goes on to the program.
 fn toggle_control(view: &Entity<TerminalView>, cx: &mut App) -> bool {
     let drive = drive(view, cx);
-    if drive.last_write.is_none() && !drive.taken_over {
+    if drive.last_write.is_none() && drive.runs.is_empty() && !drive.taken_over {
         return false;
     }
     drive.taken_over = !drive.taken_over;
@@ -552,7 +604,7 @@ pub(crate) fn footer(context: &MarleyFooterContext, cx: &App) -> Option<AnyEleme
         return Some(
             bar.debug_selector(|| "marley-terminal-write-card".into())
                 .child(
-                    Button::new(("marley-terminal-write-allow", id.as_u64()), "Allow")
+                    Button::new(("marley-terminal-write-allow", id.as_u64()), pending.allow)
                         .style(ButtonStyle::Filled)
                         .on_click(move |_, _, cx| {
                             cx.stop_propagation();
@@ -560,7 +612,7 @@ pub(crate) fn footer(context: &MarleyFooterContext, cx: &App) -> Option<AnyEleme
                         }),
                 )
                 .child(
-                    Button::new(("marley-terminal-write-deny", id.as_u64()), "Deny")
+                    Button::new(("marley-terminal-write-deny", id.as_u64()), pending.deny)
                         .style(ButtonStyle::Subtle)
                         .on_click(move |_, _, cx| {
                             cx.stop_propagation();
@@ -568,19 +620,18 @@ pub(crate) fn footer(context: &MarleyFooterContext, cx: &App) -> Option<AnyEleme
                         }),
                 )
                 .child(
-                    Label::new(format!(
-                        "{} wants to type into {}: {}",
-                        pending.who, pending.program, pending.text
-                    ))
-                    .size(LabelSize::Small)
-                    .color(Color::Warning)
-                    .truncate(),
+                    Label::new(pending.words.clone())
+                        .size(LabelSize::Small)
+                        .color(Color::Warning)
+                        .truncate(),
                 )
                 .into_any_element(),
         );
     }
     let (words, action) = if drive.taken_over {
         ("You have control".to_string(), "Hand Back")
+    } else if let Some(ran) = running_run(drive, context.terminal.read(cx)) {
+        (format!("{} ran {}", ran.who, ran.command), "Take Over")
     } else {
         // The drive catches up with a new program only when something next reads it, so the
         // bar checks that the program it names still runs (#595).
@@ -613,6 +664,376 @@ pub(crate) fn footer(context: &MarleyFooterContext, cx: &App) -> Option<AnyEleme
                         toggle_control(&view, cx);
                     }),
             )
+            .into_any_element(),
+    )
+}
+
+/// A run, checked: where it goes, what it types, who asks and whether the user is asked first.
+struct Run {
+    view: Entity<TerminalView>,
+    workspace: Option<Entity<Workspace>>,
+    id: u64,
+    command: String,
+    who: String,
+    wait: Duration,
+    ask: bool,
+}
+
+/// `terminal_run` (#556): checks the command and the terminal's prompt, asks the user when the
+/// lists and the setting say to, types the command as Rerun does, and answers with its block once
+/// it ends or the wait is over.
+pub(crate) fn run_at_prompt(call: AppCall, cx: &mut App) {
+    let called = cx.background_executor().now();
+    let run = match check_run(&call, cx) {
+        Ok(run) => run,
+        Err(refusal) => {
+            call.answer(Err(refusal));
+            return;
+        }
+    };
+    cx.spawn(async move |cx| {
+        let result = run_then_wait(run, called, cx).await;
+        call.answer(result);
+    })
+    .detach();
+}
+
+/// The refusals that need no one's answer, and whether the user is asked.
+fn check_run(call: &AppCall, cx: &mut App) -> Result<Run, String> {
+    let arguments = &call.arguments;
+    let (id, view) = crate::mcp::terminal_of(arguments, call.caller(), cx)?;
+    let command = arguments
+        .get("command")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or_default()
+        .to_string();
+    if command.is_empty() {
+        return Err("give `command`, the line to run".to_string());
+    }
+    if command.len() > MOST_BYTES {
+        return Err(format!("a command is at most {MOST_BYTES} bytes"));
+    }
+    if command.contains(['\n', '\r']) {
+        return Err(
+            "`command` is one line: join commands with `&&` or `;`, or run them one by one"
+                .to_string(),
+        );
+    }
+    let wait = arguments
+        .get("wait_seconds")
+        .and_then(Value::as_u64)
+        .map_or(RUN_WAIT_SECONDS, |seconds| seconds.min(RUN_WAIT_SECONDS));
+    prompt_refusal(&view, cx)?;
+    let who = Who::of(call, cx).words;
+    let settings = MarleySettings::get_global(cx);
+    let ask = match agent_commands::verdict(
+        &command,
+        &settings.agent_command_allowlist,
+        &settings.agent_command_denylist,
+    ) {
+        Verdict::Allowed => false,
+        Verdict::Ask => true,
+        Verdict::Outside => {
+            settings.agent_commands_outside_lists == MarleyAgentCommandsOutsideLists::Ask
+        }
+    };
+    let drive = drive(&view, cx);
+    if drive.taken_over {
+        return Err(
+            "the user has taken over this terminal; wait until they hand it back".to_string(),
+        );
+    }
+    if drive.pending.is_some() {
+        return Err(
+            "another command or write waits for the user's answer in this terminal".to_string(),
+        );
+    }
+    if drive.run_in_flight {
+        return Err("another command of an agent's is starting in this terminal".to_string());
+    }
+    let workspace = crate::mcp::terminals(cx)
+        .into_iter()
+        .find(|(_, other)| *other == view)
+        .map(|(workspace, _)| workspace);
+    Ok(Run {
+        view,
+        workspace,
+        id,
+        command,
+        who,
+        wait: Duration::from_secs(wait),
+        ask,
+    })
+}
+
+/// Why `view`'s shell cannot take a command now: a program or an agent CLI in the foreground, no
+/// prompt the terminal's own shell signed (PR-claude-474), or something typed at it.
+fn prompt_refusal(view: &Entity<TerminalView>, cx: &App) -> Result<(), String> {
+    let terminal = view.read(cx).terminal().read(cx);
+    if agent_in(terminal).is_some() {
+        return Err(
+            "an agent CLI runs in the terminal; terminal_run types only at a shell's prompt"
+                .to_string(),
+        );
+    }
+    if program_of(terminal).is_some() {
+        let program = terminal
+            .foreground_process_command_name()
+            .unwrap_or_else(|| "a program".to_string());
+        return Err(format!(
+            "{program} runs in the terminal's foreground; terminal_run types only at the shell's \
+             prompt: wait for it to end, or type into it with terminal_type"
+        ));
+    }
+    let anchored = terminal.marley_anchored();
+    if !anchored.at_prompt() {
+        return Err("the terminal's shell is not at its prompt".to_string());
+    }
+    if anchored.prompt_shell() != Some(PromptShell::Local) {
+        return Err(
+            "the prompt was not signed by the terminal's own shell (its integration is off, or \
+             another host's shell answers); nothing was typed"
+                .to_string(),
+        );
+    }
+    // Nothing noted since the prompt is nothing typed; after a key, the line tells.
+    let typed = if anchored.input_start().is_none() {
+        Some(String::new())
+    } else {
+        crate::autosuggest::typed_text(terminal)
+    };
+    match typed {
+        Some(text) if text.trim().is_empty() => Ok(()),
+        Some(_) => Err(
+            "the user has typed at the prompt; nothing was typed, so as not to lose it".to_string(),
+        ),
+        None => Err(
+            "the prompt's line cannot be read (the view is scrolled back, in vi mode, or the \
+             cursor left the line); nothing was typed"
+                .to_string(),
+        ),
+    }
+}
+
+/// Asks when the run must, types it, and waits for its block: the whole call within [`WAIT`] of
+/// `called`, and the block at most the run's wait after the typing.
+async fn run_then_wait(
+    run: Run,
+    called: Instant,
+    cx: &gpui::AsyncApp,
+) -> Result<ToolAnswer, String> {
+    let deadline = called + WAIT;
+    if run.ask {
+        ask_to_run(&run, deadline, cx).await?;
+    }
+    let (terminal, before) = cx.update(|cx| type_run(&run, cx))?;
+    let typed = cx.background_executor().now();
+    let until = deadline.min(typed + run.wait);
+    let mut block = None;
+    loop {
+        let (found, finished) = cx.update(|cx| {
+            let blocks = terminal.read(cx).blocks();
+            let found = block.or_else(|| {
+                blocks
+                    .iter()
+                    .skip(before)
+                    .find(|candidate| {
+                        candidate.command_verified && candidate.command.trim() == run.command
+                    })
+                    .map(|candidate| candidate.index)
+            });
+            let finished = found
+                .and_then(|index| blocks.get(index))
+                .is_some_and(|found| found.state == BlockState::Finished);
+            (found, finished)
+        });
+        if block.is_none()
+            && let Some(index) = found
+        {
+            // The block the typing opened is the agent's: its mark, and what `terminal_blocks`
+            // says of it (D8).
+            cx.update(|cx| {
+                drive(&run.view, cx).runs.insert(
+                    index,
+                    Ran {
+                        who: run.who.clone(),
+                        command: run.command.clone(),
+                    },
+                );
+                run.view.update(cx, |_, cx| cx.notify());
+            });
+        }
+        block = found;
+        if finished || cx.background_executor().now() >= until {
+            break;
+        }
+        cx.background_executor().timer(RUN_POLL).await;
+    }
+    cx.update(|cx| {
+        drive(&run.view, cx).run_in_flight = false;
+        run.view.update(cx, |_, cx| cx.notify());
+        match block {
+            Some(index) => Ok(run_answer(&run, terminal.read(cx), index, cx)),
+            None => Err(format!(
+                "`{}` was typed at the prompt, but no block for it started within {} seconds; \
+                 read terminal_blocks",
+                run.command,
+                run.wait.as_secs()
+            )),
+        }
+    })
+}
+
+/// Types the run at the prompt, checked once more since the user may have answered late: the
+/// terminal, and how many blocks it had before.
+fn type_run(run: &Run, cx: &mut App) -> Result<(Entity<Terminal>, usize), String> {
+    prompt_refusal(&run.view, cx)?;
+    let drive = drive(&run.view, cx);
+    if drive.taken_over {
+        return Err(
+            "the user took over this terminal while Marley asked; nothing was typed".to_string(),
+        );
+    }
+    drive.run_in_flight = true;
+    let terminal = run.view.read(cx).terminal().clone();
+    let before = terminal.read(cx).blocks().len();
+    // Ctrl-U, the command and a return, as Rerun sends a block's command.
+    let line = format!("\u{15}{}\r", run.command);
+    terminal.update(cx, |terminal, _| terminal.input(line.into_bytes()));
+    Ok((terminal, before))
+}
+
+/// Holds the run until the user answers under the terminal, or `deadline`.
+async fn ask_to_run(run: &Run, deadline: Instant, cx: &gpui::AsyncApp) -> Result<(), String> {
+    let (sender, receiver) = oneshot::channel();
+    let id = run.view.entity_id();
+    let shown: String = run.command.chars().take(SHOWN_CHARACTERS).collect();
+    cx.update(|cx| {
+        drive(&run.view, cx).pending = Some(Pending {
+            words: format!("{} wants to run {shown}", run.who),
+            allow: "Run",
+            deny: "Refuse",
+            run: true,
+            answer: Some(sender),
+        });
+        run.view.update(cx, |_, cx| cx.notify());
+        let message = format!(
+            "{} wants to run {shown} in a terminal. Run it or refuse it under the terminal.",
+            run.who
+        );
+        show_toast(run.workspace.as_ref(), &run.view, message, cx);
+    });
+    let wait = deadline.saturating_duration_since(cx.background_executor().now());
+    let timer = pin!(cx.background_executor().timer(wait));
+    let answer = match future::select(receiver, timer).await {
+        Either::Left((Ok(allowed), _)) => Some(allowed),
+        Either::Left((Err(_), _)) | Either::Right(_) => None,
+    };
+    cx.update(|cx| {
+        if let Some(drive) = cx.default_global::<Drives>().0.get_mut(&id) {
+            drive.pending = None;
+        }
+        run.view.update(cx, |_, cx| cx.notify());
+        dismiss_toast(run.workspace.as_ref(), &run.view, cx);
+    });
+    match answer {
+        Some(true) => Ok(()),
+        Some(false) => Err(format!(
+            "the user refused to run `{}`; ask them before you try again",
+            run.command
+        )),
+        None => Err(format!(
+            "the user did not answer within {} seconds; nothing was typed",
+            WAIT.as_secs()
+        )),
+    }
+}
+
+/// The run's block as `terminal_read` reads it, through the agents' redaction, with its exit code
+/// and how long it took once it ended.
+fn run_answer(run: &Run, terminal: &Terminal, index: usize, cx: &App) -> ToolAnswer {
+    let Some(block) = terminal.blocks().get(index) else {
+        return answer_of(json!({ "terminal": run.id, "block": index }));
+    };
+    let redactor = crate::mcp::agent_redactor(cx);
+    let command = crate::mcp::for_agents(&block.command, redactor.as_deref());
+    let output = terminal.block_output(block).unwrap_or_default();
+    // Redacted whole before the tail is cut, as terminal_read does.
+    let output = crate::mcp::for_agents(&output, redactor.as_deref());
+    let (text, truncated) = crate::mcp::tail(&output.text);
+    let finished = block.state == BlockState::Finished;
+    let duration_ms = terminal
+        .marley_anchored()
+        .times(index)
+        .and_then(|times| times.finished?.duration_since(times.started).ok())
+        .and_then(|took| u64::try_from(took.as_millis()).ok());
+    ToolAnswer {
+        structured: json!({
+            "terminal": run.id,
+            "block": index,
+            "command": command.text,
+            "running": !finished,
+            "exit_code": finished.then_some(block.exit_code.0).flatten(),
+            "duration_ms": duration_ms,
+            "output": text,
+            "truncated": truncated,
+            "redacted": command.count + output.count,
+        }),
+        text: Some(text),
+        image: None,
+    }
+}
+
+/// Answers the run waiting under the focused terminal; false when none waits, so the key goes on
+/// to the terminal's program.
+fn answer_focused_run(workspace: &Workspace, allowed: bool, window: &Window, cx: &mut App) -> bool {
+    let Some(view) = crate::blocks::focused_terminal(workspace, window, cx) else {
+        return false;
+    };
+    let id = view.entity_id();
+    let waiting = cx
+        .try_global::<Drives>()
+        .and_then(|drives| drives.0.get(&id))
+        .and_then(|drive| drive.pending.as_ref())
+        .is_some_and(|pending| pending.run);
+    if waiting {
+        answer(id, allowed, cx);
+    }
+    waiting
+}
+
+/// The agent's run whose block still runs, for the bar.
+fn running_run<'a>(drive: &'a Drive, terminal: &Terminal) -> Option<&'a Ran> {
+    let (index, ran) = drive.runs.iter().next_back()?;
+    terminal
+        .blocks()
+        .get(*index)
+        .is_some_and(|block| block.state != BlockState::Finished)
+        .then_some(ran)
+}
+
+/// Whether an agent's `terminal_run` typed block `index` of the terminal view `view`.
+pub(crate) fn run_by_agent(view: EntityId, index: usize, cx: &App) -> bool {
+    cx.try_global::<Drives>()
+        .and_then(|drives| drives.0.get(&view))
+        .is_some_and(|drive| drive.runs.contains_key(&index))
+}
+
+/// The mark before the pill of a block an agent ran, with who ran it as its tooltip.
+pub(crate) fn agent_mark(view: EntityId, index: usize, cx: &App) -> Option<AnyElement> {
+    let ran = cx.try_global::<Drives>()?.0.get(&view)?.runs.get(&index)?;
+    let tooltip = format!("Run by {}", ran.who);
+    Some(
+        div()
+            .id(("marley-agent-run", index))
+            .debug_selector(move || format!("marley-agent-run-{index}"))
+            .child(
+                Icon::new(IconName::Sparkle)
+                    .size(IconSize::XSmall)
+                    .color(Color::Muted),
+            )
+            .tooltip(Tooltip::text(tooltip))
             .into_any_element(),
     )
 }

@@ -184,6 +184,12 @@ real, reusable session. The Block model is the unit the **brain** later observes
   `duration_label(took)` (#551) words a block's run for a banner and a rail row, rounded to the
   second: `45 s`, `4 m 12 s`, `1 h 2 m`. The hooks' times make a `sleep 3` measure a little
   under three seconds, so it rounds rather than floors.
+  `agent_commands.rs` (#556) decides an agent's `terminal_run` by two lists of regular
+  expressions, Warp's defaults in `WARP_ALLOWLIST` and `WARP_DENYLIST`: `segments` splits a
+  command at `|`, `||`, `&&`, `;`, `&` and newlines outside quotes; `verdict` asks when the
+  denylist matches the command or a part, allows when the allowlist matches every part of a
+  command with no substitution (`has_substitution`), and leaves the rest `Outside`, for the
+  setting. A pattern that does not compile is logged and matches nothing.
   `workflow.rs` (#558) turns a command into a workflow's template: `guess` replaces, after the
   first word, a number (`port` after `-p` or `--port`, after a `:`, or from 1024 to 65535 with
   no other flag before it; else `number`), a URL, the branch and an existing path with

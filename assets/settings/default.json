@@ -1701,6 +1701,34 @@
     // terminal (#525): "ask_first_write" (its first write to each program), "ask_every_write" or
     // "never_ask".
     "agent_terminal_writes": "ask_first_write",
+    // The commands an agent's terminal_run types at a shell's prompt at once, and those it always
+    // asks about, as regular expressions matched against the whole command and each part of a
+    // pipeline or list (#556); Warp's defaults. A command with $( ), a backtick, <( ), >( ) or <<
+    // is never allowed by the allowlist alone.
+    "agent_command_allowlist": ["cat(\\s.*)?", "echo(\\s.*)?", "find .*", "grep(\\s.*)?", "ls(\\s.*)?", "which .*"],
+    "agent_command_denylist": [
+      "bash(\\s.*)?",
+      "fish(\\s.*)?",
+      "pwsh(\\s.*)?",
+      "sh(\\s.*)?",
+      "zsh(\\s.*)?",
+      "curl(\\s.*)?",
+      "eval(\\s.*)?",
+      "exec(\\s.*)?",
+      "source(\\s.*)?",
+      "wget(\\s.*)?",
+      "dig(\\s.*)?",
+      "nslookup(\\s.*)?",
+      "host(\\s.*)?",
+      "ssh(\\s.*)?",
+      "scp(\\s.*)?",
+      "rsync(\\s.*)?",
+      "telnet(\\s.*)?",
+      "rm(\\s.*)?",
+    ],
+    // What happens to a command neither list matches (#556): "run" (the agent's own permission
+    // prompt already asked) or "ask" (it waits for Run or Refuse under the terminal).
+    "agent_commands_outside_lists": "run",
     // What Marley starts Claude Code with (#532): "ask" (its own permission prompts) or
     // "bypass" (--dangerously-skip-permissions). A rail row carries a mark while an agent runs
     // without its prompts, however it was started.

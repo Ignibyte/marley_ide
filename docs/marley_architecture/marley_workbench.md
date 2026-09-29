@@ -957,6 +957,22 @@ alike.
   program, and otherwise propagates so the key reaches the program.
 - `mcp.rs` grants `terminal.write` at start beside `browser.write`, answers `terminal_screen` in
   line and hands `terminal_type` to its own task; a closed terminal's state goes on release.
+- `run_at_prompt` (for `terminal_run`, #556): `check_run` refuses an empty, long or multi-line
+  command, a take-over, a card already waiting or a run in flight, and `prompt_refusal` a program
+  or an agent CLI in the foreground, a prompt not signed by the terminal's own shell
+  (`prompt_shell()`, PR-claude-474), and anything typed at it (nothing since the prompt when
+  `input_start()` is unset, else `autosuggest::typed_text`). `marley_terminal::agent_commands::
+  verdict` with the two lists and `marley.agent_commands_outside_lists` decides whether to ask:
+  the card reads `<who> wants to run <command>` with Run and Refuse, and the toast has Show;
+  `RunAgentCommand` and `RefuseAgentCommand` (Enter and Escape in `Terminal`) answer a run card
+  in the focused terminal and otherwise propagate. `type_run` checks the prompt again and types
+  Ctrl-U, the command and a return, as Rerun does; the wait polls every 50 ms for the first
+  verified block past the count at typing whose command is the one typed, which joins `runs`
+  (the mark, `terminal_blocks`' `agent`), and for its end, within 25 seconds of the call and the
+  run's `wait_seconds` of the typing. The answer reads the block as `terminal_read` does.
+  `agent_mark` draws the sparkle before the pill through `bookmarks::chip`; the bar reads `<who>
+  ran <command>` with Take Over while the run's block runs, and Ctrl-I takes over once an agent
+  ran a command there.
 
 ## A project's launch configs (`src/launch.rs`, #527)
 

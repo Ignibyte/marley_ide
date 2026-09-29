@@ -44,6 +44,7 @@
     )
 )]
 
+pub mod agent_commands;
 pub mod anchored;
 pub mod apply;
 pub mod block;

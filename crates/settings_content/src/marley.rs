@@ -71,6 +71,17 @@ pub struct MarleySettingsContent {
     ///
     /// Default: "ask_first_write"
     pub agent_terminal_writes: Option<MarleyAgentTerminalWrites>,
+    /// Regular expressions for the commands an agent's `terminal_run` types at a shell's prompt
+    /// without asking, each matched against the whole command and every part of a pipeline or a
+    /// list (#556). Warp's defaults.
+    pub agent_command_allowlist: Option<Vec<String>>,
+    /// Regular expressions for the commands an agent's `terminal_run` always asks about, whatever
+    /// the allowlist says (#556). Warp's defaults.
+    pub agent_command_denylist: Option<Vec<String>>,
+    /// Whether an agent's `terminal_run` asks before a command neither list matches (#556).
+    ///
+    /// Default: "run"
+    pub agent_commands_outside_lists: Option<MarleyAgentCommandsOutsideLists>,
     /// Whether Marley starts Claude Code with its own permission prompts or with
     /// `--dangerously-skip-permissions` (#532). An entry of `agent_permissions_by_project` wins
     /// for its project.
@@ -286,6 +297,31 @@ pub enum MarleyAgentTerminalWrites {
     AskEveryWrite,
     /// Never: the agent's writes go in as it sends them.
     NeverAsk,
+}
+
+/// Whether an agent's `terminal_run` asks before a command outside the allowlist and the denylist
+/// (#556).
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum MarleyAgentCommandsOutsideLists {
+    /// It runs: the agent's own permission prompt already asked.
+    #[default]
+    Run,
+    /// It waits for Run or Refuse under the terminal.
+    Ask,
 }
 
 /// What Marley starts Claude Code and Codex with in one project (#532).

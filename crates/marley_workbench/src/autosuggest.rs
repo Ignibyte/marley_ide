@@ -78,7 +78,7 @@ fn suggestion(terminal: &Terminal, cx: &App) -> Option<String> {
 
 /// What was typed at `terminal`'s prompt: its cells from where the first key after the prompt
 /// was typed up to the cursor, while the cursor is on that line with nothing after it.
-fn typed_text(terminal: &Terminal) -> Option<String> {
+pub(crate) fn typed_text(terminal: &Terminal) -> Option<String> {
     let anchored = terminal.marley_anchored();
     if !anchored.at_prompt() || terminal.vi_mode_enabled() {
         return None;

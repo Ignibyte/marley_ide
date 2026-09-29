@@ -3192,3 +3192,20 @@ watch's state, which changes at every read. Agent CLIs, SSH clients and remote p
 out; a block that ends inside the grace is #551's to tell. Rejected: the byte stream (the grid is
 what the user saw); a timer of its own for D8's ten-minute window (the rows' times give it); a
 banner for a model's reading in `suggest`.
+
+## AD-claude-556-an-agent-runs-at-the-prompt-behind-two-lists-and-a-signed-prompt-001
+*decided at: 2026-09-29 · status: shipped*
+
+`terminal_run` (grant class `terminal.write`) types an agent's command at a terminal's shell
+prompt as Rerun does, Ctrl-U, the command and a return, and answers with the block the typing
+opened: the first verified block past the count at typing whose command is the one typed. It
+types only while the shell is the foreground, the prompt is signed by the terminal's own nonce
+(#526's signed `precmd`, read through `prompt_shell()`), the line is empty and the terminal is not
+taken over, and it checks again after a late approval. Warp's allowlist and denylist decide
+whether to ask, the denylist first, the allowlist only for every part of a command with no
+substitution; `marley.agent_commands_outside_lists` (`run` by default, since the agent's own
+prompt asked) decides the rest. The card, the toast, the take-over and the bar are #525's, in
+the same module, so one Ctrl-I stops both tools; Enter and Escape answer a run card through
+bindings that propagate when none waits. The call answers within 25 seconds, the block at most
+20 seconds after the typing, else `running: true`. Rejected: a new `precmd` field (the signed
+wrapper already carried the nonce); the card taking the focus; a module of its own.

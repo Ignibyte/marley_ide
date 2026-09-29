@@ -46,7 +46,7 @@ fn layout_section() -> [SettingsPageItem; 2] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 11] {
+fn agents_section() -> [SettingsPageItem; 12] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -203,6 +203,30 @@ fn agents_section() -> [SettingsPageItem; 11] {
                         .marley
                         .get_or_insert_default()
                         .agent_terminal_writes = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: whether an agent's commands outside both lists ask (#556); the lists are set in
+        // settings.json.
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Agent Commands Outside Lists",
+            description: "What happens to a command an agent runs at a terminal's prompt (terminal_run) that neither marley.agent_command_allowlist nor marley.agent_command_denylist in settings.json matches: it runs, since the agent's own permission prompt already asked, or it waits for Run or Refuse under the terminal. A command the allowlist matches runs at once; one the denylist matches always asks.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.agent_commands_outside_lists"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.agent_commands_outside_lists.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .agent_commands_outside_lists = value;
                 },
             }),
             metadata: None,

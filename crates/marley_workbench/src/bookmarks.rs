@@ -176,8 +176,8 @@ pub(crate) fn find_in(view: &Entity<TerminalView>, index: usize, window: &Window
     });
 }
 
-/// The element's chip hook: the bookmark on a marked block, then Ask the agent where
-/// `send_block` offers it.
+/// The element's chip hook: the mark of a block an agent ran (#556), the bookmark on a marked
+/// block, then Ask the agent where `send_block` offers it.
 fn chip(
     view: &Entity<TerminalView>,
     terminal: &Entity<Terminal>,
@@ -185,17 +185,21 @@ fn chip(
     cx: &App,
 ) -> Option<AnyElement> {
     let ask = crate::send_block::chip(view, terminal, index, cx);
-    if !is_bookmarked(terminal, index, cx) {
+    // A block an agent ran carries its mark first (#556).
+    let agent = crate::terminal_drive::agent_mark(view.entity_id(), index, cx);
+    let bookmark = is_bookmarked(terminal, index, cx).then(|| {
+        Icon::new(IconName::Bookmark)
+            .size(IconSize::XSmall)
+            .color(Color::Accent)
+    });
+    if agent.is_none() && bookmark.is_none() {
         return ask;
     }
     Some(
         h_flex()
             .gap_1()
-            .child(
-                Icon::new(IconName::Bookmark)
-                    .size(IconSize::XSmall)
-                    .color(Color::Accent),
-            )
+            .children(agent)
+            .children(bookmark)
             .children(ask)
             .into_any_element(),
     )

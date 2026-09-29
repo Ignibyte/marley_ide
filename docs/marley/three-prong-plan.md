@@ -181,7 +181,7 @@ controller claims with generations, message send and receive with delivery ids),
 
 **D9. Marley's own MCP server grows the tool families the docs already reserve.** On top of
 `fleet.snapshot` and `session.surface_to_human`: `terminal.blocks`, `terminal.read`,
-`terminal.run` (grant-gated), `session.send`, `session.read`, `session.answer`,
+`terminal.run` (grant-gated; shipped as `terminal_run`, #556), `session.send`, `session.read`, `session.answer`,
 `editor.open`, `editor.goto`, `editor.diff`, and later the browser family. The discovery
 file lands in the workspace's `.mcp.json` shape so Claude Code and Rusty's agent host pick
 it up. Deny-by-default grants stay; the settings live in Zed's settings tree.

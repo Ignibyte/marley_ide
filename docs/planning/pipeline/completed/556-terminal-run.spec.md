@@ -1,7 +1,7 @@
 ---
 pipeline_id: ffcd2825-3b93-4067-8f28-60b48b890df8
 ticket: docs/planning/tickets/open/TICKET-556-terminal-run.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "terminal_run: an agent runs commands in the user's terminal, as blocks"
 type: feature
 slice: prong 2 with prong 1 (plan D9's `terminal.run`, grant-gated; the Warp blocks note, recommendation 3)
@@ -26,8 +26,9 @@ mark on every block an agent ran, and Ctrl-I to take the terminal back.
   deadline answers `running: true` with the output so far, and `terminal_read` follows.
 - **The preconditions**, each a refusal with its reason (`isError`): no terminal of that id; the
   shell is not the foreground process (a program runs, an agent CLI included); the blocks show no
-  verified prompt (`AnchoredBlocks::at_prompt` and, new, the prompt's own nonce, D2); something is
-  typed at the prompt (`autosuggest::typed_text` is not empty); the user has taken the terminal
+  verified prompt (`AnchoredBlocks::at_prompt` and a prompt signed with the terminal's own nonce,
+  D2); something is typed at the prompt, or the input line cannot be read (`autosuggest::
+  typed_text` is not `Some` of blanks); the user has taken the terminal
   over; the command is empty, over 4,096 bytes, or holds a newline.
 - **The lists.** Two settings of regexes with Warp's defaults verbatim (D3):
   `marley.agent_command_allowlist` and `marley.agent_command_denylist`, and
@@ -39,23 +40,22 @@ mark on every block an agent ran, and Ctrl-I to take the terminal back.
 - **The card.** A command that must ask shows in that terminal's footer: who asks (the calling
   terminal's agent through #520's caller when it has landed, else "An agent"), the command in full,
   Run and Refuse; a toast in the terminal's workspace names the terminal, with Show (#525's
-  shape). While the card's terminal holds the focus, the card takes it: Enter runs, Escape
-  refuses, and the focus goes back to the terminal after. An answer that comes after the deadline
-  runs nothing.
+  shape and code, `terminal_drive.rs`). While the card's terminal holds the focus, Enter runs and
+  Escape refuses (D5). An answer that comes after the deadline runs nothing.
 - **Typing and the block.** Ctrl-U, the command and a return in one `Terminal::input`, the
   Rerun path (`terminal_element.rs:2350`). The next `preexec` frame that carries the nonce and
   the command opens the agent's block; the tool waits for its `precmd` (the block `Finished`)
   or the deadline, then reads it as `terminal_read` does.
 - **The mark.** A block an agent ran carries an agent icon before its pill, always shown, with a
   tooltip naming the agent when known; `terminal_blocks` gives each block `"agent": true|false`.
-  The marks reach Zed's element through one hook, `MarleyBlockExtras` (D7).
-- **Take over.** `marley::TakeOverTerminal` on Ctrl-I in `Terminal` (the key #525 binds for the
-  same gesture): while an agent has run a command in that terminal, Ctrl-I takes it over or hands
+  The mark reaches Zed's element through the chip hook (D7).
+- **Take over.** `marley::TakeOverTerminal` on Ctrl-I in `Terminal`, #525's action and state
+  (one take-over stops both tools): while an agent has run a command in that terminal, Ctrl-I takes it over or hands
   it back; otherwise the key reaches the program, as Tab's byte. While a run is in flight and
   while the terminal is taken over, the footer shows a bar: "Claude Code ran `cargo test`" with
   Take Over, or "You have control" with Hand Back. A taken-over terminal refuses `terminal_run`
   with the reason.
-- The stand-in agent (`script/e2e/browser-fixture.sh`) gains `run <terminal> <command>`.
+- The stand-in agent (`script/e2e/browser-fixture.sh`) gains `terminal-run <title> <command>`.
 
 ### Out (explicitly deferred)
 - Typing into a running program (#525's `terminal_type`) and prompts to agent CLIs (the session
@@ -169,10 +169,11 @@ on the agent's blocks (the log); the Marley page's Agents section with the new i
 - D1: Only a terminal whose shell waits at its prompt takes a command, and the whole line goes as
   Rerun sends it: Ctrl-U, the command, a return. No program, no agent CLI, no half-typed line
   (a refusal, not a Ctrl-U: the typing is Chad's).
-- D2: The prompt is trusted only with the nonce. Today `precmd` carries none, so a `cat` of a file
-  holding a `precmd` frame while a program runs would read as a prompt. Marley's scripts add
-  `nonce=` to `precmd`, `PrecmdValue` gains it, and `AnchoredBlocks` records whether the current
-  prompt is verified (`prompt_verified`); the tool needs that and the foreground check both.
+- D2: The prompt is trusted only with the nonce. At promotion this had shipped with #526: both
+  scripts sign `precmd` with `nonce=`, `decode_hook` wraps it in `DcsHook::Signed`, and
+  `AnchoredBlocks::prompt_shell()` is `Some(PromptShell::Local)` only when the prompt's frame
+  carried the terminal's own nonce. The tool needs `at_prompt()`, `prompt_shell() ==
+  Some(PromptShell::Local)` and the foreground check; no script or `dcs.rs` change.
 - D3: The lists are Warp's, as regexes anchored at both ends, tested against the whole command
   and against each segment split at `|`, `||`, `&&`, `;`, `&` and newlines outside quotes. The
   denylist asks when any pattern matches the command or any segment. The allowlist allows only
@@ -184,15 +185,17 @@ on the agent's blocks (the log); the Marley page's Agents section with the new i
   30, `APP_CALL_TIMEOUT_SECONDS`), so `wait_seconds` is at most 20 and a run that outlives the
   deadline answers `running: true` with its index; `terminal_read` reads the rest. A late
   approval runs nothing.
-- D5: The card takes the focus only from the terminal it sits under, and only when that terminal
-  had it, so Enter and Escape answer it and a click elsewhere leaves it waiting; Run and Refuse
-  work from anywhere.
+- D5: Enter and Escape answer the card from the terminal it sits under, without taking the focus
+  (changed at promotion): `enter` and `escape` in the Marley keymap's `Terminal` context bind
+  `marley::RunAgentCommand` and `marley::RefuseAgentCommand`, which answer a run card waiting in
+  the focused terminal and otherwise propagate, so the keys reach the program as before (the
+  pattern of `AcceptSuggestion` on `right`). Run and Refuse work from anywhere.
 - D6: Ctrl-I, as #525 binds it, acts only in a terminal where an agent has run a command; before
   that it is Tab's byte and reaches the program. Taking over stops the agent, never the user,
   and a hand-back needs no agent; the bar's buttons do the same.
-- D7: One hook in Zed's element, `MarleyBlockExtras`, gives each block its marks (icons before the
-  pill) and its extra buttons, set by `marley_workbench`. Whichever of #528, #556, #558 and #559
-  lands first adds it; the others extend what it returns.
+- D7: The mark rides the chip hook (`MarleyBlockChip`, #555), which `bookmarks.rs` composes
+  (changed at promotion: the hooks had landed with #555, #558 and #559): an agent's block gets an
+  icon before the pill, beside a bookmark's, with a tooltip naming who ran it. No Zed hunk.
 - D8: The agent's block is the first verified `preexec` after the typing whose command equals the
   one typed (whitespace trimmed); a block nobody typed through the tool is never marked. The
   pairing lives in `marley_workbench`, keyed by the view's entity id like `agent_events`'s seats.

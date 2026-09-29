@@ -40,7 +40,10 @@
 #   `terminal-screen <title>` reads the screen of the last terminal whose title holds the text:
 #   its program, generation, approval and control, and its last rows; `terminal-type <title>
 #   [--generation <n>] [--submit] [--keys <a,b>] <text>` types into it at the screen's generation
-#   or the one given, and waits for the user's answer when Marley asks (#525). `fleet` lists `fleet_snapshot`'s seats: each one's id, state and
+#   or the one given, and waits for the user's answer when Marley asks (#525). `terminal-run
+#   <title> [--wait <seconds>] <command>` runs a command at that terminal's prompt and prints the
+#   block's index, exit code, whether it still runs, and its output's last lines (#556). `fleet`
+#   lists `fleet_snapshot`'s seats: each one's id, state and
 #   the labels an agent row shows, or `no seats` (#547). `open-url <url> <directory>` asks
 #   `browser_open_url` to open a URL for a program in that folder (#561). `--endpoint <file>`,
 #   first, points the bridge at another endpoint file, an outside client's (#524).
@@ -773,7 +776,7 @@ def main():
         for terminal in (listed or {}).get("structuredContent", {}).get("terminals", []):
             answer = (client.tool("terminal_blocks", {"terminal": terminal["id"]}) or {}).get("structuredContent", {})
             for block in answer.get("blocks", []):
-                print(f"  block {block['index']}: {block['command']!r}, exit {block['exit_code']}, running {block['running']}, kept {block['output_kept']}, verified {block['verified']}, host {block.get('host')}")
+                print(f"  block {block['index']}: {block['command']!r}, exit {block['exit_code']}, running {block['running']}, kept {block['output_kept']}, verified {block['verified']}, host {block.get('host')}, agent {block.get('agent')}")
     elif command == "fleet":
         answer = (client.tool("fleet_snapshot") or {}).get("structuredContent") or {}
         seats = answer.get("seats", [])
@@ -827,6 +830,26 @@ def main():
             print(f"  terminal {terminal}, block {block['index']}: {read['command']!r}")
             print(f"  redacted: {read['redacted']} in the read, {listed_redacted} in the list")
             print(read["output"])
+    elif command == "terminal-run":
+        listed = client.tool("terminal_list")
+        terminals = (listed or {}).get("structuredContent", {}).get("terminals", [])
+        matching = [terminal for terminal in terminals if rest[0] in terminal["title"]]
+        if not matching:
+            sys.exit(f"no terminal's title holds {rest[0]!r}")
+        arguments = {"terminal": matching[-1]["id"]}
+        words = iter(rest[1:])
+        for word in words:
+            if word == "--wait":
+                arguments["wait_seconds"] = int(next(words))
+            else:
+                arguments["command"] = word
+        result = client.tool("terminal_run", arguments)
+        if result:
+            ran = result["structuredContent"]
+            print(f"  ran block {ran['block']}: {ran['command']!r}, exit {ran.get('exit_code')}, "
+                  f"running {ran['running']}, redacted {ran['redacted']}")
+            for line in [line for line in ran["output"].splitlines() if line.strip()][-4:]:
+                print(f"  | {line}")
     elif command in ("terminal-screen", "terminal-type"):
         listed = client.tool("terminal_list")
         terminals = (listed or {}).get("structuredContent", {}).get("terminals", [])

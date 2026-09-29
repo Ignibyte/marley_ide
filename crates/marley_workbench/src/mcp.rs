@@ -490,6 +490,10 @@ fn answer(call: AppCall, cx: &mut App) {
         crate::terminal_drive::type_into(call, cx);
         return;
     }
+    if call.tool == "terminal_run" {
+        crate::terminal_drive::run_at_prompt(call, cx);
+        return;
+    }
     let result = match call.tool.as_str() {
         "terminal_list" => Ok(terminal_list(call.caller(), cx)),
         "terminal_blocks" => terminal_blocks(&call.arguments, call.caller(), cx),
@@ -847,6 +851,7 @@ fn terminal_blocks(arguments: &Value, caller: &Caller, cx: &App) -> Result<ToolA
                 anchored.block_host(block.index),
                 anchored.times(block.index),
                 terminal.block_output_kept(block),
+                crate::terminal_drive::run_by_agent(view.entity_id(), block.index, cx),
                 now,
             )
         })
@@ -863,13 +868,15 @@ fn terminal_blocks(arguments: &Value, caller: &Caller, cx: &App) -> Result<ToolA
     })
 }
 
-/// One block as `terminal_blocks` lists it. A running block's duration is how long it has run.
+/// One block as `terminal_blocks` lists it. A running block's duration is how long it has run;
+/// `agent` says an agent's `terminal_run` typed it (#556).
 fn block_entry(
     block: &AnchoredBlock,
     command: &str,
     host: Option<&str>,
     times: Option<BlockTimes>,
     output_kept: bool,
+    agent: bool,
     now: SystemTime,
 ) -> Value {
     let started_at_ms =
@@ -888,6 +895,7 @@ fn block_entry(
         "started_at_ms": started_at_ms,
         "duration_ms": duration_ms,
         "output_kept": output_kept,
+        "agent": agent,
     })
 }
 
@@ -935,7 +943,7 @@ fn terminal_read(arguments: &Value, caller: &Caller, cx: &App) -> Result<ToolAns
 
 /// The end of `text`: at most [`MAX_READ_LINES`] lines and [`MAX_READ_BYTES`] bytes, and whether
 /// anything was left out.
-fn tail(text: &str) -> (String, bool) {
+pub(crate) fn tail(text: &str) -> (String, bool) {
     let lines: Vec<&str> = text.lines().collect();
     let skipped = lines.len().saturating_sub(MAX_READ_LINES);
     let kept = lines

@@ -3851,3 +3851,12 @@ at every `Event::Wakeup`, as a line reader does, must keep that state in a globa
 and put what a row draws in a second one, written only when a mark changes (`running_errors`'
 `Watch` and `ErrorMarks`), or every byte of output redraws the rail. Read with `try_global` before
 deciding to write, as `links.rs`'s scan does.
+
+## L-claude-556-nothing-typed-since-the-prompt-is-an-unset-input-start-001
+*category: terminal · topic: telling an empty prompt from one the user typed at · from: #556's design*
+
+`autosuggest::typed_text` answers `None` both when the line cannot be read and when nothing was
+typed since the prompt: `AnchoredBlocks::input_start()` is unset until the first key or paste
+(`Terminal::input` notes both). Code that refuses to type over the user's input must read an
+unset `input_start()` as an empty line and use `typed_text` only after it is set; treating every
+`None` as "cannot read" refuses at every fresh prompt.
