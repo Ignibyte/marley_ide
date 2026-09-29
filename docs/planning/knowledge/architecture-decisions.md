@@ -3008,3 +3008,17 @@ so no Zed crate changed but the settings files. Changed at promotion: #520 and #
 the caller is named and the approval copies the click pause. Rejected: typing at the shell's
 prompt (plan D9's `terminal.run` is its own ticket); keying the generation on the program's name
 (a restarted program of the same name sends no title change).
+
+## AD-claude-526-blocks-over-ssh-ride-in-the-ssh-command-with-a-connection-nonce-001
+*decided at: 2026-09-29 · status: shipped*
+
+Marley's bash and zsh define an `ssh` that, for an interactive login, runs `ssh -t … "<command>
+<connection nonce>"`, the command one line (`sh -c` decoding a base64 POSIX bootstrap) that any login
+shell parses alike; the bootstrap writes both scripts into `mktemp -d` and starts the host's bash
+or zsh with them, and the scripts remove the folder at their top. The terminal's nonce stays local:
+the wrapper mints a connection nonce and announces it in a `remote` frame the local shell signs,
+and every frame now carries its shell's nonce (a `Signed` hook in `dcs.rs`, leaving every existing
+hook's fields as they were). Rerun and autosuggestions follow the shell at the prompt. Changed at
+promotion: the one-line base64 command (fish and tcsh), the cleanup at the scripts' top (a profile
+that execs tmux), zsh's `ssh` defined at the first prompt. Rejected: typing a bootstrap into the
+remote shell; a program on each host; the terminal's own nonce on the host.

@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #526 (feature, prong 1 T0c: shell integration)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/526-blocks-over-ssh.spec.md
+- **Pipeline doc:** ../../pipeline/completed/526-blocks-over-ssh.spec.md
 - **Source ticket:** Chad, 2026-09-25, on Warp's Warpify subshells: "this would be awesome" (`docs/planning/design-notes/warp-once-over-2026-09-25.md`, item 3; the SSH notes of `docs/orca_architecture/04-remote-control-and-mobile.md` §2.10 and `05-terminal-and-workspace.md` §2.3)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Blocks stop at the first `ssh`: the remote shell has none of Marley's hooks, so the whole session

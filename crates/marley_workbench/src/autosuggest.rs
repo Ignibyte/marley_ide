@@ -56,14 +56,19 @@ pub fn init(cx: &mut App) {
 fn suggestion(terminal: &Terminal, cx: &App) -> Option<String> {
     let typed = typed_text(terminal)?;
     let anchored = terminal.marley_anchored();
+    // The shell at the prompt's own commands, the local one's or an ssh host's, and the history
+    // file only for the local shell, since a host's names a file on the host (#526).
+    let host = anchored.prompt_shell()?.host();
     let own = anchored
         .blocks()
         .iter()
         .rev()
-        .filter(|block| block.command_verified)
+        .filter(|block| block.command_verified && anchored.block_host(block.index) == host)
         .map(|block| block.command.as_str());
-    let file = anchored
-        .history_file()
+    let file = host
+        .is_none()
+        .then(|| anchored.history_file())
+        .flatten()
         .and_then(|path| cx.try_global::<HistoryFiles>()?.0.get(path)?.clone());
     let from_file = file
         .iter()

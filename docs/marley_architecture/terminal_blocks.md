@@ -165,6 +165,23 @@ real, reusable session. The Block model is the unit the **brain** later observes
   and its end, when the hook that finished it was; a busy main thread moves a stamp by tens of
   milliseconds. `times(index)` reads them for the MCP server's `terminal_blocks`, with
   `Terminal::block_output_kept`, whether a block's first output line is still held.
+- Blocks over ssh (#526): every frame the scripts print carries its shell's nonce; `dcs.rs` wraps
+  a frame's hook in `DcsHook::Signed { nonce, hook }` (a command's keeps its nonce in
+  `PreexecValue`), and `DcsHook::Remote { host, session }` is Marley's `ssh` announcing a
+  connection. `AnchoredBlocks` sorts each frame by its nonce (`Local`, the connection's host, or
+  unknown): only the local shell's `remote` opens a connection, the host's `init` ends the `ssh`
+  block with no exit code, the local shell's next `precmd` ends the connection, each block keeps
+  its host (`block_host`), the staged prompt its shell (`prompt_shell`, a `PromptShell`), and
+  `rerun_offered(block)` holds only while the block's own shell waits at the prompt; a history
+  file is taken from the local shell only. The gpui-era `apply.rs` and `session.rs` read
+  `into_unsigned`. `shell_integration.rs` builds `ssh_bootstrap()` (POSIX sh writing both scripts
+  into `mktemp -d` and starting the host's bash or zsh with the connection's nonce) and
+  `ssh_remote_command()` (one line, `sh -c` decoding the bootstrap from base64), written to
+  `ssh-remote-command` and named to the scripts in `MARLEY_SSH_COMMAND`. The scripts' `ssh` walks
+  ssh's options, asks `ssh -G` about `RemoteCommand` and `Tag marley-plain`, mints the connection's
+  nonce from `/dev/urandom`, prints the `remote` frame and runs `ssh -t … "<command> <nonce>"`; on
+  the host, `__MARLEY_CLEANUP` removes the folder at the scripts' top, `__MARLEY_LOGIN` makes bash
+  read the login files, and neither defines `ssh`.
 - `shell_integration.rs` (#463, written in the fork): the embedded `shell_integration/marley.bash`,
   `install_in(dir)`, which writes it when its content changed, and `for_program`, which gives bash
   `--rcfile` and `MARLEY_SHELL_INTEGRATION=1`. Zed's `TerminalBuilder::new` applies it to a local

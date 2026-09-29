@@ -73,6 +73,33 @@ pub enum DcsHook {
         /// The file's path, as the shell has it.
         file: String,
     },
+    /// Marley's `ssh` announces a connection (#526): the host it reaches, and the nonce the host's
+    /// shell signs its frames with.
+    Remote {
+        /// The destination, as the user gave it.
+        host: String,
+        /// The connection's nonce.
+        session: String,
+    },
+    /// A hook with the nonce its frame carried, which says which shell sent it (#526). A command's
+    /// frame keeps its nonce in [`PreexecValue`] instead.
+    Signed {
+        /// The frame's nonce.
+        nonce: String,
+        /// The hook.
+        hook: Box<Self>,
+    },
+}
+
+impl DcsHook {
+    /// The hook without its signature, for a reader that does not ask which shell sent it.
+    #[must_use]
+    pub fn into_unsigned(self) -> Self {
+        match self {
+            Self::Signed { hook, .. } => *hook,
+            hook => hook,
+        }
+    }
 }
 
 /// Why [`decode_hook`] rejected a payload.
@@ -97,20 +124,12 @@ pub const fn encoding_for_dcs_terminator(terminator: u8) -> Option<DcsEncoding> 
     }
 }
 
-/// Decode `payload` under `encoding` into a [`DcsHook`] (R9/R10/R23/R24).
-///
-/// `AnsiCQuoted` payloads are split into `name;key=value;…` on UNESCAPED separators FIRST and
-/// each piece is un-escaped separately (R24) — so `\;` (or a `\xHH` decoding to a separator)
-/// stays inside its field's value. `Hex`/`Plain` payloads keep the legacy order: decode the whole
-/// payload, then split the decoded text. Stateless — it mutates no model.
-///
-/// # Errors
-///
-/// A codec/UTF-8 failure or a missing/malformed required field yields
-/// [`DecodeError::UndecodablePayload`]; a well-formed payload naming no known hook yields
-/// [`DecodeError::UnknownHook`].
-pub fn decode_hook(encoding: DcsEncoding, payload: &[u8]) -> Result<DcsHook, DecodeError> {
-    let (name, fields) = match encoding {
+/// A payload's hook name and its fields, as [`decode_hook`] reads them.
+fn name_and_fields(
+    encoding: DcsEncoding,
+    payload: &[u8],
+) -> Result<(String, Vec<(String, String)>), DecodeError> {
+    Ok(match encoding {
         DcsEncoding::AnsiCQuoted => {
             let mut segments = split_unescaped(payload, b';').into_iter();
             let name_bytes = c_unescape(segments.next().unwrap_or(&[]))?;
@@ -149,7 +168,23 @@ pub fn decode_hook(encoding: DcsEncoding, payload: &[u8]) -> Result<DcsHook, Dec
                 .collect();
             (name.to_string(), fields)
         }
-    };
+    })
+}
+
+/// Decode `payload` under `encoding` into a [`DcsHook`] (R9/R10/R23/R24).
+///
+/// `AnsiCQuoted` payloads are split into `name;key=value;…` on UNESCAPED separators FIRST and
+/// each piece is un-escaped separately (R24) — so `\;` (or a `\xHH` decoding to a separator)
+/// stays inside its field's value. `Hex`/`Plain` payloads keep the legacy order: decode the whole
+/// payload, then split the decoded text. Stateless — it mutates no model.
+///
+/// # Errors
+///
+/// A codec/UTF-8 failure or a missing/malformed required field yields
+/// [`DecodeError::UndecodablePayload`]; a well-formed payload naming no known hook yields
+/// [`DecodeError::UnknownHook`].
+pub fn decode_hook(encoding: DcsEncoding, payload: &[u8]) -> Result<DcsHook, DecodeError> {
+    let (name, fields) = name_and_fields(encoding, payload)?;
     let field = |key: &str| -> Option<&str> {
         fields
             .iter()
@@ -157,7 +192,7 @@ pub fn decode_hook(encoding: DcsEncoding, payload: &[u8]) -> Result<DcsHook, Dec
             .map(|(_, v)| v.as_str())
     };
 
-    match name.as_str() {
+    let hook = match name.as_str() {
         "init" => {
             let id = field("id").ok_or(DecodeError::UndecodablePayload)?;
             let id = id
@@ -205,8 +240,27 @@ pub fn decode_hook(encoding: DcsEncoding, payload: &[u8]) -> Result<DcsHook, Dec
                 file: file.to_string(),
             })
         }
+        "remote" => {
+            let host = field("host").ok_or(DecodeError::UndecodablePayload)?;
+            let session = field("session").ok_or(DecodeError::UndecodablePayload)?;
+            Ok(DcsHook::Remote {
+                host: host.to_string(),
+                session: session.to_string(),
+            })
+        }
         _ => Err(DecodeError::UnknownHook),
-    }
+    }?;
+    // Every frame but a command's carries its shell's nonce beside the hook (#526).
+    let nonce = field("nonce")
+        .filter(|nonce| !nonce.is_empty())
+        .map(String::from);
+    Ok(match nonce {
+        Some(nonce) if !matches!(hook, DcsHook::Preexec(_)) => DcsHook::Signed {
+            nonce,
+            hook: Box::new(hook),
+        },
+        _ => hook,
+    })
 }
 
 /// Decode a single hex nibble, or `None` if `b` is not a hex digit.

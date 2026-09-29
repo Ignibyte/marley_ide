@@ -61,8 +61,8 @@ pub mod suggest;
 mod session_id;
 
 pub use anchored::{
-    AnchoredBlock, AnchoredBlocks, BlockSpan, BlockTimes, RowsView, block_scroll, bottom_shift,
-    visible_spans,
+    AnchoredBlock, AnchoredBlocks, BlockSpan, BlockTimes, PromptShell, RowsView, block_scroll,
+    bottom_shift, visible_spans,
 };
 pub use block::{
     Block, BlockCopy, BlockId, BlockIndex, BlockList, BlockState, ExitCode, PromptInfo,

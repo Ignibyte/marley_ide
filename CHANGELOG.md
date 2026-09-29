@@ -13,6 +13,20 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Blocks over ssh** (#526, 2026-09-29). `ssh host` from Marley's bash or zsh now starts the host's
+  bash or zsh with Marley's integration, so each command typed there is a block with its exit
+  code, as on this machine. The integration travels in the ssh command, one line that any login
+  shell reads alike, and the temporary folder it writes on the host is gone as soon as the shell
+  has read it; nothing is installed there. The `ssh` block ends when the host's shell starts.
+  Rerun is offered for a block only while the shell that ran it waits at its prompt, so a host's
+  command never reruns here or the other way round, and autosuggestions draw on that shell's
+  commands. `ssh` with a remote command, a flag that makes the session non-interactive, no
+  terminal, a host whose config sets `RemoteCommand` or `Tag marley-plain`, and `command ssh`
+  run as plain ssh, as does a host whose shell is neither bash nor zsh. `terminal_blocks` names
+  each block's `host`. The terminal's own nonce never leaves the machine: the connection gets a
+  nonce of its own, announced in a frame the local shell signs, and every frame now carries its
+  shell's nonce.
+
 - **An agent reads and types into a running program** (#525, 2026-09-29). Two tools on Marley's
   MCP server: `terminal_screen` reads what a terminal's screen shows now (its rows through the
   secret redaction, the cursor, the alternate screen, the program in the foreground, and who

@@ -2692,3 +2692,12 @@ it was empty or two minutes old. It was set only when `gh` ran, so for a project
 not GitHub, or on no branch, it stayed empty: each read's refresh scheduled the next, one a second
 for as long as the window was active. Fixed before the gate: a read that was due to ask sets
 `asked_at` whatever it could ask.
+
+## F-claude-526-the-ssh-wrapper-ran-ssh-inside-a-loop-reading-its-config-001
+*severity: high · found in: pipeline 526's Code phase (shellcheck SC2095) · class: a command that reads stdin run inside a `while read` loop fed by a here-string or pipe · prevented by: shellcheck on the script (gate:11)*
+
+The bash `ssh` wrapper read `ssh -G`'s output with `while IFS= read -r line; do … done <<<"$config"`
+and ran `command ssh "$@"` inside the loop for a host marked plain, so that ssh's stdin was the
+rest of the config, not the terminal: an interactive session would have got the config as input
+and then end of file. Fixed before the gate: the loop only sets a flag, and ssh runs after it; the
+zsh wrapper was written the same way from the start.

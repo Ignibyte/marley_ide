@@ -16,6 +16,10 @@
 //! A local terminal also gives its programs [`browser_opener`] as [`BROWSER_VARIABLE`] while one
 //! is set (#561): Marley's opener, which puts a local URL a program opens in a Browser tab of its
 //! project. The workbench sets it with [`set_browser_opener`].
+//!
+//! The scripts define an `ssh` function (#526): an interactive login runs [`ssh_remote_command`]
+//! on the host, which starts the host's bash or zsh with the same scripts, carried in the command
+//! and removed once read, and a nonce of the connection's own that the scripts announce first.
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -47,6 +51,60 @@ pub const MARKER_VARIABLE: &str = "MARLEY_SHELL_INTEGRATION";
 
 /// The variable that gives a terminal's program the terminal's nonce.
 pub const NONCE_VARIABLE: &str = "MARLEY_SHELL_NONCE";
+
+/// The file, beside the scripts, holding the remote command Marley's `ssh` runs on a host (#526).
+pub const SSH_COMMAND_FILE: &str = "ssh-remote-command";
+
+/// The variable naming [`SSH_COMMAND_FILE`] for the scripts, which read it and take it out of the
+/// environment as they do the nonce.
+pub const SSH_COMMAND_VARIABLE: &str = "MARLEY_SSH_COMMAND";
+
+/// The POSIX sh that [`ssh_remote_command`] carries to a host (#526).
+///
+/// It writes the two scripts into a folder of `mktemp -d`, then starts the host's bash or zsh with
+/// them and the connection's nonce, its first argument; the scripts remove the folder once read.
+/// Any other shell, or a host that cannot make the folder, gets its login shell as plain ssh
+/// starts it.
+#[must_use]
+pub fn ssh_bootstrap() -> String {
+    format!(
+        r#"dir=$(mktemp -d "${{TMPDIR:-/tmp}}/marley.XXXXXX" 2>/dev/null) || exec "${{SHELL:-/bin/sh}}" -l
+case ${{SHELL##*/}} in
+bash)
+    cat > "$dir/{BASH_FILE}" <<'MARLEY_BASH_SCRIPT_END'
+{BASH_INTEGRATION}MARLEY_BASH_SCRIPT_END
+    MARLEY_SHELL_NONCE=$1 __MARLEY_LOGIN=1 __MARLEY_CLEANUP=$dir exec bash --rcfile "$dir/{BASH_FILE}" -i
+    ;;
+zsh)
+    mkdir "$dir/{ZSH_DIR}"
+    cat > "$dir/{ZSH_DIR}/{ZSH_FILE}" <<'MARLEY_ZSH_SCRIPT_END'
+{ZSH_INTEGRATION}MARLEY_ZSH_SCRIPT_END
+    if [ -n "${{ZDOTDIR+set}}" ]; then
+        {ZSH_ZDOTDIR_VARIABLE}=$ZDOTDIR
+        export {ZSH_ZDOTDIR_VARIABLE}
+    fi
+    ZDOTDIR=$dir/{ZSH_DIR} MARLEY_SHELL_NONCE=$1 __MARLEY_CLEANUP=$dir exec zsh -l
+    ;;
+esac
+rm -rf "$dir"
+exec "${{SHELL:-/bin/sh}}" -l
+"#
+    )
+}
+
+/// The command Marley's `ssh` gives a host, the connection's nonce appended (#526).
+///
+/// It is one line with no backslash, `!` or newline, so a login shell that is fish or tcsh reads
+/// it as sh does: `sh -c` decodes [`ssh_bootstrap`] from base64 and runs it, and a host without
+/// `base64` starts its login shell plain.
+#[must_use]
+pub fn ssh_remote_command() -> String {
+    use base64::Engine as _;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(ssh_bootstrap());
+    format!(
+        "sh -c 'b=$(printf %s {encoded} | base64 -d 2>/dev/null) && eval \"$b\" || exec \"${{SHELL:-/bin/sh}}\" -l' marley"
+    )
+}
 
 /// A new random nonce for a terminal, as 32 hex digits.
 #[must_use]
@@ -98,7 +156,8 @@ pub fn install_in(dir: &Path) -> io::Result<()> {
     let zsh_dir = dir.join(ZSH_DIR);
     std::fs::create_dir_all(&zsh_dir)?;
     write_if_changed(&dir.join(BASH_FILE), BASH_INTEGRATION)?;
-    write_if_changed(&zsh_dir.join(ZSH_FILE), ZSH_INTEGRATION)
+    write_if_changed(&zsh_dir.join(ZSH_FILE), ZSH_INTEGRATION)?;
+    write_if_changed(&dir.join(SSH_COMMAND_FILE), &ssh_remote_command())
 }
 
 fn write_if_changed(path: &Path, content: &str) -> io::Result<()> {
@@ -121,13 +180,17 @@ pub fn for_program(
 ) -> Option<ShellIntegration> {
     let name = Path::new(program).file_stem()?.to_str()?;
     let marker = (MARKER_VARIABLE.to_string(), "1".to_string());
+    let ssh_command = (
+        SSH_COMMAND_VARIABLE.to_string(),
+        dir.join(SSH_COMMAND_FILE).display().to_string(),
+    );
     match name {
         "bash" => Some(ShellIntegration {
             args: vec![
                 "--rcfile".to_string(),
                 dir.join(BASH_FILE).display().to_string(),
             ],
-            env: vec![marker],
+            env: vec![marker, ssh_command],
         }),
         "zsh" => Some(ShellIntegration {
             args: Vec::new(),
@@ -137,6 +200,7 @@ pub fn for_program(
                     dir.join(ZSH_DIR).display().to_string(),
                 ),
                 marker,
+                ssh_command,
             ]
             .into_iter()
             .chain(

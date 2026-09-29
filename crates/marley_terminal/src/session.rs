@@ -602,7 +602,7 @@ impl TerminalSession {
                         )));
                 }
                 DcsEvent::Hook(frame) => {
-                    let Ok(hook) = decode_frame(&frame) else {
+                    let Ok(hook) = decode_frame(&frame).map(DcsHook::into_unsigned) else {
                         continue;
                     };
                     if matches!(hook, DcsHook::Preexec(_)) {

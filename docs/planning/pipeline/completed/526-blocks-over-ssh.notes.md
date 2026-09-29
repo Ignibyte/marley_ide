@@ -65,6 +65,27 @@
 - **Decisions:** D1 to D8 in the spec. D2's `Tag marley-plain` came from reading `ssh_config(5)`:
   a per-host opt-out in the user's own ssh config, with no Marley setting needed yet.
 
+### Changed at promotion (2026-09-29; each item overrides the design below)
+- **Checklist** (no task tool): pre-flight ✓ (no other active pipeline); recall ✓; the brain ✓
+  (consultation f2398555666d48b08f4f4cac344ca3d3: nothing on this seam); promoted ✓; the seams re-verified by an
+  Explore agent at a2df981b80 ✓ (line numbers moved; five gaps found, below).
+- **The remote command is one line with no backslash, `!` or newline**, so a login shell that is
+  fish or tcsh parses it as sh does: `sh -c 'b=$(printf %s <base64> | base64 -d 2>/dev/null) &&
+  eval "$b" || exec "${SHELL:-/bin/sh}" -l' marley <connection nonce>`, the bootstrap base64 inside.
+  `install_in` writes it to `ssh-remote-command`, and `for_program` names that file in
+  `MARLEY_SSH_COMMAND`, which the scripts read and unset as they do the nonce. A host without
+  `base64` starts its login shell plain.
+- **The bootstrap's folder goes at the top of each script** on the host (bash reads its rcfile
+  whole; zsh keeps its open `.zshenv` readable after the unlink), so a profile that runs `exec
+  tmux` or `exit` still leaves nothing (REQ-009).
+- **zsh defines `ssh` at the first prompt** (`__marley_install`), after the user's files, so a user's
+  own `ssh` function is seen.
+- **The nonce travels in a `Signed` hook**, which `decode_hook` wraps around any frame but `preexec`
+  that carries `nonce=`, so no existing hook's fields change; `Remote { host, session }` is the new
+  hook. `apply.rs` (the gpui-era path) unwraps `Signed` and ignores `Remote`.
+- **Frames from a shell started before the update carry no nonce on `precmd`**, so its prompt's
+  shell is unknown and it offers no Rerun until it restarts.
+
 ### Design
 - **The wrapper** (bash and zsh, defined inside each script's hook guard, only when no `ssh`
   function exists: `declare -F ssh` in bash, `${+functions[ssh]}` in zsh). It walks the arguments
@@ -119,36 +140,9 @@
 - **Ledger rows:** extend `crates/terminal_view/src/terminal_element.rs`'s row with the #526 change
   to the #474 Rerun check. `vendor/` and `crates/terminal/src/terminal.rs` are unchanged.
 
-### E2E plan
-`script/e2e/526-blocks-over-ssh.sh`, `compositor sway`. Setup: a local HOME with `PS1='$ '`; a
-remote HOME with a `.bash_profile` that sources its `.bashrc` (`PS1='remote$ '`), a `.zshrc`
-(`PROMPT='zsh-remote%% '`) and `forged.txt` (a `preexec` frame with a made-up nonce and a
-`precmd`); host and client keys made with `ssh-keygen -N ''`; `sshd -f <config> -D -e` in the
-background on three free loopback ports with `UsePAM no`, `StrictModes no`,
-`PasswordAuthentication no`, `AuthorizedKeysFile <scratch>`, `SetEnv HOME=<remote home>
-TMPDIR=<remote tmp>`, and `Match LocalPort` blocks adding `SHELL=/usr/bin/zsh` and `SHELL=/bin/sh`;
-a client config with `Host e2e`, `e2e-zsh`, `e2e-sh` and `e2e-plain` (`Tag marley-plain`),
-`HostKeyAlias`, `UserKnownHostsFile` holding the host key, `StrictHostKeyChecking yes`,
-`LogLevel ERROR`; the stand-in MCP client of #491. Teardown stops sshd.
-
-| REQ | Step | Shot or log |
-|---|---|---|
-| REQ-001, REQ-002 | `echo local`; `ssh -F cfg e2e`; `echo on the far side`; `false` | `526-01-remote-blocks` |
-| REQ-003 | the pointer on the remote `false` block, Rerun clicked | `526-02-remote-rerun` |
-| REQ-003 | the pointer on the local `echo local` block | `526-03-no-local-rerun` |
-| REQ-004 | `cat forged.txt`, the pointer on its block | `526-04-forged` |
-| REQ-005 | `ech` (local history only), then `echo on` | `526-05-remote-suggestions` |
-| REQ-006, REQ-011 | `exit`; the pointer on the remote block, then the local one | `526-06-back-local` |
-| REQ-001 | `ssh -F cfg e2e-zsh`, a command, `exit` | `526-07-zsh` |
-| REQ-007 | `command ssh -F cfg e2e`, a command, `exit`; `ssh -F cfg e2e-plain`; `ssh -F cfg e2e true` | `526-08-plain`; the log |
-| REQ-008 | `ssh -F cfg e2e-sh`, `echo $0`, `exit` | `526-09-other-shell` |
-| REQ-009 | `ls <remote tmp>` after the first connection | the log |
-| REQ-010 | the stand-in client's `terminal_blocks` | the log: `host` `e2e` on the remote blocks, null on the local |
-| REQ-011 | `script/e2e/484-autosuggestions.sh` | its shots |
-| REQ-012 | `just gate-diff` | the gate's exit |
-
-Not reachable: a network host (the scenario's sshd is local, which exercises the same ssh client,
-server and remote shells), and hosts whose login shell is not POSIX.
+### For the quality pass
+- No tests (§7, since 2026-09-29): the drafted scenario (a local sshd on loopback ports) waits
+  for the quality pass.
 
 ### Risks
 - **An unprivileged sshd** on OpenSSH 10.5 (split into `sshd-session` and `sshd-auth`) may refuse
@@ -166,3 +160,41 @@ server and remote shells), and hosts whose login shell is not POSIX.
   of the scripts under `script -qfc` (L-claude-463) guard it.
 - **T2's path links** will need a block's host: a remote block's directory is on the host, which
   `host` on the block now says.
+
+## Phase 2 — Code
+- **Checklist** (no task tool): the ledger row (`terminal_element.rs`) ✓; the scripts ✓; the
+  bootstrap and its command file ✓; `dcs.rs` ✓; the block model ✓; the gpui-era readers ✓; the
+  element's Rerun ✓; autosuggestions ✓; `terminal_blocks`' `host` ✓; the review ✓; the gate ✓.
+- **Built as the changes at promotion say.** Hosts are kept beside the blocks (`hosts`, by
+  index, as `times` is) rather than in `AnchoredBlock`, whose literals in Zed's crates' tests would
+  all have changed. Clippy asked for `PromptShell` in place of `Option<Option<&str>>`,
+  `name_and_fields` out of `decode_hook` (past 100 lines), and shorter first doc paragraphs.
+- **Found and fixed before the gate: ssh reading the host's config as its stdin.** The first bash
+  wrapper ran `command ssh` inside the `while read` loop over `ssh -G`'s output, so an interactive
+  ssh started there would have read the here-string instead of the terminal; shellcheck (SC2095)
+  named it. The loop now only decides, and ssh runs after it, in both scripts. An F-block below.
+- **Checked by hand, no test:** `shellcheck` on `marley.bash` (gate:11's flags), `bash -n` and
+  `zsh -n` on both scripts, `sh -n` on a replica of the bootstrap; the remote command is one line of
+  about 22 KB with no backslash, `!` or newline.
+- **The review**, against each criterion: the local shell's frames now all carry its nonce, so
+  local blocks, Rerun and suggestions behave as before (REQ-011); a shell started before the update
+  signs no `precmd`, so its prompt's shell is unknown and it offers no Rerun until it restarts;
+  only the local shell opens a connection, so output cannot announce one (REQ-004); the local
+  `precmd` ends it (REQ-006); the host's `init` ends the `ssh` block without an exit code
+  (REQ-002); the plain cases run `command ssh "$@"` untouched (REQ-007, REQ-008).
+- **The gate:** `just gate-diff` green: 16 passed, 0 failed, `GATE GREEN [diff]`, the receipt
+  written.
+
+---
+## Phase 3 — Complete
+- **Checklist** (no task tool): document ✓; capture knowledge ✓; close the ticket ✓; archive ✓;
+  commit ✓.
+- **Documented:** `CHANGELOG.md`; `docs/marley_architecture/terminal_blocks.md` (blocks over
+  ssh); `docs/marley/guide.md` ("Blocks over ssh"). The `terminal_element.rs` row names the
+  per-block Rerun.
+- **Knowledge:** F-claude-526-the-ssh-wrapper-ran-ssh-inside-a-loop-reading-its-config-001,
+  AD-claude-526-blocks-over-ssh-ride-in-the-ssh-command-with-a-connection-nonce-001.
+- **Brain:** consultation f2398555666d48b08f4f4cac344ca3d3 closed with a decision (follow-up
+  2026-10-29).
+- **Closed:** TICKET-526 moved to `tickets/closed/`; its BACKLOG row went at promotion.
+- **No tests** (§7): the drafted scenario (a local sshd) waits for the quality pass.

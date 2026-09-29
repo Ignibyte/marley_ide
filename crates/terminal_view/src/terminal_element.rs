@@ -1647,31 +1647,26 @@ impl Element for TerminalElement {
                     marley_block_spans(terminal.last_content(), terminal.blocks())
                 };
                 // Marley: an element over each block whose first row is on screen (#474). Rerun
-                // is offered only while no block runs, at the shell's prompt.
-                let (marley_starting, marley_rerun) = {
-                    let blocks = self.terminal.read(cx).blocks();
-                    let starting: Vec<_> = marley_spans
+                // is offered for a block only while the shell that ran it, the local one or an
+                // ssh host's, waits at its prompt (#526).
+                let marley_starting: Vec<_> = {
+                    let anchored = self.terminal.read(cx).marley_anchored();
+                    let blocks = anchored.blocks();
+                    marley_spans
                         .iter()
                         .filter(|span| span.starts_in_view)
-                        .filter_map(|span| Some((span.clone(), blocks.get(span.index)?.clone())))
-                        .collect();
-                    let rerun = blocks
-                        .last()
-                        .is_some_and(|block| block.state == marley_terminal::BlockState::Finished);
-                    (starting, rerun)
+                        .filter_map(|span| {
+                            let block = blocks.get(span.index)?;
+                            Some((span.clone(), block.clone(), anchored.rerun_offered(block)))
+                        })
+                        .collect()
                 };
                 let marley_blocks = marley_starting
                     .into_iter()
-                    .map(|(span, block)| {
+                    .map(|(span, block, rerun)| {
                         let line_height = dimensions.line_height();
-                        let mut element = marley_block(
-                            &span,
-                            &block,
-                            marley_rerun,
-                            &self.terminal,
-                            line_height,
-                            cx,
-                        );
+                        let mut element =
+                            marley_block(&span, &block, rerun, &self.terminal, line_height, cx);
                         let origin = dimensions.bounds.origin
                             + point(px(0.), span.rows.start as f32 * line_height)
                             - point(px(0.), scroll_top);

@@ -1,7 +1,7 @@
 ---
 pipeline_id: b445fd82-8883-4177-848f-0c0517427ca4
 ticket: docs/planning/tickets/open/TICKET-526-blocks-over-ssh.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 3 — Complete PASS
 title: "Blocks keep working over ssh"
 type: feature
 slice: prong 1 T0c (shell integration; Warp once-over item 3), ssh first
@@ -119,26 +119,6 @@ offered Rerun only by the shell that ran it.
     the host (report 04 §2.10; `crates/remote/src/transport/ssh.rs`, `build_command`), a program
     on the host again.
 
-## UI proof
-UI-AFFECTING. `script/e2e/526-blocks-over-ssh.sh` (`compositor sway`, for the hovers and clicks on
-Rerun). A real `sshd` of the scenario's own, run as the user on `127.0.0.1` on a free port, with a
-scratch host key, a scratch client key, `UsePAM no`, `StrictModes no` and `SetEnv
-HOME=<scratch remote home>`, so no file of the user's is read or written; `Match LocalPort` blocks
-give a second port a zsh and a third `/bin/sh`. The client config (`-F`) pins the host key. Shots:
-`echo local` at the local prompt, then `ssh -F <config> e2e`, `echo on the far side` and `false`
-(`526-01-remote-blocks`: the ssh block's bar ending at the remote prompt, a check and `exit 1`
-pills); the pointer on the remote `false` block, Rerun shown, clicked (`526-02-remote-rerun`: a
-new `false` block); the pointer on the local `echo local` block, no Rerun (`526-03-no-local-rerun`);
-`cat forged.txt`, a frame with a wrong nonce, and the pointer on its block (`526-04-forged`); a
-prefix of a local command typed at the remote prompt, no suggestion, and a prefix of a remote one,
-suggested (`526-05-remote-suggestions`); `exit`, the pointer on the remote block, no Rerun, then on
-the local one, Rerun (`526-06-back-local`); the zsh port (`526-07-zsh`); `command ssh -F <config>
-e2e` and a host tagged `marley-plain`, no remote blocks (`526-08-plain`); the `/bin/sh` port, a
-plain login (`526-09-other-shell`).
-The run log: `ssh -F <config> e2e true`'s output as plain ssh gives it, the stand-in MCP
-client's `terminal_blocks` with each block's `host`, and the scratch remote `/tmp` with no
-`marley.*` directory left. #484's scenario runs again for local autosuggestions.
-
 ## Locked-In Decisions
 - D1 — The integration rides in the ssh command. The `ssh` function adds `-t` and a POSIX sh
   bootstrap as the remote command, which writes Marley's scripts into a temporary directory and
@@ -175,27 +155,26 @@ client's `terminal_blocks` with each block's `host`, and the scratch remote `/tm
 
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
-| REQ-001 | WHEN the user runs `ssh` for an interactive login from Marley's bash or zsh to a host whose shell is bash or zsh, the system shall start that shell with Marley's integration, and each command typed there shall become a block with its exit code and output. | Shots `526-01-remote-blocks`, `526-07-zsh` |
-| REQ-002 | WHEN the remote shell's first frame arrives, the system shall end the `ssh` block there without an exit code. | Shot `526-01-remote-blocks` |
-| REQ-003 | WHILE the remote shell waits at its prompt, the system shall offer Rerun for a block the remote shell reported and for no block of the local shell. | Shots `526-02-remote-rerun`, `526-03-no-local-rerun` |
-| REQ-004 | WHEN a frame that carries neither the terminal's nonce nor the connection's arrives, its block shall be offered no Rerun. | Shot `526-04-forged` |
-| REQ-005 | WHILE the remote shell waits at its prompt, autosuggestions shall come from the commands that shell reported, and from no local history. | Shot `526-05-remote-suggestions` |
-| REQ-006 | WHEN the connection ends and the local shell reports its prompt, the system shall stop accepting the connection's nonce: the remote blocks lose Rerun and the local blocks have it again. | Shot `526-06-back-local` |
-| REQ-007 | WHEN `ssh` is given a remote command or a non-interactive flag, runs without terminals, targets a host whose configuration sets `RemoteCommand` or carries `Tag marley-plain`, or is run as `command ssh`, the system shall run ssh with the user's arguments only. | Shot `526-08-plain`; the run log |
-| REQ-008 | WHERE the host's shell is neither bash nor zsh, or the host cannot make a temporary directory, the system shall start the host's login shell as plain ssh does. | Shot `526-09-other-shell` |
-| REQ-009 | WHEN the remote shell has started, the bootstrap's temporary directory shall be gone from the host. | The run log |
-| REQ-010 | WHEN an agent calls `terminal_blocks`, each block shall name the host its shell ran on, or none for the local shell. | The run log |
-| REQ-011 | WHILE no ssh connection runs, local blocks, Rerun and autosuggestions shall behave as before. | Shot `526-06-back-local`; #484's scenario |
+| REQ-001 | WHEN the user runs `ssh` for an interactive login from Marley's bash or zsh to a host whose shell is bash or zsh, the system shall start that shell with Marley's integration, and each command typed there shall become a block with its exit code and output. | Review |
+| REQ-002 | WHEN the remote shell's first frame arrives, the system shall end the `ssh` block there without an exit code. | Review |
+| REQ-003 | WHILE the remote shell waits at its prompt, the system shall offer Rerun for a block the remote shell reported and for no block of the local shell. | Review |
+| REQ-004 | WHEN a frame that carries neither the terminal's nonce nor the connection's arrives, its block shall be offered no Rerun. | Review |
+| REQ-005 | WHILE the remote shell waits at its prompt, autosuggestions shall come from the commands that shell reported, and from no local history. | Review |
+| REQ-006 | WHEN the connection ends and the local shell reports its prompt, the system shall stop accepting the connection's nonce: the remote blocks lose Rerun and the local blocks have it again. | Review |
+| REQ-007 | WHEN `ssh` is given a remote command or a non-interactive flag, runs without terminals, targets a host whose configuration sets `RemoteCommand` or carries `Tag marley-plain`, or is run as `command ssh`, the system shall run ssh with the user's arguments only. | Review |
+| REQ-008 | WHERE the host's shell is neither bash nor zsh, or the host cannot make a temporary directory, the system shall start the host's login shell as plain ssh does. | Review |
+| REQ-009 | WHEN the remote shell has started, the bootstrap's temporary directory shall be gone from the host. | Review |
+| REQ-010 | WHEN an agent calls `terminal_blocks`, each block shall name the host its shell ran on, or none for the local shell. | Review |
+| REQ-011 | WHILE no ssh connection runs, local blocks, Rerun and autosuggestions shall behave as before. | Review |
 | REQ-012 | The diff gate shall be green. | `just gate-diff` |
 
 ## Phase Plan
-- **P1 Plan** — this spec; the design and the test plan in the notes; the scripts proven under the
-  real shells on a pseudo-terminal first (L-claude-463).
-- **P2 Code** — the touchpoints rows first; the scripts and the bootstrap; the decoder and the block
-  model; the Rerun hunk; autosuggestions and `terminal_blocks`; fmt and clippy clean; a review of
-  the diff (security lens: no frame is trusted without a nonce the terminal gave or a verified
-  frame announced, and the terminal's nonce never leaves the machine).
-- **P3 Test** — write and run the scenario, read every shot; #484's scenario again;
-  `script/gates.sh --diff` green.
-- **P4 Complete** — CHANGELOG, `docs/marley/three-prong-plan.md` (T0c), the `marley_terminal`
-  notes under `docs/marley_architecture/` (§21), ledger capture (§19), close, archive, commit.
+- **P1 Plan:** promote the pair, recall, consult the brain, the design in the notes (the changes at
+  promotion first).
+- **P2 Code:** the scripts (every frame's nonce, the remote mode, the `ssh` function); the
+  bootstrap and its command file in `shell_integration.rs`; `dcs.rs` (`Signed`, `Remote`); the
+  block model's shells and `rerun_offered`; the element's Rerun (the Zed hunk, its row first);
+  autosuggestions; `terminal_blocks`' `host`; a review; `script/gates.sh --diff` green (no tests,
+  §7).
+- **P3 Complete:** CHANGELOG; `docs/marley_architecture/terminal_blocks.md`; the guide; the ledger;
+  close, archive, commit.

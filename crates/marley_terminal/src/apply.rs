@@ -98,6 +98,8 @@ impl SessionModel {
     ///   code (R5) and stages the new prompt, replacing any still-staged one (R6/R21).
     /// - `Bootstrapped` records the subshell flag.
     pub(crate) fn apply_hook(&mut self, hook: DcsHook) -> Result<(), ApplyHookError> {
+        // This model reads the hook alone, not which shell signed it (#526).
+        let hook = hook.into_unsigned();
         match hook {
             DcsHook::InitShell { shell_session_id } => {
                 let _previous = self.registry.insert(shell_session_id, self.session_id);
@@ -147,7 +149,7 @@ impl SessionModel {
                 self.bootstrapped = Some(is_subshell);
                 Ok(())
             }
-            DcsHook::History { .. } => Ok(()),
+            DcsHook::History { .. } | DcsHook::Remote { .. } | DcsHook::Signed { .. } => Ok(()),
         }
     }
 

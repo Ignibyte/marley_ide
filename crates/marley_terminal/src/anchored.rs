@@ -67,6 +67,44 @@ pub struct BlockTimes {
     pub finished: Option<SystemTime>,
 }
 
+/// Which shell sent a frame, by the nonce it carried (#526).
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Shell {
+    /// The terminal's own shell.
+    Local,
+    /// The shell Marley's `ssh` started on a host.
+    Remote(String),
+    /// Output that printed a frame, or a shell that signs none.
+    Unknown,
+}
+
+/// The shell waiting at a terminal's prompt (#526).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PromptShell<'a> {
+    /// The terminal's own shell.
+    Local,
+    /// The shell Marley's `ssh` started on this host.
+    Host(&'a str),
+}
+
+impl<'a> PromptShell<'a> {
+    /// The host the shell runs on; none for the local shell.
+    #[must_use]
+    pub const fn host(self) -> Option<&'a str> {
+        match self {
+            Self::Local => None,
+            Self::Host(host) => Some(host),
+        }
+    }
+}
+
+/// A connection Marley's `ssh` announced: the nonce its host's shell signs with, and the host.
+#[derive(Debug, Clone)]
+struct Connection {
+    session: String,
+    host: String,
+}
+
 /// A terminal's blocks, in order, and the prompt staged for the next one.
 #[derive(Debug, Default)]
 pub struct AnchoredBlocks {
@@ -80,6 +118,13 @@ pub struct AnchoredBlocks {
     input_start: Option<(u64, usize)>,
     /// The file the shell keeps its history in, when it named one.
     history_file: Option<String>,
+    /// The ssh connection whose host's shell the terminal accepts frames from, until the local
+    /// shell's next prompt (#526).
+    connection: Option<Connection>,
+    /// The shell whose prompt is staged.
+    prompt_shell: Option<Shell>,
+    /// Each block's host, by index; none for the local shell's.
+    hosts: Vec<Option<String>>,
 }
 
 impl AnchoredBlocks {
@@ -99,10 +144,21 @@ impl AnchoredBlocks {
     /// [`ApplyHookError::MissingSession`] for a `Preexec` or `Precmd` before any `InitShell`;
     /// the blocks stay as they were.
     pub fn apply(&mut self, hook: DcsHook, line: u64) -> Result<(), ApplyHookError> {
+        let (nonce, hook) = match hook {
+            DcsHook::Signed { nonce, hook } => (Some(nonce), *hook),
+            hook => (None, hook),
+        };
+        let shell = self.shell_of(nonce.as_deref());
         match hook {
             DcsHook::InitShell { .. } => {
+                // A host's shell has started: the `ssh` block ends there, with no exit code, and
+                // its output is the connection's banner (#526).
+                if matches!(shell, Shell::Remote(_)) {
+                    self.finish_running(line, ExitCode(None));
+                }
                 self.registered = true;
                 self.staged = None;
+                self.prompt_shell = None;
                 self.input_start = None;
             }
             DcsHook::Preexec(value) => {
@@ -113,7 +169,15 @@ impl AnchoredBlocks {
                     || (PromptInfo::default(), None),
                     |(prompt, at)| (prompt, Some(at)),
                 );
-                let command_verified = self.nonce.is_some() && value.nonce == self.nonce;
+                // A command the terminal's shell or its ssh host's reported, not one output
+                // printed (#526).
+                let shell = self.shell_of(value.nonce.as_deref());
+                let command_verified = shell != Shell::Unknown;
+                self.prompt_shell = None;
+                self.hosts.push(match shell {
+                    Shell::Remote(host) => Some(host),
+                    Shell::Local | Shell::Unknown => None,
+                });
                 self.blocks.push(AnchoredBlock {
                     index: self.blocks.len(),
                     command: value.command,
@@ -128,14 +192,74 @@ impl AnchoredBlocks {
             }
             DcsHook::Precmd(value) => {
                 self.require_shell()?;
+                // The local shell's prompt ends the connection: its nonce is accepted no longer.
+                if shell == Shell::Local {
+                    self.connection = None;
+                }
                 self.finish_running(line, value.exit_code);
                 self.staged = Some((value.prompt, line));
+                self.prompt_shell = Some(shell);
                 self.input_start = None;
             }
-            DcsHook::Bootstrapped { .. } => {}
-            DcsHook::History { file } => self.history_file = Some(file),
+            DcsHook::Bootstrapped { .. } | DcsHook::Signed { .. } => {}
+            // A history file names a file on this machine only when the local shell names it.
+            DcsHook::History { file } => {
+                if shell == Shell::Local {
+                    self.history_file = Some(file);
+                }
+            }
+            // Only the terminal's own shell announces a connection, so output cannot.
+            DcsHook::Remote { host, session } => {
+                if shell == Shell::Local {
+                    self.connection = Some(Connection { session, host });
+                }
+            }
         }
         Ok(())
+    }
+
+    /// Which shell signs with `nonce`: the terminal's, the announced connection's host's, or
+    /// neither.
+    fn shell_of(&self, nonce: Option<&str>) -> Shell {
+        match nonce {
+            Some(nonce) if self.nonce.as_deref() == Some(nonce) => Shell::Local,
+            Some(nonce) => self
+                .connection
+                .as_ref()
+                .filter(|connection| connection.session == nonce)
+                .map_or(Shell::Unknown, |connection| {
+                    Shell::Remote(connection.host.clone())
+                }),
+            None => Shell::Unknown,
+        }
+    }
+
+    /// The host block `index`'s shell ran on, none for the local shell (#526).
+    #[must_use]
+    pub fn block_host(&self, index: usize) -> Option<&str> {
+        self.hosts.get(index).and_then(Option::as_deref)
+    }
+
+    /// The shell waiting at the prompt; none when no prompt is staged or its shell is unknown
+    /// (#526).
+    #[must_use]
+    pub fn prompt_shell(&self) -> Option<PromptShell<'_>> {
+        match self.prompt_shell.as_ref()? {
+            Shell::Local => Some(PromptShell::Local),
+            Shell::Remote(host) => Some(PromptShell::Host(host)),
+            Shell::Unknown => None,
+        }
+    }
+
+    /// Whether `block` may be rerun now: its command was reported by a known shell, it finished,
+    /// and that same shell waits at the prompt, so it runs where it ran (#526).
+    #[must_use]
+    pub fn rerun_offered(&self, block: &AnchoredBlock) -> bool {
+        block.command_verified
+            && block.state == BlockState::Finished
+            && self
+                .prompt_shell()
+                .is_some_and(|shell| shell.host() == self.block_host(block.index))
     }
 
     /// The blocks, oldest first.

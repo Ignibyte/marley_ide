@@ -844,6 +844,7 @@ fn terminal_blocks(arguments: &Value, caller: &Caller, cx: &App) -> Result<ToolA
             block_entry(
                 block,
                 &command.text,
+                anchored.block_host(block.index),
                 anchored.times(block.index),
                 terminal.block_output_kept(block),
                 now,
@@ -866,6 +867,7 @@ fn terminal_blocks(arguments: &Value, caller: &Caller, cx: &App) -> Result<ToolA
 fn block_entry(
     block: &AnchoredBlock,
     command: &str,
+    host: Option<&str>,
     times: Option<BlockTimes>,
     output_kept: bool,
     now: SystemTime,
@@ -882,6 +884,7 @@ fn block_entry(
         "running": block.state == BlockState::Running,
         "exit_code": block.exit_code.0,
         "cwd": block.prompt.pwd,
+        "host": host,
         "started_at_ms": started_at_ms,
         "duration_ms": duration_ms,
         "output_kept": output_kept,

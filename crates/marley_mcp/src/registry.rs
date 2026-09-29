@@ -1365,6 +1365,10 @@ fn terminal_blocks_schemas() -> (Value, Value) {
                                 "description": "When the command started, in Unix milliseconds."
                             },
                             "duration_ms": { "type": ["integer", "null"] },
+                            "host": {
+                                "type": ["string", "null"],
+                                "description": "The ssh host the block's shell ran on (#526); null for the terminal's own shell."
+                            },
                             "output_kept": {
                                 "type": "boolean",
                                 "description": "Whether the output is still in the terminal's scrollback."

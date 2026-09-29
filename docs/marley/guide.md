@@ -352,6 +352,22 @@ as vim holds the alternate screen.
   verified command, clears what you had typed on the line and runs the command again. A click on
   either button starts no selection and never reaches a program that reads the mouse.
 
+### Blocks over ssh
+
+`ssh host` typed in Marley's bash or zsh keeps blocks working on the host (#526): Marley starts the
+host's bash or zsh with its integration, carried in the ssh command, so each command you type
+there is a block with its exit code and its Copy Output. Nothing is installed on the host; the
+temporary folder the integration is written to is removed as soon as the shell has read it. The
+`ssh` block itself ends when the host's shell starts.
+
+- Rerun is offered for a block only while the shell that ran it waits at its prompt: at the host's
+  prompt for the host's commands, back at yours after `exit` for your own.
+- Autosuggestions at the host's prompt come from the commands you ran on the host.
+- `ssh` runs as plain ssh with a remote command (`ssh host uptime`), with `-N`, `-T`, `-W`, `-f`
+  and the like, when its input or output is not a terminal, for a host whose ssh config sets
+  `RemoteCommand` or `Tag marley-plain`, and as `command ssh`. A host whose shell is neither bash nor
+  zsh gets its login shell as usual.
+
 ### The prompt at the bottom
 
 While the screen has room to spare, as in a new terminal or one you just cleared, Marley draws its
