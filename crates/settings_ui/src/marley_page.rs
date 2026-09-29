@@ -441,7 +441,7 @@ fn push_section() -> [SettingsPageItem; 4] {
 // (#565). The project lists, and each use's mode past the check's, the stop kind's (#566), the
 // find tools' (#567), the stall kind's (#569), the click consequence's (#571), the inbox's
 // (#568) and the question route's (#570), live in settings.json.
-fn system_one_section() -> [SettingsPageItem; 15] {
+fn system_one_section() -> [SettingsPageItem; 16] {
     [
         SettingsPageItem::SectionHeader("System One"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -818,6 +818,38 @@ fn system_one_section() -> [SettingsPageItem; 15] {
                     let _before = match value {
                         Some(mode) => uses.insert("question_route".to_string(), mode),
                         None => uses.remove("question_route"),
+                    };
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: the mode of the running error (#572).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Running Error",
+            description: "The mode of the running error, which tells a command that keeps running, such as a dev server, when it prints a failure and is still running five seconds later: a red mark on its rail row with the line, a notification when the terminal is not in front, and another when it recovers. The lines' shapes decide first; the model reads only the lines they leave open. Shadow logs the model in Decisions, Suggest marks its failures with a question mark and no notification, and Act treats them as the shapes'. Off watches nothing.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.system_one.uses.running_error"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.system_one.as_ref())
+                        .and_then(|system_one| system_one.uses.as_ref())
+                        .and_then(|uses| uses.get("running_error"))
+                },
+                write: |settings_content, value, _| {
+                    let uses = settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .system_one
+                        .get_or_insert_default()
+                        .uses
+                        .get_or_insert_default();
+                    let _before = match value {
+                        Some(mode) => uses.insert("running_error".to_string(), mode),
+                        None => uses.remove("running_error"),
                     };
                 },
             }),

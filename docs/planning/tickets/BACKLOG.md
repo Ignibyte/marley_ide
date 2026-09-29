@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-572](open/TICKET-572-running-command-errors.md) | feature | prong 1 T7b · a dev server that prints an error and keeps running gets a notification and a red mark on its row, recovery clears it; error shapes first, a System One noul for the open lines; after #551, on #565 |
 | [TICKET-556](open/TICKET-556-terminal-run.md) | feature | prong 2 with prong 1 · `terminal_run`: an agent runs a command at the user's prompt as a block, behind Warp's allow and deny lists, with the agent mark and Ctrl-I takeover |
 | [TICKET-553](open/TICKET-553-agent-commands-in-history.md) | feature | prong 1 T7 · whether an agent's commands enter the shell history and the suggestions, as a setting; after #556 |
 | [TICKET-557](open/TICKET-557-inline-assist-and-english-at-the-prompt.md) | feature | prong 1 T3 · Inline Assist proven by a scenario; English at the prompt by local rules, a hint, Ctrl+Shift+Enter to the agent and the exit-127 button |

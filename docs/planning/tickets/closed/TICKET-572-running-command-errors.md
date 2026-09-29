@@ -2,14 +2,14 @@
 
 - **Ticket:** LOCAL #572 (feature, prong 1 T7b's follow-on, paired with #551; use 7 of the System One layer, on #565)
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/572-running-command-errors.spec.md
+- **Pipeline doc:** ../../pipeline/completed/572-running-command-errors.spec.md
 - **Source ticket:** Chad, 2026-09-26, approving the seven ranked uses of
   `docs/planning/design-notes/jev-system-one-2026-09-25.md` (use 7, "A running command's
   error", from the Warp second pass's finding 3, which #551 takes for a command's end and leaves
   this case to use 7) on the layer TICKET-565 builds, with his rules: "local first and then jev
   second", and "we need probably every aspect of this configurable and turned off / on where the
   system will use or wont use it. Otherwise this becomes a jev required system."
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 #551 tells Chad when a long command ends. A dev server never ends: its useful signal is a failure

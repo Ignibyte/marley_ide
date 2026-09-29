@@ -34,9 +34,9 @@ use marley_browser::ports::Stopped;
 use marley_mcp::redact::Redactor;
 use marley_rail::{
     BrowserRow, BrowserSnapshot, CommandSnapshot, DriftSnapshot, Focus, InboxEntry, InboxKind,
-    PortRow, PortSnapshot, ProjectRow, ProjectSnapshot, RailSnapshot, Row, Selection, SwitcherRow,
-    TerminalAgent, TerminalRow, TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus,
-    TurnSnapshot, WorktreeRow, WorktreeSnapshot,
+    PortRow, PortSnapshot, ProjectRow, ProjectSnapshot, RailSnapshot, Row, RunningError, Selection,
+    SwitcherRow, TerminalAgent, TerminalRow, TerminalSnapshot, ThreadRow, ThreadSnapshot,
+    ThreadStatus, TurnSnapshot, WorktreeRow, WorktreeSnapshot,
 };
 use marley_system_one::reading::{Reading, Signal};
 use marley_system_one::{INBOX_RISK, QUESTION_ROUTE};
@@ -195,7 +195,7 @@ pub struct Rail {
     _multi_workspace_subscriptions: [Subscription; 2],
     /// Claude Code's hook events, which move its terminals' rows (#519), its turns (#509), and the
     /// terminals' unread marks (#538).
-    _agent_events: [Subscription; 3],
+    _agent_events: [Subscription; 4],
     /// The rows' ports, from the scan an open rail keeps running (#521), and the settings that
     /// can show the rail again.
     _ports: [Subscription; 2],
@@ -489,6 +489,17 @@ enum InboxTarget {
 }
 
 impl Rail {
+    /// The globals whose changes redraw rows: agents' events and turns, a terminal's unread mark
+    /// (#538) and a running command's failure (#572).
+    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 4] {
+        [
+            cx.observe_global_in::<AgentEvents>(window, Self::refresh),
+            cx.observe_global_in::<Turns>(window, Self::refresh),
+            cx.observe_global_in::<crate::notifications::Attention>(window, Self::refresh),
+            cx.observe_global_in::<crate::running_errors::ErrorMarks>(window, Self::refresh),
+        ]
+    }
+
     /// A rail for `multi_workspace`, keeping Zed's sidebar when it replaces one.
     pub fn new(
         multi_workspace: &Entity<MultiWorkspace>,
@@ -530,12 +541,7 @@ impl Rail {
             rail.refresh(window, cx);
         });
         let (filter_editor, filter_edits) = Self::filter_field(window, cx);
-        let agent_events = [
-            cx.observe_global_in::<AgentEvents>(window, Self::refresh),
-            cx.observe_global_in::<Turns>(window, Self::refresh),
-            // A terminal's unread mark, set or seen (#538).
-            cx.observe_global_in::<crate::notifications::Attention>(window, Self::refresh),
-        ];
+        let agent_events = Self::observe_marks(window, cx);
         cx.on_release(|rail, cx| {
             if rail.watching_ports {
                 ports::unwatch(cx);
@@ -3580,11 +3586,7 @@ impl Rail {
                         ),
                 )
             });
-        let mark = row
-            .agent
-            .and_then(|agent| agent.mark)
-            .map(|mark| permission_chip(id, mark, cx));
-        let flag = row.flag.map(|flag| stall_flag(id, flag));
+        let marks = terminal_marks(&row, cx);
         let item = row_card(
             ("marley-rail-terminal", id),
             format!("marley-rail-terminal-icon-{id}"),
@@ -3596,11 +3598,15 @@ impl Rail {
                 .chain(row.activity)
                 .map(RowLine::muted)
                 .chain(row.command.map(command_line))
+                .chain(row.running_error.map(|error| RowLine {
+                    text: error.line,
+                    state: None,
+                    color: Color::Error,
+                }))
                 .collect(),
             cx,
         )
-        .children(mark)
-        .children(flag)
+        .children(marks)
         .child(end)
         .on_click(cx.listener(move |rail, event: &ClickEvent, window, cx| {
             // The second click of a double-click renames, as a tab's does.
@@ -4847,6 +4853,7 @@ fn terminal_snapshot(
             .is_none()
             .then(|| command_snapshot(terminal.read(cx)))
             .flatten(),
+        running_error: crate::running_errors::mark(view.entity_id(), cx),
         turns: Turns::of(view.entity_id().as_u64(), cx)
             .iter()
             .rev()
@@ -5574,14 +5581,20 @@ fn filter_match(filter: &str, text: &str) -> Option<Vec<usize>> {
         .flatten()
 }
 
-/// Where the rail's filter matches a terminal: its title, or else its running or last command,
-/// which highlights nothing in the title (#551).
+/// Where the rail's filter matches a terminal: its title, or else its running or last command
+/// (#551) or the failure that command printed (#572), which highlight nothing in the title.
 fn terminal_match(filter: &str, terminal: &TerminalSnapshot) -> Option<Vec<usize>> {
     filter_match(filter, &terminal.title).or_else(|| {
         terminal
             .command
             .as_ref()
             .and_then(|command| filter_match(filter, &command.text))
+            .or_else(|| {
+                terminal
+                    .running_error
+                    .as_ref()
+                    .and_then(|error| filter_match(filter, &error.line))
+            })
             .map(|_| Vec::new())
     })
 }
@@ -5705,6 +5718,41 @@ fn stall_flag(id: u64, flag: String) -> Stateful<Div> {
                 .color(Color::Warning),
         )
         .tooltip(Tooltip::text(flag))
+}
+
+/// A terminal row's marks before its end: an agent's permission chip, its stall flag (#569) and
+/// a running command's failure (#572).
+fn terminal_marks(row: &TerminalRow, cx: &App) -> Vec<Stateful<Div>> {
+    let id = row.id;
+    row.agent
+        .and_then(|agent| agent.mark)
+        .map(|mark| permission_chip(id, mark, cx))
+        .into_iter()
+        .chain(row.flag.clone().map(|flag| stall_flag(id, flag)))
+        .chain(
+            row.running_error
+                .as_ref()
+                .map(|error| running_error_mark(id, error)),
+        )
+        .collect()
+}
+
+/// The mark of a failure a running command printed and kept running after (#572), as a failed
+/// thread's; a `?` beside it when a reading in `suggest` found it.
+fn running_error_mark(id: u64, error: &RunningError) -> Stateful<Div> {
+    h_flex()
+        .id(("marley-rail-running-error", id))
+        .debug_selector(move || format!("marley-rail-running-error-{id}"))
+        .flex_none()
+        .child(
+            Icon::new(IconName::Close)
+                .size(IconSize::Small)
+                .color(Color::Error),
+        )
+        .when(error.questioned, |mark| {
+            mark.child(Label::new("?").size(LabelSize::XSmall).color(Color::Error))
+        })
+        .tooltip(Tooltip::text(error.line.clone()))
 }
 
 /// A line under a row's title, and its color: muted unless it says a command failed (#551). A

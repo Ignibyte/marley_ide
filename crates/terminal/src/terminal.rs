@@ -1934,6 +1934,21 @@ impl Terminal {
         )
     }
 
+    // Marley: a running block's new lines, for its printed errors (#572).
+    /// The main screen's lines from absolute line `from` up to the cursor's, and the cursor's
+    /// absolute line, where the next read starts; `None` on the alternate screen or once `from`
+    /// has left the scrollback.
+    pub fn marley_lines_since(&self, from: u64) -> Option<(String, u64)> {
+        let term = self.term.lock();
+        let position = alacritty_terminal::marley_hooks::HookPosition::of(&term);
+        if position.alt_screen {
+            return None;
+        }
+        let cursor = position.absolute_line();
+        let text = crate::alacritty::absolute_lines_text(&term, from, Some(cursor))?;
+        Some((text, cursor))
+    }
+
     // Marley: the MCP server's `terminal_blocks` (#491).
     /// Whether a block's output is still in the scrollback: its first line has not been evicted.
     pub fn block_output_kept(&self, block: &marley_terminal::AnchoredBlock) -> bool {

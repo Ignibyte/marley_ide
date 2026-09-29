@@ -70,6 +70,10 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
   the builders copy it to `TerminalRow::command`. The workbench's snapshot, not this crate,
   matches the filter against its text when the title does not match. It is `None` for an
   agent's terminal and an agent's block.
+- **`TerminalSnapshot::running_error`** (#572) is the failure a running command printed and kept
+  running after, as `RunningError { line, questioned }`; the builders copy it to
+  `TerminalRow::running_error`. The switcher's `SwitcherRow::Terminal` holds its row boxed, since
+  a terminal's row is by far the larger variant.
 - **`TerminalSnapshot::flag`** (#569) is the tooltip of a working agent's warning mark, when the
   stall kind flagged it `looping?` or `stalled?`; the builders copy it to `TerminalRow::flag`, and
   it too decides no order or visibility.

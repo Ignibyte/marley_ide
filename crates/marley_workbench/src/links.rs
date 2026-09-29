@@ -258,11 +258,14 @@ fn open(destination: Destination, workspace: WeakEntity<Workspace>, window: &Win
 /// Whether `terminal`'s `localhost` is another machine: its project is remote, or its foreground
 /// program is an SSH client.
 fn over_ssh(project: Option<Entity<Project>>, terminal: &Entity<Terminal>, cx: &App) -> bool {
-    project.is_some_and(|project| !project.read(cx).is_local())
-        || terminal
-            .read(cx)
-            .foreground_process_command_name()
-            .is_some_and(|name| SSH_CLIENTS.contains(&name.as_str()))
+    project.is_some_and(|project| !project.read(cx).is_local()) || ssh_in(terminal.read(cx))
+}
+
+/// Whether `terminal`'s foreground program is an SSH client, whose output is another machine's.
+pub(crate) fn ssh_in(terminal: &Terminal) -> bool {
+    terminal
+        .foreground_process_command_name()
+        .is_some_and(|name| SSH_CLIENTS.contains(&name.as_str()))
 }
 
 /// Reads a terminal view's lines after its output, and forgets its URLs when it goes.

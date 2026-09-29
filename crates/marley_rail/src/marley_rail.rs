@@ -181,6 +181,9 @@ pub struct TerminalSnapshot {
     /// A plain terminal's running or last command (#551); `None` for an agent's row or before
     /// the first command.
     pub command: Option<CommandSnapshot>,
+    /// The failure a running command printed and did not end on (#572); `None` while none is
+    /// open.
+    pub running_error: Option<RunningError>,
     /// The turns of the terminal's Claude Code that changed the tree (#509), newest first.
     pub turns: Vec<TurnSnapshot>,
     /// Whether the row's turns are listed under it.
@@ -205,6 +208,15 @@ pub struct CommandSnapshot {
     pub duration: Option<String>,
     /// Whether it reads a password now, with the PTY's echo off.
     pub password: bool,
+}
+
+/// A failure a running command printed and kept running after, for its row's mark (#572).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunningError {
+    /// The first failure line, as printed.
+    pub line: String,
+    /// Whether a reading in `suggest`, not a shape, found it, which the mark shows with a `?`.
+    pub questioned: bool,
 }
 
 /// One turn of a terminal's Claude Code that changed the tree (#509).
@@ -503,6 +515,8 @@ pub struct TerminalRow {
     pub flag: Option<String>,
     /// The command's line, if any (see [`TerminalSnapshot::command`]).
     pub command: Option<CommandSnapshot>,
+    /// The running command's failure, if any (see [`TerminalSnapshot::running_error`]).
+    pub running_error: Option<RunningError>,
     /// The turns listed under the row (see [`TerminalSnapshot::turns`]).
     pub turns: Vec<TurnSnapshot>,
     /// Whether the turns are listed.
@@ -622,8 +636,8 @@ pub enum Row {
 /// A row the switcher lists: a terminal or a thread, never a header.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SwitcherRow {
-    /// A terminal, unselected and unhighlighted.
-    Terminal(TerminalRow),
+    /// A terminal, unselected and unhighlighted; boxed, as a terminal's row is the larger by far.
+    Terminal(Box<TerminalRow>),
     /// A thread, unselected and unhighlighted.
     Thread(ThreadRow),
 }
@@ -1001,6 +1015,7 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                 activity: terminal.activity.clone(),
                 flag: terminal.flag.clone(),
                 command: terminal.command.clone(),
+                running_error: terminal.running_error.clone(),
                 turns: terminal.turns.clone(),
                 turns_open: terminal.turns_open,
                 worktree: snapshot
@@ -1095,7 +1110,7 @@ pub fn switcher_rows(
     let mut rows: Vec<SwitcherRow> = Vec::new();
     for (index, project) in snapshot.projects.iter().enumerate() {
         rows.extend(project.terminals.iter().map(|terminal| {
-            SwitcherRow::Terminal(TerminalRow {
+            SwitcherRow::Terminal(Box::new(TerminalRow {
                 project: index,
                 id: terminal.id,
                 title: terminal.title.clone(),
@@ -1105,12 +1120,13 @@ pub fn switcher_rows(
                 activity: terminal.activity.clone(),
                 flag: terminal.flag.clone(),
                 command: terminal.command.clone(),
+                running_error: terminal.running_error.clone(),
                 turns: terminal.turns.clone(),
                 turns_open: terminal.turns_open,
                 worktree: None,
                 selected: false,
                 highlight: Vec::new(),
-            })
+            }))
         }));
         rows.extend(project.threads.iter().map(|thread| {
             SwitcherRow::Thread(ThreadRow {
@@ -1204,6 +1220,7 @@ mod tests {
             activity: None,
             flag: None,
             command: None,
+            running_error: None,
             turns: Vec::new(),
             turns_open: false,
             worktree: None,
@@ -1373,6 +1390,7 @@ mod tests {
                     activity: None,
                     flag: None,
                     command: None,
+                    running_error: None,
                     turns: Vec::new(),
                     turns_open: false,
                     worktree: None,
@@ -1389,6 +1407,7 @@ mod tests {
                     activity: None,
                     flag: None,
                     command: None,
+                    running_error: None,
                     turns: Vec::new(),
                     turns_open: false,
                     worktree: None,
@@ -1413,6 +1432,7 @@ mod tests {
                     activity: None,
                     flag: None,
                     command: None,
+                    running_error: None,
                     turns: Vec::new(),
                     turns_open: false,
                     worktree: None,
@@ -1455,6 +1475,7 @@ mod tests {
                     activity: None,
                     flag: None,
                     command: None,
+                    running_error: None,
                     turns: Vec::new(),
                     turns_open: false,
                     worktree: None,
@@ -1605,6 +1626,7 @@ mod tests {
                     activity: None,
                     flag: None,
                     command: None,
+                    running_error: None,
                     turns: Vec::new(),
                     turns_open: false,
                     worktree: None,
@@ -1647,6 +1669,7 @@ mod tests {
                     activity: None,
                     flag: None,
                     command: None,
+                    running_error: None,
                     turns: Vec::new(),
                     turns_open: false,
                     worktree: None,

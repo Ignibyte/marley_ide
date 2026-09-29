@@ -20,7 +20,7 @@ use crate::agents::AgentIcon;
 pub(super) enum SwitcherEntry {
     /// A terminal, and its project's name.
     Terminal {
-        row: TerminalRow,
+        row: Box<TerminalRow>,
         project: SharedString,
     },
     /// A thread, its project's name and its agent's icon.

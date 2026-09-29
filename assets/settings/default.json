@@ -1743,7 +1743,9 @@
       // Code that loops or has gone quiet; the click consequence holds an agent's consequential
       // click in a Browser tab for Allow or Refuse; the inbox marks what waits in the rail's inbox
       // with risk chips and orders it by them; the question route marks who should answer each
-      // entry: you, a manager, the agent itself, or unclear.
+      // entry: you, a manager, the agent itself, or unclear; the running error tells a running
+      // command that printed a failure and kept running, by the lines' shapes first and the
+      // model for the lines they leave open.
       "uses": {
         "check": "act",
         "stop_kind": "off",
@@ -1753,6 +1755,7 @@
         "click_consequence": "off",
         "inbox": "off",
         "question_route": "off",
+        "running_error": "off",
       },
     },
   },

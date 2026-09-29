@@ -55,6 +55,7 @@ pub mod links;
 pub mod mouse;
 pub mod paste;
 pub mod ports;
+pub mod running_errors;
 pub mod session;
 pub mod shell_integration;
 pub mod styled;

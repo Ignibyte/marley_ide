@@ -3174,3 +3174,21 @@ and the filter falls back to the command's text. Agent terminals, and a block wh
 names an agent, are left out of both. Rejected: a Zed event for a block's end (the anchored
 blocks already notify the terminal); reading the screen for a password prompt; a banner for every
 command regardless of its length.
+
+## AD-claude-572-a-running-commands-error-by-shapes-then-the-model-001
+*decided at: 2026-09-29 · status: shipped*
+
+A plain terminal's running block is read after its output, at most every 500 ms, from the line
+the last read ended on (`Terminal::marley_lines_since`, one Marley hunk beside `block_output`),
+never its whole output again. Each line is matched against the shapes compilers, test runners,
+dev servers and runtimes print a failure and a recovery in (`marley_terminal::running_errors`,
+pure); a failure line that its block outlives by five seconds is a failed episode, told once,
+and a recovery line closes it. A line with an error's word the shapes leave open goes to #565's
+layer as `running_error/1` with the lines before and after it, masked; in `act` the reading
+counts as a shape, in `suggest` it marks with a `?` and posts nothing, in `shadow` it is logged.
+The use is off by default and its mode is the only switch; with the `rules` provider the shapes
+run alone. The rail observes a global of marks written only when a mark changes, apart from the
+watch's state, which changes at every read. Agent CLIs, SSH clients and remote projects are left
+out; a block that ends inside the grace is #551's to tell. Rejected: the byte stream (the grid is
+what the user saw); a timer of its own for D8's ten-minute window (the rows' times give it); a
+banner for a model's reading in `suggest`.

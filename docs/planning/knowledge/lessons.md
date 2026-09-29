@@ -3831,3 +3831,23 @@ gate:13 (`unjustified_unsafe` in `script/gates.sh`) accepts an `unsafe` only whe
 its own line or the line directly above. A two-line comment that starts `// SAFETY:` and wraps
 onto a second line leaves the second line above the `unsafe`, and the gate goes red. Put the
 context first and the one `// SAFETY:` line last, directly above the `unsafe`.
+
+## L-claude-572-a-user-bus-check-names-marley-001
+*category: e2e · topic: proving no banner reached the user's desktop · from: #572's visual check*
+
+A scenario that runs Marley on a private bus and watches the user's own bus with `busctl monitor`
+sees every program's notifications there, not only Marley's: #572's run 2 failed its "no banner
+reached the user's bus" check on a `Notify` another program on the desktop posted during the
+run. Match Marley's app name in the call's arguments, `STRING "Marley"`, as #535's check does,
+never `Member=Notify` alone. #538's and #551's scenarios still use the loose form and can fail the
+same way on a busy desktop.
+
+## L-claude-572-an-observed-global-written-at-every-wakeup-redraws-the-rail-001
+*category: gpui · topic: a watcher's state and the rail's marks · from: #572's design*
+
+`cx.default_global::<G>()` and `global_mut` tell `G`'s observers it changed, whether or not a
+value did, and the rail refreshes on the globals it observes. A watcher that writes its own state
+at every `Event::Wakeup`, as a line reader does, must keep that state in a global nothing observes
+and put what a row draws in a second one, written only when a mark changes (`running_errors`'
+`Watch` and `ErrorMarks`), or every byte of output redraws the rail. Read with `try_global` before
+deciding to write, as `links.rs`'s scan does.

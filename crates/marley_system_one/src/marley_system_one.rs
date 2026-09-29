@@ -648,3 +648,35 @@ pub const QUESTION_ROUTE: UseSpec = UseSpec {
     set: &QUESTION_ROUTE_SET,
     deadline: Duration::from_secs(2),
 };
+
+/// Whether a line a running command printed, which Marley's shapes left open, is a new failure
+/// or a recovery (#572).
+pub const RUNNING_ERROR_SET: QuestionSet = QuestionSet {
+    id: "running_error/1",
+    model: DEFAULT_MODEL,
+    questions: &[
+        Question::Noul {
+            key: "new_failure",
+            instructions: "The state is a line a command that keeps running, such as a dev \
+                           server, printed, with the line before and after it. Does the line \
+                           report a new failure?",
+            when_true: "The line reports that something failed: a build, a request, a job or \
+                        the program itself.",
+            when_false: "The line is ordinary output that only mentions an error's word.",
+        },
+        Question::Noul {
+            key: "recovered",
+            instructions: "Does the line report that the command works again after a failure?",
+            when_true: "The line reports a build, a reload or a restart that succeeded.",
+            when_false: "The line reports no recovery.",
+        },
+    ],
+};
+
+/// The running error (#572), which asks [`RUNNING_ERROR_SET`] about a running command's line the
+/// shapes left open.
+pub const RUNNING_ERROR: UseSpec = UseSpec {
+    name: "running_error",
+    set: &RUNNING_ERROR_SET,
+    deadline: Duration::from_secs(2),
+};

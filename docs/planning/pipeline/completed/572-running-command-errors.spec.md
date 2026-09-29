@@ -1,7 +1,7 @@
 ---
 pipeline_id: 739b7853-05b6-489b-b0ca-1478f9c4db2a
 ticket: docs/planning/tickets/open/TICKET-572-running-command-errors.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "A running command's error: a notification when a dev server prints an error and keeps running"
 type: feature
 slice: prong 1 T7b's follow-on (after #478 and #551, the long command's end); use 7 of the System One layer, on #565
@@ -105,32 +105,35 @@ says a command that did not end failed.
   are read, #551 the watch and the row line, #565 the ask.
 
 ## UI proof
-UI-AFFECTING: a desktop notification, a mark and a line on the rail's terminal rows.
-`script/e2e/572-running-command-errors.sh` (`compositor sway`: the focused case needs Marley's
-window active). Fixtures: a fake `devserver` first on the PATH (Python: prints `ready in 120 ms`,
-then on `SIGUSR1` three lines starting `error: Failed to compile ./src/App.tsx`, on `SIGUSR2`
-`Compiled successfully.`, on `SIGRTMIN` `GET /api/errors 200 12ms` and a bare
-`    at Object.<anonymous> (server.js:12:5)`, and keeps running); a fake `claude` that prints
-`error: boom` and sleeps; a second terminal to hold the focus; `busctl --user monitor
-org.freedesktop.Notifications` into a log (L-claude-478); #565's layer enabled on `replay` with
-the scratch repository listed and `uses.running_error` rewritten per step by
-`system_one_setting`; the replay file at `$E2E_PROFILE/system_one/replay.jsonl` (the bare frame:
-`new_failure` 0.90; a second such frame later: 0.5). Shots:
-- `572-01-error-flag`: the mode `shadow`; `devserver` in terminal A, the focus in B, `SIGUSR1`,
-  6 s: A's row with the red mark and `error: Failed to compile ./src/App.tsx`; the bus log's
-  `Notify` titled `repo: devserver printed an error` with that body.
-- `572-02-recovered`: `SIGUSR2`: the mark gone; the `Notify` titled `repo: devserver recovered`.
-- `572-03-open-case`: the mode `act`, `SIGRTMIN`, 6 s: the mark and the frame line; a `Notify`.
-- `572-04-no-signal`: `SIGUSR2`, then `SIGRTMIN` again (the replay's 0.5): no mark, no `Notify`;
-  the day's file has the row.
-- `572-05-agent-terminal`: `claude` in terminal C prints `error: boom`: no mark on C, no `Notify`.
-- `572-06-focused`: the focus in A, `SIGUSR1`: the mark, and no `Notify` in the log.
-- `572-07-exit-not-ours`: in B, `sh -c 'echo error: bad; sleep 1; exit 1'`: no mark from this
-  ticket and no `Notify` (the block ended inside the grace).
-- `572-08-off`: the mode `off`, `SIGUSR1` again: nothing.
-Checks: the bus log's `Notify` calls by title and body; the day's file's rows name
-`running_error/1` and carry two redacted lines around the open line and no others; in `572-03`
-the Decisions view lists the call.
+UI-AFFECTING: a desktop notification, a mark and a line on the rail's terminal rows, and a
+dropdown on the Marley page. `script/e2e/572-running-command-errors.sh` under `compositor sway`,
+on a private session bus whose notification server logs `app|summary|body` (#538's and #551's
+fixture), so no banner reaches the user's desktop; the user's bus is watched for a stray
+`Notify`. Fixtures: a stand-in `devserver` first on the PATH (Python: prints `ready in 120 ms`,
+then on `SIGUSR1` `error: Failed to compile ./src/App.tsx` and two lines under it, on `SIGUSR2`
+`Compiled successfully.`, on `SIGRTMIN` a line with a fake token built at run time and then
+`worker 3: job exception, retrying`, on `SIGRTMIN+1` `cache: fail count reset`, and keeps
+running, its pid in a file); stand-in `claude` and `ssh` (`exec -a` over a Python that prints
+`error: boom` and sleeps); #565's layer on the `replay` provider with the scratch repository
+listed and `uses.running_error` rewritten per step; the replay file matching `worker 3` at
+`new_failure` 0.90 (repeated) and `cache: fail count` at 0.5. Terminal A runs the server,
+terminal B holds the focus; Alt+1 and Alt+2 move it. Shots:
+- `572-01-error-flag` (`shadow`, B in front, `SIGUSR1`, 7 s): A's row with the red mark and
+  `error: Failed to compile ./src/App.tsx`; the log's `repo: devserver printed an error` with
+  that line. REQ-001, REQ-002.
+- `572-02-recovered` (`SIGUSR2`): the mark gone; `repo: devserver recovered`. REQ-003.
+- `572-03-suggest` (`suggest`, `SIGRTMIN`): the mark with its `?` and the open line; no banner.
+- `572-04-open-case` (`SIGUSR2`, `act`, `SIGRTMIN`): the mark and the open line; a banner; the
+  day's file's `running_error/1` row with the lines before and after, the token masked.
+  REQ-007, REQ-008.
+- `572-05-no-signal` (`SIGUSR2`, `SIGRTMIN+1`, the replay's 0.5): no mark, no banner; the row.
+  REQ-009.
+- the agent and SSH stand-ins in B, A in front: no mark on B, no banner. REQ-005.
+- `572-06-focused` (A in front, `SIGUSR1`): A's row marked, no banner. REQ-006.
+- `572-07-exit-not-ours` (in B `sh -c 'echo error: bad; sleep 1; exit 1'`): no mark, no banner.
+  REQ-004.
+- `572-08-off` (`off`, B in front, `SIGUSR2` then `SIGUSR1`): nothing, and no new row. REQ-010.
+- `572-09-setting`: the Marley page's System One section with Running Error. REQ-011.
 
 ## Locked-In Decisions
 - D1 — "local first and then jev second" (Chad, 2026-09-26). The shapes decide; only an open
@@ -156,14 +159,16 @@ the Decisions view lists the call.
   the layer's `Mask`, and facts (the shapes matched in the last 40 lines, their counts, the
   command's first word, the block's age); only for a listed project; `Detail::Facts` for a
   metadata-only project. No other output.
-- D8 — The outcome line: within ten minutes of a flag, whether the terminal took the focus, the
-  block ended, or a recovery came; a flag no one looked at and nothing recovered from is the
-  likely false positive the golden report counts.
+- D8 — The outcome line: the first of the terminal taking the focus, the block's end or a
+  recovery after a flag is logged as the flag's call's outcome, with its time, so a report can
+  count a flag no one looked at and nothing recovered from inside ten minutes as the likely
+  false positive (at promotion: no timer of its own; the rows' times give the window). Each
+  flag and recovery the shapes settle is a `rules` row, as #565's D6 and #569 log theirs.
 - D9 — The scan reads the grid, not the byte stream (#503's D6): the block's lines since the last
-  read, at most every 500 ms per terminal and once more when the output goes quiet. `block_output`
-  reads a running block's whole output; if that proves too coarse, a Marley hunk beside it in
-  `crates/terminal/src/terminal.rs` reads from an absolute line to the end (its row exists);
-  promotion decides.
+  read, at most every 500 ms per terminal after output. At promotion: the hunk is taken.
+  `block_output` reads a running block's whole output, which for a chatty server grows without
+  end, so `Terminal::marley_lines_since(from)` beside it reads the main screen's lines from an
+  absolute line up to the cursor's and returns the cursor's line, where the next read starts.
 - D10 — Modes as #565 defines them: `off` watches nothing; `shadow` runs the shapes and logs the
   model; `suggest` marks a reading's failure with `?` and posts no banner for it; `act` treats a
   reading as a shape.
@@ -182,22 +187,16 @@ the Decisions view lists the call.
 | REQ-008 | WHERE the mode is `act`, WHEN `new_failure` reads at or above its threshold, the system shall open the episode as for a shape. | Shot `572-03-open-case`; the bus log |
 | REQ-009 | WHEN the reading is in the band, no signal, refused or unavailable, the system shall change nothing. | Shot `572-04-no-signal`; the day's file |
 | REQ-010 | WHERE the mode is `off`, the system shall post nothing, mark nothing and make no call. | Shot `572-08-off`; the bus log; the day's file |
-| REQ-011 | WHEN the Marley settings page opens, its System One section shall show the use's mode. | The 515 scenario's page shot |
-| REQ-012 | The diff gate shall be green, and the golden set shall pass. | `script/gates.sh --diff`; `just regress` |
+| REQ-011 | WHEN the Marley settings page opens, its System One section shall show the use's mode. | Shot `572-09-setting` |
+| REQ-012 | The diff gate shall be green. | `script/gates.sh --diff` |
 
 ## Phase Plan
-- **P1 Plan:** this spec; the design and the e2e plan in the notes. At promotion: #565 and #551
-  have shipped (the ask API, the replay file, `command_watch`, the row line, `notify` made
-  crate-visible), and whether #538's private bus fixture exists to replace the `busctl` monitor;
-  `brain_ask`.
-- **P2 Code:** the ledger row first (`crates/settings_ui/src/marley_page.rs`, the use's dropdown;
-  the `crates/terminal/src/terminal.rs` row only if D9's hunk is taken); `running_errors` in
-  `marley_terminal` and in the workbench; the `running_error/1` set in
-  `marley_system_one::question`; the notification, the row and the filter. fmt and clippy clean;
-  a review of the diff.
-- **P3 Test:** write and run the scenario and read every shot; rerun #551's scenario (its rows
-  and notifications must hold with this use off); `just regress` (484 and 544 sit in the set and
-  shoot the rail); `script/gates.sh --diff` green.
-- **P4 Complete:** CHANGELOG; `docs/marley_architecture/terminal_blocks.md`,
-  `marley_workbench.md` and `marley_system_one.md`; the plan's T7 row; ledger capture; close the
-  ticket, archive, commit.
+- **P1 Plan:** this spec; the design and the e2e plan in the notes; the seams re-verified against
+  the code after #551 and #565.
+- **P2 Code:** the ledger rows first (`crates/terminal/src/terminal.rs`,
+  `crates/settings_ui/src/marley_page.rs`, `assets/settings/default.json`); the manifest in the
+  notes; `just gate-diff` green.
+- **P3 Test:** the scenario, every shot read (2026-09-29 workflow: the change only, no unit tests,
+  no regression).
+- **P4 Complete:** CHANGELOG; `terminal_blocks.md`, `marley_workbench.md`, `marley_rail.md`,
+  `marley_system_one.md`; the plan's T7 row; knowledge; close, archive, commit, push.

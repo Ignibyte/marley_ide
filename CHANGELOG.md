@@ -13,6 +13,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A dev server's error while it keeps running** (#572, 2026-09-29). A command that prints a
+  failure and is still running five seconds later, such as a dev server whose build broke, marks
+  its terminal's rail row with a red × and the line, and posts one desktop notification,
+  `repo: npm run dev printed an error`, when the terminal is not in front; a second says it
+  recovered once it builds again. Failures and recoveries are known by how compilers, test
+  runners, dev servers and runtimes print them; a line that only mentions an error's word can go
+  to System One, whose reading only logs (Shadow), marks with a `?` and no notification
+  (Suggest), or counts as a failure (Act). Agent CLIs' and SSH terminals are left out, and a
+  command that ends inside the five seconds is told by its exit instead. The setting is System
+  One's Running Error (`marley.system_one.uses.running_error`), off by default.
+
 - **A long command's end, from a terminal you are not looking at** (#551, 2026-09-29). A command
   that runs 30 seconds or more and ends in a terminal not in front posts one desktop notification
   titled with the command, `done in 45 s` or `exit 1 after 4 m 12 s`, and marks the terminal's

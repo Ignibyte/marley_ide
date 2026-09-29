@@ -52,6 +52,7 @@ mod rail;
 pub mod review_notes;
 pub mod rich_input;
 pub mod routing;
+pub mod running_errors;
 pub mod send_block;
 pub mod send_selection;
 #[cfg(unix)]
@@ -478,6 +479,7 @@ pub fn init(cx: &mut App) {
     sticky_header::init(cx);
     markdown_commands::init(cx);
     command_watch::init(cx);
+    running_errors::init(cx);
     agent_bar::init(cx);
     claude_plugin::init(cx);
     notifications::init(cx);

@@ -1067,6 +1067,32 @@ alike.
   command, so a long command never hides it; a non-zero exit is drawn in the error color. An
   agent's block has no line, by `check`'s test.
 
+## A running command's printed error (`src/running_errors.rs`, #572)
+
+- `init` observes every new `TerminalView`. While `marley.system_one.uses.running_error` is not
+  `off`, an `Event::Wakeup` schedules one read 500 ms later unless one is pending; each notify of
+  the terminal checks whether the block being read is still the running last block; the view's
+  focus logs `seen` for a flagged call; a settings change to `off` drops every watch and mark.
+- A read takes the running last block unless an agent CLI runs there or the block's command
+  names one (L-claude-551), an SSH client runs (`links::ssh_in`) or the project is remote. It
+  reads `Terminal::marley_lines_since` from where the last read ended (the block's
+  `output_start` at a new block) and scans each line with `marley_terminal::running_errors::scan`.
+  A failure opens the block's `Episode`, a recovery closes it, and an open line is asked through
+  `system_one::ask(RUNNING_ERROR, ..)` with the lines around it and the facts (the program, how
+  long it runs, the shapes in the last 40 lines). The reading, in `act`, opens or closes the
+  episode as a shape would; in `suggest`, it opens a questioned one and closes only a questioned
+  one; in `shadow`, it is only logged. A grace timer fails a suspect five seconds after its line.
+- A flag records a `rules` row when the shapes made it, sets the view's mark in `ErrorMarks`
+  (the global the rail observes, written only when a mark changes, where `Watch`, changed at
+  every read, is observed by nothing) and, unless it is questioned or the terminal is in front,
+  marks the view unread and posts `<project>: <command> printed an error` over the line through
+  `notifications::notify`. A recovery posts `<project>: <command> recovered` when its flag was
+  told. The block's end clears the mark silently. The first of `seen`, `recovered` or `ended` is
+  the flag's call's outcome.
+- The rail draws the mark (`terminal_marks`, `running_error_mark`: `Close` in the error color,
+  a `?` when questioned, the line as its tooltip) and the line in red under #551's command line,
+  and its filter matches the line.
+
 ## Claude Code's hook events (`src/agent_events.rs`, #519)
 
 - `AgentEvents`, a global made at the first frame, holds one `marley_fleet::FleetSnapshot`: a

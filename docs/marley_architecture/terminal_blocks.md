@@ -175,6 +175,12 @@ real, reusable session. The Block model is the unit the **brain** later observes
   rule, and `scrollback_fraction` where a line sits among the lines the terminal can scroll to;
   Zed's view maps the first to grid lines for a search held to one block, and the element draws
   a bookmark's tick at the second.
+  `running_errors` (#572) holds the shapes a running command's lines are read by, failure first,
+  then recovery, then an open line with an error's word, and the `Episode` a block moves through:
+  a failure line waits out `GRACE` (5 s) as a suspect and fails if the block still runs; a
+  recovery closes it; the block's end drops it. `Terminal::marley_lines_since(from)` reads the
+  main screen's lines from an absolute line up to the cursor's, so each read takes only what came
+  since the last.
   `duration_label(took)` (#551) words a block's run for a banner and a rail row, rounded to the
   second: `45 s`, `4 m 12 s`, `1 h 2 m`. The hooks' times make a `sleep 3` measure a little
   under three seconds, so it rounds rather than floors.

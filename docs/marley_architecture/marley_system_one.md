@@ -52,6 +52,10 @@ the time and names the folder. MIT OR Apache-2.0, with rustal's lint table; its 
   `cannot_tell`) and the noul `answerable_from_prompt`. `QUESTION_ROUTE` is its use,
   `question_route`, with a 2 s deadline, since the agent already waits. A rule's mark is logged
   as a `rules` row with the choice it settled.
+- **The running error's set** (#572). `RUNNING_ERROR_SET` (`running_error/1`) asks two nouls
+  about a line a running command printed that Marley's shapes left open, with the lines before
+  and after it: `new_failure` and `recovered`. `RUNNING_ERROR` is its use, `running_error`, with a
+  2 s deadline. A shape's flag and recovery are logged as `rules` rows with their noul held.
 - **`state`.** `StateBuilder::new(detail, mask)` takes facts, kept at every `Detail`, and text,
   left out at `Detail::Facts`, each value through the host's mask. A text value is masked whole
   and then cut to 300 characters (`cut`), since a cut can split a secret the mask would find.
@@ -95,7 +99,8 @@ keychain and the settings, which the workbench owns.
 `marley_workbench::system_one` (the adapter and the check), `marley_workbench::decisions` (the
 view), since #566 `marley_workbench::agent_events` (the stop kind), since #567
 `marley_workbench::find` (the find tools), since #569 `marley_workbench::stall` (the stall
-kind), and since #571 `marley_workbench::click_pause` (the click consequence).
+kind), since #571 `marley_workbench::click_pause` (the click consequence), and since #572
+`marley_workbench::running_errors` (the running error).
 
 ## Tests
 
