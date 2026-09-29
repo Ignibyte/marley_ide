@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #555 (feature, prong 2 with prong 1: a block handed to the CLI agent in a terminal; after #549 and #554)
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/555-send-a-block-to-the-agent.spec.md
+- **Pipeline doc:** ../../pipeline/completed/555-send-a-block-to-the-agent.spec.md
 - **Source ticket:** The Warp blocks note of 2026-09-25, recommendation 2 (`docs/planning/design-notes/warp-blocks-and-natural-language-2026-09-25.md`), with Chad's answer of 2026-09-26 to its first question: "copy as context" means both, Send to Agent (the block into the agent's prompt, this ticket) and Copy as Markdown (#554). Specced because Chad decided on 2026-09-26 that every remaining Orca and Warp finding gets built.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Agents read blocks over Marley's MCP tools, but Chad cannot point an agent at one: Zed's Add

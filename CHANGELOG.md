@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Send a block to an agent** (#555, 2026-09-29). Send to Agent, in a block's right-click menu,
+  and `Ctrl+Shift+Enter` on a selected block, type the block at the prompt of the CLI agent
+  running in another terminal, without pressing Enter. A block with long output goes as a
+  reference the agent reads with Marley's `terminal_read` tool; a short one goes as its Markdown.
+  Secrets are hidden in both, as in everything else agents read. With several agents a picker
+  asks which; the block's own terminal is never offered, and an agent that waits on a permission
+  or a question gets nothing. Under the newest block, when it failed and an agent runs in another
+  terminal, an Ask the agent button does the same in one click; for a long failure it sits on the
+  block's last line, just above the prompt.
+
 - **Select a block, and a menu of what to do with it** (#554, 2026-09-29). `Ctrl+Up` in a
   terminal outlines its newest block; `Up` and `Down` move the outline from block to block,
   `Ctrl+Down` past the last ends it, and so do Escape and the first key typed to the shell. A

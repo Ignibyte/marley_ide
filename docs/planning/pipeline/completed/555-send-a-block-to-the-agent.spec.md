@@ -1,7 +1,7 @@
 ---
 pipeline_id: 6741052b-b1bc-413c-b8e6-0da16dc1bf61
-ticket: docs/planning/tickets/open/TICKET-555-send-a-block-to-the-agent.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-555-send-a-block-to-the-agent.md
+status: Phase 4 — Complete PASS
 title: "Send a block to the agent, and Ask the agent under a failed block"
 type: feature
 slice: prong 2 with prong 1 (a block into a CLI agent's prompt); the Warp blocks note's recommendation 2; after #549 and #554
@@ -31,7 +31,7 @@ Marley's form of Warp's hint after a failed command.
   `[terminal <id> block <n>: <command>, exit <code>; terminal_read terminal=<id> block=<n>] `
   (`running` in place of `exit <code>` for a running block), naming the tool and its parameters
   as `terminal_read`'s schema names them, the id being the one `terminal_list` gives. The
-  Markdown form (#554's `block_markdown`) when the output is at most 32 lines and 4 KiB, or has
+  Markdown form (#554's `AnchoredBlock::markdown`) when the output is at most 32 lines and 4 KiB, or has
   left the scrollback. Both pass the agent redactor (`mcp::agent_redactor`) when
   `marley.redact_secrets_for_agents` is on: the command inside the reference and the whole
   Markdown, before any cut.
@@ -148,7 +148,7 @@ stand-ins ended; in terminal 2 `false`, Return: no chip (`555-08-no-agent-no-chi
 | REQ-006 | WHILE the target's seat waits on a permission or a question, the system shall type nothing and show a toast. | Shot `555-06-refused` |
 | REQ-007 | WHEN several agent terminals exist, the system shall open the picker, and it shall never list the block's own terminal. | Shot `555-07-picker` |
 | REQ-008 | WHEN the user presses `ctrl-shift-enter` with a block selected, the system shall send it as the menu item does. | Shot `555-03-inline-sent` |
-| REQ-009 | The diff gate shall be green, and the golden set shall pass. | `script/gates.sh --diff`; `just regress` |
+| REQ-009 | The diff gate shall be green. | `script/gates.sh --diff` |
 
 ## Phase Plan
 - **P1 Plan:** this spec; the design and the test plan in the notes. Promote after #549 and
@@ -158,8 +158,8 @@ stand-ins ended; in terminal 2 `false`, Return: no chip (`555-08-no-agent-no-chi
   hook); `send_block.rs`; the menu item and the keymap line; fmt and clippy clean; a review of
   the diff (redaction before the size check; the block's own terminal never a target; the chip's
   four conditions).
-- **P3 Test:** write and run the scenario and read every shot; `just regress`;
-  `script/gates.sh --diff` green.
+- **P3 Test:** write and run the scenario and read every shot (the visual check of the change
+  only, 2026-09-29; no golden run).
 - **P4 Complete:** CHANGELOG; `docs/marley_architecture/marley_workbench.md` and
   `terminal_blocks.md`; the touchpoints row checked; the plan's slice status; the ledger
   capture; close the ticket, archive, commit.

@@ -346,9 +346,7 @@ fn target_of(project: String, view: Entity<TerminalView>, cx: &App) -> Option<Ta
     })
 }
 
-/// Types the reference at `target`'s prompt after this update, as a pick's Send does: its window
-/// activated, its tab brought to the front and focused, one paste and no Enter. Rich input open
-/// on it takes the reference instead; an agent that waits is left alone, with a toast.
+/// Types the selection's reference at `target`'s prompt, as [`send_text`] does.
 fn send(target: Target, selection: &Selection, window: AnyWindowHandle, cx: &mut App) {
     let text = reference(
         target.kind,
@@ -356,6 +354,13 @@ fn send(target: Target, selection: &Selection, window: AnyWindowHandle, cx: &mut
         target.cwd.as_deref(),
         selection.lines,
     );
+    send_text(target, text, window, cx);
+}
+
+/// Types `text` at `target`'s prompt after this update, as a pick's Send does: its window
+/// activated, its tab brought to the front and focused, one paste and no Enter. Rich input open
+/// on it takes the text instead; an agent that waits is left alone, with a toast.
+pub(crate) fn send_text(target: Target, text: String, window: AnyWindowHandle, cx: &mut App) {
     cx.defer(move |cx| {
         window
             .update(cx, |_, window, cx| {
@@ -387,7 +392,11 @@ fn send(target: Target, selection: &Selection, window: AnyWindowHandle, cx: &mut
     });
 }
 
-fn show_toast(workspace: &mut Workspace, message: impl Into<String>, cx: &mut Context<Workspace>) {
+pub(crate) fn show_toast(
+    workspace: &mut Workspace,
+    message: impl Into<String>,
+    cx: &mut Context<Workspace>,
+) {
     workspace.show_toast(
         Toast::new(NotificationId::unique::<FocusOrder>(), message.into()),
         cx,

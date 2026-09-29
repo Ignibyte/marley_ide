@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-555](open/TICKET-555-send-a-block-to-the-agent.md) | feature | prong 2 with prong 1 · a block sent into a terminal agent's prompt, and Ask the agent under a failed block; after #549 and #554 |
 | [TICKET-528](open/TICKET-528-block-filter.md) | feature | prong 1 T1 · filter a block's output |
 | [TICKET-558](open/TICKET-558-save-as-workflow.md) | feature | prong 1 T4 · Save as Workflow writes a block's command as a task in tasks.json with `{{name}}` parameters; runnable from Zed's task picker; after #528 |
 | [TICKET-559](open/TICKET-559-block-bookmarks-and-find-in-block.md) | feature | prong 1 T1 · bookmarks on blocks with Alt+Up/Down and scrollbar ticks; find within a block on Zed's search bar |

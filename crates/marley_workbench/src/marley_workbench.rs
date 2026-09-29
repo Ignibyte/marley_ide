@@ -48,6 +48,7 @@ mod rail;
 pub mod review_notes;
 pub mod rich_input;
 pub mod routing;
+pub mod send_block;
 pub mod send_selection;
 #[cfg(unix)]
 pub mod single_instance;
@@ -117,6 +118,9 @@ actions!(
         /// Types the selected block's command at the prompt, unrun.
         #[derive(Eq)]
         ReinputBlock,
+        /// Sends the selected block to a CLI agent in another terminal.
+        #[derive(Eq)]
+        SendBlockToAgent,
         /// Chooses files and types their paths into the focused terminal, as dropping them does.
         #[derive(Eq)]
         AttachFile,
@@ -429,6 +433,7 @@ pub fn init(cx: &mut App) {
     voice::init(cx);
     rich_input::init(cx);
     send_selection::init(cx);
+    send_block::init(cx);
     review_notes::init(cx);
     launch::init(cx);
     terminal_drive::init(cx);

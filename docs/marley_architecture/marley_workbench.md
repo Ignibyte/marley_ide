@@ -789,6 +789,22 @@ alike.
   would send its program, chords and keys that type nothing, and lets text through to the
   editor.
 
+## Sending a block to an agent (`src/send_block.rs`, #555)
+
+- `text_for`: the block's output through `mcp::agent_redactor` first; inline when that is at most
+  32 lines and 4 KiB, or the output is gone (`AnchoredBlock::markdown`, the whole redacted again);
+  else `[terminal <id> block <n>: <command, redacted>, exit <code>; terminal_read terminal=<id>
+  block=<n>] `, the id the view's entity id `terminal_list` gives.
+- `targets`: `send_selection::agent_targets` of the view's workspace, less the block's own view.
+  `send` defers to `send_now` (the key's action runs while the workspace is being updated): a toast
+  for none, `send_selection::send_text` for one, `TargetPicker` ("Send the block to…") for several.
+- `chip`, the `terminal_view::MarleyBlockChip` hook: a tinted `Ask the agent` button for the
+  newest block when it is Finished with a non-zero exit, `AnchoredBlocks::at_prompt`, no agent in
+  front (`agent_bar::agent_in`) and a target exists; its click sends. The element places it on
+  the block's first row before the pill, or on its last row when the first is above the screen.
+- `blocks.rs` puts Send to Agent first in the Block section and handles `SendBlockToAgent`
+  (`ctrl-shift-enter` in `Terminal && MarleyBlockSelected`) for the selected block.
+
 ## Sending the selection to an agent (`src/send_selection.rs`, #549)
 
 - `init` registers `marley::SendSelectionToAgent` on every workspace and, through
@@ -807,7 +823,7 @@ alike.
   state" (the state from the seat, when there is one).
 - `reference` gives Claude Code `@path#L<a>-<b>` and the other agents `path:<a>-<b> `, the path
   relative to the agent's `Terminal::working_directory` when the file lies under it.
-- `send` runs after the update it starts in: rich input open on the terminal
+- `send` gives the reference to `send_text` (#555 split it out), which runs after the update it starts in: rich input open on the terminal
   (`rich_input::is_open`) gets the text through `rich_input::insert`, the terminal brought to the
   front first; a seat in `State::Waiting` gets nothing and a toast; otherwise the window
   activated, the terminal revealed (`browser::reveal_terminal`) and focused, one

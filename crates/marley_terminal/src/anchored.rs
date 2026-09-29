@@ -71,7 +71,10 @@ impl AnchoredBlock {
                     self.command
                 )
             },
-            |output| format!("$ {}\n{}", self.command, output.trim_end_matches('\n')),
+            |output| match output.trim_end_matches('\n') {
+                "" => format!("$ {}", self.command),
+                output => format!("$ {}\n{output}", self.command),
+            },
         );
         let longest = body
             .split(|character| character != '`')

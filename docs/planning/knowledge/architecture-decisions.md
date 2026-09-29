@@ -3035,3 +3035,16 @@ selection with no event to hear. Changed at the Code phase from the spec's D3 (e
 block, and that event, delivered after, would have ended the selection the right-click made. A mouse
 text selection therefore leaves the block selected. Rejected: a subscription to `SelectionsChanged`;
 a new hunk in `Terminal::input` (it already calls `note_input`).
+
+## AD-claude-555-a-block-goes-to-an-agent-by-reference-or-inline-redacted-001
+*decided at: 2026-09-29 · status: shipped*
+
+A block sent to a CLI agent (Send to Agent, `ctrl-shift-enter`, the Ask the agent chip) goes as
+`[terminal <id> block <n>: <command>, exit <code>; terminal_read terminal=<id> block=<n>] ` when
+its output is long, so the agent reads it under `terminal_read`'s caps, and inline as
+`AnchoredBlock::markdown` when the output, redacted, is at most 32 lines and 4 KiB or is gone. The
+agents' redactor runs on the output before the size test and on the whole text after; the send is
+#549's (`send_text`: rich input first, a waiting seat refused), never to the block's own terminal.
+The chip sits on the block's first row, or on its last row when the first has scrolled off, since
+a long failure is the case it is for. Rejected: always inline (a build log floods the prompt);
+always a reference (it needs Marley's MCP bridge, which not every agent has).

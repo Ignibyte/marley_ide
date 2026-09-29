@@ -2762,3 +2762,16 @@ the view is leased, and `foreground_program` reads the view to reach its termina
 terminal_view::TerminalView while it is already being updated", and Marley died at the first
 write. The gate and the review of the diff passed it. Fixed before the commit: `program_of`
 takes the `Terminal`, and the footer passes `context.terminal`.
+
+## F-claude-555-a-menu-walked-by-its-keys-opened-zeds-own-agent-001
+*severity: high · found in: pipeline 555's Test phase (run 2, shots 555-07 and 555-08) · class: an e2e step that counts menu items by key, where the menu's disabled items and Zed's AI items change the count · prevented by: PR-claude-a-scenario-that-opens-zeds-terminal-menu-turns-zeds-agent-off-001 (new)*
+
+#555's scenario chose Send to Agent by pressing End and six Ups in the terminal's menu. Once the
+claude stand-in's seat waited, the rail's Needs you section pushed the terminal rows down, the
+scenario's click on the second terminal's row missed, and the right-click landed on the claude
+terminal's running block, whose two Reinput items are disabled and skipped by the menu's keys. The
+walk went past the Block section into Zed's items and chose Add to Agent Thread, which opened a
+thread of Zed's own Claude Agent from the run's copy of the user's settings. Nothing was typed
+into it and no agent process outlived the run, but a scenario must never start that agent. Fixed
+in the scenario: terminals come forward by their tabs, and Zed's agent is off in the run's
+settings, so those items are not in the menu at all.

@@ -2590,3 +2590,13 @@ an element callback) runs while that view is leased. It reads what its context h
 (`context.terminal`, `context.project`) and never `view.read(cx)` or a helper that does; a
 helper shared with non-render paths gets a variant that takes the inner entity. The weak handle
 in the context is for click handlers, which run later.
+
+## PR-claude-a-scenario-that-opens-zeds-terminal-menu-turns-zeds-agent-off-001
+*severity: high · prevents: F-claude-555-a-menu-walked-by-its-keys-opened-zeds-own-agent-001*
+
+The run's profile is a copy of the user's, so Zed's Agent Panel there is the user's own agent. A
+scenario that opens Zed's terminal or editor menu sets `"agent": {"enabled": false}` in
+`$E2E_PROFILE/config/settings.json` during `setup` (`zed_agent_off` in
+`555-send-a-block-to-the-agent.sh`), which takes Inline Assist and Add to Agent Thread out of the
+menus. It counts menu items only over items that cannot be disabled, and it brings a terminal
+forward by its tab (`alt-N`), not by a rail row, since the rail's rows move when Needs you shows.

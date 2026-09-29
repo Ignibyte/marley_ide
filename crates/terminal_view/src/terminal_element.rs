@@ -1661,12 +1661,23 @@ impl Element for TerminalElement {
                         })
                         .collect()
                 };
-                let marley_blocks = marley_starting
+                let mut marley_blocks: Vec<AnyElement> = marley_starting
                     .into_iter()
                     .map(|(span, block, rerun)| {
                         let line_height = dimensions.line_height();
-                        let mut element =
-                            marley_block(&span, &block, rerun, &self.terminal, line_height, cx);
+                        // Marley: the block's chip from the workbench, before its pill (#555).
+                        let chip = cx.try_global::<crate::MarleyBlockChip>().and_then(|hook| {
+                            (hook.0)(&self.terminal_view, &self.terminal, span.index, cx)
+                        });
+                        let mut element = marley_block(
+                            &span,
+                            &block,
+                            rerun,
+                            &self.terminal,
+                            line_height,
+                            chip,
+                            cx,
+                        );
                         let origin = dimensions.bounds.origin
                             + point(px(0.), span.rows.start as f32 * line_height)
                             - point(px(0.), scroll_top);
@@ -1680,6 +1691,34 @@ impl Element for TerminalElement {
                         element
                     })
                     .collect();
+                // Marley: the newest block's chip on its last row when its first row is above the
+                // screen, so a long failure still offers it (#555).
+                if let Some(span) = marley_spans.last().filter(|span| !span.starts_in_view)
+                    && let Some(chip) = cx.try_global::<crate::MarleyBlockChip>().and_then(|hook| {
+                        (hook.0)(&self.terminal_view, &self.terminal, span.index, cx)
+                    })
+                {
+                    let line_height = dimensions.line_height();
+                    let mut element = ui::h_flex()
+                        .w_full()
+                        .h(line_height)
+                        .justify_end()
+                        .pr_1()
+                        .child(marley_keep_from_terminal(chip))
+                        .into_any_element();
+                    let last_row = span.rows.end.saturating_sub(1);
+                    let origin = dimensions.bounds.origin
+                        + point(px(0.), last_row as f32 * line_height)
+                        - point(px(0.), scroll_top);
+                    let available_space = size(
+                        AvailableSpace::Definite(dimensions.width()),
+                        AvailableSpace::Definite(line_height),
+                    );
+                    window.with_rem_size(rem_size, |window| {
+                        element.prepaint_as_root(origin, available_space, window, cx);
+                    });
+                    marley_blocks.push(element);
+                }
                 // Marley: the autosuggestion Marley's workbench finds for the typed text (#484).
                 let marley_suggestion = cx
                     .try_global::<crate::MarleyTerminalSuggestion>()
@@ -2379,6 +2418,7 @@ fn marley_block(
     rerun: bool,
     terminal: &Entity<Terminal>,
     line_height: Pixels,
+    chip: Option<AnyElement>,
     cx: &App,
 ) -> AnyElement {
     let index = span.index;
@@ -2431,6 +2471,7 @@ fn marley_block(
                                 .debug_selector(move || format!("marley-block-rerun-{index}"))
                         })),
                 )
+                .children(chip.map(marley_keep_from_terminal))
                 .children(marley_pill(span, cx)),
         )
         .into_any_element()

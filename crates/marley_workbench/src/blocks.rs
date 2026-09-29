@@ -9,8 +9,9 @@
 //! workspace's root, as `routing` catches its own, and act on whichever terminal view holds focus,
 //! in the center or in the Terminal Panel.
 //!
-//! A right-click on a block selects it and adds a Block section to Zed's terminal menu: the copies
-//! of its command, its output, both, or the block as Markdown, and Reinput, with or without
+//! A right-click on a block selects it and adds a Block section to Zed's terminal menu: Send to
+//! Agent (#555), the copies of its command, its output, both, or the block as Markdown, and
+//! Reinput, with or without
 //! `sudo`, under Rerun's rule: a command the shell's hook reported, while that shell waits at its
 //! prompt.
 
@@ -26,7 +27,7 @@ use terminal_view::{
 use ui::{ContextMenu, ContextMenuEntry};
 use workspace::Workspace;
 
-use crate::{ClearBlockSelection, NextBlock, PreviousBlock, ReinputBlock};
+use crate::{ClearBlockSelection, NextBlock, PreviousBlock, ReinputBlock, SendBlockToAgent};
 
 /// What a copy item of the block menu puts on the clipboard.
 #[derive(Clone, Copy)]
@@ -70,6 +71,9 @@ pub fn init(cx: &mut App) {
             )
             .on_action(cx.listener(|workspace, _: &ReinputBlock, window, cx| {
                 reinput_focused(workspace, window, cx);
+            }))
+            .on_action(cx.listener(|workspace, _: &SendBlockToAgent, window, cx| {
+                send_focused(workspace, window, cx);
             }))
         });
     })
@@ -198,6 +202,20 @@ fn reinput_focused(workspace: &Workspace, window: &Window, cx: &mut Context<Work
     view.update(cx, |_, cx| cx.notify());
 }
 
+/// Sends the focused terminal's selected block to an agent, as `ctrl-shift-enter` does (#555).
+fn send_focused(workspace: &Workspace, window: &Window, cx: &mut Context<Workspace>) {
+    let Some(view) = focused_terminal(workspace, window, cx) else {
+        cx.propagate();
+        return;
+    };
+    let terminal = view.read(cx).terminal().clone();
+    let Some(index) = MarleyBlockSelection::selected(&terminal, cx) else {
+        cx.propagate();
+        return;
+    };
+    crate::send_block::send(&view, index, window, cx);
+}
+
 /// Types Ctrl-U and the command of `terminal`'s block at `index`, with `sudo ` first when asked,
 /// and no return, only where Rerun is offered: a command the shell's hook reported, while that
 /// shell waits at its prompt.
@@ -273,8 +291,17 @@ fn block_menu(
             .disabled(!offered)
             .handler(move |_, cx| reinput(&terminal, index, sudo, cx))
     };
+    let send_item = {
+        let view = context.view.clone();
+        ContextMenuEntry::new("Send to Agent").handler(move |window, cx| {
+            if let Some(view) = view.upgrade() {
+                crate::send_block::send(&view, index, window, cx);
+            }
+        })
+    };
     menu.separator()
         .header("Block")
+        .item(send_item)
         .item(copy_item("Copy Command", Copied::Command))
         .item(copy_item("Copy Output", Copied::Output))
         .item(copy_item("Copy Both", Copied::Both))

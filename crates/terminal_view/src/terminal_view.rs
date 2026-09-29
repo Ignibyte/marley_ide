@@ -194,6 +194,15 @@ pub struct MarleyTerminalBlockMenu(
 
 impl gpui::Global for MarleyTerminalBlockMenu {}
 
+// Marley: an element on a block's first row before its pill, such as Ask the agent under a failed
+// command, or none; Marley's workbench sets it (#555).
+#[derive(Clone)]
+pub struct MarleyBlockChip(
+    pub Arc<dyn Fn(&Entity<TerminalView>, &Entity<Terminal>, usize, &App) -> Option<AnyElement>>,
+);
+
+impl gpui::Global for MarleyBlockChip {}
+
 // Marley: the autosuggestion a terminal shows after its cursor, or none; Marley's workbench
 // sets it (#484).
 #[derive(Clone)]

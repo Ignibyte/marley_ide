@@ -163,7 +163,7 @@ real, reusable session. The Block model is the unit the **brain** later observes
   `: <seconds>:<elapsed>;` lines with backslash continuations joined.
   `AnchoredBlock::markdown(output, took)` (#554) writes a block for a note or a message: a fence
   one backtick longer than any run inside, `$ ` and the command, the output or a line saying it
-  is gone, then `exit N · took · folder (branch)`.
+  is gone (no line at all for empty output, #555), then `exit N · took · folder (branch)`.
   `stamp` (#491), which Zed's `Terminal::apply_shell_hook` calls after each hook applies, keeps
   each block's `BlockTimes` beside it: its start, when the `Preexec` that opened it was applied,
   and its end, when the hook that finished it was; a busy main thread moves a stamp by tens of

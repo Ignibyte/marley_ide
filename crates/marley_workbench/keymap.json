@@ -29,14 +29,16 @@
     }
   },
   {
-    // A selected block (#554): the arrows move the selection, Escape ends it, and Ctrl-Shift-I
-    // types its command at the prompt, as Warp binds them.
+    // A selected block (#554): the arrows move the selection, Escape ends it, Ctrl-Shift-I types
+    // its command at the prompt, and Ctrl-Shift-Enter sends it to an agent (#555), as Warp binds
+    // them.
     "context": "Terminal && MarleyBlockSelected",
     "bindings": {
       "up": "marley::PreviousBlock",
       "down": "marley::NextBlock",
       "escape": "marley::ClearBlockSelection",
-      "ctrl-shift-i": "marley::ReinputBlock"
+      "ctrl-shift-i": "marley::ReinputBlock",
+      "ctrl-shift-enter": "marley::SendBlockToAgent"
     }
   },
   {

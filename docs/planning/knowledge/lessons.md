@@ -3756,3 +3756,12 @@ only queues `InternalEvent::SetSelection`; the terminal applies it at its next `
 `SelectionsChanged` then, after `deploy_context_menu` has built the menu. Anything the menu's hooks
 set that a `SelectionsChanged` listener would undo is undone a frame later. State that must survive
 the right-click is judged by something the click does not touch, such as a count of inputs.
+
+## L-claude-555-the-rails-rows-move-when-needs-you-shows-001
+*category: e2e · topic: clicking the rail in a scenario · from: #555's visual check*
+
+The rail's Needs you section (#508) appears above the projects as soon as a seat waits, and every
+project and terminal row below it moves down by the section's height. A scenario that clicks rail
+rows by fixed coordinates clicks something else after a seat starts waiting. Bring a terminal
+forward by its tab (`alt-1` to `alt-9`, Zed's `pane::ActivateItem`), or measure the row again
+after the step that makes a seat wait.
