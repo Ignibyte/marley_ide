@@ -3719,3 +3719,22 @@ default title quotes the argument as given. Naming the full ref is still right, 
 the same name outranks the branch in git's ref lookup (gitrevisions(7)), so Marley passes
 `-m "Merge branch '<b>' into <base>"` with it. git 2.55 leaves " into main" off its own default
 title for main; the explicit title keeps it.
+
+## L-claude-585-a-new-worktree-gets-its-bases-committed-tasks-001
+*category: code · topic: worktree agents · from: pipeline 585*
+
+A worktree Zed's service makes checks out its base commit, so its `.zed/tasks.json`, and the
+`create_worktree` hooks Zed runs in it, are the base's committed copy, not the main checkout's
+working copy and not the tasks of whatever workspace started the create. Code that must know what
+the new worktree will run reads `git cat-file blob <base>:.zed/tasks.json` and parses it with
+`settings::parse_json_with_comments::<task::TaskTemplates>`; the user's global tasks are the
+inventory's `TaskSourceKind::AbsPath` entries.
+
+## L-claude-585-the-rail-lists-worktrees-in-gits-order-001
+*category: e2e · topic: scenarios with worktree rows · from: pipeline 585*
+
+The rail lists a project's worktree rows in the order git lists the worktrees, by folder path, and
+Zed's worktree service names each worktree at random, so a row's place moves from run to run. A
+scenario that clicks a worktree's row, or an agent's row under it, works out its place from the
+worktrees' folders (sorted as git sorts them, `LC_ALL=C sort`), each open worktree taking its row
+and its agent's row, instead of a place measured once.

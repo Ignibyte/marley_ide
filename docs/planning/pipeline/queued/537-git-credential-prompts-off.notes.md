@@ -111,3 +111,10 @@ and Git Credential Manager (not installed), whose variable the stand-ins print b
   for the passphrase in Marley and hands it to ssh, so an agent's push waits on the user instead
   of hanging on a prompt it cannot answer; passphrase-less agent keys stay the fallback. To be
   specced with this ticket's promotion.
+
+## From #585, 2026-09-29
+- A worktree agent whose prompt had its Setup box checked is started with
+  `marley_agent::launch_line_after`, which types `<setup> && <launch line>` (for example
+  `pnpm install && claude 'first'`). REQ-004 should allow that prefix for worktree agents: the
+  typed text is the setup command, `&&`, and the line `launch_input` makes, still with none of the
+  variables. The install runs in the agent's shell, so it gets the same environment.

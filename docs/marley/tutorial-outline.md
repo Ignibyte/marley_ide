@@ -469,6 +469,8 @@ progress, and the last five from `docs/marley/three-prong-plan.md`.
 | Answer every agent's permission prompt from one list in the rail | After lesson 23 | TICKET-508 |
 | Review Claude Code's work turn by turn | After lesson 21 | TICKET-509 (shipped) |
 | Run agents side by side, each on its own worktree and branch | A new part after part 5 | TICKET-510 (shipped) |
+| Give a worktree agent your `.env` and its dependencies: `.worktreeinclude` and the setup command | In that new part | TICKET-585 (shipped) |
+| Give each worktree agent's dev server a port of its own | In that new part | TICKET-590 |
 | Review and merge a worktree agent's branch | In that new part | TICKET-511 (shipped) |
 | Remove a merged worktree and its branch | In that new part | TICKET-589 |
 | See which files a worktree agent's branch would conflict on, before a merge | In that new part | TICKET-560 (shipped) |

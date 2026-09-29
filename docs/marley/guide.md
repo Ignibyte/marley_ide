@@ -493,6 +493,31 @@ which Claude Code makes for itself, get no row; their terminals list under the p
 A create that fails, such as for a folder Marley cannot write, says so in Zed's toast and leaves
 no row and no agent.
 
+A new worktree is a clean checkout: none of the main checkout's gitignored files (`.env`, local
+config) and no dependencies (#585).
+
+- **`.worktreeinclude`** at the main checkout's root names gitignored files to copy into every new
+  worktree before its agent starts, in `.gitignore` syntax, as Claude Code reads the same file for
+  its own worktrees. Only files git ignores are copied, so a tracked file never is. A pattern that
+  starts with `**/`, or has no slash, reaches into a folder git ignores as a whole only when the
+  folder matches or the first name after `**/` is one of the folder's names; to copy out of such a
+  folder, name it: `vendor/**/config.json`. Nothing in the worktree is overwritten. The copy stays
+  within 100 MB and 10,000 files; an entry that would pass that is left out whole, and a toast
+  names it.
+- **The setup command.** When the repository's root has a `package.json` and the lockfile of one
+  package manager (`pnpm-lock.yaml`, `bun.lock` or `bun.lockb`, `yarn.lock`, `package-lock.json`)
+  and no `create_worktree` task, the prompt offers the install command, as in
+  `Setup: pnpm install (pnpm-lock.yaml found)`, its box clear. Checked, the agent's terminal runs
+  `pnpm install && claude …`, so the agent starts once the install succeeds. Marley keeps your
+  choice in `git config marley.worktreeSetup` (the command, or `none`), and the next prompt starts
+  checked when it holds the command offered. Zed's own `create_worktree` tasks in
+  `.zed/tasks.json` start with the worktree, alongside the copy; a step that needs a copied file is
+  safer as the setup command.
+- **Paths in tasks.** Tasks in a linked worktree, `create_worktree` tasks among them, get
+  `MARLEY_ROOT_PATH` (the main checkout) and `MARLEY_WORKTREE_PATH` (the worktree) beside Zed's
+  `ZED_MAIN_GIT_WORKTREE` and `ZED_WORKTREE_ROOT`, so a setup script written for Orca's
+  `ORCA_ROOT_PATH` works after one rename.
+
 Claude Code keys its folder trust on the repository's main checkout, so a worktree of a
 repository you have trusted in Claude Code starts without asking. For a repository you have not,
 Claude Code asks whether to trust the folder before it runs the first prompt (#587). The

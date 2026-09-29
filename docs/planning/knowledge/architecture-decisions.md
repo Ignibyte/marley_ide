@@ -2890,3 +2890,21 @@ root. Both live in the clone. Review is Zed's `BranchDiff` against the recorded 
 through one Zed function made `pub`. Rejected: a Marley setting per project (it lives outside the
 clone, so another profile would merge); running `git` from the menu's build (the menu reads the
 drift runs' kept state); a squash or rebase merge (a merge commit keeps the agent's history).
+
+## AD-claude-585-a-new-worktree-copies-worktreeinclude-and-offers-one-setup-command-001
+*decided at: 2026-09-29 · status: shipped*
+
+New Agent in Worktree gives a new worktree its environment before the agent starts. It copies the
+main checkout's gitignored files `.worktreeinclude` names, following Claude Code's published rules
+for the same file (the whole `.gitignore` syntax, gitignored files only, `**/` reaching into a
+wholly ignored folder only by its names), matched with the `ignore` crate, candidates from git's
+ignored listing, a budget of 100 MB and 10,000 files measured before writing, never overwriting,
+and what is left out named. It offers, off by default and kept per repository in `git config
+marley.worktreeSetup`, the install command of a repository's one JavaScript package manager
+(Orca's lockfile table) when the base has no `create_worktree` task, typed as
+`<setup> && <launch line>`. Tasks in a linked worktree get `MARLEY_ROOT_PATH` and
+`MARLEY_WORKTREE_PATH` from Zed's own variables in Marley's task provider, with no Zed touch. The
+port offset is TICKET-590. Rejected: Orca's literal-only subset (repositories written for Claude
+Code use globs); copying before Zed's hooks start (a callback inside Zed's create, for a race the
+setup command avoids); a setting per project for the setup command (git config lives in the clone,
+beside #511's `marley.merge`); running an imported `conductor.json` or similar as it is.

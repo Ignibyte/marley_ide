@@ -274,10 +274,11 @@ pub fn start_cli(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
-    start_cli_with_prompt(workspace, kind, String::new(), window, cx).detach();
+    start_cli_with_prompt(workspace, kind, String::new(), None, window, cx).detach();
 }
 
-/// As [`start_cli`], with `prompt` as the agent's first prompt on its command line (#510).
+/// As [`start_cli`], with `prompt` as the agent's first prompt on its command line (#510), and
+/// with `setup`, a command typed before the agent's that must succeed first (#585).
 ///
 /// The task gives the agent's terminal once the command is written (#587), and none once its
 /// error has reached a prompt.
@@ -285,6 +286,7 @@ pub fn start_cli_with_prompt(
     workspace: &mut Workspace,
     kind: AgentKind,
     prompt: String,
+    setup: Option<String>,
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) -> Task<Option<WeakEntity<Terminal>>> {
@@ -314,7 +316,12 @@ pub fn start_cli_with_prompt(
         // A terminal without a PTY is ready at once; the timeout covers a shell that never
         // echoes the handshake's marker.
         futures::future::select(startup, timeout).await;
-        let input = marley_agent::launch_line(kind, mode, &prompt);
+        let input = marley_agent::launch_line_after(
+            setup.as_deref().unwrap_or_default(),
+            kind,
+            mode,
+            &prompt,
+        );
         let launch = |terminal: &mut Terminal, cx: &mut Context<Terminal>| {
             terminal.write_init_command_after_startup(input, cx)
         };

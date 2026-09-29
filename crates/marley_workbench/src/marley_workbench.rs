@@ -56,6 +56,7 @@ pub mod turns;
 pub mod voice;
 pub mod worktree_agents;
 pub mod worktree_git;
+pub mod worktree_include;
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::OsStr;

@@ -2671,3 +2671,15 @@ folder workspace a center terminal (routing's `seed_first_terminal`), created as
 was added after the diff and took the front, so the shots showed Changes since main behind
 "ok — bash". Fixed: the Review marks the folder with `worktree_agents::skip_seed`, the mark #510's
 agent worktrees use, and drops a mark the seed did not take.
+
+## F-claude-585-the-setup-offer-read-the-wrong-worktrees-tasks-001
+*severity: medium · found in: pipeline 585's Test phase (run 2's shot 585-05-hook) · class: reading a repository's settings from whichever workspace asked, not from what the new worktree gets · prevented by: L-claude-585-a-new-worktree-gets-its-bases-committed-tasks-001*
+
+The worktree prompt offered no setup command when the repository had a `create_worktree` task,
+and it looked for one with `Inventory::templates_with_hooks` for the first folder of the workspace
+whose `+` was clicked. By the fourth prompt that workspace was a linked worktree made before the
+task was committed, so it had no `.zed/tasks.json`, and the prompt still offered `pnpm install`
+while Zed was about to run the committed hook. Fixed: the offer reads the `.zed/tasks.json`
+committed at the worktree's base (`git cat-file blob <base>:.zed/tasks.json`, parsed with Zed's
+own `TaskTemplates`), which is the file the new worktree gets, and the inventory is asked only for
+the user's global tasks.

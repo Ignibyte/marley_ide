@@ -172,6 +172,23 @@ pub fn launch_line(kind: AgentKind, mode: LaunchMode, prompt: &str) -> Vec<u8> {
     send_payload(&line)
 }
 
+/// [`launch_line`] after `setup`, a command that must succeed first (#585).
+///
+/// The line is `<setup> && <launch line>`, so the agent starts only once its worktree's install
+/// has, and a failed one leaves its error on the screen. An empty `setup` gives the launch line
+/// alone.
+#[must_use]
+pub fn launch_line_after(setup: &str, kind: AgentKind, mode: LaunchMode, prompt: &str) -> Vec<u8> {
+    let line = launch_line(kind, mode, prompt);
+    let setup = setup.trim();
+    if setup.is_empty() {
+        return line;
+    }
+    let mut after = format!("{setup} && ").into_bytes();
+    after.extend(line);
+    after
+}
+
 /// The program and the arguments `mode` asks for.
 fn command(kind: AgentKind, mode: LaunchMode) -> String {
     let mut line = kind.program().to_string();

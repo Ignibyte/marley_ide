@@ -58,6 +58,9 @@ pub fn event_line(project: &str, kind: AgentKind, event: TurnEvent) -> String;
   backslash in single quotes and each of those two in double quotes, Orca's form (MIT), which
   bash, zsh and fish read alike; fish reads `\'` and `\\` as escapes inside single quotes, so sh's
   `'\''` breaks there.
+- **`launch_line_after`** (#585) puts a setup command and `&&` before `launch_line`'s bytes, so the
+  agent starts only once its worktree's install succeeded; an empty setup gives the launch line
+  alone.
 - **`permission_mark`** (#532) says whether an agent runs without its prompts. For Claude Code a
   reported mode decides (`BYPASS_MODE` marks, any other clears), else its arguments
   (`--dangerously-skip-permissions`, `--permission-mode bypassPermissions` and its `=` form);

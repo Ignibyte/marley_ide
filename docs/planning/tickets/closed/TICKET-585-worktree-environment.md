@@ -1,10 +1,10 @@
-# TICKET-585 — The worktree's environment: its gitignored files, a port of its own and a setup command
+# TICKET-585 — The worktree's environment: its gitignored files, a setup command and its hook paths
 
-- **Ticket:** LOCAL #585 (feature, prong 2: worktree agents, slice 2 of 2; after #510)
+- **Ticket:** LOCAL #585 (feature, prong 2: worktree agents, slice 2 of 2, part 1; after #510; the port offset is #590)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet (to be drafted into `pipeline/queued/`)
+- **Pipeline doc:** ../../pipeline/completed/585-worktree-environment.spec.md
 - **Source ticket:** #510's split (`../../pipeline/completed/510-worktree-agents.notes.md`, "The split" and "Folded in from the Orca second pass"); Orca report 02 §2.2 to §2.4 and §3 items 6 and 7.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 A worktree #510 makes is a clean checkout: none of the main checkout's gitignored files (`.env`,
@@ -24,3 +24,8 @@ marley.worktreeSetup`; checked, it runs in the worktree's terminal before the ag
 A worktree agent's worktree has the `.worktreeinclude`d gitignored files of the main checkout,
 its terminals and tasks carry a port offset of their own, the hook tasks get Marley's two paths,
 and the setup command a lockfile suggests runs before the agent when the user checks it.
+
+**Split at planning (2026-09-29).** The port offset (`MARLEY_PORT_OFFSET`, `PORT`) needs a Marley
+hunk in both of Zed's terminal builders, a slot registry and its persistence, so it is TICKET-590.
+This ticket keeps `.worktreeinclude`, the setup command and `MARLEY_ROOT_PATH` and
+`MARLEY_WORKTREE_PATH` for tasks in a linked worktree, `create_worktree` hooks among them.

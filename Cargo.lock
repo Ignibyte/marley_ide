@@ -10866,6 +10866,7 @@ dependencies = [
  "git_ui_core",
  "gpui",
  "http_client",
+ "ignore",
  "language",
  "language_model",
  "log",

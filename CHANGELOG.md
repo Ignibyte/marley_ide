@@ -13,6 +13,20 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A worktree agent's worktree gets its environment** (#585, 2026-09-29). New Agent in Worktree
+  now copies into the new worktree, before the agent starts, the main checkout's gitignored files
+  its `.worktreeinclude` names, read as Claude Code reads the file for its own worktrees:
+  `.gitignore` syntax, only files git ignores (so a tracked file never is), and a `**/` pattern
+  reaches into a wholly ignored folder only by the folder's own name. Nothing in the worktree is
+  overwritten, and an entry that would pass 100 MB or 10,000 files in all is left out whole and
+  named in a toast. When the repository's root has a `package.json` and the lockfile of one
+  package manager (pnpm, bun, yarn or npm) and no `create_worktree` task, the prompt offers
+  `Setup: pnpm install (pnpm-lock.yaml found)`; the box is clear unless you checked it last time
+  (kept in `git config marley.worktreeSetup`), and checked, the install runs in the agent's
+  terminal and the agent starts once it succeeds. Tasks in a linked worktree, Zed's
+  `create_worktree` hooks among them, also get `MARLEY_ROOT_PATH` and `MARLEY_WORKTREE_PATH`. A port
+  offset for each worktree is next (#590).
+
 - **Review and merge a worktree's branch from its row** (#511, 2026-09-29). Right-click a
   worktree's row in the rail. **Review** opens Zed's branch diff of the worktree against the base
   its branch started from, "Changes since main", in the worktree's own workspace, and opens the

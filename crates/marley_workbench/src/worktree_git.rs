@@ -1,12 +1,13 @@
-//! The `git` programs of the worktree rows (#560): what a worktree's branch would meet merging its
-//! base, and since #511 who merges it and the merge itself.
+//! The `git` programs of the worktree rows (#560) and of a new worktree agent's worktree (#585).
 //!
+//! What a worktree's branch would meet merging its base, since #511 who merges it and the merge
+//! itself, and since #585 what a new worktree copies and the setup command a repository keeps.
 //! Zed's `Repository` runs no `merge-tree`, `rev-list`, `merge-base` or `merge`, and its runner
 //! takes `merge-tree`'s exit 1, which is its answer, for an error, so these run `git` here, never
 //! through a shell, in the main checkout, with the flags Zed's own git runs with. Their arguments
 //! are commits and branch names git reported. #541's process adapter takes the spawns over.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Output;
 
 use anyhow::Context as _;
@@ -344,6 +345,98 @@ pub(crate) async fn merge(main: &Path, branch: &str, base: &str) -> anyhow::Resu
         "the merge stopped on conflicts in {}; it was aborted, and the main checkout is as it was",
         files.join(", ")
     )
+}
+
+/// What the main checkout `main` has that git ignores, relative to it (#585): each ignored file,
+/// and each directory git ignores as a whole, marked `true`.
+///
+/// # Errors
+///
+/// When `git` cannot run, or refuses.
+pub(crate) async fn ignored_entries(main: &Path) -> anyhow::Result<Vec<(PathBuf, bool)>> {
+    let output = git(
+        main,
+        &[
+            "ls-files",
+            "--others",
+            "--ignored",
+            "--exclude-standard",
+            "--directory",
+            "-z",
+        ],
+    )
+    .await?;
+    anyhow::ensure!(
+        output.status.success(),
+        "git ls-files refused: {}",
+        text(&output.stderr)
+    );
+    // Separated by NULs and never trimmed: a path may start or end with a space.
+    Ok(output
+        .stdout
+        .split(|byte| *byte == 0)
+        .filter(|entry| !entry.is_empty())
+        .map(|entry| {
+            let entry = String::from_utf8_lossy(entry);
+            entry.strip_suffix('/').map_or_else(
+                || (PathBuf::from(entry.as_ref()), false),
+                |directory| (PathBuf::from(directory), true),
+            )
+        })
+        .collect())
+}
+
+/// The file at `path` in the commit `revision` of the repository whose main checkout is `main`
+/// (#585): what a worktree made from it gets; none when the commit has no such file.
+///
+/// # Errors
+///
+/// When `git` cannot run.
+pub(crate) async fn committed_file(
+    main: &Path,
+    revision: &str,
+    path: &str,
+) -> anyhow::Result<Option<String>> {
+    let object = format!("{revision}:{path}");
+    let output = git(main, &["cat-file", "blob", &object]).await?;
+    Ok(output
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&output.stdout).into_owned()))
+}
+
+/// The key that keeps a repository's choice of setup command for new worktree agents (#585).
+const SETUP_KEY: &str = "marley.worktreeSetup";
+
+/// The setup command a worktree agent last started with in the repository whose main checkout is
+/// `main`, `none` when the box was clear; `None` while nothing is kept.
+///
+/// # Errors
+///
+/// When `git` cannot run, or refuses.
+pub(crate) async fn setup_choice(main: &Path) -> anyhow::Result<Option<String>> {
+    let output = git(main, &["config", "--get", SETUP_KEY]).await?;
+    match output.status.code() {
+        Some(0) => Ok(Some(text(&output.stdout))),
+        // `git config --get` says a key is unset with exit 1.
+        Some(1) => Ok(None),
+        _ => anyhow::bail!("git config refused: {}", text(&output.stderr)),
+    }
+}
+
+/// Keeps `choice`, a setup command or `none`, for the repository whose main checkout is `main`.
+///
+/// # Errors
+///
+/// When `git` cannot run, or refuses.
+pub(crate) async fn remember_setup(main: &Path, choice: &str) -> anyhow::Result<()> {
+    let output = git(main, &["config", SETUP_KEY, choice]).await?;
+    anyhow::ensure!(
+        output.status.success(),
+        "git config refused: {}",
+        text(&output.stderr)
+    );
+    Ok(())
 }
 
 /// Whether git refused `merge-tree --write-tree` as an option it does not know: before 2.38, or

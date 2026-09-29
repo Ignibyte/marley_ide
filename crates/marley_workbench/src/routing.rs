@@ -5,7 +5,7 @@
 //! handlers see them, and so are the panel's toggles and the bottom dock's, which switch between
 //! the code and the center terminals instead. A folder project opened fresh starts with a center
 //! terminal at its root. In the Zed layout all of it passes straight through, so the fork behaves
-//! as upstream.
+//! as upstream, but for the paths tasks of a linked worktree get in both (#585).
 
 use std::path::PathBuf;
 use std::process::ExitStatus;
@@ -14,7 +14,7 @@ use gpui::{
     App, AsyncWindowContext, Context, Entity, EntityId, Focusable as _, InteractiveElement as _,
     Task, WeakEntity, Window,
 };
-use task::{RevealTarget, SpawnInTerminal};
+use task::{RevealTarget, SpawnInTerminal, VariableName};
 use terminal::Terminal;
 use terminal_view::TerminalView;
 use terminal_view::terminal_panel::{TerminalPanel, Toggle, ToggleFocus};
@@ -106,6 +106,7 @@ impl workspace::TerminalProvider for RoutedTerminals {
         cx: &mut App,
     ) -> Task<Option<anyhow::Result<ExitStatus>>> {
         let marley = marley_layout(cx);
+        let task = with_marley_paths(task);
         let task = if marley {
             SpawnInTerminal {
                 reveal_target: RevealTarget::Center,
@@ -133,6 +134,33 @@ impl workspace::TerminalProvider for RoutedTerminals {
             run_task(&panel, &task, cx).await
         })
     }
+}
+
+/// `task` with Marley's names for its main checkout and its worktree (#585), `MARLEY_ROOT_PATH`
+/// and `MARLEY_WORKTREE_PATH`, beside Zed's, while Zed gives it the main checkout's: a task of a
+/// linked worktree, Zed's `create_worktree` hooks among them, so a setup script written for
+/// Orca's `ORCA_ROOT_PATH` takes one rename. A task's own values stay.
+fn with_marley_paths(mut task: SpawnInTerminal) -> SpawnInTerminal {
+    let main = task
+        .env
+        .get(&VariableName::MainGitWorktree.to_string())
+        .cloned();
+    let Some(main) = main else {
+        return task;
+    };
+    task.env
+        .entry("MARLEY_ROOT_PATH".to_string())
+        .or_insert(main);
+    let root = task
+        .env
+        .get(&VariableName::WorktreeRoot.to_string())
+        .cloned();
+    if let Some(root) = root {
+        task.env
+            .entry("MARLEY_WORKTREE_PATH".to_string())
+            .or_insert(root);
+    }
+    task
 }
 
 /// Moves the Terminal Panel's terminals for the task labelled `label` to the end of `center`,

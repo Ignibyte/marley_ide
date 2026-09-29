@@ -564,6 +564,37 @@ alike.
   compared to the prompt's, then `merge`; a toast in the displayed workspace (`WorktreeMerge`), or
   `detach_and_prompt_err` "Could not merge <name>".
 
+## A worktree agent's environment (`src/worktree_include.rs`, `src/worktree_agents.rs`, #585)
+
+- `worktree_include::copy_included(main, worktree, fs)` reads `.worktreeinclude` through `Fs`,
+  builds an `ignore::gitignore::Gitignore` rooted at the main checkout, and takes each entry
+  `worktree_git::ignored_entries` lists (`ls-files --others --ignored --exclude-standard
+  --directory -z`, split on NULs, never trimmed): a file a line matches
+  (`matched_path_or_any_parents`); a wholly ignored directory a line matches, or one a line
+  reaches by Claude Code's rule (`Reach::Named` for `**/<name>` and slash-less lines, by the
+  directory's names; `Reach::Under` for a line with a slash, by its leading literal names), walked
+  with each file checked against the matcher, so a `!` line keeps a file out; a folder holding a
+  `.git` and a link to a folder are not walked. Sizes are summed before any write; an entry past
+  the budget (100 MB, 10,000 files) is skipped whole and named with its size. Files go through
+  `Fs::create_dir` and `Fs::copy_file` (`overwrite: false, ignore_if_exists: true`).
+- `worktree_agents::create` copies after Zed's create resolves and before `write_base`, a toast
+  under `NotificationId::unique::<Included>()` naming what was left out. Zed's own
+  `create_worktree` tasks start inside the create and are never awaited, so they run alongside the
+  copy.
+- The setup offer: `LOCKFILES` (Orca's table), `setup_offer(main, base, fs)` (a `package.json`,
+  one manager's lockfiles, no `create_worktree` task in the `.zed/tasks.json` committed at the
+  base, read by `worktree_git::committed_file` and parsed with
+  `settings::parse_json_with_comments::<TaskTemplates>`; checked when `marley.worktreeSetup` keeps
+  the command), read in the background when the prompt opens unless the user's global tasks have
+  such a hook (`global_create_worktree_tasks`, the inventory's `TaskSourceKind::AbsPath` hooks).
+  The prompt draws a `Checkbox`; `Launch { prompt, setup }` carries both to `start`; `create` keeps
+  the choice (`remember_setup`, the command or `none`, only when an offer showed), then
+  `start_cli_with_prompt(.., Some(command), ..)` types `marley_agent::launch_line_after`, and
+  `agent_trust::watch` waits `WATCH_AFTER_SETUP` (15 minutes) instead of `WATCH_FOR`.
+- `routing::with_marley_paths`, in `RoutedTerminals::spawn` in both layouts, adds
+  `MARLEY_ROOT_PATH` (from `ZED_MAIN_GIT_WORKTREE`) and `MARLEY_WORKTREE_PATH` (from
+  `ZED_WORKTREE_ROOT`) to a task's environment, a task's own values kept.
+
 ## Claude Code's trust question in a new worktree (`src/agent_trust.rs`, #587)
 
 - `agents::start_cli_with_prompt` returns `Task<Option<WeakEntity<Terminal>>>`, the terminal

@@ -31,7 +31,10 @@ use crate::MarleySettings;
 
 /// How long after the launch the screen is read for the question: Claude Code draws it within
 /// seconds, before anything else.
-const WATCH_FOR: Duration = Duration::from_secs(60);
+pub(crate) const WATCH_FOR: Duration = Duration::from_secs(60);
+
+/// How long when a setup command runs first (#585): the question comes once the install is done.
+pub(crate) const WATCH_AFTER_SETUP: Duration = Duration::from_mins(15);
 
 /// The least time between two reads of the screen, as the served-URL scan waits.
 const READ_EVERY: Duration = Duration::from_millis(500);
@@ -49,7 +52,7 @@ struct TrustWatches(HashMap<EntityId, Entity<TrustWatch>>);
 impl Global for TrustWatches {}
 
 /// One Claude Code terminal New Agent in Worktree started, read until its question has come and
-/// gone, the minute is over, or it closes.
+/// gone, its wait is over, or it closes.
 struct TrustWatch {
     id: EntityId,
     terminal: WeakEntity<Terminal>,
@@ -76,12 +79,14 @@ enum State {
 }
 
 /// Watches the terminal of a Claude Code that New Agent in Worktree started in the worktree
-/// `name`, whose workspace is `worktree`, from `source`.
+/// `name`, whose workspace is `worktree`, from `source`, for `wait` while its question has not
+/// shown.
 pub(crate) fn watch(
     terminal: &WeakEntity<Terminal>,
     worktree: WeakEntity<Workspace>,
     source: WeakEntity<Workspace>,
     name: String,
+    wait: Duration,
     cx: &mut App,
 ) {
     let Some(terminal) = terminal.upgrade() else {
@@ -96,7 +101,7 @@ pub(crate) fn watch(
         });
         let closed = cx.observe_release(&terminal, move |_, _, cx| finish(id, cx));
         let deadline = cx.spawn(async move |watch: WeakEntity<TrustWatch>, cx| {
-            cx.background_executor().timer(WATCH_FOR).await;
+            cx.background_executor().timer(wait).await;
             watch
                 .update(cx, |watch, cx| {
                     if watch.state == State::Watching {
