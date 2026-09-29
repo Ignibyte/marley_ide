@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #531 (feature, workbench shell: the rail's rows; Warp once-over item 7)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/531-pr-state-on-rail-rows.spec.md
+- **Pipeline doc:** ../../pipeline/completed/531-pr-state-on-rail-rows.spec.md
 - **Source ticket:** Chad, 2026-09-25: "yes" to Warp's vertical tabs metadata (item 7 of `docs/planning/design-notes/warp-once-over-2026-09-25.md`: "Rows can show the branch's pull request, its status (through the GitHub CLI) and diff stats")
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The rail shows which agents are working but not whose work is ready, and with worktree agents

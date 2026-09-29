@@ -2683,3 +2683,12 @@ while Zed was about to run the committed hook. Fixed: the offer reads the `.zed/
 committed at the worktree's base (`git cat-file blob <base>:.zed/tasks.json`, parsed with Zed's
 own `TaskTemplates`), which is the file the new worktree gets, and the inventory is asked only for
 the user's global tasks.
+
+## F-claude-531-a-project-with-nothing-to-ask-was-read-again-each-second-001
+*severity: high · found in: pipeline 531's Code review · class: a "last done" time set only on the path that did the work, so a due check that finds nothing to do stays due · prevented by: the fix below*
+
+The project read kept `asked_at`, when `gh` was last asked, and a refresh scheduled a read while
+it was empty or two minutes old. It was set only when `gh` ran, so for a project whose remote is
+not GitHub, or on no branch, it stayed empty: each read's refresh scheduled the next, one a second
+for as long as the window was active. Fixed before the gate: a read that was due to ask sets
+`asked_at` whatever it could ask.

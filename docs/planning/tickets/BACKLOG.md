@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-531](open/TICKET-531-pr-state-on-rail-rows.md) | feature | workbench · pull request state and diff counts on the rail's project rows |
 | [TICKET-527](open/TICKET-527-project-launch-configs.md) | feature | workbench · a project's launch configs (`.zed/marley.json`) in the rail's + |
 | [TICKET-525](open/TICKET-525-agent-drives-a-running-program.md) | feature | prong 2 with prong 1 · an agent reads and types into a running program, with takeover |
 | [TICKET-526](open/TICKET-526-blocks-over-ssh.md) | feature | prong 1 T0c · blocks keep working over ssh |

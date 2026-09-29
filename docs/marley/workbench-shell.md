@@ -376,7 +376,8 @@ makes a git worktree on a branch of its own through Zed's worktree service and s
 there with its first prompt, and the rail lists each linked worktree of a project under it with
 its own terminals; #560 adds a chip on each worktree row with how far its branch is behind its
 base and, when a merge would stop, how many files it would stop on, read from git against the
-local base; #587 brings Claude Code's trust question in a new worktree to the user, in a
+local base; #531 puts on each project row the lines its branch changed against its base and its
+GitHub pull request's number and state, through `gh`; #587 brings Claude Code's trust question in a new worktree to the user, in a
 notification whose Trust Folder answers it; #511 adds Review and Merge to a worktree row's menu:
 Zed's branch diff against the recorded base, and a merge commit in the main checkout after checks
 that fail closed, never a push, left to the Rustal workflow where it manages the repository;

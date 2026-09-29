@@ -2964,3 +2964,16 @@ from #519's events rather than the plugin's notifications and a quiet timer; the
 rather than a new one; targets by the files their folder holds rather than the diff's repository
 root. Rejected: Orca's delete-on-send; the Agent Panel as a target (upstream's removed path);
 holding notes until an agent goes idle.
+
+## AD-claude-531-a-project-rows-counts-and-pull-request-come-from-marleys-git-and-gh-001
+*decided at: 2026-09-29 · status: shipped*
+
+A project row whose folder is a main checkout shows its branch's lines changed against its base
+(`git diff --numstat --merge-base`, uncommitted tracked edits included, `ui::DiffStat`) and its
+GitHub pull request (`gh pr list --head=<branch> --state=all --limit=1`, the branch one argument,
+no shell). The base is the pull request's, else Zed's `default_branch(true)`, trying `origin/<base>`
+first. The counts run through Marley's `worktree_git` runner for repositories Zed trusts, as #560's
+drift does, not a new method on Zed's git layer (the queued spec's D1, overtaken at promotion);
+`StatusesChanged` schedules only this read, never a rail rebuild. The data stays in the rail's
+group entries, not `marley_rail`'s row model. Rejected: counts through a Zed touch; `gh` through a
+shell; worktree rows in this slice (they keep #560's drift).

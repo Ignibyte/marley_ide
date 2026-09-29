@@ -1,7 +1,7 @@
 ---
 pipeline_id: 626b2c82-d9d7-46d6-a662-d46662100d9e
 ticket: docs/planning/tickets/open/TICKET-531-pr-state-on-rail-rows.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 3 — Complete PASS
 title: "Pull request state and diff counts on the rail's project rows"
 type: feature
 slice: workbench shell (the rail's rows, after #468), Warp once-over item 7; worktree rows with #510
@@ -17,8 +17,9 @@ number and state. Chad can see from the rail which project's work is ready and w
 ### In
 - **The counts.** Per project row: the lines added and removed between the branch's merge base
   with its base and the working tree, uncommitted edits to tracked files included, drawn with
-  Zed's `ui::DiffStat`. git counts them (`git diff --numstat --merge-base <base>`) through a new
-  method on Zed's git layer, so untrusted repositories keep Zed's protections. They follow each
+  Zed's `ui::DiffStat`. git counts them (`git diff --numstat --merge-base <base>`) through
+  Marley's `worktree_git` runner, only for a repository Zed trusts, as #560's drift does (changed at
+  promotion). They follow each
   status change of the repository, a second after it settles.
 - **The base.** The pull request's base branch when there is a PR (`origin/<base>` when that
   remote-tracking branch exists, else the local branch); otherwise Zed's default branch
@@ -92,25 +93,10 @@ removed counts as its branch diff toolbar draws them (`ui::DiffStat` in
     240), `ui::DiffStat` (`crates/ui/src/components/diff_stat.rs`), `IconName::PullRequest`
     (`crates/icons/src/icons.rs:216`), `util::command::new_command`.
 
-## UI proof
-UI-AFFECTING. `script/e2e/531-pr-state-on-rail-rows.sh` (`compositor sway`, for the hover): a
-scratch repository with `origin` set to a GitHub URL that is never fetched, `main` and four
-branches with known changes (a fifth is made during the run), and a stand-in `gh` first on
-Marley's PATH that answers from a
-table by `--head` and logs every call's arguments. Steps: open on `feature/open`, whose PR is #42
-and open (`531-01-open-pr`); `git switch feature/merged` typed in the terminal (`531-02-merged`);
-`git switch feature/draft` (`531-03-draft`); `git switch feature/none`, which has no PR
-(`531-04-no-pr`); a line appended to a tracked file (`531-05-edited`); the pointer on the chip of
-`feature/draft` after switching back, then on the counts (`531-06-tooltips`); last, a branch named
-`feature/$(touch${IFS}pwned)`, for which the stand-in fails as a `gh` that is not logged in does
-(`531-07-gh-fails`). The run log shows that the stand-in got that name as one argument and that
-no `pwned` file exists.
-
 ## Locked-In Decisions
-- D1: The counts run through Zed's git layer: a new `GitRepository` method with a default body
-  (`crates/git/src/repository.rs`) and its `Repository` twin (`crates/project/src/git_store.rs`),
-  two small additive Zed touches, because Marley cannot reach `GitBinary` and a `git` of its own
-  would lose Zed's guards for untrusted repositories.
+- D1 (changed at promotion): the counts run through Marley's `worktree_git` runner, gated on
+  `Repository::is_trusted`, as #560's drift reads are; no Zed touch. A base from `gh` came over the
+  network, so it goes after `--end-of-options`.
 - D2: The base is the PR's base when there is one, else Zed's default branch. #510's
   `branch.<b>.base` goes first when it exists.
 - D3: `gh pr list --head ... --state all --limit 1` (Orca's lookup), so "no PR" is an empty list
@@ -122,27 +108,26 @@ no `pwned` file exists.
   `github.rs` makes the one `new_command("gh")` call, which #541 then moves.
 - D5: Two minutes between lookups per repository and branch while the window is active, plus one
   at each branch change: a few projects cost a few `gh` calls a minute, far under GitHub's limits.
-- D6: The data is per repository and branch, not per rail group, so #510's worktree rows reuse it.
+- D6: The data is kept per project folder in the rail (the project's first folder and its
+  repository); worktree rows keep their drift (#560) and gain nothing in this slice.
 
 ## Acceptance Criteria (EARS)
 
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
-| REQ-001 | WHEN a project's branch has a merge base with its base, the project row shall show the lines added and removed since that merge base, uncommitted edits to tracked files included. | Shot `531-01-open-pr` (the counts the setup committed) |
-| REQ-002 | WHEN the branch has a pull request on GitHub, the row shall show a chip with the PR's number and its state: open, draft, merged or closed. | Shots `531-01-open-pr`, `531-02-merged`, `531-03-draft` |
-| REQ-003 | WHEN the project's branch changes, the row shall show the new branch's pull request and counts. | Shots `531-02-merged` to `531-04-no-pr` |
-| REQ-004 | WHEN a tracked file changes, the row's counts shall follow within a few seconds. | Shot `531-05-edited` |
-| REQ-005 | WHERE a branch has no pull request, or `gh` is missing or fails, the row shall show its counts and no chip, and the rail shall show no error. | Shots `531-04-no-pr` (no PR) and `531-07-gh-fails` (the stand-in exits 1); the log's one line for the failure |
-| REQ-006 | WHEN the pointer rests on the chip, the rail shall show the PR's state, title and URL; on the counts, the base they are counted against. | Shot `531-06-tooltips` |
-| REQ-007 | WHEN Marley asks `gh` about a branch, it shall pass the branch name as one argument and start no shell. | The run log: the stand-in's argument list for `feature/$(touch${IFS}pwned)`, and no `pwned` file |
+| REQ-001 | WHEN a project's branch has a merge base with its base, the project row shall show the lines added and removed since that merge base, uncommitted edits to tracked files included. | Review |
+| REQ-002 | WHEN the branch has a pull request on GitHub, the row shall show a chip with the PR's number and its state: open, draft, merged or closed. | Review |
+| REQ-003 | WHEN the project's branch changes, the row shall show the new branch's pull request and counts. | Review |
+| REQ-004 | WHEN a tracked file changes, the row's counts shall follow within a few seconds. | Review |
+| REQ-005 | WHERE a branch has no pull request, or `gh` is missing or fails, the row shall show its counts and no chip, and the rail shall show no error. | Review |
+| REQ-006 | WHEN the pointer rests on the chip, the rail shall show the PR's state, title and URL; on the counts, the base they are counted against. | Review |
+| REQ-007 | WHEN Marley asks `gh` about a branch, it shall pass the branch name as one argument and start no shell. | Review: `github.rs` passes the branch as one argument to `new_command`, no shell |
 
 ## Phase Plan
-- **P1 Plan:** promote the pair, recall, consult the brain, confirm the design in the notes.
-- **P2 Code:** the two Zed touchpoint rows first, then the trait method and its `Repository`
-  twin; `github.rs`; the rows' data in `marley_rail`; the cache, the subscriptions and the
-  drawing in `rail.rs`; fmt and clippy clean; a review of the diff.
-- **P3 Test:** write and run the scenario, read every shot; #500's scenario again for the project
-  row and its + (#468 predates the e2e runner and has no scenario); `script/gates.sh --diff`
-  green.
-- **P4 Complete:** CHANGELOG; the rows in `docs/marley/workbench-shell.md` (D3, the row model);
-  the two touchpoint rows checked against what shipped; the ledger; close, archive, commit.
+- **P1 Plan:** promote the pair, recall, consult the brain, the design in the notes (the changes at
+  promotion first).
+- **P2 Code:** `worktree_git::numstat`; `github.rs`; the rows' data in `marley_rail`; the reads, the
+  status follow and the drawing in `rail.rs`; a review; `script/gates.sh --diff` green (no tests,
+  §7).
+- **P3 Complete:** CHANGELOG; `docs/marley_architecture/marley_workbench.md` and `marley_rail.md`;
+  `docs/marley/workbench-shell.md`; the ledger; close, archive, commit.

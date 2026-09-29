@@ -3,7 +3,8 @@
 //! What a worktree's branch would meet merging its base, since #511 who merges it and the merge
 //! itself, since #585 what a new worktree copies and the setup command a repository keeps, and
 //! since #590 a worktree's port slot, and since #589 what a removal would lose and the end of a
-//! removed worktree's branch. Zed's `Repository` runs no `merge-tree`, `rev-list`,
+//! removed worktree's branch, and since #531 a project's changed lines. Zed's `Repository` runs
+//! no `merge-tree`, `rev-list`,
 //! `merge-base` or `merge`, and its runner takes `merge-tree`'s exit 1, which is its answer, for
 //! an error, so these run `git` here, never through a shell, in the main checkout or a worktree
 //! of it, with the flags Zed's own git runs with. Their arguments are commits and branch names git
@@ -636,6 +637,63 @@ async fn merged_into(main: &Path, commit: &str, target: &str) -> anyhow::Result<
     Ok(cherry.status.success()
         && !marks.is_empty()
         && marks.lines().all(|line| line.starts_with('-')))
+}
+
+/// The lines added and removed since the checkout at `folder` left `base`, uncommitted edits to
+/// tracked files included (#531): `git diff --numstat --merge-base` against the first of
+/// `origin/<base>` and `<base>` that names a commit, which it returns with the counts; `None` when
+/// neither does. A base can come from a pull request over the network, so one that could read as
+/// an option, or holds a space or a control character, is refused.
+///
+/// # Errors
+///
+/// When `git` cannot run, or refuses, or `base` is not a name git could have given.
+pub(crate) async fn changed_lines(
+    folder: &Path,
+    base: &str,
+) -> anyhow::Result<Option<(String, u32, u32)>> {
+    anyhow::ensure!(
+        !base.is_empty()
+            && !base.starts_with('-')
+            && !base
+                .chars()
+                .any(|character| character.is_whitespace() || character.is_control()),
+        "{base:?} is no branch name"
+    );
+    let mut candidates = Vec::new();
+    if !base.starts_with("origin/") {
+        candidates.push(format!("origin/{base}"));
+    }
+    candidates.push(base.to_string());
+    for candidate in candidates {
+        let commit = format!("{candidate}^{{commit}}");
+        let resolved = git(folder, &["rev-parse", "--verify", "--quiet", &commit]).await?;
+        if !resolved.status.success() {
+            continue;
+        }
+        let output = git(
+            folder,
+            &["diff", "--numstat", "--merge-base", &candidate, "--"],
+        )
+        .await?;
+        anyhow::ensure!(
+            output.status.success(),
+            "git diff refused: {}",
+            text(&output.stderr)
+        );
+        let (mut added, mut removed) = (0u32, 0u32);
+        // `added<TAB>removed<TAB>path`, and `-` for both on a binary file.
+        for line in String::from_utf8_lossy(&output.stdout).lines() {
+            let mut fields = line.split('\t');
+            let (Some(plus), Some(minus)) = (fields.next(), fields.next()) else {
+                continue;
+            };
+            added = added.saturating_add(plus.parse().unwrap_or(0));
+            removed = removed.saturating_add(minus.parse().unwrap_or(0));
+        }
+        return Ok(Some((candidate, added, removed)));
+    }
+    Ok(None)
 }
 
 /// Whether git refused `merge-tree --write-tree` as an option it does not know: before 2.38, or

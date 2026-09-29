@@ -221,6 +221,22 @@ goes when it stops.
   working directory is in no project, such as one that moved to `/` when it went to the
   background.
 
+A project whose folder is a git repository's main checkout shows two things at the right of its
+header (#531):
+
+- **The lines changed** on its branch, `+12 ‒3`: added and removed since the branch left its base,
+  your uncommitted edits to tracked files included (new files git does not track yet are not
+  counted). The base is the pull request's base when there is one, otherwise the repository's
+  default branch, its `origin` copy when there is one, so on `main` the counts are what you have
+  not pushed. The pointer on them names the base. They follow each save within a second or two.
+- **The pull request**, when the branch has one on GitHub: its icon and number, green while open,
+  gray as a draft, in the accent color once merged, red when closed; the pointer gives its state,
+  title and link. Marley asks the GitHub CLI, `gh`, when the branch or its latest commit changes
+  and every two minutes while the window is active. Without `gh` on the PATH Marley started with,
+  logged out of it, or with a remote that is not GitHub, the row shows the counts alone.
+
+Marley reads neither for a repository Zed does not trust yet.
+
 A project header's right-click menu has Move Project Up and Move Project Down. Ctrl+Alt+J closes
 and opens the rail. A rail you close stays closed after a restart, and its width is saved with
 the window; one width holds in both layouts.

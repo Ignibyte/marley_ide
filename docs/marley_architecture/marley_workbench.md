@@ -898,6 +898,32 @@ alike.
   A new session, `end` and `forget` drop it. `stop_kind_shown` gives the rail the mode as a
   `StopKindShown`, and the rail's settings observer refreshes the rows, so a new mode shows at once.
 
+## A project's changed lines and pull request (`src/rail.rs`, `src/github.rs`, #531)
+
+- `GroupEntry` carries `source` (`git_source`: the group's first workspace when its folder is a
+  main checkout, with its branch, `HEAD` and `Repository`) and `git` (`ProjectGit`: the counts
+  with their base, and the `github::PullRequest`), which `note_project_git` fills from the rail's
+  `project_git` each refresh; `render_project_row` draws `ui::DiffStat` and
+  `pull_request_chip` before the attention dot. The data stays out of `marley_rail`'s row model;
+  a read's end calls `cx.notify()` itself.
+- `follow_project_git`, from each refresh and, through the `GitStore` subscription, from each
+  `StatusesChanged` (which marks `git_edited` and rebuilds nothing), schedules a
+  `project_git_run` per trusted project whose branch or `HEAD` moved, whose tracked files
+  changed, or whose pull request was asked about `PULL_REQUEST_EVERY` (two minutes) ago while the
+  window is active; a run in flight keeps the edit mark for the next. The run waits a second,
+  checks trust again, reads `origin`'s GitHub `owner/repo` (`github_repository`, Zed's
+  `parse_git_remote_url` and the provider's name) and `default_branch(true)`, then
+  `read_project_git` in the background: `github::pull_request` when due, and
+  `worktree_git::changed_lines` against its base, else the kept pull request's, else the default.
+  A read that was due to ask counts as asked, whatever it could ask.
+- `github::pull_request` runs `gh pr list --repo=<owner/repo> --head=<branch> --state=all
+  --limit=1 --json=number,state,isDraft,title,url,baseRefName` in the folder, no shell,
+  `GH_PROMPT_DISABLED=1`; a failure is logged once per folder and shows no chip.
+- `worktree_git::changed_lines(folder, base)` refuses a base that could read as an option or holds
+  a space or a control character (a pull request's base came over the network), resolves
+  `origin/<base>` then `<base>`, and sums `git diff --numstat --merge-base <base> --`, binary files
+  counting nothing.
+
 ## Per-turn diffs (`src/turns.rs`, `src/turn_git.rs`, #509)
 
 - `Turns`, a global made at the first write, holds a seat per terminal view whose Claude Code

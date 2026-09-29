@@ -71,6 +71,23 @@
     shell syntax.
 - **Decisions:** D1 to D6 in the spec.
 
+### Changed at promotion (2026-09-29; each item overrides the design below)
+- **Checklist** (no task tool): pre-flight ✓ (no other active pipeline; #522's release install
+  compiling, so no crate edits until it ends); recall ✓; the brain ✓ (nothing on this seam);
+  promoted ✓; the seams re-verified by an Explore agent at 7e92fc9846 ✓.
+- #510 and #560 shipped: worktree rows exist with their drift, and Marley runs its own `git`
+  (`worktree_git`) for repositories Zed trusts. So the counts need no Zed touch: `numstat(folder,
+  base)` in `worktree_git`, `git diff --numstat --merge-base --end-of-options <base> --`.
+- The project row today shows no git at all and `ProjectSnapshot`/`ProjectRow` carry no branch:
+  both gain `git: Option<ProjectGit>` (counts and base, the PR).
+- The reads copy #560's pattern: a run per project folder, a second's debounce, the trust check
+  twice, `default_branch(true)` for a base with its remote, a PR's `baseRefName` first
+  (`origin/<base>`). The rail's `GitStore` subscription skips `StatusesChanged` for its full
+  refresh; a separate arm marks the project's counts stale so edits show without a rail refresh.
+- `gh` is installed here through mise (2.101.0), so a Marley started from the desktop may not find
+  it: no chip, one log line.
+- Worktree rows keep their drift chip; the PR chip on them waits.
+
 ### Design
 - **Zed, `crates/git/src/repository.rs`.** In `trait GitRepository`, beside `diff_stat`:
   `fn diff_stat_merge_base(&self, base_ref: SharedString) -> BoxFuture<'static,
@@ -120,20 +137,9 @@
   keep the method beside `diff_stat`, and drop both if upstream grows a merge-base variant of
   `diff_stat`. At Complete: an AD for the base rule and the `gh` lookup (D2 to D5).
 
-### E2E plan
-| REQ | Scenario part | Shot or log |
-|---|---|---|
-| REQ-001 | setup: `repo` on `main` with `app.txt` (20 lines) and `notes.txt`; `feature/open` commits 12 lines added and 3 removed in `app.txt`; `origin` is `https://github.com/ignibyte-e2e/fixture.git`, never fetched; the stand-in `gh` (a bash script first on Marley's PATH) answers `--head feature/open` with `[{"number":42,"state":"OPEN","isDraft":false,"title":"Add the dashboard","url":"https://github.com/ignibyte-e2e/fixture/pull/42","baseRefName":"main"}]` and appends `printf '%q '` of its arguments to `gh.log`; open on `feature/open`, trust it | `531-01-open-pr`: `+ 12 ‒ 3` and the open chip `#42` on the project row |
-| REQ-002, REQ-003 | type `git switch feature/merged` (5 added, 1 removed; the stand-in says MERGED #41); settle 4 | `531-02-merged` |
-| REQ-002, REQ-003 | `git switch feature/draft` (2 added; #43, `isDraft` true) | `531-03-draft` |
-| REQ-003, REQ-005 | `git switch feature/none` (1 added, 1 removed; the stand-in answers `[]`) | `531-04-no-pr`: the counts, no chip |
-| REQ-004 | `echo more >> notes.txt` (a file no branch changes, so the edit follows every switch); settle 3 | `531-05-edited`: one more added line |
-| REQ-006 | `git switch feature/draft`; the pointer on the chip, a shot; on the counts, a shot | `531-06-tooltips` (two captures: the PR's state, title and URL; "against main") |
-| REQ-005, REQ-007 | `git switch -c 'feature/$(touch${IFS}pwned)'`; the stand-in exits 1 with "not logged in" for that head; settle 4 | `531-07-gh-fails`: counts and no chip, no error on screen; the run log prints `gh.log`'s last line (the name as one quoted argument), the result of looking for a `pwned` file under `$E2E_WORK` and in the directory Marley was started from (none may exist), and Marley.log's one line for the failure |
-
-Not reachable by a scenario: the two-minute refresh (it would lengthen the run by minutes; the
-branch switches drive every lookup here) and a real `gh` against github.com (no network in the
-run, and Chad's account is not the scenario's).
+### For the quality pass
+- No tests (§7, since 2026-09-29): the drafted scenario (a stand-in `gh`, the PR states, a branch
+  switch, an edit, `gh` failing) waits for the quality pass.
 
 ### Risks
 - Sibling tickets drafted the same night touch the project row (their queued specs, 2026-09-25):
@@ -183,3 +189,42 @@ shows the PR at once instead of at the next two-minute lookup (D5).
   echoes `.../pull/42`; the chip appears before any timer would fire) and `531-09-printed-other`
   (`.../pull/7` echoed; the chip still reads #42; the run log's `gh.log` shows one lookup for the
   hint). Worktree rows (#510) take the same hint from their own terminals.
+
+## Phase 2 — Code
+- **Checklist** (no task tool): `worktree_git::changed_lines` ✓; `github.rs` ✓; the rail's group
+  entries, `follow_project_git`, `project_git_run`, `read_project_git`, the `StatusesChanged` arm
+  and the drawing ✓; the review ✓; the gate ✓.
+- **Built as the changes at promotion say**, with the data in the rail's `GroupEntry` rather than
+  `marley_rail`'s `ProjectRow` (whose nine test literals would all have changed), and a read's end
+  calling `cx.notify()`.
+- **Clippy** asked for `github` to be a `pub mod` with `pub(crate)` items (the two visibility lints
+  conflict inside a private module), `try_global` for the hosting registry (`default_global` takes
+  `&mut App`), an `Option<Instant>` for the edit mark (the rail's fourth bool), `git_source` out of
+  `build_snapshot`, `read_project_git` out of `project_git_run` (both past 100 lines), and a
+  borrowed pull request for the chip.
+- **The review**, against each criterion:
+  - REQ-001, REQ-004: the counts are `numstat --merge-base` of the working tree, so uncommitted
+    tracked edits count; a save marks `git_edited` and schedules only this read.
+  - REQ-002, REQ-006: the chip's color by state, and the tooltips (the counts' names the base).
+  - REQ-003: a branch or `HEAD` change is a move, which asks `gh` again and recounts.
+  - REQ-005: `gh` missing or refusing is logged once per folder and leaves no chip.
+  - REQ-007: `gh` gets `--head=<branch>` as one argument through `new_command`, no shell.
+  - **Found and fixed: a read loop.** `asked_at` was set only when `gh` ran, so a project with no
+    GitHub remote, or on no branch, was due again at each read's own refresh, a read a second
+    while the window was active. A read due to ask now counts as asked. F-block below.
+- **The gate:** `just gate-diff` green: 16 passed, 0 failed, `GATE GREEN [diff]`, the receipt
+  written.
+
+---
+## Phase 3 — Complete
+- **Checklist** (no task tool): document ✓; capture knowledge ✓; close the ticket ✓; archive ✓;
+  commit ✓.
+- **Documented:** `CHANGELOG.md`; `docs/marley_architecture/marley_workbench.md` ("A project's
+  changed lines and pull request"); `docs/marley/workbench-shell.md`; `docs/marley/guide.md` (the
+  project header). No Zed path changed.
+- **Knowledge:** F-claude-531-a-project-with-nothing-to-ask-was-read-again-each-second-001,
+  AD-claude-531-a-project-rows-counts-and-pull-request-come-from-marleys-git-and-gh-001.
+- **Brain:** consultation ec57d538c37a434fbcf93561728db0df closed with a decision (follow-up
+  2026-10-29).
+- **Closed:** TICKET-531 moved to `tickets/closed/`; its BACKLOG row went at promotion.
+- **No tests** (§7): the drafted scenario waits for the quality pass.

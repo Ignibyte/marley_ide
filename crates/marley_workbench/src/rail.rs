@@ -50,10 +50,10 @@ use settings::{Settings as _, SystemOneMode};
 use terminal::Terminal;
 use terminal_view::{RenameTerminal, TerminalView, terminal_panel::TerminalPanel};
 use ui::{
-    AgentThreadStatus, CommonAnimationExt as _, ContextMenu, ContextMenuEntry, Disclosure, Divider,
-    HighlightedLabel, Icon, IconButton, IconName, IconSize, Indicator, KeyBinding, Label,
-    LabelSize, PopoverMenu, PopoverMenuHandle, ThreadItem, Tooltip, prelude::*, right_click_menu,
-    utils::platform_title_bar_height,
+    AgentThreadStatus, CommonAnimationExt as _, ContextMenu, ContextMenuEntry, DiffStat,
+    Disclosure, Divider, HighlightedLabel, Icon, IconButton, IconName, IconSize, Indicator,
+    KeyBinding, Label, LabelSize, PopoverMenu, PopoverMenuHandle, ThreadItem, Tooltip, prelude::*,
+    right_click_menu, utils::platform_title_bar_height,
 };
 use util::ResultExt as _;
 use util::path_list::PathList;
@@ -68,6 +68,7 @@ use zed_actions::agents_sidebar::FocusSidebarFilter;
 use crate::agent_events::{self, AgentEvents};
 use crate::agents::{self, AgentIcon};
 use crate::browser::{BrowserEvent, BrowserHub, BrowserView};
+use crate::github::{self, PullRequest, PullRequestState};
 use crate::ports::{self, Ports};
 use crate::system_one::{self, Asking};
 use crate::turns::Turns;
@@ -85,6 +86,10 @@ const MAX_WIDTH: Pixels = px(600.);
 
 /// How long a repository's drift run waits after it is scheduled (#560): an agent commits often.
 const DRIFT_DEBOUNCE: Duration = Duration::from_secs(1);
+
+/// How long a project's pull request state is kept before `gh` is asked again, while the window
+/// is active (#531).
+const PULL_REQUEST_EVERY: Duration = Duration::from_mins(2);
 
 /// How long a worktree's Review waits for the window to open its workspace (#511).
 const REVIEW_WAIT: Duration = Duration::from_secs(30);
@@ -145,6 +150,14 @@ pub struct Rail {
     drift_runs: HashMap<PathBuf, Task<()>>,
     /// The repositories whose git refused `merge-tree --write-tree`, logged once.
     drift_unsupported: HashSet<PathBuf>,
+    /// Each project's changed lines and pull request, by its folder (#531).
+    project_git: HashMap<PathBuf, ProjectGitState>,
+    /// Per project folder: its read, pending or going.
+    project_git_runs: HashMap<PathBuf, Task<()>>,
+    /// When a tracked file last changed, until a read takes it in.
+    git_edited: Option<Instant>,
+    /// The folders whose `gh` failed, logged once.
+    github_failed: HashSet<PathBuf>,
     /// A worktree's Review waiting for the window to open its workspace (#511).
     pending_review: Option<PendingReview>,
     /// The window as the rail last read it. `render` draws from this alone, so another entity's
@@ -209,6 +222,37 @@ struct OpenSwitcher {
 struct GroupEntry {
     key: ProjectGroupKey,
     workspace: WeakEntity<Workspace>,
+    /// The project's checkout, when its folder is a repository's main checkout (#531).
+    source: Option<GitSource>,
+    /// Its branch's changed lines and pull request, as the row shows them (#531).
+    git: Option<ProjectGit>,
+}
+
+/// A project's checkout, which its row's counts and pull request are read for (#531).
+#[derive(Clone)]
+struct GitSource {
+    root: PathBuf,
+    branch: Option<String>,
+    head: Option<String>,
+    repository: WeakEntity<Repository>,
+}
+
+/// A project's branch against its base, and its pull request (#531).
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ProjectGit {
+    /// The base, and the lines added and removed since the branch left it.
+    counts: Option<(String, u32, u32)>,
+    pull_request: Option<PullRequest>,
+}
+
+/// What the rail keeps of a project's git reads, by its folder (#531).
+struct ProjectGitState {
+    /// The branch and `HEAD` it was read for.
+    branch: Option<String>,
+    head: Option<String>,
+    shown: ProjectGit,
+    /// When `gh` was last asked, on the executor's clock.
+    asked_at: Option<Instant>,
 }
 
 /// The entities behind a terminal row, held weakly.
@@ -532,6 +576,10 @@ impl Rail {
             drift: HashMap::default(),
             drift_runs: HashMap::default(),
             drift_unsupported: HashSet::default(),
+            project_git: HashMap::default(),
+            project_git_runs: HashMap::default(),
+            git_edited: None,
+            github_failed: HashSet::default(),
             pending_review: None,
             snapshot: Snapshot::default(),
             zed_sidebar,
@@ -650,6 +698,7 @@ impl Rail {
         self.note_window_row(&snapshot.rail);
         self.note_claude_code(&snapshot.rail, window, cx);
         self.note_drift(&mut snapshot);
+        self.note_project_git(&mut snapshot);
         if self.focus_handle.contains_focused(window, cx) {
             snapshot.rail.focus.cursor.clone_from(&self.cursor);
         }
@@ -660,7 +709,162 @@ impl Rail {
         self.follow_risk(window, cx);
         self.follow_route(window, cx);
         self.follow_drift(window, cx);
+        self.follow_project_git(window, cx);
         self.take_review(window, cx);
+    }
+
+    /// Puts each project's kept changed lines and pull request on its row (#531).
+    fn note_project_git(&self, snapshot: &mut Snapshot) {
+        for group in &mut snapshot.groups {
+            group.git = group
+                .source
+                .as_ref()
+                .and_then(|source| self.project_git.get(&source.root))
+                .map(|state| state.shown.clone());
+        }
+    }
+
+    /// Forgets the projects no longer listed, and while the rail shows, schedules a read for each
+    /// project Zed trusts whose branch or `HEAD` moved, whose tracked files changed, or whose pull
+    /// request was last asked about [`PULL_REQUEST_EVERY`] ago while the window is active (#531).
+    fn follow_project_git(&mut self, window: &Window, cx: &Context<Self>) {
+        let sources: Vec<GitSource> = self
+            .snapshot
+            .groups
+            .iter()
+            .filter_map(|group| group.source.clone())
+            .collect();
+        self.project_git
+            .retain(|root, _| sources.iter().any(|source| source.root == *root));
+        if !self.watching_ports {
+            return;
+        }
+        let edited = self.git_edited.take();
+        let edits = edited.is_some();
+        let now = cx.background_executor().now();
+        let active = window.is_window_active();
+        for source in sources {
+            if self.project_git_runs.contains_key(&source.root) {
+                // The run in flight may have read before the edit.
+                self.git_edited = self.git_edited.or(edited);
+                continue;
+            }
+            let trusted = source
+                .repository
+                .upgrade()
+                .is_some_and(|repository| repository.read(cx).is_trusted());
+            if !trusted {
+                continue;
+            }
+            let state = self.project_git.get(&source.root);
+            let moved = state
+                .is_none_or(|state| state.branch != source.branch || state.head != source.head);
+            let ask = moved
+                || (active
+                    && state
+                        .and_then(|state| state.asked_at)
+                        .is_none_or(|at| now.saturating_duration_since(at) >= PULL_REQUEST_EVERY));
+            if moved || ask || edits {
+                let root = source.root.clone();
+                let run = Self::project_git_run(source, ask, window, cx);
+                self.project_git_runs.insert(root, run);
+            }
+        }
+    }
+
+    /// A project's read (#531). A second after it is scheduled: when `ask`, its pull request from
+    /// `gh` (GitHub remotes only), else the one kept; then its lines changed against the pull
+    /// request's base, else the repository's default branch; the rail keeps both and redraws.
+    fn project_git_run(
+        source: GitSource,
+        ask: bool,
+        window: &Window,
+        cx: &Context<Self>,
+    ) -> Task<()> {
+        let debounce = cx.background_executor().timer(DRIFT_DEBOUNCE);
+        cx.spawn_in(window, async move |rail, cx| {
+            debounce.await;
+            let asked = rail.update(cx, |rail, cx| {
+                let repository = source
+                    .repository
+                    .upgrade()
+                    .filter(|repository| repository.read(cx).is_trusted())?;
+                let github = ask.then(|| github_repository(&repository, cx)).flatten();
+                let kept = rail
+                    .project_git
+                    .get(&source.root)
+                    .and_then(|state| state.shown.pull_request.clone());
+                let default =
+                    repository.update(cx, |repository, _| repository.default_branch(true));
+                Some((github, kept, default))
+            });
+            let Ok(Some((github, kept, default))) = asked else {
+                rail.update(cx, |rail, _| rail.project_git_runs.remove(&source.root))
+                    .log_err();
+                return;
+            };
+            let default = default
+                .await
+                .ok()
+                .and_then(util::ResultExt::log_err)
+                .flatten()
+                .map(|default| default.to_string());
+            let (asked, counts) = cx
+                .background_spawn({
+                    let (root, branch) = (source.root.clone(), source.branch.clone());
+                    let github = github.filter(|_| ask);
+                    async move { read_project_git(&root, branch, github, kept, default).await }
+                })
+                .await;
+            rail.update_in(cx, |rail, window, cx| {
+                rail.project_git_runs.remove(&source.root);
+                let previous = rail.project_git.get(&source.root);
+                // A read due to ask counts as asked even when there was nothing to ask (no GitHub
+                // remote, no branch), or the next refresh would schedule another at once.
+                let asked_at = if ask {
+                    Some(cx.background_executor().now())
+                } else {
+                    previous.and_then(|state| state.asked_at)
+                };
+                let mut pull_request = previous.and_then(|state| state.shown.pull_request.clone());
+                match asked {
+                    Some(Ok(found)) => {
+                        pull_request = found;
+                    }
+                    Some(Err(error)) => {
+                        pull_request = None;
+                        if rail.github_failed.insert(source.root.clone()) {
+                            log::warn!(
+                                "no pull request state for {}: {error:#}",
+                                source.root.display()
+                            );
+                        }
+                    }
+                    None => {}
+                }
+                let counts = counts
+                    .map_err(|error| {
+                        log::warn!("no changed lines for {}: {error:#}", source.root.display());
+                    })
+                    .ok()
+                    .flatten();
+                rail.project_git.insert(
+                    source.root.clone(),
+                    ProjectGitState {
+                        branch: source.branch.clone(),
+                        head: source.head.clone(),
+                        shown: ProjectGit {
+                            counts,
+                            pull_request,
+                        },
+                        asked_at,
+                    },
+                );
+                rail.refresh(window, cx);
+                cx.notify();
+            })
+            .log_err();
+        })
     }
 
     /// Puts each worktree's kept drift on its row (#560). A drift read for tips that have moved
@@ -1595,9 +1799,18 @@ impl Rail {
             cx.subscribe_in(
                 &git_store,
                 window,
-                |_, _, event: &GitStoreEvent, window, cx| {
+                |rail, _, event: &GitStoreEvent, window, cx| {
                     if changes_the_worktrees(event) {
                         cx.defer_in(window, Self::refresh);
+                    } else if matches!(
+                        event,
+                        GitStoreEvent::RepositoryUpdated(_, RepositoryEvent::StatusesChanged, _)
+                    ) {
+                        // A save changes the counts but no row, so no rebuild (#531).
+                        rail.git_edited = Some(cx.background_executor().now());
+                        cx.defer_in(window, |rail, window, cx| {
+                            rail.follow_project_git(window, cx);
+                        });
                     }
                 },
             ),
@@ -2864,6 +3077,24 @@ impl Rail {
                 h_flex()
                     .flex_none()
                     .gap_1()
+                    .children(group.git.as_ref().and_then(|git| git.counts.clone()).map(
+                        |(base, added, removed)| {
+                            DiffStat::new(
+                                ("marley-rail-project-lines", id),
+                                added as usize,
+                                removed as usize,
+                            )
+                            .label_size(LabelSize::XSmall)
+                            .tooltip(format!("Lines changed since the branch left {base}"))
+                        },
+                    ))
+                    .children(
+                        group
+                            .git
+                            .as_ref()
+                            .and_then(|git| git.pull_request.as_ref())
+                            .map(|found| pull_request_chip(id, found)),
+                    )
                     .when(row.attention, |slot| {
                         slot.child(
                             div()
@@ -4661,6 +4892,8 @@ fn build_snapshot(
         snapshot.groups.push(GroupEntry {
             key: group.key.clone(),
             workspace: workspace.downgrade(),
+            source: git_source(&workspace, cx),
+            git: None,
         });
     }
     snapshot.rail.filtering = !filter.is_empty();
@@ -4810,6 +5043,90 @@ fn member_git(member: &Entity<Workspace>, cx: &App) -> Option<MemberGit> {
         repository: repository.downgrade(),
         others: snapshot.linked_worktrees().to_vec(),
     })
+}
+
+/// A project's pull request as its row shows it: GitHub's pull request icon and its number, in
+/// its state's color, with the state, title and link in the tooltip (#531).
+fn pull_request_chip(id: EntityId, found: &PullRequest) -> impl IntoElement {
+    let color = match found.state {
+        PullRequestState::Open => Color::Success,
+        PullRequestState::Draft => Color::Muted,
+        PullRequestState::Merged => Color::Accent,
+        PullRequestState::Closed => Color::Error,
+    };
+    let tooltip = format!(
+        "{} pull request #{}: {}\n{}",
+        found.state.words(),
+        found.number,
+        found.title,
+        found.url
+    );
+    h_flex()
+        .id(("marley-rail-pull-request", id))
+        .gap_0p5()
+        .child(
+            Icon::new(IconName::PullRequest)
+                .size(IconSize::XSmall)
+                .color(color),
+        )
+        .child(
+            Label::new(format!("#{}", found.number))
+                .size(LabelSize::XSmall)
+                .color(color),
+        )
+        .tooltip(Tooltip::text(tooltip))
+}
+
+/// A project's read off the main thread (#531): its branch's pull request from `gh` when `github`
+/// names its repository, then its lines changed against that pull request's base, else `kept`'s,
+/// else `default`.
+async fn read_project_git(
+    root: &Path,
+    branch: Option<String>,
+    github: Option<String>,
+    kept: Option<PullRequest>,
+    default: Option<String>,
+) -> (
+    Option<anyhow::Result<Option<PullRequest>>>,
+    anyhow::Result<Option<(String, u32, u32)>>,
+) {
+    let asked = match (github, branch) {
+        (Some(repository), Some(branch)) => {
+            Some(github::pull_request(root, &repository, &branch).await)
+        }
+        _ => None,
+    };
+    let pull_request = match &asked {
+        Some(Ok(found)) => found.clone(),
+        _ => kept,
+    };
+    let base = pull_request.map(|found| found.base).or(default);
+    let counts = match base {
+        Some(base) => worktree_git::changed_lines(root, &base).await,
+        None => Ok(None),
+    };
+    (asked, counts)
+}
+
+/// The checkout of a project whose folder is a repository's main checkout, which its row's
+/// counts and pull request are read for (#531).
+fn git_source(workspace: &Entity<Workspace>, cx: &App) -> Option<GitSource> {
+    member_git(workspace, cx)
+        .filter(|git| !git.linked)
+        .map(|git| GitSource {
+            root: git.root,
+            branch: git.branch,
+            head: git.head,
+            repository: git.repository,
+        })
+}
+
+/// The `owner/repo` of `repository`'s `origin` on GitHub, none for another host.
+fn github_repository(repository: &Entity<Repository>, cx: &App) -> Option<String> {
+    let url = repository.read(cx).remote_origin_url.clone()?;
+    let registry = git::GitHostingProviderRegistry::try_global(cx)?;
+    let (provider, parsed) = git::parse_git_remote_url(registry, &url)?;
+    (provider.name() == "GitHub").then(|| format!("{}/{}", parsed.owner, parsed.repo))
 }
 
 /// A commit's first seven characters, as git abbreviates one.

@@ -13,6 +13,19 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A project's changed lines and pull request on its rail row** (#531, 2026-09-29). A project
+  whose folder is a repository's main checkout shows, at the right of its row, the lines added and
+  removed since its branch left its base (`+12 ‒3`, uncommitted edits to tracked files included),
+  and when the branch has a pull request on GitHub, a chip with the pull request icon and its
+  number, green while open, gray as a draft, in the accent color once merged and red when closed;
+  its tooltip gives the state, the title and the link. The base is the pull request's base,
+  otherwise the repository's default branch (its `origin` copy when there is one, so a project on
+  its default branch counts what it has not pushed). The counts follow each save, the branch and
+  its commits within a second or two; `gh pr list` is asked when the branch or its `HEAD` moves
+  and every two minutes while the window is active. Without `gh`, logged out, or with a remote
+  that is not GitHub, the row shows the counts alone and the log one line. Only repositories Zed
+  trusts are read.
+
 - **Review notes to a terminal agent** (#522, 2026-09-29). Zed's project and branch diffs now offer
   Add Review in the gutter of a changed line (its feature flag is on for everyone), and their
   Send Review to Agent (N) works: it opens a picker of the agent terminals whose folder holds
