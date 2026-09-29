@@ -3138,17 +3138,23 @@ impl Rail {
                 h_flex()
                     .flex_none()
                     .gap_1()
-                    .children(group.git.as_ref().and_then(|git| git.counts.clone()).map(
-                        |(base, added, removed)| {
-                            DiffStat::new(
-                                ("marley-rail-project-lines", id),
-                                added as usize,
-                                removed as usize,
-                            )
-                            .label_size(LabelSize::XSmall)
-                            .tooltip(format!("Lines changed since the branch left {base}"))
-                        },
-                    ))
+                    .children(
+                        group
+                            .git
+                            .as_ref()
+                            .and_then(|git| git.counts.clone())
+                            // A branch with nothing changed shows no counts, not `+0 −0`.
+                            .filter(|(_, added, removed)| added + removed > 0)
+                            .map(|(base, added, removed)| {
+                                DiffStat::new(
+                                    ("marley-rail-project-lines", id),
+                                    added as usize,
+                                    removed as usize,
+                                )
+                                .label_size(LabelSize::XSmall)
+                                .tooltip(format!("Lines changed since the branch left {base}"))
+                            }),
+                    )
                     .children(
                         group
                             .git

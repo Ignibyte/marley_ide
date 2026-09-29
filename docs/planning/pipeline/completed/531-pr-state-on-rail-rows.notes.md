@@ -228,3 +228,25 @@ shows the PR at once instead of at the next two-minute lookup (D5).
   2026-10-29).
 - **Closed:** TICKET-531 moved to `tickets/closed/`; its BACKLOG row went at promotion.
 - **No tests** (§7): the drafted scenario waits for the quality pass.
+
+---
+## Phase 3 — Test (the visual check, after the fact)
+- **Why after:** #531 shipped on 2026-09-29 while the workflow had no visual check; Chad brought it
+  back the same day (7e589cb0a1).
+- **The scenario:** `script/e2e/531-pr-state-on-rail-rows.sh`, `compositor sway`: a repository
+  whose `origin` is `https://github.com/example/demo.git`, on `feature` with a commit adding two
+  lines and an edit not committed; a stand-in `gh` named in `MARLEY_GH` that answers an open pull
+  request #42 based on `main` for `feature` and none for any other branch. Two runs.
+- **The shots, read (the project row cropped):** `531-01-counts-and-chip`: `+3 −1` and the green
+  pull request icon with `#42`; `531-02-edited`: `+5 −1` after two more lines were written, a few
+  seconds later; `531-03-no-pr`: on a branch from `main` with nothing changed, no counts and no
+  chip. Both checks pass: `gh` was asked with `--repo=example/demo --head=feature --state=all`,
+  and again with `--head=quiet` after the switch.
+- **Found and fixed:**
+  - A project with nothing changed showed `+0 −0` (seen in #589's check): the counts now show only
+    when a line changed.
+  - The first run's stand-in `gh`, first on the scenario's PATH, was not the one Marley ran:
+    Marley takes its PATH from the user's login shell at start, which put the user's own `gh`
+    first, so one read-only `gh pr list` went to GitHub for the made-up `example/demo`. `github.rs`
+    now honors `MARLEY_GH`, as `worktree_git` honors `MARLEY_GIT`, and the scenario names its
+    stand-in there. L-block below.

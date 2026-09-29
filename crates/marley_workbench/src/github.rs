@@ -10,6 +10,10 @@ use std::path::Path;
 use anyhow::Context as _;
 use serde::Deserialize;
 
+/// The variable that names the `gh` this runs, for scenarios, as `MARLEY_GIT` names git: Marley
+/// takes its PATH from the user's login shell, so a stand-in first on the PATH may not be first.
+const GH_OVERRIDE: &str = "MARLEY_GH";
+
 /// A branch's pull request, as the rail's chip shows it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PullRequest {
@@ -66,7 +70,8 @@ pub(crate) async fn pull_request(
     owner_repo: &str,
     branch: &str,
 ) -> anyhow::Result<Option<PullRequest>> {
-    let output = util::command::new_command("gh")
+    let program = std::env::var(GH_OVERRIDE).unwrap_or_else(|_| "gh".to_string());
+    let output = util::command::new_command(program)
         .current_dir(folder)
         .args([
             "pr",

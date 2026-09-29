@@ -59,7 +59,8 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   number, green while open, gray as a draft, in the accent color once merged and red when closed;
   its tooltip gives the state, the title and the link. The base is the pull request's base,
   otherwise the repository's default branch (its `origin` copy when there is one, so a project on
-  its default branch counts what it has not pushed). The counts follow each save, the branch and
+  its default branch counts what it has not pushed; a branch with nothing changed shows none). The
+  counts follow each save, the branch and
   its commits within a second or two; `gh pr list` is asked when the branch or its `HEAD` moves
   and every two minutes while the window is active. Without `gh`, logged out, or with a remote
   that is not GitHub, the row shows the counts alone and the log one line. Only repositories Zed

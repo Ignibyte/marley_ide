@@ -3738,3 +3738,12 @@ Zed's worktree service names each worktree at random, so a row's place moves fro
 scenario that clicks a worktree's row, or an agent's row under it, works out its place from the
 worktrees' folders (sorted as git sorts them, `LC_ALL=C sort`), each open worktree taking its row
 and its agent's row, instead of a place measured once.
+
+## L-claude-531-marley-takes-its-path-from-the-login-shell-so-stand-ins-are-named-001
+*category: e2e · topic: stand-in programs for Marley itself · from: #531's visual check*
+
+At start Marley loads the user's login shell environment and uses its PATH, so a stand-in the
+scenario puts first on its own PATH can lose to the user's real program: #531's first run reached
+the real `gh`, which asked GitHub about a made-up repository. A program Marley itself runs (not
+one a terminal's shell runs, whose PATH the scenario's `.bashrc` sets) gets an override variable
+Marley reads, `MARLEY_GIT`, `MARLEY_CLAUDE`, `MARLEY_GH`, and the scenario names its stand-in there.
