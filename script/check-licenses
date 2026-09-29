@@ -76,6 +76,12 @@ check_license () {
 check_no_agpl_license_file
 
 git ls-files -z -- "Cargo.toml" "**/Cargo.toml" | while IFS= read -r -d '' cargo_toml; do
+    # Marley: the crates under vendor/ are third-party ones Marley patches and carries, and keep
+    # their own license files (#446).
+    if [[ "$cargo_toml" == vendor/* ]]; then
+        continue
+    fi
+
     check_manifest_for_agpl "$cargo_toml"
 
     if [[ "$cargo_toml" == */Cargo.toml ]]; then

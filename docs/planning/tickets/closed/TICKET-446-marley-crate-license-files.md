@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #446 (chore, licensing)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet (not specced)
+- **Pipeline doc:** ../../pipeline/completed/446-marley-crate-license-files.spec.md
 - **Source ticket:** the #438 inspect ledger (`../../pipeline/completed/438-marley-layout-and-rail.notes.md`)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Every Marley crate declares `license = "MIT OR Apache-2.0"`, but none carries a license file,

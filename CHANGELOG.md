@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **License files for the Marley crates** (#446, 2026-09-28). Each `crates/marley_*` now holds
+  `LICENSE-MIT`, the MIT text under `Copyright (c) 2026 Ignibyte`, and `LICENSE-APACHE`, a link
+  to the Apache-2.0 text at the repository's root, as its `license = "MIT OR Apache-2.0"` says.
+  Zed's `script/check-licenses` passes over the tree again: it skips the third-party crates under
+  `vendor/`, which keep their own license files. The README's Licensing section says who holds
+  the Marley crates' copyright.
+
 - **Claude Code's trust question in a new worktree, brought to you** (#587, 2026-09-28). Claude
   Code asks whether to trust a folder for a repository it has not trusted yet, and a worktree
   agent's workspace opens in the background, so the question would wait unseen. For a minute

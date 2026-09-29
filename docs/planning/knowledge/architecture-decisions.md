@@ -2839,3 +2839,18 @@ worktree's folder. It never writes Claude Code's own record. Rejected:
 - pressing Enter: since 2.1.263 the focus starts on "No, exit";
 - the inbox (#508): its terminal entries need the plugin's events, which wait for the answer;
 - a headless Claude Code (`-p`, the SDK, ACP), which has no dialog and no trust gate at all.
+
+## AD-claude-446-the-marley-crates-carry-their-own-mit-file-and-zeds-apache-link-001
+*decided at: 2026-09-28 · status: shipped*
+
+Each Marley crate carries `LICENSE-MIT`, a file of its own with the MIT text under `Copyright (c)
+2026 Ignibyte` (Chad's holder, 2026-09-28), and `LICENSE-APACHE`, a symlink to the root's, the
+form Zed's `script/check-licenses` demands and Zed's Apache crates use. The README's Licensing
+section says the Marley crates' holder, and that the root Apache text's first line is Zed's
+notice for Zed's code. The check skips `vendor/`, whose third-party crates keep their own license
+files. Rejected:
+- a root `LICENSE-MIT`, which would read as the tree's license;
+- a Marley copy of the Apache text without Zed's line, which the check refuses (it wants a
+  symlink to the root file);
+- a symlink in place of `vendor/alacritty_terminal`'s own license file, which would put Zed's
+  notice on alacritty's code.

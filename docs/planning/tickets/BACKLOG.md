@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-446](open/TICKET-446-marley-crate-license-files.md) | chore | licensing: `LICENSE-APACHE` and `LICENSE-MIT` (`Copyright (c) 2026 Ignibyte`, Chad 2026-09-28) in every Marley crate, so Zed's `script/check-licenses` passes |
 | [TICKET-586](open/TICKET-586-file-pages-in-the-browser-tab.md) | feature | prong 3 · a program's `file://` pages (`cargo doc --open`, coverage) open in its project's Browser tab, Chad 2026-09-28; after #561 |
 | [TICKET-511](open/TICKET-511-review-and-merge-a-worktree.md) | feature | prong 2 · review a worktree agent's branch and merge it, deferring to the Rustal workflow where it runs |
 | [TICKET-585](open/TICKET-585-worktree-environment.md) | feature | prong 2 · the worktree's environment: its `.worktreeinclude`d gitignored files, a port offset, the hook tasks' paths, a suggested setup command; after #510 |

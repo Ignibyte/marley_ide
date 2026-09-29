@@ -3681,3 +3681,13 @@ A scenario that writes a fake from a template with `sed -e "s|@NAME@|value|"` re
 first `@NAME@` of each line. A Python line such as `open("@NAME@") if os.path.exists("@NAME@")`
 then checks a file literally named `@NAME@`, and the fake acts as if its file were missing. Give
 each substitution `g`, and have the fake log what it read.
+
+## L-claude-446-zeds-license-check-wants-a-symlink-in-every-crate-001
+*category: process · topic: licensing · from: pipeline 446*
+
+`script/check-licenses`, which Zed's CI runs, walks every `Cargo.toml` that git tracks and wants
+its folder to hold a `LICENSE-GPL` or `LICENSE-APACHE` symlink to the root file, at `../` per
+level. A regular file of either name is an error, and so are a `license-file` key and any AGPL. It
+stops at the first error and never reads a `LICENSE-MIT`. A new Marley crate gets
+`LICENSE-APACHE -> ../../LICENSE-APACHE` and a copy of a Marley crate's `LICENSE-MIT`. A crate
+vendored under `vendor/` is skipped, and keeps its own license file.

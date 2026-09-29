@@ -41,6 +41,8 @@ Also... we're hiring! Check out our [jobs](https://zed.dev/jobs) page for open r
 
 Zed source code is licensed primarily under GPL-3.0-or-later, with Apache-2.0 components where marked.
 
+Marley's own crates, `crates/marley_*`, are Copyright (c) 2026 Ignibyte and licensed under the MIT license or the Apache License, Version 2.0, at your option. Each holds `LICENSE-MIT`, with that notice, and `LICENSE-APACHE`, a link to the Apache-2.0 text at the root of the repository, which Zed's Apache-licensed crates share and whose first line is Zed's notice for Zed's code. The crates under `vendor/` are third-party and keep their own licenses.
+
 License information for third party dependencies must be correctly provided for CI to pass.
 
 We use [`cargo-about`](https://github.com/EmbarkStudios/cargo-about) to automatically comply with open source licenses. If CI is failing, check the following:
