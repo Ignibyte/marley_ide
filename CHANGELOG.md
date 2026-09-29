@@ -1018,6 +1018,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Allow and Deny sit clear of the toast** (#593, 2026-09-29). When an agent asked to type into a
+  running program, the toast that announced it covered Allow and Deny at the right end of the
+  card under the terminal, so a click there hit the toast and the write ran out its 25 seconds.
+  The card now puts Allow and Deny first, at the terminal's left edge.
 - **A launch config's approval shows exactly what runs** (#592, 2026-09-29). The question a
   project's launch config asks before it first runs put every item on one line, showed `--` as
   a dash and curled the quotes, because Zed's prompt reads its text as Markdown. A command could

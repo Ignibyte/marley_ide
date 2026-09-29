@@ -821,7 +821,8 @@ alike.
   the generation is the same and no one took over. `write` pastes the text (`Terminal::paste`),
   sends each key (`Keystroke::parse`, `Terminal::try_keystroke`) and `\r`, and keeps the last write.
 - `footer`, called from `agent_bar`'s footer for a terminal with no agent CLI in front: the card
-  (the caller, the program, what it would type; Deny, Allow) or the bar (who typed what; Take Over,
+  (Allow and Deny first, since the toast stacks over the footer's right end (#593); then the
+  caller, the program, what it would type) or the bar (who typed what; Take Over,
   or "You have control" and Hand Back). `marley::TakeOverTerminal` (Ctrl-I in `Terminal`) toggles
   the take-over, advancing the generation, while an agent has typed into the focused terminal's
   program, and otherwise propagates so the key reaches the program.

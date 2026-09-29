@@ -2722,3 +2722,13 @@ title in curly quotes. The text comes from the repository and the question is it
 so a command could also have hidden part of itself as markup, an HTML comment or emphasis.
 Fixed in #592: `launch::verbatim` puts the text in a fenced code block, the fence one backtick
 longer than any run inside; the approval's hash still covers the plain text.
+
+## F-claude-593-the-write-toast-covered-the-cards-allow-and-deny-001
+*severity: high · found in: #525's visual check, after the fact (shot 525-02-ask) · class: a control at the bottom right of a view, under Zed's toast stack · prevented by: the visual check with the toast up while the control is clicked*
+
+#525's card for a write waiting on the user put its text, a spacer, then Deny and Allow, so the
+buttons sat at the terminal footer's right end. The same write shows a toast, and Zed stacks
+toasts at the workspace's bottom right: over those buttons whenever the terminal fills the
+center. The scenario's click on Allow hit the toast, and the write was refused after 25 seconds;
+a user would have had to close the toast first. #525's review never placed the two together.
+Fixed in #593: Allow, Deny, then the text, so the buttons sit at the footer's left end.

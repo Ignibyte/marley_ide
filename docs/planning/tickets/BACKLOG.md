@@ -10,6 +10,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
+| [TICKET-594](open/TICKET-594-enter-after-an-agents-paste.md) | bug | prong 1 · an agent's Enter after its paste runs the line; found in #525's visual check |
 | [TICKET-554](open/TICKET-554-block-selection-and-menu.md) | feature | prong 1 T1 · a selected block and the block menu: Copy Command, Both, as Markdown, Reinput, Reinput with sudo |
 | [TICKET-555](open/TICKET-555-send-a-block-to-the-agent.md) | feature | prong 2 with prong 1 · a block sent into a terminal agent's prompt, and Ask the agent under a failed block; after #549 and #554 |
 | [TICKET-528](open/TICKET-528-block-filter.md) | feature | prong 1 T1 · filter a block's output |

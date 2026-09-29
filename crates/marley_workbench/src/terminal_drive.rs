@@ -513,18 +513,18 @@ pub(crate) fn footer(context: &MarleyFooterContext, cx: &App) -> Option<AnyEleme
         .border_color(colors.border_variant)
         .bg(colors.terminal_background);
     if let Some(pending) = &drive.pending {
+        // The buttons lead the row: the write's toast stacks at the workspace's bottom right,
+        // over the right end of a terminal's footer (#593).
         return Some(
             bar.debug_selector(|| "marley-terminal-write-card".into())
                 .child(
-                    Label::new(format!(
-                        "{} wants to type into {}: {}",
-                        pending.who, pending.program, pending.text
-                    ))
-                    .size(LabelSize::Small)
-                    .color(Color::Warning)
-                    .truncate(),
+                    Button::new(("marley-terminal-write-allow", id.as_u64()), "Allow")
+                        .style(ButtonStyle::Filled)
+                        .on_click(move |_, _, cx| {
+                            cx.stop_propagation();
+                            answer(id, true, cx);
+                        }),
                 )
-                .child(div().flex_1())
                 .child(
                     Button::new(("marley-terminal-write-deny", id.as_u64()), "Deny")
                         .style(ButtonStyle::Subtle)
@@ -534,12 +534,13 @@ pub(crate) fn footer(context: &MarleyFooterContext, cx: &App) -> Option<AnyEleme
                         }),
                 )
                 .child(
-                    Button::new(("marley-terminal-write-allow", id.as_u64()), "Allow")
-                        .style(ButtonStyle::Filled)
-                        .on_click(move |_, _, cx| {
-                            cx.stop_propagation();
-                            answer(id, true, cx);
-                        }),
+                    Label::new(format!(
+                        "{} wants to type into {}: {}",
+                        pending.who, pending.program, pending.text
+                    ))
+                    .size(LabelSize::Small)
+                    .color(Color::Warning)
+                    .truncate(),
                 )
                 .into_any_element(),
         );
