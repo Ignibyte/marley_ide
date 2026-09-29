@@ -1546,6 +1546,14 @@ alike.
 - `browser_tools::find_query` checks `query` (200 characters), and `found_text` writes an answer
   as text: the item to act on or why there is none, the candidates, the note, and where to read.
 
+## The last session's terminal size (`src/terminal_size.rs`, #486)
+
+- `init` reads the `TerminalBounds` kept in the key-value store (scope `marley-terminal-size`,
+  key `last`, as JSON) and hands them to `terminal::marley_seed_last_bounds`, which fills #485's
+  slot only while no view has laid out a size this launch, so a launch's first terminals open at
+  the last session's size and their shells lay a wide prompt out for it. An `on_app_quit` future
+  writes `terminal::marley_last_bounds()` back; a crash leaves the last clean quit's size.
+
 ## Terminal ids across a restore (`src/terminal_ids.rs`, #575)
 
 - `init` reads `MarleyTerminalIdsDb`'s table, `marley_terminal_ids(workspace_id, item_id,

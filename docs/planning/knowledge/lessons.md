@@ -3931,3 +3931,11 @@ gave the client) with a random token, so a refused token cannot be told from a g
 a stand-in launcher needs a click on its window first. Tokens expire (wlroots: 30 s), so ask for one
 just before it is used, and sway acts on a valid one only as `focus_on_window_activation` says (the
 default `urgent` marks the window urgent; `smart` focuses it on a visible workspace).
+
+## L-claude-486-the-first-terminal-bug-shows-on-hyprland-not-sway-001
+*category: e2e · topic: a check that depends on startup timing · from: #486*
+
+A bug that depends on whether a terminal's view lays out before its shell starts readline shows on
+Hyprland's hidden workspace and not in the headless sway, where the first view lays out sooner.
+Before a check's shots are trusted, see the bug on the backend the check uses: a run that is green
+before the fix proves nothing.

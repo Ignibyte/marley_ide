@@ -711,6 +711,21 @@ const DEBUG_LINE_HEIGHT: Pixels = px(5.);
 static MARLEY_LAST_BOUNDS: parking_lot::Mutex<Option<TerminalBounds>> =
     parking_lot::Mutex::new(None);
 
+/// Marley: the size the last terminal view gave its PTY, which Marley keeps for the next
+/// launch (#486).
+pub fn marley_last_bounds() -> Option<TerminalBounds> {
+    *MARLEY_LAST_BOUNDS.lock()
+}
+
+/// Marley: the size a terminal opens at until a view lays one out this launch: the last
+/// session's, so a launch's first terminals open at it too (#486).
+pub fn marley_seed_last_bounds(bounds: TerminalBounds) {
+    let mut last = MARLEY_LAST_BOUNDS.lock();
+    if last.is_none() {
+        *last = Some(bounds);
+    }
+}
+
 /// Inserts Zed-specific environment variables for terminal sessions.
 /// Used by both local terminals and remote terminals (via SSH).
 pub fn insert_zed_terminal_env(

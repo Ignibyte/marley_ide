@@ -68,6 +68,7 @@ pub mod sticky_header;
 pub mod system_one;
 pub mod terminal_drive;
 pub mod terminal_ids;
+pub mod terminal_size;
 pub mod turn_git;
 pub mod turns;
 pub mod voice;
@@ -578,6 +579,7 @@ pub fn init(cx: &mut App) {
     notifications::init(cx);
     close_guard::init(cx);
     terminal_ids::init(cx);
+    terminal_size::init(cx);
     voice::init(cx);
     rich_input::init(cx);
     send_selection::init(cx);

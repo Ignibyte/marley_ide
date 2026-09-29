@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #486 (bug, prong 1: T0)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** (minted at promotion)
+- **Pipeline doc:** ../../pipeline/completed/486-keep-the-terminal-size-across-launches.spec.md
 - **Source ticket:** TICKET-485's known limit
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Since #485 a terminal opens at the size the last terminal view laid out, so its shell lays its

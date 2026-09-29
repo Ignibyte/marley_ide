@@ -89,6 +89,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A launch's first terminals at the last session's size** (#486, 2026-09-29). Marley keeps the
+  size its terminals last had when it quits and opens the next launch's first terminals at it, so a
+  multi-line prompt wider than 100 columns (starship's, for one) is drawn right from the first
+  prompt instead of misdrawn until the next.
+
 - **The e2e runner after its compositor exits** (#588, 2026-09-29). When a run's headless sway
   exits before the scenario ends, the runner says so with sway's exit status and fails the run,
   still copies Marley's log beside the shots, and stops the run's Marley, pointer helper, key
