@@ -161,6 +161,9 @@ real, reusable session. The Block model is the unit the **brain** later observes
   the first history command, newest first, that starts with the typed text and stays on one
   line, and `parse_history`, bash's lines without their `#<seconds>` lines and zsh's extended
   `: <seconds>:<elapsed>;` lines with backslash continuations joined.
+  `filter.rs` (#528) filters a block's output lines: `filter_lines(output, &FilterQuery)` with
+  text or a regex (`regex`), case ignored unless asked, invert, and context with a `Gap` between
+  groups, grep's meanings; nothing in the grid changes.
   `AnchoredBlock::markdown(output, took)` (#554) writes a block for a note or a message: a fence
   one backtick longer than any run inside, `$ ` and the command, the output or a line saying it
   is gone (no line at all for empty output, #555), then `exit N · took · folder (branch)`.

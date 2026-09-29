@@ -1,7 +1,7 @@
 ---
 pipeline_id: 0d108a4b-f739-47c2-8fb9-5e5e107bb6db
-ticket: docs/planning/tickets/open/TICKET-528-block-filter.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-528-block-filter.md
+status: Phase 4 — Complete PASS
 title: "Filter a block's output"
 type: feature
 slice: prong 1 T1 (stage-one block actions; Warp once-over item 5), the overlay first
@@ -41,8 +41,8 @@ the block's output and lists what matches, and the terminal's own rows stay as t
 - Filtering the terminal's rows in place, with the other blocks around the filtered one: it needs
   stage two's display-row map (T5), as the once-over notes.
 - The block's colors in the kept lines (the list is the block's text).
-- Filtering a block chosen by keyboard (stage one has no selected block, AD-claude-473), and a
-  block context menu with "Toggle Block Filter".
+- A "Toggle Block Filter" item in #554's Block menu: the scenarios of #554 and #555 choose that
+  section's items by their place from its end, and the key and the button cover the need.
 - Filters kept across restarts, and a filter over several blocks.
 
 ## Reference (§20)
@@ -100,8 +100,8 @@ seconds apart (`528-11-running-a`, `528-11-running-b`).
 - D3 — Per-line matching with the `regex` crate: a plain query escaped, case ignored by default,
   and invert and context in grep's meanings.
 - D4 — Alt+Shift+F, Warp's key on Linux, which Zed's Linux keymap leaves unbound; it filters the
-  newest block in view, since stage one has no selected block (AD-claude-473). The hover button
-  filters the block under the pointer.
+  selected block (#554) when one is selected, else the newest block in view. The hover button
+  filters the block under the pointer. (At promotion, 2026-09-29: #554 shipped a selected block.)
 - D5 — The query and toggles are kept per terminal for the session, as Warp keeps a filter that was
   toggled off.
 - D6 — Marley's code in `marley_workbench`: Zed's terminal view gains only two hooks, the overlay
@@ -113,7 +113,7 @@ seconds apart (`528-11-running-a`, `528-11-running-b`).
 
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
-| REQ-001 | WHEN the user presses Alt+Shift+F in a terminal, the system shall open the filter over the terminal for the newest block in view, with the query field focused and the block's lines listed with their count. | Shot `528-01-open` |
+| REQ-001 | WHEN the user presses Alt+Shift+F in a terminal, the system shall open the filter over the terminal for the selected block, or with none selected the newest block in view, with the query field focused and the block's lines listed with their count. | Shot `528-01-open` |
 | REQ-002 | WHEN the user clicks a hovered block's Filter button, the system shall open the filter for that block. | Shot `528-10-button` |
 | REQ-003 | WHILE a query is typed, the filter shall list only the block's lines that contain it, ignoring case, and say how many of the block's lines it shows. | Shot `528-02-text` |
 | REQ-004 | WHEN case sensitivity is on, the filter shall keep only lines that match the query's case. | Shot `528-03-case` |

@@ -203,6 +203,22 @@ pub struct MarleyBlockChip(
 
 impl gpui::Global for MarleyBlockChip {}
 
+// Marley: an element drawn over the terminal's grid, such as a block's filter, or none; Marley's
+// workbench sets it (#528).
+#[derive(Clone)]
+pub struct MarleyTerminalOverlay(
+    pub Arc<dyn Fn(&MarleyFooterContext, &mut Window, &mut App) -> Option<AnyElement>>,
+);
+
+impl gpui::Global for MarleyTerminalOverlay {}
+
+// Marley: what a block's Filter button does, given the view and the block's index; while it is
+// set the element shows the button (#528).
+#[derive(Clone)]
+pub struct MarleyBlockFilter(pub Arc<dyn Fn(&Entity<TerminalView>, usize, &mut Window, &mut App)>);
+
+impl gpui::Global for MarleyBlockFilter {}
+
 // Marley: the autosuggestion a terminal shows after its cursor, or none; Marley's workbench
 // sets it (#484).
 #[derive(Clone)]
@@ -1611,6 +1627,20 @@ impl Render for TerminalView {
                 };
                 (footer.0)(&context, window, cx)
             });
+        // Marley: an overlay over the grid, such as a block's filter (#528).
+        let marley_overlay =
+            cx.try_global::<MarleyTerminalOverlay>()
+                .cloned()
+                .and_then(|overlay| {
+                    let context = MarleyFooterContext {
+                        view: terminal_view_handle.downgrade(),
+                        terminal: &self.terminal,
+                        project: &self.project,
+                        workspace: &self.workspace,
+                        focus_handle: &self.focus_handle,
+                    };
+                    (overlay.0)(&context, window, cx)
+                });
 
         div()
             .id("terminal-view")
@@ -1695,7 +1725,9 @@ impl Render for TerminalView {
                             window,
                             cx,
                         )
-                    }),
+                    })
+                    // Marley: #528.
+                    .when_some(marley_overlay, |div, overlay| div.relative().child(overlay)),
             )
             // Marley: #477.
             .children(marley_footer)

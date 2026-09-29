@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Filter a block's output** (#528, 2026-09-29). `Alt+Shift+F` in a terminal, or the Filter
+  button on a hovered block, opens a panel over the terminal listing only the block's lines that
+  hold some text, as Warp's block filter does. Toggles match the case, read the query as a regular
+  expression, keep the lines that do not match instead, and keep a number of lines around each
+  match, with `--` between groups. Matches are highlighted, and an invalid expression says so and
+  keeps the last list. The terminal's own lines are never touched, so Escape shows the block as it
+  was; the panel comes back with the same query, and a running block's list keeps up with its
+  output. With a block selected (`Ctrl+Up`), `Alt+Shift+F` filters that one.
+
 - **Send a block to an agent** (#555, 2026-09-29). Send to Agent, in a block's right-click menu,
   and `Ctrl+Shift+Enter` on a selected block, type the block at the prompt of the CLI agent
   running in another terminal, without pressing Enter. A block with long output goes as a

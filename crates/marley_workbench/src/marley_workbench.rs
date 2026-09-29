@@ -25,6 +25,7 @@ pub mod agent_events;
 pub mod agent_trust;
 pub mod agents;
 pub mod autosuggest;
+pub mod block_filter;
 pub mod blocks;
 pub mod browser;
 pub mod browser_tools;
@@ -121,6 +122,13 @@ actions!(
         /// Sends the selected block to a CLI agent in another terminal.
         #[derive(Eq)]
         SendBlockToAgent,
+        /// Filters the output of the focused terminal's selected block, or its newest block in
+        /// view, in a panel over the terminal; again, closes it.
+        #[derive(Eq)]
+        FilterBlock,
+        /// Closes the block filter.
+        #[derive(Eq)]
+        CloseBlockFilter,
         /// Chooses files and types their paths into the focused terminal, as dropping them does.
         #[derive(Eq)]
         AttachFile,
@@ -425,6 +433,7 @@ pub fn init(cx: &mut App) {
     routing::init(cx);
     agents::init(cx);
     blocks::init(cx);
+    block_filter::init(cx);
     agent_bar::init(cx);
     claude_plugin::init(cx);
     notifications::init(cx);

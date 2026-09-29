@@ -10838,6 +10838,7 @@ dependencies = [
  "log",
  "marley_dcs",
  "rand 0.9.4",
+ "regex",
  "rustix",
  "tempfile",
  "uuid",

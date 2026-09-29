@@ -789,6 +789,23 @@ alike.
   would send its program, chords and keys that type nothing, and lets text through to the
   editor.
 
+## A block's filter (`src/block_filter.rs`, #528)
+
+- `init` sets `terminal_view::MarleyTerminalOverlay` (the open panel of the view, found by the
+  view's id alone, since the view is rendering) and `MarleyBlockFilter` (the Filter button's
+  action), keeps a `Filters` global of one `FilterPanel` entity per terminal view (dropped with
+  the view), and handles `FilterBlock` at the workspace's root: the selected block
+  (`MarleyBlockSelection`), else the newest in `marley_terminal::visible_spans`.
+- `FilterPanel`: the query and context fields (single-line editors), the list (a read-only
+  multi-line editor, no gutter), `Toggles` (case, regex, invert), the count and the error.
+  `refilter` takes `Terminal::block_output` and runs `marley_terminal::filter::filter_lines` off
+  the main thread (`futures::future::lazy`); `follow` filters a running block again at most every
+  250 ms on its terminal's `Wakeup`; `fill_list` writes the rows (`--` for a gap) into the list's
+  buffer and highlights the matches (`HighlightKey::BufferSearchHighlights`).
+- The panel covers the grid (`absolute`, `inset_0`, `occlude`) in key context `MarleyBlockFilter`;
+  its container stops every key that types no text, as the rich input's does; Escape
+  (`MarleyBlockFilter > Editor`) and `FilterBlock` close it and give the terminal the focus.
+
 ## Sending a block to an agent (`src/send_block.rs`, #555)
 
 - `text_for`: the block's output through `mcp::agent_redactor` first; inline when that is at most

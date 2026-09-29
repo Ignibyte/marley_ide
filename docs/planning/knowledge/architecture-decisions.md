@@ -3048,3 +3048,15 @@ agents' redactor runs on the output before the size test and on the whole text a
 The chip sits on the block's first row, or on its last row when the first has scrolled off, since
 a long failure is the case it is for. Rejected: always inline (a build log floods the prompt);
 always a reference (it needs Marley's MCP bridge, which not every agent has).
+
+## AD-claude-528-a-blocks-filter-is-a-panel-over-the-grid-001
+*decided at: 2026-09-29 · status: shipped*
+
+A block's filter is a panel drawn over the terminal's grid through a `MarleyTerminalOverlay` hook
+in Zed's terminal view, listing the kept lines in a read-only editor of its own; the grid is never
+written, so the filter deletes nothing by construction, and hiding rows in place waits for stage
+two's display-row map (T5). The key filters the selected block (#554) first, else the newest block
+in view; each terminal keeps its panel, query and toggles for the session. The matching is pure
+(`marley_terminal::filter`, grep's `-v` and `-C`) and runs off the main thread, a running block's
+at most four times a second. Rejected: a footer (it would take rows from the grid and resize the
+PTY); hiding rows in the grid now.

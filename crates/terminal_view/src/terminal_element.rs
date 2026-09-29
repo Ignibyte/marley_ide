@@ -1674,6 +1674,7 @@ impl Element for TerminalElement {
                             &block,
                             rerun,
                             &self.terminal,
+                            &self.terminal_view,
                             line_height,
                             chip,
                             cx,
@@ -2417,6 +2418,7 @@ fn marley_block(
     block: &marley_terminal::AnchoredBlock,
     rerun: bool,
     terminal: &Entity<Terminal>,
+    view: &Entity<TerminalView>,
     line_height: Pixels,
     chip: Option<AnyElement>,
     cx: &App,
@@ -2447,6 +2449,17 @@ fn marley_block(
                 });
             })
     });
+    // Marley: the Filter button, while Marley's workbench sets its action (#528).
+    let filter = cx
+        .try_global::<crate::MarleyBlockFilter>()
+        .cloned()
+        .map(|hook| {
+            let view = view.clone();
+            ui::IconButton::new(("marley-block-filter", index), ui::IconName::Filter)
+                .icon_size(ui::IconSize::XSmall)
+                .tooltip(Tooltip::text("Filter Output"))
+                .on_click(move |_, window, cx| (hook.0)(&view, index, window, cx))
+        });
     div()
         .id(("marley-block", index))
         .group(group.clone())
@@ -2462,6 +2475,10 @@ fn marley_block(
                     ui::h_flex()
                         .id(("marley-block-actions", index))
                         .visible_on_hover(group)
+                        .children(filter.map(|filter| {
+                            marley_keep_from_terminal(filter.into_any_element())
+                                .debug_selector(move || format!("marley-block-filter-{index}"))
+                        }))
                         .child(
                             marley_keep_from_terminal(copy.into_any_element())
                                 .debug_selector(move || format!("marley-block-copy-{index}")),

@@ -25,7 +25,16 @@
       "secondary-down": "marley::NextBlock",
       "ctrl-g": "marley::RichInput",
       "ctrl-i": "marley::TakeOverTerminal",
-      "right": "marley::AcceptSuggestion"
+      "right": "marley::AcceptSuggestion",
+      // A block's filter (#528), Warp's key on Linux; Zed's Linux keymap leaves it unbound.
+      "alt-shift-f": "marley::FilterBlock"
+    }
+  },
+  {
+    // The block filter's fields: Escape closes the panel, before the editor's own Escape.
+    "context": "MarleyBlockFilter > Editor",
+    "bindings": {
+      "escape": "marley::CloseBlockFilter"
     }
   },
   {
