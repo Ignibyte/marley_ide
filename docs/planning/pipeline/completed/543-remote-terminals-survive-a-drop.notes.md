@@ -84,6 +84,34 @@
     outlive the runtime and its clients).
 - **Decisions:** D1 to D7 in the spec.
 
+### Design (at promotion)
+Re-verified against the tree on 2026-09-29; this section wins where the drafted design differs.
+- **The plugin since #519 and #538.** `notify.sh` is gone; `hooks/event.py`'s `main` gates on
+  `TERM_PROGRAM == "zed"` (line 137) and answers #519's `marley-event` frames, which #538 turns into
+  banners and the unread mark. The gate also passes on `MARLEY_REMOTE == "1"`; `plugin.json` goes
+  from 1.5.0 to 1.6.0, and #547's chip offers the update.
+- **Frames from a remote terminal.** `agent_events::on_frame` drops a frame unless
+  `agent_bar::agent_in` finds Claude Code in the terminal's foreground, and in a remote terminal
+  the foreground is `ssh`. A Marley remote terminal (its task's id starts with `marley-remote`,
+  the id base Marley resolves it with) counts as Claude Code's for frames. The rail's
+  `terminal_snapshot` takes such a terminal with a live seat as Claude Code's, so its row shows the
+  seat's status, and `note_claude_code` then leaves its seat alone: only a `SessionEnd` from the
+  host ends it. A remote Claude Code that dies without one leaves its last state on the row, which
+  `no update in N m` marks.
+- **The ssh program.** `MARLEY_SSH`, when set, names the program the task runs in place of `ssh`,
+  as `MARLEY_CLAUDE` does for #547: a task's PATH may come from the login shell, and a scenario's
+  fake must never lose to the real ssh.
+- **The task.** `marley_workbench` already depends on `recent_projects` (`RemoteSettings`),
+  `task` and `rand`. `routing.rs`'s `RoutedTerminals::spawn` puts a task in the center in the
+  Marley layout and reruns it in its last terminal, so Zed's Rerun (`terminal: rerun task`,
+  `zed_actions::Rerun` with the task's id and `use_new_terminal: false`) reattaches in place.
+  The task is scheduled with `schedule_resolved_task` so the inventory keeps it for Rerun.
+- **Checks outside the scenario.** The live check with a real Claude Code and the real-host drop
+  are left for the end with #587's and #535's hand checks: scenarios never start the real `claude`
+  and the drop needs a host Chad names.
+- **Compositor.** The scenario runs under `compositor sway` like the others since #519.
+- **Brain.** Consultation ad5ba3ce6cbe4f4e98072882b57a9cbe: nothing on this seam.
+
 ### Design
 - **The argv.** `remote_terminal_command(&SshTarget, &SessionName) -> Vec<String>`: `ssh`, `-t`,
   `-p N` when a port is given, `--`, the destination, then the remote command's words: `tmux -L
@@ -161,3 +189,65 @@ the link by suspending the laptop or cutting its network, rerun, and note what c
   not exist yet, and Test reinstalls the plugin by hand.
 - **The Marley layout's routing.** A task terminal revealed in the center should land where the
   Marley layout puts terminals; `routing.rs` is read at Code.
+
+## Phase 2 — Code
+- **Built.** `marley_remote`: `saved_target`, `SessionName` (`from_bits`, `parse`, `as_str`) and
+  `remote_terminal_command` with the server's options. `marley_workbench`: `remote.rs` (the action
+  `marley::OpenRemoteTerminal`, the saved-host picker, the task with the id base `marley-remote`,
+  `MARLEY_SSH`, `is_remote`); `agent_events::on_frame` lets a remote terminal's frames in; the
+  rail's `remote_claude` makes such a terminal with a seat Claude Code's; the manifests
+  (`marley_remote` in the workspace's dependencies, its ledger row grown). The plugin: `event.py`'s
+  gate also passes on `MARLEY_REMOTE=1`; 1.5.0 to 1.6.0 in `plugin.json` and `marketplace.json`.
+- **Deviations.** The frame gate, the rail's kind and `note_claude_code`'s end list were not in the
+  drafted design (they came with #519 after it). The live check with a real Claude Code and the
+  real-host drop wait for the end with #587's and #535's hand checks.
+- **Review.** The host and user pass `parse_ssh_target` and sit after `--`; every word is quoted for
+  the task's shell; the remote command's words are fixed, the session name or `\;`. A project not
+  on this machine is refused, since its task would run ssh on that project's host. No entity is
+  read or updated inside its own update.
+
+## Phase 3 — Test
+- **Scenario.** `script/e2e/543-remote-terminals-survive-a-drop.sh`, under sway, on a private
+  session bus, with a stand-in ssh (`MARLEY_SSH`) that runs the remote command here with a short
+  `TMUX_TMPDIR` and a HOME of its own, and a stand-in Claude Code on the "host" that wraps the
+  plugin's real answers for tmux.
+- **Fixes the runs found.**
+  1. The first runs logged `;` where the builder wrote `\;`: a Zed task's arguments reach its shell
+     unquoted (`build_no_quote`). The workbench now quotes each word for the system shell and the
+     builder keeps the exec-correct `\;` (L-claude-543-a-zed-tasks-arguments-are-shell-text-001).
+  2. No frame reached `on_frame` after the Rerun, though tmux forwarded it (checked on a scratch
+     server with `script -f`, and before the drop in the scenario). `TerminalView::set_terminal`
+     gives the view a new terminal on Rerun, and `notifications::init` had subscribed to the first
+     one only. `notifications.rs` now watches the view's new terminal
+     (F-claude-543-a-rerun-task-lost-its-notifications-001, PR-claude-543-…-001). `close_guard.rs`
+     and `command_watch.rs` keep the same gap for a rerun task; not in scope.
+  3. The banner names the folder the host's Claude Code runs in (`remote-home`), not the local
+     project; the check was set to that.
+- **Shots (run 11, all read).**
+  - `543-01-picker`: `e2e` with `e2e-host` at its end; `smuggled` (host `-oProxyCommand=…`) absent.
+    REQ-001.
+  - `543-02-connected`: tab `▶ e2e · marley-192a94f1`, `remote$` prompt with no tmux status line,
+    ticks 1 to 5. The log: one argv, `-t -- e2e-host tmux -L marley -f /dev/null new-session -A -s
+    marley-192a94f1 -e MARLEY_REMOTE=1 \; set-option …`, every word fixed or the name. REQ-002,
+    REQ-007.
+  - `543-03-dropped`: the tab's red cross, `[lost tty]` and "Task `e2e · marley-192a94f1` finished
+    with exit code: 1"; the terminal stays open. REQ-003.
+  - `543-04-reattached`: after `terminal: rerun task`, the same tab and session, ticks at 21, past
+    the 5 on screen at the drop. The log's second argv equals the first. REQ-004.
+  - `543-05-notified`: a second local terminal in front; the remote terminal's row reads Claude
+    Code, `idle · Tidy the imports`, "Tidied the imports on the host.", with the unread dot, listed
+    first by #542's order. The private bus: `Marley|remote-home: Claude finished|Tidied the imports
+    on the host.` REQ-005.
+  - Setup: the hook answers `{}` with `TERM_PROGRAM=tmux` and no `MARLEY_REMOTE`, and a sequence
+    with it. REQ-006. Nothing with `STRING "Marley"` reached the user's bus.
+- **Gate.** `just gate-diff` after the fixes: gate:14 red on a module doc's link to the private
+  `is_remote`, unlinked; then GATE GREEN [diff].
+- **Not reachable here.** A real host over a real network and a real Claude Code there: Chad's hand
+  check at the end, on a host he names (tmux 3.3 or later).
+
+## Phase 4 — Complete
+- Ledger: F-claude-543-a-rerun-task-lost-its-notifications-001,
+  PR-claude-543-follow-a-views-terminal-through-set-terminal-001,
+  L-claude-543-a-zed-tasks-arguments-are-shell-text-001, L-claude-543-tmux-on-this-box-for-a-scenario-001,
+  AD-claude-543-remote-terminals-in-marleys-tmux-001.
+- Brain: decision recorded on consultation ad5ba3ce6cbe4f4e98072882b57a9cbe.

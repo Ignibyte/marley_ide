@@ -189,6 +189,104 @@ pub fn remote_palette_actions(hosts: &[RemoteHost]) -> Vec<RemoteAction> {
         .collect()
 }
 
+/// The saved host `host`, with its user and port, as a target, through [`parse_ssh_target`]'s
+/// checks; `None` for one that fails them. A host with a `:` is taken as an IPv6 address.
+#[must_use]
+pub fn saved_target(host: &str, user: Option<&str>, port: Option<u16>) -> Option<SshTarget> {
+    let host = if host.contains(':') && !host.starts_with('[') {
+        format!("[{host}]")
+    } else {
+        host.to_string()
+    };
+    let written = user.map_or_else(|| host.clone(), |user| format!("{user}@{host}"));
+    let target = parse_ssh_target(&written)?;
+    // A port inside the saved host would be a second one; the entry's own field is the port.
+    if target.port.is_some() {
+        return None;
+    }
+    Some(SshTarget { port, ..target })
+}
+
+/// The name of a remote terminal's tmux session (#543): `marley-` and eight lowercase hex digits,
+/// or a name of `[a-z0-9-]` only, so it is plain text to the remote shell.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionName(String);
+
+impl SessionName {
+    /// The name `bits` makes: `marley-` and its eight hex digits.
+    #[must_use]
+    pub fn from_bits(bits: u32) -> Self {
+        Self(format!("marley-{bits:08x}"))
+    }
+
+    /// `name` as a session name; `None` when it is empty or holds anything outside `[a-z0-9-]`.
+    #[must_use]
+    pub fn parse(name: &str) -> Option<Self> {
+        let plain = !name.is_empty()
+            && !name.starts_with('-')
+            && name
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-');
+        plain.then(|| Self(name.to_string()))
+    }
+
+    /// The name as tmux takes it.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// The tmux server options a remote terminal's session runs with, each a tmux command: no status
+/// line, no prefix key (so Ctrl+B reaches the program), the mouse for tmux's history, escape
+/// sequences passed through to Marley's terminal, and 24-bit colour.
+const SERVER_OPTIONS: [&[&str]; 5] = [
+    &["set-option", "-g", "status", "off"],
+    &["set-option", "-g", "prefix", "None"],
+    &["set-option", "-g", "mouse", "on"],
+    &["set-option", "-g", "allow-passthrough", "on"],
+    &[
+        "set-option",
+        "-as",
+        "terminal-features",
+        ",xterm-256color:RGB",
+    ],
+];
+
+/// The argv of a remote terminal (#543): ssh into the tmux session `session` on the host.
+///
+/// It is [`ssh_command`] with `-t`, then the remote command that attaches the session on a tmux
+/// server of Marley's own (`-L marley`, no config file), making it if it is not there, with
+/// `MARLEY_REMOTE=1` in its shells.
+///
+/// ssh joins the words after the destination with spaces for the remote shell, so each word is
+/// plain text there: fixed words, the session name (`[a-z0-9-]`), and `\;`, which the remote shell
+/// turns into the `;` between tmux's commands.
+#[must_use]
+pub fn remote_terminal_command(target: &SshTarget, session: &SessionName) -> Vec<String> {
+    let mut argv = ssh_command(target);
+    argv.insert(1, "-t".to_string());
+    let attach = [
+        "tmux",
+        "-L",
+        "marley",
+        "-f",
+        "/dev/null",
+        "new-session",
+        "-A",
+        "-s",
+        session.as_str(),
+        "-e",
+        "MARLEY_REMOTE=1",
+    ];
+    argv.extend(attach.iter().map(|word| (*word).to_string()));
+    for option in SERVER_OPTIONS {
+        argv.push("\\;".to_string());
+        argv.extend(option.iter().map(|word| (*word).to_string()));
+    }
+    argv
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #543 (feature, prong 2 remote)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/543-remote-terminals-survive-a-drop.spec.md
+- **Pipeline doc:** ../../pipeline/completed/543-remote-terminals-survive-a-drop.spec.md
 - **Source ticket:** Chad, 2026-09-25, on the Orca survey: "we will be taking what it does well and bring it in here" (docs/orca_architecture/README.md, which lists "remote terminals that survive a dropped link through tmux" among the smaller things worth a day). Report 04 §3.2 item 5 and §3.4 rows 5 and 6; the embedded rustal-harness is the long-term answer.
-- **Status:** open
+- **Status:** closed
 - **Backlog:** Queue. Nothing blocks it, and it does not wait for the harness: the tmux wrapper is the stopgap until the embedded rustal-harness's remote entry replaces it.
 
 ## Summary

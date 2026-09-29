@@ -3263,3 +3263,16 @@ id, thread key), so rows keep updating their text in place and a new row goes la
 pointer leaves. Selection was already by identity, so a row that moves stays selected. A setting,
 `marley.rail_order: "window"`, turns the order off.
 
+## AD-claude-543-remote-terminals-in-marleys-tmux-001
+*decided at: 2026-09-29 · status: shipped*
+
+A remote terminal is a Zed task terminal running `ssh -t -- <host> tmux -L marley -f /dev/null
+new-session -A -s marley-<8 hex> -e MARLEY_REMOTE=1` with tmux's status line, prefix key and config
+file out of the way and passthrough on. tmux is on every host, so a dropped link leaves the shell
+and its agent running there, and Zed's Rerun, which runs the same argv in the same terminal,
+attaches the same session again: no daemon of Marley's on the host. Claude Code's own tmux wrap
+carries the hook frames out; the plugin's gate passes on `MARLEY_REMOTE`, and a remote terminal
+(its task resolved with the id base `marley-remote`) counts as Claude Code's for frames and, once a
+seat exists, for its rail row, whose seat only a `SessionEnd` ends. Hosts come from Zed's
+`ssh_connections`. The embedded harness's remote entry replaces the wrapper later; reattaching
+after a restart is the next slice.

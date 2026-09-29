@@ -1,7 +1,7 @@
 ---
 pipeline_id: 4330ab79-0535-415d-b14c-ab45b74cd5d3
 ticket: docs/planning/tickets/open/TICKET-543-remote-terminals-survive-a-drop.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Remote terminals that survive a dropped link"
 type: feature
 slice: prong 2, remote (report 04 §3.2 item 5, §3.4 rows 5 and 6); a stopgap before the harness's remote entry

@@ -22,7 +22,7 @@ use gpui::{
 use marley_agent::claude_events::banner_body;
 use marley_agent::{AgentKind, TurnEvent, event_line};
 use marley_fleet::{Session, State};
-use terminal::Event;
+use terminal::{Event, Terminal};
 use terminal_view::TerminalView;
 use util::ResultExt as _;
 use workspace::item::Item as _;
@@ -63,21 +63,16 @@ pub fn init(cx: &App) {
             // A terminal view is always made in a window: `TerminalView::new` takes one.
             let Some(window) = window else { return };
             let terminal = view.terminal().clone();
-            cx.subscribe_in(&terminal, window, |view, _, event, window, cx| {
-                if let Event::MarleyNotification { title, body } = event {
-                    // Claude Code's hook events are for the rail, not the desktop (#519), and
-                    // for the phone (#535).
-                    if title.as_deref() == Some(marley_terminal::AGENT_EVENT_TITLE) {
-                        if let Some((before, seat, session_start)) =
-                            crate::agent_events::on_frame(view, body, cx)
-                            && !session_start
-                        {
-                            on_seat_change(view, before, &seat, window, cx);
-                            crate::push::on_change(view, before, &seat, window, cx);
-                        }
-                    } else {
-                        notify(view, title.as_deref(), body, window, cx);
-                    }
+            watch(&terminal, window, cx);
+            // A task's Rerun gives the view a new terminal (`TerminalView::set_terminal`), which
+            // the subscription above never hears; the view notifies once the new one draws, so a
+            // remote terminal attached again reports its host's events (#543).
+            let mut watched = terminal.entity_id();
+            cx.observe_in(&cx.entity(), window, move |view, _, window, cx| {
+                let terminal = view.terminal().clone();
+                if terminal.entity_id() != watched {
+                    watched = terminal.entity_id();
+                    watch(&terminal, window, cx);
                 }
             })
             .detach();
@@ -102,6 +97,29 @@ pub fn init(cx: &App) {
             .detach();
         },
     )
+    .detach();
+}
+
+/// Hands `terminal`'s notifications to the desktop and its agent events to the rail, for the view
+/// that shows it.
+fn watch(terminal: &Entity<Terminal>, window: &Window, cx: &mut Context<TerminalView>) {
+    cx.subscribe_in(terminal, window, |view, _, event, window, cx| {
+        if let Event::MarleyNotification { title, body } = event {
+            // Claude Code's hook events are for the rail, not the desktop (#519), and for the
+            // phone (#535).
+            if title.as_deref() == Some(marley_terminal::AGENT_EVENT_TITLE) {
+                if let Some((before, seat, session_start)) =
+                    crate::agent_events::on_frame(view, body, cx)
+                    && !session_start
+                {
+                    on_seat_change(view, before, &seat, window, cx);
+                    crate::push::on_change(view, before, &seat, window, cx);
+                }
+            } else {
+                notify(view, title.as_deref(), body, window, cx);
+            }
+        }
+    })
     .detach();
 }
 

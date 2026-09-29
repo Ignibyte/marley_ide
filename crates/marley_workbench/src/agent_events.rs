@@ -134,7 +134,11 @@ pub(crate) fn on_frame(
     body: &str,
     cx: &mut Context<TerminalView>,
 ) -> Option<(State, Session, bool)> {
-    if crate::agent_bar::agent_in(view.terminal().read(cx)) != Some(AgentKind::Claude) {
+    // A remote terminal's foreground is ssh; its frames come from the host's session (#543).
+    let terminal = view.terminal().read(cx);
+    if crate::agent_bar::agent_in(terminal) != Some(AgentKind::Claude)
+        && !crate::remote::is_remote(terminal)
+    {
         return None;
     }
     let event = match claude_events::decode(body) {

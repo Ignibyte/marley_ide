@@ -134,7 +134,9 @@ def summary(event):
 
 
 def main():
-    if os.environ.get("TERM_PROGRAM") != "zed":
+    # Inside a remote terminal's tmux session TERM_PROGRAM reads tmux; the session sets
+    # MARLEY_REMOTE (#543).
+    if os.environ.get("TERM_PROGRAM") != "zed" and os.environ.get("MARLEY_REMOTE") != "1":
         print("{}")
         return
     event = json.loads(sys.stdin.read(1 << 20))

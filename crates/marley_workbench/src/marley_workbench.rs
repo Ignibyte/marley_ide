@@ -52,6 +52,7 @@ pub mod ports;
 pub mod project_icons;
 pub mod push;
 mod rail;
+pub mod remote;
 pub mod review_notes;
 pub mod rich_input;
 pub mod routing;
@@ -198,6 +199,10 @@ actions!(
         /// Makes the worktree and starts its agent with the prompt typed (#510).
         #[derive(Eq)]
         StartWorktreeAgent,
+        /// Opens a terminal on an SSH host saved in the settings, in a tmux session on the host
+        /// that outlives a dropped link; Rerun attaches it again (#543).
+        #[derive(Eq)]
+        OpenRemoteTerminal,
         /// Types the autosuggestion shown after the cursor; without one, the key goes to the
         /// terminal's program.
         #[derive(Eq)]
@@ -558,6 +563,7 @@ pub fn init(cx: &mut App) {
     apply_defaults(layout, cx);
     routing::init(cx);
     agents::init(cx);
+    remote::init(cx);
     blocks::init(cx);
     block_filter::init(cx);
     workflows::init(cx);

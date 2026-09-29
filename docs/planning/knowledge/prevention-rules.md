@@ -2609,3 +2609,11 @@ up with `window.bindings_for_action_in(action, &that_element's_focus_handle)` an
 binding, or build a `KeyBinding::for_action_in`; `ui::text_for_action` and
 `Window::highest_precedence_binding_for_action` see only the frame's root contexts, so they find
 `Workspace` bindings and silently miss the rest.
+
+## PR-claude-543-follow-a-views-terminal-through-set-terminal-001
+*severity: medium · prevents: F-claude-543-a-rerun-task-lost-its-notifications-001*
+
+A subscription to a `TerminalView`'s terminal made in `observe_new` sees only the view's first
+terminal: a task's Rerun swaps in a new one with `TerminalView::set_terminal`. Subscribe through a
+helper, and observe the view (`cx.observe_in(&cx.entity(), window, …)`) to subscribe again when
+`view.terminal().entity_id()` changes, as `notifications::watch` does.

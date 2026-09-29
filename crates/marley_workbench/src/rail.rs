@@ -4915,7 +4915,8 @@ fn terminal_snapshot(
     let bell = terminal_view.has_bell() || crate::notifications::unread(view.entity_id(), cx);
     let kind = foreground_command(terminal, cx)
         .as_deref()
-        .and_then(marley_agent::agent_kind_of);
+        .and_then(marley_agent::agent_kind_of)
+        .or_else(|| remote_claude(view, cx));
     // Once Claude Code has sent its hook events, they say what it is doing (#519).
     let seat = kind
         .filter(|kind| *kind == AgentKind::Claude)
@@ -5076,6 +5077,16 @@ fn command_line(command: CommandSnapshot) -> RowLine {
         state: Some(state),
         color,
     }
+}
+
+/// Claude Code, for a remote terminal whose host's session has sent its hook events (#543): the
+/// terminal's own foreground is ssh.
+fn remote_claude(view: &Entity<TerminalView>, cx: &App) -> Option<AgentKind> {
+    let remote = crate::remote::is_remote(view.read(cx).terminal().read(cx));
+    let seat = cx
+        .try_global::<AgentEvents>()
+        .and_then(|events| events.seat(view.entity_id()));
+    (remote && seat.is_some()).then_some(AgentKind::Claude)
 }
 
 /// Where a terminal agent's status comes from, for its class in the rail's order (#542).

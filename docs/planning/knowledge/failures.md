@@ -2824,3 +2824,15 @@ context stack, not the focused element's. New Agent, bound in `Workspace`, was f
 and the block keys, bound in `Terminal`, were not, so their notes gave up without a word. Reading
 `bindings_for_action_in(action, &terminal_focus)` and taking the last binding matches the
 terminal's own contexts and lets the user's keymap win.
+
+## F-claude-543-a-rerun-task-lost-its-notifications-001
+*severity: medium · found in: pipeline 543's visual check · class: a subscription to a view's first entity after the view swaps it · prevented by: PR-claude-543-follow-a-views-terminal-through-set-terminal-001*
+
+`notifications::init` subscribed each new `TerminalView` to its terminal's `MarleyNotification`
+once, when the view was made. A task's Rerun in the same terminal (`use_new_terminal: false`)
+spawns a new `Terminal` and hands it to the view through `TerminalView::set_terminal`, so every
+OSC 9 or 777 and every Claude Code hook frame from a rerun task went nowhere: no banner, no
+unread dot, no seat. The remote terminal's frames came through before its drop and stopped after
+the Rerun that reattached it. `notifications.rs` now observes the view and subscribes again when
+its terminal's entity id changes. `close_guard.rs` and `command_watch.rs` subscribe the same way
+and keep the gap for a rerun task: a working agent's close question and #551's command end.

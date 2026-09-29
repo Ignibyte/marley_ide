@@ -10880,6 +10880,7 @@ dependencies = [
  "marley_fleet",
  "marley_mcp",
  "marley_rail",
+ "marley_remote",
  "marley_system_one",
  "marley_terminal",
  "menu",

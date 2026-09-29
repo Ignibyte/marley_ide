@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Remote terminals that survive a dropped link** (#543, 2026-09-29). `marley: open remote
+  terminal` lists the SSH hosts saved in your settings (`ssh_connections`) and opens a terminal on
+  one, whose shell runs in a tmux session of Marley's own on the host. When the link drops, the
+  shell and any agent in it keep running; the tab shows the terminal ended, and `terminal: rerun
+  task` attaches the same session again, with what it printed meanwhile. Claude Code's events from
+  inside the session reach the rail and the desktop as a local Claude Code's do, once Marley's
+  plugin is updated (1.6.0) on the host. The host needs tmux 3.3 or later.
+
 - **The rail lists what needs you first** (#542, 2026-09-29). Projects, and the rows under each,
   are ordered by attention: an agent waiting on you or a failed run you have not seen, then a
   finished run you have not seen, then working, then an agent that stopped reporting (`no update
@@ -51,6 +59,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   setting English at the Prompt (`marley.english_hint`) turns the hint and the button off.
 
 ### Fixed
+
+- **A rerun task's notifications** (#543, 2026-09-29). A task run again in its terminal gets a
+  new terminal behind the same tab, and its OSC 9 and 777 notifications and Claude Code's events
+  went unheard; Marley now follows the tab to its new terminal.
 
 - **Inline Assist's prompt in a terminal shows** (#557). Ctrl+Enter's prompt went under the
   terminal's bottom edge, since short output is drawn down onto it; the terminal now keeps the

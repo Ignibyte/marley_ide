@@ -3879,3 +3879,24 @@ A chip whose state comes from a file, re-read when its bar draws and the last re
 if the read always calls `cx.refresh_windows()`: the refresh draws the bar, the bar finds the read
 stale again a moment later, and so on while the bar is on screen. Compare what was read with what
 is held and refresh only on a change; the staleness window then bounds the IO, not the frames.
+
+## L-claude-543-a-zed-tasks-arguments-are-shell-text-001
+*category: zed · topic: a program run through a Zed task · from: #543's visual check*
+
+A Zed task's command and arguments reach its shell unquoted: `prepare_task_for_spawn` builds the
+shell line with `ShellBuilder::build_no_quote`, so each argument is shell text there, and
+`resolve_task` has already expanded `$` variables in it. A word meant for a second shell (ssh's
+remote one) loses a level of quoting: `\;` arrived at ssh as `;`. Quote every word for the task's
+shell (`ShellKind::system().try_quote`) and keep the argv a builder returns the one a direct exec
+takes; a stand-in that logs its argv shows what really arrives.
+
+## L-claude-543-tmux-on-this-box-for-a-scenario-001
+*category: e2e · topic: a tmux server a scenario or a check starts · from: #543*
+
+A tmux socket's path must fit a Unix socket's 108 bytes, and a run's folder under the scratchpad
+does not: give the server a `TMUX_TMPDIR` of `mktemp -d "${TMPDIR:-/tmp}/e2e-tmux.XXXXXX"` and kill the
+server (`tmux -L <name> kill-server`) and the folder at teardown. To see what tmux writes to its
+client, run the client under `script -q -f` (without `-f` the log misses the last writes), and keep
+`script`'s stdin open (`sleep N | script …`): stdin at `/dev/null` sends an EOF that logs the pane's
+shell out. Claude Code 2.1.283 wraps a hook's `terminalSequence` for tmux itself when `TMUX` is set,
+and tmux forwards it only with `allow-passthrough on`; a stand-in reproduces both.

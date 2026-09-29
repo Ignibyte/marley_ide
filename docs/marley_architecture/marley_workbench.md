@@ -1044,7 +1044,9 @@ alike.
 ## Notifications (`src/notifications.rs`, #478)
 
 - `init` names the app `Marley` for the desktop's notifications, answers their clicks, and
-  subscribes every new `TerminalView` to its terminal's `Event::MarleyNotification`.
+  subscribes every new `TerminalView` to its terminal's `Event::MarleyNotification` through
+  `watch`; it also observes the view and watches again when its terminal's entity changes, since a
+  task's Rerun hands the view a new terminal through `TerminalView::set_terminal` (#543).
 - `notify` skips the focused terminal of the active window; otherwise it posts a
   `SystemNotification` tagged by the view, titled by the escape or, for an OSC 9, by the tab.
   The view has already set its bell, which marks its tab and its rail row.
@@ -1154,6 +1156,21 @@ alike.
   deferred into the workspace with Open Keymap, and the action's name in the key-value store's
   `marley-shortcut-note` scope, so the note shows once per data directory. A `Shown` global saves
   the store a read in the same session.
+
+## Remote terminals (`src/remote.rs`, #543)
+
+- `marley: open remote terminal` opens a picker of Zed's saved SSH hosts
+  (`RemoteSettings::ssh_connections`), each through `marley_remote::saved_target`; an entry that
+  fails its checks is left out. Confirming refuses a project not on this machine (its task would
+  run ssh on the project's host), then schedules a task resolved with the id base `marley-remote`:
+  `marley_remote::remote_terminal_command` with a fresh `SessionName`, each word quoted for the
+  system shell (a task's arguments reach it as shell text), `MARLEY_SSH` in place of `ssh` when
+  set, revealed in the center, reusing its terminal, with the summary line on and the command line
+  off. `routing.rs` places it and reruns it in place, so Rerun attaches the same session.
+- `is_remote(terminal)` finds the id base on the terminal's task. `agent_events::on_frame` takes a
+  remote terminal's frames although its foreground is ssh, and the rail's `remote_claude` takes a
+  remote terminal with a seat as Claude Code's, so its row shows the seat and `note_claude_code`
+  leaves the seat to the host's `SessionEnd`.
 
 ## A project's own icon (`src/project_icons.rs`, `src/rail.rs`, #564)
 
