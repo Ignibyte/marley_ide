@@ -1031,6 +1031,12 @@ alike.
   The view has already set its bell, which marks its tab and its rail row.
 - `show_sender` answers a click: it activates the view's window, its workspace in the
   multi-workspace and its item, and clears the bell, as the rail's `activate_terminal` does.
+- Claude Code's events (#538): `on_seat_change`, beside `push::on_change` for each frame that is
+  not a `SessionStart`, takes the event `TurnEvent::of_change` gives. In a terminal the user is
+  not looking at it marks the view in `Attention` (the rail's dot, which the rail observes) and,
+  past the project's five-second cooldown, posts `event_line` over
+  `claude_events::banner_body`. `notify` keeps the same cooldown, by the view's workspace. `seen`,
+  on the view's focus-in and its window's activation, clears the mark, and the release drops it.
 - `notify_stall` (#569) posts the stall kind's banner, `<project>: Claude Code may be stuck`,
   behind the same focus rule, under a tag of its own (`marley-stall-<id>`), so it neither replaces
   nor is replaced by the terminal's other banners, such as Claude Code's own. `post` is what the

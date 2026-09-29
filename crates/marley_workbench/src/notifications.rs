@@ -6,13 +6,22 @@
 //! active window. Clicking the notification shows that terminal. A notify titled
 //! `marley-event` carries a Claude Code hook event instead, which goes to the rail
 //! ([`crate::agent_events`]).
+//!
+//! A Claude Code event that needs input, finishes or fails a turn shows a banner saying what
+//! happened, `<project>: Claude finished` over the turn's last message (#538), and marks its
+//! terminal unread, the rail's dot, until the user looks at it. A burst from one project within
+//! five seconds shows one banner, of any kind; the held-back events still mark.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::time::{Duration, Instant};
 
 use gpui::{
-    AnyWindowHandle, App, Context, Entity, Focusable as _, Global, SharedString,
+    AnyWindowHandle, App, Context, Entity, EntityId, Focusable as _, Global, SharedString,
     SystemNotification, SystemNotificationResponse, WeakEntity, Window, WindowHandle,
 };
+use marley_agent::claude_events::banner_body;
+use marley_agent::{AgentKind, TurnEvent, event_line};
+use marley_fleet::{Session, State};
 use terminal::Event;
 use terminal_view::TerminalView;
 use util::ResultExt as _;
@@ -24,6 +33,25 @@ use workspace::{MultiWorkspace, Workspace};
 struct Senders(HashMap<SharedString, (AnyWindowHandle, WeakEntity<TerminalView>)>);
 
 impl Global for Senders {}
+
+/// A burst of banners from one project within this long shows one, as Orca's cooldown does.
+const COOLDOWN: Duration = Duration::from_secs(5);
+
+/// The terminal views with an agent event the user has not seen, and when each project, by its
+/// workspace, last showed a banner (#538).
+#[derive(Default)]
+pub(crate) struct Attention {
+    unread: HashSet<EntityId>,
+    last_banner: HashMap<EntityId, Instant>,
+}
+
+impl Global for Attention {}
+
+/// Whether the terminal view `view` has an agent event its user has not seen, for the rail's dot.
+pub(crate) fn unread(view: EntityId, cx: &App) -> bool {
+    cx.try_global::<Attention>()
+        .is_some_and(|attention| attention.unread.contains(&view))
+}
 
 /// Names Marley on its notifications and watches every terminal view for them. [`crate::init`]
 /// calls it once.
@@ -40,8 +68,11 @@ pub fn init(cx: &App) {
                     // Claude Code's hook events are for the rail, not the desktop (#519), and
                     // for the phone (#535).
                     if title.as_deref() == Some(marley_terminal::AGENT_EVENT_TITLE) {
-                        if let Some((before, seat)) = crate::agent_events::on_frame(view, body, cx)
+                        if let Some((before, seat, session_start)) =
+                            crate::agent_events::on_frame(view, body, cx)
+                            && !session_start
                         {
+                            on_seat_change(view, before, &seat, window, cx);
                             crate::push::on_change(view, before, &seat, window, cx);
                         }
                     } else {
@@ -50,9 +81,25 @@ pub fn init(cx: &App) {
                 }
             })
             .detach();
+            // Looking at the terminal, by focusing it or by coming back to its window, sees its
+            // events (#538).
+            let focus_handle = view.focus_handle(cx);
+            cx.on_focus_in(&focus_handle, window, |view, window, cx| {
+                seen(view, window, cx);
+            })
+            .detach();
+            cx.observe_window_activation(window, |view, window, cx| {
+                seen(view, window, cx);
+            })
+            .detach();
             let view = cx.entity_id();
-            cx.on_release(move |_, cx| crate::agent_events::forget(view, cx))
-                .detach();
+            cx.on_release(move |_, cx| {
+                crate::agent_events::forget(view, cx);
+                if cx.has_global::<Attention>() {
+                    let _was_unread = cx.global_mut::<Attention>().unread.remove(&view);
+                }
+            })
+            .detach();
         },
     )
     .detach();
@@ -64,8 +111,67 @@ pub(crate) fn looking_at(view: &TerminalView, window: &Window, cx: &App) -> bool
     window.is_window_active() && view.focus_handle(cx).contains_focused(window, cx)
 }
 
-/// Shows a desktop notification from `view`, unless the user is looking at it. An OSC 9 gives no
-/// title, so the terminal's tab names it.
+/// Marks `view` unread and shows a banner for the event its Claude Code seat made by moving from
+/// `before` to its state in `seat`, unless the user is looking at the terminal (#538). A state the
+/// seat was already in makes no event, so a repeated ping marks nothing.
+fn on_seat_change(
+    view: &TerminalView,
+    before: State,
+    seat: &Session,
+    window: &Window,
+    cx: &mut Context<TerminalView>,
+) {
+    let Some(event) = TurnEvent::of_change(before, seat.state) else {
+        return;
+    };
+    if looking_at(view, window, cx) {
+        return;
+    }
+    let id = cx.entity_id();
+    let _newly = cx.default_global::<Attention>().unread.insert(id);
+    cx.notify();
+    if !banner_allowed(view, cx) {
+        return;
+    }
+    let tag = SharedString::from(format!("marley-terminal-{}", cx.entity_id()));
+    let title = event_line(&crate::push::project_name(seat), AgentKind::Claude, event);
+    post(
+        tag,
+        SharedString::from(title),
+        &banner_body(event, seat),
+        window,
+        cx,
+    );
+}
+
+/// Clears `view`'s mark once the user looks at it (#538).
+fn seen(view: &TerminalView, window: &Window, cx: &mut Context<TerminalView>) {
+    let id = cx.entity_id();
+    if unread(id, cx) && looking_at(view, window, cx) {
+        let _was_unread = cx.global_mut::<Attention>().unread.remove(&id);
+        cx.notify();
+    }
+}
+
+/// Whether `view`'s project may show a banner now: none in the last five seconds, of any kind.
+/// A yes starts the project's cooldown.
+fn banner_allowed(view: &TerminalView, cx: &mut Context<TerminalView>) -> bool {
+    let project = view.marley_workspace().entity_id();
+    let now = cx.background_executor().now();
+    let last_banner = &mut cx.default_global::<Attention>().last_banner;
+    if last_banner
+        .get(&project)
+        .is_some_and(|at| now.saturating_duration_since(*at) < COOLDOWN)
+    {
+        return false;
+    }
+    let _previous = last_banner.insert(project, now);
+    true
+}
+
+/// Shows a desktop notification from `view`, unless the user is looking at it or its project
+/// showed a banner in the last five seconds (#538). An OSC 9 gives no title, so the terminal's tab
+/// names it.
 fn notify(
     view: &TerminalView,
     title: Option<&str>,
@@ -73,7 +179,7 @@ fn notify(
     window: &Window,
     cx: &mut Context<TerminalView>,
 ) {
-    if looking_at(view, window, cx) {
+    if looking_at(view, window, cx) || !banner_allowed(view, cx) {
         return;
     }
     let tag = SharedString::from(format!("marley-terminal-{}", cx.entity_id()));

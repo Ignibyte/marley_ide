@@ -65,30 +65,46 @@
     updatedAt): same-state pings must not re-trigger an ack").
 - **Decisions:** D1 to D7 in the spec.
 
+- **Promotion, 2026-09-29:** every seam re-read. Since the draft, #535 built `event_line`,
+  `TurnEvent::of_change` (a repeated wait or error is no event; a session start, idle to idle, is
+  none) and a per-project push cooldown, and calls `push::on_change(view, before, &seat, ..)`
+  from `notifications::init`'s frame arm, where the banner goes too. The seat carries the turn's
+  last message and error as labels (`claude_events::MESSAGE_LABEL`, `ERROR_LABEL`), the question
+  (`Session::question`) and the lead's tools in flight with their previews; `event.py` previews
+  `AskUserQuestion` by its question (#570). The rail's dot is `terminal_snapshot`'s `bell`
+  (`rail.rs:4762`, `has_bell()`), where the unread mark joins it. The plugin is at 1.4.0; its
+  `hooks.json` still runs `notify.sh` for `permission_prompt`, `idle_prompt` and `Stop`. The
+  scenario's banners go to a private `dbus-daemon` with a fake `org.freedesktop.Notifications`
+  (PyGObject), never Chad's desktop. Brain (consultation 48143c74): nothing on this seam.
+
 ### Design
 - **Approach.** `notifications.rs` keeps one `Global`, `Attention`, holding per terminal view the
   mark (the seat state that raised it) and the last state seen, and per project the time of its
   last banner. `agent_events` (#519) calls it with each seat change and the frame that caused it;
   one pure decision says whether the change marks and whether it may show a banner, and the gpui
-  side acts: set the mark, post the banner, notify the rail. `init`'s `observe_new` for `TerminalView` also registers `on_focus_in`
+  side acts: set the mark, post the banner, notify the view (the rail re-reads terminal views on
+  their notify). `init`'s `observe_new` for `TerminalView` also registers `on_focus_in`
   on the view's focus handle; when the window is active, focus in acknowledges the current state
   and clears the mark. The view's release drops its entry.
-- **The pure part.** A small module of `marley_agent` (gpui-free): `event_line` for the title;
-  `event_body(event, max)` for the body, with the whitespace collapse and the cut on a character
-  boundary; `AttentionState` with `on_event` and `on_seen` returning what to do. Kept pure so the
+- **The pure part.** In `marley_agent` (gpui-free), beside #535's `event_line` and `TurnEvent`:
+  `event_body(event, message, question, tool, error)` for the body, with the whitespace collapse
+  and the cut on a character boundary (`notification_text`), and the failure's kind in words.
+  The mark's rule is `TurnEvent::of_change` itself plus the seen state: a change that makes an
+  event, in a terminal not looked at, marks; focus clears. Kept pure so the
   decisions sit in one place the scenario exercises through the real app.
 - **The rail.** `terminal_snapshot` sets `bell` to `has_bell() || marked(view)`, so the existing dot
   shows the mark and `has_attention` counts it. Clearing the mark calls the rail's refresh, as the
   bell's clear does today.
 - **The plugin.** `hooks.json` loses `notify.sh`'s three entries and the script is removed from
-  `claude_plugin::FILES`; `event.py`'s preview picks `questions[0].question` for
-  `AskUserQuestion`; `plugin.json` and `marketplace.json` move to the next version, and #519's chip
+  `claude_plugin::FILES`; `event.py` is unchanged (#570 previews the question); `plugin.json` and
+  `marketplace.json` move to the next version, and #519's chip
   offers the update to an installed copy.
 - **File manifest.** `crates/marley_agent/src/marley_agent.rs` (Marley crate: `event_line`,
   `event_body`, the attention state); `crates/marley_workbench/src/notifications.rs` (Marley crate);
-  `crates/marley_workbench/src/rail.rs` (Marley crate: the mark in the snapshot);
+  `crates/marley_workbench/src/rail.rs` (Marley crate: the mark in the snapshot); `push.rs`
+  (`project_name` shared);
   `crates/marley_workbench/src/claude_plugin.rs` (`FILES` without `notify.sh`); the plugin's
-  `hooks/hooks.json`, `hooks/event.py`, `.claude-plugin/plugin.json` and the marketplace's
+  `hooks/hooks.json`, `.claude-plugin/plugin.json` and the marketplace's
   `marketplace.json`, with `hooks/notify.sh` removed; `script/e2e/538-notifications-with-content.sh`
   and its fakes (Test). No Zed path, so no touchpoint row.
 - **Ledger rows.** None required up front. At Complete: a lesson on running Marley on a private
@@ -138,3 +154,64 @@ screen on purpose). The log carries the exact text the banner would show.
   characters and keeps its frame under the scanner's 4 KiB cap (`MAX_NOTIFICATION`,
   `crates/marley_dcs/src/notification.rs:11`, which drops a longer escape whole); this ticket
   collapses and cuts the body to 180 for the banner.
+
+## Phase 2 — Code
+- **Built:**
+  - `marley_agent/src/claude_events.rs`: `banner_body` (a finish's last message; a permission's
+    `Using <tool>: <input>`, from the question `Permission for …` the seat already holds, the
+    prefix now a shared constant; a question's text; a failure's kind in words) and
+    `notification_text` (one line, cut to 179 characters and `…` past 180).
+  - `notifications.rs`: `Attention` (the unread views, and each project's last banner by its
+    workspace); `on_seat_change` beside `push::on_change`: an event from `TurnEvent::of_change`,
+    in a terminal not looked at, marks it and, past the project's five-second cooldown, posts
+    `event_line` over `banner_body`; `notify` (OSC 9 and 777) keeps the same cooldown; `seen`, on
+    the view's focus-in and its window's activation, clears the mark; the release drops it.
+  - `agent_events::on_frame` also says whether the frame was a `SessionStart`, and neither the
+    banner nor the push acts on one.
+  - `rail.rs`: the row's dot is the bell or the mark, and the rail observes `Attention`.
+    `push.rs`: `project_name` shared.
+  - The plugin: `notify.sh` and its three `hooks.json` entries gone, version 1.5.0 in
+    `plugin.json` and `marketplace.json`, `claude_plugin::FILES` without it, `script/gates.sh`'s
+    shellcheck list without it; `claude_plugin_tests.rs` and `agent_bar_tests.rs` follow (the
+    notify.sh test removed, the others read `event.py`).
+- **Deviations:** the cooldown is keyed by the project's workspace, so a terminal's own banners
+  and the agent's share it; the seen state needs no record of its own, since `of_change` already
+  gives no event for a state the seat was in; `event.py` needed no change (#570).
+- **Review of the diff:** a real bug found. `SessionStart` with `startup`, `resume`, `clear` or
+  `fork` ends a working or waiting turn as idle, which `of_change` reads as `Finished`: #535's push
+  sent `Claude finished` to the phone for a `/clear` while Claude waited, and the banner would have
+  too. `on_frame` now reports the frame's kind and both callers skip a session start (F-538).
+- **Gate:** run 1 red: `semicolon_if_nothing_returned` on the two `seen` closures, which now end
+  in a statement (no behavior changes, so run 2's shots stand). Run 2: GATE GREEN [diff].
+
+## Phase 3 — Test
+- **Scenario:** `script/e2e/538-notifications-with-content.sh` under `compositor sway`: a private
+  `dbus-daemon` whose notification server logs each banner (the user's bus watched for none);
+  stand-ins A and D running the plugin's real `event.py` through FIFOs; a plain terminal holding
+  the focus; Alt+N to move it.
+- **Run 1:** the permission's check failed on the log's app name, `Marley`, not the check's
+  `marley`; the product was right. Run 2: exit 0, every check passes.
+- **The log (run 2):** `Marley|repo: Claude finished|<the message's first 179 characters>…`
+  (180 characters, the `é`s at the cut); nothing for D's permission two seconds later; nothing
+  for the compaction; `repo: Claude needs input|Using Bash: ls -la`; `repo: Claude needs
+  input|Ship the release now?`; `repo: Claude failed|rate limit`; nothing for the cleared
+  session or the focused terminal's finish; no `Notify` on the user's bus.
+- **Shots, each read:**
+  - `538-00-terminals`: A and D as Claude Code rows, the plain terminal focused.
+  - `538-01-marked` (REQ-001, REQ-006): A's row with the dot after its finish.
+  - `538-02-held-back` (REQ-010, REQ-006): D's row with the dot too, and in Needs you; one banner
+    in the log.
+  - `538-03-seen` (REQ-007): A focused, its dot gone; D's still on.
+  - `538-04-repeat-ping` (REQ-008): after the manual compaction, A has no dot.
+  - `538-05-new-state` (REQ-002, REQ-009): A's permission in a new turn, its dot back.
+  - `538-06-focused` (REQ-012, REQ-011): D focused, its dot gone and its finish showing nothing.
+- **Not reached:** a second project's own cooldown (a scenario opens one project; the key is the
+  workspace, so a second project starts its own).
+
+## Phase 4 — Complete
+- **Documented:** `CHANGELOG.md` (Added); `docs/marley/three-prong-plan.md` T7;
+  `docs/marley_architecture/marley_workbench.md` (Notifications).
+- **Knowledge:** `F-claude-538-a-session-start-read-as-a-finish-001`,
+  `AD-claude-538-banners-say-what-happened-and-mark-until-seen-001`. Brain: the decision on
+  consultation 48143c74, follow-up by 2026-10-29.
+- **Closed** TICKET-538, archived the pair.

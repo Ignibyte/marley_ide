@@ -2775,3 +2775,13 @@ thread of Zed's own Claude Agent from the run's copy of the user's settings. Not
 into it and no agent process outlived the run, but a scenario must never start that agent. Fixed
 in the scenario: terminals come forward by their tabs, and Zed's agent is off in the run's
 settings, so those items are not in the menu at all.
+
+## F-claude-538-a-session-start-read-as-a-finish-001
+*severity: medium · found in: pipeline 538's Code review · class: a state machine's reset read as a transition by a consumer that sees only states · prevented by: `agent_events::on_frame` reporting the frame's kind (#538)*
+
+`claude_events::fold` ends the turn as idle on a `SessionStart` whose source is `startup`,
+`resume`, `clear` or `fork`, so a seat that was working or waiting moves to idle. #535's push, and
+#538's banner as first written, took the change of state alone through `TurnEvent::of_change`,
+which reads working or waiting to idle as `Finished`: a `/clear` while Claude Code waited on a
+permission pushed `Claude finished` to the phone. Fixed at the source of the change: `on_frame`
+hands back whether the frame was a `SessionStart`, and neither the push nor the banner acts on one.

@@ -1,7 +1,7 @@
 ---
 pipeline_id: af192d45-78ad-4610-98cc-46cf029709aa
 ticket: docs/planning/tickets/open/TICKET-538-notifications-with-content.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Notifications that say what happened"
 type: feature
 slice: prong 1 T7b's follow-on with prong 2's attention (report 01 §3 item 4)
@@ -21,18 +21,16 @@ mark it again; and a burst of events from one project makes one banner.
   `marley_workbench::agent_events` keeps per terminal, when the seat starts waiting (a permission
   request, or a question through `AskUserQuestion`), when a `Stop` ends a working turn, and when a
   `StopFailure` arrives:
-  - the title from `marley_agent::event_line(project, kind, event)` (new, pure, beside #519's
-    `claude_events`; #535's push line is the same string), `<project>` the terminal's workspace
-    root's last component;
+  - the title from `marley_agent::event_line(project, kind, event)`, the line #535's push already
+    sends, and the event from `TurnEvent::of_change` (#535), `<project>` from `push::project_name`;
   - the body, from the fields of #519's frame: a finish's `message` (the turn's
     `last_assistant_message`); a permission request's `Using <tool>: <preview>` (the command for
     Bash, the path for Edit and Write, the URL for WebFetch); a question's text; a failure's
     `error` in words (`rate limit`, `overloaded`, `authentication failed`); else nothing;
   - whitespace collapsed to single spaces, and a body over 180 characters cut at 179 on a
     character boundary with `…` added (Orca's `normalizeNotificationText`).
-- `hooks/event.py` (#519's hook): the preview of `AskUserQuestion` becomes its first question's
-  text, cut as other previews are, since its input has no top-level string for #519's preview
-  rule to pick.
+- `hooks/event.py` already previews `AskUserQuestion` by its first question's text (#570); it keeps
+  that.
 - The unread mark, Marley's own per terminal (keyed by the view's entity id, dropped with the
   view): an event marks its terminal unless the terminal holds focus in the active window, whether
   or not a banner shows. The rail's row shows it with the dot it shows for a bell (`TerminalSnapshot`

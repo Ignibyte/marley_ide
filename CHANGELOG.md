@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Notifications that say what happened** (#538, 2026-09-29). Claude Code's banners now read
+  `repo: Claude finished` over the turn's last message, `repo: Claude needs input` over
+  `Using Bash: ls -la` or the question it asks, and `repo: Claude failed` over the failure's kind,
+  cut to 180 characters. An event in a terminal you are not looking at marks its rail row with a
+  dot until you look at it, even when no banner shows. A burst from one project within five
+  seconds shows one banner, and a session that starts, resumes or clears shows none. The plugin
+  no longer sends its fixed sentences beside the events (version 1.5.0), so each event shows
+  once.
+
 - **Git asks no agent for a password** (#537, 2026-09-29). The terminals Marley opens for an
   agent CLI, from the rail's +, the New Agent picker, a worktree agent or a launch config, start
   with `GIT_TERMINAL_PROMPT=0` and `GCM_INTERACTIVE=never`. A git command there that needs
@@ -1097,6 +1106,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   directories are gone; gate:12 still bans `mutants::skip` masks.
 
 ### Fixed
+
+- **A cleared session no longer reads as a finish** (#538, 2026-09-29). A `/clear`, a resume or a
+  new session while Claude Code waited made Marley push `Claude finished` to the phone (#535). A
+  session's start now pushes nothing and shows no banner.
 
 - **The note that an agent typed into a program goes when the program does** (#595,
   2026-09-29). After an agent typed into a program in a terminal, the bar under it saying so, with

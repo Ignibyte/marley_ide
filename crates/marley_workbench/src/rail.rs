@@ -193,8 +193,9 @@ pub struct Rail {
     /// The threads whose attention dot is lit.
     noted_threads: HashSet<String>,
     _multi_workspace_subscriptions: [Subscription; 2],
-    /// Claude Code's hook events, which move its terminals' rows (#519), and its turns (#509).
-    _agent_events: [Subscription; 2],
+    /// Claude Code's hook events, which move its terminals' rows (#519), its turns (#509), and the
+    /// terminals' unread marks (#538).
+    _agent_events: [Subscription; 3],
     /// The rows' ports, from the scan an open rail keeps running (#521), and the settings that
     /// can show the rail again.
     _ports: [Subscription; 2],
@@ -532,6 +533,8 @@ impl Rail {
         let agent_events = [
             cx.observe_global_in::<AgentEvents>(window, Self::refresh),
             cx.observe_global_in::<Turns>(window, Self::refresh),
+            // A terminal's unread mark, set or seen (#538).
+            cx.observe_global_in::<crate::notifications::Attention>(window, Self::refresh),
         ];
         cx.on_release(|rail, cx| {
             if rail.watching_ports {
@@ -4759,7 +4762,8 @@ fn terminal_snapshot(
 ) -> TerminalSnapshot {
     let terminal_view = view.read(cx);
     let terminal = terminal_view.terminal();
-    let bell = terminal_view.has_bell();
+    // An agent event the user has not seen lights the same dot as a bell (#538).
+    let bell = terminal_view.has_bell() || crate::notifications::unread(view.entity_id(), cx);
     let kind = foreground_command(terminal, cx)
         .as_deref()
         .and_then(marley_agent::agent_kind_of);

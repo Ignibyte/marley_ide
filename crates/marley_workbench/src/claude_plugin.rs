@@ -32,7 +32,7 @@ pub(crate) const BRIDGE: &str = include_str!("../claude_plugin/marley/bin/marley
 const MANIFEST: &str = include_str!("../claude_plugin/marley/.claude-plugin/plugin.json");
 
 /// The plugin's files, by their path in the marketplace, and whether each is a program.
-const FILES: [(&str, &str, bool); 7] = [
+const FILES: [(&str, &str, bool); 6] = [
     (
         ".claude-plugin/marketplace.json",
         include_str!("../claude_plugin/.claude-plugin/marketplace.json"),
@@ -50,11 +50,6 @@ const FILES: [(&str, &str, bool); 7] = [
         "marley/hooks/hooks.json",
         include_str!("../claude_plugin/marley/hooks/hooks.json"),
         false,
-    ),
-    (
-        "marley/hooks/notify.sh",
-        include_str!("../claude_plugin/marley/hooks/notify.sh"),
-        true,
     ),
     // Each hook event, summarized for the rail (#519).
     (

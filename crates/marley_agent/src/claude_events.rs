@@ -26,9 +26,9 @@ use base64::Engine as _;
 use marley_fleet::{Question, Session, SessionEvent, State, Transport};
 use serde::{Deserialize, Serialize};
 
-use crate::AgentStatus;
 use crate::stall::{self, FlagShown};
 use crate::stop_kind::{self, StopKindShown};
+use crate::{AgentStatus, TurnEvent};
 
 /// The largest summary a frame carries, decoded; the plugin keeps its summaries under it.
 const MAX_SUMMARY: usize = 3_000;
@@ -441,7 +441,7 @@ impl Moving {
                 if !call.is_empty() {
                     let _added = self.facts.pending.insert(call);
                 }
-                self.wait(format!("Permission for {asked}"), Vec::new(), &waiting_on);
+                self.wait(format!("{PERMISSION_FOR}{asked}"), Vec::new(), &waiting_on);
             }
             "Stop" if lead => {
                 self.end_turn(State::Idle);
@@ -645,6 +645,48 @@ impl Moving {
 fn tool_call(key: &str) -> Option<&str> {
     key.strip_prefix(LEAD_TOOL_PREFIX)
         .or_else(|| key.strip_prefix(SUBAGENT_TOOL_PREFIX))
+}
+
+/// How a permission request's question starts, before the tool and what it acts on.
+const PERMISSION_FOR: &str = "Permission for ";
+
+/// The most characters a banner's body holds, Orca's limit, which fits two or three lines.
+const BANNER_BODY_MAX: usize = 180;
+
+/// What a desktop banner says about `event` on `seat` (#538).
+///
+/// A finish gives the turn's last message; a permission request `Using <tool>: <input>`; a
+/// question its text; a failure its kind in words, such as `rate limit`. The text is on one line
+/// and cut by [`notification_text`].
+#[must_use]
+pub fn banner_body(event: TurnEvent, seat: &Session) -> String {
+    let text = match event {
+        TurnEvent::Finished => seat.labels.get(MESSAGE_LABEL).cloned(),
+        TurnEvent::NeedsInput => seat.question.as_ref().map(|question| {
+            question
+                .prompt
+                .strip_prefix(PERMISSION_FOR)
+                .map_or_else(|| question.prompt.clone(), |asked| format!("Using {asked}"))
+        }),
+        TurnEvent::Failed => seat
+            .labels
+            .get(ERROR_LABEL)
+            .map(|error| error.replace('_', " ")),
+    };
+    notification_text(&text.unwrap_or_default())
+}
+
+/// `text` on one line, its runs of whitespace as single spaces, and past 180 characters cut to
+/// 179 on a character boundary and ended with `…`, as Orca's banners are.
+#[must_use]
+pub fn notification_text(text: &str) -> String {
+    let text = one_line(text);
+    if text.chars().count() <= BANNER_BODY_MAX {
+        return text;
+    }
+    let mut cut: String = text.chars().take(BANNER_BODY_MAX - 1).collect();
+    cut.push('…');
+    cut
 }
 
 /// A tool and what it acts on, such as `Bash: ls -la`, or the tool alone.

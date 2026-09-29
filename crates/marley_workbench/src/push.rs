@@ -133,7 +133,7 @@ fn target_url(settings: &PushSettings) -> anyhow::Result<Url> {
 
 /// The project's name for the line: the last folder of where Claude Code started, as the
 /// plugin's desktop notification names it.
-fn project_name(seat: &Session) -> String {
+pub(crate) fn project_name(seat: &Session) -> String {
     seat.labels
         .get(CWD_LABEL)
         .and_then(|cwd| Path::new(cwd).file_name())

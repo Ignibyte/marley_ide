@@ -253,7 +253,7 @@ async fn the_chip_installs_marleys_plugin_for_claude_code(cx: &mut TestAppContex
             market.display()
         )
     );
-    assert!(market.join("marley/hooks/notify.sh").is_file());
+    assert!(market.join("marley/hooks/event.py").is_file());
     assert_eq!(
         cx.update(|_, cx| cx.global::<ClaudePlugin>().installed),
         Some(true)

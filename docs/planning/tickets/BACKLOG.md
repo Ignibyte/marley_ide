@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-538](open/TICKET-538-notifications-with-content.md) | feature | prong 1 T7b · notifications that say what happened; after #519 |
 | [TICKET-551](open/TICKET-551-command-end-from-outside.md) | feature | prong 1 T7b · a long command's end as a notification and on its rail row, with the password check; never agent terminals |
 | [TICKET-572](open/TICKET-572-running-command-errors.md) | feature | prong 1 T7b · a dev server that prints an error and keeps running gets a notification and a red mark on its row, recovery clears it; error shapes first, a System One noul for the open lines; after #551, on #565 |
 | [TICKET-556](open/TICKET-556-terminal-run.md) | feature | prong 2 with prong 1 · `terminal_run`: an agent runs a command at the user's prompt as a block, behind Warp's allow and deny lists, with the agent mark and Ctrl-I takeover |

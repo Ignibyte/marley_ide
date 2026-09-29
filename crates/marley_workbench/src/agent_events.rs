@@ -125,13 +125,15 @@ pub(crate) fn now_ms() -> u64 {
 }
 
 /// Folds the body of a `marley-event` frame from `view`'s terminal into the view's seat, while
-/// Claude Code is the terminal's foreground program, and gives the seat's state before the frame
-/// and the seat after it, for the push (#535).
+/// Claude Code is the terminal's foreground program, and gives the seat's state before the frame,
+/// the seat after it, and whether the frame was a `SessionStart`, for the push (#535) and the
+/// banner (#538): a session that starts, resumes or clears ends its turn as idle, which is no
+/// finish to announce.
 pub(crate) fn on_frame(
     view: &TerminalView,
     body: &str,
     cx: &mut Context<TerminalView>,
-) -> Option<(State, Session)> {
+) -> Option<(State, Session, bool)> {
     if crate::agent_bar::agent_in(view.terminal().read(cx)) != Some(AgentKind::Claude) {
         return None;
     }
@@ -164,10 +166,11 @@ pub(crate) fn on_frame(
         }
         after_fold(view, &event, before, &after, cx);
     }
+    let session_start = event.event == "SessionStart";
     cx.try_global::<AgentEvents>()
         .and_then(|events| events.snapshot.get(&seat))
         .cloned()
-        .map(|after| (before, after))
+        .map(|after| (before, after, session_start))
 }
 
 /// The stop kind's part after `event` moved `seat` on from `before` (#566): the user's prompt

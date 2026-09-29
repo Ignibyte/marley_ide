@@ -26,21 +26,17 @@ fn the_plugin_is_a_marketplace_a_plugin_and_an_executable_hook() {
     let plugin = read_json(&dir.path().join("marley/.claude-plugin/plugin.json"));
     assert_eq!(plugin["name"], "marley");
 
+    // Marley's banners come from the hook events alone, so no fixed sentence rides beside them
+    // (#538).
     let hooks = read_json(&dir.path().join("marley/hooks/hooks.json"));
-    let matchers: Vec<&str> = hooks["hooks"]["Notification"]
-        .as_array()
-        .expect("Notification hooks")
-        .iter()
-        .filter_map(|hook| hook["matcher"].as_str())
-        .collect();
-    assert_eq!(matchers, ["permission_prompt", "idle_prompt"]);
+    assert!(hooks["hooks"]["Notification"].is_null());
     let stop = &hooks["hooks"]["Stop"][0]["hooks"][0]["command"];
-    assert_eq!(stop, "\"${CLAUDE_PLUGIN_ROOT}/hooks/notify.sh\" finished");
+    assert_eq!(stop, "\"${CLAUDE_PLUGIN_ROOT}/hooks/event.py\"");
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt as _;
-        let mode = std::fs::metadata(dir.path().join("marley/hooks/notify.sh"))
+        let mode = std::fs::metadata(dir.path().join("marley/hooks/event.py"))
             .expect("the hook")
             .permissions()
             .mode();
@@ -78,49 +74,6 @@ fn claude_codes_lists_say_what_is_installed_and_known() {
     .expect("written");
     assert!(installed_in(config.path()));
     assert!(marketplace_known_in(config.path()));
-}
-
-/// What the hook prints for `event`, with `TERM_PROGRAM` set to `term` or unset.
-async fn hook_answer(script: &Path, event: &str, term: Option<&str>) -> String {
-    let mut command = util::command::new_command(script);
-    command
-        .arg(event)
-        .env("CLAUDE_PROJECT_DIR", "/work/my;pro\"ject")
-        .env_remove("TERM_PROGRAM");
-    if let Some(term) = term {
-        command.env("TERM_PROGRAM", term);
-    }
-    let output = command.output().await.expect("the hook runs");
-    assert!(output.status.success(), "{output:?}");
-    String::from_utf8(output.stdout).expect("UTF-8")
-}
-
-#[gpui::test]
-async fn the_hook_answers_in_marleys_terminals_and_is_silent_elsewhere(cx: &TestAppContext) {
-    cx.executor().allow_parking();
-    let dir = tempfile::tempdir().expect("a scratch directory");
-    write_plugin_in(dir.path()).expect("written");
-    let script = dir.path().join("marley/hooks/notify.sh");
-    for (event, message) in [
-        ("permission", "needs your permission"),
-        ("waiting", "is waiting for you"),
-        ("finished", "finished"),
-    ] {
-        let answer = hook_answer(&script, event, Some("zed")).await;
-        let answer: serde_json::Value = serde_json::from_str(&answer).expect("JSON");
-        // The project's name loses the characters that would break the JSON or the escape.
-        assert_eq!(
-            answer["terminalSequence"],
-            format!("\u{1b}]777;notify;Claude Code;myproject {message}\u{7}"),
-            "{event}"
-        );
-    }
-    assert_eq!(hook_answer(&script, "other", Some("zed")).await, "");
-    assert_eq!(hook_answer(&script, "permission", None).await, "");
-    assert_eq!(
-        hook_answer(&script, "permission", Some("ghostty")).await,
-        ""
-    );
 }
 
 #[gpui::test]

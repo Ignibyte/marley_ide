@@ -3141,3 +3141,19 @@ agents and launch configs' Agent items all get them; a plain terminal, a Termina
 restored terminal keep git's prompts. ssh's passphrase prompt is not reached by these variables:
 #596 asks for it in Marley. Rejected: typing the variables before the agent's name (they would show
 and enter the history); every terminal (a user's own shell should prompt).
+
+## AD-claude-538-banners-say-what-happened-and-mark-until-seen-001
+*decided at: 2026-09-29 · status: shipped*
+
+A Claude Code event that needs input, finishes or fails a turn, in a terminal the user is not
+looking at (the focused terminal of the active window), shows a banner titled with #535's
+`event_line`, `<project>: Claude finished`, over what happened, taken from #519's hook event and
+never from the screen: the turn's last message, `Using <tool>: <input>`, the question, or the
+failure's kind, on one line and cut to 180 characters, as Orca's are. It also marks the terminal
+unread, the rail's dot, whether or not a banner shows; focusing the terminal, or coming back to its
+window, clears the mark. A state the seat was already in makes no event, so a repeated ping marks
+nothing. One cooldown of five seconds per project, keyed by the workspace, covers every banner
+Marley shows for it, the agent's and a program's OSC 9 alike. A session's start shows nothing. The
+plugin's fixed sentences left `hooks.json`, so each event shows once. Rejected: reading the
+transcript for the body; a mark only when a banner shows; the rail's disambiguated label in the
+title (the phone's line reads the same).

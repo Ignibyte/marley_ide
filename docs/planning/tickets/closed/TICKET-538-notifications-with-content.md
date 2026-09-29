@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #538 (feature, prong 1 T7b's follow-on, with prong 2's attention)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/538-notifications-with-content.spec.md
+- **Pipeline doc:** ../../pipeline/completed/538-notifications-with-content.spec.md
 - **Source ticket:** Chad, 2026-09-25, on the Orca survey: "we will be taking what it does well and bring it in here" (docs/orca_architecture/README.md); notifications with content and unread are report 01 §2.5 and §3 item 4.
-- **Status:** open
+- **Status:** closed
 - **Backlog:** Queue, after #519. The banner's words (the event, the last message, the tool and its input) and the event each mark belongs to come from #519's events; without them there is nothing to say.
 
 ## Summary
