@@ -120,6 +120,8 @@ impl workspace::TerminalProvider for RoutedTerminals {
         let workspace = self.workspace.clone();
         let panel = self.panel.clone();
         window.spawn(cx, async move |cx| {
+            // A workflow's `{{name}}` parameters are asked for first (#558).
+            let task = crate::workflows::fill(&workspace, task, cx).await?;
             if marley {
                 // A task reruns in its last terminal, which is still in the panel when the task
                 // last ran in the Zed layout.

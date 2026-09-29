@@ -806,6 +806,28 @@ alike.
   its container stops every key that types no text, as the rich input's does; Escape
   (`MarleyBlockFilter > Editor`) and `FilterBlock` close it and give the terminal the focus.
 
+## Workflows (`src/workflows.rs`, #558)
+
+- A workflow is a Zed task: `label`, `command`, `cwd` (`$ZED_WORKTREE_ROOT` when the block ran
+  there) and, under a `marley` key Zed ignores, `parameters`, a default and a description per
+  `{{name}}`. There is no store of Marley's own.
+- `block_buttons`, the `terminal_view::MarleyBlockExtras` hook: Save as Workflow for a finished
+  block whose command is one line and was verified by the shell's nonce. `SaveAsWorkflow` takes
+  the selected block, else the newest on screen (`block_filter::block_to_filter`). Both defer
+  `open_editor`, since the action runs while the workspace is leased.
+- `WorkflowEditor` (`MarleyWorkflowEditor`): the name, the command from
+  `marley_terminal::workflow::guess` (the branch from the block's facts, a path when it exists
+  under the block's folder), a default and a description row per parameter, rebuilt as the
+  command is edited, and a checkbox for the global file. `write_workflow_in` reads the file or
+  starts one, refuses a label it has, and adds the task with
+  `settings_json::append_top_level_array_value_in_json_text`, so the file is edited as text and
+  its comments stay; it runs off the main thread, then a toast names the file.
+- `fill`, which `RoutedTerminals::spawn` awaits inside its `window.spawn`: a task whose command or
+  arguments name a `{{…}}` opens `ParameterPrompt` (`MarleyWorkflowPrompt`), prefilled from the
+  session's `LastValues`, else the files' `marley.parameters`; Enter (`RunWorkflow`) fills the
+  command, the arguments and the label with `workflow::substitute`, and Escape drops the answer's
+  sender, so the spawn resolves to none and nothing runs.
+
 ## Sending a block to an agent (`src/send_block.rs`, #555)
 
 - `text_for`: the block's output through `mcp::agent_redactor` first; inline when that is at most

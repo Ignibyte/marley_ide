@@ -219,6 +219,15 @@ pub struct MarleyBlockFilter(pub Arc<dyn Fn(&Entity<TerminalView>, usize, &mut W
 
 impl gpui::Global for MarleyBlockFilter {}
 
+// Marley: the extra buttons a block's hover actions start with, such as Save as Workflow; Marley's
+// workbench sets it (#558).
+#[derive(Clone)]
+pub struct MarleyBlockExtras(
+    pub Arc<dyn Fn(&Entity<TerminalView>, &Entity<Terminal>, usize, &App) -> Vec<AnyElement>>,
+);
+
+impl gpui::Global for MarleyBlockExtras {}
+
 // Marley: the autosuggestion a terminal shows after its cursor, or none; Marley's workbench
 // sets it (#484).
 #[derive(Clone)]

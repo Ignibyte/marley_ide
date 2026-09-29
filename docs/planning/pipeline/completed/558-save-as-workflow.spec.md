@@ -1,7 +1,7 @@
 ---
 pipeline_id: 3ba05244-3602-4e62-a889-7c173e6230a1
 ticket: docs/planning/tickets/open/TICKET-558-save-as-workflow.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Save as Workflow: a block's command becomes a task in tasks.json, with its parameters"
 type: feature
 slice: prong 1 T4 (tasks and runnables) with T1 (block actions); the Warp blocks note, recommendation 5

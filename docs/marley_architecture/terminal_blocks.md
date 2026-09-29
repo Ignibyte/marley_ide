@@ -164,6 +164,12 @@ real, reusable session. The Block model is the unit the **brain** later observes
   `filter.rs` (#528) filters a block's output lines: `filter_lines(output, &FilterQuery)` with
   text or a regex (`regex`), case ignored unless asked, invert, and context with a `Gap` between
   groups, grep's meanings; nothing in the grid changes.
+  `workflow.rs` (#558) turns a command into a workflow's template: `guess` replaces, after the
+  first word, a number (`port` after `-p` or `--port`, after a `:`, or from 1024 to 65535 with
+  no other flag before it; else `number`), a URL, the branch and an existing path with
+  `{{name}}`, the token its default, and a repeat of a kind `port2`, `port3`; quoted tokens stay.
+  `params_of` lists a template's parameters and `substitute` fills them; `is_name` is the rule
+  for a parameter's name, never Zed's `ZED_` prefix.
   `AnchoredBlock::markdown(output, took)` (#554) writes a block for a note or a message: a fence
   one backtick longer than any run inside, `$ ` and the command, the output or a line saying it
   is gone (no line at all for empty output, #555), then `exit N · took · folder (branch)`.

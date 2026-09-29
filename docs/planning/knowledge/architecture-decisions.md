@@ -3060,3 +3060,16 @@ in view; each terminal keeps its panel, query and toggles for the session. The m
 (`marley_terminal::filter`, grep's `-v` and `-C`) and runs off the main thread, a running block's
 at most four times a second. Rejected: a footer (it would take rows from the grid and resize the
 PTY); hiding rows in the grid now.
+
+## AD-claude-558-a-workflow-is-a-zed-task-001
+*decided at: 2026-09-29 · status: shipped*
+
+A saved workflow is a Zed task in the project's `.zed/tasks.json` (or the global `tasks.json`),
+with its `{{name}}` parameters' defaults and descriptions under a `marley` key Zed ignores, so
+Zed's picker, rerun and task terminals run it and there is no second store. The file is edited as
+text through `settings_json`'s append, so its comments and entries stay. The parameters are asked
+for inside `RoutedTerminals::spawn`, the one place every task spawn passes through, before the
+terminal opens; a cancelled prompt resolves the spawn to nothing. `guess` runs once, at save, and
+the user edits its result. Rejected: a Marley YAML store (Chad, 2026-09-26: "if it works
+tasks.json it would make sense not to conflict"); Zed's `$ZED_*` variables for the parameters
+(Zed resolves those itself and refuses a task naming one it lacks).

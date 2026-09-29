@@ -62,6 +62,17 @@
     It never existed in this repository's history.
 - **Decisions:** D1 to D6 in the spec.
 
+- **Promotion (2026-09-29):** the schema: `TaskTemplate` (`crates/task/src/task_template.rs:22`)
+  derives `JsonSchema` with no `deny_unknown_fields`, so the schema allows other keys and the
+  `marley` key draws no warning; no `task` hunk. `MarleyBlockExtras` has not landed (#556 is still
+  queued), so this ticket adds it: a hook in `terminal_view` whose buttons `marley_block` puts in
+  a block's hover row, the pattern #528's Filter button uses. `RoutedTerminals::spawn`
+  (`routing.rs:102`) runs every task through `window.spawn`, where the prompt can wait; the
+  gpui-era `substitute` and `params_of` (`/srv/stacks/marley/crates/marley_app/src/workflows.rs`,
+  Marley's own code) carry over. `settings_json::append_top_level_array_value_in_json_text`
+  (`crates/settings_json/src/settings_json.rs:508`) is public; `shlex` is in the workspace.
+- **Brain:** consultation 8c81d66bbbdd43bea3f12add291cc0a3, asked at promotion.
+
 ### Design
 - **`marley_terminal::workflow`** (pure): `substitute(template, values) -> Result<String,
   MissingParam>` and `params_of(template) -> Vec<String>` from the gpui-era module, copyright
@@ -98,7 +109,7 @@
 - **Ledger rows.** `docs/marley/zed-touchpoints.md`: the `terminal_element.rs` row (the hook),
   and a `crates/task/src/task_template.rs` row only in the schema case.
 
-### E2E plan
+### Visual check plan
 `setup` seeds `.zed/tasks.json` with a comment and one task ("hello", `echo hello`) so the
 append has something to keep; the branch is `feature/one`.
 
@@ -131,10 +142,84 @@ it back in the log).
   one, and undoing is deleting the braces.
 
 ## Phase 2 — Code
-- Not started.
+- **Built:**
+  - `marley_terminal/src/workflow.rs` (new, pure): `substitute` and `params_of` from the gpui-era
+    module (#204), `is_name` (letters, digits, `-`, `_`, not a digit first, never `ZED_`), and
+    `guess`: after the first word, a number is `port` after `-p`/`--port`, after a `:`, or in
+    1024 to 65535 with no other flag before it, else `number`; a URL `url`; the branch `branch`;
+    a token that exists under the block's folder `path`; repeats `port2`, `port3`. Quoted tokens
+    are left alone.
+  - `terminal_view.rs`: `MarleyBlockExtras`, a block's extra hover buttons;
+    `terminal_element.rs`: they lead the hover row.
+  - `marley_workbench/src/workflows.rs` (new): the Save as Workflow button (a finished, verified,
+    one-line command) and `SaveAsWorkflow` (the selected block, else the newest in view, through
+    `block_filter::block_to_filter`, now `pub(crate)`); `WorkflowEditor` (name, command, a row
+    of default and description per `{{name}}`, re-derived as the command is edited; a checkbox for
+    the global file; the file's path; the error); `write_workflow_in` (read or start the file,
+    refuse a label it has, `settings_json::append_top_level_array_value_in_json_text`, write)
+    off the main thread, then a toast; `fill`, the prompt `RoutedTerminals::spawn` awaits for a
+    task naming `{{…}}` in its command or arguments, prefilled from the session's last values or
+    the files' `marley.parameters`, filling the command, the arguments and the command label.
+  - `routing.rs`: `fill` first in the spawn's `window.spawn`. `marley_workbench.rs`: the module,
+    its init, `SaveAsWorkflow`, `SaveWorkflow`, `RunWorkflow`. `Cargo.toml`: `settings_json`.
+    The keymap: Enter and Escape in `MarleyWorkflowEditor > Editor` and
+    `MarleyWorkflowPrompt > Editor`.
+- **Deviations:** the number rule gained the port range, since the spec's own example,
+  `python3 -m http.server 8123`, has no `-p` before its port. The scenario's server binds to
+  127.0.0.1, so no run listens on the box's other interfaces. The save's toast is the editor's
+  workspace's.
+- **Review of the diff:** the editor opens after the action's update (`window.defer`), since the
+  palette's action runs while the workspace is leased; `fill` runs inside the spawn's own task,
+  where the workspace is free, and a cancelled prompt drops its sender, so the spawn resolves to
+  none and nothing runs; a task with no placeholder passes straight through; the file is edited as
+  text, never rewritten from a parsed value; a label already in the file is refused.
+- **Gate:** run 1 red: `too_long_first_doc_paragraph` on `guess`, and rustdoc's link from the
+  module's doc to the private `fill`. Run 2 red: two `single_match_else` and a
+  `redundant_closure` in `workflows.rs`. Run 3: GATE GREEN [diff], with the scenario in the tree.
 
 ## Phase 3 — Test
-- Not started.
+- **Scenario:** `script/e2e/558-save-as-workflow.sh` under `compositor sway`: a scratch repository
+  on `feature/one` with `web/index.html` and a `.zed/tasks.json` holding a comment and a `hello`
+  task.
+- **Run 1 red, the scenario's fault:** the workflow ran with the given port filled in, and
+  python's bind failed with `Address already in use`: a service outside the run listens on
+  `*:8124`. The ports are now two free ones picked at run time. The rerun check compares the
+  listener's line (its pid) before and after the cancelled rerun, since Zed's rerun would replace
+  the server and a count would still read 1.
+- **Run 2:** every check passes: the file keeps its comment and task; it holds `serve` with
+  `{{port}}`, `{{path}}` and the saved port as the default; the workflow serves on the port given;
+  the cancelled rerun left the same server running; the second workflow is saved; the file is as
+  it was after an Escape in the editor.
+- **Shots, each read:**
+  - `558-01-button` (REQ-001): the pointer on the server's block; the hover row reads Save as
+    Workflow (the bookmark, first), Filter, Copy, Rerun and the exit check.
+  - `558-02-editor` (REQ-002): Save as Workflow with the command
+    `python3 -m http.server {{port}} --bind 127.0.0.1 --directory {{path}}`, rows `port` (the
+    typed port) and `path` (`web`) with empty descriptions, the global checkbox off and the
+    project's `.zed/tasks.json` path.
+  - `558-03-saved` (REQ-003): the toast `Saved "serve" to …/repo/.zed/tasks.json`; the log's
+    file keeps the comment and `hello`, then `serve` with `cwd` `$ZED_WORKTREE_ROOT` and
+    `marley.parameters`.
+  - `558-04-picker` (REQ-004): Zed's Run tab, `serve` typed, the one row `serve`.
+  - `558-05-parameters` (REQ-005): Run serve, `port` with the saved default and `path` `web`,
+    "Enter runs it; Escape runs nothing."
+  - `558-06-ran` (REQ-006): the `serve` task tab in the center, `Serving HTTP on 127.0.0.1 port`
+    the given one; the rail shows the task's row and the server's port row.
+  - `558-08-rerun` (REQ-008): Ctrl-Alt-R opens Run serve again with the given port, the last
+    value, prefilled; after Escape the same server runs (REQ-009).
+  - `558-07a-editor` and `558-07-no-parameters` (REQ-007): `git status --short --branch` in the
+    editor with no parameters section; from the picker it ran at once, "Task `git status`
+    finished successfully".
+- **Escape in the editor** (REQ-009): the file compares equal to the one before.
+- **Gate:** the scenario changed after run 3, so run 4 of `just gate-diff`: GATE GREEN [diff].
 
 ## Phase 4 — Complete
-- Not started.
+- **Documented:** `CHANGELOG.md` (Added: save a block's command as a workflow);
+  `docs/marley/three-prong-plan.md` T4; `docs/marley_architecture/marley_workbench.md`
+  (Workflows) and `terminal_blocks.md` (`workflow.rs`); the touchpoint rows for
+  `terminal_view.rs` and `terminal_element.rs` describe `MarleyBlockExtras` as shipped.
+- **Knowledge:** `L-claude-558-a-scenarios-server-takes-a-port-picked-at-run-time-001`,
+  `AD-claude-558-a-workflow-is-a-zed-task-001`. No `F-…` block: the gate's reds were lints and
+  the run's red the scenario's port. Brain: `decisions/marleys-workflows-are-zed-tasks-in-tasksjson`
+  on consultation 8c81d66b, follow-up by 2026-10-29.
+- **Closed** TICKET-558, archived the pair.

@@ -2449,6 +2449,11 @@ fn marley_block(
                 });
             })
     });
+    // Marley: the buttons Marley's workbench adds, such as Save as Workflow (#558).
+    let extras: Vec<AnyElement> = cx
+        .try_global::<crate::MarleyBlockExtras>()
+        .map(|hook| (hook.0)(view, terminal, index, cx))
+        .unwrap_or_default();
     // Marley: the Filter button, while Marley's workbench sets its action (#528).
     let filter = cx
         .try_global::<crate::MarleyBlockFilter>()
@@ -2475,6 +2480,7 @@ fn marley_block(
                     ui::h_flex()
                         .id(("marley-block-actions", index))
                         .visible_on_hover(group)
+                        .children(extras.into_iter().map(marley_keep_from_terminal))
                         .children(filter.map(|filter| {
                             marley_keep_from_terminal(filter.into_any_element())
                                 .debug_selector(move || format!("marley-block-filter-{index}"))

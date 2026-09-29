@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #558 (feature, prong 1 T4 (tasks) with T1 (block actions); the Warp blocks note, recommendation 5)
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/558-save-as-workflow.spec.md
+- **Pipeline doc:** ../../pipeline/completed/558-save-as-workflow.spec.md
 - **Source ticket:** docs/planning/design-notes/warp-blocks-and-natural-language-2026-09-25.md ("Save as Workflow"; Chad's answer 2, 2026-09-26: "if it works tasks.json it would make sense not to conflict")
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Save as Workflow on a block opens an editor with the block's command, a name, and the

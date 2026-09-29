@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Save a block's command as a workflow** (#558, 2026-09-29). A hovered block's Save as
+  Workflow button, or `marley: save as workflow` on the selected or newest block, opens an editor
+  with the command and a name. Numbers, URLs, the block's branch and paths that exist are already
+  `{{name}}` parameters, each with the typed value as its default and a description to fill in.
+  Save appends the workflow to the project's `.zed/tasks.json`, or the global `tasks.json`, as a
+  Zed task. What the file held before, its comments included, stays as it was. The task shows in
+  Zed's task picker at once. Running it asks for each parameter, prefilled with the last value
+  used this session, then runs the filled command as a task; Escape runs nothing. A workflow with
+  no parameters runs at once.
+
 - **Filter a block's output** (#528, 2026-09-29). `Alt+Shift+F` in a terminal, or the Filter
   button on a hovered block, opens a panel over the terminal listing only the block's lines that
   hold some text, as Warp's block filter does. Toggles match the case, read the query as a regular

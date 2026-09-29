@@ -1,6 +1,6 @@
 # Filter a block's output — Notes
 
-- **Local ticket doc:** docs/planning/tickets/open/TICKET-528-block-filter.md
+- **Local ticket doc:** docs/planning/tickets/closed/TICKET-528-block-filter.md
 - **Pipeline spec:** 528-block-filter.spec.md
 
 ## Phase 1 — Plan (drafted by /spec, 2026-09-25)

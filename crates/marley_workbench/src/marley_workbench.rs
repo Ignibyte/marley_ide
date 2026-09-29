@@ -60,6 +60,7 @@ pub mod terminal_ids;
 pub mod turn_git;
 pub mod turns;
 pub mod voice;
+pub mod workflows;
 pub mod worktree_agents;
 pub mod worktree_git;
 pub mod worktree_include;
@@ -129,6 +130,16 @@ actions!(
         /// Closes the block filter.
         #[derive(Eq)]
         CloseBlockFilter,
+        /// Saves the focused terminal's selected block, or its newest block in view, as a workflow:
+        /// a task in tasks.json with its parameters.
+        #[derive(Eq)]
+        SaveAsWorkflow,
+        /// Saves the workflow the editor holds.
+        #[derive(Eq)]
+        SaveWorkflow,
+        /// Runs the workflow with the values the prompt holds.
+        #[derive(Eq)]
+        RunWorkflow,
         /// Chooses files and types their paths into the focused terminal, as dropping them does.
         #[derive(Eq)]
         AttachFile,
@@ -434,6 +445,7 @@ pub fn init(cx: &mut App) {
     agents::init(cx);
     blocks::init(cx);
     block_filter::init(cx);
+    workflows::init(cx);
     agent_bar::init(cx);
     claude_plugin::init(cx);
     notifications::init(cx);

@@ -38,6 +38,22 @@
     }
   },
   {
+    // Save as Workflow's editor (#558): Enter saves, Escape closes it with nothing written.
+    "context": "MarleyWorkflowEditor > Editor",
+    "bindings": {
+      "enter": "marley::SaveWorkflow",
+      "escape": "menu::Cancel"
+    }
+  },
+  {
+    // A workflow's parameters as it runs: Enter runs it, Escape runs nothing.
+    "context": "MarleyWorkflowPrompt > Editor",
+    "bindings": {
+      "enter": "marley::RunWorkflow",
+      "escape": "menu::Cancel"
+    }
+  },
+  {
     // A selected block (#554): the arrows move the selection, Escape ends it, Ctrl-Shift-I types
     // its command at the prompt, and Ctrl-Shift-Enter sends it to an agent (#555), as Warp binds
     // them.

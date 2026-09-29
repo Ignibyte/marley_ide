@@ -72,7 +72,7 @@ pub fn init(cx: &mut App) {
 
 /// The block the key filters: the selected one, else the newest with a row in view; none on the
 /// alternate screen or with no block in view.
-fn block_to_filter(view: &Entity<TerminalView>, cx: &App) -> Option<usize> {
+pub(crate) fn block_to_filter(view: &Entity<TerminalView>, cx: &App) -> Option<usize> {
     let terminal = view.read(cx).terminal();
     if let Some(selected) = MarleyBlockSelection::selected(terminal, cx) {
         return Some(selected);

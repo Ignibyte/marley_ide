@@ -3765,3 +3765,14 @@ project and terminal row below it moves down by the section's height. A scenario
 rows by fixed coordinates clicks something else after a seat starts waiting. Bring a terminal
 forward by its tab (`alt-1` to `alt-9`, Zed's `pane::ActivateItem`), or measure the row again
 after the step that makes a seat wait.
+
+## L-claude-558-a-scenarios-server-takes-a-port-picked-at-run-time-001
+*category: e2e · topic: servers a scenario starts · from: #558's visual check*
+
+The headless sway shares the box's network, and the box runs services on ports a scenario might
+pick by hand: #558's first run typed 8124, which a service already held on `*:8124`, so the
+workflow's server failed with `Address already in use` and the check read it as Marley's fault.
+A scenario that starts a server picks its port at run time (bind port 0 on 127.0.0.1 and read the
+port back) and types that. A check that a cancelled rerun started nothing compares the listener's
+`ss -ltnpH` line, pid included, before and after: Zed's rerun replaces a task's terminal, so a
+count of listeners still reads 1 when the rerun did run.
