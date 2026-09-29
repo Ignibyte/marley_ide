@@ -480,6 +480,38 @@ for Codex `--sandbox danger-full-access` (or `-s`), a `--config` of `sandbox_mod
 
 The first time Claude Code starts in bypass it asks you to accept its warning, in the terminal.
 
+### Launch configs
+
+A project can name sets of things to open together in `.zed/marley.json` at its root (#527). Its
+`+` then lists them under **Launch**:
+
+```json
+{
+  "launch": {
+    "Dev": {
+      "items": [
+        { "terminal": "npm run dev", "title": "dev server", "cwd": "web" },
+        { "agent": "claude", "split": "right", "focus": true },
+        { "browser": "http://localhost:5173", "split": "down" }
+      ]
+    }
+  }
+}
+```
+
+- An item is one of `terminal` (the command typed once the shell is ready; `""` is a plain
+  shell), `agent` (`claude`, `codex`, `gemini` or `opencode`, started as the Agent CLIs entries
+  start it) and `browser` (an `http` or `https` URL). A URL on this machine waits up to 30 seconds
+  for its port, so the dev server an earlier item starts has time to come up.
+- `title` names a terminal's or an agent's tab, `cwd` is a folder inside the project, `split`
+  (`right` or `down`) puts the item in a new pane off the previous item's, and `focus` gives it the
+  focus at the end (otherwise the first item has it).
+- The first time you choose a config, Marley shows what it will run, one line an item, with Run
+  and Cancel. It remembers the exact text you approved, so the same config opens at once next
+  time; when the file changes it, Marley asks again and says it changed.
+- A file Marley cannot read shows one grayed entry with the reason, and the log has the whole of
+  it. An edit shows the next time you open the menu.
+
 ### Worktree agents
 
 Several agents can work on one repository at once, each in a git worktree and on a branch of its

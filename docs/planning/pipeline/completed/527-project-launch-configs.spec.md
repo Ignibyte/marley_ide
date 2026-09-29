@@ -1,7 +1,7 @@
 ---
 pipeline_id: a3881d77-4bc1-41af-bc71-dda946bdd0ed
 ticket: docs/planning/tickets/open/TICKET-527-project-launch-configs.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 3 — Complete PASS
 title: "A project's launch configs: a file names what opens in one click from the rail's +"
 type: feature
 slice: workbench shell (the rail's +), Warp once-over item 4; worktrees (#510) in slice 2
@@ -106,20 +106,6 @@ Upstream Zed: `.zed/` as the project's own config folder, and Zed's prompt.
     `marley_browser::address::agent_url` for the URL rule; `sha2`, already in the lock through
     `marley_browser`.
 
-## UI proof
-UI-AFFECTING. `script/e2e/527-project-launch-configs.sh` (`compositor sway`, Chromium offline): a
-scratch repository whose `.zed/marley.json` names "Dev stack" (a terminal titled "dev server"
-running `python3 -m http.server <port>` on a page in the repository, `claude` split right, and a
-Browser tab on the server's URL split down) and "Shell" (one terminal running `echo launched`),
-with a stand-in `claude` first on the PATH. Steps: the project's + and its menu (`527-01-menu`);
-"Dev stack" chosen, and the prompt with its three lines (`527-02-approve`); Run, then the three
-panes, the Browser tab showing the page the terminal's server serves (`527-03-opened`); "Shell"
-chosen and run, then chosen again, which opens a second terminal with no prompt
-(`527-04-no-prompt-again`); the file's "Shell" command changed on disk, then chosen: the prompt
-again, saying the text changed (`527-05-changed`); Escape, and nothing new opens
-(`527-06-cancelled`); "Shell" chosen once more, and the prompt comes back (`527-07-asks-again`);
-the file broken on disk, then the + again (`527-08-broken-file`).
-
 ## Locked-In Decisions
 - D1: The file is `.zed/marley.json`, JSON with comments, beside Zed's own `.zed/` files.
   `.zed/launch.json` was the other candidate; VS Code's `launch.json` is a debugger config and
@@ -144,23 +130,22 @@ the file broken on disk, then the + again (`527-08-broken-file`).
 
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
-| REQ-001 | WHEN the user opens a project's + menu in the rail and the project's `.zed/marley.json` names launch configs, the menu shall list each config by name under a "Launch" header, in the file's order. | Shot `527-01-menu` |
-| REQ-002 | WHEN the user chooses a config whose text is not approved, Marley shall show that text, one line per item, with Run and Cancel, and open nothing until Run. | Shot `527-02-approve` |
-| REQ-003 | WHEN the user runs a config, Marley shall open its items in order: each terminal with its command typed once its shell is ready, each agent as the rail's Agent CLIs entries start it, each Browser tab on its URL, and each item split right or down where it says so. | Shot `527-03-opened` |
-| REQ-004 | WHEN a Browser item's URL is on a loopback host, Marley shall load the page once the port accepts a connection, or after 30 seconds. | Shot `527-03-opened` (the page comes from the config's own server) |
-| REQ-005 | WHEN the user chooses a config whose exact text was approved before, Marley shall open it without asking. | Shot `527-04-no-prompt-again` |
-| REQ-006 | WHEN a config's text changed after it was approved, Marley shall ask again and say that it changed. | Shot `527-05-changed` |
-| REQ-007 | WHEN the user cancels or dismisses the prompt, Marley shall open nothing and record nothing. | Shots `527-06-cancelled` and `527-07-asks-again` |
-| REQ-008 | WHEN `.zed/marley.json` does not parse, the + menu shall show one disabled entry naming the file and the first error. | Shot `527-08-broken-file` |
-| REQ-009 | WHERE a project has no `.zed/marley.json`, its + menu shall be as it was before this ticket. | #500's scenario run again, its menu shot unchanged |
+| REQ-001 | WHEN the user opens a project's + menu in the rail and the project's `.zed/marley.json` names launch configs, the menu shall list each config by name under a "Launch" header, in the file's order. | Review |
+| REQ-002 | WHEN the user chooses a config whose text is not approved, Marley shall show that text, one line per item, with Run and Cancel, and open nothing until Run. | Review |
+| REQ-003 | WHEN the user runs a config, Marley shall open its items in order: each terminal with its command typed once its shell is ready, each agent as the rail's Agent CLIs entries start it, each Browser tab on its URL, and each item split right or down where it says so. | Review |
+| REQ-004 | WHEN a Browser item's URL is on a loopback host, Marley shall load the page once the port accepts a connection, or after 30 seconds. | Review |
+| REQ-005 | WHEN the user chooses a config whose exact text was approved before, Marley shall open it without asking. | Review |
+| REQ-006 | WHEN a config's text changed after it was approved, Marley shall ask again and say that it changed. | Review |
+| REQ-007 | WHEN the user cancels or dismisses the prompt, Marley shall open nothing and record nothing. | Review |
+| REQ-008 | WHEN `.zed/marley.json` does not parse, the + menu shall show one disabled entry naming the file and the first error. | Review |
+| REQ-009 | WHERE a project has no `.zed/marley.json`, its + menu shall be as it was before this ticket. | Review: no file, no header |
 
 ## Phase Plan
-- **P1 Plan:** promote the pair, recall, consult the brain, confirm the design in the notes.
-- **P2 Code:** `launch.rs` in `marley_workbench` (the file's types and parse, the text and its
-  hash, the per-project cache and its reload, the approval, the item runner); the rail's menu
-  entries; `browser::new_tab_at`; the port wait in `marley_browser`; fmt and clippy clean; a
-  review of the diff.
-- **P3 Test:** write and run the scenario, read every shot; run #500's scenario again;
-  `script/gates.sh --diff` green.
-- **P4 Complete:** CHANGELOG; the file's format in `docs/marley/README.md`, and the + menu's
-  section (D4) of `docs/marley/workbench-shell.md`; the ledger; close the ticket, archive, commit.
+- **P1 Plan:** promote the pair, recall, consult the brain, the design in the notes (the changes at
+  promotion first).
+- **P2 Code:** `launch.rs` (the file, its cache and reload, the approval, the runner);
+  `agents::start_in_terminal` split out of `start_cli_with_prompt`; `browser::open_url_tab`
+  returning its view; `marley_browser`'s port wait; the rail's Launch entries; a review;
+  `script/gates.sh --diff` green (no tests, §7).
+- **P3 Complete:** CHANGELOG; `docs/marley_architecture/marley_workbench.md`; the guide; the
+  ledger; close, archive, commit.

@@ -136,6 +136,25 @@ fn is_port(port: &str) -> bool {
     (1..=5).contains(&port.len()) && port.chars().all(|character| character.is_ascii_digit())
 }
 
+/// Whether something accepts a TCP connection on the host and port of `local` now, as a dev
+/// server does once it is up (#527); a loopback refusal answers at once.
+pub async fn accepts(local: &LocalUrl) -> bool {
+    let Ok(url) = url::Url::parse(&local.url) else {
+        return false;
+    };
+    let connected = match url.host() {
+        Some(url::Host::Ipv4(address)) => {
+            smol::net::TcpStream::connect((address, local.port)).await
+        }
+        Some(url::Host::Ipv6(address)) => {
+            smol::net::TcpStream::connect((address, local.port)).await
+        }
+        Some(url::Host::Domain(name)) => smol::net::TcpStream::connect((name, local.port)).await,
+        None => return false,
+    };
+    connected.is_ok()
+}
+
 /// A local URL a terminal printed or a user clicked (#503).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalUrl {

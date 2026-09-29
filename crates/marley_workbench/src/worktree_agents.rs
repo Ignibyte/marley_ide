@@ -581,7 +581,14 @@ async fn create(
     let Some(launch) = created
         .workspace
         .update_in(cx, |workspace, window, cx| {
-            crate::agents::start_cli_with_prompt(workspace, kind, prompt, command, window, cx)
+            crate::agents::start_cli_with_prompt(
+                workspace,
+                kind,
+                &prompt,
+                command.as_deref(),
+                window,
+                cx,
+            )
         })
         .log_err()
     else {

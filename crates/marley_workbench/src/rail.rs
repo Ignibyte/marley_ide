@@ -73,7 +73,7 @@ use crate::ports::{self, Ports};
 use crate::system_one::{self, Asking};
 use crate::turns::Turns;
 use crate::worktree_git::{self, BranchEnd, Drift, MergeOwner};
-use crate::{MarleySettings, browser, worktree_agents};
+use crate::{MarleySettings, browser, launch, worktree_agents};
 
 #[path = "rail_switcher.rs"]
 mod switcher;
@@ -1999,6 +1999,67 @@ impl Rail {
         Ok(())
     }
 
+    /// The project's launch configs (#527), under a Launch header in the file's order, or one
+    /// disabled entry naming the file and why it could not be read; nothing without the file.
+    fn launch_entries(
+        menu: ContextMenu,
+        rail: &WeakEntity<Self>,
+        workspace: &WeakEntity<Workspace>,
+        cx: &App,
+    ) -> ContextMenu {
+        let Some(root) = workspace.upgrade().and_then(|workspace| {
+            workspace
+                .read(cx)
+                .project()
+                .read(cx)
+                .visible_worktrees(cx)
+                .next()
+                .map(|worktree| worktree.read(cx).abs_path().to_path_buf())
+        }) else {
+            return menu;
+        };
+        match launch::configs(&root, cx) {
+            None => menu,
+            Some(Ok(configs)) if configs.is_empty() => menu,
+            Some(Err(why)) => {
+                let why: String = why.chars().take(90).collect();
+                menu.separator().header("Launch").item(
+                    ContextMenuEntry::new(format!("{}: {why}", launch::LAUNCH_FILE)).disabled(true),
+                )
+            }
+            Some(Ok(configs)) => {
+                configs
+                    .into_iter()
+                    .fold(menu.separator().header("Launch"), |menu, config| {
+                        let (rail, workspace, root) =
+                            (rail.clone(), workspace.clone(), root.clone());
+                        let name = config.name.clone();
+                        menu.entry(config.name, None, move |window, cx| {
+                            rail.update(cx, |rail, cx| {
+                                rail.launch(&workspace, root.clone(), name.clone(), window, cx)
+                            })
+                            .flatten()
+                            .log_err();
+                        })
+                    })
+            }
+        }
+    }
+
+    /// Shows `workspace` and runs its launch config `name` there (#527).
+    fn launch(
+        &self,
+        workspace: &WeakEntity<Workspace>,
+        root: PathBuf,
+        name: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let workspace = self.activate_workspace(workspace, window, cx)?;
+        launch::run(workspace.downgrade(), root, name, window, cx);
+        Ok(())
+    }
+
     /// Shows `workspace` and starts `kind` in a new center terminal there.
     fn new_agent(
         &self,
@@ -3235,12 +3296,13 @@ impl Rail {
                                 &cli_workspace,
                                 agent_search_path.as_deref(),
                             );
-                            Self::worktree_agent_entries(
+                            let menu = Self::worktree_agent_entries(
                                 menu,
                                 &cli_workspace,
                                 agent_search_path.as_deref(),
                                 cx,
-                            )
+                            );
+                            Self::launch_entries(menu, &cli_rail, &cli_workspace, cx)
                         }))
                     })
                     .anchor(Anchor::TopRight),

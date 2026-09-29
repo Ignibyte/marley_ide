@@ -84,6 +84,28 @@
     trimmed text).
 - **Decisions:** D1 to D6 in the spec.
 
+### Changed at promotion (2026-09-29; each item overrides the design below)
+- **Checklist** (no task tool): pre-flight ✓ (no other active pipeline, cargo idle); recall ✓;
+  the brain ✓ (nothing on this seam); promoted ✓; the seams re-verified by an Explore agent at
+  73fd28a74d ✓ (every line the notes cite has moved; #510, #532, #585, #503 and #521 landed).
+- **The menu:** the Launch header goes after New Agent in Worktree (#510 landed); entries read a
+  cache filled asynchronously, since the menu builder is synchronous and `Fs::load` is not.
+- **The cache** (`launch.rs`, a global by project root): filled when a workspace opens and when
+  `project::Event::WorktreeUpdatedEntries` names `.zed/marley.json`, read with `Fs` and
+  `settings::parse_json_with_comments` into an `IndexMap` (the file's order).
+- **Terminals and agents:** `agents::start_cli_with_prompt` is split so a shared
+  `start_in_terminal(workspace, directory, input, ..)` opens a center terminal in a given folder
+  and types the input after the handshake; a terminal item types `send_payload(command)`, an agent
+  item the launch line as before. The title goes through `TerminalView::set_custom_title`.
+- **Browser items:** `browser::open_url_tab` (#503) returns the tab it opened or brought forward;
+  a loopback URL (`marley_browser::address::local_url`) waits for its port through a new
+  `marley_browser::address::wait_for_port` (a TCP connect every half second, 30 seconds at most).
+- **Splits:** each item opens in the active pane, then, with `split`, moves into a new pane split
+  off the previous item's pane (`Workspace::split_pane`, `workspace::move_item`), since the
+  active pane follows a focus event that may not have landed between items.
+- **The approval** goes in Zed's key-value store (`KeyValueStore::global(cx).scoped`), the first
+  use in a Marley crate; `sha2` joins `marley_workbench`'s dependencies.
+
 ### Design
 - **`launch.rs`, a new module of `marley_workbench`.**
   - The file's types, serde with `deny_unknown_fields`: `LaunchFile { launch:
@@ -135,20 +157,8 @@
 - **Ledger rows at Complete.** An AD for the file's place and format (D1) and one for the approval
   (D2: what is hashed, the key, the refusal on dismissal).
 
-### E2E plan
-| REQ | Scenario part | Shot |
-|---|---|---|
-| REQ-001 | setup: `offline_chromium`; a free port chosen with Python; `repo/site/index.html` ("Served by the launch config"); `repo/.zed/marley.json` with "Dev stack" (terminal "dev server" running `python3 -m http.server <port> --bind 127.0.0.1 --directory site`, `claude` split right, `browser http://127.0.0.1:<port>/` split down) and "Shell" (terminal `echo launched`); a stand-in `claude` on the terminals' PATH (`terminal_env PATH`) that sleeps as `exec -a claude`; a scratch HOME. Steps: trust the repository, click the project's + | `527-01-menu`: the "Launch" header with both configs after the Agent CLIs |
-| REQ-002 | click "Dev stack" (its place read from the first shot: the Agent CLIs above it are whatever Marley's PATH holds on the box) | `527-02-approve`: the prompt listing the three lines, Run and Cancel |
-| REQ-003, REQ-004 | Return on Run; settle 10 | `527-03-opened`: "dev server" on the left with the server's log, the stand-in Claude Code on the right, the Browser tab below it showing the served page |
-| REQ-005 | the +, "Shell", Run; the +, "Shell" again | `527-04-no-prompt-again`: a second `launched` terminal, no prompt on screen |
-| REQ-006 | a step rewrites "Shell" to `echo changed` on disk; settle 2; the +, "Shell" | `527-05-changed`: the prompt, saying the text changed, with the new line |
-| REQ-007 | Escape; then the +, "Shell" | `527-06-cancelled`: no new terminal; `527-07-asks-again`: the prompt again |
-| REQ-008 | Escape; a step writes a truncated file; settle 2; the + | `527-08-broken-file`: the disabled entry naming `.zed/marley.json` and the error |
-| REQ-009 | #500's scenario, run again at Test | `500-01-menu` as before |
-
-Not reachable by a scenario: a remote project, where `add_center_terminal` refuses terminals
-anyway; the menu's first frames before the cache has loaded (a timing window, see Risks).
+### For the quality pass
+- No tests (§7, since 2026-09-29): the drafted scenario waits for the quality pass.
 
 ### Risks
 - Sibling tickets drafted the same night share seams (their queued specs, 2026-09-25): #510 adds
@@ -168,3 +178,37 @@ anyway; the menu's first frames before the cache has loaded (a timing window, se
   is what the user asked for; the scenario's second run uses "Shell" so the shot stays readable.
 - The approval key includes the main checkout's path, so a moved repository asks again.
 - A server bound only to `::1` behind a `localhost` URL: the port wait tries both addresses.
+
+## Phase 2 — Code
+- **Checklist** (no task tool): `launch.rs` ✓; `agents::start_in_terminal`, `launch_mode` and
+  `launch_input` ✓; `browser::open_url_tab` returning its tab ✓; `marley_browser::address::accepts`
+  ✓; the rail's `launch_entries` and `Rail::launch` ✓; `sha2` in the manifest ✓; the review ✓; the
+  gate ✓.
+- **Built as the changes at promotion say.** Clippy asked for `start_cli_with_prompt` to take
+  `&str` and `Option<&str>` (its two callers changed), `Arc::clone`, the approval text built from
+  parts rather than pushed `format!`s, and `&App`/`&Window` where nothing mutates.
+- **The review**, against each criterion:
+  - REQ-001, REQ-008, REQ-009: the menu reads the cache by the group workspace's first folder; no
+    file, no header; a broken file, one disabled entry.
+  - REQ-002, REQ-005, REQ-006, REQ-007: the prompt shows the hashed text; Run writes the hash
+    before anything opens; Cancel, Escape or a dismissed prompt return before any write.
+  - REQ-003: items open one after another, each awaited; a terminal's command is typed after the
+    handshake; a split item moves into a pane split off the previous item's pane.
+  - REQ-004: a loopback URL tries a connect every half second for 30 seconds, then loads anyway.
+  - A `cwd` with `..` or an absolute path is refused at parse time; an unknown key is refused by
+    `deny_unknown_fields`.
+- **The gate:** `just gate-diff` green: 16 passed, 0 failed, `GATE GREEN [diff]`, the receipt
+  written.
+
+---
+## Phase 3 — Complete
+- **Checklist** (no task tool): document ✓; capture knowledge ✓; close the ticket ✓; archive ✓;
+  commit ✓.
+- **Documented:** `CHANGELOG.md`; `docs/marley_architecture/marley_workbench.md` ("A project's
+  launch configs"); `docs/marley_architecture/marley_browser.md` (`address::accepts`);
+  `docs/marley/workbench-shell.md`; `docs/marley/guide.md` ("Launch configs"). No Zed path changed.
+- **Knowledge:** AD-claude-527-launch-configs-live-in-zed-marley-json-and-run-after-their-text-is-approved-001.
+- **Brain:** consultation 9a07053d30f340089c0f97e23a5bd445 closed with a decision (follow-up
+  2026-10-29).
+- **Closed:** TICKET-527 moved to `tickets/closed/`; its BACKLOG row went at promotion.
+- **No tests** (§7): the drafted scenario waits for the quality pass.

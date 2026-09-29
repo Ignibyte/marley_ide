@@ -2977,3 +2977,18 @@ drift does, not a new method on Zed's git layer (the queued spec's D1, overtaken
 `StatusesChanged` schedules only this read, never a rail rebuild. The data stays in the rail's
 group entries, not `marley_rail`'s row model. Rejected: counts through a Zed touch; `gh` through a
 shell; worktree rows in this slice (they keep #560's drift).
+
+## AD-claude-527-launch-configs-live-in-zed-marley-json-and-run-after-their-text-is-approved-001
+*decided at: 2026-09-29 · status: shipped*
+
+A project's launch configs are `.zed/marley.json`'s `launch` table, JSON with comments beside Zed's
+own `.zed/` files, each a list of terminal, agent and browser items with a title, a folder, a split
+and the focus. The rail's `+` lists them from a cache read through `Fs` when a workspace opens and
+when the file changes (the menu builder is synchronous). A config runs only after its exact text,
+one line an item, is approved; the SHA-256 is kept in Zed's key-value store by folder and name, so
+a change asks again. Items open in order, each in the active pane and then moved into a pane split
+off the previous item's, since the active pane follows a focus change. A terminal is a shell with
+its command typed after the ready handshake (`agents::start_in_terminal`, split out of the agent
+launch); a loopback Browser item waits for its port. Changed at promotion: the cache and the move
+into the split pane. Rejected: `.zed/launch.json` (VS Code's name, a debugger file Zed imports);
+one approval for a whole project; reading the file each time the menu opens.

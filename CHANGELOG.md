@@ -13,6 +13,19 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A project's launch configs** (#527, 2026-09-29). A `.zed/marley.json` at a project's root
+  names launch configs under `launch`, each a list of `items`: `"terminal": "<command>"` (a center
+  terminal whose shell gets the command once it is ready; an empty string is a plain shell),
+  `"agent": "claude"` (or `codex`, `gemini`, `opencode`, started as the rail's Agent CLIs entries
+  start it), or `"browser": "<http or https URL>"` (a Browser tab; a URL on this machine waits up to
+  30 seconds for its port, so a dev server an earlier item starts can come up), each with an
+  optional `title`, `cwd` inside the project, `split` (`right` or `down`, off the previous item's
+  pane) and `focus`. The rail's + lists the configs under Launch; one click shows the config's
+  text, one line an item, with Run and Cancel, and Run opens the items in order. Marley keeps the
+  SHA-256 of the approved text in Zed's key-value store, so the same config opens at once next
+  time and a changed one asks again, saying it changed. A file that does not parse shows one
+  disabled entry naming it and its first error; an edit shows in the next menu.
+
 - **A project's changed lines and pull request on its rail row** (#531, 2026-09-29). A project
   whose folder is a repository's main checkout shows, at the right of its row, the lines added and
   removed since its branch left its base (`+12 ‒3`, uncommitted edits to tracked files included),

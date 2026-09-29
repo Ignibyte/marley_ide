@@ -10890,6 +10890,7 @@ dependencies = [
  "serde",
  "serde_json",
  "settings",
+ "sha2",
  "sidebar",
  "task",
  "tempfile",

@@ -274,7 +274,7 @@ pub fn start_cli(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
-    start_cli_with_prompt(workspace, kind, String::new(), None, window, cx).detach();
+    start_cli_with_prompt(workspace, kind, "", None, window, cx).detach();
 }
 
 /// As [`start_cli`], with `prompt` as the agent's first prompt on its command line (#510), and
@@ -285,29 +285,61 @@ pub fn start_cli(
 pub fn start_cli_with_prompt(
     workspace: &mut Workspace,
     kind: AgentKind,
-    prompt: String,
-    setup: Option<String>,
+    prompt: &str,
+    setup: Option<&str>,
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) -> Task<Option<WeakEntity<Terminal>>> {
-    let mode = {
-        let project = workspace.project().read(cx);
-        let folders = if project.is_local() {
-            project.project_group_key(cx).path_list().paths().to_vec()
-        } else {
-            Vec::new()
-        };
-        crate::MarleySettings::get_global(cx)
-            .agent_permissions
-            .launch_mode(kind, &folders)
-    };
-    let factory = launcher(cx).terminal_factory;
+    let mode = launch_mode(workspace, kind, cx);
+    let input = marley_agent::launch_line_after(setup.unwrap_or_default(), kind, mode, prompt);
     let directory = terminal_view::default_working_directory(workspace, cx);
+    start_in_terminal(workspace, directory, Some(input), window, cx).prompt_err(
+        "Could not start the agent",
+        window,
+        cx,
+        |_, _, _| None,
+    )
+}
+
+/// The permission mode `kind` starts with in `workspace`'s project (#532); a remote project takes
+/// the defaults, since the per-project entries name local folders.
+fn launch_mode(workspace: &Workspace, kind: AgentKind, cx: &App) -> LaunchMode {
+    let project = workspace.project().read(cx);
+    let folders = if project.is_local() {
+        project.project_group_key(cx).path_list().paths().to_vec()
+    } else {
+        Vec::new()
+    };
+    crate::MarleySettings::get_global(cx)
+        .agent_permissions
+        .launch_mode(kind, &folders)
+}
+
+/// What starts `kind` in a terminal of `workspace`, as the rail's Agent CLIs entries start it:
+/// its program with the arguments its permission setting asks for (#527).
+pub(crate) fn launch_input(workspace: &Workspace, kind: AgentKind, cx: &App) -> Vec<u8> {
+    marley_agent::launch_line_after("", kind, launch_mode(workspace, kind, cx), "")
+}
+
+/// Opens a center terminal of `workspace` in `directory`, and types `input` into it once its
+/// shell says it is ready, as Zed's terminal threads start their commands (#527 split it out of
+/// [`start_cli_with_prompt`]). The task gives the terminal once the input is written.
+pub(crate) fn start_in_terminal(
+    workspace: &mut Workspace,
+    directory: Option<PathBuf>,
+    input: Option<Vec<u8>>,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> Task<anyhow::Result<WeakEntity<Terminal>>> {
+    let factory = launcher(cx).terminal_factory;
     let terminal = TerminalPanel::add_center_terminal(workspace, window, cx, move |project, cx| {
         factory(project, directory, cx)
     });
     cx.spawn_in(window, async move |_, cx| {
         let terminal = terminal.await?;
+        let Some(input) = input else {
+            return Ok(terminal);
+        };
         let handshake = |terminal: &mut Terminal, _: &mut Context<Terminal>| {
             terminal.start_init_command_startup_handshake()
         };
@@ -316,23 +348,16 @@ pub fn start_cli_with_prompt(
         // A terminal without a PTY is ready at once; the timeout covers a shell that never
         // echoes the handshake's marker.
         futures::future::select(startup, timeout).await;
-        let input = marley_agent::launch_line_after(
-            setup.as_deref().unwrap_or_default(),
-            kind,
-            mode,
-            &prompt,
-        );
         let launch = |terminal: &mut Terminal, cx: &mut Context<Terminal>| {
             terminal.write_init_command_after_startup(input, cx)
         };
         let written = terminal.update(cx, launch)?;
         anyhow::ensure!(
             written,
-            "the terminal took other input before the agent started"
+            "the terminal took other input before its command started"
         );
         anyhow::Ok(terminal)
     })
-    .prompt_err("Could not start the agent", window, cx, |_, _, _| None)
 }
 
 /// Registers `marley::NewAgent` on every workspace. [`crate::init`] calls it once.

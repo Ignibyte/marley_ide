@@ -152,6 +152,8 @@ for.
   and the page's script waits until one is answered.
 - A failed load commits Chromium's error page, whose `frameNavigated` URL is
   `chrome-error://chromewebdata/`; the URL that failed is `unreachableUrl`, which the tab shows.
+- `address::accepts` (#527) says whether a `LocalUrl`'s host and port take a TCP connection now,
+  for a launch config's Browser item waiting on its dev server.
 - `address::local_url` (#503) reads an http or https URL on this machine: its host `localhost` or
   a name under it, a `127.0.0.0/8` address, `::1`, or the unspecified `0.0.0.0` and `::`, which
   become `127.0.0.1` and `::1` in the URL to open. It gives that URL, the `host:port` label a

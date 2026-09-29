@@ -35,6 +35,7 @@ pub mod close_guard;
 pub mod decisions;
 pub mod find;
 pub mod github;
+pub mod launch;
 pub mod links;
 #[cfg(test)]
 pub mod marley_workbench_tests;
@@ -411,6 +412,7 @@ pub fn init(cx: &mut App) {
     rich_input::init(cx);
     send_selection::init(cx);
     review_notes::init(cx);
+    launch::init(cx);
     autosuggest::init(cx);
     browser::init(cx);
     clients::init(cx);

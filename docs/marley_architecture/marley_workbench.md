@@ -801,6 +801,34 @@ alike.
   `Target` gains `ready` (its seat in `State::Idle`); `Target`, `agent_targets` and the picker are
   `pub(crate)`.
 
+## A project's launch configs (`src/launch.rs`, #527)
+
+- The file is `.zed/marley.json` (`LAUNCH_FILE`), read with `settings::parse_json_with_comments`
+  into `LaunchFile { launch: IndexMap<String, ConfigFile> }` (unknown keys refused), then
+  `checked`: each item exactly one of `terminal`, `agent` (a name in `AgentKind::ALL` by its
+  program) and `browser` (`marley_browser::address::agent_url`, http and https only), a `cwd` of
+  normal components only, at most one `focus`. A `LaunchConfigs` global keeps each folder's
+  `Configs` (the configs, or the first error): `init` reads a workspace's folders as it opens and
+  again on `project::Event::WorktreeAdded`, or `WorktreeUpdatedEntries` naming the file, through
+  the project's `Fs`.
+- The rail's `launch_entries` puts them after New Agent in Worktree under a Launch header (a broken
+  file: one disabled entry with the first 90 characters of the error); `Rail::launch` activates the
+  workspace and calls `launch::run`.
+- `run`: `text` (one line an item) and its SHA-256 in hex; `KeyValueStore::global(cx)
+  .scoped("marley-launch")` keyed by the folder and the config's name; a text not approved asks
+  (Run, Cancel; "changed since you approved it" when another hash is kept), and Run writes the
+  hash before `open_items`.
+- `open_items` opens each item in the active pane (`agents::start_in_terminal` with the item's
+  folder and `marley_agent::send_payload(command)` or `agents::launch_input(kind)`, the terminal's
+  view found by its terminal and titled with `set_custom_title`; `browser::open_url_tab`, which now
+  returns its tab, after `wait_for_port` for a loopback URL: `marley_browser::address::accepts`
+  every half second, 30 seconds at most). A `split` item moves into a pane split off the previous
+  item's (`Workspace::split_pane`, `workspace::move_item`), since the active pane follows a focus
+  change that may not have landed. The `focus` item, else the first, has the focus at the end.
+- `agents::start_cli_with_prompt` now takes `&str` and `Option<&str>` and is a wrapper over
+  `start_in_terminal(workspace, directory, input)`, which opens a center terminal and types the
+  input after the shell's handshake; `launch_mode` and `launch_input` give an agent's line.
+
 ## Review notes to the agent (`src/review_notes.rs`, #522)
 
 - `init` registers Zed's `editor::actions::SendReviewToAgent` on every workspace; the diffs'

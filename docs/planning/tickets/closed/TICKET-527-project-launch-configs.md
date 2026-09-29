@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #527 (feature, workbench shell: the rail's +; Warp once-over item 4)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/527-project-launch-configs.spec.md
+- **Pipeline doc:** ../../pipeline/completed/527-project-launch-configs.spec.md
 - **Source ticket:** Chad, 2026-09-25: "yes please" to Warp's Tab Configs (item 4 of `docs/planning/design-notes/warp-once-over-2026-09-25.md`), with Orca's repo-declared first tabs (`docs/orca_architecture/05-terminal-and-workspace.md` §2.7 and §3 item 6, `docs/orca_architecture/02-worktrees-and-review.md` §2.2)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The rail's + opens one thing at a time, so starting work on a project means opening the dev

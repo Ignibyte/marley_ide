@@ -8206,13 +8206,13 @@ pub(crate) fn new_tab(workspace: &mut Workspace, window: &mut Window, cx: &mut C
 }
 
 /// Opens `url` in a Browser tab of `workspace` with the focus, or brings forward the tab of
-/// `workspace` already on it (#503).
+/// `workspace` already on it (#503), and gives that tab (#527).
 pub(crate) fn open_url_tab(
     workspace: &mut Workspace,
     url: String,
     window: &mut Window,
     cx: &mut Context<Workspace>,
-) {
+) -> Entity<BrowserView> {
     let this = cx.weak_entity();
     let hub = BrowserHub::global(cx);
     let same = |address: &str| {
@@ -8232,7 +8232,7 @@ pub(crate) fn open_url_tab(
     });
     if let Some(view) = showing {
         workspace.activate_item(&view, true, true, window, cx);
-        return;
+        return view;
     }
     let project = BrowserProject::of(workspace.project().read(cx), cx);
     hub.update(cx, |hub, cx| hub.browser_for(&project, cx));
@@ -8248,6 +8248,7 @@ pub(crate) fn open_url_tab(
     workspace.add_item_to_active_pane(Box::new(view.clone()), None, true, window, cx);
     let window_handle = view.read(cx).window;
     open_page_in(&hub, &project.key, view.downgrade(), window_handle, url, cx);
+    view
 }
 
 /// The pages of the project `key`'s browser that no tab shows: those a start found that no tab
