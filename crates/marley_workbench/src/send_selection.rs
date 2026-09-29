@@ -354,13 +354,19 @@ fn send(target: Target, selection: &Selection, window: AnyWindowHandle, cx: &mut
         target.cwd.as_deref(),
         selection.lines,
     );
-    send_text(target, text, window, cx);
+    send_text(target, text, false, window, cx);
 }
 
 /// Types `text` at `target`'s prompt after this update, as a pick's Send does: its window
 /// activated, its tab brought to the front and focused, one paste and no Enter. Rich input open
 /// on it takes the text instead; an agent that waits is left alone, with a toast.
-pub(crate) fn send_text(target: Target, text: String, window: AnyWindowHandle, cx: &mut App) {
+pub(crate) fn send_text(
+    target: Target,
+    text: String,
+    submit: bool,
+    window: AnyWindowHandle,
+    cx: &mut App,
+) {
     cx.defer(move |cx| {
         window
             .update(cx, |_, window, cx| {
@@ -386,7 +392,18 @@ pub(crate) fn send_text(target: Target, text: String, window: AnyWindowHandle, c
                 crate::browser::reveal_terminal(&target.view, window, cx);
                 window.focus(&target.view.focus_handle(cx), cx);
                 let terminal = target.view.read(cx).terminal().clone();
-                terminal.update(cx, |terminal, _| terminal.paste(&text));
+                if submit {
+                    // A request asked at a prompt runs as the agent's next prompt (#557).
+                    crate::terminal_drive::paste_then(
+                        &terminal,
+                        &text,
+                        |terminal| terminal.input(b"\r".to_vec()),
+                        cx,
+                    )
+                    .detach();
+                } else {
+                    terminal.update(cx, |terminal, _| terminal.paste(&text));
+                }
             })
             .log_err();
     });

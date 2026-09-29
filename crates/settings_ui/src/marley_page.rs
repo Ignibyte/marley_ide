@@ -21,7 +21,7 @@ pub(crate) fn marley_page() -> SettingsPage {
     }
 }
 
-fn layout_section() -> [SettingsPageItem; 2] {
+fn layout_section() -> [SettingsPageItem; 3] {
     [
         SettingsPageItem::SectionHeader("Layout"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -38,6 +38,26 @@ fn layout_section() -> [SettingsPageItem; 2] {
                 },
                 write: |settings_content, value, _| {
                     settings_content.marley.get_or_insert_default().layout = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: the hint for English at a shell's prompt (#557).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "English at the Prompt",
+            description: "When a line typed at a terminal's prompt reads as a request in words, such as what is using port 3000, show that Ctrl+Shift+Enter asks the agent, and offer Ask the agent on a block the shell could not run (exit 127). Marley's own rules decide; nothing is sent until you ask, and the key works either way.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.english_hint"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.english_hint.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content.marley.get_or_insert_default().english_hint = value;
                 },
             }),
             metadata: None,

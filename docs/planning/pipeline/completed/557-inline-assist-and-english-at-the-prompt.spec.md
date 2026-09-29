@@ -1,7 +1,7 @@
 ---
 pipeline_id: 0a630590-9f9c-41e3-a44a-6541d94c6b7c
 ticket: docs/planning/tickets/open/TICKET-557-inline-assist-and-english-at-the-prompt.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Inline Assist proven, and English at the prompt by local rules"
 type: feature
 slice: prong 1 T3 (the prompt) with prong 2 (a request to an agent); the Warp blocks note, recommendation 4
@@ -47,16 +47,21 @@ stage is #573.
   after the cursor shows ` · ctrl-shift-enter asks the agent`, dimmed as suggestions are. → never
   takes it: `AcceptSuggestion` recomputes the history suggestion itself. A command shows nothing.
 - **`marley::AskAgent`** on Ctrl+Shift+Enter in `Terminal`: with a typed line, Ctrl-U clears the
-  shell's line, and the text goes to the agent: one agent terminal in the workspace, it is
-  revealed, focused, and gets the text as a paste and a return (the rich input's send); several,
-  a picker names them (Chad's rule for a selection with several agents, the Warp second pass);
-  none, Claude Code starts in the project as the rail's Agent CLIs entry starts it, with the text
-  as its first argument. The send refuses with a toast while the target's seat waits on a
-  permission (#508's rule for picks). With nothing typed, the key reaches the program.
-- **The exit-127 button.** A finished block whose exit code is 127, whose command is verified and
-  reads as English (or whose first word is no command), shows "Ask the agent" in its actions row
-  without hover; a click sends its command as Ctrl+Shift+Enter would. It reaches Zed's element
-  through the `MarleyBlockExtras` hook (#556 D7).
+  shell's line, and the text goes to the agent through #549's targets
+  (`send_selection::agent_targets`, the window's agent terminals, the one focused last first):
+  one, it is revealed, focused, and gets the text as a paste and a return (`send_text` with a
+  return, the rich input's route when it is open); several, #549's `TargetPicker` names them;
+  none, Claude Code starts in the project with the text as its first argument
+  (`agents::start_cli_with_prompt`, the worktree agents' route). The send refuses with a toast
+  while the target's seat waits on a permission (`send_text`'s rule). With nothing typed, the key
+  reaches the program. With a block selected, the deeper `MarleyBlockSelected` binding sends the
+  block as before.
+- **The exit-127 button** (changed at promotion): #555's "Ask the agent" chip before the newest
+  failed block's pill, widened. A block that ended with 127, whose command is verified
+  (`command_verified`, D6) and reads as English or starts with no command, shows the chip even
+  with no agent running, and its click asks with the block's command, as Ctrl+Shift+Enter would;
+  any other failed block keeps #555's chip and send. It reaches Zed's element through the chip
+  hook (`MarleyBlockChip`), composed in `bookmarks.rs`; no Zed hunk.
 - **The setting** `marley.english_hint` (default true) turns the hint and the button off; the key
   stays. It joins the Marley page's Layout section as "English at the Prompt".
 

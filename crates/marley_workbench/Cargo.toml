@@ -55,6 +55,7 @@ settings.workspace = true
 settings_json.workspace = true
 sha2.workspace = true
 sidebar.workspace = true
+smol.workspace = true
 task.workspace = true
 terminal.workspace = true
 terminal_view.workspace = true

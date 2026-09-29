@@ -13,6 +13,21 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **English at the prompt** (#557, 2026-09-29). A line typed at a terminal's prompt that reads
+  as a request, such as `what is using port 3000` or `find all the large files in this repo`,
+  shows a dimmed hint after the cursor, and Ctrl+Shift+Enter hands it to the agent instead of the
+  shell: the Claude Code already running in the window, one you pick when several run, or a new
+  Claude Code with the line as its first prompt. A command the shell could not find (exit 127)
+  on such a line offers Ask the agent on its block. Marley's own rules decide, from the programs
+  on your search path and your shell's builtins; nothing leaves the machine until you ask. The
+  setting English at the Prompt (`marley.english_hint`) turns the hint and the button off.
+
+### Fixed
+
+- **Inline Assist's prompt in a terminal shows** (#557). Ctrl+Enter's prompt went under the
+  terminal's bottom edge, since short output is drawn down onto it; the terminal now keeps the
+  rows under the cursor while the prompt is open. The prompt's run button (▶) runs the command.
+
 - **An agent's commands can stay out of your shell history** (#553, 2026-09-29). The Marley
   setting Agent Commands in History (`marley.agent_commands_in_history`, on by default) decides
   whether the commands an agent runs at your prompt with `terminal_run` enter bash's and zsh's

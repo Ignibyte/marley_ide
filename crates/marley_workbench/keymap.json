@@ -29,6 +29,9 @@
       // with none waiting, both keys reach the program.
       "enter": "marley::RunAgentCommand",
       "escape": "marley::RefuseAgentCommand",
+      // The line typed at the prompt goes to an agent (#557); with a block selected, the deeper
+      // context below sends the block instead.
+      "ctrl-shift-enter": "marley::AskAgent",
       "right": "marley::AcceptSuggestion",
       // A block's filter (#528), Warp's key on Linux; Zed's Linux keymap leaves it unbound.
       "alt-shift-f": "marley::FilterBlock",

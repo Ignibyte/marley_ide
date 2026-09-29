@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-557](open/TICKET-557-inline-assist-and-english-at-the-prompt.md) | feature | prong 1 T3 · Inline Assist proven by a scenario; English at the prompt by local rules, a hint, Ctrl+Shift+Enter to the agent and the exit-127 button |
 | [TICKET-552](open/TICKET-552-codex-and-opencode-notifications.md) | feature | prong 1 T7b · the agent bar sets up Codex's and OpenCode's notifications in a click, as it connects Claude Code |
 | [TICKET-563](open/TICKET-563-terminal-shortcut-note.md) | feature | prong 1 T7 · a toast the first time one of Marley's keys is taken from a terminal program, once per action per data directory |
 | [TICKET-564](open/TICKET-564-project-icons-from-the-repo.md) | feature | workbench · the rail's project headers show the repository's favicon or logo, or the icon its index.html declares; nothing fetched |

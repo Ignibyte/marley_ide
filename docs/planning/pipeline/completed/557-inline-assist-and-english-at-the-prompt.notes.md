@@ -62,7 +62,49 @@
     Marley's `keymap.json:17-23`.
 - **Decisions:** D1 to D7 in the spec.
 
-### Design
+- **Recall at promotion (2026-09-29):**
+  - #555's chip (`send_block::chip`, `send_block.rs:135`) already shows "Ask the agent" before the
+    newest failed block's pill at a prompt, for any non-zero exit, when another terminal runs an
+    agent; it sends the block's Markdown and does not check `command_verified`. The 127 button
+    widens it instead of adding a second one.
+  - #549's `send_selection`: `agent_targets(workspace, cx)` (window-wide, the one focused last
+    first), `Target`, `send_text` (rich input first; a toast while the seat waits; reveal, focus,
+    paste, no return), `TargetPicker`, `show_toast`. `terminal_drive::paste_then` sends a return
+    after a paste. `agents::start_cli_with_prompt` starts an agent CLI in a new center terminal
+    with a first prompt, quoted as one argument.
+  - The suggestion hook (`MarleyTerminalSuggestion`, `terminal_view.rs:273`) draws one dimmed run
+    after the cursor; `AcceptSuggestion` recomputes `autosuggest::suggestion` and types it, so a
+    hint returned only by the hook's closure is never typed (REQ-011).
+  - Zed's Inline Assist: `ctrl-enter` in `Terminal` (`assistant::InlineAssist`), handled by
+    `InlineAssistant::inline_assist`, which needs `agent.enabled`, the Agent Panel (the Marley
+    layout keeps it) and an `inline_assistant_model`; Marley disables none of it and binds no
+    `ctrl-enter`. No scenario configures a model provider yet.
+  - `ctrl-shift-enter` is Marley's only in `Terminal && MarleyBlockSelected` (SendBlockToAgent);
+    the plain `Terminal` context has none. Brain (consultation ecaf28bb): nothing on this seam.
+
+### Design (at promotion)
+- `marley_terminal::english` (pure) as drafted: `Reading`, `read_line`, `MARKERS`, `BUILTINS`.
+- `marley_workbench::english` (new): the command set (`Commands` global, the search path's
+  executables read off the main thread through `agents::launcher(cx).search_path`, refreshed
+  when the path string changes; until read, an unknown word counts as a command);
+  `is_command(word, terminal, cx)`; `reading(terminal, cx)` for the typed line; `hint(terminal,
+  cx)`; `AskAgent`'s handler and `ask(workspace, text, window, cx)`: the targets, the picker, or
+  `start_cli_with_prompt` with Claude Code; `asks_on_127(view, terminal, index, cx)` for the chip.
+- `send_selection::send_text` gains `submit: bool` (a return after the paste, through
+  `paste_then`); its two callers pass false.
+- `autosuggest::init`'s hook closure: the history suggestion, else `english::hint`.
+- `send_block::chip`: for a block `english::asks_on_127` accepts, the chip shows without targets
+  and its click calls `english::ask` with the block's command.
+- The setting `english_hint` (`settings_content`, `default.json` true, `MarleySettings`, a toggle
+  in the Layout section); `AskAgent` in `actions!` and `ctrl-shift-enter` in the keymap's
+  `Terminal` block.
+- **File manifest.** Marley: `marley_terminal/src/{english.rs, marley_terminal.rs}`;
+  `marley_workbench/src/{english.rs, autosuggest.rs, send_block.rs, send_selection.rs,
+  marley_workbench.rs}`, `marley_workbench/keymap.json`. Zed: `settings_content/src/marley.rs`,
+  `settings_ui/src/marley_page.rs`, `assets/settings/default.json`. Script:
+  `script/e2e/557-inline-assist-and-english-at-the-prompt.sh`.
+
+### Design (as drafted; the promotion's above wins where they differ)
 - **`marley_terminal::english`** (pure): `pub enum Reading { Blank, Command, English }`;
   `pub fn read_line(line: &str, is_command: impl Fn(&str) -> bool) -> Reading` by the spec's
   rules, in that order; `pub const MARKERS: &[&str]`; `pub const BUILTINS: &[&str]` (bash and
@@ -151,10 +193,69 @@ stand-in shows the bytes; L-claude-482's pty method can show one real paste if T
   the element clips as it clips suggestions today.
 
 ## Phase 2 — Code
-- Not started.
+- **Built to the promoted design.** `marley_terminal::english` (`Reading`, `read_line`, `MARKERS`,
+  `BUILTINS`); `marley_workbench::english` (the `Commands` global read off the main thread from
+  the launcher's search path, `is_command`, `hint`, `ask_typed` and `ask`, `asks_on_127`,
+  `ask_later`); `send_selection::send_text` gains `submit`, a return after the paste through
+  `terminal_drive::paste_then`; the suggestion hook's closure falls back to the hint;
+  `send_block::chip` shows for a 127 block that `asks_on_127` accepts and asks with its command;
+  `AskAgent` on `ctrl-shift-enter` in `Terminal`; `english_hint` in the settings, `default.json`
+  and the Layout section, read as `EnglishHint` (clippy's `struct_excessive_bools` again).
+- **Found in Test, fixed here.**
+  - Inline Assist's prompt never showed: #476's bottom shift draws short content down onto the
+    terminal's bottom edge, and Zed places the prompt block under the cursor line, off the
+    view. The prompt still took the keys, so a request still generated. The shift now waits
+    while a block sits below the cursor (`terminal_element.rs`, one condition, its row grown).
+  - `ls -la` and Ctrl+Shift+Enter went to an agent: `ask_typed` asked with any typed line. It
+    now asks only for a line that reads as English, so a command's key reaches the shell
+    (REQ-005); with the hint off, English still asks (REQ-010).
+- **Deviations.** REQ-003 runs the command with the prompt's run button (▶): on Linux Zed's prompt
+  editor binds Ctrl+Enter itself (`editor::NewlineBelow` in `Editor`, deeper than `menu`'s
+  `SecondaryConfirm`), so the key never runs it. Upstream behaviour, recorded and left.
+- **Review.** Nothing leaves the machine: the reading is local, and the stand-in Ollama the
+  scenario uses is on `127.0.0.1`. The hint rides only the hook, so `AcceptSuggestion` never
+  types it. The 127 chip needs `command_verified` (PR-claude-474); a block whose frames came from
+  output gets none. The chip's click defers to after the element's update (`window.defer`).
+- **Gate.** Run 1 red on gate:21 only: dylint's `async_block_without_await` on the search
+  path's walk, a synchronous closure inside `background_spawn`; it runs through `smol::unblock`
+  now (`smol` added to the workbench). Run 2: `GATE GREEN [diff]`, 16 passed, 0 failed.
 
 ## Phase 3 — Test
-- Not started.
+- **Scenario** `script/e2e/557-inline-assist-and-english-at-the-prompt.sh` under `compositor
+  sway`: a stand-in Ollama (`/api/tags`, `/api/show`, `/api/chat` answering `echo
+  marley-inline-assist`) on a free loopback port in the run's settings, and a stand-in `claude`
+  (`exec -a claude python3`) that logs its arguments and each line it reads.
+- **Runs.** 1: the prompt off the view and the command not run (the shift, and Ctrl+Enter).
+  2: the prompt shows; the command not run. 3: ▶ clicked; `ls -la` asked an agent. 4: the chip's
+  guessed position missed. 5: every check passed. 6: the REQ-010 key check added; all 6 passed.
+- **Every shot read** (run 5; run 6's `557-10-off` the same):
+  - `557-01-inline-prompt`: the prompt block under the `$` line, `Generate… (Ctrl-? to chat …)`
+    and the model `Fake`. REQ-001.
+  - `557-02-generated`: `$ echo marley-inline-assist` on the prompt line, not run; the prompt
+    with 👍 👎 ✓ ▶. REQ-002.
+  - `557-03-ran`: the block `echo marley-inline-assist` with its output and ✓. REQ-003.
+  - `557-04-hint`: `$ what is using port 3000` and, dimmed after the cursor, `· ctrl-shift-enter
+    asks the agent`; after →, the line unchanged (the log). REQ-004, REQ-011.
+  - `557-05-no-hint`: `$ ls -la` with nothing after the cursor; Ctrl+Shift+Enter asked no agent.
+    REQ-005.
+  - `557-06-asked-new`: a new terminal, `$ claude 'what is using port 3000'`, the stand-in's
+    `argv: what is using port 3000`, its rail row an agent; the first terminal's line cleared.
+    REQ-006.
+  - `557-07-asked-running`: the stand-in's terminal in front with `got: find all the large files
+    in this repo`. REQ-007.
+  - `557-08-exit-127`: `$ show me the biggest folders`, `bash: show: command not found`, and
+    `Ask the agent` beside `exit 127`. REQ-008.
+  - `557-09-button`: the stand-in got `show me the biggest folders`. REQ-009.
+  - `557-10-off`: with the setting off and the stand-in ended, two 127 blocks with no chip and the
+    English line with no hint; Ctrl+Shift+Enter then started a second stand-in (the log). REQ-010.
+- **Not reachable:** a real model (the stand-in speaks Zed's Ollama protocol) and a real Claude
+  Code taking the line.
 
 ## Phase 4 — Complete
-- Not started.
+- **Docs.** CHANGELOG Added and Fixed; `marley_workbench.md` (a section for `english.rs`),
+  `terminal_blocks.md` (`english.rs`); the touchpoint rows for `terminal_element.rs`, the settings
+  files and `default.json` describe what shipped.
+- **Knowledge.** F-claude-557-the-bottom-shift-hid-inline-assists-prompt-001,
+  AD-claude-557-english-at-the-prompt-by-local-rules-001. Brain: `brain_decide` on consultation
+  ecaf28bb.
+- **Closed** the ticket, archived the pair, committed.

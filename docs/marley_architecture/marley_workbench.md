@@ -1112,6 +1112,24 @@ alike.
   a `?` when questioned, the line as its tooltip) and the line in red under #551's command line,
   and its filter matches the line.
 
+## English at the prompt (`src/english.rs`, #557)
+
+- `init` reads the search path's program names off the main thread (`Commands`, from
+  `agents::launcher`) and registers `marley::AskAgent` (Ctrl+Shift+Enter in `Terminal`).
+- `is_command`: a builtin (`marley_terminal::english::BUILTINS`), a program on the search path,
+  or the first word of the terminal's own verified commands; before the path is read, every word,
+  so no hint shows early. `read_line` decides with it.
+- `hint` returns ` · ctrl-shift-enter asks the agent` for a typed English line while
+  `marley.english_hint` is on; `autosuggest`'s hook closure shows it where no history suggestion
+  applies, and `AcceptSuggestion`, which recomputes only the history's, never types it.
+- `ask_typed` (the key) takes an English line only, clears the shell's line with Ctrl-U, and
+  `ask` sends it: one agent terminal of the window (`send_selection::agent_targets`) gets it as a
+  paste and a return (`send_text` with `submit`); several, #549's picker; none, Claude Code
+  through `agents::start_cli_with_prompt`. A command's key reaches the shell.
+- `asks_on_127` makes #555's chip show on the newest block that ended with 127 when its verified
+  command reads as English, even with no agent running; its click asks with the command
+  (`ask_later`, deferred past the element's update).
+
 ## Claude Code's hook events (`src/agent_events.rs`, #519)
 
 - `AgentEvents`, a global made at the first frame, holds one `marley_fleet::FleetSnapshot`: a

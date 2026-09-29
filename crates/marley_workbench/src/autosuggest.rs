@@ -30,7 +30,11 @@ pub fn init(cx: &mut App) {
     cx.set_global(HistoryFiles::default());
     cx.set_global(MarleyTerminalSuggestion(Arc::new(|terminal, cx| {
         read_history_once_drawn(terminal, cx);
-        suggestion(terminal, cx).map(Into::into)
+        // The hint is never a suggestion: AcceptSuggestion recomputes these and types only the
+        // history's (#557).
+        suggestion(terminal, cx)
+            .map(Into::into)
+            .or_else(|| crate::english::hint(terminal, cx))
     })));
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action(|workspace, _: &AcceptSuggestion, window, cx| {

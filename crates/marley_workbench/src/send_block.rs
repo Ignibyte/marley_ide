@@ -99,7 +99,7 @@ fn send_now(view: &Entity<TerminalView>, index: usize, window: &mut Window, cx: 
                 cx,
             );
         }),
-        1 => send_selection::send_text(targets.remove(0), text, window_handle, cx),
+        1 => send_selection::send_text(targets.remove(0), text, false, window_handle, cx),
         _ => {
             let rows = targets
                 .into_iter()
@@ -110,7 +110,7 @@ fn send_now(view: &Entity<TerminalView>, index: usize, window: &mut Window, cx: 
                 .collect();
             let on_pick: OnPick = Box::new(move |pick, window, cx| {
                 if let Pick::Agent(target) = pick {
-                    send_selection::send_text(target, text.clone(), window, cx);
+                    send_selection::send_text(target, text.clone(), false, window, cx);
                 }
             });
             workspace.update(cx, |workspace, cx| {
@@ -131,7 +131,8 @@ fn send_now(view: &Entity<TerminalView>, index: usize, window: &mut Window, cx: 
 
 /// The chip for each block starting on screen, part of the element's `MarleyBlockChip` hook
 /// (`bookmarks`): Ask the agent for the newest block when it failed, the shell waits at its prompt
-/// with no agent in front, and another terminal of the window runs an agent.
+/// with no agent in front, and another terminal of the window runs an agent; or, for a request
+/// the shell could not run (127), with its words, whatever runs (#557).
 pub(crate) fn chip(
     view: &Entity<TerminalView>,
     terminal: &Entity<Terminal>,
@@ -139,6 +140,23 @@ pub(crate) fn chip(
     cx: &App,
 ) -> Option<AnyElement> {
     let terminal = terminal.read(cx);
+    // A request the shell could not run (127) asks the agent with its own words, even with no
+    // agent running (#557).
+    if agent_in(terminal).is_none()
+        && let Some(command) = crate::english::asks_on_127(terminal, index, cx)
+    {
+        let view = view.clone();
+        return Some(
+            Button::new(("marley-ask-agent", index), "Ask the agent")
+                .style(ButtonStyle::Tinted(TintColor::Accent))
+                .label_size(LabelSize::XSmall)
+                .on_click(move |_, window, cx| {
+                    cx.stop_propagation();
+                    crate::english::ask_later(&view, command.clone(), window, cx);
+                })
+                .into_any_element(),
+        );
+    }
     let anchored = terminal.marley_anchored();
     let block = anchored
         .blocks()

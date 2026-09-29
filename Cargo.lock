@@ -10897,6 +10897,7 @@ dependencies = [
  "settings_json",
  "sha2",
  "sidebar",
+ "smol",
  "task",
  "tempfile",
  "terminal",

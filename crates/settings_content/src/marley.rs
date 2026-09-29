@@ -87,6 +87,12 @@ pub struct MarleySettingsContent {
     ///
     /// Default: true
     pub agent_commands_in_history: Option<bool>,
+    /// Whether a line typed at a shell's prompt that reads as English shows a hint that
+    /// Ctrl+Shift+Enter asks the agent, and a block that ended with 127 on one offers Ask the
+    /// agent (#557). The key works either way.
+    ///
+    /// Default: true
+    pub english_hint: Option<bool>,
     /// Whether Marley starts Claude Code with its own permission prompts or with
     /// `--dangerously-skip-permissions` (#532). An entry of `agent_permissions_by_project` wins
     /// for its project.

@@ -3209,3 +3209,16 @@ the same module, so one Ctrl-I stops both tools; Enter and Escape answer a run c
 bindings that propagate when none waits. The call answers within 25 seconds, the block at most
 20 seconds after the typing, else `running: true`. Rejected: a new `precmd` field (the signed
 wrapper already carried the nonce); the card taking the focus; a module of its own.
+
+## AD-claude-557-english-at-the-prompt-by-local-rules-001
+*decided at: 2026-09-29 · status: shipped*
+
+A line typed at a shell's prompt reads as English or a command by Marley's own rules, with the
+search path's programs, the shells' builtins and the terminal's verified commands as the
+commands; no line leaves the machine (#573 is the opt-in second stage). An English line gets a
+dimmed hint in the suggestion slot, never the footer, and only when no history suggestion applies;
+Ctrl+Shift+Enter hands an English line to the window's agent, a picker, or a new Claude Code with
+the line as its first prompt, and leaves a command's key to the shell. Enter stays the shell's.
+The exit-127 button is #555's chip, widened to a verified English command with or without an
+agent running. Rejected: a second button on the block; the footer for the hint (it would resize
+the PTY each time the reading flipped); asking with any typed line.

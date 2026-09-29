@@ -1733,6 +1733,10 @@
     // Marley's suggestions (#553). Off, they are typed with a leading space that bash and zsh
     // keep out of the history, in terminals opened after the change.
     "agent_commands_in_history": true,
+    // Whether a line typed at a prompt that reads as English, such as "what is using port 3000",
+    // shows a hint that Ctrl+Shift+Enter asks the agent, and a block that ended with 127 on one
+    // offers Ask the agent (#557). Local rules decide; the key works either way.
+    "english_hint": true,
     // What Marley starts Claude Code with (#532): "ask" (its own permission prompts) or
     // "bypass" (--dangerously-skip-permissions). A rail row carries a mark while an agent runs
     // without its prompts, however it was started.

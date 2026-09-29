@@ -2805,3 +2805,12 @@ the `fc` command itself as when typed, so it read the line before the agent's an
 nothing: the scenario's history file kept the agent's command. Reproduced by hand in a pty with
 the agent's bytes; `history 1` reads the last entry as it is. `PS0`'s `fc -ln -0` is unaffected,
 since there the current line is the one it names.
+
+## F-claude-557-the-bottom-shift-hid-inline-assists-prompt-001
+*severity: medium · found in: pipeline 557's visual check · class: a Marley layout change that takes the room an upstream overlay expects · prevented by: the shift waiting while `block_below_cursor` is set (#557)*
+
+#476 draws a terminal's short content down onto its bottom edge. Zed's Inline Assist places its
+prompt as a block under the cursor line and scrolls for it when the content does not reach the
+bottom; with the content on the bottom edge there were no rows under the cursor, so the prompt
+was drawn off the view. The prompt still had the focus, so a request typed blind still
+generated. The shift now waits while a block sits below the cursor.

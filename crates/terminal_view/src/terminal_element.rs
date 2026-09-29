@@ -1409,7 +1409,11 @@ impl Element for TerminalElement {
                     // room, from the content just synced so new output is never a frame late.
                     // The size is the same, so `set_size` only stores the moved origin, which
                     // the mouse maps through (#476).
-                    if let Some(padding) = marley_bottom_padding {
+                    // Marley: not while a block sits below the cursor, such as Inline Assist's
+                    // prompt, which needs the rows under it (#557).
+                    if let Some(padding) = marley_bottom_padding
+                        && self.block_below_cursor.is_none()
+                    {
                         let content = terminal.last_content();
                         let shift = marley_terminal::bottom_shift(
                             content.marley_empty_bottom_rows,

@@ -36,6 +36,7 @@ pub mod clients;
 pub mod close_guard;
 pub mod command_watch;
 pub mod decisions;
+pub mod english;
 pub mod find;
 pub mod github;
 pub mod launch;
@@ -177,6 +178,10 @@ actions!(
         /// goes to the terminal's program (#556).
         #[derive(Eq)]
         RunAgentCommand,
+        /// Hands the line typed at the focused terminal's prompt to an agent instead of the shell;
+        /// with nothing typed, the key goes to the terminal's program (#557).
+        #[derive(Eq)]
+        AskAgent,
         /// Refuses the command an agent waits to run in the focused terminal; without one, the
         /// key goes to the terminal's program (#556).
         #[derive(Eq)]
@@ -332,6 +337,9 @@ pub struct MarleySettings {
     pub agent_commands_outside_lists: settings::MarleyAgentCommandsOutsideLists,
     /// Whether an agent's commands enter the shell's history and the suggestions (#553).
     pub agent_command_history: AgentCommandHistory,
+    /// Whether a line typed at a prompt that reads as English gets a hint, and an exit-127 block
+    /// the Ask chip (#557).
+    pub english_hint: EnglishHint,
     /// What Marley starts Claude Code and Codex with (#532).
     pub agent_permissions: agents::AgentPermissions,
     /// Who answers Claude Code's trust question in a new worktree (#587).
@@ -359,6 +367,16 @@ pub enum AgentCommandHistory {
     Entered,
     /// They are typed with a leading space the shell keeps out, in terminals started since.
     KeptOut,
+}
+
+/// Whether English typed at a prompt is answered with a hint and an exit-127 block with the Ask
+/// chip, from `marley.english_hint` (#557).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EnglishHint {
+    /// The hint and the chip show.
+    Shown,
+    /// Neither shows; Ctrl+Shift+Enter still asks.
+    Hidden,
 }
 
 /// `patterns` as owned strings, for a list setting's fallback.
@@ -431,6 +449,14 @@ impl Settings for MarleySettings {
             agent_commands_outside_lists: marley
                 .and_then(|marley| marley.agent_commands_outside_lists)
                 .unwrap_or_default(),
+            english_hint: if marley
+                .and_then(|marley| marley.english_hint)
+                .unwrap_or(true)
+            {
+                EnglishHint::Shown
+            } else {
+                EnglishHint::Hidden
+            },
             agent_command_history: if marley
                 .and_then(|marley| marley.agent_commands_in_history)
                 .unwrap_or(true)
@@ -528,6 +554,7 @@ pub fn init(cx: &mut App) {
     markdown_commands::init(cx);
     command_watch::init(cx);
     running_errors::init(cx);
+    english::init(cx);
     agent_bar::init(cx);
     claude_plugin::init(cx);
     notifications::init(cx);

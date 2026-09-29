@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #557 (feature, prong 1 T3 with prong 2: the Warp blocks note, recommendation 4)
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/557-inline-assist-and-english-at-the-prompt.spec.md
+- **Pipeline doc:** ../../pipeline/completed/557-inline-assist-and-english-at-the-prompt.spec.md
 - **Source ticket:** docs/planning/design-notes/warp-blocks-and-natural-language-2026-09-25.md (items 1 and 2 of "What Marley would do"; Chad, 2026-09-26: "local first and then jev second")
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Two halves of Warp's natural-language input, without a network model. First, an e2e scenario
