@@ -78,10 +78,12 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
   the row to the project, and `cycle_project` climbs through it; `Focus::worktree` puts the
   displayed worktree's row before the project header in the selection. The terminals stay in the
   project's flat list, so every other reader of it is unchanged.
-- **`WorktreeSnapshot::drift`** (#560), copied onto `WorktreeRow`, is `DriftSnapshot { behind,
-  conflicts, base, base_commit }`: the commits on the base the branch lacks, the files a merge
-  would stop on (`None` when git cannot say), the base and its short tip. `words` is the chip's
-  text (`2 behind`, `1 conflict`, `3 conflicts`, none up to date), `conflicted` its color, and
+- **`WorktreeSnapshot::drift`** (#560), copied onto `WorktreeRow`, is `DriftSnapshot { ahead,
+  behind, conflicts, base, base_commit }`: since #511 the commits on the branch its base lacks,
+  the commits on the base the branch lacks, the files a merge would stop on (`None` when git
+  cannot say), the base and its short tip. `ahead_words` is the row's count (`2 ahead of main`,
+  none at 0). `words` is the chip's text (`2 behind`, `1 conflict`, `3 conflicts`; none up to
+  date, and since #511 none while `ahead` is 0), `conflicted` its color, and
   `tooltip` its lines: `N commits behind main (main at <sha7>)`, or the short commit alone for a
   commit base, then `A merge would stop on:` and twenty files at most with `and N more`, or
   `It merges cleanly.`, or `This git cannot tell whether it merges cleanly.`

@@ -2873,3 +2873,20 @@ usual file rules. Rejected:
 - a path check under the project: `cargo doc` writes under a shared target folder on this box;
 - a navigation filter inside local pages (Orca blocks later `file:` loads): rustdoc's pages link
   to one another.
+
+## AD-claude-511-marley-merges-a-worktree-branch-locally-and-the-workflow-owns-it-where-it-runs-001
+*decided at: 2026-09-29 · status: shipped*
+
+A worktree's branch is merged from its row's menu with `git merge --no-ff --no-edit` in the main
+checkout, never a push (Chad, 2026-09-25), and only for a branch whose base Marley recorded when it
+made the worktree (#510), so Marley never merges a branch it did not start. The checks fail
+closed and change nothing: the main checkout on the base, no change not committed there on disk
+or unsaved in Marley, none in the worktree, something to merge, Zed's trust (a merge runs the
+repository's hooks), and a confirmation whose count and base are read again before the merge. A
+conflict is aborted. Where the Rustal workflow manages the repository, Marley shows the state and
+offers no Merge ("it should not impede the harness / workflow"): `git config marley.merge`
+(`workflow` or `marley`) decides when set, else a `workflow.toml` with a `[project]` table at the
+root. Both live in the clone. Review is Zed's `BranchDiff` against the recorded base, reached
+through one Zed function made `pub`. Rejected: a Marley setting per project (it lives outside the
+clone, so another profile would merge); running `git` from the menu's build (the menu reads the
+drift runs' kept state); a squash or rebase merge (a merge commit keeps the agent's history).

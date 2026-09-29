@@ -3700,3 +3700,22 @@ vendored under `vendor/` is skipped, and keeps its own license file.
 their argument unchanged too. Python's `webbrowser.open` passes whatever it was given, a `file://`
 URL in the common case. An opener that takes local pages reads both forms; a relative path joins
 the program's folder.
+
+## L-claude-511-a-fresh-folder-workspace-gets-its-first-terminal-after-its-openers-item-001
+*category: code · topic: the Marley layout's first terminal · from: pipeline 511*
+
+In the Marley layout, routing's `seed_first_terminal` gives every fresh folder workspace a center
+terminal, created asynchronously after the workspace's new-workspace observer runs. Code that opens
+a workspace and then adds its own item there (a diff, a page) races it, and the terminal usually
+lands last and takes the front. Such code marks the folder first with
+`worktree_agents::skip_seed` (the seed compares a root's last two parts) and drops the mark with
+`drop_seed_skip` once its item is in, as #510 does for an agent's worktree.
+
+## L-claude-511-git-titles-a-merge-by-the-name-it-was-given-001
+*category: code · topic: git merge · from: pipeline 511*
+
+`git merge --no-edit refs/heads/<b>` titles the commit "Merge branch 'refs/heads/<b>'": git's
+default title quotes the argument as given. Naming the full ref is still right, since a tag of
+the same name outranks the branch in git's ref lookup (gitrevisions(7)), so Marley passes
+`-m "Merge branch '<b>' into <base>"` with it. git 2.55 leaves " into main" off its own default
+title for main; the explicit title keeps it.

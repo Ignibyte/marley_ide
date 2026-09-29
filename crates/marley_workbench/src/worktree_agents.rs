@@ -66,6 +66,26 @@ pub(crate) fn take_seed_skip(root: &Path, cx: &mut App) -> bool {
     })
 }
 
+/// Marks `folder` for the first-terminal seed to pass over, as a worktree agent's is (#511): a
+/// worktree Review opens shows its diff alone.
+pub(crate) fn skip_seed(folder: PathBuf, cx: &mut App) {
+    cx.default_global::<WorktreeAgents>()
+        .seed_skips
+        .push(folder);
+}
+
+/// Drops `folder`'s mark when the seed did not take it (#511), so the folder opened later gets
+/// its first terminal.
+pub(crate) fn drop_seed_skip(folder: &Path, cx: &mut App) {
+    if let Some(agents) = cx.try_global::<WorktreeAgents>()
+        && agents.seed_skips.iter().any(|marked| marked == folder)
+    {
+        cx.global_mut::<WorktreeAgents>()
+            .seed_skips
+            .retain(|marked| marked != folder);
+    }
+}
+
 /// A path's last two parts, last first.
 fn last_two(path: &Path) -> Vec<std::path::Component<'_>> {
     path.components().rev().take(2).collect()

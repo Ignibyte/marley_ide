@@ -2554,3 +2554,11 @@ the scrollback, where what a program cleared or answered stays. A check on what 
 now, such as a dialog, a prompt or a menu, reads the visible rows
 (`Terminal::with_renderable_cells`, a row per `point.line`). It may take text from the joined
 lines only once a part of the thing is on a visible row.
+
+## PR-claude-column-significant-git-output-is-read-untrimmed-001
+*severity: medium · prevents: F-claude-511-the-merge-checks-trimmed-porcelains-leading-space-001*
+
+git output whose columns carry meaning, such as `status --porcelain` (two status letters, either
+a space), `diff --name-status` or `ls-files -s`, is split into lines before anything is trimmed,
+and each line is sliced as it came. A helper that trims the whole output serves one-value answers
+only: `rev-parse`, `config --get`, `symbolic-ref`, a count.

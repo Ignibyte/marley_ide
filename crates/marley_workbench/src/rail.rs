@@ -18,10 +18,12 @@ use agent_ui::threads_archive_view::fuzzy_match_positions;
 use agent_ui::{Agent, AgentPanel, AgentPanelEvent, AgentThreadSource, ConversationView};
 use anyhow::Context as _;
 use editor::{Editor, EditorEvent};
+use fs::Fs;
+use git_ui::branch_diff::BranchDiff;
 use gpui::{
     Anchor, AnyElement, AnyView, App, ClickEvent, ClipboardItem, Context, Div, ElementId, Entity,
-    EntityId, EventEmitter, FocusHandle, Focusable, Hsla, Image, Pixels, Render, Stateful,
-    Subscription, Task, WeakEntity, Window, img, px,
+    EntityId, EventEmitter, FocusHandle, Focusable, Hsla, Image, Pixels, PromptLevel, Render,
+    Stateful, Subscription, Task, WeakEntity, Window, img, px,
 };
 use marley_agent::risk::{self, Action, Chip, ChipKind, ChipSource, ToolClass};
 use marley_agent::route::{self, Route, RouteMark, RouteSource};
@@ -68,7 +70,7 @@ use crate::browser::{BrowserEvent, BrowserHub, BrowserView};
 use crate::ports::{self, Ports};
 use crate::system_one::{self, Asking};
 use crate::turns::Turns;
-use crate::worktree_git::{self, Drift};
+use crate::worktree_git::{self, Drift, MergeOwner};
 use crate::{MarleySettings, browser, worktree_agents};
 
 #[path = "rail_switcher.rs"]
@@ -82,6 +84,9 @@ const MAX_WIDTH: Pixels = px(600.);
 
 /// How long a repository's drift run waits after it is scheduled (#560): an agent commits often.
 const DRIFT_DEBOUNCE: Duration = Duration::from_secs(1);
+
+/// How long a worktree's Review waits for the window to open its workspace (#511).
+const REVIEW_WAIT: Duration = Duration::from_secs(30);
 
 /// Reads the command a terminal's foreground process runs. Production asks the PTY; a test's
 /// display-only terminal has no process, so tests hand in their own.
@@ -139,6 +144,8 @@ pub struct Rail {
     drift_runs: HashMap<PathBuf, Task<()>>,
     /// The repositories whose git refused `merge-tree --write-tree`, logged once.
     drift_unsupported: HashSet<PathBuf>,
+    /// A worktree's Review waiting for the window to open its workspace (#511).
+    pending_review: Option<PendingReview>,
     /// The window as the rail last read it. `render` draws from this alone, so another entity's
     /// notify does not redraw the window, and an event that changes nothing shown does not either:
     /// workspaces and terminal views report every chunk of terminal output.
@@ -275,11 +282,36 @@ struct WorktreeEntry {
 struct DriftState {
     /// The base the run read: #510's record, else the default branch; none for no chip.
     base: Option<String>,
+    /// Whether the base is #510's record, which Merge needs (#511).
+    recorded: bool,
+    /// Who merges the repository's worktree branches, as the run found it (#511).
+    owner: MergeOwner,
     /// The tips the drift was read for, the worktree's then the base's; none when the base has
     /// no tip.
     tips: Option<(String, String)>,
     drift: Option<DriftSnapshot>,
 }
+
+/// A worktree's Review waiting for the window to open its workspace (#511).
+struct PendingReview {
+    /// The worktree's folder.
+    path: String,
+    /// The base the diff compares with.
+    base: String,
+    /// When the wait ends, on the executor's clock.
+    until: Instant,
+}
+
+/// What a worktree row's menu offers for merging its branch (#511).
+enum MergeLine {
+    /// Merge, with its entry's words.
+    Merge(String),
+    /// A line that is not a choice: why there is no Merge.
+    Note(String),
+}
+
+/// A merge's toast (#511).
+struct WorktreeMerge;
 
 /// What the question route logs or asks about one tool entry (#570).
 struct RouteAsking {
@@ -477,6 +509,7 @@ impl Rail {
             drift: HashMap::default(),
             drift_runs: HashMap::default(),
             drift_unsupported: HashSet::default(),
+            pending_review: None,
             snapshot: Snapshot::default(),
             zed_sidebar,
             zed_sidebar_state: None,
@@ -604,6 +637,7 @@ impl Rail {
         self.follow_risk(window, cx);
         self.follow_route(window, cx);
         self.follow_drift(window, cx);
+        self.take_review(window, cx);
     }
 
     /// Puts each worktree's kept drift on its row (#560). A drift read for tips that have moved
@@ -701,9 +735,9 @@ impl Rail {
                 let branches = Arc::clone(&repository.read(cx).branch_list);
                 let default =
                     repository.update(cx, |repository, _| repository.default_branch(false));
-                Some((reads, branches, default))
+                Some((reads, branches, default, <dyn Fs>::global(cx)))
             });
-            let Ok(Some((reads, branches, default))) = asked else {
+            let Ok(Some((reads, branches, default, fs))) = asked else {
                 return;
             };
             let default = default
@@ -715,7 +749,7 @@ impl Rail {
             let states = cx
                 .background_spawn({
                     let main = main.clone();
-                    async move { read_drifts(&main, reads, &branches, default).await }
+                    async move { read_drifts(&main, reads, &branches, default, fs.as_ref()).await }
                 })
                 .await;
             rail.update_in(cx, |rail, window, cx| {
@@ -1987,6 +2021,328 @@ impl Rail {
         Ok(())
     }
 
+    /// What a worktree row's menu offers for merging its branch (#511), from what the rail kept:
+    /// Merge only for a branch that records its base, a branch, in a repository Zed trusts and the
+    /// Rustal workflow does not merge; else a line that says why not.
+    fn merge_line(&self, path: &str, cx: &App) -> MergeLine {
+        let Some(entry) = self.snapshot.worktrees.get(path) else {
+            return MergeLine::Note("The worktree is gone".to_string());
+        };
+        if entry.branch.is_none() {
+            return MergeLine::Note("On no branch: nothing to merge".to_string());
+        }
+        let trusted = entry
+            .repository
+            .as_ref()
+            .and_then(WeakEntity::upgrade)
+            .is_some_and(|repository| repository.read(cx).is_trusted());
+        if !trusted {
+            return MergeLine::Note("Merge waits until Zed trusts the repository".to_string());
+        }
+        let Some(state) = self.drift.get(path) else {
+            return MergeLine::Note("Reading the branch…".to_string());
+        };
+        let Some(base) = state.base.as_deref().filter(|_| state.recorded) else {
+            return MergeLine::Note("No base recorded".to_string());
+        };
+        if worktree_git::is_commit(base) {
+            return MergeLine::Note(format!(
+                "Started from commit {}: no branch to merge into",
+                short_commit(base)
+            ));
+        }
+        let ahead = state.drift.as_ref().map(|drift| drift.ahead);
+        match (state.owner, ahead) {
+            (MergeOwner::Workflow, Some(0)) => MergeLine::Note(format!(
+                "Nothing ahead of {base}: the Rustal workflow merges here"
+            )),
+            (MergeOwner::Workflow, Some(ahead)) => MergeLine::Note(format!(
+                "{} ahead of {base}: the Rustal workflow merges here",
+                commits(ahead)
+            )),
+            (MergeOwner::Workflow, None) => {
+                MergeLine::Note("The Rustal workflow merges here".to_string())
+            }
+            (MergeOwner::Marley, Some(0)) => {
+                MergeLine::Note(format!("Nothing to merge into {base}"))
+            }
+            (MergeOwner::Marley, Some(ahead)) => {
+                MergeLine::Merge(format!("Merge {} into {base}…", commits(ahead)))
+            }
+            // The drift could not be read; Merge's checks say what stands in the way.
+            (MergeOwner::Marley, None) => MergeLine::Merge(format!("Merge into {base}…")),
+        }
+    }
+
+    /// Opens Zed's branch diff of a worktree in its own workspace (#511), against the base its
+    /// branch recorded, else its repository's default branch, as `git: diff branch` does. A
+    /// worktree the window has not open opens first, as its row's click opens it.
+    fn review_worktree(&self, path: &str, window: &Window, cx: &Context<Self>) {
+        let entry = self.snapshot.worktrees.get(path);
+        let recorded = match entry
+            .and_then(|entry| Some((entry.main.clone()?, entry.branch.clone()?)))
+        {
+            Some((main, branch)) => cx
+                .background_spawn(async move { worktree_git::recorded_base(&main, &branch).await }),
+            None => Task::ready(Ok(None)),
+        };
+        let repository = entry.and_then(|entry| entry.repository.clone());
+        let path = path.to_string();
+        cx.spawn_in(window, async move |rail, cx| {
+            let base = if let Some(base) = recorded.await? {
+                base
+            } else {
+                let repository = repository
+                    .as_ref()
+                    .and_then(WeakEntity::upgrade)
+                    .context("the worktree's repository is gone")?;
+                let default =
+                    repository.update(cx, |repository, _| repository.default_branch(true));
+                default
+                    .await??
+                    .context(
+                        "its branch records no base, and the repository has no default branch",
+                    )?
+                    .to_string()
+            };
+            rail.update_in(cx, |rail, window, cx| {
+                rail.start_review(path, base, window, cx)
+            })?
+        })
+        .detach_and_prompt_err("Could not review the worktree", window, cx, |_, _, _| None);
+    }
+
+    /// Keeps a worktree's Review until its workspace is in the window (#511), opening the
+    /// worktree when the window has it not open, with no first terminal, so the diff is its item;
+    /// and deploys it at once when it is open.
+    fn start_review(
+        &mut self,
+        path: String,
+        base: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let open = self
+            .snapshot
+            .worktrees
+            .get(&path)
+            .context("the worktree is gone")?
+            .member
+            .is_some();
+        if !open {
+            worktree_agents::skip_seed(PathBuf::from(&path), cx);
+            self.open_worktree(&path, window, cx)?;
+        }
+        let until = cx.background_executor().now() + REVIEW_WAIT;
+        self.pending_review = Some(PendingReview { path, base, until });
+        self.take_review(window, cx);
+        Ok(())
+    }
+
+    /// Deploys the pending Review once its worktree's workspace is in the window (#511): Zed's
+    /// branch diff there, with the worktree's own repository. A wait past `REVIEW_WAIT` is
+    /// dropped.
+    fn take_review(&mut self, window: &Window, cx: &mut Context<Self>) {
+        let Some(pending) = &self.pending_review else {
+            return;
+        };
+        if cx.background_executor().now() > pending.until {
+            worktree_agents::drop_seed_skip(Path::new(&pending.path), cx);
+            self.pending_review = None;
+            return;
+        }
+        let member = self
+            .snapshot
+            .worktrees
+            .get(&pending.path)
+            .and_then(|entry| entry.member.as_ref())
+            .and_then(WeakEntity::upgrade);
+        let Some(member) = member else {
+            return;
+        };
+        // The worktree's repository shows up a moment after its workspace does.
+        let Some(repository) = member_git(&member, cx).and_then(|git| git.repository.upgrade())
+        else {
+            return;
+        };
+        let Some(pending) = self.pending_review.take() else {
+            return;
+        };
+        worktree_agents::drop_seed_skip(Path::new(&pending.path), cx);
+        let member = member.downgrade();
+        // Outside the rebuild, which may run while another entity reports its events.
+        cx.defer_in(window, move |rail, window, cx| {
+            let shown = rail
+                .activate_workspace(&member, window, cx)
+                .map(|workspace| {
+                    workspace.update(cx, |workspace, cx| {
+                        let project = workspace.project().clone();
+                        BranchDiff::deploy_branch_diff_with_base_ref(
+                            workspace,
+                            project,
+                            repository,
+                            pending.base.into(),
+                            None,
+                            window,
+                            cx,
+                        );
+                    });
+                });
+            Task::ready(shown).detach_and_prompt_err(
+                "Could not review the worktree",
+                window,
+                cx,
+                |_, _, _| None,
+            );
+        });
+    }
+
+    /// Merges a worktree's branch into its base in the main checkout (#511): [`Self::merge_target`]'s
+    /// checks, [`worktree_git::ready_to_merge`] in the background, Zed's prompt, both again, and
+    /// the merge. A merge shows in a toast, a refusal or a failure in a prompt.
+    fn merge_worktree(&self, path: &str, window: &Window, cx: &Context<Self>) {
+        let name = self
+            .snapshot
+            .worktrees
+            .get(path)
+            .map_or_else(|| path.to_string(), |entry| entry.name.clone());
+        let path = path.to_string();
+        let fs = <dyn Fs>::global(cx);
+        cx.spawn_in(window, async move |rail, cx| {
+            let (main, worktree, branch) =
+                rail.read_with(cx, |rail, cx| rail.merge_target(&path, cx))??;
+            let (base, ahead) = cx
+                .background_spawn({
+                    let (main, worktree, branch, fs) =
+                        (main.clone(), worktree.clone(), branch.clone(), Arc::clone(&fs));
+                    async move {
+                        worktree_git::ready_to_merge(&main, &worktree, &branch, fs.as_ref()).await
+                    }
+                })
+                .await?;
+            let question = format!("Merge {} into {base}?", commits(ahead));
+            let detail = format!(
+                "Marley merges {branch} into {base} with a merge commit in {}. Nothing is pushed.",
+                main.display()
+            );
+            let answer = cx.update(|window, cx| {
+                window.prompt(
+                    PromptLevel::Info,
+                    &question,
+                    Some(&detail),
+                    &["Merge", "Cancel"],
+                    cx,
+                )
+            })?;
+            if !matches!(answer.await, Ok(0)) {
+                return Ok(());
+            }
+            rail.read_with(cx, |rail, cx| rail.merge_target(&path, cx))??;
+            let merged = cx
+                .background_spawn(async move {
+                    let (base_now, ahead_now) =
+                        worktree_git::ready_to_merge(&main, &worktree, &branch, fs.as_ref()).await?;
+                    anyhow::ensure!(
+                        base_now == base && ahead_now == ahead,
+                        "{branch} or {base} moved while Marley asked, so nothing was merged; choose \
+                         Merge again to see what it merges"
+                    );
+                    let commit = worktree_git::merge(&main, &branch, &base).await?;
+                    anyhow::Ok(format!(
+                        "Merged {} of {branch} into {base}: {commit}. Nothing was pushed.",
+                        commits(ahead)
+                    ))
+                })
+                .await?;
+            rail.update(cx, |rail, cx| rail.show_toast(merged, cx))?;
+            anyhow::Ok(())
+        })
+        .detach_and_prompt_err(&format!("Could not merge {name}"), window, cx, |_, _, _| None);
+    }
+
+    /// What a merge of a worktree's branch runs on (#511): its main checkout, its folder and its
+    /// branch, once Zed trusts the repository, whose hooks a merge runs, and no project in the
+    /// window holds an unsaved change to a file of the main checkout, which the merge rewrites.
+    fn merge_target(&self, path: &str, cx: &App) -> anyhow::Result<(PathBuf, PathBuf, String)> {
+        let entry = self
+            .snapshot
+            .worktrees
+            .get(path)
+            .context("the worktree is gone")?;
+        let branch = entry
+            .branch
+            .clone()
+            .context("the worktree is on no branch, so there is nothing to merge")?;
+        let main = entry
+            .main
+            .clone()
+            .context("the worktree's repository has no main checkout")?;
+        let trusted = entry
+            .repository
+            .as_ref()
+            .and_then(WeakEntity::upgrade)
+            .is_some_and(|repository| repository.read(cx).is_trusted());
+        anyhow::ensure!(
+            trusted,
+            "Zed does not trust the repository yet, and a merge runs its hooks"
+        );
+        let unsaved = self.unsaved_in(&main, cx);
+        anyhow::ensure!(
+            unsaved.is_empty(),
+            "the main checkout has unsaved changes in {}; save or discard them first",
+            unsaved.join(", ")
+        );
+        Ok((main, entry.path.clone(), branch))
+    }
+
+    /// The files of the main checkout `main` with unsaved changes in the window's projects, as
+    /// paths inside it; the files of its linked worktrees the rail lists are theirs.
+    fn unsaved_in(&self, main: &Path, cx: &App) -> Vec<String> {
+        let linked: Vec<&Path> = self
+            .snapshot
+            .worktrees
+            .values()
+            .filter(|entry| entry.main.as_deref() == Some(main))
+            .map(|entry| entry.path.as_path())
+            .collect();
+        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
+            return Vec::new();
+        };
+        let mut files = Vec::new();
+        for workspace in multi_workspace.read(cx).workspaces() {
+            let project = workspace.read(cx).project().read(cx);
+            for project_path in project.dirty_buffers(cx) {
+                let Some(absolute) = project.absolute_path(&project_path, cx) else {
+                    continue;
+                };
+                if linked.iter().any(|path| absolute.starts_with(path)) {
+                    continue;
+                }
+                if let Ok(inside) = absolute.strip_prefix(main) {
+                    let file = inside.display().to_string();
+                    if !files.contains(&file) {
+                        files.push(file);
+                    }
+                }
+            }
+        }
+        files
+    }
+
+    /// Shows `message` in a toast in the displayed workspace (#511).
+    fn show_toast(&self, message: String, cx: &mut App) {
+        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
+            return;
+        };
+        let workspace = multi_workspace.read(cx).workspace().clone();
+        workspace.update(cx, |workspace, cx| {
+            workspace.show_toast(
+                Toast::new(NotificationId::unique::<WorktreeMerge>(), message),
+                cx,
+            );
+        });
+    }
+
     /// Shows `workspace` and opens `url` there in a Browser tab of its project, or brings forward
     /// the tab already on it (#521).
     fn open_port(
@@ -2580,8 +2936,9 @@ impl Rail {
     }
 
     /// A linked worktree's row (#510): the branch icon, its name and branch, muted while its
-    /// workspace is not open, and its drift's chip (#560); a click shows the workspace, or opens
-    /// it.
+    /// workspace is not open, with the commits its branch has that its base lacks (#511), and its
+    /// drift's chip (#560); a click shows the workspace, or opens it, and its menu offers Review
+    /// and Merge (#511).
     fn render_worktree_row(row: WorktreeRow, cx: &Context<Self>) -> impl IntoElement {
         let path = row.path.clone();
         let selector = format!("marley-rail-worktree-{}", row.name);
@@ -2598,13 +2955,18 @@ impl Rail {
         } else {
             Color::Muted
         };
+        let ahead = row.drift.as_ref().and_then(DriftSnapshot::ahead_words);
+        let line = match (row.branch, ahead) {
+            (Some(branch), Some(ahead)) => Some(format!("{branch} · {ahead}")),
+            (branch, ahead) => branch.or(ahead),
+        };
         let item = row_card(
             SharedString::from(format!("marley-rail-worktree-{}", row.path)),
             format!("{selector}-icon"),
             row.selected,
             icon,
             row_label(row.name, row.highlight, color),
-            row.branch.into_iter().collect(),
+            line.into_iter().collect(),
             cx,
         )
         .children(chip)
@@ -2612,7 +2974,38 @@ impl Rail {
             rail.open_row(Selection::Worktree(path.clone()), window, cx)
                 .log_err();
         }));
-        div().debug_selector(move || selector).pl_2().child(item)
+        let rail = cx.entity().downgrade();
+        let menu_path = row.path.clone();
+        right_click_menu(SharedString::from(format!(
+            "marley-rail-worktree-menu-{}",
+            row.path
+        )))
+        .trigger(move |_, _, _| div().debug_selector(move || selector).pl_2().child(item))
+        .menu(move |window, cx| {
+            let merge = rail
+                .upgrade()
+                .map(|rail| rail.read(cx).merge_line(&menu_path, cx));
+            let (review_rail, review_path) = (rail.clone(), menu_path.clone());
+            let (merge_rail, merge_path) = (rail.clone(), menu_path.clone());
+            ContextMenu::build(window, cx, move |menu, _, _| {
+                let menu = menu.entry("Review", None, move |window, cx| {
+                    review_rail
+                        .update(cx, |rail, cx| {
+                            rail.review_worktree(&review_path, window, cx);
+                        })
+                        .log_err();
+                });
+                match merge {
+                    Some(MergeLine::Merge(words)) => menu.entry(words, None, move |window, cx| {
+                        merge_rail
+                            .update(cx, |rail, cx| rail.merge_worktree(&merge_path, window, cx))
+                            .log_err();
+                    }),
+                    Some(MergeLine::Note(note)) => menu.label(note),
+                    None => menu,
+                }
+            })
+        })
     }
 
     fn render_thread_row(
@@ -4232,6 +4625,15 @@ fn short_commit(sha: &str) -> String {
     sha.chars().take(7).collect()
 }
 
+/// `1 commit`, or `N commits`.
+fn commits(count: u32) -> String {
+    if count == 1 {
+        "1 commit".to_string()
+    } else {
+        format!("{count} commits")
+    }
+}
+
 /// A group's worktree rows (#510), each with its open workspace: the linked worktrees the open
 /// members' repositories list, and each open member that is a linked worktree, since a linked
 /// repository lists the main checkout but not itself; none for the main checkout, and none under
@@ -4321,27 +4723,39 @@ struct DriftRead {
     kept: Option<DriftState>,
 }
 
-/// Reads each worktree's base in `main`, #510's record else `default`, and runs its summary
-/// unless the base and the tips are the ones its kept drift was read for (#560).
+/// Reads who merges the repository's branches (#511) and each worktree's base in `main`, #510's
+/// record else `default`, and runs its summary unless the base and the tips are the ones its kept
+/// drift was read for (#560).
 async fn read_drifts(
     main: &Path,
     reads: Vec<DriftRead>,
     branches: &[git::repository::Branch],
     default: Option<String>,
+    fs: &dyn Fs,
 ) -> Vec<(String, DriftState)> {
+    // Merge reads it again when it is chosen, so an unreadable owner offers it and refuses there.
+    let owner = worktree_git::merge_owner(main, fs)
+        .await
+        .log_err()
+        .unwrap_or_default();
     let mut states = Vec::with_capacity(reads.len());
     for read in reads {
-        let recorded = match &read.branch {
+        let recorded_base = match &read.branch {
             Some(branch) => worktree_git::recorded_base(main, branch)
                 .await
                 .log_err()
                 .flatten(),
             None => None,
         };
-        let base = recorded.or_else(|| default.clone());
+        let recorded = recorded_base.is_some();
+        let base = recorded_base.or_else(|| default.clone());
         let tips = drift_tips(read.commit.as_deref(), base.as_deref(), branches);
         let state = match read.kept {
-            Some(kept) if kept.base == base && same_tips(kept.tips.as_ref(), tips) => kept,
+            Some(kept) if kept.base == base && same_tips(kept.tips.as_ref(), tips) => DriftState {
+                recorded,
+                owner,
+                ..kept
+            },
             _ => {
                 let drift = match (base.as_deref(), tips) {
                     (Some(base), Some((tip, base_tip))) => {
@@ -4353,7 +4767,13 @@ async fn read_drifts(
                     _ => None,
                 };
                 let tips = tips.map(|(tip, base_tip)| (tip.to_string(), base_tip.to_string()));
-                DriftState { base, tips, drift }
+                DriftState {
+                    base,
+                    recorded,
+                    owner,
+                    tips,
+                    drift,
+                }
             }
         };
         states.push((read.path, state));
@@ -4374,7 +4794,7 @@ fn drift_tips<'a>(
         .find(|branch| !branch.is_remote() && branch.name() == base)
     {
         Some(branch) => branch.most_recent_commit.as_ref()?.sha.as_ref(),
-        None => is_commit(base).then_some(base)?,
+        None => worktree_git::is_commit(base).then_some(base)?,
     };
     Some((commit, base_tip))
 }
@@ -4384,14 +4804,10 @@ fn same_tips(kept: Option<&(String, String)>, tips: Option<(&str, &str)>) -> boo
     kept.map(|(tip, base_tip)| (tip.as_str(), base_tip.as_str())) == tips
 }
 
-/// Whether `name` is a full commit id, SHA-1 or SHA-256.
-fn is_commit(name: &str) -> bool {
-    matches!(name.len(), 40 | 64) && name.bytes().all(|byte| byte.is_ascii_hexdigit())
-}
-
 /// A drift as the rail's model holds it.
 fn drift_snapshot(drift: Drift) -> DriftSnapshot {
     DriftSnapshot {
+        ahead: drift.ahead,
         behind: drift.behind,
         conflicts: drift.conflicts,
         base: drift.base,

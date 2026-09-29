@@ -517,7 +517,8 @@ before anyone merges:
 
 - `2 behind`, muted: the base has two commits the branch does not, and a merge would go through.
 - `1 conflict` (`3 conflicts`), in the warning color: a merge would stop on that many files.
-- No chip: the branch has everything its base has.
+- No chip: the branch has everything its base has, or has no commits of its own, such as a
+  branch already merged.
 
 The pointer on the chip shows the rest: `2 commits behind main (main at 3f2a1c9)`, then the files
 a merge would stop on, twenty at most. The base is the branch the worktree started from, which
@@ -527,6 +528,29 @@ from git in the main checkout a second after the branch or its base moves, again
 (it never fetches), and only while the rail shows and the repository is trusted. The reads change
 no branch, index or file. A git older than 2.38 cannot say whether a merge would stop; its chip
 shows the commits behind alone.
+
+While the branch has commits its base lacks, the row's second line counts them:
+`agent/ok · 2 ahead of main`. A right-click on the row opens its menu (#511):
+
+- **Review** opens Zed's branch diff of the worktree against its base, "Changes since main", in
+  the worktree's own workspace. A worktree that is not open opens with the diff alone, without
+  the terminal a newly opened folder gets. A worktree Marley did not make compares with the
+  repository's default branch. Review comments work there as in any branch diff.
+- **Merge 2 commits into main…** merges the branch into its base in the main checkout with a
+  merge commit, and pushes nothing. Marley first checks, in order, that the main checkout is on
+  the base, that it has no changes not committed (on disk, or unsaved in Marley), that the
+  worktree has none, and that there is something to merge; a failed check is named and nothing
+  changes. Then it asks, naming the count, the base and the main checkout's folder. The merge
+  commit reads "Merge branch 'agent/ok' into main", and the toast names it. A merge that stops on
+  a conflict is aborted, so the main checkout is as it was, and the files are named. The
+  worktree and its branch stay.
+
+Merge shows only for a branch whose base Marley recorded, in a repository Zed trusts. Otherwise
+the menu says why: No base recorded, Nothing to merge into main, or, where the Rustal workflow
+manages the repository, `2 commits ahead of main: the Rustal workflow merges here`. Marley takes a
+repository as the workflow's when `git config marley.merge` is `workflow`, or when it is unset
+and the main checkout's root holds a `workflow.toml` with a `[project]` table, which `rw init`
+writes; `git config marley.merge marley` gives the merge back to Marley.
 
 ### The Claude Code plugin
 

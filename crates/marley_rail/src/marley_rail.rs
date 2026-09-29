@@ -75,6 +75,8 @@ const TOOLTIP_FILES: usize = 20;
 /// What a worktree's branch would meet merging its base (#560).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DriftSnapshot {
+    /// The commits on the branch the base does not have (#511).
+    pub ahead: u32,
     /// The commits on the base the branch does not have.
     pub behind: u32,
     /// The files a merge would stop on, none for a clean merge; `None` when git cannot say.
@@ -95,14 +97,34 @@ impl DriftSnapshot {
     }
 
     /// The chip's words, `1 conflict`, `3 conflicts` or `2 behind`; none for a branch up to date
-    /// with its base that merges cleanly.
+    /// with its base that merges cleanly, and none for a branch with no commits of its own (#511):
+    /// one merged, whose base holds a merge commit it lacks, or one not started.
     #[must_use]
     pub fn words(&self) -> Option<String> {
+        if self.ahead == 0 {
+            return None;
+        }
         let conflicts = self.conflicts.as_ref().map_or(0, Vec::len);
         match conflicts {
             0 => (self.behind > 0).then(|| format!("{} behind", self.behind)),
             1 => Some("1 conflict".to_string()),
             _ => Some(format!("{conflicts} conflicts")),
+        }
+    }
+
+    /// The row's count (#511), `2 ahead of main`, while the branch has commits its base lacks.
+    #[must_use]
+    pub fn ahead_words(&self) -> Option<String> {
+        (self.ahead > 0).then(|| format!("{} ahead of {}", self.ahead, self.base_name()))
+    }
+
+    /// The base as the row names it: a branch, or a recorded commit abbreviated.
+    fn base_name(&self) -> &str {
+        // A base #510 recorded as a detached main checkout's commit is its own tip.
+        if self.base.starts_with(&self.base_commit) {
+            &self.base_commit
+        } else {
+            &self.base
         }
     }
 

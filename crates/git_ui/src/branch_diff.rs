@@ -192,7 +192,8 @@ impl BranchDiff {
         });
     }
 
-    pub(crate) fn deploy_branch_diff_with_base_ref(
+    // Marley: public, so a worktree's row opens its branch diff against its recorded base (#511).
+    pub fn deploy_branch_diff_with_base_ref(
         workspace: &mut Workspace,
         project: Entity<Project>,
         intended_repo: Entity<Repository>,

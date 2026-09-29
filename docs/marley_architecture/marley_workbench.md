@@ -523,6 +523,47 @@ alike.
   in the warning color after `IconName::GitMergeConflict`, with `DriftSnapshot::tooltip`, and
   `marley-rail-drift-<name>` for scenarios.
 
+## Review and merge from a worktree's row (`src/worktree_git.rs`, `src/rail.rs`, #511)
+
+- Since #511 `summary` counts both ways in one `rev-list --left-right --count
+  <branch_tip>...<base_tip>`, and `Drift` carries `ahead`. `merge_owner(main, fs)` gives
+  `MergeOwner::Workflow` or `Marley`: `git config --get marley.merge` when it is one of the two
+  (another value is logged), else a `workflow.toml` at the main checkout's root, read through
+  Zed's `Fs` and parsed with `toml`, holding a `[project]` table (what `rw init` writes).
+  `ready_to_merge(main, worktree, branch, fs)` refuses a workflow's repository, a branch with no
+  recorded base or a base that is a commit, then runs `merge_checks` in the spec's D3 order
+  (`symbolic-ref --quiet --short HEAD` on the base; `status --porcelain --untracked-files=no`
+  empty in the main checkout, then in the worktree; `rev-list --count
+  refs/heads/<base>..refs/heads/<branch>` above zero) and gives the base and the count.
+  `merge(main, branch, base)` runs `merge --no-ff --no-edit -m "Merge branch '<branch>' into
+  <base>" refs/heads/<branch>` (the full ref, so a tag of the same name is never merged; the title,
+  since git's own would quote the ref) and gives `rev-parse --short HEAD`; a failure lists `diff
+  --name-only --diff-filter=U`, runs `merge --abort` whenever `MERGE_HEAD` exists, and says the
+  conflict's files or git's words. `merge_checks` reads `status --porcelain` untrimmed, since a
+  line's status letters may be spaces. `is_commit` lives here.
+- `DriftState` keeps `recorded` (the base is #510's record) and `owner`; `read_drifts` reads the
+  owner once per run and sets both on kept states too. A marker changed without a commit is seen
+  at the next run, a tip's move; Merge reads it again.
+- `render_worktree_row` joins the branch and `DriftSnapshot::ahead_words` on the second line, and
+  wraps the row in a `right_click_menu` built when it opens from the kept state through a weak
+  `Rail`, running no git: Review, then `merge_line`'s `MergeLine::Merge` entry ("Merge N commits
+  into <base>…") or a `ContextMenu::label` (nothing to merge, no base recorded, the workflow
+  merges here, a commit base, no branch, Zed's trust not given yet, the state not read yet).
+- `review_worktree` reads the recorded base in the background, else
+  `Repository::default_branch(true)` as `git: diff branch` does; `start_review` opens the worktree
+  as its row's click does when it is not open, its folder first marked with
+  `worktree_agents::skip_seed` so routing's first terminal does not land over the diff, and keeps a
+  `PendingReview` for `REVIEW_WAIT`; `take_review`, last in `refresh`, finds the worktree's
+  workspace and its own repository (`member_git`), drops a mark the seed did not take
+  (`drop_seed_skip`) and, deferred, shows the workspace and calls Zed's
+  `BranchDiff::deploy_branch_diff_with_base_ref` (made `pub`, the one Zed touch).
+- `merge_worktree`: `merge_target` (the branch, the main checkout, Zed's trust, and `unsaved_in`,
+  the window's dirty buffers inside the main checkout and outside its listed worktrees),
+  `ready_to_merge` in the background, `window.prompt` ("Merge N commits into <base>?", the branch
+  and the main checkout in its detail; Merge, Cancel), both again with the base and the count
+  compared to the prompt's, then `merge`; a toast in the displayed workspace (`WorktreeMerge`), or
+  `detach_and_prompt_err` "Could not merge <name>".
+
 ## Claude Code's trust question in a new worktree (`src/agent_trust.rs`, #587)
 
 - `agents::start_cli_with_prompt` returns `Task<Option<WeakEntity<Terminal>>>`, the terminal

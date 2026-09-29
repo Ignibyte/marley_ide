@@ -1,7 +1,7 @@
 ---
 pipeline_id: c5a7d13c-5321-421c-9308-a648c5c1db8e
 ticket: docs/planning/tickets/open/TICKET-511-review-and-merge-a-worktree.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Review and merge a worktree agent's branch, leaving the merge to the Rustal workflow where it runs"
 type: feature
 slice: prong 2, worktree agents, review and merge, slice 1 of 2 (removal is slice 2); after #510
@@ -40,6 +40,31 @@ merge to the workflow.
   or `marley`); unset, a `workflow.toml` with a `[project]` table at the main checkout's root (the
   file `rw init` writes) means the workflow merges. Such a project gets Review and the state
   line, never Merge.
+
+- **Changed at promotion** (2026-09-29, over `235046907a`, after #510, #560 and #587 shipped;
+  each item overrides the text above it):
+  - **The state rides #560's drift runs.** `worktree_git::summary` counts both ways in one call,
+    `rev-list --left-right --count <branch>...<base>`, so `Drift` and `DriftSnapshot` gain
+    `ahead`; the run also reads `git config --get marley.merge` and whether the main checkout's
+    `workflow.toml` has a `[project]` table (the `toml` crate, a workspace dependency), and keeps
+    per worktree whether its base was recorded. No task of its own; a change to the workflow's
+    marker is found at the next run, and Merge checks again when it is chosen.
+  - **The second line** reads `agent/ok · 2 ahead of main` while the branch has commits its base
+    lacks; the drift chip shows only for a branch with commits of its own, so a merged branch,
+    whose base now holds a merge commit it lacks, and a branch not started yet show none.
+  - **Review** opens the worktree first when it is not open (#510's row click), then, once its
+    workspace is in the window, deploys Zed's `BranchDiff` there with the worktree's own
+    repository (the one whose folder is the worktree's), against the recorded base, else the
+    repository's default branch. `deploy_branch_diff_with_base_ref` becomes `pub`, the one Zed
+    touch.
+  - **Merge's checks** run in the background through `worktree_git`'s one `git` (`MARLEY_GIT` or
+    `git`, Zed's flags): the base is a branch and the main checkout is on it (`symbolic-ref
+    --short HEAD`); the main checkout has no tracked change (`status --porcelain
+    --untracked-files=no`) and, while its workspace is open, no unsaved buffer
+    (`Project::dirty_buffers`); the worktree has no tracked change; the branch has commits to
+    merge; the workflow does not own the project. Then Zed's in-window prompt, Merge or Cancel.
+  - **Where**: `worktree_git.rs` gains the merge's calls; `rail.rs` the row's menu, the Review and
+    Merge flows; `marley_rail` the `ahead` count and its words.
 
 ### Out (explicitly deferred)
 - **Slice 2, a ticket of its own (numbered when filed): Remove.** Releasing the worktree from
@@ -151,6 +176,7 @@ One observable behavior per row, with a verification method.
 | REQ-008 | IF the main checkout is not on the base, or the worktree has changes not committed, THEN the system shall refuse to merge and name the check that failed. | Review of the checks' order and messages |
 | REQ-009 | IF the merge stops on a conflict, THEN the system shall abort it, name the conflicting files, and leave the main checkout as it was. | Shot `511-05-conflict` |
 | REQ-010 | WHERE `git config marley.merge` is `workflow`, or is unset while the main checkout's root holds a `workflow.toml` with a `[project]` table, the menu shall show the branch's state and that the Rustal workflow merges the project, and shall offer no Merge. | Shots `511-07-workflow`, `511-08-workflow-toml` |
+| REQ-011 | WHILE a worktree's branch has no commits its base lacks, its row shall show no drift chip. | Shot `511-04-merged` (merged: no chip) |
 
 ## Phase Plan
 - **P1 Plan** — this spec; the design and the E2E plan in the notes. #510 ships first.

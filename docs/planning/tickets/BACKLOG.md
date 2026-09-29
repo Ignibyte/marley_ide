@@ -10,8 +10,8 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-511](open/TICKET-511-review-and-merge-a-worktree.md) | feature | prong 2 · review a worktree agent's branch and merge it, deferring to the Rustal workflow where it runs |
 | [TICKET-585](open/TICKET-585-worktree-environment.md) | feature | prong 2 · the worktree's environment: its `.worktreeinclude`d gitignored files, a port offset, the hook tasks' paths, a suggested setup command; after #510 |
+| [TICKET-589](open/TICKET-589-remove-a-worktree-without-losing-work.md) | feature | prong 2 · Remove on a worktree's row: work not committed kept unless confirmed, its terminals stopped, the branch deleted only when git or a port of Orca's cleanup proves it merged, a teardown hook first; after #511 |
 | [TICKET-522](open/TICKET-522-review-notes-to-the-agent.md) | feature | prong 2 · review notes sent to the agent working in the diffed tree |
 | [TICKET-531](open/TICKET-531-pr-state-on-rail-rows.md) | feature | workbench · pull request state and diff counts on the rail's project rows |
 | [TICKET-527](open/TICKET-527-project-launch-configs.md) | feature | workbench · a project's launch configs (`.zed/marley.json`) in the rail's + |

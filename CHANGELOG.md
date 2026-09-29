@@ -13,6 +13,22 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Review and merge a worktree's branch from its row** (#511, 2026-09-29). Right-click a
+  worktree's row in the rail. **Review** opens Zed's branch diff of the worktree against the base
+  its branch started from, "Changes since main", in the worktree's own workspace, and opens the
+  worktree first when it is not open; a worktree Marley did not make compares with the
+  repository's default branch. **Merge N commits into main…** asks first, naming the count, the
+  base and the main checkout's folder, then makes a merge commit of the branch on its base in the
+  main checkout, and never pushes; the toast names the commit. It refuses and changes nothing
+  while the main checkout is on another branch, has changes not committed or unsaved in Marley,
+  or the worktree has changes not committed, and a merge that stops on a conflict is aborted and
+  names the files. Merge is offered only for a branch whose base Marley recorded when it made the
+  worktree. The row's second line counts the commits the branch has that its base lacks,
+  `agent/ok · 2 ahead of main`, and its drift chip shows only while there are some, so a merged
+  branch shows neither. Where the Rustal workflow manages the repository (`git config
+  marley.merge workflow`, or a `workflow.toml` with a `[project]` table at its root), the menu
+  shows the count and leaves the merge to the workflow. Removing a worktree comes next (#589).
+
 - **A project's local HTML pages open in its Browser tab** (#586, 2026-09-29). A program in a
   project's terminal that opens a local page through `BROWSER`, `cargo doc --open`, a coverage
   report, Python's `webbrowser` with a `file://` URL, now gets it in a Browser tab of that
@@ -1001,3 +1017,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   size, the SIGKILL escalation, and descriptor cleanup.
 - **The gpui-era pipeline archive** (#443). 218 specs that predate the §20 reference rule and
   70 that predate the prior-art sweep now say so, which lets the reference hook accept them.
+
+### Security
+
+- **wasmtime 48.0.3** (#511, 2026-09-29). The extension host's WebAssembly runtime moves from
+  48.0.1 to its patch release 48.0.3, with cranelift 0.135.3, for RUSTSEC-2026-0314 (a guest
+  could panic the host through a file's timestamp), RUSTSEC-2026-0315 and RUSTSEC-2026-0316
+  (fuel accounting a guest could get around). Only the lockfile changed.

@@ -377,7 +377,10 @@ there with its first prompt, and the rail lists each linked worktree of a projec
 its own terminals; #560 adds a chip on each worktree row with how far its branch is behind its
 base and, when a merge would stop, how many files it would stop on, read from git against the
 local base; #587 brings Claude Code's trust question in a new worktree to the user, in a
-notification whose Trust Folder answers it. W5 shipped as #441: in the Marley layout
+notification whose Trust Folder answers it; #511 adds Review and Merge to a worktree row's menu:
+Zed's branch diff against the recorded base, and a merge commit in the main checkout after checks
+that fail closed, never a push, left to the Rustal workflow where it manages the repository. W5
+shipped as #441: in the Marley layout
 tasks, New Terminal and Open in Terminal open center terminals, and nothing opens the bottom
 panel. W5b shipped as #449: `` ctrl-` ``, `ctrl-~` and `ctrl-j` work on the center terminals,
 by catching Zed's actions rather than rebinding keys. W5c shipped as #450: `ctrl-alt-n` opens

@@ -2650,3 +2650,24 @@ notification's `NotificationId`, and Zed shows a toast as a notification under i
 watch's end, which dismisses the question's notification once the question leaves the screen,
 took the toast with it, a moment after it showed. Fixed: the toast and the "still asking"
 notification each have an id of their own.
+
+## F-claude-511-the-merge-checks-trimmed-porcelains-leading-space-001
+*severity: medium · found in: pipeline 511's Code phase (the review of the diff) · class: slicing column-significant output after trimming it whole · prevented by: PR-claude-column-significant-git-output-is-read-untrimmed-001 (new)*
+
+`merge_checks` read `git status --porcelain --untracked-files=no` through `worktree_git`'s
+`text()`, which trims the whole output, and took each line's path from its fourth byte. A
+porcelain line starts with two status letters, either of which may be a space: git prints
+` M README` for a file changed and not staged. The trim took the first line's leading space, so
+the refusal would have named `EADME`. Found reading the diff and checked on the box, before any
+run. Fixed: the output is split into lines untrimmed, and blank lines are skipped; the scenario's
+refusal names README and ok.txt.
+
+## F-claude-511-a-reviewed-worktree-opened-with-its-terminal-over-the-diff-001
+*severity: medium · found in: pipeline 511's Test phase (run 1's shots 511-02 and 511-06) · class: an opener's item racing the Marley layout's first terminal in a fresh workspace · prevented by: L-claude-511-a-fresh-folder-workspace-gets-its-first-terminal-after-its-openers-item-001*
+
+Review of a worktree that is not open opens it as its row's click does and deploys Zed's branch
+diff once the worktree's workspace and repository appear. The Marley layout gives every fresh
+folder workspace a center terminal (routing's `seed_first_terminal`), created asynchronously; it
+was added after the diff and took the front, so the shots showed Changes since main behind
+"ok — bash". Fixed: the Review marks the folder with `worktree_agents::skip_seed`, the mark #510's
+agent worktrees use, and drops a mark the seed did not take.
