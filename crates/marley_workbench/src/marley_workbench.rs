@@ -343,6 +343,8 @@ pub struct MarleySettings {
     /// Whether a line typed at a prompt that reads as English gets a hint, and an exit-127 block
     /// the Ask chip (#557).
     pub english_hint: EnglishHint,
+    /// The order the rail lists projects and rows in (#542).
+    pub rail_order: marley_rail::RailOrder,
     /// What Marley starts Claude Code and Codex with (#532).
     pub agent_permissions: agents::AgentPermissions,
     /// Who answers Claude Code's trust question in a new worktree (#587).
@@ -452,6 +454,13 @@ impl Settings for MarleySettings {
             agent_commands_outside_lists: marley
                 .and_then(|marley| marley.agent_commands_outside_lists)
                 .unwrap_or_default(),
+            rail_order: match marley
+                .and_then(|marley| marley.rail_order)
+                .unwrap_or_default()
+            {
+                settings::MarleyRailOrder::Attention => marley_rail::RailOrder::Attention,
+                settings::MarleyRailOrder::Window => marley_rail::RailOrder::Window,
+            },
             english_hint: if marley
                 .and_then(|marley| marley.english_hint)
                 .unwrap_or(true)

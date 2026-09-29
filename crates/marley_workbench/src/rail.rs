@@ -34,9 +34,9 @@ use marley_browser::ports::Stopped;
 use marley_mcp::redact::Redactor;
 use marley_rail::{
     BrowserRow, BrowserSnapshot, CommandSnapshot, DriftSnapshot, Focus, InboxEntry, InboxKind,
-    PortRow, PortSnapshot, ProjectRow, ProjectSnapshot, RailSnapshot, Row, RunningError, Selection,
-    SwitcherRow, TerminalAgent, TerminalRow, TerminalSnapshot, ThreadRow, ThreadSnapshot,
-    ThreadStatus, TurnSnapshot, WorktreeRow, WorktreeSnapshot,
+    PortRow, PortSnapshot, ProjectRow, ProjectSnapshot, RailSnapshot, Reporting, Row, RunningError,
+    Selection, SwitcherRow, TerminalAgent, TerminalRow, TerminalSnapshot, ThreadRow,
+    ThreadSnapshot, ThreadStatus, TurnSnapshot, WorktreeRow, WorktreeSnapshot,
 };
 use marley_system_one::reading::{Reading, Signal};
 use marley_system_one::{INBOX_RISK, QUESTION_ROUTE};
@@ -201,6 +201,8 @@ pub struct Rail {
     _agent_events: [Subscription; 4],
     /// Each project's own icon, by its group's first folder (#564).
     project_icons: HashMap<PathBuf, ProjectIcon>,
+    /// The order the rail showed when the pointer came over it, held until it leaves (#542).
+    held_order: Option<marley_rail::Held>,
     /// The rows' ports, from the scan an open rail keeps running (#521), and the settings that
     /// can show the rail again.
     _ports: [Subscription; 2],
@@ -636,6 +638,7 @@ impl Rail {
             _multi_workspace_subscriptions: subscriptions,
             _agent_events: agent_events,
             project_icons: HashMap::default(),
+            held_order: None,
             _ports: [ports_scanned, settings_changed],
             _focus_out: focus_out,
             _filter_edits: filter_edits,
@@ -737,6 +740,9 @@ impl Rail {
         self.note_claude_code(&snapshot.rail, window, cx);
         self.note_drift(&mut snapshot);
         self.note_project_git(&mut snapshot);
+        // The rail's order, and the order it holds while the pointer is over it (#542).
+        snapshot.rail.order = MarleySettings::get_global(cx).rail_order;
+        snapshot.rail.held.clone_from(&self.held_order);
         if self.focus_handle.contains_focused(window, cx) {
             snapshot.rail.focus.cursor.clone_from(&self.cursor);
         }
@@ -3269,12 +3275,12 @@ impl Rail {
                 )
             })
             .children(icon.map(|icon| project_icon(index, icon)))
-            .child(
-                div()
-                    .min_w_0()
-                    .flex_1()
-                    .child(row_label(row.name, row.highlight, name_color)),
-            )
+            .child(project_name(
+                row.name,
+                row.highlight,
+                name_color,
+                row.summary,
+            ))
             .child(
                 h_flex()
                     .flex_none()
@@ -4986,6 +4992,8 @@ fn terminal_snapshot(
             .then(|| command_snapshot(terminal.read(cx)))
             .flatten(),
         running_error: crate::running_errors::mark(view.entity_id(), cx),
+        // The seat's own events drive the agent's class in the rail's order (#542).
+        reporting: reporting(seat, cx),
         turns: Turns::of(view.entity_id().as_u64(), cx)
             .iter()
             .rev()
@@ -5067,6 +5075,22 @@ fn command_line(command: CommandSnapshot) -> RowLine {
         text,
         state: Some(state),
         color,
+    }
+}
+
+/// Where a terminal agent's status comes from, for its class in the rail's order (#542).
+fn reporting(seat: Option<&marley_fleet::Session>, cx: &App) -> Reporting {
+    let Some(seat) = seat else {
+        return Reporting::Timer;
+    };
+    let after = no_update_after_ms(cx);
+    let stale = seat.state == marley_fleet::State::Working
+        && after > 0
+        && marley_fleet::is_stale(seat, agent_events::now_ms(), after);
+    if stale {
+        Reporting::Stale
+    } else {
+        Reporting::Events
     }
 }
 
@@ -5731,6 +5755,27 @@ fn terminal_match(filter: &str, terminal: &TerminalSnapshot) -> Option<Vec<usize
     })
 }
 
+/// A project header's name, and after it a collapsed project's agents by state (#542).
+fn project_name(
+    name: String,
+    highlight: Vec<usize>,
+    color: Color,
+    summary: Option<String>,
+) -> impl IntoElement {
+    h_flex()
+        .min_w_0()
+        .flex_1()
+        .gap_1p5()
+        .child(div().min_w_0().child(row_label(name, highlight, color)))
+        .children(summary.map(|summary| {
+            div().flex_none().child(
+                Label::new(summary)
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            )
+        }))
+}
+
 /// A row's name or title, with the characters the filter matched highlighted.
 fn row_label(text: String, highlight: Vec<usize>, color: Color) -> AnyElement {
     if highlight.is_empty() {
@@ -6202,6 +6247,14 @@ impl Render for Rail {
             .collect();
         v_flex()
             .id("marley-rail")
+            // Nothing moves under the pointer: the order the rail showed when it came over is held
+            // until it leaves (#542).
+            .on_hover(cx.listener(|rail, hovered: &bool, window, cx| {
+                rail.held_order = hovered.then(|| marley_rail::held_order(&rail.snapshot.rail));
+                if !hovered {
+                    rail.refresh(window, cx);
+                }
+            }))
             // Zed binds left and right for lists only in the `menu` context.
             .key_context("MarleyRail menu")
             .track_focus(&self.focus_handle)

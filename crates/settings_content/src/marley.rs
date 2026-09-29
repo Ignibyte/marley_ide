@@ -93,6 +93,12 @@ pub struct MarleySettingsContent {
     ///
     /// Default: true
     pub english_hint: Option<bool>,
+    /// The order the rail lists projects and the rows under them in: what needs you first
+    /// (waiting, failed, finished unseen, working, not reporting, then the rest), or the window's
+    /// order (#542).
+    ///
+    /// Default: "attention"
+    pub rail_order: Option<MarleyRailOrder>,
     /// Whether Marley starts Claude Code with its own permission prompts or with
     /// `--dangerously-skip-permissions` (#532). An entry of `agent_permissions_by_project` wins
     /// for its project.
@@ -308,6 +314,30 @@ pub enum MarleyAgentTerminalWrites {
     AskEveryWrite,
     /// Never: the agent's writes go in as it sends them.
     NeverAsk,
+}
+
+/// The order the rail lists projects and rows in (#542).
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum MarleyRailOrder {
+    /// What needs you first; ties keep the window's order.
+    #[default]
+    Attention,
+    /// The window's order.
+    Window,
 }
 
 /// Whether an agent's `terminal_run` asks before a command outside the allowlist and the denylist

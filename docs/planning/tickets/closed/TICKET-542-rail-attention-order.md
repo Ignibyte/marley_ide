@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #542 (feature, prong 2 attention)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/542-rail-attention-order.spec.md
+- **Pipeline doc:** ../../pipeline/completed/542-rail-attention-order.spec.md
 - **Source ticket:** Chad, 2026-09-25, on the Orca survey: "we will be taking what it does well and bring it in here" (docs/orca_architecture/README.md); the attention order is report 01 §2.4 and §3 item 5, and report 05 §2.10 and §3 item 4.
-- **Status:** open
+- **Status:** closed
 - **Backlog:** Queue, after #519. For agents in terminals the states it sorts on (waiting on Chad, working, failed, and when the agent last reported) come from #519's events; before them a terminal can only guess from two seconds of quiet.
 
 ## Summary

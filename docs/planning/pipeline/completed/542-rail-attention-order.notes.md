@@ -62,7 +62,36 @@
     and `not reporting`), `src/shared/agent-status-freshness.ts` (30 minutes).
 - **Decisions:** D1 to D7 in the spec.
 
-### Design
+- **Recall at promotion (2026-09-29):** every order the rail shows comes from `walk`
+  (`marley_rail.rs:745`), which `rail_rows`, `selection`, `step` and the cycles all read; a
+  project is identified by its window index (`Selection::Project(index)`, `groups[index]`), other
+  rows by stable ids. `TerminalSnapshot` has `bell` (the bell or #538's unread mark, one bool),
+  `agent.status` (from #519's seat, else the quiet timer), and "no update in N m" only inside the
+  subtitle string (`seat_line`). `ThreadSnapshot` has `status` and `attention`. The "Needs you"
+  inbox is drawn apart from the rows. The rail's root (`marley-rail`) has no `on_hover`. More than
+  one project opens in one window through a second launch on the same profile (#513's hand-over,
+  `507`, `574`). Brain (consultation e1dd2ebf): nothing on this seam.
+
+### Design (at promotion)
+- `marley_rail`: `Attention { NeedsYou, DoneUnseen, Working, NotReporting, Idle }`,
+  `terminal_attention` and `thread_attention_class`, a project's class its most demanding row's;
+  `RailOrder { Attention, Window }` and `Held { projects, terminals, threads }` on `RailSnapshot`;
+  `walk` iterates the projects, each group of terminals and the threads in class order (stable)
+  or in the held order (new ones last), keeping each project's window index; `held_order` gives
+  the order the rail shows now; `ProjectRow::summary` for a collapsed project (`1 waiting, 2
+  working`). `TerminalSnapshot` gains `reports` (a #519 seat drives its status) and `stale` (its
+  working seat is past `no_update_after_minutes`).
+- `rail.rs`: `terminal_snapshot` fills `reports` and `stale`; the root's `on_hover` stores
+  `held_order` on entering and clears it and refreshes on leaving; each refresh copies the hold and
+  the setting into the snapshot; `render_project_row` draws the summary after the name.
+- Settings: `rail_order: Option<MarleyRailOrder>` (`attention`, `window`), `default.json`,
+  `MarleySettings`, the Layout section's dropdown and its renderer.
+- **File manifest.** Marley: `marley_rail/src/marley_rail.rs`, `marley_workbench/src/{rail.rs,
+  marley_workbench.rs}`. Zed: `settings_content/src/marley.rs`, `settings_ui/src/marley_page.rs`,
+  `settings_ui/src/settings_ui.rs`, `assets/settings/default.json`. Script:
+  `script/e2e/542-rail-attention-order.sh`.
+
+### Design (as drafted; the promotion's above wins where they differ)
 - **The pure part (`marley_rail`).**
   - The terminal row's state comes from #519's seat: working, waiting (with its `Question`), idle,
     failed, and its `no update in N m` decay of a silent working seat, beside today's quiet-timer
@@ -128,3 +157,57 @@ log and shots, not only its exit code (L-claude-498).
   while the rail has keyboard focus is one more condition on `held`.
 - **Two quiet signals.** Agents without the plugin keep the two-second quiet timer, which says
   nothing about waiting; D4 sorts them as idle so a pause never jumps the queue.
+
+## Phase 2 — Code
+- **Built.** `marley_rail`: `Reporting { Timer, Events, Stale }` on `TerminalSnapshot` (where an
+  agent's status comes from), `Attention` with `terminal_attention`, `thread_attention_class` and
+  `project_attention` (a project's most demanding row), `RailOrder { Attention, Window }` and
+  `Held { projects, terminals, threads }` on `RailSnapshot`; `walk` lists projects, a checkout's
+  terminals, each worktree's terminals and the threads through `project_order`, `arrange_terminals`
+  and `arrange_threads`, a stable sort by class, or by position in `held` while it is set;
+  `held_order` records the walk's order; `ProjectRow::summary` counts a collapsed project's agents
+  by state. `marley_workbench::rail`: `reporting` from the #519 seat and #547's staleness, the
+  root's `on_hover` storing `held_order` on entry and refreshing on exit, `refresh` copying the
+  setting and the hold into the snapshot, and `project_name` drawing the summary after the name.
+  `marley.rail_order` (`attention` default, `window`) in `settings_content`, `default.json`, and a
+  dropdown on the Marley page's Layout section.
+- **Deviations.** The design's two bools `reports` and `stale` became one `Reporting` enum:
+  clippy's `struct_excessive_bools`, and three states say it better than two flags that cannot
+  both be false-true. `reporting` and `project_name` came out of `terminal_snapshot` and
+  `render_project_row` for `too_many_lines`.
+- **Review.** Selection is by identity (window index, view id, thread key), so a row that moves
+  keeps its selection with no code for it. The hold ends when the pointer leaves the rail's root,
+  which a popover also does (the risk named at Plan); menus act by identity, so the action stays
+  right. Nothing reads or updates an entity inside its own update.
+- **Gate.** `just gate-diff`: GATE GREEN [diff]. The `shared_string_from_str_literal` warnings in
+  its log are in code this change does not touch (pre-existing, not in scope).
+
+## Phase 3 — Test
+- **Scenario.** `script/e2e/542-rail-attention-order.sh`, under sway, on a private session bus.
+  c opened first, then b and a handed over, so the window order is a, b, c. A `.bashrc` start mark
+  execs a stand-in `claude` per project, driven by named steps through its FIFO with the plugin's
+  real `event.py`; b's first terminal is a plain shell. `no_update_after_minutes` is 1, so the
+  not-reporting class shows in every run in place of the plan's 31-minute `E2E_LONG` step.
+  The first run's clicks missed (the Needs you inbox sits above the projects); the second run
+  took its targets from the first run's shots.
+- **Shots (run 2, all read).**
+  - `542-01-order`: b, c, a from the top (b waiting, c idle with its unseen dot, a working); under
+    b the waiting agent above `b — bash`. REQ-001, REQ-003.
+  - `542-02-collapsed`: b's header reads `b 1 waiting` (crop read at 4x) with its dot. REQ-004.
+  - `542-03-held`: pointer on the rail, a now waiting (two entries in Needs you), the order still
+    b, c, a. Without the hold, a and b tie and a, first in the window, would lead. REQ-005.
+  - `542-04-released`: pointer away: a, b (both waiting, window order), then c; b's shell,
+    selected while held at the second project, is still selected after moving down. REQ-006,
+    REQ-002, REQ-009.
+  - `542-05-not-reporting`: b waiting, c working, then a reading `no update in 1 m`: a sorts below
+    the working c, where a tie in the working class would have put it first. REQ-007.
+  - `542-06-window-order`: `rail_order: window`: a, b, c; under b the shell before the agent.
+    REQ-008.
+  - The private bus logged b's and c's banners; nothing with `STRING "Marley"` reached the user's
+    bus.
+- **Not run.** #500's rail scenario (clicks at fixed coordinates): no regression runs in this
+  phase (§7); a single-project rail's order is the window's order, so its targets do not move.
+
+## Phase 4 — Complete
+- Ledger: AD-claude-542-attention-order-in-the-pure-walk-001.
+- Brain: decision recorded on consultation e1dd2ebffa56468bae5d9f183f213797.

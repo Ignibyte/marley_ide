@@ -1166,6 +1166,16 @@ alike.
   when a local group first shows, again on `WorktreeUpdatedEntries` touching a candidate, a page or
   the file it shows, at most once a second; `project_icon` draws it at 16 px before the name.
 
+## The rail's attention order (`src/rail.rs`, #542)
+
+- `terminal_snapshot` fills `reporting` from the view's #519 seat: `Stale` when it works and
+  `marley_fleet::is_stale` passes `no_update_after_minutes`, else `Events`; no seat is `Timer`.
+- The rail's root `on_hover` stores `marley_rail::held_order` of the current snapshot when the
+  pointer enters and clears it, then refreshes, when it leaves; `refresh` copies
+  `marley.rail_order` and the hold into the snapshot before the change check, so a settings change
+  or the pointer leaving redraws in the new order.
+- `project_name` draws a collapsed project's summary in XSmall muted text after its name.
+
 ## Claude Code's hook events (`src/agent_events.rs`, #519)
 
 - `AgentEvents`, a global made at the first frame, holds one `marley_fleet::FleetSnapshot`: a

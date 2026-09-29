@@ -3249,3 +3249,17 @@ file is read and decoded off the main thread and made 32 px before it becomes a 
 candidate, a page or the chosen file search again, at most once a second. The pure rail model is
 unchanged: the icon is looked up by the row's group at render time. No setting yet: Chad's eye on
 real repositories' icons at 16 px comes first.
+
+## AD-claude-542-attention-order-in-the-pure-walk-001
+*decided at: 2026-09-29 · status: shipped*
+
+The rail's attention order lives in `marley_rail`'s one walk, which the rows, the selection and
+the keyboard all read: a stable sort by class (needs you, done unseen, working, not reporting,
+idle), ties in window order, so Move Project Up and Down still order projects of one class. Only
+an agent's own events (#519) can say it waits or failed; the two-second quiet timer sorts such an
+agent as working or idle, so a pause never jumps the queue. The hold while the pointer is over the
+rail is data, not a frozen frame: the walk's order as lists of identities (project index, view
+id, thread key), so rows keep updating their text in place and a new row goes last until the
+pointer leaves. Selection was already by identity, so a row that moves stays selected. A setting,
+`marley.rail_order: "window"`, turns the order off.
+

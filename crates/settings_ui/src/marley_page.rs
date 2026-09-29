@@ -21,7 +21,7 @@ pub(crate) fn marley_page() -> SettingsPage {
     }
 }
 
-fn layout_section() -> [SettingsPageItem; 3] {
+fn layout_section() -> [SettingsPageItem; 4] {
     [
         SettingsPageItem::SectionHeader("Layout"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -38,6 +38,26 @@ fn layout_section() -> [SettingsPageItem; 3] {
                 },
                 write: |settings_content, value, _| {
                     settings_content.marley.get_or_insert_default().layout = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: the rail's order (#542).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Rail Order",
+            description: "The order the rail lists projects and the rows under them in: what needs you first (an agent waiting on you or failed, then one that finished while you looked elsewhere, then working, then not reporting, then the rest), or the window's order. Nothing moves while the pointer is over the rail.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.rail_order"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.rail_order.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content.marley.get_or_insert_default().rail_order = value;
                 },
             }),
             metadata: None,

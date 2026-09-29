@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The rail lists what needs you first** (#542, 2026-09-29). Projects, and the rows under each,
+  are ordered by attention: an agent waiting on you or a failed run you have not seen, then a
+  finished run you have not seen, then working, then an agent that stopped reporting (`no update
+  in N m`), then idle; ties keep the window's order. A collapsed project's header counts its
+  agents by state (`1 waiting, 2 working`). While the pointer is over the rail the order holds
+  still, so a row never moves under it. `marley.rail_order: "window"` (Settings, Marley, Layout)
+  brings back the window's own order.
+
 - **A project's own icon on its rail header** (#564, 2026-09-29). The rail draws the favicon or
   logo a repository holds, `favicon.png`, `public/favicon.svg`, `src-tauri/icons/icon.png` and
   the other names web and desktop projects use, or the icon its `index.html` declares, at 16 px

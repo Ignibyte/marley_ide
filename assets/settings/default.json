@@ -1737,6 +1737,10 @@
     // shows a hint that Ctrl+Shift+Enter asks the agent, and a block that ended with 127 on one
     // offers Ask the agent (#557). Local rules decide; the key works either way.
     "english_hint": true,
+    // The order the rail lists projects and rows in (#542): "attention" (waiting, failed,
+    // finished unseen, working, not reporting, then the rest; ties keep the window's order, and
+    // nothing moves while the pointer is over the rail) or "window".
+    "rail_order": "attention",
     // What Marley starts Claude Code with (#532): "ask" (its own permission prompts) or
     // "bypass" (--dangerously-skip-permissions). A rail row carries a mark while an agent runs
     // without its prompts, however it was started.

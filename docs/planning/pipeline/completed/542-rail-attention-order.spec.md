@@ -1,7 +1,7 @@
 ---
 pipeline_id: a4d805c2-179a-4ca0-824c-83638919b050
 ticket: docs/planning/tickets/open/TICKET-542-rail-attention-order.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "The rail puts what needs Chad first"
 type: feature
 slice: prong 2, attention (report 01 §3 item 5, report 05 §3 item 4)

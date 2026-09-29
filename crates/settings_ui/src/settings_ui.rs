@@ -568,6 +568,8 @@ fn init_renderers(cx: &mut App) {
         .add_basic_renderer::<settings::MarleyAgentTerminalWrites>(render_dropdown)
         // Marley: whether an agent's commands outside both lists ask (#556).
         .add_basic_renderer::<settings::MarleyAgentCommandsOutsideLists>(render_dropdown)
+        // Marley: the rail's order (#542).
+        .add_basic_renderer::<settings::MarleyRailOrder>(render_dropdown)
         // Marley: the Claude Code and Codex Permissions dropdowns (#532).
         .add_basic_renderer::<settings::ClaudeCodePermissions>(render_dropdown)
         .add_basic_renderer::<settings::CodexPermissions>(render_dropdown)

@@ -74,6 +74,17 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
   running after, as `RunningError { line, questioned }`; the builders copy it to
   `TerminalRow::running_error`. The switcher's `SwitcherRow::Terminal` holds its row boxed, since
   a terminal's row is by far the larger variant.
+- **The attention order** (#542). `Attention { NeedsYou, DoneUnseen, Working, NotReporting,
+  Idle }` classes a row: `terminal_attention` reads the agent's status with
+  `TerminalSnapshot::reporting` (`Reporting::Timer` for the quiet timer, `Events` for #519's
+  events, `Stale` once they stopped past `no update in N m`), so only an agent's own events can
+  say it waits, and a bell or unread mark over an agent that is not working is done-unseen;
+  `thread_attention_class` does the same for a thread, and `project_attention` takes a project's
+  most demanding row. `RailSnapshot::order` (`RailOrder::Attention` or `Window`) and
+  `RailSnapshot::held` pick the walk's order: a stable sort by class, ties in window order, or,
+  while `held` is set, each item's place in the `Held` lists of project indexes, view ids and
+  thread keys that `held_order` recorded from the walk (an item it does not name goes last).
+  `ProjectRow::summary` counts a collapsed project's agents by state, most demanding first.
 - **`TerminalSnapshot::flag`** (#569) is the tooltip of a working agent's warning mark, when the
   stall kind flagged it `looping?` or `stalled?`; the builders copy it to `TerminalRow::flag`, and
   it too decides no order or visibility.

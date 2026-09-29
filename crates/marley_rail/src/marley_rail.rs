@@ -184,6 +184,8 @@ pub struct TerminalSnapshot {
     /// The failure a running command printed and did not end on (#572); `None` while none is
     /// open.
     pub running_error: Option<RunningError>,
+    /// Where the agent's status comes from, which its class in the rail's order reads (#542).
+    pub reporting: Reporting,
     /// The turns of the terminal's Claude Code that changed the tree (#509), newest first.
     pub turns: Vec<TurnSnapshot>,
     /// Whether the row's turns are listed under it.
@@ -455,6 +457,10 @@ pub struct RailSnapshot {
     pub inbox_suggests: bool,
     /// Whether a route a model read shows as a suggestion, with a question mark (#570).
     pub route_suggests: bool,
+    /// The order projects and rows are listed in (#542).
+    pub order: RailOrder,
+    /// The order the rail showed when the pointer came over it, kept while it stays (#542).
+    pub held: Option<Held>,
 }
 
 /// The single selected row.
@@ -492,6 +498,9 @@ pub struct ProjectRow {
     pub attention: bool,
     /// The byte offsets of the characters the filter matched, to highlight.
     pub highlight: Vec<usize>,
+    /// For a collapsed project, its agents by state, most needing the user first: `1 waiting, 2
+    /// working` (#542); `None` with nothing to count.
+    pub summary: Option<String>,
 }
 
 /// A terminal row under its project.
@@ -738,27 +747,249 @@ impl<'a> Shown<'a> {
     }
 }
 
+/// Where a terminal agent's status comes from (#542).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Reporting {
+    /// The quiet timer, for an agent that sends no events (or no agent).
+    #[default]
+    Timer,
+    /// The agent's own events (#519), so a waiting or failed status is its own word.
+    Events,
+    /// Its events said it works and have stopped past the setting's minutes, its row's `no
+    /// update in N m` (#547).
+    Stale,
+}
+
+/// How much a row needs the user, most first (#542).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Attention {
+    /// An agent waits on the user, or failed and the user has not looked since.
+    NeedsYou,
+    /// An agent or a program finished while the user looked elsewhere.
+    DoneUnseen,
+    /// An agent works.
+    Working,
+    /// An agent said it works and has sent nothing for a while.
+    NotReporting,
+    /// Everything else.
+    Idle,
+}
+
+/// The order the rail lists projects and rows in (#542).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum RailOrder {
+    /// What needs the user first; ties keep the window's order.
+    #[default]
+    Attention,
+    /// The window's order, as before.
+    Window,
+}
+
+/// The order the rail showed when the pointer came over it, which it keeps while the pointer
+/// stays, so a row never moves under it (#542). What appeared since goes last.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Held {
+    /// The projects' window indices, in the order shown.
+    pub projects: Vec<usize>,
+    /// The terminals' ids, in the order shown.
+    pub terminals: Vec<u64>,
+    /// The threads' keys, in the order shown.
+    pub threads: Vec<String>,
+}
+
+/// How much `terminal` needs the user. An agent that sends no events cannot say it waits, so only
+/// its bell lifts it (#542's D4).
+#[must_use]
+pub fn terminal_attention(terminal: &TerminalSnapshot) -> Attention {
+    let status = terminal.agent.map(|agent| agent.status);
+    let reports = terminal.reporting != Reporting::Timer;
+    match (status, reports) {
+        (Some(AgentStatus::Waiting), true) => Attention::NeedsYou,
+        (Some(AgentStatus::Failed), true) if terminal.bell => Attention::NeedsYou,
+        (Some(AgentStatus::Working), true) if terminal.reporting == Reporting::Stale => {
+            Attention::NotReporting
+        }
+        (Some(AgentStatus::Working), _) => Attention::Working,
+        _ if terminal.bell => Attention::DoneUnseen,
+        _ => Attention::Idle,
+    }
+}
+
+/// How much `thread` needs the user: a wait on a confirmation, a failure or an end not yet seen.
+#[must_use]
+pub const fn thread_attention_class(thread: &ThreadSnapshot) -> Attention {
+    match thread.status {
+        ThreadStatus::Waiting => Attention::NeedsYou,
+        ThreadStatus::Error if thread.attention => Attention::NeedsYou,
+        ThreadStatus::Done if thread.attention => Attention::DoneUnseen,
+        ThreadStatus::Running => Attention::Working,
+        ThreadStatus::Error | ThreadStatus::Done => Attention::Idle,
+    }
+}
+
+/// A project's class: its most demanding row's.
+#[must_use]
+pub fn project_attention(project: &ProjectSnapshot) -> Attention {
+    project
+        .terminals
+        .iter()
+        .map(terminal_attention)
+        .chain(project.threads.iter().map(thread_attention_class))
+        .min()
+        .unwrap_or(Attention::Idle)
+}
+
+/// The projects' window indices in the order the rail lists them.
+fn project_order(snapshot: &RailSnapshot) -> Vec<usize> {
+    let mut order: Vec<usize> = (0..snapshot.projects.len()).collect();
+    match (snapshot.order, &snapshot.held) {
+        (RailOrder::Window, _) => {}
+        (RailOrder::Attention, Some(held)) => {
+            order.sort_by_key(|index| held_position(&held.projects, index));
+        }
+        (RailOrder::Attention, None) => {
+            order.sort_by_key(|index| {
+                snapshot
+                    .projects
+                    .get(*index)
+                    .map_or(Attention::Idle, project_attention)
+            });
+        }
+    }
+    order
+}
+
+/// Where `item` sat in a held order; what was not there goes last, in the order it came.
+fn held_position<T: PartialEq>(held: &[T], item: &T) -> usize {
+    held.iter()
+        .position(|shown| shown == item)
+        .unwrap_or(usize::MAX)
+}
+
+/// `terminals` in the order the rail lists them under their project.
+fn arrange_terminals<'a>(
+    snapshot: &RailSnapshot,
+    mut terminals: Vec<&'a TerminalSnapshot>,
+) -> Vec<&'a TerminalSnapshot> {
+    match (snapshot.order, &snapshot.held) {
+        (RailOrder::Window, _) => {}
+        (RailOrder::Attention, Some(held)) => {
+            terminals.sort_by_key(|terminal| held_position(&held.terminals, &terminal.id));
+        }
+        (RailOrder::Attention, None) => {
+            terminals.sort_by_key(|terminal| terminal_attention(terminal));
+        }
+    }
+    terminals
+}
+
+/// `threads` in the order the rail lists them under their project.
+fn arrange_threads<'a>(
+    snapshot: &RailSnapshot,
+    mut threads: Vec<&'a ThreadSnapshot>,
+) -> Vec<&'a ThreadSnapshot> {
+    match (snapshot.order, &snapshot.held) {
+        (RailOrder::Window, _) => {}
+        (RailOrder::Attention, Some(held)) => {
+            threads.sort_by_key(|thread| held_position(&held.threads, &thread.key));
+        }
+        (RailOrder::Attention, None) => {
+            threads.sort_by_key(|thread| thread_attention_class(thread));
+        }
+    }
+    threads
+}
+
+/// The order the rail shows now, to hold while the pointer is over it (#542).
+#[must_use]
+pub fn held_order(snapshot: &RailSnapshot) -> Held {
+    let mut held = Held::default();
+    for shown in walk(snapshot) {
+        match shown {
+            Shown::Project(index, _) => held.projects.push(index),
+            Shown::Terminal(_, terminal) => held.terminals.push(terminal.id),
+            Shown::Thread(_, thread) => held.threads.push(thread.key.clone()),
+            Shown::Worktree(..) | Shown::Browser(..) | Shown::Port(..) => {}
+        }
+    }
+    held
+}
+
+/// A collapsed project's agents by state, most needing the user first: `1 waiting, 2 working`;
+/// shells and idle agents are not counted.
+fn summary(project: &ProjectSnapshot) -> Option<String> {
+    const WORDS: [&str; 5] = ["waiting", "failed", "done", "working", "not reporting"];
+    let mut counts = [0usize; 5];
+    let terminals = project.terminals.iter().filter_map(|terminal| {
+        let status = terminal.agent?.status;
+        let reports = terminal.reporting != Reporting::Timer;
+        match (status, reports) {
+            (AgentStatus::Waiting, true) => Some(0),
+            (AgentStatus::Failed, true) if terminal.bell => Some(1),
+            (AgentStatus::Working, true) if terminal.reporting == Reporting::Stale => Some(4),
+            (AgentStatus::Working, _) => Some(3),
+            _ if terminal.bell => Some(2),
+            _ => None,
+        }
+    });
+    let threads = project
+        .threads
+        .iter()
+        .filter_map(|thread| match thread.status {
+            ThreadStatus::Waiting => Some(0),
+            ThreadStatus::Error if thread.attention => Some(1),
+            ThreadStatus::Done if thread.attention => Some(2),
+            ThreadStatus::Running => Some(3),
+            ThreadStatus::Error | ThreadStatus::Done => None,
+        });
+    for kind in terminals.chain(threads) {
+        if let Some(count) = counts.get_mut(kind) {
+            *count += 1;
+        }
+    }
+    let parts: Vec<String> = counts
+        .iter()
+        .zip(WORDS)
+        .filter(|(count, _)| **count > 0)
+        .map(|(count, word)| format!("{count} {word}"))
+        .collect();
+    (!parts.is_empty()).then(|| parts.join(", "))
+}
+
 /// Every row the rail shows, in its order: each shown project's header, then the main
 /// checkout's terminals, each linked worktree's row with its terminals (#510), the Browser tabs,
 /// the threads and the ports shown under it. The rows, the selection and the keyboard all read
 /// this one walk.
 fn walk(snapshot: &RailSnapshot) -> Vec<Shown<'_>> {
     let mut rows = Vec::new();
-    for (index, project) in snapshot.projects.iter().enumerate() {
-        let terminals = project
-            .terminals
-            .iter()
-            .filter(|terminal| worktree_of(project, terminal).is_none())
-            .filter(|terminal| terminal_shows(snapshot, project, terminal))
-            .map(|terminal| Shown::Terminal(index, terminal));
-        let worktrees = project.worktrees.iter().flat_map(|worktree| {
-            let terminals: Vec<Shown<'_>> = project
+    for index in project_order(snapshot) {
+        let Some(project) = snapshot.projects.get(index) else {
+            continue;
+        };
+        let terminals = arrange_terminals(
+            snapshot,
+            project
                 .terminals
                 .iter()
-                .filter(|terminal| terminal.worktree.as_deref() == Some(worktree.path.as_str()))
+                .filter(|terminal| worktree_of(project, terminal).is_none())
                 .filter(|terminal| terminal_shows(snapshot, project, terminal))
-                .map(|terminal| Shown::Terminal(index, terminal))
-                .collect();
+                .collect(),
+        )
+        .into_iter()
+        .map(|terminal| Shown::Terminal(index, terminal));
+        let worktrees = project.worktrees.iter().flat_map(|worktree| {
+            let terminals: Vec<Shown<'_>> = arrange_terminals(
+                snapshot,
+                project
+                    .terminals
+                    .iter()
+                    .filter(|terminal| terminal.worktree.as_deref() == Some(worktree.path.as_str()))
+                    .filter(|terminal| terminal_shows(snapshot, project, terminal))
+                    .collect(),
+            )
+            .into_iter()
+            .map(|terminal| Shown::Terminal(index, terminal))
+            .collect();
             // A shown terminal keeps its worktree's row above it.
             let row = (row_shows(snapshot, project, worktree.matched.as_deref())
                 || !terminals.is_empty())
@@ -770,11 +1001,16 @@ fn walk(snapshot: &RailSnapshot) -> Vec<Shown<'_>> {
             .iter()
             .filter(|browser| row_shows(snapshot, project, browser.matched.as_deref()))
             .map(|browser| Shown::Browser(index, browser));
-        let threads = project
-            .threads
-            .iter()
-            .filter(|thread| row_shows(snapshot, project, thread.matched.as_deref()))
-            .map(|thread| Shown::Thread(index, thread));
+        let threads = arrange_threads(
+            snapshot,
+            project
+                .threads
+                .iter()
+                .filter(|thread| row_shows(snapshot, project, thread.matched.as_deref()))
+                .collect(),
+        )
+        .into_iter()
+        .map(|thread| Shown::Thread(index, thread));
         let ports = project
             .ports
             .iter()
@@ -1004,6 +1240,7 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                 selected: selected == Selection::Project(index),
                 attention: hidden_rows_need_the_user(snapshot, project),
                 highlight: highlight(project.matched.as_deref()),
+                summary: (!project.expanded).then(|| summary(project)).flatten(),
             }),
             Shown::Terminal(index, terminal) => Row::Terminal(TerminalRow {
                 project: index,
@@ -1221,6 +1458,7 @@ mod tests {
             flag: None,
             command: None,
             running_error: None,
+            reporting: Reporting::Timer,
             turns: Vec::new(),
             turns_open: false,
             worktree: None,
@@ -1276,6 +1514,8 @@ mod tests {
             inbox: Vec::new(),
             inbox_suggests: false,
             route_suggests: false,
+            order: RailOrder::Window,
+            held: None,
         }
     }
 
@@ -1379,6 +1619,7 @@ mod tests {
                     selected: false,
                     attention: false,
                     highlight: Vec::new(),
+                    summary: None,
                 }),
                 Row::Terminal(TerminalRow {
                     project: 0,
@@ -1421,6 +1662,7 @@ mod tests {
                     selected: false,
                     attention: false,
                     highlight: Vec::new(),
+                    summary: None,
                 }),
                 Row::Terminal(TerminalRow {
                     project: 1,
@@ -1456,6 +1698,7 @@ mod tests {
                     selected: true,
                     attention: true,
                     highlight: Vec::new(),
+                    summary: None,
                 }),
                 Row::Project(ProjectRow {
                     index: 1,
@@ -1464,6 +1707,7 @@ mod tests {
                     selected: false,
                     attention: false,
                     highlight: Vec::new(),
+                    summary: None,
                 }),
                 Row::Terminal(TerminalRow {
                     project: 1,
@@ -1499,6 +1743,7 @@ mod tests {
                 selected: false,
                 attention: false,
                 highlight: Vec::new(),
+                summary: None,
             })]
         );
     }
@@ -1615,6 +1860,7 @@ mod tests {
                     selected: false,
                     attention: false,
                     highlight: Vec::new(),
+                    summary: None,
                 }),
                 Row::Terminal(TerminalRow {
                     project: 0,
@@ -1658,6 +1904,7 @@ mod tests {
                     selected: true,
                     attention: false,
                     highlight: Vec::new(),
+                    summary: None,
                 }),
                 Row::Terminal(TerminalRow {
                     project: 1,
