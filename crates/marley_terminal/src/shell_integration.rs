@@ -55,6 +55,9 @@ pub const NONCE_VARIABLE: &str = "MARLEY_SHELL_NONCE";
 /// The file, beside the scripts, holding the remote command Marley's `ssh` runs on a host (#526).
 pub const SSH_COMMAND_FILE: &str = "ssh-remote-command";
 
+/// How [`ssh_remote_command`] starts, which [`shown_arguments`] knows it by.
+const SSH_COMMAND_START: &str = "sh -c 'b=$(printf %s ";
+
 /// The variable naming [`SSH_COMMAND_FILE`] for the scripts, which read it and take it out of the
 /// environment as they do the nonce.
 pub const SSH_COMMAND_VARIABLE: &str = "MARLEY_SSH_COMMAND";
@@ -102,7 +105,7 @@ pub fn ssh_remote_command() -> String {
     use base64::Engine as _;
     let encoded = base64::engine::general_purpose::STANDARD.encode(ssh_bootstrap());
     format!(
-        "sh -c 'b=$(printf %s {encoded} | base64 -d 2>/dev/null) && eval \"$b\" || exec \"${{SHELL:-/bin/sh}}\" -l' marley"
+        "{SSH_COMMAND_START}{encoded} | base64 -d 2>/dev/null) && eval \"$b\" || exec \"${{SHELL:-/bin/sh}}\" -l' marley"
     )
 }
 
@@ -222,6 +225,21 @@ pub fn shown_arguments<'a>(argv: &'a [String], dir: &Path) -> Vec<&'a str> {
     let Some((program, arguments)) = argv.split_first() else {
         return Vec::new();
     };
+    // Marley's ssh (#526): the `-t` and the remote command it added carry the bootstrap and the
+    // connection's nonce, so the title shows the ssh the user typed.
+    if Path::new(program)
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        == Some("ssh")
+        && let Some((last, rest)) = arguments.split_last()
+        && last.starts_with(SSH_COMMAND_START)
+    {
+        let rest = match rest.split_first() {
+            Some((first, after)) if first == "-t" => after,
+            _ => rest,
+        };
+        return rest.iter().map(String::as_str).collect();
+    }
     let added =
         for_program(program, dir, None).map_or_else(Vec::new, |integration| integration.args);
     // `windows` takes no empty run.

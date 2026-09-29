@@ -2701,3 +2701,14 @@ and ran `command ssh "$@"` inside the loop for a host marked plain, so that ssh'
 rest of the config, not the terminal: an interactive session would have got the config as input
 and then end of file. Fixed before the gate: the loop only sets a flag, and ssh runs after it; the
 zsh wrapper was written the same way from the start.
+
+## F-claude-526-marleys-ssh-put-its-bootstrap-and-nonce-in-the-terminal-title-001
+*severity: medium · found in: #526's visual check (shot 526-03-far-blocks, the second run) · class: an argument a wrapper adds that the title, built from the foreground process's argv, shows · prevented by: the visual check with a stand-in that stays in the foreground as the real program does*
+
+The terminal's title is the foreground process's name and arguments, less the ones Marley's
+integration added (`shown_arguments`, #467). Marley's `ssh` runs `ssh -t <destination> "<remote
+command> <connection nonce>"`, so the tab and the rail row showed `ssh -t far sh -c 'b=$(printf %s
+ZGlyPSQ…` and the connection's nonce. The first run hid it: its stand-in shell script exec'd the
+far shell, which then led the foreground. Fixed: `shown_arguments` drops the last argument when it
+starts as `ssh_remote_command` does, and the `-t` before it.
+

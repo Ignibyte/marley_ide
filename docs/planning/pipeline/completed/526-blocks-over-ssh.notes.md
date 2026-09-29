@@ -198,3 +198,32 @@
   2026-10-29).
 - **Closed:** TICKET-526 moved to `tickets/closed/`; its BACKLOG row went at promotion.
 - **No tests** (§7): the drafted scenario (a local sshd) waits for the quality pass.
+
+---
+## Phase 3 — Test (the visual check, after the fact)
+- **Why after:** #526 shipped (dd9fa55a1f) while the workflow had no visual check; Chad brought it
+  back the same day (7e589cb0a1), and this ticket was checked before its release install.
+- **The scenario:** `script/e2e/526-blocks-over-ssh.sh`, `compositor sway`. A stand-in `ssh`
+  written in C, first on the PATH: `-G` prints a plain config, anything else runs its last argument
+  on a pty of its own (`forkpty`) in a "far" HOME whose `.bash_profile` sets `far$ `, and relays the
+  terminal to it, staying in the foreground as ssh does. The real bootstrap, the host's scripts,
+  the connection's nonce and the terminal's two shells run; only the network and sshd do not.
+  Three runs; the stand-in was first a shell script that exec'd the far shell, which hid the
+  title's problem (below).
+- **Checks (all pass):** local blocks verified with no host; `echo on the far side` and `false`
+  verified blocks of `far` with their exit codes; the `ssh far` block ended with no exit code; the
+  bootstrap's folder empty on the far side; ssh given `-t far sh -c 'b=…`; after `exit`, a local
+  block again.
+- **The shots, read:** `526-01-local` (the local blocks' bars and pills); `526-02-connected` (the
+  `ssh far` block ends and the `far$ ` prompt from the login files); `526-03-far-blocks` (far
+  blocks with ✓ and exit 1 pills, `ls -A $TMPDIR` empty, the tab and rail row titled `repo — ssh
+  far`); `526-03b-far-rerun` (the pointer on the far `false`: Copy and Rerun); `526-03c-local-no-
+  rerun` (the pointer on the local `echo local` while the far shell waits: Copy only);
+  `526-04-back` (after `exit`, the local prompt and `echo back home` as a block).
+- **Found and fixed: the title showed the bootstrap.** The terminal's title lists the foreground
+  process's arguments, and for Marley's ssh that was `ssh -t far sh -c '<22 KB of base64>' marley
+  <connection nonce>`: the tab and the rail row full of base64, and the connection's nonce on
+  screen. `shown_arguments` now drops the remote command Marley added (known by its start,
+  `SSH_COMMAND_START`) and the `-t` before it, so the title reads `ssh far`. An F-block.
+- **Not reached:** a real sshd and network; a host whose login shell is fish or tcsh (the command's
+  one-line form is what covers it).

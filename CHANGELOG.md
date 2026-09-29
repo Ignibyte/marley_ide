@@ -23,7 +23,7 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   commands. `ssh` with a remote command, a flag that makes the session non-interactive, no
   terminal, a host whose config sets `RemoteCommand` or `Tag marley-plain`, and `command ssh`
   run as plain ssh, as does a host whose shell is neither bash nor zsh. `terminal_blocks` names
-  each block's `host`. The terminal's own nonce never leaves the machine: the connection gets a
+  each block's `host`, and the tab's title reads `ssh far`, without the command Marley added. The terminal's own nonce never leaves the machine: the connection gets a
   nonce of its own, announced in a frame the local shell signs, and every frame now carries its
   shell's nonce.
 
