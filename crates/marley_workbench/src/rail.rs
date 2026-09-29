@@ -24,7 +24,7 @@ use git_ui::branch_diff::BranchDiff;
 use gpui::{
     Anchor, AnyElement, AnyView, App, ClickEvent, ClipboardItem, Context, Div, ElementId, Entity,
     EntityId, EventEmitter, FocusHandle, Focusable, Hsla, Image, Pixels, PromptLevel, Render,
-    Stateful, Subscription, Task, WeakEntity, Window, img, px,
+    RenderImage, Stateful, Subscription, Task, WeakEntity, Window, img, px,
 };
 use marley_agent::risk::{self, Action, Chip, ChipKind, ChipSource, ToolClass};
 use marley_agent::route::{self, Route, RouteMark, RouteSource};
@@ -44,7 +44,10 @@ use menu::{
     Cancel, Confirm, SelectChild, SelectFirst, SelectLast, SelectNext, SelectParent, SelectPrevious,
 };
 use project::git_store::{GitStoreEvent, Repository, RepositoryEvent};
-use project::{AgentId, AgentServerStore, AgentServersUpdated, Project, ProjectGroupKey};
+use project::{
+    AgentId, AgentServerStore, AgentServersUpdated, Project, ProjectGroupKey, UpdatedEntriesSet,
+    WorktreeId,
+};
 use recent_projects::sidebar_recent_projects::SidebarRecentProjects;
 use settings::{Settings as _, SystemOneMode};
 use terminal::Terminal;
@@ -196,6 +199,8 @@ pub struct Rail {
     /// Claude Code's hook events, which move its terminals' rows (#519), its turns (#509), and the
     /// terminals' unread marks (#538).
     _agent_events: [Subscription; 4],
+    /// Each project's own icon, by its group's first folder (#564).
+    project_icons: HashMap<PathBuf, ProjectIcon>,
     /// The rows' ports, from the scan an open rail keeps running (#521), and the settings that
     /// can show the rail again.
     _ports: [Subscription; 2],
@@ -228,6 +233,29 @@ struct GroupEntry {
     /// Its branch's changed lines and pull request, as the row shows them (#531).
     git: Option<ProjectGit>,
 }
+
+/// The repository's own icon on its project's header, at 16 px (#564).
+fn project_icon(index: usize, icon: Arc<RenderImage>) -> Div {
+    div()
+        .debug_selector(move || format!("marley-rail-project-icon-{index}"))
+        .flex_none()
+        .child(img(icon).size_4().rounded_sm())
+}
+
+/// A project's own icon on its header (#564).
+#[derive(Default)]
+struct ProjectIcon {
+    image: Option<Arc<RenderImage>>,
+    /// The file it came from, which a change to searches again.
+    chosen: Option<PathBuf>,
+    searched_at: Option<Instant>,
+    search: Option<Task<()>>,
+    /// Whether another search was asked for while this one ran.
+    again: bool,
+}
+
+/// How often a project's icon is searched for at most (#564).
+const ICON_SEARCH_EVERY: Duration = Duration::from_secs(1);
 
 /// A project's checkout, which its row's counts and pull request are read for (#531).
 #[derive(Clone)]
@@ -607,6 +635,7 @@ impl Rail {
             noted_threads: HashSet::default(),
             _multi_workspace_subscriptions: subscriptions,
             _agent_events: agent_events,
+            project_icons: HashMap::default(),
             _ports: [ports_scanned, settings_changed],
             _focus_out: focus_out,
             _filter_edits: filter_edits,
@@ -715,11 +744,109 @@ impl Rail {
             cx.notify();
         }
         self.snapshot = snapshot;
+        self.follow_icons(cx);
         self.follow_risk(window, cx);
         self.follow_route(window, cx);
         self.follow_drift(window, cx);
         self.follow_project_git(window, cx);
         self.take_review(window, cx);
+    }
+
+    /// Searches each local project's folder for its icon the first time its group shows, and
+    /// forgets the groups that went (#564).
+    fn follow_icons(&mut self, cx: &Context<Self>) {
+        let roots: Vec<PathBuf> = self
+            .snapshot
+            .groups
+            .iter()
+            .filter(|group| {
+                group
+                    .workspace
+                    .upgrade()
+                    .is_some_and(|workspace| workspace.read(cx).project().read(cx).is_local())
+            })
+            .filter_map(|group| group.key.path_list().paths().first().cloned())
+            .collect();
+        self.project_icons.retain(|root, _| roots.contains(root));
+        for root in roots {
+            if !self.project_icons.contains_key(&root) {
+                self.search_icon(root, cx);
+            }
+        }
+    }
+
+    /// Reads `root`'s icon off the main thread; a search asked for while one runs, or within a
+    /// second of the last, waits for its turn.
+    fn search_icon(&mut self, root: PathBuf, cx: &Context<Self>) {
+        let now = cx.background_executor().now();
+        let icon = self.project_icons.entry(root.clone()).or_default();
+        if icon.search.is_some() {
+            icon.again = true;
+            return;
+        }
+        let wait = icon
+            .searched_at
+            .map(|at| ICON_SEARCH_EVERY.saturating_sub(now.saturating_duration_since(at)))
+            .unwrap_or_default();
+        icon.search = Some(cx.spawn(async move |rail, cx| {
+            if !wait.is_zero() {
+                cx.background_executor().timer(wait).await;
+            }
+            let searched = root.clone();
+            let found = smol::unblock(move || crate::project_icons::icon_in(&searched)).await;
+            rail.update(cx, |rail, cx| {
+                let now = cx.background_executor().now();
+                let Some(icon) = rail.project_icons.get_mut(&root) else {
+                    return;
+                };
+                let (chosen, image) = found.unzip();
+                icon.chosen = chosen;
+                icon.image = image;
+                icon.searched_at = Some(now);
+                icon.search = None;
+                if std::mem::take(&mut icon.again) {
+                    rail.search_icon(root, cx);
+                }
+                cx.notify();
+            })
+            .log_err();
+        }));
+    }
+
+    /// A project's files changed: its icon is searched again when a changed file can be one, or
+    /// is the one it shows (#564).
+    fn note_icon_files(
+        &mut self,
+        project: &Entity<Project>,
+        worktree: WorktreeId,
+        changes: &UpdatedEntriesSet,
+        cx: &Context<Self>,
+    ) {
+        let Some(root) = project
+            .read(cx)
+            .worktree_for_id(worktree, cx)
+            .map(|worktree| worktree.read(cx).abs_path().to_path_buf())
+        else {
+            return;
+        };
+        let Some(icon) = self.project_icons.get(&root) else {
+            return;
+        };
+        let chosen = icon
+            .chosen
+            .as_ref()
+            .and_then(|chosen| chosen.strip_prefix(&root).ok())
+            .map(Path::to_path_buf);
+        let touched = changes.iter().any(|(path, _, _)| {
+            let relative = path.as_unix_str();
+            crate::project_icons::is_candidate(relative)
+                || chosen
+                    .as_deref()
+                    .is_some_and(|chosen| chosen == Path::new(relative))
+        });
+        if touched {
+            self.search_icon(root, cx);
+        }
     }
 
     /// Puts each project's kept changed lines and pull request on its row (#531).
@@ -1796,12 +1923,15 @@ impl Rail {
             cx.subscribe_in(
                 project,
                 window,
-                |_, _, event: &project::Event, window, cx| {
+                |rail, project, event: &project::Event, window, cx| {
                     // The project reports a folder before the `MultiWorkspace` rekeys the
                     // project's group. A rebuild in between would find the project in no group and
                     // forget its rows' recency and attention dots.
                     if changes_the_folders(event) {
                         cx.defer_in(window, Self::refresh);
+                    } else if let project::Event::WorktreeUpdatedEntries(worktree, changes) = event
+                    {
+                        rail.note_icon_files(project, *worktree, changes, cx);
                     }
                 },
             ),
@@ -3099,6 +3229,7 @@ impl Rail {
     fn render_project_row(
         row: ProjectRow,
         group: &GroupEntry,
+        icon: Option<Arc<RenderImage>>,
         last: bool,
         filtering: bool,
         agent_search_path: Option<OsString>,
@@ -3137,6 +3268,7 @@ impl Rail {
                         ),
                 )
             })
+            .children(icon.map(|icon| project_icon(index, icon)))
             .child(
                 div()
                     .min_w_0()
@@ -6036,6 +6168,13 @@ impl Render for Rail {
                         .child(Self::render_project_row(
                             row,
                             group,
+                            group
+                                .key
+                                .path_list()
+                                .paths()
+                                .first()
+                                .and_then(|root| self.project_icons.get(root))
+                                .and_then(|icon| icon.image.clone()),
                             last,
                             filtering,
                             search_path.clone(),

@@ -3236,3 +3236,16 @@ silent outside Marley (`TERM_PROGRAM`). Both chips read the files off the main t
 only when a read changed something. Rejected: wrapping either CLI; Codex's `notify` program hook
 (it runs outside the terminal); a live run of the real CLIs in the plan or the scenario (network
 and an account).
+
+## AD-claude-564-a-projects-icon-from-its-own-files-001
+*decided at: 2026-09-29 · status: shipped*
+
+The rail's project header draws the repository's own favicon or logo: Orca's fifteen names (with
+SVG and ICO added) and the icon an `index.html` declares, first file that reads, fits 256 KiB and
+decodes wins. Nothing is fetched: Orca's `package.json` homepage through a favicon service and the
+owner's GitHub avatar are left out, since a service would learn every project's homepage. The
+file is read and decoded off the main thread and made 32 px before it becomes a `RenderImage`, so
+`img(path)` never caches a path for good or uploads a large file. A worktree's entry events for a
+candidate, a page or the chosen file search again, at most once a second. The pure rail model is
+unchanged: the icon is looked up by the row's group at render time. No setting yet: Chad's eye on
+real repositories' icons at 16 px comes first.

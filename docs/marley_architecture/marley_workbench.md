@@ -1155,6 +1155,17 @@ alike.
   `marley-shortcut-note` scope, so the note shows once per data directory. A `Shown` global saves
   the store a read in the same session.
 
+## A project's own icon (`src/project_icons.rs`, `src/rail.rs`, #564)
+
+- `icon_in(root)`, blocking: Orca's fifteen names by extension (PNG, SVG, WebP, ICO), then the
+  icon `index.html`, `public/index.html` or `src/index.html` declares (`<link rel="icon">`, any
+  attribute order and quoting; a scheme, `//`, `..` or `data:` skipped; resolved against the
+  page's folder, `public/`, then the root). The first file at most 256 KiB that decodes wins, made
+  32 px on its long side as a BGRA `RenderImage`; each skip is one log line.
+- The rail keeps `ProjectIcon`s by the group's first folder: searched through `smol::unblock`
+  when a local group first shows, again on `WorktreeUpdatedEntries` touching a candidate, a page or
+  the file it shows, at most once a second; `project_icon` draws it at 16 px before the name.
+
 ## Claude Code's hook events (`src/agent_events.rs`, #519)
 
 - `AgentEvents`, a global made at the first frame, holds one `marley_fleet::FleetSnapshot`: a

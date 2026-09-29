@@ -72,7 +72,30 @@
     (`docs/site/content/docs/settings.mdx:146` mentions the icon choices).
 - **Decisions:** D1 to D7 in the spec.
 
-### Design
+- **Recall at promotion (2026-09-29):** `render_project_row(row, group: &GroupEntry, ..)`
+  (`rail.rs:3099`) draws the disclosure then `row_label`; `GroupEntry` holds the group's
+  `ProjectGroupKey`, whose `path_list().paths()` give its folders, and its workspace, whose
+  project says whether it is local. `follow_folders` (`rail.rs:1789`) subscribes to each
+  project's events; `project::Event::WorktreeUpdatedEntries(_, UpdatedEntriesSet)` carries each
+  changed entry's relative path. `image` (0.25, with png, ico, webp, jpeg, gif, bmp), `resvg` and
+  `usvg` (0.46) are workspace dependencies; `gpui::RenderImage::new` takes BGRA `image::Frame`s.
+  Brain (consultation 88f6920b): nothing on this seam.
+
+### Design (at promotion)
+- `project_icons.rs` (new): `candidates_in(root) -> Vec<PathBuf>` (the fifteen names by extension,
+  then the three HTML files' `<link rel="icon">` targets, resolved as the spec says, schemes,
+  `//`, `..` and `data:` skipped), `decode(path, bytes) -> anyhow::Result<RenderImage>` (a raster
+  through `image::load_from_memory` and `thumbnail(32, 32)`, an SVG through `usvg` and `resvg` at
+  32 px, then BGRA), `icon_in(root) -> Option<(PathBuf, Arc<RenderImage>)>` (the first candidate
+  that reads under 256 KiB and decodes; a failure logged by name); `is_candidate(rel_path)` for
+  the refresh.
+- The rail: `icons: HashMap<PathBuf, Icon>` (`Icon { image: Option<Arc<RenderImage>>, chosen:
+  Option<PathBuf>, searched_at, task }`), a search started when a local group's first path has
+  no entry, again on `WorktreeUpdatedEntries` touching a candidate or the chosen file, at most once
+  a second per project; `render_project_row` draws `img(ImageSource::Render(image))` at 16 px
+  before the name.
+
+### Design (as drafted; the promotion's above wins where they differ)
 - **Approach.**
   - *`project_icons.rs`* (new; pure functions first, one adapter): `CANDIDATES` (the fifteen
     names by four extensions), `DECLARING_FILES` (the three HTML paths), `MAX_BYTES` (256 KiB),
@@ -141,3 +164,42 @@ the extra proof; a project on a remote host.
   drops nothing the other still shows, since the entry lives on the `Rail` per window.
 - The name shifts right by 20 px on a project with an icon; a later scenario measuring the
   header's text by coordinates should add an icon to its fixture or none, and say which.
+
+## Phase 2 — Code
+- **Built to the promoted design.** `project_icons.rs` (`candidates_in`, `declared_icon` with
+  three regexes compiled once, `decode` with `image` and `usvg`/`resvg` at 32 px and straight BGRA,
+  `icon_in` with the 256 KiB cap and one log line per skip, `is_candidate`); the rail's
+  `project_icons` map (`ProjectIcon`: the image, the file chosen, the last search's time, the
+  search task, a pending re-search), `follow_icons` after each rebuild, `search_icon` through
+  `smol::unblock` at most once a second, `note_icon_files` on `WorktreeUpdatedEntries`, and
+  `project_icon`, drawn at 16 px before the name. `image`, `regex`, `resvg` and `usvg` joined the
+  workbench's dependencies. No Zed crate.
+- **Review.** Only the disk is read (REQ-006); the uploaded image is at most 32 px on its long
+  side, a raster through `thumbnail` and an SVG rendered at that size (REQ-007). An SVG's size
+  comes from `to_int_size` and integer arithmetic, and its scale from `u16` values, so no float
+  is cast to an integer. Clippy's reds (`similar_names`, `chunks_exact_to_as_chunks`,
+  `too_many_lines` on `render_project_row`, `needless_pass_by_ref_mut`, and an
+  `unused_qualifications` the new import made in `rail_tests.rs`) fixed at the source.
+- **Gate.** Run 1: `GATE GREEN [diff]`, 16 passed, 0 failed, the receipt written.
+
+## Phase 3 — Test
+- **Scenario** `script/e2e/564-project-icons-from-the-repo.sh` under `compositor sway`: the
+  scratch repository's icon files written while Marley runs, a PNG maker in Python (a solid colour,
+  or noise for a file over the cap). Run 1 showed every step.
+- **Every shot read** (the rail's header, scaled 3x):
+  - `564-01-none`: `repo` with no icon, as before. REQ-003.
+  - `564-02-png`: a red square before `repo`, five seconds after `favicon.png` appeared. REQ-001,
+    REQ-004.
+  - `564-03-svg`: `favicon.png` removed, `index.html` declaring `/brand.svg?v=2` with its
+    attributes in another order: the blue circle. REQ-002, REQ-004.
+  - `564-04-junk`: a `favicon.png` of text: the circle still, and Marley.log's `skipped
+    …/favicon.png: the image does not decode`. REQ-005.
+  - `564-05-too-big`: the page removed and a 640 KB `favicon.png`: no icon, and `skipped
+    …/favicon.png: 640663 bytes, over 262144`. REQ-003, REQ-005.
+
+## Phase 4 — Complete
+- **Docs.** CHANGELOG Added; `marley_workbench.md` (a section for `project_icons.rs` and the
+  rail's map). No Zed path changed.
+- **Knowledge.** AD-claude-564-a-projects-icon-from-its-own-files-001. No F. Brain:
+  `brain_decide` on consultation 88f6920b.
+- **Closed** the ticket, archived the pair, committed.

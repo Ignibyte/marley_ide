@@ -1,7 +1,7 @@
 ---
 pipeline_id: 31691c29-1a1f-4b85-92e8-40abc218bdd1
 ticket: docs/planning/tickets/open/TICKET-564-project-icons-from-the-repo.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Project icons from the repository's own files"
 type: feature
 slice: workbench shell (the rail's project headers, after #468); the Orca second pass, smaller item 5

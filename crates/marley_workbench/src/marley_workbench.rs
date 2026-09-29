@@ -49,6 +49,7 @@ pub mod mcp;
 pub mod notifications;
 pub mod playwright_scripts;
 pub mod ports;
+pub mod project_icons;
 pub mod push;
 mod rail;
 pub mod review_notes;

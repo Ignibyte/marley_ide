@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #564 (feature, workbench: the rail's project headers)
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/564-project-icons-from-the-repo.spec.md
+- **Pipeline doc:** ../../pipeline/completed/564-project-icons-from-the-repo.spec.md
 - **Source ticket:** The Orca second pass of 2026-09-25 (`docs/planning/design-notes/orca-second-pass-2026-09-25.md`), the five smaller details, item 5; Chad decided on 2026-09-26 that every remaining Orca and Warp finding gets built.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Every project header in the rail is a name. With several projects and their worktrees open, an

@@ -268,7 +268,7 @@ async fn a_folder_added_or_removed_renames_the_row_and_keeps_its_rows_recency(
 
 #[test]
 fn only_a_change_of_folders_rebuilds_the_rail() {
-    let worktree = project::WorktreeId::from_usize(1);
+    let worktree = WorktreeId::from_usize(1);
     for event in [
         project::Event::WorktreeAdded(worktree),
         project::Event::WorktreeRemoved(worktree),

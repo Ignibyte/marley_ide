@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A project's own icon on its rail header** (#564, 2026-09-29). The rail draws the favicon or
+  logo a repository holds, `favicon.png`, `public/favicon.svg`, `src-tauri/icons/icon.png` and
+  the other names web and desktop projects use, or the icon its `index.html` declares, at 16 px
+  before the project's name, and follows it when the file appears, changes or goes. Only the
+  project's own files are read; nothing is fetched, and a project without an icon looks as before.
+
 - **A note when Marley's key takes one from a terminal program** (#563, 2026-09-29). The first
   time Ctrl-G opens Rich Input, Ctrl-Up or Ctrl-Down moves between blocks, Ctrl-Alt-N opens New
   Agent from a terminal, or Ctrl-I takes a terminal over, a toast names the key as you have it
