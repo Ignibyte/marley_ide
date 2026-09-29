@@ -3871,3 +3871,11 @@ HOME of the scratchpad, runs the real script in a pty with readline in seconds; 
 "preexec;command=[^;]*"` on its output shows the frames. For zsh, copy `marley.zsh` to a
 directory's `.zshenv` and start `zsh -i` with `ZDOTDIR` there. Two of #553's bugs were found and
 fixed this way between one scenario run and the next.
+
+## L-claude-552-a-read-that-redraws-must-redraw-only-on-a-change-001
+*category: gpui · topic: state a render path asks to be refreshed · from: #552's design*
+
+A chip whose state comes from a file, re-read when its bar draws and the last read is stale, loops
+if the read always calls `cx.refresh_windows()`: the refresh draws the bar, the bar finds the read
+stale again a moment later, and so on while the bar is on screen. Compare what was read with what
+is held and refresh only on a change; the staleness window then bounds the IO, not the frames.

@@ -1130,6 +1130,21 @@ alike.
   command reads as English, even with no agent running; its click asks with the command
   (`ask_later`, deferred past the element's update).
 
+## Codex's and OpenCode's notifications (`src/agent_notify.rs`, #552)
+
+- `AgentNotify` knows whether Codex's `config.toml` (`CODEX_HOME` or `~/.codex`) asks its TUI for
+  notifications Marley shows, and the state of Marley's plugin for OpenCode (`XDG_CONFIG_HOME` or
+  `~/.config`, then `opencode/plugins/marley.js`): missing, older or current by its first line.
+  It reads both through `smol::unblock` at start, when a Codex or OpenCode bar draws two seconds
+  after the last read, and after each write, and redraws only on a change.
+- `chip` gives the bar Turn on Codex notifications, Connect OpenCode to Marley or Update Marley's
+  plugin for OpenCode; a click writes off the main thread (`configure_codex` with `toml_edit`,
+  every other key and comment kept, a list of events for `notifications` left as it is; the plugin
+  whole, 0644) and shows a toast or the error.
+- `agent_plugins/opencode/marley.js` writes an OSC 777 notify to `/dev/tty` on `session.idle`,
+  `permission.asked` and `session.error` while `TERM_PROGRAM` is `zed`, so it reaches the terminal
+  whatever the process's stdout is, and never throws; #478's path shows it.
+
 ## Claude Code's hook events (`src/agent_events.rs`, #519)
 
 - `AgentEvents`, a global made at the first frame, holds one `marley_fleet::FleetSnapshot`: a

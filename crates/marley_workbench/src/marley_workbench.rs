@@ -22,6 +22,7 @@
 
 pub mod agent_bar;
 pub mod agent_events;
+pub mod agent_notify;
 pub mod agent_trust;
 pub mod agents;
 pub mod autosuggest;
@@ -555,6 +556,7 @@ pub fn init(cx: &mut App) {
     command_watch::init(cx);
     running_errors::init(cx);
     english::init(cx);
+    agent_notify::init(cx);
     agent_bar::init(cx);
     claude_plugin::init(cx);
     notifications::init(cx);

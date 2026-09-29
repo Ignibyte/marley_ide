@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #552 (feature, prong 1 T7b: agent notifications; the Warp second pass, "Smaller")
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/552-codex-and-opencode-notifications.spec.md
+- **Pipeline doc:** ../../pipeline/completed/552-codex-and-opencode-notifications.spec.md
 - **Source ticket:** docs/planning/design-notes/warp-second-pass-2026-09-25.md ("Notification setup for Codex and OpenCode"; Chad, 2026-09-26: every remaining finding gets built)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The agent bar offers "Connect Claude Code to Marley" and nothing for Codex or OpenCode, though

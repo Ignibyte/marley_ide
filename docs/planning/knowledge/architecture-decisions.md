@@ -3222,3 +3222,17 @@ the line as its first prompt, and leaves a command's key to the shell. Enter sta
 The exit-127 button is #555's chip, widened to a verified English command with or without an
 agent running. Rejected: a second button on the block; the footer for the hint (it would resize
 the PTY each time the reading flipped); asking with any typed line.
+
+## AD-claude-552-codex-configured-opencode-given-a-file-001
+*decided at: 2026-09-29 · status: shipped*
+
+Codex's desktop notifications are its own TUI's, turned on in its `config.toml` (`notifications`,
+`notification_condition = "always"`, `notification_method = "osc9"` under `[tui]`) with
+`toml_edit`, so the user's other settings and comments survive; Marley decides focus itself
+(#478), hence `always`. OpenCode gets a plugin file Marley writes whole and versions in its first
+line, not an npm package Marley would have to publish. The plugin writes its OSC 777 to
+`/dev/tty`, not stdout, since OpenCode may run plugins where stdout is not the terminal, and stays
+silent outside Marley (`TERM_PROGRAM`). Both chips read the files off the main thread and redraw
+only when a read changed something. Rejected: wrapping either CLI; Codex's `notify` program hook
+(it runs outside the terminal); a live run of the real CLIs in the plan or the scenario (network
+and an account).

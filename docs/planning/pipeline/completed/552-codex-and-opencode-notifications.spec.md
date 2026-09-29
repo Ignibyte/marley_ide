@@ -1,7 +1,7 @@
 ---
 pipeline_id: 4cab8f4a-e46c-48eb-a9fe-e80f9271c0e4
 ticket: docs/planning/tickets/open/TICKET-552-codex-and-opencode-notifications.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Notification setup for Codex and OpenCode from the agent bar"
 type: feature
 slice: prong 1 T7b (desktop notifications from CLI agents); the Warp second pass, "Smaller"
@@ -28,7 +28,8 @@ from a folder. Two chips, one config edit and one file.
   Marley ships. A click writes the file (0644) and shows the toast. The plugin, ES module
   JavaScript with no dependency, exports one hook: on `session.idle`, `permission.asked` and
   `session.error` it writes `ESC ] 777 ; notify ; OpenCode ; <project> <message> BEL` to the
-  process's stdout, only when `TERM_PROGRAM` is `zed`, and never throws (a failure is swallowed).
+  controlling terminal (`/dev/tty`, D4), only when `TERM_PROGRAM` is `zed`, and never throws (a
+  failure is swallowed).
   Its first line is `// marley-opencode-plugin <version>`.
 - **The chips** follow `claude_plugin_chip`'s shape: a busy label while writing, an error toast
   on failure, no chip once the check passes. The checks read the files off the main thread when
@@ -102,22 +103,19 @@ from a folder. Two chips, one config edit and one file.
 
 ## UI proof
 UI-AFFECTING: two chips in the agent bar. `script/e2e/552-codex-and-opencode-notifications.sh`
-(`compositor sway`, for the clicks). Fixtures: `CODEX_HOME` and `XDG_CONFIG_HOME` exported for
-Marley's process to scratch folders (as #547 exports `CLAUDE_CONFIG_DIR`), a `config.toml` there
-with a comment, a `model` key and a `[tui]` table holding one unrelated key; stand-in `codex` and
-`opencode` first on the PATH (Python, printing a line then reading stdin). Shots: `codex` typed,
-the bar with "Turn on Codex notifications" (`552-01-codex-chip`); a click, the toast, the log's
-`config.toml` with the three keys under `[tui]`, the comment and the other keys kept, no chip
-(`552-02-codex-written`); Ctrl-D, `opencode`, the bar with "Connect OpenCode to Marley"
-(`552-03-opencode-chip`); a click, the toast, the file in the log, no chip
-(`552-04-opencode-written`); the file's first line edited to an older version by the scenario,
-Ctrl-D and `opencode` again, "Update Marley's plugin for OpenCode" (`552-05-opencode-update`); the
-stand-in `opencode` made to run the plugin file under `node` with a fake `session.idle` event and
-`TERM_PROGRAM=zed`, then the same without the variable: one desktop notification, then none, the
-`busctl --user monitor org.freedesktop.Notifications` record in the log (`552-06-notified`, with
-the terminal not focused). Test runs the real `codex` and `opencode` once each in a Python pty
-(L-claude-482's method) to record what each prints at start with the setup in place; a turn needs
-a model and is recorded as far as it goes.
+(`compositor sway`, for the clicks), on a private session bus whose notification server logs each
+banner (#538, #551). Fixtures: `CODEX_HOME` and `XDG_CONFIG_HOME` exported for Marley's process to
+scratch folders, a `config.toml` there with a comment, a `model` key and a `[tui]` table holding
+one unrelated key; stand-in `codex` and `opencode` first on the terminal's PATH (`exec -a` over a
+Python that prints a line and reads stdin). Shots: `codex` typed, the bar with "Turn on Codex
+notifications" (`552-01-codex-chip`); a click, the toast, no chip, the log's `config.toml` with the
+three keys under `[tui]` and the comment and the other keys kept (`552-02-codex-written`); Ctrl-D,
+`opencode`, the bar with "Connect OpenCode to Marley" (`552-03-opencode-chip`); a click, the toast,
+no chip, the file in the log (`552-04-opencode-written`); the file's first line set to an older
+version by the scenario, Ctrl-D and `opencode` again, "Update Marley's plugin for OpenCode" and its
+click (`552-05-opencode-update`); in a terminal not in front, `node` loading the written plugin and
+handing its hook a `session.idle` event: one banner `OpenCode` / `repo finished`, then with
+`TERM_PROGRAM` unset none (the private bus's log; `552-06-notified`).
 
 ## Locked-In Decisions
 - D1: Codex is configured, not wrapped: its TUI already notifies through the terminal; Marley
@@ -129,10 +127,12 @@ a model and is recorded as far as it goes.
 - D3: Both stay silent outside Marley: Codex's OSC 9 goes to whatever terminal runs it (a
   terminal that ignores OSC 9 shows nothing, and `always` costs nothing there); the OpenCode
   plugin checks `TERM_PROGRAM` as `notify.sh` does.
-- D4: The plugin writes to the process's stdout, which is the terminal when `opencode` runs its
-  TUI in one process (the default launch). A server started apart (`opencode serve`) has no
-  terminal, and the plugin prints into its log; the Plan phase verifies the default launch with a
-  live run before any code, as #519 verified `terminalSequence`.
+- D4: The plugin writes to the controlling terminal, `/dev/tty` (changed at promotion): OpenCode
+  may run plugins in a server process whose stdout is not the terminal, and a process with a
+  controlling terminal reaches it through `/dev/tty` whatever its stdout is; with none
+  (`opencode serve`), the open fails and the hook stays silent. No live run of the real CLIs: a
+  run reaches the network and an account, which neither a scenario nor the Plan may, so the
+  stand-ins speak the documented behaviour and the real launch is Chad's to see.
 - D5: The chips read Codex's `CODEX_HOME` and the XDG config home, so a scenario points both at
   scratch folders and Chad's own files are never touched by a run.
 - D6: Fixed sentences per event, as the Claude plugin's: "<project> finished", "<project> needs

@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Codex and OpenCode notifications in a click** (#552, 2026-09-29). Under a terminal running
+  Codex, the agent bar offers Turn on Codex notifications, which sets `notifications`,
+  `notification_condition = "always"` and `notification_method = "osc9"` under `[tui]` in Codex's
+  `config.toml` and keeps the rest of the file. Under OpenCode it offers Connect OpenCode to
+  Marley, which writes Marley's plugin to OpenCode's plugin folder, and Update when an older one
+  is there. Both agents then post a desktop notification when a turn ends, they need you or they
+  fail, from a terminal you are not looking at.
+
 - **English at the prompt** (#557, 2026-09-29). A line typed at a terminal's prompt that reads
   as a request, such as `what is using port 3000` or `find all the large files in this repo`,
   shows a dimmed hint after the cursor, and Ctrl+Shift+Enter hands it to the agent instead of the

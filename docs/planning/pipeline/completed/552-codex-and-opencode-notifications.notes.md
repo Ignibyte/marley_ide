@@ -43,7 +43,37 @@
     binaries' strings as corroboration.
 - **Decisions:** D1 to D6 in the spec.
 
-### Design
+- **Recall at promotion (2026-09-29):** `agent_bar::render` adds `claude_plugin_chip` for
+  Claude only (`agent_bar.rs:241`), a global (`ClaudePlugin`) read at start with its busy flags;
+  the chips follow it. Codex (`AgentKind::Codex`) and OpenCode (`AgentKind::OpenCode`) are known
+  kinds (`marley_agent.rs:44`), so the bar already shows for both. `toml_edit` is a workspace
+  dependency (`Cargo.toml:891`). The Claude plugin's hook hands its OSC 777 to Claude Code as a
+  `terminalSequence` (`event.py:149`), gated on `TERM_PROGRAM=zed`; #478's path shows an OSC 9 or
+  777 from a terminal not in front. Brain (consultation 71dcfff5): nothing on this seam. The real
+  `codex`, `opencode` and `node` are installed; only `node` runs in the scenario.
+
+### Design (at promotion)
+- `marley_workbench::agent_notify` (new): the paths (`codex_config_in(env)`: `CODEX_HOME` or
+  `~/.codex`, then `config.toml`; `opencode_plugin_in(env)`: `XDG_CONFIG_HOME` or `~/.config`,
+  then `opencode/plugins/marley.js`), read from Marley's own environment; pure checks
+  (`codex_configured(text)`: the three keys under `[tui]`, a list for `notifications` counting as
+  on; `plugin_version(text)`); the writes (`configure_codex(text) -> String` with `toml_edit`,
+  keeping every other item and comment; the plugin written whole, 0644); a global
+  `AgentNotify { codex: Option<bool>, opencode: Option<Plugin>, busy, checked_at }` read off the
+  main thread, re-read when a bar for that agent draws and the last read is two seconds old, and
+  after each write; `chip(kind, context, cx)` for the bar, with the busy label, the toast
+  ("Restart a running Codex to pick it up", "Restart OpenCode to load it") and an error toast.
+- `agent_plugins/opencode/marley.js`, `include_str!`: `// marley-opencode-plugin 1`, an exported
+  `MarleyNotify` plugin whose `event` hook writes OSC 777 to `/dev/tty` for `session.idle`,
+  `permission.asked` (and `permission.updated`) and `session.error`, under `TERM_PROGRAM=zed`,
+  every step in a `try`.
+- `agent_bar::render`: the chip for Codex and OpenCode beside Claude's.
+- **File manifest.** Marley: `crates/marley_workbench/src/{agent_notify.rs, agent_bar.rs,
+  marley_workbench.rs}`, `crates/marley_workbench/agent_plugins/opencode/marley.js`,
+  `crates/marley_workbench/Cargo.toml` (`toml_edit`). Script:
+  `script/e2e/552-codex-and-opencode-notifications.sh`. No Zed crate.
+
+### Design (as drafted; the promotion's above wins where they differ)
 - **`marley_workbench::codex_config`** (new): `config_dir()` = `CODEX_HOME` or
   `~/.codex`; `NotificationSetup { on: bool }`; `read_in(dir) -> NotificationSetup` (parses with
   `toml_edit::DocumentMut`; `on` when `tui.notifications` is `true` or a non-empty array, and
@@ -123,10 +153,49 @@ never skipped silently).
   `plugins/` and checks nothing in `plugin/`.
 
 ## Phase 2 — Code
-- Not started.
+- **Built to the promoted design.** `agent_notify.rs` (the paths from `CODEX_HOME` and
+  `XDG_CONFIG_HOME` with the home folder's defaults; `codex_configured`, `configure_codex` with
+  `toml_edit`, `plugin_version`, `plugin_state`; the `AgentNotify` global read through
+  `smol::unblock`, again when a Codex or OpenCode bar draws two seconds after the last read, and
+  after each write; the chip with its busy label, its toast and `show_error`; the writes, a
+  missing file or folder made); `agent_plugins/opencode/marley.js`; the chip in `agent_bar`'s bar
+  beside Claude's; `toml_edit` in the workbench's dependencies.
+- **Review.** A read redraws only when what it read changed, so a drawn bar does not read and
+  redraw every two seconds forever. A missing or unreadable Codex config asks for the setup; a
+  `config.toml` that does not parse, or a `tui` that is no table, fails the write with its reason
+  in the error toast and touches nothing. A list of events for `notifications` is kept. The
+  plugin's body loses control characters and `;`, which would end the sequence or add a field.
+  Clippy's reds, `doc_markdown` on `OpenCode` and `map_unwrap_or`, fixed at the source.
+- **Gate.** Run 1: `GATE GREEN [diff]`, 16 passed, 0 failed, the receipt written.
 
 ## Phase 3 — Test
-- Not started.
+- **Scenario** `script/e2e/552-codex-and-opencode-notifications.sh` under `compositor sway`:
+  `CODEX_HOME` and `XDG_CONFIG_HOME` exported to the run's folders (the profile's own config comes
+  from `--user-data-dir`, so Marley's settings stay the run's), a private session bus logging each
+  banner, stand-in `codex` and `opencode` (`exec -a` over Python), and `fire-plugin`, which loads
+  the written plugin under `node` and hands its hook a `session.idle`. Run 1 passed every check.
+- **Every shot read:**
+  - `552-01-codex-chip`: the Codex bar with "Turn on Codex notifications". REQ-001.
+  - `552-02-codex-written`: the chip gone and the toast "Codex notifications are on. Restart a
+    running Codex to pick them up."; the file holds the comment, `model`, `theme` and the three
+    keys under `[tui]` (the log). REQ-002.
+  - `552-03-opencode-chip`: the OpenCode bar with "Connect OpenCode to Marley". REQ-003.
+  - `552-04-opencode-written`: the chip gone and the toast "Marley's plugin for OpenCode is in
+    place…"; the file's first line `// marley-opencode-plugin 1`. REQ-004.
+  - `552-05-opencode-update`: with the line set to version 0, "Update Marley's plugin for
+    OpenCode"; its click rewrote version 1. REQ-005.
+  - `552-06-notified`: the second terminal in front; the private bus logged `Marley|OpenCode|repo
+    finished` once from the first, and nothing for the run without `TERM_PROGRAM`; nothing reached
+    the user's bus. REQ-006, REQ-007.
+  - The shots are in a light theme: with `XDG_CONFIG_HOME` in an empty folder, the desktop's dark
+    preference is not found. Nothing this ticket draws depends on it.
+- **Not reachable:** the real `codex` and `opencode` (a run reaches the network and an account);
+  the stand-ins speak the documented behaviour, the plugin runs under the real `node`.
 
 ## Phase 4 — Complete
-- Not started.
+- **Docs.** CHANGELOG Added; `marley_workbench.md` (a section for `agent_notify.rs`). No Zed path
+  changed.
+- **Knowledge.** AD-claude-552-codex-configured-opencode-given-a-file-001,
+  L-claude-552-a-read-that-redraws-must-redraw-only-on-a-change-001. Brain: `brain_decide` on
+  consultation 71dcfff5.
+- **Closed** the ticket, archived the pair, committed.

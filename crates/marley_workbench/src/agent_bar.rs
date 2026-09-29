@@ -240,7 +240,9 @@ fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option
                     (agent == AgentKind::Claude)
                         .then(|| claude_plugin_chip(context, cx))
                         .flatten(),
-                ),
+                )
+                // Codex's and OpenCode's notifications, set up in a click (#552).
+                .children(crate::agent_notify::chip(agent, context, cx)),
         )
         .child(
             h_flex()
