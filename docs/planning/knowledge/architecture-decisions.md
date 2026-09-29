@@ -3099,3 +3099,16 @@ from its spans and asks a Marley hook for the row, which joins the block element
 state gains nothing; a press on it scrolls to the block's first line, the one the block keys stop
 at. On by default, with a toggle on the Marley page. Rejected: a header at the live screen; a
 reserved row; stacking nested blocks' headers (stage two).
+
+## AD-claude-530-runbook-commands-go-to-the-last-terminal-at-its-prompt-001
+*decided at: 2026-09-29 · status: shipped*
+
+A shell code block in the Markdown preview puts its command at the prompt of the terminal the
+focus entered last, as #496's picks go there, and never runs it: no carriage return, Ctrl-U first
+so the line holds the command alone, and several lines only as a bracketed paste the shell holds
+until Enter. It types nothing while the shell is not at its prompt, which Marley's blocks report,
+since a program there would take the text as its input. The seam in Zed's `markdown` crate is
+generic, an element for a code block's hover row from its kind and text, and only the preview
+passes one; the rule of which blocks are shell commands is Marley's (Warp's list less its own
+tag). Rejected: running the command (Warp inserts only); opening a terminal when none was used
+(AD-claude-496 declined guessing one); a button in the Agent Panel's threads (later).

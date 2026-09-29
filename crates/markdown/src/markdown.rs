@@ -547,6 +547,10 @@ pub enum CodeBlockRenderer {
     },
 }
 
+// Marley: an element for a code block's hover row, given the block's kind and text, such as
+// Marley's Insert in Terminal on a shell block in the Markdown preview (#530).
+pub type CodeBlockActionFn = Rc<dyn Fn(&CodeBlockKind, &str, &App) -> Option<AnyElement>>;
+
 pub type CodeBlockRenderFn = Arc<
     dyn Fn(
         &CodeBlockKind,
@@ -1713,6 +1717,8 @@ pub struct MarkdownElement {
     markdown: Entity<Markdown>,
     style: MarkdownStyle,
     code_block_renderer: CodeBlockRenderer,
+    // Marley: the element first in each code block's hover row (#530).
+    code_block_action: Option<CodeBlockActionFn>,
     on_url_click: Option<Rc<dyn Fn(SharedString, &mut Window, &mut App)>>,
     on_url_hover: Option<UrlHoverCallback>,
     code_span_link: Option<CodeSpanLinkCallback>,
@@ -1739,6 +1745,7 @@ impl MarkdownElement {
                 wrap_button_visibility: WrapButtonVisibility::Hidden,
                 border: false,
             },
+            code_block_action: None,
             on_url_click: None,
             on_url_hover: None,
             code_span_link: None,
@@ -1776,6 +1783,12 @@ impl MarkdownElement {
 
     pub fn code_block_renderer(mut self, variant: CodeBlockRenderer) -> Self {
         self.code_block_renderer = variant;
+        self
+    }
+
+    // Marley: see `CodeBlockActionFn` (#530).
+    pub fn code_block_action(mut self, action: CodeBlockActionFn) -> Self {
+        self.code_block_action = Some(action);
         self
     }
 
@@ -2612,6 +2625,8 @@ impl Element for MarkdownElement {
         let mut current_img_block_range: Option<Range<usize>> = None;
         let mut handled_html_block = false;
         let mut rendered_mermaid_block = false;
+        // Marley: the kind of the code block being built, for its hover row's action (#530).
+        let mut marley_code_block_kind: Option<CodeBlockKind> = None;
         let mut rendered_metadata_block = false;
         for (index, (range, event)) in parsed_markdown.events.iter().enumerate() {
             // Skip alt text for images that rendered
@@ -2768,6 +2783,7 @@ impl Element for MarkdownElement {
                             let language = parsed_markdown.code_block_language(kind);
 
                             let is_indented = matches!(kind, CodeBlockKind::Indented);
+                            marley_code_block_kind = Some(kind.clone());
                             let scroll_handle = if self.style.code_block_overflow_x_scroll {
                                 self.markdown.update(cx, |markdown, _| {
                                     markdown.code_block_scroll_handle(range.start)
@@ -3097,6 +3113,14 @@ impl Element for MarkdownElement {
                                     ..content_range.end + range.start;
 
                                 let code = parsed_markdown.source()[content_range].to_string();
+                                // Marley: the action's element for this block, first in the row,
+                                // under an id of the block's own so blocks' buttons stay apart
+                                // (#530).
+                                let marley_action = self
+                                    .code_block_action
+                                    .as_ref()
+                                    .zip(marley_code_block_kind.take())
+                                    .and_then(|(action, kind)| action(&kind, &code, cx));
 
                                 let any_hover = copy_button_visibility
                                     == CopyButtonVisibility::VisibleOnHover
@@ -3112,6 +3136,11 @@ impl Element for MarkdownElement {
                                     .gap_0p5()
                                     .absolute()
                                     .bg(cx.theme().colors().editor_background)
+                                    .children(marley_action.map(|action| {
+                                        div()
+                                            .id(("marley-code-block-action", range.start))
+                                            .child(action)
+                                    }))
                                     .when_else(
                                         use_hover,
                                         |this| {

@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #530 (feature, prong 1 with the editor: the terminal from a runbook)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/530-runnable-markdown-commands.spec.md
+- **Pipeline doc:** ../../pipeline/completed/530-runnable-markdown-commands.spec.md
 - **Source ticket:** Chad, 2026-09-25, approving all seven items of the Warp once-over (`docs/planning/design-notes/warp-once-over-2026-09-25.md`, item 6, "Runnable commands in the Markdown viewer")
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Runbooks and READMEs are mostly commands to copy into a terminal. In Zed's Markdown preview a code

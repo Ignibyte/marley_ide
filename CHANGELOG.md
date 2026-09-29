@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Shell commands in the Markdown preview go to the terminal** (#530, 2026-09-29). A code block
+  in Zed's Markdown preview whose fence names `sh`, `shell`, `bash`, `zsh` or `fish`, or no
+  language, shows Insert in Terminal beside Copy, as Warp's Markdown viewer does. A click clears
+  the prompt's line in the terminal used last and puts the command there without running it,
+  then brings that terminal forward so Enter runs it. Several lines go in as one bracketed paste.
+  When a program runs there, the shell has bracketed paste off, or no terminal was used yet,
+  nothing is typed and a toast says why.
+
 - **A long block's command stays in view** (#529, 2026-09-29). Scrolled back into a block whose
   first row is above the view, the terminal pins the block's command over its top row, with its
   check, `exit N` or `running`, as Warp's sticky command header does. A click on it scrolls to the

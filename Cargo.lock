@@ -10872,6 +10872,8 @@ dependencies = [
  "language",
  "language_model",
  "log",
+ "markdown",
+ "markdown_preview",
  "marley_agent",
  "marley_browser",
  "marley_fleet",

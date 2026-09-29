@@ -3796,3 +3796,11 @@ plain click on a URL under the pointer. Stopping the press with `on_mouse_down` 
 `on_click` on the same element leaves the release unstopped. Act on the press, as Zed's editor
 sticky headers do, and stop the release with an `on_mouse_up` of its own; or wrap the button in
 `marley_keep_from_terminal` and check the release there.
+
+## L-claude-530-a-nothing-typed-check-reads-the-prompt-line-001
+*category: e2e · topic: checking a terminal's screen after a refused write · from: #530's visual check*
+
+A terminal's screen keeps every earlier step's lines, including text a step pasted and cancelled
+with Ctrl-C. A check that nothing was typed which greps the whole screen for the text matches an
+earlier step's copy and fails on a correct run. Read the prompt line only: the screen's last line,
+as `tail -1 file | grep -qE '^  \| \$ *$'` does with `mcp_agent terminal-screen` (#528, #530).

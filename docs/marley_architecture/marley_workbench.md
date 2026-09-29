@@ -825,6 +825,21 @@ alike.
   searches again. The view's `search_bar_visibility_changed` clears the scope when the bar closes.
 - `blocks.rs` adds Bookmark (or Remove Bookmark) and Find in Block after Send to Agent.
 
+## Runnable commands in the Markdown preview (`src/markdown_commands.rs`, #530)
+
+- `init` sets `markdown_preview::MarleyCodeBlockAction`, which the preview passes to its
+  `MarkdownElement` as a code-block action; the `markdown` crate puts the action's element first
+  in each code block's hover row, before Copy, under an id of the block's own.
+- `button` gives Insert in Terminal for a shell block with text: a bare fence, or a fence whose
+  info string's first word is `sh`, `shell`, `bash`, `zsh` or `fish`.
+- `insert` takes `browser::last_terminal_with_window`, the terminal the focus entered last. It
+  types nothing, with a toast in the preview's workspace, when there is none, when its shell is
+  not at its prompt (`AnchoredBlocks::at_prompt`; the toast names the running block's command or
+  the foreground program), or for several lines while `Modes::BRACKETED_PASTE` is off. Otherwise,
+  after the click's update, it activates the terminal's window when it is another, brings the tab
+  forward (`reveal_terminal`), focuses it, and sends Ctrl-U and `Terminal::paste` of the text,
+  with no carriage return.
+
 ## The sticky command header (`src/sticky_header.rs`, #529)
 
 - The terminal element picks the block, `marley_terminal::sticky_block` over its spans: the top

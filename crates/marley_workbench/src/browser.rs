@@ -7661,6 +7661,15 @@ pub(crate) fn last_terminal(cx: &App) -> Option<Entity<TerminalView>> {
         .and_then(|last| last.view.upgrade())
 }
 
+/// The terminal the focus entered last, while it is open, with its window: where a runbook's
+/// command goes (#530).
+pub(crate) fn last_terminal_with_window(
+    cx: &App,
+) -> Option<(Entity<TerminalView>, AnyWindowHandle)> {
+    let last = cx.try_global::<LastTerminal>()?;
+    Some((last.view.upgrade()?, last.window))
+}
+
 /// Keeps [`LastTerminal`]: each terminal view, center or docked, marks itself when the focus
 /// enters it.
 fn track_terminals(cx: &App) {

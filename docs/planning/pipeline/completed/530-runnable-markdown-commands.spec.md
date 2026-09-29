@@ -1,7 +1,7 @@
 ---
 pipeline_id: ca6b3d30-4034-4150-acce-70a15b638743
 ticket: docs/planning/tickets/open/TICKET-530-runnable-markdown-commands.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Shell commands in the Markdown preview go to the terminal"
 type: feature
 slice: prong 1 with the editor (Warp once-over item 6)

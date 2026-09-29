@@ -39,6 +39,7 @@ pub mod find;
 pub mod github;
 pub mod launch;
 pub mod links;
+pub mod markdown_commands;
 #[cfg(test)]
 pub mod marley_workbench_tests;
 pub mod mcp;
@@ -469,6 +470,7 @@ pub fn init(cx: &mut App) {
     workflows::init(cx);
     bookmarks::init(cx);
     sticky_header::init(cx);
+    markdown_commands::init(cx);
     agent_bar::init(cx);
     claude_plugin::init(cx);
     notifications::init(cx);

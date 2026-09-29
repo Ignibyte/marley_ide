@@ -63,6 +63,22 @@ fn reset_persisted_font_size(settings: &mut settings::SettingsContent) {
     }
 }
 
+// Marley: an element for a code block's hover row, given the preview's workspace, the block's
+// kind and its text, or none; Marley's workbench sets it for runnable shell commands (#530).
+#[derive(Clone)]
+pub struct MarleyCodeBlockAction(
+    pub  Arc<
+        dyn Fn(
+            &WeakEntity<Workspace>,
+            &markdown::parser::CodeBlockKind,
+            &str,
+            &App,
+        ) -> Option<gpui::AnyElement>,
+    >,
+);
+
+impl Global for MarleyCodeBlockAction {}
+
 pub struct MarkdownPreviewView {
     workspace: WeakEntity<Workspace>,
     active_editor: Option<EditorState>,
@@ -1136,6 +1152,15 @@ impl MarkdownPreviewView {
                         .log_err();
                 }
             });
+
+        // Marley: a code block's action, given this preview's workspace (#530).
+        if let Some(action) = cx.try_global::<MarleyCodeBlockAction>().cloned() {
+            let workspace = self.workspace.clone();
+            markdown_element =
+                markdown_element.code_block_action(std::rc::Rc::new(move |kind, code, cx| {
+                    (action.0)(&workspace, kind, code, cx)
+                }));
+        }
 
         if let Some(active_editor) = active_editor {
             let editor_for_checkbox = active_editor.clone();
