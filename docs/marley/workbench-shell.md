@@ -374,7 +374,9 @@ bypass or Codex with its full access, and an agent row carries a chip whenever i
 without its prompts, however it was started; #510 adds worktree agents: New Agent in Worktree
 makes a git worktree on a branch of its own through Zed's worktree service and starts the agent
 there with its first prompt, and the rail lists each linked worktree of a project under it with
-its own terminals. W5 shipped as #441: in the Marley layout
+its own terminals; #560 adds a chip on each worktree row with how far its branch is behind its
+base and, when a merge would stop, how many files it would stop on, read from git against the
+local base. W5 shipped as #441: in the Marley layout
 tasks, New Terminal and Open in Terminal open center terminals, and nothing opens the bottom
 panel. W5b shipped as #449: `` ctrl-` ``, `ctrl-~` and `ctrl-j` work on the center terminals,
 by catching Zed's actions rather than rebinding keys. W5c shipped as #450: `ctrl-alt-n` opens

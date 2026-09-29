@@ -489,6 +489,40 @@ alike.
   sit deeper. `open_worktree` shows an open worktree's workspace, else runs Zed's
   `handle_switch_worktree` on the project's workspace.
 
+## A worktree's drift (`src/worktree_git.rs`, `src/rail.rs`, #560)
+
+- `worktree_git` is the git adapter of the worktree rows, which #511 extends: every call goes
+  through `git(main, args)`, `util::command::new_command` of `MARLEY_GIT` or `git` with Zed's four
+  flags (`-c core.fsmonitor=false -c log.showSignature=false --no-optional-locks --no-pager`), the
+  main checkout as its folder and `GIT_TERMINAL_PROMPT=0`, whose output the caller reads, since
+  Zed's `run_raw` takes `merge-tree`'s exit 1, its answer, for an error. `recorded_base` reads
+  `branch.<b>.base` (`config --get`, exit 1 none). `summary(main, branch_tip, base_tip, base)` runs
+  `merge-base`, `rev-list --count <branch>..<base>` and `merge-tree --write-tree --name-only -z
+  --no-messages --merge-base`: 0 is clean, 1 gives the files after the tree id, NUL-separated,
+  and 129 with git's refusal words (before 2.38) is `conflicts: None`.
+- The rows' facts: `member_git` keeps the member's branch as git names it, its `HEAD` and its
+  repository; `worktree_rows` keeps each worktree's branch and `HEAD` (`WorktreeFacts`), and
+  `group_worktrees` puts them on the `WorktreeEntry` with the main checkout and the group's
+  repository, the main checkout's when it is open.
+- The cache: the Rail's `drift` (per worktree's folder: the base the last run read, the tips it
+  read for, the drift), `drift_runs` (one per main checkout) and `drift_unsupported`. `refresh`
+  calls `note_drift`, which puts each kept drift on its `WorktreeSnapshot`, before its compare,
+  and `follow_drift` last: the worktrees no longer listed are dropped, and while the rail shows
+  (`watching_ports`), a repository `Repository::is_trusted` finds trusted with a worktree unread
+  or whose tips moved gets a run unless one is in flight. The tips are the worktree's `HEAD`
+  and its base's tip from the repository's `branch_list` (a local branch), or the base itself
+  when #510 recorded a detached main checkout's commit (`drift_tips`, compared by `same_tips`
+  without allocating). `drift_run` waits `DRIFT_DEBOUNCE` (a second), reads the rows, the kept
+  states, the branches and `default_branch(false)` on the main thread, checks the trust again,
+  and runs `read_drifts` on the background executor: each worktree's base, its record else the
+  default branch, and a summary unless the base and the tips are the ones kept. The results are
+  kept, one warning per repository is logged when `--write-tree` is refused, and the rail
+  refreshes; a tip that moved during the run is found by that refresh. Zed flips a repository's
+  trust without an event, so the first run after a trust grant waits for the next rebuild.
+- `drift_chip` joins the worktree row's card: a bordered pill, `N behind` muted or `N conflicts`
+  in the warning color after `IconName::GitMergeConflict`, with `DriftSnapshot::tooltip`, and
+  `marley-rail-drift-<name>` for scenarios.
+
 ## The block keys (`src/blocks.rs`, #473)
 
 - `marley::PreviousBlock` and `marley::NextBlock` are caught at each workspace's root with

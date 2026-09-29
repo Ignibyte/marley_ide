@@ -2805,3 +2805,20 @@ worktree keeps its row after a restart. Rejected:
   once;
 - worktree terminals out of the project's flat list: every reader of the list (the ends of Claude
   Code seats, the turns, the switcher) would have needed changing.
+
+## AD-claude-560-a-worktrees-drift-is-read-from-local-git-on-the-rails-schedule-001
+*decided at: 2026-09-28 · status: shipped*
+
+A worktree row's drift chip comes from three read-only git calls, `merge-base`, `rev-list --count`
+and `merge-tree --write-tree`, run by Marley's own adapter (`worktree_git.rs`, with Zed's four
+flags and `GIT_TERMINAL_PROMPT=0`) in the main checkout, against the local base: #510's
+`branch.<branch>.base`, else the default branch when it is a local branch. The result is kept on
+the pair of tips Zed's snapshot holds, so a rebuild with nothing new runs no git; a moved tip
+schedules one run per repository a second later, off the main thread, only while the rail shows
+and only for a repository Zed trusts. Rejected:
+- a fetch of the base's remote tip, as Orca does for GitHub's merges: Marley merges locally
+  (#511), and the rail makes no network call;
+- the commands through Zed's `GitRepository`: it has none of them, its `GitBinary` is
+  crate-private, and its `run_raw` takes `merge-tree`'s exit 1 for an error;
+- the legacy `merge-tree` form, a diff to parse, before git 2.38: the behind count shows alone;
+- the counts on the row's second line, which #511's ahead count takes, in a rail 180 px wide.

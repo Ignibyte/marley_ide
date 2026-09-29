@@ -269,6 +269,11 @@ no git (4), and carrying #61952 early (3, as Zed touches).
 
 ## Open questions for Chad
 
+**Chad's answer on Delta, 2026-09-28:** "since this isnt open source and requires zed remote server
+than im not sure we do this at all. maybe when its mature". Marley does not adopt Delta or send any
+repository to Zed's servers for now; the note waits until Delta matures. The questions below stay
+as they were written.
+
 1. Is Delta what you saw, the "Replace PRs with Delta" launch of 2026-09-16? If it was something
    else, a link would settle it. Default: Delta.
 2. May any repository's contents go to Zed's servers? Delta uploads git objects, file contents and

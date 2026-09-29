@@ -10,7 +10,9 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-560](open/TICKET-560-conflict-chip.md) | feature | prong 2 · a chip on worktree rows: commits behind the base and the files a merge would stop on, from three read-only git calls; after #510 |
+| [TICKET-587](open/TICKET-587-claude-code-trust-in-a-new-worktree.md) | feature | prong 2 · Claude Code's folder-trust question in a new worktree answered for the user when Zed trusts the folder, else a prompt to click, Chad 2026-09-28; after #510 |
+| [TICKET-446](open/TICKET-446-marley-crate-license-files.md) | chore | licensing: `LICENSE-APACHE` and `LICENSE-MIT` (`Copyright (c) 2026 Ignibyte`, Chad 2026-09-28) in every Marley crate, so Zed's `script/check-licenses` passes |
+| [TICKET-586](open/TICKET-586-file-pages-in-the-browser-tab.md) | feature | prong 3 · a program's `file://` pages (`cargo doc --open`, coverage) open in its project's Browser tab, Chad 2026-09-28; after #561 |
 | [TICKET-511](open/TICKET-511-review-and-merge-a-worktree.md) | feature | prong 2 · review a worktree agent's branch and merge it, deferring to the Rustal workflow where it runs |
 | [TICKET-585](open/TICKET-585-worktree-environment.md) | feature | prong 2 · the worktree's environment: its `.worktreeinclude`d gitignored files, a port offset, the hook tasks' paths, a suggested setup command; after #510 |
 | [TICKET-522](open/TICKET-522-review-notes-to-the-agent.md) | feature | prong 2 · review notes sent to the agent working in the diffed tree |
@@ -39,6 +41,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 | [TICKET-542](open/TICKET-542-rail-attention-order.md) | feature | prong 2 · the rail puts what needs Chad first; after #519 |
 | [TICKET-543](open/TICKET-543-remote-terminals-survive-a-drop.md) | feature | prong 2 · remote terminals that survive a dropped link (tmux on the host) |
 | [TICKET-533](open/TICKET-533-harness-contract-alignment.md) | chore | prong 2 · the harness's contract requests answered, and the plan's harness text corrected |
+| [TICKET-588](open/TICKET-588-e2e-cleanup-after-the-compositor-exits.md) | chore | e2e · the runner's cleanup finishes and says so when its headless sway exits partway (#560's golden run) |
 | [TICKET-541](open/TICKET-541-spawn-in-adapters-ratchet.md) | chore | gate · process spawns held to adapter modules by a ratchet |
 | [TICKET-545](open/TICKET-545-activation-token-hand-off.md) | feature | the app · a second launch hands its launcher's activation token to the running Marley, so a compositor that checks tokens brings the window forward (#513's follow-up) |
 | [TICKET-486](open/TICKET-486-keep-the-terminal-size-across-launches.md) | bug | prong 1 T0 · the first terminals of a launch open at the last session's size (#485's limit) |
@@ -54,7 +57,4 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 | [TICKET-540](open/TICKET-540-session-resume-after-restart.md) | feature | prong 2 · Claude Code sessions resumed after a restart; waits on how the embedded harness keeps processes alive, so it cannot start a second Claude on a live session |
 | [TICKET-475](open/TICKET-475-shell-tests-scratch-data-dir.md) | chore | prong 1 T0 · the shell PTY tests install Marley's scripts in a scratch data directory; moot while no gate runs the tests (#483), and wanted again only if they run |
 | [TICKET-466](open/TICKET-466-fish-shell-integration.md) | feature | prong 1 T0c · shell integration for fish; waits for fish on a machine that can run its tests (the dev box has none) |
-| [TICKET-446](open/TICKET-446-marley-crate-license-files.md) | chore | licensing: `LICENSE-APACHE` and `LICENSE-MIT` in every Marley crate; waits for Chad's copyright line for the MIT text |
 | [TICKET-445](open/TICKET-445-marley-release-identity.md) | chore | packaging: Marley's own keyring label, updater, app id and URL scheme; waits until Marley ships a package or needs a non-`dev` build (the `dev` channel keeps it safe until then) |
-| [TICKET-417](open/TICKET-417-318-after-capture-battery.md) | chore | gpui-era, macOS harness; obsolete in the Zed fork (the overlays it captured no longer exist) — close or re-scope when the block terminal's overlays land |
-| [TICKET-271](open/TICKET-271-headless-pixel-capture-gpui.md) | chore | gpui-era; the fork builds gpui from the tree, so the wait is over — re-scope as "headless pixel captures for validate" when a UI slice needs it |

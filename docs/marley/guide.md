@@ -494,6 +494,22 @@ A create that fails, such as for a folder Marley cannot write, says so in Zed's 
 no row and no agent. Claude Code saves its trust per folder, so in a new worktree it asks once;
 the prompt waits on its command line until you answer.
 
+A worktree's row shows its drift from its base (#560), so two agents about to collide show it
+before anyone merges:
+
+- `2 behind`, muted: the base has two commits the branch does not, and a merge would go through.
+- `1 conflict` (`3 conflicts`), in the warning color: a merge would stop on that many files.
+- No chip: the branch has everything its base has.
+
+The pointer on the chip shows the rest: `2 commits behind main (main at 3f2a1c9)`, then the files
+a merge would stop on, twenty at most. The base is the branch the worktree started from, which
+Marley records as `branch.<branch>.base`; a worktree Marley did not make takes the repository's
+default branch, when it is a local branch, and gets no chip without one. Marley reads the drift
+from git in the main checkout a second after the branch or its base moves, against the local base
+(it never fetches), and only while the rail shows and the repository is trusted. The reads change
+no branch, index or file. A git older than 2.38 cannot say whether a merge would stop; its chip
+shows the commits behind alone.
+
 ### The Claude Code plugin
 
 While Claude Code runs in a terminal and its plugin list has no Marley plugin, the agent bar shows

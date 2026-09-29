@@ -13,6 +13,18 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A worktree's drift on its row** (#560, 2026-09-28). Each worktree row in the rail shows how
+  far its branch is behind its base, `2 behind` in a muted chip, and when a merge would stop, how
+  many files it would stop on, `1 conflict` in the warning color with the conflict icon. The
+  chip's tooltip names the base and its commit, and the files, twenty at most. The base is the
+  one #510 records, `branch.<branch>.base`, else the repository's default branch when it is a
+  local branch. Marley reads it with three read-only git calls against the local base, `merge-base`,
+  `rev-list --count` and `merge-tree --write-tree`, a second after the branch or the base moves,
+  off the main thread, while the rail shows, and only for a repository Zed trusts; it fetches
+  nothing and changes no ref, index or checkout. A branch up to date with its base has no chip.
+  With a git older than 2.38, which has no `merge-tree --write-tree`, the chip shows the commits
+  behind alone and Marley logs one line for the repository.
+
 - **Worktree agents** (#510, 2026-09-28). A project's `+` in the rail has New Agent in Worktree,
   with each installed agent CLI under it, for a local project that is a git repository. Its prompt
   names what it will make, `agent/<name> from main`; Enter makes a git worktree through Zed's own

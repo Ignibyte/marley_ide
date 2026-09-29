@@ -1,11 +1,11 @@
 ---
 pipeline_id: 0e66e227-e2d2-46aa-bb41-5c4b0a7eb791
-ticket: docs/planning/tickets/open/TICKET-560-conflict-chip.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-560-conflict-chip.md
+status: Phase 4 — Complete PASS
 title: "Which files a worktree agent's branch would conflict on, before anyone merges"
 type: feature
 slice: prong 2, worktree agents, on #510's rows and beside #511; the Orca second pass, finding 2
-references: [docs/planning/design-notes/orca-second-pass-2026-09-25.md, docs/orca_architecture/02-worktrees-and-review.md, docs/planning/pipeline/completed/510-worktree-agents.spec.md, docs/planning/pipeline/queued/511-review-and-merge-a-worktree.spec.md]
+references: [docs/planning/design-notes/orca-second-pass-2026-09-25.md, docs/orca_architecture/02-worktrees-and-review.md, docs/planning/pipeline/completed/510-worktree-agents.spec.md, docs/planning/pipeline/queued/511-review-and-merge-a-worktree.spec.md, docs/planning/pipeline/completed/521-ports-per-project.spec.md]
 ---
 
 ## Title
@@ -42,6 +42,32 @@ repository shows before anyone merges and before #511's Merge is asked to.
 - **Old git**: when git refuses `--write-tree` (before 2.38), the chip shows the behind count
   alone and Marley logs one line for the repository.
 - `script/e2e/560-conflict-chip.sh`.
+
+- **Changed at promotion** (2026-09-28, over #510's shipped rows; each item overrides the text
+  above it):
+  - **The tips come from Zed's snapshot**: a worktree's branch tip is its `HEAD` in the
+    repository's `linked_worktrees` (`sha`), the base's tip its entry in `branch_list`
+    (`most_recent_commit.sha`), or the base itself when #510 recorded a detached main
+    checkout's full commit. The rail's refresh compares them with the kept result's and runs no
+    git; the summary's calls take the commits, never a name, so nothing is read as an option. The
+    summary's calls are `config --get branch.<b>.base` (once per worktree, kept, read again when
+    the worktree list changes), `merge-base`, `rev-list --count` and `merge-tree`; no
+    `rev-parse`.
+  - **The base**: `branch.<b>.base`, a local branch or a commit; else the repository's default
+    branch (`default_branch(false)`) only when `branch_list` holds it locally; else no chip.
+  - **The flags** are Zed's four: `-c core.fsmonitor=false -c log.showSignature=false
+    --no-optional-locks --no-pager`, with `GIT_TERMINAL_PROMPT=0` Marley's own.
+  - **The adapter** `worktree_git.rs` reads each command's output itself, since `merge-tree`'s
+    exit 1 is its answer; it is an adapter module as `turn_git.rs` is, which #541 takes over
+    with a raw-output call.
+  - **The chip** joins the worktree row's card as #532's permission chip joins a terminal row's:
+    a bordered pill, `N behind` muted, `N conflicts` (`1 conflict`) in the warning color with
+    `IconName::GitMergeConflict`, Zed's conflict view's icon; its tooltip from the snapshot.
+  - **It runs while the rail shows** (PR-claude-run-a-views-poll-while-it-shows-001): a closed
+    rail runs no summary, and one that opens again summarizes what moved meanwhile.
+  - **The git Marley runs for the chip** is `MARLEY_GIT` when set, else `git` on Marley's PATH:
+    Marley's PATH is the login shell's, which a scenario's wrapper cannot count on leading, as
+    `MARLEY_CLAUDE` stands in for `claude`.
 
 ### Out (explicitly deferred)
 - Conflicts between two sibling worktree branches, the same call over each pair of agents: a
@@ -120,8 +146,9 @@ UI-AFFECTING (a chip on the worktree rows and its tooltip). `script/e2e/560-conf
 (`compositor sway`: it hovers the chip). Setup, as #511's: a scratch repository on `main` with
 `README` and `notes.txt`; two worktrees made the way #510 makes them (`git worktree add
 --no-track -b agent/<n> <path> main`, then `git config branch.agent/<n>.base main`): `ok` with a
-commit to `notes.txt`, `clash` with a commit to README's first line; a wrapper `git` first on
-Marley's PATH that logs each invocation's arguments and execs the real git, except that while
+commit to `notes.txt`, `clash` with a commit to README's first line; a wrapper `git`, named by
+`MARLEY_GIT` (changed at promotion: Marley's PATH is the login shell's), that logs each
+invocation's arguments and execs the real git, except that while
 `$E2E_WORK/no-write-tree` exists it answers `merge-tree` with `error: unknown option 'write-tree'`
 and exit 129; the scenario's HOME. Shots: `560-01-clean` (both worktree rows, no chip);
 `560-02-drift` (two commits on `main` typed in the main checkout's terminal, one of them to
@@ -158,6 +185,12 @@ step, and the wrapper's log, in which no `fetch` appears.
 - D6: Worktree rows only. A worktree with no recorded base takes the repository's default
   branch, as #511's Review does; the main checkout's row keeps #531's chip.
 
+- D7 (at promotion): the tips are read from Zed's snapshot and the kept result is keyed on them,
+  so a refresh with nothing new runs no git at all; the summary's calls take commits.
+- D8 (at promotion): the summaries run only while the rail shows, as the port scan does (F-521).
+- D9 (at promotion): `MARLEY_GIT` names the git the chip's summary runs, for scenarios, as
+  `MARLEY_CLAUDE` names Claude Code for the plugin's install.
+
 ## Acceptance Criteria (EARS)
 
 | # | EARS requirement (`shall`) | Verify |
@@ -170,6 +203,7 @@ step, and the wrapper's log, in which no `fetch` appears.
 | REQ-006 | WHEN the summary runs, it shall move no ref, change no index or working tree of the main checkout or a worktree, and run no fetch. | The run log: `git status --porcelain` and `git for-each-ref` before and after each step; the wrapper's log |
 | REQ-007 | WHERE git refuses `merge-tree --write-tree`, the row shall show the behind count and no conflict count, and Marley shall log one line for the repository. | Shot `560-05-unsupported`; Marley.log in the run log |
 | REQ-008 | WHERE Zed does not trust the repository, the system shall run no git for the chip. | Review of the diff (the scenario's repository is trusted) |
+| REQ-009 | The diff gate shall be green, and the golden set shall pass. | `script/gates.sh --diff`; `just regress` |
 
 ## Phase Plan
 - **P1 Plan:** this spec; the design and the test plan in the notes. #510 ships first. On

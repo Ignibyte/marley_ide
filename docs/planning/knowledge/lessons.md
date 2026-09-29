@@ -3635,3 +3635,21 @@ names its worktree keeps the name off existing folders and branches itself. Its 
 own toast for every failure after three early refusals (no repository, a collab project, a create
 in flight), so a caller reports only its own steps. A linked worktree's repository lists the main
 checkout (`is_main`) but not itself.
+
+## L-claude-560-zed-turns-a-repositorys-trust-on-without-an-event-001
+*category: code · topic: git trust · from: pipeline 560*
+
+When the user trusts a folder, Zed's `GitStore` sets the trust on the repository's backend in a
+background task (`on_trusted_worktrees_event`, then `backend.set_trusted`) and emits no
+`RepositoryEvent`, so `Repository::is_trusted` turns true with nothing for a subscriber to hear.
+A reader that checks the trust at its own rebuild waits for the next one. A scenario that needs
+work gated on the trust makes a rebuild after the trust press, such as a command in a terminal.
+
+## L-claude-560-merge-tree-reports-conflicts-with-exit-one-001
+*category: code · topic: git · from: pipeline 560*
+
+`git merge-tree --write-tree --name-only -z --no-messages` exits 0 for a clean merge and 1 for one
+that would stop, printing the merged tree's id and then each conflicted file, every entry ended by
+a NUL. A git before 2.38 refuses `--write-tree` with exit 129 and `unknown option`. `git config
+--get` exits 1 for an unset key. Zed's `run_raw` takes any non-zero exit for an error, so a caller
+that needs these answers runs git itself and reads the exit.

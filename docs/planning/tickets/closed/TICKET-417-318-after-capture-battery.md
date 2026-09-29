@@ -3,7 +3,7 @@
 - **Ticket:** LOCAL #417 (chore, M20)
 - **Tags:** overlay, selftest, 318-followup, deliberate
 - **Created:** 2026-08-12
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 
@@ -20,3 +20,6 @@ Any delta = a #318 regression to fix.
 ## Acceptance
 
 Headline: five before/after pairs compared by pixel sampling, zero card-rect deltas. EARS at plan.
+
+## Resolution
+Closed on 2026-09-28 by Chad's decision ("close both"). The five overlays it would have compared belonged to the gpui-era app, which the Zed fork replaced; none of them exists in Marley, so there is nothing left to capture.

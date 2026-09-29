@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #560 (feature, prong 2 with the rail: worktree agents, on #510's rows)
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/560-conflict-chip.spec.md
+- **Pipeline doc:** ../../pipeline/completed/560-conflict-chip.spec.md
 - **Source ticket:** The Orca second pass of 2026-09-25 (`docs/planning/design-notes/orca-second-pass-2026-09-25.md`), finding 2; Chad decided on 2026-09-26 that every remaining Orca and Warp finding gets built.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Nothing in Marley says whether a worktree agent's branch still merges cleanly, or how far its

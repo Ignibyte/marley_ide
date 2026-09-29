@@ -30,17 +30,17 @@ use marley_browser::consequence::Class;
 use marley_browser::ports::Stopped;
 use marley_mcp::redact::Redactor;
 use marley_rail::{
-    BrowserRow, BrowserSnapshot, Focus, InboxEntry, InboxKind, PortRow, PortSnapshot, ProjectRow,
-    ProjectSnapshot, RailSnapshot, Row, Selection, SwitcherRow, TerminalAgent, TerminalRow,
-    TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus, TurnSnapshot, WorktreeRow,
-    WorktreeSnapshot,
+    BrowserRow, BrowserSnapshot, DriftSnapshot, Focus, InboxEntry, InboxKind, PortRow,
+    PortSnapshot, ProjectRow, ProjectSnapshot, RailSnapshot, Row, Selection, SwitcherRow,
+    TerminalAgent, TerminalRow, TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus,
+    TurnSnapshot, WorktreeRow, WorktreeSnapshot,
 };
 use marley_system_one::reading::{Reading, Signal};
 use marley_system_one::{INBOX_RISK, QUESTION_ROUTE};
 use menu::{
     Cancel, Confirm, SelectChild, SelectFirst, SelectLast, SelectNext, SelectParent, SelectPrevious,
 };
-use project::git_store::{GitStoreEvent, RepositoryEvent};
+use project::git_store::{GitStoreEvent, Repository, RepositoryEvent};
 use project::{AgentId, AgentServerStore, AgentServersUpdated, Project, ProjectGroupKey};
 use recent_projects::sidebar_recent_projects::SidebarRecentProjects;
 use settings::{Settings as _, SystemOneMode};
@@ -68,6 +68,7 @@ use crate::browser::{BrowserEvent, BrowserHub, BrowserView};
 use crate::ports::{self, Ports};
 use crate::system_one::{self, Asking};
 use crate::turns::Turns;
+use crate::worktree_git::{self, Drift};
 use crate::{MarleySettings, browser, worktree_agents};
 
 #[path = "rail_switcher.rs"]
@@ -78,6 +79,9 @@ use switcher::{RailSwitcher, SwitcherEntry, SwitcherEvent};
 const DEFAULT_WIDTH: Pixels = px(260.);
 const MIN_WIDTH: Pixels = px(180.);
 const MAX_WIDTH: Pixels = px(600.);
+
+/// How long a repository's drift run waits after it is scheduled (#560): an agent commits often.
+const DRIFT_DEBOUNCE: Duration = Duration::from_secs(1);
 
 /// Reads the command a terminal's foreground process runs. Production asks the PTY; a test's
 /// display-only terminal has no process, so tests hand in their own.
@@ -129,6 +133,12 @@ pub struct Rail {
     routes: HashMap<String, RouteState>,
     /// The terminals whose turns are listed under their rows, by the rail's terminal id (#509).
     turns_open: HashSet<u64>,
+    /// What each listed worktree's branch would meet merging its base, by its folder (#560).
+    drift: HashMap<String, DriftState>,
+    /// Per repository, by its main checkout: the drift's run, pending or going.
+    drift_runs: HashMap<PathBuf, Task<()>>,
+    /// The repositories whose git refused `merge-tree --write-tree`, logged once.
+    drift_unsupported: HashSet<PathBuf>,
     /// The window as the rail last read it. `render` draws from this alone, so another entity's
     /// notify does not redraw the window, and an event that changes nothing shown does not either:
     /// workspaces and terminal views report every chunk of terminal output.
@@ -251,6 +261,24 @@ struct WorktreeEntry {
     project: WeakEntity<Workspace>,
     path: PathBuf,
     name: String,
+    /// Its branch as git names it, and its `HEAD`, which its drift is read for (#560).
+    branch: Option<String>,
+    commit: Option<String>,
+    /// Its repository's main checkout, where the drift's git runs, and the repository the rail
+    /// reads the branches' tips and the trust from.
+    main: Option<PathBuf>,
+    repository: Option<WeakEntity<Repository>>,
+}
+
+/// What the rail knows of a worktree's drift (#560), once its repository's run has read it.
+#[derive(Clone)]
+struct DriftState {
+    /// The base the run read: #510's record, else the default branch; none for no chip.
+    base: Option<String>,
+    /// The tips the drift was read for, the worktree's then the base's; none when the base has
+    /// no tip.
+    tips: Option<(String, String)>,
+    drift: Option<DriftSnapshot>,
 }
 
 /// What the question route logs or asks about one tool entry (#570).
@@ -446,6 +474,9 @@ impl Rail {
             risk: HashMap::default(),
             routes: HashMap::default(),
             turns_open: HashSet::default(),
+            drift: HashMap::default(),
+            drift_runs: HashMap::default(),
+            drift_unsupported: HashSet::default(),
             snapshot: Snapshot::default(),
             zed_sidebar,
             zed_sidebar_state: None,
@@ -562,6 +593,7 @@ impl Rail {
         self.note_inbox(&mut snapshot, window, cx);
         self.note_window_row(&snapshot.rail);
         self.note_claude_code(&snapshot.rail, window, cx);
+        self.note_drift(&mut snapshot);
         if self.focus_handle.contains_focused(window, cx) {
             snapshot.rail.focus.cursor.clone_from(&self.cursor);
         }
@@ -571,6 +603,141 @@ impl Rail {
         self.snapshot = snapshot;
         self.follow_risk(window, cx);
         self.follow_route(window, cx);
+        self.follow_drift(window, cx);
+    }
+
+    /// Puts each worktree's kept drift on its row (#560). A drift read for tips that have moved
+    /// stays until its repository's next run lands, so the chip lags a commit rather than
+    /// blinking at each one.
+    fn note_drift(&self, snapshot: &mut Snapshot) {
+        for worktree in snapshot
+            .rail
+            .projects
+            .iter_mut()
+            .flat_map(|project| project.worktrees.iter_mut())
+        {
+            worktree.drift = self
+                .drift
+                .get(&worktree.path)
+                .and_then(|state| state.drift.clone());
+        }
+    }
+
+    /// Forgets the worktrees no longer listed, and while the rail shows (F-521), schedules a run
+    /// for each repository Zed trusts with a worktree whose drift is unread or whose tips have
+    /// moved (#560). A repository's run in flight reads the tips when it starts; one that moved
+    /// during it is found at the refresh its end makes.
+    fn follow_drift(&mut self, window: &Window, cx: &Context<Self>) {
+        let listed = &self.snapshot.worktrees;
+        self.drift.retain(|path, _| listed.contains_key(path));
+        if !self.watching_ports {
+            return;
+        }
+        let mut due: Vec<PathBuf> = Vec::new();
+        for (path, entry) in &self.snapshot.worktrees {
+            let (Some(main), Some(repository)) = (&entry.main, &entry.repository) else {
+                continue;
+            };
+            if self.drift_runs.contains_key(main) || due.contains(main) {
+                continue;
+            }
+            let Some(repository) = repository.upgrade() else {
+                continue;
+            };
+            let repository = repository.read(cx);
+            let moved = self.drift.get(path).is_none_or(|state| {
+                !same_tips(
+                    state.tips.as_ref(),
+                    drift_tips(
+                        entry.commit.as_deref(),
+                        state.base.as_deref(),
+                        &repository.branch_list,
+                    ),
+                )
+            });
+            if moved && repository.is_trusted() {
+                due.push(main.clone());
+            }
+        }
+        for main in due {
+            let run = Self::drift_run(main.clone(), window, cx);
+            self.drift_runs.insert(main, run);
+        }
+    }
+
+    /// The drift run of the repository whose main checkout is `main` (#560). A second after it
+    /// is scheduled, it reads each listed worktree's base and runs a summary for each whose base
+    /// or tips have moved, off the main thread; the rail keeps each result with the tips it was
+    /// read for, and refreshes. A repository gone, or no longer trusted, runs nothing.
+    fn drift_run(main: PathBuf, window: &Window, cx: &Context<Self>) -> Task<()> {
+        let debounce = cx.background_executor().timer(DRIFT_DEBOUNCE);
+        cx.spawn_in(window, async move |rail, cx| {
+            debounce.await;
+            let asked = rail.update(cx, |rail, cx| {
+                let repository = rail
+                    .snapshot
+                    .worktrees
+                    .values()
+                    .filter(|entry| entry.main.as_ref() == Some(&main))
+                    .find_map(|entry| entry.repository.as_ref()?.upgrade())
+                    .filter(|repository| repository.read(cx).is_trusted());
+                let Some(repository) = repository else {
+                    // The run ends here, and its handle with it.
+                    rail.drift_runs.remove(&main);
+                    return None;
+                };
+                let reads: Vec<DriftRead> = rail
+                    .snapshot
+                    .worktrees
+                    .iter()
+                    .filter(|(_, entry)| entry.main.as_ref() == Some(&main))
+                    .map(|(path, entry)| DriftRead {
+                        path: path.clone(),
+                        branch: entry.branch.clone(),
+                        commit: entry.commit.clone(),
+                        kept: rail.drift.get(path).cloned(),
+                    })
+                    .collect();
+                let branches = Arc::clone(&repository.read(cx).branch_list);
+                let default =
+                    repository.update(cx, |repository, _| repository.default_branch(false));
+                Some((reads, branches, default))
+            });
+            let Ok(Some((reads, branches, default))) = asked else {
+                return;
+            };
+            let default = default
+                .await
+                .ok()
+                .and_then(util::ResultExt::log_err)
+                .flatten()
+                .map(|default| default.to_string());
+            let states = cx
+                .background_spawn({
+                    let main = main.clone();
+                    async move { read_drifts(&main, reads, &branches, default).await }
+                })
+                .await;
+            rail.update_in(cx, |rail, window, cx| {
+                rail.drift_runs.remove(&main);
+                let unsupported = states.iter().any(|(_, state)| {
+                    state
+                        .drift
+                        .as_ref()
+                        .is_some_and(|drift| drift.conflicts.is_none())
+                });
+                if unsupported && rail.drift_unsupported.insert(main.clone()) {
+                    log::warn!(
+                        "git in {} refuses merge-tree --write-tree, which came in git 2.38: its \
+                         worktree rows show how far each branch is behind, without its conflicts",
+                        main.display()
+                    );
+                }
+                rail.drift.extend(states);
+                rail.refresh(window, cx);
+            })
+            .log_err();
+        })
     }
 
     /// Logs each new tool entry of the inbox once for the question route (#570), a `rules` row
@@ -2413,10 +2580,15 @@ impl Rail {
     }
 
     /// A linked worktree's row (#510): the branch icon, its name and branch, muted while its
-    /// workspace is not open; a click shows the workspace, or opens it.
+    /// workspace is not open, and its drift's chip (#560); a click shows the workspace, or opens
+    /// it.
     fn render_worktree_row(row: WorktreeRow, cx: &Context<Self>) -> impl IntoElement {
         let path = row.path.clone();
         let selector = format!("marley-rail-worktree-{}", row.name);
+        let chip = row
+            .drift
+            .as_ref()
+            .and_then(|drift| drift_chip(&row.path, &row.name, drift, cx));
         let icon = Icon::new(IconName::GitBranch)
             .size(IconSize::Small)
             .color(Color::Muted)
@@ -2435,6 +2607,7 @@ impl Rail {
             row.branch.into_iter().collect(),
             cx,
         )
+        .children(chip)
         .on_click(cx.listener(move |rail, _: &ClickEvent, window, cx| {
             rail.open_row(Selection::Worktree(path.clone()), window, cx)
                 .log_err();
@@ -3974,16 +4147,28 @@ fn group_worktrees(
         .map(|(member, git)| (member.entity_id(), git.root.display().to_string()))
         .filter(|(_, path)| rows.iter().any(|(row, _)| row.path == *path))
         .collect();
+    // The checkouts of one repository share its branches and its config; the main checkout's
+    // repository, when it is open, is the one whose folder the drift's git runs in (#560).
+    let main = gits.iter().find_map(|(_, git)| git.main.clone());
+    let repository = gits
+        .iter()
+        .find(|(_, git)| main.as_ref() == Some(&git.root))
+        .or_else(|| gits.first())
+        .map(|(_, git)| git.repository.clone());
     let rows = rows
         .into_iter()
-        .map(|(row, member)| {
+        .map(|(row, facts)| {
             snapshot.worktrees.insert(
                 row.path.clone(),
                 WorktreeEntry {
-                    member,
+                    member: facts.member,
                     project: workspace.downgrade(),
                     path: PathBuf::from(&row.path),
                     name: row.name.clone(),
+                    branch: facts.branch,
+                    commit: facts.commit,
+                    main: main.clone(),
+                    repository: repository.clone(),
                 },
             );
             row
@@ -3999,9 +4184,19 @@ struct MemberGit {
     root: PathBuf,
     linked: bool,
     main: Option<PathBuf>,
-    /// The member's branch, or its short commit when it is detached.
+    /// The member's branch as git names it, none when it is detached, and its `HEAD`.
     branch: Option<String>,
+    head: Option<String>,
+    repository: WeakEntity<Repository>,
     others: Vec<git::repository::Worktree>,
+}
+
+/// What a worktree's row holds beyond what it shows: its open workspace, and its branch and
+/// `HEAD` as git names them, which its drift is read for (#560).
+struct WorktreeFacts {
+    member: Option<WeakEntity<Workspace>>,
+    branch: Option<String>,
+    commit: Option<String>,
 }
 
 /// `member`'s place in the repository whose folder is its first, when it is one.
@@ -4022,13 +4217,12 @@ fn member_git(member: &Entity<Workspace>, cx: &App) -> Option<MemberGit> {
         branch: snapshot
             .branch
             .as_ref()
-            .map(|branch| branch.name().to_string())
-            .or_else(|| {
-                snapshot
-                    .head_commit
-                    .as_ref()
-                    .map(|commit| short_commit(&commit.sha))
-            }),
+            .map(|branch| branch.name().to_string()),
+        head: snapshot
+            .head_commit
+            .as_ref()
+            .map(|commit| commit.sha.to_string()),
+        repository: repository.downgrade(),
         others: snapshot.linked_worktrees().to_vec(),
     })
 }
@@ -4045,36 +4239,42 @@ fn short_commit(sha: &str) -> String {
 fn worktree_rows(
     gits: &[(Entity<Workspace>, MemberGit)],
     filter: &str,
-) -> Vec<(WorktreeSnapshot, Option<WeakEntity<Workspace>>)> {
+) -> Vec<(WorktreeSnapshot, WorktreeFacts)> {
     let main = gits.iter().find_map(|(_, git)| git.main.clone());
     let scratch = main
         .as_ref()
         .map(|main| main.join(".claude").join("worktrees"));
-    let mut found: Vec<(PathBuf, Option<String>)> = Vec::new();
-    let mut add = |path: &Path, branch: Option<String>| {
+    // Each worktree's folder, branch and `HEAD`.
+    let mut found: Vec<(PathBuf, Option<String>, Option<String>)> = Vec::new();
+    let mut add = |path: &Path, branch: Option<String>, commit: Option<String>| {
         let listed = main.as_deref() != Some(path)
             && !scratch
                 .as_ref()
                 .is_some_and(|scratch| path.starts_with(scratch))
-            && !found.iter().any(|(known, _)| known == path);
+            && !found.iter().any(|(known, ..)| known == path);
         if listed {
-            found.push((path.to_path_buf(), branch));
+            found.push((path.to_path_buf(), branch, commit));
         }
     };
     for (_, git) in gits {
         for other in git.others.iter().filter(|other| !other.is_main) {
-            let branch = other
-                .branch_name()
-                .map_or_else(|| short_commit(&other.sha), str::to_string);
-            add(&other.path, Some(branch));
+            add(
+                &other.path,
+                other.branch_name().map(str::to_string),
+                Some(other.sha.to_string()),
+            );
         }
         if git.linked {
-            add(&git.root, git.branch.clone());
+            add(&git.root, git.branch.clone(), git.head.clone());
         }
     }
     found
         .into_iter()
-        .map(|(path, branch)| {
+        .map(|(path, branch_name, commit)| {
+            // The row shows the branch, or the short commit of a detached worktree.
+            let branch = branch_name
+                .clone()
+                .or_else(|| commit.as_deref().map(short_commit));
             let member = gits
                 .iter()
                 .find(|(_, git)| git.linked && git.root == path)
@@ -4100,10 +4300,103 @@ fn worktree_rows(
                 branch,
                 open: member.is_some(),
                 matched,
+                drift: None,
             };
-            (row, member)
+            let facts = WorktreeFacts {
+                member,
+                branch: branch_name,
+                commit,
+            };
+            (row, facts)
         })
         .collect()
+}
+
+/// One worktree's part of a drift run (#560): what its row knows of it, and what the rail kept
+/// from the last run.
+struct DriftRead {
+    path: String,
+    branch: Option<String>,
+    commit: Option<String>,
+    kept: Option<DriftState>,
+}
+
+/// Reads each worktree's base in `main`, #510's record else `default`, and runs its summary
+/// unless the base and the tips are the ones its kept drift was read for (#560).
+async fn read_drifts(
+    main: &Path,
+    reads: Vec<DriftRead>,
+    branches: &[git::repository::Branch],
+    default: Option<String>,
+) -> Vec<(String, DriftState)> {
+    let mut states = Vec::with_capacity(reads.len());
+    for read in reads {
+        let recorded = match &read.branch {
+            Some(branch) => worktree_git::recorded_base(main, branch)
+                .await
+                .log_err()
+                .flatten(),
+            None => None,
+        };
+        let base = recorded.or_else(|| default.clone());
+        let tips = drift_tips(read.commit.as_deref(), base.as_deref(), branches);
+        let state = match read.kept {
+            Some(kept) if kept.base == base && same_tips(kept.tips.as_ref(), tips) => kept,
+            _ => {
+                let drift = match (base.as_deref(), tips) {
+                    (Some(base), Some((tip, base_tip))) => {
+                        worktree_git::summary(main, tip, base_tip, base)
+                            .await
+                            .log_err()
+                            .map(drift_snapshot)
+                    }
+                    _ => None,
+                };
+                let tips = tips.map(|(tip, base_tip)| (tip.to_string(), base_tip.to_string()));
+                DriftState { base, tips, drift }
+            }
+        };
+        states.push((read.path, state));
+    }
+    states
+}
+
+/// The tips a worktree's drift is read for (#560): its `HEAD`, and its base's tip from the local
+/// branches, or the base itself when #510 recorded a detached main checkout's commit.
+fn drift_tips<'a>(
+    commit: Option<&'a str>,
+    base: Option<&'a str>,
+    branches: &'a [git::repository::Branch],
+) -> Option<(&'a str, &'a str)> {
+    let (commit, base) = (commit?, base?);
+    let base_tip = match branches
+        .iter()
+        .find(|branch| !branch.is_remote() && branch.name() == base)
+    {
+        Some(branch) => branch.most_recent_commit.as_ref()?.sha.as_ref(),
+        None => is_commit(base).then_some(base)?,
+    };
+    Some((commit, base_tip))
+}
+
+/// Whether the tips a drift was read for are `tips`.
+fn same_tips(kept: Option<&(String, String)>, tips: Option<(&str, &str)>) -> bool {
+    kept.map(|(tip, base_tip)| (tip.as_str(), base_tip.as_str())) == tips
+}
+
+/// Whether `name` is a full commit id, SHA-1 or SHA-256.
+fn is_commit(name: &str) -> bool {
+    matches!(name.len(), 40 | 64) && name.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+/// A drift as the rail's model holds it.
+fn drift_snapshot(drift: Drift) -> DriftSnapshot {
+    DriftSnapshot {
+        behind: drift.behind,
+        conflicts: drift.conflicts,
+        base: drift.base,
+        base_commit: drift.base_commit,
+    }
 }
 
 /// The rows the displayed workspace's active center item makes current: a terminal's, with
@@ -4278,6 +4571,39 @@ fn permission_chip(id: u64, mark: marley_agent::PermissionMark, cx: &App) -> Sta
                 .color(Color::Warning),
         )
         .tooltip(Tooltip::text(mark.tooltip()))
+}
+
+/// A worktree row's drift (#560): a pill with how far its branch is behind its base, muted, or
+/// how many files a merge would stop on, in the warning color with Zed's conflict icon; its
+/// tooltip says the rest. None while the branch is up to date and merges cleanly.
+fn drift_chip(path: &str, name: &str, drift: &DriftSnapshot, cx: &App) -> Option<Stateful<Div>> {
+    let words = drift.words()?;
+    let conflicted = drift.conflicted();
+    let color = if conflicted {
+        Color::Warning
+    } else {
+        Color::Muted
+    };
+    let selector = format!("marley-rail-drift-{name}");
+    let chip = h_flex()
+        .id(SharedString::from(format!("marley-rail-drift-{path}")))
+        .debug_selector(move || selector)
+        .flex_none()
+        .gap_0p5()
+        .px_1()
+        .rounded_sm()
+        .border_1()
+        .border_color(cx.theme().colors().border)
+        .when(conflicted, |chip| {
+            chip.child(
+                Icon::new(IconName::GitMergeConflict)
+                    .size(IconSize::XSmall)
+                    .color(color),
+            )
+        })
+        .child(Label::new(words).size(LabelSize::XSmall).color(color))
+        .tooltip(Tooltip::text(drift.tooltip()));
+    Some(chip)
 }
 
 /// A stall or loop flag's mark (#569), which stays while the pointer is over the row, for its

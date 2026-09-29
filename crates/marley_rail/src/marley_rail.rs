@@ -65,6 +65,76 @@ pub struct WorktreeSnapshot {
     /// Where the filter matched the name, as for [`ProjectSnapshot::matched`]; empty when it
     /// matched the branch alone.
     pub matched: Option<Vec<usize>>,
+    /// What its branch would meet merging its base, once Marley has read it (#560).
+    pub drift: Option<DriftSnapshot>,
+}
+
+/// How many conflicting files a drift's tooltip names before it counts the rest.
+const TOOLTIP_FILES: usize = 20;
+
+/// What a worktree's branch would meet merging its base (#560).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DriftSnapshot {
+    /// The commits on the base the branch does not have.
+    pub behind: u32,
+    /// The files a merge would stop on, none for a clean merge; `None` when git cannot say.
+    pub conflicts: Option<Vec<String>>,
+    /// The base: a branch, or a commit.
+    pub base: String,
+    /// The base's tip, abbreviated.
+    pub base_commit: String,
+}
+
+impl DriftSnapshot {
+    /// Whether a merge would stop.
+    #[must_use]
+    pub fn conflicted(&self) -> bool {
+        self.conflicts
+            .as_ref()
+            .is_some_and(|files| !files.is_empty())
+    }
+
+    /// The chip's words, `1 conflict`, `3 conflicts` or `2 behind`; none for a branch up to date
+    /// with its base that merges cleanly.
+    #[must_use]
+    pub fn words(&self) -> Option<String> {
+        let conflicts = self.conflicts.as_ref().map_or(0, Vec::len);
+        match conflicts {
+            0 => (self.behind > 0).then(|| format!("{} behind", self.behind)),
+            1 => Some("1 conflict".to_string()),
+            _ => Some(format!("{conflicts} conflicts")),
+        }
+    }
+
+    /// The chip's tooltip: the commits behind, the base and its tip, and the files a merge would
+    /// stop on, twenty at most.
+    #[must_use]
+    pub fn tooltip(&self) -> String {
+        let commits = if self.behind == 1 {
+            "1 commit".to_string()
+        } else {
+            format!("{} commits", self.behind)
+        };
+        // A base #510 recorded as a detached main checkout's commit is its own tip.
+        let base = if self.base.starts_with(&self.base_commit) {
+            self.base_commit.clone()
+        } else {
+            format!("{} ({} at {})", self.base, self.base, self.base_commit)
+        };
+        let mut lines = vec![format!("{commits} behind {base}")];
+        match &self.conflicts {
+            Some(files) if !files.is_empty() => {
+                lines.push("A merge would stop on:".to_string());
+                lines.extend(files.iter().take(TOOLTIP_FILES).cloned());
+                if files.len() > TOOLTIP_FILES {
+                    lines.push(format!("and {} more", files.len() - TOOLTIP_FILES));
+                }
+            }
+            Some(_) => lines.push("It merges cleanly.".to_string()),
+            None => lines.push("This git cannot tell whether it merges cleanly.".to_string()),
+        }
+        lines.join("\n")
+    }
 }
 
 /// One center terminal.
@@ -416,6 +486,8 @@ pub struct WorktreeRow {
     pub branch: Option<String>,
     /// Whether its workspace is open.
     pub open: bool,
+    /// What its branch would meet merging its base (see [`WorktreeSnapshot::drift`]).
+    pub drift: Option<DriftSnapshot>,
     /// Whether this is the selected row.
     pub selected: bool,
     /// The byte offsets of the name's characters the filter matched, to highlight.
@@ -933,6 +1005,7 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                 name: worktree.name.clone(),
                 branch: worktree.branch.clone(),
                 open: worktree.open,
+                drift: worktree.drift.clone(),
                 selected: matches!(&selected, Selection::Worktree(path) if *path == worktree.path),
                 highlight: highlight(worktree.matched.as_deref()),
             }),
