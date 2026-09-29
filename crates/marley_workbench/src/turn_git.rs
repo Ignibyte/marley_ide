@@ -26,18 +26,23 @@ pub(crate) async fn commit_tree_in(
     parent: &str,
     message: &[String],
 ) -> anyhow::Result<String> {
-    let mut command = util::command::new_command("git");
-    command
-        .current_dir(work_dir)
-        .args(["commit-tree", tree, "-p", parent, "--no-gpg-sign"])
-        .env("GIT_AUTHOR_NAME", IDENTITY.0)
-        .env("GIT_AUTHOR_EMAIL", IDENTITY.1)
-        .env("GIT_COMMITTER_NAME", IDENTITY.0)
-        .env("GIT_COMMITTER_EMAIL", IDENTITY.1);
+    let mut args = vec!["commit-tree", tree, "-p", parent, "--no-gpg-sign"];
     for paragraph in message {
-        command.arg("-m").arg(paragraph);
+        args.extend(["-m", paragraph.as_str()]);
     }
-    let output = command.output().await.context("running git commit-tree")?;
+    let output = crate::process::output(
+        "git",
+        args,
+        Some(work_dir),
+        &[
+            ("GIT_AUTHOR_NAME", IDENTITY.0),
+            ("GIT_AUTHOR_EMAIL", IDENTITY.1),
+            ("GIT_COMMITTER_NAME", IDENTITY.0),
+            ("GIT_COMMITTER_EMAIL", IDENTITY.1),
+        ],
+    )
+    .await
+    .context("running git commit-tree")?;
     if !output.status.success() {
         anyhow::bail!(
             "git commit-tree refused: {}",
@@ -63,16 +68,18 @@ pub(crate) struct TurnRef {
 ///
 /// When `git` cannot run, or refuses.
 pub(crate) async fn turn_refs_in(work_dir: &Path) -> anyhow::Result<Vec<TurnRef>> {
-    let output = util::command::new_command("git")
-        .current_dir(work_dir)
-        .args([
+    let output = crate::process::output(
+        "git",
+        [
             "for-each-ref",
             "--format=%(refname) %(objectname) %(committerdate:unix)",
             TURN_REFS,
-        ])
-        .output()
-        .await
-        .context("running git for-each-ref")?;
+        ],
+        Some(work_dir),
+        &[],
+    )
+    .await
+    .context("running git for-each-ref")?;
     if !output.status.success() {
         anyhow::bail!(
             "git for-each-ref refused: {}",

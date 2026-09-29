@@ -71,9 +71,9 @@ pub(crate) async fn pull_request(
     branch: &str,
 ) -> anyhow::Result<Option<PullRequest>> {
     let program = std::env::var(GH_OVERRIDE).unwrap_or_else(|_| "gh".to_string());
-    let output = util::command::new_command(program)
-        .current_dir(folder)
-        .args([
+    let output = crate::process::output(
+        program,
+        [
             "pr",
             "list",
             &format!("--repo={owner_repo}"),
@@ -81,12 +81,12 @@ pub(crate) async fn pull_request(
             "--state=all",
             "--limit=1",
             "--json=number,state,isDraft,title,url,baseRefName",
-        ])
-        .env("GH_PROMPT_DISABLED", "1")
-        .env("NO_COLOR", "1")
-        .output()
-        .await
-        .context("running gh")?;
+        ],
+        Some(folder),
+        &[("GH_PROMPT_DISABLED", "1"), ("NO_COLOR", "1")],
+    )
+    .await
+    .context("running gh")?;
     anyhow::ensure!(
         output.status.success(),
         "gh pr list refused: {}",

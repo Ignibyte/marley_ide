@@ -42,21 +42,22 @@ pub(crate) struct Drift {
 /// unjudged.
 async fn git(main: &Path, args: &[&str]) -> anyhow::Result<Output> {
     let program = std::env::var(GIT_OVERRIDE).unwrap_or_else(|_| "git".to_string());
-    util::command::new_command(program)
-        .current_dir(main)
-        .args([
-            "-c",
-            "core.fsmonitor=false",
-            "-c",
-            "log.showSignature=false",
-            "--no-optional-locks",
-            "--no-pager",
-        ])
-        .args(args)
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-        .await
-        .with_context(|| format!("running git {}", args.first().copied().unwrap_or_default()))
+    let flags = [
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "log.showSignature=false",
+        "--no-optional-locks",
+        "--no-pager",
+    ];
+    crate::process::output(
+        program,
+        flags.iter().chain(args),
+        Some(main),
+        &[("GIT_TERMINAL_PROMPT", "0")],
+    )
+    .await
+    .with_context(|| format!("running git {}", args.first().copied().unwrap_or_default()))
 }
 
 /// The base recorded for `branch` as `branch.<branch>.base`, which #510 writes, if one is.

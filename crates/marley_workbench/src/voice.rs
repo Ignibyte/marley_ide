@@ -13,7 +13,6 @@ use anyhow::Context as _;
 use futures::{AsyncBufReadExt as _, StreamExt as _};
 use gpui::{App, AppContext as _, AsyncApp, Context, Global, Task, WeakEntity};
 use util::ResultExt as _;
-use util::command::Stdio;
 use workspace::Workspace;
 
 use crate::ToggleDictation;
@@ -90,7 +89,8 @@ pub fn toggle(voxtype: PathBuf, workspace: WeakEntity<Workspace>, cx: &mut App) 
     follow(voxtype.clone(), cx);
     cx.spawn(async move |cx| {
         let result =
-            crate::run_program(&voxtype, &[OsStr::new("record"), OsStr::new("toggle")]).await;
+            crate::process::run_program(&voxtype, &[OsStr::new("record"), OsStr::new("toggle")])
+                .await;
         if let Err(error) = result {
             workspace
                 .update(cx, |workspace, cx| workspace.show_error(error, cx))
@@ -123,13 +123,7 @@ fn follow(voxtype: PathBuf, cx: &mut App) {
 /// Reads `voxtype status --follow --format json` into [`Voice::state`], line by line, until it
 /// ends.
 async fn read_status(voxtype: &Path, cx: &AsyncApp) -> anyhow::Result<()> {
-    let mut status = util::command::new_command(voxtype)
-        .args(["status", "--follow", "--format", "json"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .kill_on_drop(true)
-        .spawn()
+    let mut status = crate::process::follow(voxtype, &["status", "--follow", "--format", "json"])
         .context("running `voxtype status`")?;
     let output = status
         .stdout

@@ -842,12 +842,14 @@ pub(crate) fn give_slot_reader(fs: Arc<dyn Fs>) {
 /// Writes `base` as `branch.<branch>.base` in the repository's config, which every worktree of
 /// it reads, from the worktree at `path`.
 async fn write_base(path: &Path, branch: &str, base: &str) -> anyhow::Result<()> {
-    let output = util::command::new_command("git")
-        .current_dir(path)
-        .args(["config", &format!("branch.{branch}.base"), base])
-        .output()
-        .await
-        .context("running git config")?;
+    let output = crate::process::output(
+        "git",
+        ["config", &format!("branch.{branch}.base"), base],
+        Some(path),
+        &[],
+    )
+    .await
+    .context("running git config")?;
     anyhow::ensure!(
         output.status.success(),
         "git config refused: {}",

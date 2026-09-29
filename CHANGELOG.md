@@ -60,6 +60,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The workbench's programs start in one module** (#541, 2026-09-29). Every program
+  `marley_workbench` runs (`claude plugin`, `voxtype`, `git` for turns, worktrees and the rail's
+  drift and changed lines, `gh`) now starts in `src/process.rs`, through `output` for a finished
+  program and `follow` for voxtype's status stream, with the same programs, arguments and
+  messages as before. #560's scenario allows the read-only `rev-parse` and `diff` that #531's
+  changed lines added.
+
 - **The fleet contract's retry ids** (#533, 2026-09-29). `marley_fleet`'s `SendRequest` and
   `OpenRequest` take an optional retry id (`delivery`, `request`), left out of the JSON when
   absent, and the crate has the values an accepted send and open return, as rustal-harness's

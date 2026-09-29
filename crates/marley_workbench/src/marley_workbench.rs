@@ -49,6 +49,7 @@ pub mod mcp;
 pub mod notifications;
 pub mod playwright_scripts;
 pub mod ports;
+pub mod process;
 pub mod project_icons;
 pub mod push;
 mod rail;
@@ -76,11 +77,9 @@ pub mod worktree_git;
 pub mod worktree_include;
 
 use std::collections::{BTreeSet, HashMap, HashSet};
-use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use agent_ui::AgentPanel;
-use anyhow::Context as _;
 use fs::Fs;
 use gpui::{
     AnyWindowHandle, App, AppContext as _, BorrowAppContext as _, Context, Entity, EntityId,
@@ -614,30 +613,6 @@ pub fn init(cx: &mut App) {
         .on_action(|_: &UseZedLayout, cx: &mut App| write_layout(MarleyLayout::Zed, cx))
         .observe_global::<SettingsStore>(layout_setting_changed)
         .detach();
-}
-
-/// Runs `program` with `args`, an error carrying what it printed when it fails. The agent bar's
-/// adapters run `claude` and `voxtype` with it.
-pub(crate) async fn run_program(program: &Path, args: &[&OsStr]) -> anyhow::Result<()> {
-    let name = program
-        .file_name()
-        .unwrap_or(program.as_os_str())
-        .to_string_lossy();
-    let output = util::command::new_command(program)
-        .args(args)
-        .output()
-        .await
-        .context(format!("running `{name}`"))?;
-    anyhow::ensure!(
-        output.status.success(),
-        "`{name} {}` failed: {}",
-        args.iter()
-            .map(|arg| arg.to_string_lossy())
-            .collect::<Vec<_>>()
-            .join(" "),
-        String::from_utf8_lossy(&output.stderr).trim()
-    );
-    Ok(())
 }
 
 /// Binds the Marley keymap as a default source.

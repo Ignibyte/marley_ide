@@ -149,8 +149,9 @@ steps() {
   echo "== what the chip's git ran"
   awk '{ for (i = 1; i <= NF; i++) if ($i == "--no-pager") { print $(i + 1); break } }' \
     "$E2E_WORK/git.log" | sort | uniq -c
-  expect "the chip ran only config, merge-base, rev-list and merge-tree" \
-    bash -c "awk '{ for (i = 1; i <= NF; i++) if (\$i == \"--no-pager\") { print \$(i + 1); break } }' '$E2E_WORK/git.log' | grep -vxE 'config|merge-base|rev-list|merge-tree' | wc -l | grep -qx 0"
+  # The project row's changed lines (#531) add `rev-parse` and `diff --numstat`, read-only too.
+  expect "the rail's git ran only config, merge-base, rev-list, merge-tree, rev-parse and diff" \
+    bash -c "awk '{ for (i = 1; i <= NF; i++) if (\$i == \"--no-pager\") { print \$(i + 1); break } }' '$E2E_WORK/git.log' | grep -vxE 'config|merge-base|rev-list|merge-tree|rev-parse|diff' | wc -l | grep -qx 0"
   expect "no fetch" bash -c "! grep -q fetch '$E2E_WORK/git.log'"
   grep -n "merge-tree --write-tree" "$E2E_PROFILE/logs/Marley.log" || echo "no log line"
   expect "one log line for the repository" \

@@ -278,7 +278,7 @@ async fn write_marketplace(
 async fn run_install(plugin: ClaudePlugin, cx: &AsyncApp) -> anyhow::Result<()> {
     let (claude, marketplace_dir, known) = write_marketplace(plugin, cx).await?;
     if !known {
-        crate::run_program(
+        crate::process::run_program(
             &claude,
             &[
                 OsStr::new("plugin"),
@@ -289,7 +289,7 @@ async fn run_install(plugin: ClaudePlugin, cx: &AsyncApp) -> anyhow::Result<()> 
         )
         .await?;
     }
-    crate::run_program(
+    crate::process::run_program(
         &claude,
         &[
             OsStr::new("plugin"),
@@ -352,8 +352,8 @@ async fn run_update(plugin: ClaudePlugin, cx: &AsyncApp) -> anyhow::Result<()> {
             marketplace_dir.as_os_str(),
         ]
     };
-    crate::run_program(&claude, &marketplace).await?;
-    crate::run_program(
+    crate::process::run_program(&claude, &marketplace).await?;
+    crate::process::run_program(
         &claude,
         &[
             OsStr::new("plugin"),
