@@ -13,10 +13,12 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Context as _;
 use editor::Editor;
 use fs::Fs;
+use futures::FutureExt as _;
 use git_ui_core::{worktree_names, worktree_service};
 use gpui::{
     App, AppContext as _, AsyncWindowContext, Context, DismissEvent, Entity, EventEmitter,
@@ -690,6 +692,98 @@ async fn free_folder(
             .ok()??;
     }
     None
+}
+
+/// How long Remove waits for each of a worktree's teardown tasks (#591), Orca's two minutes.
+const TEARDOWN_FOR: Duration = Duration::from_mins(2);
+
+/// Runs the `remove_worktree` tasks of `workspace`'s folders one after another (#591), each
+/// awaited up to [`TEARDOWN_FOR`], and asks whether to remove `name` anyway when one fails or runs
+/// past it. Returns whether Remove goes on.
+///
+/// # Errors
+///
+/// When the workspace or the window is gone.
+pub(crate) async fn tear_down(
+    workspace: &Entity<Workspace>,
+    name: &str,
+    cx: &mut AsyncWindowContext,
+) -> anyhow::Result<bool> {
+    let tasks = workspace.read_with(cx, teardown_tasks);
+    for task in tasks {
+        let label = task.label.clone();
+        let status = workspace.update_in(cx, |workspace, window, cx| {
+            workspace.spawn_in_terminal(task, window, cx)
+        })?;
+        let deadline = cx.background_executor().timer(TEARDOWN_FOR);
+        let ended = futures::select_biased! {
+            status = status.fuse() => Some(status),
+            () = deadline.fuse() => None,
+        };
+        let failure = match ended {
+            None => format!("{label} ran past two minutes"),
+            Some(Some(Ok(exit))) if !exit.success() => exit.code().map_or_else(
+                || format!("{label} was stopped by a signal"),
+                |code| format!("{label} exited with {code}"),
+            ),
+            Some(Some(Err(error))) => format!("{label} failed: {error:#}"),
+            Some(_) => continue,
+        };
+        let question = format!("The teardown of {name} did not finish");
+        let detail =
+            format!("{failure}. Its terminal shows what it printed. Remove {name} anyway?");
+        let answer = cx.update(|window, cx| {
+            window.prompt(
+                gpui::PromptLevel::Warning,
+                &question,
+                Some(&detail),
+                &["Remove Anyway", "Cancel"],
+                cx,
+            )
+        })?;
+        return Ok(matches!(answer.await, Ok(0)));
+    }
+    Ok(true)
+}
+
+/// The `remove_worktree` tasks of each folder of `workspace`, the folder's own and the user's
+/// global ones, resolved with the folder's variables as Zed resolves `create_worktree` tasks.
+fn teardown_tasks(workspace: &Workspace, cx: &App) -> Vec<task::SpawnInTerminal> {
+    let hooks: collections::HashSet<TaskHook> = std::iter::once(TaskHook::RemoveWorktree).collect();
+    let project = workspace.project().read(cx);
+    let Some(inventory) = project.task_store().read(cx).task_inventory().cloned() else {
+        return Vec::new();
+    };
+    let git_store = project.git_store().read(cx);
+    let mut tasks = Vec::new();
+    for worktree in project.worktrees(cx) {
+        let worktree = worktree.read(cx);
+        let id = worktree.id();
+        let root = worktree.abs_path();
+        let mut variables = task::TaskVariables::default();
+        variables.insert(
+            task::VariableName::WorktreeRoot,
+            root.to_string_lossy().into_owned(),
+        );
+        if let Some(main) = git_store.original_repo_path_for_worktree(id, cx) {
+            variables.insert(
+                task::VariableName::MainGitWorktree,
+                main.to_string_lossy().into_owned(),
+            );
+        }
+        let context = task::TaskContext {
+            cwd: Some(root.to_path_buf()),
+            task_variables: variables,
+            project_env: collections::HashMap::default(),
+        };
+        let id_base = format!("worktree_teardown_{id}");
+        for (_, template) in inventory.read(cx).templates_with_hooks(&hooks, id) {
+            if let Some(resolved) = template.resolve_task(&id_base, &context) {
+                tasks.push(resolved.resolved);
+            }
+        }
+    }
+    tasks
 }
 
 /// Records the new worktree's base and gives it a port slot, before the agent's terminal starts,

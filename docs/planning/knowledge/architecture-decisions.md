@@ -2937,3 +2937,15 @@ a compare-and-swap `update-ref -d`; not proven, it stays. Rejected: Marley's own
 remove` (Zed checks it made the worktree, releases it from every project and rolls back); porting
 Orca's file (its patch-id leg waits, and `merge-tree` covers the common squash merge); the
 teardown hook in this slice (#591, a Zed touch with an awaited task).
+
+## AD-claude-591-a-remove-worktree-task-hook-runs-before-remove-with-a-two-minute-deadline-001
+*decided at: 2026-09-29 · status: shipped*
+
+A worktree's teardown is a task whose `hooks` hold `remove_worktree`, a `TaskHook` variant Marley
+adds to Zed's `task` crate beside `CreateWorktree`, so it is declared and found the way Zed's
+`create_worktree` tasks are. Remove runs the worktree's own and the user's global ones after its
+question, one after another in terminals, resolved with the worktree's variables as Zed's
+`run_create_worktree_tasks` resolves its hooks, and waits up to two minutes for each (Orca's
+deadline for its archive script). A failure or the deadline asks Remove Anyway or Cancel rather
+than refusing. Rejected: a Marley-only setting for the command (tasks already carry commands,
+variables and a terminal); refusing outright on a failure (the user may know it does not matter).

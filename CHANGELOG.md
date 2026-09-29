@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A worktree's teardown task before Remove** (#591, 2026-09-29). A task whose `hooks` hold
+  `remove_worktree` (in the worktree's `.zed/tasks.json`, or your global tasks) now runs when you
+  confirm Remove on the worktree's row, before the worktree goes, so the dev database, containers
+  or server it started can be stopped. Each such task runs in its own terminal with the
+  worktree's variables (`ZED_WORKTREE_ROOT`, `ZED_MAIN_GIT_WORKTREE`, `MARLEY_ROOT_PATH`,
+  `MARLEY_WORKTREE_PATH`), one after another, and Marley waits up to two minutes for each. One
+  that fails or runs longer stops Remove with a question naming it; Cancel keeps the worktree
+  and the task's terminal open, Remove Anyway goes on. `remove_worktree` is a new value of Zed's
+  task `hooks` field, beside `create_worktree`.
+
 - **Remove on a worktree's row** (#589, 2026-09-29). Right-click a worktree in the rail and choose
   Remove… once its agent's work is done. Marley always asks first; when git counts changes not
   committed (untracked files included) the question names how many and the button reads Remove
@@ -22,8 +32,7 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   `git branch -d` agrees, or when its commits are shown to be in its recorded base, `origin/HEAD`
   or the main checkout's `HEAD` (an ancestor, a merge that changes nothing, as after a squash
   merge, or `git cherry` finding every change); otherwise it stays, and the toast says why. In a
-  repository the Rustal workflow merges, Remove waits until the branch is merged. A teardown hook
-  run before the removal is next (#591).
+  repository the Rustal workflow merges, Remove waits until the branch is merged.
 
 - **A port of its own for each worktree agent's worktree** (#590, 2026-09-29). New Agent in
   Worktree gives each worktree it makes a slot, the lowest from 1 that no other worktree of the

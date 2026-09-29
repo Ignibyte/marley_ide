@@ -576,6 +576,13 @@ alike.
   `merge-tree --write-tree` equal to the target's tree, `cherry` all `-`) and
   `update-ref -d refs/heads/<b> <oid>`, then `config --remove-section branch.<b>`; `BranchEnd`
   names the outcome for the toast.
+- The teardown (#591): after the question and while the worktree's workspace is open,
+  `worktree_agents::tear_down(member, name, cx)`: `teardown_tasks` resolves each folder's
+  `TaskHook::RemoveWorktree` templates (`Inventory::templates_with_hooks`, the folder's and the
+  global ones) with `WorktreeRoot` and `MainGitWorktree`, as Zed's `run_create_worktree_tasks`
+  does; each goes to `Workspace::spawn_in_terminal` and is raced against `TEARDOWN_FOR` (two
+  minutes); a non-zero exit, an error or the deadline asks Remove Anyway or Cancel, and Cancel ends
+  Remove with the worktree and its terminals as they were.
 
 ## A worktree agent's environment (`src/worktree_include.rs`, `src/worktree_agents.rs`, #585)
 

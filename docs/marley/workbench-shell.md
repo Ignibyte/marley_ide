@@ -384,7 +384,8 @@ that fail closed, never a push, left to the Rustal workflow where it manages the
 offered install command for its one JavaScript package manager, and `MARLEY_ROOT_PATH` and
 `MARLEY_WORKTREE_PATH` in its tasks; #590 gives each such worktree a slot and its terminals and
 tasks `MARLEY_PORT_OFFSET` and `PORT` from it; #589 adds Remove to a worktree row's menu, through
-Zed's archive code, the branch deleted only when its commits are in its base. W5 shipped as #441:
+Zed's archive code, the branch deleted only when its commits are in its base, after the
+worktree's `remove_worktree` tasks (#591). W5 shipped as #441:
 in the Marley layout
 tasks, New Terminal and Open in Terminal open center terminals, and nothing opens the bottom
 panel. W5b shipped as #449: `` ctrl-` ``, `ctrl-~` and `ctrl-j` work on the center terminals,

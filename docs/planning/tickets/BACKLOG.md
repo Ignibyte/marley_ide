@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-591](open/TICKET-591-a-teardown-hook-before-a-worktree-is-removed.md) | feature | prong 2 · a `remove_worktree` task hook run before Remove with a two-minute deadline, a failure stopping the removal unless confirmed; a Zed touch of one `TaskHook` variant; after #589 |
 | [TICKET-522](open/TICKET-522-review-notes-to-the-agent.md) | feature | prong 2 · review notes sent to the agent working in the diffed tree |
 | [TICKET-531](open/TICKET-531-pr-state-on-rail-rows.md) | feature | workbench · pull request state and diff counts on the rail's project rows |
 | [TICKET-527](open/TICKET-527-project-launch-configs.md) | feature | workbench · a project's launch configs (`.zed/marley.json`) in the rail's + |

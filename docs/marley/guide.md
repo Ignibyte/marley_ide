@@ -587,6 +587,12 @@ While the branch has commits its base lacks, the row's second line counts them:
   recorded base, `origin/HEAD` or the main checkout's branch, a squash merge included; otherwise
   it stays and the toast says why, so committed work is never lost. In a repository the Rustal
   workflow merges, Remove waits until the branch is merged.
+- **A teardown task** (#591). A task in `.zed/tasks.json` whose `hooks` hold `remove_worktree`
+  runs when you confirm Remove, before the worktree goes, in a terminal of its own with the
+  worktree's paths in its environment, for example `"command": "docker compose down"`. Marley
+  waits up to two minutes for each such task. If one fails or takes longer, Marley asks: Cancel
+  keeps the worktree and the task's terminal, so you can read what it printed; Remove Anyway goes
+  on.
 
 Merge shows only for a branch whose base Marley recorded, in a repository Zed trusts. Otherwise
 the menu says why: No base recorded, Nothing to merge into main, or, where the Rustal workflow

@@ -2168,6 +2168,11 @@ impl Rail {
             if !matches!(answer.await, Ok(0)) {
                 return Ok(());
             }
+            if let Some(member) = &member
+                && !worktree_agents::tear_down(member, &name, cx).await?
+            {
+                return Ok(());
+            }
             if let Some(member) = member {
                 // Outside the rail's own update: the window's sidebar is the rail.
                 let multi_workspace = rail.read_with(cx, |rail, _| rail.multi_workspace.clone())?;

@@ -95,6 +95,9 @@ pub enum DebugArgsRequest {
 pub enum TaskHook {
     #[serde(alias = "create_git_worktree")]
     CreateWorktree,
+    // Marley: a worktree's teardown, which Marley's Remove runs and waits for before the
+    // worktree goes (#591).
+    RemoveWorktree,
 }
 
 /// What to do with the terminal pane and tab, after the command was started.
