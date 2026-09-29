@@ -135,3 +135,23 @@
 - **Closed:** TICKET-590 moved to `tickets/closed/`; its BACKLOG row went at promotion.
 - **No tests** (§7, since 2026-09-29): what a later scenario would show is in "For the quality
   pass".
+
+---
+## Phase 3 — Test (the visual check, after the fact)
+- **Why after:** this ticket shipped on 2026-09-29 while the workflow had no visual check; Chad
+  brought it back the same day (7e589cb0a1). #590, #591 and #589 were checked together.
+- **The scenario:** `script/e2e/589-remove-a-worktree.sh`, `compositor sway`, on #510 and #585's
+  fixture (a fake `claude` that logs its folder, arguments, `PORT` and `MARLEY_PORT_OFFSET`, the
+  plugin's SessionStart; the `+` menu's New Agent in Worktree). A repository with a committed
+  `.zed/tasks.json` holding a `remove_worktree` task that appends `torn down in
+  $ZED_WORKTREE_ROOT` to a file. One run; every check passed.
+- **What it showed:** #590: the first agent saw `PORT` 3010 and `MARLEY_PORT_OFFSET` 10, the second
+  3020; the main checkout's terminal printed `main-port=[]` (`589-03-main-no-port`). #589: the
+  first worktree's row menu reads Review, "Nothing to merge into main", a separator and Remove…
+  (`589-04-menu`); Remove asks "Remove <name>?" naming the folder it deletes, with Remove and Cancel
+  (`589-05-prompt`); after Remove the row is gone and the toast reads "Removed <name> and its branch
+  agent/<name>" (`589-06-removed`), the folder is gone, the merged branch deleted, the other
+  worktree kept. #591: the teardown task ran in the worktree before it went. #590 again: a third
+  agent took the freed slot, `PORT` 3010.
+- **Found:** the project row's `+0 −0` (#531) shows on a project with nothing changed; fixed in
+  #531's own check.
