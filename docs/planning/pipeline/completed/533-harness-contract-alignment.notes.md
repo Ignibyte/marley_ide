@@ -76,6 +76,19 @@
     commit's `verbs.rs` (the harness's `.deps` export) against the fork's: formatting only.
 - **Decisions:** D1 to D6 in the spec.
 
+### Design (at promotion)
+Re-verified on 2026-09-29; this section wins where the drafted design differs.
+- The harness's `MARLEY_REQUESTS.md` now lists four requests. MREQ-003 (each verb's payload in
+  `marley_fleet`, `SurfaceAck` first) and MREQ-004 (a `capabilities` map on `Session`, `requires`
+  on `SendRequest`) came on 2026-09-26, after this plan; by the risk's rule they go to their own
+  ticket, #597, and the plan's list names them open.
+- The harness's `STATUS.md` on 2026-09-29: M9 complete (all six verbs served and checked with
+  `marley_fleet`, TICKET-057), M10 and M11 complete on fixture agents. TICKET-056 serves the surface
+  verb as `session_surface_to_human`, Marley's name, so D7's difference is gone.
+- `rh mcp`'s open value may add `supervise`; serde ignores it when reading an `OpenReceipt`.
+- The scenario runs under sway with a click into the terminal, the stand-in client as a command.
+- Brain: consultation 74924dfc2308461ba9f757d80c8df906, nothing on this seam.
+
 ### Design
 - **Approach.**
   - `crates/marley_fleet/src/verbs.rs`: `SendRequest.delivery: Option<String>` and
@@ -145,3 +158,36 @@ exercises them, on its side, once it pins the fork.
 - The surface verb's two names may become a third request. D7 keeps Marley's name, which its
   server has answered since #370, and records the difference; nothing in the app calls the verb
   yet, so either side can still move at no cost, and that choice waits for the harness.
+
+## Phase 2 — Code
+- **Built.** `verbs.rs`: `SendRequest.delivery` and `OpenRequest.request` (`Option<String>`,
+  `serde(default, skip_serializing_if = "Option::is_none")`), `SendReceipt` and `OpenReceipt`, the
+  verbs named `session_send`, `session_read`, `session_open`, `session_surface_to_human`,
+  `session_answer`; the round-trip literals with `None`; both receipts exported. The plan: the
+  cast row, the status paragraph, D8, D9 in wire names, D19 with the list of the harness's requests,
+  C1 (#534), C4, the risk. The orchestration record's banner; the Orca survey's README and its two
+  lines. A new per-crate note, `docs/marley_architecture/marley_fleet.md`. #597 minted for
+  MREQ-003 and MREQ-004.
+- **Review.** REQ-004: both fields default and are skipped when `None`, so an old request
+  serializes as before and deserializes without them. REQ-005 against `rh mcp`: the send's value
+  `{"id", "delivery", "state", "detail"}` (`harness-runtime/src/mcp.rs:787`), the open's
+  `{"id", "title", "profile", "request"}` (`:1021`), and `docs/MCP.md`'s tools table.
+- **Smokes.** REQ-003: `rg` for dotted verb names over `crates/marley_fleet` and the plan printed
+  six lines in `verbs.rs` and D9's two before, nothing after. REQ-006: `rg -i paus` over the plan
+  finds only "lifted the pause" and the click consequence's pauses.
+- **Gate.** `just gate-diff`: GATE GREEN [diff].
+
+## Phase 3 — Test
+- **Scenario.** `script/e2e/533-harness-contract-alignment.sh` (sway): the stand-in client from
+  `browser-fixture.sh`, which gained `names` and `tool`, as `mcp` in the terminal.
+- **Shot.** `533-01-names`: every listed tool `ok` against `^[a-zA-Z0-9_-]{1,64}$` (`terminal_*`,
+  `browser_*`, `ports_list`), `fleet_snapshot: {"seats": []}`, and `session_surface_to_human`
+  refused by the `session.write` grant: a receipt, not an unknown-tool error. REQ-001, REQ-002. The
+  run's two checks passed.
+- **Not reachable.** Marley serves no `session_send` or `session_open` (C4); the new types' first
+  reader is the harness's conformance suite, once it pins the fork.
+
+## Phase 4 — Complete
+- Ledger: AD-claude-533-the-harness-embedded-and-standalone-001.
+- Brain: decision recorded on consultation 74924dfc2308461ba9f757d80c8df906.
+

@@ -40,5 +40,6 @@ pub use dispatch::{DeliveryAdvance, DeliveryState};
 pub use reducer::{FleetSnapshot, SessionEvent, apply, reduce};
 pub use session::{Question, Session, State, Transport};
 pub use verbs::{
-    AnswerRequest, OpenRequest, ReadRange, ReadRequest, Receipt, SendRequest, SurfaceRequest,
+    AnswerRequest, OpenReceipt, OpenRequest, ReadRange, ReadRequest, Receipt, SendReceipt,
+    SendRequest, SurfaceRequest,
 };

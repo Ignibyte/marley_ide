@@ -148,7 +148,7 @@ real services on this box:
 | Role | Service | What it holds | How Marley reaches it |
 |---|---|---|---|
 | Work-state authority | rustal-brain (Postgres, MCP route with a project bearer, `rw` CLI) | tickets, sprints, runs, phases, gates, evidence, knowledge | MCP as a context server for agents; a native adapter for the work objects |
-| Session substrate | rustal-harness `rh` runtime (owned tmux server, Unix socket, protocol v1) | workspaces, windows, panes, actor identities and incarnations, managed input with observer and controller claims, snapshot plus event subscriptions, durable messages, Codex sessions, evidence imports | a Rust client of its socket protocol |
+| Session substrate | rustal-harness `rh` runtime (owned tmux server, Unix socket, protocol v1) | workspaces, windows, panes, actor identities and incarnations, managed input with observer and controller claims, snapshot plus event subscriptions, durable messages, Codex sessions, evidence imports | `rh mcp`, Marley's fleet contract over MCP on stdio (the envelope, its changes by cursor, the session verbs under a write grant); its socket protocol later, for managed input (C3) |
 | Personal brain and agent host | Rusty (`rusty-mcp` on `127.0.0.1:4174/mcp`, 85 tools; `rusty agent` sessions as transient user units with an NDJSON socket) | brain pages, tasks, memories, skills, secrets, the brain loop; Claude sessions that outlive any window | MCP for agents; the agent socket for transcripts and turn state |
 | Judgment | the manager agent (Claude or Codex) | policy: dispatch, review, halt decisions | drives Marley over Marley's own MCP server |
 | Mechanism shell | Marley | rendering, receipted verbs, hosting | this prong |
@@ -161,9 +161,14 @@ Two corrections to the old design fall out of reading the harness:
   the `seat_events` feed the fleet design was waiting on, delivered by a different service
   than expected. The brain contributes labels (ticket, phase, gate) to the same seats.
 - The harness has its own native-client milestone (M6, a mixed-pane client over its tmux
-  terminals; a TUI `rh view` exists). Marley is the natural home for that client. The harness
-  is paused at the owner's request since 2026-09-14, so Marley consumes the protocol as it
-  is and files anything missing as a harness ticket rather than patching around it.
+  terminals; a TUI `rh view` exists). Marley is the natural home for that client. As the
+  harness's `docs/STATUS.md` gives it on 2026-09-29, its owner lifted the pause of 2026-09-14
+  on 2026-09-22; M9 is complete (every agent session has one envelope in Marley's v1 shape,
+  published as a durable feed, and `rh mcp` serves it with `session_answer`, `session_send`,
+  `session_read`, `session_open` and `session_surface_to_human`, checked with Marley's own
+  `marley_fleet`), and M10 (supervision, the manager's inbox) and M11 (the Brain in each
+  session, declared tools, phase reports) are complete on fixture agents. Marley consumes what
+  the harness serves and answers the harness's requests in its own tickets (D19's list).
 
 ### Design decisions
 
@@ -173,16 +178,18 @@ projection: harness actor events and messages, Rusty agent-session events, brain
 phase events as opaque labels. Marley never learns what a ticket is.
 
 **D8. One adapter crate per service, all pure-core plus a masked transport, the house
-pattern.** `marley_harness` (the `rh` protocol client: subscribe with resume, managed-input
-controller claims with generations, message send and receive with delivery ids),
+pattern.** `marley_harness` (the harness client: first over `rh mcp`, the fleet contract on
+stdio, then the `rh` socket protocol for managed-input controller claims with generations),
 `marley_rusty` (the agent-socket client: attach, replay, send, status), and
 `marley_brain` (MCP client for the brain's tools and resources, reusing Zed's
 `context_server` transport rather than a new one).
 
 **D9. Marley's own MCP server grows the tool families the docs already reserve.** On top of
-`fleet.snapshot` and `session.surface_to_human`: `terminal.blocks`, `terminal.read`,
-`terminal.run` (grant-gated; shipped as `terminal_run`, #556), `session.send`, `session.read`, `session.answer`,
-`editor.open`, `editor.goto`, `editor.diff`, and later the browser family. The discovery
+`fleet_snapshot` and `session_surface_to_human`: `terminal_blocks`, `terminal_read`,
+`terminal_run` (grant-gated, #556), `session_send`, `session_read`, `session_answer`,
+`editor_open`, `editor_goto`, `editor_diff`, and later the browser family. Tool names are
+`family_verb`, the form a Claude client can call (#491); the grant classes keep their dots
+(`session.write`), since they are settings, never a tool name. The discovery
 file lands in the workspace's `.mcp.json` shape so Claude Code and Rusty's agent host pick
 it up. Deny-by-default grants stay; the settings live in Zed's settings tree.
 
@@ -198,22 +205,47 @@ Rusty's sessions in the fleet rail, points agents at `rusty-mcp`, and uses the b
 tools for its own decisions. Whether Rusty's agent host and the harness runtime converge is
 an open decision for the owner, not something Marley forces.
 
+**D19. The harness is embedded in Marley and also runs standalone (Chad, 2026-09-25).**
+Embedded, Marley runs `rh` as a process of its own, never linked in (§20's program boundary),
+and speaks to it over `rh mcp`, the protocol a standalone harness on another host speaks over
+SSH; one client serves both. Standalone, the harness keeps its own lifecycle outside Marley.
+Packaging `rh` with Marley and starting its runtime is its own ticket after #534.
+
+The harness's requests to Marley (`docs/planning/MARLEY_REQUESTS.md` in rustal-harness) and
+their answers. The contract's home is the fork's `crates/marley_fleet` and `crates/marley_mcp`;
+the harness still pins the gpui-era repository, whose `tool_name` joined with a dot, and moving
+its pin is its own call.
+
+- MREQ-001, tool names a Claude client can call: answered. Marley's server has served
+  `family_verb` names since #491; #533 renamed the verbs in `marley_fleet`'s docs and in D9.
+- MREQ-002, retry ids on `SendRequest` and `OpenRequest`: answered in #533. `SendRequest.delivery`
+  and `OpenRequest.request`, optional and left out of the JSON when absent, and the receipts'
+  values `SendReceipt { id, delivery, state, detail }` and `OpenReceipt { id, title, profile,
+  request }`, as `rh mcp` returns them.
+- MREQ-003, each verb's accepted payload in `marley_fleet`, `SurfaceAck` first: open, filed
+  2026-09-26, after #533's plan; #597.
+- MREQ-004, a typed `capabilities` map on `Session` and an optional `requires` on
+  `SendRequest`: open, filed 2026-09-26; #597.
+- The surface verb: the harness serves it as `session_surface_to_human` (TICKET-056), Marley's
+  name since #370, so the two agree.
+
 ### Slices
 
 | Slice | Delivers | Size |
 |---|---|---|
 | C0 | `marley_mcp` started by the app with the terminal read tools and the discovery file; an agent can list a pane's blocks (#491, pulled forward for the browser's agent tools; shipped) | M |
-| C1 | `marley_harness` read side: subscribe, snapshot, events into `marley_fleet`; a fleet rail panel with state chips, question cards and staleness. First piece shipped ahead of the harness (#519): a terminal's own Claude Code hook events, carried in-band by Marley's plugin, fold into `marley_fleet` and drive the terminal's rail row; #547 (shipped) publishes that snapshot to `fleet_snapshot`, ends a seat when its Claude Code leaves, and adds the update chip and the `no update in N m` form; the approvals inbox (#508, shipped) lists at the top of the rail every agent that waits on the user, the longest waiting first: Agent Panel prompts answered in place, Claude Code's permissions and questions, and the Browser tab's held clicks; per-turn diffs (#509, shipped) keep each turn of a terminal's Claude Code that changed the tree as a commit of its end on its start's checkpoint, pinned under `refs/marley/turns/`, listed under the terminal's row and opened in Zed's commit view; the rail ordered by attention, needs you first, with a collapsed project's counts and the order held under the pointer (#542, shipped) | L |
+| C1 | `marley_harness` read side: subscribe, snapshot, events into `marley_fleet` (the harness's sessions in the rail over `rh mcp`, #534); a fleet rail panel with state chips, question cards and staleness. First piece shipped ahead of the harness (#519): a terminal's own Claude Code hook events, carried in-band by Marley's plugin, fold into `marley_fleet` and drive the terminal's rail row; #547 (shipped) publishes that snapshot to `fleet_snapshot`, ends a seat when its Claude Code leaves, and adds the update chip and the `no update in N m` form; the approvals inbox (#508, shipped) lists at the top of the rail every agent that waits on the user, the longest waiting first: Agent Panel prompts answered in place, Claude Code's permissions and questions, and the Browser tab's held clicks; per-turn diffs (#509, shipped) keep each turn of a terminal's Claude Code that changed the tree as a commit of its end on its start's checkpoint, pinned under `refs/marley/turns/`, listed under the terminal's row and opened in Zed's commit view; the rail ordered by attention, needs you first, with a collapsed project's counts and the order held under the pointer (#542, shipped) | L |
 | C2 | Rusty sessions in the same rail through `marley_rusty`; brain-loop and Rusty tools in the default `context_servers` | M |
 | C3 | Harness passthrough terminals (D10), observer first, controller claim second. A stopgap ahead of it: remote terminals on saved SSH hosts in a tmux session of Marley's own, which survive a dropped link and reattach with Rerun, with Claude Code's events from the host (#543, shipped) | L |
-| C4 | Dispatch: `session.send` and `session.answer` over Marley's MCP, harness messages with delivery states rendered as chips | M |
+| C4 | Dispatch: `session_send` and `session_answer` over Marley's MCP, harness messages with delivery states rendered as chips; the retry ids and receipts are in `marley_fleet` (#533, shipped) | M |
 | C5 | Work objects: brain tickets, runs and gate evidence as labels on seats and as a native pane; `rw` phase state in the status bar | M |
 | S1 | The System One layer (#565, shipped): typed questions to a model (TypeSafe's Jev first) about states Marley builds, off by default and sent only for listed projects, masked; providers `typesafe`, `compatible`, `rules` and `replay`; the check and Decisions. The stop kind (#566, shipped) is its first use: an idle Claude Code's row says what the stop needs, the rules first and the model for the rest, off by default. The find tools (#567, shipped) are the second: `browser_find` and `terminal_find` answer an element or a line from words, the words first and the model for the rest, listed only while on. The stall kind (#569, shipped) is the third: a working Claude Code's row reads `looping?` from Marley's own rule and `stalled?` when a quiet turn with no tool using the CPU reads stuck to the model, off by default, never stopping the agent. The click consequence (#571, shipped) is the fourth: an agent's click that pays, deletes, sends or changes an account waits in the Browser tab for Allow or Refuse, the rules first and the model only adding pauses, by default only for agents with no prompt of their own. The inbox's risk chips (#568, shipped) are the fifth: each entry of the approvals inbox marked from the tool and what it acts on, ordered by level, then age, the rules first and the model only adding chips and raising levels, approving nothing. The question route (#570, shipped) is the sixth: each entry marked for you, for the manager, could proceed or unclear, the rules first from #568's chips, the model for the rest, ordering within a level in act and answering nothing; the manager's half waits on rustal-harness's M10 and #534 | M |
 
 ### Risks
 
-- The harness protocol is version 1 and its owner paused work; Marley may hit a missing
-  verb (peer messaging is listed as future). File it, do not fork.
+- The harness moves fast (M9 to M11 in a week). Marley reads what it consumes from the
+  harness's documents at a named state, answers its requests in its own tickets, and files what
+  it needs as a harness ticket rather than patching around it. File it, do not fork.
 - The brain's transitional `brain_pk_` bearer must never enter a log, a prompt or a file
   other than the operator's config; the never-logged-bearer rule from `marley_mcp` applies.
 - Three services means three failure modes to render honestly: unconfigured, misconfigured,

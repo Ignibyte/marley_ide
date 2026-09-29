@@ -41,6 +41,11 @@ run. Two corrections to what the agents were told: Marley's pick sends no HTML a
 events whenever `telemetry.metrics` is on (the default), and `flush_events_inner` posts them to
 `api.zed.dev/telemetry/events`.
 
+A third, made on 2026-09-29 (#533): the reports repeat the plan's old line that rustal-harness has
+been paused since 2026-09-14. Its owner lifted that pause on 2026-09-22, and by 2026-09-29 its M9 to
+M11 were complete; the two lines that said so (report 06 §5 question 2, report 07's item 5 row) are
+corrected in place.
+
 ## What Orca does well that Marley lacks, first
 
 Ranked by what each buys Marley against its cost (S a day, M a few days, L a week or more).

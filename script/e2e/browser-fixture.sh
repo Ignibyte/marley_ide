@@ -678,6 +678,17 @@ def main():
         print(f"  {len(names)} tools: {', '.join(names)}")
         evaluating = [name for name in names if "eval" in name or "script" in name]
         print(f"  tools that evaluate script: {evaluating or 'none'}")
+    elif command == "names":
+        # Each listed tool's name against the pattern a Claude client takes (#533).
+        tools = client.call("tools/list")["result"]["tools"]
+        for tool in tools:
+            fits = re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", tool["name"])
+            print(f"  {'ok ' if fits else 'bad'} {tool['name']}")
+    elif command == "tool":
+        # Any tool by its name, with JSON arguments; the answer or its refusal (#533).
+        result = client.tool(rest[0], json.loads(rest[1]) if len(rest) > 1 else {})
+        if result:
+            print(f"  {rest[0]}: {json.dumps(result.get('structuredContent') or result.get('content'))}")
     elif command == "tabs":
         result = client.tool("browser_tabs")
         for tab in (result or {}).get("structuredContent", {}).get("tabs", []):

@@ -58,6 +58,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   on your search path and your shell's builtins; nothing leaves the machine until you ask. The
   setting English at the Prompt (`marley.english_hint`) turns the hint and the button off.
 
+### Changed
+
+- **The fleet contract's retry ids** (#533, 2026-09-29). `marley_fleet`'s `SendRequest` and
+  `OpenRequest` take an optional retry id (`delivery`, `request`), left out of the JSON when
+  absent, and the crate has the values an accepted send and open return, as rustal-harness's
+  `rh mcp` returns them. The verbs are named by their tool names (`session_send`), and the plan's
+  prong 2 says where the harness stands and that it is embedded in Marley and also runs
+  standalone.
+
 ### Fixed
 
 - **A rerun task's notifications** (#543, 2026-09-29). A task run again in its terminal gets a

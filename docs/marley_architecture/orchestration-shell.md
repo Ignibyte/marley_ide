@@ -10,6 +10,10 @@
 > endpoint exists). The body below is the 2026-07-20 record, kept for the mechanism-not-policy
 > reasoning that outlives Forge.
 
+> **AMENDED 2026-09-29 (#533):** the dotted verb names below (`fleet.snapshot`, `session.send`, …)
+> are this record's own spelling. The wire names are `family_verb` (`fleet_snapshot`, `session_send`)
+> since #491, the form a Claude client can call; the grant classes keep their dots (`session.write`).
+
 > **Status (2026-07-20) — DESIGN, ratified direction. Not scheduled; IDE milestones continue first.**
 > The implementation synthesis of [fleet-control-plane.md](./fleet-control-plane.md) (the end-goal note),
 > produced by the 2026-07-20 owner conversation that digested it. It settles **who does what** (the cast),

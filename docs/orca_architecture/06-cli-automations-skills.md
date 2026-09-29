@@ -829,7 +829,7 @@ Ranked by value for the effort. S is a day, M a few days, L a week or more.
 
 1. MCP only, or MCP plus a thin `marley` CLI for scripts, timers and agents in SSH terminals?
 2. A Marley-local mailbox now, replaced when rustal-harness is embedded, or wait for
-   rustal-harness itself, paused since 2026-09-14?
+   rustal-harness itself, whose agent messages shipped in its M10 (corrected 2026-09-29, #533)?
 3. Where should a transcript index live: in Marley as a disposable cache beside the rail, or in
    Rusty, which already archives some transcripts through the SessionEnd hook?
 4. What permission mode should worktree agents start in: Orca's full-autonomy flags, or Claude

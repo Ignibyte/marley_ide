@@ -1,9 +1,14 @@
 //! The session-verb request/receipt types as pure data (the MCP tool schema seam). Types only — no
 //! transport, no handlers, no I/O; Layer 2 implements the verbs against these shapes.
+//!
+//! Each verb is named here by its MCP tool name, `family_verb` (`session_send`), the only form a
+//! Claude client can call (#491, #533).
 
 use serde::{Deserialize, Serialize};
 
-/// A request to send text to a seat (`session.send`). Layer 2 delivers it receipted, Enter as a
+use crate::DeliveryState;
+
+/// A request to send text to a seat (`session_send`). Layer 2 delivers it receipted, Enter as a
 /// separate write; a refused send (a dialog is up) is a first-class [`Receipt`] outcome.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SendRequest {
@@ -11,9 +16,28 @@ pub struct SendRequest {
     pub id: String,
     /// The text to deliver.
     pub text: String,
+    /// The client's own id for this delivery, a UUID by convention: a retry that carries it again
+    /// is delivered once, and the receipt returns it (#533). Absent, the request is the JSON it was
+    /// before the field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delivery: Option<String>,
 }
 
-/// The line-oriented range for `session.read` (byte offsets were rejected — `capture-pane` is
+/// What an accepted `session_send` returns: the delivery and where it stands, as rustal-harness's
+/// `rh mcp` returns it (#533).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SendReceipt {
+    /// The seat the text went to.
+    pub id: String,
+    /// The delivery's id: the request's own, or one the substrate made.
+    pub delivery: String,
+    /// How far the delivery got.
+    pub state: DeliveryState,
+    /// The substrate's own word for the delivery (such as `failed`), shown and never matched.
+    pub detail: String,
+}
+
+/// The line-oriented range for `session_read` (byte offsets were rejected — `capture-pane` is
 /// line-oriented and byte ranges leak text-encoding into a transport-agnostic envelope).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "mode", rename_all = "snake_case")]
@@ -32,7 +56,7 @@ pub enum ReadRange {
     },
 }
 
-/// A request to read a seat's scrollback (`session.read`).
+/// A request to read a seat's scrollback (`session_read`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReadRequest {
     /// The seat to read.
@@ -41,15 +65,34 @@ pub struct ReadRequest {
     pub range: ReadRange,
 }
 
-/// A request to open a new seat (`session.open`). `profile` is OPAQUE — the profile vocabulary is
+/// A request to open a new seat (`session_open`). `profile` is OPAQUE — the profile vocabulary is
 /// policy (the adapter/manager owns it), not Marley's.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OpenRequest {
     /// The opaque profile identifier for the seat to open.
     pub profile: String,
+    /// The client's own id for this open, a UUID by convention: a retry that carries it again opens
+    /// one seat, and the receipt returns it (#533). Absent, the request is the JSON it was before
+    /// the field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request: Option<String>,
 }
 
-/// A request to surface a seat to the human (`session.surface_to_human`) — the ONE gated write Layer 1
+/// What an accepted `session_open` returns: the new seat, as rustal-harness's `rh mcp` returns it
+/// (#533). Fields a substrate adds beyond these are ignored.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OpenReceipt {
+    /// The new seat's fleet id.
+    pub id: String,
+    /// The new seat's title.
+    pub title: String,
+    /// The profile it opened from.
+    pub profile: String,
+    /// The open's id: the request's own, or one the substrate made.
+    pub request: String,
+}
+
+/// A request to surface a seat to the human (`session_surface_to_human`) — the ONE gated write Layer 1
 /// ships: open/focus the seat so the operator can view it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SurfaceRequest {
@@ -57,7 +100,7 @@ pub struct SurfaceRequest {
     pub id: String,
 }
 
-/// A request to answer a seat's standing question (`session.answer`, #377 — L2 gated-writes ①).
+/// A request to answer a seat's standing question (`session_answer`, #377 — L2 gated-writes ①).
 ///
 /// `choice` is the picked option string VERBATIM (never an index — indices renumber if the question
 /// re-renders; the string is what the human saw). `prompt` is the answered question's prompt — the
@@ -110,6 +153,7 @@ mod tests {
         rt(&SendRequest {
             id: "a".into(),
             text: "hello".into(),
+            delivery: None,
         });
         rt(&ReadRequest {
             id: "a".into(),
@@ -121,6 +165,7 @@ mod tests {
         });
         rt(&OpenRequest {
             profile: "claude".into(),
+            request: None,
         });
         rt(&SurfaceRequest { id: "a".into() });
         // #377: the answer verb — round-trips, and the prompt (the stale-answer refusal key) is on

@@ -3276,3 +3276,13 @@ carries the hook frames out; the plugin's gate passes on `MARLEY_REMOTE`, and a 
 seat exists, for its rail row, whose seat only a `SessionEnd` ends. Hosts come from Zed's
 `ssh_connections`. The embedded harness's remote entry replaces the wrapper later; reattaching
 after a restart is the next slice.
+
+## AD-claude-533-the-harness-embedded-and-standalone-001
+*decided at: 2026-09-29 · status: recorded (the plan's D19)*
+
+rustal-harness is embedded in Marley and also runs standalone (Chad, 2026-09-25). Embedded, Marley
+runs `rh` as its own process, never linked in, and speaks to it over `rh mcp`, the protocol a
+standalone harness on another host speaks over SSH, so one client serves both. Marley answers the
+harness's contract requests in its own tickets and documents (the plan's list under D19) and never
+edits the harness's repository, as the harness never edits Marley's. `marley_fleet`'s retry ids
+are optional and skipped when absent, so every request already in flight keeps its bytes.
