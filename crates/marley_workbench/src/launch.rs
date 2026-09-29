@@ -433,8 +433,13 @@ async fn open_item(
             agents::launch_input(workspace, *kind, cx)
         })?),
     };
+    // An agent's terminal has git's credential prompts off; a command's keeps them (#537).
+    let env = match &item.kind {
+        ItemKind::Agent(_) => agents::agent_env(),
+        _ => HashMap::default(),
+    };
     let opening = workspace.update_in(cx, |workspace, window, cx| {
-        agents::start_in_terminal(workspace, Some(directory), input, window, cx)
+        agents::start_in_terminal(workspace, Some(directory), env, input, window, cx)
     })?;
     let terminal = opening.await?;
     let title = item.title.clone();

@@ -3126,3 +3126,18 @@ keep Zed's behavior, where a selection's indentation is usually wanted. The rule
 `marley_terminal::paste`; Zed's hunks are an early return in `paste`, a line in the `Copy` arm
 and a branch at the top of `add_paths_to_terminal`. Rejected: trimming in every terminal (Orca's
 default); a setting for each rule for now.
+
+## AD-claude-537-agent-terminals-get-git-prompts-off-at-spawn-001
+*decided at: 2026-09-29 · status: shipped*
+
+The terminals Marley opens to start an agent CLI get `GIT_TERMINAL_PROMPT=0` and
+`GCM_INTERACTIVE=never` in their environment when the shell starts, for the terminal's life, after
+the `terminal.env` setting (Orca's rule: agent terminals only). A git command needing credentials
+no helper holds then fails with git's message instead of waiting on a prompt the agent cannot
+answer; helpers still run first. The variables go in through a new
+`Project::create_terminal_shell_with_env`, never typed, so the launch line stays the agent's name
+and flags. Every agent launch shares `agents::start_in_terminal`, so the rail, the picker, worktree
+agents and launch configs' Agent items all get them; a plain terminal, a Terminal item and a
+restored terminal keep git's prompts. ssh's passphrase prompt is not reached by these variables:
+#596 asks for it in Marley. Rejected: typing the variables before the agent's name (they would show
+and enter the history); every terminal (a user's own shell should prompt).

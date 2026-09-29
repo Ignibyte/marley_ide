@@ -295,7 +295,18 @@ impl Project {
         cwd: Option<PathBuf>,
         cx: &mut Context<Self>,
     ) -> Task<Result<Entity<Terminal>>> {
-        self.create_terminal_shell_internal(cwd, false, None, cx)
+        self.create_terminal_shell_internal(cwd, false, None, HashMap::default(), cx)
+    }
+
+    /// Marley: as `create_terminal_shell`, with variables of the terminal's own after the
+    /// settings' `env`, such as the git prompts turned off in an agent CLI's terminal (#537).
+    pub fn create_terminal_shell_with_env(
+        &mut self,
+        cwd: Option<PathBuf>,
+        env: HashMap<String, String>,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<Entity<Terminal>>> {
+        self.create_terminal_shell_internal(cwd, false, None, env, cx)
     }
 
     /// Marley: as `create_terminal_shell`, for a terminal Zed restores, which keeps the
@@ -306,7 +317,7 @@ impl Project {
         terminal_id: Option<String>,
         cx: &mut Context<Self>,
     ) -> Task<Result<Entity<Terminal>>> {
-        self.create_terminal_shell_internal(cwd, false, terminal_id, cx)
+        self.create_terminal_shell_internal(cwd, false, terminal_id, HashMap::default(), cx)
     }
 
     /// Creates a local terminal even if the project is remote.
@@ -323,7 +334,7 @@ impl Project {
             // Local project: use project directory like normal terminals
             self.active_project_directory(cx).map(|p| p.to_path_buf())
         };
-        self.create_terminal_shell_internal(working_directory, true, None, cx)
+        self.create_terminal_shell_internal(working_directory, true, None, HashMap::default(), cx)
     }
 
     /// Internal method for creating terminal shells.
@@ -334,6 +345,7 @@ impl Project {
         cwd: Option<PathBuf>,
         force_local: bool,
         marley_restored_id: Option<String>,
+        marley_extra_env: HashMap<String, String>,
         cx: &mut Context<Self>,
     ) -> Task<Result<Entity<Terminal>>> {
         let path = cwd.map(|p| Arc::from(&*p));
@@ -407,6 +419,8 @@ impl Project {
             // the settings' `env` so the user's values win (#590).
             env.extend(marley_terminal::ports::variables(marley_project.clone()).await);
             env.extend(settings.env);
+            // Marley: the terminal's own variables, over the settings' (#537).
+            env.extend(marley_extra_env);
             // Marley: the project's folder, for Marley's tools to know the caller's project. An
             // inherited value is replaced, and emptied when there is no local folder: the program
             // inherits Marley's own environment besides this map (#520).

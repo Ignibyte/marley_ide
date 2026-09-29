@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #537 (feature, prong 1 T7: the agent CLIs Marley starts in terminals)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/537-git-credential-prompts-off.spec.md
+- **Pipeline doc:** ../../pipeline/completed/537-git-credential-prompts-off.spec.md
 - **Source ticket:** Chad, 2026-09-25: specced at his request with every item decided that day (the brief quotes no words for this one). From the Orca survey: `docs/orca_architecture/02-worktrees-and-review.md` §3 item 8, with §2.13, and the README's "Smaller things worth a day each"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 When an agent runs `git push` to an HTTPS remote that no credential helper answers for, git asks

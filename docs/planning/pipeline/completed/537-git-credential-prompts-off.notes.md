@@ -54,6 +54,17 @@
   at the price of overriding a repository's `core.sshCommand`. *Default: leave SSH alone; this
   box's keys are in its SSH agent.*
 
+- **Promotion, 2026-09-29:** every seam re-read. `create_terminal_shell_internal`
+  (`terminals.rs:332`) now takes `marley_restored_id` (#575) beside `force_local`; its callers are
+  `create_terminal_shell` (293), `create_terminal_shell_restoring` (303) and
+  `create_local_terminal` (315). #590 and #561 put their variables into every shell of a project,
+  so nothing yet passes variables for one terminal. Agent terminals all open through
+  `agents::start_in_terminal` (`agents.rs:327`): `start_cli_with_prompt` (285, which #510's worktree
+  agents call, `worktree_agents.rs:584`) and #527's `launch.rs:437`, whose Agent items launch an
+  agent and whose Terminal items run a command. The factory's other callers: `rail.rs:1973` (New
+  Terminal) and `playwright_scripts.rs:394`. Chad's SSH answer became TICKET-596. Brain
+  (consultation acaa42ca): nothing on this seam.
+
 ### Design
 - **Zed, `crates/project/src/terminals.rs`.** `pub fn create_terminal_shell_with_env(&mut self,
   cwd: Option<PathBuf>, env: HashMap<String, String>, cx: &mut Context<Self>) -> Task<Result<
@@ -67,12 +78,13 @@
 - **`crates/marley_agent/src/marley_agent.rs`.** `pub const GIT_PROMPTS_OFF: [(&str, &str); 2] =
   [("GIT_TERMINAL_PROMPT", "0"), ("GCM_INTERACTIVE", "never")];` with a doc comment on why.
 - **`crates/marley_workbench/src/agents.rs`.** `TerminalFactory` takes the variables;
-  `Launcher::default` uses `Project::create_terminal_shell_with_env`; `start_cli` passes
-  `GIT_PROMPTS_OFF`. **`rail.rs`**'s `new_terminal` passes an empty map. The test factory takes the
-  argument and ignores it.
+  `Launcher::default` uses `Project::create_terminal_shell_with_env`; `start_in_terminal` takes
+  them and `start_cli_with_prompt` passes `GIT_PROMPTS_OFF`. **`launch.rs`** passes the list for an
+  Agent item and none for a Terminal item. **`rail.rs`**'s `new_terminal` and
+  **`playwright_scripts.rs`** pass none. The test factory takes the argument and ignores it.
 - **File manifest.** Zed: `crates/project/src/terminals.rs`. Marley:
-  `crates/marley_agent/src/marley_agent.rs`, `crates/marley_workbench/src/agents.rs`, `rail.rs`,
-  `marley_workbench_tests.rs`; `script/e2e/537-git-credential-prompts-off.sh` at Test.
+  `crates/marley_agent/src/marley_agent.rs`, `crates/marley_workbench/src/agents.rs`, `launch.rs`,
+  `rail.rs`, `playwright_scripts.rs`, `marley_workbench_tests.rs`; `script/e2e/537-git-credential-prompts-off.sh` at Test.
 - **Ledger rows.** The new touchpoint row. At Complete: an AD for "agent terminals only, for the
   terminal's life" (D1) and why the variables go in at spawn and are never typed (D2).
 
@@ -118,3 +130,50 @@ and Git Credential Manager (not installed), whose variable the stand-ins print b
   `pnpm install && claude 'first'`). REQ-004 should allow that prefix for worktree agents: the
   typed text is the setup command, `&&`, and the line `launch_input` makes, still with none of the
   variables. The install runs in the agent's shell, so it gets the same environment.
+
+## Phase 2 — Code
+- **Built:**
+  - `project/src/terminals.rs` (Zed): `create_terminal_shell_with_env`, and `marley_extra_env` on
+    `create_terminal_shell_internal`, added after the settings' `env`; the three existing callers
+    pass an empty map.
+  - `marley_agent.rs`: `GIT_PROMPTS_OFF`, the two variables.
+  - `agents.rs`: `TerminalFactory` takes the variables and defaults to
+    `create_terminal_shell_with_env`; `agent_env()`; `start_in_terminal` takes the variables;
+    `start_cli_with_prompt` (the rail's +, the New Agent picker, #510's worktree agents) passes
+    `agent_env()`. `launch.rs`: an Agent item passes them, a Terminal item none. `rail.rs`'s New
+    Terminal and `playwright_scripts.rs` pass none; the test factory ignores them.
+- **Deviations:** the variables go through `start_in_terminal`, the helper every agent launch now
+  shares (#527 split it out), rather than `start_cli` alone; Chad's SSH answer became #596.
+- **Review of the diff:** the variables enter the environment at spawn and are never typed; they
+  come after `settings.env`, so they win only in an agent's terminal; a restored terminal gets
+  none; a Terminal item of a launch config keeps git's prompts.
+- **Gate:** run 1 red: `too_long_first_doc_paragraph` on `GIT_PROMPTS_OFF`'s doc, split. Run 2 red
+  on a full `/mnt/fast` (`No space left on device`), not the code: Marley's own coverage cache
+  (`llvm-cov-target`, 32G) was removed. Run 3: GATE GREEN [diff].
+
+## Phase 3 — Test
+- **Scenario:** `script/e2e/537-git-credential-prompts-off.sh` under `compositor sway`: a server
+  that answers every request with 401; stand-ins `claude` and `codex` first on the terminals'
+  PATH (checked before any launch) that print the variables, push to the server, print the exit
+  status and a stored credential's user name, and wait.
+- **Run 1:** exit 0, every check passes; the server logged one `GET /fixture.git/info/refs?service=
+  git-receive-pack` per push. Every shot read:
+  - `537-00-menu`: the project's + menu, Claude Code selected under Agent CLIs.
+  - `537-01-rail-agent` (REQ-001 to REQ-004): `$ claude` alone on the typed line, then
+    `GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never`, `fatal: could not read Username for
+    'http://127.0.0.1:<port>': terminal prompts disabled`, `push exited 128`, `username=agent`.
+  - `537-02-picker-agent` (REQ-001, REQ-002): the same from the picker's Codex, `$ codex` typed.
+  - `537-03-plain-terminal` (REQ-005): in a New Terminal the same push waits on `Username for
+    'http://127.0.0.1:<port>':`.
+- **Not reached:** a real remote (no network in a run) and Git Credential Manager (not installed,
+  its variable printed but read by nothing); a launch config's Agent item and a worktree agent
+  take the same `start_in_terminal` path the two launches here prove.
+
+## Phase 4 — Complete
+- **Documented:** `CHANGELOG.md` (Added); `docs/marley/three-prong-plan.md` T7;
+  `docs/marley_architecture/marley_workbench.md` (Agent CLIs); the touchpoint row for
+  `crates/project/src/terminals.rs` describes what shipped.
+- **Knowledge:** `AD-claude-537-agent-terminals-get-git-prompts-off-at-spawn-001`. No `F-…`
+  block. Brain: the decision on consultation acaa42ca, follow-up by 2026-10-29. TICKET-596 queued
+  for ssh's passphrase.
+- **Closed** TICKET-537, archived the pair.

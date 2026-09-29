@@ -1974,7 +1974,7 @@ impl Rail {
         workspace.update(cx, |workspace, cx| {
             let directory = terminal_view::default_working_directory(workspace, cx);
             TerminalPanel::add_center_terminal(workspace, window, cx, move |project, cx| {
-                factory(project, directory, cx)
+                factory(project, directory, collections::HashMap::default(), cx)
             })
             .detach_and_prompt_err(
                 "Could not open a terminal",

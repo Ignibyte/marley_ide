@@ -12,6 +12,7 @@ use std::time::Duration;
 
 use agent_ui::{Agent, AgentPanel, NewExternalAgentThread};
 use anyhow::Context as _;
+use collections::HashMap;
 use fuzzy::{StringMatch, StringMatchCandidate};
 use gpui::{
     App, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable, Global, Render, Task,
@@ -30,13 +31,15 @@ use workspace::{ModalView, Workspace};
 
 use crate::NewAgent;
 
-/// Makes the `Terminal` behind a new center terminal, started in the given directory.
+/// Makes the `Terminal` behind a new center terminal, started in the given directory with the
+/// given variables of its own.
 ///
-/// Production uses `Project::create_terminal_shell` itself, so no line of this crate spawns a
-/// shell; tests hand in a display-only terminal.
+/// Production uses `Project::create_terminal_shell_with_env` itself, so no line of this crate
+/// spawns a shell; tests hand in a display-only terminal.
 pub type TerminalFactory = fn(
     &mut Project,
     Option<PathBuf>,
+    HashMap<String, String>,
     &mut Context<Project>,
 ) -> Task<anyhow::Result<Entity<Terminal>>>;
 
@@ -58,7 +61,7 @@ impl Default for Launcher {
     fn default() -> Self {
         Self {
             search_path: std::env::var_os("PATH"),
-            terminal_factory: Project::create_terminal_shell,
+            terminal_factory: Project::create_terminal_shell_with_env,
         }
     }
 }
@@ -293,7 +296,7 @@ pub fn start_cli_with_prompt(
     let mode = launch_mode(workspace, kind, cx);
     let input = marley_agent::launch_line_after(setup.unwrap_or_default(), kind, mode, prompt);
     let directory = terminal_view::default_working_directory(workspace, cx);
-    start_in_terminal(workspace, directory, Some(input), window, cx).prompt_err(
+    start_in_terminal(workspace, directory, agent_env(), Some(input), window, cx).prompt_err(
         "Could not start the agent",
         window,
         cx,
@@ -321,19 +324,29 @@ pub(crate) fn launch_input(workspace: &Workspace, kind: AgentKind, cx: &App) -> 
     marley_agent::launch_line_after("", kind, launch_mode(workspace, kind, cx), "")
 }
 
-/// Opens a center terminal of `workspace` in `directory`, and types `input` into it once its
-/// shell says it is ready, as Zed's terminal threads start their commands (#527 split it out of
-/// [`start_cli_with_prompt`]). The task gives the terminal once the input is written.
+/// The variables of a terminal opened for an agent CLI: git's credential prompts off (#537).
+pub(crate) fn agent_env() -> HashMap<String, String> {
+    marley_agent::GIT_PROMPTS_OFF
+        .iter()
+        .map(|(name, value)| ((*name).to_string(), (*value).to_string()))
+        .collect()
+}
+
+/// Opens a center terminal of `workspace` in `directory` with the variables `env`, and types
+/// `input` into it once its shell says it is ready, as Zed's terminal threads start their
+/// commands (#527 split it out of [`start_cli_with_prompt`]). The task gives the terminal once
+/// the input is written.
 pub(crate) fn start_in_terminal(
     workspace: &mut Workspace,
     directory: Option<PathBuf>,
+    env: HashMap<String, String>,
     input: Option<Vec<u8>>,
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) -> Task<anyhow::Result<WeakEntity<Terminal>>> {
     let factory = launcher(cx).terminal_factory;
     let terminal = TerminalPanel::add_center_terminal(workspace, window, cx, move |project, cx| {
-        factory(project, directory, cx)
+        factory(project, directory, env, cx)
     });
     cx.spawn_in(window, async move |_, cx| {
         let terminal = terminal.await?;

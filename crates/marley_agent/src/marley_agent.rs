@@ -138,6 +138,14 @@ const fn bypass_arguments(kind: AgentKind) -> &'static [&'static str] {
     }
 }
 
+/// The variables of a terminal Marley opens for an agent CLI (#537).
+///
+/// With them git, and Git Credential Manager where it is installed, fail with a message where they
+/// would wait on a prompt the agent cannot answer. Credential helpers still run before any prompt,
+/// so a stored credential keeps working.
+pub const GIT_PROMPTS_OFF: [(&str, &str); 2] =
+    [("GIT_TERMINAL_PROMPT", "0"), ("GCM_INTERACTIVE", "never")];
+
 /// What starts `kind` in a shell: its program name, the arguments `mode` asks for, and Enter.
 /// Every word is Marley's own.
 #[must_use]

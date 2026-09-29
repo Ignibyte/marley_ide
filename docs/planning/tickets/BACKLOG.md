@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-537](open/TICKET-537-git-credential-prompts-off.md) | feature | prong 1 T7 · git credential prompts off for the agents Marley starts |
 | [TICKET-538](open/TICKET-538-notifications-with-content.md) | feature | prong 1 T7b · notifications that say what happened; after #519 |
 | [TICKET-551](open/TICKET-551-command-end-from-outside.md) | feature | prong 1 T7b · a long command's end as a notification and on its rail row, with the password check; never agent terminals |
 | [TICKET-572](open/TICKET-572-running-command-errors.md) | feature | prong 1 T7b · a dev server that prints an error and keeps running gets a notification and a red mark on its row, recovery clears it; error shapes first, a System One noul for the open lines; after #551, on #565 |
@@ -27,6 +26,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 | [TICKET-541](open/TICKET-541-spawn-in-adapters-ratchet.md) | chore | gate · process spawns held to adapter modules by a ratchet |
 | [TICKET-545](open/TICKET-545-activation-token-hand-off.md) | feature | the app · a second launch hands its launcher's activation token to the running Marley, so a compositor that checks tokens brings the window forward (#513's follow-up) |
 | [TICKET-486](open/TICKET-486-keep-the-terminal-size-across-launches.md) | bug | prong 1 T0 · the first terminals of a launch open at the last session's size (#485's limit) |
+| [TICKET-596](open/TICKET-596-ssh-passphrases-asked-in-marley.md) | feature | prong 1 T7 · an agent's ssh asks for a key's passphrase in a Marley dialog through `SSH_ASKPASS`; split from #537 (Chad's answer, 2026-09-26) |
 
 ## Deliberate (picked explicitly, never auto-next)
 

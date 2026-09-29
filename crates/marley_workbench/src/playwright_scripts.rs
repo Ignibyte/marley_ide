@@ -395,7 +395,7 @@ async fn open_terminal(
         workspace.update(cx, |workspace, cx| {
             let directory = terminal_view::default_working_directory(workspace, cx);
             TerminalPanel::add_center_terminal(workspace, window, cx, move |project, cx| {
-                factory(project, directory, cx)
+                factory(project, directory, collections::HashMap::default(), cx)
             })
         })
     })?;

@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Git asks no agent for a password** (#537, 2026-09-29). The terminals Marley opens for an
+  agent CLI, from the rail's +, the New Agent picker, a worktree agent or a launch config, start
+  with `GIT_TERMINAL_PROMPT=0` and `GCM_INTERACTIVE=never`. A git command there that needs
+  credentials no helper holds fails at once with git's own message, instead of waiting on a
+  prompt the agent cannot answer; stored credentials keep working. Other terminals keep git's
+  prompts.
+
 - **Copy and paste that know an agent runs** (#536, 2026-09-29). While Claude Code, Codex or
   another agent CLI runs in a terminal, a copy of its reply drops the indent every line shares,
   so it pastes flush left elsewhere. A paste of several lines always goes in as one bracketed

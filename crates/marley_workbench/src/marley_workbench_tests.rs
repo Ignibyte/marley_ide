@@ -32,6 +32,7 @@ impl Global for RequestedDirectories {}
 pub(crate) fn display_only_terminal_in(
     _: &mut Project,
     directory: Option<PathBuf>,
+    _: collections::HashMap<String, String>,
     cx: &mut Context<Project>,
 ) -> Task<anyhow::Result<Entity<Terminal>>> {
     cx.default_global::<RequestedDirectories>()

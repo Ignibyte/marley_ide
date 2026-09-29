@@ -346,6 +346,11 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   The subscriptions carry the window, since focus is read at every rebuild.
 ## Agent CLIs (#440)
 
+- **The terminal an agent starts in (#537).** Every agent launch opens its terminal through
+  `start_in_terminal` with `agent_env()`, `marley_agent::GIT_PROMPTS_OFF`
+  (`GIT_TERMINAL_PROMPT=0`, `GCM_INTERACTIVE=never`), handed to Zed's
+  `Project::create_terminal_shell_with_env` at spawn and never typed; a launch config's Terminal
+  item, New Terminal and the Playwright script's terminal pass none.
 - **Recognition.** A terminal whose foreground argv names a known agent CLI
   (`marley_agent::agent_kind_of`) is an agent row. It carries the agent's icon and the title
   the CLI sets over OSC, falling back to the agent's name, and its second line is

@@ -1,7 +1,7 @@
 ---
 pipeline_id: a56e8438-e73a-4470-b16c-8f9ed22f8224
 ticket: docs/planning/tickets/open/TICKET-537-git-credential-prompts-off.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Git credential prompts off in the terminals Marley opens for agent CLIs"
 type: feature
 slice: prong 1 T7 (the agent CLIs Marley starts, #440 and #450), before #510's worktree agents
@@ -22,18 +22,18 @@ cannot answer. Every other terminal keeps git's prompts.
   Manager does not open a window of its own, the value Orca sets for the same reason. Credential
   helpers still run before any prompt would (gitcredentials(7)), so a stored or cached credential
   keeps working.
-- **Which terminals.** The one `agents::start_cli` opens: the rail's Agent CLIs entries (#440) and
-  the New Agent picker's CLI entries (#450). #510's worktree agents and #527's agent items open
-  their terminals through a helper their specs plan to share with `start_cli` in `agents.rs`;
-  the list goes into that helper, so whichever of them lands after this ticket passes it with no
-  work of its own. The variables stay for the terminal's life, so the shell under the agent keeps
-  them after the agent exits.
+- **Which terminals.** Every terminal Marley opens to start an agent CLI, all through
+  `agents::start_in_terminal`: the rail's Agent CLIs entries (#440), the New Agent picker's CLI
+  entries (#450), #510's worktree agents (through `start_cli_with_prompt`), and #527's launch
+  configs' Agent items. A launch config's Terminal item runs a command, not an agent, and gets
+  none. The variables stay for the terminal's life, so the shell under the agent keeps them after
+  the agent exits.
 - **The seam.** `Project::create_terminal_shell` takes no environment. Zed's project crate gains
   `create_terminal_shell_with_env`, which hands extra variables to the same internal builder
-  after the directory's environment and the `terminal.env` setting; the two existing callers of
-  that builder pass none. The launcher's terminal factory takes the variables, New Terminal
-  passes none, and `start_cli` passes the list, which `marley_agent` keeps beside
-  `launch_input`.
+  after the directory's environment and the `terminal.env` setting; its other callers pass none.
+  The launcher's terminal factory and `start_in_terminal` take the variables; New Terminal and
+  the Playwright script's terminal pass none; the agent launches pass the list, which
+  `marley_agent` keeps beside `launch_input`.
 
 ### Out (explicitly deferred)
 - An agent typed by hand at a plain shell's prompt: that terminal was not opened for an agent, and
@@ -42,16 +42,15 @@ cannot answer. Every other terminal keeps git's prompts.
   `terminal_init_command` in a terminal from `Project::create_terminal_shell`
   (`crates/agent_ui/src/agent_panel.rs` 2087, 2138), and Zed's crates start the ACP agents. A
   follow-up can pass the same list through the new function.
-- SSH's own prompts. ssh asks for a key's passphrase and about an unknown host key on the terminal
-  itself, and these variables do not reach it. `GIT_SSH_COMMAND='ssh -o BatchMode=yes'` would, but
-  it overrides a user's `core.sshCommand`, so it is left for Chad (notes, open question). This
-  box's pushes go over SSH with an agent holding the keys.
+- SSH's own prompts. ssh asks for a key's passphrase on the terminal itself, and these variables do
+  not reach it. Chad's answer (notes, 2026-09-26) asks for the passphrase in Marley through
+  `SSH_ASKPASS`: that is #596, split out as a feature of its own.
 - `GIT_ASKPASS` and `core.askPass` (Orca also sets `GIT_ASKPASS` empty when none is set): an
   askpass program opens a window the user can see, and this box has none configured. Orca's
   indexed git config for GCM (`credential.interactive`, `credential.guiPrompt`), which
   `GCM_INTERACTIVE=never` covers.
-- A terminal restored after a restart (`crates/terminal_view/src/persistence.rs:286`) is a plain
-  shell again and gets no variables. #540 plans to resume Claude Code sessions in such terminals;
+- A terminal restored after a restart (`create_terminal_shell_restoring`, #575) is a plain shell
+  again and gets no variables. #540 plans to resume Claude Code sessions in such terminals;
   the restore opens them, not `start_cli`, so #540 should pass the same list where it opens them.
 
 ## Reference (§20)
@@ -122,7 +121,7 @@ Ctrl+C. The server's log in the run log shows each request.
 | REQ-001 | WHEN Marley starts an agent CLI from the rail's + or the New Agent picker, the agent's terminal shall hold `GIT_TERMINAL_PROMPT=0` and `GCM_INTERACTIVE=never` in its environment. | Shots `537-01-rail-agent` and `537-02-picker-agent` (the stand-ins print both) |
 | REQ-002 | WHEN an agent in such a terminal runs a git command that needs credentials no helper holds, git shall fail at once with its "terminal prompts disabled" message instead of waiting on the terminal. | Shots `537-01-rail-agent`, `537-02-picker-agent` (`fatal: could not read Username ...: terminal prompts disabled`, `push exited 128`); the server's log |
 | REQ-003 | WHERE a credential helper holds credentials for the remote, git in an agent's terminal shall still use them without a prompt. | Shot `537-01-rail-agent` (the `store` helper's answer printed) |
-| REQ-004 | WHEN Marley starts the agent, the text typed into the terminal shall be the launch line `launch_input` makes and shall hold none of the variables. | Shot `537-01-rail-agent` (the typed line is `claude`) |
+| REQ-004 | WHEN Marley starts the agent, the text typed into the terminal shall be the launch line `launch_input` makes, after a worktree's setup command and `&&` where #585's Setup box asked for one, and shall hold none of the variables. | Shot `537-01-rail-agent` (the typed line is `claude`) |
 | REQ-005 | WHERE a terminal was not opened for an agent CLI, git shall prompt for credentials as before. | Shot `537-03-plain-terminal` |
 
 ## Phase Plan
@@ -132,8 +131,8 @@ Ctrl+C. The server's log in the run log shows each request.
   factory type, `start_cli` and New Terminal; the test factory in
   `marley_workbench_tests.rs`; fmt and clippy clean (Zed's `./script/clippy` for `project`); a
   review of the diff.
-- **P3 Test:** write and run the scenario, read every shot; #500's scenario again (the rail's +);
-  `script/gates.sh --diff` green.
+- **P3 Test:** write and run the scenario, read every shot; `script/gates.sh --diff` green. No other
+  ticket's scenario runs (2026-09-29 workflow).
 - **P4 Complete:** CHANGELOG; prong 1's T7 row in `docs/marley/three-prong-plan.md` and D5
   (agents in terminals) of `docs/marley/workbench-shell.md`; the touchpoint row checked against
   what shipped; the ledger; close, archive, commit.
