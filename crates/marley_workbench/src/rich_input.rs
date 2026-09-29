@@ -128,10 +128,13 @@ fn send(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
     let text = editor.read(cx).text(cx);
     if !text.trim().is_empty() {
         let terminal = view.read(cx).terminal().clone();
-        terminal.update(cx, |terminal, _| {
-            terminal.paste(&text);
-            terminal.input(b"\r".to_vec());
-        });
+        crate::terminal_drive::paste_then(
+            &terminal,
+            &text,
+            |terminal| terminal.input(b"\r".to_vec()),
+            cx,
+        )
+        .detach();
         editor.update(cx, |editor, cx| editor.set_text("", window, cx));
     }
     close(view, window, cx);

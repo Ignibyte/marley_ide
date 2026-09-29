@@ -257,3 +257,32 @@ agent reading his Claude Code terminal could take the half-typed prompt for outp
   2026-10-29).
 - **Closed:** TICKET-525 moved to `tickets/closed/`; its BACKLOG row went at promotion.
 - **No tests** (§7): the drafted scenario waits for the quality pass.
+
+---
+## Phase 3 — Test (the visual check, after the fact)
+- **Why after:** #525 shipped on 2026-09-29 while the workflow had no visual check; Chad brought it
+  back the same day (7e589cb0a1).
+- **The scenario:** `script/e2e/525-agent-types-into-a-terminal.sh`, `compositor sway`: a Python
+  REPL in the project's terminal, and a stand-in agent reaching Marley's MCP server through the
+  Claude Code plugin's bridge, with the fixture's new `terminal-screen <title>` and
+  `terminal-type <title> [--generation n] [--submit] [--keys a,b] <text>`. Each submitted write
+  is checked on the screen, not only by the tool's answer.
+- **What it found, three bugs, each fixed or filed:**
+  - #593: the write's toast covered the card's Deny and Allow at the footer's right end; a click
+    on Allow hit the toast and the write timed out. The card now leads with Allow and Deny.
+  - #594: the Enter went out in the same burst as the paste, and Python's REPL read it as part of
+    the paste; nothing an agent submitted ran, while the tool said it typed. Keys and Enter now
+    follow the paste after 200 ms, in the rich input and review notes too.
+  - #595 (filed): the drive bar and Ctrl-I's take-over outlive the program an agent typed into.
+- **The shots, read (#594's run 2):** `525-01-repl` (the REPL, `terminal_screen` naming
+  `python3`, REQ-001); `525-02-ask` (the card with Allow and Deny and the toast, REQ-002);
+  `525-03-typed` (`42` under `print(6 * 7)`, the bar with Take Over, REQ-003, REQ-005);
+  `525-04-no-ask` (`again`, no card, REQ-004); `525-05-taken-over` ("You have control", Hand
+  Back; a write refused, REQ-006); `525-06-handed-back` (the old generation refused, the new one
+  typed, REQ-007); `525-07-asks-every-write` and `525-08-denied` (`ask_every_write` asks; Deny
+  types nothing, REQ-008); `525-09-timed-out` (refused after 25 seconds, no card, REQ-010);
+  `525-10-never-ask` (typed with no card, REQ-009); `525-11-shell-refused` (the shell at its
+  prompt refused, REQ-011); `525-12-new-program-asks` (a new program asks again, REQ-002);
+  `525-13-rich-input-open` and `525-14-rich-input-ran` (#594's rich-input check).
+- **Not reached:** REQ-012 (Ctrl-I reaching a program no agent typed into) waits on #595;
+  REQ-013 (the setting on the Marley page) was not opened.

@@ -36,7 +36,11 @@
 #   output (#516). `terminals` lists every terminal: its id, title, project and folder (#513).
 #   `blocks` lists every terminal's blocks: command, exit code, whether it runs and whether its
 #   output is still kept (#546); `blocks-here` lists the blocks of the terminal the agent runs in,
-#   naming none (#520), and `terminals` marks that one `(self)` and gives each `terminal_id`. `fleet` lists `fleet_snapshot`'s seats: each one's id, state and
+#   naming none (#520), and `terminals` marks that one `(self)` and gives each `terminal_id`.
+#   `terminal-screen <title>` reads the screen of the last terminal whose title holds the text:
+#   its program, generation, approval and control, and its last rows; `terminal-type <title>
+#   [--generation <n>] [--submit] [--keys <a,b>] <text>` types into it at the screen's generation
+#   or the one given, and waits for the user's answer when Marley asks (#525). `fleet` lists `fleet_snapshot`'s seats: each one's id, state and
 #   the labels an agent row shows, or `no seats` (#547). `open-url <url> <directory>` asks
 #   `browser_open_url` to open a URL for a program in that folder (#561). `--endpoint <file>`,
 #   first, points the bridge at another endpoint file, an outside client's (#524).
@@ -823,6 +827,38 @@ def main():
             print(f"  terminal {terminal}, block {block['index']}: {read['command']!r}")
             print(f"  redacted: {read['redacted']} in the read, {listed_redacted} in the list")
             print(read["output"])
+    elif command in ("terminal-screen", "terminal-type"):
+        listed = client.tool("terminal_list")
+        terminals = (listed or {}).get("structuredContent", {}).get("terminals", [])
+        matching = [terminal for terminal in terminals if rest[0] in terminal["title"]]
+        if not matching:
+            sys.exit(f"no terminal's title holds {rest[0]!r}")
+        terminal = matching[-1]["id"]
+        screen = (client.tool("terminal_screen", {"terminal": terminal}) or {}).get("structuredContent")
+        if screen is None:
+            sys.exit("terminal_screen gave no screen")
+        if command == "terminal-screen":
+            print(f"  terminal {terminal}: program {screen.get('program')}, generation {screen['generation']}, "
+                  f"approval {screen['approval']}, approved {screen['approved']}, "
+                  f"taken over {screen['taken_over']}, alternate screen {screen.get('alternate_screen')}")
+            for row in [row for row in screen["rows"] if row.strip()][-6:]:
+                print(f"  | {row}")
+        else:
+            arguments = {"terminal": terminal, "generation": screen["generation"]}
+            words = iter(rest[1:])
+            for word in words:
+                if word == "--generation":
+                    arguments["generation"] = int(next(words))
+                elif word == "--submit":
+                    arguments["submit"] = True
+                elif word == "--keys":
+                    arguments["keys"] = next(words).split(",")
+                else:
+                    arguments["text"] = word
+            result = client.tool("terminal_type", arguments)
+            if result:
+                typed = result["structuredContent"]
+                print(f"  typed {typed['written']} bytes into {typed['program']}, generation {typed['generation']}")
     elif command == "recordings":
         result = client.tool("browser_recordings")
         recordings = (result or {}).get("structuredContent", {}).get("recordings", [])

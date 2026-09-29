@@ -767,7 +767,8 @@ alike.
   focuses it; otherwise it calls `cx.propagate()`, and the key goes on to the terminal, which
   sends it to the program.
 - In the editor's `MarleyRichInput` container, Enter (`marley::SendRichInput`) pastes the text
-  with `Terminal::paste`, bracketed when the program asked for it, sends `\r`, clears and closes
+  with `Terminal::paste`, bracketed when the program asked for it, sends `\r` after
+  `terminal_drive::AFTER_PASTE` (`paste_then`, #594), clears and closes
   the editor and focuses the terminal; Escape (`marley::CloseRichInput`) closes it with the draft
   kept; Shift-Enter is `editor::Newline`. The container stops the key events the terminal view
   would send its program, chords and keys that type nothing, and lets text through to the
@@ -819,7 +820,10 @@ alike.
   `Pending` (the caller's words from `click_pause::Who`), notifies the view, shows a toast with
   Show (`browser::reveal_terminal`), and races the answer against 25 seconds; Allow types only if
   the generation is the same and no one took over. `write` pastes the text (`Terminal::paste`),
-  sends each key (`Keystroke::parse`, `Terminal::try_keystroke`) and `\r`, and keeps the last write.
+  then sends each key (`Keystroke::parse`, `Terminal::try_keystroke`) and `\r` once
+  `AFTER_PASTE` (200 ms) has passed, through `paste_then` (#594): a program that reads a
+  bracketed paste to its end marker, as Python's REPL does, takes whatever arrived with it as
+  text. It keeps the last write and answers after the Enter.
 - `footer`, called from `agent_bar`'s footer for a terminal with no agent CLI in front: the card
   (Allow and Deny first, since the toast stacks over the footer's right end (#593); then the
   caller, the program, what it would type) or the bar (who typed what; Take Over,
@@ -869,7 +873,8 @@ alike.
   ready | working | asking for permission | no idle signal", then Copy notes.
 - `deliver`: Copy writes `prompt(notes, None)` to the clipboard; an agent not `ready` gets a
   toast; a ready one, after the picker's update, gets its window activated, its terminal revealed
-  and focused, `Terminal::paste` of `prompt(notes, cwd)` and `\r`, and the diff's editor
+  and focused, `paste_then` of `prompt(notes, cwd)` with `\r` after the pause (#594), and the
+  diff's editor
   `mark_review_notes_sent(ids)`.
 - `prompt` makes each file relative to the agent's folder when it lies under it and hands the
   notes to `marley_agent::review_prompt`.

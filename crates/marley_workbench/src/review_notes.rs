@@ -142,10 +142,13 @@ fn deliver(
                 crate::browser::reveal_terminal(&target.view, window, cx);
                 window.focus(&target.view.focus_handle(cx), cx);
                 let terminal = target.view.read(cx).terminal().clone();
-                terminal.update(cx, |terminal, _| {
-                    terminal.paste(&text);
-                    terminal.input(b"\r".to_vec());
-                });
+                crate::terminal_drive::paste_then(
+                    &terminal,
+                    &text,
+                    |terminal| terminal.input(b"\r".to_vec()),
+                    cx,
+                )
+                .detach();
                 editor
                     .update(cx, |editor, cx| editor.mark_review_notes_sent(&ids, cx))
                     .log_err();

@@ -16,12 +16,14 @@ use std::time::Duration;
 use collections::{BTreeMap, HashMap};
 use futures::channel::oneshot;
 use futures::future::{self, Either};
-use gpui::{AnyElement, App, Context, Entity, EntityId, Global, Keystroke, SharedString};
+use gpui::{AnyElement, App, Context, Entity, EntityId, Global, Keystroke, SharedString, Task};
 use marley_mcp::{AppCall, ToolAnswer};
 use serde_json::{Value, json};
 use settings::{MarleyAgentTerminalWrites, Settings as _};
+use terminal::Terminal;
 use terminal_view::{MarleyFooterContext, TerminalView};
 use ui::{Button, ButtonStyle, Label, LabelSize, prelude::*};
+use util::ResultExt as _;
 use workspace::notifications::NotificationId;
 use workspace::{Toast, Workspace};
 
@@ -32,6 +34,10 @@ use crate::{MarleySettings, TakeOverTerminal};
 /// How long a write waits for the user's answer: under the transport's 30 seconds, so the agent
 /// reads the refusal rather than a timeout.
 const WAIT: Duration = Duration::from_secs(25);
+
+/// How long keys and Enter wait after a paste. A program that reads a bracketed paste up to its
+/// end marker takes whatever came with it as part of the paste, as Python's REPL does.
+pub(crate) const AFTER_PASTE: Duration = Duration::from_millis(200);
 
 /// The most a write types, text, keys and Enter together, the harness's bound.
 const MOST_BYTES: usize = 4096;
@@ -213,11 +219,28 @@ pub(crate) fn type_into(call: AppCall, cx: &mut App) {
         let result = if typing.ask {
             ask_then_type(typing, cx).await
         } else {
-            Ok(cx.update(|cx| write(&typing, cx)))
+            Ok(write(&typing, cx).await)
         };
         call.answer(result);
     })
     .detach();
+}
+
+/// Pastes `text` into `terminal`, bracketed when its program asked for it, and runs `after` on the
+/// terminal once [`AFTER_PASTE`] has passed, so the keys and Enter it sends reach the program as
+/// keys (#594).
+pub(crate) fn paste_then(
+    terminal: &Entity<Terminal>,
+    text: &str,
+    after: impl FnOnce(&mut Terminal) + 'static,
+    cx: &mut App,
+) -> Task<()> {
+    terminal.update(cx, |terminal, _| terminal.paste(text));
+    let terminal = terminal.downgrade();
+    cx.spawn(async move |cx| {
+        cx.background_executor().timer(AFTER_PASTE).await;
+        terminal.update(cx, |terminal, _| after(terminal)).log_err();
+    })
 }
 
 /// The refusals that need no one's answer, and what the write would type.
@@ -388,7 +411,7 @@ async fn ask_then_type(typing: Typing, cx: &gpui::AsyncApp) -> Result<ToolAnswer
                     );
                 }
                 drive.approved = true;
-                Ok(write(&typing, cx))
+                Ok(())
             }
             Some(false) => Err(format!(
                 "the user refused this write to {}; ask them before you try again",
@@ -399,36 +422,42 @@ async fn ask_then_type(typing: Typing, cx: &gpui::AsyncApp) -> Result<ToolAnswer
                 WAIT.as_secs()
             )),
         }
-    })
+    })?;
+    Ok(write(&typing, cx).await)
 }
 
-/// Types the write: the text as a paste, bracketed when the program asked for it, each key, then
-/// Enter.
-fn write(typing: &Typing, cx: &mut App) -> ToolAnswer {
-    let terminal = typing.view.read(cx).terminal().clone();
-    terminal.update(cx, |terminal, _| {
-        if let Some(text) = &typing.text {
-            terminal.paste(text);
-        }
-        for key in &typing.keys {
+/// Types the write: the text as a paste, bracketed when the program asked for it, then each key
+/// and Enter once the paste has landed; answered after the last of them.
+async fn write(typing: &Typing, cx: &gpui::AsyncApp) -> ToolAnswer {
+    let terminal = cx.update(|cx| typing.view.read(cx).terminal().clone());
+    let keys = typing.keys.clone();
+    let submit = typing.submit;
+    let after = move |terminal: &mut Terminal| {
+        for key in &keys {
             terminal.try_keystroke(key, false);
         }
-        if typing.submit {
+        if submit {
             terminal.input(b"\r".to_vec());
         }
-    });
-    let text = shown(typing);
-    drive(&typing.view, cx).last_write = Some(Written {
-        who: typing.who.clone(),
-        program: typing.program.clone(),
-        text,
-    });
-    typing.view.update(cx, |_, cx| cx.notify());
-    answer_of(json!({
-        "written": typing.bytes,
-        "program": typing.program,
-        "generation": typing.generation,
-    }))
+    };
+    match &typing.text {
+        Some(text) => cx.update(|cx| paste_then(&terminal, text, after, cx)).await,
+        None => cx.update(|cx| terminal.update(cx, |terminal, _| after(terminal))),
+    }
+    cx.update(|cx| {
+        let text = shown(typing);
+        drive(&typing.view, cx).last_write = Some(Written {
+            who: typing.who.clone(),
+            program: typing.program.clone(),
+            text,
+        });
+        typing.view.update(cx, |_, cx| cx.notify());
+        answer_of(json!({
+            "written": typing.bytes,
+            "program": typing.program,
+            "generation": typing.generation,
+        }))
+    })
 }
 
 /// An answer whose text is its JSON.

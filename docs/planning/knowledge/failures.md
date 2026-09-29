@@ -2732,3 +2732,15 @@ toasts at the workspace's bottom right: over those buttons whenever the terminal
 center. The scenario's click on Allow hit the toast, and the write was refused after 25 seconds;
 a user would have had to close the toast first. #525's review never placed the two together.
 Fixed in #593: Allow, Deny, then the text, so the buttons sit at the footer's left end.
+
+## F-claude-594-an-enter-sent-with-a-paste-was-read-as-part-of-it-001
+*severity: high · found in: #525's visual check, after the fact (#593's run, shot 525-03-typed) · class: keys written to a pty in the same burst as a bracketed paste · prevented by: PR-claude-keys-after-a-paste-go-in-a-later-write-001*
+
+`terminal_type` (#525) pasted the agent's text and sent its keys and `\r` in one update; the
+rich input (#481) and review notes (#522) did the same with Enter. Python's REPL (3.13 and
+later) reads a bracketed paste by draining pending input until the end marker and inserts all of
+it, so the `\r` became a new line of the paste: every submitted line sat in the REPL as `...`
+and none ran, while the tool answered `typed 13 bytes`. #525's own review had passed on a
+stand-in; #481's and #522's stand-ins read lines, which an Enter in any read ends. Fixed in #594:
+`terminal_drive::paste_then` pastes, waits `AFTER_PASTE` (200 ms), then sends what follows, and
+all three paths use it.

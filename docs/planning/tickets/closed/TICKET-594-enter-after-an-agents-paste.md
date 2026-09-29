@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #594 (bug, T-series agent terminal writes, after #525)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** (none yet)
+- **Pipeline doc:** ../../pipeline/completed/594-enter-after-an-agents-paste.spec.md
 - **Source ticket:** found in #525's visual check, after the fact (#593's run, shot 525-03-typed)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 `terminal_type` (#525) pastes an agent's text and sends its keys and Enter in the same burst.

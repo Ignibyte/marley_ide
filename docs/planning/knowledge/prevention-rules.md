@@ -2571,3 +2571,13 @@ single line breaks join, `--` and quotes are rewritten, and markup can hide text
 must read as written, above all a repository's command or a path on a question that approves it,
 goes in a fenced code block whose fence is longer than any run of backticks inside
 (`launch::verbatim`). Marley's own sentences can stay plain.
+
+## PR-claude-keys-after-a-paste-go-in-a-later-write-001
+*severity: high · prevents: F-claude-594-an-enter-sent-with-a-paste-was-read-as-part-of-it-001*
+
+A program may read a bracketed paste together with whatever input is waiting, as Python's REPL
+does, and take a following Enter or key as text. Anything Marley sends after `Terminal::paste`,
+an Enter above all, goes through `terminal_drive::paste_then`, which sends it after
+`AFTER_PASTE`. A visual check of a paste-then-Enter path runs a program that reads bracketed
+pastes (`python3 -q`), not a stand-in that reads lines, and checks the program's output on the
+screen, not the tool's answer.

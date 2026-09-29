@@ -1018,6 +1018,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **An agent's Enter runs the line** (#594, 2026-09-29). When an agent typed into a running
+  program with `terminal_type` and pressed Enter, Python's REPL took the Enter as part of the
+  pasted text: the line sat there with `...` and never ran, while the tool said it was typed.
+  The same could happen to the rich input's Enter and to review notes sent to an agent. Marley
+  now presses Enter, and any keys, a moment after the paste, so the program reads them as keys.
 - **Allow and Deny sit clear of the toast** (#593, 2026-09-29). When an agent asked to type into a
   running program, the toast that announced it covered Allow and Deny at the right end of the
   card under the terminal, so a click there hit the toast and the write ran out its 25 seconds.
