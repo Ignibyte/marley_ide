@@ -564,6 +564,8 @@ fn init_renderers(cx: &mut App) {
         .add_basic_renderer::<settings::SystemOneMode>(render_dropdown)
         // Marley: the Browser Click Pause Agents dropdown (#571).
         .add_basic_renderer::<settings::MarleyClickPauseAgents>(render_dropdown)
+        // Marley: when an agent's terminal writes ask the user (#525).
+        .add_basic_renderer::<settings::MarleyAgentTerminalWrites>(render_dropdown)
         // Marley: the Claude Code and Codex Permissions dropdowns (#532).
         .add_basic_renderer::<settings::ClaudeCodePermissions>(render_dropdown)
         .add_basic_renderer::<settings::CodexPermissions>(render_dropdown)

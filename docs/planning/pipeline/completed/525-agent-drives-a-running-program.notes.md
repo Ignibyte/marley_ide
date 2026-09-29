@@ -86,6 +86,26 @@
 - **Decisions:** D1 to D9 in the spec. The setting's name, `agent_terminal_writes`, and its values
   follow Warp's three modes in Marley's words.
 
+### Changed at promotion (2026-09-29; each item overrides the design below)
+- **Checklist** (no task tool): pre-flight ✓ (no other active pipeline, cargo idle); recall ✓;
+  the brain ✓ (nothing on this seam); promoted ✓; the seams re-verified by an Explore agent at
+  5bbb1c3453 ✓.
+- **#520 landed:** `AppCall::caller()` names the calling terminal and client, so the card names the
+  agent (`click_pause::Who`), and a first write's approval holds for that program only.
+- **#571 is the approval's template:** a 25-second wait raced against a oneshot, a toast with Show,
+  a focus-guarded card; `terminal_type` copies its shape.
+- **The screen** comes from `Terminal::last_content()` (the viewport's cells, the cursor, the mode),
+  with `scrolled` in the answer when the user has scrolled back; no Zed touch in `alacritty.rs`.
+- **The generation** follows the foreground process group's leader (`Terminal::pid()`, read at
+  each call), since a program restarted under the same name sends no title change.
+- **Keys** go through `gpui::Keystroke::parse` and `Terminal::try_keystroke` (`to_esc_str` is
+  private to the terminal crate); a name `try_keystroke` does not know is refused before anything
+  is typed.
+- **Where things live:** the rows and schemas in `marley_mcp`'s registry; the grant in `mcp.rs`; the
+  state, the answers, the approval and the take-over in a new `terminal_drive.rs`; the card and the
+  bar in `agent_bar::render`'s no-agent branch (the footer hook); the setting beside
+  `browser_click_pause_agents`.
+
 ### Design
 - **Approach.**
   - *The screen.* `Terminal::marley_screen()` returns `MarleyScreen { rows, cursor_row,
@@ -150,35 +170,8 @@
   `crates/settings_content/src/marley.rs`, `crates/settings_ui/src/marley_page.rs`,
   `crates/settings_ui/src/settings_ui.rs` and `assets/settings/default.json` with the #525 hunks.
 
-### E2E plan
-`script/e2e/525-agent-drives-a-running-program.sh`, `compositor sway`. Setup: a scratch HOME whose
-`.bashrc` sets `PS1='$ '` and defines `agent()` to run the stand-in client; `demo.db` made with
-`sqlite3` (a `users` table of three rows); the client (`mcp-client.py`, #491's shape) with
-`screen`, `type` and `wait-type` commands, run from the harness in the background when a call
-waits on the card; a stand-in `claude` first on the PATH that prints a line and waits, typed at a prompt so it leads
-the foreground group (L-claude-477);
-the profile copy's `marley` block rewritten between steps for the modes.
-
-| REQ | Step | Shot or log |
-|---|---|---|
-| REQ-012 | at the bash prompt, `ech` and Ctrl-I | `525-00-ctrl-i-completes`: `echo` completed |
-| REQ-001 | `sqlite3 demo.db`; the client's `screen` | `525-01-screen`; the log's rows, cursor, program `sqlite3` and generation |
-| REQ-002 | `type "select count(*) from users;" submit` in the background | `525-02-asked`: the card and the toast |
-| REQ-003, REQ-005 | click Allow | `525-03-typed`: `3` under the query, the bar naming sqlite3; the log's accepted bytes |
-| REQ-004 | a second `type` | `525-04-no-second-ask` |
-| REQ-006 | a click in the terminal, Ctrl-I; a `type` | `525-05-taken-over`; the log's refusal |
-| REQ-007 | Ctrl-I; a `type` with the old generation, then `screen` and a `type` with the new | `525-06-handed-back`; the log |
-| REQ-008 | the setting at `ask_every_write`; a `type`; click Deny | `525-07-denied`; the log's refusal |
-| REQ-009 | `never_ask`; a `type` | `525-08-never` |
-| REQ-013 | `marley: open settings` | `525-09-setting` |
-| REQ-002 | `ask_first_write`; `.quit`, `sqlite3 demo.db` again; a `type` | `525-10-asked-again` |
-| REQ-010 | 25 seconds with no answer | `525-11-expired`; the log's refusal |
-| REQ-011 | `.quit`; a `type` at the prompt; `claude` in a second terminal and a `type` there | the log's two refusals |
-| REQ-014 | `just gate-diff` | the gate's exit |
-
-Not reachable by a scenario: a real psql or gdb session (sqlite3 stands in: a database shell with
-a readline prompt and bracketed paste), and a real Claude Code calling the tools (the stand-in
-client speaks the same JSON-RPC through the same bridge).
+### For the quality pass
+- No tests (§7, since 2026-09-29): the drafted scenario waits for the quality pass.
 
 ### Risks
 - **The slice is large.** If Code finds it so, the fallback split keeps REQ-001 to REQ-007, REQ-011
@@ -229,3 +222,38 @@ agent reading his Claude Code terminal could take the half-typed prompt for outp
   `draft`. Verify: the run log, with the stand-in `claude` drawing a frame line and `❯ ` and the
   scenario typing part of a prompt before the client's `screen`. The existing refusal (REQ-011,
   an agent CLI takes no `terminal_type`) stands; this item is about the read only.
+
+## Phase 2 — Code
+- **Checklist** (no task tool): the ledger rows (four Zed paths, the setting) ✓; the registry rows
+  and schemas ✓; `terminal_drive.rs` ✓; the footer hook ✓; the setting, its dropdown, the page
+  item and the default ✓; the action and Ctrl-I ✓; the grant and the dispatch ✓; the review ✓;
+  the gate ✓.
+- **Built as the changes at promotion say.** Compile and clippy asked for `ToolAnswer` answers,
+  `Cell::character()` and `is_wide_char_spacer()` (the cell's field is private), the footer's weak
+  view upgraded, the no-agent footer split out of `agent_bar::render` (past 100 lines), and `&App`
+  where nothing mutates.
+- **The review**, against each criterion:
+  - The screen: rows from the viewport's cells; `scrolled` says when the user scrolled back.
+  - A write is refused at the shell's prompt (the foreground pid is the shell's), into an agent
+    CLI, for another generation, while taken over, and while another write waits; the generation
+    is read again after the user's Allow.
+  - A key that parses to a plain character is refused before anything is typed, since
+    `try_keystroke` sends none for it.
+  - Ctrl-I toggles only while an agent has typed into the focused terminal's program or the user
+    holds it, and otherwise propagates to the program, as Ctrl-G does for the rich input.
+  - The card's answer after the call stopped waiting finds no sender and types nothing.
+- **The gate:** `just gate-diff` green: 16 passed, 0 failed, `GATE GREEN [diff]`, the receipt
+  written.
+
+---
+## Phase 3 — Complete
+- **Checklist** (no task tool): document ✓; capture knowledge ✓; close the ticket ✓; archive ✓;
+  commit ✓.
+- **Documented:** `CHANGELOG.md`; `docs/marley_architecture/marley_workbench.md` ("An agent that
+  drives a running program"); `docs/marley_architecture/marley_mcp.md`; `docs/marley/guide.md`
+  (the two tools, the approval and the take-over). The four touchpoint rows name the setting.
+- **Knowledge:** AD-claude-525-an-agent-types-into-a-running-program-behind-a-generation-and-an-approval-001.
+- **Brain:** consultation dfeb4e679408420f9b14e4feafeaceee closed with a decision (follow-up
+  2026-10-29).
+- **Closed:** TICKET-525 moved to `tickets/closed/`; its BACKLOG row went at promotion.
+- **No tests** (§7): the drafted scenario waits for the quality pass.

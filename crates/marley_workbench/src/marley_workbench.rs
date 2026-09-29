@@ -53,6 +53,7 @@ pub mod send_selection;
 pub mod single_instance;
 pub mod stall;
 pub mod system_one;
+pub mod terminal_drive;
 pub mod terminal_ids;
 pub mod turn_git;
 pub mod turns;
@@ -118,6 +119,10 @@ actions!(
         /// agent, the key goes to the terminal's program.
         #[derive(Eq)]
         RichInput,
+        /// Takes the focused terminal over from the agent typing into its program, or hands it
+        /// back; without such an agent, the key goes to the terminal's program (#525).
+        #[derive(Eq)]
+        TakeOverTerminal,
         /// Sends the rich input's text to the agent as its prompt.
         #[derive(Eq)]
         SendRichInput,
@@ -255,6 +260,8 @@ pub struct MarleySettings {
     pub terminal_links: MarleyTerminalLinks,
     /// Whose consequential clicks in the Browser tab wait for Allow (#571).
     pub browser_click_pause_agents: MarleyClickPauseAgents,
+    /// When an agent's writes into a running program ask the user (#525).
+    pub agent_terminal_writes: settings::MarleyAgentTerminalWrites,
     /// What Marley starts Claude Code and Codex with (#532).
     pub agent_permissions: agents::AgentPermissions,
     /// Who answers Claude Code's trust question in a new worktree (#587).
@@ -320,6 +327,9 @@ impl Settings for MarleySettings {
                 .unwrap_or_default(),
             browser_click_pause_agents: marley
                 .and_then(|marley| marley.browser_click_pause_agents)
+                .unwrap_or_default(),
+            agent_terminal_writes: marley
+                .and_then(|marley| marley.agent_terminal_writes)
                 .unwrap_or_default(),
             agent_permissions: agents::AgentPermissions::from_content(marley),
             claude_code_worktree_trust: marley
@@ -413,6 +423,7 @@ pub fn init(cx: &mut App) {
     send_selection::init(cx);
     review_notes::init(cx);
     launch::init(cx);
+    terminal_drive::init(cx);
     autosuggest::init(cx);
     browser::init(cx);
     clients::init(cx);

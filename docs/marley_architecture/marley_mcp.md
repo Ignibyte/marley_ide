@@ -18,6 +18,10 @@ OR Apache-2.0, with the Marley crates' lint table.
   the served families, `terminal`, `browser` (#492) and `ports` (#521), while `fleet` and
   `session` wait for prong 2's C1. A client that names one of their tools still reaches it: the
   fleet is empty, and a session write is denied without a grant.
+- **Driving a running program (#525).** `terminal_screen` (read) and `terminal_type` (write,
+  grant class `terminal.write`), with their schemas in `terminal_screen_schemas` and
+  `terminal_type_schemas`; the terminal family's calls defer to the app as before. Outside
+  clients reach neither: they are on no client list.
 - **Conditional tools (#567).** `CONDITIONAL_TOOLS` names the tools listed and called only while
   the user turns them on: `browser_find` and `terminal_find`, each the System One use of its
   name. `RequestCtx.enabled` holds the ones on, from `ServerData.enabled`, which the app sets

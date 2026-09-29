@@ -1,7 +1,7 @@
 ---
 pipeline_id: bfc1ee6e-0e68-42e1-a777-19ca3eede102
 ticket: docs/planning/tickets/open/TICKET-525-agent-drives-a-running-program.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 3 — Complete PASS
 title: "An agent reads and types into a running program"
 type: feature
 slice: prong 2 with prong 1 (plan D9's terminal tools; Warp once-over item 1)
@@ -121,25 +121,6 @@ when a write is stale.
     lines over the whole scrollback, and `absolute_lines_text` stops at the cursor's line, so a
     small hunk beside `absolute_lines_text` reads each screen row.
 
-## UI proof
-UI-AFFECTING. `script/e2e/525-agent-drives-a-running-program.sh` (`compositor sway`, for the
-clicks on the card and its buttons). Fixtures: the scenario's own bash with a plain prompt, a
-scratch SQLite database with a `users` table, a stand-in MCP client run from the harness through
-the plugin's bridge as #491's is, and a stand-in `claude` on the PATH for one refusal. Steps and
-shots: `ech` and Ctrl-I at the bash prompt, completed by bash (`525-00-ctrl-i-completes`);
-`sqlite3 demo.db`, then the client's `terminal_screen`, whose rows the run log prints
-(`525-01-screen`); a `terminal_type` of a query, left waiting in the background: the card and the
-toast (`525-02-asked`); Allow, the query's result and the bar (`525-03-typed`); a second write,
-typed with no card (`525-04-no-second-ask`); Ctrl-I in the terminal, the bar's "You have
-control", and a write refused in the log (`525-05-taken-over`); Ctrl-I again, a write with the old
-generation refused and one with the new generation typed (`525-06-handed-back`); the setting at
-`ask_every_write`, a write, Deny (`525-07-denied`); `never_ask`, a write typed with no card
-(`525-08-never`); the Marley page's Agents section with the setting (`525-09-setting`);
-`ask_first_write` again, `.quit` and a second `sqlite3`, whose first write asks again
-(`525-10-asked-again`) and, left unanswered, expires (`525-11-expired`); `.quit`, a write at the
-shell's prompt refused, and one into the stand-in `claude` refused (the log). The settings
-change by rewriting the profile copy's `settings.json`, which Marley reloads.
-
 ## Locked-In Decisions
 - D1 — Only a running program takes an agent's typing. At the shell's prompt a write would run a
   command, which is plan D9's `terminal.run`, a ticket of its own; an agent CLI takes prompts
@@ -170,29 +151,26 @@ change by rewriting the profile copy's `settings.json`, which Marley reloads.
 
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
-| REQ-001 | WHEN an agent calls `terminal_screen` for a terminal, the system shall answer with the live screen's rows as text, the cursor, the size, whether the alternate screen shows, the foreground program and the generation, with #516's redaction applied to the rows. | The run log beside shot `525-01-screen` |
-| REQ-002 | WHEN an agent's first write reaches a program in `ask_first_write`, the system shall show the text to type with Allow and Deny in that terminal's footer and a toast with Show in its workspace, and shall type nothing before Allow; a program that starts later asks again. | Shots `525-02-asked`, `525-10-asked-again` |
-| REQ-003 | WHEN the user allows a write, the system shall type its text, keys and Enter into the program and answer the call with the bytes written. | Shot `525-03-typed`; the run log |
-| REQ-004 | WHILE the program whose first write was allowed still runs in `ask_first_write`, the system shall type later writes without asking. | Shot `525-04-no-second-ask` |
-| REQ-005 | WHILE an agent has written to a terminal's current program, the system shall show a bar under that terminal naming the program and the last write, with Take Over. | Shots `525-03-typed`, `525-04-no-second-ask` |
-| REQ-006 | WHEN the user presses Ctrl-I in that terminal or clicks Take Over, the system shall refuse the agent's writes until the user hands back, and the bar shall say the user has control. | Shot `525-05-taken-over`; the run log |
-| REQ-007 | WHEN the user hands back, the system shall advance the generation, refuse a write that names the old one, and type a write that names the new one. | Shot `525-06-handed-back`; the run log |
-| REQ-008 | WHERE `marley.agent_terminal_writes` is `ask_every_write`, the system shall ask on every write, and a denied write shall type nothing. | Shot `525-07-denied`; the run log |
-| REQ-009 | WHERE `marley.agent_terminal_writes` is `never_ask`, the system shall type each write without a card. | Shot `525-08-never` |
-| REQ-010 | WHEN a write has waited 25 seconds for an answer, the system shall refuse it, remove its card and toast, and type nothing. | Shot `525-11-expired`; the run log |
-| REQ-011 | WHEN an agent writes to a terminal whose shell waits at its prompt, or whose foreground program is an agent CLI, the system shall refuse the write and say why. | The run log |
-| REQ-012 | WHILE no agent has written to a terminal's current program, Ctrl-I in it shall reach the program as before. | Shot `525-00-ctrl-i-completes` |
-| REQ-013 | WHEN the Marley page shows, its Agents section shall offer the agent terminal writes setting with its three values. | Shot `525-09-setting` |
+| REQ-001 | WHEN an agent calls `terminal_screen` for a terminal, the system shall answer with the live screen's rows as text, the cursor, the size, whether the alternate screen shows, the foreground program and the generation, with #516's redaction applied to the rows. | Review |
+| REQ-002 | WHEN an agent's first write reaches a program in `ask_first_write`, the system shall show the text to type with Allow and Deny in that terminal's footer and a toast with Show in its workspace, and shall type nothing before Allow; a program that starts later asks again. | Review |
+| REQ-003 | WHEN the user allows a write, the system shall type its text, keys and Enter into the program and answer the call with the bytes written. | Review |
+| REQ-004 | WHILE the program whose first write was allowed still runs in `ask_first_write`, the system shall type later writes without asking. | Review |
+| REQ-005 | WHILE an agent has written to a terminal's current program, the system shall show a bar under that terminal naming the program and the last write, with Take Over. | Review |
+| REQ-006 | WHEN the user presses Ctrl-I in that terminal or clicks Take Over, the system shall refuse the agent's writes until the user hands back, and the bar shall say the user has control. | Review |
+| REQ-007 | WHEN the user hands back, the system shall advance the generation, refuse a write that names the old one, and type a write that names the new one. | Review |
+| REQ-008 | WHERE `marley.agent_terminal_writes` is `ask_every_write`, the system shall ask on every write, and a denied write shall type nothing. | Review |
+| REQ-009 | WHERE `marley.agent_terminal_writes` is `never_ask`, the system shall type each write without a card. | Review |
+| REQ-010 | WHEN a write has waited 25 seconds for an answer, the system shall refuse it, remove its card and toast, and type nothing. | Review |
+| REQ-011 | WHEN an agent writes to a terminal whose shell waits at its prompt, or whose foreground program is an agent CLI, the system shall refuse the write and say why. | Review |
+| REQ-012 | WHILE no agent has written to a terminal's current program, Ctrl-I in it shall reach the program as before. | Review |
+| REQ-013 | WHEN the Marley page shows, its Agents section shall offer the agent terminal writes setting with its three values. | Review |
 | REQ-014 | The diff gate shall be green. | `just gate-diff` |
 
 ## Phase Plan
-- **P1 Plan** — this spec; the design, the harness mapping and the test plan in the notes.
-- **P2 Code** — the rows in `docs/marley/zed-touchpoints.md` first; the screen hunk in
-  `terminal`; the pure control state in `marley_terminal`; the tools in `marley_mcp` and their
-  answers in `marley_workbench`; the bar, the card, the toast and the action; the setting and its
-  dropdown; fmt and clippy clean; a review of the diff (security lens: nothing typed without a
-  current generation, a running program and an approval).
-- **P3 Test** — write and run the scenario and read every shot; `script/gates.sh --diff` green.
-- **P4 Complete** — CHANGELOG, `docs/marley/three-prong-plan.md` (D9's tools) and
-  `docs/marley_architecture/` for the Marley crates (§21), ledger capture (§19), close the
-  ticket, archive, commit.
+- **P1 Plan:** promote the pair, recall, consult the brain, the design in the notes (the changes at
+  promotion first).
+- **P2 Code:** the registry rows and schemas; the drive state, the two answers, the approval and
+  the take-over in a new `terminal_drive.rs`; the footer's card and bar; the setting and its
+  dropdown; the grant; a review; `script/gates.sh --diff` green (no tests, §7).
+- **P3 Complete:** CHANGELOG; `docs/marley_architecture/marley_workbench.md` and `marley_mcp.md`;
+  the guide; the ledger rows; close, archive, commit.

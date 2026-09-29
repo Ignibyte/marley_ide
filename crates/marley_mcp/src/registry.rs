@@ -142,6 +142,32 @@ const REGISTRY: &[ToolSpec] = &[
                       `[redacted: <kind>]`. Listed while the user turns it on \
                       (marley.system_one.uses.terminal_find).",
     },
+    ToolSpec {
+        family: Family::Terminal,
+        verb: "screen",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "Read what a terminal's screen shows now, from the calling terminal when \
+                      `terminal` is left out: its rows, the cursor, whether a full-screen \
+                      program has the alternate screen, the program in the foreground (none \
+                      while the shell waits at its prompt), and who controls it: `generation`, \
+                      which terminal_type needs, `taken_over`, and whether the user approved \
+                      writes to this program. Secrets come back as `[redacted: <kind>]`.",
+    },
+    ToolSpec {
+        family: Family::Terminal,
+        verb: "type",
+        tier: Tier::Write,
+        grant_class: "terminal.write",
+        description: "Type into the program running in a terminal's foreground (psql, a \
+                      debugger, a REPL, a dev server's prompt): `text` as a paste, then each of \
+                      `keys` by name (escape, ctrl-c, up, tab), then Enter when `submit` is \
+                      true, at most 4,096 bytes. Give the `generation` terminal_screen gave; a \
+                      write is refused when the program changed since, at the shell's prompt, \
+                      into an agent CLI, while the user has taken over, or when the user denies \
+                      it or does not answer within 25 seconds: Marley asks before the first \
+                      write to each program unless the user chose otherwise.",
+    },
     browser_read(
         "tabs",
         "List Marley's Browser tabs, one per page, across every project's browser (each project \
@@ -1206,6 +1232,8 @@ fn terminal_schemas(verb: &str) -> (Value, Value) {
         "blocks" => terminal_blocks_schemas(),
         "read" => terminal_read_schemas(),
         "find" => terminal_find_schemas(),
+        "screen" => terminal_screen_schemas(),
+        "type" => terminal_type_schemas(),
         _ => terminal_list_schemas(),
     }
 }
@@ -1382,6 +1410,79 @@ fn terminal_read_schemas() -> (Value, Value) {
                 }
             },
             "required": ["terminal", "block", "command", "running", "output", "truncated"]
+        }),
+    )
+}
+
+/// `terminal_screen` (#525): a terminal; its screen and who controls it.
+fn terminal_screen_schemas() -> (Value, Value) {
+    (
+        json!({
+            "type": "object",
+            "properties": { "terminal": terminal_argument_schema() },
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "terminal": { "type": "integer" },
+                "rows": { "type": "array", "items": { "type": "string" } },
+                "cursor": {
+                    "type": "object",
+                    "properties": {
+                        "row": { "type": "integer" },
+                        "column": { "type": "integer" }
+                    }
+                },
+                "columns": { "type": "integer" },
+                "lines": { "type": "integer" },
+                "alternate_screen": { "type": "boolean" },
+                "scrolled": {
+                    "type": "boolean",
+                    "description": "Whether the user scrolled back, so the rows are not the bottom of the screen."
+                },
+                "program": { "type": ["string", "null"] },
+                "generation": { "type": "integer" },
+                "taken_over": { "type": "boolean" },
+                "approval": { "type": "string", "enum": ["ask_first_write", "ask_every_write", "never_ask"] },
+                "approved": { "type": "boolean" },
+                "redacted": { "type": "integer" }
+            },
+            "required": ["terminal", "rows", "generation", "taken_over", "approval", "approved"]
+        }),
+    )
+}
+
+/// `terminal_type` (#525): a terminal, its generation, and what to type; what was typed.
+fn terminal_type_schemas() -> (Value, Value) {
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "terminal": terminal_argument_schema(),
+                "generation": {
+                    "type": "integer",
+                    "description": "The terminal's generation, from terminal_screen."
+                },
+                "text": { "type": "string", "description": "Text to type, as a paste." },
+                "keys": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Keys by name after the text: escape, ctrl-c, up, tab."
+                },
+                "submit": { "type": "boolean", "description": "Press Enter last." }
+            },
+            "required": ["generation"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "written": { "type": "integer" },
+                "program": { "type": "string" },
+                "generation": { "type": "integer" }
+            },
+            "required": ["written", "program", "generation"]
         }),
     )
 }

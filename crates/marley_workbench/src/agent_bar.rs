@@ -147,6 +147,42 @@ fn branch_for<'a>(
         .and_then(|(_, branch)| branch.cloned())
 }
 
+/// The footer of a terminal with no agent CLI in its foreground: the card or bar of an agent
+/// typing into its program (#525), and the strip while it offers a URL (#503).
+fn footer_without_agent(
+    context: &MarleyFooterContext,
+    offer: Option<AnyElement>,
+    cx: &App,
+) -> Option<AnyElement> {
+    let drive = crate::terminal_drive::footer(context, cx);
+    let colors = cx.theme().colors();
+    let strip = offer.map(|offer| {
+        h_flex()
+            .debug_selector(|| "marley-served-url-strip".into())
+            .flex_none()
+            .w_full()
+            .justify_end()
+            .px_2()
+            .py_1()
+            .border_t_1()
+            .border_color(colors.border_variant)
+            .bg(colors.terminal_background)
+            .child(offer)
+            .into_any_element()
+    });
+    match (drive, strip) {
+        (Some(drive), Some(strip)) => Some(
+            v_flex()
+                .w_full()
+                .flex_none()
+                .child(drive)
+                .child(strip)
+                .into_any_element(),
+        ),
+        (drive, strip) => drive.or(strip),
+    }
+}
+
 fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option<AnyElement> {
     let offer = links::offer(context, cx).map(|url| links::offer_button(context, url));
     let Some(BarContents {
@@ -155,22 +191,7 @@ fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option
         branch,
     }) = contents(context, cx)
     else {
-        // A terminal with no agent shows a strip only while it offers a URL (#503).
-        let colors = cx.theme().colors();
-        return offer.map(|offer| {
-            h_flex()
-                .debug_selector(|| "marley-served-url-strip".into())
-                .flex_none()
-                .w_full()
-                .justify_end()
-                .px_2()
-                .py_1()
-                .border_t_1()
-                .border_color(colors.border_variant)
-                .bg(colors.terminal_background)
-                .child(offer)
-                .into_any_element()
-        });
+        return footer_without_agent(context, offer, cx);
     };
     let microphone = microphone(context, cx);
     let prompt_editor = rich_input::element(context, cx);

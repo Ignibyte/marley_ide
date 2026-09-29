@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-525](open/TICKET-525-agent-drives-a-running-program.md) | feature | prong 2 with prong 1 · an agent reads and types into a running program, with takeover |
 | [TICKET-526](open/TICKET-526-blocks-over-ssh.md) | feature | prong 1 T0c · blocks keep working over ssh |
 | [TICKET-554](open/TICKET-554-block-selection-and-menu.md) | feature | prong 1 T1 · a selected block and the block menu: Copy Command, Both, as Markdown, Reinput, Reinput with sudo |
 | [TICKET-555](open/TICKET-555-send-a-block-to-the-agent.md) | feature | prong 2 with prong 1 · a block sent into a terminal agent's prompt, and Ask the agent under a failed block; after #549 and #554 |

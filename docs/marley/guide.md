@@ -814,6 +814,16 @@ The terminal family:
 | `terminal_blocks` | A terminal's newest blocks, oldest first (50 unless `last` says otherwise, 500 at most): each command, whether the shell's hook reported it (`verified`), exit code, working directory, start time, duration, whether it runs, and whether its output is still in the scrollback; `redacted` counts the secrets hidden in the commands |
 | `terminal_read` | One block's command and output as text, at most 2,000 lines and 256 KiB with the end kept, whether the start was cut, and `redacted`, how many secrets were hidden |
 | `terminal_find` | The line of a block's output a `query` in words names, such as "where the server refused the connection": its number and up to three candidates, by the query's words first and the System One model for the rest (#567); listed only while its use is on |
+| `terminal_screen` | What a terminal's screen shows now: its rows (secrets redacted), the cursor, whether a full-screen program has the alternate screen, the program in the foreground, and `generation`, `taken_over` and whether you approved writes to it (#525) |
+| `terminal_type` | Types into the program running in a terminal's foreground: `text` as a paste, `keys` by name (`escape`, `ctrl-c`, `up`), and Enter with `submit`, at most 4,096 bytes, given the `generation` `terminal_screen` gave. Never at the shell's prompt or into another agent CLI (#525) |
+
+When an agent first types into a program, such as psql or a debugger, Marley asks: a card under
+the terminal names the agent, the program and what it would type, with Allow and Deny, and a toast
+with Show points to it. Allow holds for that program until it exits; the Agents section's **Agent
+Terminal Writes** makes Marley ask for every write, or never. An unanswered question refuses the
+write after 25 seconds. Once an agent has typed, a bar under the terminal shows what it typed:
+**Take Over**, or Ctrl-I in the terminal, stops its writes until you choose **Hand Back**. Without
+an agent's writes, Ctrl-I reaches the program as it always did.
 
 The ports family (#521):
 

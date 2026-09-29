@@ -1691,6 +1691,10 @@
     // "agents_without_prompts" (agents with no permission prompt of their own, and callers Marley
     // cannot name) or "all_agents".
     "browser_click_pause_agents": "agents_without_prompts",
+    // When an agent's terminal_type asks you before it types into a program running in a
+    // terminal (#525): "ask_first_write" (its first write to each program), "ask_every_write" or
+    // "never_ask".
+    "agent_terminal_writes": "ask_first_write",
     // What Marley starts Claude Code with (#532): "ask" (its own permission prompts) or
     // "bypass" (--dangerously-skip-permissions). A rail row carries a mark while an agent runs
     // without its prompts, however it was started.

@@ -55,7 +55,7 @@ pub(crate) const PAUSED_WRITE: &str = "a click is paused in this tab; wait for t
 #[derive(Debug, Clone)]
 pub(crate) struct Who {
     /// The caller in words, for the card: `Claude Code`, `Zed's agent`, a client's name.
-    words: String,
+    pub(crate) words: String,
     /// Whether the caller asks the user before a tool of Marley's runs.
     prompts: bool,
     /// An outside client's name, for the recorder (#524).

@@ -24,6 +24,7 @@
       "secondary-up": "marley::PreviousBlock",
       "secondary-down": "marley::NextBlock",
       "ctrl-g": "marley::RichInput",
+      "ctrl-i": "marley::TakeOverTerminal",
       "right": "marley::AcceptSuggestion"
     }
   },

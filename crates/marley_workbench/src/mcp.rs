@@ -93,7 +93,7 @@ pub fn start(cx: &mut App) {
     // tab, where the user watches each action, are their checks (#492 D2).
     let shared: transport::Shared = Arc::new((
         Mutex::new(transport::ServerData {
-            grants: GrantTable::from_classes(["browser.write"]),
+            grants: GrantTable::from_classes(["browser.write", "terminal.write"]),
             ..transport::ServerData::default()
         }),
         Condvar::new(),
@@ -456,7 +456,7 @@ pub(crate) fn model_redactor(cx: &App) -> Arc<Redactor> {
 }
 
 /// `text` as an agent may read it.
-fn for_agents(text: &str, redactor: Option<&Redactor>) -> Redacted {
+pub(crate) fn for_agents(text: &str, redactor: Option<&Redactor>) -> Redacted {
     redactor.map_or_else(
         || Redacted {
             text: text.to_string(),
@@ -486,10 +486,15 @@ fn answer(call: AppCall, cx: &mut App) {
         terminal_find(call, cx);
         return;
     }
+    if call.tool == "terminal_type" {
+        crate::terminal_drive::type_into(call, cx);
+        return;
+    }
     let result = match call.tool.as_str() {
         "terminal_list" => Ok(terminal_list(call.caller(), cx)),
         "terminal_blocks" => terminal_blocks(&call.arguments, call.caller(), cx),
         "terminal_read" => terminal_read(&call.arguments, call.caller(), cx),
+        "terminal_screen" => crate::terminal_drive::screen(&call, cx),
         other => Err(format!("Marley answers no tool named {other}")),
     };
     call.answer(result);
@@ -758,7 +763,7 @@ pub(crate) fn caller_terminal(
 }
 
 /// The terminal a call names in `terminal`, else the caller's own (#520): its id and its view.
-fn terminal_of(
+pub(crate) fn terminal_of(
     arguments: &Value,
     caller: &Caller,
     cx: &App,

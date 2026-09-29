@@ -56,6 +56,11 @@ pub struct MarleySettingsContent {
     ///
     /// Default: "agents_without_prompts"
     pub browser_click_pause_agents: Option<MarleyClickPauseAgents>,
+    /// When an agent's `terminal_type` asks the user before it types into a running program
+    /// (#525).
+    ///
+    /// Default: "ask_first_write"
+    pub agent_terminal_writes: Option<MarleyAgentTerminalWrites>,
     /// Whether Marley starts Claude Code with its own permission prompts or with
     /// `--dangerously-skip-permissions` (#532). An entry of `agent_permissions_by_project` wins
     /// for its project.
@@ -245,6 +250,32 @@ pub enum MarleyClickPauseAgents {
     AgentsWithoutPrompts,
     /// Every agent.
     AllAgents,
+}
+
+/// When an agent's `terminal_type` asks the user before it types into a running program (#525).
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum MarleyAgentTerminalWrites {
+    /// The first write to each program; later writes to it go in without asking.
+    #[default]
+    AskFirstWrite,
+    /// Every write.
+    AskEveryWrite,
+    /// Never: the agent's writes go in as it sends them.
+    NeverAsk,
 }
 
 /// What Marley starts Claude Code and Codex with in one project (#532).

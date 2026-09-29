@@ -801,6 +801,33 @@ alike.
   `Target` gains `ready` (its seat in `State::Idle`); `Target`, `agent_targets` and the picker are
   `pub(crate)`.
 
+## An agent that drives a running program (`src/terminal_drive.rs`, #525)
+
+- A `Drives` global keeps each terminal's control state by its view: `generation`, the foreground
+  program it belongs to (the PTY's foreground process group leader, `Terminal::pid`, none when it
+  is the shell's own pid), `approved`, `taken_over`, the last write and a `Pending` write with its
+  oneshot. `drive()` brings a terminal's generation up to date on each read: a new program
+  advances it and clears the approval.
+- `screen` (for `terminal_screen`): the terminal (`mcp::terminal_of`), its `last_content` cells
+  grouped into rows by line (a wide character's spacer skipped), through `mcp::for_agents`, with
+  the cursor, the size, `ALT_SCREEN`, `scrolled` (the user scrolled back), the program's name, and
+  the control state.
+- `type_into` (for `terminal_type`): `check` refuses a missing `generation`, nothing to type, more
+  than 4,096 bytes, a key name that parses to a plain character (it goes in `text`), no program in
+  the foreground, an agent CLI there (`agent_bar::agent_in`), another generation, a take-over, or a
+  write already waiting; `marley.agent_terminal_writes` decides whether to ask. Asking sets
+  `Pending` (the caller's words from `click_pause::Who`), notifies the view, shows a toast with
+  Show (`browser::reveal_terminal`), and races the answer against 25 seconds; Allow types only if
+  the generation is the same and no one took over. `write` pastes the text (`Terminal::paste`),
+  sends each key (`Keystroke::parse`, `Terminal::try_keystroke`) and `\r`, and keeps the last write.
+- `footer`, called from `agent_bar`'s footer for a terminal with no agent CLI in front: the card
+  (the caller, the program, what it would type; Deny, Allow) or the bar (who typed what; Take Over,
+  or "You have control" and Hand Back). `marley::TakeOverTerminal` (Ctrl-I in `Terminal`) toggles
+  the take-over, advancing the generation, while an agent has typed into the focused terminal's
+  program, and otherwise propagates so the key reaches the program.
+- `mcp.rs` grants `terminal.write` at start beside `browser.write`, answers `terminal_screen` in
+  line and hands `terminal_type` to its own task; a closed terminal's state goes on release.
+
 ## A project's launch configs (`src/launch.rs`, #527)
 
 - The file is `.zed/marley.json` (`LAUNCH_FILE`), read with `settings::parse_json_with_comments`

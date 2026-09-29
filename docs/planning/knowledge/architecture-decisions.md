@@ -2992,3 +2992,19 @@ its command typed after the ready handshake (`agents::start_in_terminal`, split 
 launch); a loopback Browser item waits for its port. Changed at promotion: the cache and the move
 into the split pane. Rejected: `.zed/launch.json` (VS Code's name, a debugger file Zed imports);
 one approval for a whole project; reading the file each time the menu opens.
+
+## AD-claude-525-an-agent-types-into-a-running-program-behind-a-generation-and-an-approval-001
+*decided at: 2026-09-29 · status: shipped*
+
+Agents read a terminal's live screen (`terminal_screen`) and type into the program in its
+foreground (`terminal_type`, grant class `terminal.write`), never at the shell's prompt and never
+into an agent CLI. Each terminal has a generation that advances when its foreground process group
+leader changes and at each take-over and hand-back; a write names the generation it was meant
+for. Marley asks, by default, before an agent's first write to each program, with #571's shape (a
+card under the terminal, a toast with Show, 25 seconds, the caller named through #520); the
+setting `marley.agent_terminal_writes` asks for every write or never. A bar shows the agent's last
+write, and Take Over (Ctrl-I) stops its writes. The screen comes from the terminal's last content,
+so no Zed crate changed but the settings files. Changed at promotion: #520 and #571 had landed, so
+the caller is named and the approval copies the click pause. Rejected: typing at the shell's
+prompt (plan D9's `terminal.run` is its own ticket); keying the generation on the program's name
+(a restarted program of the same name sends no title change).

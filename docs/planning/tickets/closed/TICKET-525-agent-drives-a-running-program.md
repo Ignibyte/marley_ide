@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #525 (feature, prong 2 with prong 1: plan D9's terminal tools)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/525-agent-drives-a-running-program.spec.md
+- **Pipeline doc:** ../../pipeline/completed/525-agent-drives-a-running-program.spec.md
 - **Source ticket:** Chad, 2026-09-25, on Warp's Full Terminal Use: "love this idea lets do it" (`docs/planning/design-notes/warp-once-over-2026-09-25.md`, item 1; the Orca survey's receipted input, `docs/orca_architecture/06-cli-automations-skills.md` §2.6 and item 2)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Marley's terminal tools only read blocks, so an agent cannot see what psql, gdb, a Python REPL

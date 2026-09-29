@@ -46,7 +46,7 @@ fn layout_section() -> [SettingsPageItem; 2] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 10] {
+fn agents_section() -> [SettingsPageItem; 11] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -180,6 +180,29 @@ fn agents_section() -> [SettingsPageItem; 10] {
                         .marley
                         .get_or_insert_default()
                         .browser_click_pause_agents = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: when an agent's writes into a running program ask the user (#525).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Agent Terminal Writes",
+            description: "When an agent that types into a program running in a terminal (psql, a debugger, a REPL) asks you first: its first write to each program, every write, or never.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.agent_terminal_writes"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.agent_terminal_writes.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .agent_terminal_writes = value;
                 },
             }),
             metadata: None,

@@ -13,6 +13,18 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **An agent reads and types into a running program** (#525, 2026-09-29). Two tools on Marley's
+  MCP server: `terminal_screen` reads what a terminal's screen shows now (its rows through the
+  secret redaction, the cursor, the alternate screen, the program in the foreground, and who
+  controls the terminal), and `terminal_type` types text, named keys (`escape`, `ctrl-c`, `up`)
+  and Enter into the program running there: psql, a debugger, a REPL. It never types at the
+  shell's prompt or into another agent CLI, and it needs the `generation` `terminal_screen` gave,
+  so a write meant for one program never lands in the next. Marley asks before an agent's first
+  write to each program, with a card under the terminal (Allow, Deny) and a toast with Show;
+  `marley.agent_terminal_writes` (the Marley page's Agents section) makes it ask every write or
+  never. Once an agent has typed, a bar under the terminal shows what it typed, and Take Over,
+  or Ctrl-I, stops its writes until Hand Back; Ctrl-I reaches the program as before otherwise.
+
 - **A project's launch configs** (#527, 2026-09-29). A `.zed/marley.json` at a project's root
   names launch configs under `launch`, each a list of `items`: `"terminal": "<command>"` (a center
   terminal whose shell gets the command once it is ready; an empty string is a plain shell),
