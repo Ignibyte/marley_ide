@@ -2836,3 +2836,14 @@ unread dot, no seat. The remote terminal's frames came through before its drop a
 the Rerun that reattached it. `notifications.rs` now observes the view and subscribes again when
 its terminal's entity id changes. `close_guard.rs` and `command_watch.rs` subscribe the same way
 and keep the gap for a rerun task: a working agent's close question and #551's command end.
+
+## F-claude-588-a-scenario-that-opened-nothing-restored-the-users-session-001
+*severity: high · found in: pipeline 588's check · class: a run on a copy of the user's profile with nothing named to open · prevented by: PR-claude-588-every-scenario-names-what-marley-opens-001*
+
+The runner copies the user's Marley database into the run's profile. A scenario whose `setup`
+names no folder (`open_path`) launches Marley with no path, and Marley restores the copy's last
+session: the user's own projects, a terminal in their real folder with their real shell, and the
+Agent Panel's threads, whose agent Zed starts over ACP. 588's first script did this, and its run
+started the user's Claude agent (a resume, no prompt) and took a shot of their session. `shot.sh`,
+behind `just shot`, did the same by design whenever `OPEN` was unset. The runner now refuses a
+scenario with no folder to open, and `shot.sh` opens a scratch repository by default.

@@ -3900,3 +3900,14 @@ client, run the client under `script -q -f` (without `-f` the log misses the las
 `script`'s stdin open (`sleep N | script …`): stdin at `/dev/null` sends an EOF that logs the pane's
 shell out. Claude Code 2.1.283 wraps a hook's `terminalSequence` for tmux itself when `TMUX` is set,
 and tmux forwards it only with `allow-passthrough on`; a stand-in reproduces both.
+
+## L-claude-588-a-detached-programs-exit-and-a-coprocs-pid-001
+*category: e2e · topic: stopping what a shell runner started · from: #588*
+
+A program started with `setsid -f` is nobody's child, so its exit status is lost unless a wrapper
+records it (`prog "$@"; echo "$?" > file`, written as a quoted heredoc, since shellcheck flags
+`sh -c '… $1 …'`). Bash unsets a coprocess's `NAME_PID` once it reaps it, so under `set -u` read it
+as `${NAME_PID:-}`. A compositor killed with SIGKILL leaves its IPC socket and its Wayland socket
+and lock in `$XDG_RUNTIME_DIR`, and a Browser tab's Chromium runs in a user unit that outlives
+Marley and keeps writing its profile after the runner removed it: stop the units named by the
+run's profiles before removing the profile.

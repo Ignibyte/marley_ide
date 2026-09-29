@@ -192,8 +192,9 @@ product is finished.
 - **The scenario.** A ticket carries `script/e2e/<ticket>-<slug>.sh`, run by `script/e2e.sh`
   (`just e2e <scenario>`): the debug `marley` on a copy of the user's profile, on hidden
   workspace 9 or, for a scenario that sets `COMPOSITOR=sway`, in a headless sway of its own, with
-  the fixtures its `setup` builds (a scratch repository, a HOME whose `.bashrc` is the scenario's
-  own through `terminal_env`, fakes first on the PATH), then its `steps`: keys, and under sway
+  the fixtures its `setup` builds (a scratch repository it opens with `open_path`, which the
+  runner requires, a HOME whose `.bashrc` is the scenario's own through `terminal_env`, fakes
+  first on the PATH), then its `steps`: keys, and under sway
   clicks, drags and the wheel, sent to Marley only, and a shot of the window after each step a
   criterion rests on. It drives what the ticket changed, not the rest of Marley.
 - **Reading the shots is the check.** The Test phase reads every PNG and writes into the notes

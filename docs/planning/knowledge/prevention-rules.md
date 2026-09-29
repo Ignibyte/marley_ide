@@ -2617,3 +2617,11 @@ A subscription to a `TerminalView`'s terminal made in `observe_new` sees only th
 terminal: a task's Rerun swaps in a new one with `TerminalView::set_terminal`. Subscribe through a
 helper, and observe the view (`cx.observe_in(&cx.entity(), window, …)`) to subscribe again when
 `view.terminal().entity_id()` changes, as `notifications::watch` does.
+
+## PR-claude-588-every-scenario-names-what-marley-opens-001
+*severity: high · prevents: F-claude-588-a-scenario-that-opened-nothing-restored-the-users-session-001*
+
+Every e2e scenario's `setup` calls `open_path` on a folder of the run's own (a scratch repository
+in `$E2E_WORK`), and gives its terminals a HOME of their own with `terminal_env`. `script/e2e.sh`
+exits with `no folder to open` otherwise: a run that opens nothing restores the user's last
+session from the profile copy, Agent Panel threads and all.

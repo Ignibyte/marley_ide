@@ -69,6 +69,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **The e2e runner after its compositor exits** (#588, 2026-09-29). When a run's headless sway
+  exits before the scenario ends, the runner says so with sway's exit status and fails the run,
+  still copies Marley's log beside the shots, and stops the run's Marley, pointer helper, key
+  holder and Browser units, removing the dead sway's sockets; sway logs verbosely. The runner now
+  refuses a scenario that names no folder to open, and `just shot` opens a scratch repository
+  unless `OPEN` names one: a run that opened nothing restored the profile copy's last session,
+  the user's own projects and Agent Panel threads.
+
 - **A rerun task's notifications** (#543, 2026-09-29). A task run again in its terminal gets a
   new terminal behind the same tab, and its OSC 9 and 777 notifications and Claude Code's events
   went unheard; Marley now follows the tab to its new terminal.

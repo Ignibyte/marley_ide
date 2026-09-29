@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #588 (chore, the e2e harness)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet
+- **Pipeline doc:** ../../pipeline/completed/588-e2e-cleanup-after-the-compositor-exits.spec.md
 - **Source ticket:** #560's golden run (`../../pipeline/completed/560-conflict-chip.notes.md`, Phase 3), 2026-09-28.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 In #560's golden run the headless sway of `508-approvals-inbox` exited between two steps, with no

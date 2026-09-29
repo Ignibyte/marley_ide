@@ -143,6 +143,10 @@ SWAY_DISPLAY=
 SWAY_SOCK=
 KEY_HOLDER=
 SEAT_POINTER_PID=
+# The pid of the run's Marley as its window last answered, and sway's exit status when it exited
+# before the run asked it to (#588).
+MARLEY_PID=
+COMPOSITOR_EXIT=
 
 sway_msg() { swaymsg -s "$SWAY_SOCK" "$@"; }
 
@@ -183,9 +187,18 @@ default_floating_border none
 focus_follows_mouse no
 exec sh -c 'printf "%s\\n%s\\n" "\$WAYLAND_DISPLAY" "\$SWAYSOCK" > "$SWAY_DIR/session"'
 EOF
+  # A wrapper keeps sway's exit status, since `setsid -f` leaves no child to wait for; verbose,
+  # so an exit the run did not ask for has its reason in the log (#588).
+  cat >"$SWAY_DIR/run" <<'RUN'
+#!/bin/sh
+sway --verbose -c "$1"
+echo "$?" >"$2"
+RUN
+  chmod +x "$SWAY_DIR/run"
   env -u WAYLAND_DISPLAY -u DISPLAY -u HYPRLAND_INSTANCE_SIGNATURE -u SWAYSOCK \
     WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 \
-    setsid -f sway -c "$SWAY_DIR/config" >"$shots/$name.sway.log" 2>&1 </dev/null
+    setsid -f "$SWAY_DIR/run" "$SWAY_DIR/config" "$SWAY_DIR/exit" \
+    >"$shots/$name.sway.log" 2>&1 </dev/null
   for _ in $(seq 50); do
     [[ -s $SWAY_DIR/session ]] && break
     sleep 0.1
@@ -218,15 +231,26 @@ hold_keyboard() {
 }
 
 sway_stop() {
-  local pid
+  local pid=
+  # A status in the run's sway folder before the run asks sway to exit: it exited on its own.
+  if [[ -n $SWAY_DIR && -s $SWAY_DIR/exit ]]; then
+    COMPOSITOR_EXIT=$(cat "$SWAY_DIR/exit")
+  fi
   if [[ -n $SWAY_SOCK ]]; then
     pid=$(sway_marley_pid 2>/dev/null || true)
-    if [[ -n $pid ]]; then
-      kill -TERM "$pid" 2>/dev/null || true
-      sleep 1
-    fi
   fi
-  if [[ -n $SEAT_POINTER_PID ]]; then
+  # Without its compositor the run's Marley has no window to be found by: the pid its window last
+  # gave, while that process still runs on the run's profile.
+  if [[ -z $pid && -n $MARLEY_PID ]] &&
+    grep -qaF -- "$E2E_PROFILE" "/proc/$MARLEY_PID/cmdline" 2>/dev/null; then
+    pid=$MARLEY_PID
+  fi
+  if [[ -n $pid ]]; then
+    kill -TERM "$pid" 2>/dev/null || true
+    sleep 1
+  fi
+  # Bash unsets a coprocess's pid once it reaps it, as when the compositor took the helper with it.
+  if [[ -n ${SEAT_POINTER_PID:-} ]]; then
     kill "$SEAT_POINTER_PID" 2>/dev/null || true
   fi
   if [[ -n $KEY_HOLDER ]]; then
@@ -242,8 +266,18 @@ sway_stop() {
   fi
   if [[ -n $SWAY_DIR ]] && pgrep -f -- "-c $SWAY_DIR/config" >/dev/null; then
     echo "sway: still running after the run" >&2
-  elif [[ -n $SWAY_SOCK && -e $SWAY_SOCK ]]; then
+    return
+  fi
+  # A sway that died leaves its sockets in the user's runtime folder.
+  if [[ -n $COMPOSITOR_EXIT && -n $SWAY_SOCK ]]; then
+    local display=$SWAY_DISPLAY
+    [[ $display == /* ]] || display=$XDG_RUNTIME_DIR/$display
+    rm -f "$SWAY_SOCK" "$display" "$display.lock"
+  fi
+  if [[ -n $SWAY_SOCK && -e $SWAY_SOCK ]]; then
     echo "sway: its socket $SWAY_SOCK is still there" >&2
+  elif [[ -n $COMPOSITOR_EXIT ]]; then
+    echo "sway: gone before the run's end; its sockets removed, the run's Marley, pointer and keyboard stopped"
   elif [[ -n $SWAY_DIR ]]; then
     echo "sway: stopped, with the run's Marley, pointer and keyboard"
   fi
@@ -270,7 +304,12 @@ launch_marley() {
     setsid -f "$marley" --user-data-dir "$E2E_PROFILE" ${OPEN:+"$OPEN"} >>"$shots/$name.log" 2>&1 </dev/null
   fi
   for _ in $(seq 90); do
-    [[ -n $(window) ]] && return 0
+    if [[ -n $(window) ]]; then
+      if [[ $COMPOSITOR == sway ]]; then
+        MARLEY_PID=$(sway_marley_pid || true)
+      fi
+      return 0
+    fi
     sleep 1
   done
   echo "no Marley window within 90 seconds; see $shots/$name.log" >&2
@@ -568,6 +607,28 @@ if [[ -d $data/threads ]]; then
   cp -r "$data/threads" "$E2E_PROFILE/threads"
 fi
 
+# Stops the user units of the run's Browser tabs: each Chromium runs in a unit named by its profile
+# that outlives Marley, and would write into the run's profile after the cleanup removed it (#588).
+stop_browser_units() {
+  local data profile
+  [[ -d $E2E_PROFILE/browser ]] || return 0
+  data=$(realpath "$E2E_PROFILE")
+  for profile in "$data"/browser/projects/*/profile "$data/browser/profile"; do
+    [[ -e $profile ]] || continue
+    systemctl --user stop "marley-browser-$(printf '%s' "$profile" | sha256sum | cut -c1-12)" \
+      2>/dev/null || true
+  done
+}
+
+# `$1`, an exit status, with the signal's name when a signal ended the process.
+exit_status() {
+  if (($1 > 128)); then
+    echo "$1 (SIG$(kill -l $(($1 - 128)) 2>/dev/null || echo "$(($1 - 128))"))"
+  else
+    echo "$1"
+  fi
+}
+
 cleanup() {
   local pid
   if declare -F teardown >/dev/null; then
@@ -584,11 +645,17 @@ cleanup() {
     # Drops the rule and restores focus_on_activate.
     hyprctl reload >/dev/null
   fi
+  stop_browser_units
   # Marley writes its log into the profile, which goes next.
   if [[ -f $E2E_PROFILE/logs/Marley.log ]]; then
     cp "$E2E_PROFILE/logs/Marley.log" "$shots/$name.marley.log"
   fi
   rm -rf "$E2E_PROFILE" "$E2E_WORK" ${SWAY_DIR:+"$SWAY_DIR"}
+  # Shots after the compositor went are of nothing, so its exit fails the run (#588).
+  if [[ -n $COMPOSITOR_EXIT ]]; then
+    echo "sway: the compositor exited during the run with status $(exit_status "$COMPOSITOR_EXIT"), so the run failed; see $shots/$name.sway.log" >&2
+    exit 1
+  fi
 }
 trap cleanup EXIT
 # A signal ends the run through its EXIT trap, so a run cut short still stops what it started.
@@ -601,6 +668,12 @@ fi
 
 if declare -F setup >/dev/null; then
   setup
+fi
+# Without a folder named, Marley restores the copied profile's last session: the user's own
+# projects, and Agent Panel threads that start their agent (#588).
+if [[ -z $OPEN ]]; then
+  echo "no folder to open: the scenario's setup names one with open_path" >&2
+  exit 1
 fi
 if [[ -n $MARLEY_BIN ]]; then
   marley=$(realpath -m "$MARLEY_BIN")
