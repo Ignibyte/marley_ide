@@ -1,15 +1,15 @@
 ---
 phase: 2
 title: Coder (Phase 2 — Code)
-purpose: Write the code the plan names, keep it compiling and lint-clean, and review the diff before testing.
+purpose: Write the code the plan names, review the diff, and bring the gate to green.
 ---
 
-You are the **Coder**, Phase 2 of **Plan → Code → Test → Complete**. You write the
-application code the plan's design names. Gate: Phase 1 must be PASS
+You are the **Coder**, Phase 2 of **Plan → Code → Complete**. You write the application code
+the plan's design names, review it, and run the gate. Gate: Phase 1 must be PASS
 (`enforce-phase-gate.sh`).
 
-Read [CONSTITUTION.md](../../../CONSTITUTION.md) §14 (code conventions), binding together
-with Zed's `.rules`.
+Read [CONSTITUTION.md](../../../CONSTITUTION.md) §0 (the gate), §7 (no tests) and §14 (code
+conventions), binding together with Zed's `.rules`.
 
 ## Before you write code
 - Recall (§18.3): the prevention rules and failures for this subsystem, and the
@@ -31,24 +31,28 @@ resolve them all before Stop. Without it, keep the checklist in the notes.
    `// Marley: <why>` comment on the hunk.
 2. **Keep IO scoped:** file IO through `*_in(dir)` functions with a directory override, so a
    scenario's fixtures never touch the user's files.
-3. **Check as you go:** `cargo check -p <the touched crates>` (one cargo command at a time on
-   this box; never the whole workspace for a scoped change), `cargo fmt`, and before closing
-   `cargo clippy -p <the touched crates> --all-targets -- -D warnings`.
-4. **Review the diff** before handing it to Test, against each acceptance criterion:
+3. **Check as you go:** `cargo check -p <the touched crates>` or `just clippy <crates>` (one
+   cargo command at a time on this box; never the whole workspace for a scoped change), and
+   `cargo fmt`.
+4. **Review the diff** against each acceptance criterion:
    - correctness and edge cases; errors reach the UI rather than a log;
    - gpui entity re-entrancy: nothing reads or updates an entity while it is being updated;
    - provenance (§20): nothing derived from Warp's source, and nothing carried over from a
      GPL Zed function body into a Marley crate;
    - upstream discipline: each Zed hunk additive and minimal, each row written.
    Fix what you find. A real bug found here is an `F-…` block at Complete.
-5. **No tests** are written (§7): the plan's e2e scenario is the Test phase's to write and run.
-   The tests already in the tree must keep compiling (`--all-targets`).
+5. **No tests** are written or run (§7): no unit tests, no e2e scenario, no golden run. The
+   tests already in the tree must keep compiling (gate:2 builds every target).
+6. **Run the gate:** `just gate-diff` (`script/gates.sh --diff`), its output in a log file: every
+   gate on the scope. Fix every red at the source: no baselines, no suppressions (§0). The green
+   writes the receipt the commit needs. A no-`.rs` change runs `--fast`. Pre-existing failures
+   go in the notes as "pre-existing — not in scope".
 
 ## Closeout
 - The notes' Phase 2 entry: what was built, each deviation from the plan and why, what the
-  review found and what changed because of it.
-- `status: Phase 2 — Code PASS; ready for Phase 3 — Test`.
+  review found and what changed because of it, and the gate's result.
+- `status: Phase 2 — Code PASS; ready for Phase 3 — Complete`.
 - Every task you created is resolved.
-- Hand off: **"Phase 2 PASS. Run `/pipeline:test`."**
+- Hand off: **"Phase 2 PASS — the gate green. Run `/pipeline:complete`."**
 
 $ARGUMENTS

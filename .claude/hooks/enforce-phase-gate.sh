@@ -24,8 +24,8 @@ esac
 # Marley application code = crates/<crate>/src/** and crates/<crate>/examples/**
 # (CONSTITUTION §3). In a `case` glob, `*` DOES match `/`, so `crates/*/src/*`
 # catches nested modules; `/src/` is literal, so a `src_gen/` dir won't
-# false-match. crates/*/tests/** stays exempt (tests are a /pipeline:test
-# artifact; §3 names only src + examples) — as do build.rs and Cargo.toml.
+# false-match. crates/*/tests/** stays exempt (§3 names only src + examples;
+# no ticket writes tests, §7) — as do build.rs and Cargo.toml.
 case "$NORMALIZED" in
     *.rs) : ;;
     *) exit 0 ;;
@@ -86,8 +86,7 @@ phase_pass() {
 GATE_FAILED=false; MSG=""
 case "$COMMAND_NAME" in
     code)      phase_pass "$PIPELINE_DOC" 1 || { GATE_FAILED=true; MSG="Phase 1 (Plan) must be PASS before code."; } ;;
-    test)      phase_pass "$PIPELINE_DOC" 2 || { GATE_FAILED=true; MSG="Phase 2 (Code) must be PASS before test."; } ;;
-    complete)  phase_pass "$PIPELINE_DOC" 3 || { GATE_FAILED=true; MSG="Phase 3 (Test) must be PASS before completion."; } ;;
+    complete)  phase_pass "$PIPELINE_DOC" 2 || { GATE_FAILED=true; MSG="Phase 2 (Code) must be PASS before completion."; } ;;
 esac
 
 if [ "$GATE_FAILED" = true ]; then

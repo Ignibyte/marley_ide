@@ -821,6 +821,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **`just install` no longer runs the golden set unless asked** (2026-09-29). It builds the
+  release `marley` and installs it; `just install --regress` runs the golden set of e2e
+  scenarios against the build first and installs nothing on a failure, as every install did
+  since #517. `--skip-regress` is still accepted. The workflow went to three phases, Plan, Code
+  and Complete: no ticket writes or runs tests, and the static gate runs at the end of Code
+  (CONSTITUTION §0, §3 and §7).
 - **Marley's browser listens on no network port** (#583, 2026-09-27). Each project's Chromium
   used to take DevTools connections on a port on 127.0.0.1 with no password, which any program
   on the machine could reach, other users' included, and then read the project's cookies or

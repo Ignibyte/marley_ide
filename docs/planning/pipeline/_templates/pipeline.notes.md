@@ -18,20 +18,13 @@
 ### Design
 - Approach; file manifest (Marley crate or Zed crate per file); the ledger rows it needs.
 
-### E2E plan
-- One row per acceptance criterion: the scenario's fixtures and steps, and the shot that shows
-  the criterion met (§7). What no scenario can reach, and why.
-
 ### Risks
 - …
 
 ## Phase 2 — Code
-- What was built; deviations from the plan (with reason); what the review of the diff found.
+- What was built; deviations from the plan (with reason); what the review of the diff found;
+  the gate result and any pre-existing notes.
 
-## Phase 3 — Test
-- The e2e run: each shot and what it shows, the focus report; the gate result; negative smokes;
-  pre-existing notes.
-
-## Phase 4 — Complete
+## Phase 3 — Complete
 - Docs updated; ledger appends (failures / prevention rules / lessons / ADs — codes listed);
   ticket closed; archive; the commit.

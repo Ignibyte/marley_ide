@@ -20,8 +20,8 @@ the fork is the design record under `docs/marley_architecture/`, `docs/specs/` a
 ## §0 — Quality Gates (binding)
 
 The canonical gate is **`script/gates.sh`**, the single source of truth for "is this change
-shippable?". It must pass green in the Test phase with **`--diff`**, which writes the receipt
-the commit hook requires (§15). `--fast` runs the same gates, prints `GATE GREEN [fast]`,
+shippable?". It must pass green at the end of the Code phase with **`--diff`**, which writes
+the receipt the commit hook requires (§15). `--fast` runs the same gates, prints `GATE GREEN [fast]`,
 writes no receipt, and can never satisfy a commit of Rust source. The mode is always named:
 none, or an unknown one, is a usage error (exit 2) and runs no gate. `--full`, which ran the
 heavy gates over every Marley crate, is refused since they retired (#483).
@@ -54,18 +54,19 @@ gate:21 dylint         cargo dylint --all -- --all-targets -p <marley crates>: Z
 Retired numbers are not reused: gate:3 (the test suites), gate:4 (line coverage), gate:5
 (mutation), gate:6 (miri), gate:15 (the gpui-era macOS harness) and gate:19 (empty suites).
 
-**No test runs in the gate.** On 2026-09-23 Chad took unit tests out of the workflow; the
-proof of a change is its e2e visualization test (§7). The tests already in the tree stay, and
-gate:2 builds them, but gate:3 (the suites), gate:4 (the 100% line-coverage floor and its
-exclude list), gate:6 (miri, which runs tests) and gate:19 (empty suites) retired (#483).
+**No test runs in the gate, and no ticket writes one.** On 2026-09-23 Chad took unit tests
+out of the workflow, and on 2026-09-29 the e2e visualization tests that had replaced them
+(§7): a change is proven by this gate and the review of its diff. The tests already in the tree
+stay, and gate:2 builds them, but gate:3 (the suites), gate:4 (the 100% line-coverage floor and
+its exclude list), gate:6 (miri, which runs tests) and gate:19 (empty suites) retired (#483).
 `script/mutation.sh`, the end-of-sprint mutation run that was gate:5 until 2026-09-22, retired
 with them.
 
 **The scope rule.** The Marley-owned surface is `crates/marley_*`. The gates run over those
 crates plus every crate the change touched (derived from `git status`, so a new untracked crate
 counts). Upstream Zed code is held to Zed's own bar (fmt and `./script/clippy`), not to the
-Marley crates' lint levels, and a change inside a Zed crate is proven by the ticket's e2e
-scenario like any other change (§7).
+Marley crates' lint levels, and a change inside a Zed crate passes this gate like any other
+change.
 
 **No baselines. No suppressions. Source-fix only.** Any inline `#[allow(…)]` /
 `#[expect(…)]` in Marley code must carry a real `//` justification (gate:12); blanket group
@@ -114,8 +115,7 @@ out unsanitized user input.
   owned set would claim. The owned set is `marley_owned_path` in the same file, shared with
   the write hook, and `enforce-commit-gate.sh` runs the same check at every `git commit`, Rust
   or not (§14).
-- `gate:15` (the macOS accessibility and screenshot harness) is retired; the e2e runner of §7
-  took its place, outside the gate: its verdict is the shots, read.
+- `gate:15` (the macOS accessibility and screenshot harness) is retired.
 - not yet ported: architecture-layering / taint analysis.
 
 A `--diff` run removes the earlier receipt when it starts, and on a green writes
@@ -128,8 +128,9 @@ semgrep 1.156.0 (`pipx install semgrep==1.156.0`), and `gitleaks shellcheck jq j
 distro (`just` runs the `justfile`'s recipes over these commands, #471); for gate:21,
 `cargo install cargo-dylint dylint-link --locked` (6.0.4) and, from `tooling/lints`,
 `rustup toolchain install` (its pinned nightly with `rustc-dev`, `rust-src` and
-`llvm-tools-preview`). The e2e runner (§7) needs Hyprland's `hyprctl`, `grim`, `jq`, `python3`
-and `git`. Run the gate in the Test phase; fix every red at the source. One cargo command at a time on this box: the target
+`llvm-tools-preview`). The e2e runner (§7), run by hand, needs Hyprland's `hyprctl`, `grim`,
+`jq`, `python3` and `git`. Run the gate at the end of the Code phase; fix every red at the
+source. One cargo command at a time on this box: the target
 directory is shared by every project on it.
 
 **The toolchain** is the latest stable, pinned in `rust-toolchain.toml` (1.98.1 since
@@ -142,7 +143,7 @@ lint library builds against that nightly's compiler internals.
 
 ## §3 — Phase Gates (binding)
 
-Work flows through four phases, and that is all: **Plan → Code → Test → Complete**. **Every
+Work flows through three phases, and that is all: **Plan → Code → Complete**. **Every
 phase has an entry gate: the previous phase must be `PASS` before the next begins**, and the
 plan is presented for confirmation unless the user runs the work autonomously. The
 `enforce-phase-gate.sh` PreToolUse hook blocks `Write`/`Edit` to application code until the
@@ -150,11 +151,10 @@ gate is satisfied.
 
 ```
 /pipeline:plan        (Phase 1)  pick the item, pre-flight, recall; ticket + active spec/notes;
-                                 the design and its e2e plan
-  → /pipeline:code      (Phase 2)  the code, fmt- and clippy-clean, then a review of the diff
-  → /pipeline:test      (Phase 3)  RUN the ticket's e2e scenario and read every shot;
-                                 script/gates.sh --diff green
-  → /pipeline:complete  (Phase 4)  docs (CHANGELOG + architecture, §21), knowledge, close the
+                                 the design
+  → /pipeline:code      (Phase 2)  the code, a review of the diff, then script/gates.sh --diff
+                                 green
+  → /pipeline:complete  (Phase 3)  docs (CHANGELOG + architecture, §21), knowledge, close the
                                  ticket, archive, commit
 ```
 
@@ -178,50 +178,27 @@ gate is satisfied.
 
 ---
 
-## §7 — E2E Visualization Testing (binding)
+## §7 — Tests (binding)
 
-**A change is proven by running the real Marley and looking at it.** Since 2026-09-23 (Chad,
-#483) the only tests a ticket writes and runs are **e2e visualization tests**: no unit tests,
-no gpui driven tests, no `trybuild` cases, no doctests. The tests already in the tree, Marley's
-and Zed's, stay where they are and keep building (gate:2 builds every target), but no gate runs
-them and no ticket adds to them.
+**No ticket writes or runs a test.** Since 2026-09-29 (Chad) a change is proven by the static
+gate (§0) and the review of its diff at the end of the Code phase. No unit tests, gpui driven
+tests, `trybuild` cases, doctests, e2e scenarios or golden runs belong to a ticket: unit tests
+left on 2026-09-23 (#483), and the e2e visualization tests that replaced them left on
+2026-09-29.
 
-- **The scenario.** A ticket carries `script/e2e/<ticket>-<slug>.sh`, run by `script/e2e.sh`
-  (`just e2e <scenario>`): the debug `marley` on a copy of the user's profile, on hidden
-  workspace 9 or, for a scenario that sets `COMPOSITOR=sway`, in a headless sway of its own,
-  with the fixtures the scenario's `setup` builds (a scratch repository, a HOME whose
-  `.bashrc` is the scenario's own through `terminal_env`, fakes first on the PATH), then its
-  `steps`: keys, and under sway clicks, drags and the wheel, sent to Marley only, a quit and a
-  launch on the same profile for what Marley restores (`quit_marley`, `launch_marley`), and a
-  shot of the window after each step that matters. Every acceptance criterion names the shot that
-  proves it.
-- **Reading the shots is the test.** The Test phase reads every PNG and writes into the notes
-  what each one shows, against the criterion it proves. A shot that shows anything but Marley
-  is deleted. Shots stay in the scratchpad or `SHOT_DIR`, never in the repository.
-- **The user's session is not touched.** On Hyprland, keys go to Marley's window by its
-  address, and the runner reports whether the user's active window and workspace moved; there
-  is no mouse there, since a click would move the user's pointer. A scenario that clicks sets
-  `COMPOSITOR=sway`: Marley runs in a headless sway whose seat is a virtual pointer and a
-  virtual keyboard that nothing else sees, so the user's desktop and Hyprland are never
-  touched, and the runner reports that Hyprland's windows are as they were.
-- **A change with nothing new to see** (tooling, a refactor, a dependency) still runs a
-  scenario: Marley starts and draws (`just shot`), so nothing it needs broke.
-- **The golden set guards what shipped.** `script/e2e/golden` names the scenarios that cover
-  Marley's core; each ends in machine checks (`expect`, through Marley's own MCP server where it
-  can), so its exit status is its verdict. `just regress` runs the set, each in a headless sway,
-  and `just install` runs it against the release build before replacing anything; a red installs
-  nothing (#517). A ticket that changes what a golden scenario covers keeps that scenario's
-  checks true, and a scenario that joins the set brings its checks with it.
-- **NEVER mark a phase PASS if the e2e run did not actually RUN.** Writing a scenario is not
-  testing. The `enforce-tests-ran.sh` Stop hook checks the transcript for a real
-  `script/e2e.sh`, `just e2e` or `just shot` run at `/pipeline:test`.
-- **Pre-existing failures are not your problem, but document them.** Note them in the notes
-  as "pre-existing" and move on; don't fix unrelated breakage unless asked.
-- **What no scenario can reach** (speech, a live remote service) is taken as far as a
-  scenario can take it and recorded in the notes with the reason, never skipped silently.
+- **What stays in the tree.** The tests already there, Marley's and Zed's, keep building
+  (gate:2 builds every target), and no gate runs them. The e2e runner (`script/e2e.sh`,
+  `just e2e`, `just shot`), the scenarios in `script/e2e/` and the golden set
+  (`script/e2e/golden`, `just regress`) stay and run only by hand; `just install` runs the
+  golden set only with `--regress`. A scenario that no longer matches what shipped waits for
+  the quality pass.
+- **The quality pass.** After the current queue, a pass fills in unit tests and mutation
+  testing on what shipped (Chad, 2026-09-29).
+- **A run by hand** keeps the runner's rules: keys go to Marley's window only, clicks only in a
+  headless sway of the run's own; shots stay in the scratchpad or `SHOT_DIR`, never in the
+  repository, and a shot that shows anything but Marley is deleted.
 - **Gate-is-test changes** (config, tooling, docs with no `.rs`) are verified by the gate's own
-  exit codes plus **negative smokes** (inject the drift → the gate goes red → revert → green),
-  and by an e2e run when the change drives the app.
+  exit codes (`script/gates.sh --fast`).
 
 ---
 
@@ -281,8 +258,7 @@ them and no ticket adds to them.
 ## §15 — Anti-Circumvention (binding)
 
 **The transcript is the source of truth. If it didn't happen in the transcript, it didn't
-happen.** Claiming a scenario passed without a visible e2e run and its shots read is a
-violation. Claiming the gate is green without running `script/gates.sh` is a violation. Hooks evaluate evidence (tool
+happen.** Claiming the gate is green without running `script/gates.sh` is a violation. Hooks evaluate evidence (tool
 calls, Bash commands, file state), not prose.
 
 Do not weaken a gate, delete a test (the tests in the tree stay, §7), or add a blanket
@@ -290,9 +266,9 @@ Do not weaken a gate, delete a test (the tests in the tree stay, §7), or add a 
 
 **What the enforcement is, and isn't.** The hooks are a *discipline scaffold*, not a security
 boundary. They reliably catch **omissions**: writing code before a phase is PASS, stopping a
-phase with unresolved tasks or an un-advanced doc status, leaving `/pipeline:test` without
-an e2e run, committing code without a green gate. They do **not** try to defeat
-deliberate fabrication: the `status:` line and the e2e calls are self-reported. The one
+phase with unresolved tasks or an un-advanced doc status, committing code without a green
+gate. They do **not** try to defeat deliberate fabrication: the `status:` line is
+self-reported. The one
 hard, evidence-based gate is **`script/gates.sh` at commit**: `enforce-commit-gate.sh` blocks
 a `git commit` that includes Rust source unless a `--diff` gate run left a
 *receipt* (`.git/ignibyte-gate-receipt`, a content fingerprint of every `crates/**/*.rs` and
@@ -303,7 +279,7 @@ passed once and fails later cannot commit on the older green. The receipt is wri
 any edit after the green, by Write, Edit or a Bash heredoc, changes the fingerprint and
 re-blocks. A **second** commit-time hook, `enforce-changelog.sh`, blocks a Rust-source commit
 that lacks a `CHANGELOG.md` entry (§21). A change that touches **no** `.rs` is not blocked by
-the receipt; its gate is enforced by pipeline discipline (`--fast` at `/pipeline:test`). The receipt fingerprint binds not just `crates/**/*.rs` but the
+the receipt; its gate is enforced by pipeline discipline (`--fast` at the end of `/pipeline:code`). The receipt fingerprint binds not just `crates/**/*.rs` but the
 **gate-defining files** themselves (`script/gates.sh`, `.claude/hooks/**`, `clippy.toml`,
 `rustfmt.toml`, `deny.toml`, `.gitleaks.toml`, `.semgrep.yml`, `.config/typos.toml`,
 `.cargo/audit.toml`, the Cargo manifests and lockfile, the toolchain pin, the e2e runner and
@@ -405,7 +381,7 @@ shape of the rule, not its purpose:
 
 ## §21 — Documentation Phase (binding)
 
-Context must never be lost. **Every pipeline's Phase 4 (Complete) shall, without exception,
+Context must never be lost. **Every pipeline's Phase 3 (Complete) shall, without exception,
 do both:**
 
 1. **Add a `CHANGELOG.md` entry** for the change (root `CHANGELOG.md`, Keep a Changelog
@@ -416,7 +392,7 @@ do both:**
    (slice status), the per-crate notes under `docs/marley_architecture/` for a Marley crate,
    and, for a change outside the Marley-owned paths, a check that its row in
    `docs/marley/zed-touchpoints.md` still describes what shipped (the row itself is written
-   before the change, §14). This half is a **required** Phase-4 step.
+   before the change, §14). This half is a **required** Phase-3 step.
 
 Skipping either is a charter violation. The CHANGELOG keeps the *what/why* of every change;
 the architecture docs keep the *shape* of the system.
@@ -441,3 +417,9 @@ the mouse, Hyprland cannot click one window, and a sway of the run's own takes c
 touching the user's session, so "a click" left the list of what no scenario can reach (#487).
 On 2026-09-26 §7 gained the golden set, a floor raised: the scenarios that cover Marley's core
 check themselves and run before every install (#517; Chad left its design to the agent).
+On 2026-09-29 Chad removed tests from the workflow altogether ("redo the workflow to remove the
+quality gates such as running unit tests and creating unit tests altogether"), recorded in §0,
+§3 and §7: no ticket writes or runs a test, e2e scenarios and the golden set included; the Test
+phase went, and the gate runs at the end of the Code phase; `just install` runs the golden set
+only when asked. The static gate stays. Unit tests and mutation come back in a quality pass
+after the queue.

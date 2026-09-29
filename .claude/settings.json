@@ -1,5 +1,5 @@
 {
-  "_comment": "Marley pipeline enforcement (see CONSTITUTION.md). PreToolUse gates code writes by phase, blocks a write to a Zed path that has no row in docs/marley/zed-touchpoints.md, and blocks a `git commit` whose tree the ledger does not record, or that carries code without a green gate, a CHANGELOG entry, or a filled spec reference; Stop gates leaving a phase on tasks/tests/format/doc-status. The phase and Stop hooks arm on pipeline intent (an active phase or an active doc), never on normal chat; the commit, changelog, reference and ledger hooks are always on. Hook commands anchor to ${CLAUDE_PROJECT_DIR} (fallback .) so they resolve regardless of the session shell cwd.",
+  "_comment": "Marley pipeline enforcement (see CONSTITUTION.md). PreToolUse gates code writes by phase, blocks a write to a Zed path that has no row in docs/marley/zed-touchpoints.md, and blocks a `git commit` whose tree the ledger does not record, or that carries code without a green gate, a CHANGELOG entry, or a filled spec reference; Stop gates leaving a phase on tasks/format/doc-status. The phase and Stop hooks arm on pipeline intent (an active phase or an active doc), never on normal chat; the commit, changelog, reference and ledger hooks are always on. Hook commands anchor to ${CLAUDE_PROJECT_DIR} (fallback .) so they resolve regardless of the session shell cwd.",
   "hooks": {
     "PreToolUse": [
       {
@@ -50,11 +50,6 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/enforce-phase-tasks.sh\"",
             "timeout": 20
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/enforce-tests-ran.sh\"",
-            "timeout": 30
           },
           {
             "type": "command",

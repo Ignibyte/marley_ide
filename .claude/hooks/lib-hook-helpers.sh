@@ -94,8 +94,8 @@ extract_assistant_tool_uses() {
 }
 
 # The Ignibyte pipeline command alphabet (used by the two detectors below).
-# Phases: plan code test complete (CONSTITUTION §3). Plus /spec, the batch planner.
-_PIPE_RE='(pipeline[-:](plan|code|test|complete)|spec)'
+# Phases: plan code complete (CONSTITUTION §3). Plus /spec, the batch planner.
+_PIPE_RE='(pipeline[-:](plan|code|complete)|spec)'
 
 # Most-recent slash command of ANY kind (returns bare name or "").
 latest_pipeline_command() {
@@ -112,7 +112,7 @@ latest_pipeline_command() {
     [ -n "$m" ] && echo "$m" | grep -oE "/$_PIPE_RE" | tail -1 | sed 's#^/##' || true
 }
 
-# Bare PIPELINE PHASE name (plan|code|test|complete), or "" when the latest
+# Bare PIPELINE PHASE name (plan|code|complete), or "" when the latest
 # slash command is NOT a pipeline phase (e.g. /spec).
 detect_active_command() {
     local t="$1"; [ -f "$t" ] || { echo ""; return; }
@@ -125,7 +125,7 @@ detect_active_command() {
          elif .role=="assistant" then ((.content // [])[]? |
              select(.type=="tool_use" and .name=="Skill") | "/" + (.input.skill // ""))
          else empty end] | map(select(test($re))) | last // empty' "$t" 2>/dev/null || true)
-    [ -n "$m" ] && echo "$m" | grep -oE 'pipeline[-:](plan|code|test|complete)' | tail -1 | sed 's/^pipeline[-:]//' || true
+    [ -n "$m" ] && echo "$m" | grep -oE 'pipeline[-:](plan|code|complete)' | tail -1 | sed 's/^pipeline[-:]//' || true
 }
 
 # 0-based JSONL line index of the last phase-advance (user /pipeline:<phase> or
@@ -141,7 +141,7 @@ index_of_latest_phase_advance() {
                 ([.content // [] | .[]? | select(.type=="tool_use" and .name=="Skill") |
                   "/" + (.input.skill // "")] | join("\n"))
             else "" end)] |
-        to_entries | map(select(.value | test("(^|\\n)\\s*/?pipeline[-:](plan|code|test|complete)\\b"))) |
+        to_entries | map(select(.value | test("(^|\\n)\\s*/?pipeline[-:](plan|code|complete)\\b"))) |
         last // empty | if . == "" then "" else (.key | tostring) end' "$t" 2>/dev/null || true
 }
 

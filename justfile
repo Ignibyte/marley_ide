@@ -22,11 +22,12 @@ gate-diff: idle
 gate-fast: idle
     script/gates.sh --fast
 
-# The debug `marley` binary, which the e2e tests run.
+# The debug `marley` binary, which the e2e scenarios run.
 build: idle
     cargo build -p zed --bin marley
 
-# The release `marley` installed with its desktop entry, under ~/.local unless `--prefix DIR`.
+# The release `marley` installed with its desktop entry, under ~/.local unless `--prefix DIR`;
+# `--regress` runs the golden set against it first.
 install *args: idle
     script/install-marley {{ args }}
 
@@ -38,7 +39,7 @@ clippy +crates: idle
 fmt +crates: idle
     cargo fmt {{ prepend("-p ", crates) }}
 
-# A ticket's e2e test (§7): its scenario drives the debug Marley, hidden, and shoots it.
+# An e2e scenario, run by hand (§7): it drives the debug Marley, hidden, and shoots it.
 e2e scenario:
     script/e2e.sh "{{ scenario }}"
 

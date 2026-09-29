@@ -49,29 +49,19 @@ references: []
      A locked decision dying because the substrate already does it is a WIN to record, not a deviation to hide.
      Found nothing? That is a PASS — write "none: checked gpui/terminal/regex, no owner". Silence is not. -->
 
-## UI proof
-<!-- Does this ticket change anything the user SEES or types into (a pane, a panel, the terminal, a
-     keystroke or mouse handler, an affordance)? Fill with ONE of:
-       - UI-AFFECTING: the e2e scenario (script/e2e/<N>-<slug>.sh, run by script/e2e.sh on the real
-         debug Marley, hidden, keys to its window only; or, for clicks, drags and the wheel,
-         `compositor sway`, a headless sway of its own) and the shot that proves each criterion
-         (§7). No unit or driven tests.
-       - N/A — no UI delta: <why> (first line must start "N/A"); its e2e run is `just shot`. -->
-
 ## Locked-In Decisions
 - D1 — …
 
 ## Acceptance Criteria (EARS)
-One observable behavior per row, with a verification method (a named e2e shot, the gate's
-exit code, a negative smoke, or review).
+One observable behavior per row, with a verification method: the review of the diff or the
+gate's exit code (no tests, §7).
 
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
 | REQ-001 | WHEN … the system shall … | … |
 
 ## Phase Plan
-- **P1 Plan** — this spec, and the design and test plan in the notes.
-- **P2 Code** — …; fmt and clippy clean; a review of the diff.
-- **P3 Test** — write + RUN the e2e scenario and read every shot; `script/gates.sh --diff` green.
-- **P4 Complete** — CHANGELOG and architecture docs (§21), ledger capture (§19), close the ticket,
+- **P1 Plan** — this spec, and the design in the notes.
+- **P2 Code** — …; a review of the diff; `script/gates.sh --diff` green.
+- **P3 Complete** — CHANGELOG and architecture docs (§21), ledger capture (§19), close the ticket,
   archive, commit.
