@@ -27,7 +27,7 @@
 //! grid before and after (#544).
 
 use std::ops::Range;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use crate::apply::ApplyHookError;
 use crate::block::{BlockState, ExitCode, PromptInfo};
@@ -55,6 +55,60 @@ pub struct AnchoredBlock {
     pub output_start: u64,
     /// The absolute line after the output, once the block finished.
     pub output_end: Option<u64>,
+}
+
+impl AnchoredBlock {
+    /// The block as Markdown, for a note or a message (#554): a fence holding `$ ` and the
+    /// command, then `output`, or a line saying the output is no longer kept; after it one line
+    /// with the exit, how long it `took`, and the folder with its branch. The fence is longer than
+    /// any run of backticks inside, so the block's text cannot close it.
+    #[must_use]
+    pub fn markdown(&self, output: Option<&str>, took: Option<Duration>) -> String {
+        let body = output.map_or_else(
+            || {
+                format!(
+                    "$ {}\n(the output is no longer in the scrollback)",
+                    self.command
+                )
+            },
+            |output| format!("$ {}\n{}", self.command, output.trim_end_matches('\n')),
+        );
+        let longest = body
+            .split(|character| character != '`')
+            .map(str::len)
+            .max()
+            .unwrap_or(0);
+        let fence = "`".repeat(longest.max(2) + 1);
+        let exit = match (self.state, self.exit_code.0) {
+            (BlockState::Running | BlockState::Pending, _) => Some("running".to_string()),
+            (BlockState::Finished, Some(code)) => Some(format!("exit {code}")),
+            (BlockState::Finished, None) => None,
+        };
+        let folder = self.prompt.pwd.as_ref().map(|pwd| {
+            self.prompt
+                .git_branch
+                .as_ref()
+                .map_or_else(|| pwd.clone(), |branch| format!("{pwd} ({branch})"))
+        });
+        let facts: Vec<String> = [exit, took.map(duration_words), folder]
+            .into_iter()
+            .flatten()
+            .collect();
+        if facts.is_empty() {
+            format!("{fence}\n{body}\n{fence}\n")
+        } else {
+            format!("{fence}\n{body}\n{fence}\n{}\n", facts.join(" · "))
+        }
+    }
+}
+
+/// How long a command ran, in words: `340 ms` under a second, `2.5 s` after.
+fn duration_words(took: Duration) -> String {
+    if took < Duration::from_secs(1) {
+        format!("{} ms", took.as_millis())
+    } else {
+        format!("{:.1} s", took.as_secs_f64())
+    }
 }
 
 /// When a block's command started and, once it finished, when it ended: the times the terminal saw
@@ -125,6 +179,8 @@ pub struct AnchoredBlocks {
     prompt_shell: Option<Shell>,
     /// Each block's host, by index; none for the local shell's.
     hosts: Vec<Option<String>>,
+    /// How many inputs the terminal noted, for a selection that ends at the next one (#554).
+    inputs: u64,
 }
 
 impl AnchoredBlocks {
@@ -304,9 +360,17 @@ impl AnchoredBlocks {
     /// Notes that input was typed with the cursor at the absolute `line` and `column`. The first
     /// such point after a prompt is where the command being typed at it starts.
     pub const fn note_input(&mut self, line: u64, column: usize) {
+        self.inputs = self.inputs.wrapping_add(1);
         if self.staged.is_some() && self.input_start.is_none() {
             self.input_start = Some((line, column));
         }
+    }
+
+    /// How many inputs [`AnchoredBlocks::note_input`] has noted: a block selected at one count
+    /// stays selected until it moves (#554).
+    #[must_use]
+    pub const fn inputs(&self) -> u64 {
+        self.inputs
     }
 
     /// Where the command being typed at the prompt starts, once a key has been typed there.

@@ -169,6 +169,31 @@ pub struct MarleyTerminalLinkMenu(
 
 impl gpui::Global for MarleyTerminalLinkMenu {}
 
+// Marley: the block each terminal has selected, by the terminal's entity id, with the count of
+// inputs its blocks had noted then, so any input since ends the selection. Marley's workbench
+// writes it; the view's key context and the element's outline read it (#554).
+#[derive(Default)]
+pub struct MarleyBlockSelection(pub collections::HashMap<gpui::EntityId, (usize, u64)>);
+
+impl gpui::Global for MarleyBlockSelection {}
+
+impl MarleyBlockSelection {
+    /// The block `terminal` has selected, while no input has reached it since.
+    pub fn selected(terminal: &Entity<Terminal>, cx: &App) -> Option<usize> {
+        let (index, inputs) = *cx.try_global::<Self>()?.0.get(&terminal.entity_id())?;
+        (terminal.read(cx).marley_anchored().inputs() == inputs).then_some(index)
+    }
+}
+
+// Marley: the Block section a right-click on a block adds after Zed's items, given the block's
+// index; Marley's workbench sets it (#554).
+#[derive(Clone)]
+pub struct MarleyTerminalBlockMenu(
+    pub Arc<dyn Fn(&MarleyFooterContext, usize, ContextMenu, &mut Window, &mut App) -> ContextMenu>,
+);
+
+impl gpui::Global for MarleyTerminalBlockMenu {}
+
 // Marley: the autosuggestion a terminal shows after its cursor, or none; Marley's workbench
 // sets it (#484).
 #[derive(Clone)]
@@ -614,11 +639,19 @@ impl TerminalView {
                 Some((hook, link))
             });
         let marley_view = cx.entity().downgrade();
+        // Marley: the block under the click, for the menu's Block section (#554).
+        let marley_block = cx
+            .try_global::<MarleyTerminalBlockMenu>()
+            .cloned()
+            .and_then(|hook| {
+                let block = terminal_element::marley_block_at(self.terminal.read(cx), position)?;
+                Some((hook, block))
+            });
         let context_menu = ContextMenu::build(window, cx, |menu, window, cx| {
             let menu = match marley_link {
                 Some((hook, link)) => {
                     let context = MarleyFooterContext {
-                        view: marley_view,
+                        view: marley_view.clone(),
                         terminal: &self.terminal,
                         project: &self.project,
                         workspace: &self.workspace,
@@ -668,6 +701,19 @@ impl TerminalView {
                             close_pinned: true,
                         }),
                     )
+                })
+                .map(|menu| match marley_block {
+                    Some((hook, block)) => {
+                        let context = MarleyFooterContext {
+                            view: marley_view,
+                            terminal: &self.terminal,
+                            project: &self.project,
+                            workspace: &self.workspace,
+                            focus_handle: &self.focus_handle,
+                        };
+                        (hook.0)(&context, block, menu, window, cx)
+                    }
+                    None => menu,
                 })
         });
 
@@ -1149,6 +1195,10 @@ impl TerminalView {
     fn dispatch_context(&self, cx: &App) -> KeyContext {
         let mut dispatch_context = KeyContext::new_with_defaults();
         dispatch_context.add("Terminal");
+        // Marley: the keys that move and act on a selected block apply while one is (#554).
+        if MarleyBlockSelection::selected(&self.terminal, cx).is_some() {
+            dispatch_context.add("MarleyBlockSelected");
+        }
 
         if self.terminal.read(cx).vi_mode_enabled() {
             dispatch_context.add("vi_mode");

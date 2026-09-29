@@ -155,11 +155,15 @@ real, reusable session. The Block model is the unit the **brain** later observes
   For autosuggestions (#484), `AnchoredBlocks::at_prompt` says a prompt is staged,
   `note_input` (which Zed's `Terminal::input` calls with the cursor's absolute point, off the
   alternate screen) keeps the first point typed at after it as `input_start`, which `Precmd` and
-  `Preexec` clear, and the `History` hook (`history;file=`, which both scripts send after `init`
+  `Preexec` clear, and counts every input it notes (`inputs`, #554: a selected block stays
+  selected while the count holds), and the `History` hook (`history;file=`, which both scripts send after `init`
   with `$HISTFILE`) keeps the shell's history file. `suggest.rs` has `suggestion`, the rest of
   the first history command, newest first, that starts with the typed text and stays on one
   line, and `parse_history`, bash's lines without their `#<seconds>` lines and zsh's extended
   `: <seconds>:<elapsed>;` lines with backslash continuations joined.
+  `AnchoredBlock::markdown(output, took)` (#554) writes a block for a note or a message: a fence
+  one backtick longer than any run inside, `$ ` and the command, the output or a line saying it
+  is gone, then `exit N · took · folder (branch)`.
   `stamp` (#491), which Zed's `Terminal::apply_shell_hook` calls after each hook applies, keeps
   each block's `BlockTimes` beside it: its start, when the `Preexec` that opened it was applied,
   and its end, when the hook that finished it was; a busy main thread moves a stamp by tens of

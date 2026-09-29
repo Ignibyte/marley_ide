@@ -29,6 +29,17 @@
     }
   },
   {
+    // A selected block (#554): the arrows move the selection, Escape ends it, and Ctrl-Shift-I
+    // types its command at the prompt, as Warp binds them.
+    "context": "Terminal && MarleyBlockSelected",
+    "bindings": {
+      "up": "marley::PreviousBlock",
+      "down": "marley::NextBlock",
+      "escape": "marley::ClearBlockSelection",
+      "ctrl-shift-i": "marley::ReinputBlock"
+    }
+  },
+  {
     // A worktree agent's first prompt (#510): Enter makes the worktree and starts the agent,
     // Shift-Enter adds a line, Escape closes it.
     "context": "MarleyWorktreePrompt > Editor",

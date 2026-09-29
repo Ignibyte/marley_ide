@@ -651,7 +651,7 @@ alike.
   deferred), with Show Terminal alone. Show Terminal activates the worktree's workspace in the
   window's `MultiWorkspace` and the terminal's `TerminalView` among its items.
 
-## The block keys (`src/blocks.rs`, #473)
+## The block keys and the block menu (`src/blocks.rs`, #473, #554)
 
 - `marley::PreviousBlock` and `marley::NextBlock` are caught at each workspace's root with
   `register_action_renderer`, as `routing` catches its actions, and act on the terminal view
@@ -662,6 +662,21 @@ alike.
   offset.
 - The Marley keymap binds them to `secondary-up` and `secondary-down` in `Terminal`, keys Zed's
   defaults leave unbound there (AD-claude-449's rule for the Marley keymap).
+- Since #554 they select. `terminal_view::MarleyBlockSelection` holds each terminal's selected
+  block (by the terminal's entity id) with `AnchoredBlocks::inputs` at that moment; `selected`
+  answers only while the count is unchanged, so the first input ends it. `step`: with none
+  selected, `PreviousBlock` selects the newest block and `NextBlock` scrolls to the next as
+  before; with one, back or forward a block, forward past the last clearing it; `reveal`
+  scrolls the block's first line into view when it is off screen. On the alternate screen the
+  key propagates. `Terminal && MarleyBlockSelected` binds `up`, `down`, `escape`
+  (`ClearBlockSelection`) and `ctrl-shift-i` (`ReinputBlock`). The view's key context carries
+  `MarleyBlockSelected` and the element outlines the block while it is selected.
+- The block menu: `terminal_view::MarleyTerminalBlockMenu` is set to `block_menu`, which Zed's
+  `deploy_context_menu` asks after its own items with the block under the click
+  (`terminal_element::marley_block_at`). It selects the block and adds a `Block` header, the four
+  copies (`copy`: the command, `Terminal::block_output`, both, or `AnchoredBlock::markdown` with
+  the block's `BlockTimes`) and Reinput and Reinput with sudo (`reinput`: Ctrl-U, the command,
+  no return), disabled unless `AnchoredBlocks::rerun_offered`.
 
 ## The agent bar (`src/agent_bar.rs`, #477)
 

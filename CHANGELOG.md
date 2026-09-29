@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Select a block, and a menu of what to do with it** (#554, 2026-09-29). `Ctrl+Up` in a
+  terminal outlines its newest block; `Up` and `Down` move the outline from block to block,
+  `Ctrl+Down` past the last ends it, and so do Escape and the first key typed to the shell. A
+  right-click on a block selects it and adds a Block section to the terminal's menu: Copy
+  Command, Copy Output, Copy Both, Copy as Markdown (the command and its output in a code block,
+  then its exit code, how long it ran and its folder and branch), Reinput and Reinput with sudo,
+  which put the command back at the prompt without running it. `Ctrl+Shift+I` reinputs the
+  selected block. Reinput is offered as Rerun is: only for a command the shell itself reported,
+  while that shell waits at its prompt.
+
 - **Blocks over ssh** (#526, 2026-09-29). `ssh host` from Marley's bash or zsh now starts the host's
   bash or zsh with Marley's integration, so each command typed there is a block with its exit
   code, as on this machine. The integration travels in the ssh command, one line that any login

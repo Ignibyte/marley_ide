@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #554 (feature, prong 1 T1: the block actions the bar names, item 3)
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/554-block-selection-and-menu.spec.md
+- **Pipeline doc:** ../../pipeline/completed/554-block-selection-and-menu.spec.md
 - **Source ticket:** The Warp blocks note of 2026-09-25, recommendation 1 (`docs/planning/design-notes/warp-blocks-and-natural-language-2026-09-25.md`), specced because Chad decided on 2026-09-26 that every remaining Orca and Warp finding gets built. Open question 6 (whether the block keys select) had no answer; the spec takes Warp's binding.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Marley has Copy Output and Rerun on a hovered block, keys that scroll from block to block, and

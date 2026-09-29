@@ -3022,3 +3022,16 @@ hook's fields as they were). Rerun and autosuggestions follow the shell at the p
 promotion: the one-line base64 command (fish and tcsh), the cleanup at the scripts' top (a profile
 that execs tmux), zsh's `ssh` defined at the first prompt. Rejected: typing a bootstrap into the
 remote shell; a program on each host; the terminal's own nonce on the host.
+
+## AD-claude-554-a-selected-block-ends-at-the-next-input-counted-in-the-blocks-001
+*decided at: 2026-09-29 · status: shipped*
+
+A terminal's selected block is kept in `terminal_view::MarleyBlockSelection` by the terminal's
+entity id with `AnchoredBlocks::inputs`, a count `note_input` raises at every input, taken when it
+was selected; `MarleyBlockSelection::selected` answers only while the count is unchanged. The key
+context, the outline and the menu all ask it, so the first key typed, a paste or a Reinput ends the
+selection with no event to hear. Changed at the Code phase from the spec's D3 (end on the terminal's
+`SelectionsChanged`): a right-click queues Zed's word selection before the menu's hook selects the
+block, and that event, delivered after, would have ended the selection the right-click made. A mouse
+text selection therefore leaves the block selected. Rejected: a subscription to `SelectionsChanged`;
+a new hunk in `Terminal::input` (it already calls `note_input`).

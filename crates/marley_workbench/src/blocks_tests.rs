@@ -162,7 +162,7 @@ async fn the_block_keys_walk_the_focused_terminals_blocks(cx: &mut TestAppContex
 async fn the_block_keys_leave_a_terminal_without_focus_alone(cx: &mut TestAppContext) {
     cx.executor().allow_parking();
     init_test(cx);
-    cx.update(|cx| init(cx));
+    cx.update(init);
     let (_, workspaces, cx) = open_projects(&[path!("/alpha")], cx).await;
     let workspace = workspaces[0].clone();
     let (terminal, _) = terminal_with_blocks(&workspace, cx).await;

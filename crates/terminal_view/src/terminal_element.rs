@@ -1850,6 +1850,26 @@ impl Element for TerminalElement {
                     for block in &mut marley_blocks {
                         block.paint(window, cx);
                     }
+                    // Marley: the selected block's outline over its rows (#554).
+                    if let Some(selected) =
+                        crate::MarleyBlockSelection::selected(&self.terminal, cx)
+                        && let Some(span) = layout
+                            .marley_spans
+                            .iter()
+                            .find(|span| span.index == selected)
+                    {
+                        let rows = marley_rows_bounds(
+                            &span.rows,
+                            bounds.origin.x,
+                            origin,
+                            &layout.dimensions,
+                        );
+                        window.paint_quad(gpui::outline(
+                            rows,
+                            cx.theme().colors().border_focused,
+                            gpui::BorderStyle::Solid,
+                        ));
+                    }
 
                     // Marley: the autosuggestion from the cursor on, dimmed (#484).
                     if let Some(suggestion) = &layout.marley_suggestion
@@ -2213,6 +2233,21 @@ fn marley_block_spans(
     let cursor_line =
         content.marley_screen_top + u64::try_from(content.cursor.point.line).unwrap_or_default();
     marley_terminal::visible_spans(blocks, top, content.screen_lines, cursor_line)
+}
+
+// Marley: the block under a point of the window, for the menu's Block section (#554).
+pub(crate) fn marley_block_at(terminal: &Terminal, position: GpuiPoint<Pixels>) -> Option<usize> {
+    let content = terminal.last_content();
+    let bounds = &content.terminal_bounds;
+    let offset = position.y - bounds.bounds.origin.y;
+    if offset < px(0.) {
+        return None;
+    }
+    let row = (offset / bounds.line_height).floor() as usize;
+    marley_block_spans(content, terminal.blocks())
+        .into_iter()
+        .find(|span| span.rows.contains(&row))
+        .map(|span| span.index)
 }
 
 // Marley: the pixel bounds of a block's viewport rows, from the element's left edge, over the

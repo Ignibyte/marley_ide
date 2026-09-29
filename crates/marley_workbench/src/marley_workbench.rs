@@ -103,12 +103,20 @@ actions!(
         /// this project.
         #[derive(Eq)]
         NewAgent,
-        /// Scrolls the focused terminal to the start of the block before the one at its top.
+        /// Selects the block before the focused terminal's selected one, or its newest block,
+        /// and scrolls it into view.
         #[derive(Eq)]
         PreviousBlock,
-        /// Scrolls the focused terminal to the start of the next block, or to its live screen.
+        /// Selects the block after the focused terminal's selected one, and past the last ends
+        /// the selection; with none selected, scrolls to the start of the next block.
         #[derive(Eq)]
         NextBlock,
+        /// Ends the focused terminal's block selection.
+        #[derive(Eq)]
+        ClearBlockSelection,
+        /// Types the selected block's command at the prompt, unrun.
+        #[derive(Eq)]
+        ReinputBlock,
         /// Chooses files and types their paths into the focused terminal, as dropping them does.
         #[derive(Eq)]
         AttachFile,

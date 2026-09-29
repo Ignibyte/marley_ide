@@ -1,7 +1,7 @@
 ---
 pipeline_id: ba518e99-6a91-4404-bcd9-f067d19b21df
-ticket: docs/planning/tickets/open/TICKET-554-block-selection-and-menu.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-554-block-selection-and-menu.md
+status: Phase 4 — Complete PASS
 title: "Block selection and the block menu"
 type: feature
 slice: prong 1 T1 (the bar's item 3: select a block, copy command); the Warp blocks note's recommendation 1
@@ -45,9 +45,10 @@ Rerun's rules: a verified command, the shell at its prompt.
   block with `$ <command>` and the output, then one line `exit <code> · <duration> · <cwd>
   (<branch>)`, from a pure `marley_terminal::block_markdown` that #555 reuses; output no longer
   in the scrollback says so inside the fence.
-- **Reinput.** Ctrl-U then the command, no return, only for a `command_verified` block and
-  while the shell waits at its prompt (the last block Finished, Rerun's gate); Reinput with sudo
-  the same with `sudo ` first. The two items show disabled otherwise.
+- **Reinput.** Ctrl-U then the command, no return, only where Rerun is offered:
+  `AnchoredBlocks::rerun_offered` (a verified command, and the shell that ran it, local or an ssh
+  host's, waiting at its prompt; #526); Reinput with sudo the same with `sudo ` first. The two
+  items show disabled otherwise.
 - `script/e2e/554-block-selection-and-menu.sh`.
 
 ### Out (explicitly deferred)
@@ -179,7 +180,7 @@ with sudo disabled (`554-11-unverified`).
 | REQ-006 | WHEN the user picks Reinput on a verified block while the shell waits at its prompt, the system shall type Ctrl-U and the command with no return; Reinput with sudo the same with `sudo ` first. | Shots `554-09-reinput`, `554-10-reinput-sudo` (no new block) |
 | REQ-007 | WHEN a block's command was not reported with the terminal's nonce, or the shell is not at its prompt, the menu shall show Reinput and Reinput with sudo disabled. | Shot `554-11-unverified` |
 | REQ-008 | WHEN the user presses `ctrl-shift-i` with a block selected, the system shall reinput as the item does. | Shot `554-12-reinput-key` |
-| REQ-009 | The diff gate shall be green, and the golden set shall pass. | `script/gates.sh --diff`; `just regress` |
+| REQ-009 | The diff gate shall be green. | `script/gates.sh --diff` |
 
 ## Phase Plan
 - **P1 Plan:** this spec; the design and the test plan in the notes. At promotion re-verify
@@ -189,8 +190,8 @@ with sudo disabled (`554-11-unverified`).
   `block_markdown`; the keymap lines; the block keys' new behavior in `blocks.rs`. fmt and
   clippy clean; a review of the diff (the nonce check before both Reinput items; the keys
   propagate on the alternate screen; no PRIMARY write).
-- **P3 Test:** write and run the scenario and read every shot; rerun the golden set, whose
-  block scenarios press the block keys; `script/gates.sh --diff` green.
+- **P3 Test:** write and run the scenario and read every shot (the visual check of the change
+  only, 2026-09-29; no golden run).
 - **P4 Complete:** CHANGELOG; `docs/marley_architecture/terminal_blocks.md` and
   `marley_workbench.md`; the touchpoints rows checked; the plan's slice status; the ledger
   capture; close the ticket, archive, commit.

@@ -1,6 +1,6 @@
 # Block selection and the block menu — Notes
 
-- **Local ticket doc:** docs/planning/tickets/open/TICKET-554-block-selection-and-menu.md
+- **Local ticket doc:** docs/planning/tickets/closed/TICKET-554-block-selection-and-menu.md
 - **Pipeline spec:** 554-block-selection-and-menu.spec.md
 
 ## Phase 1 — Plan
@@ -65,6 +65,22 @@
     Marley's.
   - `crates/marley_workbench/src/rich_input.rs:31` `Prompts`, `:88` released with the view.
 - **Decisions:** D1 to D8 in the spec.
+- **Promotion (2026-09-29), the seams re-verified:** `terminal_view.rs` `MarleyTerminalFooter`
+  `:141`, `MarleyTerminalSuggestion` `:175`, `MarleyTerminalLinkMenu` `:158` (#579, a menu hook
+  of the same shape to copy), `deploy_context_menu` `:594` (the link hook at the menu's top,
+  Zed's items, then Close Terminal Tab), `dispatch_context` `:1149`, the right-click `:1586`;
+  `terminal_element.rs` `marley_spans` `:54`, the spans `:1645`, Rerun's gate now
+  `anchored.rerun_offered(block)` `:1660` (#526), the gutter bars `:1837`,
+  `marley_block_spans` `:2203`, `marley_rows_bounds` `:2220`, `marley_block` `:2341`;
+  `terminal.rs` `blocks` `:1915`, `marley_anchored` `:1922`, `block_output` `:1929`,
+  `block_output_kept` `:1939`, the `SetSelection` arm `:2017` (emits `SelectionsChanged`),
+  `last_content` `:2233`, `input` `:2415`, `write_input` `:2527`, `marley_link_at` `:2166` (the
+  position to grid conversion); `anchored.rs` `AnchoredBlock` `:38`, `BlockTimes` `:63`,
+  `rerun_offered` `:257`, `BlockSpan` `:493`, `visible_spans` `:513`, `block_scroll` `:551`;
+  `blocks.rs` `init` `:15`, `scroll_to_block` `:31`; the Marley keymap's `Terminal` block
+  `:22` (`secondary-up`, `secondary-down`); `ctrl-shift-i` is free in `Terminal`. Changes to
+  the plan: Reinput takes `rerun_offered`; REQ-009 is the gate alone (no golden set,
+  2026-09-29).
 
 ### Design
 - **The global** (`terminal_view.rs`, beside the hooks): `pub struct MarleyBlockSelection(pub
@@ -101,7 +117,7 @@
 - **Ledger rows.** `docs/marley/zed-touchpoints.md`: the `terminal_view.rs` row gains the
   global, the flag and the hook; the `terminal_element.rs` row gains the outline.
 
-### E2E plan
+### Visual check plan
 
 | REQ | Scenario part | Shot or log |
 |---|---|---|
@@ -124,18 +140,90 @@ a `Block` header at a fixed offset under Zed's last item keeps them stable. Not 
 ### Risks
 - The outline is painted from `marley_spans` at paint time; a block whose first row scrolled
   off still has rows on screen and keeps its outline over them, which is right.
-- `ctrl-up`'s meaning changes for the golden scenarios that press the block keys (#473's);
-  Test reruns the set and reads their checks.
+- `ctrl-up`'s meaning changes; no e2e scenario presses the block keys (checked at promotion,
+  2026-09-29), and #473's checks were driven tests, which do not run until the testing phase.
 - A right-click on a text selection keeps Zed's `select_word_at_event_position` and its Copy;
   the Block section joins the same menu, so nothing is lost.
 - The menu hook's context holds a weak view; a view released between the click and the item's
   click makes the item a no-op.
 
 ## Phase 2 — Code
-- Not started.
+- **Built:**
+  - `marley_terminal` (`anchored.rs`): `AnchoredBlocks::inputs`, a count `note_input` raises at
+    each input, and `AnchoredBlock::markdown(output, took)`, the fence (one backtick longer than
+    any run inside, as #592's approval) with `$ command` and the output or a line saying it is
+    gone, then `exit N · 1.2 s · /folder (branch)` (`running` for a running block).
+  - `terminal_view.rs`: `MarleyBlockSelection` (by the terminal's entity id: the block and the
+    input count when it was selected) with `selected(terminal, cx)`, valid while the count is
+    unchanged; `dispatch_context` adds `MarleyBlockSelected`; `MarleyTerminalBlockMenu`, asked
+    after Zed's items with the block under the click.
+  - `terminal_element.rs`: `marley_block_at(terminal, position)`, the row under the click
+    through the element's own `marley_block_spans`; the outline (`gpui::outline`, the theme's
+    `border_focused`) over the selected block's rows after the gutter bars.
+  - `marley_workbench`: `blocks.rs` (the keys, the selection, the menu's section, the copies,
+    Reinput), two actions (`ClearBlockSelection`, `ReinputBlock`), PreviousBlock's and
+    NextBlock's descriptions, the keymap block `Terminal && MarleyBlockSelected`.
+- **Deviations:**
+  - The selection ends on the next input, counted in `AnchoredBlocks`, not on
+    `SelectionsChanged`: a right-click queues Zed's word selection before the menu opens, and its
+    `SelectionsChanged`, delivered after the hook selected the block, would have cleared it. The
+    count needs no event and no new hunk in `terminal.rs` (`Terminal::input` already calls
+    `note_input`). A mouse text selection therefore leaves the block selected (D3 said it would
+    clear it).
+  - Keyed by the terminal's entity id, not the view's: `dispatch_context` has `&self` and its
+    terminal, not its own entity.
+  - The hook gets the block's index, found in `terminal_view` (`marley_block_at`), not the
+    click's position: the pixel-to-row division is a cast Marley's pedantic lints refuse, and
+    `grid_point` is private to the `terminal` crate.
+  - `blocks.rs` grew instead of a new `block_selection.rs` (the `.rules`' preference for
+    existing files: it is the block keys' module).
+  - `ctrl-down` with nothing selected still scrolls to the next block, as before.
+- **Review of the diff:** the hook runs inside `deploy_context_menu`, while the view is leased,
+  and reads only the terminal from its context (PR-claude-a-render-hook-reads-its-context-not-its-view-001);
+  Reinput checks `rerun_offered` on the block it types, and the menu disables both items by the
+  same test; the outline paints from `layout.marley_spans`, so an alternate screen shows none;
+  `reveal` scrolls only when the block's first line is off screen. `blocks_tests.rs`'s
+  PreviousBlock test expects the old scroll: it compiles and waits for the testing phase.
+- **Gate, run 1:** red on clippy: `needless_pass_by_ref_mut` on `clear_focused`,
+  `reinput_focused` (`window`) and `copy` (`cx`), and `redundant_closure` in `blocks_tests.rs`
+  (`init` takes `&mut App` now). Fixed at the source.
+- **Gate, run 2:** `just gate-diff`, GATE GREEN [diff], with the scenario in the tree (log in the
+  scratchpad).
 
 ## Phase 3 — Test
-- Not started.
+- **The scenario:** `script/e2e/554-block-selection-and-menu.sh`, `compositor sway`: a plain bash
+  prompt, `echo one`, `echo two`, `false`; the menu driven from its end (Reinput with sudo last,
+  Copy Command five above); the copies read from the headless sway's clipboard with `wl-paste`;
+  the prompt read through the stand-in agent's `terminal-screen`. One run on the new debug build,
+  exit 0, every check passed, no `panicked` in any log; the focus report: nothing on Hyprland, the
+  run's sway stopped. The rows measured in the plan (896, 935) held.
+- **554-01-selected:** `ctrl-up`: an outline around the `$ false` row, the newest block (REQ-001).
+- **554-02-moved:** `up`: the outline around `$ echo two` and `two` (REQ-002).
+- **554-03-cleared:** Escape: no outline. **554-04-typed-clears:** `ctrl-up`, then `x`: no
+  outline and `$ x` at the prompt (REQ-003).
+- **554-05-menu:** a right-click on `$ echo two`: Zed's items, then a `Block` header with Copy
+  Command, Copy Output, Copy Both, Copy as Markdown, Reinput and Reinput with sudo, and the block
+  outlined (REQ-004).
+- **The copies (REQ-005), from the clipboard:** Copy Command `echo two`; Copy Both `echo two` and
+  `two`; Copy as Markdown a three-backtick fence around `$ echo two` and `two`, then `exit 0 · 0
+  ms · <the repository's folder>`. **554-06-copied:** the block still outlined after the copies.
+  Copy Output was not chosen on its own; Copy Both carries the same output.
+- **554-09-reinput / 554-10-reinput-sudo:** `$ false`, then `$ sudo false`, at the prompt, unrun,
+  no new block (REQ-006).
+- **554-12-reinput-key:** `ctrl-up`, `ctrl-shift-i`: `$ false` at the prompt (REQ-008).
+- **554-11a-unverified-block / 554-11-unverified:** a printed Preexec frame with no nonce opens a
+  block (`fake-output`); right-clicked, its Reinput and Reinput with sudo are grey, and its hover
+  buttons offer Copy with no Rerun (REQ-007).
+- **Seen:** `echo two`'s duration reads `0 ms`: its Preexec and Precmd reached the terminal in one
+  read, so both stamps are the same instant. That is what the terminal saw; left as it is.
 
 ## Phase 4 — Complete
-- Not started.
+- **Docs:** CHANGELOG (Added, #554); `marley_workbench.md` (the block keys and the block menu);
+  `terminal_blocks.md` (`inputs`, `AnchoredBlock::markdown`); the touchpoints rows for
+  `terminal_view.rs` and `terminal_element.rs` (written before the code); the plan's T1 row.
+- **Knowledge:** AD-claude-554-a-selected-block-ends-at-the-next-input-counted-in-the-blocks-001,
+  L-claude-554-a-right-click-in-zeds-terminal-queues-a-word-selection-001.
+- **Brain:** consultation 702655a423a4448bad99fb3d37b5b719 closed with a decision (follow-up
+  2026-10-29).
+- **Closed:** TICKET-554 moved to `tickets/closed/`; its BACKLOG row went at promotion.
+- **For the testing phase:** `blocks_tests.rs`'s PreviousBlock test expects the old scroll.

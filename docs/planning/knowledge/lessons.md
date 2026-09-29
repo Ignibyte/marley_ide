@@ -3747,3 +3747,12 @@ scenario puts first on its own PATH can lose to the user's real program: #531's 
 the real `gh`, which asked GitHub about a made-up repository. A program Marley itself runs (not
 one a terminal's shell runs, whose PATH the scenario's `.bashrc` sets) gets an override variable
 Marley reads, `MARLEY_GIT`, `MARLEY_CLAUDE`, `MARLEY_GH`, and the scenario names its stand-in there.
+
+## L-claude-554-a-right-click-in-zeds-terminal-queues-a-word-selection-001
+*category: gpui · topic: Zed's terminal menu and selection events · from: #554's Code phase*
+
+A right-click in Zed's terminal with no text selected calls `select_word_at_event_position`, which
+only queues `InternalEvent::SetSelection`; the terminal applies it at its next `sync` and emits
+`SelectionsChanged` then, after `deploy_context_menu` has built the menu. Anything the menu's hooks
+set that a `SelectionsChanged` listener would undo is undone a frame later. State that must survive
+the right-click is judged by something the click does not touch, such as a count of inputs.
