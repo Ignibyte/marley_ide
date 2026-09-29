@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A second launch brings Marley forward as its launcher's click** (#545, 2026-09-29). When Marley
+  already runs, a second launch hands over the activation token its launcher gave it
+  (`XDG_ACTIVATION_TOKEN`) with its paths, and the running Marley brings its window forward with
+  it. Compositors that check tokens (sway, KWin, GNOME) now act on the hand-off instead of
+  refusing a token Marley asked for itself.
+
 - **gate:22, process spawns only in the listed adapters** (#541, 2026-09-29). The gate finds every
   call that starts a process in the Marley crates with a semgrep rule and allows them only in the
   files `.config/spawn-sites.txt` lists: the PTY, Chromium's unit and relay, and the workbench's

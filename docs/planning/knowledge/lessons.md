@@ -3921,3 +3921,13 @@ tell whether the short pattern works. Plant each short form without the import, 
 pattern by removing it once. Its Rust parser is tree-sitter's and recovers from most broken
 source without an error; `--strict` exits non-zero only on what it reports as a syntax error (a
 file of random bytes does). `.paths.scanned` is in its `--json` output without `--verbose`.
+
+## L-claude-545-a-refused-activation-token-looks-like-a-good-one-001
+*category: wayland · topic: xdg-activation tokens in a check · from: #545*
+
+wlroots answers a token request it refuses (no keyboard focus on the surface, or a serial it never
+gave the client) with a random token, so a refused token cannot be told from a good one until an
+`activate` with it does nothing. GTK4's launch context asks with its last pointer press's serial, so
+a stand-in launcher needs a click on its window first. Tokens expire (wlroots: 30 s), so ask for one
+just before it is used, and sway acts on a valid one only as `focus_on_window_activation` says (the
+default `urgent` marks the window urgent; `smart` focuses it on a visible workspace).

@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-545](open/TICKET-545-activation-token-hand-off.md) | feature | the app · a second launch hands its launcher's activation token to the running Marley, so a compositor that checks tokens brings the window forward (#513's follow-up) |
 | [TICKET-486](open/TICKET-486-keep-the-terminal-size-across-launches.md) | bug | prong 1 T0 · the first terminals of a launch open at the last session's size (#485's limit) |
 | [TICKET-596](open/TICKET-596-ssh-passphrases-asked-in-marley.md) | feature | prong 1 T7 · an agent's ssh asks for a key's passphrase in a Marley dialog through `SSH_ASKPASS`; split from #537 (Chad's answer, 2026-09-26) |
 | [TICKET-597](open/TICKET-597-harness-verb-payloads-and-capabilities.md) | chore | prong 2 · the harness's MREQ-003 and MREQ-004: each verb's payload and a session's capabilities in `marley_fleet` (split from #533) |

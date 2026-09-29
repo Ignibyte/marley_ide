@@ -11,6 +11,7 @@
 
 use std::os::unix::net::UnixDatagram;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use anyhow::{Context as _, Result, bail};
 use release_channel::RELEASE_CHANNEL_NAME;
@@ -27,6 +28,31 @@ const SOCKET_PATH_BYTES: usize = if cfg!(target_os = "freebsd") {
 } else {
     108
 };
+
+/// The datagram that carries a second launch's activation token, ahead of its paths (#545).
+const ACTIVATION_TOKEN_URL: &str = "zed://marley-activation-token/";
+
+/// The launch's `XDG_ACTIVATION_TOKEN`, read before the platform takes it out of the environment.
+static ACTIVATION_TOKEN: OnceLock<Option<String>> = OnceLock::new();
+
+/// Reads the launch's `XDG_ACTIVATION_TOKEN`, the token its launcher made for its click (#545).
+///
+/// gpui's Wayland client takes the variable out of the environment when it starts, so `zed`'s
+/// `main` calls this first, and a hand-off can carry the token to the running Marley.
+pub fn keep_activation_token() {
+    let token = std::env::var("XDG_ACTIVATION_TOKEN")
+        .ok()
+        .filter(|token| !token.is_empty());
+    ACTIVATION_TOKEN.get_or_init(|| token);
+}
+
+/// The activation token `url` carries, when it is a hand-off's token datagram.
+#[must_use]
+pub fn activation_token_in(url: &str) -> Option<String> {
+    url.strip_prefix(ACTIVATION_TOKEN_URL)
+        .filter(|token| !token.is_empty())
+        .map(str::to_string)
+}
 
 /// The socket Zed's check binds in the data directory.
 fn socket_path() -> PathBuf {
@@ -91,6 +117,12 @@ fn send(paths_or_urls: &[String]) -> Result<()> {
             .map(|arg| url_for(arg, &working_dir))
             .collect()
     };
+    // The token first, so the running Marley holds it when the paths bring a window forward.
+    let token = ACTIVATION_TOKEN
+        .get()
+        .and_then(Option::as_ref)
+        .map(|token| format!("{ACTIVATION_TOKEN_URL}{token}"));
+    let urls: Vec<String> = token.into_iter().chain(urls).collect();
     if let Some(url) = urls.iter().find(|url| url.len() > MAX_URL_BYTES) {
         bail!("{url} is longer than the {MAX_URL_BYTES} bytes the running Marley reads");
     }

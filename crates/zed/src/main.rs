@@ -200,6 +200,10 @@ static STARTUP_TIME: OnceLock<Instant> = OnceLock::new();
 
 fn main() {
     STARTUP_TIME.get_or_init(|| Instant::now());
+    // Marley: read before the platform takes it out of the environment, for a hand-off to carry
+    // to the running Marley (#545).
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    marley_workbench::single_instance::keep_activation_token();
 
     // If this process was re-executed as a Linux sandbox helper, run that mode
     // without returning. Must run before argument parsing: the wrapped command's

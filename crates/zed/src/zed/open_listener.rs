@@ -421,8 +421,15 @@ pub fn listen_for_cli_connections(opener: OpenListener) -> Result<()> {
     thread::spawn(move || {
         let mut buf = [0u8; 1024];
         while let Ok(len) = listener.recv(&mut buf) {
+            let url = String::from_utf8_lossy(&buf[..len]).to_string();
+            // Marley: a second launch's activation token comes ahead of its paths, for the window
+            // they bring forward (#545).
+            if let Some(token) = marley_workbench::single_instance::activation_token_in(&url) {
+                gpui::set_next_activation_token(token);
+                continue;
+            }
             opener.open(RawOpenRequest {
-                urls: vec![String::from_utf8_lossy(&buf[..len]).to_string()],
+                urls: vec![url],
                 ..Default::default()
             });
         }

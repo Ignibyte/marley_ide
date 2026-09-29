@@ -1787,9 +1787,17 @@ impl PlatformWindow for WaylandWindow {
     }
 
     fn activate(&self) {
+        let state = self.borrow();
+        // Marley: a token another process handed over, a second launch's from its launcher, brings
+        // the window forward as that click; one gpui requests here is refused without focus (#545).
+        if let Some(activation) = &state.globals.activation
+            && let Some(token) = gpui::take_next_activation_token()
+        {
+            activation.activate(token, &state.surface);
+            return;
+        }
         // Try to request an activation token. Even though the activation is likely going to be rejected,
         // KWin and Mutter can use the app_id to visually indicate we're requesting attention.
-        let state = self.borrow();
         if let (Some(activation), Some(app_id)) = (&state.globals.activation, state.app_id.clone())
         {
             state.client.set_pending_activation(state.surface.id());

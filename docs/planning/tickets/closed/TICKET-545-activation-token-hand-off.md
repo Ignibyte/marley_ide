@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #545 (feature, the Marley app: startup, after #513)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** (none yet)
+- **Pipeline doc:** ../../pipeline/completed/545-activation-token-hand-off.spec.md
 - **Source ticket:** found in #513's Test, 2026-09-26: the running Marley asked to come forward,
   and sway did not act on it
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Since #513 a second launch hands its paths to the running Marley, which asks the compositor to

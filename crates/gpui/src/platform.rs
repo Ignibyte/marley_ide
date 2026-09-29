@@ -150,6 +150,27 @@ impl ActivityGuard {
     }
 }
 
+// Marley: an activation token another process handed to this one, such as a second launch's
+// from its launcher, for the next window this process brings forward (#545).
+static NEXT_ACTIVATION_TOKEN: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// Keeps `token`, an activation token another process handed over, for the next window that
+/// comes forward: a compositor that checks tokens brings it forward as that process's launcher
+/// click.
+pub fn set_next_activation_token(token: String) {
+    if let Ok(mut slot) = NEXT_ACTIVATION_TOKEN.lock() {
+        *slot = Some(token);
+    }
+}
+
+/// The token [`set_next_activation_token`] kept, taken so it is used once.
+pub fn take_next_activation_token() -> Option<String> {
+    NEXT_ACTIVATION_TOKEN
+        .lock()
+        .ok()
+        .and_then(|mut slot| slot.take())
+}
+
 // TODO(jk): return an enum instead of a string
 /// Return which compositor we're guessing we'll use.
 /// Does not attempt to connect to the given compositor.

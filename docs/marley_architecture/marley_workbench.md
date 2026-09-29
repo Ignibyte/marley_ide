@@ -78,9 +78,14 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   listener's buffer, is refused before anything is sent. `main` prints the answer ("Marley is
   already running on <dir>; it was handed N of this launch's paths", or "… asked to come
   forward"), or the error on stderr, and exits.
-- Whether the window comes to the front is the compositor's call: gpui asks for the activation
-  token itself (L-claude-513-gpui-asks-for-activation-from-the-window-it-activates-001); #545
-  would carry the launcher's token instead.
+- The launcher's activation token travels with the hand-off (#545). `keep_activation_token()`,
+  first in `main`, reads `XDG_ACTIVATION_TOKEN` before gpui's Wayland client takes it out of the
+  environment; `send` puts `zed://marley-activation-token/<token>` ahead of the paths. The running
+  Marley's listener thread (`open_listener.rs`) reads it back with `activation_token_in` and hands
+  it to `gpui::set_next_activation_token` instead of opening it, and the next Wayland `activate`
+  uses it once. A compositor that checks tokens then brings the window forward as the launcher's
+  click; without a token, gpui asks for its own, which such a compositor refuses while another
+  window has the focus (L-claude-513-gpui-asks-for-activation-from-the-window-it-activates-001).
 
 ## The rail (`src/rail.rs`)
 
