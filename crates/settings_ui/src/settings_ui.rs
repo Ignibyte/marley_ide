@@ -567,6 +567,8 @@ fn init_renderers(cx: &mut App) {
         // Marley: the Claude Code and Codex Permissions dropdowns (#532).
         .add_basic_renderer::<settings::ClaudeCodePermissions>(render_dropdown)
         .add_basic_renderer::<settings::CodexPermissions>(render_dropdown)
+        // Marley: the Worktree Trust Question dropdown (#587).
+        .add_basic_renderer::<settings::ClaudeCodeWorktreeTrust>(render_dropdown)
         .add_basic_renderer::<settings::RestoreOnStartupBehavior>(render_dropdown)
         .add_basic_renderer::<settings::OnNewWindow>(render_dropdown)
         .add_basic_renderer::<settings::BottomDockLayout>(render_dropdown)

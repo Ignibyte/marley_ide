@@ -22,6 +22,7 @@
 
 pub mod agent_bar;
 pub mod agent_events;
+pub mod agent_trust;
 pub mod agents;
 pub mod autosuggest;
 pub mod blocks;
@@ -69,8 +70,9 @@ use gpui::{
     WeakEntity, Window, actions,
 };
 use settings::{
-    DockPosition, KeybindSource, KeymapFile, KeymapFileLoadResult, MarleyClickPauseAgents,
-    MarleyLayout, MarleyTerminalLinks, RegisterSetting, Settings, SettingsContent, SettingsStore,
+    ClaudeCodeWorktreeTrust, DockPosition, KeybindSource, KeymapFile, KeymapFileLoadResult,
+    MarleyClickPauseAgents, MarleyLayout, MarleyTerminalLinks, RegisterSetting, Settings,
+    SettingsContent, SettingsStore,
 };
 use title_bar::{UseAgenticLayout, UseClassicLayout};
 use util::ResultExt as _;
@@ -251,6 +253,8 @@ pub struct MarleySettings {
     pub browser_click_pause_agents: MarleyClickPauseAgents,
     /// What Marley starts Claude Code and Codex with (#532).
     pub agent_permissions: agents::AgentPermissions,
+    /// Who answers Claude Code's trust question in a new worktree (#587).
+    pub claude_code_worktree_trust: ClaudeCodeWorktreeTrust,
     /// The System One layer (#565).
     pub system_one: system_one::SystemOneSettings,
 }
@@ -314,6 +318,9 @@ impl Settings for MarleySettings {
                 .and_then(|marley| marley.browser_click_pause_agents)
                 .unwrap_or_default(),
             agent_permissions: agents::AgentPermissions::from_content(marley),
+            claude_code_worktree_trust: marley
+                .and_then(|marley| marley.claude_code_worktree_trust)
+                .unwrap_or_default(),
             system_one: system_one::SystemOneSettings::from_content(
                 marley.and_then(|marley| marley.system_one.as_ref()),
             ),

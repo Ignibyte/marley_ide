@@ -2629,3 +2629,24 @@ REQ-008's step clicks the bypass terminal's row and presses Enter, whose fake th
 one's: that terminal took the Enter, the bypass chip stayed, and the check passed, since one line
 was read. The shot showed it. Fixed: each read records its fake's arguments and whether it sends
 events, and the check names the one fake that must have read the Enter.
+
+## F-claude-587-the-trust-watch-read-an-answered-question-from-the-scrollback-001
+*severity: medium · found in: pipeline 587's Test phase (run 2's shots) · class: reading what a terminal shows now with a reader that skips blank rows into the scrollback · prevented by: PR-claude-what-a-terminal-shows-now-is-read-from-its-visible-rows-001 (new)*
+
+The trust watch read `Terminal::last_n_non_empty_lines(24)` for Claude Code's question.
+That reader skips blank rows, so on a sparse screen it reaches up into the scrollback. The fake
+`claude` clears its screen once answered, and the clear left the question in the scrollback, just
+above one printed line. So the question still read as showing. Trust Folder's check a moment
+later turned answered agents' notifications into "still asking", and the notification of a
+question answered in its terminal never went. Fixed: the question counts as showing only while
+its footer is on a row of the visible screen (`with_renderable_cells`); its text still comes
+from the joined lines, which keep a wrapped path whole.
+
+## F-claude-587-the-answers-toast-shared-the-questions-notification-id-001
+*severity: low · found in: pipeline 587's Test phase (run 5's shot 587-05) · class: two of Zed's notices under one `NotificationId`*
+
+Under `follow_zed` Marley answers the question and shows a toast. The toast used the question
+notification's `NotificationId`, and Zed shows a toast as a notification under its id. So the
+watch's end, which dismisses the question's notification once the question leaves the screen,
+took the toast with it, a moment after it showed. Fixed: the toast and the "still asking"
+notification each have an id of their own.

@@ -471,6 +471,7 @@ progress, and the last five from `docs/marley/three-prong-plan.md`.
 | Run agents side by side, each on its own worktree and branch | A new part after part 5 | TICKET-510 (shipped) |
 | Review and merge a worktree agent's branch | In that new part | TICKET-511 |
 | See which files a worktree agent's branch would conflict on, before a merge | In that new part | TICKET-560 (shipped) |
+| Answer Claude Code's trust question for a new worktree from the notification | In that new part | TICKET-587 (shipped) |
 | A long two-line prompt in the first terminal of a launch | Removes lesson 14's note | TICKET-486 |
 | Blocks in fish | Lesson 11 for fish users | TICKET-466 (deliberate: waits for a machine with fish) |
 | Print a secret in a terminal and see the agent get it redacted, with the toggle on the Marley page | After lesson 21 | TICKET-516 (in progress) |

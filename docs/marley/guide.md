@@ -491,8 +491,26 @@ terminal selects the worktree's row. Worktrees under the main checkout's `.claud
 which Claude Code makes for itself, get no row; their terminals list under the project.
 
 A create that fails, such as for a folder Marley cannot write, says so in Zed's toast and leaves
-no row and no agent. Claude Code saves its trust per folder, so in a new worktree it asks once;
-the prompt waits on its command line until you answer.
+no row and no agent.
+
+Claude Code keys its folder trust on the repository's main checkout, so a worktree of a
+repository you have trusted in Claude Code starts without asking. For a repository you have not,
+Claude Code asks whether to trust the folder before it runs the first prompt (#587). The
+worktree's workspace opens behind the one you are on, so Marley brings the question to you: a
+notification in every workspace names the worktree and the folder, shows the question's
+warnings, such as a folder that pre-approves tool permissions, and offers two buttons.
+
+- **Trust Folder** answers yes: Marley moves Claude Code's focus to "Yes, I trust this folder",
+  wherever it was, and confirms it. Since Claude Code 2.1.263 the focus starts on "No, exit".
+- **Show Terminal** shows the worktree's workspace with the agent's terminal, to read the
+  question whole and answer it there.
+
+The notification goes once the question does, however you answered it. If Marley's answer did
+not take, a second notification says to answer it in the terminal, with Show Terminal. To have
+Marley answer by itself when Zed trusts the worktree's folder, set
+`"marley": { "claude_code_worktree_trust": "follow_zed" }` (Worktree Trust Question on the Marley
+settings page); Marley then shows a note that it did, which stays until you close it. It answers
+only while Zed trusts the folder, and never writes Claude Code's own record of trusted folders.
 
 A worktree's row shows its drift from its base (#560), so two agents about to collide show it
 before anyone merges:

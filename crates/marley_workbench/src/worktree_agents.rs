@@ -367,7 +367,7 @@ async fn create(
     };
     let branch = format!("{BRANCH_PREFIX}{name}");
     let action = CreateWorktree {
-        worktree_name: Some(name),
+        worktree_name: Some(name.clone()),
         branch_target: NewWorktreeBranchTarget::ExistingBranch {
             name: plan.base.clone(),
         },
@@ -418,12 +418,25 @@ async fn create(
         })
         .log_err();
     }
-    created
+    let Some(launch) = created
         .workspace
         .update_in(cx, |workspace, window, cx| {
-            crate::agents::start_cli_with_prompt(workspace, kind, prompt, window, cx);
+            crate::agents::start_cli_with_prompt(workspace, kind, prompt, window, cx)
         })
-        .log_err();
+        .log_err()
+    else {
+        return;
+    };
+    let Some(terminal) = launch.await else {
+        return;
+    };
+    // Claude Code asks whether to trust a repository it has not trusted yet (#587).
+    if kind == AgentKind::Claude {
+        let worktree = created.workspace.downgrade();
+        let source = workspace.clone();
+        cx.update(|_, cx| crate::agent_trust::watch(&terminal, worktree, source, name, cx))
+            .log_err();
+    }
 }
 
 /// The name and the folder of a worktree with nothing at its folder: Zed's rollback of a refused

@@ -3653,3 +3653,31 @@ that would stop, printing the merged tree's id and then each conflicted file, ev
 a NUL. A git before 2.38 refuses `--write-tree` with exit 129 and `unknown option`. `git config
 --get` exits 1 for an unset key. Zed's `run_raw` takes any non-zero exit for an error, so a caller
 that needs these answers runs git itself and reads the exit.
+
+## L-claude-587-claude-code-keys-its-trust-on-the-main-checkout-001
+*category: code · topic: Claude Code's folder trust · from: pipeline 587*
+
+Claude Code keys its folder trust on the repository's root, and on the main checkout's root for
+a worktree (code.claude.com permissions, "Project allow rules and workspace trust"; issue #23109,
+2026-08-17). So a worktree of a repository already trusted in Claude Code starts without the
+question, and #510's note that it asks in every new worktree no longer holds. The question shows
+in interactive sessions only, and hooks, the plugin's included as far as its docs say, wait for
+its answer, so nothing but the screen shows it. Since 2.1.263 its focus starts on "No, exit",
+where Enter declines and quits. An answer moves the focus to the trust option by name.
+
+## L-claude-587-a-zed-toast-is-a-notification-under-its-id-001
+*category: code · topic: Zed notifications · from: pipeline 587*
+
+`Workspace::show_toast` shows a `MessageNotification` under the toast's `NotificationId`, and
+`dismiss_app_notification` or `dismiss_notification` with that id dismisses it. A button of
+`MessageNotification` dismisses its own notification after its handler runs, and the dismissal
+is deferred. So a notice shown from a handler under the clicked notification's id goes at once.
+Give each notice its own id.
+
+## L-claude-587-a-sed-template-needs-g-for-a-placeholder-twice-on-a-line-001
+*category: process · topic: e2e scenarios · from: pipeline 587*
+
+A scenario that writes a fake from a template with `sed -e "s|@NAME@|value|"` replaces only the
+first `@NAME@` of each line. A Python line such as `open("@NAME@") if os.path.exists("@NAME@")`
+then checks a file literally named `@NAME@`, and the fake acts as if its file were missing. Give
+each substitution `g`, and have the fake log what it read.

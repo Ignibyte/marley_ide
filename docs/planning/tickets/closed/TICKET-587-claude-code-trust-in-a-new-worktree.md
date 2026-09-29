@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #587 (feature, prong 2: worktree agents, a follow-up of #510)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet (to be drafted into `pipeline/queued/`)
+- **Pipeline doc:** ../../pipeline/completed/587-claude-code-trust-in-a-new-worktree.spec.md
 - **Source ticket:** #510's check for Chad (`../../pipeline/completed/510-worktree-agents.notes.md`, "Not reachable by a scenario"), answered by Chad on 2026-09-28: "this is true so we need to handle that with a popup if it does show the user can click or assume that since zed asks to trust the folder then we auto select it on for them via tmux or rustal harness".
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Claude Code saves its folder trust per folder, so the first launch in each new worktree #510
@@ -18,6 +18,14 @@ cannot tell the question is showing, the question shows in Marley as a prompt th
 and the click answers it in the terminal. Plan decides how the question is recognized (the
 terminal's screen, the plugin's events, or Claude Code's own record of trusted folders, which
 #510's AD rejected writing to) and whether the automatic answer is a setting.
+
+**Changed at plan (2026-09-28).** Claude Code's docs now key its trust on the repository's main
+checkout, so a worktree of a repository already trusted in Claude Code starts without the
+question; it comes for a repository never trusted there. Since 2.1.263 its focus starts on "No,
+exit", and its docs say not to change trust for the user. So the default is Chad's first way,
+the notification the user clicks, which picks the trust option by name; answering from Zed's
+trust is the setting `marley.claude_code_worktree_trust: "follow_zed"`, off by default. Marley
+never writes Claude Code's own trust record.
 
 ## Acceptance
 Starting Claude Code through New Agent in Worktree in a folder Zed trusts runs its first prompt

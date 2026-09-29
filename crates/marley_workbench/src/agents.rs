@@ -274,17 +274,20 @@ pub fn start_cli(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
-    start_cli_with_prompt(workspace, kind, String::new(), window, cx);
+    start_cli_with_prompt(workspace, kind, String::new(), window, cx).detach();
 }
 
 /// As [`start_cli`], with `prompt` as the agent's first prompt on its command line (#510).
+///
+/// The task gives the agent's terminal once the command is written (#587), and none once its
+/// error has reached a prompt.
 pub fn start_cli_with_prompt(
     workspace: &mut Workspace,
     kind: AgentKind,
     prompt: String,
     window: &mut Window,
     cx: &mut Context<Workspace>,
-) {
+) -> Task<Option<WeakEntity<Terminal>>> {
     let mode = {
         let project = workspace.project().read(cx);
         let folders = if project.is_local() {
@@ -320,9 +323,9 @@ pub fn start_cli_with_prompt(
             written,
             "the terminal took other input before the agent started"
         );
-        anyhow::Ok(())
+        anyhow::Ok(terminal)
     })
-    .detach_and_prompt_err("Could not start the agent", window, cx, |_, _, _| None);
+    .prompt_err("Could not start the agent", window, cx, |_, _, _| None)
 }
 
 /// Registers `marley::NewAgent` on every workspace. [`crate::init`] calls it once.

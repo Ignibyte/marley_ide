@@ -376,7 +376,8 @@ makes a git worktree on a branch of its own through Zed's worktree service and s
 there with its first prompt, and the rail lists each linked worktree of a project under it with
 its own terminals; #560 adds a chip on each worktree row with how far its branch is behind its
 base and, when a merge would stop, how many files it would stop on, read from git against the
-local base. W5 shipped as #441: in the Marley layout
+local base; #587 brings Claude Code's trust question in a new worktree to the user, in a
+notification whose Trust Folder answers it. W5 shipped as #441: in the Marley layout
 tasks, New Terminal and Open in Terminal open center terminals, and nothing opens the bottom
 panel. W5b shipped as #449: `` ctrl-` ``, `ctrl-~` and `ctrl-j` work on the center terminals,
 by catching Zed's actions rather than rebinding keys. W5c shipped as #450: `ctrl-alt-n` opens

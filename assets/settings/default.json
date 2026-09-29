@@ -1703,6 +1703,10 @@
     // local project whose main folder is its folder or inside it, the longest folder winning.
     // A project's own .zed/settings.json cannot set these.
     "agent_permissions_by_project": {},
+    // Who answers Claude Code's question whether to trust a folder when it asks it in a
+    // worktree New Agent in Worktree made (#587): "ask" (a notification, whose Trust Folder
+    // answers it) or "follow_zed" (Marley answers it when Zed trusts the worktree's folder).
+    "claude_code_worktree_trust": "ask",
     // The System One layer (#565): typed questions to a model about states Marley builds from
     // what it knows. Off, it makes no request, reads no key and writes no file. The key is
     // never a setting: Marley reads MARLEY_SYSTEM_ONE_KEY, else the system keyring.

@@ -36,6 +36,7 @@ pub mod risk;
 pub mod route;
 pub mod stall;
 pub mod stop_kind;
+pub mod trust;
 
 /// An agent CLI Marley knows. [`AgentKind::ALL`], [`AgentKind::program`] and
 /// [`AgentKind::display_name`] grow with it.

@@ -278,6 +278,19 @@ pub fn route_of_choice(option: &str) -> Route;
 - `claude_events::HookEvent.options` (#570) carries an AskUserQuestion's first question's option
   labels, which `wait` puts in the seat's `Question.options`.
 
+## Claude Code's trust question (`src/trust.rs`, #587)
+
+- `read(lines)` finds the question in a terminal's last lines, oldest first: the footer (`Enter
+  to confirm`) among the last three, the first question line within 24 lines above it (`Do you
+  trust the files in this folder?`, `Is this a project you created or one you trust?` or
+  `Accessing workspace:`), and between them a trust option (`Yes, I trust this folder` or `Yes,
+  proceed`) and an exit option (`No, exit`), each read past `❯`, spaces and a `1.` numbering.
+  `TrustQuestion` keeps the options in order, the one marked `❯` as the focus, the first path line
+  after the question line as its folder, and the lines that start with `⚠` as its warnings.
+- `footer_on_screen(rows)` says whether the footer is on a row the screen shows.
+- `answer_keys()` gives Up or Down (`\x1b[A`, `\x1b[B`) from the focus to the trust option, then
+  `\r`; nothing without a focus.
+
 ## Consumers
 
 - `marley_rail`: a terminal row carries `TerminalAgent { kind, status }` when an agent runs in
@@ -289,6 +302,8 @@ pub fn route_of_choice(option: &str) -> Route;
   modes give, and `stall::tooltip` for the row's mark.
 - `marley_workbench::stall` (#569): `repeats`, `tool_name`, `judge`, `checks`, `quiet_words`,
   `labels`, `active`, `ticks_since_boot`, `boot_time_in` and `tree_cpu_in` for the watch.
+- `marley_workbench::agent_trust` (#587): `trust::read`, `footer_on_screen` and `answer_keys`
+  for the watch of a worktree agent's Claude Code.
 - `marley_workbench::rail` (#568): `classify`, `level`, `ToolClass::of_claude_tool` and the
   chips' words for the inbox, whose entries in `marley_rail` carry the `Chip`s; since #570
   `route::classify`, `route_of_choice` and the `RouteMark` an entry carries.

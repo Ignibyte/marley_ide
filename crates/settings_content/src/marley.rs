@@ -75,6 +75,12 @@ pub struct MarleySettingsContent {
     ///
     /// Default: {}
     pub agent_permissions_by_project: Option<BTreeMap<String, AgentPermissionsContent>>,
+    /// Who answers Claude Code's question whether to trust a folder when it asks it in a worktree
+    /// New Agent in Worktree made (#587): you, from a notification, or Marley, when Zed trusts
+    /// the worktree's folder. Claude Code asks for a repository it has not trusted yet.
+    ///
+    /// Default: "ask"
+    pub claude_code_worktree_trust: Option<ClaudeCodeWorktreeTrust>,
     /// The System One layer (#565): typed questions to a model about states Marley builds from
     /// what it knows. Off until it is turned on.
     pub system_one: Option<SystemOneSettingsContent>,
@@ -297,6 +303,31 @@ pub enum CodexPermissions {
     Ask,
     /// `--sandbox danger-full-access --ask-for-approval never`: no sandbox and no approvals.
     FullAccess,
+}
+
+/// Who answers Claude Code's question whether to trust a folder, when it asks it in a worktree
+/// New Agent in Worktree made (#587).
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum ClaudeCodeWorktreeTrust {
+    /// You: Marley shows the question, and Trust Folder answers it.
+    #[default]
+    Ask,
+    /// Marley, with the trust option, when Zed trusts the worktree's folder; else you.
+    FollowZed,
 }
 
 /// A window layout.

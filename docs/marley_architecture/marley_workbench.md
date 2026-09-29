@@ -523,6 +523,32 @@ alike.
   in the warning color after `IconName::GitMergeConflict`, with `DriftSnapshot::tooltip`, and
   `marley-rail-drift-<name>` for scenarios.
 
+## Claude Code's trust question in a new worktree (`src/agent_trust.rs`, #587)
+
+- `agents::start_cli_with_prompt` returns `Task<Option<WeakEntity<Terminal>>>`, the terminal
+  once the launch line is written, its errors still prompted (`prompt_err`);
+  `worktree_agents::create` awaits it and, for Claude Code, calls `agent_trust::watch` with the
+  terminal, the worktree's workspace, the workspace that started it and the worktree's name.
+- The `TrustWatches` global holds one `TrustWatch` entity per terminal, by the terminal's id. It
+  subscribes to the terminal's `Wakeup` and reads the screen half a second after output, one read
+  at a time. A read finds the question only while `marley_agent::trust::footer_on_screen` finds
+  its footer among the visible rows (`with_renderable_cells`, one row per `point.line`), since
+  `last_n_non_empty_lines` reaches into the scrollback, where an answered question stays; it then
+  parses `last_n_non_empty_lines(24)`, whose wrapped rows are joined. The watch ends after a
+  minute while the question has not shown, when the question leaves the screen, or when the
+  terminal is released (`observe_release`); `finish` dismisses its notifications and removes it,
+  deferred.
+- When the question shows: under `claude_code_worktree_trust: follow_zed`, with
+  `TrustedWorktrees::can_trust` true for the worktree's first folder, it answers and shows a toast
+  in the starting workspace under an id of its own (no autohide); otherwise an app notification
+  (`show_app_notification`, `MessageNotification` with a built body: the headline and the
+  warnings in the warning color), Trust Folder when `answer_keys` gives keys, and Show Terminal.
+- An answer re-reads the screen, writes `answer_keys` once with `Terminal::input`, and after a
+  second and a half either finds the question gone or shows the "still asking" notification,
+  with an id of its own (a `MessageNotification` button dismisses its own id after its handler,
+  deferred), with Show Terminal alone. Show Terminal activates the worktree's workspace in the
+  window's `MultiWorkspace` and the terminal's `TerminalView` among its items.
+
 ## The block keys (`src/blocks.rs`, #473)
 
 - `marley::PreviousBlock` and `marley::NextBlock` are caught at each workspace's root with

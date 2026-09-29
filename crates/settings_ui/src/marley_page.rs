@@ -46,7 +46,7 @@ fn layout_section() -> [SettingsPageItem; 2] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 9] {
+fn agents_section() -> [SettingsPageItem; 10] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -226,6 +226,29 @@ fn agents_section() -> [SettingsPageItem; 9] {
                         .marley
                         .get_or_insert_default()
                         .codex_permissions = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: who answers Claude Code's trust question in a new worktree (#587).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Worktree Trust Question",
+            description: "Who answers Claude Code's question whether to trust a folder when it asks it in a worktree New Agent in Worktree made, as it does for a repository it has not trusted yet: you, from a notification whose Trust Folder answers it, or Marley, when Zed trusts the worktree's folder.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.claude_code_worktree_trust"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.claude_code_worktree_trust.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .claude_code_worktree_trust = value;
                 },
             }),
             metadata: None,

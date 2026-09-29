@@ -13,6 +13,18 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Claude Code's trust question in a new worktree, brought to you** (#587, 2026-09-28). Claude
+  Code asks whether to trust a folder for a repository it has not trusted yet, and a worktree
+  agent's workspace opens in the background, so the question would wait unseen. For a minute
+  after New Agent in Worktree starts Claude Code, Marley reads the agent's screen; while the
+  question shows, a notification in every workspace names the worktree and the folder, carries
+  the question's warnings (such as a folder that pre-approves tool permissions), and offers
+  Trust Folder, which moves Claude Code's focus to "Yes, I trust this folder" and confirms it,
+  and Show Terminal. It goes once the question does, however it was answered. The setting
+  `marley.claude_code_worktree_trust` (`"ask"`, the default, or `"follow_zed"`, on the Marley
+  settings page) lets Marley answer by itself when Zed trusts the worktree's folder, with a note
+  that stays until you close it. Marley never writes Claude Code's own record of trusted folders.
+
 - **A worktree's drift on its row** (#560, 2026-09-28). Each worktree row in the rail shows how
   far its branch is behind its base, `2 behind` in a muted chip, and when a merge would stop, how
   many files it would stop on, `1 conflict` in the warning color with the conflict icon. The

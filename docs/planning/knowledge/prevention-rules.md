@@ -2545,3 +2545,12 @@ handle can drop.
 When several stand-ins write one log, a check on it names which one wrote what it counts: its
 case, its arguments or its pid, written with each line. A count alone passes when the wrong one
 did the thing, and a click that lands on the wrong row does exactly that.
+
+## PR-claude-what-a-terminal-shows-now-is-read-from-its-visible-rows-001
+*severity: medium · prevents: F-claude-587-the-trust-watch-read-an-answered-question-from-the-scrollback-001*
+
+`Terminal::last_n_non_empty_lines` skips blank rows, so on a sparse screen its lines come from
+the scrollback, where what a program cleared or answered stays. A check on what a terminal shows
+now, such as a dialog, a prompt or a menu, reads the visible rows
+(`Terminal::with_renderable_cells`, a row per `point.line`). It may take text from the joined
+lines only once a part of the thing is on a visible row.

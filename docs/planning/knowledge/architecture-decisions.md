@@ -2822,3 +2822,20 @@ and only for a repository Zed trusts. Rejected:
   crate-private, and its `run_raw` takes `merge-tree`'s exit 1 for an error;
 - the legacy `merge-tree` form, a diff to parse, before git 2.38: the behind count shows alone;
 - the counts on the row's second line, which #511's ahead count takes, in a rail 180 px wide.
+
+## AD-claude-587-marley-brings-claude-codes-trust-question-to-the-user-001
+*decided at: 2026-09-28 · status: shipped*
+
+When Claude Code, started by New Agent in Worktree, stops on its folder-trust question, Marley
+reads it from the agent's screen and shows it in every workspace as a notification. The
+notification carries the question's warnings, a Trust Folder that moves the focus to the trust
+option by name and confirms it, and a Show Terminal. Marley answers by itself only under the
+user's setting `marley.claude_code_worktree_trust: "follow_zed"`, and only when Zed trusts the
+worktree's folder. It never writes Claude Code's own record. Rejected:
+- writing `hasTrustDialogAccepted` into `~/.claude.json`: the docs name it only as a user's hand
+  edit, in a file Claude Code writes for itself, and concurrent writers have lost it;
+- answering from Zed's trust by default: the question exists to review what a repository's
+  `.claude/` grants, and Claude Code's docs say not to change trust for the user;
+- pressing Enter: since 2.1.263 the focus starts on "No, exit";
+- the inbox (#508): its terminal entries need the plugin's events, which wait for the answer;
+- a headless Claude Code (`-p`, the SDK, ACP), which has no dialog and no trust gate at all.
