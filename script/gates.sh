@@ -24,7 +24,7 @@
 # harness, retired with the fork.
 #   1 fmt · 2 clippy · 7 audit · 8 deny · 9 shear · 10 gitleaks · 11 shellcheck
 #   12 no-suppress · 13 SAST · 14 docs · 16 zed-ledger · 17 manifests
-#   18 spelling · 20 semgrep · 21 dylint
+#   18 spelling · 20 semgrep · 21 dylint · 22 spawn sites
 #
 # Modes (one is required; none, or an unknown one, is a usage error: exit 2):
 #   script/gates.sh --diff  DIFF — every gate on the scope. Receipt.
@@ -314,11 +314,14 @@ typos_g() { need typos "cargo install typos-cli" || return 1; typos --config .co
 # stay off, so the gate makes no network call, and `--no-git-ignore` scans a new
 # file before it is tracked (semgrep otherwise reads only what git lists).
 SEMGREP_PIN="1.156.0"
-semgrep_g() {
+semgrep_pinned() {
   need semgrep "pipx install semgrep==$SEMGREP_PIN" || return 1
   local version
   version=$(SEMGREP_ENABLE_VERSION_CHECK=0 semgrep --version 2>/dev/null | tail -n1)
   [ "$version" = "$SEMGREP_PIN" ] || { echo "semgrep ${version:-(no version)} is not the pinned $SEMGREP_PIN"; return 1; }
+}
+semgrep_g() {
+  semgrep_pinned || return 1
   local -a dirs=()
   local d
   while IFS= read -r d; do dirs+=( "$d" ); done < <(marley_dirs)
@@ -340,6 +343,91 @@ dylint_g() {
   cargo dylint --all -- --all-targets "${MARLEY_PKG_ARGS[@]}"
 }
 
+# ── 22. spawn sites — processes start only in the adapter modules listed ─────
+# CONSTITUTION §14 keeps spawns in adapter modules. .config/spawn-sites.yml finds every call that
+# starts a process (semgrep parses Rust, so a comment or a string naming one is no spawn);
+# .config/spawn-sites.txt lists the files allowed to hold them. The step fails on a spawn outside
+# the list, on a listed file that starts nothing, on a count other than the pin (a new spawn
+# moves the pin in a reviewed change; one removed brings it down, so the ground is kept), on a
+# scan of fewer files than the floor (a broken target list cannot pass empty), and when the rule
+# misses a planted form or matches a planted decoy. The pin and the floor live here, apart from
+# the list, and the planted file is written from this script on every run.
+SPAWN_SITES_PIN=7
+SPAWN_SCAN_FLOOR=120
+spawn_scan() {
+  SEMGREP_ENABLE_VERSION_CHECK=0 semgrep --config .config/spawn-sites.yml --json --quiet --strict \
+    --metrics=off --no-git-ignore "$@"
+}
+spawn_self_test() {
+  local dir file json found want
+  dir=$(mktemp -d) || return 1
+  mkdir -p "$dir/crates/marley_planted/src"
+  file=$dir/crates/marley_planted/src/planted.rs
+  # No imports: semgrep resolves an imported short form to its full path, which would let a
+  # short pattern go missing unseen.
+  cat >"$file" <<'RS'
+fn planted(options: &Options, size: Size) {
+    let a = std::process::Command::new("a"); // planted
+    let b = smol::process::Command::new("b"); // planted
+    let c = tokio::process::Command::new("c"); // planted
+    let d = util::command::new_command("d"); // planted
+    let e = util::command::new_std_command("e"); // planted
+    let f = util::command::Command::new("f"); // planted
+    let g = gpui_util::new_std_command("g"); // planted
+    let h = alacritty_terminal::tty::new(options, size, 0); // planted
+    let i = Command::new("i"); // planted
+    let j = new_command("j"); // planted
+    let k = new_std_command("k"); // planted
+    let l = tty::new(options, size, 0); // planted
+    // std::process::Command::new("m") names a spawn in a comment // decoy
+    let n = "util::command::new_command(\"n\")"; // decoy
+}
+RS
+  want=$(grep -n '// planted$' "$file" | cut -d: -f1 | tr '\n' ' ')
+  json=$(spawn_scan "$dir") || { echo "the planted self-test: semgrep failed"; rm -rf "$dir"; return 1; }
+  rm -rf "$dir"
+  found=$(jq -r '.results[].start.line' <<<"$json" | sort -n | tr '\n' ' ')
+  [ "$found" = "$want" ] || { echo "the planted self-test: the rule found lines [$found] where the planted spawns are [$want]"; return 1; }
+}
+spawn_sites_g() {
+  semgrep_pinned || return 1
+  need jq "pacman -S jq" || return 1
+  local -a dirs=()
+  local d json found listed site file count scanned verdict=0
+  while IFS= read -r d; do dirs+=( "$d" ); done < <(marley_dirs)
+  json=$(spawn_scan "${dirs[@]}") || { echo "semgrep failed on the Marley crates"; return 1; }
+  found=$(jq -r '.results[] | "\(.path):\(.start.line)"' <<<"$json" | sort)
+  listed=$(sed -E 's/#.*$//; s/[[:space:]]+$//' .config/spawn-sites.txt | grep -v '^$' | sort -u)
+  while IFS= read -r site; do
+    [ -n "$site" ] || continue
+    file=${site%:*}
+    if [ "$(grep -cxF -- "$file" <<<"$listed")" -eq 0 ]; then
+      echo "a process starts outside the listed adapters at $site; move the call into one of: $(tr '\n' ' ' <<<"$listed")"
+      verdict=1
+    fi
+  done <<<"$found"
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    if [ "$(grep -cF -- "$file:" <<<"$found")" -eq 0 ]; then
+      echo "$file starts no process, or is gone: delete the line from .config/spawn-sites.txt"
+      verdict=1
+    fi
+  done <<<"$listed"
+  count=$(grep -c . <<<"$found")
+  if [ "$count" -ne "$SPAWN_SITES_PIN" ]; then
+    echo "$count spawn calls where SPAWN_SITES_PIN is $SPAWN_SITES_PIN: move the pin in the same reviewed change"
+    verdict=1
+  fi
+  scanned=$(jq '.paths.scanned | length' <<<"$json")
+  if [ "$scanned" -lt "$SPAWN_SCAN_FLOOR" ]; then
+    echo "semgrep scanned $scanned files, under the floor of $SPAWN_SCAN_FLOOR"
+    verdict=1
+  fi
+  spawn_self_test || verdict=1
+  [ "$verdict" -eq 0 ] && echo "$count spawn calls in $(grep -c . <<<"$listed") adapter modules; $scanned files scanned"
+  return "$verdict"
+}
+
 # ── The gates ───────────────────────────────────────────────────────────────
 run_gate "gate:1  rustfmt" fmt_g
 run_gate "gate:2  clippy (-D warnings, scope, every target)" clippy_g
@@ -356,6 +444,7 @@ run_gate "gate:17 manifests (cargo-sort + taplo)" manifests_g
 run_gate "gate:18 spelling (typos)" typos_g
 run_gate "gate:20 semgrep (.semgrep.yml)" semgrep_g
 run_gate "gate:21 dylint (Zed's lints, Marley crates)" dylint_g
+run_gate "gate:22 spawn sites (adapters only)" spawn_sites_g
 
 # The receipt binds the tree the gates ran on, so a change made during the run
 # fails the run instead of being receipted untested.

@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #541 (chore, cross-cutting: the gate, CONSTITUTION §0 and §14)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/541-spawn-in-adapters-ratchet.spec.md
+- **Pipeline doc:** ../../pipeline/completed/541-spawn-in-adapters-ratchet.spec.md
 - **Source ticket:** Chad, 2026-09-25: specced at his request with every item decided that day (the brief quotes no words for this one). From the Orca survey: `docs/orca_architecture/07-engineering-and-changelog.md` §A7 and §3 item 3, and the README's item 10
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 CONSTITUTION §0 and §14 say process spawns stay in adapter modules, and nothing checks it. Of the

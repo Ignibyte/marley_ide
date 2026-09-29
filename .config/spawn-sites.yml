@@ -1,0 +1,30 @@
+# gate:22 (#541): every call that starts a process in a Marley crate. The gate allows them only
+# in the adapter modules .config/spawn-sites.txt lists and holds their number at SPAWN_SITES_PIN
+# in script/gates.sh; a planted file there checks each form below on every run. Tests are left
+# out, as their spawns start the programs under test.
+rules:
+  - id: marley-spawn-site
+    languages: [rust]
+    severity: INFO
+    message: >-
+      A process starts here. The Marley crates start processes only in the adapter modules
+      .config/spawn-sites.txt lists (CONSTITUTION §14, gate:22): move the call into one of them,
+      or add a module to the list and move SPAWN_SITES_PIN in script/gates.sh in the same change.
+    paths:
+      exclude:
+        - "*_tests.rs"
+        - "tests/"
+    pattern-either:
+      - pattern: std::process::Command::new(...)
+      - pattern: smol::process::Command::new(...)
+      - pattern: tokio::process::Command::new(...)
+      - pattern: util::command::new_command(...)
+      - pattern: util::command::new_std_command(...)
+      - pattern: util::command::Command::new(...)
+      - pattern: gpui_util::new_std_command(...)
+      - pattern: alacritty_terminal::tty::new(...)
+      # The forms an import leaves.
+      - pattern: Command::new(...)
+      - pattern: new_command(...)
+      - pattern: new_std_command(...)
+      - pattern: tty::new(...)

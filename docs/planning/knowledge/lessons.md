@@ -3911,3 +3911,13 @@ as `${NAME_PID:-}`. A compositor killed with SIGKILL leaves its IPC socket and i
 and lock in `$XDG_RUNTIME_DIR`, and a Browser tab's Chromium runs in a user unit that outlives
 Marley and keeps writing its profile after the runner removed it: stop the units named by the
 run's profiles before removing the profile.
+
+## L-claude-541-semgrep-resolves-imports-and-recovers-parses-001
+*category: gate · topic: a semgrep rule that must find each form · from: #541*
+
+semgrep 1.156.0 resolves a Rust `use`: after `use alacritty_terminal::tty;`, the full-path pattern
+`alacritty_terminal::tty::new(...)` matches `tty::new(...)`, so a planted file with imports cannot
+tell whether the short pattern works. Plant each short form without the import, and prove each
+pattern by removing it once. Its Rust parser is tree-sitter's and recovers from most broken
+source without an error; `--strict` exits non-zero only on what it reports as a syntax error (a
+file of random bytes does). `.paths.scanned` is in its `--json` output without `--verbose`.

@@ -1,0 +1,8 @@
+# gate:22 (#541): the adapter modules of the Marley crates that may start a process, one file per
+# line, with what it starts. A spawn anywhere else fails the gate; a listed file that starts
+# nothing fails it too, so a line goes when its module stops spawning. A new line comes with a
+# reviewed move of SPAWN_SITES_PIN in script/gates.sh; the list is meant to shrink.
+crates/marley_terminal/src/pty_os.rs  # the terminal's PTY and its shell
+crates/marley_browser/src/service.rs  # Chromium's user unit: systemd-run and systemctl
+crates/marley_browser/src/relay.rs  # the relay's Chromium, through /bin/sh
+crates/marley_workbench/src/process.rs  # the workbench's programs: claude, voxtype, git, gh

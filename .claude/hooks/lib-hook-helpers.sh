@@ -49,9 +49,9 @@ normalize_path() {
 gate_state_hash() {
     local root="${PROJECT_ROOT:-$(pwd)}" paths hashes n_paths n_hashes
     paths=$({
-        git -C "$root" ls-files -z -- crates script/gates.sh .claude/hooks clippy.toml rustfmt.toml deny.toml .gitleaks.toml .semgrep.yml .config/typos.toml .cargo/audit.toml .cargo/config.toml Cargo.toml Cargo.lock rust-toolchain.toml script/e2e.sh script/e2e tooling/lints vendor 2>/dev/null
-        git -C "$root" ls-files -z --others --exclude-standard -- crates script/gates.sh .claude/hooks clippy.toml rustfmt.toml deny.toml .gitleaks.toml .semgrep.yml .config/typos.toml .cargo/audit.toml .cargo/config.toml Cargo.toml Cargo.lock rust-toolchain.toml script/e2e.sh script/e2e tooling/lints vendor 2>/dev/null
-    } | LC_ALL=C sort -z -u | grep -zE '^crates/marley_|\.(rs|sh|toml|lock)$|^\.semgrep\.yml$' | tr '\0' '\n')
+        git -C "$root" ls-files -z -- crates script/gates.sh .claude/hooks clippy.toml rustfmt.toml deny.toml .gitleaks.toml .semgrep.yml .config/typos.toml .config/spawn-sites.yml .config/spawn-sites.txt .cargo/audit.toml .cargo/config.toml Cargo.toml Cargo.lock rust-toolchain.toml script/e2e.sh script/e2e tooling/lints vendor 2>/dev/null
+        git -C "$root" ls-files -z --others --exclude-standard -- crates script/gates.sh .claude/hooks clippy.toml rustfmt.toml deny.toml .gitleaks.toml .semgrep.yml .config/typos.toml .config/spawn-sites.yml .config/spawn-sites.txt .cargo/audit.toml .cargo/config.toml Cargo.toml Cargo.lock rust-toolchain.toml script/e2e.sh script/e2e tooling/lints vendor 2>/dev/null
+    } | LC_ALL=C sort -z -u | grep -zE '^crates/marley_|\.(rs|sh|toml|lock)$|^\.semgrep\.yml$|^\.config/spawn-sites\.(txt|yml)$' | tr '\0' '\n')
     # One git process hashes every file; a path list and a hash list of different
     # lengths means git failed on something, and a fingerprint that covers less
     # than the tree is worse than none — so the failure returns a sentinel that
@@ -218,6 +218,7 @@ marley_owned_path() {
         docs/decisions/*|docs/tickets/*|.claude/*|script/gates.sh|script/e2e.sh|\
         script/e2e/*|script/install-marley|script/regress|justfile|\
         CONSTITUTION.md|CHANGELOG.md|deny.toml|.gitleaks.toml|.semgrep.yml|\
+        .config/spawn-sites.yml|.config/spawn-sites.txt|\
         .cargo/audit.toml|.mcp.json.example|vendor/*)
             return 0 ;;
     esac

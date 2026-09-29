@@ -1,7 +1,7 @@
 ---
 pipeline_id: 9c54373e-8167-4219-95fe-bdf7562af598
 ticket: docs/planning/tickets/open/TICKET-541-spawn-in-adapters-ratchet.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "gate:22: process spawns only in the listed adapter modules, held by a ratchet"
 type: chore
 slice: cross-cutting (the gate; CONSTITUTION §0 and §14), from the Orca survey's report 07

@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **gate:22, process spawns only in the listed adapters** (#541, 2026-09-29). The gate finds every
+  call that starts a process in the Marley crates with a semgrep rule and allows them only in the
+  files `.config/spawn-sites.txt` lists: the PTY, Chromium's unit and relay, and the workbench's
+  `process.rs`. It fails on a spawn elsewhere, a listed file with none, a count other than its
+  pin, a scan below its floor, and a planted file of every spawn form the rule does not find
+  exactly.
+
 - **Remote terminals that survive a dropped link** (#543, 2026-09-29). `marley: open remote
   terminal` lists the SSH hosts saved in your settings (`ssh_connections`) and opens a terminal on
   one, whose shell runs in a tmux session of Marley's own on the host. When the link drops, the

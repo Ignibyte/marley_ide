@@ -15,7 +15,8 @@ at every upstream merge.
 `script/e2e.sh` and `script/e2e/` (#483), `script/install-marley` (#502), `justfile` (#471),
 `CONSTITUTION.md`,
 `CHANGELOG.md`, `deny.toml`, `.gitleaks.toml`,
-`.semgrep.yml`, `.cargo/audit.toml`, `.mcp.json.example`, and `vendor/`, the upstream crates
+`.semgrep.yml`, `.config/spawn-sites.yml` and `.config/spawn-sites.txt` (#541),
+`.cargo/audit.toml`, `.mcp.json.example`, and `vendor/`, the upstream crates
 Marley carries, whose source, base and hunks `vendor/README.md` records (#461).
 
 ## Rules

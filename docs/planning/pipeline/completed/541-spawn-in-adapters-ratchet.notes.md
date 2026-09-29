@@ -70,6 +70,19 @@
     per form, then all together).
 - **Decisions:** D1 to D7 in the spec.
 
+### Design (at promotion)
+Re-verified on 2026-09-29; this section wins where the drafted design differs.
+- The spawn calls since the draft: `marley_browser/src/service.rs` 362, 384, 428
+  (`systemd-run`, `systemctl` twice), `marley_browser/src/relay.rs` 179
+  (`std::process::Command::new("/bin/sh")` for the relay's Chromium), `marley_terminal/src/pty_os.rs`
+  54 (`tty::new`), and seven strays in the workbench: `marley_workbench.rs` (`run_program`),
+  `voice.rs` (the status follower), `github.rs` (`gh`, #531), `turn_git.rs` twice (#509),
+  `worktree_agents.rs` (`git config`, #510), `worktree_git.rs` (#511, #560). The strays move into
+  `process.rs`; the list names four files and the pin is 7.
+- `process::output` returns `io::Result<Output>` unjudged, so every caller keeps its own checks and
+  messages; `follow` is voxtype's stream; `run_program` moves there and calls `output`.
+- Brain: consultation aea37dddf3384291a32a2d25cfe1f42b, nothing on this seam.
+
 ### Design
 - **The move (commit 1).** `crates/marley_workbench/src/process.rs`, declared in
   `marley_workbench.rs`, with a module doc saying it is the workbench's one module that starts
@@ -155,3 +168,52 @@ before and after (L-claude-447). No UI scenario is new: the change has nothing n
 - A rule that matches too widely (a `Command::new` of a type that is not a process, such as a CLI
   parser's) would fail the gate on a false hit. No Marley crate has one today; the message tells
   the reader to narrow the rule rather than list the file.
+
+## Phase 2 — Code
+- **Commit 1, the move** (4c743b6696): `crates/marley_workbench/src/process.rs` (`output`,
+  `run_program`, `follow`), and the seven strays call it; `pub mod process` with its items
+  `pub(crate)` and its doc naming them unlinked (a private module trips clippy's
+  `redundant_pub_crate`, a linked private item trips rustdoc). Gate: GATE GREEN [diff].
+- **Commit 2, the gate:** `.config/spawn-sites.yml` (twelve patterns, tests excluded),
+  `.config/spawn-sites.txt` (four files), gate:22 in `script/gates.sh` (`semgrep_pinned` shared
+  with gate:20, `spawn_scan`, `spawn_self_test`, `spawn_sites_g`, `SPAWN_SITES_PIN=7`,
+  `SPAWN_SCAN_FLOOR=120` against 135 files scanned), both files in `gate_state_hash`'s lists and
+  filter and in `marley_owned_path`, the ledger's owned list, and CONSTITUTION §0 (the table line,
+  the spawn paragraph), §14 and §15.
+- **Deviations.** The planted file has no `use` lines: semgrep resolves an imported short form to
+  its full path, so with imports the short patterns could go missing and the self-test still pass
+  (found at the first smoke: removing `tty::new(...)` left it green). semgrep's Rust parser recovers
+  from most broken source, so REQ-007's smoke uses a file semgrep reports it cannot parse (random
+  bytes, exit 3 under `--strict`); a file it recovers from, cargo refuses anyway.
+- **Gate.** GATE GREEN [diff] with `PASS gate:22 spawn sites (adapters only)`.
+
+## Phase 3 — Test
+- **The moved calls** (REQ-009): `just regress` over 480, 509, 510, 531, 547 and 560. Five passed
+  at once with every check; 560 failed its "only config, merge-base, rev-list and merge-tree"
+  check, since #531 (committed after 560's scenario) added `rev-parse` and `diff --numstat` for the
+  project row's changed lines through the same `git`; the check now allows those two read-only
+  commands, and 560 passed. #480's microphone read grey, red, yellow, grey across its four shots
+  (a crop read at 4x): the toggle through `run_program` and the follower through `follow` work.
+- **The gate's devices**, each through the step extracted as L-claude-447 describes, the tree's
+  diff and untracked list hashed the same before and after:
+  - REQ-001: the step alone, `7 spawn calls in 4 adapter modules; 135 files scanned`, exit 0; then
+    the real gate's `PASS gate:22`.
+  - REQ-002: an untracked `planted_spawn.rs` with `util::command::new_command("true")`: its
+    `file:line`, the modules to move it into, and 8 against the pin; exit 1.
+  - REQ-003: `rail.rs` added to the list: "starts no process, or is gone: delete the line"; exit 1.
+  - REQ-004: the pin at 8 and at 6: "7 spawn calls where SPAWN_SITES_PIN is 8" and "… is 6"; exit 1
+    each.
+  - REQ-005: the scan over `marley_dcs` alone: "semgrep scanned 2 files, under the floor of 120";
+    exit 1.
+  - REQ-006: each of six patterns removed in turn: the self-test names the line it no longer
+    finds; a `pattern-regex` matching the decoy string: the self-test names line 15, the decoy.
+  - REQ-007: an untracked `.rs` of random bytes: "semgrep failed on the Marley crates"; exit 1.
+  - REQ-008: `gate_state_hash` moved with a line added to the list and to the rule, and came back
+    when each was restored.
+- **Pre-existing, not in scope:** SC1091 on `gates.sh` without `-x` (gate:11 runs with `-x`).
+
+## Phase 4 — Complete
+- Ledger: AD-claude-541-spawns-held-to-listed-adapters-001,
+  L-claude-541-semgrep-resolves-imports-and-recovers-parses-001.
+- Brain: decision recorded on consultation aea37dddf3384291a32a2d25cfe1f42b.
+

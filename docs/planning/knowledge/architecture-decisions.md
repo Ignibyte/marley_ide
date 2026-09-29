@@ -3286,3 +3286,15 @@ standalone harness on another host speaks over SSH, so one client serves both. M
 harness's contract requests in its own tickets and documents (the plan's list under D19) and never
 edits the harness's repository, as the harness never edits Marley's. `marley_fleet`'s retry ids
 are optional and skipped when absent, so every request already in flight keeps its bytes.
+
+## AD-claude-541-spawns-held-to-listed-adapters-001
+*decided at: 2026-09-29 · status: shipped (gate:22)*
+
+A Marley crate starts a process only in a file `.config/spawn-sites.txt` lists. A semgrep rule
+(`.config/spawn-sites.yml`) finds the calls, since it parses Rust and a comment or string is no
+spawn; the step holds the list with Orca's devices: a spawn outside it fails, a listed file with
+none fails ("delete the line"), the count must equal `SPAWN_SITES_PIN` in both directions, the scan
+must reach `SPAWN_SCAN_FLOOR` files, and a planted file of every form, written by `gates.sh` on
+each run, must be found exactly. The pin and floor live in the gate script, apart from the list,
+so a new spawn is a reviewed change to both. The workbench's programs go through
+`process::output` and `process::follow`, so new `git` or `gh` calls add no spawn call.

@@ -49,6 +49,10 @@ gate:18 spelling       typos --config .config/typos.toml              (the repos
 gate:20 semgrep        semgrep 1.156.0 --config .semgrep.yml --error --strict on the Marley crates
 gate:21 dylint         cargo dylint --all -- --all-targets -p <marley crates>: Zed's tooling/lints,
                        denied in each Marley crate root under the driver's dylint_lib cfg
+gate:22 spawn sites    semgrep --config .config/spawn-sites.yml on the Marley crates: a process
+                       starts only in a file .config/spawn-sites.txt lists, no listed file starts
+                       none, the count equals SPAWN_SITES_PIN, at least SPAWN_SCAN_FLOOR files are
+                       scanned, and a planted file of every spawn form is found exactly (#541)
 ```
 
 Retired numbers are not reused: gate:3 (the test suites), gate:4 (line coverage), gate:5
@@ -76,8 +80,8 @@ its output. The gate runs ALL steps and reports each; a single red fails the gat
 
 **Process spawning is permitted.** Marley drives PTYs and child processes (the terminal, the
 harness client, the agent hosts). What gate:13 bans is `mem::transmute` and `unsafe` without
-a `// SAFETY:` justification. Keep spawns in adapter modules and validate inputs; no shelling
-out unsanitized user input.
+a `// SAFETY:` justification. Keep spawns in the adapter modules `.config/spawn-sites.txt` lists,
+which gate:22 holds, and validate inputs; no shelling out unsanitized user input.
 
 **Honest known-scope (the ratchet roadmap).** Recorded gaps, each a ratchet item:
 
@@ -246,7 +250,10 @@ product is finished.
   single owner (`docs/specs/standards/seam-contracts.md` for the Marley crates) and are never
   re-declared downstream.
 - Process spawn, PTY and sockets are core to the cockpit and permitted; keep them in adapter
-  modules (`marley_terminal`, the harness and Rusty clients, `marley_mcp::transport`), use
+  modules: a spawn only in a file `.config/spawn-sites.txt` lists (gate:22: the PTY in
+  `marley_terminal`, Chromium's unit and relay in `marley_browser`, the workbench's
+  `process.rs`, and the harness and Rusty clients when they come), sockets in
+  `marley_mcp::transport`; use
   Zed's `util::command` / `smol` for non-PTY spawns, and validate inputs (no shelling out
   unsanitized user input).
 - File IO takes its directory: route it through `*_in(dir)` functions with a directory
@@ -302,6 +309,7 @@ that lacks a `CHANGELOG.md` entry (§21). A change that touches **no** `.rs` is 
 the receipt; its gate is enforced by pipeline discipline (`--fast` at the end of `/pipeline:code`). The receipt fingerprint binds not just `crates/**/*.rs` but the
 **gate-defining files** themselves (`script/gates.sh`, `.claude/hooks/**`, `clippy.toml`,
 `rustfmt.toml`, `deny.toml`, `.gitleaks.toml`, `.semgrep.yml`, `.config/typos.toml`,
+`.config/spawn-sites.yml` and `.config/spawn-sites.txt`,
 `.cargo/audit.toml`, the Cargo manifests and lockfile, the toolchain pin, the e2e runner and
 its scenarios, `tooling/lints`, gate:21's library and its nightly pin, and `vendor/`, the upstream
 crates the build takes through `[patch]`), so weakening the gate after a green invalidates the
