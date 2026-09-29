@@ -212,3 +212,26 @@
   2026-10-29).
 - **Closed:** TICKET-527 moved to `tickets/closed/`; its BACKLOG row went at promotion.
 - **No tests** (§7): the drafted scenario waits for the quality pass.
+
+---
+## Phase 3 — Test (the visual check, after the fact)
+- **Why after:** #527 shipped on 2026-09-29 while the workflow had no visual check; Chad brought it
+  back the same day (7e589cb0a1).
+- **The scenario:** `script/e2e/527-project-launch-configs.sh`, `compositor sway`: a scratch
+  repository whose `.zed/marley.json` names `Dev` (a terminal titled `dev server` running
+  `python3 -m http.server` on a loopback port, a stand-in Claude Code split right with the focus
+  through `MARLEY_CLAUDE`, a Browser tab on the server split down). The project's `+`, End and
+  Enter choose the last entry.
+- **The shots, read:** `527-01-menu` (Launch lists Dev under New Agent in Worktree, REQ-001);
+  `527-02-approve` ("Run Dev?" with the config's text, REQ-002); `527-03-opened` (the dev server
+  serving, the stand-in Claude split right with the focus, the Browser tab split down on "The dev
+  server answers", REQ-003 and REQ-004); `527-04-no-prompt-again` (the second run opens with no
+  question, REQ-005); `527-05-changed` ("Dev changed since you approved it. Run it?" after the
+  port changed, REQ-006); `527-06-broken` (one disabled entry, `.zed/marley.json: Dev: item 1:
+  needs one of terminal, agent and browser`, REQ-008).
+- **Found:** the approval's text ran together, with `--bind` as a dash and curly quotes: Zed's
+  prompt renders its detail as Markdown. Fixed as #592 (F-claude-592-…), whose run of this
+  scenario shows each item on its own line and a command's Markdown as written.
+- **Seen, not in scope:** a second run reuses the Browser tab already on the same URL (#503's
+  rule) and moves it into the new layout, so the first layout loses its tab; the second dev
+  server fails because the first holds the port.

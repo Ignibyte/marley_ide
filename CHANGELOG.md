@@ -1018,6 +1018,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A launch config's approval shows exactly what runs** (#592, 2026-09-29). The question a
+  project's launch config asks before it first runs put every item on one line, showed `--` as
+  a dash and curled the quotes, because Zed's prompt reads its text as Markdown. A command could
+  also have hidden part of itself from the question, as an HTML comment for one. The approval
+  now shows each item on its own line, every character as the file has it.
 - **Websites see Marley's browser as Chrome** (#539, 2026-09-27). Pages in a Browser tab were
   told they ran in headless Chrome (`HeadlessChrome/152` in the user agent), which bot checks
   such as Cloudflare's refuse, so some sites would not load or let you sign in. Every page now

@@ -844,7 +844,9 @@ alike.
 - `run`: `text` (one line an item) and its SHA-256 in hex; `KeyValueStore::global(cx)
   .scoped("marley-launch")` keyed by the folder and the config's name; a text not approved asks
   (Run, Cancel; "changed since you approved it" when another hash is kept), and Run writes the
-  hash before `open_items`.
+  hash before `open_items`. The prompt gets the text through `verbatim` (#592), a Markdown code
+  block fenced one backtick longer than any run inside, since Zed's prompt renders its detail as
+  Markdown; the hash is still taken over the plain text.
 - `open_items` opens each item in the active pane (`agents::start_in_terminal` with the item's
   folder and `marley_agent::send_payload(command)` or `agents::launch_input(kind)`, the terminal's
   view found by its terminal and titled with `set_custom_title`; `browser::open_url_tab`, which now

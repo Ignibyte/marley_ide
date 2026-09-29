@@ -2712,3 +2712,13 @@ ZGlyPSQ…` and the connection's nonce. The first run hid it: its stand-in shell
 far shell, which then led the foreground. Fixed: `shown_arguments` drops the last argument when it
 starts as `ssh_remote_command` does, and the `-t` before it.
 
+## F-claude-592-the-launch-approval-was-rendered-as-markdown-001
+*severity: high · found in: #527's visual check, after the fact (shot 527-02-approve) · class: a repository's text shown in Zed's prompt, whose detail on Linux is Markdown · prevented by: PR-claude-a-repositorys-text-in-a-zed-prompt-goes-in-a-code-block-001*
+
+The approval a launch config asks for (#527) passed the config's text, one line an item, as the
+prompt's detail. On Linux, `ui_prompt` renders the detail with `markdown::Markdown`, smart
+punctuation on, so the shot showed the three items as one paragraph, `--bind` as `–bind` and the
+title in curly quotes. The text comes from the repository and the question is its only check,
+so a command could also have hidden part of itself as markup, an HTML comment or emphasis.
+Fixed in #592: `launch::verbatim` puts the text in a fenced code block, the fence one backtick
+longer than any run inside; the approval's hash still covers the plain text.

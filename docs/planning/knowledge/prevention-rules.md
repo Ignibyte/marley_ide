@@ -2562,3 +2562,12 @@ git output whose columns carry meaning, such as `status --porcelain` (two status
 a space), `diff --name-status` or `ls-files -s`, is split into lines before anything is trimmed,
 and each line is sliced as it came. A helper that trims the whole output serves one-value answers
 only: `rev-parse`, `config --get`, `symbolic-ref`, a count.
+
+## PR-claude-a-repositorys-text-in-a-zed-prompt-goes-in-a-code-block-001
+*severity: high · prevents: F-claude-592-the-launch-approval-was-rendered-as-markdown-001*
+
+`window.prompt`'s message and detail are Markdown on Linux (`crates/ui_prompt/src/ui_prompt.rs`):
+single line breaks join, `--` and quotes are rewritten, and markup can hide text. Text a user
+must read as written, above all a repository's command or a path on a question that approves it,
+goes in a fenced code block whose fence is longer than any run of backticks inside
+(`launch::verbatim`). Marley's own sentences can stay plain.

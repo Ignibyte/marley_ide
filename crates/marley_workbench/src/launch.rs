@@ -302,6 +302,19 @@ fn text(config: &Config) -> String {
         .join("\n")
 }
 
+/// `text` as a Markdown code block, since Zed's prompt renders its detail as Markdown: a plain
+/// detail loses its line breaks, turns `--` into a dash, and can hide part of a command as markup
+/// from the one question that approves it. The fence is longer than any run of backticks inside.
+fn verbatim(text: &str) -> String {
+    let longest = text
+        .split(|character| character != '`')
+        .map(str::len)
+        .max()
+        .unwrap_or(0);
+    let fence = "`".repeat(longest.max(2) + 1);
+    format!("{fence}\n{text}\n{fence}")
+}
+
 /// Runs the config `name` of the project folder `root` in `workspace`: Zed's prompt with its text
 /// unless that exact text was approved before, then its items in order. A refusal opens nothing
 /// and records nothing.
@@ -336,7 +349,7 @@ pub(crate) fn run(
                     window.prompt(
                         PromptLevel::Warning,
                         &question,
-                        Some(&text),
+                        Some(&verbatim(&text)),
                         &["Run", "Cancel"],
                         cx,
                     )
