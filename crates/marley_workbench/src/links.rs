@@ -224,6 +224,12 @@ fn choose_default(links: MarleyTerminalLinks, cx: &App) {
     });
 }
 
+/// Whether a local HTML page a program opened through `BROWSER` goes to a Browser tab (#586):
+/// unless `marley.terminal_links` sends every URL to the system browser.
+pub(crate) fn pages_in_browser_tab(cx: &App) -> bool {
+    MarleySettings::get_global(cx).terminal_links != MarleyTerminalLinks::SystemBrowser
+}
+
 /// The URL to open in a Browser tab for a program that opened `url` through `BROWSER` (#561), or
 /// none when `marley.terminal_links` sends it to the system browser. The opener runs on this
 /// machine, so SSH plays no part, and no key is held.

@@ -47,7 +47,8 @@ OR Apache-2.0, with the Marley crates' lint table.
   tools (`browser_navigate`, `browser_back`, `browser_click`, `browser_type`, `browser_press`,
   `browser_scroll`, since #498 `browser_annotate`, since #561 `browser_open_url`, which takes
   a `url` and a program's `directory` and answers `opened` with the project, or a `reason`,
-  through `open_url_schemas`, and since #505 `browser_check_pick`, which takes a pick's `id` and
+  through `open_url_schemas` (since #586 the `url` may be a local HTML page, a `file:` URL or a
+  path), and since #505 `browser_check_pick`, which takes a pick's `id` and
   answers whether and how its element was found again and what changed, through
   `check_pick_schemas`) whose grant class,
   `browser.write`, Marley grants when it starts the server. Since #493 every browser tool that

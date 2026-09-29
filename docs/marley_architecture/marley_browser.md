@@ -236,7 +236,10 @@ for.
   `focused_element` (read in an isolated world; a password field's value never).
 - `input::char_press` types a character as the keyboard does, and `input::chord` turns `Enter`,
   `Ctrl+A` or `Shift+ArrowLeft` into a key press; `address::agent_url` lets an agent open `http`
-  and `https` URLs only.
+  and `https` URLs only. `address::local_page` (#586) reads the local HTML page a program asked
+  its opener to open: a `file:` URL through `Url::to_file_path`, a URL of another scheme none,
+  else a path joined to the program's folder; a name ending in `.html` or `.htm` only, the file's
+  existence left to its caller.
 
 ## Consequential clicks (`src/consequence.rs`, `src/page.rs`, #571)
 

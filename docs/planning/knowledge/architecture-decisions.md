@@ -2854,3 +2854,22 @@ files. Rejected:
   symlink to the root file);
 - a symlink in place of `vendor/alacritty_terminal`'s own license file, which would put Zed's
   notice on alacritty's code.
+
+## AD-claude-586-local-html-pages-open-through-the-opener-only-001
+*decided at: 2026-09-29 · status: shipped*
+
+Chad decided on 2026-09-28 that the `file://` pages a program opens go to the Marley Browser.
+`browser_open_url`, the tool #561's opener calls, opens a local HTML page in a Browser tab of the
+project holding the program's folder. The page is an existing file named `.html` or `.htm`,
+given as a `file:` URL or as a path, which is what `cargo doc --open` hands `BROWSER`. A folder, a
+missing page, a FIFO and every other file are declined, and the opener hands them to `xdg-open`.
+`marley.terminal_links: system_browser` declines pages too. Agents call the same tool with
+Marley's bearer, so what it opens is bounded to HTML pages, and `browser_navigate` keeps plan
+D15's http and https. A page's own links to other local pages load, since Chromium runs with its
+usual file rules. Rejected:
+- `file:` in `agent_url`: every agent tool would navigate to any file;
+- any `file:` URL through the tool: a folder's listing, or a key file read through
+  `browser_snapshot`;
+- a path check under the project: `cargo doc` writes under a shared target folder on this box;
+- a navigation filter inside local pages (Orca blocks later `file:` loads): rustdoc's pages link
+  to one another.

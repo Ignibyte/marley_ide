@@ -10,6 +10,7 @@
 //! terminal printed.
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::path::{Path, PathBuf};
 
 /// The schemes typed text keeps as they are.
 const SCHEMES: &[&str] = &[
@@ -40,6 +41,28 @@ pub fn agent_url(text: &str) -> Result<String, String> {
             "an agent may open http and https URLs only, not {scheme}:"
         )),
     }
+}
+
+/// The local HTML page a program asked its opener to open (#586): a `file:` URL, or a path,
+/// absolute or joined to `directory`, whose name ends in `.html` or `.htm`.
+///
+/// `cargo doc --open` hands the opener a plain path, Python's `webbrowser` a `file:` URL. Whether
+/// the file is there is the caller's to check.
+#[must_use]
+pub fn local_page(text: &str, directory: &Path) -> Option<PathBuf> {
+    let text = text.trim();
+    let path = match url::Url::parse(text) {
+        Ok(url) if url.scheme() == "file" => url.to_file_path().ok()?,
+        Ok(_) => return None,
+        Err(_) => directory.join(text),
+    };
+    let html = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            extension.eq_ignore_ascii_case("html") || extension.eq_ignore_ascii_case("htm")
+        });
+    html.then_some(path)
 }
 
 /// The URL `text` navigates to, or nothing for text that is only spaces.

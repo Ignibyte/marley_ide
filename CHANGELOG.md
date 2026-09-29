@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A project's local HTML pages open in its Browser tab** (#586, 2026-09-29). A program in a
+  project's terminal that opens a local page through `BROWSER`, `cargo doc --open`, a coverage
+  report, Python's `webbrowser` with a `file://` URL, now gets it in a Browser tab of that
+  project, with the focus, as a local dev server's URL already did (#561); the page's links to
+  other local pages load in the tab. `cargo doc --open` hands `BROWSER` a plain path, and a path
+  to an `.html` or `.htm` file opens too. A folder, a missing page and any other kind of file
+  still go to your system's handler, and `marley.terminal_links` set to `system_browser` sends
+  pages there as well. Agents' own navigation stays http and https: `browser_open_url` opens only
+  an existing HTML page, never a folder or another file.
+
 - **License files for the Marley crates** (#446, 2026-09-28). Each `crates/marley_*` now holds
   `LICENSE-MIT`, the MIT text under `Copyright (c) 2026 Ignibyte`, and `LICENSE-APACHE`, a link
   to the Apache-2.0 text at the repository's root, as its `license = "MIT OR Apache-2.0"` says.

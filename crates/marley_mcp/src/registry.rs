@@ -264,8 +264,10 @@ const REGISTRY: &[ToolSpec] = &[
         "Open a URL a program in `directory` asked to open, as Marley's `BROWSER` opener does \
          (#561): in a Browser tab of the project whose folder holds `directory`, with the focus, \
          when `marley.terminal_links` sends that URL to a Browser tab (a local http or https \
-         URL, by default), bringing forward a tab of that project already on it. It never opens \
-         the system browser: `opened: false` says why it opened nothing.",
+         URL, by default), bringing forward a tab of that project already on it. A local HTML \
+         page, a `file:` URL or a path to a `.html` or `.htm` file, opens the same way (#586); a \
+         folder or any other file does not. It never opens the system browser: `opened: false` \
+         says why it opened nothing.",
     ),
     browser_write(
         "back",
@@ -464,7 +466,7 @@ fn open_url_schemas() -> (Value, Value) {
         json!({
             "type": "object",
             "properties": {
-                "url": { "type": "string", "description": "The http or https URL the program opens." },
+                "url": { "type": "string", "description": "The http or https URL the program opens, or a local HTML page as a file: URL or a path." },
                 "directory": { "type": "string", "description": "The program's working directory, an absolute path." }
             },
             "required": ["url", "directory"],

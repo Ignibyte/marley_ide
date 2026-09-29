@@ -3691,3 +3691,12 @@ level. A regular file of either name is an error, and so are a `license-file` ke
 stops at the first error and never reads a `LICENSE-MIT`. A new Marley crate gets
 `LICENSE-APACHE -> ../../LICENSE-APACHE` and a copy of a Marley crate's `LICENSE-MIT`. A crate
 vendored under `vendor/` is skipped, and keeps its own license file.
+
+## L-claude-586-cargo-doc-open-hands-browser-a-path-001
+*category: code · topic: the BROWSER opener · from: pipeline 586*
+
+`cargo doc --open` runs `$BROWSER` with one argument, the absolute path of the doc index
+(`…/target/doc/<crate>/index.html`), not a `file://` URL. Rust tools on the `opener` crate pass
+their argument unchanged too. Python's `webbrowser.open` passes whatever it was given, a `file://`
+URL in the common case. An opener that takes local pages reads both forms; a relative path joins
+the program's folder.

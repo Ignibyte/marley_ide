@@ -634,6 +634,14 @@ alike.
     then `links::browser_tab_url` (#503's rule, with no SSH and no key), then `holding(directory)`
     and `window_of`. It shows the workspace in its window and opens the tab with
     `open_url_tab`, in separate updates through the window's `AnyWindowHandle`.
+  - Since #586 `open_url` is async: a text `address::local_page` reads (a `file:` URL, or a path
+    joined to the program's folder, named `.html` or `.htm`) is checked with Zed's
+    `Fs::metadata` off the main thread (a file, neither a folder nor a FIFO), turned into a URL
+    with `Url::from_file_path` and, unless `links::pages_in_browser_tab` finds
+    `terminal_links: system_browser`, opened by the same tail, `open_in_tab`; "not a local HTML
+    page" otherwise. Any other text takes the path above. An agent calls the tool with Marley's
+    bearer as the opener does, so this is the whole of what it opens beyond http and https;
+    `browser_navigate` keeps `agent_url` (plan D15).
 
 ## Autosuggestions (`src/autosuggest.rs`, #484)
 

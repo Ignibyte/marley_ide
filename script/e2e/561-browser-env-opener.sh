@@ -56,7 +56,9 @@ SH
   }
   printf '<!doctype html><title>Opened page</title><p>Opened through BROWSER.</p>\n' \
     >"$E2E_WORK/site/index.html"
-  printf '<!doctype html><title>A file</title>\n' >"$E2E_WORK/doc.html"
+  # A file that is no HTML page: #586 opens a local page in a Browser tab, and the rest still goes
+  # to the system browser.
+  printf 'A file\n' >"$E2E_WORK/doc.txt"
   offline_chromium
   SITE=http://127.0.0.1:$(serve_site site)
   git init -q -b opener "$E2E_WORK/repo"
@@ -156,14 +158,14 @@ steps() {
   shot 561-03-same-tab
   tabs
   expect "still one tab on the page" test "$(tab_count "$SITE/")" -eq 1
-  echo "== a URL that is not local, and a file, go to the system browser"
+  echo "== a URL that is not local, and a file that is no page, go to the system browser"
   first_terminal
   python_open "https://example.com/docs" 3
-  python_open "file://$E2E_WORK/doc.html" 3
+  python_open "file://$E2E_WORK/doc.txt" 3
   shot 561-04-system
   tabs
   expect "the docs URL reached xdg-open" test "$(logged xdg-open.log "https://example.com/docs")" -eq 1
-  expect "the file reached xdg-open" test "$(logged xdg-open.log "file://$E2E_WORK/doc.html")" -eq 1
+  expect "the file reached xdg-open" test "$(logged xdg-open.log "file://$E2E_WORK/doc.txt")" -eq 1
   expect "and no new tab" test "$(grep -c "^  tab " "$E2E_WORK/tabs.txt")" -eq 1
   echo "== a program outside every project: the system browser"
   run "cd $E2E_WORK/elsewhere" 1

@@ -17,6 +17,7 @@ use std::time::Duration;
 
 use base64::Engine as _;
 
+use fs::Fs;
 use gpui::{
     AnyWindowHandle, App, AppContext as _, AsyncApp, Entity, EntityId, MouseButton, WeakEntity,
 };
@@ -272,7 +273,7 @@ async fn run(
         "browser_recording" => return recording(arguments, cx).await,
         "browser_draft_test" => return draft_test(arguments, cx).await,
         // Before the browser is up: a new tab waits for it by itself.
-        "browser_open_url" => return Ok(cx.update(|cx| open_url(arguments, cx))),
+        "browser_open_url" => return Ok(open_url(arguments, cx).await),
         _ => {}
     }
     // Each project's browser has its own pages (#507): a call sees them once none starts.
@@ -321,26 +322,49 @@ async fn run(
 /// `marley.terminal_links` sends it to a Browser tab. It answers at once, since the program waits
 /// on its opener, and opens nothing for a URL it declines: the opener sends that one to the
 /// system browser itself.
-fn open_url(arguments: &Value, cx: &mut App) -> ToolAnswer {
-    let answer = |structured: Value| ToolAnswer {
-        structured,
-        text: None,
-        image: None,
-    };
-    let declined = |reason: &str| answer(json!({ "opened": false, "reason": reason }));
+///
+/// Since #586 a local HTML page, a `file:` URL or a path, opens the same way while it is a file:
+/// an agent calls this tool with Marley's bearer as the opener does, so it opens no folder and no
+/// other kind of file, and an agent's own navigation keeps http and https (plan D15).
+async fn open_url(arguments: &Value, cx: &AsyncApp) -> ToolAnswer {
     let text = |name: &str| {
         arguments
             .get(name)
             .and_then(Value::as_str)
             .unwrap_or_default()
     };
-    let Ok(url) = address::agent_url(text("url")) else {
-        return declined("not an http or https URL");
+    let directory = text("directory");
+    let url = if let Some(page) = address::local_page(text("url"), Path::new(directory)) {
+        let fs = cx.update(|cx| <dyn Fs>::global(cx));
+        let file = fs
+            .metadata(&page)
+            .await
+            .ok()
+            .flatten()
+            .is_some_and(|metadata| !metadata.is_dir && !metadata.is_fifo);
+        let Some(url) = url::Url::from_file_path(&page).ok().filter(|_| file) else {
+            return declined("not a local HTML page");
+        };
+        if !cx.update(|cx| links::pages_in_browser_tab(cx)) {
+            return declined("marley.terminal_links sends pages to the system browser");
+        }
+        url.to_string()
+    } else {
+        let Ok(url) = address::agent_url(text("url")) else {
+            return declined("not an http or https URL");
+        };
+        let Some(url) = cx.update(|cx| links::browser_tab_url(&url, cx)) else {
+            return declined("marley.terminal_links sends this URL to the system browser");
+        };
+        url
     };
-    let Some(url) = links::browser_tab_url(&url, cx) else {
-        return declined("marley.terminal_links sends this URL to the system browser");
-    };
-    let Some(workspace) = holding(text("directory"), cx) else {
+    cx.update(|cx| open_in_tab(url, directory, cx))
+}
+
+/// Opens `url` in a Browser tab of the project one of whose folders holds `directory`, with the
+/// focus: `browser_open_url`'s answer once it has taken the URL.
+fn open_in_tab(url: String, directory: &str, cx: &mut App) -> ToolAnswer {
+    let Some(workspace) = holding(directory, cx) else {
         return declined("no project of Marley's holds the directory");
     };
     let Some(window) = window_of(&workspace, cx) else {
@@ -364,9 +388,23 @@ fn open_url(arguments: &Value, cx: &mut App) -> ToolAnswer {
         workspace.update(cx, |workspace, cx| open_url_tab(workspace, url, window, cx));
     });
     match shown {
-        Ok(()) => answer(json!({ "opened": true, "project": project })),
+        Ok(()) => open_answer(json!({ "opened": true, "project": project })),
         Err(_) => declined("the project's window is gone"),
     }
+}
+
+/// `browser_open_url`'s answer, which has no text or image of its own.
+const fn open_answer(structured: Value) -> ToolAnswer {
+    ToolAnswer {
+        structured,
+        text: None,
+        image: None,
+    }
+}
+
+/// `browser_open_url`'s answer when it opens nothing, with why.
+fn declined(reason: &str) -> ToolAnswer {
+    open_answer(json!({ "opened": false, "reason": reason }))
 }
 
 /// The page `named_tab` names, or else the page a call that names no tab acts on
