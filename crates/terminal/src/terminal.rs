@@ -1049,6 +1049,13 @@ impl TerminalMode {
     }
 }
 
+// Marley: whether agents' commands enter the shell's history, which the workbench keeps from
+// `marley.agent_commands_in_history`; absent, they do (#553).
+/// Whether an agent's `terminal_run` commands enter the shell's history of terminals started now.
+pub struct MarleyAgentHistory(pub bool);
+
+impl gpui::Global for MarleyAgentHistory {}
+
 pub struct TerminalBuilder {
     terminal: Terminal,
     events_rx: UnboundedReceiver<PtyEvent>,
@@ -1180,6 +1187,12 @@ impl TerminalBuilder {
     ) -> Task<Result<TerminalBuilder>> {
         let version = release_channel::AppVersion::global(cx);
         let background_executor = cx.background_executor().clone();
+        // Marley: agents' commands kept out of the shell's history, as the setting is when the
+        // terminal starts; the blocks remember it for `terminal_run` (#553).
+        let marley_agents_out_of_history = !is_remote_terminal
+            && cx
+                .try_global::<MarleyAgentHistory>()
+                .is_some_and(|history| !history.0);
         // Marley: Marley's opener, unless the user gave terminals a `BROWSER` of their own in
         // `terminal.env` (#561).
         let marley_browser_opener =
@@ -1237,6 +1250,12 @@ impl TerminalBuilder {
                 );
                 nonce
             });
+            if marley_agents_out_of_history {
+                env.insert(
+                    marley_terminal::shell_integration::AGENT_HISTORY_VARIABLE.to_string(),
+                    "0".to_string(),
+                );
+            }
 
             // Marley: a local interactive terminal gives its programs an id of its own, which an
             // agent's MCP bridge hands Marley's tools so they know their caller; one it was handed
@@ -1517,10 +1536,16 @@ impl TerminalBuilder {
                 },
                 pending_cwd_boundary: None,
                 // Marley: the shell's commands as blocks (#464), verified by the nonce (#474).
-                blocks: marley_nonce.map_or_else(
-                    marley_terminal::AnchoredBlocks::default,
-                    marley_terminal::AnchoredBlocks::with_nonce,
-                ),
+                blocks: {
+                    let mut blocks = marley_nonce.map_or_else(
+                        marley_terminal::AnchoredBlocks::default,
+                        marley_terminal::AnchoredBlocks::with_nonce,
+                    );
+                    if marley_agents_out_of_history {
+                        blocks.keep_agents_out_of_history();
+                    }
+                    blocks
+                },
                 // Marley: the id its programs see (#520).
                 marley_terminal_id,
                 #[cfg(any(test, feature = "test-support"))]

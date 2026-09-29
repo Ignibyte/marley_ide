@@ -970,6 +970,9 @@ alike.
   verified block past the count at typing whose command is the one typed, which joins `runs`
   (the mark, `terminal_blocks`' `agent`), and for its end, within 25 seconds of the call and the
   run's `wait_seconds` of the typing. The answer reads the block as `terminal_read` does.
+  Where the terminal's blocks keep agents out of history (#553, the setting off when the terminal
+  started), the command is typed after a space, and `agent_blocks` gives the suggestions the
+  runs to skip; `init` keeps `terminal::MarleyAgentHistory` with the setting.
   `agent_mark` draws the sparkle before the pill through `bookmarks::chip`; the bar reads `<who>
   ran <command>` with Take Over while the run's block runs, and Ctrl-I takes over once an agent
   ran a command there.

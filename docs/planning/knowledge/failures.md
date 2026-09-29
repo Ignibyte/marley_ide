@@ -2795,3 +2795,13 @@ row's width. A command as short as `sleep 1; read -s -p 'Password: ' x` filled t
 showed; the log's banner passed, so only the shot caught it. Fixed: the state renders in a label of
 its own that does not shrink, and only the command is cut, as the rail's turn rows lay out a title
 and its file count.
+
+## F-claude-553-fc-in-prompt-command-reads-the-entry-before-the-last-001
+*severity: high · found in: pipeline 553's visual check · class: a shell builtin that assumes it was typed · prevented by: `history 1` in `__marley_precmd` (#553)*
+
+The first bash rule read the last history entry in `__marley_precmd` with `fc -ln -1` and dropped
+it when it started with a space. Inside `PROMPT_COMMAND`, `fc` skips the last entry, taking it for
+the `fc` command itself as when typed, so it read the line before the agent's and dropped
+nothing: the scenario's history file kept the agent's command. Reproduced by hand in a pty with
+the agent's bytes; `history 1` reads the last entry as it is. `PS0`'s `fc -ln -0` is unaffected,
+since there the current line is the one it names.

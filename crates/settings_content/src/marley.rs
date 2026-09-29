@@ -82,6 +82,11 @@ pub struct MarleySettingsContent {
     ///
     /// Default: "run"
     pub agent_commands_outside_lists: Option<MarleyAgentCommandsOutsideLists>,
+    /// Whether commands an agent runs in your terminal (`terminal_run`) enter your shell's
+    /// history and Marley's suggestions; a change applies to terminals opened after it (#553).
+    ///
+    /// Default: true
+    pub agent_commands_in_history: Option<bool>,
     /// Whether Marley starts Claude Code with its own permission prompts or with
     /// `--dangerously-skip-permissions` (#532). An entry of `agent_permissions_by_project` wins
     /// for its project.

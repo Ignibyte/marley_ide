@@ -46,7 +46,7 @@ fn layout_section() -> [SettingsPageItem; 2] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 12] {
+fn agents_section() -> [SettingsPageItem; 13] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -227,6 +227,29 @@ fn agents_section() -> [SettingsPageItem; 12] {
                         .marley
                         .get_or_insert_default()
                         .agent_commands_outside_lists = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: whether an agent's commands enter the shell's history (#553).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Agent Commands in History",
+            description: "Whether commands an agent runs in your terminal enter your shell history and Marley's suggestions. Applies to terminals opened after a change.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.agent_commands_in_history"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.agent_commands_in_history.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .agent_commands_in_history = value;
                 },
             }),
             metadata: None,

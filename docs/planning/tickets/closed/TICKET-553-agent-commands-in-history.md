@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #553 (feature, prong 1 T7 with prong 2: the Warp second pass, "Smaller"; after #556)
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/553-agent-commands-in-history.spec.md
+- **Pipeline doc:** ../../pipeline/completed/553-agent-commands-in-history.spec.md
 - **Source ticket:** docs/planning/design-notes/warp-second-pass-2026-09-25.md ("Agent commands in the user's history"; Chad, 2026-09-26: every remaining finding gets built)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Once `terminal_run` (#556) types an agent's commands at Chad's prompt, they enter his shell

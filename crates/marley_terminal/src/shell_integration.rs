@@ -52,6 +52,10 @@ pub const MARKER_VARIABLE: &str = "MARLEY_SHELL_INTEGRATION";
 /// The variable that gives a terminal's program the terminal's nonce.
 pub const NONCE_VARIABLE: &str = "MARLEY_SHELL_NONCE";
 
+/// The variable that, as `0`, has the scripts keep a line typed with a leading space out of the
+/// shell's history: how an agent's `terminal_run` commands stay out of it (#553).
+pub const AGENT_HISTORY_VARIABLE: &str = "MARLEY_AGENT_HISTORY";
+
 /// The file, beside the scripts, holding the remote command Marley's `ssh` runs on a host (#526).
 pub const SSH_COMMAND_FILE: &str = "ssh-remote-command";
 

@@ -30,13 +30,13 @@ pub fn init(cx: &mut App) {
     cx.set_global(HistoryFiles::default());
     cx.set_global(MarleyTerminalSuggestion(Arc::new(|terminal, cx| {
         read_history_once_drawn(terminal, cx);
-        suggestion(terminal.read(cx), cx).map(Into::into)
+        suggestion(terminal, cx).map(Into::into)
     })));
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action(|workspace, _: &AcceptSuggestion, window, cx| {
             let accepted = focused_terminal(workspace, window, cx).and_then(|view| {
                 let terminal = view.read(cx).terminal().clone();
-                let rest = suggestion(terminal.read(cx), cx)?;
+                let rest = suggestion(&terminal, cx)?;
                 Some((terminal, rest))
             });
             match accepted {
@@ -52,8 +52,15 @@ pub fn init(cx: &mut App) {
 }
 
 /// The rest of the suggestion for what was typed at `terminal`'s prompt: its own commands the
-/// shell's hook reported, newest first, then its history file's.
-fn suggestion(terminal: &Terminal, cx: &App) -> Option<String> {
+/// shell's hook reported, newest first, then its history file's. An agent's commands are left
+/// out where the terminal keeps them out of the history (#553).
+fn suggestion(terminal: &Entity<Terminal>, cx: &App) -> Option<String> {
+    let agents = if terminal.read(cx).marley_anchored().agents_out_of_history() {
+        crate::terminal_drive::agent_blocks(terminal.entity_id(), cx)
+    } else {
+        Vec::new()
+    };
+    let terminal = terminal.read(cx);
     let typed = typed_text(terminal)?;
     let anchored = terminal.marley_anchored();
     // The shell at the prompt's own commands, the local one's or an ssh host's, and the history
@@ -63,7 +70,11 @@ fn suggestion(terminal: &Terminal, cx: &App) -> Option<String> {
         .blocks()
         .iter()
         .rev()
-        .filter(|block| block.command_verified && anchored.block_host(block.index) == host)
+        .filter(|block| {
+            block.command_verified
+                && anchored.block_host(block.index) == host
+                && !agents.contains(&block.index)
+        })
         .map(|block| block.command.as_str());
     let file = host
         .is_none()

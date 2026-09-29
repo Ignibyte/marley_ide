@@ -330,6 +330,8 @@ pub struct MarleySettings {
     pub agent_command_denylist: Vec<String>,
     /// Whether a command neither list matches asks (#556).
     pub agent_commands_outside_lists: settings::MarleyAgentCommandsOutsideLists,
+    /// Whether an agent's commands enter the shell's history and the suggestions (#553).
+    pub agent_command_history: AgentCommandHistory,
     /// What Marley starts Claude Code and Codex with (#532).
     pub agent_permissions: agents::AgentPermissions,
     /// Who answers Claude Code's trust question in a new worktree (#587).
@@ -347,6 +349,16 @@ pub struct PushSettings {
     pub topic: String,
     /// The file holding the access token, when there is one.
     pub token_file: Option<String>,
+}
+
+/// Whether an agent's `terminal_run` commands enter the shell's history and Marley's suggestions,
+/// from `marley.agent_commands_in_history` (#553).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AgentCommandHistory {
+    /// They enter both, as the user's own commands do.
+    Entered,
+    /// They are typed with a leading space the shell keeps out, in terminals started since.
+    KeptOut,
 }
 
 /// `patterns` as owned strings, for a list setting's fallback.
@@ -419,6 +431,14 @@ impl Settings for MarleySettings {
             agent_commands_outside_lists: marley
                 .and_then(|marley| marley.agent_commands_outside_lists)
                 .unwrap_or_default(),
+            agent_command_history: if marley
+                .and_then(|marley| marley.agent_commands_in_history)
+                .unwrap_or(true)
+            {
+                AgentCommandHistory::Entered
+            } else {
+                AgentCommandHistory::KeptOut
+            },
             agent_permissions: agents::AgentPermissions::from_content(marley),
             claude_code_worktree_trust: marley
                 .and_then(|marley| marley.claude_code_worktree_trust)

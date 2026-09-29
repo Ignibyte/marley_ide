@@ -19,6 +19,16 @@ if [ -n "${MARLEY_SSH_COMMAND+set}" ]; then
     unset MARLEY_SSH_COMMAND
 fi
 
+# Whether a line typed with a leading space leaves the history once its frame has read it, as an
+# agent's command is typed when the user keeps agents out of it (#553); out of the environment
+# the same way.
+if [ -n "${MARLEY_AGENT_HISTORY+set}" ]; then
+    if [ "$MARLEY_AGENT_HISTORY" = 0 ]; then
+        __MARLEY_SPACED_OUT=1
+    fi
+    unset MARLEY_AGENT_HISTORY
+fi
+
 # On a host Marley's ssh reached (#526): the folder the bootstrap wrote this file to goes now,
 # since bash has read the file whole, and a login shell's files run in place of ~/.bashrc, since
 # ssh gives a login shell and --rcfile makes bash skip them.
@@ -62,6 +72,19 @@ if [ -z "${__MARLEY_HOOKS-}" ]; then
     # in PROMPT_COMMAND and returns the exit code it found, so later entries still see it.
     __marley_precmd() {
         local status=$?
+        # A line typed with a leading space leaves the history now (#553): PS0's frame has read
+        # it, and the user's own PROMPT_COMMAND, which may write the file, runs after this.
+        # `history 1` prints the last entry after its number and two characters; fc here would
+        # skip it, taking it for the fc command itself.
+        if [ -n "${__MARLEY_SPACED_OUT-}" ]; then
+            local last
+            last=$(HISTTIMEFORMAT='' builtin history 1 2>/dev/null)
+            last=${last#"${last%%[![:space:]]*}"}
+            last=${last#"${last%%[!0-9]*}"}
+            if [[ ${last:2} == [[:space:]]* ]]; then
+                builtin history -d -1 2>/dev/null
+            fi
+        fi
         __marley_quote "$PWD"
         builtin printf '\033Pqprecmd;exit=%d;pwd=%s;nonce=%s\033\134' \
             "$status" "$__MARLEY_REPLY" "${__MARLEY_NONCE-}"
@@ -86,6 +109,14 @@ if [ -z "${__MARLEY_HOOKS-}" ]; then
         PROMPT_COMMAND[0]="__marley_precmd${PROMPT_COMMAND[0]:+;${PROMPT_COMMAND[0]}}"
     fi
     PS0="${PS0-}\$(__marley_preexec)"
+
+    # With spaced lines dropped by the prompt (#553), bash itself must keep them: a line it kept
+    # nothing of would make PS0's frame report the one before it. The drop does what
+    # `ignorespace` did.
+    if [ -n "${__MARLEY_SPACED_OUT-}" ]; then
+        HISTCONTROL=${HISTCONTROL//ignoreboth/ignoredups}
+        HISTCONTROL=${HISTCONTROL//ignorespace/}
+    fi
 
     # Marley's ssh (#526): an interactive login starts the host's bash or zsh with this
     # integration, carried in the ssh command and gone from the host once read, after a frame

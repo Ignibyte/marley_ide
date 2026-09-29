@@ -184,6 +184,11 @@ real, reusable session. The Block model is the unit the **brain** later observes
   `duration_label(took)` (#551) words a block's run for a banner and a rail row, rounded to the
   second: `45 s`, `4 m 12 s`, `1 h 2 m`. The hooks' times make a `sleep 3` measure a little
   under three seconds, so it rounds rather than floors.
+  `AnchoredBlocks::keep_agents_out_of_history` (#553) records that the terminal started its shell
+  with `MARLEY_AGENT_HISTORY=0`: bash's `__marley_precmd` then drops a last history entry that
+  starts with a space (read with `history 1`, since `fc` in `PROMPT_COMMAND` skips the last
+  entry) and `ignorespace` leaves `HISTCONTROL`; zsh's `__marley_addhistory` keeps such a line
+  out, and its preexec frame trims it.
   `agent_commands.rs` (#556) decides an agent's `terminal_run` by two lists of regular
   expressions, Warp's defaults in `WARP_ALLOWLIST` and `WARP_DENYLIST`: `segments` splits a
   command at `|`, `||`, `&&`, `;`, `&` and newlines outside quotes; `verdict` asks when the

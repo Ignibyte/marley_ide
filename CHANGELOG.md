@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **An agent's commands can stay out of your shell history** (#553, 2026-09-29). The Marley
+  setting Agent Commands in History (`marley.agent_commands_in_history`, on by default) decides
+  whether the commands an agent runs at your prompt with `terminal_run` enter bash's and zsh's
+  history and Marley's suggestions. Off, terminals opened after the change type them with a
+  leading space that Marley's shell integration keeps out of the history list and the history
+  file, while the block, its mark and its output stay as before.
+
 - **Agents run commands at your prompt, as blocks** (#556, 2026-09-29). An agent connected to
   Marley's MCP server can run a command in a terminal of yours with `terminal_run`, which types it
   at the shell's prompt as Rerun does and answers with the block's exit code, duration and output.

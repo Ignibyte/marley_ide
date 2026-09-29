@@ -3860,3 +3860,14 @@ typed since the prompt: `AnchoredBlocks::input_start()` is unset until the first
 (`Terminal::input` notes both). Code that refuses to type over the user's input must read an
 unset `input_start()` as an empty line and use `typed_text` only after it is set; treating every
 `None` as "cannot read" refuses at every fresh prompt.
+
+## L-claude-553-a-shell-rule-is-checked-by-hand-in-a-pty-first-001
+*category: e2e · topic: testing Marley's shell scripts before a Marley build · from: #553*
+
+The shell integration is compiled into Marley, so each script change costs a build and a
+scenario. `script -qfc "bash --rcfile crates/marley_terminal/shell_integration/marley.bash -i"
+/dev/null`, fed the exact bytes Marley types (`printf '\025 echo x\r'`) with short sleeps, and a
+HOME of the scratchpad, runs the real script in a pty with readline in seconds; `grep -ao
+"preexec;command=[^;]*"` on its output shows the frames. For zsh, copy `marley.zsh` to a
+directory's `.zshenv` and start `zsh -i` with `ZDOTDIR` there. Two of #553's bugs were found and
+fixed this way between one scenario run and the next.

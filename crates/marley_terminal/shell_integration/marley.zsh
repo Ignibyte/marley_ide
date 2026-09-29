@@ -29,6 +29,13 @@ if [[ -n ${MARLEY_SSH_COMMAND+set} ]]; then
     unset MARLEY_SSH_COMMAND
 fi
 
+# Whether a line typed with a leading space stays out of the history, as an agent's command is
+# typed when the user keeps agents out of it (#553); out of the environment the same way.
+if [[ -n ${MARLEY_AGENT_HISTORY+set} ]]; then
+    [[ $MARLEY_AGENT_HISTORY == 0 ]] && typeset -g __MARLEY_SPACED_OUT=1
+    unset MARLEY_AGENT_HISTORY
+fi
+
 # On a host Marley's ssh reached (#526): the folder the bootstrap wrote this file to goes now;
 # zsh keeps the open file readable to its end.
 if [[ -n ${__MARLEY_CLEANUP+set} ]]; then
@@ -69,12 +76,18 @@ if [[ -o interactive && -z ${__MARLEY_HOOKS-} ]]; then
             "$exit_code" "$__MARLEY_REPLY" "${__MARLEY_NONCE-}"
     }
 
-    # After a command line is read and before it runs: the line as it was typed.
+    # After a command line is read and before it runs: the line as it was typed, without the
+    # leading space an agent's command may carry (#553).
     __marley_preexec() {
         emulate -L zsh
-        __marley_quote "$1"
+        __marley_quote "${1#"${1%%[![:space:]]*}"}"
         builtin printf '\033Pqpreexec;command=%s;nonce=%s\033\\' \
             "$__MARLEY_REPLY" "${__MARLEY_NONCE-}"
+    }
+
+    # Returns 1, which keeps the line out of the history, for a line starting with a space.
+    __marley_addhistory() {
+        [[ $1 != [[:space:]]* ]]
     }
 
     # At the first prompt the user's files have run and set their own hooks, so Marley's precmd
@@ -83,6 +96,10 @@ if [[ -o interactive && -z ${__MARLEY_HOOKS-} ]]; then
         emulate -L zsh
         precmd_functions=(__marley_precmd ${precmd_functions:#__marley_install})
         preexec_functions+=(__marley_preexec)
+        # A line typed with a leading space is never saved; preexec still gets it (#553).
+        if [[ -n ${__MARLEY_SPACED_OUT-} ]]; then
+            zshaddhistory_functions+=(__marley_addhistory)
+        fi
         builtin printf '\033Pqinit;id=%d;nonce=%s\033\\' "$$" "${__MARLEY_NONCE-}"
         # The file zsh keeps its history in, which Marley's autosuggestions read.
         if [[ -n ${HISTFILE-} ]]; then

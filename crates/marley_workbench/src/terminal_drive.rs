@@ -38,7 +38,9 @@ use workspace::{Toast, Workspace};
 
 use crate::agent_bar::agent_in;
 use crate::click_pause::Who;
-use crate::{MarleySettings, RefuseAgentCommand, RunAgentCommand, TakeOverTerminal};
+use crate::{
+    AgentCommandHistory, MarleySettings, RefuseAgentCommand, RunAgentCommand, TakeOverTerminal,
+};
 
 /// How long a write waits for the user's answer: under the transport's 30 seconds, so the agent
 /// reads the refusal rather than a timeout.
@@ -83,6 +85,9 @@ struct Drive {
     runs: BTreeMap<usize, Ran>,
     /// Whether a run has typed its command and not yet answered.
     run_in_flight: bool,
+    /// The terminal entity the runs were typed into, for the suggestions, which know only it
+    /// (#553).
+    terminal: Option<EntityId>,
 }
 
 /// A command an agent ran at the terminal's prompt, and who ran it.
@@ -113,6 +118,20 @@ struct Pending {
 /// Registers the take-over on every workspace; [`crate::init`] calls it once.
 pub fn init(cx: &mut App) {
     cx.set_global(Drives::default());
+    // Whether the terminals started from now on keep agents' commands out of their history
+    // (#553), kept current with the setting.
+    let entered = |cx: &App| {
+        MarleySettings::get_global(cx).agent_command_history == AgentCommandHistory::Entered
+    };
+    let kept = entered(cx);
+    cx.set_global(terminal::MarleyAgentHistory(kept));
+    cx.observe_global::<settings::SettingsStore>(move |cx| {
+        let kept = entered(cx);
+        if cx.global::<terminal::MarleyAgentHistory>().0 != kept {
+            cx.set_global(terminal::MarleyAgentHistory(kept));
+        }
+    })
+    .detach();
     // A closed terminal's state goes with it.
     cx.observe_new(|_: &mut TerminalView, _, cx: &mut Context<TerminalView>| {
         let view = cx.entity_id();
@@ -889,6 +908,7 @@ async fn run_then_wait(
 /// terminal, and how many blocks it had before.
 fn type_run(run: &Run, cx: &mut App) -> Result<(Entity<Terminal>, usize), String> {
     prompt_refusal(&run.view, cx)?;
+    let terminal = run.view.read(cx).terminal().clone();
     let drive = drive(&run.view, cx);
     if drive.taken_over {
         return Err(
@@ -896,10 +916,18 @@ fn type_run(run: &Run, cx: &mut App) -> Result<(Entity<Terminal>, usize), String
         );
     }
     drive.run_in_flight = true;
-    let terminal = run.view.read(cx).terminal().clone();
+    drive.terminal = Some(terminal.entity_id());
     let before = terminal.read(cx).blocks().len();
+    // A leading space keeps the command out of the history where the shell was started to drop
+    // such lines (#553); only there, since a shell whose history ignores them would report the
+    // line before it.
+    let space = if terminal.read(cx).marley_anchored().agents_out_of_history() {
+        " "
+    } else {
+        ""
+    };
     // Ctrl-U, the command and a return, as Rerun sends a block's command.
-    let line = format!("\u{15}{}\r", run.command);
+    let line = format!("\u{15}{space}{}\r", run.command);
     terminal.update(cx, |terminal, _| terminal.input(line.into_bytes()));
     Ok((terminal, before))
 }
@@ -1011,6 +1039,16 @@ fn running_run<'a>(drive: &'a Drive, terminal: &Terminal) -> Option<&'a Ran> {
         .get(*index)
         .is_some_and(|block| block.state != BlockState::Finished)
         .then_some(ran)
+}
+
+/// The blocks an agent's `terminal_run` typed into the terminal entity `terminal` (#553).
+pub(crate) fn agent_blocks(terminal: EntityId, cx: &App) -> Vec<usize> {
+    cx.try_global::<Drives>()
+        .into_iter()
+        .flat_map(|drives| drives.0.values())
+        .filter(|drive| drive.terminal == Some(terminal))
+        .flat_map(|drive| drive.runs.keys().copied())
+        .collect()
 }
 
 /// Whether an agent's `terminal_run` typed block `index` of the terminal view `view`.

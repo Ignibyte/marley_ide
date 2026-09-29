@@ -1,7 +1,7 @@
 ---
 pipeline_id: bc4baa6a-3b84-4d7e-bc67-ab04b772753a
 ticket: docs/planning/tickets/open/TICKET-553-agent-commands-in-history.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Whether an agent's commands enter the shell history, as a setting"
 type: feature
 slice: prong 1 T7 (CLI agents in the terminal) with prong 2 (`terminal_run`, #556); the Warp second pass, "Smaller"
@@ -22,24 +22,28 @@ and the shell side is done with the convention every shell already has: a leadin
   a change."
 - **Typing.** With the setting off, `terminal_run`'s typing path (#556) sends the command with a
   leading space: Ctrl-U, a space, the command, a return. With it on, as before.
-- **The shells.** Each local terminal's environment carries `MARLEY_AGENT_HISTORY=0` when the
-  setting is off at spawn (beside the nonce in `TerminalBuilder::new`, read from a global the
-  workbench keeps from the settings). Marley's integration then installs the rule:
-  - bash: `__marley_preexec` (`PS0`) reads the line with `fc -ln -0` as today; when the shell
-    kept it and it starts with a space, it sets `__MARLEY_DROP=1`; `__marley_precmd`, first in
-    `PROMPT_COMMAND`, runs `builtin history -d -1` while the flag is set and the last entry still
-    starts with a space, then clears it. So the hook sees the command, the block gets it, and
-    the entry is gone before any `history -a` the user's `PROMPT_COMMAND` runs after Marley's.
-    A user whose `HISTCONTROL` already ignores a leading space saved nothing and nothing is
-    dropped.
+- **The shells** (changed at promotion). Each local terminal's environment carries
+  `MARLEY_AGENT_HISTORY=0` when the setting is off at spawn, inserted beside the nonce in
+  `TerminalBuilder::new` from a global the workbench keeps from the settings, and the terminal's
+  blocks remember it (`AnchoredBlocks::agents_out_of_history`), so `terminal_run` types the
+  leading space only where the rule is installed. The scripts take the variable out of the
+  environment, as the nonce, and install the rule:
+  - bash: `PS0`'s `__marley_preexec` runs in a command substitution, a subshell, so it cannot set
+    a flag the prompt sees; `__marley_precmd`, first in `PROMPT_COMMAND`, runs `builtin history
+    -d -1` when the last entry (`fc -ln -1`, printed after a tab and a space) starts with a
+    space. The hook has read the line by then, and the entry is gone before any `history -a` the
+    user's `PROMPT_COMMAND` runs. `ignorespace` leaves `HISTCONTROL` (`ignoreboth` becomes
+    `ignoredups`), since a line bash never keeps makes `fc -ln -0` report the one before it; the
+    drop does what `ignorespace` did.
   - zsh: `__marley_addhistory` in `zshaddhistory_functions` returns 1 for a line starting with a
-    space, so the line is never saved; `preexec` still gets the line in `$1`.
+    space, so the line is never saved; `preexec` still gets it in `$1`, which the frame now
+    trims of leading whitespace as bash's does.
   Without the variable the scripts install nothing new, so the default changes no shell's
   behavior.
 - **The blocks.** The block's command and pill are unchanged: the frame carries the line the
   shell read, and the agent's mark (#556 D8) pairs it with the leading space trimmed.
-- **The suggestions.** `autosuggest::suggestion` skips blocks that carry the agent mark while the
-  setting is off; with it on they count as the user's.
+- **The suggestions.** `autosuggest::suggestion` skips the blocks an agent ran in a terminal
+  whose blocks keep agents out of history; elsewhere they count as the user's.
 - **`terminal_blocks`** reports each block's `command` without the leading space.
 
 ### Out (explicitly deferred)
@@ -116,16 +120,19 @@ history file after `history -a` (bash) or at exit (zsh) holds `agent-one` and no
 - D2: A leading space is the marker, because every shell already treats it as "not for the
   history"; bash needs Marley's own drop since its hook reads the line from the history list,
   and the drop happens in `precmd`, after the hook read it and before the user's own
-  `PROMPT_COMMAND` entries run.
+  `PROMPT_COMMAND` entries run. At promotion: the check is the last entry's own leading space,
+  since `PS0` runs in a subshell and no flag survives it; and the rule takes `ignorespace` out of
+  `HISTCONTROL`, whose kept-nothing would give the hook the previous line.
 - D3: The rule is gated by `MARLEY_AGENT_HISTORY=0` at spawn: with the setting on, Marley's
   scripts change nothing about a user's own space-prefixed lines; with it off, such lines are
   dropped too in terminals opened after the change, which is what `ignorespace` would do and
   what the setting's description says.
 - D4: The block keeps its command: the frame carries the line as the shell read it, trimmed of
   leading whitespace as today (`marley.bash:48`; zsh's `$1` is trimmed in the hook the same way).
-- D5: The terminal crate reads the setting from a global (`MarleyTerminalEnv`, extra environment
-  pairs the workbench keeps current from `MarleySettings`), beside the nonce, with a
-  `// Marley:` hunk in the existing row.
+- D5: The terminal crate reads the setting from a global (`MarleyAgentHistory`, a bool the
+  workbench keeps current from `MarleySettings`) beside the nonce, with a `// Marley:` hunk in
+  the existing row, and the terminal's blocks keep what it was at spawn, which `terminal_run`
+  reads: a leading space only where the shell installed the rule.
 
 ## Acceptance Criteria (EARS)
 

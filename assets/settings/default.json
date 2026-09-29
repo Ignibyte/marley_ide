@@ -1729,6 +1729,10 @@
     // What happens to a command neither list matches (#556): "run" (the agent's own permission
     // prompt already asked) or "ask" (it waits for Run or Refuse under the terminal).
     "agent_commands_outside_lists": "run",
+    // Whether commands an agent runs at a terminal's prompt enter your shell's history and
+    // Marley's suggestions (#553). Off, they are typed with a leading space that bash and zsh
+    // keep out of the history, in terminals opened after the change.
+    "agent_commands_in_history": true,
     // What Marley starts Claude Code with (#532): "ask" (its own permission prompts) or
     // "bypass" (--dangerously-skip-permissions). A rail row carries a mark while an agent runs
     // without its prompts, however it was started.

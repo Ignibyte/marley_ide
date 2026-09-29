@@ -198,6 +198,9 @@ pub struct AnchoredBlocks {
     hosts: Vec<Option<String>>,
     /// How many inputs the terminal noted, for a selection that ends at the next one (#554).
     inputs: u64,
+    /// Whether the terminal's shell keeps a line typed with a leading space out of its history,
+    /// as it was asked to at spawn for agents' commands (#553).
+    agents_out_of_history: bool,
 }
 
 impl AnchoredBlocks {
@@ -208,6 +211,18 @@ impl AnchoredBlocks {
             nonce: Some(nonce),
             ..Self::default()
         }
+    }
+
+    /// Records that the terminal's shell was started to keep a line typed with a leading space
+    /// out of its history, which `terminal_run` types an agent's command with (#553).
+    pub const fn keep_agents_out_of_history(&mut self) {
+        self.agents_out_of_history = true;
+    }
+
+    /// Whether the terminal's shell keeps agents' commands out of its history (#553).
+    #[must_use]
+    pub const fn agents_out_of_history(&self) -> bool {
+        self.agents_out_of_history
     }
 
     /// Applies `hook`, which arrived at the absolute line `line`.
