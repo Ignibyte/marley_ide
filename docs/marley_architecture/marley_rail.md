@@ -65,6 +65,11 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
 - **`TerminalSnapshot::activity`** (#519) is a third line under an agent's status, from its
   own events: the tool in flight, what it waits on, its last message or its error. `rail_rows`
   and `switcher_rows` copy it to `TerminalRow::activity`; it decides no order or visibility.
+- **`TerminalSnapshot::command`** (#551) is a plain terminal's last block as a
+  `CommandSnapshot { text, running, exit_code, duration, password }`, for the row's command line;
+  the builders copy it to `TerminalRow::command`. The workbench's snapshot, not this crate,
+  matches the filter against its text when the title does not match. It is `None` for an
+  agent's terminal and an agent's block.
 - **`TerminalSnapshot::flag`** (#569) is the tooltip of a working agent's warning mark, when the
   stall kind flagged it `looping?` or `stalled?`; the builders copy it to `TerminalRow::flag`, and
   it too decides no order or visibility.

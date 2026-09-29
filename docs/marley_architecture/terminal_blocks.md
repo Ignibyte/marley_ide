@@ -175,6 +175,9 @@ real, reusable session. The Block model is the unit the **brain** later observes
   rule, and `scrollback_fraction` where a line sits among the lines the terminal can scroll to;
   Zed's view maps the first to grid lines for a search held to one block, and the element draws
   a bookmark's tick at the second.
+  `duration_label(took)` (#551) words a block's run for a banner and a rail row, rounded to the
+  second: `45 s`, `4 m 12 s`, `1 h 2 m`. The hooks' times make a `sleep 3` measure a little
+  under three seconds, so it rounds rather than floors.
   `workflow.rs` (#558) turns a command into a workflow's template: `guess` replaces, after the
   first word, a number (`port` after `-p` or `--port`, after a `:`, or from 1024 to 65535 with
   no other flag before it; else `number`), a URL, the branch and an existing path with

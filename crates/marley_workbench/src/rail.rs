@@ -33,8 +33,8 @@ use marley_browser::consequence::Class;
 use marley_browser::ports::Stopped;
 use marley_mcp::redact::Redactor;
 use marley_rail::{
-    BrowserRow, BrowserSnapshot, DriftSnapshot, Focus, InboxEntry, InboxKind, PortRow,
-    PortSnapshot, ProjectRow, ProjectSnapshot, RailSnapshot, Row, Selection, SwitcherRow,
+    BrowserRow, BrowserSnapshot, CommandSnapshot, DriftSnapshot, Focus, InboxEntry, InboxKind,
+    PortRow, PortSnapshot, ProjectRow, ProjectSnapshot, RailSnapshot, Row, Selection, SwitcherRow,
     TerminalAgent, TerminalRow, TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus,
     TurnSnapshot, WorktreeRow, WorktreeSnapshot,
 };
@@ -3591,7 +3591,12 @@ impl Rail {
             row.selected,
             icon,
             row_label(row.title, row.highlight, Color::Default),
-            row.subtitle.into_iter().chain(row.activity).collect(),
+            row.subtitle
+                .into_iter()
+                .chain(row.activity)
+                .map(RowLine::muted)
+                .chain(row.command.map(command_line))
+                .collect(),
             cx,
         )
         .children(mark)
@@ -4837,6 +4842,11 @@ fn terminal_snapshot(
         flag: seat
             .filter(|seat| seat.state == marley_fleet::State::Working)
             .and_then(|seat| marley_agent::stall::tooltip(&seat.labels, flag)),
+        // A plain terminal's running or last command (#551); an agent's rows say what it does.
+        command: agent
+            .is_none()
+            .then(|| command_snapshot(terminal.read(cx)))
+            .flatten(),
         turns: Turns::of(view.entity_id().as_u64(), cx)
             .iter()
             .rev()
@@ -4851,6 +4861,73 @@ fn terminal_snapshot(
         turns_open: false,
         worktree: None,
         matched: None,
+    }
+}
+
+/// The most characters of a command a row's line shows.
+const COMMAND_LINE_MAX: usize = 60;
+
+/// `terminal`'s last block for its row's line: the command on one line and cut, whether it runs,
+/// its exit and how long it took, and whether it reads a password (#551).
+fn command_snapshot(terminal: &Terminal) -> Option<CommandSnapshot> {
+    let anchored = terminal.marley_anchored();
+    let block = anchored.blocks().last()?;
+    // An agent's block is the agent's session, which its own row told (#551's watch agrees).
+    if marley_agent::agent_kind_of(&block.command).is_some() {
+        return None;
+    }
+    let one_line = block
+        .command
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    if one_line.is_empty() {
+        return None;
+    }
+    let text = if one_line.chars().count() > COMMAND_LINE_MAX {
+        let mut cut: String = one_line.chars().take(COMMAND_LINE_MAX - 1).collect();
+        cut.push('…');
+        cut
+    } else {
+        one_line
+    };
+    let running = block.state != marley_terminal::BlockState::Finished;
+    let duration = anchored
+        .times(block.index)
+        .and_then(|times| times.finished?.duration_since(times.started).ok())
+        .map(marley_terminal::duration_label);
+    Some(CommandSnapshot {
+        text,
+        running,
+        exit_code: (!running).then_some(block.exit_code.0).flatten(),
+        duration,
+        password: running && terminal.marley_foreground_reads_password(),
+    })
+}
+
+/// A command's line under its terminal's row: `cargo build · running`, `· done · 45 s`,
+/// `· exit 101 · 4 m 12 s` in the error color, or `· waiting for a password` (#551).
+fn command_line(command: CommandSnapshot) -> RowLine {
+    let CommandSnapshot {
+        text,
+        running,
+        exit_code,
+        duration,
+        password,
+    } = command;
+    let took = duration
+        .map(|duration| format!(" · {duration}"))
+        .unwrap_or_default();
+    let (state, color) = match (running, password, exit_code) {
+        (true, true, _) => (" · waiting for a password".to_string(), Color::Muted),
+        (true, false, _) => (" · running".to_string(), Color::Muted),
+        (false, _, Some(code)) if code != 0 => (format!(" · exit {code}{took}"), Color::Error),
+        (false, _, _) => (format!(" · done{took}"), Color::Muted),
+    };
+    RowLine {
+        text,
+        state: Some(state),
+        color,
     }
 }
 
@@ -4927,7 +5004,7 @@ fn build_snapshot(
                     now,
                     cx,
                 );
-                terminal.matched = filter_match(filter, &terminal.title);
+                terminal.matched = terminal_match(filter, &terminal);
                 terminal.worktree.clone_from(&worktree);
                 if terminal.agent.is_some() {
                     snapshot.agent_terminals.insert(view.entity_id());
@@ -5497,6 +5574,18 @@ fn filter_match(filter: &str, text: &str) -> Option<Vec<usize>> {
         .flatten()
 }
 
+/// Where the rail's filter matches a terminal: its title, or else its running or last command,
+/// which highlights nothing in the title (#551).
+fn terminal_match(filter: &str, terminal: &TerminalSnapshot) -> Option<Vec<usize>> {
+    filter_match(filter, &terminal.title).or_else(|| {
+        terminal
+            .command
+            .as_ref()
+            .and_then(|command| filter_match(filter, &command.text))
+            .map(|_| Vec::new())
+    })
+}
+
 /// A row's name or title, with the characters the filter matched highlighted.
 fn row_label(text: String, highlight: Vec<usize>, color: Color) -> AnyElement {
     if highlight.is_empty() {
@@ -5618,6 +5707,30 @@ fn stall_flag(id: u64, flag: String) -> Stateful<Div> {
         .tooltip(Tooltip::text(flag))
 }
 
+/// A line under a row's title, and its color: muted unless it says a command failed (#551). A
+/// command's `state` follows it and stays whole while a long command is cut.
+struct RowLine {
+    text: String,
+    state: Option<String>,
+    color: Color,
+}
+
+impl RowLine {
+    const fn muted(text: String) -> Self {
+        Self {
+            text,
+            state: None,
+            color: Color::Muted,
+        }
+    }
+}
+
+impl From<String> for RowLine {
+    fn from(text: String) -> Self {
+        Self::muted(text)
+    }
+}
+
 /// A terminal's or a thread's row, laid out as Warp's tab list lays out a tab: a round icon, then
 /// the title over the `lines` under it, at one height with a second line or without. An agent row
 /// whose events give it a third line (#519) is the one taller row. `icon_selector` names the
@@ -5628,7 +5741,7 @@ fn row_card(
     selected: bool,
     icon: AnyElement,
     title: AnyElement,
-    lines: Vec<String>,
+    lines: Vec<impl Into<RowLine>>,
     cx: &App,
 ) -> Stateful<Div> {
     row_frame(id, selected, cx)
@@ -5658,10 +5771,24 @@ fn row_card(
                 .flex_1()
                 .child(title)
                 .children(lines.into_iter().map(|line| {
-                    Label::new(line)
-                        .size(LabelSize::XSmall)
-                        .color(Color::Muted)
-                        .truncate()
+                    let line: RowLine = line.into();
+                    h_flex()
+                        .min_w_0()
+                        .child(
+                            div().min_w_0().child(
+                                Label::new(line.text)
+                                    .size(LabelSize::XSmall)
+                                    .color(line.color)
+                                    .truncate(),
+                            ),
+                        )
+                        .when_some(line.state, |row, state| {
+                            row.child(
+                                div().flex_none().child(
+                                    Label::new(state).size(LabelSize::XSmall).color(line.color),
+                                ),
+                            )
+                        })
                 })),
         )
 }

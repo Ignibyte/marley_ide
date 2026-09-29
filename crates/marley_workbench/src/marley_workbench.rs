@@ -34,6 +34,7 @@ pub mod claude_plugin;
 pub mod click_pause;
 pub mod clients;
 pub mod close_guard;
+pub mod command_watch;
 pub mod decisions;
 pub mod find;
 pub mod github;
@@ -308,6 +309,8 @@ pub struct MarleySettings {
     pub terminal_links: MarleyTerminalLinks,
     /// Whether a scrolled-back block's command is pinned over the terminal's top row (#529).
     pub sticky_command_header: bool,
+    /// How long a command runs before its end notifies; 0 is never (#551).
+    pub long_command_seconds: u64,
     /// Whose consequential clicks in the Browser tab wait for Allow (#571).
     pub browser_click_pause_agents: MarleyClickPauseAgents,
     /// When an agent's writes into a running program ask the user (#525).
@@ -378,6 +381,9 @@ impl Settings for MarleySettings {
             sticky_command_header: marley
                 .and_then(|marley| marley.sticky_command_header)
                 .unwrap_or(true),
+            long_command_seconds: marley
+                .and_then(|marley| marley.long_command_seconds)
+                .unwrap_or(30),
             browser_click_pause_agents: marley
                 .and_then(|marley| marley.browser_click_pause_agents)
                 .unwrap_or_default(),
@@ -471,6 +477,7 @@ pub fn init(cx: &mut App) {
     bookmarks::init(cx);
     sticky_header::init(cx);
     markdown_commands::init(cx);
+    command_watch::init(cx);
     agent_bar::init(cx);
     claude_plugin::init(cx);
     notifications::init(cx);

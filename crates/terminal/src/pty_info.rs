@@ -45,6 +45,21 @@ impl ProcessIdGetter {
 
         None
     }
+
+    // Marley: whether the PTY reads a line with echo off, as a password prompt (`sudo`, `ssh`,
+    // `read -s`) does; Linux answers a master's `tcgetattr` with the slave's flags. A full-screen
+    // program turns canonical mode off too, so it does not count (#551).
+    fn reads_password(&self) -> bool {
+        let mut termios = std::mem::MaybeUninit::<libc::termios>::uninit();
+        // The handle is the PTY's master, open for the getter's life.
+        // SAFETY: `tcgetattr` writes the whole struct before it returns 0.
+        if unsafe { libc::tcgetattr(self.handle, termios.as_mut_ptr()) } != 0 {
+            return false;
+        }
+        // SAFETY: `tcgetattr` returned 0, so it filled the struct.
+        let flags = unsafe { termios.assume_init() }.c_lflag;
+        flags & libc::ICANON != 0 && flags & libc::ECHO == 0
+    }
 }
 
 #[cfg(windows)]
@@ -63,6 +78,11 @@ impl ProcessIdGetter {
         }
         Some(Pid::from_u32(pid))
     }
+
+    // Marley: no PTY flags to read here (#551).
+    fn reads_password(&self) -> bool {
+        false
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -70,6 +90,8 @@ pub(crate) struct ProcessInfo {
     pub(crate) name: String,
     pub(crate) cwd: PathBuf,
     pub(crate) argv: Vec<String>,
+    // Marley: the PTY reads a line with echo off (#551).
+    pub(crate) reads_password: bool,
 }
 
 /// Fetches Zed-relevant Pseudo-Terminal (PTY) process information
@@ -186,6 +208,7 @@ impl PtyProcessInfo {
                 .iter()
                 .filter_map(|s| s.to_str().map(ToOwned::to_owned))
                 .collect(),
+            reads_password: self.pid_getter.reads_password(),
         };
         *self.current.write() = Some(info.clone());
         Some(info)
@@ -207,7 +230,12 @@ impl PtyProcessInfo {
             let current = this.load();
             let has_changed = match (previous.as_ref(), current.as_ref()) {
                 (None, None) => false,
-                (Some(prev), Some(now)) => prev.cwd != now.cwd || prev.name != now.name,
+                (Some(prev), Some(now)) => {
+                    prev.cwd != now.cwd
+                        || prev.name != now.name
+                        // Marley: a password prompt's start or end is a change too (#551).
+                        || prev.reads_password != now.reads_password
+                }
                 _ => true,
             };
             if has_changed {

@@ -281,7 +281,7 @@ fn agents_section() -> [SettingsPageItem; 11] {
 }
 
 // Marley: where a URL clicked in a terminal opens (#503).
-fn terminal_section() -> [SettingsPageItem; 3] {
+fn terminal_section() -> [SettingsPageItem; 4] {
     [
         SettingsPageItem::SectionHeader("Terminal"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -324,6 +324,29 @@ fn terminal_section() -> [SettingsPageItem; 3] {
                         .marley
                         .get_or_insert_default()
                         .sticky_command_header = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: a long command's end, notified from a terminal not in front (#551).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Long Command Seconds",
+            description: "How many seconds a command runs before its end shows a desktop notification, when its terminal is not the one in front. 0 turns this off.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.long_command_seconds"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.long_command_seconds.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .long_command_seconds = value;
                 },
             }),
             metadata: None,

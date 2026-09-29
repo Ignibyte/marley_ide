@@ -3814,3 +3814,20 @@ process's own name, so its tab and `mcp_agent terminal-screen` see `repo — cat
 A scenario finds such a terminal by the project's name and by which terminal came last. The agent
 bar the stand-in brings also takes the terminal's bottom rows, so rows measured without an agent
 move up once one runs.
+
+## L-claude-551-an-agents-block-outlives-the-agent-001
+*category: terminal · topic: telling an agent's terminal from a plain one after the agent exits · from: #551's visual check*
+
+`agent_in(terminal)` reads the foreground process, so it answers `None` the moment the agent CLI
+exits, while the block that ran it (`claude`, Return) ends only then. Code that acts on a block's
+end, or draws a terminal's last block, and means to leave agents out, must also test the block's
+own command with `marley_agent::agent_kind_of`; otherwise an ended session reads as a plain
+command that ran for hours, as the rail's `claude · done · 4 s` did in #551's run 4.
+
+## L-claude-551-the-safety-comment-sits-directly-above-the-unsafe-001
+*category: gates · topic: gate:13 and multi-line SAFETY comments · from: #551's Code gate*
+
+gate:13 (`unjustified_unsafe` in `script/gates.sh`) accepts an `unsafe` only when `SAFETY:` is on
+its own line or the line directly above. A two-line comment that starts `// SAFETY:` and wraps
+onto a second line leaves the second line above the `unsafe`, and the gate goes red. Put the
+context first and the one `// SAFETY:` line last, directly above the `unsafe`.

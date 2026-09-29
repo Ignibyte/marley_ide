@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #551 (feature, prong 1 T7b with the rail: plain commands report their end the way agents do)
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/551-command-end-from-outside.spec.md
+- **Pipeline doc:** ../../pipeline/completed/551-command-end-from-outside.spec.md
 - **Source ticket:** The Warp second pass of 2026-09-25, finding 3 and its third recommendation (`docs/planning/design-notes/warp-second-pass-2026-09-25.md`), with Chad's answer of 2026-09-26 to open question 4 left at its default: Warp's 30 seconds, plain commands only, never agent terminals. Specced because Chad decided on 2026-09-26 that every remaining Orca and Warp finding gets built.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 A `cargo build`, a test run or an `rsync` asks for no notification, so none comes, and the

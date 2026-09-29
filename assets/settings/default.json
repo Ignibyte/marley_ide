@@ -1689,6 +1689,9 @@
     // Whether a block's command is pinned over the terminal's top row while you scroll back
     // through the block's output; a click on it scrolls to the block's start (#529).
     "sticky_command_header": true,
+    // How many seconds a command runs before its end shows a desktop notification, when its
+    // terminal is not the one in front; 0 turns this off (#551).
+    "long_command_seconds": 30,
     // Whose clicks in a Browser tab that pay, delete, send in your name or change an account wait
     // for Allow or Refuse while system_one.uses.click_consequence is on (#571):
     // "agents_without_prompts" (agents with no permission prompt of their own, and callers Marley

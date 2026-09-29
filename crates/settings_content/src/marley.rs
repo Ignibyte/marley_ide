@@ -56,6 +56,11 @@ pub struct MarleySettingsContent {
     ///
     /// Default: true
     pub sticky_command_header: Option<bool>,
+    /// How many seconds a command runs before its end shows a desktop notification, when its
+    /// terminal is not the one in front; 0 turns this off (#551).
+    ///
+    /// Default: 30
+    pub long_command_seconds: Option<u64>,
     /// Which agents' consequential clicks in the Browser tab wait for Allow or Refuse while the
     /// click consequence's use is on (#571).
     ///

@@ -3240,6 +3240,19 @@ impl Terminal {
         }
     }
 
+    // Marley: whether the foreground program reads a line with echo off, as a password prompt
+    // does, from the process info the terminal keeps (#551).
+    pub fn marley_foreground_reads_password(&self) -> bool {
+        match &self.terminal_type {
+            TerminalType::Pty { info, .. } => info
+                .current
+                .read()
+                .as_ref()
+                .is_some_and(|process| process.reads_password),
+            TerminalType::DisplayOnly => false,
+        }
+    }
+
     /// Returns the working directory of the process that's connected to the PTY.
     /// That means it returns the working directory of the local shell or program
     /// that's running inside the terminal.

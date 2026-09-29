@@ -2785,3 +2785,13 @@ settings, so those items are not in the menu at all.
 which reads working or waiting to idle as `Finished`: a `/clear` while Claude Code waited on a
 permission pushed `Claude finished` to the phone. Fixed at the source of the change: `on_frame`
 hands back whether the frame was a `SessionStart`, and neither the push nor the banner acts on one.
+
+## F-claude-551-a-rows-state-cut-with-its-command-001
+*severity: medium · found in: pipeline 551's visual check · class: a status word inside one truncating label with a variable-length prefix · prevented by: `RowLine::state`, its own `flex_none` label after the truncating one (#551)*
+
+The rail's command line was one label, `<command> · waiting for a password`, truncated to the
+row's width. A command as short as `sleep 1; read -s -p 'Password: ' x` filled the row, so shot
+`551-04-password-row` read `sleep 1; read -s -p 'Password…` and the state the criterion names never
+showed; the log's banner passed, so only the shot caught it. Fixed: the state renders in a label of
+its own that does not shrink, and only the command is cut, as the rail's turn rows lay out a title
+and its file count.

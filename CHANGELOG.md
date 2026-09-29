@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A long command's end, from a terminal you are not looking at** (#551, 2026-09-29). A command
+  that runs 30 seconds or more and ends in a terminal not in front posts one desktop notification
+  titled with the command, `done in 45 s` or `exit 1 after 4 m 12 s`, and marks the terminal's
+  rail row with the unread dot. A command that stops to read a password (`sudo`, `ssh`, `read
+  -s`) posts `waiting for a password` once. The rail's row for a plain terminal gains a line with
+  its last command and its state: `running`, `waiting for a password`, `done · 7 s`, or `exit 1 ·
+  3 s` in red; the rail's filter finds a terminal by that command too. Agent CLIs' terminals are
+  left out, since their banners already say what the agent did. The threshold is the Marley
+  setting Long Command Seconds (`marley.long_command_seconds`, 30; 0 turns it off).
+
 - **Notifications that say what happened** (#538, 2026-09-29). Claude Code's banners now read
   `repo: Claude finished` over the turn's last message, `repo: Claude needs input` over
   `Using Bash: ls -la` or the question it asks, and `repo: Claude failed` over the failure's kind,

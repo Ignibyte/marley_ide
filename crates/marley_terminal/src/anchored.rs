@@ -114,6 +114,20 @@ fn duration_words(took: Duration) -> String {
     }
 }
 
+/// How long a command took, to the nearest second (#551).
+///
+/// `45 s` under a minute, then `4 m 12 s`, then `1 h 2 m`. The times are the hooks' arrivals, so a
+/// `sleep 3` measures a little under three seconds and reads as three.
+#[must_use]
+pub fn duration_label(took: Duration) -> String {
+    let seconds = u64::try_from(took.as_millis().saturating_add(500) / 1000).unwrap_or(u64::MAX);
+    match (seconds / 3600, seconds % 3600 / 60, seconds % 60) {
+        (0, 0, seconds) => format!("{seconds} s"),
+        (0, minutes, seconds) => format!("{minutes} m {seconds} s"),
+        (hours, minutes, _) => format!("{hours} h {minutes} m"),
+    }
+}
+
 /// When a block's command started and, once it finished, when it ended: the times the terminal saw
 /// the shell's hooks arrive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

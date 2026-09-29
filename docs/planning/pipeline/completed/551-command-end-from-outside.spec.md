@@ -1,7 +1,7 @@
 ---
 pipeline_id: 29244e1f-5ba2-43ee-8a00-589403be98ca
 ticket: docs/planning/tickets/open/TICKET-551-command-end-from-outside.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "A command's end, seen from outside its terminal"
 type: feature
 slice: prong 1 T7b with the rail (#478's notifications for plain commands); the Warp second pass's finding 3
@@ -27,7 +27,9 @@ session is one long block, and #538 words their banners.
   of at least the threshold, whose terminal is not the focused terminal of the active window
   and whose foreground program is not a known agent, posts one notification through
   `notifications::notify` (made `pub(crate)`): the command as the title, `done in <duration>`
-  or `exit <code> after <duration>` as the body.
+  or `exit <code> after <duration>` as the body. Since #538 landed, such an end also sets #538's
+  unread mark (the rail's dot) on the terminal, and `notify`'s five-second cooldown per project
+  covers these banners too.
 - **The password check.** `crates/terminal/src/pty_info.rs`: `ProcessIdGetter::reads_password`
   reads the master's termios with `libc::tcgetattr` beside `tcgetpgrp` (Linux answers with the
   slave's flags: `ICANON` set and `ECHO` clear is a canonical read with echo off);
@@ -55,8 +57,6 @@ session is one long block, and #538 words their banners.
 - Agent terminals: #538 words their banners and their unread mark; #542 orders the rail.
 - Blocks over ssh (#526): blocks stop at the first `ssh` today; the password check still sees
   ssh's own prompt, since it reads the local PTY.
-- An unread mark and the rail's dot for a finished command: #538's mark, when it lands, is the
-  one to set; here the row's red exit is the mark.
 - Warp's stricter "only while Warp is not in front": Marley keeps #478's rule (the focused
   terminal of the active window is in front; every other terminal is not).
 - A sound; a notification for the focused terminal; grouping bursts (#538's cooldown covers
@@ -114,24 +114,19 @@ session is one long block, and #538 words their banners.
   password read are new and small.
 
 ## UI proof
-UI-AFFECTING: the rail row's line and the filter; the notifications are machine-checked.
-`script/e2e/551-command-end-from-outside.sh` (Hyprland, keys only). Setup: a scratch
-repository; a HOME whose `.bashrc` is the scenario's; the profile's settings with
-`marley.long_command_seconds` at 2; `busctl --user monitor org.freedesktop.Notifications`
-logging (L-claude-478); #519's stand-in `claude`. Steps: `ctrl-~` opens a second terminal;
-`ctrl-tab` back to the first; `sleep 3; false`, Return, `ctrl-tab` at once; settle 5: the
-first terminal's row reads `sleep 3; false · exit 1 · 3 s` in the error color
-(`551-01-failed-row`), and the log holds one `Notify` with `sleep 3; false` and
-`exit 1 after 3 s`. `ctrl-tab`, `true`, Return, `ctrl-tab`, settle 2: the `Notify` count
-unchanged. `ctrl-tab`, `sleep 6`, Return, `ctrl-tab`, settle 2: `sleep 6 · running`
-(`551-02-running-row`); settle 6: `sleep 6 · done · 6 s` (`551-03-done-row`) and a `Notify`
-with `done in 6 s`. `ctrl-tab`, `read -s -p 'Password: ' x`, Return, `ctrl-tab`, settle 2:
-`read -s -p 'Password: ' x · waiting for a password` (`551-04-password-row`) and one `Notify`
-with `waiting for a password`; `ctrl-tab`, `secret`, Return. `sleep 3; false` in the focused
-terminal, settle 5: no new `Notify`. The palette's focus of the sidebar filter
-(`FocusSidebarFilter`), `sleep`: the first terminal's row shown and matched (`551-05-filter`);
-Escape. `claude`, Return, Return (the stand-in's steps), `ctrl-d` after 3 s, `ctrl-tab`: no
-`Notify` for that block.
+UI-AFFECTING: the rail row's line and the filter; the banners are machine-checked.
+`script/e2e/551-command-end-from-outside.sh` (`compositor sway`): Marley on a private session
+bus whose notification server logs each banner (#535, #538), so none reaches the user's desktop;
+the user's bus watched for none. Setup: a scratch repository; the scenario's HOME;
+`marley.long_command_seconds` at 2 in the run's settings; #538's stand-in `claude`. Terminal 1
+runs the commands; terminal 2 holds the focus, and Alt+N moves between them. Shots:
+`551-01-failed-row` (`sleep 3; false · exit 1 · 3 s`, the exit in red, the row's dot; the log's
+`sleep 3; false|exit 1 after 3 s`); `true` (the log unchanged); `551-02-running-row`
+(`sleep 7 · running`); `551-03-done-row` (`sleep 7 · done · 7 s`; the log's `done in 7 s`);
+`551-04-password-row` (`read -s -p 'Password: ' x · waiting for a password`; the log's one
+`waiting for a password`); `sleep 3; false` in the focused terminal (the log unchanged);
+`551-05-filter` (the rail's filter `sleep`, terminal 1's row matched); the stand-in's long block
+(the log unchanged); `551-06-setting` (the Marley page's Terminal section).
 
 ## Locked-In Decisions
 - D1: Blocks are the source, not the process tree: a block ends when the shell's `precmd` frame
@@ -170,8 +165,8 @@ Escape. `claude`, Return, Return (the stand-in's steps), `ctrl-d` after 3 s, `ct
 | REQ-005 | WHILE the running block's PTY reads with echo off in canonical mode, the row shall read `waiting for a password`, and the system shall post one notification for it when the terminal is not in front. | Shot `551-04-password-row`; the log: one `Notify` with `waiting for a password` |
 | REQ-006 | WHEN the rail's filter holds text found in a terminal's running or last command, the system shall show and match that terminal's row. | Shot `551-05-filter` |
 | REQ-007 | WHEN a block ends in a terminal whose foreground program is a known agent, the system shall post nothing and change no row. | The log: no `Notify` for the stand-in's block |
-| REQ-008 | The setting shall appear on the Marley settings page, and `default.json` shall set it to 30. | The 515 scenario's page shot; review of `default.json` |
-| REQ-009 | The diff gate shall be green, and the golden set shall pass. | `script/gates.sh --diff`; `just regress` |
+| REQ-008 | The setting shall appear on the Marley settings page, and `default.json` shall set it to 30. | Shot `551-06-setting`; review of `default.json` |
+| REQ-009 | The diff gate shall be green. | `script/gates.sh --diff` |
 
 ## Phase Plan
 - **P1 Plan:** this spec; the design and the test plan in the notes. At promotion re-verify the

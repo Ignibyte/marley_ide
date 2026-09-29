@@ -55,6 +55,17 @@
     slave's `ECHO` and `ICANON` bits as the slave sets them.
 - **Decisions:** D1 to D9 in the spec.
 
+- **Promotion, 2026-09-29:** every seam re-read. `pty_info.rs`: `ProcessIdGetter` (13,
+  `tcgetpgrp` 37), `ProcessInfo` (69), `load` (177), `emit_title_changed_if_changed` (200, the
+  comparison in its task). #538 landed: `notifications::notify` gates on `looking_at` and on
+  `banner_allowed`'s cooldown per project, and `Attention` holds the unread marks the rail's dot
+  reads and observes, so a long command's end sets the mark too. The rail's lines go through
+  `row_card(.., lines: Vec<String>, ..)` (`rail.rs:5625`, six callers), all muted; the red exit
+  needs a line with its own color. `terminal_snapshot` at `rail.rs:4751`, `filter_match` at
+  5494. The scenario moves to headless sway and a private bus, since banners on the user's bus
+  would show on Chad's desktop; `just regress` and #500's rerun leave with the 2026-09-29
+  workflow. Brain (consultation cf4c7c94): nothing on this seam.
+
 ### Design
 - **`command_watch.rs`.** `init`: `cx.observe_new::<TerminalView>` (as `notifications.rs:33`),
   and for each view `cx.observe(&terminal, ..)` plus a subscription to `Event::TitleChanged`;
@@ -74,14 +85,17 @@
 - **The rail.** `CommandSnapshot { text: String, running: bool, exit_code: Option<i32>,
   duration: Option<String>, password: bool }` on `TerminalSnapshot` and `TerminalRow`;
   `terminal_snapshot` fills it from the last block (the text cut to 60 characters), its `times`
-  and the flag; `render_terminal_row` adds the line with `exit <code>` in `Color::Error`;
+  and the flag; `render_terminal_row` adds the line, in `Color::Error` for a non-zero exit,
+  through `row_card`'s lines becoming `Vec<impl Into<RowLine>>` (a `String` is a muted line, so
+  the other five callers stay as they are);
   `build_snapshot` matches `filter` against the title and, failing that, the command's text.
 - **`duration_label`** in `marley_terminal` (pure): seconds under a minute as `45 s`, then
   `4 m 12 s`, then `1 h 2 m`.
 - **File manifest.** Zed: `crates/terminal/src/pty_info.rs`, `crates/terminal/src/terminal.rs`
   (the getter), `crates/settings_content/src/marley.rs`, `crates/settings_ui/src/marley_page.rs`,
   `assets/settings/default.json`. Marley: `crates/marley_workbench/src/command_watch.rs` (new),
-  `notifications.rs` (`notify` made `pub(crate)`), `rail.rs`, `marley_workbench.rs`;
+  `notifications.rs` (`notify` made `pub(crate)`, and `mark_unread` for #538's mark), `rail.rs`,
+  `marley_workbench.rs`;
   `crates/marley_rail/src/marley_rail.rs`; `crates/marley_terminal/src/marley_terminal.rs` (or
   a small `duration.rs`). Scripts: `script/e2e/551-command-end-from-outside.sh`.
 - **Ledger rows.** `docs/marley/zed-touchpoints.md`: `crates/terminal/src/pty_info.rs` (new
@@ -119,10 +133,74 @@ remote terminal (no PTY flag) is review.
   titles are.
 
 ## Phase 2 — Code
-- Not started.
+- **Built to the manifest.** `pty_info.rs`: `ProcessIdGetter::reads_password` (`tcgetattr` on
+  the master, `ICANON` set and `ECHO` clear; Windows answers false), `ProcessInfo.reads_password`
+  filled in `load` and part of `has_changed`. `terminal.rs`: `marley_foreground_reads_password`.
+  `marley_terminal::duration_label`. The setting `marley.long_command_seconds` (30, 0 for never)
+  in `settings_content`, `default.json`, `MarleySettings` and the Marley page's Terminal section.
+  `marley_rail::CommandSnapshot` on the terminal's snapshot and row. `rail.rs`:
+  `command_snapshot`, `command_line` and `RowLine` (a line's text, its color, and a `state` that
+  stays whole while a long command is cut), the filter falling back to the command's text.
+  `notifications.rs`: `notify` made `pub(crate)`, `mark_unread` added. `command_watch.rs` (new).
+- **Deviations.** The watch's baseline is taken when the view is made, not at its first check,
+  so a split of a terminal with blocks tells nothing of the ends before it. The agent test is
+  `agent_in(terminal)` or the block's own command naming an agent (`agent_kind_of`), since the
+  agent's block ends after the agent has left the foreground. The rail leaves out the line for
+  an agent's block by the same test (found in Test).
+- **Review.** Borrows reordered twice (the threshold and the entity id read before the global is
+  taken mutably). The duration is rounded, not floored: the hooks' times make a `sleep 3` measure
+  2.9 s. Re-entrancy: `check` reads the terminal inside `observe_in`/`subscribe_in` callbacks,
+  never the view being updated.
+- **Gate.** Run 1 red on two gates: `too_long_first_doc_paragraph` on `duration_label`'s doc, and
+  gate:13, whose `// SAFETY:` must sit on the line directly above the `unsafe`; both fixed at the
+  source. Run 2 red on clippy only: `too_many_lines` on `build_snapshot` (the filter's fallback
+  moved into `terminal_match`), `missing_const_for_fn` on `RowLine::muted`, and
+  `needless_pass_by_ref_mut` on `command_watch::init` (now `&App`). Run 3: `GATE GREEN [diff]`,
+  16 passed, 0 failed, the receipt written.
 
 ## Phase 3 — Test
-- Not started.
+- **Scenario** `script/e2e/551-command-end-from-outside.sh` under `compositor sway`, on a private
+  session bus whose notification server logs `app|summary|body`; the user's bus watched with
+  `busctl monitor`. `marley.long_command_seconds` is 2 in the run's settings.
+- **Run 2** passed every check but shot `551-04-password-row` cut the row at
+  `sleep 1; read -s -p 'Password…`: the state was part of the one truncated label, so REQ-005's
+  words did not show. Fixed: `RowLine.state` renders in its own `flex_none` label after a
+  truncating one. Run 3 showed a doubled space before the `·` (the row's gap plus the text's);
+  the gap went and the state leads with one space.
+- **Run 4, every shot read** (rail crops scaled 3x):
+  - `551-01-failed-row`: terminal 1's row reads `sleep 3; false · exit 1 · 3 s` in the error
+    red with the unread dot; terminal 2 (in front) has no line. Log: `Marley|sleep 3; false|exit
+    1 after 3 s`. REQ-001, REQ-004.
+  - `551-02-running-row`: title `repo — sleep 7`, line `sleep 7 · running`, muted. REQ-003.
+  - `551-03-done-row`: `sleep 7 · done · 7 s`, muted, the dot. Log: `done in 7 s`. REQ-004.
+  - `551-04-password-row`: `sleep 1… · waiting for a password`, the state whole, the dot. Log:
+    one banner `waiting for a password`. REQ-005.
+  - `551-05-filter`: the filter holds `sleep`; only terminal 1's row is left, matched by its
+    command (`sleep 3; false · exit 1 · 3 s`), terminal 2 hidden. The terminal shows the typed
+    password hidden and its block ✓. REQ-006.
+  - `551-06-setting`: the Marley page's Terminal section, `Long Command Seconds` at 2 with its
+    reset arrow and its description; `default.json` sets 30. REQ-008.
+  - Log checks: a short `true` and the focused terminal's own `sleep 3; false` posted nothing
+    (REQ-002); the stand-in agent's 4 s block posted nothing (REQ-007); the user's bus saw no
+    `Notify`.
+- **Found in Test.** The same shot 06 showed the ended stand-in agent's row as `claude · done ·
+  4 s`: REQ-007 says an agent's block changes no row. `command_snapshot` now leaves out a block
+  whose command names an agent, the watcher's test.
+- **Run 5** (after that fix and the gate's clippy fixes): every check passed again, and every shot
+  was read again. Shots 01 to 05 are as run 4 describes; `551-06-setting`'s rail now shows
+  terminal 1, whose last block was the stand-in `claude`, with no line under its title. REQ-007.
+- **Not reachable:** a click on the banner (the notification server is the scenario's own; #478
+  proved the click path, reused unchanged); a remote terminal's row (no PTY here, the flag reads
+  false) is review.
 
 ## Phase 4 — Complete
-- Not started.
+- **Docs.** CHANGELOG Added; the plan's T7 row; `marley_workbench.md` (a section for
+  `command_watch.rs` and the rail's command line), `marley_rail.md`
+  (`TerminalSnapshot::command`), `terminal_blocks.md` (`duration_label`); the touchpoint rows for
+  `pty_info.rs`, `terminal.rs`, the settings files and `default.json` describe what shipped.
+- **Knowledge.** AD-claude-551-a-long-commands-end-told-from-outside-001,
+  F-claude-551-a-rows-state-cut-with-its-command-001,
+  L-claude-551-an-agents-block-outlives-the-agent-001,
+  L-claude-551-the-safety-comment-sits-directly-above-the-unsafe-001. Brain: `brain_decide` on
+  consultation cf4c7c94.
+- **Closed** the ticket, archived the pair, committed.

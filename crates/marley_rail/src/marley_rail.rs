@@ -178,6 +178,9 @@ pub struct TerminalSnapshot {
     /// The agent's stall or loop flag (#569), as the warning mark's tooltip says it; `None` when
     /// the row carries no flag.
     pub flag: Option<String>,
+    /// A plain terminal's running or last command (#551); `None` for an agent's row or before
+    /// the first command.
+    pub command: Option<CommandSnapshot>,
     /// The turns of the terminal's Claude Code that changed the tree (#509), newest first.
     pub turns: Vec<TurnSnapshot>,
     /// Whether the row's turns are listed under it.
@@ -187,6 +190,21 @@ pub struct TerminalSnapshot {
     pub worktree: Option<String>,
     /// Where the filter matched the title, as for [`ProjectSnapshot::matched`].
     pub matched: Option<Vec<usize>>,
+}
+
+/// A plain terminal's running or last command, for its row's line (#551).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandSnapshot {
+    /// The command's text, on one line and cut to the row.
+    pub text: String,
+    /// Whether it still runs.
+    pub running: bool,
+    /// Its exit code, once it finished and the shell reported one.
+    pub exit_code: Option<i32>,
+    /// How long it took, once it finished, as `marley_terminal::duration_label` says it.
+    pub duration: Option<String>,
+    /// Whether it reads a password now, with the PTY's echo off.
+    pub password: bool,
 }
 
 /// One turn of a terminal's Claude Code that changed the tree (#509).
@@ -483,6 +501,8 @@ pub struct TerminalRow {
     pub activity: Option<String>,
     /// The warning mark's tooltip, when the agent is flagged (see [`TerminalSnapshot::flag`]).
     pub flag: Option<String>,
+    /// The command's line, if any (see [`TerminalSnapshot::command`]).
+    pub command: Option<CommandSnapshot>,
     /// The turns listed under the row (see [`TerminalSnapshot::turns`]).
     pub turns: Vec<TurnSnapshot>,
     /// Whether the turns are listed.
@@ -980,6 +1000,7 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                 agent: terminal.agent,
                 activity: terminal.activity.clone(),
                 flag: terminal.flag.clone(),
+                command: terminal.command.clone(),
                 turns: terminal.turns.clone(),
                 turns_open: terminal.turns_open,
                 worktree: snapshot
@@ -1083,6 +1104,7 @@ pub fn switcher_rows(
                 agent: terminal.agent,
                 activity: terminal.activity.clone(),
                 flag: terminal.flag.clone(),
+                command: terminal.command.clone(),
                 turns: terminal.turns.clone(),
                 turns_open: terminal.turns_open,
                 worktree: None,
@@ -1181,6 +1203,7 @@ mod tests {
             agent: None,
             activity: None,
             flag: None,
+            command: None,
             turns: Vec::new(),
             turns_open: false,
             worktree: None,
@@ -1349,6 +1372,7 @@ mod tests {
                     agent: None,
                     activity: None,
                     flag: None,
+                    command: None,
                     turns: Vec::new(),
                     turns_open: false,
                     worktree: None,
@@ -1364,6 +1388,7 @@ mod tests {
                     agent: None,
                     activity: None,
                     flag: None,
+                    command: None,
                     turns: Vec::new(),
                     turns_open: false,
                     worktree: None,
@@ -1387,6 +1412,7 @@ mod tests {
                     agent: None,
                     activity: None,
                     flag: None,
+                    command: None,
                     turns: Vec::new(),
                     turns_open: false,
                     worktree: None,
@@ -1428,6 +1454,7 @@ mod tests {
                     agent: None,
                     activity: None,
                     flag: None,
+                    command: None,
                     turns: Vec::new(),
                     turns_open: false,
                     worktree: None,
@@ -1577,6 +1604,7 @@ mod tests {
                     agent: None,
                     activity: None,
                     flag: None,
+                    command: None,
                     turns: Vec::new(),
                     turns_open: false,
                     worktree: None,
@@ -1618,6 +1646,7 @@ mod tests {
                     agent: None,
                     activity: None,
                     flag: None,
+                    command: None,
                     turns: Vec::new(),
                     turns_open: false,
                     worktree: None,

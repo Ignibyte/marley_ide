@@ -3157,3 +3157,20 @@ Marley shows for it, the agent's and a program's OSC 9 alike. A session's start 
 plugin's fixed sentences left `hooks.json`, so each event shows once. Rejected: reading the
 transcript for the body; a mark only when a banner shows; the rail's disambiguated label in the
 title (the phone's line reads the same).
+
+## AD-claude-551-a-long-commands-end-told-from-outside-001
+*decided at: 2026-09-29 · status: shipped*
+
+A plain command's end is told the way #538 tells an agent's: a block that ends after
+`marley.long_command_seconds` (30; 0 is never) in a terminal the user is not looking at posts one
+banner through `notifications::notify`, titled with the command, over `done in 45 s` or `exit 1
+after 4 m 12 s`, and sets the terminal's unread mark. The duration is rounded to the second, since
+the shell hooks' arrival times make a `sleep 3` measure 2.9 s. A running block whose PTY reads a
+line with echo off (`tcgetattr` on the master, `ICANON` set and `ECHO` clear, read at the
+foreground process's refresh) posts `waiting for a password` once per block. The watch keys each
+terminal view by entity id and takes its baseline when the view is made. The rail's plain
+terminal row gains the block's command and state, the state kept whole while the command is cut,
+and the filter falls back to the command's text. Agent terminals, and a block whose own command
+names an agent, are left out of both. Rejected: a Zed event for a block's end (the anchored
+blocks already notify the terminal); reading the screen for a password prompt; a banner for every
+command regardless of its length.

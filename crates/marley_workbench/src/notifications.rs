@@ -144,6 +144,14 @@ fn on_seat_change(
     );
 }
 
+/// Marks the terminal view of `cx` unread, as an agent's event does (#538), for a long command's
+/// end or a password prompt the user was not looking at (#551).
+pub(crate) fn mark_unread(cx: &mut Context<TerminalView>) {
+    let id = cx.entity_id();
+    let _newly = cx.default_global::<Attention>().unread.insert(id);
+    cx.notify();
+}
+
 /// Clears `view`'s mark once the user looks at it (#538).
 fn seen(view: &TerminalView, window: &Window, cx: &mut Context<TerminalView>) {
     let id = cx.entity_id();
@@ -171,8 +179,8 @@ fn banner_allowed(view: &TerminalView, cx: &mut Context<TerminalView>) -> bool {
 
 /// Shows a desktop notification from `view`, unless the user is looking at it or its project
 /// showed a banner in the last five seconds (#538). An OSC 9 gives no title, so the terminal's tab
-/// names it.
-fn notify(
+/// names it. A long command's end and a password prompt come here too (#551).
+pub(crate) fn notify(
     view: &TerminalView,
     title: Option<&str>,
     body: &str,

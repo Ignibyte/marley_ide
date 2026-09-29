@@ -1047,6 +1047,26 @@ alike.
   `agent_events::on_frame` instead of `notify`, and registers `agent_events::forget` for the
   view's release. Zed's view leaves such a notification unmarked, so no bell either.
 
+## A long command's end (`src/command_watch.rs`, #551)
+
+- `init` observes every new `TerminalView`: it takes the view's baseline (the last finished
+  block's index, so a split tells nothing of the ends before it), then checks the terminal's last
+  block on each notify of the terminal and each `Event::TitleChanged`, which the foreground
+  process's refresh emits when the password flag changes. The view's release drops its entry.
+- `check` leaves a terminal alone while an agent CLI runs there (`agent_in`) or when the block's
+  own command names one (`marley_agent::agent_kind_of`): the agent's block ends after the agent
+  has left the foreground, and #538 words its banners. A finished block newer than the last one
+  told, at or over `marley.long_command_seconds` (0 is never), posts `done in <d>` or `exit <n>
+  after <d>` titled with the command; a running block whose PTY reads with echo off
+  (`Terminal::marley_foreground_reads_password`) posts `waiting for a password` once per block.
+  Both go through `notifications::notify`, so the focus rule and the project's five-second
+  cooldown hold, and both set the view's unread mark (`notifications::mark_unread`) first.
+- The rail's plain terminal rows carry the same block as `CommandSnapshot` (`command_snapshot` in
+  `rail.rs`): the command on one line, cut to 60 characters, and a state `command_line` words.
+  The line is a `RowLine` whose `state` renders in a label of its own after the truncating
+  command, so a long command never hides it; a non-zero exit is drawn in the error color. An
+  agent's block has no line, by `check`'s test.
+
 ## Claude Code's hook events (`src/agent_events.rs`, #519)
 
 - `AgentEvents`, a global made at the first frame, holds one `marley_fleet::FleetSnapshot`: a
