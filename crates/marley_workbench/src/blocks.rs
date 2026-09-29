@@ -137,7 +137,7 @@ fn clear(terminal: &Entity<Terminal>, cx: &mut App) {
 }
 
 /// Scrolls `terminal` so the first line of its block at `index` shows, when it does not.
-fn reveal(terminal: &Entity<Terminal>, index: usize, cx: &mut App) {
+pub(crate) fn reveal(terminal: &Entity<Terminal>, index: usize, cx: &mut App) {
     terminal.update(cx, |terminal, _| {
         let Some(block) = terminal.blocks().get(index) else {
             return;

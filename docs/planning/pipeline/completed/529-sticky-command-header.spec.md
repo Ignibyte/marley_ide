@@ -1,7 +1,7 @@
 ---
 pipeline_id: 741a3b93-68a1-4e61-91b6-8fe3460db690
 ticket: docs/planning/tickets/open/TICKET-529-sticky-command-header.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "A long block's command stays in view"
 type: feature
 slice: prong 1 T1 (stage-one block rendering; Warp once-over item 5)
@@ -26,9 +26,10 @@ Warp's sticky command header, drawn over Zed's rows as stage one draws everythin
   starts no selection and sends no mouse report, as #474's buttons keep their presses.
 - **The setting** `marley.sticky_command_header`, on by default, a toggle in a Terminal section of
   the Marley page (#515).
-- **A hook in `terminal_view`**: the element asks Marley's workbench for the header in `prepaint`,
-  lays it out over the top row and paints it after the blocks, as it does the autosuggestion
-  (#484).
+- **A hook in `terminal_view`**: `MarleyStickyHeader`, with `MarleyBlockChip`'s shape (the view,
+  the terminal, the block's index). The element picks the block (`marley_terminal::sticky_block`
+  over its spans), asks the hook in `prepaint`, lays the answer out over the top row and paints it
+  with the block elements, last, as #555's last-row chip is.
 
 ### Out (explicitly deferred)
 - Warp's per-pane minimize arrow and its per-pane toggle key.
@@ -85,8 +86,9 @@ in the profile copy, scrolled back into `seq`'s block (`529-07-off`); `marley: o
   the view scrolls, and stage one keeps Zed's row model (AD-claude-470).
 - D3 — The click scrolls to the block's first row, the one the block keys stop at (AD-claude-473),
   and selects nothing.
-- D4 — The header is Marley's element in `marley_workbench`, through a hook the terminal element
-  calls, as the autosuggestion is (#484); the setting stays Marley's.
+- D4 — The header is Marley's element in `marley_workbench::sticky_header`, through a hook the
+  terminal element calls with the block it picked; it joins the element's block elements, so
+  `LayoutState` gains no field; the setting stays Marley's.
 - D5 — On by default, as Warp's; the command shown is what the block's frame reported, which a
   header only shows (PR-claude-474: showing a field needs no nonce).
 

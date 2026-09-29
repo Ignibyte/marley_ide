@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #529 (feature, prong 1 T1: stage-one block rendering)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/529-sticky-command-header.spec.md
+- **Pipeline doc:** ../../pipeline/completed/529-sticky-command-header.spec.md
 - **Source ticket:** Chad, 2026-09-25, approving all seven items of the Warp once-over (`docs/planning/design-notes/warp-once-over-2026-09-25.md`, item 5, "Block filtering and the sticky command header")
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Scrolled back into the middle of a long block, the terminal shows lines with nothing to say which

@@ -3786,3 +3786,13 @@ button by setting the hook again silently removes the one set before it; #559's 
 have dropped #555's Ask the agent chip and #558's Save as Workflow button. One module sets each
 hook (`bookmarks::init`) and composes it from the other modules' `pub(crate)` parts; a new chip
 or button is one more part in that composition, never a second `set_global`.
+
+## L-claude-529-an-element-over-the-terminal-stops-the-release-too-001
+*category: gpui · topic: Marley's elements over Zed's terminal grid · from: #529's review*
+
+An element drawn over the terminal's rows that stops a left press still lets the release through
+to the terminal, and since #579 the terminal's own release listener opens the link menu for a
+plain click on a URL under the pointer. Stopping the press with `on_mouse_down` and acting in
+`on_click` on the same element leaves the release unstopped. Act on the press, as Zed's editor
+sticky headers do, and stop the release with an `on_mouse_up` of its own; or wrap the button in
+`marley_keep_from_terminal` and check the release there.

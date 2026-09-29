@@ -51,6 +51,11 @@ pub struct MarleySettingsContent {
     ///
     /// Default: "local_in_browser_tab"
     pub terminal_links: Option<MarleyTerminalLinks>,
+    /// Whether a block's command is pinned over the terminal's top row while the view is scrolled
+    /// back into the block's output; a click on it scrolls to the block's start (#529).
+    ///
+    /// Default: true
+    pub sticky_command_header: Option<bool>,
     /// Which agents' consequential clicks in the Browser tab wait for Allow or Refuse while the
     /// click consequence's use is on (#571).
     ///

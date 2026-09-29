@@ -3087,3 +3087,15 @@ are painted by the terminal element at its right edge, not added to `ui`'s share
 marks end with the terminal, as Warp's end with the session. Rejected: callbacks in the global
 (a second hook where data serves); a second search UI for blocks; markers in the shared
 scrollbar (a change every scrollbar user would see).
+
+## AD-claude-529-the-sticky-header-is-drawn-over-row-zero-while-scrolled-back-001
+*decided at: 2026-09-29 · status: shipped*
+
+A long block's command is pinned over the terminal's top row only while the view is scrolled back
+and the block covering row 0 started above it: at the live screen it would cover output still
+being written, which Warp avoids too. It is an element drawn over the row, never a row of its
+own, which would resize the PTY as the view scrolls (AD-claude-470). The element picks the block
+from its spans and asks a Marley hook for the row, which joins the block elements, so the layout
+state gains nothing; a press on it scrolls to the block's first line, the one the block keys stop
+at. On by default, with a toggle on the Marley page. Rejected: a header at the live screen; a
+reserved row; stacking nested blocks' headers (stage two).

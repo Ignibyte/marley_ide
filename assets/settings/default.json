@@ -1686,6 +1686,9 @@
     // any other in the system browser), "all_in_browser_tab" or "system_browser".
     // Shift+Ctrl+click opens it in the other place.
     "terminal_links": "local_in_browser_tab",
+    // Whether a block's command is pinned over the terminal's top row while you scroll back
+    // through the block's output; a click on it scrolls to the block's start (#529).
+    "sticky_command_header": true,
     // Whose clicks in a Browser tab that pay, delete, send in your name or change an account wait
     // for Allow or Refuse while system_one.uses.click_consequence is on (#571):
     // "agents_without_prompts" (agents with no permission prompt of their own, and callers Marley

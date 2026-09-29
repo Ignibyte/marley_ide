@@ -55,6 +55,7 @@ pub mod send_selection;
 #[cfg(unix)]
 pub mod single_instance;
 pub mod stall;
+pub mod sticky_header;
 pub mod system_one;
 pub mod terminal_drive;
 pub mod terminal_ids;
@@ -304,6 +305,8 @@ pub struct MarleySettings {
     pub undo_close_seconds: u64,
     /// Where a URL Ctrl+clicked in a terminal opens (#503).
     pub terminal_links: MarleyTerminalLinks,
+    /// Whether a scrolled-back block's command is pinned over the terminal's top row (#529).
+    pub sticky_command_header: bool,
     /// Whose consequential clicks in the Browser tab wait for Allow (#571).
     pub browser_click_pause_agents: MarleyClickPauseAgents,
     /// When an agent's writes into a running program ask the user (#525).
@@ -371,6 +374,9 @@ impl Settings for MarleySettings {
             terminal_links: marley
                 .and_then(|marley| marley.terminal_links)
                 .unwrap_or_default(),
+            sticky_command_header: marley
+                .and_then(|marley| marley.sticky_command_header)
+                .unwrap_or(true),
             browser_click_pause_agents: marley
                 .and_then(|marley| marley.browser_click_pause_agents)
                 .unwrap_or_default(),
@@ -462,6 +468,7 @@ pub fn init(cx: &mut App) {
     block_filter::init(cx);
     workflows::init(cx);
     bookmarks::init(cx);
+    sticky_header::init(cx);
     agent_bar::init(cx);
     claude_plugin::init(cx);
     notifications::init(cx);

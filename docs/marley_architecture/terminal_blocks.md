@@ -164,6 +164,9 @@ real, reusable session. The Block model is the unit the **brain** later observes
   `filter.rs` (#528) filters a block's output lines: `filter_lines(output, &FilterQuery)` with
   text or a regex (`regex`), case ignored unless asked, invert, and context with a `Gap` between
   groups, grep's meanings; nothing in the grid changes.
+  `sticky_block(spans, display_offset)` (#529) is the block whose command a scrolled-back view
+  pins over its top row: the first span, when it covers row 0 and started above it; none at the
+  live screen.
   `block_lines(block, cursor_line)` (#559) is the absolute lines a block spans, `visible_spans`'s
   rule, and `scrollback_fraction` where a line sits among the lines the terminal can scroll to;
   Zed's view maps the first to grid lines for a search held to one block, and the element draws

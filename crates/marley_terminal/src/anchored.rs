@@ -635,6 +635,18 @@ pub fn block_scroll(
     Some(offset.min(history))
 }
 
+/// The block whose command a view scrolled back by `display_offset` rows pins over its top row
+/// (#529).
+///
+/// `spans` are the view's blocks, top first, as [`visible_spans`] gives them: the block is the
+/// first when it covers the top row and started above it. At the live screen there is none, so
+/// the header never covers output still being written.
+#[must_use]
+pub fn sticky_block(spans: &[BlockSpan], display_offset: usize) -> Option<usize> {
+    let first = spans.first()?;
+    (display_offset > 0 && first.rows.start == 0 && !first.starts_in_view).then_some(first.index)
+}
+
 /// The absolute lines `block` spans (#559).
 ///
 /// They run from its prompt's line, or its output's when no prompt was seen, to before its

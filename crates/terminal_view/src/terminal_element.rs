@@ -1720,6 +1720,25 @@ impl Element for TerminalElement {
                     });
                     marley_blocks.push(element);
                 }
+                // Marley: the command of the block the top row lies in, pinned over that row while
+                // the view is scrolled back and the block started above it; painted last of the
+                // block elements (#529).
+                if let Some(index) = marley_terminal::sticky_block(&marley_spans, display_offset)
+                    && let Some(mut element) = cx
+                        .try_global::<crate::MarleyStickyHeader>()
+                        .cloned()
+                        .and_then(|hook| (hook.0)(&self.terminal_view, &self.terminal, index, cx))
+                {
+                    let origin = dimensions.bounds.origin - point(px(0.), scroll_top);
+                    let available_space = size(
+                        AvailableSpace::Definite(dimensions.width()),
+                        AvailableSpace::Definite(dimensions.line_height()),
+                    );
+                    window.with_rem_size(rem_size, |window| {
+                        element.prepaint_as_root(origin, available_space, window, cx);
+                    });
+                    marley_blocks.push(element);
+                }
                 // Marley: the autosuggestion Marley's workbench finds for the typed text (#484).
                 let marley_suggestion = cx
                     .try_global::<crate::MarleyTerminalSuggestion>()

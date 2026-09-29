@@ -281,7 +281,7 @@ fn agents_section() -> [SettingsPageItem; 11] {
 }
 
 // Marley: where a URL clicked in a terminal opens (#503).
-fn terminal_section() -> [SettingsPageItem; 2] {
+fn terminal_section() -> [SettingsPageItem; 3] {
     [
         SettingsPageItem::SectionHeader("Terminal"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -301,6 +301,29 @@ fn terminal_section() -> [SettingsPageItem; 2] {
                         .marley
                         .get_or_insert_default()
                         .terminal_links = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: a scrolled-back block's command pinned over the terminal's top row (#529).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Sticky Command Header",
+            description: "Whether a block's command is pinned over the terminal's top row while you scroll back through its output. A click on it scrolls to the block's start.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.sticky_command_header"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.sticky_command_header.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .sticky_command_header = value;
                 },
             }),
             metadata: None,

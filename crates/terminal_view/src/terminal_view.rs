@@ -203,6 +203,15 @@ pub struct MarleyBlockChip(
 
 impl gpui::Global for MarleyBlockChip {}
 
+// Marley: the header pinned over the top row of a view scrolled back into a block whose first row
+// is above it, given the block's index, or none; Marley's workbench sets it (#529).
+#[derive(Clone)]
+pub struct MarleyStickyHeader(
+    pub Arc<dyn Fn(&Entity<TerminalView>, &Entity<Terminal>, usize, &App) -> Option<AnyElement>>,
+);
+
+impl gpui::Global for MarleyStickyHeader {}
+
 // Marley: an element drawn over the terminal's grid, such as a block's filter, or none; Marley's
 // workbench sets it (#528).
 #[derive(Clone)]

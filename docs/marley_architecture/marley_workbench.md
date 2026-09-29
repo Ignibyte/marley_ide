@@ -825,6 +825,19 @@ alike.
   searches again. The view's `search_bar_visibility_changed` clears the scope when the bar closes.
 - `blocks.rs` adds Bookmark (or Remove Bookmark) and Find in Block after Send to Agent.
 
+## The sticky command header (`src/sticky_header.rs`, #529)
+
+- The terminal element picks the block, `marley_terminal::sticky_block` over its spans: the top
+  one while the view is scrolled back, when it covers row 0 and started above it. It asks the
+  `terminal_view::MarleyStickyHeader` hook, which `init` sets, lays the answer over row 0 and
+  paints it last among the block elements.
+- `header` gives none while `MarleySettings::sticky_command_header` is off; otherwise a row on the
+  terminal's background with a bottom border: `$ ` and the command's first line in the buffer
+  font, truncated, the state (`running`, a check, `exit N`) and an up arrow. A left press jumps,
+  as Zed's editor sticky headers do (`blocks::reveal`, the block's first line at the top), and
+  the press and its release both stop there, so the terminal starts no selection and its
+  plain-click listener (#579) opens no link menu.
+
 ## Workflows (`src/workflows.rs`, #558)
 
 - A workflow is a Zed task: `label`, `command`, `cwd` (`$ZED_WORKTREE_ROOT` when the block ran

@@ -64,7 +64,7 @@ mod session_id;
 
 pub use anchored::{
     AnchoredBlock, AnchoredBlocks, BlockSpan, BlockTimes, PromptShell, RowsView, block_lines,
-    block_scroll, bottom_shift, scrollback_fraction, visible_spans,
+    block_scroll, bottom_shift, scrollback_fraction, sticky_block, visible_spans,
 };
 pub use block::{
     Block, BlockCopy, BlockId, BlockIndex, BlockList, BlockState, ExitCode, PromptInfo,

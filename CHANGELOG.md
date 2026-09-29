@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A long block's command stays in view** (#529, 2026-09-29). Scrolled back into a block whose
+  first row is above the view, the terminal pins the block's command over its top row, with its
+  check, `exit N` or `running`, as Warp's sticky command header does. A click on it scrolls to the
+  block's start. It never shows at the live screen, where it would cover new output, nor on a
+  full-screen program's screen. Sticky Command Header, in the Marley page's Terminal section,
+  turns it off (`marley.sticky_command_header`).
+
 - **Bookmarks on blocks, and find within a block** (#559, 2026-09-29). `Ctrl+Shift+B` in a
   terminal bookmarks the selected block, or the newest one in view, for the session; a hovered
   block's Bookmark button and its right-click menu bookmark that block. A bookmarked block shows
