@@ -1910,6 +1910,35 @@ impl Element for TerminalElement {
                             gpui::BorderStyle::Solid,
                         ));
                     }
+                    // Marley: the block the search is held to, outlined in the accent color, and a
+                    // tick at the right edge for each bookmarked block at its place in the
+                    // scrollback (#559).
+                    if let Some(scoped) = crate::MarleyBlockMarks::search_scope(&self.terminal, cx)
+                        && let Some(span) =
+                            layout.marley_spans.iter().find(|span| span.index == scoped)
+                    {
+                        let rows = marley_rows_bounds(
+                            &span.rows,
+                            bounds.origin.x,
+                            origin,
+                            &layout.dimensions,
+                        );
+                        window.paint_quad(gpui::outline(
+                            rows,
+                            cx.theme().colors().text_accent,
+                            gpui::BorderStyle::Solid,
+                        ));
+                    }
+                    for share in marley_bookmark_ticks(&self.terminal, cx) {
+                        let tick = Bounds::new(
+                            point(
+                                bounds.right() - px(8.),
+                                bounds.origin.y + bounds.size.height * share,
+                            ),
+                            size(px(8.), px(2.)),
+                        );
+                        window.paint_quad(fill(tick, cx.theme().colors().text_accent));
+                    }
 
                     // Marley: the autosuggestion from the cursor on, dimmed (#484).
                     if let Some(suggestion) = &layout.marley_suggestion
@@ -2288,6 +2317,30 @@ pub(crate) fn marley_block_at(terminal: &Terminal, position: GpuiPoint<Pixels>) 
         .into_iter()
         .find(|span| span.rows.contains(&row))
         .map(|span| span.index)
+}
+
+// Marley: where each bookmarked block's first line sits among the lines the terminal can scroll
+// to, as a share of the element's height; none on the alternate screen (#559).
+fn marley_bookmark_ticks(terminal: &Entity<Terminal>, cx: &App) -> Vec<f32> {
+    let marked = crate::MarleyBlockMarks::bookmarked(terminal, cx);
+    let terminal = terminal.read(cx);
+    let content = terminal.last_content();
+    if marked.is_empty() || content.mode.contains(Modes::ALT_SCREEN) {
+        return Vec::new();
+    }
+    marked
+        .into_iter()
+        .filter_map(|index| {
+            let block = terminal.blocks().get(index)?;
+            let share = marley_terminal::scrollback_fraction(
+                block.prompt_line.unwrap_or(block.output_start),
+                content.marley_screen_top,
+                content.total_lines,
+                content.screen_lines,
+            )?;
+            Some(share as f32)
+        })
+        .collect()
 }
 
 // Marley: the pixel bounds of a block's viewport rows, from the element's left edge, over the

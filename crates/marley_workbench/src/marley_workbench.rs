@@ -27,6 +27,7 @@ pub mod agents;
 pub mod autosuggest;
 pub mod block_filter;
 pub mod blocks;
+pub mod bookmarks;
 pub mod browser;
 pub mod browser_tools;
 pub mod claude_plugin;
@@ -140,6 +141,20 @@ actions!(
         /// Runs the workflow with the values the prompt holds.
         #[derive(Eq)]
         RunWorkflow,
+        /// Bookmarks the focused terminal's selected block, or its newest block in view, for the
+        /// session; again, removes the bookmark.
+        #[derive(Eq)]
+        ToggleBookmark,
+        /// Scrolls the focused terminal to the bookmarked block before its top.
+        #[derive(Eq)]
+        PreviousBookmark,
+        /// Scrolls the focused terminal to the bookmarked block after its top.
+        #[derive(Eq)]
+        NextBookmark,
+        /// Searches the focused terminal's selected block, or its newest block in view, alone,
+        /// until the search bar closes; again, searches the whole terminal.
+        #[derive(Eq)]
+        FindInBlock,
         /// Chooses files and types their paths into the focused terminal, as dropping them does.
         #[derive(Eq)]
         AttachFile,
@@ -446,6 +461,7 @@ pub fn init(cx: &mut App) {
     blocks::init(cx);
     block_filter::init(cx);
     workflows::init(cx);
+    bookmarks::init(cx);
     agent_bar::init(cx);
     claude_plugin::init(cx);
     notifications::init(cx);
@@ -454,7 +470,6 @@ pub fn init(cx: &mut App) {
     voice::init(cx);
     rich_input::init(cx);
     send_selection::init(cx);
-    send_block::init(cx);
     review_notes::init(cx);
     launch::init(cx);
     terminal_drive::init(cx);

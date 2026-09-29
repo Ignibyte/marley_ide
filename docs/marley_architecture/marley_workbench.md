@@ -806,13 +806,33 @@ alike.
   its container stops every key that types no text, as the rich input's does; Escape
   (`MarleyBlockFilter > Editor`) and `FilterBlock` close it and give the terminal the focus.
 
+## Bookmarks and find within a block (`src/bookmarks.rs`, #559)
+
+- The marks are data in `terminal_view::MarleyBlockMarks`, keyed by the terminal's entity id:
+  the bookmarked blocks, which the element ticks at its right edge, and the block the search is
+  held to, which the element outlines and the view's `find_matches` keeps the matches of. `init`
+  sets it, drops a terminal's marks when the `Terminal` is released, and sets the element's two
+  per-block hooks, each composed from its parts: `MarleyBlockChip` is the bookmark, then
+  `send_block::chip`; `MarleyBlockExtras` is Bookmark, Find, then `workflows::block_buttons`.
+- `ToggleBookmark` (`ctrl-shift-b` in `Terminal`) and `FindInBlock` (`ctrl-shift-f` in
+  `Terminal && MarleyBlockSelected`) act on `block_filter::block_to_filter`: the selected block,
+  else the newest in view. `PreviousBookmark` and `NextBookmark` (`alt-up`, `alt-down`) run
+  `marley_terminal::block_scroll` over the marked blocks, and propagate with no mark or on the
+  alternate screen, so the keys reach the program.
+- `find_in`, deferred past the workspace's update, sets the scope and dispatches
+  `zed_actions::buffer_search::Deploy::find()` on the view's focus handle, or clears a scope set
+  on that block already; either way it emits `SearchEvent::MatchesInvalidated`, so an open bar
+  searches again. The view's `search_bar_visibility_changed` clears the scope when the bar closes.
+- `blocks.rs` adds Bookmark (or Remove Bookmark) and Find in Block after Send to Agent.
+
 ## Workflows (`src/workflows.rs`, #558)
 
 - A workflow is a Zed task: `label`, `command`, `cwd` (`$ZED_WORKTREE_ROOT` when the block ran
   there) and, under a `marley` key Zed ignores, `parameters`, a default and a description per
   `{{name}}`. There is no store of Marley's own.
-- `block_buttons`, the `terminal_view::MarleyBlockExtras` hook: Save as Workflow for a finished
-  block whose command is one line and was verified by the shell's nonce. `SaveAsWorkflow` takes
+- `block_buttons`, part of the `terminal_view::MarleyBlockExtras` hook `bookmarks` sets (#559):
+  Save as Workflow (`IconName::Book`) for a finished block whose command is one line and was
+  verified by the shell's nonce. `SaveAsWorkflow` takes
   the selected block, else the newest on screen (`block_filter::block_to_filter`). Both defer
   `open_editor`, since the action runs while the workspace is leased.
 - `WorkflowEditor` (`MarleyWorkflowEditor`): the name, the command from
@@ -837,9 +857,9 @@ alike.
 - `targets`: `send_selection::agent_targets` of the view's workspace, less the block's own view.
   `send` defers to `send_now` (the key's action runs while the workspace is being updated): a toast
   for none, `send_selection::send_text` for one, `TargetPicker` ("Send the block to…") for several.
-- `chip`, the `terminal_view::MarleyBlockChip` hook: a tinted `Ask the agent` button for the
-  newest block when it is Finished with a non-zero exit, `AnchoredBlocks::at_prompt`, no agent in
-  front (`agent_bar::agent_in`) and a target exists; its click sends. The element places it on
+- `chip`, part of the `terminal_view::MarleyBlockChip` hook `bookmarks` sets (#559): a tinted
+  `Ask the agent` button for the newest block when it is Finished with a non-zero exit,
+  `AnchoredBlocks::at_prompt`, no agent in front (`agent_bar::agent_in`) and a target exists; its click sends. The element places it on
   the block's first row before the pill, or on its last row when the first is above the screen.
 - `blocks.rs` puts Send to Agent first in the Block section and handles `SendBlockToAgent`
   (`ctrl-shift-enter` in `Terminal && MarleyBlockSelected`) for the selected block.

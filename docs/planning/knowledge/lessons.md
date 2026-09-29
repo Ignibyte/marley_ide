@@ -3776,3 +3776,13 @@ A scenario that starts a server picks its port at run time (bind port 0 on 127.0
 port back) and types that. A check that a cancelled rerun started nothing compares the listener's
 `ss -ltnpH` line, pid included, before and after: Zed's rerun replaces a task's terminal, so a
 count of listeners still reads 1 when the rerun did run.
+
+## L-claude-559-a-per-block-hook-has-one-slot-so-compose-it-001
+*category: gpui · topic: Marley's hooks in Zed's terminal element · from: #559's design*
+
+`MarleyBlockChip` and `MarleyBlockExtras` are single globals: the element asks each once per
+block, and `cx.set_global` keeps only the last value set. A feature that adds a chip or a hover
+button by setting the hook again silently removes the one set before it; #559's bookmark would
+have dropped #555's Ask the agent chip and #558's Save as Workflow button. One module sets each
+hook (`bookmarks::init`) and composes it from the other modules' `pub(crate)` parts; a new chip
+or button is one more part in that composition, never a second `set_global`.

@@ -6,13 +6,12 @@
 //! Markdown. Both pass the agents' redactor. The target follows a selection's send (#549): the one
 //! agent terminal, the picker for several, a toast for none, and never the block's own terminal.
 
-use std::sync::Arc;
 use std::time::SystemTime;
 
 use gpui::{AnyElement, App, Entity, Window};
 use marley_terminal::BlockState;
 use terminal::Terminal;
-use terminal_view::{MarleyBlockChip, TerminalView};
+use terminal_view::TerminalView;
 use ui::{Button, ButtonStyle, LabelSize, TintColor, prelude::*};
 
 use crate::agent_bar::agent_in;
@@ -23,11 +22,6 @@ const INLINE_LINES: usize = 32;
 
 /// The most output bytes that still go inline.
 const INLINE_BYTES: usize = 4096;
-
-/// Sets the chip's hook; [`crate::init`] calls it once.
-pub fn init(cx: &mut App) {
-    cx.set_global(MarleyBlockChip(Arc::new(chip)));
-}
 
 /// What an agent gets for the block at `index` of `view`'s terminal, redacted: its Markdown when
 /// the output is short or gone, else a reference to `terminal_read` with the id `terminal_list`
@@ -135,10 +129,10 @@ fn send_now(view: &Entity<TerminalView>, index: usize, window: &mut Window, cx: 
     }
 }
 
-/// The hook the terminal's element asks for each block starting on screen: Ask the agent for the
-/// newest block when it failed, the shell waits at its prompt with no agent in front, and another
-/// terminal of the window runs an agent.
-fn chip(
+/// The chip for each block starting on screen, part of the element's `MarleyBlockChip` hook
+/// (`bookmarks`): Ask the agent for the newest block when it failed, the shell waits at its prompt
+/// with no agent in front, and another terminal of the window runs an agent.
+pub(crate) fn chip(
     view: &Entity<TerminalView>,
     terminal: &Entity<Terminal>,
     index: usize,

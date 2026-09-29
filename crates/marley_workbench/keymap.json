@@ -27,7 +27,13 @@
       "ctrl-i": "marley::TakeOverTerminal",
       "right": "marley::AcceptSuggestion",
       // A block's filter (#528), Warp's key on Linux; Zed's Linux keymap leaves it unbound.
-      "alt-shift-f": "marley::FilterBlock"
+      "alt-shift-f": "marley::FilterBlock",
+      // Bookmarks (#559), Warp's keys on Linux. Ctrl-Shift-B wins over Zed's outline panel
+      // toggle, bound in Workspace, while a terminal holds the focus; the jump keys reach the
+      // program in a terminal with no bookmark, and Zed binds them only in Editor.
+      "ctrl-shift-b": "marley::ToggleBookmark",
+      "alt-up": "marley::PreviousBookmark",
+      "alt-down": "marley::NextBookmark"
     }
   },
   {
@@ -63,7 +69,10 @@
       "down": "marley::NextBlock",
       "escape": "marley::ClearBlockSelection",
       "ctrl-shift-i": "marley::ReinputBlock",
-      "ctrl-shift-enter": "marley::SendBlockToAgent"
+      "ctrl-shift-enter": "marley::SendBlockToAgent",
+      // Find within the selected block (#559); with none selected, Zed's search of the whole
+      // terminal keeps the key.
+      "ctrl-shift-f": "marley::FindInBlock"
     }
   },
   {

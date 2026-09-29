@@ -13,6 +13,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Bookmarks on blocks, and find within a block** (#559, 2026-09-29). `Ctrl+Shift+B` in a
+  terminal bookmarks the selected block, or the newest one in view, for the session; a hovered
+  block's Bookmark button and its right-click menu bookmark that block. A bookmarked block shows
+  a bookmark before its exit mark and a tick at the terminal's right edge at its place in the
+  scrollback. `Alt+Up` and `Alt+Down` scroll to the bookmark before or after the view, as Warp's
+  keys do, and reach the program in a terminal with no bookmark. A hovered block's Find button,
+  Find in Block in its menu, and `Ctrl+Shift+F` on a selected block open Zed's search bar held to
+  that block: the count and Enter walk its matches alone, and the block is outlined. Escape ends
+  it, and `Ctrl+Shift+F` with no block selected searches the whole terminal as before. Save as
+  Workflow's button now shows a book.
+
 - **Save a block's command as a workflow** (#558, 2026-09-29). A hovered block's Save as
   Workflow button, or `marley: save as workflow` on the selected or newest block, opens an editor
   with the command and a name. Numbers, URLs, the block's branch and paths that exist are already

@@ -635,6 +635,40 @@ pub fn block_scroll(
     Some(offset.min(history))
 }
 
+/// The absolute lines `block` spans (#559).
+///
+/// They run from its prompt's line, or its output's when no prompt was seen, to before its
+/// `output_end`, or, while it runs, through the absolute line `cursor_line`, as [`visible_spans`]
+/// draws it.
+#[must_use]
+pub fn block_lines(block: &AnchoredBlock, cursor_line: u64) -> Range<u64> {
+    let start = block.prompt_line.unwrap_or(block.output_start);
+    let end = block
+        .output_end
+        .unwrap_or_else(|| cursor_line.saturating_add(1));
+    start..end.max(start)
+}
+
+/// Where the absolute line `line` sits among the lines a terminal can scroll to (#559).
+///
+/// The share runs from 0 at the oldest kept line to 1 past the live screen's last row.
+/// `screen_top` is the live screen's top line, `total_lines` the lines kept, history and screen
+/// together, and `screen_lines` the screen's. `None` for a line no longer kept or below the
+/// screen.
+#[must_use]
+pub fn scrollback_fraction(
+    line: u64,
+    screen_top: u64,
+    total_lines: usize,
+    screen_lines: usize,
+) -> Option<f64> {
+    let history = u64::try_from(total_lines.saturating_sub(screen_lines)).ok()?;
+    let oldest = screen_top.checked_sub(history)?;
+    let place = u32::try_from(line.checked_sub(oldest)?).ok()?;
+    let total = u32::try_from(total_lines).ok()?;
+    (place < total).then(|| f64::from(place) / f64::from(total))
+}
+
 /// How many rows down to draw a viewport, so the live screen's last used row sits on the bottom
 /// edge.
 ///

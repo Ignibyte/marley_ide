@@ -10,7 +10,8 @@
 //! in the center or in the Terminal Panel.
 //!
 //! A right-click on a block selects it and adds a Block section to Zed's terminal menu: Send to
-//! Agent (#555), the copies of its command, its output, both, or the block as Markdown, and
+//! Agent (#555), Bookmark and Find in Block (#559), the copies of its command, its output, both,
+//! or the block as Markdown, and
 //! Reinput, with or without
 //! `sudo`, under Rerun's rule: a command the shell's hook reported, while that shell waits at its
 //! prompt.
@@ -299,9 +300,32 @@ fn block_menu(
             }
         })
     };
+    let bookmark_item = {
+        let view = context.view.clone();
+        let label = if crate::bookmarks::is_bookmarked(&terminal, index, cx) {
+            "Remove Bookmark"
+        } else {
+            "Bookmark"
+        };
+        ContextMenuEntry::new(label).handler(move |_, cx| {
+            if let Some(view) = view.upgrade() {
+                crate::bookmarks::toggle(&view, index, cx);
+            }
+        })
+    };
+    let find_item = {
+        let view = context.view.clone();
+        ContextMenuEntry::new("Find in Block").handler(move |window, cx| {
+            if let Some(view) = view.upgrade() {
+                crate::bookmarks::find_in(&view, index, window, cx);
+            }
+        })
+    };
     menu.separator()
         .header("Block")
         .item(send_item)
+        .item(bookmark_item)
+        .item(find_item)
         .item(copy_item("Copy Command", Copied::Command))
         .item(copy_item("Copy Output", Copied::Output))
         .item(copy_item("Copy Both", Copied::Both))

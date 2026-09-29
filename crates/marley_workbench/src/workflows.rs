@@ -11,7 +11,6 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use collections::HashMap;
 use editor::{Editor, EditorEvent};
@@ -25,7 +24,7 @@ use marley_terminal::workflow::{guess, is_name, params_of, substitute};
 use serde_json::{Value, json};
 use task::SpawnInTerminal;
 use terminal::Terminal;
-use terminal_view::{MarleyBlockExtras, TerminalView};
+use terminal_view::TerminalView;
 use ui::{
     Button, ButtonStyle, Checkbox, Headline, HeadlineSize, IconButton, IconName, Label, LabelSize,
     ToggleState, Tooltip, prelude::*,
@@ -44,10 +43,10 @@ struct LastValues(HashMap<String, BTreeMap<String, String>>);
 
 impl Global for LastValues {}
 
-/// Installs the block button, the action and the values' memory; [`crate::init`] calls it once.
+/// Installs the action and the values' memory; [`crate::init`] calls it once. The block button
+/// is part of the element's `MarleyBlockExtras` hook (`bookmarks`).
 pub fn init(cx: &mut App) {
     cx.set_global(LastValues::default());
-    cx.set_global(MarleyBlockExtras(Arc::new(block_buttons)));
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action_renderer(|div, _, _, cx| {
             div.on_action(cx.listener(|workspace, _: &SaveAsWorkflow, window, cx| {
@@ -68,7 +67,7 @@ pub fn init(cx: &mut App) {
 
 /// The hover buttons for the block at `index`: Save as Workflow for a finished block whose
 /// one-line command the shell reported.
-fn block_buttons(
+pub(crate) fn block_buttons(
     view: &Entity<TerminalView>,
     terminal: &Entity<Terminal>,
     index: usize,
@@ -85,7 +84,7 @@ fn block_buttons(
     }
     let view = view.clone();
     vec![
-        IconButton::new(("marley-block-workflow", index), IconName::Bookmark)
+        IconButton::new(("marley-block-workflow", index), IconName::Book)
             .icon_size(IconSize::XSmall)
             .tooltip(Tooltip::text("Save as Workflow"))
             .on_click(move |_, window, cx| open_editor(&view, index, window, cx))

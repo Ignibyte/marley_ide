@@ -3073,3 +3073,17 @@ terminal opens; a cancelled prompt resolves the spawn to nothing. `guess` runs o
 the user edits its result. Rejected: a Marley YAML store (Chad, 2026-09-26: "if it works
 tasks.json it would make sense not to conflict"); Zed's `$ZED_*` variables for the parameters
 (Zed resolves those itself and refuses a task naming one it lacks).
+
+## AD-claude-559-block-marks-are-data-and-find-in-block-is-zeds-bar-001
+*decided at: 2026-09-29 · status: shipped*
+
+A block's bookmark and the block a terminal's search is held to are data in a Zed global,
+`MarleyBlockMarks`, keyed by the terminal's entity id, as the selection is (#554): Marley's
+workbench writes it, Zed's view and element only read it, and the view clears a scope itself when
+the search bar closes. Find within a block is Zed's own search bar with that scope: `find_matches`
+keeps the matches that start in the block's lines, so the bar's count, Enter and highlights need
+no change, and an open bar searches again on `SearchEvent::MatchesInvalidated`. Bookmark ticks
+are painted by the terminal element at its right edge, not added to `ui`'s shared scrollbar. The
+marks end with the terminal, as Warp's end with the session. Rejected: callbacks in the global
+(a second hook where data serves); a second search UI for blocks; markers in the shared
+scrollbar (a change every scrollbar user would see).

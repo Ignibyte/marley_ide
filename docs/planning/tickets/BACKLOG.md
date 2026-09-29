@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-559](open/TICKET-559-block-bookmarks-and-find-in-block.md) | feature | prong 1 T1 · bookmarks on blocks with Alt+Up/Down and scrollbar ticks; find within a block on Zed's search bar |
 | [TICKET-529](open/TICKET-529-sticky-command-header.md) | feature | prong 1 T1 · a long block's command stays in view while scrolled |
 | [TICKET-530](open/TICKET-530-runnable-markdown-commands.md) | feature | prong 1 · shell commands in the Markdown preview go to the terminal |
 | [TICKET-536](open/TICKET-536-agent-aware-copy-and-paste.md) | feature | prong 1 T7 · copy and paste that know an agent is running |

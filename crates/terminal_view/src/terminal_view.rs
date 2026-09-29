@@ -228,6 +228,36 @@ pub struct MarleyBlockExtras(
 
 impl gpui::Global for MarleyBlockExtras {}
 
+// Marley: each terminal's bookmarked blocks and the block its search is held to, by the
+// terminal's entity id. Marley's workbench writes it; the element ticks the bookmarks and
+// outlines the scoped block, `find_matches` keeps the scoped block's matches, and a closed search
+// bar ends the scope (#559).
+#[derive(Default)]
+pub struct MarleyBlockMarks {
+    pub bookmarks: collections::HashMap<gpui::EntityId, collections::BTreeSet<usize>>,
+    pub search_scopes: collections::HashMap<gpui::EntityId, usize>,
+}
+
+impl gpui::Global for MarleyBlockMarks {}
+
+impl MarleyBlockMarks {
+    /// The blocks `terminal` has bookmarked, oldest first.
+    pub fn bookmarked(terminal: &Entity<Terminal>, cx: &App) -> Vec<usize> {
+        cx.try_global::<Self>()
+            .and_then(|marks| marks.bookmarks.get(&terminal.entity_id()))
+            .map(|marked| marked.iter().copied().collect())
+            .unwrap_or_default()
+    }
+
+    /// The block `terminal`'s search is held to.
+    pub fn search_scope(terminal: &Entity<Terminal>, cx: &App) -> Option<usize> {
+        cx.try_global::<Self>()?
+            .search_scopes
+            .get(&terminal.entity_id())
+            .copied()
+    }
+}
+
 // Marley: the autosuggestion a terminal shows after its cursor, or none; Marley's workbench
 // sets it (#484).
 #[derive(Clone)]
@@ -1509,6 +1539,23 @@ fn subscribe_for_terminal_events(
     vec![terminal_subscription, terminal_events_subscription]
 }
 
+// Marley: the grid lines of the block `terminal`'s search is held to, through the last frame's
+// screen top, or none when no scope is set (#559).
+fn marley_search_lines(terminal: &Entity<Terminal>, cx: &App) -> Option<std::ops::Range<i32>> {
+    let index = MarleyBlockMarks::search_scope(terminal, cx)?;
+    let terminal = terminal.read(cx);
+    let block = terminal.blocks().get(index)?;
+    let content = terminal.last_content();
+    let screen_top = i64::try_from(content.marley_screen_top).ok()?;
+    let cursor_line = content
+        .marley_screen_top
+        .saturating_add_signed(i64::from(content.cursor.point.line));
+    let lines = marley_terminal::block_lines(block, cursor_line);
+    let grid_line =
+        |line: u64| i32::try_from(i64::try_from(line).ok()?.saturating_sub(screen_top)).ok();
+    Some(grid_line(lines.start)?..grid_line(lines.end)?)
+}
+
 fn regex_search_for_query(query: &SearchQuery) -> Option<Search> {
     let str = query.as_str();
     if query.is_regex() {
@@ -2382,10 +2429,37 @@ impl SearchableItem for TerminalView {
         cx: &mut Context<Self>,
     ) -> Task<Vec<Self::Match>> {
         if let Some(s) = regex_search_for_query(&query) {
+            // Marley: a search held to one block keeps the matches starting in its lines (#559).
+            if let Some(lines) = marley_search_lines(self.terminal(), cx) {
+                let matches = self
+                    .terminal()
+                    .update(cx, |term, cx| term.find_matches(s, cx));
+                return cx.background_spawn(async move {
+                    let mut matches = matches.await;
+                    matches.retain(|found| lines.contains(&found.start().line));
+                    matches
+                });
+            }
             self.terminal()
                 .update(cx, |term, cx| term.find_matches(s, cx))
         } else {
             Task::ready(vec![])
+        }
+    }
+
+    // Marley: a closed search bar ends the search held to one block (#559).
+    fn search_bar_visibility_changed(
+        &mut self,
+        visible: bool,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let terminal = self.terminal().entity_id();
+        if !visible && cx.has_global::<MarleyBlockMarks>() {
+            cx.global_mut::<MarleyBlockMarks>()
+                .search_scopes
+                .remove(&terminal);
+            cx.notify();
         }
     }
 

@@ -164,6 +164,10 @@ real, reusable session. The Block model is the unit the **brain** later observes
   `filter.rs` (#528) filters a block's output lines: `filter_lines(output, &FilterQuery)` with
   text or a regex (`regex`), case ignored unless asked, invert, and context with a `Gap` between
   groups, grep's meanings; nothing in the grid changes.
+  `block_lines(block, cursor_line)` (#559) is the absolute lines a block spans, `visible_spans`'s
+  rule, and `scrollback_fraction` where a line sits among the lines the terminal can scroll to;
+  Zed's view maps the first to grid lines for a search held to one block, and the element draws
+  a bookmark's tick at the second.
   `workflow.rs` (#558) turns a command into a workflow's template: `guess` replaces, after the
   first word, a number (`port` after `-p` or `--port`, after a `:`, or from 1024 to 65535 with
   no other flag before it; else `number`), a URL, the branch and an existing path with
