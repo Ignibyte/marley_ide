@@ -217,3 +217,27 @@
   2026-10-29).
 - **Closed:** TICKET-522 moved to `tickets/closed/`; its BACKLOG row went at promotion.
 - **No tests** (§7): the drafted scenario waits for the quality pass.
+
+---
+## Phase 3 — Test (the visual check, after the fact)
+- **Why after:** #522 shipped on 2026-09-29 while the workflow had no visual check; Chad brought it
+  back the same day (7e589cb0a1).
+- **The scenario:** `script/e2e/522-review-notes-to-the-agent.sh`, `compositor sway`: a repository
+  with `notes.txt` committed and line 3 changed; in its terminal a stand-in `claude` that sends
+  the plugin's SessionStart (so its seat is idle) and echoes each line it reads. `git: diff` from
+  the palette; the gutter's Add Review on line 3; a note; Send Review to Agent; Enter on the ready
+  row. Thirteen runs, most measuring and probing (below); the last passed every check.
+- **The shots, read:** `522-01-diff` (the split diff, the rail's agent row `idle`);
+  `522-02-add-review` (the gutter's `+` on line 3 under the pointer, REQ-001); `522-03-note` (the
+  note stored, "1 Comment", and the toolbar's **Send Review to Agent (1)**); `522-04-picker` ("Send
+  the review notes to…", rows "Claude Code · repo · ready" and "Copy notes", REQ-002);
+  `522-05-sent` (the agent's terminal shown: the pasted `File: notes.txt`, `Line: 3`, `User comment:
+  "Say three in lower case"`, and the stand-in's `got:` of each, REQ-003); `522-06-marked` (the
+  diff again, the button gone with its count at 0); `522-07-sent-mark` (the note under line 3 with
+  **Sent** at its right, REQ-004).
+- **Seen, not explained:** in the headless sway the first click on the diff's toolbar after typing
+  in the note's editor runs none of its listeners: neither Send Review nor Stage All did anything
+  (a temporary log in the button's listener, since removed, never printed), and a second click
+  worked. The palette's `editor: send review to agent` worked from the start. The scenario clicks
+  the toolbar's counts once first. Whether a desktop session shows it is not known; nothing in
+  Marley's code changed for it.
