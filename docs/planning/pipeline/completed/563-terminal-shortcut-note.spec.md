@@ -1,7 +1,7 @@
 ---
 pipeline_id: 93860ed2-8626-4dd4-afc4-547c40cacc97
 ticket: docs/planning/tickets/open/TICKET-563-terminal-shortcut-note.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "A note the first time Marley takes a key a terminal program would have received"
 type: feature
 slice: prong 1 T7 (CLI agents in the terminal, after #481's rich input and #473's block keys); the Orca second pass, smaller item 4

@@ -64,7 +64,28 @@
   - Orca (MIT, read at `1c2cf120e3`): the file and lines in the spec's prior art.
 - **Decisions:** D1 to D5 in the spec.
 
-### Design
+- **Recall at promotion (2026-09-29):** the handlers as they stand: `rich_input.rs:41` (opens or
+  propagates), `blocks.rs:62-66` (`step`, which propagates on the alternate screen and with no
+  focused terminal), `agents.rs:388` (`new_agent`), `terminal_drive.rs:145` (`TakeOverTerminal`,
+  which propagates when no agent typed or ran there). Workspace handlers run while the workspace
+  is leased, so the note's toast defers (L on `window.defer`). The key-value store is
+  `db::kvp::KeyValueStore::global(cx).scoped(..)`, read synchronously and written by a future, as
+  `launch.rs:337` does. `ui::text_for_action` names the highest-precedence binding. #494's
+  scenario relaunches Marley with `quit_marley` and `launch_marley`. Brain (consultation
+  d3d02ae6): nothing on this seam.
+
+### Design (at promotion)
+- `marley_workbench::shortcut_note` (new): `taken(action, did, workspace, window, cx)`: the
+  action's name (`Action::name`), skipped when this session showed it (a `Shown` global) or the
+  store's `marley-shortcut-note` scope holds it; otherwise the key as bound now
+  (`ui::text_for_action`), a toast deferred into the workspace ("<key> <did>; the program in this
+  terminal did not get the key." with Open Keymap, `zed_actions::OpenKeymapFile`), and the name
+  written to the store off the main thread.
+- The call sites: `rich_input.rs` (the open arm), `blocks.rs` (`step` once it acts), `agents.rs`
+  (`new_agent` while a terminal has the focus), `terminal_drive.rs` (the take-over when it
+  toggles). No Zed crate.
+
+### Design (as drafted; the promotion's above wins where they differ)
 - **Approach.**
   - *`shortcut_note.rs`* (new): `const SCOPE: &str = "marley-shortcut-note"`;
     `pub fn taken(action: &dyn Action, did: &str, workspace: &mut Workspace, window: &mut Window,
@@ -115,3 +136,50 @@ Test; the query is adjusted if they differ.
   once, naming the new key; harmless.
 - #481's golden scenario now shows a toast at its first Ctrl-G shot; its checks read the
   stand-in's block, so its verdict is unchanged, and Test rereads its shots once.
+
+## Phase 2 — Code
+- **Built to the promoted design.** `shortcut_note.rs` (`taken`: the `Shown` global, the key as
+  bound, the store's `marley-shortcut-note` scope read on the main thread and written off it, the
+  toast deferred into the workspace with Open Keymap dispatching `zed_actions::OpenKeymapFile`);
+  the four call sites: `rich_input.rs`'s open arm, `blocks.rs`'s `step` once it acts,
+  `agents.rs`'s `new_agent` from a terminal (after its AI-off return, so that branch never notes),
+  `terminal_drive.rs`'s take-over when it toggles.
+- **Found in Test, fixed here.** Rich Input's and the block keys' notes never showed, New
+  Agent's did: `ui::text_for_action` reads `Window::highest_precedence_binding_for_action`, which
+  matches against the rendered frame's root context stack, where a `Workspace` binding is and a
+  `Terminal` one is not, so the key was not found and the note gave up. `taken` now takes the
+  terminal's focus handle and reads `Window::bindings_for_action_in(action, focus)`, its own
+  context stack, the last binding (the user's keymap wins). A session marks an action shown only
+  once its key is found.
+- **Review.** A handler that propagates says nothing (D2); the store is read on the main thread
+  (a small key, as `launch.rs` reads its approvals) and written off it; the toast waits past the
+  workspace's update (`window.defer`). No Zed crate.
+- **Gate.** Run 1: `GATE GREEN [diff]`, 16 passed, 0 failed, the receipt written.
+
+## Phase 3 — Test
+- **Scenario** `script/e2e/563-terminal-shortcut-note.sh` under `compositor sway`: a stand-in
+  agent (`exec -a claude cat -v`) that shows the keys it gets, and a relaunch with `quit_marley`
+  and `launch_marley` on the same profile. Run 1 showed the Terminal-context notes missing (the
+  fix above); run 2 showed every one.
+- **Every shot read** (run 2):
+  - `563-01-passes`: `cat -v` shows `^G`; no toast. REQ-001.
+  - `563-02-note`: Rich Input open and the toast "Ctrl-G opened Marley's Rich Input; the program in
+    this terminal did not get the key." with Open Keymap. REQ-002.
+  - `563-03-once`: the toast closed, Ctrl-G opened Rich Input again with no toast. REQ-003.
+  - `563-04-blocks`: the block selected and its own toast "Ctrl-Up moved to the previous block;
+    …". REQ-005, REQ-002.
+  - `563-05-remembered`: after the relaunch, Ctrl-Up and then Ctrl-G under the agent: no toast.
+    REQ-003.
+  - `563-06-new-agent`: Ctrl-Alt-N from the terminal: "Ctrl-Alt-N opened Marley's New Agent
+    picker; …". REQ-005.
+- **Review, not a shot:** Open Keymap dispatches `zed_actions::OpenKeymapFile` (REQ-004).
+- The #481 golden scenario's first Ctrl-G shot would now carry the toast; no regression runs in
+  this workflow, and its checks read the stand-in's block, not the toast.
+
+## Phase 4 — Complete
+- **Docs.** CHANGELOG Added; `marley_workbench.md` (a section for `shortcut_note.rs`). No Zed
+  path changed.
+- **Knowledge.** F-claude-563-text-for-action-misses-a-terminal-binding-001,
+  PR-claude-name-a-context-bound-key-through-its-focus-handle-001. Brain: `brain_decide` on
+  consultation d3d02ae6.
+- **Closed** the ticket, archived the pair, committed.

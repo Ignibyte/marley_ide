@@ -1145,6 +1145,16 @@ alike.
   `permission.asked` and `session.error` while `TERM_PROGRAM` is `zed`, so it reaches the terminal
   whatever the process's stdout is, and never throws; #478's path shows it.
 
+## A note when a key is taken from a terminal (`src/shortcut_note.rs`, #563)
+
+- `taken(action, did, terminal, workspace, window, cx)`, called where Rich Input, the block keys,
+  New Agent (from a terminal) and the take-over act: the key as the terminal's own contexts bind it
+  (`Window::bindings_for_action_in` with the terminal's focus handle, the last binding; the
+  window's own lookup reads the frame's root contexts and misses a `Terminal` binding), a toast
+  deferred into the workspace with Open Keymap, and the action's name in the key-value store's
+  `marley-shortcut-note` scope, so the note shows once per data directory. A `Shown` global saves
+  the store a read in the same session.
+
 ## Claude Code's hook events (`src/agent_events.rs`, #519)
 
 - `AgentEvents`, a global made at the first frame, holds one `marley_fleet::FleetSnapshot`: a

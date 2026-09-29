@@ -101,6 +101,14 @@ fn step(workspace: &Workspace, forward: bool, window: &mut Window, cx: &mut Cont
         cx.propagate();
         return;
     }
+    // The key is the block keys' now, not the program's (#563).
+    let (workspace_entity, focus) = (cx.entity(), view.focus_handle(cx));
+    let (action, did): (&dyn gpui::Action, _) = if forward {
+        (&NextBlock, "moved to the next block")
+    } else {
+        (&PreviousBlock, "moved to the previous block")
+    };
+    crate::shortcut_note::taken(action, did, &focus, &workspace_entity, window, cx);
     let count = terminal.read(cx).blocks().len();
     let target = match (MarleyBlockSelection::selected(&terminal, cx), forward) {
         (None, false) => count.checked_sub(1),

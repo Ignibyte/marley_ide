@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A note when Marley's key takes one from a terminal program** (#563, 2026-09-29). The first
+  time Ctrl-G opens Rich Input, Ctrl-Up or Ctrl-Down moves between blocks, Ctrl-Alt-N opens New
+  Agent from a terminal, or Ctrl-I takes a terminal over, a toast names the key as you have it
+  bound, what it did, and Open Keymap, since your keymap wins over Marley's and gives the key
+  back. Each note shows once per data directory; a key Marley lets through says nothing.
+
 - **Codex and OpenCode notifications in a click** (#552, 2026-09-29). Under a terminal running
   Codex, the agent bar offers Turn on Codex notifications, which sets `notifications`,
   `notification_condition = "always"` and `notification_method = "osc9"` under `[tui]` in Codex's

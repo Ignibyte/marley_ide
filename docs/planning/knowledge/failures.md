@@ -2814,3 +2814,13 @@ prompt as a block under the cursor line and scrolls for it when the content does
 bottom; with the content on the bottom edge there were no rows under the cursor, so the prompt
 was drawn off the view. The prompt still had the focus, so a request typed blind still
 generated. The shift now waits while a block sits below the cursor.
+
+## F-claude-563-text-for-action-misses-a-terminal-binding-001
+*severity: medium · found in: pipeline 563's visual check · class: a binding lookup against the wrong context stack · prevented by: `Window::bindings_for_action_in` with the terminal's focus handle (#563)*
+
+The shortcut note named its key with `ui::text_for_action`, which reads
+`Window::highest_precedence_binding_for_action`: it matches against the rendered frame's root
+context stack, not the focused element's. New Agent, bound in `Workspace`, was found; Rich Input
+and the block keys, bound in `Terminal`, were not, so their notes gave up without a word. Reading
+`bindings_for_action_in(action, &terminal_focus)` and taking the last binding matches the
+terminal's own contexts and lets the user's keymap win.

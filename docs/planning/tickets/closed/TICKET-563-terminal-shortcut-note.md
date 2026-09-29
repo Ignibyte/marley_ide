@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #563 (feature, prong 1 T7: CLI agents in the terminal)
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/563-terminal-shortcut-note.spec.md
+- **Pipeline doc:** ../../pipeline/completed/563-terminal-shortcut-note.spec.md
 - **Source ticket:** The Orca second pass of 2026-09-25 (`docs/planning/design-notes/orca-second-pass-2026-09-25.md`), the five smaller details, item 4; Chad decided on 2026-09-26 that every remaining Orca and Warp finding gets built.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Marley takes Ctrl-G for the rich input whenever a CLI agent runs in the terminal (#481), on

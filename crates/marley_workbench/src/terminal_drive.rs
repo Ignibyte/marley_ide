@@ -23,7 +23,10 @@ use std::time::{Duration, Instant};
 use collections::{BTreeMap, HashMap};
 use futures::channel::oneshot;
 use futures::future::{self, Either};
-use gpui::{AnyElement, App, Context, Entity, EntityId, Global, Keystroke, SharedString, Task};
+use gpui::{
+    AnyElement, App, Context, Entity, EntityId, Focusable as _, Global, Keystroke, SharedString,
+    Task,
+};
 use marley_mcp::{AppCall, ToolAnswer};
 use marley_terminal::agent_commands::{self, Verdict};
 use marley_terminal::{BlockState, PromptShell};
@@ -144,8 +147,19 @@ pub fn init(cx: &mut App) {
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action(|workspace, _: &TakeOverTerminal, window, cx| {
             let view = crate::blocks::focused_terminal(workspace, window, cx);
+            let focus = view.as_ref().map(|view| view.focus_handle(cx));
             let toggled = view.is_some_and(|view| toggle_control(&view, cx));
-            if !toggled {
+            if toggled && let Some(focus) = focus {
+                let workspace_entity = cx.entity();
+                crate::shortcut_note::taken(
+                    &TakeOverTerminal,
+                    "took the terminal over from the agent, or handed it back",
+                    &focus,
+                    &workspace_entity,
+                    window,
+                    cx,
+                );
+            } else {
                 // The key goes on to the terminal, which sends it to the program.
                 cx.propagate();
             }

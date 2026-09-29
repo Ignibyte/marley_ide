@@ -392,6 +392,18 @@ fn new_agent(
     if DisableAiSettings::get_global(cx).disable_ai {
         return;
     }
+    // From a terminal the key is Marley's, not the program's (#563).
+    if let Some(view) = crate::blocks::focused_terminal(workspace, window, cx) {
+        let workspace_entity = cx.entity();
+        crate::shortcut_note::taken(
+            &NewAgent,
+            "opened Marley's New Agent picker",
+            &view.focus_handle(cx),
+            &workspace_entity,
+            window,
+            cx,
+        );
+    }
     let handle = workspace.weak_handle();
     let project = workspace.project().clone();
     workspace.toggle_modal(window, cx, |window, cx| {

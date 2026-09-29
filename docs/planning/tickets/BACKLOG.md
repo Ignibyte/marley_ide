@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-563](open/TICKET-563-terminal-shortcut-note.md) | feature | prong 1 T7 · a toast the first time one of Marley's keys is taken from a terminal program, once per action per data directory |
 | [TICKET-564](open/TICKET-564-project-icons-from-the-repo.md) | feature | workbench · the rail's project headers show the repository's favicon or logo, or the icon its index.html declares; nothing fetched |
 | [TICKET-542](open/TICKET-542-rail-attention-order.md) | feature | prong 2 · the rail puts what needs Chad first; after #519 |
 | [TICKET-543](open/TICKET-543-remote-terminals-survive-a-drop.md) | feature | prong 2 · remote terminals that survive a dropped link (tmux on the host) |

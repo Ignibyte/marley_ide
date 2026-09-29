@@ -2600,3 +2600,12 @@ scenario that opens Zed's terminal or editor menu sets `"agent": {"enabled": fal
 `555-send-a-block-to-the-agent.sh`), which takes Inline Assist and Add to Agent Thread out of the
 menus. It counts menu items only over items that cannot be disabled, and it brings a terminal
 forward by its tab (`alt-N`), not by a rail row, since the rail's rows move when Needs you shows.
+
+## PR-claude-name-a-context-bound-key-through-its-focus-handle-001
+*severity: medium · prevents: F-claude-563-text-for-action-misses-a-terminal-binding-001*
+
+To show the key bound to an action in a nested context (`Terminal`, `Editor`, a modal's), look it
+up with `window.bindings_for_action_in(action, &that_element's_focus_handle)` and take the last
+binding, or build a `KeyBinding::for_action_in`; `ui::text_for_action` and
+`Window::highest_precedence_binding_for_action` see only the frame's root contexts, so they find
+`Workspace` bindings and silently miss the rest.

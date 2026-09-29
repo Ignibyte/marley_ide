@@ -44,7 +44,18 @@ pub fn init(cx: &mut App) {
                 Some((view, agent))
             });
             match agent_view {
-                Some((view, agent)) => open(&view, agent, window, cx),
+                Some((view, agent)) => {
+                    let workspace_entity = cx.entity();
+                    crate::shortcut_note::taken(
+                        &RichInput,
+                        "opened Marley's Rich Input",
+                        &view.focus_handle(cx),
+                        &workspace_entity,
+                        window,
+                        cx,
+                    );
+                    open(&view, agent, window, cx);
+                }
                 // The key goes on to the terminal, which sends it to the program.
                 None => cx.propagate(),
             }
