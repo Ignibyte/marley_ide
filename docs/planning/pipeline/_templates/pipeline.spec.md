@@ -49,12 +49,19 @@ references: []
      A locked decision dying because the substrate already does it is a WIN to record, not a deviation to hide.
      Found nothing? That is a PASS — write "none: checked gpui/terminal/regex, no owner". Silence is not. -->
 
+## UI proof
+<!-- The visual check of what this ticket changes (§7): the scenario (script/e2e/<N>-<slug>.sh, run
+     by script/e2e.sh on the real debug Marley, hidden, keys to its window only; or, for clicks,
+     `compositor sway`, a headless sway of its own) and the shot that shows each criterion. Only
+     the change: no unit tests, no regression. For a change with nothing new to see:
+     N/A — no UI delta: <why> (first line must start "N/A"); its run is `just shot`. -->
+
 ## Locked-In Decisions
 - D1 — …
 
 ## Acceptance Criteria (EARS)
-One observable behavior per row, with a verification method: the review of the diff or the
-gate's exit code (no tests, §7).
+One observable behavior per row, with a verification method: a named shot of the visual check,
+the review of the diff, or the gate's exit code.
 
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
@@ -63,5 +70,6 @@ gate's exit code (no tests, §7).
 ## Phase Plan
 - **P1 Plan** — this spec, and the design in the notes.
 - **P2 Code** — …; a review of the diff; `script/gates.sh --diff` green.
-- **P3 Complete** — CHANGELOG and architecture docs (§21), ledger capture (§19), close the ticket,
+- **P3 Test** — the visual check: write and run the scenario for the change, read every shot.
+- **P4 Complete** — CHANGELOG and architecture docs (§21), ledger capture (§19), close the ticket,
   archive, commit.

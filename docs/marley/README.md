@@ -19,9 +19,9 @@ planning tree, and the design record carried over from the gpui-era app on 2026-
 
 ## The workflow, in one line
 
-Plan → Code → Complete: `/pipeline:plan` → `/pipeline:code` → `/pipeline:complete`, governed by
-`CONSTITUTION.md`, enforced by `.claude/hooks/`, gated by `script/gates.sh`; no ticket writes or
-runs tests (§7). `/spec` drafts a sprint of Phase-1 specs into `planning/pipeline/queued/`.
+Plan → Code → Test → Complete: `/pipeline:plan` → `/pipeline:code` → `/pipeline:test` →
+`/pipeline:complete`, governed by `CONSTITUTION.md`, enforced by `.claude/hooks/`, gated by
+`script/gates.sh`; the Test phase is a visual check of the change, with no unit tests (§7). `/spec` drafts a sprint of Phase-1 specs into `planning/pipeline/queued/`.
 
 ## Standards
 

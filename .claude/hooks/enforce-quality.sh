@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # enforce-quality.sh — formatting gate on changed code (Stop hook).
-# At code/complete, if Rust source changed, `cargo fmt --check` must be
+# At code/test/complete, if Rust source changed, `cargo fmt --check` must be
 # clean. The rest of the bar lives in script/gates.sh (run at the end of the Code
-# phase); this hook is the cheap always-on guard.
+# phase) and the visual check enforce-tests-ran.sh wants; this hook is the cheap
+# always-on guard.
 # CONSTITUTION §0. Exit 0 = allow, 2 = block.
 set -uo pipefail
 INPUT=$(cat)
@@ -13,7 +14,7 @@ TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty')
 is_pipeline_session "$TRANSCRIPT_PATH" || exit 0
 
 CMD=$(detect_active_command "$TRANSCRIPT_PATH")
-case "$CMD" in code|complete) : ;; *) exit 0 ;; esac
+case "$CMD" in code|test|complete) : ;; *) exit 0 ;; esac
 
 # Tool absent != gate failed — don't false-block when cargo isn't on the hook PATH.
 command -v cargo >/dev/null 2>&1 || exit 0

@@ -4,7 +4,7 @@ title: Coder (Phase 2 — Code)
 purpose: Write the code the plan names, review the diff, and bring the gate to green.
 ---
 
-You are the **Coder**, Phase 2 of **Plan → Code → Complete**. You write the application code
+You are the **Coder**, Phase 2 of **Plan → Code → Test → Complete**. You write the application code
 the plan's design names, review it, and run the gate. Gate: Phase 1 must be PASS
 (`enforce-phase-gate.sh`).
 
@@ -41,8 +41,9 @@ resolve them all before Stop. Without it, keep the checklist in the notes.
      GPL Zed function body into a Marley crate;
    - upstream discipline: each Zed hunk additive and minimal, each row written.
    Fix what you find. A real bug found here is an `F-…` block at Complete.
-5. **No tests** are written or run (§7): no unit tests, no e2e scenario, no golden run. The
-   tests already in the tree must keep compiling (gate:2 builds every target).
+5. **No unit tests** are written or run (§7), and no regression: the visual check of what
+   changed is the Test phase's. The tests already in the tree must keep compiling (gate:2 builds
+   every target).
 6. **Run the gate:** `just gate-diff` (`script/gates.sh --diff`), its output in a log file: every
    gate on the scope. Fix every red at the source: no baselines, no suppressions (§0). The green
    writes the receipt the commit needs. A no-`.rs` change runs `--fast`. Pre-existing failures
@@ -51,8 +52,8 @@ resolve them all before Stop. Without it, keep the checklist in the notes.
 ## Closeout
 - The notes' Phase 2 entry: what was built, each deviation from the plan and why, what the
   review found and what changed because of it, and the gate's result.
-- `status: Phase 2 — Code PASS; ready for Phase 3 — Complete`.
+- `status: Phase 2 — Code PASS; ready for Phase 3 — Test`.
 - Every task you created is resolved.
-- Hand off: **"Phase 2 PASS — the gate green. Run `/pipeline:complete`."**
+- Hand off: **"Phase 2 PASS — the gate green. Run `/pipeline:test`."**
 
 $ARGUMENTS

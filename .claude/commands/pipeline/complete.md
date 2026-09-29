@@ -1,12 +1,12 @@
 ---
-phase: 3
-title: Completer (Phase 3 — Document & Complete)
+phase: 4
+title: Completer (Phase 4 — Document & Complete)
 purpose: Write the docs, capture what was learned, close the ticket, archive the pipeline and commit.
 ---
 
-You are the **Completer**, Phase 3 of **Plan → Code → Complete**. You document the change,
-capture what was learned, close the ticket, archive the pipeline and commit. Gate: Phase 2
-must be PASS.
+You are the **Completer**, Phase 4 of **Plan → Code → Test → Complete**. You document the
+change, capture what was learned, close the ticket, archive the pipeline and commit. Gate:
+Phase 3 must be PASS.
 
 Read [CONSTITUTION.md](../../../CONSTITUTION.md) §15, §19 and §21. `enforce-commit-gate.sh`
 blocks a commit of Rust source unless the Code phase's green receipt still matches the tree,
@@ -25,13 +25,13 @@ ticket", "archive", "commit". Resolve them all before Stop.
      for a Marley crate, and for each touched path outside the Marley-owned set a check that
      its row in `docs/marley/zed-touchpoints.md` describes what shipped.
 2. **Capture knowledge (§19)**, appended to `docs/planning/knowledge/`: an `F-…` block for each
-   real bug found in Code, with a `PR-…` block when the class deserves a rule; `L-…`
+   real bug found in Code or Test, with a `PR-…` block when the class deserves a rule; `L-…`
    lessons that will matter again; an `AD-…` block for a durable decision. Close the brain
-   consultation with `brain_decide`, or `brain_no_decision` and the reason. The notes' Phase 3
+   consultation with `brain_decide`, or `brain_no_decision` and the reason. The notes' Phase 4
    entry lists the codes appended.
 3. **Close the ticket:** move it to `docs/planning/tickets/closed/`, set `Status: closed`, point
    its `Pipeline doc` link at `completed/`, and sweep `BACKLOG.md` for a stale row.
-4. **Archive:** set `status: Phase 3 — Complete PASS` in the spec, then
+4. **Archive:** set `status: Phase 4 — Complete PASS` in the spec, then
    `mv docs/planning/pipeline/active/<title>.{spec,notes}.md docs/planning/pipeline/completed/`.
 5. **Commit.** Confirm the Code phase's receipt still matches the tree; a code change since the
    green means running `script/gates.sh --diff` again. `git add -A`, then read

@@ -1550,11 +1550,13 @@ and that includes rust-analyzer's `cargo check` in a Marley that has this reposi
 | `just regress [scenario...]` | Marley's regression suite: the golden set in `script/e2e/golden` (or the scenarios named), each in a headless sway, each checking itself; a PASS or FAIL line per scenario and a verdict. `E2E_BINARY=<path>` runs another build. The runs go under `~/.local/state/marley/regress/` |
 | `just shot <name> [seed]` | One shot of the debug Marley on a copy of your profile; `OPEN=<path>` opens a path |
 
-Work moves through three phases, Plan, Code and Complete (`/pipeline:plan`, `/pipeline:code`,
-`/pipeline:complete`), under `CONSTITUTION.md`. A change is proven by the static gate and a review
-of its diff; since 2026-09-29 no ticket writes or runs tests, and the e2e scenarios and the golden
-set run only by hand. Every change outside `crates/marley_*` and Marley's other owned paths gets a
-row in `docs/marley/zed-touchpoints.md`.
+Work moves through four phases, Plan, Code, Test and Complete (`/pipeline:plan`,
+`/pipeline:code`, `/pipeline:test`, `/pipeline:complete`), under `CONSTITUTION.md`. A change is
+proven by the static gate, a review of its diff, and a visual check: an e2e scenario that starts
+the real Marley and drives what the ticket changed, every shot read. Since 2026-09-29 no ticket
+writes unit tests or runs the golden set's regression; those return in a testing phase at the
+end. Every change outside `crates/marley_*` and Marley's other owned paths gets a row in
+`docs/marley/zed-touchpoints.md`.
 
 ## What is planned
 

@@ -18,6 +18,10 @@
 ### Design
 - Approach; file manifest (Marley crate or Zed crate per file); the ledger rows it needs.
 
+### Visual check plan
+- One row per acceptance criterion: what the scenario sets up and does to the change, and the
+  shot that shows the criterion met (§7). What no scenario can reach, and why.
+
 ### Risks
 - …
 
@@ -25,6 +29,10 @@
 - What was built; deviations from the plan (with reason); what the review of the diff found;
   the gate result and any pre-existing notes.
 
-## Phase 3 — Complete
+## Phase 3 — Test
+- The visual check: the scenario, each shot and what it shows, the focus report; any fix and its
+  new gate run.
+
+## Phase 4 — Complete
 - Docs updated; ledger appends (failures / prevention rules / lessons / ADs — codes listed);
   ticket closed; archive; the commit.

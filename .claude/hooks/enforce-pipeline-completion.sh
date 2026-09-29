@@ -25,7 +25,7 @@ STATUS=$(sed -n 's/^status:[[:space:]]*//p' "$DOC" 2>/dev/null | head -1 || true
 if echo "$STATUS" | grep -qiE '(^|[^[:alnum:]])(TEMPLATE|PLACEHOLDER|TODO)([^[:alnum:]]|$)|<[^>]+>|IN PROGRESS'; then
     { echo ""; echo "STOP BLOCKED — pipeline doc status is still a placeholder / not advanced."
       echo "Advance it to reflect the phase just worked, e.g.:"
-      echo "  status: Phase 2 — Code PASS; ready for Phase 3 — Complete"
+      echo "  status: Phase 2 — Code PASS; ready for Phase 3 — Test"
       echo "Doc: $DOC   (current: ${STATUS:-<none>})"; } >&2
     exit 2
 fi
