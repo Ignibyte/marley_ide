@@ -13,6 +13,18 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Remove on a worktree's row** (#589, 2026-09-29). Right-click a worktree in the rail and choose
+  Remove… once its agent's work is done. Marley always asks first; when git counts changes not
+  committed (untracked files included) the question names how many and the button reads Remove
+  Anyway. Then the worktree's own workspace closes, which stops its terminals (Zed asks about
+  unsaved files, and a refusal stops Remove), and Zed's own archive code removes the worktree: it
+  checks that Zed made it and releases it from every open project. The branch goes when
+  `git branch -d` agrees, or when its commits are shown to be in its recorded base, `origin/HEAD`
+  or the main checkout's `HEAD` (an ancestor, a merge that changes nothing, as after a squash
+  merge, or `git cherry` finding every change); otherwise it stays, and the toast says why. In a
+  repository the Rustal workflow merges, Remove waits until the branch is merged. A teardown hook
+  run before the removal is next (#591).
+
 - **A port of its own for each worktree agent's worktree** (#590, 2026-09-29). New Agent in
   Worktree gives each worktree it makes a slot, the lowest from 1 that no other worktree of the
   repository holds (kept as `git config branch.<branch>.marleySlot`; a removed worktree's slot is

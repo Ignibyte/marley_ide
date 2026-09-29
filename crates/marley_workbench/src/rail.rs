@@ -14,6 +14,7 @@ use std::time::{Duration, Instant};
 use acp_thread::{AcpThread, AcpThreadEvent, SelectedPermissionOutcome};
 use agent_client_protocol::schema::v1 as acp;
 use agent_ui::thread_metadata_store::{ThreadId, ThreadMetadata, ThreadMetadataStore};
+use agent_ui::thread_worktree_archive::{self, RootPlan};
 use agent_ui::threads_archive_view::fuzzy_match_positions;
 use agent_ui::{Agent, AgentPanel, AgentPanelEvent, AgentThreadSource, ConversationView};
 use anyhow::Context as _;
@@ -57,8 +58,8 @@ use ui::{
 use util::ResultExt as _;
 use util::path_list::PathList;
 use workspace::{
-    MultiWorkspace, MultiWorkspaceEvent, ProjectGroup, SaveIntent, Sidebar, SidebarEvent,
-    SidebarSide, Toast, Workspace,
+    MultiWorkspace, MultiWorkspaceEvent, ProjectGroup, RemovalIntent, SaveIntent, Sidebar,
+    SidebarEvent, SidebarSide, Toast, Workspace,
     item::{Item as _, ItemEvent},
     notifications::{DetachAndPromptErr as _, NotificationId},
 };
@@ -70,7 +71,7 @@ use crate::browser::{BrowserEvent, BrowserHub, BrowserView};
 use crate::ports::{self, Ports};
 use crate::system_one::{self, Asking};
 use crate::turns::Turns;
-use crate::worktree_git::{self, Drift, MergeOwner};
+use crate::worktree_git::{self, BranchEnd, Drift, MergeOwner};
 use crate::{MarleySettings, browser, worktree_agents};
 
 #[path = "rail_switcher.rs"]
@@ -300,6 +301,28 @@ struct PendingReview {
     base: String,
     /// When the wait ends, on the executor's clock.
     until: Instant,
+}
+
+/// What a removal of a worktree works on (#589).
+struct RemoveTarget {
+    /// The worktree's folder.
+    folder: PathBuf,
+    /// Its repository's main checkout, where its branch is ended.
+    main: Option<PathBuf>,
+    /// Its branch.
+    branch: Option<String>,
+    /// Its own workspace, when the window has it open.
+    member: Option<Entity<Workspace>>,
+    /// Zed's plan for removing it.
+    plan: RootPlan,
+}
+
+/// What a worktree row's menu offers for removing it (#589).
+enum RemoveLine {
+    /// Remove.
+    Remove,
+    /// A line that is not a choice: why there is no Remove.
+    Note(String),
 }
 
 /// What a worktree row's menu offers for merging its branch (#511).
@@ -2074,6 +2097,152 @@ impl Rail {
         }
     }
 
+    /// What a worktree row's menu offers for removing it (#589): Remove, except in a repository
+    /// the Rustal workflow merges while the branch has commits its base lacks, since the workflow
+    /// may be running in it.
+    fn remove_line(&self, path: &str) -> RemoveLine {
+        let Some(state) = self.drift.get(path) else {
+            return RemoveLine::Remove;
+        };
+        match (state.owner, state.drift.as_ref().map(|drift| drift.ahead)) {
+            (MergeOwner::Workflow, Some(0)) | (MergeOwner::Marley, _) => RemoveLine::Remove,
+            (MergeOwner::Workflow, _) => RemoveLine::Note(
+                "Remove waits until the Rustal workflow merges the branch".to_string(),
+            ),
+        }
+    }
+
+    /// Removes a worktree (#589): Zed's plan for it while it is open, what git has not committed,
+    /// Zed's prompt, the worktree's own workspace removed (its terminals with it, Zed asking about
+    /// unsaved files), Zed's `remove_root`, which checks Zed made it and deletes the folder, and
+    /// then the branch when its commits are in a target. The outcome shows in a toast, a refusal
+    /// or a failure in a prompt.
+    fn remove_worktree(&self, path: &str, window: &Window, cx: &Context<Self>) {
+        let name = self
+            .snapshot
+            .worktrees
+            .get(path)
+            .map_or_else(|| path.to_string(), |entry| entry.name.clone());
+        let path = path.to_string();
+        let failure = format!("Could not remove {name}");
+        cx.spawn_in(window, async move |rail, cx| {
+            let target = rail.read_with(cx, |rail, cx| rail.remove_target(&path, cx))??;
+            let RemoveTarget {
+                folder,
+                main,
+                branch,
+                member,
+                plan,
+            } = target;
+            let changes = cx
+                .background_spawn({
+                    let folder = folder.clone();
+                    async move { worktree_git::uncommitted(&folder).await }
+                })
+                .await?;
+            let (question, confirm) = if changes == 0 {
+                (format!("Remove {name}?"), "Remove")
+            } else {
+                (
+                    format!(
+                        "Remove {name} and its {changes} uncommitted {}?",
+                        if changes == 1 { "change" } else { "changes" }
+                    ),
+                    "Remove Anyway",
+                )
+            };
+            let detail = format!(
+                "Marley closes its terminals and deletes {}. Its branch goes too once its commits \
+                 are in its base; otherwise it stays.",
+                folder.display()
+            );
+            let answer = cx.update(|window, cx| {
+                window.prompt(
+                    PromptLevel::Warning,
+                    &question,
+                    Some(&detail),
+                    &[confirm, "Cancel"],
+                    cx,
+                )
+            })?;
+            if !matches!(answer.await, Ok(0)) {
+                return Ok(());
+            }
+            if let Some(member) = member {
+                // Outside the rail's own update: the window's sidebar is the rail.
+                let multi_workspace = rail.read_with(cx, |rail, _| rail.multi_workspace.clone())?;
+                let removing = multi_workspace.update_in(cx, |multi_workspace, window, cx| {
+                    multi_workspace.remove([member], RemovalIntent::KeepProject, window, cx)
+                })?;
+                if !removing.await? {
+                    return Ok(());
+                }
+            }
+            thread_worktree_archive::remove_root(plan, cx).await?;
+            let end = match (main, branch) {
+                (Some(main), Some(branch)) => {
+                    let end = cx
+                        .background_spawn(async move {
+                            let base = worktree_git::recorded_base(&main, &branch)
+                                .await
+                                .log_err()
+                                .flatten();
+                            let end =
+                                worktree_git::end_branch(&main, &branch, base.as_deref()).await;
+                            (branch, end)
+                        })
+                        .await;
+                    Some(end)
+                }
+                _ => None,
+            };
+            let message = match end {
+                Some((branch, Ok(BranchEnd::Deleted))) => {
+                    format!("Removed {name} and its branch {branch}")
+                }
+                Some((branch, Ok(BranchEnd::Kept(why)))) => {
+                    format!("Removed {name}. Kept its branch {branch}: {why}")
+                }
+                Some((branch, Err(error))) => {
+                    format!("Removed {name}. Kept its branch {branch}: {error:#}")
+                }
+                None => format!("Removed {name}"),
+            };
+            rail.update(cx, |rail, cx| rail.show_toast(message, cx))?;
+            anyhow::Ok(())
+        })
+        .detach_and_prompt_err(&failure, window, cx, |_, _, _| None);
+    }
+
+    /// What a removal of the worktree at `path` works on (#589): its folder, main checkout, branch
+    /// and own workspace, and Zed's plan, which exists only for a worktree Zed made that an open
+    /// project holds.
+    fn remove_target(&self, path: &str, cx: &App) -> anyhow::Result<RemoveTarget> {
+        let entry = self
+            .snapshot
+            .worktrees
+            .get(path)
+            .context("the worktree is gone")?;
+        let multi_workspace = self
+            .multi_workspace
+            .upgrade()
+            .context("the window is closing")?;
+        let workspaces: Vec<Entity<Workspace>> =
+            multi_workspace.read(cx).workspaces().cloned().collect();
+        let plan = thread_worktree_archive::build_root_plan(&entry.path, None, &workspaces, cx)
+            .context(
+                "Marley removes a worktree Zed made while a project has it open; open it first, \
+                 or remove it with git worktree remove",
+            )?;
+        Ok(RemoveTarget {
+            folder: entry.path.clone(),
+            main: entry.main.clone(),
+            branch: entry.branch.clone(),
+            member: entry.member.as_ref().and_then(WeakEntity::upgrade),
+            plan,
+        })
+    }
+
     /// Opens Zed's branch diff of a worktree in its own workspace (#511), against the base its
     /// branch recorded, else its repository's default branch, as `git: diff branch` does. A
     /// worktree the window has not open opens first, as its row's click opens it.
@@ -2982,11 +3151,16 @@ impl Rail {
         )))
         .trigger(move |_, _, _| div().debug_selector(move || selector).pl_2().child(item))
         .menu(move |window, cx| {
-            let merge = rail
-                .upgrade()
-                .map(|rail| rail.read(cx).merge_line(&menu_path, cx));
+            let (merge, remove) = rail.upgrade().map_or((None, None), |rail| {
+                let rail = rail.read(cx);
+                (
+                    Some(rail.merge_line(&menu_path, cx)),
+                    Some(rail.remove_line(&menu_path)),
+                )
+            });
             let (review_rail, review_path) = (rail.clone(), menu_path.clone());
             let (merge_rail, merge_path) = (rail.clone(), menu_path.clone());
+            let (remove_rail, remove_path) = (rail.clone(), menu_path.clone());
             ContextMenu::build(window, cx, move |menu, _, _| {
                 let menu = menu.entry("Review", None, move |window, cx| {
                     review_rail
@@ -2995,13 +3169,26 @@ impl Rail {
                         })
                         .log_err();
                 });
-                match merge {
+                let menu = match merge {
                     Some(MergeLine::Merge(words)) => menu.entry(words, None, move |window, cx| {
                         merge_rail
                             .update(cx, |rail, cx| rail.merge_worktree(&merge_path, window, cx))
                             .log_err();
                     }),
                     Some(MergeLine::Note(note)) => menu.label(note),
+                    None => menu,
+                };
+                match remove {
+                    Some(RemoveLine::Remove) => {
+                        menu.separator().entry("Remove…", None, move |window, cx| {
+                            remove_rail
+                                .update(cx, |rail, cx| {
+                                    rail.remove_worktree(&remove_path, window, cx);
+                                })
+                                .log_err();
+                        })
+                    }
+                    Some(RemoveLine::Note(note)) => menu.separator().label(note),
                     None => menu,
                 }
             })

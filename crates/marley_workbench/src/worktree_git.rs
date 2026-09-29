@@ -2,7 +2,8 @@
 //!
 //! What a worktree's branch would meet merging its base, since #511 who merges it and the merge
 //! itself, since #585 what a new worktree copies and the setup command a repository keeps, and
-//! since #590 a worktree's port slot. Zed's `Repository` runs no `merge-tree`, `rev-list`,
+//! since #590 a worktree's port slot, and since #589 what a removal would lose and the end of a
+//! removed worktree's branch. Zed's `Repository` runs no `merge-tree`, `rev-list`,
 //! `merge-base` or `merge`, and its runner takes `merge-tree`'s exit 1, which is its answer, for
 //! an error, so these run `git` here, never through a shell, in the main checkout or a worktree
 //! of it, with the flags Zed's own git runs with. Their arguments are commits and branch names git
@@ -521,6 +522,120 @@ pub(crate) async fn assign_slot(folder: &Path, branch: &str) -> anyhow::Result<u
         text(&output.stderr)
     );
     Ok(slot)
+}
+
+/// How many changes git has not committed in the checkout at `worktree`, untracked files
+/// included, which a removal would lose (#589).
+///
+/// # Errors
+///
+/// When `git` cannot run, or refuses.
+pub(crate) async fn uncommitted(worktree: &Path) -> anyhow::Result<usize> {
+    let output = git(
+        worktree,
+        &["status", "--porcelain", "--untracked-files=normal"],
+    )
+    .await?;
+    anyhow::ensure!(
+        output.status.success(),
+        "git status refused: {}",
+        text(&output.stderr)
+    );
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|line| !line.is_empty())
+        .count())
+}
+
+/// What became of a removed worktree's branch (#589).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum BranchEnd {
+    /// Deleted: git or the proof showed its commits in a target.
+    Deleted,
+    /// Kept, and why.
+    Kept(String),
+}
+
+/// Deletes `branch` of the repository whose main checkout is `main` when its commits are in a
+/// target: `git branch -d`, and when git refuses, a proof against `base`, `origin/HEAD` and the
+/// main checkout's `HEAD`, after which the branch goes only if it still points at the commit the
+/// proof read. Its `branch.<branch>` config, the base and the port slot, goes with it.
+///
+/// # Errors
+///
+/// When `git` cannot run, or refuses to delete a branch the proof showed merged.
+pub(crate) async fn end_branch(
+    main: &Path,
+    branch: &str,
+    base: Option<&str>,
+) -> anyhow::Result<BranchEnd> {
+    let deleted = git(main, &["branch", "-d", branch]).await?;
+    if !deleted.status.success() {
+        let reference = format!("refs/heads/{branch}");
+        let commit = git(main, &["rev-parse", "--verify", "--quiet", &reference]).await?;
+        if !commit.status.success() {
+            return Ok(BranchEnd::Kept(format!("git could not find {branch}")));
+        }
+        let commit = text(&commit.stdout);
+        let mut targets: Vec<&str> = base.into_iter().collect();
+        targets.extend(["origin/HEAD", "HEAD"]);
+        let mut merged = None;
+        for target in targets {
+            if merged_into(main, &commit, target).await? {
+                merged = Some(target);
+                break;
+            }
+        }
+        let Some(target) = merged else {
+            return Ok(BranchEnd::Kept(format!(
+                "{branch} has commits that are not in {}",
+                base.unwrap_or("HEAD")
+            )));
+        };
+        log::info!("{branch} is merged into {target}; deleting it");
+        // Deletes the branch only while it still points at the commit the proof read.
+        let output = git(main, &["update-ref", "-d", &reference, &commit]).await?;
+        anyhow::ensure!(
+            output.status.success(),
+            "git update-ref refused: {}",
+            text(&output.stderr)
+        );
+    }
+    let section = format!("branch.{branch}");
+    let output = git(main, &["config", "--remove-section", &section]).await?;
+    // Exit 128 when there is no such section, as after `branch -d`, which takes it.
+    if !output.status.success() && output.status.code() != Some(128) {
+        log::warn!("git config kept {section}: {}", text(&output.stderr));
+    }
+    Ok(BranchEnd::Deleted)
+}
+
+/// Whether the commits of `commit` are all in `target`: it is an ancestor of `target`; merging it
+/// into `target` leaves `target`'s tree as it is, as after a squash merge; or `git cherry` finds
+/// each of its commits' changes in `target`. A target that does not resolve holds nothing.
+async fn merged_into(main: &Path, commit: &str, target: &str) -> anyhow::Result<bool> {
+    let resolved = git(main, &["rev-parse", "--verify", "--quiet", target]).await?;
+    if !resolved.status.success() {
+        return Ok(false);
+    }
+    let ancestor = git(main, &["merge-base", "--is-ancestor", commit, target]).await?;
+    if ancestor.status.success() {
+        return Ok(true);
+    }
+    let tree = format!("{target}^{{tree}}");
+    let target_tree = git(main, &["rev-parse", &tree]).await?;
+    let merged_tree = git(main, &["merge-tree", "--write-tree", target, commit]).await?;
+    if target_tree.status.success()
+        && merged_tree.status.success()
+        && text(&merged_tree.stdout) == text(&target_tree.stdout)
+    {
+        return Ok(true);
+    }
+    let cherry = git(main, &["cherry", target, commit]).await?;
+    let marks = text(&cherry.stdout);
+    Ok(cherry.status.success()
+        && !marks.is_empty()
+        && marks.lines().all(|line| line.starts_with('-')))
 }
 
 /// Whether git refused `merge-tree --write-tree` as an option it does not know: before 2.38, or

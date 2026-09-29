@@ -383,7 +383,9 @@ that fail closed, never a push, left to the Rustal workflow where it manages the
 #585 gives a new worktree the main checkout's gitignored files its `.worktreeinclude` names, an
 offered install command for its one JavaScript package manager, and `MARLEY_ROOT_PATH` and
 `MARLEY_WORKTREE_PATH` in its tasks; #590 gives each such worktree a slot and its terminals and
-tasks `MARLEY_PORT_OFFSET` and `PORT` from it. W5 shipped as #441: in the Marley layout
+tasks `MARLEY_PORT_OFFSET` and `PORT` from it; #589 adds Remove to a worktree row's menu, through
+Zed's archive code, the branch deleted only when its commits are in its base. W5 shipped as #441:
+in the Marley layout
 tasks, New Terminal and Open in Terminal open center terminals, and nothing opens the bottom
 panel. W5b shipped as #449: `` ctrl-` ``, `ctrl-~` and `ctrl-j` work on the center terminals,
 by catching Zed's actions rather than rebinding keys. W5c shipped as #450: `ctrl-alt-n` opens

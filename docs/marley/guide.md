@@ -578,6 +578,15 @@ While the branch has commits its base lacks, the row's second line counts them:
   commit reads "Merge branch 'agent/ok' into main", and the toast names it. A merge that stops on
   a conflict is aborted, so the main checkout is as it was, and the files are named. The
   worktree and its branch stay.
+- **Remove…** (#589) takes the worktree away. Marley asks first, and when git counts changes not
+  committed, untracked files included, the question names how many and the button reads Remove
+  Anyway: those changes are deleted with the folder. Then the worktree's workspace closes, its
+  terminals with it (Marley asks about unsaved files, and Cancel there stops Remove), and Zed's
+  own code removes the worktree, which it does only for a worktree Zed made that a project has
+  open. The branch goes when git agrees it is merged, or when Marley finds its commits in the
+  recorded base, `origin/HEAD` or the main checkout's branch, a squash merge included; otherwise
+  it stays and the toast says why, so committed work is never lost. In a repository the Rustal
+  workflow merges, Remove waits until the branch is merged.
 
 Merge shows only for a branch whose base Marley recorded, in a repository Zed trusts. Otherwise
 the menu says why: No base recorded, Nothing to merge into main, or, where the Rustal workflow

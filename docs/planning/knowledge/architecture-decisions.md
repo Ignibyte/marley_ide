@@ -2923,3 +2923,17 @@ file. Rejected: a cache the rail fills (a terminal restored at a launch would st
 running git in Zed's builder (spawns belong in Marley's adapters); an empty `PORT` for the main
 checkout (it would break programs that parse it); port discovery instead (#521 has it; the offset
 serves the servers that read `PORT`).
+
+## AD-claude-589-remove-goes-through-zeds-archive-code-and-the-branch-goes-only-when-merged-001
+*decided at: 2026-09-29 · status: shipped*
+
+A worktree row's Remove builds Zed's `thread_worktree_archive::build_root_plan` while a project
+holds the worktree, asks (naming the changes git has not committed, since `remove_root` deletes
+the folder with `--force`), removes the worktree's own workspace through
+`MultiWorkspace::remove(.., KeepProject)`, and calls `remove_root`, the order Zed's sidebar uses
+for an archived thread's worktree. The branch then goes by `git branch -d`, or when a proof written
+from Orca's described behavior finds its commits in the recorded base, `origin/HEAD` or `HEAD`, by
+a compare-and-swap `update-ref -d`; not proven, it stays. Rejected: Marley's own `git worktree
+remove` (Zed checks it made the worktree, releases it from every project and rolls back); porting
+Orca's file (its patch-id leg waits, and `merge-tree` covers the common squash merge); the
+teardown hook in this slice (#591, a Zed touch with an awaited task).

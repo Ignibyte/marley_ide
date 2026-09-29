@@ -472,7 +472,8 @@ progress, and the last five from `docs/marley/three-prong-plan.md`.
 | Give a worktree agent your `.env` and its dependencies: `.worktreeinclude` and the setup command | In that new part | TICKET-585 (shipped) |
 | Give each worktree agent's dev server a port of its own | In that new part | TICKET-590 (shipped) |
 | Review and merge a worktree agent's branch | In that new part | TICKET-511 (shipped) |
-| Remove a merged worktree and its branch | In that new part | TICKET-589 |
+| Remove a merged worktree and its branch | In that new part | TICKET-589 (shipped) |
+| Clean up a worktree's services before it goes: the teardown task | In that new part | TICKET-591 |
 | See which files a worktree agent's branch would conflict on, before a merge | In that new part | TICKET-560 (shipped) |
 | Answer Claude Code's trust question for a new worktree from the notification | In that new part | TICKET-587 (shipped) |
 | A long two-line prompt in the first terminal of a launch | Removes lesson 14's note | TICKET-486 |

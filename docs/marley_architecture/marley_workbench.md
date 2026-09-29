@@ -563,6 +563,19 @@ alike.
   and the main checkout in its detail; Merge, Cancel), both again with the base and the count
   compared to the prompt's, then `merge`; a toast in the displayed workspace (`WorktreeMerge`), or
   `detach_and_prompt_err` "Could not merge <name>".
+- Remove (#589): `RemoveLine` from `remove_line` (Remove, or in a `MergeOwner::Workflow`
+  repository with commits ahead a note), after a separator. `remove_worktree`: `remove_target` on
+  the UI thread (the entry and `agent_ui::thread_worktree_archive::build_root_plan` over the
+  window's workspaces, which needs a project holding the worktree and Zed's creation record);
+  `worktree_git::uncommitted` (`status --porcelain --untracked-files=normal`); a warning prompt,
+  Remove or Remove Anyway; `MultiWorkspace::remove([member], KeepProject)` through the
+  `MultiWorkspace` handle, `false` ending it; `thread_worktree_archive::remove_root`, which
+  verifies the record, releases the folder, runs `git worktree remove --force` and rolls back on
+  failure; then `worktree_git::end_branch(main, branch, recorded base)`: `branch -d`, else the oid,
+  `merged_into` each of the base, `origin/HEAD` and `HEAD` (`merge-base --is-ancestor`,
+  `merge-tree --write-tree` equal to the target's tree, `cherry` all `-`) and
+  `update-ref -d refs/heads/<b> <oid>`, then `config --remove-section branch.<b>`; `BranchEnd`
+  names the outcome for the toast.
 
 ## A worktree agent's environment (`src/worktree_include.rs`, `src/worktree_agents.rs`, #585)
 
