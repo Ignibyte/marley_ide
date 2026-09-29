@@ -569,17 +569,7 @@ async fn create(
         }
     };
     copy_included(workspace, plan, &name, &path, fs, cx).await;
-    if let Err(error) = write_base(&path, &branch, &plan.base).await {
-        cx.update(|_, cx| {
-            show_toast(
-                workspace,
-                NotificationId::unique::<WorktreePrompt>(),
-                format!("The worktree's base was not written: {error:#}"),
-                cx,
-            );
-        })
-        .log_err();
-    }
+    record(workspace, &path, &branch, &plan.base, cx).await;
     let command = remember_setup(workspace, plan, setup.as_ref(), cx).await;
     let wait = if command.is_some() {
         agent_trust::WATCH_AFTER_SETUP
@@ -700,6 +690,52 @@ async fn free_folder(
             .ok()??;
     }
     None
+}
+
+/// Records the new worktree's base and gives it a port slot, before the agent's terminal starts,
+/// which reads the slot for its port (#590); what was not written is said in a toast.
+async fn record(
+    workspace: &WeakEntity<Workspace>,
+    path: &Path,
+    branch: &str,
+    base: &str,
+    cx: &mut AsyncWindowContext,
+) {
+    let base = write_base(path, branch, base)
+        .await
+        .err()
+        .map(|error| format!("The worktree's base was not written: {error:#}"));
+    let slot = worktree_git::assign_slot(path, branch)
+        .await
+        .err()
+        .map(|error| format!("The worktree's port slot was not written: {error:#}"));
+    for message in base.into_iter().chain(slot) {
+        cx.update(|_, cx| {
+            show_toast(
+                workspace,
+                NotificationId::unique::<WorktreePrompt>(),
+                message,
+                cx,
+            );
+        })
+        .log_err();
+    }
+}
+
+/// Gives the terminal builders the reader of a worktree's port slot (#590). Each new workspace
+/// sets it again, with the app's `Fs` it carries, before its first terminal starts.
+pub(crate) fn give_slot_reader(fs: Arc<dyn Fs>) {
+    marley_terminal::ports::set_slot_reader(Some(marley_terminal::ports::slot_reader(
+        move |folder: PathBuf| {
+            let fs = Arc::clone(&fs);
+            async move {
+                worktree_git::slot_of(&folder, fs.as_ref())
+                    .await
+                    .log_err()
+                    .flatten()
+            }
+        },
+    )));
 }
 
 /// Writes `base` as `branch.<branch>.base` in the repository's config, which every worktree of

@@ -52,6 +52,7 @@ pub mod identity;
 pub mod keys;
 pub mod links;
 pub mod mouse;
+pub mod ports;
 pub mod session;
 pub mod shell_integration;
 pub mod styled;

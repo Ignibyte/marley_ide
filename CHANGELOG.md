@@ -13,6 +13,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A port of its own for each worktree agent's worktree** (#590, 2026-09-29). New Agent in
+  Worktree gives each worktree it makes a slot, the lowest from 1 that no other worktree of the
+  repository holds (kept as `git config branch.<branch>.marleySlot`; a removed worktree's slot is
+  taken again), and every terminal and task of that worktree's project starts with
+  `MARLEY_PORT_OFFSET`, the slot times ten, and `PORT`, 3000 plus the offset: 3010, 3020 and so on,
+  ten ports each, as Conductor gives each workspace ten. A dev server that reads `PORT` in one
+  worktree no longer takes the port another's wants. The main checkout's terminals get neither,
+  and a `PORT` in your `terminal.env` setting or a task's own `env` wins. Terminals restored at a
+  launch, Zed's terminal panel, the debugger's and the agents' terminals get them too. Zed's own
+  `create_worktree` tasks start before the slot is written and get none.
+
 - **A worktree agent's worktree gets its environment** (#585, 2026-09-29). New Agent in Worktree
   now copies into the new worktree, before the agent starts, the main checkout's gitignored files
   its `.worktreeinclude` names, read as Claude Code reads the file for its own worktrees:
@@ -24,8 +35,7 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   `Setup: pnpm install (pnpm-lock.yaml found)`; the box is clear unless you checked it last time
   (kept in `git config marley.worktreeSetup`), and checked, the install runs in the agent's
   terminal and the agent starts once it succeeds. Tasks in a linked worktree, Zed's
-  `create_worktree` hooks among them, also get `MARLEY_ROOT_PATH` and `MARLEY_WORKTREE_PATH`. A port
-  offset for each worktree is next (#590).
+  `create_worktree` hooks among them, also get `MARLEY_ROOT_PATH` and `MARLEY_WORKTREE_PATH`.
 
 - **Review and merge a worktree's branch from its row** (#511, 2026-09-29). Right-click a
   worktree's row in the rail. **Review** opens Zed's branch diff of the worktree against the base

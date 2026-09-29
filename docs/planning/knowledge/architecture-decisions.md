@@ -2908,3 +2908,18 @@ port offset is TICKET-590. Rejected: Orca's literal-only subset (repositories wr
 Code use globs); copying before Zed's hooks start (a callback inside Zed's create, for a race the
 setup command avoids); a setting per project for the setup command (git config lives in the clone,
 beside #511's `marley.merge`); running an imported `conductor.json` or similar as it is.
+
+## AD-claude-590-each-worktree-agents-worktree-gets-a-port-slot-read-as-its-terminals-start-001
+*decided at: 2026-09-29 · status: shipped*
+
+Each worktree New Agent in Worktree makes gets a slot, the lowest from 1 no other live worktree of
+the repository holds, kept as `git config branch.<branch>.marleySlot` beside #510's base, and
+every terminal and task of its project starts with `MARLEY_PORT_OFFSET` (slot times ten, as
+Conductor gives each workspace ten ports) and `PORT` (3000 plus the offset). Both of Zed's terminal
+builders await `marley_terminal::ports::variables(first_project_directory)` between the directory's
+environment and `terminal.env`, so the user's settings and a task's own `env` win; the variables
+come from a reader the workbench registers, which runs git only for a folder whose `.git` is a
+file. Rejected: a cache the rail fills (a terminal restored at a launch would start before it);
+running git in Zed's builder (spawns belong in Marley's adapters); an empty `PORT` for the main
+checkout (it would break programs that parse it); port discovery instead (#521 has it; the offset
+serves the servers that read `PORT`).

@@ -131,8 +131,17 @@ impl Project {
             .map(|p| self.active_toolchain(p, LanguageName::new_static("Python"), cx))
             .collect::<Vec<_>>();
         let lang_registry = self.languages.clone();
+        // Marley: a local project's first folder, whose worktree slot gives the task its port
+        // (#590).
+        let marley_project = remote_client
+            .is_none()
+            .then(|| self.first_project_directory(cx))
+            .flatten();
         cx.spawn(async move |project, cx| {
             let mut env = env_task.await.unwrap_or_default();
+            // Marley: a worktree agent's worktree gives its tasks a port of their own, before the
+            // settings' `env` and the task's own, so their values win (#590).
+            env.extend(marley_terminal::ports::variables(marley_project).await);
             env.extend(settings.env);
 
             let activation_script = maybe!(async {
@@ -394,6 +403,9 @@ impl Project {
         cx.spawn(async move |project, cx| {
             let shell_kind = ShellKind::new(&shell, path_style.is_windows());
             let mut env = env_task.await.unwrap_or_default();
+            // Marley: a worktree agent's worktree gives its terminals a port of their own, before
+            // the settings' `env` so the user's values win (#590).
+            env.extend(marley_terminal::ports::variables(marley_project.clone()).await);
             env.extend(settings.env);
             // Marley: the project's folder, for Marley's tools to know the caller's project. An
             // inherited value is replaced, and emptied when there is no local folder: the program

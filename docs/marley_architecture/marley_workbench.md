@@ -594,6 +594,16 @@ alike.
 - `routing::with_marley_paths`, in `RoutedTerminals::spawn` in both layouts, adds
   `MARLEY_ROOT_PATH` (from `ZED_MAIN_GIT_WORKTREE`) and `MARLEY_WORKTREE_PATH` (from
   `ZED_WORKTREE_ROOT`) to a task's environment, a task's own values kept.
+- The port slot (#590): `worktree_agents::record`, after the copy, writes the base and then
+  `worktree_git::assign_slot(worktree, branch)`: `git worktree list --porcelain` parsed with Zed's
+  `git::repository::parse_worktrees_from_str`, the other listed worktrees' branches, their
+  `branch.<b>.marleyslot` keys from `git config --get-regexp`, the lowest slot from 1 none holds,
+  written with `git config`; a failure is a toast. `worktree_git::slot_of(folder, fs)` answers
+  `None` unless the folder's `.git` is a file, then reads the branch (`git symbolic-ref`) and its
+  slot. `worktree_agents::give_slot_reader(fs)`, called for each new workspace from `init`'s
+  `observe_new` with the workspace's `app_state().fs`, hands `slot_of` to
+  `marley_terminal::ports::set_slot_reader`, so the reader has the app's `Fs` before the
+  workspace's first terminal.
 
 ## Claude Code's trust question in a new worktree (`src/agent_trust.rs`, #587)
 

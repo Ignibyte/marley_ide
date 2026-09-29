@@ -1,11 +1,12 @@
 //! The `git` programs of the worktree rows (#560) and of a new worktree agent's worktree (#585).
 //!
 //! What a worktree's branch would meet merging its base, since #511 who merges it and the merge
-//! itself, and since #585 what a new worktree copies and the setup command a repository keeps.
-//! Zed's `Repository` runs no `merge-tree`, `rev-list`, `merge-base` or `merge`, and its runner
-//! takes `merge-tree`'s exit 1, which is its answer, for an error, so these run `git` here, never
-//! through a shell, in the main checkout, with the flags Zed's own git runs with. Their arguments
-//! are commits and branch names git reported. #541's process adapter takes the spawns over.
+//! itself, since #585 what a new worktree copies and the setup command a repository keeps, and
+//! since #590 a worktree's port slot. Zed's `Repository` runs no `merge-tree`, `rev-list`,
+//! `merge-base` or `merge`, and its runner takes `merge-tree`'s exit 1, which is its answer, for
+//! an error, so these run `git` here, never through a shell, in the main checkout or a worktree
+//! of it, with the flags Zed's own git runs with. Their arguments are commits and branch names git
+//! reported. #541's process adapter takes the spawns over.
 
 use std::path::{Path, PathBuf};
 use std::process::Output;
@@ -437,6 +438,89 @@ pub(crate) async fn remember_setup(main: &Path, choice: &str) -> anyhow::Result<
         text(&output.stderr)
     );
     Ok(())
+}
+
+/// The name, under a branch's section, of the port slot of the worktree Marley made for it
+/// (#590), as `base` is its base. Git keeps a variable's name in lower case.
+const SLOT_KEY: &str = "marleyslot";
+
+/// The port slot of the worktree at `folder`: `None` unless it is a linked worktree, on a branch
+/// that holds one.
+///
+/// # Errors
+///
+/// When `git` cannot run, or refuses.
+pub(crate) async fn slot_of(folder: &Path, fs: &dyn Fs) -> anyhow::Result<Option<u16>> {
+    // A linked worktree's `.git` is a file and the main checkout's a folder, so the main
+    // checkout's terminals run no git here.
+    if !fs.is_file(&folder.join(".git")).await {
+        return Ok(None);
+    }
+    let output = git(folder, &["symbolic-ref", "--quiet", "--short", "HEAD"]).await?;
+    // A detached HEAD has no branch to keep a slot under.
+    if !output.status.success() {
+        return Ok(None);
+    }
+    let key = format!("branch.{}.{SLOT_KEY}", text(&output.stdout));
+    let output = git(folder, &["config", "--get", &key]).await?;
+    match output.status.code() {
+        Some(0) => Ok(text(&output.stdout).parse().ok()),
+        // `git config --get` says a key is unset with exit 1.
+        Some(1) => Ok(None),
+        _ => anyhow::bail!("git config refused: {}", text(&output.stderr)),
+    }
+}
+
+/// Gives `branch`, whose worktree was just made at `folder`, the lowest port slot from 1 that no
+/// other worktree of the repository holds, and returns it. A removed worktree holds none, so its
+/// slot is taken again.
+///
+/// # Errors
+///
+/// When `git` cannot run, or refuses, or every slot is taken.
+pub(crate) async fn assign_slot(folder: &Path, branch: &str) -> anyhow::Result<u16> {
+    let output = git(folder, &["worktree", "list", "--porcelain"]).await?;
+    anyhow::ensure!(
+        output.status.success(),
+        "git worktree list refused: {}",
+        text(&output.stderr)
+    );
+    let listed =
+        git::repository::parse_worktrees_from_str(String::from_utf8_lossy(&output.stdout), None);
+    let others: collections::HashSet<&str> = listed
+        .iter()
+        .filter_map(git::repository::Worktree::branch_name)
+        .filter(|other| *other != branch)
+        .collect();
+    let pattern = format!(r"^branch\..*\.{SLOT_KEY}$");
+    let output = git(folder, &["config", "--get-regexp", &pattern]).await?;
+    let taken: collections::HashSet<u16> = match output.status.code() {
+        Some(0) => text(&output.stdout)
+            .lines()
+            .filter_map(|line| {
+                let (key, slot) = line.split_once(' ')?;
+                let holder = key
+                    .strip_prefix("branch.")?
+                    .strip_suffix(SLOT_KEY)?
+                    .strip_suffix('.')?;
+                others.contains(holder).then(|| slot.parse().ok()).flatten()
+            })
+            .collect(),
+        // `git config --get-regexp` says no key matched with exit 1.
+        Some(1) => collections::HashSet::default(),
+        _ => anyhow::bail!("git config refused: {}", text(&output.stderr)),
+    };
+    let slot = (1..=u16::MAX)
+        .find(|slot| !taken.contains(slot))
+        .context("every port slot is taken")?;
+    let key = format!("branch.{branch}.{SLOT_KEY}");
+    let output = git(folder, &["config", &key, &slot.to_string()]).await?;
+    anyhow::ensure!(
+        output.status.success(),
+        "git config refused: {}",
+        text(&output.stderr)
+    );
+    Ok(slot)
 }
 
 /// Whether git refused `merge-tree --write-tree` as an option it does not know: before 2.38, or

@@ -181,6 +181,11 @@ real, reusable session. The Block model is the unit the **brain** later observes
   Since #561 it also keeps the opener a new local terminal gives its programs as `BROWSER`
   (`set_browser_opener`, `browser_opener`, a process-wide setting the workbench sets, none under
   `system_browser`).
+- `ports.rs` (#590): `PORT_OFFSET_VARIABLE` (`MARLEY_PORT_OFFSET`), `PORT_VARIABLE`, `PORT_BASE`
+  3000 and `PORT_STEP` 10; a process-wide `SlotReader` the workbench sets (`set_slot_reader`,
+  `slot_reader` to box an async function); `variables(folder)`, awaited by both of Zed's terminal
+  builders between the directory's environment and `terminal.env`, which asks the reader for the
+  project's first folder and gives the offset and the port, or nothing.
 - `links.rs` (#579): `joined_url(rows, row, column, last_column)`, pure. It joins a URL a program
   wrapped itself at the right edge, or drew inside a box frame, from the `LinkRow`s Zed's
   `hyperlinks.rs` builds around a point.

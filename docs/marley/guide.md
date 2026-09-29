@@ -517,6 +517,15 @@ config) and no dependencies (#585).
   `MARLEY_ROOT_PATH` (the main checkout) and `MARLEY_WORKTREE_PATH` (the worktree) beside Zed's
   `ZED_MAIN_GIT_WORKTREE` and `ZED_WORKTREE_ROOT`, so a setup script written for Orca's
   `ORCA_ROOT_PATH` works after one rename.
+- **A port for each worktree** (#590). Each worktree New Agent in Worktree makes gets a slot, the
+  lowest from 1 that no other worktree of the repository holds, and its terminals and tasks start
+  with `MARLEY_PORT_OFFSET` (the slot times ten) and `PORT` (3000 plus that): the first worktree's
+  dev server gets 3010, the second's 3020, each with ten ports to itself. A server that reads
+  `PORT`, or a script that adds `MARLEY_PORT_OFFSET` to its own ports, stays out of the others'
+  way; one that picks its own port does as before, and Marley's localhost links still find it.
+  The main checkout gets neither. A `PORT` in your `terminal.env` setting or in a task's `env`
+  wins. The slot is kept in `git config branch.<branch>.marleySlot`; a removed worktree's slot
+  goes to the next one made.
 
 Claude Code keys its folder trust on the repository's main checkout, so a worktree of a
 repository you have trusted in Claude Code starts without asking. For a repository you have not,

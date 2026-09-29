@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-590](open/TICKET-590-a-port-offset-per-worktree.md) | feature | prong 2 · a port offset per worktree agent's worktree: `MARLEY_PORT_OFFSET` and `PORT` in its terminals and tasks, a slot kept with the worktree, a Marley hunk in both of Zed's terminal builders; after #585 |
 | [TICKET-589](open/TICKET-589-remove-a-worktree-without-losing-work.md) | feature | prong 2 · Remove on a worktree's row: work not committed kept unless confirmed, its terminals stopped, the branch deleted only when git or a port of Orca's cleanup proves it merged, a teardown hook first; after #511 |
 | [TICKET-522](open/TICKET-522-review-notes-to-the-agent.md) | feature | prong 2 · review notes sent to the agent working in the diffed tree |
 | [TICKET-531](open/TICKET-531-pr-state-on-rail-rows.md) | feature | workbench · pull request state and diff counts on the rail's project rows |

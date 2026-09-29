@@ -415,6 +415,7 @@ pub fn init(cx: &mut App) {
     system_one::init(cx);
     stall::init(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
+        worktree_agents::give_slot_reader(std::sync::Arc::clone(&workspace.app_state().fs));
         workspace.register_action_renderer(|div, _, _, cx| {
             div.capture_action(cx.listener(layout_preset::<UseClassicLayout>))
                 .capture_action(cx.listener(layout_preset::<UseAgenticLayout>))
