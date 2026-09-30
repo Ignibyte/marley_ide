@@ -1561,6 +1561,30 @@ alike.
 - `browser_tools::find_query` checks `query` (200 characters), and `found_text` writes an answer
   as text: the item to act on or why there is none, the candidates, the note, and where to read.
 
+## Projectless groups (`src/groups.rs`, #600)
+
+- A group is a record in the global `Groups` (an id, a name, its folderless workspace, that
+  workspace's project entity id, `expanded`, and whether it is the window's Home group), not a
+  Zed project group: Zed makes none for a workspace with no folder, and every such workspace has
+  the same empty key. `make` opens one with `Workspace::new_local(Vec::new(), …, OpenMode::Add)`
+  in the window, records it once it exists, and runs its follow-up through `AnyWindowHandle` so
+  the window's `MultiWorkspace` stays free for it. After every change `keep` sets
+  `workspace::MarleyKeptWorkspaces`, which `MultiWorkspace::open_project` reads so it does not
+  replace a shown group (a `workspace` touchpoint).
+- The rail's `rail_groups` appends a `ProjectGroup` per group of the window (the empty key, its
+  own workspace) after Zed's, so rows, focus and the attention order need nothing new;
+  `GroupEntry.group` marks them for the header's icon (`header_icon`), its fold (the record's),
+  its menu (`HeaderMenu`: Rename Group…, Remove Group) and the `+` (no New Agent Thread).
+  `group_threads` returns nothing for a key with no folder, and `Ports::of` finds nothing for it.
+- The empty space's menu is deployed by hand: a filler under the rows (`render_rows`) and the
+  header's spacer take a right mouse-down, stop it and prevent its default (the rail's own focus
+  would take the keyboard from the menu), and the rail draws the menu anchored and deferred.
+  `in_home` finds or makes the window's Home group and runs the item there.
+- `BrowserProject::of(&Entity<Project>)` keys a group's project by `service::group_key(id)`,
+  found by `groups::group_of_project` from the recorded project id: the browser asks while the
+  group's workspace is being updated, so the lookup reads no workspace. `live_projects` keeps a
+  group's Chromium through `of_workspace`, and Remove Group lets `review_browsers` stop it.
+
 ## The guide (`src/guide.rs`, `guide/index.html`, #599)
 
 - `guide/index.html` is the user's guide: one self-contained page (styles and a small filter

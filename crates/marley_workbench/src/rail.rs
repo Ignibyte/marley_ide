@@ -22,9 +22,10 @@ use editor::{Editor, EditorEvent};
 use fs::Fs;
 use git_ui::branch_diff::BranchDiff;
 use gpui::{
-    Anchor, AnyElement, AnyView, App, ClickEvent, ClipboardItem, Context, Div, ElementId, Entity,
-    EntityId, EventEmitter, FocusHandle, Focusable, Hsla, Image, Pixels, PromptLevel, Render,
-    RenderImage, Stateful, Subscription, Task, WeakEntity, Window, img, px,
+    Anchor, AnyElement, AnyView, App, ClickEvent, ClipboardItem, Context, DismissEvent, Div,
+    ElementId, Entity, EntityId, EventEmitter, FocusHandle, Focusable, Hsla, Image, MouseButton,
+    MouseDownEvent, Pixels, Point, PromptLevel, Render, RenderImage, Stateful, Subscription, Task,
+    WeakEntity, Window, anchored, deferred, img, px,
 };
 use marley_agent::risk::{self, Action, Chip, ChipKind, ChipSource, ToolClass};
 use marley_agent::route::{self, Route, RouteMark, RouteSource};
@@ -60,6 +61,7 @@ use ui::{
 };
 use util::ResultExt as _;
 use util::path_list::PathList;
+use uuid::Uuid;
 use workspace::{
     MultiWorkspace, MultiWorkspaceEvent, ProjectGroup, RemovalIntent, SaveIntent, Sidebar,
     SidebarEvent, SidebarSide, Toast, Workspace,
@@ -72,6 +74,7 @@ use crate::agent_events::{self, AgentEvents};
 use crate::agents::{self, AgentIcon};
 use crate::browser::{BrowserEvent, BrowserHub, BrowserView};
 use crate::github::{self, PullRequest, PullRequestState};
+use crate::groups;
 use crate::ports::{self, Ports};
 use crate::system_one::{self, Asking};
 use crate::turns::Turns;
@@ -197,8 +200,10 @@ pub struct Rail {
     noted_threads: HashSet<String>,
     _multi_workspace_subscriptions: [Subscription; 2],
     /// Claude Code's hook events, which move its terminals' rows (#519), its turns (#509), and the
-    /// terminals' unread marks (#538).
-    _agent_events: [Subscription; 4],
+    /// terminals' unread marks (#538); and the projectless groups (#600).
+    _agent_events: [Subscription; 5],
+    /// The menu a right-click on the rail's empty space opens, where it opened (#600).
+    empty_menu: Option<(Entity<ContextMenu>, Point<Pixels>, Subscription)>,
     /// Each project's own icon, by its group's first folder (#564).
     project_icons: HashMap<PathBuf, ProjectIcon>,
     /// The order the rail showed when the pointer came over it, held until it leaves (#542).
@@ -234,6 +239,59 @@ struct GroupEntry {
     source: Option<GitSource>,
     /// Its branch's changed lines and pull request, as the row shows them (#531).
     git: Option<ProjectGit>,
+    /// The projectless group it is, when it is one (#600); its `key` is then empty.
+    group: Option<Uuid>,
+}
+
+/// What a header's right-click menu acts on: a project's, or a projectless group's (#600).
+struct HeaderMenu {
+    rail: WeakEntity<Rail>,
+    key: ProjectGroupKey,
+    workspace: WeakEntity<Workspace>,
+    /// The projectless group and its name, when the header is one.
+    group: Option<(Uuid, String)>,
+    /// Whether the project is the first and the last, for Move Project Up and Down.
+    at: (bool, bool),
+}
+
+impl HeaderMenu {
+    fn build(&self, window: &mut Window, cx: &mut App) -> Entity<ContextMenu> {
+        match &self.group {
+            Some((group, name)) => Rail::group_context_menu(
+                self.rail.clone(),
+                *group,
+                name.clone(),
+                self.workspace.clone(),
+                window,
+                cx,
+            ),
+            None => Rail::project_context_menu(
+                self.rail.clone(),
+                self.key.clone(),
+                self.workspace.clone(),
+                self.at,
+                window,
+                cx,
+            ),
+        }
+    }
+}
+
+/// A header's icon: a projectless group's (#600), or the project's own (#564).
+fn header_icon(
+    index: usize,
+    icon: Option<Arc<RenderImage>>,
+    projectless: bool,
+) -> Option<AnyElement> {
+    if projectless {
+        return Some(
+            Icon::new(IconName::ListTree)
+                .size(IconSize::Small)
+                .color(Color::Muted)
+                .into_any_element(),
+        );
+    }
+    icon.map(|icon| project_icon(index, icon).into_any_element())
 }
 
 /// The repository's own icon on its project's header, at 16 px (#564).
@@ -520,13 +578,14 @@ enum InboxTarget {
 
 impl Rail {
     /// The globals whose changes redraw rows: agents' events and turns, a terminal's unread mark
-    /// (#538) and a running command's failure (#572).
-    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 4] {
+    /// (#538), a running command's failure (#572) and the projectless groups (#600).
+    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 5] {
         [
             cx.observe_global_in::<AgentEvents>(window, Self::refresh),
             cx.observe_global_in::<Turns>(window, Self::refresh),
             cx.observe_global_in::<crate::notifications::Attention>(window, Self::refresh),
             cx.observe_global_in::<crate::running_errors::ErrorMarks>(window, Self::refresh),
+            cx.observe_global_in::<groups::Groups>(window, Self::refresh),
         ]
     }
 
@@ -637,6 +696,7 @@ impl Rail {
             noted_threads: HashSet::default(),
             _multi_workspace_subscriptions: subscriptions,
             _agent_events: agent_events,
+            empty_menu: None,
             project_icons: HashMap::default(),
             held_order: None,
             _ports: [ports_scanned, settings_changed],
@@ -2331,8 +2391,12 @@ impl Rail {
             && expanded == fold
             && !self.snapshot.rail.filtering
         {
-            let key = group.key.clone();
-            self.toggle_expanded(&key, window, cx);
+            if let Some(id) = group.group {
+                groups::toggle_expanded(id, cx);
+            } else {
+                let key = group.key.clone();
+                self.toggle_expanded(&key, window, cx);
+            }
         }
     }
 
@@ -3056,6 +3120,199 @@ impl Rail {
         self.refresh(window, cx);
     }
 
+    /// Opens the prompt for a new projectless group's name (#600).
+    fn new_group(&self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
+            return;
+        };
+        let workspace = multi_workspace.read(cx).workspace().clone();
+        groups::prompt(&workspace, self.multi_workspace.clone(), None, window, cx);
+    }
+
+    /// Opens the prompt for the projectless group `group`'s new name, holding `name` (#600).
+    fn rename_group(&self, group: Uuid, name: String, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
+            return;
+        };
+        let workspace = multi_workspace.read(cx).workspace().clone();
+        groups::prompt(
+            &workspace,
+            self.multi_workspace.clone(),
+            Some((group, name)),
+            window,
+            cx,
+        );
+    }
+
+    /// Removes the projectless group `group` and its workspace, once Zed's prompts and #550's
+    /// question about a working agent let its items close.
+    fn remove_group(
+        &self,
+        group: Uuid,
+        workspace: &WeakEntity<Workspace>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(workspace) = workspace.upgrade() else {
+            groups::forget(group, cx);
+            return;
+        };
+        let removed = self.multi_workspace.update(cx, |multi_workspace, cx| {
+            multi_workspace.remove([workspace], RemovalIntent::CloseProject, window, cx)
+        });
+        let Some(removed) = removed.log_err() else {
+            return;
+        };
+        cx.spawn(async move |_, cx| {
+            if removed.await? {
+                cx.update(|cx| groups::forget(group, cx));
+            }
+            anyhow::Ok(())
+        })
+        .detach_and_log_err(cx);
+    }
+
+    /// Runs `action` with the window's Home group, making the group first when the window has
+    /// none (#600).
+    fn in_home(
+        &self,
+        action: impl FnOnce(
+            &Self,
+            &WeakEntity<Workspace>,
+            &mut Window,
+            &mut Context<Self>,
+        ) -> anyhow::Result<()>
+        + 'static,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let multi_workspace = self
+            .multi_workspace
+            .upgrade()
+            .context("the window is gone")?;
+        let home = groups::groups_of(multi_workspace.read(cx), cx)
+            .into_iter()
+            .find(|(group, _)| group.home);
+        if let Some((_, workspace)) = home {
+            return action(self, &workspace.downgrade(), window, cx);
+        }
+        let rail = cx.entity().downgrade();
+        groups::make(
+            &multi_workspace,
+            "",
+            true,
+            move |workspace, window, cx| {
+                rail.update(cx, |rail, cx| {
+                    action(rail, &workspace.downgrade(), window, cx)
+                })
+                .flatten()
+                .log_err();
+            },
+            window,
+            cx,
+        );
+        Ok(())
+    }
+
+    /// A right-click on the rail's empty space (#600). The rail's own focus on a mouse-down would
+    /// take the keyboard from the menu, as `ui::right_click_menu` keeps it from doing.
+    fn empty_space_menu(
+        &mut self,
+        event: &MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        cx.stop_propagation();
+        window.prevent_default();
+        self.deploy_empty_menu(event.position, window, cx);
+    }
+
+    /// Opens the empty space's menu at `position`: New Group…, then what a project's `+` makes,
+    /// made in the window's Home group (#600).
+    fn deploy_empty_menu(
+        &mut self,
+        position: Point<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let rail = cx.entity().downgrade();
+        let search_path = agents::launcher(cx).search_path;
+        let menu = ContextMenu::build(window, cx, move |menu, _, _| {
+            let group_rail = rail.clone();
+            let terminal_rail = rail.clone();
+            let browser_rail = rail.clone();
+            let menu = menu
+                .entry("New Group…", None, move |window, cx| {
+                    group_rail
+                        .update(cx, |rail, cx| rail.new_group(window, cx))
+                        .log_err();
+                })
+                .separator()
+                .entry("New Terminal", None, move |window, cx| {
+                    terminal_rail
+                        .update(cx, |rail, cx| {
+                            rail.in_home(
+                                |rail, workspace, window, cx| {
+                                    rail.new_terminal(workspace, window, cx)
+                                },
+                                window,
+                                cx,
+                            )
+                        })
+                        .flatten()
+                        .log_err();
+                })
+                .entry("New Browser Tab", None, move |window, cx| {
+                    browser_rail
+                        .update(cx, |rail, cx| {
+                            rail.in_home(
+                                |rail, workspace, window, cx| {
+                                    rail.new_browser_tab(workspace, window, cx)
+                                },
+                                window,
+                                cx,
+                            )
+                        })
+                        .flatten()
+                        .log_err();
+                });
+            let agents = agents::installed_clis(search_path.as_deref());
+            if agents.is_empty() {
+                return menu;
+            }
+            agents
+                .into_iter()
+                .fold(menu.separator().header("Agent CLIs"), |menu, kind| {
+                    let rail = rail.clone();
+                    menu.item(
+                        ContextMenuEntry::new(kind.display_name())
+                            .icon(agents::cli_icon(kind))
+                            .icon_color(Color::Muted)
+                            .handler(move |window, cx| {
+                                rail.update(cx, |rail, cx| {
+                                    rail.in_home(
+                                        move |rail, workspace, window, cx| {
+                                            rail.new_agent(workspace, kind, window, cx)
+                                        },
+                                        window,
+                                        cx,
+                                    )
+                                })
+                                .flatten()
+                                .log_err();
+                            }),
+                    )
+                })
+        });
+        let subscription = cx.subscribe_in(&menu, window, |rail, _, _: &DismissEvent, _, cx| {
+            rail.empty_menu = None;
+            cx.notify();
+        });
+        window.focus(&menu.focus_handle(cx), cx);
+        self.empty_menu = Some((menu, position, subscription));
+        cx.notify();
+    }
+
     fn toggle_expanded(
         &mut self,
         key: &ProjectGroupKey,
@@ -3153,8 +3410,46 @@ impl Rail {
                     .size(LabelSize::XSmall)
                     .color(Color::Muted),
             )
-            .child(div().flex_1())
+            .child(
+                div()
+                    .flex_1()
+                    .h_full()
+                    .on_mouse_down(MouseButton::Right, cx.listener(Self::empty_space_menu)),
+            )
             .child(self.render_add_project())
+    }
+
+    /// The rows, and under them the empty space a right-click opens a menu on (#600).
+    fn render_rows(&self, rows: Vec<AnyElement>, cx: &Context<Self>) -> impl IntoElement {
+        v_flex()
+            .id("marley-rail-rows")
+            .flex_1()
+            .overflow_y_scroll()
+            .px_2()
+            .py_1p5()
+            .gap_0p5()
+            .when(rows.is_empty() && self.snapshot.rail.filtering, |list| {
+                list.child(
+                    div()
+                        .debug_selector(|| "marley-rail-no-matches".into())
+                        .px_2()
+                        .py_1()
+                        .child(
+                            Label::new("No matches")
+                                .size(LabelSize::Small)
+                                .color(Color::Muted),
+                        ),
+                )
+            })
+            .children(rows)
+            // The empty space under the last row takes a right-click (#600).
+            .child(
+                div()
+                    .debug_selector(|| "marley-rail-empty".into())
+                    .flex_1()
+                    .min_h_8()
+                    .on_mouse_down(MouseButton::Right, cx.listener(Self::empty_space_menu)),
+            )
     }
 
     fn render_filter(&self, cx: &Context<Self>) -> impl IntoElement {
@@ -3247,9 +3542,14 @@ impl Rail {
         let index = row.index;
         let workspace = group.workspace.clone();
         let key = group.key.clone();
-        let rail = cx.entity().downgrade();
-        let menu_key = group.key.clone();
-        let menu_workspace = group.workspace.clone();
+        let projectless = group.group;
+        let header_menu = HeaderMenu {
+            rail: cx.entity().downgrade(),
+            key: group.key.clone(),
+            workspace: group.workspace.clone(),
+            group: projectless.map(|group| (group, row.name.clone())),
+            at: (index == 0, last),
+        };
         // A project's name reads as a section label, as Warp's tab list labels its tabs.
         let name_color = if row.selected {
             Color::Default
@@ -3267,14 +3567,15 @@ impl Rail {
                         .debug_selector(move || format!("marley-rail-disclosure-{index}"))
                         .child(
                             Disclosure::new(("marley-rail-disclosure", id), row.expanded).on_click(
-                                cx.listener(move |rail, _, window, cx| {
-                                    rail.toggle_expanded(&key, window, cx);
+                                cx.listener(move |rail, _, window, cx| match projectless {
+                                    Some(group) => groups::toggle_expanded(group, cx),
+                                    None => rail.toggle_expanded(&key, window, cx),
                                 }),
                             ),
                         ),
                 )
             })
-            .children(icon.map(|icon| project_icon(index, icon)))
+            .children(header_icon(index, icon, projectless.is_some()))
             .child(project_name(
                 row.name,
                 row.highlight,
@@ -3333,17 +3634,34 @@ impl Rail {
                     .debug_selector(move || format!("marley-rail-project-{index}"))
                     .child(header)
             })
-            .menu(move |window, cx| {
-                let at = (index == 0, last);
-                Self::project_context_menu(
-                    rail.clone(),
-                    menu_key.clone(),
-                    menu_workspace.clone(),
-                    at,
-                    window,
-                    cx,
-                )
+            .menu(move |window, cx| header_menu.build(window, cx))
+    }
+
+    /// A projectless group's right-click menu (#600): Rename Group… and Remove Group.
+    fn group_context_menu(
+        rail: WeakEntity<Self>,
+        group: Uuid,
+        name: String,
+        workspace: WeakEntity<Workspace>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Entity<ContextMenu> {
+        ContextMenu::build(window, cx, move |menu, _, _| {
+            let rename_rail = rail.clone();
+            menu.entry("Rename Group…", None, move |window, cx| {
+                rename_rail
+                    .update(cx, |rail, cx| {
+                        rail.rename_group(group, name.clone(), window, cx);
+                    })
+                    .log_err();
             })
+            .entry("Remove Group", None, move |window, cx| {
+                rail.update(cx, |rail, cx| {
+                    rail.remove_group(group, &workspace, window, cx);
+                })
+                .log_err();
+            })
+        })
     }
 
     /// A project row's right-click menu: Move Project Up and Down, disabled at the ends `at`
@@ -3403,6 +3721,8 @@ impl Rail {
     ) -> impl IntoElement {
         let rail = cx.entity().downgrade();
         let workspace = group.workspace.clone();
+        // A projectless group has no folder for a thread (#600).
+        let projectless = group.group.is_some();
         div()
             .debug_selector(move || format!("marley-rail-project-menu-{index}"))
             .child(
@@ -3439,10 +3759,14 @@ impl Rail {
                                         })
                                         .flatten()
                                         .log_err();
-                                })
-                                .submenu("New Agent Thread", move |menu, _, cx| {
-                                    Self::agent_menu(menu, &rail, &workspace, cx)
                                 });
+                            let menu = if projectless {
+                                menu
+                            } else {
+                                menu.submenu("New Agent Thread", move |menu, _, cx| {
+                                    Self::agent_menu(menu, &rail, &workspace, cx)
+                                })
+                            };
                             let menu = Self::worktree_agent_entries(
                                 menu,
                                 &cli_workspace,
@@ -4843,6 +5167,10 @@ fn group_threads(
     let Some(store) = ThreadMetadataStore::try_global(cx) else {
         return Vec::new();
     };
+    // A projectless group (#600) has no folder, and Zed archives such a workspace's threads.
+    if group.key.path_list().paths().is_empty() {
+        return Vec::new();
+    }
     let store = store.read(cx);
     let host = group.key.host();
     let members: Vec<(PathList, &Entity<Workspace>)> = group
@@ -5122,6 +5450,48 @@ fn agent_title(breadcrumb: &str, kind: AgentKind) -> String {
     }
 }
 
+/// The workspace a group's row stands for: its last active one, or for a projectless group
+/// (#600), whose key every group shares, its own.
+fn listed_workspace(
+    multi_workspace: &MultiWorkspace,
+    group: &ProjectGroup,
+    projectless: bool,
+    cx: &App,
+) -> Option<Entity<Workspace>> {
+    if projectless {
+        return group.workspaces.first().cloned();
+    }
+    multi_workspace
+        .last_active_workspace_for_group(&group.key, cx)
+        .or_else(|| group.workspaces.first().cloned())
+}
+
+/// The groups the rail lists: the window's projects with an open workspace, then its projectless
+/// groups (#600), each on its own workspace under the empty key; their names, and each one's id
+/// when it is a projectless group.
+fn rail_groups(
+    multi_workspace: &MultiWorkspace,
+    cx: &App,
+) -> (Vec<ProjectGroup>, Vec<String>, Vec<Option<Uuid>>) {
+    let mut groups: Vec<ProjectGroup> = multi_workspace
+        .project_groups(cx)
+        .into_iter()
+        .filter(|group| !group.workspaces.is_empty())
+        .collect();
+    let mut names = crate::group_names(&groups);
+    let mut projectless = vec![None; groups.len()];
+    for (group, workspace) in groups::groups_of(multi_workspace, cx) {
+        groups.push(ProjectGroup {
+            key: ProjectGroupKey::default(),
+            workspaces: vec![workspace],
+            expanded: group.expanded,
+        });
+        names.push(group.name);
+        projectless.push(Some(group.id));
+    }
+    (groups, names, projectless)
+}
+
 /// The window, read once. Only groups with an open workspace are listed; a group Zed keeps after
 /// its last workspace closed has nothing for the rail to switch to.
 fn build_snapshot(
@@ -5133,24 +5503,21 @@ fn build_snapshot(
     cx: &App,
 ) -> Snapshot {
     let multi_workspace = multi_workspace.read(cx);
-    let groups: Vec<ProjectGroup> = multi_workspace
-        .project_groups(cx)
-        .into_iter()
-        .filter(|group| !group.workspaces.is_empty())
-        .collect();
-    let names = crate::group_names(&groups);
+    let (groups, names, projectless) = rail_groups(multi_workspace, cx);
     let displayed = multi_workspace.workspace();
     let home = util::paths::home_dir().as_path();
     let now = cx.background_executor().now();
     let mut snapshot = Snapshot::default();
-    let listed = groups.iter().zip(names).filter_map(|(group, name)| {
-        let workspace = multi_workspace
-            .last_active_workspace_for_group(&group.key, cx)
-            .or_else(|| group.workspaces.first().cloned())?;
-        Some((group, name, workspace))
-    });
+    let listed = groups
+        .iter()
+        .zip(names)
+        .zip(projectless)
+        .filter_map(|((group, name), id)| {
+            let workspace = listed_workspace(multi_workspace, group, id.is_some(), cx)?;
+            Some((group, name, workspace, id))
+        });
     let mut displayed_worktree = None;
-    for (group, name, workspace) in listed {
+    for (group, name, workspace, id) in listed {
         let (worktrees, tags) = group_worktrees(group, &workspace, filter, &mut snapshot, cx);
         if group.workspaces.contains(displayed) {
             displayed_worktree = tags.get(&displayed.entity_id()).cloned();
@@ -5217,6 +5584,7 @@ fn build_snapshot(
             workspace: workspace.downgrade(),
             source: git_source(&workspace, cx),
             git: None,
+            group: id,
         });
     }
     snapshot.rail.filtering = !filter.is_empty();
@@ -6283,29 +6651,16 @@ impl Render for Rail {
             .child(self.render_header(window, cx))
             .child(self.render_filter(cx))
             .children(self.render_inbox(cx))
-            .child(
-                v_flex()
-                    .id("marley-rail-rows")
-                    .flex_1()
-                    .overflow_y_scroll()
-                    .px_2()
-                    .py_1p5()
-                    .gap_0p5()
-                    .when(rows.is_empty() && self.snapshot.rail.filtering, |list| {
-                        list.child(
-                            div()
-                                .debug_selector(|| "marley-rail-no-matches".into())
-                                .px_2()
-                                .py_1()
-                                .child(
-                                    Label::new("No matches")
-                                        .size(LabelSize::Small)
-                                        .color(Color::Muted),
-                                ),
-                        )
-                    })
-                    .children(rows),
-            )
+            .child(self.render_rows(rows, cx))
+            .children(self.empty_menu.as_ref().map(|(menu, position, _)| {
+                deferred(
+                    anchored()
+                        .position(*position)
+                        .anchor(Anchor::TopLeft)
+                        .child(menu.clone()),
+                )
+                .with_priority(1)
+            }))
     }
 }
 

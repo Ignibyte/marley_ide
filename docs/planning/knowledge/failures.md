@@ -2873,3 +2873,32 @@ and missed that a page changes its own address. The scenario's `again.png` and `
 showed two tabs. Fixed before the commit: `browser::show_tab_where` finds a tab by a predicate,
 `open_url_tab` keeps exact equality (a single-page app's `#/route` is another page), and the
 guide matches its URL with the fragment dropped.
+
+## F-claude-600-a-registry-lookup-read-the-workspace-its-caller-was-updating-001
+*severity: high · found in: pipeline 600's Test phase (run 2) · class: reading an entity from a lookup the caller reaches inside that entity's update · prevented by: PR-claude-600-a-lookup-others-call-inside-updates-reads-no-entity-001*
+
+`groups::group_of_project` found a projectless group by reading each group's `Workspace` for its
+project. `BrowserProject::of` calls it, and `browser::new_tab` asks `BrowserProject::of` inside
+`workspace.update(…)` on the group's own workspace, so opening a Browser tab in a group panicked
+with "cannot read workspace::Workspace while it is already being updated". The review of the diff
+had checked the rail's calls into `groups`, not the browser's path back into it. Fixed before
+the commit: the group records its project's entity id when it is made, and the lookup compares
+ids and reads no entity.
+
+## F-claude-600-a-hand-deployed-menu-lost-the-keyboard-to-the-rails-own-focus-001
+*severity: medium · found in: pipeline 600's Test phase (run 1) · class: a mouse-down handler that opens a focused menu inside an element that tracks focus*
+
+The rail's empty space opened its menu from `on_mouse_down(MouseButton::Right, …)` and focused
+it, but the rail's root, which calls `track_focus`, focused itself on the same mouse-down after
+the child's handler ran, so the menu stayed open without the keyboard and the scenario's Down and
+Enter went to the terminal. `ui::right_click_menu` stops the event and prevents its default for
+this reason. Fixed before the commit: the handler does both.
+
+## F-claude-600-a-follow-up-inside-the-windows-root-update-would-update-it-again-001
+*severity: high · found in: pipeline 600's Code phase (review of the diff) · class: running caller code inside `WindowHandle<V>::update`, which leases the root view · prevented by: PR-claude-600-a-lookup-others-call-inside-updates-reads-no-entity-001*
+
+`groups::make` ran its follow-up in `opened.window.update(cx, |_, window, cx| …)`, a
+`WindowHandle<MultiWorkspace>` update that leases the `MultiWorkspace`; the Home path's follow-up
+(`rail.new_terminal` → `activate_workspace`) updates that same `MultiWorkspace`, which would panic.
+Caught by the review before the gate: the follow-up runs through `AnyWindowHandle::update`, which
+takes the window and leases no view.

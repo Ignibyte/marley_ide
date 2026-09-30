@@ -3959,3 +3959,13 @@ numbers from each other: moving New Agent in Worktree broke four of them, two in
 Before a ticket moves, adds or removes an entry in a menu, grep `script/e2e/` for the entry's
 label and for step-count variables near it, put every hit in the ticket's scope, and measure the
 new points from a shot of the open menu rather than by arithmetic on row heights.
+
+## L-claude-600-a-hand-deployed-menu-stops-and-prevents-its-mouse-down-001
+*category: code · topic: context menus in gpui views that track focus · from: pipeline 600*
+
+When a view deploys a `ContextMenu` from its own `on_mouse_down(MouseButton::Right, …)` (because
+`ui::right_click_menu`'s wrapper lays out with a default style and would collapse a `flex_1`
+child), call `cx.stop_propagation()` and `window.prevent_default()` in the handler before focusing
+the menu: an ancestor that calls `track_focus` otherwise focuses itself on the same mouse-down and
+takes the keyboard from the menu. A `ContextMenu` opens with its first selectable entry selected,
+so a scenario reaches entry N with N−1 Downs, and a disabled entry is skipped.

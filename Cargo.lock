@@ -10916,6 +10916,7 @@ dependencies = [
  "url",
  "usvg",
  "util",
+ "uuid",
  "which",
  "whoami",
  "workspace",

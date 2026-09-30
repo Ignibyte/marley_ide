@@ -286,6 +286,19 @@ pub struct ProjectGroupState {
     pub expanded: bool,
 }
 
+// Marley: the folderless workspaces Marley keeps as projectless groups (#600), which opening a
+// project must not replace. `crates/marley_workbench` sets the global.
+/// The entity ids of the workspaces Marley keeps.
+#[derive(Default)]
+pub struct MarleyKeptWorkspaces(pub collections::HashSet<EntityId>);
+
+impl gpui::Global for MarleyKeptWorkspaces {}
+
+fn marley_kept(workspace: &Entity<Workspace>, cx: &App) -> bool {
+    cx.try_global::<MarleyKeptWorkspaces>()
+        .is_some_and(|kept| kept.0.contains(&workspace.entity_id()))
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum RemovalIntent {
     KeepProject,
@@ -1928,6 +1941,8 @@ impl MultiWorkspace {
                 .visible_worktrees(cx)
                 .next()
                 .is_none()
+                // Marley: a projectless group stays when a project opens (#600).
+                && !marley_kept(self.workspace(), cx)
             {
                 Some(self.workspace().clone())
             } else {

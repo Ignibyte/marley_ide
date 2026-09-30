@@ -71,6 +71,19 @@ pub fn project_key(paths: &[PathBuf], host: Option<&str>) -> String {
     hex::encode(&hasher.finalize()[..8])
 }
 
+/// The key of the projectless group `id` (#600), in the form [`project_key`] gives.
+///
+/// It is the first sixteen hex digits of the SHA-256 of `group`, a newline, the id and a newline.
+/// A project's key hashes absolute paths, so none comes out the same.
+#[must_use]
+pub fn group_key(id: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"group\n");
+    hasher.update(id.as_bytes());
+    hasher.update(b"\n");
+    hex::encode(&hasher.finalize()[..8])
+}
+
 /// The folder of the project `key` in the Marley data directory `data`: its profile and its
 /// `project.json`.
 #[must_use]

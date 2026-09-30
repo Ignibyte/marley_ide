@@ -2645,3 +2645,12 @@ single-page app routes on it), a document Marley ships drops it (its own links a
 query string may or may not count. Use `browser::show_tab_where` with that predicate rather than
 `open_url_tab`'s exact match when the page can change its own address, and let the scenario click
 a link in the page before it asks for the tab again.
+
+## PR-claude-600-a-lookup-others-call-inside-updates-reads-no-entity-001
+*severity: high · prevents: F-claude-600-a-registry-lookup-read-the-workspace-its-caller-was-updating-001, F-claude-600-a-follow-up-inside-the-windows-root-update-would-update-it-again-001*
+
+A global registry that other modules query (`BrowserProject::of`, the rail, MCP tools) will be
+queried from inside an update of the very entity it describes. Store at registration whatever the
+lookup compares (entity ids, keys, names) and let the lookup read no entity. When you hand a
+callback a window to act in, run it through `AnyWindowHandle::update`, never through
+`WindowHandle<Root>::update`, which leases the root view the callback may need.

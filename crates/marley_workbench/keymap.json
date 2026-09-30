@@ -93,6 +93,14 @@
     }
   },
   {
+    // A projectless group's name (#600): Enter makes or renames the group, Escape closes it.
+    "context": "MarleyGroupName > Editor",
+    "bindings": {
+      "enter": "marley::MakeGroup",
+      "escape": "menu::Cancel"
+    }
+  },
+  {
     // The rich input's editor: Enter sends, Shift-Enter adds a line, Escape keeps the draft.
     "context": "MarleyRichInput > Editor",
     "bindings": {

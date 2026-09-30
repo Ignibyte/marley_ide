@@ -155,6 +155,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#rail">The rail</a><ol>
 <li><a href="#rail-overview">Projects and their rows</a></li>
 <li><a href="#plus-menu">The + menu: start things in a project</a></li>
+<li><a href="#projectless-groups">Groups with no folder, and the rail&#x27;s right-click menu</a></li>
 <li><a href="#terminal-rows">Terminal rows: rename, close, last command</a></li>
 <li><a href="#rail-dots">Dots that ask for you</a></li>
 <li><a href="#needs-you">Needs you: every agent waiting on you</a></li>
@@ -431,6 +432,20 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td>Launch</td><td>The project's launch configs, from <code>.zed/marley.json</code> (see <a href="#launch-configs">Launch configs</a>)</td></tr>
 </table>
 <p class="note"><kbd>Ctrl+Alt+N</kbd> opens the same agents in the New Agent picker, filtered as you type.</p>
+</article>
+
+<article id="projectless-groups">
+<h3>Groups with no folder, and the rail's right-click menu <span class="ticket">#600</span></h3>
+<p class="what"><strong>What it is.</strong> A right-click on the rail's empty space opens a menu for things that belong to no project. New Group… makes a named group with no folder: its terminals and agent CLIs start in your home folder, and its Browser tabs use a Chromium of the group's own. New Terminal, New Browser Tab and the agent CLIs in that menu open in a group named Home, which Marley makes the first time.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Right-click the empty space under the last row, or beside PROJECTS at the top of the rail.</li>
+<li>Choose New Group…, type a name and press Enter (Escape cancels; an empty name makes "Group"). The group lists after your projects, with a group icon, its chevron and its <kbd>+</kbd>.</li>
+<li>Use the group's <kbd>+</kbd> for New Terminal, New Browser Tab or an agent CLI. Threads, worktree agents and launch configs need a folder, so a group does not offer them.</li>
+<li>Or choose New Terminal, New Browser Tab or an agent from the empty space's menu: it opens in the Home group.</li>
+<li>Right-click a group's header for Rename Group… and Remove Group. Remove closes the group's terminals and tabs (Marley asks first if an agent there is working) and stops its browser.</li>
+</ol>
+<p class="note">A group keeps its place when you open a project while it is on screen. For now groups last until Marley quits; bringing them back after a restart is the next step (#601).</p>
 </article>
 
 <article id="terminal-rows">

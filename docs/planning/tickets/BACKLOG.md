@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-600](open/TICKET-600-rail-menu-and-projectless-groups.md) | feature | workbench shell · the rail: a right-click menu on its empty space with New Group… and projectless items; a named group with no folder whose terminals and agents start in the home folder, with a Chromium of its own |
 | [TICKET-601](open/TICKET-601-projectless-groups-survive-a-restart.md) | feature | workbench shell · the rail: #600's groups come back after a restart with their names, order and items |
 | [TICKET-602](open/TICKET-602-drag-to-reorder-the-rail.md) | feature | workbench shell · the rail: drag headers and rows to reorder them within their group; the order is saved; ties within #542's attention classes follow it |
 | [TICKET-603](open/TICKET-603-service-aware-port-rows.md) | feature | workbench shell · port rows: a row names the systemd service behind its listener, and Stop stops the unit (`systemctl --user stop`, or `systemctl stop` through polkit with the sudo command to copy when refused) |

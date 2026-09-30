@@ -513,10 +513,19 @@ pub struct BrowserProject {
 }
 
 impl BrowserProject {
-    /// The project `project` belongs to.
+    /// The project `project` belongs to, or its projectless group, which keys a browser of its
+    /// own rather than the empty folder list every group shares (#600).
     #[must_use]
-    pub fn of(project: &Project, cx: &App) -> Self {
-        Self::of_group(&project.project_group_key(cx))
+    pub fn of(project: &Entity<Project>, cx: &App) -> Self {
+        if let Some((id, name)) = crate::groups::group_of_project(project.entity_id(), cx) {
+            return Self {
+                key: service::group_key(&id.to_string()).into(),
+                name: name.into(),
+                paths: Vec::new(),
+                host: None,
+            };
+        }
+        Self::of_group(&project.read(cx).project_group_key(cx))
     }
 
     /// The project of the group `group`.
@@ -537,7 +546,7 @@ impl BrowserProject {
     /// The project of `workspace`.
     #[must_use]
     pub fn of_workspace(workspace: &Entity<Workspace>, cx: &App) -> Self {
-        Self::of(workspace.read(cx).project().read(cx), cx)
+        Self::of(workspace.read(cx).project(), cx)
     }
 }
 
@@ -6949,7 +6958,7 @@ impl SerializableItem for BrowserView {
             cx.update(|window, cx| {
                 // Zed adds a workspace's folders before it restores its items, so the project's
                 // key is whole here (#507).
-                let project = BrowserProject::of(project.read(cx), cx);
+                let project = BrowserProject::of(&project, cx);
                 let hub = BrowserHub::global(cx);
                 hub.update(cx, |hub, cx| hub.browser_for(&project, cx));
                 // The tab claims its page before the browser's start can report it, so the page
@@ -8064,7 +8073,7 @@ pub(crate) fn show_for_agent(target: &str, cx: &mut App) {
 /// first; else a new tab. A project's browser that stopped starts again, and the tabs of its old
 /// pages close.
 fn open(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
-    let project = BrowserProject::of(workspace.project().read(cx), cx);
+    let project = BrowserProject::of(workspace.project(), cx);
     let hub = BrowserHub::global(cx);
     hub.update(cx, |hub, cx| hub.browser_for(&project, cx));
     let this = cx.weak_entity();
@@ -8144,7 +8153,7 @@ pub(crate) fn clear_project_browser_data(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
-    let project = BrowserProject::of(workspace.project().read(cx), cx);
+    let project = BrowserProject::of(workspace.project(), cx);
     let answer = window.prompt(
         PromptLevel::Warning,
         &format!("Clear the browser data of {}?", project.name),
@@ -8187,7 +8196,7 @@ pub(crate) fn clear_project_browser_data(
 /// Opens a blank page in a new tab after the active one, with the focus in its address bar: what
 /// Ctrl+T does, and the rail's New Browser Tab (#500).
 pub(crate) fn new_tab(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
-    let project = BrowserProject::of(workspace.project().read(cx), cx);
+    let project = BrowserProject::of(workspace.project(), cx);
     let hub = BrowserHub::global(cx);
     hub.update(cx, |hub, cx| hub.browser_for(&project, cx));
     let view = new_view(
@@ -8257,7 +8266,7 @@ pub(crate) fn open_url_tab(
     }
     let this = cx.weak_entity();
     let hub = BrowserHub::global(cx);
-    let project = BrowserProject::of(workspace.project().read(cx), cx);
+    let project = BrowserProject::of(workspace.project(), cx);
     hub.update(cx, |hub, cx| hub.browser_for(&project, cx));
     let view = new_view(
         hub.clone(),

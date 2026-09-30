@@ -40,6 +40,7 @@ pub mod decisions;
 pub mod english;
 pub mod find;
 pub mod github;
+pub mod groups;
 pub mod guide;
 pub mod launch;
 pub mod links;
@@ -305,6 +306,9 @@ actions!(
         /// when the window shows no project.
         #[derive(Eq)]
         OpenGuide,
+        /// Makes the projectless group the name prompt holds, or renames it (#600).
+        #[derive(Eq)]
+        MakeGroup,
     ]
 );
 

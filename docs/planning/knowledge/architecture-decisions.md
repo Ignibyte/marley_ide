@@ -3348,3 +3348,18 @@ project (a folderless window would key a Chromium on no folder). Rejected: Zed's
 `fs_embed!` (a glob touchpoint, Zed's license, and a debug build reading the checkout);
 generating the page from `docs/marley/guide.md` (Chad asked for a static page for now, and the
 Markdown guide had fallen behind); a hosted copy; writing the page at every start.
+
+## AD-claude-600-projectless-groups-are-marley-records-over-folderless-workspaces-001
+*decided at: 2026-09-30 · status: shipped*
+
+A projectless group (Chad's choice, 2026-09-30: a named group with no folder, like Warp's New
+Group) is a Marley record over a folderless workspace held in the window, not a Zed project group:
+Zed makes no group for a workspace with no folder and gives every such workspace the same empty
+key. The rail appends a synthetic `ProjectGroup` per record after Zed's groups, so its rows,
+focus and attention order work unchanged; its browser is keyed by the group's id
+(`service::group_key`), and one `workspace` touchpoint (`MarleyKeptWorkspaces`) keeps
+`open_project` from replacing a shown group. The empty space's items go to a Home group made on
+first use. Rejected: a Zed-side group kind (a large change across `multi_workspace`, persistence
+and the sidebar); a hidden folder per group (terminals would start there, not at home, and the
+project panel would show it); items outside every group (the rail's model has no row without a
+section).

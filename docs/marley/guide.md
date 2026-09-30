@@ -260,6 +260,17 @@ A folder you open for the first time in the Marley layout starts with a terminal
 focused (#455). A project you opened before comes back as you left it, with its saved terminals
 or none.
 
+### Groups with no folder (#600)
+
+A right-click on the rail's empty space (under the last row, or beside PROJECTS) opens a menu:
+New Group… asks for a name and makes a group with no folder, listed after the window's projects
+with a group icon, a chevron and a `+`. A group's terminals and agent CLIs start in the home
+folder, and its Browser tabs use a Chromium of the group's own. New Terminal, New Browser Tab and
+the agent CLIs in the same menu open in a group named Home, made the first time. A group's `+`
+has no New Agent Thread, New Agent in Worktree or Launch, which need a folder. Right-click a
+group's header for Rename Group… and Remove Group. Groups last until Marley quits (#601 brings
+them back after a restart).
+
 ### The rail from the keyboard
 
 Ctrl+Alt+; moves the focus into the rail and back out. In the rail, Up and Down move the

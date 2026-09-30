@@ -1,7 +1,7 @@
 ---
 pipeline_id: f22b97d1-2b4e-44f8-83df-e34f6fac5c4a
 ticket: docs/planning/tickets/open/TICKET-600-rail-menu-and-projectless-groups.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "The rail's right-click menu, and projectless groups"
 type: feature
 slice: workbench shell (the rail); first of two (#601 restores groups after a restart)

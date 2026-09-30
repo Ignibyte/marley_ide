@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #600 (feature, workbench shell: the rail)
 - **Owner:** abb571b4-bf75-463f-889a-b17f7d32f71e
-- **Pipeline doc:** ../../pipeline/queued/600-rail-menu-and-projectless-groups.spec.md
+- **Pipeline doc:** ../../pipeline/completed/600-rail-menu-and-projectless-groups.spec.md
 - **Source ticket:** Chad, 2026-09-30: "We should add a right click ability on the left panel like warp where we can create a new group and new projectless items". He chose a projectless group: a named group with no folder, whose + makes terminals, agent CLIs and Browser tabs that start in the home folder.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Everything in the rail belongs to a project folder today, so a terminal for a quick look at the

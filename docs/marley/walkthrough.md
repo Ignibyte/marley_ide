@@ -445,6 +445,21 @@ Leave the server running: Parts 5 and 7 use it.
 - [ ] Optional: a repository whose branch has a pull request on GitHub, with `gh` signed in, shows
   the PR's icon and number beside the counts, colored by its state.
 
+### 2.10 Groups with no folder (#600)
+
+1. Right-click the rail's empty space under the last row. Choose New Group…, type `Scratch` and
+   press Enter.
+2. Click Scratch's `+`, choose New Terminal, and run `pwd`.
+3. Right-click the empty space again and choose New Terminal.
+4. Right-click Scratch's header: Rename Group… to `Tools`, then Remove Group.
+
+- [ ] The menu offers New Group…, New Terminal, New Browser Tab and the agent CLIs.
+- [ ] Scratch lists after your projects with a group icon, a chevron and a `+`; its `+` has no
+  New Agent Thread, worktree or Launch entry.
+- [ ] Its terminal's `pwd` prints your home folder.
+- [ ] Step 3 makes a Home group with a terminal in `~`.
+- [ ] Rename shows Tools; Remove takes the group and its rows away.
+
 ## Part 3. The editor
 
 Marley's editor is Zed's. This part checks the everyday tools. The first time you open

@@ -13,6 +13,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Groups with no folder, from the rail's right-click menu** (#600, 2026-09-30). A right-click on
+  the rail's empty space (under the last row, or beside PROJECTS) opens a menu: New Group… makes a
+  named group with no folder, listed after the window's projects with a group icon, its chevron
+  and its `+`; its terminals and agent CLIs start in the home folder, and its Browser tabs use a
+  Chromium and a profile of the group's own. New Terminal, New Browser Tab and the agent CLIs in
+  that menu open in a group named Home, made the first time one is needed. A group's header menu
+  has Rename Group… and Remove Group, which closes its items after Zed's prompts and #550's
+  question and stops its browser. Opening a project while a group is shown keeps the group: Zed
+  would otherwise replace a shown workspace with no folder. Groups last for the session; #601
+  brings them back after a restart.
+
 - **The Marley guide, one click away** (#599, 2026-09-30). A `?` in the title bar, before Sign
   In, and `marley: open guide` open Marley's user guide: one page shipped with Marley, with every
   feature as a short summary of what it is and then how to use it (the steps, the keys, the
