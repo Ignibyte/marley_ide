@@ -14,8 +14,8 @@ Two contracts cover the fleet:
 
 | Contract | Who serves it | What it holds |
 |---|---|---|
-| `marley.work/v1` | The central workflow store (rustal-brain first; any system that keeps the same records) | Agents, the work items they work on, runs of a workflow through its phases, gates, events, questions, token use and cost |
-| `marley.host/v1` | A collector on each host, read over SSH | The host's CPU, memory, disk, network and uptime, and the agent processes running on it |
+| `marley.work/v1` | The central workflow store (rustal-brain first; any system that keeps the same records) | Agents, the work items they work on, runs of a workflow through its phases, gates, events, questions and token use |
+| `marley.host/v1` | A collector script Marley runs on each host over SSH | The host's CPU, memory, disk, network and uptime, and the agent processes running on it |
 
 Marley joins the two per agent. With only the store, a detail shows the work and no resources.
 With only SSH access to a host, it shows the host's resources and the agents running there, with
@@ -51,8 +51,6 @@ no work records.
   are integer seconds in fields ending `_s`.
 - Sizes are integer bytes (`_bytes`); rates are bytes per second (`_bps`); percentages are
   numbers from 0 to 100.
-- Money is a decimal string with its currency: `{ "amount": "1.2345", "currency": "USD" }`,
-  so no provider rounds through a float.
 - A field marked optional may be left out or be `null`; Marley hides what it cannot show.
   Unknown fields are ignored, so a provider may send more.
 - Versioning: the contract name carries its major version. Within `v1`, fields are only added
@@ -83,13 +81,17 @@ header from Marley's settings. Marley reads only, in `v1`; actions come in a lat
   "contract": "marley.work/v1",
   "provider": { "name": "rustal-brain", "version": "0.4.0" },
   "capabilities": ["agents", "work_items", "runs", "gates", "events", "usage", "questions", "hosts"],
-  "poll_s": 5
+  "poll_s": 5,
+  "stale_after_s": null
 }
 ```
 
 - `capabilities` says which parts the provider fills. A part it leaves out is hidden in
   Marley, not shown empty. The names are fixed by this document; an unknown name is ignored.
 - `poll_s` (optional) is how often Marley should ask for changes; Marley's default is 5.
+- `stale_after_s` (optional): Marley decides when an agent is stale, from `last_seen_ms`, after
+  three polls with no sign of it. A provider whose agents report less often sets this to say how
+  long a quiet spell is still normal.
 
 ### AgentList
 
@@ -150,10 +152,8 @@ The snapshot in the Fleet panel and the Agent tab read this.
     { "at_ms": 1759242400000, "kind": "phase", "text": "code started" }
   ],
   "usage": {
-    "run":   { "input_tokens": 812000, "output_tokens": 64000, "cache_read_tokens": 2300000,
-               "cost": { "amount": "7.4120", "currency": "USD" } },
-    "today": { "input_tokens": 3900000, "output_tokens": 310000,
-               "cost": { "amount": "31.0500", "currency": "USD" } }
+    "run":   { "input_tokens": 812000, "output_tokens": 64000, "cache_read_tokens": 2300000 },
+    "today": { "input_tokens": 3900000, "output_tokens": 310000 }
   },
   "question": null,
   "host": null
@@ -166,9 +166,10 @@ The snapshot in the Fleet panel and the Agent tab read this.
 - `run` is the agent's current [Run](#run), or `null`.
 - `recent_events`: the newest first, at most 50; the Agent tab asks `work_run` for the rest.
   `kind` is free text (`phase`, `gate`, `commit`, `message`, `tool`), shown as a small label.
-- `usage`: the tokens the agent's model used and what they cost, for the current run and for
-  the day. Every field is optional; `cost` may be left out where the provider cannot price it.
-  Usage is reported by the agent to the store, which knows it from its runtime.
+- `usage`: the tokens the agent's model used, for the current run and for the day. Every field
+  is optional. Usage is reported by the agent to the store, which knows it from its runtime.
+  Money is left out of `v1` on purpose (Chad, 2026-09-30); a later minor version can add a
+  `cost` beside the tokens without breaking a reader.
 - `host`: optional, a [HostSnapshot](#hostsnapshot) when the store keeps one (a collector may
   push to the store instead of being read over SSH). When `null`, Marley reads the host itself.
 
@@ -228,10 +229,12 @@ change feed leaves out `work_changes`, and Marley reads `work_agents` every `pol
 
 ## `marley.host/v1`: the host collector
 
-A small program on each host that prints one JSON document and exits. Marley runs it over SSH
-with the user's own configuration, as `ssh <host> marley-collect --json`, every `poll_s` while a
-panel shows that host. It needs no root and opens no port. A collector may instead push the same
-document to the workflow store, which then returns it as an agent detail's `host`.
+A POSIX `sh` script Marley ships, which prints one JSON document and exits. Marley pipes it to
+the host over SSH with the user's own configuration, as `ssh <host> sh -s < marley-collect.sh`,
+every `poll_s` while a panel shows that host; nothing is installed there. It reads `/proc` and
+`df`, needs no root and opens no port, and the same script runs locally for this machine. Any
+other collector that prints the same document works, and one may instead push it to the
+workflow store, which then returns it as an agent detail's `host`.
 
 ### HostSnapshot
 
@@ -255,7 +258,8 @@ document to the workflow store, which then returns it as an agent detail's `host
 ```
 
 - `cpu.percent` and `network` are measured over the interval since the collector's previous
-  run (it keeps its last counters in a file of its own); on a first run they may be left out.
+  run (it keeps its last counters in a file under `$XDG_RUNTIME_DIR`, else `/tmp`); on a first
+  run it samples twice, a second apart.
 - `agents` lists the processes the collector recognizes as agent runtimes, by name and command
   line: `claude`, `codex`, and whatever its configuration adds. `session` is optional: an id the
   runtime exposes (an environment variable or an argument), which matches the store's agent id.
@@ -267,7 +271,7 @@ document to the workflow store, which then returns it as an agent detail's `host
 | Where | What | From |
 |---|---|---|
 | Fleet panel, right dock | Every agent, grouped by host: name, runtime, state chip, work item key, phase `2/4`, and an attention mark | `work_agents`, host snapshots |
-| Fleet panel, below the list | The selected agent's snapshot: state and for how long, the work item, the phase strip, CPU and memory bars, tokens and cost today, the question when there is one | `work_agent`, the host snapshot |
+| Fleet panel, below the list | The selected agent's snapshot: state and for how long, the work item, the phase strip, CPU and memory bars, tokens today, the question when there is one | `work_agent`, the host snapshot |
 | Agent tab, center | The full detail: the phase timeline with each gate, the event log, resource history graphs (Marley keeps the samples it read), usage for the run and the day, the host's other agents | `work_agent`, `work_run`, host snapshots over time |
 
 One click on an agent selects it and fills the snapshot; a double-click, Enter or Open opens its
@@ -276,8 +280,9 @@ project row may later carry a mark when an agent works in that folder.
 
 Each source shows its own state rather than empty panes: *not set up* (no provider configured),
 *connecting*, *unreachable* (with the reason), *stale* (no answer for three polls),
-*incompatible* (a contract version Marley does not read). An agent whose `last_seen_ms` is old,
-or whose host is unreachable, reads *offline*.
+*incompatible* (a contract version Marley does not read). An agent whose `last_seen_ms` is older
+than three polls (or the provider's `stale_after_s`) reads *stale*, and one whose host is
+unreachable reads *offline*.
 
 ## Pseudo data
 
@@ -310,11 +315,9 @@ panes can be built, shown and tested:
 - A fleet board in the center: every agent as a tile.
 - More contracts in the same pattern, such as the work items board of a whole project.
 
-## Open questions
+## Settled (Chad, 2026-09-30)
 
-1. Whether the store or Marley decides when an agent is stale; this draft has Marley decide
-   from `last_seen_ms`, after three missed polls.
-2. The collector: one small binary Marley ships and installs on a host over SSH, or a documented
-   script anyone can write. This draft allows either, since only the output is fixed.
-3. The price table for cost, when a runtime reports tokens but not money: the provider's job,
-   or Marley's.
+1. Marley decides when an agent is stale, from `last_seen_ms` after three missed polls; a
+   provider may widen that with `stale_after_s`.
+2. The collector is a script Marley pipes over SSH, not a binary installed on the host.
+3. Tokens only: money is out of `v1`.

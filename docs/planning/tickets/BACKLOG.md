@@ -10,13 +10,18 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
+| [TICKET-607](open/TICKET-607-fleet-panel-with-pseudo-agents.md) | feature | fleet (D20) · the fleet contract's types, a pseudo provider, and the Fleet panel's list |
+| [TICKET-608](open/TICKET-608-agent-snapshot-in-the-fleet-panel.md) | feature | fleet (D20) · the selected agent's snapshot under the Fleet panel's list |
+| [TICKET-609](open/TICKET-609-agent-tab.md) | feature | fleet (D20) · the Agent tab: an agent's full detail in the center |
+| [TICKET-610](open/TICKET-610-host-collector-over-ssh.md) | feature | fleet (D20) · the host collector: a script Marley runs over SSH |
+| [TICKET-611](open/TICKET-611-work-provider-clients.md) | feature | fleet (D20) · the marley.work/v1 clients over MCP and HTTP |
 
 ## Deliberate (picked explicitly, never auto-next)
 
 | Ticket | Type | Why it waits |
 |---|---|---|
 | [TICKET-578](open/TICKET-578-restored-browser-tab-draws-its-reopened-page.md) | bug | prong 3 · a restored Browser tab sometimes draws nothing (2 of 6 runs of #576's scenario); waits for a reproduction that logs the restored page's screencast frames in a blank run |
-| [TICKET-534](open/TICKET-534-harness-sessions-in-the-rail.md) | feature | prong 2 C1 · harness sessions in the rail, the read side; waits for the harness's M9 to exit, and for #533 and #508 |
+| [TICKET-534](open/TICKET-534-harness-sessions-in-the-rail.md) | feature | prong 2 C1 · harness sessions in the rail, the read side; its blockers (#533, #508, the harness's M9) are done, and it is built in wave 4 of `design-notes/remaining-work-2026-09-30.md` |
 | [TICKET-573](open/TICKET-573-english-at-the-prompt-second-stage.md) | feature | prong 1 T3 · a System One reading for typed lines #557's local rules leave open, in the hint slot after 250 ms without typing, never in Enter's path; opt-in, redacted; waits on #557 and #565, and on a listed project or a local provider |
 | [TICKET-548](open/TICKET-548-system-one-via-cloudflare.md) | feature | prong 2 · Jev through Cloudflare Workers AI (stated zero retention) as a provider setting, per project; waits for the System One layer itself |
 | [TICKET-540](open/TICKET-540-session-resume-after-restart.md) | feature | prong 2 · Claude Code sessions resumed after a restart; waits on how the embedded harness keeps processes alive, so it cannot start a second Claude on a live session |
