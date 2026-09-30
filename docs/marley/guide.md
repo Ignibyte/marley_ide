@@ -1408,8 +1408,23 @@ server icon in the status bar toggles it too. Each agent's row shows:
 The pseudo provider serves three agents on two hosts and moves on its own: the working agent's
 run takes a phase a minute, and docs-1 stops reporting after a few seconds, so it reads `stale`.
 With no provider set, the panel says "The fleet is not set up." The panel reads the providers
-only while it shows. Clicking an agent for its snapshot, the Agent tab, a host's resources over
-SSH and real stores over MCP or HTTP come next (#608 to #611).
+only while it shows.
+
+Click an agent to select it (#608). The panel splits, with the list above and the agent's
+snapshot below:
+
+- its name and state chip, what runs it (runtime and model) and for how long it has been in that
+  state, and its host and folder;
+- its work item's key, title and status;
+- its run as a strip of phases: green for passed, blue for active, red for failed, grey for
+  still to come, with the active phase (or the one that failed) named under it;
+- its host's CPU and memory as bars with their numbers;
+- its tokens today, in and out;
+- its question and the options, when it asks one (answering comes later).
+
+Up and Down move the selection while the panel has the focus. Drag the line between the list and
+the snapshot to give either more room. The Agent tab, a host's resources over SSH and real stores
+over MCP or HTTP come next (#609 to #611).
 
 ## Key bindings
 

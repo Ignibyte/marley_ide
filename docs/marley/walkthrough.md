@@ -1496,6 +1496,13 @@ This part needs only Marley and one settings line; do it before or after 11.5's 
   Under vps-2: docs-1 (`error`, a red mark, `RB-151 · code 2/4`).
 - [ ] Within about 20 seconds, docs-1's chip reads `stale`.
 - [ ] A minute on, build-1 reads `test 3/4`; a minute after that, `complete 4/4`.
+- [ ] Click build-1 (#608): its row is highlighted and the panel splits, with its snapshot
+  below: `working` and "for …", RB-142's title, a strip of four phases with one green and one
+  blue, CPU and memory bars, and tokens today.
+- [ ] Click review-1: its snapshot ends with the question "Delete the old dispatch module?" and
+  Yes and No. Click docs-1: its strip has a red segment and "failed at code (2/4)".
+- [ ] With the panel focused, Up and Down move the highlight and the snapshot follows.
+- [ ] Drag the line above the snapshot up or down: the two parts resize.
 - [ ] `marley: toggle fleet` again closes the panel, and once more opens it where it was.
 - [ ] Change the line to `"fleet": { "providers": [] },` and save: the panel says "The fleet is
   not set up." and names the setting.

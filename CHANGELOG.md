@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **An agent's snapshot in the Fleet panel** (#608, 2026-09-30). One click on an agent's row
+  selects it, and the panel splits: the list above, the agent's snapshot below. The snapshot
+  shows its state and for how long, what runs it and where (host and folder), its work item with
+  the store's status, its run as a strip of phases (passed green, active blue, failed red, with
+  the active or failed phase named), its host's CPU and memory as bars, its tokens today, and its
+  question with the options. Up and Down move the selection while the panel has the focus, and
+  the line between list and snapshot drags to resize them. A section the provider does not offer
+  is left out, and the panel reads the full detail only of agents a panel has selected.
+
 - **The Fleet panel, on a pseudo provider** (#607, 2026-09-30). `marley: toggle fleet` opens a
   panel in the right dock that lists the agents a workflow store reports, grouped under their
   hosts: each with its runtime's mark, its name, its work item's key and its phase as `n/m`, a

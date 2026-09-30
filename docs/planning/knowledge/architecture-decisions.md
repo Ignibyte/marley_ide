@@ -3450,3 +3450,15 @@ Fleet panel is a right-dock panel of its own (priority 20) that reads only while
 Rejected: putting the types in `marley_fleet` (it would mix the harness's session envelope with
 a store's work records) and a mock provider in the workbench (the examples would drift from the
 contract).
+
+## AD-claude-608-the-fleet-reads-full-detail-only-for-selected-agents-001
+*decided at: 2026-09-30 · status: shipped*
+
+The Fleet panel's list reads every agent's summary each poll, and the full `AgentDetail` only of
+the agents some panel has selected: a `Wanted` global maps each panel to its selection, and a
+new selection reads once at the click rather than waiting for the next poll. This keeps a real
+store's `work_agent` calls (#611) to what is on screen. A section of the snapshot the provider's
+handshake does not offer is left out, never drawn empty. One click selects (AD-claude-604); the
+Agent tab opens on a double-click in #609. Rejected: reading every agent's detail each poll
+(one call per agent per poll against a real store), and a snapshot that fills only at the next
+poll (up to `poll_s` of "Reading…").

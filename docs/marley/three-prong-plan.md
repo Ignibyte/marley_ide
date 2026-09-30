@@ -221,7 +221,7 @@ until the Rustal services serve it, Marley shows a pseudo provider's data. The S
 schemas, a conformance kit) follows the contract. Wave 1 (#607 to #611) builds it:
 - #607 (shipped): the contract's types and the pseudo provider in `crates/marley_sdk`, and the
   Fleet panel in the right dock listing its agents by host;
-- #608: the selected agent's snapshot under the list;
+- #608 (shipped): the selected agent's snapshot under the list;
 - #609: the Agent tab in the center;
 - #610: the host collector over SSH;
 - #611: the `marley.work/v1` clients over MCP and HTTP.

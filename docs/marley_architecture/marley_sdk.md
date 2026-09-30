@@ -29,6 +29,8 @@ Marley's MCP tools use; this crate is what a workflow store and a host collector
   more than this crate names and leave out what it does not keep.
 - `State`, `Attention`, `Outcome`, `PhaseState` and `GateState` fall back to `Unknown` on a
   value this version does not name (`serde(other)`).
+- `Cpu.percent` and `AgentProcess.cpu_percent` are `f32` (#608), so the Fleet panel's bars
+  take them with no cast; the wire's numbers are the same.
 - `TokenUse`'s fields are `input`, `output` and `cache_read`, renamed to the wire's
   `input_tokens`, `output_tokens` and `cache_read_tokens`. Tokens only: no money in v1 (Chad,
   2026-09-30).

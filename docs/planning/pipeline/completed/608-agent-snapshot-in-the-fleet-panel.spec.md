@@ -1,7 +1,7 @@
 ---
 pipeline_id: dfc7a52c-eaf8-44cf-b34e-b813bf73a6e3
 ticket: docs/planning/tickets/open/TICKET-608-agent-snapshot-in-the-fleet-panel.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "The selected agent's snapshot under the Fleet panel's list"
 type: feature
 slice: prong 2, D20, wave 1; after #607
@@ -28,8 +28,9 @@ works on, where its run stands, what its host uses, the tokens it spent today, a
   - the question with its options, shown read-only (answering is a later action).
 - **Missing parts:** a section the provider's capabilities leave out is not drawn. A host with
   no snapshot yet shows the host's name and "no resources yet".
-- **Resizable split:** the list above and the snapshot below, the snapshot at a third of the
-  panel's height by default.
+- **Resizable split:** the list above and the snapshot below, the snapshot at half the panel's
+  height by default (a third, as first drafted, hid the question on a 1000 px tall window; Test
+  phase, run 1).
 
 ### Out (explicitly deferred)
 - Opening the Agent tab: double-click, Enter and an Open button come with it (#609).
@@ -52,6 +53,11 @@ and Orca's dashboard card (name, last messages, question, host badge,
   - The rail's row style (`row_frame`, `row_card` in `crates/marley_workbench/src/rail.rs`).
   - `ui::Divider`, and the rail's section headers.
   - `marley_sdk`'s `AgentDetail` and `HostSnapshot` (#607).
+  - The split: `git_ui`'s commit view (`crates/git_ui/src/git_graph.rs`, `DraggedSplitHandle`,
+    `render_commit_view_resize_handle`), a handle with `on_drag` of a marker type and the
+    container's `on_drag_move` measuring its own bounds, clamped between 10 % and 90 %.
+  - Up and Down: the rail's key context `MarleyRail menu` (AD-claude-453), which takes Zed's
+    `menu::SelectNext` and `menu::SelectPrevious` bindings rather than adding keys.
 
 ## UI proof
 The scenario `script/e2e/608-agent-snapshot-in-the-fleet-panel.sh` (sway), on the pseudo provider:
@@ -59,7 +65,8 @@ The scenario `script/e2e/608-agent-snapshot-in-the-fleet-panel.sh` (sway), on th
   with its active phase, CPU and memory bars, tokens today);
 - clicks the agent that waits and shoots its question (`question.png`);
 - clicks the agent with the failed gate (`failed.png`: the failed phase segment);
-- presses Down and shoots the selection moved (`keys.png`).
+- presses Down and shoots the selection moved (`keys.png`);
+- drags the split's handle up and shoots the snapshot grown (`split.png`).
 
 ## Locked-In Decisions
 - D1 — The snapshot reads `work_agent` for the selected agent only, each poll while shown; the

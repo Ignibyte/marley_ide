@@ -2949,3 +2949,12 @@ between docks, so the count did not say whether a panel showed: the reads could 
 hidden panel or stop for a shown one. Fixed before the commit: the loop asks, at each read,
 whether a Fleet panel is the visible panel of an open right dock in some window's shown
 workspace, and a panel that draws while no reads run starts them.
+
+## F-claude-608-a-third-of-the-panel-hid-the-snapshots-question-001
+*severity: low · found in: pipeline 608's Test phase (run 1) · class: a default size chosen before the content it holds was drawn*
+
+The Fleet panel's snapshot started at a third of the panel's height, as the spec drafted it. On
+the scenario's 1000 px tall output that cut the tokens line and left review-1's question below
+the fold (`working.png`, `question.png`), so the shots could not show REQ-002 and REQ-003
+whole. Fixed before the commit: the snapshot starts at half, and its sections sit closer
+(`gap_2`).

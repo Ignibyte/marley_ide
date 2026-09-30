@@ -250,6 +250,7 @@ th { background: var(--panel); font-weight: 650; }
 </ol></li>
 <li><a href="#fleet">The fleet</a><ol>
 <li><a href="#fleet-panel">The Fleet panel</a></li>
+<li><a href="#fleet-snapshot">An agent&#x27;s snapshot</a></li>
 </ol></li>
 <li><a href="#reference">Reference</a><ol>
 <li><a href="#keys-reference">Keys</a></li>
@@ -1525,7 +1526,20 @@ th { background: var(--panel); font-weight: 650; }
 <li>Read each row: the runtime's mark and the agent's name; its work item's key and phase as <code>name n/m</code>; a yellow mark when it waits on a question, a red one when its run failed; and a chip with its state, <code>stale</code> when it has not reported for three polls.</li>
 <li>With no provider set, the panel says the fleet is not set up and names the setting.</li>
 </ol>
-<p class="note">The panel reads its providers only while it shows. An agent's snapshot, the Agent tab, host resources over SSH and real stores over MCP or HTTP come next (#608 to #611).</p>
+<p class="note">The panel reads its providers only while it shows.</p>
+</article>
+
+<article id="fleet-snapshot">
+<h3>An agent's snapshot <span class="ticket">#608</span></h3>
+<p class="what"><strong>What it is.</strong> The selected agent's state, work, run, host and tokens, under the Fleet panel's list.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Click an agent's row. The panel splits: the list above, the snapshot below.</li>
+<li>Read its state and for how long, its runtime, model, host and folder; its work item; its run as a strip of phases (green passed, blue active, red failed); its host's CPU and memory; its tokens today; and its question with the options.</li>
+<li>Press <kbd>Up</kbd> or <kbd>Down</kbd> to move to the next agent while the panel has the focus.</li>
+<li>Drag the line between the list and the snapshot to resize them.</li>
+</ol>
+<p class="note">A part the store does not offer is left out. The Agent tab, host resources over SSH and real stores over MCP or HTTP come next (#609 to #611).</p>
 </article>
 </section>
 

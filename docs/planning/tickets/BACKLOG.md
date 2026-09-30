@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-608](open/TICKET-608-agent-snapshot-in-the-fleet-panel.md) | feature | fleet (D20) · the selected agent's snapshot under the Fleet panel's list |
 | [TICKET-609](open/TICKET-609-agent-tab.md) | feature | fleet (D20) · the Agent tab: an agent's full detail in the center |
 | [TICKET-610](open/TICKET-610-host-collector-over-ssh.md) | feature | fleet (D20) · the host collector: a script Marley runs over SSH |
 | [TICKET-611](open/TICKET-611-work-provider-clients.md) | feature | fleet (D20) · the marley.work/v1 clients over MCP and HTTP |

@@ -46,7 +46,7 @@ const EVENT_TEXTS: [(&str, &str); 5] = [
 ];
 
 /// A wobble in percent, a coarse sine, so the numbers move without a float cast.
-const WOBBLE: [i32; 12] = [0, 31, 54, 62, 54, 31, 0, -31, -54, -62, -54, -31];
+const WOBBLE: [i16; 12] = [0, 31, 54, 62, 54, 31, 0, -31, -54, -62, -54, -31];
 
 /// The fixtures did not parse, which is a fault in this crate's own files.
 #[derive(Debug)]
@@ -232,7 +232,7 @@ fn wander(host: &mut HostSnapshot, index: usize, elapsed_s: u64) {
     let step = index_of(elapsed_s / 2 + offset, WOBBLE.len());
     let wobble = WOBBLE[step];
     if let Some(cpu) = &mut host.cpu {
-        cpu.percent = (cpu.percent + f64::from(wobble) / 3.0).clamp(1.0, 99.0);
+        cpu.percent = (cpu.percent + f32::from(wobble) / 3.0).clamp(1.0, 99.0);
     }
     if let Some(network) = &mut host.network {
         let factor = u64::try_from(100 + wobble).unwrap_or(100);

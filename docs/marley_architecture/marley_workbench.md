@@ -2211,6 +2211,20 @@ drawn from `marley_sdk`'s types.
   item's key and the phase as `name n/m`, a warning mark for a question or a red mark for a failed
   run, and a `Chip` whose word and color come from `state_chip`, reading `stale` when
   `marley_sdk::is_stale` says so against the reading's time.
+- **Selection and the snapshot (#608).** A second global, `Wanted`, maps each panel's entity id to
+  its `Selected { source, agent }`; the reads keep in each `Source` the `AgentDetail`s of wanted
+  agents only (`details`), with its handshake's `capabilities`. A row's click focuses the panel
+  and selects (`FleetPanel::select`), which registers the selection and reads at once through
+  `cx.defer(read_now)`; the panels do not observe `Wanted`. The key context is `FleetPanel menu`,
+  so Zed's `menu::SelectNext` and `SelectPrevious` step through `drawn_order`, which shares
+  `Source::host_groups` with the list. The global's observer drops a selection whose agent left
+  the list, and the panel's release removes its entry. With a selection the body splits: the
+  list (`flex_1`), a 1 px handle whose 7 px grip drags a `DraggedFleetSplit`, and the snapshot at
+  `relative(snapshot_ratio)` (half by default, clamped to 0.15 to 0.85 by the body's
+  `on_drag_move`), after `git_ui`'s commit-view split. `render_snapshot` draws the header, then
+  each section its capability allows: `work_items`, `runs` (`render_phase_strip`, a segment per
+  phase coloured by `phase_color`), `hosts` (`render_resources`, `ui::ProgressBar` meters, or "no
+  resources yet"), `usage` (tokens today) and `questions` (the options as chips, read-only).
 - **Not set up.** With no provider, the panel says "The fleet is not set up." and names
   `marley.fleet.providers` and `{ "kind": "pseudo" }`.
 - **Settings.** `settings_content::MarleyFleetSettingsContent { providers }` with

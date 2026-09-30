@@ -59,7 +59,7 @@ pub struct HostInfo {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Cpu {
     /// Its use, from 0 to 100.
-    pub percent: f64,
+    pub percent: f32,
 }
 
 /// Memory in use and in all.
@@ -107,7 +107,7 @@ pub struct AgentProcess {
     pub started_ms: Option<u64>,
     /// Its processor use, from 0 to 100 of one core.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cpu_percent: Option<f64>,
+    pub cpu_percent: Option<f32>,
     /// Its resident memory.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rss_bytes: Option<u64>,
