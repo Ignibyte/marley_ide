@@ -27,13 +27,20 @@ the one before it is under way, and built back to back.
 | #610 | The host collector: a script piped over SSH, a hosts setting, the join to store agents |
 | #611 | The `marley.work/v1` clients over MCP and HTTP, with the source states |
 
-## Wave 2: the rail's follow-ups
+## Wave 2: the rail's follow-ups (specced 2026-09-30)
 
-Moving a row to another group (from #602's deferred list); container ports in the rail and
-restarting a service from its row (#603's); deleting and unarchiving a thread from the rail
-(#605's); threads and ports under a closed project (#606's); the port row's clipped lines and a
-header tooltip over its open menu; and #578, the restored Browser tab that sometimes draws
-nothing.
+Wave 1 shipped on 2026-09-30 (#607 to #611).
+
+| Ticket | What |
+|---|---|
+| #613 | Move a terminal to another project in the rail, its shell kept (#602's deferral) |
+| #614 | Container ports in the rail, named by their container, Stop stopping it (#603's) |
+| #615 | Restart a service from its port row, with its state and logs (#603's) |
+| #616 | Delete a thread, and unarchive threads, from the rail (#605's) |
+| #617 | A closed project's threads and ports under its header (#606's) |
+| #618 | A port row's clipped lines, and a header tooltip over its open menu (Test notes of #603, #606) |
+| #612 | A hand edit to settings.json after Marley writes it does not reload (found in #607's Test) |
+| #578 | The restored Browser tab that sometimes draws nothing (queued since 2026-09-26) |
 
 ## Wave 3: the terminal
 

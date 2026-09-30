@@ -10,6 +10,12 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
+| [TICKET-613](open/TICKET-613-move-a-terminal-to-another-project.md) | feature | rail (wave 2) · move a terminal to another project, its shell kept |
+| [TICKET-614](open/TICKET-614-container-ports-in-the-rail.md) | feature | rail (wave 2) · container ports named by their container, Stop stopping it |
+| [TICKET-615](open/TICKET-615-restart-a-service-from-its-port-row.md) | feature | rail (wave 2) · restart a service from its port row, its state and logs |
+| [TICKET-616](open/TICKET-616-delete-and-unarchive-threads-from-the-rail.md) | feature | rail (wave 2) · delete a thread, and unarchive threads, from the rail |
+| [TICKET-617](open/TICKET-617-rows-under-a-closed-project.md) | feature | rail (wave 2) · a closed project's threads and ports under its header |
+| [TICKET-618](open/TICKET-618-port-row-lines-and-header-tooltip.md) | bug | rail (wave 2) · a port row's clipped lines, and a header tooltip over its menu |
 | [TICKET-612](open/TICKET-612-settings-edit-after-marley-writes.md) | bug | workbench · a hand edit to settings.json after Marley writes the file does not reload |
 
 ## Deliberate (picked explicitly, never auto-next)
