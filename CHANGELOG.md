@@ -83,6 +83,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The fleet contract's verb values and capabilities** (#597, 2026-09-29). `marley_fleet` now
+  holds `SurfaceAck`, which Marley's MCP server defined until now, and the values an accepted read
+  and answer return, `ReadReceipt` and `AnswerReceipt`, as rustal-harness's `rh mcp` returns them.
+  A `Session` carries its declared `capabilities` (`mode`, `model`, `effort`, name to value) and a
+  `SendRequest` what the work `requires` in the same shape; both are left out of the JSON when
+  empty, so no envelope or send in flight changes. `fleet_snapshot`'s schema lists the new field.
+
 - **The workbench's programs start in one module** (#541, 2026-09-29). Every program
   `marley_workbench` runs (`claude plugin`, `voxtype`, `git` for turns, worktrees and the rail's
   drift and changed lines, `gh`) now starts in `src/process.rs`, through `output` for a finished

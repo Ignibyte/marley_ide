@@ -3,8 +3,7 @@
 //! tool-execution-error envelope. The #367 `marley_fleet` types ARE the schema (D2) — no parallel
 //! hand-written schema drifts from them.
 
-use marley_fleet::{FleetSnapshot, Receipt};
-use serde::{Deserialize, Serialize};
+use marley_fleet::{FleetSnapshot, Receipt, SurfaceAck};
 use serde_json::{Value, json};
 
 use crate::ToolAnswer;
@@ -74,13 +73,6 @@ pub fn resolve_surface(id: &str, index: &[(String, u64)]) -> Option<u64> {
         .iter()
         .find(|(entry_id, _)| entry_id == id)
         .map(|(_, handle)| *handle)
-}
-
-/// The success payload of a `surface_to_human` call.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SurfaceAck {
-    /// The id that was surfaced.
-    pub surfaced: String,
 }
 
 /// Build the `surface_to_human` receipt (D7).

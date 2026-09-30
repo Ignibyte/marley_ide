@@ -3939,3 +3939,13 @@ A bug that depends on whether a terminal's view lays out before its shell starts
 Hyprland's hidden workspace and not in the headless sway, where the first view lays out sooner.
 Before a check's shots are trusted, see the bug on the backend the check uses: a run that is green
 before the fix proves nothing.
+
+## L-claude-597-fleet-tools-answer-but-are-not-listed-001
+*category: validate · topic: e2e checks of Marley's MCP server · from: pipeline 597*
+
+Marley's MCP server answers `fleet_snapshot` and `session_surface_to_human` on `tools/call`, but
+`tools/list` lists only the served families (`Family::is_served`: terminal, browser, ports), so a
+fleet tool's output schema reaches no client, and `session_surface_to_human` is refused by the
+`session.write` grant (deny-by-default) before its handler runs; the app also builds no surface
+index. A scenario that means to show a fleet schema or an accepted surface cannot: plan those
+criteria as a review of the diff, and check the verb only as answered by its name.

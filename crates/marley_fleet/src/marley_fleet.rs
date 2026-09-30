@@ -12,7 +12,8 @@
 //! - [`reducer`] — the [`SessionEvent`] stream + the pure, replay-safe fold into a [`FleetSnapshot`].
 //! - [`attention`](mod@attention) — read-time staleness + attention derivation (no clock; `now_ms` injected).
 //! - [`dispatch`] — the `Deposited → Claimed → Started` delivery-state machine (monotone join).
-//! - [`verbs`] — the session-verb request/receipt types as data (the MCP tool schema).
+//! - [`verbs`] — the session-verb requests and the values their receipts carry, as data (the MCP
+//!   tool schema).
 
 // gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
 // Zed's crates keep them at warn (CONSTITUTION §0).
@@ -38,8 +39,8 @@ pub mod verbs;
 pub use attention::{Attention, AttentionReason, attention, is_stale};
 pub use dispatch::{DeliveryAdvance, DeliveryState};
 pub use reducer::{FleetSnapshot, SessionEvent, apply, reduce};
-pub use session::{Question, Session, State, Transport};
+pub use session::{Capabilities, Question, Session, State, Transport};
 pub use verbs::{
-    AnswerRequest, OpenReceipt, OpenRequest, ReadRange, ReadRequest, Receipt, SendReceipt,
-    SendRequest, SurfaceRequest,
+    AnswerReceipt, AnswerRequest, OpenReceipt, OpenRequest, ReadRange, ReadReceipt, ReadRequest,
+    Receipt, SendReceipt, SendRequest, SurfaceAck, SurfaceRequest,
 };

@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-597](open/TICKET-597-harness-verb-payloads-and-capabilities.md) | chore | prong 2 · the harness's MREQ-003 and MREQ-004: each verb's payload and a session's capabilities in `marley_fleet` (split from #533) |
 
 ## Deliberate (picked explicitly, never auto-next)
 

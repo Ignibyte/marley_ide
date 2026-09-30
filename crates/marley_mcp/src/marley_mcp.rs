@@ -76,8 +76,8 @@ pub use session::{
     SessionRegistry, client_name_of, session_decision, session_gate,
 };
 pub use tools::{
-    SurfaceAck, fleet_snapshot_result, resolve_surface, surface_receipt, surface_result,
-    tool_answer_result, tool_error, tool_result,
+    fleet_snapshot_result, resolve_surface, surface_receipt, surface_result, tool_answer_result,
+    tool_error, tool_result,
 };
 
 use std::collections::BTreeSet;

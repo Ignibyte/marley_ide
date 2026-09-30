@@ -222,10 +222,13 @@ its pin is its own call.
   and `OpenRequest.request`, optional and left out of the JSON when absent, and the receipts'
   values `SendReceipt { id, delivery, state, detail }` and `OpenReceipt { id, title, profile,
   request }`, as `rh mcp` returns them.
-- MREQ-003, each verb's accepted payload in `marley_fleet`, `SurfaceAck` first: open, filed
-  2026-09-26, after #533's plan; #597.
+- MREQ-003, each verb's accepted payload in `marley_fleet`, `SurfaceAck` first: answered in #597.
+  `SurfaceAck { surfaced }` moved from `marley_mcp` into `marley_fleet`, beside `ReadReceipt { id,
+  start, end, total, lines, gaps }` and `AnswerReceipt { id, choice }`, as `rh mcp` returns them.
+  The harness's `views` on a surface stay its own; a substrate's extra fields are ignored.
 - MREQ-004, a typed `capabilities` map on `Session` and an optional `requires` on
-  `SendRequest`: open, filed 2026-09-26; #597.
+  `SendRequest`: answered in #597. `Capabilities` is a name-to-value map, the harness's shape,
+  left out of the JSON when empty; checking `requires` against it is C4's.
 - The surface verb: the harness serves it as `session_surface_to_human` (TICKET-056), Marley's
   name since #370, so the two agree.
 

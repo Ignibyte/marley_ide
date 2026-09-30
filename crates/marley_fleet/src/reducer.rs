@@ -157,6 +157,7 @@ pub fn apply(snapshot: &mut FleetSnapshot, event: &SessionEvent) {
             state: State::Starting,
             question: None,
             labels: BTreeMap::new(),
+            capabilities: BTreeMap::new(),
             last_event_ms: 0,
             transport: None,
         });

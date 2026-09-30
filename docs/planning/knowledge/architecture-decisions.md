@@ -3318,3 +3318,20 @@ before an install can replace the file. Rejected:
 - routing git's HTTP prompts through the dialog too: #537 decided they fail at once;
 - `GIT_SSH_COMMAND='ssh -o BatchMode=yes'`: it overrides a repository's `core.sshCommand` and
   fails the push where Chad wants to type the passphrase.
+
+## AD-claude-597-capabilities-are-a-name-to-value-map-empty-means-unset-001
+*decided at: 2026-09-29 · status: shipped · builds on: AD-claude-533-the-harness-embedded-and-standalone-001*
+
+A seat's declared capabilities are `marley_fleet::Capabilities`, a `BTreeMap<String, String>`
+alias, the harness's own shape: `Session.capabilities` holds what a seat runs with and
+`SendRequest.requires` what a send needs. The names `fleet-control-plane.md` §6 designs (`mode`,
+`model`, `effort`) are documented, never enumerated, so the contract crate carries no product
+vocabulary and any name round-trips. Both default when missing and are skipped when empty, as
+`labels` is, so no envelope or send changes bytes until a substrate declares something. The
+verbs' accepted values live beside their requests (`SurfaceAck`, moved from `marley_mcp`;
+`ReadReceipt`; `AnswerReceipt`) with the fields `rh mcp` returns; a substrate's extra fields (the
+harness's `views`) are ignored. Rejected:
+- a struct with `mode`, `model` and `effort` fields: another name would be dropped on reading, and
+  the harness's conformance requires byte-equal round trips;
+- `Option<Capabilities>`: an empty map and an absent one would differ on the wire for no reader;
+- validating names and values in Marley: the substrate that declares them bounds them.

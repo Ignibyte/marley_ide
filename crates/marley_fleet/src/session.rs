@@ -49,6 +49,13 @@ pub struct Question {
     pub context_refs: Vec<String>,
 }
 
+/// A seat's declared capabilities, name to value, such as `mode`, `model` and `effort`.
+///
+/// `fleet-control-plane.md` §6 designs them and rustal-harness's MREQ-004 asks for them. The names
+/// and values are the substrate's own; Marley reads them and never enumerates them, and a
+/// [`crate::SendRequest`]'s `requires` names what a send needs in the same shape.
+pub type Capabilities = BTreeMap<String, String>;
+
 /// One agent seat in the fleet — the generic envelope every fleet surface reads (the rail, the tests,
 /// the MCP tool schema: one seam, three consumers).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -63,11 +70,14 @@ pub struct Session {
     /// legal (a seat gone quiet needing input).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub question: Option<Question>,
-    /// Opaque, UNINTERPRETED key/value chips (the adapter writes `ticket` / `phase` /
-    /// `capabilities.mode`; Marley renders them, never matches on them). Sorted for a stable render +
-    /// serialization.
+    /// Opaque, UNINTERPRETED key/value chips (the adapter writes `ticket` / `phase`; Marley renders
+    /// them, never matches on them). Sorted for a stable render + serialization.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub labels: BTreeMap<String, String>,
+    /// What the seat declares it runs with (MREQ-004). Empty, it is left out of the JSON, which is
+    /// then the envelope it was before the field.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub capabilities: Capabilities,
     /// Epoch-millis of the last event that touched this seat. Absence-of-advance past a threshold is
     /// itself a signal (staleness — see [`crate::attention`](mod@crate::attention)).
     pub last_event_ms: u64,
@@ -124,6 +134,7 @@ mod tests {
                             state,
                             question: question.clone(),
                             labels,
+                            capabilities: Capabilities::new(),
                             last_event_ms: 1234,
                             transport,
                         };
@@ -166,6 +177,7 @@ mod tests {
             state: State::Idle,
             question: None,
             labels: BTreeMap::new(),
+            capabilities: Capabilities::new(),
             last_event_ms: 5,
             transport: None,
         };

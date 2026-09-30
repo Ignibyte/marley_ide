@@ -470,6 +470,7 @@ fn fleet_snapshot_schema() -> Value {
                         "state": { "type": "string", "enum": ["starting", "working", "idle", "waiting", "error", "done"] },
                         "question": { "type": ["object", "null"] },
                         "labels": { "type": "object" },
+                        "capabilities": { "type": "object", "additionalProperties": { "type": "string" } },
                         "last_event_ms": { "type": "integer" },
                         "transport": { "type": ["string", "null"], "enum": ["tmux", "bridge", "local", null] }
                     },

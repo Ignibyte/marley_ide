@@ -4,9 +4,11 @@
 //! Each verb is named here by its MCP tool name, `family_verb` (`session_send`), the only form a
 //! Claude client can call (#491, #533).
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
-use crate::DeliveryState;
+use crate::{Capabilities, DeliveryState};
 
 /// A request to send text to a seat (`session_send`). Layer 2 delivers it receipted, Enter as a
 /// separate write; a refused send (a dialog is up) is a first-class [`Receipt`] outcome.
@@ -21,6 +23,11 @@ pub struct SendRequest {
     /// before the field.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delivery: Option<String>,
+    /// What the work needs of the seat, in the names of its [`Capabilities`] (MREQ-004): a
+    /// substrate refuses a send the seat's declared capabilities do not meet. Empty, it is left out
+    /// of the JSON, which is then the request it was before the field.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub requires: Capabilities,
 }
 
 /// What an accepted `session_send` returns: the delivery and where it stands, as rustal-harness's
@@ -65,6 +72,24 @@ pub struct ReadRequest {
     pub range: ReadRange,
 }
 
+/// What an accepted `session_read` returns: the lines and where they sit, as rustal-harness's
+/// `rh mcp` returns them (MREQ-003).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReadReceipt {
+    /// The seat that was read.
+    pub id: String,
+    /// The first returned line (inclusive), counted from the first retained line.
+    pub start: u64,
+    /// The end of the returned lines (exclusive).
+    pub end: u64,
+    /// How many lines the seat retains.
+    pub total: u64,
+    /// The lines `[start, end)`, rendered as text.
+    pub lines: Vec<String>,
+    /// How many gaps the retained output has: output the substrate dropped or never received.
+    pub gaps: u64,
+}
+
 /// A request to open a new seat (`session_open`). `profile` is OPAQUE — the profile vocabulary is
 /// policy (the adapter/manager owns it), not Marley's.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -100,6 +125,14 @@ pub struct SurfaceRequest {
     pub id: String,
 }
 
+/// What an accepted `session_surface_to_human` returns (MREQ-003; `marley_mcp` defined it until
+/// #597). Fields a substrate adds beyond it, such as rustal-harness's `views`, are ignored.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SurfaceAck {
+    /// The id that was surfaced.
+    pub surfaced: String,
+}
+
 /// A request to answer a seat's standing question (`session_answer`, #377 — L2 gated-writes ①).
 ///
 /// `choice` is the picked option string VERBATIM (never an index — indices renumber if the question
@@ -115,6 +148,15 @@ pub struct AnswerRequest {
     pub choice: String,
     /// The prompt of the question this choice answers (the stale-answer refusal key).
     pub prompt: String,
+}
+
+/// What an accepted `session_answer` returns, as rustal-harness's `rh mcp` returns it (MREQ-003).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AnswerReceipt {
+    /// The seat whose question was answered.
+    pub id: String,
+    /// The option taken, verbatim.
+    pub choice: String,
 }
 
 /// The generic receipt for a verb: `Accepted` with the verb's payload, or `Refused` with a reason. A
@@ -154,6 +196,7 @@ mod tests {
             id: "a".into(),
             text: "hello".into(),
             delivery: None,
+            requires: Capabilities::new(),
         });
         rt(&ReadRequest {
             id: "a".into(),

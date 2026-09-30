@@ -28,7 +28,19 @@ transport, no product vocabulary. The same types are the rail's model, Marley's 
   request }` are the values an accepted send and open return, as `rh mcp` returns them; `detail` is
   the substrate's own word, shown and never matched, and fields a substrate adds beyond these are
   ignored on reading.
-- Each verb's payload for the rest (MREQ-003) and a session's capabilities (MREQ-004) are #597.
+
+## The harness's requests (#597)
+- `SurfaceAck { surfaced }`, the value of an accepted `session_surface_to_human`, lives here now;
+  `marley_mcp` builds its receipt from it and keeps no copy. `ReadReceipt { id, start, end, total,
+  lines, gaps }` and `AnswerReceipt { id, choice }` are the values an accepted read and answer
+  return, as `rh mcp` returns them (MREQ-003). The harness's `views` on a surface are its own, and
+  ignored on reading.
+- `Capabilities` (`session.rs`) is a name-to-value map, `BTreeMap<String, String>`, the harness's
+  own shape, with the names `fleet-control-plane.md` §6 designs (`mode`, `model`, `effort`) in its
+  doc and none enumerated. `Session.capabilities` and `SendRequest.requires` take it, defaulted
+  and left out of the JSON when empty, like `labels`, so no envelope or send changes bytes until
+  an adapter declares something (MREQ-004). The reducer's placeholder seat declares none; no
+  event carries capabilities yet, and checking `requires` against them waits for C4.
 
 Marley's own server serves no `session_send` or `session_open` yet (C4); these types have their
 first reader on the harness's side.

@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #597 (chore, prong 2, the fleet contract before C1 and C4)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet (no queued spec)
+- **Pipeline doc:** docs/planning/pipeline/completed/597-harness-verb-payloads-and-capabilities.spec.md
 - **Source ticket:** rustal-harness `docs/planning/MARLEY_REQUESTS.md`, MREQ-003 and MREQ-004 (both
   2026-09-26), filed after #533's plan; #533's risk rule gives a request of another shape its own
   ticket.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The harness asks Marley's contract crate for two more things. MREQ-003: each verb's accepted
