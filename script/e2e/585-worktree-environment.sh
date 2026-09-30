@@ -19,9 +19,9 @@ SHIPPED=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["versi
 # The project's +, the steps to New Agent in Worktree and Claude Code in its submenu, as 510's.
 PLUS_X=${PLUS_X:-236}
 PLUS_Y=${PLUS_Y:-96}
-WORKTREE_STEPS=${WORKTREE_STEPS:-7}
+WORKTREE_STEPS=${WORKTREE_STEPS:-3}
 SUBMENU_CLAUDE_X=${SUBMENU_CLAUDE_X:-325}
-SUBMENU_CLAUDE_Y=${SUBMENU_CLAUDE_Y:-326}
+SUBMENU_CLAUDE_Y=${SUBMENU_CLAUDE_Y:-197}
 # The prompt's setup box and its editor, and the rows, from the first run's shots.
 SETUP_BOX_X=${SETUP_BOX_X:-550}
 SETUP_BOX_Y=${SETUP_BOX_Y:-205}

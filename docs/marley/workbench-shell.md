@@ -374,7 +374,7 @@ bypass or Codex with its full access, and an agent row carries a chip whenever i
 without its prompts, however it was started; #510 adds worktree agents: New Agent in Worktree
 makes a git worktree on a branch of its own through Zed's worktree service and starts the agent
 there with its first prompt, and the rail lists each linked worktree of a project under it with
-its own terminals; #560 adds a chip on each worktree row with how far its branch is behind its
+its own terminals (#598 moves the entry up, directly under New Agent Thread); #560 adds a chip on each worktree row with how far its branch is behind its
 base and, when a merge would stop, how many files it would stop on, read from git against the
 local base; #531 puts on each project row the lines its branch changed against its base and its
 GitHub pull request's number and state, through `gh`; #587 brings Claude Code's trust question in a new worktree to the user, in a

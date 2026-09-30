@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-598](open/TICKET-598-worktree-agent-under-agent-thread.md) | feature | workbench shell · the rail's +: New Agent in Worktree moves up to sit directly below New Agent Thread |
 | [TICKET-599](open/TICKET-599-marley-guide-page.md) | feature | workbench shell · help: a self-contained HTML guide (a summary, then a how-to, for every feature through #598) shipped with Marley, opened from a `?` in the title bar beside Sign In, in a Browser tab or the system browser |
 | [TICKET-600](open/TICKET-600-rail-menu-and-projectless-groups.md) | feature | workbench shell · the rail: a right-click menu on its empty space with New Group… and projectless items; a named group with no folder whose terminals and agents start in the home folder, with a Chromium of its own |
 | [TICKET-601](open/TICKET-601-projectless-groups-survive-a-restart.md) | feature | workbench shell · the rail: #600's groups come back after a restart with their names, order and items |

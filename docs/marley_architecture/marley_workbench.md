@@ -484,7 +484,7 @@ alike.
 ## Worktree agents (`src/worktree_agents.rs`, #510)
 
 - The rail's `+` has New Agent in Worktree (`worktree_agent_entries`), a submenu of the installed
-  CLIs, when `worktree_agents::offered` finds the project local and its first folder a git
+  CLIs right after New Agent Thread and before the Agent CLIs header (#598), when `worktree_agents::offered` finds the project local and its first folder a git
   repository's work directory. A choice runs `open_prompt`, whose plan is the repository, the
   main checkout's branch (its commit when detached; from a linked member, the `is_main` entry of
   its `linked_worktrees`) and a name from `worktree_names::generate_worktree_name` past the
@@ -1007,7 +1007,7 @@ alike.
   `Configs` (the configs, or the first error): `init` reads a workspace's folders as it opens and
   again on `project::Event::WorktreeAdded`, or `WorktreeUpdatedEntries` naming the file, through
   the project's `Fs`.
-- The rail's `launch_entries` puts them after New Agent in Worktree under a Launch header (a broken
+- The rail's `launch_entries` puts them after the Agent CLIs under a Launch header (a broken
   file: one disabled entry with the first 90 characters of the error); `Rail::launch` activates the
   workspace and calls `launch::run`.
 - `run`: `text` (one line an item) and its SHA-256 in hex; `KeyValueStore::global(cx)

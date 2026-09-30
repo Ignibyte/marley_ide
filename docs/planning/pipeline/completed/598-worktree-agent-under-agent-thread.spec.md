@@ -1,7 +1,7 @@
 ---
 pipeline_id: 45c258b1-e166-4af5-a824-dde2817085ed
 ticket: docs/planning/tickets/open/TICKET-598-worktree-agent-under-agent-thread.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "New Agent in Worktree sits under New Agent Thread in the rail's +"
 type: feature
 slice: workbench shell (the rail's +), after #510 and #527
@@ -20,6 +20,10 @@ holds only the CLIs.
   Agent CLIs separator and header.
 - The doc comment on `worktree_agent_entries`, which says where the entry sits.
 - The guide's and the walkthrough's wording where they place the entry.
+- The e2e scenarios that reach the entry by position keep working: `510-worktree-agents.sh` and
+  `585-worktree-environment.sh` (both in the golden set), `587-claude-code-trust-in-a-new-worktree.sh`
+  and `589-remove-a-worktree.sh` press Down `WORKTREE_STEPS=7` times and click the submenu at fixed
+  points; the count becomes 3 and the points are measured from the new menu.
 
 ### Out (explicitly deferred)
 - Any change to what the submenu offers, when it shows (#510's rule: a local project whose folder

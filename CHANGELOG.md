@@ -83,6 +83,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **New Agent in Worktree sits under New Agent Thread** (#598, 2026-09-30). In a project's `+` in
+  the rail, New Agent in Worktree now follows New Agent Thread directly, above the Agent CLIs
+  header, so the two submenus that start an agent sit together and the header holds only the
+  CLIs. The entry, its submenu and when it shows are unchanged. The e2e scenarios that reach it by
+  position (510, 585, 587, 589) step to it with three Downs instead of seven.
+
 - **The fleet contract's verb values and capabilities** (#597, 2026-09-29). `marley_fleet` now
   holds `SurfaceAck`, which Marley's MCP server defined until now, and the values an accepted read
   and answer return, `ReadReceipt` and `AnswerReceipt`, as rustal-harness's `rh mcp` returns them.

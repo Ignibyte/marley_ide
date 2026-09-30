@@ -3949,3 +3949,13 @@ fleet tool's output schema reaches no client, and `session_surface_to_human` is 
 `session.write` grant (deny-by-default) before its handler runs; the app also builds no surface
 index. A scenario that means to show a fleet schema or an accepted surface cannot: plan those
 criteria as a review of the diff, and check the verb only as answered by its name.
+
+## L-claude-598-a-menu-entry-moves-with-the-scenarios-that-count-to-it-001
+*category: plan · topic: e2e scenarios that walk a menu by position · from: pipeline 598*
+
+Scenarios reach a menu entry by pressing Down a fixed number of times and click a submenu at fixed
+points (`WORKTREE_STEPS`, `SUBMENU_CLAUDE_X/Y`, `WORKTREE_ENTRY_Y`), and several copy the same
+numbers from each other: moving New Agent in Worktree broke four of them, two in the golden set.
+Before a ticket moves, adds or removes an entry in a menu, grep `script/e2e/` for the entry's
+label and for step-count variables near it, put every hit in the ticket's scope, and measure the
+new points from a shot of the open menu rather than by arithmetic on row heights.

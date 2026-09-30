@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #598 (feature, workbench shell: the rail's +)
 - **Owner:** abb571b4-bf75-463f-889a-b17f7d32f71e
-- **Pipeline doc:** ../../pipeline/queued/598-worktree-agent-under-agent-thread.spec.md
+- **Pipeline doc:** ../../pipeline/completed/598-worktree-agent-under-agent-thread.spec.md
 - **Source ticket:** Chad, 2026-09-30, testing with the walkthrough: "On the + button on the left lets move New agent in worktree up below New Agent Thread".
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 A project's + menu lists New Terminal, New Browser Tab and New Agent Thread, then the Agent CLIs

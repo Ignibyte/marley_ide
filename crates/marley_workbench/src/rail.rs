@@ -3443,17 +3443,17 @@ impl Rail {
                                 .submenu("New Agent Thread", move |menu, _, cx| {
                                     Self::agent_menu(menu, &rail, &workspace, cx)
                                 });
-                            let menu = Self::agent_cli_entries(
-                                menu,
-                                &cli_rail,
-                                &cli_workspace,
-                                agent_search_path.as_deref(),
-                            );
                             let menu = Self::worktree_agent_entries(
                                 menu,
                                 &cli_workspace,
                                 agent_search_path.as_deref(),
                                 cx,
+                            );
+                            let menu = Self::agent_cli_entries(
+                                menu,
+                                &cli_rail,
+                                &cli_workspace,
+                                agent_search_path.as_deref(),
                             );
                             Self::launch_entries(menu, &cli_rail, &cli_workspace, cx)
                         }))
@@ -3493,7 +3493,7 @@ impl Rail {
     }
 
     /// The agent CLIs the search path holds, one entry each under a header, after New Agent
-    /// Thread; nothing when none is installed.
+    /// Thread and New Agent in Worktree; nothing when none is installed.
     fn agent_cli_entries(
         menu: ContextMenu,
         rail: &WeakEntity<Self>,
@@ -3524,8 +3524,8 @@ impl Rail {
             })
     }
 
-    /// New Agent in Worktree (#510): a submenu of the installed agent CLIs, after the Agent CLIs,
-    /// for a local project whose folder is a git repository.
+    /// New Agent in Worktree (#510): a submenu of the installed agent CLIs, right after New Agent
+    /// Thread (#598), for a local project whose folder is a git repository.
     fn worktree_agent_entries(
         menu: ContextMenu,
         workspace: &WeakEntity<Workspace>,
