@@ -518,14 +518,20 @@ impl BrowserProject {
     #[must_use]
     pub fn of(project: &Entity<Project>, cx: &App) -> Self {
         if let Some((id, name)) = crate::groups::group_of_project(project.entity_id(), cx) {
-            return Self {
-                key: service::group_key(&id.to_string()).into(),
-                name: name.into(),
-                paths: Vec::new(),
-                host: None,
-            };
+            return Self::of_projectless(id, name);
         }
         Self::of_group(&project.read(cx).project_group_key(cx))
+    }
+
+    /// The projectless group `id`, named `name` (#600).
+    #[must_use]
+    pub fn of_projectless(id: uuid::Uuid, name: String) -> Self {
+        Self {
+            key: service::group_key(&id.to_string()).into(),
+            name: name.into(),
+            paths: Vec::new(),
+            host: None,
+        }
     }
 
     /// The project of the group `group`.
@@ -6957,8 +6963,12 @@ impl SerializableItem for BrowserView {
                 .context("no Browser tab was saved for the item")?;
             cx.update(|window, cx| {
                 // Zed adds a workspace's folders before it restores its items, so the project's
-                // key is whole here (#507).
-                let project = BrowserProject::of(&project, cx);
+                // key is whole here (#507). A projectless group's workspace is adopted as its
+                // group only once it is held, after its items, so its tabs find it by id (#601).
+                let project = match crate::groups::group_of_workspace_id(workspace_id, cx) {
+                    Some((id, name)) => BrowserProject::of_projectless(id, name),
+                    None => BrowserProject::of(&project, cx),
+                };
                 let hub = BrowserHub::global(cx);
                 hub.update(cx, |hub, cx| hub.browser_for(&project, cx));
                 // The tab claims its page before the browser's start can report it, so the page

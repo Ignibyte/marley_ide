@@ -3,18 +3,27 @@
 //! Each is a folderless workspace Marley keeps in its window: its terminals and agent CLIs start
 //! in the home folder, and its Browser tabs use a Chromium of the group's own. The rail lists them
 //! after the window's projects; the window's Home group takes what the rail's empty space makes.
+//!
+//! Since #601 a group comes back after a restart. Every group's record is kept in Zed's key-value
+//! store and read at startup, before Zed restores a window, so a group's Browser tabs find their
+//! group while they deserialize; each window's rail keeps its groups' workspace ids in its saved
+//! state and reopens them, and a record is adopted by the workspace that holds its id.
 
 use std::sync::Arc;
 
 use anyhow::Context as _;
+use db::kvp::KeyValueStore;
 use editor::Editor;
 use gpui::{
     AnyWindowHandle, App, AppContext as _, Context, DismissEvent, Entity, EntityId, EventEmitter,
-    FocusHandle, Focusable, Global, Render, WeakEntity, Window,
+    FocusHandle, Focusable, Global, Render, TaskExt as _, WeakEntity, Window,
 };
 use ui::{Headline, HeadlineSize, prelude::*};
+use util::ResultExt as _;
 use uuid::Uuid;
-use workspace::{MarleyKeptWorkspaces, ModalView, MultiWorkspace, OpenMode, Workspace};
+use workspace::{
+    MarleyKeptWorkspaces, ModalView, MultiWorkspace, OpenMode, Workspace, WorkspaceId,
+};
 
 use crate::MakeGroup;
 
@@ -24,12 +33,18 @@ const HOME: &str = "Home";
 /// The name an unnamed group takes, numbered from its second.
 const UNNAMED: &str = "Group";
 
+/// The store's scope and key for every group's record (#601).
+const SCOPE: &str = "marley-groups";
+const KEY: &str = "groups";
+
 /// A projectless group.
 #[derive(Clone)]
 pub(crate) struct Group {
     pub(crate) id: Uuid,
     pub(crate) name: String,
     pub(crate) workspace: WeakEntity<Workspace>,
+    /// Its workspace's id in Zed's database, which a restart reopens it by (#601).
+    pub(crate) database_id: Option<WorkspaceId>,
     /// Its workspace's project, kept so the browser can find the group while its workspace is
     /// being updated, when the workspace cannot be read.
     project: EntityId,
@@ -38,11 +53,67 @@ pub(crate) struct Group {
     pub(crate) home: bool,
 }
 
+/// What the store keeps of a group (#601).
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct SavedGroup {
+    database_id: WorkspaceId,
+    id: Uuid,
+    name: String,
+    home: bool,
+    expanded: bool,
+}
+
 /// Every window's groups, in the order they were made; the rail observes it.
 #[derive(Default)]
-pub(crate) struct Groups(Vec<Group>);
+pub(crate) struct Groups {
+    live: Vec<Group>,
+    /// The groups read from the store whose workspace no window holds yet (#601).
+    pending: Vec<SavedGroup>,
+}
 
 impl Global for Groups {}
+
+/// Reads the groups the store keeps, before Zed restores a window (#601).
+pub(crate) fn init(cx: &mut App) {
+    let pending = KeyValueStore::global(cx)
+        .scoped(SCOPE)
+        .read(KEY)
+        .log_err()
+        .flatten()
+        .and_then(|text| serde_json::from_str::<Vec<SavedGroup>>(&text).log_err())
+        .unwrap_or_default();
+    cx.set_global(Groups {
+        live: Vec::new(),
+        pending,
+    });
+}
+
+/// Writes every group with a workspace id, open or still pending, to the store.
+fn save(cx: &App) {
+    let Some(groups) = cx.try_global::<Groups>() else {
+        return;
+    };
+    let saved: Vec<SavedGroup> = groups
+        .live
+        .iter()
+        .filter_map(|group| {
+            Some(SavedGroup {
+                database_id: group.database_id?,
+                id: group.id,
+                name: group.name.clone(),
+                home: group.home,
+                expanded: group.expanded,
+            })
+        })
+        .chain(groups.pending.iter().cloned())
+        .collect();
+    let Some(text) = serde_json::to_string(&saved).log_err() else {
+        return;
+    };
+    let store = KeyValueStore::global(cx);
+    cx.background_spawn(async move { store.scoped(SCOPE).write(KEY.to_string(), text).await })
+        .detach_and_log_err(cx);
+}
 
 /// The groups `multi_workspace` holds, each with its workspace, in the order they were made.
 pub(crate) fn groups_of(
@@ -53,7 +124,7 @@ pub(crate) fn groups_of(
         return Vec::new();
     };
     groups
-        .0
+        .live
         .iter()
         .filter_map(|group| {
             let workspace = group.workspace.upgrade()?;
@@ -65,14 +136,134 @@ pub(crate) fn groups_of(
         .collect()
 }
 
+/// Makes each pending group whose workspace `multi_workspace` holds live, with that workspace
+/// (#601). It writes the registry only when there is a group to adopt, since a write notifies
+/// the rail, which calls this again.
+pub(crate) fn adopt(multi_workspace: &Entity<MultiWorkspace>, cx: &mut App) {
+    let found: Vec<(WorkspaceId, Entity<Workspace>)> = cx
+        .try_global::<Groups>()
+        .map(|groups| {
+            multi_workspace
+                .read(cx)
+                .workspaces()
+                .filter_map(|workspace| {
+                    let database_id = workspace.read(cx).database_id()?;
+                    groups
+                        .pending
+                        .iter()
+                        .any(|saved| saved.database_id == database_id)
+                        .then(|| (database_id, workspace.clone()))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    if found.is_empty() {
+        return;
+    }
+    for (database_id, workspace) in found {
+        let project = workspace.read(cx).project().entity_id();
+        let groups = cx.default_global::<Groups>();
+        let Some(at) = groups
+            .pending
+            .iter()
+            .position(|saved| saved.database_id == database_id)
+        else {
+            continue;
+        };
+        let saved = groups.pending.remove(at);
+        groups.live.push(Group {
+            id: saved.id,
+            name: saved.name,
+            workspace: workspace.downgrade(),
+            database_id: Some(database_id),
+            project,
+            expanded: saved.expanded,
+            home: saved.home,
+        });
+    }
+    keep(cx);
+}
+
+/// Reopens into `window` each group whose workspace id `saved` lists and the window does not
+/// hold yet (#601); the rail adopts each one as its workspace arrives. A workspace Zed no longer
+/// has drops its group.
+pub(crate) fn reopen(
+    multi_workspace: &Entity<MultiWorkspace>,
+    saved: &[WorkspaceId],
+    window: &Window,
+    cx: &mut App,
+) {
+    let (app_state, held) = {
+        let multi_workspace = multi_workspace.read(cx);
+        let held: Vec<WorkspaceId> = multi_workspace
+            .workspaces()
+            .filter_map(|workspace| workspace.read(cx).database_id())
+            .collect();
+        (
+            Arc::clone(multi_workspace.workspace().read(cx).app_state()),
+            held,
+        )
+    };
+    let handle = window.window_handle().downcast::<MultiWorkspace>();
+    for &database_id in saved {
+        let pending = cx.try_global::<Groups>().is_some_and(|groups| {
+            groups
+                .pending
+                .iter()
+                .any(|saved| saved.database_id == database_id)
+        });
+        if held.contains(&database_id) || !pending {
+            continue;
+        }
+        let opened =
+            workspace::open_workspace_by_id(database_id, Arc::clone(&app_state), handle, cx);
+        cx.spawn(async move |cx| {
+            if let Err(error) = opened.await {
+                log::warn!(
+                    "a projectless group's workspace {database_id:?} did not reopen, so the \
+                     group is dropped: {error:#}"
+                );
+                cx.update(|cx| forget_pending(database_id, cx));
+            }
+        })
+        .detach();
+    }
+}
+
+/// Drops the pending group whose workspace `database_id` could not be reopened (#601).
+pub(crate) fn forget_pending(database_id: WorkspaceId, cx: &mut App) {
+    cx.default_global::<Groups>()
+        .pending
+        .retain(|saved| saved.database_id != database_id);
+    save(cx);
+}
+
 /// The group whose workspace's project is `project`: its id and name, for its browser (#600).
 /// It reads no workspace: the browser asks while the group's own workspace is being updated.
 pub(crate) fn group_of_project(project: EntityId, cx: &App) -> Option<(Uuid, String)> {
     cx.try_global::<Groups>()?
-        .0
+        .live
         .iter()
         .find(|group| group.project == project)
         .map(|group| (group.id, group.name.clone()))
+}
+
+/// The group, open or still pending, whose workspace has the id `database_id`: its id and name,
+/// for a Browser tab that deserializes before its workspace is adopted (#601).
+pub(crate) fn group_of_workspace_id(database_id: WorkspaceId, cx: &App) -> Option<(Uuid, String)> {
+    let groups = cx.try_global::<Groups>()?;
+    groups
+        .live
+        .iter()
+        .find(|group| group.database_id == Some(database_id))
+        .map(|group| (group.id, group.name.clone()))
+        .or_else(|| {
+            groups
+                .pending
+                .iter()
+                .find(|saved| saved.database_id == database_id)
+                .map(|saved| (saved.id, saved.name.clone()))
+        })
 }
 
 /// Makes a group in `window`, named `name` (the Home group when `home`), and runs `then` with
@@ -98,16 +289,21 @@ pub(crate) fn make(
         let workspace = opened.workspace;
         cx.update(|cx| {
             let taken = taken_names(cx);
-            let project = workspace.read(cx).project().entity_id();
-            cx.default_global::<Groups>().0.push(Group {
+            let (project, database_id) = {
+                let workspace = workspace.read(cx);
+                (workspace.project().entity_id(), workspace.database_id())
+            };
+            cx.default_global::<Groups>().live.push(Group {
                 id: Uuid::new_v4(),
                 name: free_name(&name, &taken),
                 workspace: workspace.downgrade(),
+                database_id,
                 project,
                 expanded: true,
                 home,
             });
             keep(cx);
+            save(cx);
         });
         // Through the window alone: its `MultiWorkspace` stays free for `then`, which the rail's
         // Home path updates to show the group.
@@ -118,10 +314,17 @@ pub(crate) fn make(
     .detach_and_log_err(cx);
 }
 
-/// Every group's name, in every window.
+/// Every group's name, open or pending, in every window.
 fn taken_names(cx: &App) -> Vec<String> {
     cx.try_global::<Groups>()
-        .map(|groups| groups.0.iter().map(|group| group.name.clone()).collect())
+        .map(|groups| {
+            groups
+                .live
+                .iter()
+                .map(|group| group.name.clone())
+                .chain(groups.pending.iter().map(|saved| saved.name.clone()))
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -152,43 +355,47 @@ pub(crate) fn rename(id: Uuid, name: &str, cx: &mut App) {
         .try_global::<Groups>()
         .map(|groups| {
             groups
-                .0
+                .live
                 .iter()
                 .filter(|group| group.id != id)
                 .map(|group| group.name.clone())
+                .chain(groups.pending.iter().map(|saved| saved.name.clone()))
                 .collect()
         })
         .unwrap_or_default();
     let name = free_name(name, &taken);
     if let Some(group) = cx
         .default_global::<Groups>()
-        .0
+        .live
         .iter_mut()
         .find(|group| group.id == id)
     {
         group.home = group.home && name == HOME;
         group.name = name;
     }
+    save(cx);
 }
 
 /// Folds or unfolds the group `id`.
 pub(crate) fn toggle_expanded(id: Uuid, cx: &mut App) {
     if let Some(group) = cx
         .default_global::<Groups>()
-        .0
+        .live
         .iter_mut()
         .find(|group| group.id == id)
     {
         group.expanded = !group.expanded;
     }
+    save(cx);
 }
 
 /// Drops the group `id`, and any group whose workspace is gone.
 pub(crate) fn forget(id: Uuid, cx: &mut App) {
     cx.default_global::<Groups>()
-        .0
+        .live
         .retain(|group| group.id != id && group.workspace.upgrade().is_some());
     keep(cx);
+    save(cx);
 }
 
 /// Tells Zed which workspaces are groups, which opening a project must not replace.
@@ -197,7 +404,7 @@ fn keep(cx: &mut App) {
         .try_global::<Groups>()
         .map(|groups| {
             groups
-                .0
+                .live
                 .iter()
                 .filter_map(|group| group.workspace.upgrade())
                 .map(|workspace| workspace.entity_id())

@@ -3363,3 +3363,17 @@ first use. Rejected: a Zed-side group kind (a large change across `multi_workspa
 and the sidebar); a hidden folder per group (terminals would start there, not at home, and the
 project panel would show it); items outside every group (the rail's model has no row without a
 section).
+
+## AD-claude-601-groups-are-restored-from-two-stores-001
+*decided at: 2026-09-30 · status: shipped*
+
+A projectless group's record (its workspace's database id, id, name, Home flag, fold) lives in
+Zed's key-value store (`marley-groups`), read once at startup before Zed restores a window; which
+window reopens which group, in which order, lives in that window's saved sidebar blob as
+`marley_groups`. The store is read first because a group's Browser tabs deserialize before the
+rail can adopt the group's workspace, and they need its id to find its browser; the blob because
+only the window knows its own groups and their order. Marley reopens the ids a window does not
+hold through `workspace::open_workspace_by_id`; Zed restores the shown workspace itself, and
+`adopt` makes each held workspace with a pending record the group again. Rejected: the blob alone
+(too late for the tabs), the store alone (no window to reopen into), and a Zed restore hook (none
+was needed).

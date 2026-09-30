@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #601 (feature, workbench shell: the rail)
 - **Owner:** abb571b4-bf75-463f-889a-b17f7d32f71e
-- **Pipeline doc:** ../../pipeline/queued/601-projectless-groups-survive-a-restart.spec.md
+- **Pipeline doc:** ../../pipeline/completed/601-projectless-groups-survive-a-restart.spec.md
 - **Source ticket:** Chad, 2026-09-30 (the projectless groups of #600); split from #600 because Zed restores only the active folderless workspace of a window.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 #600's groups live for the session: Zed saves no project group for a folderless workspace and, at

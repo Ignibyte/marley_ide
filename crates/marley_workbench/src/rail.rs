@@ -64,7 +64,7 @@ use util::path_list::PathList;
 use uuid::Uuid;
 use workspace::{
     MultiWorkspace, MultiWorkspaceEvent, ProjectGroup, RemovalIntent, SaveIntent, Sidebar,
-    SidebarEvent, SidebarSide, Toast, Workspace,
+    SidebarEvent, SidebarSide, Toast, Workspace, WorkspaceId,
     item::{Item as _, ItemEvent},
     notifications::{DetachAndPromptErr as _, NotificationId},
 };
@@ -204,6 +204,9 @@ pub struct Rail {
     _agent_events: [Subscription; 5],
     /// The menu a right-click on the rail's empty space opens, where it opened (#600).
     empty_menu: Option<(Entity<ContextMenu>, Point<Pixels>, Subscription)>,
+    /// The window's projectless groups' workspace ids in the order it saved them, which orders
+    /// the groups a restart brings back (#601).
+    saved_groups: Vec<WorkspaceId>,
     /// Each project's own icon, by its group's first folder (#564).
     project_icons: HashMap<PathBuf, ProjectIcon>,
     /// The order the rail showed when the pointer came over it, held until it leaves (#542).
@@ -241,6 +244,8 @@ struct GroupEntry {
     git: Option<ProjectGit>,
     /// The projectless group it is, when it is one (#600); its `key` is then empty.
     group: Option<Uuid>,
+    /// That group's workspace id, which the window's saved state keeps (#601).
+    database_id: Option<WorkspaceId>,
 }
 
 /// What a header's right-click menu acts on: a project's, or a projectless group's (#600).
@@ -585,7 +590,7 @@ impl Rail {
             cx.observe_global_in::<Turns>(window, Self::refresh),
             cx.observe_global_in::<crate::notifications::Attention>(window, Self::refresh),
             cx.observe_global_in::<crate::running_errors::ErrorMarks>(window, Self::refresh),
-            cx.observe_global_in::<groups::Groups>(window, Self::refresh),
+            cx.observe_global_in::<groups::Groups>(window, Self::groups_changed),
         ]
     }
 
@@ -697,6 +702,7 @@ impl Rail {
             _multi_workspace_subscriptions: subscriptions,
             _agent_events: agent_events,
             empty_menu: None,
+            saved_groups: Vec::new(),
             project_icons: HashMap::default(),
             held_order: None,
             _ports: [ports_scanned, settings_changed],
@@ -767,6 +773,24 @@ impl Rail {
         }
     }
 
+    /// A group made, renamed, folded, adopted or removed: the rows follow, and the window's saved
+    /// state keeps its groups (#601).
+    fn groups_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.refresh(window, cx);
+        self.multi_workspace
+            .update(cx, MultiWorkspace::serialize)
+            .log_err();
+    }
+
+    /// The window's projectless groups' workspace ids, in the rail's order.
+    fn group_ids(&self) -> Vec<WorkspaceId> {
+        self.snapshot
+            .groups
+            .iter()
+            .filter_map(|group| group.database_id)
+            .collect()
+    }
+
     fn rail_state(&self) -> RailState {
         RailState {
             width: self.width_set_by_user.then(|| f32::from(self.width)),
@@ -777,6 +801,9 @@ impl Rail {
     /// Follows every workspace, terminal, Agent Panel and live thread, rereads the window, and
     /// redraws only when what the rail shows has changed.
     fn refresh(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(multi_workspace) = self.multi_workspace.upgrade() {
+            groups::adopt(&multi_workspace, cx);
+        }
         self.sync_subscriptions(window, cx);
         let filter = self.filter_editor.read(cx).text(cx);
         let mut snapshot = self
@@ -788,6 +815,7 @@ impl Rail {
                     self.foreground_command,
                     &self.terminal_output,
                     &filter,
+                    &self.saved_groups,
                     window,
                     cx,
                 )
@@ -4523,6 +4551,28 @@ fn write_rail_state(zed_state: Option<&str>, state: RailState) -> String {
     serde_json::Value::Object(blob).to_string()
 }
 
+/// The rail's projectless groups in a saved sidebar blob (#601): their workspace ids, in order.
+#[derive(Default, serde::Deserialize)]
+struct SavedGroups {
+    #[serde(default)]
+    marley_groups: Vec<WorkspaceId>,
+}
+
+/// The projectless groups' workspace ids a saved sidebar blob keeps; none when it cannot be read.
+fn read_rail_groups(blob: &str) -> Vec<WorkspaceId> {
+    serde_json::from_str::<SavedGroups>(blob)
+        .map(|saved| saved.marley_groups)
+        .unwrap_or_default()
+}
+
+/// `blob` with the projectless groups' workspace ids written into it and every other field kept.
+fn write_rail_groups(blob: &str, groups: &[WorkspaceId]) -> String {
+    let mut fields: serde_json::Map<String, serde_json::Value> =
+        serde_json::from_str(blob).unwrap_or_default();
+    fields.insert("marley_groups".into(), serde_json::json!(groups));
+    serde_json::Value::Object(fields).to_string()
+}
+
 /// Whether a git store's event can change a project's worktree rows (#510): a repository come or
 /// gone, and a repository's worktrees, `HEAD` or branches, never its file statuses, which change
 /// with every save.
@@ -5466,13 +5516,17 @@ fn listed_workspace(
         .or_else(|| group.workspaces.first().cloned())
 }
 
+/// A projectless group as the rail lists it: its id and its workspace's id.
+type Projectless = Option<(Uuid, Option<WorkspaceId>)>;
+
 /// The groups the rail lists: the window's projects with an open workspace, then its projectless
-/// groups (#600), each on its own workspace under the empty key; their names, and each one's id
-/// when it is a projectless group.
+/// groups (#600), each on its own workspace under the empty key, in the order the window saved
+/// them (#601) and then as made; their names, and each projectless group's ids.
 fn rail_groups(
     multi_workspace: &MultiWorkspace,
+    saved_groups: &[WorkspaceId],
     cx: &App,
-) -> (Vec<ProjectGroup>, Vec<String>, Vec<Option<Uuid>>) {
+) -> (Vec<ProjectGroup>, Vec<String>, Vec<Projectless>) {
     let mut groups: Vec<ProjectGroup> = multi_workspace
         .project_groups(cx)
         .into_iter()
@@ -5480,14 +5534,21 @@ fn rail_groups(
         .collect();
     let mut names = crate::group_names(&groups);
     let mut projectless = vec![None; groups.len()];
-    for (group, workspace) in groups::groups_of(multi_workspace, cx) {
+    let mut marley_groups = groups::groups_of(multi_workspace, cx);
+    marley_groups.sort_by_key(|(group, _)| {
+        saved_groups
+            .iter()
+            .position(|saved| Some(*saved) == group.database_id)
+            .unwrap_or(usize::MAX)
+    });
+    for (group, workspace) in marley_groups {
         groups.push(ProjectGroup {
             key: ProjectGroupKey::default(),
             workspaces: vec![workspace],
             expanded: group.expanded,
         });
         names.push(group.name);
-        projectless.push(Some(group.id));
+        projectless.push(Some((group.id, group.database_id)));
     }
     (groups, names, projectless)
 }
@@ -5499,11 +5560,12 @@ fn build_snapshot(
     foreground_command: ForegroundCommand,
     terminal_output: &HashMap<EntityId, Instant>,
     filter: &str,
+    saved_groups: &[WorkspaceId],
     window: &Window,
     cx: &App,
 ) -> Snapshot {
     let multi_workspace = multi_workspace.read(cx);
-    let (groups, names, projectless) = rail_groups(multi_workspace, cx);
+    let (groups, names, projectless) = rail_groups(multi_workspace, saved_groups, cx);
     let displayed = multi_workspace.workspace();
     let home = util::paths::home_dir().as_path();
     let now = cx.background_executor().now();
@@ -5584,7 +5646,8 @@ fn build_snapshot(
             workspace: workspace.downgrade(),
             source: git_source(&workspace, cx),
             git: None,
-            group: id,
+            group: id.map(|(group, _)| group),
+            database_id: id.and_then(|(_, database_id)| database_id),
         });
     }
     snapshot.rail.filtering = !filter.is_empty();
@@ -6535,7 +6598,8 @@ impl Sidebar for Rail {
             .as_ref()
             .and_then(|(sidebar, _)| sidebar.read(cx).serialized_state(cx))
             .or_else(|| self.zed_sidebar_state.clone());
-        Some(write_rail_state(zed_state.as_deref(), self.rail_state()))
+        let blob = write_rail_state(zed_state.as_deref(), self.rail_state());
+        Some(write_rail_groups(&blob, &self.group_ids()))
     }
 
     fn restore_serialized_state(
@@ -6545,6 +6609,18 @@ impl Sidebar for Rail {
         cx: &mut Context<Self>,
     ) {
         self.zed_sidebar_state = Some(state.to_string());
+        // The window's projectless groups come back once the restore is done: opening a
+        // workspace into the window updates the `MultiWorkspace` this runs inside (#601).
+        self.saved_groups = read_rail_groups(state);
+        if !self.saved_groups.is_empty() {
+            let multi_workspace = self.multi_workspace.clone();
+            let saved_groups = self.saved_groups.clone();
+            window.defer(cx, move |window, cx| {
+                if let Some(multi_workspace) = multi_workspace.upgrade() {
+                    groups::reopen(&multi_workspace, &saved_groups, window, cx);
+                }
+            });
+        }
         let saved = read_rail_state(state);
         if let Some(width) = saved.width {
             self.width = px(width).clamp(MIN_WIDTH, MAX_WIDTH);

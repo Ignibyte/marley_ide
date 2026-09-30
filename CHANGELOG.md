@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Projectless groups come back after a restart** (#601, 2026-09-30). #600's groups return when
+  Marley starts again, as the app menu starts it: with their names, in their order, their
+  terminals in the folders they were in and their Browser tabs on their pages, each tab on its
+  group's own browser. Every group's record is kept in Zed's key-value store (`marley-groups`),
+  read at startup so a group's tabs find their browser while they restore, and each window keeps
+  its groups' workspace ids in its saved sidebar state and reopens them. A group whose workspace
+  Zed no longer has is dropped, with a line in the log.
+
 - **Groups with no folder, from the rail's right-click menu** (#600, 2026-09-30). A right-click on
   the rail's empty space (under the last row, or beside PROJECTS) opens a menu: New Group… makes a
   named group with no folder, listed after the window's projects with a group icon, its chevron

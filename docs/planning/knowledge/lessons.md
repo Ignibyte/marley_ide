@@ -3969,3 +3969,12 @@ child), call `cx.stop_propagation()` and `window.prevent_default()` in the handl
 the menu: an ancestor that calls `track_focus` otherwise focuses itself on the same mouse-down and
 takes the keyboard from the menu. A `ContextMenu` opens with its first selectable entry selected,
 so a scenario reaches entry N with N−1 Downs, and a disabled entry is skipped.
+
+## L-claude-601-a-launch-with-a-path-restores-no-session-001
+*category: validate · topic: e2e scenarios that restart Marley · from: pipeline 601*
+
+Zed answers a launch that names a path as an open request and skips the last session's restore
+(`crates/zed/src/main.rs`, the `restore_task` match): only that path opens, and every other
+workspace of the window, its sidebar state and its groups stay closed. The runner's
+`launch_marley` passes the scenario's `OPEN` folder, so a scenario that checks what a restart
+brings back clears `OPEN` before relaunching, as the app menu starts Marley with no path.

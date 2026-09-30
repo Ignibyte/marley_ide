@@ -589,6 +589,7 @@ pub fn init(cx: &mut App) {
     close_guard::init(cx);
     terminal_ids::init(cx);
     terminal_size::init(cx);
+    groups::init(cx);
     voice::init(cx);
     rich_input::init(cx);
     send_selection::init(cx);

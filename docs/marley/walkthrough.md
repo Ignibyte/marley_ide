@@ -459,6 +459,8 @@ Leave the server running: Parts 5 and 7 use it.
 - [ ] Its terminal's `pwd` prints your home folder.
 - [ ] Step 3 makes a Home group with a terminal in `~`.
 - [ ] Rename shows Tools; Remove takes the group and its rows away.
+- [ ] Before removing it, quit (`zed: quit`) and start Marley from the app menu: the group comes
+  back with its name, its terminals in their folders and its Browser tabs (#601).
 
 ## Part 3. The editor
 

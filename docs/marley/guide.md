@@ -268,8 +268,8 @@ with a group icon, a chevron and a `+`. A group's terminals and agent CLIs start
 folder, and its Browser tabs use a Chromium of the group's own. New Terminal, New Browser Tab and
 the agent CLIs in the same menu open in a group named Home, made the first time. A group's `+`
 has no New Agent Thread, New Agent in Worktree or Launch, which need a folder. Right-click a
-group's header for Rename Group… and Remove Group. Groups last until Marley quits (#601 brings
-them back after a restart).
+group's header for Rename Group… and Remove Group. Groups come back after a restart with their
+names, order, terminals and Browser tabs (#601).
 
 ### The rail from the keyboard
 

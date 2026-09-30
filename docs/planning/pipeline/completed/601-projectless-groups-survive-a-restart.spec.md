@@ -1,7 +1,7 @@
 ---
 pipeline_id: 2ef22390-9dd7-45f7-a267-4ee0dc97c930
 ticket: docs/planning/tickets/open/TICKET-601-projectless-groups-survive-a-restart.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Projectless groups survive a restart"
 type: feature
 slice: workbench shell (the rail); second of two, after #600
@@ -69,6 +69,11 @@ the same profile, and shoots the rail again (`after.png`) and each terminal afte
   hook is needed, which then gets its touchpoint row.
 - D2 — A group's order is the record's order, after the window's projects, until #602.
 - D3 — A group whose workspace is gone is dropped quietly, with a log line.
+- D4 — Two stores, each for what it is read for: every group's record (its database id, id,
+  name, Home flag, fold) in Marley's key-value scope `marley-groups`, read once at startup before
+  Zed restores a window, so a group's Browser tabs find their group by workspace id while they
+  deserialize; and each window's groups, in order, as database ids in the rail's saved blob,
+  which says which window reopens which group.
 
 ## Acceptance Criteria (EARS)
 

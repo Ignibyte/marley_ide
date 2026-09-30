@@ -1585,6 +1585,18 @@ alike.
   group's workspace is being updated, so the lookup reads no workspace. `live_projects` keeps a
   group's Chromium through `of_workspace`, and Remove Group lets `review_browsers` stop it.
 
+- Since #601 groups survive a restart. `groups::init` reads every group's record (`SavedGroup`:
+  its workspace's database id, its id, name, Home flag and fold) from the key-value scope
+  `marley-groups` at startup into `pending`, and `save` writes them after every change. The
+  rail's saved sidebar blob keeps its window's groups' workspace ids as `marley_groups`
+  (`write_rail_groups`, `read_rail_groups`, beside `RailState`); `restore_serialized_state`
+  defers `groups::reopen`, which opens each id the window does not hold through
+  `workspace::open_workspace_by_id` (a failure drops the record). `refresh` calls `groups::adopt`,
+  which makes a pending record live once a workspace of the window holds its id (Zed restores the
+  shown one itself), and the `Groups` observer (`groups_changed`) also serializes the window. A
+  Browser tab that deserializes before its group is adopted finds it through
+  `groups::group_of_workspace_id` and `BrowserProject::of_projectless`.
+
 ## The guide (`src/guide.rs`, `guide/index.html`, #599)
 
 - `guide/index.html` is the user's guide: one self-contained page (styles and a small filter
