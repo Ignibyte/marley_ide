@@ -1,7 +1,7 @@
 ---
 pipeline_id: b3eb9bf7-f482-4194-8739-60cc2004b2cb
 ticket: docs/planning/tickets/open/TICKET-604-port-row-click-does-not-open.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "A click on a port row opens nothing"
 type: feature
 slice: workbench shell (the rail's port rows), after #521
@@ -17,8 +17,9 @@ button, a double-click and Enter open it.
 - **A single click** on a port row's body puts the rail's keyboard cursor on the row (#453's
   `Focus::cursor`), with the focus in the rail, and opens nothing.
 - **Opening** stays on the Open button (unchanged), a double-click on the row, and Enter while the
-  cursor is on it (#453 runs a row's click handler on Enter, so Enter gets the open handler
-  explicitly).
+  cursor is on it. Enter needs no change: #453's `confirm` opens the selected row through
+  `open_row`, whose port arm calls `open_port`, not through the row's click handler (re-checked
+  at promotion).
 - **The row's tooltip** gains "Double-click to open in a Browser tab".
 
 ### Out (explicitly deferred)
@@ -36,13 +37,16 @@ where a single click selects and a second click or Enter opens (the project pane
 - **Published material.** None needed.
 - **Code we already ship.** gpui's `ClickEvent::click_count()` (the terminal row already uses it
   for rename on a double-click, `rail.rs` `render_terminal_row`); the rail's `Focus::cursor` in
-  `marley_rail`; `render_port_row`'s row `on_click` (`rail.rs` around 4060).
+  `marley_rail`, which `selection` prefers while it is shown and the rail holds focus; the rail's
+  `on_focus_out`, which drops the cursor; `open_row`'s `Selection::Port` arm (`open_port`), which
+  Enter already reaches; `render_port_row`'s row `on_click`.
 
 ## UI proof
-The scenario `script/e2e/604-port-row-click-does-not-open.sh` (sway) starts a server in the
-scratch project, single-clicks its port row and shoots the rail with the row marked and no
-Browser tab (`single.png`), presses Enter and shoots the Browser tab (`enter.png`), closes it,
-double-clicks the row and shoots the tab again (`double.png`).
+The scenario `script/e2e/604-port-row-click-does-not-open.sh` (sway) starts `python3 -m
+http.server` in the scratch project's terminal, single-clicks its port row and shoots the rail
+with the row marked and no Browser tab (`single.png`), presses Enter and shoots the Browser tab
+(`enter.png`), shows the terminal again (`terminal.png`), double-clicks the row and shoots the tab
+brought forward (`double.png`).
 
 ## Locked-In Decisions
 - D1 — One click marks, two open; Enter and the Open button open.

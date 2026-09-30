@@ -4023,3 +4023,13 @@ exported there reaches Marley's own spawns (`process::output`), and not only its
 else (the runner itself calls `systemctl --user stop` for its browser units) keeps the rest of the
 run real. Units or processes a scenario starts outside Marley go in a `teardown`, which the
 runner's EXIT trap calls however the run ends.
+
+## L-claude-604-the-rails-enter-opens-through-open-row-not-a-rows-click-001
+*category: design · topic: the rail's keyboard · from: pipeline 604*
+
+AD-claude-453 says Enter runs a row's click handler; the code does not. `confirm` calls
+`open_row(selection)`, which opens each kind of row itself (a port's through `open_port`), so a
+row's click can change what it does, as #604's port row now marks on one click, without Enter
+changing. When a row's click changes, check `open_row`'s arm for that row before touching Enter.
+A click that should leave the keyboard on its row must focus the rail too (`mark_row`): the
+cursor counts only while the rail holds focus, and focus leaving drops it.

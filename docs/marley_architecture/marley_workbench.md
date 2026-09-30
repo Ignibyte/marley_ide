@@ -155,10 +155,12 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   Copy Command (`refused_toast`). `render_port_row` draws `Server` in the row's round icon, and
   on hover (`visible_on_hover`) Open (`ToolWeb`), Copy and Stop, each in a div with its own
   debug selector (`marley-rail-port-open-<port>` and so on).
-  - A click on the row, Enter, or Open runs `open_port`: the group's workspace is shown
+  - A double-click on the row, Enter, or Open runs `open_port`: the group's workspace is shown
     (`activate_workspace`), then `browser::open_url_tab` opens the URL there, or brings forward
-    the tab already on it. The buttons stop the click's propagation, so the row does not open
-    it a second time.
+    the tab already on it. Since #604 one click runs `mark_row` instead, which focuses the rail
+    and puts `cursor` on the row, so Enter (`confirm` → `open_row`) opens it; the row's tooltip
+    ends with that. The buttons stop the click's propagation, so the row does not act on it a
+    second time.
   - Copy writes the URL to the clipboard. Stop runs `ports::stop` off the main thread and shows a
     toast in the window's workspace when the process no longer listens there or the signal
     failed; the row goes with the next scan.

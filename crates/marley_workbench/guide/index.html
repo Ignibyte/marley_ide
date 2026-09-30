@@ -539,12 +539,13 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 
 <article id="port-rows">
-<h3>Port rows: the servers your project runs <span class="ticket">#521 · #603</span></h3>
+<h3>Port rows: the servers your project runs <span class="ticket">#521 · #603 · #604</span></h3>
 <p class="what"><strong>What it is.</strong> The rail lists the TCP ports your processes listen on from inside the project's folders: a dev server, a database, anything. A row comes within seconds of a server's start and goes when it stops.</p>
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Start a server in the project, for example <code>npm run dev</code> or <code>python3 -m http.server 8000</code>.</li>
 <li>Point at its row to see the command line, folder and pid, and three buttons: Open (the URL in a Browser tab), Copy (the URL) and Stop.</li>
+<li>One click on the row only marks it. Double-click it, or press <kbd>Enter</kbd> once it is marked, to open its URL in a Browser tab, as Open does.</li>
 <li>Stop sends the process SIGTERM, after checking it still listens on that port.</li>
 <li>A server that a systemd service runs shows its unit on a line under the URL, and the pointer on the row says whether it is a user or a system service. Stop then stops the service, not the process, since the service would start a stopped process again: <code>systemctl --user stop</code> for a user service, <code>systemctl stop</code> for a system one, which asks for your password in the desktop's dialog. Point at Stop to see which it will do.</li>
 <li>If the service cannot be stopped (you cancel the password dialog, or are not allowed), a message says why and offers the command to run yourself, such as <code>sudo systemctl stop app.service</code>, with a Copy Command button.</li>

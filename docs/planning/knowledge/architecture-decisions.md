@@ -3406,3 +3406,12 @@ Marley itself runs in counts as a process, since stopping that unit would stop M
 SIGTERM for everything with a warning (the reported bug), SIGKILL (a restart policy still
 restarts), and `systemctl kill` (it leaves the unit to restart). Containers, whose published
 ports root's `docker-proxy` holds, are left to a ticket of their own.
+
+## AD-claude-604-a-port-row-marks-on-one-click-and-opens-on-two-001
+*decided at: 2026-09-30 · status: shipped · amends: AD-claude-453-the-rails-keys-are-zeds-list-actions-001 (Enter goes through `open_row`)*
+
+A click on a port row's body marks it (the rail's cursor, with the focus in the rail) and opens
+nothing; a double-click, Enter or the row's Open button opens its URL in a Browser tab. A port row
+is a place to look at, not to go to: one click on it had started a browser each time Chad looked
+at a server. Every other row keeps opening on one click, since its click shows something the
+window already has. Rejected: no open on the row at all (the Open button alone), and a setting.

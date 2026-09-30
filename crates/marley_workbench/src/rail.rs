@@ -2381,6 +2381,13 @@ impl Rail {
         self.refresh(window, cx);
     }
 
+    /// Puts the keyboard's row on `row` with the focus in the rail, so Enter opens it (#604).
+    fn mark_row(&mut self, row: Selection, window: &mut Window, cx: &mut Context<Self>) {
+        window.focus(&self.focus_handle, cx);
+        self.cursor = Some(row);
+        self.refresh(window, cx);
+    }
+
     fn select_next(&mut self, _: &SelectNext, window: &mut Window, cx: &mut Context<Self>) {
         self.move_cursor(|rail| marley_rail::step(rail, true), window, cx);
     }
@@ -4475,7 +4482,8 @@ impl Rail {
 
 impl Rail {
     /// A port's row (#521): the port and its process, the URL under them, and on hover Open,
-    /// Copy and Stop; its tooltip names the process, and a click opens it as Open does.
+    /// Copy and Stop; its tooltip names the process. One click marks the row, and a double-click
+    /// or Enter opens it as Open does (#604).
     fn render_port_row(
         row: PortRow,
         workspace: WeakEntity<Workspace>,
@@ -4553,10 +4561,19 @@ impl Rail {
             cx,
         )
         .child(end)
-        .tooltip(Tooltip::text(row.tooltip))
-        .on_click(cx.listener(move |rail, _: &ClickEvent, window, cx| {
-            rail.open_port(&workspace, url.clone(), window, cx)
-                .log_err();
+        .tooltip(Tooltip::text(format!(
+            "{}\nDouble-click, or Enter, to open in a Browser tab.",
+            row.tooltip
+        )))
+        // One click marks the row and two open it (#604): a click on a server's row to look at it
+        // should not start a browser.
+        .on_click(cx.listener(move |rail, event: &ClickEvent, window, cx| {
+            if event.click_count() >= 2 {
+                rail.open_port(&workspace, url.clone(), window, cx)
+                    .log_err();
+            } else {
+                rail.mark_row(Selection::Port(port, pid), window, cx);
+            }
         }));
         div()
             .debug_selector(move || format!("marley-rail-port-{port}"))

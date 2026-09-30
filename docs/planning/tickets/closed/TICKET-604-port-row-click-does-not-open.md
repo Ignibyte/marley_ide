@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #604 (feature, workbench shell: the rail's port rows)
 - **Owner:** abb571b4-bf75-463f-889a-b17f7d32f71e
-- **Pipeline doc:** ../../pipeline/queued/604-port-row-click-does-not-open.spec.md
+- **Pipeline doc:** ../../pipeline/completed/604-port-row-click-does-not-open.spec.md
 - **Source ticket:** Chad, 2026-09-30: "Whats odd about the playwright though is that it opens as a service and a browser. What causes this to automatically open in marley?" A click on a port row's name or URL opens its URL in a Browser tab (#521); reaching for the row's Stop button that way opened Playwright's server, which has no page, three times.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 A port row opens its URL in a Browser tab on any click of its body, which is easy to do by

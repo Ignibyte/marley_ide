@@ -131,6 +131,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **One click on a port row marks it; a double-click opens it** (#604, 2026-09-30). A click on a
+  port row's body used to open its URL in a Browser tab, so a look at a server's row started a
+  browser. Now one click puts the rail's keyboard row on it, with the focus in the rail; a
+  double-click, Enter or the row's Open button opens the URL. The row's tooltip says so. Other
+  rows still open on one click.
+
 - **New Agent in Worktree sits under New Agent Thread** (#598, 2026-09-30). In a project's `+` in
   the rail, New Agent in Worktree now follows New Agent Thread directly, above the Agent CLIs
   header, so the two submenus that start an agent sit together and the header holds only the

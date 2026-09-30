@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-604](open/TICKET-604-port-row-click-does-not-open.md) | feature | workbench shell · port rows: one click marks the row; Open, a double-click or Enter opens its URL in a Browser tab |
 | [TICKET-605](open/TICKET-605-archive-thread-rows.md) | feature | workbench shell · thread rows: an Archive button on hover and a right-click Archive Thread, as Zed's thread history archives |
 
 ## Deliberate (picked explicitly, never auto-next)

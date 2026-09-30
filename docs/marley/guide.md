@@ -213,6 +213,8 @@ goes when it stops.
 
 - A server on `0.0.0.0` or `::` gets a URL on `127.0.0.1` or `[::1]`, and a server on two
   addresses of one port gets one row.
+- One click on a row marks it (#604); a double-click, or Enter once it is marked, opens its URL in
+  a Browser tab of the project, as Open does.
 - The pointer on a row shows the process's command line, working directory and pid, and three
   buttons: Open (the URL in a Browser tab of the project, or the tab already on it), Copy (the URL
   on the clipboard) and Stop. Stop sends the process SIGTERM once a fresh look finds it still
