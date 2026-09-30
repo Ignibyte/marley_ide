@@ -3377,3 +3377,19 @@ hold through `workspace::open_workspace_by_id`; Zed restores the shown workspace
 `adopt` makes each held workspace with a pending record the group again. Rejected: the blob alone
 (too late for the tabs), the store alone (no window to reopen into), and a Zed restore hook (none
 was needed).
+
+## AD-claude-602-the-rail-owns-its-order-001
+*decided at: 2026-09-30 · status: shipped*
+
+The order the user sets by dragging is the rail's own, saved in each window's sidebar blob as
+`marley_order`: headers by a project's folders or a group's id, rows by ids that survive a
+restart (the terminal's `MARLEY_TERMINAL_ID`, the Browser tab's page target, the thread's key).
+It sorts the snapshot before `marley_rail` walks it, so #542's stable attention sorts use it as
+their tie-break and a drop is allowed only within the dragged row's class. Move Project Up and
+Down move in the same list. Zed's project-group order is left alone: it cannot hold a folderless
+group (L-claude-602-zeds-project-group-list-never-holds-a-folderless-workspace-001), so using it
+would have needed a second order for groups and a Zed touch. The cost: Zed's own layout keeps
+Zed's order, and something added after the user placed the headers goes last. Rejected: repeated
+`move_project_group_up/down` swaps (they cannot pass a group), an additive
+`move_project_group_to` (the same limit, plus a touchpoint), and moving tabs in panes to match a
+row's place (a row's place and its tab's stay independent).

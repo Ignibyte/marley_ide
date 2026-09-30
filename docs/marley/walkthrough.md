@@ -462,6 +462,22 @@ Leave the server running: Parts 5 and 7 use it.
 - [ ] Before removing it, quit (`zed: quit`) and start Marley from the app menu: the group comes
   back with its name, its terminals in their folders and its Browser tabs (#601).
 
+### 2.11 Drag to reorder (#602)
+
+1. With a group and `marley-tour` listed, drag the group's header up onto `marley-tour`'s header
+   and hold before letting go.
+2. Let go. Then drag the last terminal row of `marley-tour` onto its first terminal row.
+3. Drag a terminal row onto another project's header and let go.
+4. Right-click `marley-tour`'s header and choose Move Project Down.
+5. Quit (`zed: quit`) and start Marley from the app menu.
+
+- [ ] While dragging, a card with the name follows the pointer, a line runs above
+  `marley-tour`'s block, and nothing else in the rail moves.
+- [ ] The group lists above `marley-tour`, and the terminal you dragged is its first row.
+- [ ] Step 3 changes nothing: the row goes back.
+- [ ] Move Project Down moves `marley-tour` one place down, past a group as well as a project.
+- [ ] After the restart, the headers and rows are in the order you left them.
+
 ## Part 3. The editor
 
 Marley's editor is Zed's. This part checks the everyday tools. The first time you open

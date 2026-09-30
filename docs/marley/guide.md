@@ -237,7 +237,8 @@ header (#531):
 
 Marley reads neither for a repository Zed does not trust yet.
 
-A project header's right-click menu has Move Project Up and Move Project Down. Ctrl+Alt+J closes
+A project header's right-click menu has Move Project Up and Move Project Down, which move it one
+place in the rail, past a group as well as a project. Ctrl+Alt+J closes
 and opens the rail. A rail you close stays closed after a restart, and its width is saved with
 the window; one width holds in both layouts.
 
@@ -270,6 +271,18 @@ the agent CLIs in the same menu open in a group named Home, made the first time.
 has no New Agent Thread, New Agent in Worktree or Launch, which need a folder. Right-click a
 group's header for Rename Group… and Remove Group. Groups come back after a restart with their
 names, order, terminals and Browser tabs (#601).
+
+### Drag to reorder (#602)
+
+Drag a project's or a group's header up or down to move it, with its rows, among the headers; a
+group can sit between projects. Drag a terminal, Browser tab or thread row up or down to move it
+among the rows of its kind in its own group (a worktree's terminals among that worktree's). A
+card with the name follows the pointer, and a line shows where it lands: above the target when
+you drag up, below it when you drag down. A row dropped on another group, a header or outside the
+rail goes back. The rail holds still while you drag, and a press that barely moves is still a
+click. The order is saved with the window and comes back after a restart; under the attention
+order, a row moves within its class and the order you set breaks ties. Something added later goes
+after what you placed, and moving a row never moves its tab in the panes.
 
 ### The rail from the keyboard
 

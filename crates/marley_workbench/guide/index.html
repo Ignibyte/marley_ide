@@ -156,6 +156,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#rail-overview">Projects and their rows</a></li>
 <li><a href="#plus-menu">The + menu: start things in a project</a></li>
 <li><a href="#projectless-groups">Groups with no folder, and the rail&#x27;s right-click menu</a></li>
+<li><a href="#rail-drag">Drag to reorder the rail</a></li>
 <li><a href="#terminal-rows">Terminal rows: rename, close, last command</a></li>
 <li><a href="#rail-dots">Dots that ask for you</a></li>
 <li><a href="#needs-you">Needs you: every agent waiting on you</a></li>
@@ -448,6 +449,25 @@ th { background: var(--panel); font-weight: 650; }
 <p class="note">A group keeps its place when you open a project while it is on screen, and comes back after a restart with its name, its order, its terminals in their folders and its Browser tabs (#601).</p>
 </article>
 
+<article id="rail-drag">
+<h3>Drag to reorder the rail <span class="ticket">#602</span></h3>
+<p class="what"><strong>What it is.</strong> Drag a project's or a group's header up or down to move it, with its rows, among the others; groups can sit between projects. Drag a terminal, Browser tab or thread row up or down to move it among the rows of its kind in its own group. The order is saved with the window and comes back after a restart.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Press on a header or a row and move the pointer. A card with its name follows the pointer.</li>
+<li>Over a place it can go, a line shows where it will land: above the target when you drag up, below it when you drag down. A header lands in the place of the block (a header and its rows) you drop it on; a row lands in the place of the row you drop it on.</li>
+<li>Let go. The rail keeps that order until you change it again.</li>
+</ol>
+<ul class="points">
+<li>A row only reorders: dropped on another group, on a header or outside the rail, it goes back where it was. Terminals under a worktree move among that worktree's terminals.</li>
+<li>A press that barely moves is still a click, and opens the row.</li>
+<li>While you drag, nothing else in the rail moves.</li>
+<li>Under the attention order a row moves within its class (waiting, working, idle…), since what needs you still comes first; the order you set decides among rows of the same class.</li>
+<li>Something new, like a terminal or a project you add later, goes after the ones you have placed.</li>
+<li>A row's place is kept by the terminal, the page or the thread, not by its tab: moving a row does not move its tab in the panes.</li>
+</ul>
+</article>
+
 <article id="terminal-rows">
 <h3>Terminal rows: rename, close, last command <span class="ticket">#452 · #551</span></h3>
 <p class="what"><strong>What it is.</strong> A terminal's row carries its name, where it is, and what it last ran, and renames or closes the terminal.</p>
@@ -486,7 +506,7 @@ th { background: var(--panel); font-weight: 650; }
 
 <article id="attention-order">
 <h3>What needs you comes first <span class="ticket">#542</span></h3>
-<p class="what"><strong>What it is.</strong> The rail sorts projects, and the rows under each, by attention: waiting on you or failed and unseen first, then finished and unseen, then working, then quiet agents (<code>no update in N m</code>), then idle. Ties keep the window's order.</p>
+<p class="what"><strong>What it is.</strong> The rail sorts projects, and the rows under each, by attention: waiting on you or failed and unseen first, then finished and unseen, then working, then quiet agents (<code>no update in N m</code>), then idle. Ties keep the order you set by dragging (#602), else the window's.</p>
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Nothing to do: the order follows your agents.</li>
@@ -512,7 +532,7 @@ th { background: var(--panel); font-weight: 650; }
 <p class="what"><strong>What it is.</strong> Right-click a project's header for Move Project Up, Move Project Down, Clear Browser Data… and Remove Project.</p>
 <h4>How to use it</h4>
 <ul class="points">
-<li><strong>Move Project Up / Down</strong> reorders the projects; the order is saved.</li>
+<li><strong>Move Project Up / Down</strong> moves the project one place in the rail, past a group as well as a project; it is the same order dragging sets (#602), and it is saved.</li>
 <li><strong>Clear Browser Data…</strong> asks, then closes the project's Browser tabs, stops its Chromium and deletes its profile, so every site in the project is signed out. Other projects keep their logins.</li>
 <li><strong>Remove Project</strong> takes the project out of the window and stops its Chromium.</li>
 </ul>

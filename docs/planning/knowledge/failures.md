@@ -2902,3 +2902,13 @@ this reason. Fixed before the commit: the handler does both.
 (`rail.new_terminal` → `activate_workspace`) updates that same `MultiWorkspace`, which would panic.
 Caught by the review before the gate: the follow-up runs through `AnyWindowHandle::update`, which
 takes the window and leases no view.
+
+## F-claude-602-a-drag-begun-after-the-hold-was-let-go-held-nothing-001
+*severity: low · found in: pipeline 602's Code phase (review of the diff) · class: a state that only an earlier event sets, relied on by a later one that can come without it*
+
+The rail's order during a drag was kept by ignoring gpui's hover-false while `dragging`, which
+assumed the pointer's hover had already taken #542's hold. After a header's order changes the
+hold is let go, and when that change came from the header's menu (Move Project) gpui may still
+think the pointer is over the rail and send no new hover-true; a drag begun then held no order,
+and the attention sort could move rows under it. Caught by the review before the gate:
+`start_drag` takes the hold when none is held.

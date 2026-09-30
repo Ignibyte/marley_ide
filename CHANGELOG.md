@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Drag to reorder the rail** (#602, 2026-09-30). A project's or a group's header drags up or down
+  among the headers, its rows with it, so a group can sit between projects; a terminal, Browser
+  tab or thread row drags up or down among the rows of its kind in its own group and section. A
+  card with the name follows the pointer, a line shows where it lands, and a row dropped anywhere
+  else goes back. The rail holds still for the whole drag, and a press that barely moves is still
+  a click. The order is saved with the window's sidebar state (headers by folders or group id,
+  rows by terminal id, page or thread) and comes back after a restart; under the attention order
+  it breaks ties within each class. Move Project Up and Down now move a project in the same order,
+  past a group as well as a project, rather than in Zed's project list.
+
 - **Projectless groups come back after a restart** (#601, 2026-09-30). #600's groups return when
   Marley starts again, as the app menu starts it: with their names, in their order, their
   terminals in the folders they were in and their Browser tabs on their pages, each tab on its

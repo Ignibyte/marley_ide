@@ -3978,3 +3978,26 @@ Zed answers a launch that names a path as an open request and skips the last ses
 workspace of the window, its sidebar state and its groups stay closed. The runner's
 `launch_marley` passes the scenario's `OPEN` folder, so a scenario that checks what a restart
 brings back clears `OPEN` before relaunching, as the app menu starts Marley with no path.
+
+## L-claude-602-nested-drop-targets-need-a-drag-type-each-001
+*category: design · topic: gpui drag and drop · from: pipeline 602*
+
+In gpui a drop goes to the deepest hovered element with an `on_drop` of the drag's type, which
+takes the drag before it asks `can_drop`: when the answer is no, the drag is simply gone, and no
+element around it sees the drop. So a target nested in another (a rail row inside its header's
+block) must listen for a different drag type than the one around it: with one shared type, a
+header dropped over a row would vanish instead of reaching its block. Two further facts from the
+same code (`crates/gpui/src/elements/div.rs`): hover reads false for every element while any drag
+is active, so a hover-kept state ends the moment a drag starts unless the drag keeps it; and a
+successful `on_drop` stops propagation, so a parent's `on_mouse_up` does not run after a drop and
+the drop handler has to end whatever the drag began.
+
+## L-claude-602-zeds-project-group-list-never-holds-a-folderless-workspace-001
+*category: design · topic: Zed's MultiWorkspace · from: pipeline 602*
+
+`MultiWorkspace::project_groups` skips an empty key when it adds and when it restores a group
+(`ensure_project_group_state`, `restore_project_groups`), and a new project goes to its top
+(index 0). An order that must place Marley's projectless groups among projects cannot live in
+that list; the rail keeps its own (`SavedOrder::headers`). A Browser tab's saved item id is not a
+stable id across restarts either (the item id is the view's entity id, new each start); its page
+target is.

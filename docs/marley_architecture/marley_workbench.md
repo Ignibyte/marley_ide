@@ -232,8 +232,8 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   row, which `refresh` hands to `marley_rail` while the rail holds focus; a focus-out
   subscription drops it. Left folds an open project or climbs to its header, right unfolds, and
   Enter runs the row's click handler. A project header's right-click menu has Move Project Up
-  and Move Project Down (`MultiWorkspace::move_project_group_up`, `move_project_group_down`),
-  disabled at the ends, and after a separator Clear Browser Data… (#581) and Remove Project
+  and Move Project Down, disabled at the ends (since #602 they move the project in the rail's own
+  header order, `move_project`, rather than through `MultiWorkspace::move_project_group_up`), and after a separator Clear Browser Data… (#581) and Remove Project
   (#507: `MultiWorkspace::remove_project_group`, as Zed's sidebar's Remove calls it), which closes
   the project's workspaces after their save prompts and so stops its Chromium.
   `project_context_menu` builds it. Zed's `multi_workspace::FocusWorkspaceSidebar` (`ctrl-alt-;`) focuses
@@ -1572,7 +1572,7 @@ alike.
   `workspace::MarleyKeptWorkspaces`, which `MultiWorkspace::open_project` reads so it does not
   replace a shown group (a `workspace` touchpoint).
 - The rail's `rail_groups` appends a `ProjectGroup` per group of the window (the empty key, its
-  own workspace) after Zed's, so rows, focus and the attention order need nothing new;
+  own workspace) after Zed's (then sorts every header by #602's saved order), so rows, focus and the attention order need nothing new;
   `GroupEntry.group` marks them for the header's icon (`header_icon`), its fold (the record's),
   its menu (`HeaderMenu`: Rename Group…, Remove Group) and the `+` (no New Agent Thread).
   `group_threads` returns nothing for a key with no folder, and `Ports::of` finds nothing for it.
@@ -1596,6 +1596,38 @@ alike.
   shown one itself), and the `Groups` observer (`groups_changed`) also serializes the window. A
   Browser tab that deserializes before its group is adopted finds it through
   `groups::group_of_workspace_id` and `BrowserProject::of_projectless`.
+
+## Dragging to reorder the rail (`src/rail_order.rs`, #602)
+
+- `rail_order.rs` is a child module of `rail.rs`, as the switcher is. `SavedOrder` holds #601's
+  projectless-group ids (`groups`) and the order the user left: `headers`, the headers' places,
+  and `rows`, per header's place its rows' places. A header's place is `project:` and its folders
+  (one per line) or `group:` and the group's id; a row's is `terminal:` and its
+  `MARLEY_TERMINAL_ID`, `browser:` and its page's target, or `thread:` and its key, and a row
+  with neither is `view:` and its entity id, which keeps its place for the session only. The
+  sidebar blob keeps it as `marley_order` (`read_rail_order`, `write_rail_order`).
+- `rail_groups` sorts the listed headers, projects and groups together, by `headers` with
+  `marley_rail::place`, so project indices, focus and `GroupEntry` follow one order;
+  `build_snapshot` notes each terminal's and Browser tab's place in `Snapshot::places`, and
+  `arrange` sorts each project's terminals, Browser tabs and threads by `rows`. `marley_rail`'s
+  attention sorts are stable, so the placed order breaks their ties. Zed's project-group order is
+  left alone: it cannot hold a folderless workspace.
+- `render_blocks` wraps each header and the rows under it in one block. The header's frame takes
+  `on_drag` with a `DraggedRailHeader`; the block is its drop target. A terminal's, Browser tab's
+  or thread's card takes `on_drag`, `can_drop`, `drag_over` and `on_drop` with a
+  `DraggedRailRow` (`draggable_row`). Each carries its place or selection, its position in the
+  rail and its `marley_rail::Run`; `can_drop` wants the same run and not itself, and `drag_over`
+  draws a 2 px `drop_target_border` on the target's top when it sits above the dragged one and on
+  its bottom otherwise. Each drag type renders its own preview, a raised card with the name.
+- `drop_header` and `drop_row` rebuild the header list, or the group's rows (terminals, Browser
+  tabs, threads), with `marley_rail::move_to` (before the target when it sat above), and
+  `order_changed` keeps only listed headers' rows, serializes the window, lets the hold go and
+  refreshes. `move_project` swaps a project with its neighbour in the same list.
+- The hold (`Hold`: #542's held order and `dragging`). `on_drag`'s constructor calls
+  `start_drag` through the rail's weak handle, which sets `dragging` and takes the hold if none
+  is held; the root's `on_hover` ignores `false` while dragging (gpui reads no hover during a
+  drag); `end_drag` runs on the root's left mouse-up and mouse-up-out, and a hover-true, which
+  gpui sends only with no drag in flight, clears a stale flag.
 
 ## The guide (`src/guide.rs`, `guide/index.html`, #599)
 

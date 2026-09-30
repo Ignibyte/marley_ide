@@ -81,9 +81,12 @@ use crate::turns::Turns;
 use crate::worktree_git::{self, BranchEnd, Drift, MergeOwner};
 use crate::{MarleySettings, browser, launch, worktree_agents};
 
+#[path = "rail_order.rs"]
+mod order;
 #[path = "rail_switcher.rs"]
 mod switcher;
 
+use order::{DraggedRailHeader, DraggedRailRow, Hold, SavedOrder};
 use switcher::{RailSwitcher, SwitcherEntry, SwitcherEvent};
 
 const DEFAULT_WIDTH: Pixels = px(260.);
@@ -204,13 +207,14 @@ pub struct Rail {
     _agent_events: [Subscription; 5],
     /// The menu a right-click on the rail's empty space opens, where it opened (#600).
     empty_menu: Option<(Entity<ContextMenu>, Point<Pixels>, Subscription)>,
-    /// The window's projectless groups' workspace ids in the order it saved them, which orders
-    /// the groups a restart brings back (#601).
-    saved_groups: Vec<WorkspaceId>,
+    /// The order the window saved: its projectless groups', which orders the groups a restart
+    /// brings back (#601), and the one the user left by dragging (#602).
+    saved_order: SavedOrder,
     /// Each project's own icon, by its group's first folder (#564).
     project_icons: HashMap<PathBuf, ProjectIcon>,
-    /// The order the rail showed when the pointer came over it, held until it leaves (#542).
-    held_order: Option<marley_rail::Held>,
+    /// The order the rail showed when the pointer came over it, held until it leaves (#542) and
+    /// while a drag from it is in flight (#602).
+    hold: Hold,
     /// The rows' ports, from the scan an open rail keeps running (#521), and the settings that
     /// can show the rail again.
     _ports: [Subscription; 2],
@@ -397,6 +401,8 @@ struct Snapshot {
     inbox_route: HashMap<String, RouteAsking>,
     /// The entities behind each worktree's row, by its folder (#510).
     worktrees: HashMap<String, WorktreeEntry>,
+    /// Each terminal's and Browser tab's place in the order the user leaves by dragging (#602).
+    places: HashMap<Selection, String>,
 }
 
 /// The entities behind a worktree's row (#510), held weakly.
@@ -702,9 +708,9 @@ impl Rail {
             _multi_workspace_subscriptions: subscriptions,
             _agent_events: agent_events,
             empty_menu: None,
-            saved_groups: Vec::new(),
+            saved_order: SavedOrder::default(),
             project_icons: HashMap::default(),
-            held_order: None,
+            hold: Hold::default(),
             _ports: [ports_scanned, settings_changed],
             _focus_out: focus_out,
             _filter_edits: filter_edits,
@@ -815,12 +821,13 @@ impl Rail {
                     self.foreground_command,
                     &self.terminal_output,
                     &filter,
-                    &self.saved_groups,
+                    &self.saved_order,
                     window,
                     cx,
                 )
             })
             .unwrap_or_default();
+        order::arrange(&mut snapshot, &self.saved_order);
         self.note_turns_open(&mut snapshot);
         self.note_ended_runs(&mut snapshot);
         self.note_inbox(&mut snapshot, window, cx);
@@ -830,7 +837,7 @@ impl Rail {
         self.note_project_git(&mut snapshot);
         // The rail's order, and the order it holds while the pointer is over it (#542).
         snapshot.rail.order = MarleySettings::get_global(cx).rail_order;
-        snapshot.rail.held.clone_from(&self.held_order);
+        snapshot.rail.held.clone_from(&self.hold.order);
         if self.focus_handle.contains_focused(window, cx) {
             snapshot.rail.focus.cursor.clone_from(&self.cursor);
         }
@@ -3129,7 +3136,8 @@ impl Rail {
         }
     }
 
-    /// Moves a project one place up or down in the window, as Zed's own reorder does.
+    /// Moves a project one place up or down in the rail's order, the one dragging sets (#602),
+    /// past a projectless group as well as a project.
     fn move_project(
         &mut self,
         key: &ProjectGroupKey,
@@ -3137,15 +3145,22 @@ impl Rail {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let moved = self.multi_workspace.update(cx, |multi_workspace, cx| {
-            if up {
-                multi_workspace.move_project_group_up(key, cx)
-            } else {
-                multi_workspace.move_project_group_down(key, cx)
-            }
-        });
-        moved.log_err();
-        self.refresh(window, cx);
+        let headers: Vec<String> = self
+            .snapshot
+            .groups
+            .iter()
+            .map(order::group_place)
+            .collect();
+        let place = order::header_place(key, None);
+        let Some(at) = headers.iter().position(|header| *header == place) else {
+            return;
+        };
+        let neighbour = if up { at.checked_sub(1) } else { Some(at + 1) };
+        let Some(neighbour) = neighbour.and_then(|neighbour| headers.get(neighbour)) else {
+            return;
+        };
+        self.saved_order.headers = marley_rail::move_to(&headers, &place, neighbour, up);
+        self.order_changed(window, cx);
     }
 
     /// Opens the prompt for a new projectless group's name (#600).
@@ -3448,6 +3463,99 @@ impl Rail {
     }
 
     /// The rows, and under them the empty space a right-click opens a menu on (#600).
+    /// The rail's rows: each project's header and the rows under it in one block, which a dragged
+    /// header lands on (#602).
+    fn render_blocks(&self, cx: &Context<Self>) -> Vec<AnyElement> {
+        let search_path = agents::launcher(cx).search_path;
+        let rail = &self.snapshot.rail;
+        let mut blocks: Vec<(AnyElement, Option<DraggedRailHeader>, Vec<AnyElement>)> = Vec::new();
+        for (position, row) in marley_rail::rail_rows(rail).into_iter().enumerate() {
+            let run = marley_rail::run(rail, &row);
+            if let Row::Project(row) = row {
+                let Some(group) = self.snapshot.groups.get(row.index) else {
+                    continue;
+                };
+                let index = row.index;
+                let drag = run.map(|run| DraggedRailHeader::new(group, position, run, &row.name));
+                let icon = group
+                    .key
+                    .path_list()
+                    .paths()
+                    .first()
+                    .and_then(|root| self.project_icons.get(root))
+                    .and_then(|icon| icon.image.clone());
+                let header = v_flex()
+                    // A line between one project's rows and the next project, as Warp's tab list
+                    // draws one between its tabs.
+                    .when(position > 0, |project| {
+                        project.child(
+                            div()
+                                .debug_selector(move || format!("marley-rail-divider-{index}"))
+                                .py_1p5()
+                                .child(Divider::horizontal()),
+                        )
+                    })
+                    .child(self.render_project_row(
+                        row,
+                        group,
+                        icon,
+                        search_path.clone(),
+                        drag.clone(),
+                        cx,
+                    ))
+                    .into_any_element();
+                blocks.push((header, drag, Vec::new()));
+            } else if let Some(element) = self.render_row(position, row, run, cx)
+                && let Some((_, _, rows)) = blocks.last_mut()
+            {
+                rows.push(element);
+            }
+        }
+        blocks
+            .into_iter()
+            .map(|(header, drag, rows)| Self::header_block(header, rows, drag, cx))
+            .collect()
+    }
+
+    /// A row under a project's header, draggable when its kind reorders (#602).
+    fn render_row(
+        &self,
+        position: usize,
+        row: Row,
+        run: Option<marley_rail::Run>,
+        cx: &Context<Self>,
+    ) -> Option<AnyElement> {
+        match row {
+            Row::Project(_) => None,
+            Row::Terminal(row) => self.snapshot.terminals.get(&row.id).map(|terminal| {
+                let drag = run.map(|run| {
+                    let selection = Selection::Terminal(row.id);
+                    DraggedRailRow::new(selection, row.project, position, run, &row.title)
+                });
+                Self::render_terminal_row(row, terminal, drag, cx).into_any_element()
+            }),
+            Row::Browser(row) => self.snapshot.browsers.get(&row.id).map(|browser| {
+                let favicon = self.snapshot.favicons.get(&row.id).cloned();
+                let drag = run.map(|run| {
+                    let selection = Selection::Browser(row.id);
+                    DraggedRailRow::new(selection, row.project, position, run, &row.title)
+                });
+                Self::render_browser_row(row, browser, favicon, drag, cx).into_any_element()
+            }),
+            Row::Thread(row) => self.snapshot.threads.get(&row.key).map(|thread| {
+                let drag = run.map(|run| {
+                    let selection = Selection::Thread(row.key.clone());
+                    DraggedRailRow::new(selection, row.project, position, run, &row.title)
+                });
+                Self::render_thread_row(row, thread, drag, cx).into_any_element()
+            }),
+            Row::Port(row) => self.snapshot.groups.get(row.project).map(|group| {
+                Self::render_port_row(row, group.workspace.clone(), cx).into_any_element()
+            }),
+            Row::Worktree(row) => Some(Self::render_worktree_row(row, cx).into_any_element()),
+        }
+    }
+
     fn render_rows(&self, rows: Vec<AnyElement>, cx: &Context<Self>) -> impl IntoElement {
         v_flex()
             .id("marley-rail-rows")
@@ -3556,18 +3664,20 @@ impl Rail {
     }
 
     fn render_project_row(
+        &self,
         row: ProjectRow,
         group: &GroupEntry,
         icon: Option<Arc<RenderImage>>,
-        last: bool,
-        filtering: bool,
         agent_search_path: Option<OsString>,
+        drag: Option<DraggedRailHeader>,
         cx: &Context<Self>,
     ) -> impl IntoElement {
         // Element ids follow the workspace, not the row's position, so an open menu stays with
         // its project when another group is inserted above it.
         let id = group.workspace.entity_id();
         let index = row.index;
+        let last = index + 1 == self.snapshot.groups.len();
+        let filtering = self.snapshot.rail.filtering;
         let workspace = group.workspace.clone();
         let key = group.key.clone();
         let projectless = group.group;
@@ -3656,6 +3766,7 @@ impl Rail {
             .on_click(cx.listener(move |rail, _, window, cx| {
                 rail.activate_workspace(&workspace, window, cx).log_err();
             }));
+        let header = Self::draggable_header(header, drag, cx);
         right_click_menu(("marley-rail-project-context", id))
             .trigger(move |_, _, _| {
                 div()
@@ -4001,6 +4112,7 @@ impl Rail {
     fn render_thread_row(
         row: ThreadRow,
         thread: &ThreadEntry,
+        drag: Option<DraggedRailRow>,
         cx: &Context<Self>,
     ) -> impl IntoElement {
         let key = row.key.clone();
@@ -4024,6 +4136,7 @@ impl Rail {
         .on_click(cx.listener(move |rail, _, window, cx| {
             rail.open_thread(&key, window, cx).log_err();
         }));
+        let card = Self::draggable_row(card, drag, cx);
         div()
             .debug_selector(move || format!("marley-rail-thread-{}", row.key))
             .pl_2()
@@ -4033,6 +4146,7 @@ impl Rail {
     fn render_terminal_row(
         row: TerminalRow,
         terminal: &TerminalEntry,
+        drag: Option<DraggedRailRow>,
         cx: &Context<Self>,
     ) -> impl IntoElement {
         let id = row.id;
@@ -4108,6 +4222,7 @@ impl Rail {
                     .log_err();
             }
         }));
+        let item = Self::draggable_row(item, drag, cx);
         let nested = row.worktree.is_some();
         let turns = Self::render_turns(id, row.turns, row.turns_open, &terminal.workspace, cx);
         let rail = cx.entity().downgrade();
@@ -4120,24 +4235,35 @@ impl Rail {
                     .child(item)
             })
             .menu(move |window, cx| {
-                let (rename_rail, rename_workspace, rename_view) =
-                    (rail.clone(), menu_workspace.clone(), menu_view.clone());
-                let (close_workspace, close_view) = (menu_workspace.clone(), menu_view.clone());
-                ContextMenu::build(window, cx, move |menu, _, _| {
-                    menu.entry("Rename", None, move |window, cx| {
-                        rename_rail
-                            .update(cx, |rail, cx| {
-                                rail.rename_terminal(&rename_workspace, &rename_view, window, cx)
-                            })
-                            .flatten()
-                            .log_err();
-                    })
-                    .entry("Close", None, move |window, cx| {
-                        Self::close_terminal(&close_workspace, &close_view, window, cx).log_err();
-                    })
-                })
+                Self::terminal_context_menu(&rail, &menu_workspace, &menu_view, window, cx)
             });
         v_flex().child(menu).children(turns)
+    }
+
+    /// A terminal row's right-click menu: Rename and Close.
+    fn terminal_context_menu(
+        rail: &WeakEntity<Self>,
+        workspace: &WeakEntity<Workspace>,
+        view: &WeakEntity<TerminalView>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Entity<ContextMenu> {
+        let (rename_rail, rename_workspace, rename_view) =
+            (rail.clone(), workspace.clone(), view.clone());
+        let (close_workspace, close_view) = (workspace.clone(), view.clone());
+        ContextMenu::build(window, cx, move |menu, _, _| {
+            menu.entry("Rename", None, move |window, cx| {
+                rename_rail
+                    .update(cx, |rail, cx| {
+                        rail.rename_terminal(&rename_workspace, &rename_view, window, cx)
+                    })
+                    .flatten()
+                    .log_err();
+            })
+            .entry("Close", None, move |window, cx| {
+                Self::close_terminal(&close_workspace, &close_view, window, cx).log_err();
+            })
+        })
     }
 
     /// Under a terminal's card, its turns (#509): a "Turns (N)" line whose disclosure lists them,
@@ -4247,6 +4373,7 @@ impl Rail {
         row: BrowserRow,
         browser: &BrowserEntry,
         favicon: Option<Arc<Image>>,
+        drag: Option<DraggedRailRow>,
         cx: &Context<Self>,
     ) -> impl IntoElement {
         let id = row.id;
@@ -4334,6 +4461,7 @@ impl Rail {
             rail.activate_browser(&workspace, &view, window, cx)
                 .log_err();
         }));
+        let item = Self::draggable_row(item, drag, cx);
         div()
             .debug_selector(move || format!("marley-rail-browser-{id}"))
             .pl_2()
@@ -5521,10 +5649,11 @@ type Projectless = Option<(Uuid, Option<WorkspaceId>)>;
 
 /// The groups the rail lists: the window's projects with an open workspace, then its projectless
 /// groups (#600), each on its own workspace under the empty key, in the order the window saved
-/// them (#601) and then as made; their names, and each projectless group's ids.
+/// them (#601) and then as made; their names, and each projectless group's ids. The headers the
+/// user placed by dragging go first, in that order (#602).
 fn rail_groups(
     multi_workspace: &MultiWorkspace,
-    saved_groups: &[WorkspaceId],
+    saved_order: &SavedOrder,
     cx: &App,
 ) -> (Vec<ProjectGroup>, Vec<String>, Vec<Projectless>) {
     let mut groups: Vec<ProjectGroup> = multi_workspace
@@ -5536,7 +5665,8 @@ fn rail_groups(
     let mut projectless = vec![None; groups.len()];
     let mut marley_groups = groups::groups_of(multi_workspace, cx);
     marley_groups.sort_by_key(|(group, _)| {
-        saved_groups
+        saved_order
+            .groups
             .iter()
             .position(|saved| Some(*saved) == group.database_id)
             .unwrap_or(usize::MAX)
@@ -5550,6 +5680,23 @@ fn rail_groups(
         names.push(group.name);
         projectless.push(Some((group.id, group.database_id)));
     }
+    let mut listed: Vec<(ProjectGroup, String, Projectless)> = groups
+        .into_iter()
+        .zip(names)
+        .zip(projectless)
+        .map(|((group, name), id)| (group, name, id))
+        .collect();
+    marley_rail::place(&mut listed, &saved_order.headers, |(group, _, id)| {
+        Some(order::header_place(&group.key, id.map(|(group, _)| group)))
+    });
+    let mut groups = Vec::with_capacity(listed.len());
+    let mut names = Vec::with_capacity(listed.len());
+    let mut projectless = Vec::with_capacity(listed.len());
+    for (group, name, id) in listed {
+        groups.push(group);
+        names.push(name);
+        projectless.push(id);
+    }
     (groups, names, projectless)
 }
 
@@ -5560,12 +5707,12 @@ fn build_snapshot(
     foreground_command: ForegroundCommand,
     terminal_output: &HashMap<EntityId, Instant>,
     filter: &str,
-    saved_groups: &[WorkspaceId],
+    saved_order: &SavedOrder,
     window: &Window,
     cx: &App,
 ) -> Snapshot {
     let multi_workspace = multi_workspace.read(cx);
-    let (groups, names, projectless) = rail_groups(multi_workspace, saved_groups, cx);
+    let (groups, names, projectless) = rail_groups(multi_workspace, saved_order, cx);
     let displayed = multi_workspace.workspace();
     let home = util::paths::home_dir().as_path();
     let now = cx.background_executor().now();
@@ -5613,6 +5760,9 @@ fn build_snapshot(
                     snapshot.agent_terminals.insert(view.entity_id());
                 }
                 terminals.push(terminal);
+                snapshot
+                    .places
+                    .insert(Selection::Terminal(id), order::terminal_place(&view, cx));
                 snapshot.terminals.insert(
                     id,
                     TerminalEntry {
@@ -6119,6 +6269,9 @@ fn member_browsers(
         if let Some(favicon) = favicon {
             snapshot.favicons.insert(id, favicon);
         }
+        snapshot
+            .places
+            .insert(Selection::Browser(id), order::browser_place(&view, cx));
         snapshot.browsers.insert(
             id,
             BrowserEntry {
@@ -6599,7 +6752,8 @@ impl Sidebar for Rail {
             .and_then(|(sidebar, _)| sidebar.read(cx).serialized_state(cx))
             .or_else(|| self.zed_sidebar_state.clone());
         let blob = write_rail_state(zed_state.as_deref(), self.rail_state());
-        Some(write_rail_groups(&blob, &self.group_ids()))
+        let blob = write_rail_groups(&blob, &self.group_ids());
+        Some(order::write_rail_order(&blob, &self.saved_order))
     }
 
     fn restore_serialized_state(
@@ -6611,10 +6765,11 @@ impl Sidebar for Rail {
         self.zed_sidebar_state = Some(state.to_string());
         // The window's projectless groups come back once the restore is done: opening a
         // workspace into the window updates the `MultiWorkspace` this runs inside (#601).
-        self.saved_groups = read_rail_groups(state);
-        if !self.saved_groups.is_empty() {
+        self.saved_order.groups = read_rail_groups(state);
+        (self.saved_order.headers, self.saved_order.rows) = order::read_rail_order(state);
+        if !self.saved_order.groups.is_empty() {
             let multi_workspace = self.multi_workspace.clone();
-            let saved_groups = self.saved_groups.clone();
+            let saved_groups = self.saved_order.groups.clone();
             window.defer(cx, move |window, cx| {
                 if let Some(multi_workspace) = multi_workspace.upgrade() {
                     groups::reopen(&multi_workspace, &saved_groups, window, cx);
@@ -6645,71 +6800,33 @@ impl Sidebar for Rail {
 
 impl Render for Rail {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let search_path = agents::launcher(cx).search_path;
-        let rows: Vec<AnyElement> = marley_rail::rail_rows(&self.snapshot.rail)
-            .into_iter()
-            .enumerate()
-            .filter_map(|(position, row)| match row {
-                Row::Project(row) => self.snapshot.groups.get(row.index).map(|group| {
-                    let last = row.index + 1 == self.snapshot.groups.len();
-                    let filtering = self.snapshot.rail.filtering;
-                    let index = row.index;
-                    v_flex()
-                        // A line between one project's rows and the next project, as Warp's
-                        // tab list draws one between its tabs.
-                        .when(position > 0, |project| {
-                            project.child(
-                                div()
-                                    .debug_selector(move || format!("marley-rail-divider-{index}"))
-                                    .py_1p5()
-                                    .child(Divider::horizontal()),
-                            )
-                        })
-                        .child(Self::render_project_row(
-                            row,
-                            group,
-                            group
-                                .key
-                                .path_list()
-                                .paths()
-                                .first()
-                                .and_then(|root| self.project_icons.get(root))
-                                .and_then(|icon| icon.image.clone()),
-                            last,
-                            filtering,
-                            search_path.clone(),
-                            cx,
-                        ))
-                        .into_any_element()
-                }),
-                Row::Terminal(row) => self.snapshot.terminals.get(&row.id).map(|terminal| {
-                    Self::render_terminal_row(row, terminal, cx).into_any_element()
-                }),
-                Row::Browser(row) => self.snapshot.browsers.get(&row.id).map(|browser| {
-                    let favicon = self.snapshot.favicons.get(&row.id).cloned();
-                    Self::render_browser_row(row, browser, favicon, cx).into_any_element()
-                }),
-                Row::Thread(row) => self
-                    .snapshot
-                    .threads
-                    .get(&row.key)
-                    .map(|thread| Self::render_thread_row(row, thread, cx).into_any_element()),
-                Row::Port(row) => self.snapshot.groups.get(row.project).map(|group| {
-                    Self::render_port_row(row, group.workspace.clone(), cx).into_any_element()
-                }),
-                Row::Worktree(row) => Some(Self::render_worktree_row(row, cx).into_any_element()),
-            })
-            .collect();
+        let rows = self.render_blocks(cx);
         v_flex()
             .id("marley-rail")
             // Nothing moves under the pointer: the order the rail showed when it came over is held
             // until it leaves (#542).
             .on_hover(cx.listener(|rail, hovered: &bool, window, cx| {
-                rail.held_order = hovered.then(|| marley_rail::held_order(&rail.snapshot.rail));
+                // gpui reads no hover while anything is dragged, so a drag begun in the rail reads
+                // as the pointer leaving it: the order holds until the drag ends (#602).
+                if !hovered && rail.hold.dragging {
+                    return;
+                }
+                // gpui reports the pointer over the rail only with no drag in flight, so a flag
+                // still set then is stale.
+                rail.hold.dragging = false;
+                rail.hold.order = hovered.then(|| marley_rail::held_order(&rail.snapshot.rail));
                 if !hovered {
                     rail.refresh(window, cx);
                 }
             }))
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(|rail, _, window, cx| rail.end_drag(window, cx)),
+            )
+            .on_mouse_up_out(
+                MouseButton::Left,
+                cx.listener(|rail, _, window, cx| rail.end_drag(window, cx)),
+            )
             // Zed binds left and right for lists only in the `menu` context.
             .key_context("MarleyRail menu")
             .track_focus(&self.focus_handle)

@@ -915,6 +915,105 @@ pub fn held_order(snapshot: &RailSnapshot) -> Held {
     held
 }
 
+/// The rows a dragged row may be dropped among, so a drop only reorders (#602). Under the
+/// attention order a row keeps to its class, which the rail sorts first.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Run {
+    /// The headers, projects' and projectless groups' alike.
+    Headers(Option<Attention>),
+    /// A project's terminals in one section: its main checkout's, or one worktree's.
+    Terminals {
+        /// The project's index in [`RailSnapshot::projects`].
+        project: usize,
+        /// The worktree's folder, `None` for the main checkout.
+        worktree: Option<String>,
+        /// The class, under the attention order.
+        class: Option<Attention>,
+    },
+    /// A project's Browser tabs, which the attention order does not sort.
+    Browsers {
+        /// The project's index in [`RailSnapshot::projects`].
+        project: usize,
+    },
+    /// A project's threads.
+    Threads {
+        /// The project's index in [`RailSnapshot::projects`].
+        project: usize,
+        /// The class, under the attention order.
+        class: Option<Attention>,
+    },
+}
+
+/// The run `row` moves within when it is dragged; `None` for a worktree's or a port's row, which do
+/// not move.
+#[must_use]
+pub fn run(snapshot: &RailSnapshot, row: &Row) -> Option<Run> {
+    let attention = snapshot.order == RailOrder::Attention;
+    match row {
+        Row::Project(row) => {
+            let project = snapshot.projects.get(row.index)?;
+            Some(Run::Headers(attention.then(|| project_attention(project))))
+        }
+        Row::Terminal(row) => {
+            let project = snapshot.projects.get(row.project)?;
+            let terminal = project
+                .terminals
+                .iter()
+                .find(|terminal| terminal.id == row.id)?;
+            Some(Run::Terminals {
+                project: row.project,
+                worktree: row.worktree.clone(),
+                class: attention.then(|| terminal_attention(terminal)),
+            })
+        }
+        Row::Browser(row) => Some(Run::Browsers {
+            project: row.project,
+        }),
+        Row::Thread(row) => {
+            let project = snapshot.projects.get(row.project)?;
+            let thread = project
+                .threads
+                .iter()
+                .find(|thread| thread.key == row.key)?;
+            Some(Run::Threads {
+                project: row.project,
+                class: attention.then(|| thread_attention_class(thread)),
+            })
+        }
+        Row::Port(_) | Row::Worktree(_) => None,
+    }
+}
+
+/// Sorts `items` by where each one's place sits in `places`, the order the user left (#602); an
+/// item with no place there keeps its order after the placed ones.
+pub fn place<T>(items: &mut [T], places: &[String], place_of: impl Fn(&T) -> Option<String>) {
+    items.sort_by_cached_key(|item| {
+        place_of(item)
+            .and_then(|place| places.iter().position(|placed| *placed == place))
+            .unwrap_or(usize::MAX)
+    });
+}
+
+/// `order` with `moved` taken out and put back just before `target`, or just after it (#602); the
+/// order unchanged when either is not in it, or they are the same.
+#[must_use]
+pub fn move_to<T: PartialEq + Clone>(order: &[T], moved: &T, target: &T, before: bool) -> Vec<T> {
+    if moved == target || !order.contains(moved) || !order.contains(target) {
+        return order.to_vec();
+    }
+    let mut result: Vec<T> = order
+        .iter()
+        .filter(|item| *item != moved)
+        .cloned()
+        .collect();
+    let at = result
+        .iter()
+        .position(|item| item == target)
+        .map_or(result.len(), |at| if before { at } else { at + 1 });
+    result.insert(at, moved.clone());
+    result
+}
+
 /// A collapsed project's agents by state, most needing the user first: `1 waiting, 2 working`;
 /// shells and idle agents are not counted.
 fn summary(project: &ProjectSnapshot) -> Option<String> {

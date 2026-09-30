@@ -85,6 +85,13 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
   while `held` is set, each item's place in the `Held` lists of project indexes, view ids and
   thread keys that `held_order` recorded from the walk (an item it does not name goes last).
   `ProjectRow::summary` counts a collapsed project's agents by state, most demanding first.
+- **Dragging** (#602). `run(snapshot, &Row)` gives the `Run` a dragged row may drop among:
+  `Headers` (with the class under the attention order), a project's `Terminals` in one section
+  (main checkout or one worktree, with the class), its `Browsers`, or its `Threads` (with the
+  class); a worktree's or a port's row gets `None`. `place` sorts items by their place in a saved
+  list (stable, the unplaced last), and `move_to` moves one item before or after another. The
+  workbench orders the snapshot's projects and rows with them before the walk, so the attention
+  sort breaks its ties by the order the user set.
 - **`TerminalSnapshot::flag`** (#569) is the tooltip of a working agent's warning mark, when the
   stall kind flagged it `looping?` or `stalled?`; the builders copy it to `TerminalRow::flag`, and
   it too decides no order or visibility.

@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #602 (feature, workbench shell: the rail)
 - **Owner:** abb571b4-bf75-463f-889a-b17f7d32f71e
-- **Pipeline doc:** ../../pipeline/queued/602-drag-to-reorder-the-rail.spec.md
+- **Pipeline doc:** ../../pipeline/completed/602-drag-to-reorder-the-rail.spec.md
 - **Source ticket:** Chad, 2026-09-30: "We should add the ability to drag and drop the items on the left". He chose reorder only for the first version: projects and groups up and down, and rows within their own group; the order is saved.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The rail reorders projects only through a header's right-click Move Project Up and Down (#453),
