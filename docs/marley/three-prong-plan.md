@@ -211,6 +211,15 @@ and speaks to it over `rh mcp`, the protocol a standalone harness on another hos
 SSH; one client serves both. Standalone, the harness keeps its own lifecycle outside Marley.
 Packaging `rh` with Marley and starting its runtime is its own ticket after #534.
 
+**D20. Marley is the SDK: it defines the outputs, providers fill them, Marley draws them
+(Chad, 2026-09-30).** Agents, their work and their hosts reach Marley through typed contracts,
+not through UI a provider sends: `marley.work/v1` from the central workflow store (rustal-brain
+first) and `marley.host/v1` from a collector on each host, read over SSH. An agent and its host
+are for the most part one thing; a click shows its snapshot in a Fleet panel on the right, and
+opening it gives an Agent tab in the center. The draft is [fleet-contract.md](fleet-contract.md);
+until the Rustal services serve it, Marley shows a pseudo provider's data. The SDK (types,
+schemas, a conformance kit) follows the contract.
+
 The harness's requests to Marley (`docs/planning/MARLEY_REQUESTS.md` in rustal-harness) and
 their answers. The contract's home is the fork's `crates/marley_fleet` and `crates/marley_mcp`;
 the harness still pins the gpui-era repository, whose `tool_name` joined with a dot, and moving
