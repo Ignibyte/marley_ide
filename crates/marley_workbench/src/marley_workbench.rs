@@ -41,6 +41,7 @@ pub mod decisions;
 pub mod english;
 pub mod find;
 pub mod fleet;
+pub mod fleet_hosts;
 pub mod github;
 pub mod groups;
 pub mod guide;
@@ -372,6 +373,10 @@ pub struct MarleySettings {
     pub system_one: system_one::SystemOneSettings,
     /// The workflow stores the Fleet panel reads (#607).
     pub fleet_providers: Vec<settings::FleetProviderContent>,
+    /// The hosts Marley reads with its collector script (#610).
+    pub fleet_hosts: Vec<fleet_hosts::FleetHost>,
+    /// Process names the collector lists as agents, beyond `claude` and `codex` (#610).
+    pub fleet_agent_processes: Vec<String>,
 }
 
 /// The ntfy server agent events are pushed to (#535), as the user set it; [`push`] checks it.
@@ -415,6 +420,8 @@ impl Settings for MarleySettings {
     // the enum's default; redaction is on unless turned off.
     fn from_settings(content: &SettingsContent) -> Self {
         let marley = content.marley.as_ref();
+        let (fleet_providers, fleet_hosts, fleet_agent_processes) =
+            fleet_settings(marley.and_then(|marley| marley.fleet.as_ref()));
         Self {
             layout: marley.and_then(|marley| marley.layout).unwrap_or_default(),
             redact_secrets: marley
@@ -505,12 +512,36 @@ impl Settings for MarleySettings {
             system_one: system_one::SystemOneSettings::from_content(
                 marley.and_then(|marley| marley.system_one.as_ref()),
             ),
-            fleet_providers: marley
-                .and_then(|marley| marley.fleet.as_ref())
-                .and_then(|fleet| fleet.providers.clone())
-                .unwrap_or_default(),
+            fleet_providers,
+            fleet_hosts,
+            fleet_agent_processes,
         }
     }
+}
+
+/// The fleet's settings (#607, #610): its stores, the hosts its collector reads, and the process
+/// names beyond `claude` and `codex` the collector lists.
+fn fleet_settings(
+    fleet: Option<&settings::MarleyFleetSettingsContent>,
+) -> (
+    Vec<settings::FleetProviderContent>,
+    Vec<fleet_hosts::FleetHost>,
+    Vec<String>,
+) {
+    let Some(fleet) = fleet else {
+        return (Vec::new(), Vec::new(), Vec::new());
+    };
+    let hosts = fleet
+        .hosts
+        .iter()
+        .flatten()
+        .filter_map(fleet_hosts::FleetHost::from_settings)
+        .collect();
+    (
+        fleet.providers.clone().unwrap_or_default(),
+        hosts,
+        fleet.agent_processes.clone().unwrap_or_default(),
+    )
 }
 
 /// The layout the windows were last built for, and Zed's own values for the two defaults the

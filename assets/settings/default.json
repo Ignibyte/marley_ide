@@ -1744,7 +1744,13 @@
     // The fleet (#607): the workflow stores the Fleet panel reads agents, their work and their
     // hosts from. { "kind": "pseudo" } is Marley's own moving example data.
     "fleet": {
-      "providers": []
+      "providers": [],
+      // The hosts whose resources and agent processes Marley reads itself (#610), by running a
+      // small script there over SSH: { "ssh": "user@host" } or { "local": true }, each with an
+      // optional "name" and "id" (the id the store gives the host). Nothing is installed there.
+      "hosts": [],
+      // Process names the host collector lists as agents, beyond "claude" and "codex".
+      "agent_processes": []
     },
     // What Marley starts Claude Code with (#532): "ask" (its own permission prompts) or
     // "bypass" (--dangerously-skip-permissions). A rail row carries a mark while an agent runs

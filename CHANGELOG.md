@@ -13,6 +13,20 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Hosts read over SSH, and their agents** (#610, 2026-09-30). The settings can list hosts under
+  `"marley": { "fleet": { "hosts": [...] } }`: `{ "ssh": "user@host" }` or `{ "local": true }`,
+  each with an optional `name` and `id`. Every 5 seconds while a Fleet surface shows, Marley runs
+  its own POSIX `sh` script on each (`crates/marley_workbench/bin/marley-collect.sh`, carried in the
+  SSH command, base64, with `BatchMode`, a 5 s connect timeout and one kept connection; nothing is
+  installed) and reads CPU, memory, disk and network, and the `claude` and `codex` processes
+  running there (plus `agent_processes`). Each host's header in the Fleet panel shows a line of
+  its resources. A process whose `MARLEY_FLEET_SESSION` names a store's agent, or that matches
+  one by host, runtime and folder, joins that agent: its snapshot and tab take the host's
+  numbers and name the process. The rest are listed under a Hosts section as `running` agents
+  with no work records. A host that does not answer reads `unreachable`, with SSH's error in the
+  tooltip, and the store's agents on it read `offline`; a destination that starts with a dash is
+  refused and nothing runs.
+
 - **The Agent tab** (#609, 2026-09-30). A double-click on an agent in the Fleet panel, Enter on
   the selected one, or the snapshot's Open button opens the agent in a tab of its own in the
   center, or brings forward the one already open. The tab shows its run's phases on a timeline,

@@ -3473,3 +3473,18 @@ fleet reads while a Fleet panel shows or an Agent tab is its pane's active item.
 through `Window::defer`, since the opener reads every Agent tab and may be called from inside
 one. Rejected: a `SerializableItem` (deferred until a store can serve the tab's history), and a
 history in the contract (it would make every provider keep one).
+
+## AD-claude-610-marley-reads-hosts-with-its-own-script-in-the-ssh-command-001
+*decided at: 2026-09-30 · status: shipped*
+
+Marley reads the hosts the settings list with its own POSIX `sh` script, carried base64 in the
+SSH command (`BatchMode`, a 5 s connect timeout, `ControlMaster` with its socket in
+`$XDG_RUNTIME_DIR`), every 5 s while a Fleet surface shows; the same script runs under `sh -c`
+for this machine. Hosts are listed explicitly, a leading-dash destination is refused, and only
+plain process names reach the remote shell. A process joins a store's agent by the
+`MARLEY_FLEET_SESSION` it was started with, else by host, runtime and folder, else as the one
+pair of its runtime on its host; the rest show as `running` agents with no work records. Chad
+chose a script over an installed binary on 2026-09-30. Rejected: `ssh host sh -s <script`
+(`process::output` has no stdin, and a second spawn site would break gate:22), hosts found from
+Zed's `ssh_connections` (Marley would log in where it was not told to), and parallel collection
+for now (one slow host holds the loop for at most its connect timeout).

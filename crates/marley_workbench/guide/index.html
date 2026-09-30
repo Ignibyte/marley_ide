@@ -252,6 +252,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#fleet-panel">The Fleet panel</a></li>
 <li><a href="#fleet-snapshot">An agent&#x27;s snapshot</a></li>
 <li><a href="#fleet-agent-tab">The Agent tab</a></li>
+<li><a href="#fleet-hosts">Hosts over SSH</a></li>
 </ol></li>
 <li><a href="#reference">Reference</a><ol>
 <li><a href="#keys-reference">Keys</a></li>
@@ -1553,7 +1554,28 @@ th { background: var(--panel); font-weight: 650; }
 <li>Read the events, newest first, and the CPU, memory and network lines over the last 30 minutes Marley watched.</li>
 <li>Click an agent under On This Host to open its tab.</li>
 </ol>
-<p class="note">The graphs start empty after a restart, and the tab is not reopened after one. Host resources over SSH and real stores over MCP or HTTP come next (#610, #611).</p>
+<p class="note">The graphs start empty after a restart, and the tab is not reopened after one.</p>
+</article>
+
+<article id="fleet-hosts">
+<h3>Hosts over SSH <span class="ticket">#610</span></h3>
+<p class="what"><strong>What it is.</strong> Marley reads each host you list itself: a small script it sends over SSH (or runs on this machine) reports CPU, memory, disk, network and the agent processes running there. Nothing is installed.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>List the hosts:
+<pre><code>"marley": {
+  "fleet": {
+    "hosts": [
+      { "ssh": "me@build-1", "name": "build-1", "id": "host-build-1" },
+      { "local": true }
+    ]
+  }
+}</code></pre></li>
+<li>Open the Fleet panel. Each host's header shows a line of its resources; its <code>claude</code> and <code>codex</code> processes show as agents.</li>
+<li>A process whose <code>MARLEY_FLEET_SESSION</code> is a store's agent id joins that agent, whose snapshot then shows the host's numbers and the process. The others are listed under Hosts as <code>running</code>.</li>
+<li>A host that does not answer reads <code>unreachable</code>: point at the chip for SSH's error. Its store agents read <code>offline</code>.</li>
+</ol>
+<p class="note">SSH runs with <code>BatchMode</code>: a host needs a key or an agent. A destination starting with <code>-</code> is refused. Real stores over MCP or HTTP come next (#611).</p>
 </article>
 </section>
 
@@ -1648,7 +1670,7 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td><code>browser_click_pause_agents</code></td><td><code>"agents_without_prompts"</code></td><td>Whose consequential clicks wait, or <code>"all_agents"</code></td></tr>
 <tr><td><code>stall_check_after_seconds</code></td><td><code>60</code></td><td>The first quiet check for a stuck agent</td></tr>
 <tr><td><code>push</code></td><td>none</td><td><code>{ "url", "topic", "token_file" }</code> of an ntfy server on this machine</td></tr>
-<tr><td><code>fleet</code></td><td><code>{ "providers": [] }</code></td><td>Where the Fleet panel's agents come from; <code>{ "kind": "pseudo" }</code> is Marley's example data (in <code>settings.json</code> only)</td></tr>
+<tr><td><code>fleet</code></td><td><code>{ "providers": [], "hosts": [], "agent_processes": [] }</code></td><td>Where the Fleet panel's agents come from; <code>{ "kind": "pseudo" }</code> is Marley's example data; <code>hosts</code> are machines Marley reads over SSH or locally (in <code>settings.json</code> only)</td></tr>
 <tr><td><code>system_one</code></td><td>off</td><td><code>enabled</code>, <code>provider</code>, <code>projects</code>, <code>metadata_only_projects</code>, <code>daily_budget_cents</code>, <code>uses</code></td></tr>
 </table>
 <p class="note">Telemetry (<code>telemetry.metrics</code>, <code>telemetry.diagnostics</code>) defaults to off. Zed's own context server <code>marley</code> can be turned off with <code>"context_servers": { "marley": { "enabled": false } }</code>.</p>

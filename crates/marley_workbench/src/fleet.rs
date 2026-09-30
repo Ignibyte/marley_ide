@@ -11,10 +11,11 @@
 //! snapshot below. The reads keep the full detail only of the agents some panel has selected, or
 //! some Agent tab shows. A double-click, Enter or the snapshot's Open opens the agent's tab
 //! (#609, `crate::agent_tab`), and the reads keep a sample of each host's resources for its
-//! graphs.
+//! graphs. The hosts the settings list are read with Marley's collector script every few seconds
+//! while a Fleet surface shows (#610, `crate::fleet_hosts`).
 
 use std::collections::{HashMap, VecDeque};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use gpui::{
     Action, AnyElement, App, ClickEvent, Context, Div, DragMoveEvent, EntityId, EventEmitter,
@@ -23,18 +24,19 @@ use gpui::{
 };
 use marley_sdk::stale::DEFAULT_POLL_S;
 use marley_sdk::{
-    AgentDetail, AgentSummary, Attention, HostSnapshot, Memory, PhaseState, Pseudo, Run, State,
-    is_stale,
+    AgentDetail, AgentProcess, AgentSummary, Attention, HostSnapshot, Memory, PhaseState, Pseudo,
+    Run, State, is_stale,
 };
 use settings::{FleetProviderContent, Settings as _};
 use ui::{
     Button, ButtonSize, ButtonStyle, Chip, Divider, Icon, IconName, IconSize, Label, LabelSize,
-    ProgressBar, prelude::*,
+    ProgressBar, Tooltip, prelude::*,
 };
 use workspace::dock::{DockPosition, Panel, PanelEvent};
 use workspace::{MultiWorkspace, Workspace};
 
 use crate::agent_tab::{self, AgentView};
+use crate::fleet_hosts::{self, Collected};
 use crate::{MarleySettings, ToggleFleet};
 
 /// The panel's place among the right dock's panels; no other panel takes it.
@@ -47,12 +49,17 @@ const SNAPSHOT_RATIO: f32 = 0.5;
 /// How long a host's samples are kept for its graphs.
 const SAMPLES_KEPT_MS: u64 = 30 * 60 * 1000;
 
+/// How often the listed hosts' collector runs while a Fleet surface shows.
+const COLLECT_EVERY: Duration = Duration::from_secs(5);
+
 /// What the fleet's providers last answered.
 #[derive(Debug, Default)]
 pub struct Fleet {
     pub(crate) sources: Vec<Source>,
     /// Each host's resources at each read, the last 30 minutes of them.
     pub(crate) samples: HashMap<HostKey, VecDeque<Sample>>,
+    /// What the listed hosts' collector last found.
+    collected: Vec<Collected>,
     /// The pseudo provider, once a reading has started it.
     pseudo: Option<Pseudo>,
     /// Whether the reads run.
@@ -113,6 +120,20 @@ pub(crate) struct Source {
     pub(crate) read_ms: u64,
     /// Why it could not be read, when it could not.
     failure: Option<String>,
+    /// Listed hosts of its agents that did not answer the collector (#610).
+    pub(crate) unreachable: Vec<Unreachable>,
+    /// The process each of its agents runs as, by agent id, where a host's collector found it.
+    pub(crate) processes: Vec<(String, AgentProcess)>,
+    /// Whether it is the Hosts source: every listed host a group, every agent a process.
+    pub(crate) hosts_only: bool,
+}
+
+/// A listed host that did not answer, or that Marley refused to run anything for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Unreachable {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) reason: String,
 }
 
 impl Source {
@@ -128,7 +149,41 @@ impl Source {
             stale_after_s: None,
             read_ms,
             failure: Some(failure),
+            unreachable: Vec::new(),
+            processes: Vec::new(),
+            hosts_only: false,
         }
+    }
+
+    /// The Hosts source, empty, read at `now`.
+    pub(crate) fn for_hosts(name: &str, now: u64) -> Self {
+        Self {
+            name: name.to_string(),
+            capabilities: vec!["hosts".to_string()],
+            agents: Vec::new(),
+            details: Vec::new(),
+            hosts: Vec::new(),
+            poll_s: None,
+            stale_after_s: None,
+            read_ms: now,
+            failure: None,
+            unreachable: Vec::new(),
+            processes: Vec::new(),
+            hosts_only: true,
+        }
+    }
+
+    /// The process a host's collector found for `agent`.
+    pub(crate) fn process(&self, agent: &str) -> Option<&AgentProcess> {
+        self.processes
+            .iter()
+            .find(|(id, _)| id == agent)
+            .map(|(_, process)| process)
+    }
+
+    /// Why the listed host `host_id` did not answer, if it did not.
+    pub(crate) fn unreachable(&self, host_id: &str) -> Option<&Unreachable> {
+        self.unreachable.iter().find(|host| host.id == host_id)
     }
 
     pub(crate) fn offers(&self, capability: &str) -> bool {
@@ -140,11 +195,20 @@ impl Source {
     /// Its agents under their hosts: the hosts in its order, then agents whose host it did not
     /// describe, each group in its own order.
     fn host_groups(&self) -> Vec<(Option<&str>, Vec<&AgentSummary>)> {
-        let mut host_ids: Vec<Option<&str>> = self
-            .hosts
-            .iter()
-            .map(|host| Some(host.host.id.as_str()))
-            .collect();
+        // The Hosts source lists the hosts with a problem first, so they are seen above the rows.
+        let problems = self.unreachable.iter().map(|host| Some(host.id.as_str()));
+        let answered = self.hosts.iter().map(|host| Some(host.host.id.as_str()));
+        let mut host_ids: Vec<Option<&str>> = Vec::new();
+        let ordered: Vec<Option<&str>> = if self.hosts_only {
+            problems.chain(answered).collect()
+        } else {
+            answered.chain(problems).collect()
+        };
+        for id in ordered {
+            if !host_ids.contains(&id) {
+                host_ids.push(id);
+            }
+        }
         for agent in &self.agents {
             let id = agent.host_id.as_deref();
             if !host_ids.contains(&id) {
@@ -159,7 +223,9 @@ impl Source {
                     .iter()
                     .filter(|agent| agent.host_id.as_deref() == host_id)
                     .collect();
-                (!agents.is_empty()).then_some((host_id, agents))
+                // The Hosts source shows a host with no agents too, for its resources or its
+                // problem.
+                (self.hosts_only || !agents.is_empty()).then_some((host_id, agents))
             })
             .collect()
     }
@@ -179,7 +245,9 @@ impl Source {
                 self.hosts
                     .iter()
                     .find(|host| host.host.id == id)
-                    .map_or_else(|| id.to_string(), |host| host.host.name.clone())
+                    .map(|host| host.host.name.clone())
+                    .or_else(|| self.unreachable(id).map(|host| host.name.clone()))
+                    .unwrap_or_else(|| id.to_string())
             },
         )
     }
@@ -269,10 +337,59 @@ fn fleet_shows(cx: &App) -> bool {
 /// until no panel shows.
 fn poll_while_shown(cx: &App) -> Task<()> {
     cx.spawn(async move |cx| {
-        while let Some(wait) = cx.update(read_providers) {
+        let mut collected_at: Option<Instant> = None;
+        loop {
+            // The listed hosts' collector runs between reads, never inside an update, and only
+            // while a Fleet surface shows (REQ-006 of #610).
+            if collected_at.is_none_or(|at| at.elapsed() >= COLLECT_EVERY) {
+                let hosts = cx.update(|cx| {
+                    fleet_shows(cx).then(|| {
+                        let settings = MarleySettings::get_global(cx);
+                        (
+                            settings.fleet_hosts.clone(),
+                            settings.fleet_agent_processes.clone(),
+                        )
+                    })
+                });
+                if let Some((hosts, names)) = hosts {
+                    let collected = if hosts.is_empty() {
+                        Vec::new()
+                    } else {
+                        fleet_hosts::collect(hosts, &names).await
+                    };
+                    cx.update(|cx| keep_collected(collected, cx));
+                    collected_at = Some(Instant::now());
+                }
+            }
+            let Some(wait) = cx.update(read_providers) else {
+                break;
+            };
             cx.background_executor().timer(wait).await;
         }
     })
+}
+
+/// Keeps what the collector found for the next reads, and logs a host refused for the first time.
+fn keep_collected(collected: Vec<Collected>, cx: &mut App) {
+    let known = cx
+        .try_global::<Fleet>()
+        .map(|fleet| fleet.collected.clone())
+        .unwrap_or_default();
+    for host in collected.iter().filter(|host| host.refused()) {
+        let logged = known
+            .iter()
+            .any(|before| before.name == host.name && before.problem == host.problem);
+        if !logged {
+            log::warn!(
+                "fleet: host {:?} {}",
+                host.name,
+                host.problem.as_deref().unwrap_or("refused")
+            );
+        }
+    }
+    if known != collected {
+        cx.default_global::<Fleet>().collected = collected;
+    }
 }
 
 /// Reads every provider now, for a selection or a tab that should not wait for the next poll.
@@ -298,12 +415,18 @@ fn read_providers(cx: &mut App) -> Option<Duration> {
     let now = now_ms();
     let providers = MarleySettings::get_global(cx).fleet_providers.clone();
     let mut pseudo = known.and_then(|fleet| fleet.pseudo.clone());
-    let sources: Vec<Source> = providers
+    let mut sources: Vec<Source> = providers
         .iter()
         .map(|provider| match provider {
             FleetProviderContent::Pseudo => read_pseudo(&mut pseudo, now, &wanted),
         })
         .collect();
+    let collected = known
+        .map(|fleet| fleet.collected.as_slice())
+        .unwrap_or_default();
+    if let Some(hosts) = fleet_hosts::join(&mut sources, collected, now) {
+        sources.push(hosts);
+    }
     let wait_s = sources
         .iter()
         .filter_map(|source| source.poll_s)
@@ -404,6 +527,9 @@ fn read_pseudo(pseudo: &mut Option<Pseudo>, now: u64, wanted: &[Selected]) -> So
             stale_after_s: started.handshake().stale_after_s,
             read_ms: now,
             failure: None,
+            unreachable: Vec::new(),
+            processes: Vec::new(),
+            hosts_only: false,
         },
         Err(error) => Source::failed(NAME, error.to_string(), now),
     }
@@ -537,6 +663,9 @@ impl FleetPanel {
                 rows.push(self.render_agent(agent, source, *index, cx));
                 *index += 1;
             }
+            let problem = host_id.and_then(|id| source.unreachable(id));
+            let snapshot =
+                host_id.and_then(|id| source.hosts.iter().find(|host| host.host.id == id));
             groups.push(
                 v_flex()
                     .gap_0p5()
@@ -550,8 +679,31 @@ impl FleetPanel {
                                     .size(IconSize::Small)
                                     .color(Color::Muted),
                             )
-                            .child(Label::new(source.host_name(host_id)).size(LabelSize::Small)),
+                            .child(Label::new(source.host_name(host_id)).size(LabelSize::Small))
+                            .children(problem.map(|problem| {
+                                let refused = problem.reason.starts_with("refused");
+                                let reason = problem.reason.clone();
+                                div()
+                                    .id(SharedString::from(format!(
+                                        "marley-fleet-host-problem-{}-{}",
+                                        source.name, problem.id
+                                    )))
+                                    .child(
+                                        Chip::new(if refused { "refused" } else { "unreachable" })
+                                            .label_color(Color::Error)
+                                            .label_size(LabelSize::XSmall),
+                                    )
+                                    .tooltip(Tooltip::text(reason))
+                            })),
                     )
+                    .children(snapshot.map(|snapshot| {
+                        div().pl(px(28.)).pr_2().child(
+                            Label::new(host_line(snapshot))
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted)
+                                .truncate(),
+                        )
+                    }))
                     .children(rows),
             );
         }
@@ -565,14 +717,18 @@ impl FleetPanel {
         index: usize,
         cx: &Context<Self>,
     ) -> AnyElement {
-        let stale = is_stale(
+        let (word, color) = agent_chip(
+            agent.state,
             agent.last_seen_ms,
-            source.read_ms,
-            source.poll_s,
-            source.stale_after_s,
+            agent.host_id.as_deref(),
+            source,
         );
-        let (word, color) = state_chip(agent.state, stale);
         let mut line = Vec::new();
+        if source.hosts_only
+            && let Some(process) = source.process(&agent.id)
+        {
+            line.push(fleet_hosts::process_line(process));
+        }
         if let Some(item) = &agent.work_item {
             line.push(item.key.clone());
         }
@@ -736,9 +892,19 @@ fn render_snapshot(
         .as_ref()
         .filter(|_| source.offers("runs"))
         .map(|run| section("RUN", render_phase_strip(run, cx)));
-    let resources = source
-        .offers("hosts")
-        .then(|| section("RESOURCES", render_resources(source.host(detail), cx)));
+    let resources = source.offers("hosts").then(|| {
+        section(
+            "RESOURCES",
+            v_flex()
+                .gap_1()
+                .child(render_resources(source.host(detail), cx))
+                .children(source.process(&detail.agent.id).map(|process| {
+                    Label::new(format!("process {}", fleet_hosts::process_line(process)))
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted)
+                })),
+        )
+    });
     let tokens = detail
         .usage
         .as_ref()
@@ -795,13 +961,12 @@ pub(crate) fn render_snapshot_header(
     end: Option<AnyElement>,
 ) -> Div {
     let agent = &detail.agent;
-    let stale = is_stale(
+    let (word, color) = agent_chip(
+        agent.state,
         agent.last_seen_ms,
-        source.read_ms,
-        source.poll_s,
-        source.stale_after_s,
+        agent.host_id.as_deref(),
+        source,
     );
-    let (word, color) = state_chip(agent.state, stale);
     let mut about = vec![agent.runtime.clone()];
     about.extend(agent.model.clone());
     if let Some(since) = agent.state_since_ms {
@@ -989,6 +1154,74 @@ pub(crate) fn gigabytes(bytes: u64) -> String {
     format!("{}.{}", tenths / 10, tenths % 10)
 }
 
+/// The chip of an agent in `source`: `running` for a process the collector found, `offline` on a
+/// listed host that did not answer, else its state, or `stale`.
+pub(crate) fn agent_chip(
+    state: State,
+    last_seen_ms: Option<u64>,
+    host_id: Option<&str>,
+    source: &Source,
+) -> (&'static str, Color) {
+    if source.hosts_only {
+        return ("running", Color::Success);
+    }
+    if host_id.is_some_and(|id| source.unreachable(id).is_some()) {
+        return ("offline", Color::Muted);
+    }
+    let quiet = is_stale(
+        last_seen_ms,
+        source.read_ms,
+        source.poll_s,
+        source.stale_after_s,
+    );
+    state_chip(state, quiet)
+}
+
+/// A host's resources on one line: CPU, memory, disk and network.
+fn host_line(host: &HostSnapshot) -> String {
+    let mut parts = Vec::new();
+    if let Some(cpu) = &host.cpu {
+        parts.push(format!("CPU {:.0} %", cpu.percent));
+    }
+    if let Some(memory) = &host.memory {
+        parts.push(format!(
+            "{} / {} GB",
+            gigabytes(memory.used_bytes),
+            gigabytes(memory.total_bytes)
+        ));
+    }
+    if let Some(disk) = host.disks.first() {
+        parts.push(format!(
+            "disk {} / {} GB",
+            disk.used_bytes / 1_000_000_000,
+            disk.total_bytes / 1_000_000_000
+        ));
+    }
+    if let Some(network) = &host.network {
+        parts.push(format!(
+            "in {} · out {}",
+            rate(network.rx_bps),
+            rate(network.tx_bps)
+        ));
+    }
+    parts.join(" · ")
+}
+
+/// Bytes a second, in a few characters.
+pub(crate) fn rate(bytes_per_second: u64) -> String {
+    if bytes_per_second >= 1_000_000 {
+        format!(
+            "{}.{} MB/s",
+            bytes_per_second / 1_000_000,
+            bytes_per_second % 1_000_000 / 100_000
+        )
+    } else if bytes_per_second >= 1_000 {
+        format!("{} kB/s", bytes_per_second / 1_000)
+    } else {
+        format!("{bytes_per_second} B/s")
+    }
+}
+
 /// The word and colour of an agent's state chip; a stale agent reads stale, whatever it said.
 pub(crate) const fn state_chip(state: State, quiet: bool) -> (&'static str, Color) {
     if quiet {
@@ -1018,7 +1251,8 @@ pub(crate) fn runtime_icon(runtime: &str) -> IconName {
 impl FleetPanel {
     /// Every source's agents, or the line that says the fleet is not set up.
     fn render_list(&self, sources: &[Source], cx: &Context<Self>) -> AnyElement {
-        let set_up = !MarleySettings::get_global(cx).fleet_providers.is_empty();
+        let settings = MarleySettings::get_global(cx);
+        let set_up = !settings.fleet_providers.is_empty() || !settings.fleet_hosts.is_empty();
         let mut index = 0;
         let mut listed = Vec::new();
         for source in sources {

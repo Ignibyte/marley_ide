@@ -1436,8 +1436,40 @@ its Agent tab in the center (#609). Opening it again brings the same tab forward
 - the other agents on its host: click one to open its tab.
 
 The fleet keeps reading while the panel shows or an Agent tab is in front. The graphs start
-empty after a restart. A host's resources over SSH and real stores over MCP or HTTP come next
-(#610, #611).
+empty after a restart.
+
+### Hosts over SSH (#610)
+
+Marley can read your hosts itself. List them in the settings:
+
+```jsonc
+"marley": {
+  "fleet": {
+    "hosts": [
+      { "ssh": "me@build-1", "name": "build-1", "id": "host-build-1" },
+      { "local": true }
+    ],
+    "agent_processes": ["aider"]
+  }
+}
+```
+
+Every 5 seconds while the panel shows (or an Agent tab is in front), Marley runs a small script
+on each host over SSH, the script sent in the command, so nothing is installed there. It needs a
+key or an agent: SSH never prompts for a password here. `{ "local": true }` runs the same script
+on this machine.
+
+- Each host's header shows a line with its CPU, memory, disk and network.
+- `claude` and `codex` processes on a host (and names in `agent_processes`) show as agents. One
+  that belongs to a store's agent joins it: set `MARLEY_FLEET_SESSION` to the agent's id when the
+  agent starts, or give the host the store's `id`. Its snapshot then shows the host's numbers
+  and the process. The others are listed under **Hosts** as `running`, with their folder, pid,
+  CPU and memory.
+- A host that does not answer reads `unreachable`; point at the chip for SSH's error. The
+  store's agents on it read `offline`.
+- A destination that starts with `-` is refused, and nothing runs.
+
+Real stores over MCP or HTTP come next (#611).
 
 ## Key bindings
 
@@ -1517,8 +1549,9 @@ Marley's own keys in the file:
     "redact_secrets_for_agents": true,
     "redaction_patterns": ["INTERNAL-[0-9]{6}"],
     // Where the Fleet panel's agents come from (#607): [] (the default) shows "not set up";
-    // { "kind": "pseudo" } shows Marley's example data.
-    "fleet": { "providers": [] }
+    // { "kind": "pseudo" } shows Marley's example data. "hosts" lists machines Marley reads
+    // over SSH or locally (#610), "agent_processes" more process names to list as agents.
+    "fleet": { "providers": [], "hosts": [], "agent_processes": [] }
   },
 
   // Marley adds a context server named "marley" to Zed's defaults for the Agent Panel's agents.

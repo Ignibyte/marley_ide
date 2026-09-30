@@ -2968,3 +2968,12 @@ the run moves on without giving it an end, so build-1's code phase drew as a dot
 Fixed before the commit: a phase with a start and no end runs to now while active, else to the
 next phase's start. The contract leaves `ended_ms` optional, so the tab, not the fixtures,
 carries the fix.
+
+## F-claude-610-a-joined-host-was-listed-twice-and-moved-001
+*severity: medium · found in: pipeline 610's Test phase (run 1) · class: a merge that removes and re-adds, and a list built from two sources without a check for the id both carry*
+
+The host collector's join gave a store's host the collected snapshot by removing the store's
+entry and pushing the new one at the end, which moved `lab` below `vps-2`; and `host_groups`
+chained the unreachable hosts' ids after the answered ones, so `vps-2`, which the store named and
+the collector could not reach, was a group twice (`hosts.png`). Fixed before the commit: the join
+replaces the host in place, and `host_groups` adds each id once.

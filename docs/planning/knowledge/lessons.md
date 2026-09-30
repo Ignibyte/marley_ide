@@ -4064,3 +4064,13 @@ a probe changed `ui_font_size` before and after a layout round trip, and only th
 A scenario that edits the settings mid-run does its edits before anything in Marley writes the
 file, or relaunches Marley after. When a scenario's settings change seems ignored, log the
 setting's value at the reader before suspecting the reader.
+
+## L-claude-610-a-host-scenario-on-this-machine-sees-its-real-agents-001
+*category: testing · topic: e2e scenarios for the host collector · from: pipeline 610*
+
+A scenario's `sshd` on 127.0.0.1 is the dev box itself, so the collector over it, and the local
+one, list every Claude Code and Codex the user has running: the rows under a host vary from run
+to run and can push the panel past the window. Such a scenario puts the hosts with a problem
+first (the Hosts section does), scrolls for the rest, and works out a stand-in's row from `/proc`
+in the collector's own order (`standin_row` in `610-host-collector-over-ssh.sh`) rather than
+fixing a y. Its notes describe the stand-ins only.

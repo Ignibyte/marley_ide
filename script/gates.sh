@@ -178,7 +178,7 @@ secrets_g() {
 }
 
 # ── 11. shell scripts (the hooks, this gate, the e2e runner and its scenarios, the installer) ────────────────────────────────
-shellcheck_g() { need shellcheck "install shellcheck" || return 1; shellcheck -S info -e SC1091 .claude/hooks/*.sh script/gates.sh script/e2e.sh script/e2e/*.sh script/install-marley script/regress crates/marley_terminal/shell_integration/marley.bash; }
+shellcheck_g() { need shellcheck "install shellcheck" || return 1; shellcheck -S info -e SC1091 .claude/hooks/*.sh script/gates.sh script/e2e.sh script/e2e/*.sh script/install-marley script/regress crates/marley_terminal/shell_integration/marley.bash crates/marley_workbench/bin/marley-collect.sh; }
 
 # The files gates 12/13 scan wholesale: the Marley crates plus any untracked
 # Rust file elsewhere under crates/. Tracked edits to Zed crates are judged on

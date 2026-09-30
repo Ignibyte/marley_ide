@@ -140,6 +140,30 @@ pub struct MarleyFleetSettingsContent {
     ///
     /// Default: []
     pub providers: Option<Vec<FleetProviderContent>>,
+    /// The hosts whose resources and agent processes Marley reads itself, over SSH or on this
+    /// machine (#610).
+    ///
+    /// Default: []
+    pub hosts: Option<Vec<FleetHostContent>>,
+    /// Process names the host collector lists as agents, beyond `claude` and `codex` (#610).
+    ///
+    /// Default: []
+    pub agent_processes: Option<Vec<String>>,
+}
+
+/// One host the Fleet panel reads with Marley's collector script (#610).
+#[with_fallible_options]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, MergeFrom)]
+pub struct FleetHostContent {
+    /// An SSH destination, `user@host` or `host:port`.
+    pub ssh: Option<String>,
+    /// This machine, read without SSH.
+    pub local: Option<bool>,
+    /// The name the panel shows. Default: the destination, or "This machine".
+    pub name: Option<String>,
+    /// The id a workflow store gives the host, which joins its agents to it. Default: the host's
+    /// own name.
+    pub id: Option<String>,
 }
 
 /// One workflow store the Fleet panel reads (#607).

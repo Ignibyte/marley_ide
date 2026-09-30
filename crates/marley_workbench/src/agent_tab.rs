@@ -14,7 +14,7 @@ use gpui::{
 };
 use marley_sdk::{
     AgentDetail, AgentSummary, Event, Gate, GateState, HostSnapshot, PhaseRun, PhaseState, Run,
-    TokenUse, is_stale,
+    TokenUse,
 };
 use ui::{Chip, Icon, IconName, IconSize, Label, LabelSize, prelude::*};
 use util::ResultExt as _;
@@ -178,13 +178,12 @@ impl AgentView {
         v_flex()
             .gap_0p5()
             .children(others.into_iter().enumerate().map(|(index, agent)| {
-                let stale = is_stale(
+                let (word, color) = fleet::agent_chip(
+                    agent.state,
                     agent.last_seen_ms,
-                    source.read_ms,
-                    source.poll_s,
-                    source.stale_after_s,
+                    agent.host_id.as_deref(),
+                    source,
                 );
-                let (word, color) = fleet::state_chip(agent.state, stale);
                 let mut line = Vec::new();
                 if let Some(item) = &agent.work_item {
                     line.push(item.key.clone());
@@ -493,7 +492,11 @@ fn render_history(host: Option<&HostSnapshot>, samples: &[Sample], cx: &App) -> 
             "Network",
             network,
             host.network.as_ref().map_or_else(String::new, |network| {
-                format!("in {} · out {}", rate(network.rx_bps), rate(network.tx_bps))
+                format!(
+                    "in {} · out {}",
+                    fleet::rate(network.rx_bps),
+                    fleet::rate(network.tx_bps)
+                )
             }),
             status.success,
             cx,
@@ -554,21 +557,6 @@ fn sparkline(values: Vec<f32>, color: Hsla) -> impl IntoElement {
         },
     )
     .size_full()
-}
-
-/// Bytes a second, in a few characters.
-fn rate(bytes_per_second: u64) -> String {
-    if bytes_per_second >= 1_000_000 {
-        format!(
-            "{}.{} MB/s",
-            bytes_per_second / 1_000_000,
-            bytes_per_second % 1_000_000 / 100_000
-        )
-    } else if bytes_per_second >= 1_000 {
-        format!("{} kB/s", bytes_per_second / 1_000)
-    } else {
-        format!("{bytes_per_second} B/s")
-    }
 }
 
 /// A line of token use: input, output and cache reads.

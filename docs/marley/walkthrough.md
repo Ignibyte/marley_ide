@@ -1508,6 +1508,11 @@ This part needs only Marley and one settings line; do it before or after 11.5's 
   under On This Host. Double-click it again: the same tab comes forward, not a second.
 - [ ] Click docs-1 and press Enter: its tab shows code's bar in red and the clippy gate's
   message. In build-1's tab, click review-1 under On This Host: review-1's tab opens.
+- [ ] Hosts (#610): add `"hosts": [ { "local": true } ]` beside `"providers"` and save. Within
+  a few seconds a **Hosts** section lists "This machine" with a line of its CPU, memory, disk
+  and network, and every Claude Code and Codex running here as a `running` row with its folder,
+  pid, CPU and memory. Add `{ "ssh": "<a host you reach with a key>" }` to see another machine;
+  a host that does not answer reads `unreachable`, with SSH's error under the pointer.
 - [ ] `marley: toggle fleet` again closes the panel, and once more opens it where it was.
 - [ ] Change the line to `"fleet": { "providers": [] },` and save: the panel says "The fleet is
   not set up." and names the setting.

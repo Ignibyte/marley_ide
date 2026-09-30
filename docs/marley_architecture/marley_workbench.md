@@ -2233,11 +2233,47 @@ drawn from `marley_sdk`'s types.
   the selected agent's tab on a row's second click (`ClickEvent::click_count() == 2`), on
   `menu::Confirm`, and from an outlined Open button that `render_snapshot_header` takes as its
   first line's `end`.
+- **Hosts (#610).** `Fleet.collected` holds what `fleet_hosts::collect` last found; the loop
+  runs it every 5 s (`COLLECT_EVERY`) between reads, outside any update, while `fleet_shows`, and
+  `keep_collected` logs a refused host once. `read_providers` calls `fleet_hosts::join`, which
+  fills `Source.unreachable` and `Source.processes` and gives the Hosts source (`hosts_only`),
+  appended after the stores. `host_groups` takes unreachable hosts (problems first in the Hosts
+  source, which also shows hosts with no agents); a host header carries `host_line` (CPU, memory,
+  disk, network) and an `unreachable` or `refused` chip whose tooltip is the reason;
+  `agent_chip` gives `running` to a process row and `offline` to a store agent on an unreachable
+  host; a joined agent's snapshot adds its process line. `rate` lives here now.
 - **Not set up.** With no provider, the panel says "The fleet is not set up." and names
   `marley.fleet.providers` and `{ "kind": "pseudo" }`.
 - **Settings.** `settings_content::MarleyFleetSettingsContent { providers }` with
   `FleetProviderContent`, tagged by `kind`; `Pseudo` is its only variant until #611 adds the MCP
   and HTTP clients. `default.json` has `"fleet": { "providers": [] }`.
+
+## The host collector (`src/fleet_hosts.rs`, `bin/marley-collect.sh`, #610)
+
+Marley reads each host the settings list with its own script.
+- **The script** is POSIX `sh`, shipped by `include_str!`. It reads `/proc/stat`, `meminfo`,
+  `loadavg`, `uptime`, `net/dev` and `df -P -k /`, and each `/proc/<pid>` whose `comm` is
+  `claude`, `codex` or a name in `MARLEY_COLLECT_NAMES` (its `cwd`, `stat`, `VmRSS` and
+  `MARLEY_FLEET_SESSION`), and prints one `marley.host/v1` document. Rates come from the previous
+  run's counters in a state file under `$XDG_RUNTIME_DIR`, else a 0700 folder of its own in
+  `/tmp` it checks it owns; a first run samples twice, a second apart. The shellcheck gate lists
+  it.
+- **Running it.** `FleetHost { target: HostTarget::{Local, Ssh}, name, id }` comes from the
+  settings (`MarleySettings::fleet_hosts`, through `fleet_settings`). `collect` runs each host in
+  turn through `process::output`: `sh -c <script>` for this machine; for SSH, the destination
+  through `marley_remote::parse_ssh_target` (a failure is `refused` and nothing runs), then
+  `MARLEY_SSH` or `ssh` with `-T`, `BatchMode=yes`, `ConnectTimeout=5`, `ControlMaster=auto`,
+  `ControlPath=$XDG_RUNTIME_DIR/marley-ssh-%C`, `ControlPersist=60`, `ssh_command`'s port and
+  `--`, and `printf %s <b64> | base64 -d | env MARLEY_COLLECT_NAMES='…' sh`. Only names of
+  `[A-Za-z0-9._-]`, at most 32 characters, reach the host's shell. A failure's reason is the last
+  line of stderr.
+- **The join** (`join`, `claim`): a reachable host's snapshot, named as the settings name it,
+  replaces a store source's host of the same id in place; a process is claimed by the store agent
+  whose id is its session, else by host, runtime and the agent's folder (where its detail is
+  known), else by the one agent and one sessionless process of that runtime on the host. The
+  rest become the Hosts source's agents (`process_agent`: `"<host id>:<pid>"`, named for their
+  folder, with a detail carrying the snapshot). A host that did not answer is an `Unreachable`
+  of the Hosts source and of each store source with agents on it.
 
 ## The Agent tab (`src/agent_tab.rs`, #609)
 

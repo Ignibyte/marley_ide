@@ -229,9 +229,12 @@ change feed leaves out `work_changes`, and Marley reads `work_agents` every `pol
 
 ## `marley.host/v1`: the host collector
 
-A POSIX `sh` script Marley ships, which prints one JSON document and exits. Marley pipes it to
-the host over SSH with the user's own configuration, as `ssh <host> sh -s < marley-collect.sh`,
-every `poll_s` while a panel shows that host; nothing is installed there. It reads `/proc` and
+A POSIX `sh` script Marley ships, which prints one JSON document and exits. Marley runs it on the
+host over SSH with the user's own configuration, the script carried in the command (`printf %s
+<base64> | base64 -d | sh`, as #526's shell bootstrap travels), every 5 seconds while a Fleet
+surface shows; nothing is installed there. Since #610 the script is
+`crates/marley_workbench/bin/marley-collect.sh`, and the hosts are the settings'
+`marley.fleet.hosts`. It reads `/proc` and
 `df`, needs no root and opens no port, and the same script runs locally for this machine. Any
 other collector that prints the same document works, and one may instead push it to the
 workflow store, which then returns it as an agent detail's `host`.
@@ -265,6 +268,10 @@ workflow store, which then returns it as an agent detail's `host`.
   runtime exposes (an environment variable or an argument), which matches the store's agent id.
 - Marley joins a store agent to a process by `session`, else by `host_id` with `cwd` and
   `runtime`. A process no store agent claims still shows, as an agent with no work records.
+- Marley's collector reads a process's session from its `MARLEY_FLEET_SESSION` environment
+  variable, when the process's environment can be read (#610): a harness or store that starts an
+  agent sets it to the agent's id. Without a session and with no folder to match, a process
+  joins an agent only when its host has exactly one agent and one process of that runtime.
 
 ## What Marley shows
 
