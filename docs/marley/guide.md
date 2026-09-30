@@ -1423,8 +1423,21 @@ snapshot below:
 - its question and the options, when it asks one (answering comes later).
 
 Up and Down move the selection while the panel has the focus. Drag the line between the list and
-the snapshot to give either more room. The Agent tab, a host's resources over SSH and real stores
-over MCP or HTTP come next (#609 to #611).
+the snapshot to give either more room.
+
+Double-click an agent, press Enter on the selected one, or click Open in its snapshot, to open
+its Agent tab in the center (#609). Opening it again brings the same tab forward. The tab shows:
+
+- its run's phases on a timeline, each bar from its start to its end, with its gates under it
+  (a failed gate's message in red);
+- its events, newest first;
+- its host's CPU, memory and network as lines over the last 30 minutes Marley watched;
+- its tokens for this run and for the day, with cache reads;
+- the other agents on its host: click one to open its tab.
+
+The fleet keeps reading while the panel shows or an Agent tab is in front. The graphs start
+empty after a restart. A host's resources over SSH and real stores over MCP or HTTP come next
+(#610, #611).
 
 ## Key bindings
 

@@ -222,7 +222,7 @@ schemas, a conformance kit) follows the contract. Wave 1 (#607 to #611) builds i
 - #607 (shipped): the contract's types and the pseudo provider in `crates/marley_sdk`, and the
   Fleet panel in the right dock listing its agents by host;
 - #608 (shipped): the selected agent's snapshot under the list;
-- #609: the Agent tab in the center;
+- #609 (shipped): the Agent tab in the center;
 - #610: the host collector over SSH;
 - #611: the `marley.work/v1` clients over MCP and HTTP.
 

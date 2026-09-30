@@ -1,7 +1,7 @@
 ---
 pipeline_id: fe052688-6560-4d77-b0fe-b55aec8ea2c5
 ticket: docs/planning/tickets/open/TICKET-609-agent-tab.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "The Agent tab: an agent's full detail in the center"
 type: feature
 slice: prong 2, D20, wave 1; after #608
@@ -54,13 +54,20 @@ Orca opens a card's detail from its dashboard (`docs/orca_architecture/05-termin
     `crates/gpui/examples/painting.rs`).
   - No sparkline exists in any Marley crate; Ely-GPUI-Components' `charts/` (MIT OR Apache-2.0)
     may be read for its scale and path code, rewritten against Zed's theme, with its notice
-    kept if any code is taken.
+    kept if any code is taken. The Plan phase chose not to read it: a line through evenly spaced
+    samples is a few lines of `PathBuilder::stroke`, `move_to` and `line_to`, as
+    `circular_progress.rs:89-140` builds its arcs, so nothing is taken.
+  - The rail's double-click (`rail.rs:4408-4410`, `ClickEvent::click_count() == 2`, #604) and
+    #604's scenario helper `double_click`.
+  - `Workspace::items_of_type`, `activate_item`, `add_item_to_active_pane`, `panes()` and
+    `Pane::active_item()` for finding a tab again and for whether one shows.
 
 ## UI proof
 The scenario `script/e2e/609-agent-tab.sh` (sway), on the pseudo provider:
 - lets the fleet show for a minute, then double-clicks the working agent (`tab.png`: the phase
   timeline, the gates, the event log, the three graphs with a minute of samples, tokens, the
   host's other agent);
+- (a click on the failed agent selects it first, then Enter opens it);
 - opens the failed agent with Enter (`failed.png`: the failed gate with its detail);
 - double-clicks the first agent again and shoots one tab, not two (`again.png`);
 - opens the other agent from the host section (`other.png`).

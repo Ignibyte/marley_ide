@@ -8,24 +8,33 @@
 //! reads when it draws and none run.
 //!
 //! A click on an agent selects it (#608): the panel then splits, the list above and the agent's
-//! snapshot below. The reads keep the full detail only of the agents some panel has selected.
+//! snapshot below. The reads keep the full detail only of the agents some panel has selected, or
+//! some Agent tab shows. A double-click, Enter or the snapshot's Open opens the agent's tab
+//! (#609, `crate::agent_tab`), and the reads keep a sample of each host's resources for its
+//! graphs.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use gpui::{
-    Action, AnyElement, App, Context, Div, DragMoveEvent, EntityId, EventEmitter, FocusHandle,
-    Focusable, Global, Hsla, Pixels, Render, Subscription, Task, Window, px, relative,
+    Action, AnyElement, App, ClickEvent, Context, Div, DragMoveEvent, EntityId, EventEmitter,
+    FocusHandle, Focusable, Global, Hsla, Pixels, Render, Subscription, Task, WeakEntity, Window,
+    px, relative,
 };
 use marley_sdk::stale::DEFAULT_POLL_S;
 use marley_sdk::{
-    AgentDetail, AgentSummary, Attention, HostSnapshot, PhaseState, Pseudo, Run, State, is_stale,
+    AgentDetail, AgentSummary, Attention, HostSnapshot, Memory, PhaseState, Pseudo, Run, State,
+    is_stale,
 };
 use settings::{FleetProviderContent, Settings as _};
-use ui::{Chip, Divider, Icon, IconName, IconSize, Label, LabelSize, ProgressBar, prelude::*};
+use ui::{
+    Button, ButtonSize, ButtonStyle, Chip, Divider, Icon, IconName, IconSize, Label, LabelSize,
+    ProgressBar, prelude::*,
+};
 use workspace::dock::{DockPosition, Panel, PanelEvent};
 use workspace::{MultiWorkspace, Workspace};
 
+use crate::agent_tab::{self, AgentView};
 use crate::{MarleySettings, ToggleFleet};
 
 /// The panel's place among the right dock's panels; no other panel takes it.
@@ -35,49 +44,73 @@ const ACTIVATION_PRIORITY: u32 = 20;
 /// question of an agent that asks one on a 1000 px tall window.
 const SNAPSHOT_RATIO: f32 = 0.5;
 
+/// How long a host's samples are kept for its graphs.
+const SAMPLES_KEPT_MS: u64 = 30 * 60 * 1000;
+
 /// What the fleet's providers last answered.
 #[derive(Debug, Default)]
 pub struct Fleet {
-    sources: Vec<Source>,
+    pub(crate) sources: Vec<Source>,
+    /// Each host's resources at each read, the last 30 minutes of them.
+    pub(crate) samples: HashMap<HostKey, VecDeque<Sample>>,
     /// The pseudo provider, once a reading has started it.
     pseudo: Option<Pseudo>,
     /// Whether the reads run.
-    polling: bool,
+    pub(crate) polling: bool,
+}
+
+/// A host as one provider names it.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct HostKey {
+    pub(crate) source: String,
+    pub(crate) host: String,
+}
+
+/// A host's resources at one read.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Sample {
+    pub(crate) at_ms: u64,
+    /// The processor's use, in percent.
+    pub(crate) cpu: Option<f32>,
+    /// The memory used, in percent of the total.
+    pub(crate) memory: Option<f32>,
+    /// Bytes a second, in and out together.
+    pub(crate) network: Option<u64>,
 }
 
 impl Global for Fleet {}
 
-/// Each Fleet panel's selected agent, whose detail the reads keep. The panels do not observe it,
-/// so a selection alone redraws nothing.
+/// Each Fleet panel's selected agent and each Agent tab's agent, whose detail the reads keep. The
+/// panels and tabs do not observe it, so a selection alone redraws nothing.
 #[derive(Debug, Default)]
-struct Wanted(HashMap<EntityId, Selected>);
+pub(crate) struct Wanted(pub(crate) HashMap<EntityId, Selected>);
 
 impl Global for Wanted {}
 
 /// An agent picked in a Fleet panel: its provider's name and its id.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Selected {
-    source: String,
-    agent: String,
+pub(crate) struct Selected {
+    pub(crate) source: String,
+    pub(crate) agent: String,
 }
 
 /// One provider, as the fleet last read it.
 #[derive(Debug, Clone, PartialEq)]
-struct Source {
+pub(crate) struct Source {
     /// The provider's name, for its header.
-    name: String,
+    pub(crate) name: String,
     /// What its handshake offers, which decides the snapshot's sections.
     capabilities: Vec<String>,
     /// Its agents, in its order.
-    agents: Vec<AgentSummary>,
+    pub(crate) agents: Vec<AgentSummary>,
     /// The full detail of its agents a panel has selected.
-    details: Vec<AgentDetail>,
+    pub(crate) details: Vec<AgentDetail>,
     /// Its hosts.
-    hosts: Vec<HostSnapshot>,
-    poll_s: Option<u64>,
-    stale_after_s: Option<u64>,
+    pub(crate) hosts: Vec<HostSnapshot>,
+    pub(crate) poll_s: Option<u64>,
+    pub(crate) stale_after_s: Option<u64>,
     /// When it was read, which the stale rule measures from.
-    read_ms: u64,
+    pub(crate) read_ms: u64,
     /// Why it could not be read, when it could not.
     failure: Option<String>,
 }
@@ -98,7 +131,7 @@ impl Source {
         }
     }
 
-    fn offers(&self, capability: &str) -> bool {
+    pub(crate) fn offers(&self, capability: &str) -> bool {
         self.capabilities
             .iter()
             .any(|offered| offered == capability)
@@ -132,14 +165,14 @@ impl Source {
     }
 
     /// The snapshot of the host `host_id` names, from the agent's detail or the provider's hosts.
-    fn host<'a>(&'a self, detail: &'a AgentDetail) -> Option<&'a HostSnapshot> {
+    pub(crate) fn host<'a>(&'a self, detail: &'a AgentDetail) -> Option<&'a HostSnapshot> {
         detail.host.as_ref().or_else(|| {
             let id = detail.agent.host_id.as_deref()?;
             self.hosts.iter().find(|host| host.host.id == id)
         })
     }
 
-    fn host_name(&self, host_id: Option<&str>) -> String {
+    pub(crate) fn host_name(&self, host_id: Option<&str>) -> String {
         host_id.map_or_else(
             || "No host".to_string(),
             |id| {
@@ -189,7 +222,8 @@ pub fn init(cx: &App) {
             let Some(window) = window else {
                 return;
             };
-            let panel = cx.new(|cx| FleetPanel::new(window, cx));
+            let weak_workspace = cx.weak_entity();
+            let panel = cx.new(|cx| FleetPanel::new(weak_workspace, window, cx));
             workspace.add_panel(panel, window, cx);
         },
     )
@@ -197,7 +231,7 @@ pub fn init(cx: &App) {
 }
 
 /// Starts the reads, unless they run.
-fn start_polling(cx: &mut App) {
+pub(crate) fn start_polling(cx: &mut App) {
     let fleet = cx.default_global::<Fleet>();
     if !fleet.polling {
         fleet.polling = true;
@@ -205,23 +239,29 @@ fn start_polling(cx: &mut App) {
     }
 }
 
-/// Whether a Fleet panel is what an open right dock shows, in any window's shown workspace.
-/// Zed's docks call `Panel::set_active` also for a panel activated in a closed dock, and a layout
-/// switch that moves panels between docks can leave one showing without the call, so the reads
-/// ask the docks rather than count those calls.
-fn panel_shows(cx: &App) -> bool {
+/// Whether a Fleet surface shows in any window's shown workspace: a Fleet panel an open right
+/// dock shows, or an Agent tab that is some pane's active item. Zed's docks call
+/// `Panel::set_active` also for a panel activated in a closed dock, and a layout switch that moves
+/// panels between docks can leave one showing without the call, so the reads ask the windows
+/// rather than count those calls.
+fn fleet_shows(cx: &App) -> bool {
     cx.windows()
         .iter()
         .filter_map(gpui::AnyWindowHandle::downcast::<MultiWorkspace>)
         .filter_map(|window| window.read(cx).ok())
         .any(|multi_workspace| {
-            multi_workspace
-                .workspace()
-                .read(cx)
+            let workspace = multi_workspace.workspace().read(cx);
+            let panel = workspace
                 .right_dock()
                 .read(cx)
                 .visible_panel()
-                .is_some_and(|panel| panel.to_any().downcast::<FleetPanel>().is_ok())
+                .is_some_and(|panel| panel.to_any().downcast::<FleetPanel>().is_ok());
+            panel
+                || workspace.panes().iter().any(|pane| {
+                    pane.read(cx)
+                        .active_item()
+                        .is_some_and(|item| item.downcast::<AgentView>().is_some())
+                })
         })
 }
 
@@ -235,17 +275,17 @@ fn poll_while_shown(cx: &App) -> Task<()> {
     })
 }
 
-/// Reads every provider now, for a selection that should not wait for the next poll.
-fn read_now(cx: &mut App) {
+/// Reads every provider now, for a selection or a tab that should not wait for the next poll.
+pub(crate) fn read_now(cx: &mut App) {
     // The wait it returns is the loop's to keep; this read only fills the snapshot sooner.
     if read_providers(cx).is_none() {
         log::debug!("fleet: a selection's read found no Fleet panel showing");
     }
 }
 
-/// Reads every provider once: `None` once no panel shows, else how long to wait.
+/// Reads every provider once: `None` once no Fleet surface shows, else how long to wait.
 fn read_providers(cx: &mut App) -> Option<Duration> {
-    if !panel_shows(cx) {
+    if !fleet_shows(cx) {
         cx.default_global::<Fleet>().polling = false;
         return None;
     }
@@ -271,12 +311,65 @@ fn read_providers(cx: &mut App) -> Option<Duration> {
         .unwrap_or(DEFAULT_POLL_S)
         .max(1);
     let started = known.is_some_and(|fleet| fleet.pseudo.is_some());
-    if known.is_none_or(|fleet| fleet.sources != sources) || started != pseudo.is_some() {
+    let samples = sampled(
+        known.map(|fleet| fleet.samples.clone()).unwrap_or_default(),
+        &sources,
+        now,
+    );
+    if known.is_none_or(|fleet| fleet.sources != sources || fleet.samples != samples)
+        || started != pseudo.is_some()
+    {
         let fleet = cx.default_global::<Fleet>();
         fleet.sources = sources;
+        fleet.samples = samples;
         fleet.pseudo = pseudo;
     }
     Some(Duration::from_secs(wait_s))
+}
+
+/// `samples` with one more for each host `sources` describe, taken at `now`, and without those
+/// older than 30 minutes.
+fn sampled(
+    mut samples: HashMap<HostKey, VecDeque<Sample>>,
+    sources: &[Source],
+    now: u64,
+) -> HashMap<HostKey, VecDeque<Sample>> {
+    for source in sources {
+        for host in &source.hosts {
+            let key = HostKey {
+                source: source.name.clone(),
+                host: host.host.id.clone(),
+            };
+            samples.entry(key).or_default().push_back(Sample {
+                at_ms: now,
+                cpu: host.cpu.as_ref().map(|cpu| cpu.percent),
+                memory: host.memory.as_ref().map(memory_share),
+                network: host
+                    .network
+                    .as_ref()
+                    .map(|network| network.rx_bps.saturating_add(network.tx_bps)),
+            });
+        }
+    }
+    let oldest = now.saturating_sub(SAMPLES_KEPT_MS);
+    samples.retain(|_, kept| {
+        while kept.front().is_some_and(|sample| sample.at_ms < oldest) {
+            kept.pop_front();
+        }
+        !kept.is_empty()
+    });
+    samples
+}
+
+/// The memory used, in whole percent of the total.
+pub(crate) fn memory_share(memory: &Memory) -> f32 {
+    let share = memory
+        .used_bytes
+        .saturating_mul(100)
+        .checked_div(memory.total_bytes)
+        .unwrap_or(0)
+        .min(100);
+    f32::from(u16::try_from(share).unwrap_or(100))
 }
 
 /// The pseudo provider's reading at `now`, starting it on the first, with the detail of the
@@ -323,6 +416,7 @@ struct DraggedFleetSplit;
 /// The Fleet panel: every provider's agents, grouped by host, and the selected one's snapshot.
 pub struct FleetPanel {
     focus_handle: FocusHandle,
+    workspace: WeakEntity<Workspace>,
     selected: Option<Selected>,
     /// The snapshot's share of the height below the header.
     snapshot_ratio: f32,
@@ -339,7 +433,7 @@ impl std::fmt::Debug for FleetPanel {
 }
 
 impl FleetPanel {
-    fn new(_window: &mut Window, cx: &mut Context<Self>) -> Self {
+    fn new(workspace: WeakEntity<Workspace>, _window: &mut Window, cx: &mut Context<Self>) -> Self {
         let id = cx.entity_id();
         cx.on_release(move |_, cx| {
             if cx.has_global::<Wanted>() {
@@ -349,6 +443,7 @@ impl FleetPanel {
         .detach();
         Self {
             focus_handle: cx.focus_handle(),
+            workspace,
             selected: None,
             snapshot_ratio: SNAPSHOT_RATIO,
             _fleet: cx.observe_global::<Fleet>(|panel, cx| {
@@ -368,6 +463,15 @@ impl FleetPanel {
         self.selected = Some(selected);
         cx.defer(read_now);
         cx.notify();
+    }
+
+    /// Opens the selected agent's tab, or shows the one open. Deferred, since the opener reads
+    /// the Agent tabs, and a tab's own click would have it read the tab being updated.
+    fn open_selected(&self, window: &Window, cx: &mut Context<Self>) {
+        let Some(selected) = self.selected.clone() else {
+            return;
+        };
+        agent_tab::open_later(self.workspace.clone(), selected, window, cx);
     }
 
     /// Drops the selection once the list no longer holds its agent.
@@ -508,9 +612,12 @@ impl FleetPanel {
                         .hover(|style| style.bg(hover))
                 }
             })
-            .on_click(cx.listener(move |panel, _, window, cx| {
+            .on_click(cx.listener(move |panel, event: &ClickEvent, window, cx| {
                 window.focus(&panel.focus_handle, cx);
                 panel.select(selected.clone(), cx);
+                if event.click_count() == 2 {
+                    panel.open_selected(window, cx);
+                }
             }))
             .child(
                 Icon::new(runtime_icon(&agent.runtime))
@@ -569,7 +676,7 @@ impl FleetPanel {
 }
 
 /// The mark an agent's attention puts on its row.
-fn attention_mark(attention: Attention) -> Option<Icon> {
+pub(crate) fn attention_mark(attention: Attention) -> Option<Icon> {
     match attention {
         Attention::Question => Some(
             Icon::new(IconName::Warning)
@@ -586,7 +693,7 @@ fn attention_mark(attention: Attention) -> Option<Icon> {
 }
 
 /// A snapshot section: its title over its body.
-fn section(title: &'static str, body: impl IntoElement) -> Div {
+pub(crate) fn section(title: &'static str, body: impl IntoElement) -> Div {
     v_flex()
         .gap_1()
         .child(
@@ -600,7 +707,12 @@ fn section(title: &'static str, body: impl IntoElement) -> Div {
 /// The selected agent's snapshot: what it is, what it works on, where its run stands, what its
 /// host uses, its tokens today and its question. A section the provider does not offer is left
 /// out.
-fn render_snapshot(detail: &AgentDetail, source: &Source, cx: &App) -> AnyElement {
+fn render_snapshot(
+    detail: &AgentDetail,
+    source: &Source,
+    open: Option<AnyElement>,
+    cx: &App,
+) -> AnyElement {
     let work_item = detail
         .work_item
         .as_ref()
@@ -666,7 +778,7 @@ fn render_snapshot(detail: &AgentDetail, source: &Source, cx: &App) -> AnyElemen
     v_flex()
         .p_2()
         .gap_2()
-        .child(render_snapshot_header(detail, source))
+        .child(render_snapshot_header(detail, source, open))
         .children(work_item)
         .children(run)
         .children(resources)
@@ -676,8 +788,12 @@ fn render_snapshot(detail: &AgentDetail, source: &Source, cx: &App) -> AnyElemen
 }
 
 /// The snapshot's first lines: the agent's name and state, what runs it and for how long it has
-/// been in that state, and where it runs.
-fn render_snapshot_header(detail: &AgentDetail, source: &Source) -> Div {
+/// been in that state, and where it runs; `end` closes the first line.
+pub(crate) fn render_snapshot_header(
+    detail: &AgentDetail,
+    source: &Source,
+    end: Option<AnyElement>,
+) -> Div {
     let agent = &detail.agent;
     let stale = is_stale(
         agent.last_seen_ms,
@@ -713,7 +829,8 @@ fn render_snapshot_header(detail: &AgentDetail, source: &Source) -> Div {
                     Chip::new(word)
                         .label_color(color)
                         .label_size(LabelSize::XSmall),
-                ),
+                )
+                .children(end),
         )
         .child(
             Label::new(about.join(" · "))
@@ -762,7 +879,7 @@ fn render_phase_strip(run: &Run, cx: &App) -> Div {
 }
 
 /// A phase segment's colour.
-fn phase_color(state: PhaseState, cx: &App) -> Hsla {
+pub(crate) fn phase_color(state: PhaseState, cx: &App) -> Hsla {
     let status = cx.theme().status();
     let colors = cx.theme().colors();
     match state {
@@ -775,7 +892,7 @@ fn phase_color(state: PhaseState, cx: &App) -> Hsla {
 }
 
 /// The host's processor and memory as bars, or a line saying none came yet.
-fn render_resources(host: Option<&HostSnapshot>, cx: &App) -> AnyElement {
+pub(crate) fn render_resources(host: Option<&HostSnapshot>, cx: &App) -> AnyElement {
     let Some(host) = host else {
         return Label::new("no resources yet")
             .size(LabelSize::XSmall)
@@ -793,16 +910,10 @@ fn render_resources(host: Option<&HostSnapshot>, cx: &App) -> AnyElement {
         ));
     }
     if let Some(memory) = &host.memory {
-        let share = memory
-            .used_bytes
-            .saturating_mul(100)
-            .checked_div(memory.total_bytes)
-            .unwrap_or(0)
-            .min(100);
         bars.push(meter(
             "Memory",
             "marley-fleet-memory",
-            f32::from(u16::try_from(share).unwrap_or(100)),
+            memory_share(memory),
             format!(
                 "{} / {} GB",
                 gigabytes(memory.used_bytes),
@@ -851,7 +962,7 @@ fn meter(
 }
 
 /// How long ago `since_ms` was at `now_ms`, in its largest whole unit.
-fn how_long(since_ms: u64, now_ms: u64) -> String {
+pub(crate) fn how_long(since_ms: u64, now_ms: u64) -> String {
     let seconds = now_ms.saturating_sub(since_ms) / 1000;
     match seconds {
         0..60 => format!("{seconds} s"),
@@ -862,7 +973,7 @@ fn how_long(since_ms: u64, now_ms: u64) -> String {
 }
 
 /// A token count in a few characters: 3.9M, 310k, 950.
-fn compact(count: u64) -> String {
+pub(crate) fn compact(count: u64) -> String {
     if count >= 1_000_000 {
         format!("{}.{}M", count / 1_000_000, count % 1_000_000 / 100_000)
     } else if count >= 1_000 {
@@ -873,13 +984,13 @@ fn compact(count: u64) -> String {
 }
 
 /// Bytes as gigabytes with one decimal.
-fn gigabytes(bytes: u64) -> String {
+pub(crate) fn gigabytes(bytes: u64) -> String {
     let tenths = bytes / 100_000_000;
     format!("{}.{}", tenths / 10, tenths % 10)
 }
 
 /// The word and colour of an agent's state chip; a stale agent reads stale, whatever it said.
-const fn state_chip(state: State, quiet: bool) -> (&'static str, Color) {
+pub(crate) const fn state_chip(state: State, quiet: bool) -> (&'static str, Color) {
     if quiet {
         return ("stale", Color::Muted);
     }
@@ -895,7 +1006,7 @@ const fn state_chip(state: State, quiet: bool) -> (&'static str, Color) {
 }
 
 /// The icon of a runtime the fleet names: an agent's own where Marley knows it.
-fn runtime_icon(runtime: &str) -> IconName {
+pub(crate) fn runtime_icon(runtime: &str) -> IconName {
     match runtime {
         "claude-code" | "claude" => IconName::AiClaude,
         "codex" => IconName::AiOpenAi,
@@ -942,7 +1053,7 @@ impl FleetPanel {
 
     /// The selected agent's snapshot, or a line while its first detail is read; `None` with no
     /// selection.
-    fn render_selected(&self, sources: &[Source], cx: &App) -> Option<AnyElement> {
+    fn render_selected(&self, sources: &[Source], cx: &Context<Self>) -> Option<AnyElement> {
         let selected = self.selected.as_ref()?;
         let source = sources
             .iter()
@@ -962,7 +1073,16 @@ impl FleetPanel {
                         )
                         .into_any_element()
                 },
-                |detail| render_snapshot(detail, source, cx),
+                |detail| {
+                    let open = Button::new("marley-fleet-open", "Open")
+                        .style(ButtonStyle::Outlined)
+                        .size(ButtonSize::Compact)
+                        .on_click(cx.listener(|panel, _: &ClickEvent, window, cx| {
+                            panel.open_selected(window, cx);
+                        }))
+                        .into_any_element();
+                    render_snapshot(detail, source, Some(open), cx)
+                },
             );
         Some(snapshot)
     }
@@ -986,6 +1106,9 @@ impl Render for FleetPanel {
             .on_action(cx.listener(|panel, _: &menu::SelectNext, _, cx| panel.step(true, cx)))
             .on_action(cx.listener(|panel, _: &menu::SelectPrevious, _, cx| {
                 panel.step(false, cx);
+            }))
+            .on_action(cx.listener(|panel, _: &menu::Confirm, window, cx| {
+                panel.open_selected(window, cx);
             }))
             .size_full()
             .bg(cx.theme().colors().panel_background)

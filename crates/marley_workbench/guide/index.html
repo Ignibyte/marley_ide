@@ -251,6 +251,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#fleet">The fleet</a><ol>
 <li><a href="#fleet-panel">The Fleet panel</a></li>
 <li><a href="#fleet-snapshot">An agent&#x27;s snapshot</a></li>
+<li><a href="#fleet-agent-tab">The Agent tab</a></li>
 </ol></li>
 <li><a href="#reference">Reference</a><ol>
 <li><a href="#keys-reference">Keys</a></li>
@@ -1539,7 +1540,20 @@ th { background: var(--panel); font-weight: 650; }
 <li>Press <kbd>Up</kbd> or <kbd>Down</kbd> to move to the next agent while the panel has the focus.</li>
 <li>Drag the line between the list and the snapshot to resize them.</li>
 </ol>
-<p class="note">A part the store does not offer is left out. The Agent tab, host resources over SSH and real stores over MCP or HTTP come next (#609 to #611).</p>
+<p class="note">A part the store does not offer is left out.</p>
+</article>
+
+<article id="fleet-agent-tab">
+<h3>The Agent tab <span class="ticket">#609</span></h3>
+<p class="what"><strong>What it is.</strong> One agent in full, in a tab in the center: its phases in time, its events, its host's resources over time, its tokens and its neighbours.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Double-click an agent in the Fleet panel, press <kbd>Enter</kbd> on the selected one, or click Open in its snapshot. Opening it again brings the same tab forward.</li>
+<li>Read the timeline: each phase a bar from its start to its end, its gates under it, a failed gate's message in red.</li>
+<li>Read the events, newest first, and the CPU, memory and network lines over the last 30 minutes Marley watched.</li>
+<li>Click an agent under On This Host to open its tab.</li>
+</ol>
+<p class="note">The graphs start empty after a restart, and the tab is not reopened after one. Host resources over SSH and real stores over MCP or HTTP come next (#610, #611).</p>
 </article>
 </section>
 

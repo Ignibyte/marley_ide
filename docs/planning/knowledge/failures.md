@@ -2958,3 +2958,13 @@ the scenario's 1000 px tall output that cut the tokens line and left review-1's 
 the fold (`working.png`, `question.png`), so the shots could not show REQ-002 and REQ-003
 whole. Fixed before the commit: the snapshot starts at half, and its sections sit closer
 (`gap_2`).
+
+## F-claude-609-a-passed-phase-without-an-end-drew-as-a-dot-001
+*severity: low · found in: pipeline 609's Test phase (run 1) · class: a drawing that trusts an optional field the contract lets a store leave out*
+
+The Agent tab's timeline drew each phase from `started_ms` to `ended_ms`, and a phase with no
+`ended_ms` that was not active to its own start. The pseudo provider marks a phase passed when
+the run moves on without giving it an end, so build-1's code phase drew as a dot (`tab.png`).
+Fixed before the commit: a phase with a start and no end runs to now while active, else to the
+next phase's start. The contract leaves `ended_ms` optional, so the tab, not the fixtures,
+carries the fix.

@@ -1503,6 +1503,11 @@ This part needs only Marley and one settings line; do it before or after 11.5's 
   Yes and No. Click docs-1: its strip has a red segment and "failed at code (2/4)".
 - [ ] With the panel focused, Up and Down move the highlight and the snapshot follows.
 - [ ] Drag the line above the snapshot up or down: the two parts resize.
+- [ ] Double-click build-1 (#609): its tab opens in the center, with the phases on a timeline,
+  their gates, the events newest first, CPU, memory and network lines, tokens, and review-1
+  under On This Host. Double-click it again: the same tab comes forward, not a second.
+- [ ] Click docs-1 and press Enter: its tab shows code's bar in red and the clippy gate's
+  message. In build-1's tab, click review-1 under On This Host: review-1's tab opens.
 - [ ] `marley: toggle fleet` again closes the panel, and once more opens it where it was.
 - [ ] Change the line to `"fleet": { "providers": [] },` and save: the panel says "The fleet is
   not set up." and names the setting.

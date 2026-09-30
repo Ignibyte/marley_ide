@@ -2225,11 +2225,43 @@ drawn from `marley_sdk`'s types.
   each section its capability allows: `work_items`, `runs` (`render_phase_strip`, a segment per
   phase coloured by `phase_color`), `hosts` (`render_resources`, `ui::ProgressBar` meters, or "no
   resources yet"), `usage` (tokens today) and `questions` (the options as chips, read-only).
+- **Samples and the tabs (#609).** Each read appends a `Sample { at_ms, cpu, memory, network }`
+  per host snapshot to `Fleet.samples`, keyed by `HostKey { source, host }`, and drops what is
+  older than 30 minutes (`sampled`); memory is `memory_share`, network `rx_bps + tx_bps`. The
+  reads run while `fleet_shows`: a Fleet panel an open right dock shows, or an `AgentView` that
+  is a pane's active item. The panel holds its workspace's `WeakEntity` from `init`, and opens
+  the selected agent's tab on a row's second click (`ClickEvent::click_count() == 2`), on
+  `menu::Confirm`, and from an outlined Open button that `render_snapshot_header` takes as its
+  first line's `end`.
 - **Not set up.** With no provider, the panel says "The fleet is not set up." and names
   `marley.fleet.providers` and `{ "kind": "pseudo" }`.
 - **Settings.** `settings_content::MarleyFleetSettingsContent { providers }` with
   `FleetProviderContent`, tagged by `kind`; `Pseudo` is its only variant until #611 adds the MCP
   and HTTP clients. `default.json` has `"fleet": { "providers": [] }`.
+
+## The Agent tab (`src/agent_tab.rs`, #609)
+
+One agent of the fleet in full, in the center, read-only and not serialized.
+- **Opening.** `open_later(workspace, selected, window, cx)` defers through `Window::defer` to
+  `open`, which activates the `AgentView` among `Workspace::items_of_type` whose `Selected`
+  matches, or adds a new one to the active pane (as `decisions::open`). The defer is load-bearing:
+  `open` reads every Agent tab, and a neighbour row's click comes from inside one's update.
+- **Its data.** `AgentView::new` puts its entity id and `Selected` in `Wanted`, so the reads keep
+  the agent's detail, and runs `fleet::read_now` deferred so the tab fills at once; its release
+  removes the entry. It observes the `Fleet` global. A render with no reads running starts them.
+  An agent the source no longer lists reads "… is no longer listed by …"; before the first
+  detail, "Reading…".
+- **Its parts** (`render_agent`): `fleet::render_snapshot_header` and the work item's line; PHASES
+  (`render_timeline`: a track per phase over the run's start to its end or now, the bar placed with
+  `share`, per-mille integers so nothing casts a float; a phase with a start and no end runs to now
+  while active, else to the next phase's start; `render_gates` under it with a failed gate's
+  detail); EVENTS (`render_events`: the run's and the agent's recent events merged, newest first,
+  duplicates dropped, 50 at most, "N ago · kind · text"); RESOURCES (`render_history`: CPU and
+  memory in percent and network as a share of the busiest sample, each a `sparkline`, a `canvas`
+  stroking a `PathBuilder` line, with the value now and "N samples over …"); TOKENS
+  (`token_line`, run and day, with cache reads); ON THIS HOST (`render_neighbours`, rows that open
+  their own tabs). Each part checks the handshake's capability as the snapshot does.
+- **Item.** The tab's title is the agent's name, its icon `IconName::Server`; `type Event = ()`.
 
 ## Tests
 

@@ -23,6 +23,7 @@
 pub mod agent_bar;
 pub mod agent_events;
 pub mod agent_notify;
+pub mod agent_tab;
 pub mod agent_trust;
 pub mod agents;
 pub mod autosuggest;

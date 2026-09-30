@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Agent tab** (#609, 2026-09-30). A double-click on an agent in the Fleet panel, Enter on
+  the selected one, or the snapshot's Open button opens the agent in a tab of its own in the
+  center, or brings forward the one already open. The tab shows its run's phases on a timeline,
+  each bar from its start to its end with its gates under it and a failed gate's detail in red;
+  its events, newest first; its host's CPU, memory and network as lines over the samples Marley
+  kept (one per read, the last 30 minutes, in memory only); its tokens for the run and the day,
+  with cache reads; and the other agents on its host, each opening its own tab. The tab is
+  read-only and not kept across a restart. The fleet now reads while a Fleet panel shows or an
+  Agent tab is its pane's active item.
+
 - **An agent's snapshot in the Fleet panel** (#608, 2026-09-30). One click on an agent's row
   selects it, and the panel splits: the list above, the agent's snapshot below. The snapshot
   shows its state and for how long, what runs it and where (host and folder), its work item with

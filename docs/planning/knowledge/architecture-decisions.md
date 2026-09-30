@@ -3462,3 +3462,14 @@ handshake does not offer is left out, never drawn empty. One click selects (AD-c
 Agent tab opens on a double-click in #609. Rejected: reading every agent's detail each poll
 (one call per agent per poll against a real store), and a snapshot that fills only at the next
 poll (up to `poll_s` of "Reading…").
+
+## AD-claude-609-the-agent-tab-is-read-only-and-its-samples-live-in-memory-001
+*decided at: 2026-09-30 · status: shipped*
+
+An agent opens in a read-only center tab (`AgentView`), found again by its provider and id, and
+not restored after a restart. The graphs draw from samples Marley keeps itself, one per host per
+read for 30 minutes, in memory: the contract's host snapshot is one moment, not a history. The
+fleet reads while a Fleet panel shows or an Agent tab is its pane's active item. Every open goes
+through `Window::defer`, since the opener reads every Agent tab and may be called from inside
+one. Rejected: a `SerializableItem` (deferred until a store can serve the tab's history), and a
+history in the contract (it would make every provider keep one).
