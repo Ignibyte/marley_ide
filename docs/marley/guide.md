@@ -1387,6 +1387,7 @@ Commands with no key of their own, from the command palette:
 | Command | What it does |
 |---|---|
 | `marley: use marley layout`, `marley: use zed layout` | Switch the layout in every window |
+| `marley: open guide` | The Marley guide, a page shipped with Marley, in a Browser tab or the system browser (#599; also the `?` in the title bar) |
 | `marley: open settings` | The Settings window on its Marley page |
 | `marley: new agent` | The New Agent picker (also Ctrl+Alt+N) |
 | `marley: attach file` | Attach File for the focused terminal |

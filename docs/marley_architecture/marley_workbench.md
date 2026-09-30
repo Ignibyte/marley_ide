@@ -1561,6 +1561,23 @@ alike.
 - `browser_tools::find_query` checks `query` (200 characters), and `found_text` writes an answer
   as text: the item to act on or why there is none, the candidates, the note, and where to read.
 
+## The guide (`src/guide.rs`, `guide/index.html`, #599)
+
+- `guide/index.html` is the user's guide: one self-contained page (styles and a small filter
+  script inline, nothing loaded from the network), an area per `<section id>` with its `<h2>`,
+  a feature per `<article id>` with its `<h3>`, each a "What it is" box then "How to use it", and
+  a contents `<nav>` listing every section and article by id. Edit the page itself; a feature
+  that changes what a user sees updates its article in its ticket's Phase 4, and a new article
+  needs its line in the `<nav>`.
+- `PAGE` carries it with `include_str!`. `marley: open guide` (`OpenGuide`), which the title bar's
+  `?` dispatches by name (a `title_bar` touchpoint), runs `open`: `write_page_in(data_dir)` on the
+  background executor (`guide/index.html` under the data folder, written only when its bytes
+  differ), then a Browser tab of the workspace's project when it is local with a visible worktree,
+  else `cx.open_url` (the system browser). A failed write shows in the workspace.
+- The tab is found again by `browser::show_tab_where` with the page's URL, fragment dropped, since
+  the page's own contents links add one; only when no tab of the workspace shows it does
+  `browser::open_url_tab` open one.
+
 ## The last session's terminal size (`src/terminal_size.rs`, #486)
 
 - `init` reads the `TerminalBounds` kept in the key-value store (scope `marley-terminal-size`,

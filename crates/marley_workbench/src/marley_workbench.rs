@@ -40,6 +40,7 @@ pub mod decisions;
 pub mod english;
 pub mod find;
 pub mod github;
+pub mod guide;
 pub mod launch;
 pub mod links;
 pub mod markdown_commands;
@@ -300,6 +301,10 @@ actions!(
         /// key comes from.
         #[derive(Eq)]
         OpenDecisions,
+        /// Opens the Marley guide: in a Browser tab of this project, or in the system browser
+        /// when the window shows no project.
+        #[derive(Eq)]
+        OpenGuide,
     ]
 );
 
@@ -588,6 +593,7 @@ pub fn init(cx: &mut App) {
     terminal_drive::init(cx);
     autosuggest::init(cx);
     browser::init(cx);
+    guide::init(cx);
     clients::init(cx);
     links::init(cx);
     system_one::init(cx);

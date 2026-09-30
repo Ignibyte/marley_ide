@@ -2635,3 +2635,13 @@ through their handles (`cx.windows()`, `WindowHandle::read`, `downcast::<…>()?
 so the lookup silently misses exactly the window in hand. Do the cross-window lookup first, in
 `cx.update` or before the update, and inside the update reach the window's own entities through
 the `window` argument (`window.root::<MultiWorkspace>()`).
+
+## PR-claude-599-say-which-parts-of-a-url-make-it-the-same-page-001
+*severity: medium · prevents: F-claude-599-a-page-that-moved-to-its-own-anchor-got-a-second-tab-001*
+
+Before reusing a Browser tab "already on" a URL, decide which parts of the address make it the
+same page for this caller, and write it down at the call: a terminal link keeps the fragment (a
+single-page app routes on it), a document Marley ships drops it (its own links add one), and a
+query string may or may not count. Use `browser::show_tab_where` with that predicate rather than
+`open_url_tab`'s exact match when the page can change its own address, and let the scenario click
+a link in the page before it asks for the tab again.

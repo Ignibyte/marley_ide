@@ -3335,3 +3335,16 @@ harness's `views`) are ignored. Rejected:
   the harness's conformance requires byte-equal round trips;
 - `Option<Capabilities>`: an empty map and an absent one would differ on the wire for no reader;
 - validating names and values in Marley: the substrate that declares them bounds them.
+
+## AD-claude-599-the-guide-is-one-page-in-the-crate-kept-by-each-ticket-001
+*decided at: 2026-09-30 · status: shipped*
+
+Marley's user guide ships as one hand-written HTML page, `crates/marley_workbench/guide/index.html`,
+carried with `include_str!` and written to `guide/index.html` in the data folder when opened, and
+each ticket that changes what a user sees updates its article in Phase 4 beside the CHANGELOG.
+It opens from a `?` in the title bar (Chad's choice, 2026-09-30) through `marley::OpenGuide`
+dispatched by name, in a Browser tab of the project on screen, or the system browser with no
+project (a folderless window would key a Chromium on no folder). Rejected: Zed's `assets/` with
+`fs_embed!` (a glob touchpoint, Zed's license, and a debug build reading the checkout);
+generating the page from `docs/marley/guide.md` (Chad asked for a static page for now, and the
+Markdown guide had fallen behind); a hosted copy; writing the page at every start.

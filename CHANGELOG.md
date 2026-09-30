@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Marley guide, one click away** (#599, 2026-09-30). A `?` in the title bar, before Sign
+  In, and `marley: open guide` open Marley's user guide: one page shipped with Marley, with every
+  feature as a short summary of what it is and then how to use it (the steps, the keys, the
+  settings it reads and the tickets that shipped it), a contents column that filters as you type,
+  and light and dark themes. It opens in a Browser tab of the project on screen, and a second
+  click brings the same tab forward; with no project open, in the system browser. Marley writes
+  the page to `guide/index.html` in its data folder when it opens it, so an updated Marley shows
+  its own guide.
+
 - **An agent's ssh asks for a key's passphrase in Marley** (#596, 2026-09-29). The terminals
   Marley opens for an agent CLI in a local project point `SSH_ASKPASS` at a helper of their own,
   with `SSH_ASKPASS_REQUIRE=force`. When ssh there needs a passphrase, Marley brings that

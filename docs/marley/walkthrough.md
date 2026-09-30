@@ -265,6 +265,8 @@ Start Marley from the app menu (Super+Space, then type `Marley`), or run `marley
   filter field under it.
 - [ ] Ctrl+? brings up the Agent Panel, docked on the right.
 - [ ] The status bar has no Terminal Panel button.
+- [ ] The title bar has a `?` before Sign In; a click opens the Marley guide in a Browser tab
+  once a project is open, or in your system browser before (#599).
 
 ### 1.2 Open the practice project (#455, #476, #564)
 
@@ -1476,6 +1478,7 @@ Every Marley command runs from the palette. The ones with no key of their own:
 
 | Command | What it does |
 |---|---|
+| `marley: open guide` | The Marley guide (also the `?` in the title bar) |
 | `marley: use marley layout`, `marley: use zed layout` | Switch the layout in every window |
 | `marley: open settings` | The Settings window on the Marley page |
 | `marley: attach file` | Attach File for the focused terminal |

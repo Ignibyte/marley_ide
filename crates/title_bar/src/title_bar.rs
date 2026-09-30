@@ -383,6 +383,20 @@ impl Render for TitleBar {
                 .child(self.render_call_controls(window, cx))
                 .children(self.render_connection_status(status, cx))
                 .child(self.update_version.clone())
+                // Marley: the guide's `?` (#599), by the action's name since this crate depends
+                // on no Marley crate.
+                .child(
+                    IconButton::new("marley-guide", IconName::CircleHelp)
+                        .icon_size(IconSize::Small)
+                        .tooltip(Tooltip::text("Marley Guide"))
+                        .on_click(|_, window, cx| {
+                            if let Some(action) =
+                                cx.build_action("marley::OpenGuide", None).log_err()
+                            {
+                                window.dispatch_action(action, cx);
+                            }
+                        }),
+                )
                 .when(
                     user.is_none()
                         && is_signed_out_or_auth_error

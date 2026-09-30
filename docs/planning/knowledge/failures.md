@@ -2860,3 +2860,16 @@ the answer, and ssh read an empty passphrase: the push failed and no dialog ever
 and passed the review of the diff; the scenario's first run caught it. Fixed before the commit:
 the lookup runs in `cx.update` before the window's update, which only checks that the workspace
 found is one of this window's.
+
+## F-claude-599-a-page-that-moved-to-its-own-anchor-got-a-second-tab-001
+*severity: medium · found in: pipeline 599's Test phase (run 2) · class: finding a Browser tab again by its exact URL after the page changed its own address · prevented by: PR-claude-599-say-which-parts-of-a-url-make-it-the-same-page-001*
+
+`marley: open guide` and the title bar's `?` brought the guide's tab forward through
+`browser::open_url_tab`, which reuses a tab only when its page's address equals the URL. A click
+on a link in the guide's contents moved the page to `…/guide/index.html#worktree-review`, so the
+next `?` found no tab on the exact URL and opened a second guide; `marley: open guide` did it
+again. The review of the diff read `open_url_tab`'s doc ("brings forward the tab already on it")
+and missed that a page changes its own address. The scenario's `again.png` and `palette.png`
+showed two tabs. Fixed before the commit: `browser::show_tab_where` finds a tab by a predicate,
+`open_url_tab` keeps exact equality (a single-page app's `#/route` is another page), and the
+guide matches its URL with the fragment dropped.

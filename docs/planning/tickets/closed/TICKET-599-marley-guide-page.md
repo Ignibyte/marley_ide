@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #599 (feature, workbench shell: help)
 - **Owner:** abb571b4-bf75-463f-889a-b17f7d32f71e
-- **Pipeline doc:** ../../pipeline/queued/599-marley-guide-page.spec.md
+- **Pipeline doc:** ../../pipeline/completed/599-marley-guide-page.spec.md
 - **Source ticket:** Chad, 2026-09-30: "Lets create a documentation html page that is a detailed documentation guide static html (for now) and then at the top where the + below the sign in lets add a ? that opens it in a browser. Fill this out entirely with everything that we've done. Have a summary of what it is and then detailed explanation on how to do it." He chose the title bar beside Sign In, and Marley's Browser tab, with the system browser when no project is open.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Marley's user documentation lives in Markdown files in the repository (`docs/marley/guide.md`,

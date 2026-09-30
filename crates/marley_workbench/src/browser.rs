@@ -8214,6 +8214,30 @@ pub(crate) fn new_tab(workspace: &mut Workspace, window: &mut Window, cx: &mut C
     );
 }
 
+/// Brings forward the Browser tab of `workspace` whose page's address `matches`, with the focus,
+/// and gives it; `None` when no tab of `workspace` shows such a page.
+pub(crate) fn show_tab_where(
+    workspace: &mut Workspace,
+    matches: impl Fn(&url::Url) -> bool,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> Option<Entity<BrowserView>> {
+    let this = cx.weak_entity();
+    let hub = BrowserHub::global(cx);
+    let view = live_views(cx).into_iter().find(|view| {
+        let view = view.read(cx);
+        view.workspace == this
+            && view
+                .target
+                .as_deref()
+                .and_then(|target| hub.read(cx).address(target))
+                .and_then(|address| url::Url::parse(&address).ok())
+                .is_some_and(|address| matches(&address))
+    })?;
+    workspace.activate_item(&view, true, true, window, cx);
+    Some(view)
+}
+
 /// Opens `url` in a Browser tab of `workspace` with the focus, or brings forward the tab of
 /// `workspace` already on it (#503), and gives that tab (#527).
 pub(crate) fn open_url_tab(
@@ -8222,27 +8246,17 @@ pub(crate) fn open_url_tab(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) -> Entity<BrowserView> {
-    let this = cx.weak_entity();
-    let hub = BrowserHub::global(cx);
-    let same = |address: &str| {
-        url::Url::parse(address)
-            .ok()
-            .zip(url::Url::parse(&url).ok())
-            .is_some_and(|(address, url)| address == url)
-    };
-    let showing = live_views(cx).into_iter().find(|view| {
-        let view = view.read(cx);
-        view.workspace == this
-            && view
-                .target
-                .as_deref()
-                .and_then(|target| hub.read(cx).address(target))
-                .is_some_and(|address| same(&address))
-    });
-    if let Some(view) = showing {
-        workspace.activate_item(&view, true, true, window, cx);
+    let wanted = url::Url::parse(&url).ok();
+    if let Some(view) = show_tab_where(
+        workspace,
+        |address| wanted.as_ref() == Some(address),
+        window,
+        cx,
+    ) {
         return view;
     }
+    let this = cx.weak_entity();
+    let hub = BrowserHub::global(cx);
     let project = BrowserProject::of(workspace.project().read(cx), cx);
     hub.update(cx, |hub, cx| hub.browser_for(&project, cx));
     let view = new_view(

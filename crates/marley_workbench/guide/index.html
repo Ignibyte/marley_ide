@@ -1,0 +1,1642 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marley Guide</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #fbfaf8;
+  --panel: #f2f0ec;
+  --text: #22211f;
+  --muted: #6b675f;
+  --line: #dcd8d0;
+  --accent: #b5561d;
+  --accent-soft: #f6e6da;
+  --code-bg: #ece9e3;
+  --kbd-bg: #ffffff;
+  --what-bg: #eef3f7;
+  --what-line: #9fb8cc;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1b1c1f;
+    --panel: #222428;
+    --text: #e4e2dd;
+    --muted: #9c998f;
+    --line: #34363b;
+    --accent: #e39a62;
+    --accent-soft: #3a2c22;
+    --code-bg: #2a2c31;
+    --kbd-bg: #2f3136;
+    --what-bg: #212a33;
+    --what-line: #4d6a82;
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-padding-top: 16px; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.6 system-ui, -apple-system, "Segoe UI", Ubuntu, sans-serif;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.layout { display: flex; min-height: 100vh; }
+nav {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  width: 290px;
+  flex: none;
+  height: 100vh;
+  overflow-y: auto;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  padding: 20px 16px 40px;
+}
+nav .brand { font-size: 18px; font-weight: 700; margin: 0 0 2px; }
+nav .brand-sub { color: var(--muted); font-size: 12.5px; margin: 0 0 14px; }
+nav input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+nav ol { list-style: none; margin: 0; padding: 0; }
+nav > ol > li { margin: 10px 0 2px; }
+nav > ol > li > a { font-weight: 650; color: var(--text); font-size: 14px; }
+nav ol ol { margin: 2px 0 6px 10px; }
+nav ol ol a { color: var(--muted); font-size: 13.5px; display: block; padding: 1px 0; }
+nav ol ol a:hover { color: var(--accent); }
+nav .none { color: var(--muted); font-size: 13px; display: none; }
+main { flex: 1; min-width: 0; padding: 32px 48px 120px; max-width: 980px; }
+h1 { font-size: 30px; margin: 0 0 6px; }
+.lede { color: var(--muted); font-size: 16px; margin: 0 0 22px; }
+h2 {
+  font-size: 23px;
+  margin: 56px 0 6px;
+  padding-top: 14px;
+  border-top: 2px solid var(--line);
+}
+.area-intro { color: var(--muted); margin: 0 0 12px; }
+article { margin: 30px 0 0; }
+h3 { font-size: 18px; margin: 0 0 8px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+h3 .ticket {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 10px;
+  padding: 1px 8px;
+}
+h4 { font-size: 14.5px; margin: 14px 0 4px; }
+.what {
+  background: var(--what-bg);
+  border-left: 3px solid var(--what-line);
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin: 0 0 6px;
+}
+.what strong:first-child { margin-right: 4px; }
+ol.steps, ul.points { padding-left: 22px; margin: 4px 0 8px; }
+ol.steps li, ul.points li { margin: 3px 0; }
+code, kbd, pre { font-family: ui-monospace, "JetBrains Mono", "Cascadia Code", Menlo, monospace; font-size: 13px; }
+code { background: var(--code-bg); border-radius: 4px; padding: 1px 5px; }
+pre { background: var(--code-bg); border-radius: 6px; padding: 10px 12px; overflow-x: auto; line-height: 1.45; }
+pre code { background: none; padding: 0; }
+kbd {
+  background: var(--kbd-bg);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0 5px;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+table { border-collapse: collapse; margin: 8px 0 12px; width: 100%; font-size: 14px; }
+th, td { border: 1px solid var(--line); padding: 5px 9px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 650; }
+.note { color: var(--muted); font-size: 14px; }
+.hidden { display: none; }
+@media (max-width: 800px) {
+  .layout { display: block; }
+  nav { position: static; width: auto; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  main { padding: 20px 16px 80px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav>
+<p class="brand">Marley Guide</p>
+<p class="brand-sub">Every feature: what it is, then how to use it.</p>
+<input id="filter" type="search" placeholder="Filter the contents" aria-label="Filter the contents">
+<ol>
+<li><a href="#start">Getting started</a><ol>
+<li><a href="#what-marley-adds">What Marley adds to Zed</a></li>
+<li><a href="#install">Install and update</a></li>
+<li><a href="#start-marley">Start Marley, and one Marley at a time</a></li>
+<li><a href="#this-guide">This guide</a></li>
+<li><a href="#settings-page">Settings and the Marley page</a></li>
+</ol></li>
+<li><a href="#window">The window and its layouts</a><ol>
+<li><a href="#layouts">Two layouts, one switch</a></li>
+<li><a href="#where-terminals-open">Terminals in the main area</a></li>
+<li><a href="#restore">Quit and come back</a></li>
+</ol></li>
+<li><a href="#rail">The rail</a><ol>
+<li><a href="#rail-overview">Projects and their rows</a></li>
+<li><a href="#plus-menu">The + menu: start things in a project</a></li>
+<li><a href="#terminal-rows">Terminal rows: rename, close, last command</a></li>
+<li><a href="#rail-dots">Dots that ask for you</a></li>
+<li><a href="#needs-you">Needs you: every agent waiting on you</a></li>
+<li><a href="#attention-order">What needs you comes first</a></li>
+<li><a href="#project-header">A project&#x27;s header: icon, changes, pull request</a></li>
+<li><a href="#project-menu">A project&#x27;s right-click menu</a></li>
+<li><a href="#port-rows">Port rows: the servers your project runs</a></li>
+<li><a href="#rail-keyboard">The rail from the keyboard</a></li>
+<li><a href="#rail-filter">The filter</a></li>
+<li><a href="#rail-switcher">The switcher and next thread</a></li>
+</ol></li>
+<li><a href="#editor">The editor</a><ol>
+<li><a href="#find-things">Find files, symbols and text</a></li>
+<li><a href="#edit-code">Edit and navigate code</a></li>
+<li><a href="#panes">Panes, docks and zoom</a></li>
+<li><a href="#git">Git</a></li>
+<li><a href="#markdown-preview">Markdown preview and Insert in Terminal</a></li>
+<li><a href="#send-selection">Send the editor&#x27;s selection to an agent</a></li>
+<li><a href="#tasks">Tasks</a></li>
+<li><a href="#look">Themes, extensions, keys</a></li>
+</ol></li>
+<li><a href="#terminal">The block terminal</a><ol>
+<li><a href="#shell-integration">Shell integration: where blocks come from</a></li>
+<li><a href="#blocks">Blocks</a></li>
+<li><a href="#select-blocks">Move between and select blocks</a></li>
+<li><a href="#block-buttons">A block&#x27;s buttons: copy, rerun and more</a></li>
+<li><a href="#block-menu">A block&#x27;s right-click menu</a></li>
+<li><a href="#sticky-header">The sticky command header</a></li>
+<li><a href="#block-filter">Filter a block&#x27;s output</a></li>
+<li><a href="#bookmarks">Bookmarks and find within a block</a></li>
+<li><a href="#workflows">Save a command as a workflow</a></li>
+<li><a href="#prompt-bottom">The prompt at the bottom, and autosuggestions</a></li>
+<li><a href="#terminal-notifications">Desktop notifications from terminals</a></li>
+<li><a href="#terminal-links">Links in terminals</a></li>
+<li><a href="#ssh-blocks">Blocks over ssh</a></li>
+<li><a href="#remote-terminals">Remote terminals that survive a dropped link</a></li>
+</ol></li>
+<li><a href="#agents">Agents in terminals</a><ol>
+<li><a href="#agent-clis">Agent CLIs, recognized anywhere</a></li>
+<li><a href="#agent-bar">The agent bar</a></li>
+<li><a href="#claude-plugin">Connect Claude Code to Marley</a></li>
+<li><a href="#other-agent-notifications">Codex and OpenCode notifications</a></li>
+<li><a href="#rich-input">Rich input</a></li>
+<li><a href="#attach-files">Attach files and images; copy and paste</a></li>
+<li><a href="#dictation">Dictation</a></li>
+<li><a href="#permission-modes">Permission modes</a></li>
+<li><a href="#agent-reads-terminals">Agents read your terminals</a></li>
+<li><a href="#agent-runs-commands">Agents run commands at your prompt</a></li>
+<li><a href="#agent-types-into-programs">Agents type into running programs</a></li>
+<li><a href="#send-block">Send a block, or plain English, to an agent</a></li>
+<li><a href="#turns">Each Claude Code turn as its own diff</a></li>
+<li><a href="#review-notes">Review notes to the agent</a></li>
+<li><a href="#close-protection">No agent lost to a stray close</a></li>
+<li><a href="#agent-credentials">Credentials in agent terminals</a></li>
+<li><a href="#push-to-phone">Agent events on your phone</a></li>
+<li><a href="#launch-configs">Launch configs</a></li>
+<li><a href="#worktree-agents">Worktree agents</a></li>
+<li><a href="#worktree-review">Drift, review, merge and remove a worktree</a></li>
+</ol></li>
+<li><a href="#agent-panel">Zed&#x27;s Agent Panel</a><ol>
+<li><a href="#agent-threads">Threads in the rail</a></li>
+<li><a href="#zed-agents-tools">Zed&#x27;s agents use Marley&#x27;s tools</a></li>
+</ol></li>
+<li><a href="#mcp">Marley&#x27;s tools for agents</a><ol>
+<li><a href="#mcp-server">The server and how agents reach it</a></li>
+<li><a href="#mcp-tools">The tools</a></li>
+<li><a href="#mcp-safety">What keeps agents in check</a></li>
+<li><a href="#browser-clients">Programs outside Marley drive its browser</a></li>
+</ol></li>
+<li><a href="#browser">The Browser tab</a><ol>
+<li><a href="#browser-open">Open a Browser tab</a></li>
+<li><a href="#browser-per-project">A Chromium per project</a></li>
+<li><a href="#browser-address">The toolbar and the address bar</a></li>
+<li><a href="#browser-use">Use the page as in a browser</a></li>
+<li><a href="#browser-agents">Let an agent drive</a></li>
+<li><a href="#browser-pick">Pick an element for the agent</a></li>
+<li><a href="#browser-check-pick">Check the fix</a></li>
+<li><a href="#browser-annotate">Annotate the page</a></li>
+<li><a href="#browser-record">Record this, and a test from it</a></li>
+<li><a href="#playwright-scripts">Playwright scripts</a></li>
+</ol></li>
+<li><a href="#system-one">System One</a><ol>
+<li><a href="#system-one-on">Turn it on</a></li>
+<li><a href="#decisions">Decisions</a></li>
+<li><a href="#stop-kind">What a stopped agent needs</a></li>
+<li><a href="#stall-kind">A stuck agent</a></li>
+<li><a href="#find-tools">Find by words, for agents</a></li>
+<li><a href="#click-consequence">Consequential clicks wait for you</a></li>
+<li><a href="#inbox-risk">Risk and route in Needs you</a></li>
+<li><a href="#running-error">A running command that printed an error</a></li>
+</ol></li>
+<li><a href="#reference">Reference</a><ol>
+<li><a href="#keys-reference">Keys</a></li>
+<li><a href="#commands-reference">Commands</a></li>
+<li><a href="#settings-reference">Settings</a></li>
+<li><a href="#env-reference">Environment variables and flags</a></li>
+<li><a href="#data-reference">Where data lives</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+</ol></li>
+</ol>
+<p class="none">No matches</p>
+</nav>
+<main>
+<h1>Marley Guide</h1>
+<p class="lede">Marley is Ignibyte's fork of the Zed editor, built around terminals and agents. It keeps everything Zed does and adds a rail of projects, a block terminal, agents recognized in any terminal, a browser inside the window, and tools that let your agents read your terminals and drive that browser. Each feature below starts with what it is, then how to use it, and names the ticket that shipped it.</p>
+
+<section id="start">
+<h2>Getting started</h2>
+<p class="area-intro">Installing, starting, updating, and where Marley keeps its things.</p>
+
+<article id="what-marley-adds">
+<h3>What Marley adds to Zed</h3>
+<p class="what"><strong>What it is.</strong> Marley is Zed with a second layout and a set of Marley-only features. The editor, language support, git, settings, themes, extensions and the Agent Panel all work as they do in Zed.</p>
+<table>
+<tr><th>Area</th><th>What you get</th></tr>
+<tr><td>The Marley layout</td><td>A rail on the left listing each project with its terminals, Browser tabs, agent threads, worktrees and listening ports. Terminals open in the main area, and the Agent Panel docks on the right.</td></tr>
+<tr><td>The block terminal</td><td>Every command is a block with its exit status. Blocks can be selected, copied, rerun, filtered, bookmarked, searched and saved as workflows.</td></tr>
+<tr><td>Agents in terminals</td><td>Claude Code, Codex, Gemini CLI and OpenCode are recognized in any terminal, with an agent bar, notifications, rich input, and agents started in their own git worktrees.</td></tr>
+<tr><td>Marley's tools for agents</td><td>An MCP server that lets agents read your terminals, run commands at your prompt, and see and drive the Browser tab.</td></tr>
+<tr><td>The Browser tab</td><td>Pages from Marley's own Chromium in a tab, with an element picker, annotations, a flight recorder and Playwright scripts.</td></tr>
+<tr><td>System One</td><td>Off by default: local rules, and optionally a model, that label what agents are doing and hold risky browser clicks for you.</td></tr>
+</table>
+</article>
+
+<article id="install">
+<h3>Install and update <span class="ticket">#502 · #517</span></h3>
+<p class="what"><strong>What it is.</strong> <code>just install</code> builds Marley in the release profile from its checkout and installs the launcher, the binary, a menu entry and an icon under <code>~/.local</code>.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>In the checkout (<code>/srv/stacks/marley_ide</code> on the dev box), run <code>just install</code>. It waits while any other cargo command runs on the machine, since every project shares one target folder.</li>
+<li>The first build takes about ten minutes; an unchanged tree takes seconds. It ends by printing <code>~/.local/bin/marley at &lt;commit&gt;</code> and the menu entry's path.</li>
+<li>If a Marley is running, it keeps its old build until you quit it and start it again.</li>
+<li>To update later: <code>git pull</code>, then <code>just install</code>, then restart Marley.</li>
+</ol>
+<table>
+<tr><th>Option</th><th>What it does</th></tr>
+<tr><td><code>just install --prefix DIR</code></td><td>Installs under <code>DIR</code> instead of <code>~/.local</code>.</td></tr>
+<tr><td><code>just install --regress</code></td><td>Runs the golden set of end-to-end scenarios against the build first (about an hour), and installs only if every one passes.</td></tr>
+</table>
+<p class="note">The installed files are <code>bin/marley</code> (the launcher), <code>lib/marley/marley</code> (the binary, about 2 GB with its debug information), <code>share/applications/marley.desktop</code> and the icon. Marley's windows have the class <code>dev.zed.Zed-Dev</code>, which is what a Hyprland window rule matches.</p>
+</article>
+
+<article id="start-marley">
+<h3>Start Marley, and one Marley at a time <span class="ticket">#513 · #545</span></h3>
+<p class="what"><strong>What it is.</strong> Start Marley from the app menu or with <code>marley</code>. Only one Marley runs on a data folder: a second launch hands its files and folders to the running one and brings its window forward.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Start it from the app menu (Super+Space, then type Marley), or run <code>marley</code> in a terminal.</li>
+<li>With Marley running, <code>marley ~/some/file.md</code> opens the file in the running window. The command prints that Marley is already running and was handed the path.</li>
+<li>Launching again from the menu brings the running window to the front.</li>
+<li>To run a second, separate Marley (for example to try something on a clean profile), give it its own data folder: <code>marley --user-data-dir ~/marley-scratch</code>. It behaves as a fresh install, with its own settings, logs and Chromium.</li>
+</ol>
+<p class="note">If Marley hangs, a new launch hands off to the hung one and exits. Find it with <code>pgrep -x marley</code>, kill it, and start again.</p>
+</article>
+
+<article id="this-guide">
+<h3>This guide <span class="ticket">#599</span></h3>
+<p class="what"><strong>What it is.</strong> The page you are reading ships inside Marley. The <kbd>?</kbd> button in the title bar, beside Sign In, opens it.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Click the <kbd>?</kbd> in the title bar, or run <code>marley: open guide</code> from the command palette.</li>
+<li>With a project on screen, the guide opens in a Browser tab of that project, beside your work. A second click brings the same tab forward.</li>
+<li>With no project open, it opens in your system browser.</li>
+<li>Type in the filter at the top of the contents to find a feature.</li>
+</ol>
+<p class="note">Marley writes the page to <code>~/.local/share/marley/guide/index.html</code> when you open it, so an updated Marley always shows its own guide.</p>
+</article>
+
+<article id="settings-page">
+<h3>Settings and the Marley page <span class="ticket">#515 · #514</span></h3>
+<p class="what"><strong>What it is.</strong> Marley keeps its settings in <code>~/.config/marley/settings.json</code>, in Zed's format, apart from a stock Zed's. The Settings window has a Marley page, first in its list, with every Marley setting.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Run <code>marley: open settings</code> to open the Settings window on the Marley page. <kbd>Ctrl+,</kbd> opens the Settings window at its last page.</li>
+<li>The page has six sections: Layout, Agents, Terminal, Push, System One and Privacy.</li>
+<li><kbd>Ctrl+Alt+,</kbd> opens <code>settings.json</code> itself; Marley's keys sit in its <code>"marley"</code> block. The full list is in <a href="#settings-reference">Settings reference</a>.</li>
+<li>Telemetry is off by default: both toggles in Privacy start off.</li>
+</ol>
+<p class="note">To start from your Zed settings, copy <code>~/.config/zed/settings.json</code> into <code>~/.config/marley/</code>. Extensions download again on first use.</p>
+</article>
+</section>
+
+<section id="window">
+<h2>The window and its layouts</h2>
+<p class="area-intro">Marley's layout, Zed's layout, and where terminals open.</p>
+
+<article id="layouts">
+<h3>Two layouts, one switch <span class="ticket">#460 · #438 · #456 · #451</span></h3>
+<p class="what"><strong>What it is.</strong> Marley opens in the Marley layout: the rail on the left, terminals in the main area, the Agent Panel docked on the right, and no bottom Terminal Panel. Zed's own layout is one command away, in every window at once.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Run <code>marley: use zed layout</code> for Zed's layout: Zed's Threads Sidebar replaces the rail, and <kbd>Ctrl+`</kbd> opens the bottom Terminal Panel.</li>
+<li>Run <code>marley: use marley layout</code> to come back. Each dock shows the panel it had.</li>
+<li>The setting behind both is <code>"marley": { "layout": "marley" }</code> (or <code>"zed"</code>); the Layout dropdown on the Marley settings page writes it too.</li>
+<li>Zed's Panel Layout presets (Classic, Agentic) would rewrite the docks the Marley layout sets. In the Marley layout, choosing one shows a toast explaining that, with a Use Zed's Layout button.</li>
+</ol>
+<table>
+<tr><th></th><th>Zed layout</th><th>Marley layout</th></tr>
+<tr><td>Left column</td><td>Zed's Threads Sidebar</td><td>The rail</td></tr>
+<tr><td>Terminals</td><td>The bottom Terminal Panel</td><td>The main area</td></tr>
+<tr><td>Agent Panel</td><td>Where Zed puts it</td><td>Docked on the right</td></tr>
+<tr><td>A folder opened for the first time</td><td>Zed's behavior</td><td>Starts with a terminal at its root</td></tr>
+</table>
+<p class="note">When panels, docks or terminal placement misbehave, switching to Zed's layout tells you whether the problem is Marley's or Zed's. With AI turned off (<code>disable_ai</code>), Zed draws no sidebar at all, the rail included.</p>
+</article>
+
+<article id="where-terminals-open">
+<h3>Terminals in the main area <span class="ticket">#441 · #449 · #455</span></h3>
+<p class="what"><strong>What it is.</strong> In the Marley layout every terminal opens as a tab in the main area, beside your files. Nothing opens the bottom Terminal Panel.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li><kbd>Ctrl+`</kbd> switches from an editor to the terminal you used last (or a new one), and from a terminal back to the editor you used last. <kbd>Ctrl+J</kbd> does the same while the bottom dock is closed.</li>
+<li><kbd>Ctrl+~</kbd> opens a new terminal in the main area.</li>
+<li>Right-click a folder in the project panel and choose Open in Terminal for a terminal in that folder.</li>
+<li>Tasks (<kbd>Alt+Shift+T</kbd>) run in main-area terminals too, and a rerun reuses the task's terminal.</li>
+<li>A folder you open for the first time starts with one terminal at its root, focused.</li>
+</ol>
+<p class="note">Vim's <code>:!</code> and external agents' login terminals still open the Terminal Panel, since they call it directly.</p>
+</article>
+
+<article id="restore">
+<h3>Quit and come back <span class="ticket">#494 · #575 · #576 · #577 · #485 · #486</span></h3>
+<p class="what"><strong>What it is.</strong> Quitting keeps your projects, terminals and Browser tabs. They come back at the next launch.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Quit with <code>zed: quit</code> from the command palette. <kbd>Ctrl+Q</kbd> in a focused terminal goes to the shell, not to Zed.</li>
+<li>At the next launch, each terminal comes back as a shell in the folder it was in, without its scrollback, and keeps its terminal id.</li>
+<li>The first terminals of a launch open at the size they had last time, so a wide two-line prompt draws right from the start.</li>
+<li>Browser tabs come back on their pages, with your scroll and what you typed, while their Chromium still runs; after a logout they reload their saved address.</li>
+</ol>
+</article>
+</section>
+
+<section id="rail">
+<h2>The rail</h2>
+<p class="area-intro">The column on the left in the Marley layout: every project in the window, and under each one what runs in it.</p>
+
+<article id="rail-overview">
+<h3>Projects and their rows <span class="ticket">#438 · #468 · #442</span></h3>
+<p class="what"><strong>What it is.</strong> The rail lists each project in the window under a header, and under the header its terminals, Browser tabs, Zed agent threads, git worktrees and listening ports, one row each. One row is highlighted at a time: the thing the window shows.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Click Add Project (the folder with a plus, top of the rail), then a recent project, Open Local Folders or Open Remote Folder.</li>
+<li>Click a row to show it: a terminal row focuses that terminal, a thread row opens the thread in the Agent Panel, a Browser tab row shows the tab.</li>
+<li>Fold a project with its chevron. A folded project's header counts its agents by state, as in <code>1 waiting, 2 working</code>.</li>
+<li><kbd>Ctrl+Alt+J</kbd> closes and opens the rail. It stays closed after a restart, and keeps its width.</li>
+</ol>
+<table>
+<tr><th>Row</th><th>What it shows</th><th>A click</th></tr>
+<tr><td>Terminal</td><td>A <code>&gt;_</code> icon, its title, its folder relative to the project, and its last command with its state</td><td>Focuses the terminal</td></tr>
+<tr><td>Agent CLI</td><td>The agent's icon, the title it sets, and what it is doing</td><td>Focuses its terminal</td></tr>
+<tr><td>Browser tab</td><td>The page's icon, its title, and its host and port</td><td>Shows the tab</td></tr>
+<tr><td>Zed agent thread</td><td>The agent's icon, the thread's title, and <code>working</code>, <code>idle</code>, <code>waiting</code> or <code>failed</code></td><td>Opens the thread in the Agent Panel</td></tr>
+<tr><td>Worktree</td><td>A branch icon, its name and branch, and its drift from its base</td><td>Shows or opens its workspace</td></tr>
+<tr><td>Port</td><td>A server icon, <code>:&lt;port&gt;</code> and the process's name, and its URL</td><td>Opens the URL in a Browser tab</td></tr>
+</table>
+</article>
+
+<article id="plus-menu">
+<h3>The + menu: start things in a project <span class="ticket">#440 · #500 · #510 · #527 · #598</span></h3>
+<p class="what"><strong>What it is.</strong> Each project header has a <kbd>+</kbd> ("New in this project"). Everything you start from it opens in that project's folder.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Click the <kbd>+</kbd> on a project's header.</li>
+<li>Pick what to start. The menu reads, top to bottom:</li>
+</ol>
+<table>
+<tr><th>Entry</th><th>What it does</th></tr>
+<tr><td>New Terminal</td><td>A shell in the project's folder, in the main area</td></tr>
+<tr><td>New Browser Tab</td><td>A blank page in a Browser tab of the project, the cursor in the address bar</td></tr>
+<tr><td>New Agent Thread</td><td>A submenu of Zed's agents (the Zed Agent and each external agent you configured); starts a thread in the Agent Panel</td></tr>
+<tr><td>New Agent in Worktree</td><td>For a local git project: a submenu of the installed agent CLIs, each started in a new git worktree on a branch of its own (see <a href="#worktree-agents">Worktree agents</a>)</td></tr>
+<tr><td>Agent CLIs</td><td>Under their own header, each agent CLI on your PATH (Claude Code, Codex, Gemini CLI, OpenCode), started in a new terminal at the project root</td></tr>
+<tr><td>Launch</td><td>The project's launch configs, from <code>.zed/marley.json</code> (see <a href="#launch-configs">Launch configs</a>)</td></tr>
+</table>
+<p class="note"><kbd>Ctrl+Alt+N</kbd> opens the same agents in the New Agent picker, filtered as you type.</p>
+</article>
+
+<article id="terminal-rows">
+<h3>Terminal rows: rename, close, last command <span class="ticket">#452 · #551</span></h3>
+<p class="what"><strong>What it is.</strong> A terminal's row carries its name, where it is, and what it last ran, and renames or closes the terminal.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Double-click a row, or right-click it and choose Rename, to rename the terminal. The name shows on the tab too and survives restarts.</li>
+<li>Right-click and choose Close, or point at the row and click its close button. Marley asks first if a task or a working agent runs in it.</li>
+<li>Read the row's last line: the last command and its state, such as <code>npm test · running</code>, <code>· done · 7 s</code>, <code>· exit 1 · 3 s</code> in red, or <code>· waiting for a password</code>.</li>
+<li>The rail's filter finds a terminal by that last command too.</li>
+</ol>
+</article>
+
+<article id="rail-dots">
+<h3>Dots that ask for you <span class="ticket">#438 · #538 · #551</span></h3>
+<p class="what"><strong>What it is.</strong> A dot on a row means something happened there that you have not seen: a bell, a desktop notification, a finished agent turn, or a long command that ended.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>A dot appears on the row; with the project folded, on the project's header.</li>
+<li>Click the row (or look at that terminal) to clear it.</li>
+<li>To try it: in a terminal run <code>sleep 3; printf '\a'</code> and click another terminal before three seconds pass.</li>
+</ol>
+</article>
+
+<article id="needs-you">
+<h3>Needs you: every agent waiting on you <span class="ticket">#508</span></h3>
+<p class="what"><strong>What it is.</strong> While any agent waits on you, a <strong>Needs you</strong> section with a count sits at the top of the rail, above the projects: one entry per wait, the one that has waited longest first.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Read an entry: the agent, its project, what it asks, and how long it has waited (<code>now</code>, <code>3 m</code>, <code>1 h 5 m</code>).</li>
+<li>For a Zed agent thread's tool call, click Allow or Deny right in the entry. A prompt with more choices opens the thread instead.</li>
+<li>For Claude Code in a terminal, click the entry to go to its terminal and answer there.</li>
+<li>For an agent's browser click that Marley holds (see <a href="#click-consequence">Consequential clicks</a>), click Refuse or Allow.</li>
+<li>The entry leaves once the wait ends, wherever you answered it. The filter and folded projects never hide the section.</li>
+</ol>
+</article>
+
+<article id="attention-order">
+<h3>What needs you comes first <span class="ticket">#542</span></h3>
+<p class="what"><strong>What it is.</strong> The rail sorts projects, and the rows under each, by attention: waiting on you or failed and unseen first, then finished and unseen, then working, then quiet agents (<code>no update in N m</code>), then idle. Ties keep the window's order.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Nothing to do: the order follows your agents.</li>
+<li>While the pointer is over the rail the order holds still, so a row never moves under your cursor.</li>
+<li>To keep the window's own order instead, set Rail Order to Window on the Marley page (Layout), or <code>"marley": { "rail_order": "window" }</code>.</li>
+</ol>
+</article>
+
+<article id="project-header">
+<h3>A project's header: icon, changes, pull request <span class="ticket">#564 · #531</span></h3>
+<p class="what"><strong>What it is.</strong> A project's header shows the project's own icon, the lines changed on its branch, and its pull request on GitHub.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>The icon is the favicon or logo the repository holds (<code>favicon.png</code>, <code>public/favicon.svg</code>, <code>src-tauri/icons/icon.png</code> and similar names, or the icon <code>index.html</code> declares). Nothing is fetched.</li>
+<li>The counts, as in <code>+12 ‒3</code>, are the lines added and removed since the branch left its base, your uncommitted edits to tracked files included. Point at them to see the base. They follow each save within a second or two.</li>
+<li>With the GitHub CLI (<code>gh</code>) installed and signed in, the header shows the branch's pull request: green while open, gray as a draft, in the accent color once merged, red when closed. Point at it for its title and link.</li>
+</ol>
+<p class="note">Marley reads neither for a repository Zed does not trust yet.</p>
+</article>
+
+<article id="project-menu">
+<h3>A project's right-click menu <span class="ticket">#453 · #507 · #581</span></h3>
+<p class="what"><strong>What it is.</strong> Right-click a project's header for Move Project Up, Move Project Down, Clear Browser Data… and Remove Project.</p>
+<h4>How to use it</h4>
+<ul class="points">
+<li><strong>Move Project Up / Down</strong> reorders the projects; the order is saved.</li>
+<li><strong>Clear Browser Data…</strong> asks, then closes the project's Browser tabs, stops its Chromium and deletes its profile, so every site in the project is signed out. Other projects keep their logins.</li>
+<li><strong>Remove Project</strong> takes the project out of the window and stops its Chromium.</li>
+</ul>
+</article>
+
+<article id="port-rows">
+<h3>Port rows: the servers your project runs <span class="ticket">#521</span></h3>
+<p class="what"><strong>What it is.</strong> The rail lists the TCP ports your processes listen on from inside the project's folders: a dev server, a database, anything. A row comes within seconds of a server's start and goes when it stops.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Start a server in the project, for example <code>npm run dev</code> or <code>python3 -m http.server 8000</code>.</li>
+<li>Point at its row to see the command line, folder and pid, and three buttons: Open (the URL in a Browser tab), Copy (the URL) and Stop.</li>
+<li>Stop sends the process SIGTERM, after checking it still listens on that port.</li>
+</ol>
+<p class="note">A server bound to <code>0.0.0.0</code> gets a URL on <code>127.0.0.1</code>. A process that a systemd service runs may be started again by its service after Stop: stop the service with <code>systemctl</code> instead.</p>
+</article>
+
+<article id="rail-keyboard">
+<h3>The rail from the keyboard <span class="ticket">#453</span></h3>
+<p class="what"><strong>What it is.</strong> Every row is reachable without the mouse.</p>
+<h4>How to use it</h4>
+<table>
+<tr><th>Key</th><th>What it does</th></tr>
+<tr><td><kbd>Ctrl+Alt+;</kbd></td><td>Moves the focus into the rail, and back out</td></tr>
+<tr><td><kbd>Up</kbd> <kbd>Down</kbd> <kbd>Home</kbd> <kbd>End</kbd></td><td>Moves the highlight</td></tr>
+<tr><td><kbd>Enter</kbd></td><td>Opens the row, as a click does</td></tr>
+<tr><td><kbd>Left</kbd></td><td>Climbs from a row to its project, then folds it</td></tr>
+<tr><td><kbd>Right</kbd></td><td>Unfolds a project</td></tr>
+</table>
+</article>
+
+<article id="rail-filter">
+<h3>The filter <span class="ticket">#457</span></h3>
+<p class="what"><strong>What it is.</strong> A field at the top of the rail that keeps only the projects, terminals and threads whose name, title or last command contains what you type.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Press <kbd>Ctrl+F</kbd> with the focus in the rail, or click the field, and type.</li>
+<li>Matching letters are highlighted. Up and Down move among the matches; Enter opens one.</li>
+<li>Escape clears the filter; a second Escape goes back to the rows. "No matches" says when nothing matched.</li>
+</ol>
+</article>
+
+<article id="rail-switcher">
+<h3>The switcher and next thread <span class="ticket">#454 · #459</span></h3>
+<p class="what"><strong>What it is.</strong> Jump to any terminal or thread you used recently, or walk the rail one row at a time.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>In the rail or the Agent Panel, hold <kbd>Ctrl</kbd> and press <kbd>Tab</kbd>: a switcher lists terminals and threads, the ones you used last first. Each Tab moves down, Shift+Tab up; let go of Ctrl to open the selection.</li>
+<li>From the command palette, <code>multi workspace: next thread</code>, <code>previous thread</code>, <code>next project</code> and <code>previous project</code> walk the rail and wrap at the ends.</li>
+</ol>
+<p class="note">In a pane of the main area, <kbd>Ctrl+Tab</kbd> stays Zed's tab switcher.</p>
+</article>
+</section>
+
+<section id="editor">
+<h2>The editor</h2>
+<p class="area-intro">Marley's editor is Zed's, with its language servers, git and Markdown preview. These are the tools you will use most, plus the two places Marley connects the editor to terminals.</p>
+
+<article id="find-things">
+<h3>Find files, symbols and text</h3>
+<p class="what"><strong>What it is.</strong> Zed's pickers reach any file, symbol, command or line from the keyboard.</p>
+<h4>How to use it</h4>
+<table>
+<tr><th>Key</th><th>What it opens</th></tr>
+<tr><td><kbd>Ctrl+P</kbd></td><td>Go to a file by name</td></tr>
+<tr><td><kbd>Ctrl+Shift+P</kbd> or <kbd>F1</kbd></td><td>The command palette: every command, Marley's included (they start with <code>marley:</code>)</td></tr>
+<tr><td><kbd>Ctrl+Shift+F</kbd></td><td>Search the whole project</td></tr>
+<tr><td><kbd>Ctrl+F</kbd></td><td>Search this file</td></tr>
+<tr><td><kbd>Ctrl+G</kbd></td><td>Go to a line (in an editor)</td></tr>
+<tr><td><kbd>Ctrl+Shift+O</kbd></td><td>This file's symbols</td></tr>
+<tr><td><kbd>Ctrl+T</kbd></td><td>The project's symbols (in a Browser tab, <kbd>Ctrl+T</kbd> opens a new tab)</td></tr>
+<tr><td><kbd>Ctrl+Alt+O</kbd> or <kbd>Ctrl+R</kbd></td><td>Recent projects (in a Browser tab, <kbd>Ctrl+R</kbd> reloads)</td></tr>
+<tr><td><kbd>Ctrl+Shift+E</kbd></td><td>The project panel, Zed's file tree</td></tr>
+</table>
+</article>
+
+<article id="edit-code">
+<h3>Edit and navigate code</h3>
+<p class="what"><strong>What it is.</strong> Language servers give go-to-definition, rename, references, hover docs and diagnostics. Zed downloads the server for a language the first time you open one of its files.</p>
+<h4>How to use it</h4>
+<table>
+<tr><th>Key</th><th>What it does</th></tr>
+<tr><td><kbd>F12</kbd></td><td>Go to the definition</td></tr>
+<tr><td><kbd>Alt+Shift+F12</kbd></td><td>Find every reference</td></tr>
+<tr><td><kbd>F2</kbd></td><td>Rename the symbol everywhere</td></tr>
+<tr><td><kbd>Ctrl+.</kbd></td><td>Code actions</td></tr>
+<tr><td><kbd>Ctrl+K</kbd> <kbd>Ctrl+I</kbd></td><td>Hover docs</td></tr>
+<tr><td><kbd>F8</kbd> / <kbd>Ctrl+Shift+M</kbd></td><td>Next diagnostic / the diagnostics list</td></tr>
+<tr><td><kbd>Ctrl+D</kbd></td><td>Add a cursor at the next match</td></tr>
+<tr><td><kbd>Shift+Alt+Down</kbd></td><td>Add a cursor below</td></tr>
+<tr><td><kbd>Alt+Up</kbd> / <kbd>Alt+Down</kbd></td><td>Move the line (in a terminal these jump between bookmarks)</td></tr>
+<tr><td><kbd>Ctrl+/</kbd></td><td>Comment the line</td></tr>
+<tr><td><kbd>Ctrl+Shift+I</kbd></td><td>Format the file (in a terminal with a block selected, it reinputs the block)</td></tr>
+</table>
+</article>
+
+<article id="panes">
+<h3>Panes, docks and zoom</h3>
+<p class="what"><strong>What it is.</strong> The main area splits into panes, each with its own tabs. Files, terminals and Browser tabs all live in panes.</p>
+<h4>How to use it</h4>
+<ul class="points">
+<li><kbd>Ctrl+\</kbd> in an editor splits it to the right; <kbd>Ctrl+Shift+5</kbd> splits a terminal.</li>
+<li><kbd>Ctrl+K</kbd> then an arrow key with Ctrl moves between panes.</li>
+<li><kbd>Shift+Escape</kbd> zooms the active pane, and back.</li>
+<li><kbd>Ctrl+Alt+B</kbd> toggles the right dock with the Agent Panel.</li>
+<li><kbd>Ctrl+W</kbd> closes a tab; in a terminal use <kbd>Ctrl+Shift+W</kbd>.</li>
+</ul>
+</article>
+
+<article id="git">
+<h3>Git</h3>
+<p class="what"><strong>What it is.</strong> Zed's git panel, diff views and blame, with the gutter marking changed lines as you edit.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li><kbd>Ctrl+Shift+G</kbd> opens the git panel: changed files, Space to stage one, <kbd>Ctrl+Enter</kbd> to commit.</li>
+<li><code>git: diff</code> from the palette opens the project's diff; each changed hunk is an excerpt you can edit.</li>
+<li>In an editor, <kbd>Ctrl+'</kbd> expands the hunk under the cursor, and <kbd>Alt+G</kbd> <kbd>B</kbd> shows blame.</li>
+</ol>
+</article>
+
+<article id="markdown-preview">
+<h3>Markdown preview and Insert in Terminal <span class="ticket">#530</span></h3>
+<p class="what"><strong>What it is.</strong> Zed's Markdown preview, where every shell code block gets an <strong>Insert in Terminal</strong> button beside Copy. It puts the command at the prompt of the terminal you used last, without running it, so a runbook becomes clickable.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Open a Markdown file and press <kbd>Ctrl+Shift+V</kbd> for the preview, or <kbd>Ctrl+K</kbd> <kbd>V</kbd> for the preview beside the file.</li>
+<li>Click in the terminal you want the command in, so it is the one you used last.</li>
+<li>In the preview, click Insert in Terminal on a block fenced as <code>sh</code>, <code>shell</code>, <code>bash</code>, <code>zsh</code>, <code>fish</code> or with no language.</li>
+<li>Marley clears the prompt's line, puts the command there and brings the terminal forward. Press Enter to run it. Several lines go in as one paste.</li>
+</ol>
+<p class="note">When a program is running in that terminal, or no terminal was used yet, nothing is typed and a toast says why.</p>
+</article>
+
+<article id="send-selection">
+<h3>Send the editor's selection to an agent <span class="ticket">#549</span></h3>
+<p class="what"><strong>What it is.</strong> One key types a reference to the lines you selected at the prompt of the agent CLI running in a terminal, so you can point an agent at exact code.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Select lines in a file.</li>
+<li>Press <kbd>Ctrl+&gt;</kbd> (Ctrl+Shift+Period), or run <code>marley: send selection to agent</code>.</li>
+<li>The reference lands at the agent's prompt, unsent, and its terminal takes the focus: <code>@src/auth.rs#L12-40</code> for Claude Code, <code>src/auth.rs:12-40</code> for Codex, Gemini CLI and OpenCode.</li>
+<li>With several agents running, a picker asks which; with none, the key adds the selection to Zed's Agent Panel as in Zed.</li>
+</ol>
+<p class="note">Nothing is typed while Claude Code waits on a permission or a question, since a paste would answer it; a toast says so.</p>
+</article>
+
+<article id="tasks">
+<h3>Tasks <span class="ticket">#441</span></h3>
+<p class="what"><strong>What it is.</strong> Zed's tasks, from <code>.zed/tasks.json</code> or the global <code>tasks.json</code>, run in terminals in the main area.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li><kbd>Alt+Shift+T</kbd> opens the task picker; choose a task to run it.</li>
+<li><code>task: rerun</code> runs the last task again in its terminal.</li>
+<li>Blocks you save as workflows (see <a href="#workflows">Save a command as a workflow</a>) show up here as tasks with parameters.</li>
+</ol>
+</article>
+
+<article id="look">
+<h3>Themes, extensions, keys</h3>
+<p class="what"><strong>What it is.</strong> Zed's appearance and extension settings, which Marley keeps.</p>
+<h4>How to use it</h4>
+<ul class="points">
+<li><kbd>Ctrl+K</kbd> <kbd>Ctrl+T</kbd> picks a theme; <kbd>Ctrl+Shift+X</kbd> opens extensions.</li>
+<li><kbd>Ctrl+K</kbd> <kbd>Ctrl+S</kbd> opens the keymap editor. Your own bindings in <code>~/.config/marley/keymap.json</code> win over Marley's.</li>
+</ul>
+</article>
+</section>
+
+<section id="terminal">
+<h2>The block terminal</h2>
+<p class="area-intro">Marley's terminals turn each command into a block you can see, select, copy, rerun, filter, bookmark and hand to an agent.</p>
+
+<article id="shell-integration">
+<h3>Shell integration: where blocks come from <span class="ticket">#463 · #465 · #520</span></h3>
+<p class="what"><strong>What it is.</strong> Blocks come from your shell, which reports each prompt and command to the terminal. Marley loads a small integration into every interactive bash and zsh it starts, after your own startup files.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Nothing to install. To check a terminal, run <code>echo $MARLEY_SHELL_INTEGRATION</code>: it prints <code>1</code> in an integrated shell.</li>
+<li>Your <code>.bashrc</code>, and zsh's startup files, still run as before.</li>
+<li>Each local terminal also gets <code>MARLEY_TERMINAL_ID</code> (its own id, kept across restarts) and <code>MARLEY_PROJECT</code> (its project's folder), which Marley's tools use to know which terminal is calling.</li>
+</ol>
+<p class="note">Tasks, a shell configured with arguments of its own, and fish (for now) run without the integration and make no blocks.</p>
+</article>
+
+<article id="blocks">
+<h3>Blocks <span class="ticket">#470 · #544 · #546</span></h3>
+<p class="what"><strong>What it is.</strong> Every command the shell reports is a block: a colored bar in the left margin, a pill with its result at the right of its first row, and a faint tint while it runs or after it fails.</p>
+<h4>How to use it</h4>
+<table>
+<tr><th>You see</th><th>It means</th></tr>
+<tr><td>Green bar, a check</td><td>It succeeded</td></tr>
+<tr><td>Red bar, the exit code, a faint red tint</td><td>It failed</td></tr>
+<tr><td>Blue bar, <code>running</code>, a faint blue tint</td><td>It is still running</td></tr>
+</table>
+<p class="note">Nothing is drawn while a full-screen program such as vim or less holds the screen, and blocks keep their rows when a resize rewraps long lines.</p>
+</article>
+
+<article id="select-blocks">
+<h3>Move between and select blocks <span class="ticket">#473 · #554</span></h3>
+<p class="what"><strong>What it is.</strong> Keys that jump from block to block and select one, so the next key acts on that block.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Press <kbd>Ctrl+Up</kbd>: the newest block gets an outline and scrolls into view.</li>
+<li><kbd>Up</kbd> and <kbd>Down</kbd> move the outline from block to block.</li>
+<li><kbd>Ctrl+Down</kbd> past the last block, <kbd>Escape</kbd>, or typing ends the selection and returns to the live screen.</li>
+<li>With a block selected: <kbd>Ctrl+Shift+I</kbd> reinputs its command, <kbd>Ctrl+Shift+Enter</kbd> sends it to an agent, <kbd>Ctrl+Shift+F</kbd> searches within it, <kbd>Alt+Shift+F</kbd> filters it, and <kbd>Ctrl+Shift+B</kbd> bookmarks it.</li>
+</ol>
+<p class="note">The first time a key that Marley takes from terminal programs does something (such as <kbd>Ctrl+Up</kbd>, <kbd>Ctrl+G</kbd> or <kbd>Ctrl+I</kbd>), a toast names it and offers Open Keymap, since your own keymap can give the key back (#563).</p>
+</article>
+
+<article id="block-buttons">
+<h3>A block's buttons: copy, rerun and more <span class="ticket">#474 · #528 · #558 · #559</span></h3>
+<p class="what"><strong>What it is.</strong> Point at a block and buttons show beside its pill.</p>
+<h4>How to use it</h4>
+<table>
+<tr><th>Button</th><th>What it does</th></tr>
+<tr><td>Copy Output</td><td>Puts the block's output on the clipboard</td></tr>
+<tr><td>Rerun Command</td><td>Clears what you typed at the prompt and runs the command again. Shown only while the shell waits at its prompt, and only for a command the shell itself reported</td></tr>
+<tr><td>Filter</td><td>Opens the block's output filter</td></tr>
+<tr><td>Bookmark</td><td>Bookmarks the block</td></tr>
+<tr><td>Find</td><td>Searches within the block</td></tr>
+<tr><td>Save as Workflow (a book)</td><td>Saves the command as a task with parameters</td></tr>
+</table>
+</article>
+
+<article id="block-menu">
+<h3>A block's right-click menu <span class="ticket">#554 · #555</span></h3>
+<p class="what"><strong>What it is.</strong> Right-clicking a block selects it and adds a Block section to the terminal's menu.</p>
+<h4>How to use it</h4>
+<ul class="points">
+<li><strong>Copy Command</strong>, <strong>Copy Output</strong>, <strong>Copy Both</strong>.</li>
+<li><strong>Copy as Markdown</strong>: the command and its output in a code block, then its exit code, how long it ran, and its folder and branch. Good for pasting into an issue.</li>
+<li><strong>Reinput</strong> and <strong>Reinput with sudo</strong>: put the command back at the prompt without running it.</li>
+<li><strong>Send to Agent</strong> and <strong>Find in Block</strong>, and a bookmark.</li>
+</ul>
+</article>
+
+<article id="sticky-header">
+<h3>The sticky command header <span class="ticket">#529</span></h3>
+<p class="what"><strong>What it is.</strong> Scrolled back into a long block, its command stays pinned over the top row with its result, so you know whose output you are reading.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Scroll up into a long block such as <code>seq 1 200</code>.</li>
+<li>The command shows over the terminal's top row; click it to jump to the block's start.</li>
+<li>It never covers the live screen. Turn it off with Sticky Command Header on the Marley page (Terminal).</li>
+</ol>
+</article>
+
+<article id="block-filter">
+<h3>Filter a block's output <span class="ticket">#528</span></h3>
+<p class="what"><strong>What it is.</strong> A panel over the terminal that lists only the lines of one block that match what you type, leaving the terminal itself untouched.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Select a block (<kbd>Ctrl+Up</kbd>) and press <kbd>Alt+Shift+F</kbd>, or click the block's Filter button.</li>
+<li>Type. Matching lines are highlighted.</li>
+<li>Toggles match the case, read the text as a regular expression, keep the lines that do not match, and keep a number of lines around each match (with <code>--</code> between groups).</li>
+<li>An invalid expression says so and keeps the last list. A running block's list keeps up with its output.</li>
+<li>Escape closes the panel; opening it again keeps your query.</li>
+</ol>
+</article>
+
+<article id="bookmarks">
+<h3>Bookmarks and find within a block <span class="ticket">#559</span></h3>
+<p class="what"><strong>What it is.</strong> Mark blocks to come back to, and search one block alone.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li><kbd>Ctrl+Shift+B</kbd> bookmarks the selected block, or the newest in view. A bookmark shows before its result, and a tick marks its place at the terminal's right edge.</li>
+<li><kbd>Alt+Up</kbd> and <kbd>Alt+Down</kbd> scroll to the bookmark before or after the view.</li>
+<li>With a block selected, <kbd>Ctrl+Shift+F</kbd> opens the search held to that block: the count and Enter walk its matches only. With no block selected, <kbd>Ctrl+Shift+F</kbd> searches the whole terminal.</li>
+</ol>
+<p class="note">Bookmarks last for the session.</p>
+</article>
+
+<article id="workflows">
+<h3>Save a command as a workflow <span class="ticket">#558</span></h3>
+<p class="what"><strong>What it is.</strong> Turn a command you ran into a reusable Zed task whose numbers, URLs, branch and paths become parameters you fill in each time.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Point at the block and click Save as Workflow, or run <code>marley: save as workflow</code> for the selected or newest block.</li>
+<li>An editor shows the command with values already turned into <code>{{name}}</code> parameters, each with its value as the default. Name the workflow and describe the parameters if you like, then press Enter.</li>
+<li>It is added to the project's <code>.zed/tasks.json</code> (or the global one), keeping what the file held.</li>
+<li>Run it from the task picker (<kbd>Alt+Shift+T</kbd>): Marley asks for each parameter, prefilled with the last value you used, then runs it. Escape runs nothing.</li>
+</ol>
+</article>
+
+<article id="prompt-bottom">
+<h3>The prompt at the bottom, and autosuggestions <span class="ticket">#476 · #484</span></h3>
+<p class="what"><strong>What it is.</strong> A new or cleared terminal draws its prompt on the bottom row, and as you type, the rest of a matching command from your history shows dimmed after the cursor.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Run <code>clear</code>: the prompt sits on the last row, and output pushes older lines up.</li>
+<li>Run <code>git status</code>, then type <code>git s</code>: the rest shows dimmed. Press <kbd>→</kbd> to take it.</li>
+<li>Suggestions come from this terminal's commands first, then your shell's history file. With nothing suggested, <kbd>→</kbd> moves the cursor as usual.</li>
+</ol>
+</article>
+
+<article id="terminal-notifications">
+<h3>Desktop notifications from terminals <span class="ticket">#478 · #551</span></h3>
+<p class="what"><strong>What it is.</strong> Marley tells you when something in a terminal you are not looking at needs you: a program's own notification, or a long command that just ended.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>A program that sends a notification escape (OSC 9 or OSC 777) gets a desktop notification while you look elsewhere. Try <code>sleep 5; printf '\e]777;notify;Build;finished\a'</code> and click another pane.</li>
+<li>A command that runs 30 seconds or more and ends while its terminal is not in front posts one notification titled with the command, such as <code>done in 45 s</code> or <code>exit 1 after 4 m 12 s</code>.</li>
+<li>A command that stops to read a password (<code>sudo</code>, <code>ssh</code>) posts <code>waiting for a password</code> once.</li>
+<li>Clicking a notification brings its terminal to the front; its rail row keeps a dot until you look.</li>
+</ol>
+<p class="note">The 30 seconds are Long Command Seconds on the Marley page (Terminal); 0 turns them off. Agent CLIs' terminals are left out, since their own notifications say what the agent did.</p>
+</article>
+
+<article id="terminal-links">
+<h3>Links in terminals <span class="ticket">#503 · #579 · #561 · #586</span></h3>
+<p class="what"><strong>What it is.</strong> A local URL printed in a terminal, such as a dev server's, opens in a Browser tab of the terminal's project. Programs that open a browser (Vite's <code>--open</code>, <code>gh pr view --web</code>, <code>cargo doc --open</code>) open local pages there too.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>A plain click on a URL opens a small menu: Open in Browser Tab, Open in System Browser, Copy Link.</li>
+<li><kbd>Ctrl</kbd>+click opens a local URL in a Browser tab (or brings forward the tab already on it) and any other URL in your system browser. <kbd>Shift+Ctrl</kbd>+click opens it in the other place.</li>
+<li>While a dev server listens on the port of a URL its terminal printed, the terminal's footer offers the URL: click it to open the page.</li>
+<li>A URL that wrapped at the terminal's edge, or sits inside a box an agent drew, opens whole from any of its rows.</li>
+</ol>
+<p class="note">Terminal Links on the Marley page (Terminal) sends every URL to a Browser tab, or every URL to your system browser. A terminal running ssh sends every URL to your system browser, since its <code>localhost</code> is another machine.</p>
+</article>
+
+<article id="ssh-blocks">
+<h3>Blocks over ssh <span class="ticket">#526</span></h3>
+<p class="what"><strong>What it is.</strong> <code>ssh host</code> typed in a Marley terminal keeps blocks working on the host, with nothing installed there.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Run <code>ssh &lt;host&gt;</code> for a host whose shell is bash or zsh.</li>
+<li>Each command you type there is a block with its exit code and Copy Output; autosuggestions come from what you ran on the host.</li>
+<li>Rerun is offered for the host's blocks only while the host's shell waits at its prompt.</li>
+</ol>
+<p class="note">ssh runs plainly with a remote command (<code>ssh host uptime</code>), with <code>-N</code>, <code>-T</code> and similar flags, for a host whose ssh config sets <code>RemoteCommand</code> or <code>Tag marley-plain</code>, and as <code>command ssh</code>.</p>
+</article>
+
+<article id="remote-terminals">
+<h3>Remote terminals that survive a dropped link <span class="ticket">#543</span></h3>
+<p class="what"><strong>What it is.</strong> A terminal on an SSH host whose shell runs in a tmux session on the host, so the shell and any agent in it keep running when the connection drops.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Save the host in your settings' <code>ssh_connections</code>. The host needs tmux 3.3 or later.</li>
+<li>Run <code>marley: open remote terminal</code> and pick the host.</li>
+<li>When the link drops, the tab shows the terminal ended. Run <code>terminal: rerun task</code> to attach the same session again, with what it printed meanwhile.</li>
+</ol>
+<p class="note">Claude Code's events from inside the session reach the rail and your desktop once Marley's plugin (1.6.0) is installed on the host.</p>
+</article>
+</section>
+
+<section id="agents">
+<h2>Agents in terminals</h2>
+<p class="area-intro">Claude Code, Codex, Gemini CLI and OpenCode, run in Marley's terminals, and everything Marley does around them.</p>
+
+<article id="agent-clis">
+<h3>Agent CLIs, recognized anywhere <span class="ticket">#440 · #450 · #519</span></h3>
+<p class="what"><strong>What it is.</strong> Marley recognizes <code>claude</code>, <code>codex</code>, <code>gemini</code> and <code>opencode</code> running in any terminal, however they were started. The terminal's rail row takes the agent's icon, its title and its state, and an agent bar appears under the terminal.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Start one from a project's <kbd>+</kbd> (under Agent CLIs), from the New Agent picker (<kbd>Ctrl+Alt+N</kbd>, type part of a name, Enter), or by typing its name at a prompt.</li>
+<li>Marley opens a terminal at the project root and types the program's name. The shell outlives the agent.</li>
+<li>The row reads <code>Claude Code · working</code>, then <code>waiting</code> once it has been quiet. With Marley's plugin connected, it also shows your prompt, the tool in flight, what the agent waits on, and its last message.</li>
+<li>When the agent exits, the row is a plain terminal row again.</li>
+</ol>
+<p class="note">An agent your <code>.bashrc</code> starts is never the terminal's foreground program, so Marley does not see it; start agents at the prompt. After a restart an agent's terminal comes back as a shell, without the agent.</p>
+</article>
+
+<article id="agent-bar">
+<h3>The agent bar <span class="ticket">#477</span></h3>
+<p class="what"><strong>What it is.</strong> A row under a terminal running an agent CLI, with the agent's name, input tools, and the folder and git branch the agent works in.</p>
+<h4>How to use it</h4>
+<ul class="points">
+<li>Left side: the agent's icon and name, <kbd>+</kbd> (Attach File), the pencil (Rich Input), the microphone where Voxtype is installed, and for Claude Code the Connect chip until Marley's plugin is installed.</li>
+<li>Right side: the folder (<code>~</code> for your home) and its git branch.</li>
+<li>The bar gives its row back to the terminal when the agent exits.</li>
+</ul>
+</article>
+
+<article id="claude-plugin">
+<h3>Connect Claude Code to Marley <span class="ticket">#482 · #547 · #538</span></h3>
+<p class="what"><strong>What it is.</strong> Marley's plugin for Claude Code (version 1.6.0) brings desktop notifications that say what happened, Marley's tools, and the details on Claude Code's rail row.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Under a terminal running Claude Code, click <strong>Connect Claude Code to Marley</strong>. Marley writes the plugin to <code>~/.local/share/marley/claude-code/</code> and installs it through Claude Code's own plugin commands.</li>
+<li>In a running session, run <code>/reload-plugins</code>; new sessions pick it up by themselves.</li>
+<li>From then on, in a terminal you are not looking at, Claude Code's banners read <code>project: Claude needs input</code> over the tool or question, <code>project: Claude finished</code> over its last message, or <code>project: Claude failed</code>.</li>
+<li>An older plugin shows <strong>Update Marley's plugin</strong> in the bar instead; restart Claude Code after it.</li>
+</ol>
+<p class="note">The plugin's hooks answer only in Marley's terminals. <code>claude -p</code> (print mode) sends no notifications.</p>
+</article>
+
+<article id="other-agent-notifications">
+<h3>Codex and OpenCode notifications <span class="ticket">#552</span></h3>
+<p class="what"><strong>What it is.</strong> One click sets up desktop notifications for Codex and OpenCode, as the plugin does for Claude Code.</p>
+<h4>How to use it</h4>
+<ul class="points">
+<li>Under Codex, click <strong>Turn on Codex notifications</strong>: Marley sets three keys under <code>[tui]</code> in Codex's <code>config.toml</code> and keeps the rest of the file.</li>
+<li>Under OpenCode, click <strong>Connect OpenCode to Marley</strong>: Marley writes its plugin to OpenCode's plugin folder (and offers Update when an older one is there).</li>
+<li>Both then notify when a turn ends, when they need you, or when they fail, from a terminal you are not looking at.</li>
+</ul>
+</article>
+
+<article id="rich-input">
+<h3>Rich input <span class="ticket">#481</span></h3>
+<p class="what"><strong>What it is.</strong> A real editor for an agent's prompt: several lines, undo, selection, word moves.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>In a terminal running an agent, press <kbd>Ctrl+G</kbd> or click the pencil. An editor opens above the bar.</li>
+<li>Write; <kbd>Shift+Enter</kbd> adds a line.</li>
+<li><kbd>Enter</kbd> sends the whole text to the agent as one paste and closes the editor.</li>
+<li><kbd>Escape</kbd> closes it and keeps the draft for the next <kbd>Ctrl+G</kbd>.</li>
+</ol>
+<p class="note">In a terminal with no agent, <kbd>Ctrl+G</kbd> reaches the program as usual.</p>
+</article>
+
+<article id="attach-files">
+<h3>Attach files and images; copy and paste <span class="ticket">#479 · #536</span></h3>
+<p class="what"><strong>What it is.</strong> Give an agent files by path, and copy and paste that suit an agent's terminal.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Click the bar's <kbd>+</kbd>, or run <code>marley: attach file</code>, and choose one or more files. Their full paths go into the prompt, quoted where the shell needs it.</li>
+<li>Drop or attach a PNG, JPEG, GIF or WebP: it goes in as its raw path in a paste of its own, the form in which the agent attaches an image.</li>
+<li>Copying an agent's reply drops the indent every line shares, so it pastes flush left elsewhere.</li>
+<li>Pasting several lines always goes in as one bracketed paste, so no line is sent early.</li>
+</ol>
+</article>
+
+<article id="dictation">
+<h3>Dictation <span class="ticket">#480</span></h3>
+<p class="what"><strong>What it is.</strong> Where Voxtype (Omarchy's dictation tool) is installed, the agent bar has a microphone that dictates into the agent's prompt.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Click the microphone, or run <code>marley: toggle dictation</code>. It turns red while recording.</li>
+<li>Speak, then click again. It turns yellow while transcribing, and your words are typed where the focus is.</li>
+</ol>
+</article>
+
+<article id="permission-modes">
+<h3>Permission modes <span class="ticket">#532</span></h3>
+<p class="what"><strong>What it is.</strong> Marley starts every agent with its own permission prompts unless your settings say otherwise, and marks any agent running without them.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>On the Marley page (Agents), set Claude Code Permissions to bypass (<code>claude --dangerously-skip-permissions</code>), or Codex Permissions to full access.</li>
+<li>For one project only, use <code>agent_permissions_by_project</code>:
+<pre><code>"marley": {
+  "agent_permissions_by_project": {
+    "~/scratch": { "claude_code": "bypass", "codex": "full_access" }
+  }
+}</code></pre></li>
+<li>An agent running without its prompts carries a <code>bypass</code> or <code>full access</code> chip in the warning color on its row, however it was started. Its tooltip says where Marley read it.</li>
+</ol>
+<p class="note">Only your own settings can turn prompts off; a repository's <code>.zed/settings.json</code> cannot.</p>
+</article>
+
+<article id="agent-reads-terminals">
+<h3>Agents read your terminals <span class="ticket">#491 · #520 · #516 · #562</span></h3>
+<p class="what"><strong>What it is.</strong> With Marley's tools, an agent lists your terminals and reads each command's exit code and output, so you can ask "what failed in my other terminal?" instead of pasting output. Secrets are hidden from what it reads.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Connect Claude Code to Marley (above). Zed's own agents get the tools without doing anything.</li>
+<li>Ask the agent about another terminal: "Which command failed in my other terminal, and what did it print?"</li>
+<li>The agent calls <code>terminal_list</code>, <code>terminal_blocks</code> and <code>terminal_read</code>, and answers with the command, its exit code and its output. Its own terminal is marked <code>self</code>.</li>
+<li>Tokens, passwords, keys, <code>Authorization</code> headers and cookies reach it as <code>[redacted: …]</code>. Your terminal still shows them.</li>
+</ol>
+<p class="note">Redact Secrets for Agents on the Marley page turns hiding off while an agent needs such a value; <code>marley.redaction_patterns</code> adds your own patterns.</p>
+</article>
+
+<article id="agent-runs-commands">
+<h3>Agents run commands at your prompt <span class="ticket">#556 · #553</span></h3>
+<p class="what"><strong>What it is.</strong> An agent can run a command in one of your terminals with <code>terminal_run</code>: the command is typed at your shell's prompt, runs as a block, and the agent gets its exit code and output.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Ask the agent to run something in another terminal ("Use terminal_run to run <code>ls</code> in my other terminal").</li>
+<li>Commands on the allowlist (<code>cat</code>, <code>ls</code>, <code>grep</code> and the like) run at once. Commands on the denylist (shells, <code>curl</code>, <code>ssh</code>, <code>rm</code> and more) wait on a card under the terminal: <kbd>Enter</kbd> runs, <kbd>Escape</kbd> refuses.</li>
+<li>A block an agent ran carries a mark before its pill.</li>
+<li>Nothing is typed while a program runs, while you have typed at the prompt, or after you took the terminal over.</li>
+</ol>
+<p class="note">The lists and what happens to other commands are Marley settings (Agent Command Allowlist and Denylist, Agent Commands Outside Lists). Agent Commands in History, when off, keeps these commands out of your shell history.</p>
+</article>
+
+<article id="agent-types-into-programs">
+<h3>Agents type into running programs <span class="ticket">#525 · #594 · #595</span></h3>
+<p class="what"><strong>What it is.</strong> An agent can type into a program running in a terminal, such as a REPL, psql or a debugger, after you allow it, and you can take the terminal back at any moment.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Start the program in a terminal, for example <code>python3</code>, and ask the agent to type into it.</li>
+<li>The first time, a card under the terminal names the agent, the program and the text, with Allow and Deny. Allow holds for that program until it exits.</li>
+<li>Once the agent has typed, a bar shows what it typed. <strong>Take Over</strong>, or <kbd>Ctrl+I</kbd> in the terminal, stops its writes until you click <strong>Hand Back</strong>.</li>
+<li>The bar goes when the program exits.</li>
+</ol>
+<p class="note">Agent Terminal Writes on the Marley page makes Marley ask for every write, or never. An unanswered question refuses the write after 25 seconds.</p>
+</article>
+
+<article id="send-block">
+<h3>Send a block, or plain English, to an agent <span class="ticket">#555 · #557</span></h3>
+<p class="what"><strong>What it is.</strong> Hand an agent the command that just failed, or a question typed at a shell prompt, without copying anything.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Under a failed block, while an agent runs in another terminal, click <strong>Ask the agent</strong>.</li>
+<li>Or select a block (<kbd>Ctrl+Up</kbd>) and press <kbd>Ctrl+Shift+Enter</kbd>, or right-click it and choose Send to Agent. Short output goes as Markdown; long output as a reference the agent reads with <code>terminal_read</code>. The text lands at the agent's prompt, unsent.</li>
+<li>At a shell prompt, type a request such as <code>what is using port 3000</code>. A dimmed hint follows it; <kbd>Ctrl+Shift+Enter</kbd> hands the line to the Claude Code in the window (or a new one) instead of the shell.</li>
+<li>A request the shell ran by mistake fails with <code>command not found</code>; its block offers Ask the agent.</li>
+</ol>
+<p class="note">With several agents running, a picker asks which. Nothing is sent to an agent that waits on a permission or a question. English at the Prompt on the Marley page turns the hint off; Marley's own rules decide, and nothing leaves the machine until you ask.</p>
+</article>
+
+<article id="turns">
+<h3>Each Claude Code turn as its own diff <span class="ticket">#509</span></h3>
+<p class="what"><strong>What it is.</strong> With the plugin connected, Marley keeps what each Claude Code turn changed in the repository, so you can review the agent's work one prompt at a time.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Under a Claude Code terminal's row, open <strong>Turns (N)</strong>.</li>
+<li>Each turn that changed files is listed, newest first: its prompt and how many files it changed (<code>· failed</code> for an API error, <code>· injected</code> for a prompt a harness sent).</li>
+<li>Click a turn to open Zed's commit view with only that turn's changes.</li>
+</ol>
+<p class="note">Your index, branches and <code>HEAD</code> are never touched: turns are kept under <code>refs/marley/turns/</code>, and refs older than 30 days are deleted.</p>
+</article>
+
+<article id="review-notes">
+<h3>Review notes to the agent <span class="ticket">#522</span></h3>
+<p class="what"><strong>What it is.</strong> Leave notes on lines of a diff and send them all to an agent as one prompt.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Open a diff: <code>git: diff</code>, or Review on a worktree's row.</li>
+<li>Point at a changed line, choose Add Review in the gutter, type a note and press Enter. Add as many as you like, across files.</li>
+<li>Click <strong>Send Review to Agent (N)</strong> in the diff's toolbar. A picker lists the agent terminals: <code>ready</code> ones get the notes pasted and sent; <strong>Copy notes</strong> puts them on the clipboard for any agent.</li>
+<li>Sent notes stay in the diff with Sent beside them.</li>
+</ol>
+</article>
+
+<article id="close-protection">
+<h3>No agent lost to a stray close <span class="ticket">#550</span></h3>
+<p class="what"><strong>What it is.</strong> Closing a terminal, a window or Marley while an agent works asks first, and a closed working agent can be brought back for a minute.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Close a working agent's terminal: Marley names the agent (<code>project · Claude Code · working</code>) with Close, Show and Cancel.</li>
+<li>After Close, a toast offers Undo; <kbd>Ctrl+Shift+T</kbd> within a minute puts the terminal back with its scrollback, the agent still running.</li>
+<li>Quitting Marley asks the same way.</li>
+</ol>
+<p class="note">Ask Before Ending a Working Agent and Undo Close Seconds are on the Marley page.</p>
+</article>
+
+<article id="agent-credentials">
+<h3>Credentials in agent terminals <span class="ticket">#537 · #596</span></h3>
+<p class="what"><strong>What it is.</strong> An agent cannot answer a password prompt, so Marley keeps git from asking and brings ssh's passphrase question to you.</p>
+<h4>How to use it</h4>
+<ul class="points">
+<li>In terminals Marley opens for an agent, git fails at once when it needs credentials no helper holds, with git's own message; stored credentials keep working.</li>
+<li>When ssh there needs a key's passphrase, Marley brings the terminal forward and shows a password dialog, headed <code>ssh for &lt;agent&gt; in &lt;project&gt;</code>. What you type goes to ssh alone. Escape makes the command fail at once.</li>
+</ul>
+</article>
+
+<article id="push-to-phone">
+<h3>Agent events on your phone <span class="ticket">#535</span></h3>
+<p class="what"><strong>What it is.</strong> With an ntfy server on this machine, Marley pushes one line to your phone when Claude Code in a terminal you are not looking at needs input, finishes or fails.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Run an ntfy server on this machine and subscribe to a topic in the ntfy app on your phone.</li>
+<li>On the Marley page (Push), set the server (<code>http://127.0.0.1:&lt;port&gt;</code>), the topic, and a token file if your server wants one.</li>
+<li>Pushes read like <code>marley_ide: Claude needs input</code>. They carry nothing the agent wrote, and a burst from one project makes one push.</li>
+</ol>
+</article>
+
+<article id="launch-configs">
+<h3>Launch configs <span class="ticket">#527 · #592</span></h3>
+<p class="what"><strong>What it is.</strong> A project names sets of things to open together (a dev server, an agent, a page) in <code>.zed/marley.json</code>, and its <kbd>+</kbd> lists them under Launch.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Write the file at the project root:
+<pre><code>{
+  "launch": {
+    "Dev": {
+      "items": [
+        { "terminal": "npm run dev", "title": "dev server", "cwd": "web" },
+        { "agent": "claude", "split": "right", "focus": true },
+        { "browser": "http://localhost:5173", "split": "down" }
+      ]
+    }
+  }
+}</code></pre></li>
+<li>Click the project's <kbd>+</kbd> and choose the config under Launch.</li>
+<li>The first time, Marley shows each item on its own line, exactly as the file has it, with Run and Cancel. After Run, the same text opens at once; a changed file asks again and says so.</li>
+</ol>
+<table>
+<tr><th>Key</th><th>What it does</th></tr>
+<tr><td><code>terminal</code></td><td>A shell with this command typed once it is ready (<code>""</code> for a plain shell)</td></tr>
+<tr><td><code>agent</code></td><td><code>claude</code>, <code>codex</code>, <code>gemini</code> or <code>opencode</code>, started as the <kbd>+</kbd> starts it</td></tr>
+<tr><td><code>browser</code></td><td>An <code>http</code> or <code>https</code> URL; a local one waits up to 30 seconds for its port</td></tr>
+<tr><td><code>title</code>, <code>cwd</code></td><td>The tab's name, and a folder inside the project</td></tr>
+<tr><td><code>split</code></td><td><code>right</code> or <code>down</code>: a new pane off the previous item's</td></tr>
+<tr><td><code>focus</code></td><td>This item has the focus at the end</td></tr>
+</table>
+</article>
+
+<article id="worktree-agents">
+<h3>Worktree agents <span class="ticket">#510 · #585 · #590 · #587</span></h3>
+<p class="what"><strong>What it is.</strong> Several agents can work on one repository at once, each in a git worktree and on a branch of its own, so they never edit each other's files.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>In a local git project's <kbd>+</kbd>, choose New Agent in Worktree, then an agent.</li>
+<li>A prompt names what it will make, <code>agent/&lt;name&gt; from main</code>. Type the agent's first prompt (or nothing) and press Enter.</li>
+<li>Marley makes the worktree beside the project (by default in <code>../worktrees/&lt;project&gt;/&lt;name&gt;/&lt;project&gt;</code>), on the new branch, and starts the agent there. The worktree appears as a row under the project with its terminals; you stay where you were.</li>
+<li>If Claude Code has not trusted the repository yet, a notification asks, with Trust Folder and Show Terminal.</li>
+</ol>
+<h4>Its environment</h4>
+<ul class="points">
+<li><strong><code>.worktreeinclude</code></strong> at the repository root names gitignored files (such as <code>.env</code>) to copy into every new worktree, in <code>.gitignore</code> syntax.</li>
+<li><strong>The setup command:</strong> with a <code>package.json</code> and one package manager's lockfile, the prompt offers <code>Setup: pnpm install</code> (or npm, yarn, bun). Checked, the install runs before the agent starts.</li>
+<li><strong>A port each:</strong> the first worktree's terminals get <code>PORT=3010</code> and <code>MARLEY_PORT_OFFSET=10</code>, the next 3020 and 20, so their dev servers do not collide.</li>
+<li>Tasks in a worktree get <code>MARLEY_ROOT_PATH</code> (the main checkout) and <code>MARLEY_WORKTREE_PATH</code>.</li>
+</ul>
+</article>
+
+<article id="worktree-review">
+<h3>Drift, review, merge and remove a worktree <span class="ticket">#560 · #511 · #589 · #591</span></h3>
+<p class="what"><strong>What it is.</strong> A worktree's row tells you how far it drifted from its base, and its right-click menu reviews, merges and removes it.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Read the row: <code>agent/ok · 2 ahead of main</code>, and a chip such as <code>2 behind</code> (muted: a merge would go through) or <code>1 conflict</code> (warning: a merge would stop on that file). Point at the chip for details.</li>
+<li>Right-click the row and choose <strong>Review</strong> for Zed's branch diff, "Changes since main". Review notes work there.</li>
+<li>Choose <strong>Merge N commits into main…</strong>: Marley checks the main checkout is on its base with nothing uncommitted, asks, and merges with a merge commit. Nothing is pushed. A conflict aborts the merge and names the files.</li>
+<li>Choose <strong>Remove…</strong>: Marley asks (Remove Anyway when there are uncommitted changes), runs any <code>remove_worktree</code> teardown task, closes the worktree's workspace and deletes the worktree, and deletes the branch once it is merged.</li>
+</ol>
+<p class="note">A teardown task is a task in <code>.zed/tasks.json</code> with <code>"hooks": ["remove_worktree"]</code>, such as <code>docker compose down</code>. Marley waits up to two minutes for it.</p>
+</article>
+</section>
+
+<section id="agent-panel">
+<h2>Zed's Agent Panel</h2>
+<p class="area-intro">Zed's own agents, in the panel on the right, with Marley's rail and tools around them.</p>
+
+<article id="agent-threads">
+<h3>Threads in the rail <span class="ticket">#439 · #468</span></h3>
+<p class="what"><strong>What it is.</strong> The Agent Panel works as in Zed, docked on the right. Its threads list in the rail under their project, with their state.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Set up an agent in the panel first: a model for the Zed Agent, or an external agent such as Claude Agent (<kbd>Ctrl+Alt+C</kbd> in the panel opens its settings).</li>
+<li>Click a project's <kbd>+</kbd>, then New Agent Thread and an agent. <kbd>Ctrl+?</kbd> focuses the panel.</li>
+<li>The thread's row reads <code>&lt;agent&gt; · working</code>, then <code>idle</code>. Its dot lights when a run ends while the thread is off screen.</li>
+<li>Click the row to open the thread in the panel.</li>
+</ol>
+</article>
+
+<article id="zed-agents-tools">
+<h3>Zed's agents use Marley's tools <span class="ticket">#501</span></h3>
+<p class="what"><strong>What it is.</strong> Marley offers its MCP server to the Agent Panel's agents as a context server named <code>marley</code>, so they read your terminals and drive the Browser tab as Claude Code does.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Nothing to set up for local projects: the Zed Agent's Write profile and every external agent get the tools.</li>
+<li>Ask in a thread: "List my Marley terminals and tell me which command failed."</li>
+<li>To turn it off: <code>"context_servers": { "marley": { "enabled": false } }</code>.</li>
+</ol>
+</article>
+</section>
+
+<section id="mcp">
+<h2>Marley's tools for agents</h2>
+<p class="area-intro">The MCP server inside Marley that gives agents your terminals, your ports and the Browser tab.</p>
+
+<article id="mcp-server">
+<h3>The server and how agents reach it <span class="ticket">#491 · #520</span></h3>
+<p class="what"><strong>What it is.</strong> While Marley runs, it serves MCP on <code>127.0.0.1</code> behind a token that changes at every start. A small bridge program connects agents to it, and tells them when Marley is not running.</p>
+<h4>How to use it</h4>
+<table>
+<tr><th>Agent</th><th>How it gets the tools</th></tr>
+<tr><td>Claude Code, in any terminal on the machine</td><td>Marley's plugin (Connect Claude Code to Marley)</td></tr>
+<tr><td>Zed's Agent Panel agents</td><td>The <code>marley</code> context server, added for you</td></tr>
+<tr><td>Any other MCP client</td><td>Run <code>~/.local/share/marley/mcp/marley-mcp-bridge</code> as a stdio server</td></tr>
+</table>
+<p class="note">The endpoint file, <code>~/.local/share/marley/mcp-endpoint.json</code>, is readable by you alone and removed when Marley quits. A Marley started with <code>--user-data-dir</code> needs <code>MARLEY_MCP_ENDPOINT</code> pointed at its own endpoint file.</p>
+</article>
+
+<article id="mcp-tools">
+<h3>The tools</h3>
+<p class="what"><strong>What it is.</strong> Four families: terminals, ports, the browser, and Claude Code sessions.</p>
+<h4>Terminals</h4>
+<table>
+<tr><th>Tool</th><th>What it does</th></tr>
+<tr><td><code>terminal_list</code></td><td>Every terminal: id, title, project, folder, running command, block count; the caller's own marked <code>self</code></td></tr>
+<tr><td><code>terminal_blocks</code></td><td>A terminal's newest blocks: command, exit code, folder, times, whether it runs</td></tr>
+<tr><td><code>terminal_read</code></td><td>One block's command and output (up to 2,000 lines)</td></tr>
+<tr><td><code>terminal_screen</code></td><td>What a terminal's screen shows now</td></tr>
+<tr><td><code>terminal_type</code></td><td>Types into the program running in a terminal, after you allow it</td></tr>
+<tr><td><code>terminal_run</code></td><td>Runs a command at a terminal's shell prompt as a block</td></tr>
+<tr><td><code>terminal_find</code></td><td>The line of a block a phrase describes (with System One's Terminal Find on)</td></tr>
+</table>
+<h4>Ports</h4>
+<table>
+<tr><th>Tool</th><th>What it does</th></tr>
+<tr><td><code>ports_list</code></td><td>The listening ports the rail shows, with their project, process and URL</td></tr>
+</table>
+<h4>The browser</h4>
+<table>
+<tr><th>Tool</th><th>What it does</th></tr>
+<tr><td><code>browser_tabs</code></td><td>Every page, its project, and the tab a call without <code>tab</code> acts on</td></tr>
+<tr><td><code>browser_look</code>, <code>browser_snapshot</code></td><td>The page as you see it (with an image), and its accessibility tree with element refs</td></tr>
+<tr><td><code>browser_console</code>, <code>browser_network</code></td><td>The latest console messages and requests</td></tr>
+<tr><td><code>browser_navigate</code>, <code>browser_back</code>, <code>browser_open_url</code></td><td>Load a URL, go back, open a local page in a project's tab</td></tr>
+<tr><td><code>browser_click</code>, <code>browser_type</code>, <code>browser_press</code>, <code>browser_scroll</code></td><td>Act in the page as your mouse and keys would</td></tr>
+<tr><td><code>browser_picks</code>, <code>browser_pick</code>, <code>browser_check_pick</code></td><td>The elements you picked, one pick in full, and a pick found again after a change</td></tr>
+<tr><td><code>browser_annotate</code>, <code>browser_annotations</code></td><td>Draw boxes with notes, and list them</td></tr>
+<tr><td><code>browser_recordings</code>, <code>browser_recording</code>, <code>browser_draft_test</code></td><td>Saved recordings, one recording's timeline, and a Playwright test drafted from one</td></tr>
+<tr><td><code>browser_find</code></td><td>The element a phrase describes (with System One's Browser Find on)</td></tr>
+</table>
+<h4>Sessions</h4>
+<table>
+<tr><th>Tool</th><th>What it does</th></tr>
+<tr><td><code>fleet_snapshot</code></td><td>Every Claude Code session in Marley's terminals and what each is doing</td></tr>
+</table>
+</article>
+
+<article id="mcp-safety">
+<h3>What keeps agents in check <span class="ticket">#516 · #562 · #574</span></h3>
+<p class="what"><strong>What it is.</strong> The limits on what the tools hand an agent and what they let it do.</p>
+<ul class="points">
+<li>The server listens on <code>127.0.0.1</code> only and refuses a request from any other origin.</li>
+<li>Secrets in terminal output, commands and the browser console reach agents as <code>[redacted: kind]</code>: private keys, tokens and passwords assigned to names, <code>Authorization</code> headers, cookies, cloud and API keys, JWTs, and your own <code>marley.redaction_patterns</code>.</li>
+<li>URLs lose the values of parameters named like tokens, keys, secrets, passwords, codes and sessions; the page snapshot holds no field values; typed text is counted, never kept.</li>
+<li>Your agent client asks you before each write (Claude Code does by default), and every browser action happens in front of you with the Agent chip naming it.</li>
+<li>A browser call with no tab acts in the agent's own project, never another project's page.</li>
+<li>No tool runs script an agent supplies, and agents navigate to <code>http</code> and <code>https</code> only.</li>
+</ul>
+</article>
+
+<article id="browser-clients">
+<h3>Programs outside Marley drive its browser <span class="ticket">#524 · #584</span></h3>
+<p class="what"><strong>What it is.</strong> Let a program you name (Playwright MCP, a script) read or act in Marley's Browser tabs, with a token of its own that you can cut off.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Run <code>marley: browser clients</code>, type the program's name, choose read or act, and press Enter.</li>
+<li>The program points Marley's bridge at the endpoint file Marley shows. It sees only the browser tools its grant allows.</li>
+<li>A tab it acts in shows <strong>Driven by &lt;name&gt;</strong> with <strong>Cut Off</strong>, which refuses its token at once.</li>
+<li>For a program on another machine, copy the SSH line Browser Clients shows; it holds no token and keeps working after Marley restarts.</li>
+</ol>
+</article>
+</section>
+
+<section id="browser">
+<h2>The Browser tab</h2>
+<p class="area-intro">A web page from Marley's own Chromium, in a tab beside your code, that you and your agents use together.</p>
+
+<article id="browser-open">
+<h3>Open a Browser tab <span class="ticket">#488 · #500 · #504 · #539</span></h3>
+<p class="what"><strong>What it is.</strong> A tab that shows a page of Chromium running in the background for the project. Its row in the rail shows the page's icon, title and host.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Click a project's <kbd>+</kbd>, then New Browser Tab, type an address and press Enter.</li>
+<li>Or run <code>marley: open browser</code> (shows the Browser tab you used last, or opens one), or press <kbd>Ctrl+T</kbd> in a Browser tab for a new one.</li>
+<li>The first time, the tab reads "Starting Chromium…" for a moment.</li>
+<li>Local pages also open here from the terminal: see <a href="#terminal-links">Links in terminals</a>.</li>
+</ol>
+<p class="note">Chromium is <code>/usr/lib/chromium/chromium</code>, or <code>chromium</code> on your PATH, or the binary <code>MARLEY_CHROMIUM</code> names. Websites see it as Chrome.</p>
+</article>
+
+<article id="browser-per-project">
+<h3>A Chromium per project <span class="ticket">#507 · #583 · #581</span></h3>
+<p class="what"><strong>What it is.</strong> Each project gets its own Chromium and profile, so a login in one project is not a login in another, and each project's cookies and storage survive restarts.</p>
+<h4>How to use it</h4>
+<ul class="points">
+<li>A project's Chromium starts with its first Browser tab and keeps running after Marley quits (so restored tabs find their pages) until you log out or remove the project.</li>
+<li>To sign a project out of every site, right-click its header and choose Clear Browser Data…, or run <code>marley: clear project browser data</code>.</li>
+<li>To see or stop the Chromium units: <code>systemctl --user list-units 'marley-browser-*'</code>, then <code>systemctl --user stop &lt;unit&gt;</code>.</li>
+</ul>
+<p class="note">Chromium listens on no network port: it talks only to Marley's relay, through files only you can read.</p>
+</article>
+
+<article id="browser-address">
+<h3>The toolbar and the address bar <span class="ticket">#490</span></h3>
+<p class="what"><strong>What it is.</strong> Back, Forward, Reload, the address bar, and the three tools for agents: the element picker, annotations and Record this.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li><kbd>Ctrl+L</kbd> selects the address bar. Type a URL, a host such as <code>localhost:3000</code> (http for local hosts, https otherwise), or words to search DuckDuckGo. Enter goes; Escape restores the page's address.</li>
+<li><kbd>Alt+Left</kbd> and <kbd>Alt+Right</kbd> go back and forward; <kbd>Ctrl+R</kbd> or <kbd>F5</kbd> reloads.</li>
+<li>A page that fails to load shows Chromium's error page, and the address bar keeps what you typed.</li>
+</ol>
+</article>
+
+<article id="browser-use">
+<h3>Use the page as in a browser <span class="ticket">#489 · #493 · #495 · #582</span></h3>
+<p class="what"><strong>What it is.</strong> Clicks, typing, scrolling, the clipboard, new tabs, drop-down lists and dialogs all work as in Chrome.</p>
+<h4>How to use it</h4>
+<ul class="points">
+<li><kbd>Ctrl+C</kbd> and <kbd>Ctrl+V</kbd> use the system clipboard. <kbd>Ctrl+S</kbd> and <kbd>Ctrl+W</kbd> stay Zed's (save, close the tab).</li>
+<li>A link that opens a new window opens a new Browser tab beside its opener, with the focus.</li>
+<li>A <code>&lt;select&gt;</code> opens as Marley's list, with its groups and disabled options; <kbd>Alt+Down</kbd>, <kbd>F4</kbd> or <kbd>Space</kbd> opens a focused one.</li>
+<li>A page's <code>alert</code>, <code>confirm</code> or <code>prompt</code> shows as a card naming the site; Enter answers OK, Escape Cancel.</li>
+<li>A title the page sets later (an unread count, say) follows on the tab and its rail row.</li>
+</ul>
+<p class="note">Headless Chromium draws no browser UI of its own: file choosers, downloads and context menus do not show yet.</p>
+</article>
+
+<article id="browser-agents">
+<h3>Let an agent drive <span class="ticket">#492 · #574</span></h3>
+<p class="what"><strong>What it is.</strong> Agents with Marley's tools see the page you see and act on it with the same clicks and keys, in front of you.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Ask the agent, for example: "Open localhost:3000, click Sign in, and tell me what the console says."</li>
+<li>The agent's client asks you before each action (Claude Code does by default).</li>
+<li>The page acts without taking your focus. The toolbar's Agent chip names each action while it runs; typed text shows as its length.</li>
+<li>A page an agent opens goes in its own project's Browser tab, behind your current tab.</li>
+</ol>
+</article>
+
+<article id="browser-pick">
+<h3>Pick an element for the agent <span class="ticket">#496 · #518 · #497</span></h3>
+<p class="what"><strong>What it is.</strong> Point at the exact element you mean, add a sentence, and send it to the agent, which then reads everything about that element.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Click in the agent's terminal first, so it is the terminal you used last.</li>
+<li>In the Browser tab, press <kbd>Ctrl+Shift+C</kbd> or click the crosshair. Chromium's highlight follows the pointer; click the element. The click does not reach the page.</li>
+<li>The pick waits in a tray under the toolbar. Type what the agent should know in its caption, such as "Make this green", and press Enter.</li>
+<li>Marley types a line such as <code>[browser pick 1: button “Save” on localhost:3000; browser_pick id 1] Make this green</code> into the terminal and takes you there. Press Enter to send it.</li>
+<li>The agent reads the pick with <code>browser_pick</code>: its locators, HTML, styles, nearby texts, and on a React dev build its component and source file.</li>
+</ol>
+<p class="note">Where the page has source maps, the pick shows its click listener's source file and line (<code>click src/app.ts:2</code>); a click on it opens that line in the editor.</p>
+</article>
+
+<article id="browser-check-pick">
+<h3>Check the fix <span class="ticket">#505</span></h3>
+<p class="what"><strong>What it is.</strong> After the page changed, find the picked element again and see what changed about it.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>After the agent's change, reload the page and click <strong>Check</strong> on the pick in the tray.</li>
+<li>Marley finds the element again by its most durable locator and opens a card: the crop at the pick beside the crop now, and what changed (box, styles, text, role and name).</li>
+<li>The pick keeps the verdict, such as <code>2 changes</code>, <code>no change</code> or <code>not found</code>. Agents get the same with <code>browser_check_pick</code>.</li>
+</ol>
+</article>
+
+<article id="browser-annotate">
+<h3>Annotate the page <span class="ticket">#498</span></h3>
+<p class="what"><strong>What it is.</strong> Draw boxes with notes over the page, for yourself or the agent; agents can draw their own.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Click the pencil, or run <code>marley: annotate</code>. Drag a box around something, type a note, and press Enter (Escape drops it).</li>
+<li>Your boxes use the theme's warning color; an agent's use its accent color, with a sparkle.</li>
+<li>Click a note and press Delete to remove it. Loading another page clears them.</li>
+</ol>
+</article>
+
+<article id="browser-record">
+<h3>Record this, and a test from it <span class="ticket">#499 · #506</span></h3>
+<p class="what"><strong>What it is.</strong> Marley keeps the last minute of the page you are looking at. One click saves it, so you can tell the agent "it broke just now" and it can see what you did, and even draft a Playwright test from it.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>When something goes wrong, click the red dot in the toolbar, or run <code>marley: record this</code>. A toast names the recording.</li>
+<li>Tell the agent: "Read the latest recording and tell me what I did." It sees your clicks, keys, how many characters you typed (never the text), console messages and requests.</li>
+<li>Ask: "Draft a Playwright test from that recording." <code>browser_draft_test</code> answers a test with the best locator for each step and a path under your tests folder; the agent writes the file.</li>
+</ol>
+<p class="note">Recordings live in <code>~/.local/share/marley/browser/recordings/</code>, never in a project.</p>
+</article>
+
+<article id="playwright-scripts">
+<h3>Playwright scripts <span class="ticket">#523</span></h3>
+<p class="what"><strong>What it is.</strong> Keep Playwright scripts in Marley, for one project or for every project, and run them on a Browser tab's page.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Click the Playwright Scripts button in the toolbar, or run <code>marley: playwright scripts</code>.</li>
+<li>Type a name and press Enter for a new script from Marley's template; it opens in the editor.</li>
+<li>Click Run: the script runs on the tab's page in a terminal beside it, and the tab stays in front. The first run installs Marley's own Playwright.</li>
+<li>When a script fails, Marley saves the tab's last minute as a recording and names it in a toast.</li>
+</ol>
+<p class="note">Scripts live in Marley's config folder, never in a repository.</p>
+</article>
+</section>
+
+<section id="system-one">
+<h2>System One</h2>
+<p class="area-intro">Readings about what your agents and pages are doing: from Marley's own local rules, and optionally from a model. Off until you turn it on. Nothing here approves, sends or stops anything.</p>
+
+<article id="system-one-on">
+<h3>Turn it on <span class="ticket">#565</span></h3>
+<p class="what"><strong>What it is.</strong> A layer that asks typed questions (a yes or no, a choice, a score) about states Marley builds. The <code>rules</code> provider answers from Marley's own rules on this machine, with no key and no request; the <code>typesafe</code> provider asks TypeSafe's Jev model about what the rules leave open.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Add to your settings (or use the Marley page's System One section):
+<pre><code>"marley": {
+  "system_one": {
+    "enabled": true,
+    "provider": "rules",
+    "projects": ["~/code"],
+    "uses": { "stop_kind": "act", "stall_kind": "act", "inbox": "act" }
+  }
+}</code></pre></li>
+<li>Each use has a mode: <code>off</code>, <code>shadow</code> (asked and logged, shown only in Decisions), <code>suggest</code> (shown with a question mark) or <code>act</code>.</li>
+<li>For a model: set <code>"provider": "typesafe"</code> and give Marley the key, in <code>MARLEY_SYSTEM_ONE_KEY</code> or through Decisions' Set Key (the system keyring).</li>
+<li>Only projects under a folder in <code>projects</code> send anything; those in <code>metadata_only_projects</code> send facts and none of their text. Every value is masked with the secret rules first.</li>
+<li><code>marley: system one check</code> asks one question about the last command of the terminal you used last, to see a request and an answer.</li>
+</ol>
+</article>
+
+<article id="decisions">
+<h3>Decisions <span class="ticket">#565</span></h3>
+<p class="what"><strong>What it is.</strong> A tab listing the day's System One calls: when, which use, which project, the provider, the reading, the time taken and the cost.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Run <code>marley: open decisions</code>.</li>
+<li>Click a row to see the state exactly as it was sent and the answer as it came.</li>
+<li>The header shows the day's spend against the budget (<code>daily_budget_cents</code>, 50 by default), where the key comes from, and Run Check, Set Key and Forget Key.</li>
+</ol>
+</article>
+
+<article id="stop-kind">
+<h3>What a stopped agent needs <span class="ticket">#566</span></h3>
+<p class="what"><strong>What it is.</strong> An idle Claude Code's row says why it stopped: <code>done · checked</code> (done, and a command ran after the last edit), <code>done · claimed</code>, <code>asks you</code>, <code>blocked</code>, <code>still going</code> or <code>interrupted</code>.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Set <code>uses.stop_kind</code> (Stop Kind on the Marley page).</li>
+<li>Read the idle row. When your prompt had several parts, a last line names one the agent's message leaves out: <code>not covered: "Add a license."</code></li>
+<li>Your next prompt clears it.</li>
+</ol>
+<p class="note">Local rules settle an interrupt, an unanswered permission, or a last sentence that asks you something, with no request.</p>
+</article>
+
+<article id="stall-kind">
+<h3>A stuck agent <span class="ticket">#569</span></h3>
+<p class="what"><strong>What it is.</strong> A working Claude Code's row gets a warning mark when it may be stuck: <code>looping?</code> (the same tool line three times in a row) or <code>stalled?</code> (quiet with no busy tool).</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Set <code>uses.stall_kind</code> (Stall Kind). The loop rule is local; quiet checks come after <code>stall_check_after_seconds</code> (60) and at two, four and eight times it.</li>
+<li>Point at the mark to see why. In <code>act</code> mode a stuck agent in a terminal you are not looking at also posts one notification.</li>
+</ol>
+<p class="note">Marley never stops or types into an agent on a flag.</p>
+</article>
+
+<article id="find-tools">
+<h3>Find by words, for agents <span class="ticket">#567</span></h3>
+<p class="what"><strong>What it is.</strong> Two agent tools, <code>browser_find</code> and <code>terminal_find</code>, that answer "the sign in button" or "where the server refused the connection" with an element ref or a line, instead of the agent reading everything.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Set <code>uses.browser_find</code> and <code>uses.terminal_find</code>. The tools are listed only while their use is on.</li>
+<li>In a running Claude Code, reconnect Marley's server with <code>/mcp</code> so it lists them.</li>
+<li>The query's own words answer first, locally; the model ranks what they leave open.</li>
+</ol>
+</article>
+
+<article id="click-consequence">
+<h3>Consequential clicks wait for you <span class="ticket">#571</span></h3>
+<p class="what"><strong>What it is.</strong> An agent's click in a Browser tab that would pay, delete, send in your name or change an account waits on a card for you to Allow or Refuse.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Set <code>uses.click_consequence</code>. By default only agents with no permission prompts of their own wait; <code>"browser_click_pause_agents": "all_agents"</code> makes every agent wait.</li>
+<li>A card under the toolbar reads, for example, "Claude Code wants to click button “Place order”, which pays, on shop.example", with Refuse and Allow; a toast points to it, and the Needs you section lists it.</li>
+<li>Allow clicks the same element on the same page; Refuse, or 25 seconds without an answer, tells the agent you did not allow it.</li>
+</ol>
+<p class="note">The card never takes the focus by itself; click it (or the toast's Show), then Enter allows and Escape refuses.</p>
+</article>
+
+<article id="inbox-risk">
+<h3>Risk and route in Needs you <span class="ticket">#568 · #570</span></h3>
+<p class="what"><strong>What it is.</strong> Each Needs you entry carries chips saying what the waiting action would do (<code>destroys</code>, <code>credentials</code>, <code>rewrites history</code>, <code>sends out</code>, <code>installs</code>, <code>outside project</code>), and a mark for who should answer it (<code>for you</code>, <code>for the manager</code>, <code>could proceed</code>, <code>unclear</code>). The riskiest come first.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Set <code>uses.inbox</code> (Inbox Risk) and <code>uses.question_route</code> (Question Route).</li>
+<li>Read the chips before answering; point at a mark to see whether a rule or the model set it.</li>
+</ol>
+<p class="note">Nothing here answers for you: Allow and Deny stay your clicks.</p>
+</article>
+
+<article id="running-error">
+<h3>A running command that printed an error <span class="ticket">#572</span></h3>
+<p class="what"><strong>What it is.</strong> A command that prints a failure and keeps running (a dev server whose build broke) marks its terminal's row with a red × and the line, and posts one notification; a second says when it recovered.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Set <code>uses.running_error</code> (Running Error).</li>
+<li>Start a dev server; when its output shows a compiler, test runner or runtime failure and it is still running five seconds later, the row and a notification say so.</li>
+<li>When it prints that it built or served again, the mark clears and a notification says it recovered.</li>
+</ol>
+</article>
+</section>
+
+<section id="reference">
+<h2>Reference</h2>
+<p class="area-intro">Every key, command, setting and path Marley adds, in one place.</p>
+
+<article id="keys-reference">
+<h3>Keys</h3>
+<p class="what"><strong>What it is.</strong> Marley's key bindings, and the Zed keys whose meaning Marley changes. Marley's load after Zed's defaults and before your own keymap, so yours win.</p>
+<table>
+<tr><th>Key</th><th>Where</th><th>What it does</th></tr>
+<tr><td><kbd>Ctrl+Shift+P</kbd></td><td>Anywhere</td><td>The command palette</td></tr>
+<tr><td><kbd>Ctrl+Alt+N</kbd></td><td>Anywhere</td><td>The New Agent picker</td></tr>
+<tr><td><kbd>Ctrl+Alt+;</kbd></td><td>Anywhere</td><td>Focus into the rail, and back out</td></tr>
+<tr><td><kbd>Ctrl+Alt+J</kbd></td><td>Anywhere</td><td>Open or close the rail</td></tr>
+<tr><td><kbd>Ctrl+?</kbd></td><td>Anywhere</td><td>Focus the Agent Panel</td></tr>
+<tr><td><kbd>Ctrl+`</kbd></td><td>Marley layout</td><td>Between the code and the project's terminals</td></tr>
+<tr><td><kbd>Ctrl+~</kbd></td><td>Marley layout</td><td>A new terminal in the main area</td></tr>
+<tr><td><kbd>Ctrl+Shift+T</kbd></td><td>After closing a working agent</td><td>Undo the close</td></tr>
+<tr><td><kbd>Ctrl+F</kbd>, <kbd>Ctrl+Tab</kbd></td><td>Rail</td><td>The filter; the switcher</td></tr>
+<tr><td><kbd>Ctrl+Up</kbd>, <kbd>Ctrl+Down</kbd></td><td>Terminal</td><td>Select the previous block; the next, or end the selection</td></tr>
+<tr><td><kbd>Up</kbd>, <kbd>Down</kbd>, <kbd>Escape</kbd></td><td>Selected block</td><td>Move the selection; end it</td></tr>
+<tr><td><kbd>Ctrl+Shift+I</kbd></td><td>Selected block</td><td>Reinput its command</td></tr>
+<tr><td><kbd>Ctrl+Shift+Enter</kbd></td><td>Selected block / prompt</td><td>Send the block to an agent / hand the typed line to an agent</td></tr>
+<tr><td><kbd>Ctrl+Shift+F</kbd></td><td>Selected block</td><td>Find within the block</td></tr>
+<tr><td><kbd>Alt+Shift+F</kbd></td><td>Terminal</td><td>Filter a block's output</td></tr>
+<tr><td><kbd>Ctrl+Shift+B</kbd></td><td>Terminal</td><td>Bookmark a block</td></tr>
+<tr><td><kbd>Alt+Up</kbd>, <kbd>Alt+Down</kbd></td><td>Terminal</td><td>The bookmark before or after the view</td></tr>
+<tr><td><kbd>→</kbd></td><td>Terminal prompt</td><td>Take the autosuggestion</td></tr>
+<tr><td><kbd>Ctrl+G</kbd></td><td>Terminal with an agent</td><td>Rich input</td></tr>
+<tr><td><kbd>Ctrl+I</kbd></td><td>Terminal an agent typed into</td><td>Take over; again, hand back</td></tr>
+<tr><td><kbd>Enter</kbd>, <kbd>Escape</kbd></td><td>An agent's waiting command</td><td>Run it; refuse it</td></tr>
+<tr><td><kbd>Ctrl+&gt;</kbd></td><td>Editor</td><td>Send the selection to a terminal agent</td></tr>
+<tr><td><kbd>Ctrl+Q</kbd></td><td>Terminal</td><td>Goes to the shell; quit with <code>zed: quit</code></td></tr>
+<tr><td><kbd>Ctrl+L</kbd>, <kbd>Ctrl+T</kbd></td><td>Browser tab</td><td>The address bar; a new tab</td></tr>
+<tr><td><kbd>Alt+Left</kbd>, <kbd>Alt+Right</kbd></td><td>Browser tab</td><td>Back, forward</td></tr>
+<tr><td><kbd>Ctrl+R</kbd>, <kbd>F5</kbd></td><td>Browser tab</td><td>Reload</td></tr>
+<tr><td><kbd>Ctrl+Shift+C</kbd></td><td>Browser tab</td><td>Pick mode</td></tr>
+<tr><td><kbd>Enter</kbd>, <kbd>Escape</kbd></td><td>Page dialog, paused click</td><td>OK or Allow; Cancel or Refuse</td></tr>
+</table>
+</article>
+
+<article id="commands-reference">
+<h3>Commands</h3>
+<p class="what"><strong>What it is.</strong> Every Marley command runs from the command palette; these have no key of their own.</p>
+<table>
+<tr><th>Command</th><th>What it does</th></tr>
+<tr><td><code>marley: open guide</code></td><td>This guide (also the <kbd>?</kbd> in the title bar)</td></tr>
+<tr><td><code>marley: use marley layout</code>, <code>marley: use zed layout</code></td><td>Switch the layout in every window</td></tr>
+<tr><td><code>marley: open settings</code></td><td>The Settings window on the Marley page</td></tr>
+<tr><td><code>marley: new agent</code></td><td>The New Agent picker</td></tr>
+<tr><td><code>marley: attach file</code>, <code>marley: toggle dictation</code></td><td>Attach files to the focused terminal; start or stop dictation</td></tr>
+<tr><td><code>marley: save as workflow</code></td><td>Save the selected or newest block as a task</td></tr>
+<tr><td><code>marley: send selection to agent</code></td><td>What <kbd>Ctrl+&gt;</kbd> does, in either layout</td></tr>
+<tr><td><code>marley: open remote terminal</code></td><td>A terminal on a saved SSH host, in tmux</td></tr>
+<tr><td><code>marley: open browser</code>, <code>marley: new browser tab</code></td><td>Show or open Browser tabs</td></tr>
+<tr><td><code>marley: pick element</code>, <code>marley: annotate</code>, <code>marley: record this</code></td><td>The Browser tab's tools</td></tr>
+<tr><td><code>marley: playwright scripts</code></td><td>The Browser tab's scripts tray</td></tr>
+<tr><td><code>marley: browser clients</code></td><td>Programs outside Marley allowed into its browser</td></tr>
+<tr><td><code>marley: clear project browser data</code></td><td>Sign the project out of every site</td></tr>
+<tr><td><code>marley: system one check</code>, <code>marley: open decisions</code></td><td>System One's check, and its log</td></tr>
+<tr><td><code>multi workspace: next project</code> / <code>previous project</code> / <code>next thread</code> / <code>previous thread</code></td><td>Walk the rail</td></tr>
+</table>
+</article>
+
+<article id="settings-reference">
+<h3>Settings</h3>
+<p class="what"><strong>What it is.</strong> Marley's keys in <code>~/.config/marley/settings.json</code>, under <code>"marley"</code>. The Marley page in the Settings window edits all of them.</p>
+<table>
+<tr><th>Key</th><th>Default</th><th>What it does</th></tr>
+<tr><td><code>layout</code></td><td><code>"marley"</code></td><td><code>"marley"</code> or <code>"zed"</code></td></tr>
+<tr><td><code>rail_order</code></td><td><code>"attention"</code></td><td>Sort the rail by attention, or <code>"window"</code> for the window's order</td></tr>
+<tr><td><code>english_hint</code></td><td><code>true</code></td><td>The hint that a typed line reads as a request for an agent</td></tr>
+<tr><td><code>redact_secrets_for_agents</code></td><td><code>true</code></td><td>Hide secrets in what the tools hand agents</td></tr>
+<tr><td><code>redaction_patterns</code></td><td><code>[]</code></td><td>Your own regular expressions to hide</td></tr>
+<tr><td><code>claude_code_permissions</code></td><td><code>"ask"</code></td><td><code>"bypass"</code> starts Claude Code without its prompts</td></tr>
+<tr><td><code>codex_permissions</code></td><td><code>"ask"</code></td><td><code>"full_access"</code> starts Codex without its sandbox and approvals</td></tr>
+<tr><td><code>agent_permissions_by_project</code></td><td><code>{}</code></td><td>The two above per folder</td></tr>
+<tr><td><code>claude_code_worktree_trust</code></td><td><code>"ask"</code></td><td><code>"follow_zed"</code> answers Claude Code's trust question in a new worktree when Zed trusts it</td></tr>
+<tr><td><code>agent_terminal_writes</code></td><td><code>"ask_first_write"</code></td><td>When an agent typing into a program asks you: first write, every write, or never</td></tr>
+<tr><td><code>agent_command_allowlist</code>, <code>agent_command_denylist</code></td><td>Warp's lists</td><td>Commands an agent's <code>terminal_run</code> runs at once, or always asks about</td></tr>
+<tr><td><code>agent_commands_outside_lists</code></td><td><code>"run"</code></td><td>What happens to other commands: <code>"run"</code> or <code>"ask"</code></td></tr>
+<tr><td><code>agent_commands_in_history</code></td><td><code>true</code></td><td>Whether agents' commands enter your shell history</td></tr>
+<tr><td><code>ask_before_ending_a_working_agent</code></td><td><code>true</code></td><td>Ask before a close ends a working agent</td></tr>
+<tr><td><code>undo_close_seconds</code></td><td><code>60</code></td><td>How long a closed working agent can be brought back</td></tr>
+<tr><td><code>no_update_after_minutes</code></td><td><code>30</code></td><td>When a silent working agent reads <code>no update in N m</code></td></tr>
+<tr><td><code>terminal_links</code></td><td><code>"local_in_browser_tab"</code></td><td>Where clicked URLs open: also <code>"all_in_browser_tab"</code> or <code>"system_browser"</code></td></tr>
+<tr><td><code>sticky_command_header</code></td><td><code>true</code></td><td>Pin a long block's command while scrolled into it</td></tr>
+<tr><td><code>long_command_seconds</code></td><td><code>30</code></td><td>When a finished command posts a notification (0 turns it off)</td></tr>
+<tr><td><code>browser_click_pause_agents</code></td><td><code>"agents_without_prompts"</code></td><td>Whose consequential clicks wait, or <code>"all_agents"</code></td></tr>
+<tr><td><code>stall_check_after_seconds</code></td><td><code>60</code></td><td>The first quiet check for a stuck agent</td></tr>
+<tr><td><code>push</code></td><td>none</td><td><code>{ "url", "topic", "token_file" }</code> of an ntfy server on this machine</td></tr>
+<tr><td><code>system_one</code></td><td>off</td><td><code>enabled</code>, <code>provider</code>, <code>projects</code>, <code>metadata_only_projects</code>, <code>daily_budget_cents</code>, <code>uses</code></td></tr>
+</table>
+<p class="note">Telemetry (<code>telemetry.metrics</code>, <code>telemetry.diagnostics</code>) defaults to off. Zed's own context server <code>marley</code> can be turned off with <code>"context_servers": { "marley": { "enabled": false } }</code>.</p>
+</article>
+
+<article id="env-reference">
+<h3>Environment variables and flags</h3>
+<table>
+<tr><th>Name</th><th>What it does</th></tr>
+<tr><td><code>--user-data-dir DIR</code></td><td>A separate Marley: config in <code>DIR/config</code>, data in <code>DIR</code></td></tr>
+<tr><td><code>MARLEY_CHROMIUM</code></td><td>The Chromium binary to run</td></tr>
+<tr><td><code>MARLEY_SYSTEM_ONE_KEY</code></td><td>System One's key; comes before the keyring</td></tr>
+<tr><td><code>MARLEY_MCP_ENDPOINT</code></td><td>The endpoint file the bridge reads</td></tr>
+<tr><td><code>MARLEY_CLAUDE</code></td><td>The <code>claude</code> Marley runs for its plugin</td></tr>
+<tr><td><code>CLAUDE_CONFIG_DIR</code></td><td>Where Marley looks for Claude Code's installed plugins</td></tr>
+<tr><td><code>ZED_LOG</code></td><td>The log filter, such as <code>marley_browser=debug</code></td></tr>
+<tr><td>In terminals: <code>MARLEY_TERMINAL_ID</code>, <code>MARLEY_PROJECT</code>, <code>MARLEY_SHELL_INTEGRATION</code>, <code>PORT</code>, <code>MARLEY_PORT_OFFSET</code></td><td>Set by Marley for the shell and programs in it</td></tr>
+</table>
+</article>
+
+<article id="data-reference">
+<h3>Where data lives</h3>
+<table>
+<tr><th>Path</th><th>What it holds</th></tr>
+<tr><td><code>~/.config/marley/settings.json</code>, <code>keymap.json</code></td><td>Your settings and keys</td></tr>
+<tr><td><code>~/.local/share/marley/db/</code></td><td>Workspaces, terminals, saved Browser tabs</td></tr>
+<tr><td><code>~/.local/share/marley/logs/Marley.log</code></td><td>The log</td></tr>
+<tr><td><code>~/.local/share/marley/logs/stderr.log</code></td><td>stderr of a Marley the menu started: the only record of a crash</td></tr>
+<tr><td><code>~/.local/share/marley/mcp-endpoint.json</code></td><td>The MCP server's address and token, while Marley runs</td></tr>
+<tr><td><code>~/.local/share/marley/claude-code/</code></td><td>The Claude Code plugin</td></tr>
+<tr><td><code>~/.local/share/marley/shell_integration/</code></td><td>The bash and zsh integration</td></tr>
+<tr><td><code>~/.local/share/marley/browser/projects/&lt;key&gt;/</code></td><td>A project's Chromium profile</td></tr>
+<tr><td><code>~/.local/share/marley/browser/recordings/</code></td><td>Saved recordings</td></tr>
+<tr><td><code>~/.local/share/marley/system_one/</code></td><td>System One's calls, one file a day</td></tr>
+<tr><td><code>~/.local/share/marley/guide/index.html</code></td><td>This guide</td></tr>
+</table>
+</article>
+
+<article id="troubleshooting">
+<h3>Troubleshooting</h3>
+<table>
+<tr><th>Problem</th><th>What to do</th></tr>
+<tr><td>Marley closed with no message</td><td>Read <code>~/.local/share/marley/logs/stderr.log</code>: on the dev channel a panic goes there only.</td></tr>
+<tr><td>Starting Marley does nothing</td><td>A Marley already runs and took the launch. If it hangs, find it with <code>pgrep -x marley</code>, kill it, start again.</td></tr>
+<tr><td>There is no rail</td><td>You may be in Zed's layout (<code>marley: use marley layout</code>), the rail may be closed (<kbd>Ctrl+Alt+J</kbd>), or AI may be off (<code>disable_ai</code>).</td></tr>
+<tr><td>A terminal shows no blocks</td><td><code>echo $MARLEY_SHELL_INTEGRATION</code> should print 1. Tasks, fish and a shell with its own arguments make no blocks.</td></tr>
+<tr><td>An agent shows as a plain terminal</td><td>Start it at the prompt, not from <code>.bashrc</code>. Only <code>claude</code>, <code>codex</code>, <code>gemini</code> and <code>opencode</code> are known.</td></tr>
+<tr><td>No notification from Claude Code</td><td>Check the plugin is connected (no chip in the bar), the session was reloaded, and you were not looking at that terminal.</td></tr>
+<tr><td>Claude Code sees no Marley tools</td><td>Marley must be running and the plugin installed; in a running session, <code>/mcp</code> reconnects.</td></tr>
+<tr><td>An agent reads <code>[redacted: …]</code></td><td>Turn off Redact Secrets for Agents on the Marley page while it needs the value.</td></tr>
+<tr><td>A stopped server comes back</td><td>A systemd service restarts it. Stop the service with <code>systemctl</code>.</td></tr>
+<tr><td>The Browser tab says "No Chromium found"</td><td>Install Chromium, or set <code>MARLEY_CHROMIUM</code>.</td></tr>
+<tr><td>"Chromium stopped as it started"</td><td><code>journalctl --user -u &lt;unit&gt;</code> says why; then <code>marley: open browser</code>.</td></tr>
+<tr><td>Is it Marley's bug or Zed's?</td><td>Try <code>marley: use zed layout</code>: a problem that stays there is Zed's.</td></tr>
+</table>
+</article>
+</section>
+</main>
+</div>
+<script>
+(function () {
+  var input = document.getElementById("filter");
+  var none = document.querySelector("nav .none");
+  var areas = document.querySelectorAll("nav > ol > li");
+  var items = Array.prototype.map.call(document.querySelectorAll("nav ol ol li"), function (li) {
+    var article = document.getElementById(li.querySelector("a").getAttribute("href").slice(1));
+    return { li: li, text: (article ? article.textContent : li.textContent).toLowerCase() };
+  });
+  input.addEventListener("input", function () {
+    var words = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+    var shown = 0;
+    items.forEach(function (item) {
+      var match = words.every(function (word) { return item.text.indexOf(word) !== -1; });
+      item.li.classList.toggle("hidden", !match);
+      if (match) { shown += 1; }
+    });
+    Array.prototype.forEach.call(areas, function (area) {
+      area.classList.toggle("hidden", !area.querySelector("ol li:not(.hidden)"));
+    });
+    none.style.display = shown ? "none" : "block";
+  });
+})();
+</script>
+</body>
+</html>

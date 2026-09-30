@@ -1,7 +1,7 @@
 ---
 pipeline_id: a54e966d-6914-4f80-a550-d7579200a9a3
 ticket: docs/planning/tickets/open/TICKET-599-marley-guide-page.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "The Marley guide as a page, opened from a ? in the title bar"
 type: feature
 slice: workbench shell (help); a title_bar touchpoint
