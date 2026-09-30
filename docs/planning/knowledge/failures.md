@@ -2977,3 +2977,12 @@ entry and pushing the new one at the end, which moved `lab` below `vps-2`; and `
 chained the unreachable hosts' ids after the answered ones, so `vps-2`, which the store named and
 the collector could not reach, was a group twice (`hosts.png`). Fixed before the commit: the join
 replaces the host in place, and `host_groups` adds each id once.
+
+## F-claude-611-an-unreachable-stores-header-showed-its-outer-error-001
+*severity: low · found in: pipeline 611's Test phase (run 1) · class: an error chain's outermost message where its cause was wanted*
+
+A store that could not be reached put the first line of its whole error chain on its header:
+"error sending request for url (…)", which the panel's width cut before the cause
+(`unreachable.png`). Fixed before the commit: the header shows the error's root cause
+("Connection refused (os error 111)"), the reason has a tooltip, and the whole chain is logged
+once when the store becomes unreachable.

@@ -1469,7 +1469,34 @@ on this machine.
   store's agents on it read `offline`.
 - A destination that starts with `-` is refused, and nothing runs.
 
-Real stores over MCP or HTTP come next (#611).
+### Real stores (#611)
+
+A workflow store that answers Marley's contract (`docs/marley/fleet-contract.md`) is a provider
+beside or instead of the pseudo one:
+
+```jsonc
+"marley": {
+  "fleet": {
+    "providers": [
+      { "kind": "mcp", "name": "brain", "command": "rustal-brain", "args": ["mcp"] },
+      { "kind": "mcp", "name": "brain over HTTP", "url": "http://127.0.0.1:3000/mcp", "bearer_env": "BRAIN_TOKEN" },
+      { "kind": "http", "name": "ci", "url": "https://ci.example.com", "bearer_env": "CI_TOKEN" }
+    ]
+  }
+}
+```
+
+`bearer_env` names an environment variable that holds the token; Marley sends it as a bearer
+and never writes it to a log. Each store's header says how it stands:
+
+- `ready`: it answered;
+- `connecting`: its first answer has not come;
+- `unreachable`: it failed, with the cause (point at it for the whole message); Marley tries
+  again after 1, 2, 4, 8, 16, then every 30 seconds, and its agents read `offline`;
+- `stale`: no answer for three polls; its last list stays;
+- `incompatible`: it speaks another version of the contract, named.
+
+One store's trouble leaves the others as they are.
 
 ## Key bindings
 

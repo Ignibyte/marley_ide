@@ -69,7 +69,11 @@ no work records.
 | What changed | `work_changes` (`{ "after": … }`) | `GET /marley/v1/changes?after=…` | [Changes](#changes) |
 
 Over MCP, each tool answers in `structuredContent` with the object as its value (the text
-content may carry the same JSON). Over HTTP, each answers `200` with the object as the body.
+content may carry the same JSON). Since #611 Marley reads a store named in its settings'
+`marley.fleet.providers`: `{ "kind": "mcp", "command": …, "args": […] }`, `{ "kind": "mcp",
+"url": … }` or `{ "kind": "http", "url": … }`, each with an optional `name` and `bearer_env`.
+It uses `work_changes` when the handshake's capabilities name `changes`, and does not call
+`work_run` yet: the detail's run is what the panel and the Agent tab draw. Over HTTP, each answers `200` with the object as the body.
 Auth is the provider's own: an MCP server's configured bearer, or an HTTP `Authorization`
 header from Marley's settings. Marley reads only, in `v1`; actions come in a later version
 (see [Later](#later)).

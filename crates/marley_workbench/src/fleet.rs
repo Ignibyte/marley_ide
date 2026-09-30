@@ -37,6 +37,7 @@ use workspace::{MultiWorkspace, Workspace};
 
 use crate::agent_tab::{self, AgentView};
 use crate::fleet_hosts::{self, Collected};
+use crate::fleet_providers::{self, Remote};
 use crate::{MarleySettings, ToggleFleet};
 
 /// The panel's place among the right dock's panels; no other panel takes it.
@@ -60,6 +61,8 @@ pub struct Fleet {
     pub(crate) samples: HashMap<HostKey, VecDeque<Sample>>,
     /// What the listed hosts' collector last found.
     collected: Vec<Collected>,
+    /// The `mcp` and `http` providers, and where Marley stands with each (#611).
+    remotes: Vec<Remote>,
     /// The pseudo provider, once a reading has started it.
     pseudo: Option<Pseudo>,
     /// Whether the reads run.
@@ -107,7 +110,7 @@ pub(crate) struct Source {
     /// The provider's name, for its header.
     pub(crate) name: String,
     /// What its handshake offers, which decides the snapshot's sections.
-    capabilities: Vec<String>,
+    pub(crate) capabilities: Vec<String>,
     /// Its agents, in its order.
     pub(crate) agents: Vec<AgentSummary>,
     /// The full detail of its agents a panel has selected.
@@ -118,14 +121,31 @@ pub(crate) struct Source {
     pub(crate) stale_after_s: Option<u64>,
     /// When it was read, which the stale rule measures from.
     pub(crate) read_ms: u64,
-    /// Why it could not be read, when it could not.
-    failure: Option<String>,
+    /// How it stands: ready, or why its agents may be missing or old.
+    pub(crate) state: SourceState,
     /// Listed hosts of its agents that did not answer the collector (#610).
     pub(crate) unreachable: Vec<Unreachable>,
     /// The process each of its agents runs as, by agent id, where a host's collector found it.
     pub(crate) processes: Vec<(String, AgentProcess)>,
     /// Whether it is the Hosts source: every listed host a group, every agent a process.
     pub(crate) hosts_only: bool,
+}
+
+/// How a source stands, for its header (#611).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum SourceState {
+    /// It answered its last poll.
+    Ready,
+    /// It could not be read, and why (the pseudo provider's fixtures).
+    Failed(String),
+    /// Its handshake has not answered yet.
+    Connecting,
+    /// It failed, and why; it is tried again later.
+    Unreachable(String),
+    /// It has not answered for three polls; what it last said is kept.
+    Stale,
+    /// It speaks this contract, not `marley.work/v1`.
+    Incompatible(String),
 }
 
 /// A listed host that did not answer, or that Marley refused to run anything for.
@@ -137,8 +157,8 @@ pub(crate) struct Unreachable {
 }
 
 impl Source {
-    /// A provider that could not be read, and why.
-    fn failed(name: &str, failure: String, read_ms: u64) -> Self {
+    /// An empty source read at `now`, in `state`.
+    pub(crate) fn for_state(name: &str, now: u64, state: SourceState) -> Self {
         Self {
             name: name.to_string(),
             capabilities: Vec::new(),
@@ -147,30 +167,25 @@ impl Source {
             hosts: Vec::new(),
             poll_s: None,
             stale_after_s: None,
-            read_ms,
-            failure: Some(failure),
+            read_ms: now,
+            state,
             unreachable: Vec::new(),
             processes: Vec::new(),
             hosts_only: false,
         }
     }
 
+    /// A provider that could not be read, and why.
+    fn failed(name: &str, failure: String, read_ms: u64) -> Self {
+        Self::for_state(name, read_ms, SourceState::Failed(failure))
+    }
+
     /// The Hosts source, empty, read at `now`.
     pub(crate) fn for_hosts(name: &str, now: u64) -> Self {
-        Self {
-            name: name.to_string(),
-            capabilities: vec!["hosts".to_string()],
-            agents: Vec::new(),
-            details: Vec::new(),
-            hosts: Vec::new(),
-            poll_s: None,
-            stale_after_s: None,
-            read_ms: now,
-            failure: None,
-            unreachable: Vec::new(),
-            processes: Vec::new(),
-            hosts_only: true,
-        }
+        let mut hosts = Self::for_state(name, now, SourceState::Ready);
+        hosts.capabilities = vec!["hosts".to_string()];
+        hosts.hosts_only = true;
+        hosts
     }
 
     /// The process a host's collector found for `agent`.
@@ -361,12 +376,42 @@ fn poll_while_shown(cx: &App) -> Task<()> {
                     collected_at = Some(Instant::now());
                 }
             }
+            // The stores' calls, too, run between reads, together, each bounded (#611).
+            let remotes = cx.update(|cx| {
+                fleet_shows(cx).then(|| {
+                    let entries = MarleySettings::get_global(cx).fleet_providers.clone();
+                    let known = cx
+                        .try_global::<Fleet>()
+                        .map(|fleet| fleet.remotes.clone())
+                        .unwrap_or_default();
+                    (fleet_providers::sync(known, &entries), wanted(cx))
+                })
+            });
+            if let Some((remotes, wanted)) = remotes
+                && !remotes.is_empty()
+            {
+                let polled = fleet_providers::poll_all(remotes, &wanted, now_ms(), cx).await;
+                cx.update(|cx| keep_remotes(polled, cx));
+            }
             let Some(wait) = cx.update(read_providers) else {
                 break;
             };
             cx.background_executor().timer(wait).await;
         }
     })
+}
+
+/// Keeps the polled stores for the next reads, as the settings name them now.
+fn keep_remotes(polled: Vec<Remote>, cx: &mut App) {
+    let entries = MarleySettings::get_global(cx).fleet_providers.clone();
+    cx.default_global::<Fleet>().remotes = fleet_providers::sync(polled, &entries);
+}
+
+/// The agents some panel or tab wants the detail of.
+fn wanted(cx: &App) -> Vec<Selected> {
+    cx.try_global::<Wanted>()
+        .map(|wanted| wanted.0.values().cloned().collect())
+        .unwrap_or_default()
 }
 
 /// Keeps what the collector found for the next reads, and logs a host refused for the first time.
@@ -415,10 +460,26 @@ fn read_providers(cx: &mut App) -> Option<Duration> {
     let now = now_ms();
     let providers = MarleySettings::get_global(cx).fleet_providers.clone();
     let mut pseudo = known.and_then(|fleet| fleet.pseudo.clone());
+    let remotes = known
+        .map(|fleet| fleet.remotes.as_slice())
+        .unwrap_or_default();
     let mut sources: Vec<Source> = providers
         .iter()
         .map(|provider| match provider {
             FleetProviderContent::Pseudo => read_pseudo(&mut pseudo, now, &wanted),
+            entry => remotes
+                .iter()
+                .find(|remote| &remote.entry == entry)
+                .map_or_else(
+                    || {
+                        Source::for_state(
+                            &fleet_providers::name_of(entry),
+                            now,
+                            SourceState::Connecting,
+                        )
+                    },
+                    |remote| fleet_providers::source(remote, now),
+                ),
         })
         .collect();
     let collected = known
@@ -526,7 +587,7 @@ fn read_pseudo(pseudo: &mut Option<Pseudo>, now: u64, wanted: &[Selected]) -> So
             poll_s: started.handshake().poll_s,
             stale_after_s: started.handshake().stale_after_s,
             read_ms: now,
-            failure: None,
+            state: SourceState::Ready,
             unreachable: Vec::new(),
             processes: Vec::new(),
             hosts_only: false,
@@ -651,10 +712,26 @@ impl FleetPanel {
                     .size(LabelSize::Small)
                     .color(Color::Muted),
             )
-            .children(source.failure.as_ref().map(|failure| {
-                Label::new(format!("could not be read: {failure}"))
-                    .size(LabelSize::Small)
-                    .color(Color::Error)
+            .children((!source.hosts_only).then(|| {
+                let (word, color) = source_chip(&source.state);
+                Chip::new(word)
+                    .label_color(color)
+                    .label_size(LabelSize::XSmall)
+            }))
+            .children(source_reason(&source.state).map(|reason| {
+                div()
+                    .id(SharedString::from(format!(
+                        "marley-fleet-source-reason-{}",
+                        source.name
+                    )))
+                    .min_w_0()
+                    .child(
+                        Label::new(reason.clone())
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted)
+                            .truncate(),
+                    )
+                    .tooltip(Tooltip::text(reason))
             }));
         let mut groups = Vec::new();
         for (host_id, agents) in source.host_groups() {
@@ -1154,6 +1231,28 @@ pub(crate) fn gigabytes(bytes: u64) -> String {
     format!("{}.{}", tenths / 10, tenths % 10)
 }
 
+/// The chip of a source's header.
+const fn source_chip(state: &SourceState) -> (&'static str, Color) {
+    match state {
+        SourceState::Ready => ("ready", Color::Success),
+        SourceState::Failed(_) => ("failed", Color::Error),
+        SourceState::Connecting => ("connecting", Color::Muted),
+        SourceState::Unreachable(_) => ("unreachable", Color::Error),
+        SourceState::Stale => ("stale", Color::Warning),
+        SourceState::Incompatible(_) => ("incompatible", Color::Error),
+    }
+}
+
+/// What a source's header says beside its chip, when there is more to say.
+fn source_reason(state: &SourceState) -> Option<String> {
+    match state {
+        SourceState::Ready | SourceState::Connecting => None,
+        SourceState::Failed(reason) | SourceState::Unreachable(reason) => Some(reason.clone()),
+        SourceState::Stale => Some("no answer for three polls".to_string()),
+        SourceState::Incompatible(contract) => Some(format!("speaks {contract}")),
+    }
+}
+
 /// The chip of an agent in `source`: `running` for a process the collector found, `offline` on a
 /// listed host that did not answer, else its state, or `stale`.
 pub(crate) fn agent_chip(
@@ -1164,6 +1263,9 @@ pub(crate) fn agent_chip(
 ) -> (&'static str, Color) {
     if source.hosts_only {
         return ("running", Color::Success);
+    }
+    if matches!(source.state, SourceState::Unreachable(_)) {
+        return ("offline", Color::Muted);
     }
     if host_id.is_some_and(|id| source.unreachable(id).is_some()) {
         return ("offline", Color::Muted);

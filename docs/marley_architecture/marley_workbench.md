@@ -2242,6 +2242,12 @@ drawn from `marley_sdk`'s types.
   disk, network) and an `unreachable` or `refused` chip whose tooltip is the reason;
   `agent_chip` gives `running` to a process row and `offline` to a store agent on an unreachable
   host; a joined agent's snapshot adds its process line. `rate` lives here now.
+- **Stores and their states (#611).** `Source.state` (`SourceState`: `Ready`, `Failed`,
+  `Connecting`, `Unreachable`, `Stale`, `Incompatible`) is drawn on each store's header as a chip
+  (`source_chip`) with its reason (`source_reason`) and the reason's tooltip; an unreachable
+  store's agents read `offline`. `Fleet.remotes` holds the `mcp` and `http` providers; the loop
+  syncs them with the settings and polls them after the hosts (`keep_remotes`), and
+  `read_providers` gives each entry its remote's source, or `Connecting` before its first poll.
 - **Not set up.** With no provider, the panel says "The fleet is not set up." and names
   `marley.fleet.providers` and `{ "kind": "pseudo" }`.
 - **Settings.** `settings_content::MarleyFleetSettingsContent { providers }` with
@@ -2274,6 +2280,30 @@ Marley reads each host the settings list with its own script.
   rest become the Hosts source's agents (`process_agent`: `"<host id>:<pid>"`, named for their
   folder, with a detail carrying the snapshot). A host that did not answer is an `Unreachable`
   of the Hosts source and of each store source with agents on it.
+
+## The stores over MCP and HTTP (`src/fleet_providers.rs`, #611)
+
+A `Remote` per `mcp` or `http` provider, found again by its settings entry.
+- **Clients.** `connect` starts `ContextServer::stdio` (a `ContextServerCommand` of the entry's
+  `command` and `args`) or `ContextServer::http` (the bearer as an `Authorization` header), or
+  keeps Zed's HTTP client and the base URL for plain HTTP. `web_url` allows `http` and `https`
+  only. `bearer` reads the variable `bearer_env` names and logs only the variable's name.
+- **A poll** (`poll_once`): the handshake when there is none (a `contract` other than
+  `WORK_CONTRACT` is incompatible); `work_changes` from the cursor when the handshake offers
+  `changes`, and the list only on a reset or a changed agent, else `work_agents` every time;
+  `work_agent` for each wanted agent the list holds. `call` asks over MCP (`CallTool`, then
+  `structured_content`, else the JSON of the text, `is_error` an error) or with `GET
+  <base>/marley/v1/…` (`get`, a non-2xx an error), and gives up after `CALL_TIMEOUT` (5 s).
+- **States** (`poll`): an answer is `Ready`; a timeout changes nothing, so the source reads
+  stale after three polls without an answer (`is_stale` on the last answer); an error is
+  `Unreachable` with its root cause, logged whole once, the MCP server stopped so the retry
+  starts it again; an incompatible handshake keeps no agents. Both wait before the next try:
+  `back_off` gives 1, 2, 4, 8, 16, then 30 seconds. `poll_all` polls every due remote together.
+- **`sync`** keeps the remotes whose entries are still set, in the settings' order, and stops
+  the MCP servers of the ones that went. `Remote`'s `Debug` leaves its client, and so its
+  bearer, out. `source` turns a remote into the panel's `Source`, its hosts from its details.
+- **The stub**, `script/e2e/fleet-stub-provider.py`, serves the fixtures as a store over HTTP
+  or MCP on stdio, for scenarios.
 
 ## The Agent tab (`src/agent_tab.rs`, #609)
 

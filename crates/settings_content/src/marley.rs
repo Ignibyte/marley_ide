@@ -172,6 +172,29 @@ pub struct FleetHostContent {
 pub enum FleetProviderContent {
     /// Marley's own pseudo provider: the contract's examples, moving, for trying the fleet out.
     Pseudo,
+    /// A store that answers `marley.work/v1` as MCP tools (#611), started as a program (`command`
+    /// and `args`) or reached at `url`.
+    Mcp {
+        /// The name the panel shows. Default: the command or the URL.
+        name: Option<String>,
+        /// The program to start, which speaks MCP on its stdin and stdout.
+        command: Option<String>,
+        /// Its arguments.
+        args: Option<Vec<String>>,
+        /// An MCP server over HTTP, instead of a program.
+        url: Option<String>,
+        /// The environment variable that holds the bearer token for `url`.
+        bearer_env: Option<String>,
+    },
+    /// A store that answers `marley.work/v1` at `url` as plain HTTP (`GET /marley/v1/…`, #611).
+    Http {
+        /// The name the panel shows. Default: the URL.
+        name: Option<String>,
+        /// The store's base URL.
+        url: String,
+        /// The environment variable that holds the bearer token.
+        bearer_env: Option<String>,
+    },
 }
 
 /// The ntfy server and topic agent events are pushed to.

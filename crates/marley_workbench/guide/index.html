@@ -253,6 +253,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#fleet-snapshot">An agent&#x27;s snapshot</a></li>
 <li><a href="#fleet-agent-tab">The Agent tab</a></li>
 <li><a href="#fleet-hosts">Hosts over SSH</a></li>
+<li><a href="#fleet-stores">Real workflow stores</a></li>
 </ol></li>
 <li><a href="#reference">Reference</a><ol>
 <li><a href="#keys-reference">Keys</a></li>
@@ -1575,7 +1576,18 @@ th { background: var(--panel); font-weight: 650; }
 <li>A process whose <code>MARLEY_FLEET_SESSION</code> is a store's agent id joins that agent, whose snapshot then shows the host's numbers and the process. The others are listed under Hosts as <code>running</code>.</li>
 <li>A host that does not answer reads <code>unreachable</code>: point at the chip for SSH's error. Its store agents read <code>offline</code>.</li>
 </ol>
-<p class="note">SSH runs with <code>BatchMode</code>: a host needs a key or an agent. A destination starting with <code>-</code> is refused. Real stores over MCP or HTTP come next (#611).</p>
+<p class="note">SSH runs with <code>BatchMode</code>: a host needs a key or an agent. A destination starting with <code>-</code> is refused.</p>
+</article>
+
+<article id="fleet-stores">
+<h3>Real workflow stores <span class="ticket">#611</span></h3>
+<p class="what"><strong>What it is.</strong> A store that answers Marley's fleet contract, over MCP or plain HTTP, listed in the Fleet panel beside or instead of the pseudo one.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Add it under <code>marley.fleet.providers</code>: <code>{ "kind": "mcp", "command": "…", "args": ["…"] }</code>, <code>{ "kind": "mcp", "url": "…" }</code> or <code>{ "kind": "http", "url": "…" }</code>, with an optional <code>name</code>, and <code>bearer_env</code> naming the environment variable that holds its token.</li>
+<li>Read its header: <code>ready</code>, <code>connecting</code>, <code>unreachable</code> with the cause (point at it for the whole message; its agents read <code>offline</code>), <code>stale</code> after three polls with no answer, or <code>incompatible</code> with the contract it speaks.</li>
+</ol>
+<p class="note">Marley retries an unreachable store after 1, 2, 4, 8, 16, then every 30 seconds. The token is sent as a bearer and never logged. One store's trouble leaves the others as they are.</p>
 </article>
 </section>
 

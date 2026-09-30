@@ -3488,3 +3488,16 @@ chose a script over an installed binary on 2026-09-30. Rejected: `ssh host sh -s
 (`process::output` has no stdin, and a second spawn site would break gate:22), hosts found from
 Zed's `ssh_connections` (Marley would log in where it was not told to), and parallel collection
 for now (one slow host holds the loop for at most its connect timeout).
+
+## AD-claude-611-workflow-stores-are-polled-together-each-call-bounded-001
+*decided at: 2026-09-30 · status: shipped*
+
+Marley reads a `marley.work/v1` store over MCP through Zed's `context_server` (stdio or HTTP) or
+over plain HTTP through Zed's `http_client`, one `Remote` per settings entry. The stores are
+polled together between the fleet's reads, each call bounded by 5 s: an answer is ready, a
+timeout changes nothing (so three silent polls read stale and the last list stays), an error is
+unreachable with its root cause and a backoff of 1 to 30 s, and another contract is
+incompatible, retried the same way. A token comes from the environment variable a provider names
+and is never logged, shown or put in an error. `work_changes` is used when the handshake offers
+`changes`; `work_run` waits for a tab that needs more than the detail's run. Rejected: one store
+after another (a silent one would hold the rest), and tokens in the settings file.

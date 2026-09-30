@@ -1,7 +1,7 @@
 ---
 pipeline_id: afded6ec-c204-4e90-a32a-9c91d1f71ee5
 ticket: docs/planning/tickets/open/TICKET-611-work-provider-clients.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "The marley.work/v1 clients over MCP and HTTP"
 type: feature
 slice: prong 2, D20, wave 1; after #607
@@ -22,24 +22,32 @@ HTTP) or plain HTTP, with each source's state shown honestly.
   - `{ "kind": "http", "url": "http://..." }`: the contract's plain HTTP endpoints.
 
   Each takes an optional `bearer_env`, the name of an environment variable holding its token;
-  the token is sent as `Authorization: Bearer` and never logged or shown.
+  the token is sent as `Authorization: Bearer` and never logged or shown. Each takes an optional
+  `name`, the header the panel shows and the key its agents are known by.
 - **The calls:**
   - `work_handshake` first. `work_agents` then runs every `poll_s`, or `work_changes` from the
     cursor when the capabilities offer it, with `reset: true` rereading the list.
-  - `work_agent` and `work_run` are called for what the Fleet panel and the Agent tab show.
+  - `work_agent` is called for what the Fleet panel and the Agent tab show. `work_run` is not
+    called in this ticket: the detail carries the run the snapshot and the tab draw.
+  - `work_changes` is used when the handshake's capabilities name `changes`; the contract's
+    table names the tool, and a provider without a change feed simply leaves the capability out.
   - Over MCP a call reads `structuredContent`, else the JSON in the first text content.
 - **Source states**, each shown in the Fleet panel's header for its provider:
   - *not set up*: no provider;
   - *connecting*: the handshake is pending;
   - *ready*;
-  - *unreachable*: the error's short line, then a retry with backoff;
-  - *stale*: no answer for three polls;
-  - *incompatible*: a `contract` other than `marley.work/v1`, named in the message.
+  - *unreachable*: the error's short line, then a retry with backoff (1, 2, 4, 8, 16, then 30
+    seconds), its agents `offline`;
+  - *stale*: no answer for three polls (a call gives up after 5 seconds; the last answer is
+    kept and shown);
+  - *incompatible*: a `contract` other than `marley.work/v1`, named in the message; the handshake
+    is retried with the same backoff, in case the store is upgraded.
 - **Several providers:** their agents are listed together, each keyed by provider and id, and a
   provider's failure affects only its own agents.
 - **The stub provider** for the scenario, `script/e2e/fleet-stub-provider.py`. It serves the
-  contract's fixtures over HTTP and over MCP on stdio, and can be told to answer another contract
-  or to stop answering.
+  contract's fixtures (`crates/marley_sdk/fixtures/`, their times moved to now) over HTTP and over
+  MCP on stdio, and reads a control file at each request: `ok`, `v9` (another contract) or
+  `silent` (no answer). Over MCP it offers `changes`.
 
 ### Out (explicitly deferred)
 - Write calls (actions) and the write grant.
@@ -61,7 +69,10 @@ The MCP specification (2025-06-18) defines `tools/call` and structured content.
 - **Code we already ship:**
   - `context_server` as above.
   - Zed's `http_client` as `system_one.rs` uses it: request builder, bearer header, timeout,
-    backstop timer (`crates/marley_workbench/src/system_one.rs:858-945`).
+    backstop timer (`crates/marley_workbench/src/system_one.rs:890-945`).
+  - `ContextServer::stdio(id, ContextServerCommand { path, args, env, timeout }, dir)` and
+    `ContextServer::http(id, url, headers, http_client, executor, timeout)`, `start(&AsyncApp)`,
+    `client()` and `request::<CallTool>` (`context_server.rs:47-125`, `protocol.rs:107`).
   - `push.rs`'s URL checks (`crates/marley_workbench/src/push.rs:106-118`).
   - `marley_mcp`'s never-logged-bearer rule.
   - The three failure modes the plan asks to render honestly (`three-prong-plan.md`,

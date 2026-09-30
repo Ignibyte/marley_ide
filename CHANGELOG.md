@@ -13,6 +13,18 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Real workflow stores in the Fleet panel, over MCP or HTTP** (#611, 2026-09-30).
+  `marley.fleet.providers` takes `{ "kind": "mcp", "command": …, "args": […] }` (an MCP server
+  Marley starts, through Zed's `context_server`), `{ "kind": "mcp", "url": … }` (an MCP server
+  over HTTP) and `{ "kind": "http", "url": … }` (the contract's plain `GET /marley/v1/…`), each
+  with an optional `name` and `bearer_env`, the environment variable that holds its token. Marley
+  asks each for its handshake, then its agents every `poll_s` (or what changed, when it offers
+  `changes`), and the detail of the agents a panel or tab shows. Each store's header says how it
+  stands: `ready`, `connecting`, `unreachable` with the cause (tried again after 1, 2, 4, 8, 16,
+  then 30 seconds, its agents `offline`), `stale` after three polls with no answer (its last list
+  kept), or `incompatible` with the contract it speaks. Stores are polled together and one's
+  trouble leaves the others as they are. The token is sent as a bearer and never logged or shown.
+
 - **Hosts read over SSH, and their agents** (#610, 2026-09-30). The settings can list hosts under
   `"marley": { "fleet": { "hosts": [...] } }`: `{ "ssh": "user@host" }` or `{ "local": true }`,
   each with an optional `name` and `id`. Every 5 seconds while a Fleet surface shows, Marley runs

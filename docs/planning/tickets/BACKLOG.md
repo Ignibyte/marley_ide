@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-611](open/TICKET-611-work-provider-clients.md) | feature | fleet (D20) · the marley.work/v1 clients over MCP and HTTP |
 | [TICKET-612](open/TICKET-612-settings-edit-after-marley-writes.md) | bug | workbench · a hand edit to settings.json after Marley writes the file does not reload |
 
 ## Deliberate (picked explicitly, never auto-next)

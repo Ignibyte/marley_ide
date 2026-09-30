@@ -224,7 +224,10 @@ schemas, a conformance kit) follows the contract. Wave 1 (#607 to #611) builds i
 - #608 (shipped): the selected agent's snapshot under the list;
 - #609 (shipped): the Agent tab in the center;
 - #610 (shipped): the host collector over SSH;
-- #611: the `marley.work/v1` clients over MCP and HTTP.
+- #611 (shipped): the `marley.work/v1` clients over MCP and HTTP.
+
+Wave 1 shipped on 2026-09-30. What Marley reads now waits on a store that serves the contract:
+rustal-brain's own implementation is a brain ticket, when the brain resumes.
 
 The harness's requests to Marley (`docs/planning/MARLEY_REQUESTS.md` in rustal-harness) and
 their answers. The contract's home is the fork's `crates/marley_fleet` and `crates/marley_mcp`;
