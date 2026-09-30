@@ -7,6 +7,7 @@
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
+use std::hash::{Hash as _, Hasher as _};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -63,8 +64,8 @@ use util::ResultExt as _;
 use util::path_list::PathList;
 use uuid::Uuid;
 use workspace::{
-    MultiWorkspace, MultiWorkspaceEvent, ProjectGroup, RemovalIntent, SaveIntent, Sidebar,
-    SidebarEvent, SidebarSide, Toast, Workspace, WorkspaceId,
+    MultiWorkspace, MultiWorkspaceEvent, OpenMode, ProjectGroup, RemovalIntent, SaveIntent,
+    Sidebar, SidebarEvent, SidebarSide, Toast, Workspace, WorkspaceId,
     item::{Item as _, ItemEvent},
     notifications::{DetachAndPromptErr as _, NotificationId},
 };
@@ -250,6 +251,9 @@ struct GroupEntry {
     group: Option<Uuid>,
     /// That group's workspace id, which the window's saved state keeps (#601).
     database_id: Option<WorkspaceId>,
+    /// Whether the window holds no workspace of the group (#606); `workspace` is then an invalid
+    /// handle, and a click on the header opens the project.
+    closed: bool,
 }
 
 /// What a header's right-click menu acts on: a project's, or a projectless group's (#600).
@@ -261,6 +265,8 @@ struct HeaderMenu {
     group: Option<(Uuid, String)>,
     /// Whether the project is the first and the last, for Move Project Up and Down.
     at: (bool, bool),
+    /// Whether the project is closed (#606), which has no browser to clear.
+    closed: bool,
 }
 
 impl HeaderMenu {
@@ -279,12 +285,23 @@ impl HeaderMenu {
                 self.key.clone(),
                 self.workspace.clone(),
                 self.at,
+                self.closed,
                 window,
                 cx,
             ),
         }
     }
 }
+
+/// An element id for a closed group's header (#606), which has no workspace to take one from.
+fn closed_id(key: &ProjectGroupKey) -> EntityId {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    key.hash(&mut hasher);
+    EntityId::from(hasher.finish())
+}
+
+/// The toasts of a closed project that did not open (#606).
+struct ClosedProject;
 
 /// A header's icon: a projectless group's (#600), or the project's own (#564).
 fn header_icon(
@@ -856,18 +873,19 @@ impl Rail {
     /// Searches each local project's folder for its icon the first time its group shows, and
     /// forgets the groups that went (#564).
     fn follow_icons(&mut self, cx: &Context<Self>) {
-        let roots: Vec<PathBuf> = self
-            .snapshot
-            .groups
-            .iter()
-            .filter(|group| {
-                group
-                    .workspace
-                    .upgrade()
-                    .is_some_and(|workspace| workspace.read(cx).project().read(cx).is_local())
-            })
-            .filter_map(|group| group.key.path_list().paths().first().cloned())
-            .collect();
+        let roots: Vec<PathBuf> =
+            self.snapshot
+                .groups
+                .iter()
+                .filter(|group| {
+                    // A closed local project keeps its icon, dimmed (#606).
+                    (group.closed && group.key.host().is_none())
+                        || group.workspace.upgrade().is_some_and(|workspace| {
+                            workspace.read(cx).project().read(cx).is_local()
+                        })
+                })
+                .filter_map(|group| group.key.path_list().paths().first().cloned())
+                .collect();
         self.project_icons.retain(|root, _| roots.contains(root));
         for root in roots {
             if !self.project_icons.contains_key(&root) {
@@ -2493,13 +2511,17 @@ impl Rail {
     ) -> anyhow::Result<()> {
         match selection {
             Selection::None => Ok(()),
-            Selection::Project(index) => {
-                let group = self.snapshot.groups.get(index);
-                let workspace = group.map(|group| group.workspace.clone());
-                workspace.map_or(Ok(()), |workspace| {
+            Selection::Project(index) => match self.snapshot.groups.get(index) {
+                Some(group) if group.closed => {
+                    self.open_closed_project(&group.key, window, cx);
+                    Ok(())
+                }
+                Some(group) => {
+                    let workspace = group.workspace.clone();
                     self.activate_workspace(&workspace, window, cx).map(drop)
-                })
-            }
+                }
+                None => Ok(()),
+            },
             Selection::Terminal(id) => {
                 let terminal = self.snapshot.terminals.get(&id);
                 let terminal =
@@ -3147,6 +3169,52 @@ impl Rail {
         }
     }
 
+    /// Opens a project the window lists but holds no workspace of (#606), as Zed's Threads Sidebar
+    /// opens one: Zed restores the workspace it saved for those folders, and a remote project
+    /// connects through Zed's connection modal first.
+    fn open_closed_project(
+        &self,
+        key: &ProjectGroupKey,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
+            return;
+        };
+        let shown = multi_workspace.read(cx).workspace().clone();
+        let modal_workspace = shown.clone();
+        let opened = multi_workspace.update(cx, |multi_workspace, cx| {
+            multi_workspace.find_or_create_workspace(
+                key.path_list().clone(),
+                key.host(),
+                Some(key.clone()),
+                move |options, window, cx| {
+                    remote_connection::connect_with_modal(&modal_workspace, options, window, cx)
+                },
+                None,
+                OpenMode::Activate,
+                None,
+                window,
+                cx,
+            )
+        });
+        let name = key.display_name(&HashMap::default());
+        cx.spawn_in(window, async move |_, cx| {
+            let result = opened.await;
+            remote_connection::dismiss_connection_modal(&shown, cx);
+            if let Err(error) = result {
+                let message = format!("Could not open {name}: {error:#}");
+                shown.update(cx, |workspace, cx| {
+                    workspace.show_toast(
+                        Toast::new(NotificationId::unique::<ClosedProject>(), message),
+                        cx,
+                    );
+                });
+            }
+        })
+        .detach();
+    }
+
     /// Moves a project one place up or down in the rail's order, the one dragging sets (#602),
     /// past a projectless group as well as a project.
     fn move_project(
@@ -3684,13 +3752,20 @@ impl Rail {
         cx: &Context<Self>,
     ) -> impl IntoElement {
         // Element ids follow the workspace, not the row's position, so an open menu stays with
-        // its project when another group is inserted above it.
-        let id = group.workspace.entity_id();
+        // its project when another group is inserted above it. A closed group has none, so its
+        // ids follow its folders (#606).
+        let closed = group.closed;
+        let id = if closed {
+            closed_id(&group.key)
+        } else {
+            group.workspace.entity_id()
+        };
         let index = row.index;
         let last = index + 1 == self.snapshot.groups.len();
         let filtering = self.snapshot.rail.filtering;
         let workspace = group.workspace.clone();
         let key = group.key.clone();
+        let open_key = group.key.clone();
         let projectless = group.group;
         let header_menu = HeaderMenu {
             rail: cx.entity().downgrade(),
@@ -3698,9 +3773,13 @@ impl Rail {
             workspace: group.workspace.clone(),
             group: projectless.map(|group| (group, row.name.clone())),
             at: (index == 0, last),
+            closed,
         };
-        // A project's name reads as a section label, as Warp's tab list labels its tabs.
-        let name_color = if row.selected {
+        // A project's name reads as a section label, as Warp's tab list labels its tabs; a closed
+        // one's is dimmed.
+        let name_color = if closed {
+            Color::Disabled
+        } else if row.selected {
             Color::Default
         } else {
             Color::Muted
@@ -3709,8 +3788,9 @@ impl Rail {
             .h_8()
             .gap_1()
             .px_1()
-            // While the filter decides which rows show, the header does not fold.
-            .when(!filtering, |header| {
+            // While the filter decides which rows show, the header does not fold, and a closed
+            // one has nothing to fold.
+            .when(!filtering && !closed, |header| {
                 header.child(
                     div()
                         .debug_selector(move || format!("marley-rail-disclosure-{index}"))
@@ -3724,58 +3804,45 @@ impl Rail {
                         ),
                 )
             })
-            .children(header_icon(index, icon, projectless.is_some()))
+            // A closed header keeps the chevron's room, unseen, so its name lines up with an open
+            // one's.
+            .when(!filtering && closed, |header| {
+                header.child(
+                    div().invisible().child(
+                        Disclosure::new(("marley-rail-disclosure", id), false).disabled(true),
+                    ),
+                )
+            })
+            .children(header_icon(index, icon, projectless.is_some()).map(|icon| {
+                if closed {
+                    div().opacity(0.5).child(icon).into_any_element()
+                } else {
+                    icon
+                }
+            }))
             .child(project_name(
                 row.name,
                 row.highlight,
                 name_color,
                 row.summary,
             ))
-            .child(
-                h_flex()
-                    .flex_none()
-                    .gap_1()
-                    .children(
-                        group
-                            .git
-                            .as_ref()
-                            .and_then(|git| git.counts.clone())
-                            // A branch with nothing changed shows no counts, not `+0 −0`.
-                            .filter(|(_, added, removed)| added + removed > 0)
-                            .map(|(base, added, removed)| {
-                                DiffStat::new(
-                                    ("marley-rail-project-lines", id),
-                                    added as usize,
-                                    removed as usize,
-                                )
-                                .label_size(LabelSize::XSmall)
-                                .tooltip(format!("Lines changed since the branch left {base}"))
-                            }),
-                    )
-                    .children(
-                        group
-                            .git
-                            .as_ref()
-                            .and_then(|git| git.pull_request.as_ref())
-                            .map(|found| pull_request_chip(id, found)),
-                    )
-                    .when(row.attention, |slot| {
-                        slot.child(
-                            div()
-                                .debug_selector(move || format!("marley-rail-attention-{index}"))
-                                .child(Indicator::dot().color(Color::Accent)),
-                        )
-                    })
-                    .child(Self::render_project_menu(
-                        index,
-                        id,
-                        group,
-                        agent_search_path,
-                        cx,
-                    )),
-            )
+            .child(Self::render_header_end(
+                index,
+                id,
+                group,
+                row.attention,
+                agent_search_path,
+                cx,
+            ))
+            .when(closed, |header| {
+                header.tooltip(Tooltip::text("Not open. Click to open it."))
+            })
             .on_click(cx.listener(move |rail, _, window, cx| {
-                rail.activate_workspace(&workspace, window, cx).log_err();
+                if closed {
+                    rail.open_closed_project(&open_key, window, cx);
+                } else {
+                    rail.activate_workspace(&workspace, window, cx).log_err();
+                }
             }));
         let header = Self::draggable_header(header, drag, cx);
         right_click_menu(("marley-rail-project-context", id))
@@ -3785,6 +3852,61 @@ impl Rail {
                     .child(header)
             })
             .menu(move |window, cx| header_menu.build(window, cx))
+    }
+
+    /// A header's end: its branch's changed lines and pull request (#531), its attention dot, and
+    /// its `+`, which a closed project has not (#606).
+    fn render_header_end(
+        index: usize,
+        id: EntityId,
+        group: &GroupEntry,
+        attention: bool,
+        agent_search_path: Option<OsString>,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
+        h_flex()
+            .flex_none()
+            .gap_1()
+            .children(
+                group
+                    .git
+                    .as_ref()
+                    .and_then(|git| git.counts.clone())
+                    // A branch with nothing changed shows no counts, not `+0 −0`.
+                    .filter(|(_, added, removed)| added + removed > 0)
+                    .map(|(base, added, removed)| {
+                        DiffStat::new(
+                            ("marley-rail-project-lines", id),
+                            added as usize,
+                            removed as usize,
+                        )
+                        .label_size(LabelSize::XSmall)
+                        .tooltip(format!("Lines changed since the branch left {base}"))
+                    }),
+            )
+            .children(
+                group
+                    .git
+                    .as_ref()
+                    .and_then(|git| git.pull_request.as_ref())
+                    .map(|found| pull_request_chip(id, found)),
+            )
+            .when(attention, |slot| {
+                slot.child(
+                    div()
+                        .debug_selector(move || format!("marley-rail-attention-{index}"))
+                        .child(Indicator::dot().color(Color::Accent)),
+                )
+            })
+            .when(!group.closed, |slot| {
+                slot.child(Self::render_project_menu(
+                    index,
+                    id,
+                    group,
+                    agent_search_path,
+                    cx,
+                ))
+            })
     }
 
     /// A projectless group's right-click menu (#600): Rename Group… and Remove Group.
@@ -3821,6 +3943,7 @@ impl Rail {
         key: ProjectGroupKey,
         workspace: WeakEntity<Workspace>,
         (first, last): (bool, bool),
+        closed: bool,
         window: &mut Window,
         cx: &mut App,
     ) -> Entity<ContextMenu> {
@@ -3841,17 +3964,19 @@ impl Rail {
                     },
                 ))
             });
-            // Clearing resets the project's browser (#581); removing the project is what stops
-            // it (#507).
+            // Clearing resets the project's browser (#581), which a closed project has not started
+            // (#606); removing the project is what stops it (#507).
             menu.separator()
                 .item(
-                    ContextMenuEntry::new("Clear Browser Data…").handler(move |window, cx| {
-                        workspace
-                            .update(cx, |workspace, cx| {
-                                browser::clear_project_browser_data(workspace, window, cx);
-                            })
-                            .log_err();
-                    }),
+                    ContextMenuEntry::new("Clear Browser Data…")
+                        .disabled(closed)
+                        .handler(move |window, cx| {
+                            workspace
+                                .update(cx, |workspace, cx| {
+                                    browser::clear_project_browser_data(workspace, window, cx);
+                                })
+                                .log_err();
+                        }),
                 )
                 .item(
                     ContextMenuEntry::new("Remove Project").handler(move |window, cx| {
@@ -5787,11 +5912,9 @@ fn rail_groups(
     saved_order: &SavedOrder,
     cx: &App,
 ) -> (Vec<ProjectGroup>, Vec<String>, Vec<Projectless>) {
-    let mut groups: Vec<ProjectGroup> = multi_workspace
-        .project_groups(cx)
-        .into_iter()
-        .filter(|group| !group.workspaces.is_empty())
-        .collect();
+    // A group with no open workspace, as a restart leaves every one but the shown, is listed as
+    // closed (#606).
+    let mut groups: Vec<ProjectGroup> = multi_workspace.project_groups(cx);
     let mut names = crate::group_names(&groups);
     let mut projectless = vec![None; groups.len()];
     let mut marley_groups = groups::groups_of(multi_workspace, cx);
@@ -5831,8 +5954,8 @@ fn rail_groups(
     (groups, names, projectless)
 }
 
-/// The window, read once. Only groups with an open workspace are listed; a group Zed keeps after
-/// its last workspace closed has nothing for the rail to switch to.
+/// The window, read once. A group the window holds no workspace of, as a restart leaves every
+/// one but the shown, is listed closed, its header alone (#606).
 fn build_snapshot(
     multi_workspace: &Entity<MultiWorkspace>,
     foreground_command: ForegroundCommand,
@@ -5848,16 +5971,12 @@ fn build_snapshot(
     let home = util::paths::home_dir().as_path();
     let now = cx.background_executor().now();
     let mut snapshot = Snapshot::default();
-    let listed = groups
-        .iter()
-        .zip(names)
-        .zip(projectless)
-        .filter_map(|((group, name), id)| {
-            let workspace = listed_workspace(multi_workspace, group, id.is_some(), cx)?;
-            Some((group, name, workspace, id))
-        });
     let mut displayed_worktree = None;
-    for (group, name, workspace, id) in listed {
+    for ((group, name), id) in groups.iter().zip(names).zip(projectless) {
+        let Some(workspace) = listed_workspace(multi_workspace, group, id.is_some(), cx) else {
+            push_closed(&mut snapshot, group, name, filter);
+            continue;
+        };
         let (worktrees, tags) = group_worktrees(group, &workspace, filter, &mut snapshot, cx);
         if group.workspaces.contains(displayed) {
             displayed_worktree = tags.get(&displayed.entity_id()).cloned();
@@ -5921,6 +6040,7 @@ fn build_snapshot(
             ports: port_snapshots(&group.key, filter, cx),
             worktrees,
             matched,
+            closed: false,
         });
         snapshot.groups.push(GroupEntry {
             key: group.key.clone(),
@@ -5929,6 +6049,7 @@ fn build_snapshot(
             git: None,
             group: id.map(|(group, _)| group),
             database_id: id.and_then(|(_, database_id)| database_id),
+            closed: false,
         });
     }
     snapshot.rail.filtering = !filter.is_empty();
@@ -5941,6 +6062,31 @@ fn build_snapshot(
         cx,
     );
     snapshot
+}
+
+/// A group the window holds no workspace of (#606): its header alone, closed.
+fn push_closed(snapshot: &mut Snapshot, group: &ProjectGroup, name: String, filter: &str) {
+    let matched = filter_match(filter, &name);
+    snapshot.rail.projects.push(ProjectSnapshot {
+        name,
+        expanded: group.expanded,
+        terminals: Vec::new(),
+        browsers: Vec::new(),
+        threads: Vec::new(),
+        ports: Vec::new(),
+        worktrees: Vec::new(),
+        matched,
+        closed: true,
+    });
+    snapshot.groups.push(GroupEntry {
+        key: group.key.clone(),
+        workspace: WeakEntity::new_invalid(),
+        source: None,
+        git: None,
+        group: None,
+        database_id: None,
+        closed: true,
+    });
 }
 
 /// What the window shows, for the one selected row: the displayed workspace's project, its active

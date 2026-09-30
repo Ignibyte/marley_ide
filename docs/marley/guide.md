@@ -255,6 +255,11 @@ place in the rail, past a group as well as a project. Ctrl+Alt+J closes
 and opens the rail. A rail you close stays closed after a restart, and its width is saved with
 the window; one width holds in both layouts.
 
+After a restart Zed reopens only the project the window showed. The window's other projects stay
+in the rail, dimmed, with no rows under them (#606): point at one to read "Not open. Click to open
+it.", and click it, or press Enter on it, to open it with its terminals and tabs. Its right-click
+menu still moves or removes it. Next and Previous Project pass over the dimmed ones.
+
 ### The + menu
 
 A project's `+` ("New in this project") starts things in that project.

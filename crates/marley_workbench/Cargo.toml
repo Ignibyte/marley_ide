@@ -52,6 +52,7 @@ rand.workspace = true
 recent_projects.workspace = true
 regex.workspace = true
 release_channel.workspace = true
+remote_connection.workspace = true
 resvg.workspace = true
 semver.workspace = true
 serde.workspace = true

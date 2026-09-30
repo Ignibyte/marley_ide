@@ -2922,3 +2922,19 @@ name as long as `marley-e2e-603.service` took the whole width in the 260 px rail
 vanished; the shot showed only ` · marley-e2e-603.service`. Fixed before the commit: the unit is
 a line of its own under the URL. A row line's state is for a few short words; anything as long
 as a name gets its own line.
+
+## F-claude-606-closed-headers-would-have-shared-their-element-ids-001
+*severity: medium · found in: pipeline 606's Code phase (review of the diff) · class: an element id taken from a handle that can be a placeholder*
+
+A project header takes its element ids (its frame, its chevron, its right-click menu) from its
+group's workspace entity id, so an open menu stays with its project. A closed group's
+`GroupEntry` holds `WeakEntity::new_invalid()`, and every invalid handle has the same entity id,
+so two closed headers would have shared their ids, their menus' included. Caught before the gate:
+a closed header's ids come from `closed_id`, a hash of its `ProjectGroupKey`.
+
+## F-claude-606-a-closed-headers-name-sat-left-of-the-others-001
+*severity: low · found in: pipeline 606's Test phase (run 1) · class: dropping an element that holds room in a row*
+
+With no chevron, a closed header's name started where the chevron starts on an open header,
+26 px left of every other project's name (`restart.png`). Fixed before the commit: the closed
+header keeps an invisible, disabled `Disclosure` in the chevron's place.

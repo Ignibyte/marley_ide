@@ -96,9 +96,19 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   changed. `render` reads nothing but the rail, so a background terminal's output never redraws
   the window through it, and `has_notifications` reads the stored snapshot, so it holds while the
   rail is closed.
-- It lists the groups that have an open workspace, named through Zed's public functions
+- It lists every project group of the window, named through Zed's public functions
   (`compute_disambiguation_details`, `ProjectGroupKey::display_name`) in `crate::group_names`,
   which the browser tools share for a tab's project (#574).
+- **Closed projects (#606).** A group the window holds no workspace of (a restart reopens only the
+  shown one) gets a header-only `ProjectSnapshot { closed: true }` and a `GroupEntry { closed:
+  true }` whose `workspace` is `WeakEntity::new_invalid()` (`push_closed`). Its header dims its
+  name (`Color::Disabled`) and icon, keeps the chevron's room with an invisible, disabled
+  `Disclosure`, has no `+`, takes its element ids from `closed_id` (a hash of its key, since every
+  invalid handle shares one entity id) and says "Not open. Click to open it." A click, or Enter
+  through `open_row`, runs `open_closed_project`: `MultiWorkspace::find_or_create_workspace` with
+  `OpenMode::Activate` and `remote_connection::connect_with_modal`, as the Threads Sidebar's
+  `open_workspace_for_group` does; a failure is a toast. Its menu disables Clear Browser Data…,
+  and `follow_icons` searches a closed local group's folder for its icon.
 - A project header has a chevron to fold it, a `+` menu with New Terminal, New Browser Tab
   (#500: `Rail::new_browser_tab` shows the project, then `browser::new_tab`, as Ctrl+T), New
   Agent Thread and the agent CLIs, and an attention dot;

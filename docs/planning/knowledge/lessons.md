@@ -4044,3 +4044,13 @@ in Marley's log under `agent_servers::acp` as `agent stderr`. Echo the id back a
 number anything else (sessions) with a counter of the stand-in's own. A stand-in that declares
 `loadSession: false` also cannot resume a thread after a restart: the panel shows "Loading or
 resuming sessions is not supported by this agent", which is the fixture's limit and not a fault.
+
+## L-claude-606-just-install-reads-sources-as-it-reaches-each-crate-001
+*category: process · topic: building while editing on the dev box · from: pipeline 606*
+
+`just install` builds the release binary, which takes long enough that `rustc` reaches
+`marley_workbench` minutes after it started, and reads that crate's sources then, not when the
+build began. Edits made to a crate while an install is compiling can land in the installed
+binary, tested or not (here #606's first, unfinished edits could have). Start editing a crate
+only once an install is past it, or run `just install` again after the commit, which is what
+#606 did.

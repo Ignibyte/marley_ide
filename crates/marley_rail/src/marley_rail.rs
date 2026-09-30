@@ -48,6 +48,9 @@ pub struct ProjectSnapshot {
     /// Where the filter matched the name, as the byte offsets of the matched characters; `None`
     /// when it did not. Read only while [`RailSnapshot::filtering`].
     pub matched: Option<Vec<usize>>,
+    /// Whether the window holds no workspace of the group, as after a restart, which reopens only
+    /// the shown one (#606): its header is listed, dimmed, with nothing under it.
+    pub closed: bool,
 }
 
 /// One linked worktree of a project's repository (#510).
@@ -1240,8 +1243,10 @@ pub fn cycle_project(snapshot: &RailSnapshot, forward: bool) -> Selection {
         worktree @ Selection::Worktree(_) => parent(snapshot, &worktree),
         project => project,
     };
+    // A closed project is passed over: going to it would open it (#606).
     cycle(snapshot, &project, forward, |row| {
-        matches!(row, Selection::Project(_))
+        matches!(row, Selection::Project(index)
+            if !snapshot.projects.get(*index).is_some_and(|project| project.closed))
     })
 }
 
@@ -1589,6 +1594,7 @@ mod tests {
             ports: Vec::new(),
             worktrees: Vec::new(),
             matched: None,
+            closed: false,
         }
     }
 

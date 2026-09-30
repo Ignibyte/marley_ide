@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A window's closed projects stay in the rail** (#606, 2026-09-30). After a restart Zed reopens
+  only the project a window showed and keeps its others as project groups with no workspace, which
+  the rail used to leave out, so they vanished from it. They are now listed, dimmed, as a header
+  alone, with a tooltip that says they are not open; a click, or Enter, opens one as Zed's Threads
+  Sidebar does (`MultiWorkspace::find_or_create_workspace`, through Zed's connection modal for a
+  remote project), and Zed brings its terminals and tabs back. A closed header keeps Move Project
+  Up and Down and Remove Project; Next and Previous Project pass over closed projects.
+
 - **Archive an agent thread from the rail** (#605, 2026-09-30). The pointer on a thread row shows
   an Archive button at the row's end, in place of its status mark, with the tooltip "Archive
   Thread"; a right-click on the row opens a menu with Archive Thread. Either archives the thread

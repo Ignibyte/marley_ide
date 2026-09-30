@@ -356,6 +356,9 @@ Then start Marley again from the app menu.
 - [ ] Only one row is highlighted at a time.
 - [ ] The header's menu holds Move Project Up, Move Project Down, Clear Browser Data… and Remove
   Project. Leave both projects in place for now.
+- [ ] Later, after any restart (#606): the project that was not shown at the quit is still
+  listed, dimmed and without rows; pointing at it reads "Not open. Click to open it.", and a click
+  opens it with its terminals back in their folders.
 
 ### 2.3 Dots that ask for you (#438)
 

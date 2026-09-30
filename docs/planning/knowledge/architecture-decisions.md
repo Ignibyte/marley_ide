@@ -3426,3 +3426,14 @@ linked worktree's folders with its last thread and closes workspaces; the rail l
 since Marley's worktrees have their own row and Remove (#589). Delete and unarchive stay in Zed's
 archive view. Rejected: a close that only hid the row (the thread would come back after a
 restart), and deleting the thread (not what the user asked for).
+
+## AD-claude-606-closed-projects-are-listed-and-opened-on-a-click-001
+*decided at: 2026-09-30 · status: shipped*
+
+A project group the window holds no workspace of (a restart reopens only the shown one) is listed
+in the rail as a dimmed header with no rows, and opens on a click or Enter through Zed's own
+`MultiWorkspace::find_or_create_workspace`, as the Threads Sidebar opens one, so Zed restores its
+saved workspace. Nothing about a closed project starts until it is opened. Rejected: reopening
+every project at startup (each would start its language servers, terminals and browser), and
+listing a closed project's threads and ports (they need its workspace; deferred). Chad chose this
+on 2026-09-30.
