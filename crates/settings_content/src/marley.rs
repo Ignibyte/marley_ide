@@ -127,6 +127,27 @@ pub struct MarleySettingsContent {
     /// The System One layer (#565): typed questions to a model about states Marley builds from
     /// what it knows. Off until it is turned on.
     pub system_one: Option<SystemOneSettingsContent>,
+    /// The fleet (#607, `docs/marley/fleet-contract.md`): where the Fleet panel reads agents,
+    /// their work and their hosts.
+    pub fleet: Option<MarleyFleetSettingsContent>,
+}
+
+/// Where the Fleet panel reads the fleet (#607).
+#[with_fallible_options]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema, MergeFrom)]
+pub struct MarleyFleetSettingsContent {
+    /// The workflow stores that answer `marley.work/v1`.
+    ///
+    /// Default: []
+    pub providers: Option<Vec<FleetProviderContent>>,
+}
+
+/// One workflow store the Fleet panel reads (#607).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, MergeFrom)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum FleetProviderContent {
+    /// Marley's own pseudo provider: the contract's examples, moving, for trying the fleet out.
+    Pseudo,
 }
 
 /// The ntfy server and topic agent events are pushed to.

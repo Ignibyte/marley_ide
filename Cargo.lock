@@ -10821,6 +10821,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "marley_sdk"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "marley_system_one"
 version = "0.1.0"
 dependencies = [
@@ -10882,6 +10890,7 @@ dependencies = [
  "marley_mcp",
  "marley_rail",
  "marley_remote",
+ "marley_sdk",
  "marley_system_one",
  "marley_terminal",
  "menu",

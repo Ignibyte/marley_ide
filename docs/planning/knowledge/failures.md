@@ -2938,3 +2938,14 @@ a closed header's ids come from `closed_id`, a hash of its `ProjectGroupKey`.
 With no chevron, a closed header's name started where the chevron starts on an open header,
 26 px left of every other project's name (`restart.png`). Fixed before the commit: the closed
 header keeps an invisible, disabled `Disclosure` in the chevron's place.
+
+## F-claude-607-polling-followed-set-active-not-what-shows-001
+*severity: medium · found in: pipeline 607's Test phase (runs 1 and 2) · class: a panel's visibility taken from `Panel::set_active`*
+
+The Fleet panel's reads ran while a count of panels that had said `set_active(true)`, and not
+yet `false`, stayed above zero. Zed's docks call `set_active` on a panel activated in a closed
+dock as well as an open one (`Dock::activate_panel_internal`), and a layout switch moves panels
+between docks, so the count did not say whether a panel showed: the reads could run for a
+hidden panel or stop for a shown one. Fixed before the commit: the loop asks, at each read,
+whether a Fleet panel is the visible panel of an open right dock in some window's shown
+workspace, and a panel that draws while no reads run starts them.

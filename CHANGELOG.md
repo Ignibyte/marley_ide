@@ -13,6 +13,19 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Fleet panel, on a pseudo provider** (#607, 2026-09-30). `marley: toggle fleet` opens a
+  panel in the right dock that lists the agents a workflow store reports, grouped under their
+  hosts: each with its runtime's mark, its name, its work item's key and its phase as `n/m`, a
+  mark when it waits on a question or its run failed, and a state chip (`working`, `waiting`,
+  `error` and the rest, or `stale` when it has not reported for three polls). Its data comes from
+  the providers under `"marley": { "fleet": { "providers": [...] } }`; with none, it says the
+  fleet is not set up and names the setting. The one provider so far is `{ "kind": "pseudo" }`:
+  the examples of `docs/marley/fleet-contract.md`, three agents on two hosts, moved by the clock
+  (a phase a minute, events, tokens, one agent going quiet), until the Rustal services serve the
+  contract. The contract's types live in a new pure crate, `marley_sdk`
+  (`marley.work/v1` and `marley.host/v1`, the stale rule, and the pseudo provider). The panel
+  reads only while it shows.
+
 - **A window's closed projects stay in the rail** (#606, 2026-09-30). After a restart Zed reopens
   only the project a window showed and keeps its others as project groups with no workspace, which
   the rail used to leave out, so they vanished from it. They are now listed, dimmed, as a header

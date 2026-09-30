@@ -248,6 +248,9 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#inbox-risk">Risk and route in Needs you</a></li>
 <li><a href="#running-error">A running command that printed an error</a></li>
 </ol></li>
+<li><a href="#fleet">The fleet</a><ol>
+<li><a href="#fleet-panel">The Fleet panel</a></li>
+</ol></li>
 <li><a href="#reference">Reference</a><ol>
 <li><a href="#keys-reference">Keys</a></li>
 <li><a href="#commands-reference">Commands</a></li>
@@ -1505,6 +1508,27 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 </section>
 
+<section id="fleet">
+<h2>The fleet</h2>
+<p class="area-intro">Agents a workflow store reports, where they run and what they work on. Marley defines what a store sends and draws it; until the Rustal services serve it, a pseudo provider shows example data.</p>
+
+<article id="fleet-panel">
+<h3>The Fleet panel <span class="ticket">#607</span></h3>
+<p class="what"><strong>What it is.</strong> A panel in the right dock that lists every agent your providers report, grouped under its host, with its work item, its phase and its state.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Add a provider to your settings. The pseudo one shows Marley's example data:
+<pre><code>"marley": {
+  "fleet": { "providers": [ { "kind": "pseudo" } ] }
+}</code></pre></li>
+<li>Run <code>marley: toggle fleet</code>, or click the server icon in the status bar.</li>
+<li>Read each row: the runtime's mark and the agent's name; its work item's key and phase as <code>name n/m</code>; a yellow mark when it waits on a question, a red one when its run failed; and a chip with its state, <code>stale</code> when it has not reported for three polls.</li>
+<li>With no provider set, the panel says the fleet is not set up and names the setting.</li>
+</ol>
+<p class="note">The panel reads its providers only while it shows. An agent's snapshot, the Agent tab, host resources over SSH and real stores over MCP or HTTP come next (#608 to #611).</p>
+</article>
+</section>
+
 <section id="reference">
 <h2>Reference</h2>
 <p class="area-intro">Every key, command, setting and path Marley adds, in one place.</p>
@@ -1564,6 +1588,7 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td><code>marley: browser clients</code></td><td>Programs outside Marley allowed into its browser</td></tr>
 <tr><td><code>marley: clear project browser data</code></td><td>Sign the project out of every site</td></tr>
 <tr><td><code>marley: system one check</code>, <code>marley: open decisions</code></td><td>System One's check, and its log</td></tr>
+<tr><td><code>marley: toggle fleet</code></td><td>Show or hide the Fleet panel</td></tr>
 <tr><td><code>multi workspace: next project</code> / <code>previous project</code> / <code>next thread</code> / <code>previous thread</code></td><td>Walk the rail</td></tr>
 </table>
 </article>
@@ -1595,6 +1620,7 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td><code>browser_click_pause_agents</code></td><td><code>"agents_without_prompts"</code></td><td>Whose consequential clicks wait, or <code>"all_agents"</code></td></tr>
 <tr><td><code>stall_check_after_seconds</code></td><td><code>60</code></td><td>The first quiet check for a stuck agent</td></tr>
 <tr><td><code>push</code></td><td>none</td><td><code>{ "url", "topic", "token_file" }</code> of an ntfy server on this machine</td></tr>
+<tr><td><code>fleet</code></td><td><code>{ "providers": [] }</code></td><td>Where the Fleet panel's agents come from; <code>{ "kind": "pseudo" }</code> is Marley's example data (in <code>settings.json</code> only)</td></tr>
 <tr><td><code>system_one</code></td><td>off</td><td><code>enabled</code>, <code>provider</code>, <code>projects</code>, <code>metadata_only_projects</code>, <code>daily_budget_cents</code>, <code>uses</code></td></tr>
 </table>
 <p class="note">Telemetry (<code>telemetry.metrics</code>, <code>telemetry.diagnostics</code>) defaults to off. Zed's own context server <code>marley</code> can be turned off with <code>"context_servers": { "marley": { "enabled": false } }</code>.</p>

@@ -2184,6 +2184,39 @@ alike.
   read that fails logs at debug and leaves the globe. `agent_ended` sets `agent_unseen` when the
   page has no viewer, and `add_viewer` clears it.
 
+## The Fleet panel (`src/fleet.rs`, #607)
+
+The first surface of D20 (`docs/marley/fleet-contract.md`): the agents a workflow store reports,
+drawn from `marley_sdk`'s types.
+- **The global.** `Fleet` holds each provider's last reading as a `Source` (its name, agents,
+  hosts, `poll_s`, `stale_after_s`, the reading's time and a failure), the started `Pseudo`, and
+  whether the reads run. One task reads every provider named in
+  `MarleySettings::fleet_providers` (`marley.fleet.providers`), then waits the shortest `poll_s`
+  (5 s when none names one). It writes the global only when a reading differs, reading it
+  through `try_global` first, since `default_global` tells the observers.
+- **When it reads.** The loop checks at each read that a Fleet panel is what an open right dock
+  shows in some window's shown workspace (`panel_shows`: each `MultiWorkspace` window, its
+  `workspace()`, `right_dock().visible_panel()`, downcast through `to_any()`), and stops when
+  none is. A `FleetPanel` that draws while no reads run starts them with `cx.defer`.
+  `Panel::set_active` is not the signal: Zed's docks call it for a panel activated in a closed
+  dock too, and a layout switch moves panels between docks without the call that matches
+  (F-claude-607-polling-followed-set-active-not-what-shows-001).
+- **The panel.** `FleetPanel` is a `workspace::Panel`, right dock only (`position_is_valid`), 320 px,
+  `IconName::Server`, tooltip "Fleet", toggled by `marley::ToggleFleet` (`marley: toggle fleet`),
+  activation priority 20, which no other right-dock panel uses. `fleet::init` adds one to each
+  workspace in an `observe_new`, and registers the toggle through `toggle_panel_focus`. It draws a
+  "FLEET" header, then each source: its name, a failure in red, and its agents grouped under
+  their hosts in the provider's order (agents whose host it did not describe last, under their
+  `host_id` or "No host"). An agent's row: its runtime's icon (`runtime_icon`), its name, the work
+  item's key and the phase as `name n/m`, a warning mark for a question or a red mark for a failed
+  run, and a `Chip` whose word and color come from `state_chip`, reading `stale` when
+  `marley_sdk::is_stale` says so against the reading's time.
+- **Not set up.** With no provider, the panel says "The fleet is not set up." and names
+  `marley.fleet.providers` and `{ "kind": "pseudo" }`.
+- **Settings.** `settings_content::MarleyFleetSettingsContent { providers }` with
+  `FleetProviderContent`, tagged by `kind`; `Pseudo` is its only variant until #611 adds the MCP
+  and HTTP clients. `default.json` has `"fleet": { "providers": [] }`.
+
 ## Tests
 
 `src/marley_workbench_tests.rs` (the switch, the keymap loader, persistence and the docks across

@@ -2654,3 +2654,11 @@ queried from inside an update of the very entity it describes. Store at registra
 lookup compares (entity ids, keys, names) and let the lookup read no entity. When you hand a
 callback a window to act in, run it through `AnyWindowHandle::update`, never through
 `WindowHandle<Root>::update`, which leases the root view the callback may need.
+
+## PR-claude-607-ask-the-dock-whether-a-panel-shows-001
+*severity: medium · prevents: F-claude-607-polling-followed-set-active-not-what-shows-001*
+
+Work a panel should do only while it is seen (polling, sampling, a timer) checks
+`dock.visible_panel()` (which is `None` for a closed dock), downcast through `to_any()`, each
+time it runs, and a panel that draws may start it. Do not count `Panel::set_active` calls:
+Zed's docks send them for closed docks too, and moves between docks do not pair them.

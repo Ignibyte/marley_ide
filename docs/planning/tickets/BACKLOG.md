@@ -10,11 +10,11 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-607](open/TICKET-607-fleet-panel-with-pseudo-agents.md) | feature | fleet (D20) · the fleet contract's types, a pseudo provider, and the Fleet panel's list |
 | [TICKET-608](open/TICKET-608-agent-snapshot-in-the-fleet-panel.md) | feature | fleet (D20) · the selected agent's snapshot under the Fleet panel's list |
 | [TICKET-609](open/TICKET-609-agent-tab.md) | feature | fleet (D20) · the Agent tab: an agent's full detail in the center |
 | [TICKET-610](open/TICKET-610-host-collector-over-ssh.md) | feature | fleet (D20) · the host collector: a script Marley runs over SSH |
 | [TICKET-611](open/TICKET-611-work-provider-clients.md) | feature | fleet (D20) · the marley.work/v1 clients over MCP and HTTP |
+| [TICKET-612](open/TICKET-612-settings-edit-after-marley-writes.md) | bug | workbench · a hand edit to settings.json after Marley writes the file does not reload |
 
 ## Deliberate (picked explicitly, never auto-next)
 

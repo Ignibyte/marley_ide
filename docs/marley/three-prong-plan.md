@@ -218,7 +218,13 @@ first) and `marley.host/v1` from a collector on each host, read over SSH. An age
 are for the most part one thing; a click shows its snapshot in a Fleet panel on the right, and
 opening it gives an Agent tab in the center. The draft is [fleet-contract.md](fleet-contract.md);
 until the Rustal services serve it, Marley shows a pseudo provider's data. The SDK (types,
-schemas, a conformance kit) follows the contract.
+schemas, a conformance kit) follows the contract. Wave 1 (#607 to #611) builds it:
+- #607 (shipped): the contract's types and the pseudo provider in `crates/marley_sdk`, and the
+  Fleet panel in the right dock listing its agents by host;
+- #608: the selected agent's snapshot under the list;
+- #609: the Agent tab in the center;
+- #610: the host collector over SSH;
+- #611: the `marley.work/v1` clients over MCP and HTTP.
 
 The harness's requests to Marley (`docs/planning/MARLEY_REQUESTS.md` in rustal-harness) and
 their answers. The contract's home is the fork's `crates/marley_fleet` and `crates/marley_mcp`;

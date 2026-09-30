@@ -1,0 +1,107 @@
+[
+  {
+    "agent": {
+      "id": "agent-7f3a", "name": "build-1", "runtime": "claude-code", "state": "working",
+      "state_since_ms": 1759240810000, "last_seen_ms": 1759243100000,
+      "host_id": "host-build-1", "cwd": "/srv/work/pipeline", "model": "claude-opus"
+    },
+    "work_item": {
+      "id": "wi-142", "key": "RB-142", "title": "Split the pipeline module",
+      "status": "in progress", "url": "https://brain.example/tickets/RB-142",
+      "summary": "Move dispatch into its own crate and keep the public API."
+    },
+    "run": {
+      "id": "run-88", "work_item_id": "wi-142",
+      "workflow": { "id": "wf-std", "name": "Standard" },
+      "agent_id": "agent-7f3a", "started_ms": 1759236000000,
+      "phases": [
+        { "name": "plan", "state": "passed", "started_ms": 1759236000000, "ended_ms": 1759238000000,
+          "summary": "Spec and design approved", "gates": [] },
+        { "name": "code", "state": "active", "started_ms": 1759238000000,
+          "gates": [ { "name": "check", "state": "pass" }, { "name": "clippy", "state": "pending" } ] },
+        { "name": "test", "state": "pending", "gates": [] },
+        { "name": "complete", "state": "pending", "gates": [] }
+      ],
+      "events": [
+        { "at_ms": 1759243000000, "kind": "gate", "text": "cargo check green" },
+        { "at_ms": 1759242400000, "kind": "phase", "text": "code started" }
+      ]
+    },
+    "recent_events": [
+      { "at_ms": 1759243000000, "kind": "gate", "text": "cargo check green" },
+      { "at_ms": 1759242400000, "kind": "phase", "text": "code started" }
+    ],
+    "usage": {
+      "run": { "input_tokens": 812000, "output_tokens": 64000, "cache_read_tokens": 2300000 },
+      "today": { "input_tokens": 3900000, "output_tokens": 310000 }
+    }
+  },
+  {
+    "agent": {
+      "id": "agent-2c91", "name": "review-1", "runtime": "codex", "state": "waiting",
+      "state_since_ms": 1759243050000, "last_seen_ms": 1759243090000,
+      "host_id": "host-build-1", "cwd": "/srv/work/dispatch", "model": "gpt-codex"
+    },
+    "work_item": {
+      "id": "wi-139", "key": "RB-139", "title": "Retire the v1 dispatch", "status": "in review"
+    },
+    "run": {
+      "id": "run-85", "work_item_id": "wi-139", "agent_id": "agent-2c91",
+      "started_ms": 1759230000000,
+      "phases": [
+        { "name": "plan", "state": "passed", "started_ms": 1759230000000, "ended_ms": 1759231000000, "gates": [] },
+        { "name": "code", "state": "passed", "started_ms": 1759231000000, "ended_ms": 1759240000000,
+          "gates": [ { "name": "check", "state": "pass" }, { "name": "clippy", "state": "pass" } ] },
+        { "name": "test", "state": "active", "started_ms": 1759240000000,
+          "gates": [ { "name": "tests", "state": "pass" } ] },
+        { "name": "complete", "state": "pending", "gates": [] }
+      ],
+      "events": [
+        { "at_ms": 1759243050000, "kind": "message", "text": "Asked whether to delete the old module" }
+      ]
+    },
+    "recent_events": [
+      { "at_ms": 1759243050000, "kind": "message", "text": "Asked whether to delete the old module" }
+    ],
+    "usage": {
+      "run": { "input_tokens": 420000, "output_tokens": 38000 },
+      "today": { "input_tokens": 1100000, "output_tokens": 96000 }
+    },
+    "question": {
+      "id": "q-19", "prompt": "Delete the old dispatch module?", "options": ["Yes", "No"],
+      "asked_ms": 1759243050000
+    }
+  },
+  {
+    "agent": {
+      "id": "agent-9b04", "name": "docs-1", "runtime": "claude-code", "state": "error",
+      "state_since_ms": 1759242900000, "last_seen_ms": 1759243000000,
+      "host_id": "host-vps-2", "cwd": "/srv/work/docs", "model": "claude-sonnet"
+    },
+    "work_item": {
+      "id": "wi-151", "key": "RB-151", "title": "Document the gate receipts", "status": "blocked"
+    },
+    "run": {
+      "id": "run-90", "work_item_id": "wi-151", "agent_id": "agent-9b04",
+      "started_ms": 1759239000000,
+      "phases": [
+        { "name": "plan", "state": "passed", "started_ms": 1759239000000, "ended_ms": 1759240000000, "gates": [] },
+        { "name": "code", "state": "failed", "started_ms": 1759240000000, "ended_ms": 1759242900000,
+          "gates": [ { "name": "check", "state": "pass" },
+                     { "name": "clippy", "state": "fail", "detail": "3 warnings in receipts.rs" } ] },
+        { "name": "test", "state": "pending", "gates": [] },
+        { "name": "complete", "state": "pending", "gates": [] }
+      ],
+      "events": [
+        { "at_ms": 1759242900000, "kind": "gate", "text": "clippy failed: 3 warnings" }
+      ]
+    },
+    "recent_events": [
+      { "at_ms": 1759242900000, "kind": "gate", "text": "clippy failed: 3 warnings" }
+    ],
+    "usage": {
+      "run": { "input_tokens": 260000, "output_tokens": 21000 },
+      "today": { "input_tokens": 640000, "output_tokens": 52000 }
+    }
+  }
+]

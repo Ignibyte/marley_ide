@@ -1,7 +1,7 @@
 ---
 pipeline_id: 0ac0b16e-db0a-4331-8923-76d41415fdf9
 ticket: docs/planning/tickets/open/TICKET-607-fleet-panel-with-pseudo-agents.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "The fleet contract's types, a pseudo provider, and the Fleet panel's list"
 type: feature
 slice: prong 2, D20 (docs/marley/fleet-contract.md), wave 1 of the remaining work
@@ -75,9 +75,13 @@ right dock, drawn in its rail's row style.
 ## UI proof
 The scenario `script/e2e/607-fleet-panel-with-pseudo-agents.sh` (sway) sets the pseudo provider
 in the run's settings and opens the Fleet panel with its toggle. It shoots the list (`list.png`:
-three agents under two host headers, chips, keys, phases, the attention marks); again after ten
-seconds (`moved.png`: an event or phase has moved, and the quiet agent reads stale); and with the
-provider removed (`not-set-up.png`).
+three agents under two host headers, chips, keys, phases, the attention marks); again a minute on
+(`moved.png`: the working agent's phase has moved, and the quiet agent reads stale); with the
+provider removed (`not-set-up.png`); and with the provider back, after a round trip through Zed's
+layout and a wait past two minutes (`layout.png`: the panel in the right dock, still reading, the
+working agent in its last phase). The settings edits come before the round trip: a hand edit to
+settings.json after Marley has written the file does not reload, which predates this ticket
+(#612).
 
 ## Locked-In Decisions
 - D1 — The contract's types live in a new pure crate, `marley_sdk`, which later carries the
@@ -95,7 +99,7 @@ provider removed (`not-set-up.png`).
 | REQ-002 | WHILE the panel shows, it shall follow the provider's changes, and an agent with no sign for three polls shall read stale. | Shot `moved.png` |
 | REQ-003 | WHEN no provider is set, the panel shall say the fleet is not set up and name the setting. | Shot `not-set-up.png` |
 | REQ-004 | WHEN the provider's JSON is parsed, fields the contract does not name shall be ignored and optional fields may be missing. | Review of the types (serde defaults, no `deny_unknown_fields`) |
-| REQ-005 | WHERE the Marley layout moves the Agent Panel between docks, the Fleet panel shall keep its place in the right dock. | Review against #456's displacement logic |
+| REQ-005 | WHERE the Marley layout moves the Agent Panel between docks, the Fleet panel shall keep its place in the right dock. | Shot `layout.png`, and review against #456's displacement logic |
 
 ## Phase Plan
 - **P1 Plan** — promote, recall, the design in the notes (the panel's priority, the crate's

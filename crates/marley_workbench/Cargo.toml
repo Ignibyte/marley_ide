@@ -41,6 +41,7 @@ marley_fleet.workspace = true
 marley_mcp.workspace = true
 marley_rail.workspace = true
 marley_remote.workspace = true
+marley_sdk.workspace = true
 marley_system_one.workspace = true
 marley_terminal.workspace = true
 menu.workspace = true

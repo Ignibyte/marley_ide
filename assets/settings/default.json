@@ -1741,6 +1741,11 @@
     // finished unseen, working, not reporting, then the rest; ties keep the window's order, and
     // nothing moves while the pointer is over the rail) or "window".
     "rail_order": "attention",
+    // The fleet (#607): the workflow stores the Fleet panel reads agents, their work and their
+    // hosts from. { "kind": "pseudo" } is Marley's own moving example data.
+    "fleet": {
+      "providers": []
+    },
     // What Marley starts Claude Code with (#532): "ask" (its own permission prompts) or
     // "bypass" (--dangerously-skip-permissions). A rail row carries a mark while an agent runs
     // without its prompts, however it was started.

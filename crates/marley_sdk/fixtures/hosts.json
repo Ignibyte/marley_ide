@@ -1,0 +1,32 @@
+[
+  {
+    "contract": "marley.host/v1",
+    "host": { "id": "host-build-1", "name": "build-1", "os": "Linux 6.12", "cores": 8, "uptime_s": 1209600 },
+    "sampled_ms": 1759243100000,
+    "cpu": { "percent": 42.0 },
+    "load": [1.2, 0.9, 0.7],
+    "memory": { "used_bytes": 3100000000, "total_bytes": 8000000000 },
+    "disks": [ { "mount": "/", "used_bytes": 41000000000, "total_bytes": 80000000000 } ],
+    "network": { "rx_bps": 120000, "tx_bps": 45000 },
+    "agents": [
+      { "pid": 4121, "runtime": "claude-code", "cwd": "/srv/work/pipeline", "started_ms": 1759236000000,
+        "cpu_percent": 18.5, "rss_bytes": 420000000, "session": "agent-7f3a" },
+      { "pid": 4388, "runtime": "codex", "cwd": "/srv/work/dispatch", "started_ms": 1759230000000,
+        "cpu_percent": 2.0, "rss_bytes": 180000000, "session": "agent-2c91" }
+    ]
+  },
+  {
+    "contract": "marley.host/v1",
+    "host": { "id": "host-vps-2", "name": "vps-2", "os": "Linux 6.8", "cores": 4, "uptime_s": 604800 },
+    "sampled_ms": 1759243100000,
+    "cpu": { "percent": 18.0 },
+    "load": [0.4, 0.5, 0.5],
+    "memory": { "used_bytes": 1200000000, "total_bytes": 4000000000 },
+    "disks": [ { "mount": "/", "used_bytes": 22000000000, "total_bytes": 40000000000 } ],
+    "network": { "rx_bps": 20000, "tx_bps": 8000 },
+    "agents": [
+      { "pid": 991, "runtime": "claude-code", "cwd": "/srv/work/docs", "started_ms": 1759239000000,
+        "cpu_percent": 0.5, "rss_bytes": 390000000, "session": "agent-9b04" }
+    ]
+  }
+]

@@ -296,6 +296,9 @@ panes can be built, shown and tested:
 - Its data is the JSON in this document, kept as fixture files beside the future SDK, so the
   same examples are the contract's documentation, the pseudo provider's data and, later, the
   conformance kit's cases.
+- Since #607 the types and the pseudo provider are `crates/marley_sdk` (`work`, `host`, `stale`
+  and `pseudo`), with the fixtures in its `fixtures/`. Its handshake says `poll_s: 2`, so the
+  demo moves while you watch; the quiet agent reads stale about 18 s after the first reading.
 
 ## Security
 

@@ -4054,3 +4054,13 @@ build began. Edits made to a crate while an install is compiling can land in the
 binary, tested or not (here #606's first, unfinished edits could have). Start editing a crate
 only once an install is past it, or run `just install` again after the commit, which is what
 #606 did.
+
+## L-claude-607-a-settings-edit-after-marleys-own-write-does-not-reload-001
+*category: testing · topic: e2e scenarios that edit settings.json · from: pipeline 607*
+
+Once Marley has written `settings.json` itself (a layout switch, the settings page, Zed's
+pickers), a later edit of the file from outside does not reload in that session (TICKET-612;
+a probe changed `ui_font_size` before and after a layout round trip, and only the first took).
+A scenario that edits the settings mid-run does its edits before anything in Marley writes the
+file, or relaunches Marley after. When a scenario's settings change seems ignored, log the
+setting's value at the reader before suspecting the reader.

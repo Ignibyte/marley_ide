@@ -1,0 +1,6 @@
+{
+  "contract": "marley.work/v1",
+  "provider": { "name": "pseudo", "version": "1" },
+  "capabilities": ["agents", "work_items", "runs", "gates", "events", "usage", "questions", "hosts"],
+  "poll_s": 2
+}

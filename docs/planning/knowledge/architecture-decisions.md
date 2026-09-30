@@ -3437,3 +3437,16 @@ saved workspace. Nothing about a closed project starts until it is opened. Rejec
 every project at startup (each would start its language servers, terminals and browser), and
 listing a closed project's threads and ports (they need its workspace; deferred). Chad chose this
 on 2026-09-30.
+
+## AD-claude-607-the-fleet-contract-lives-in-marley-sdk-001
+*decided at: 2026-09-30 · status: shipped*
+
+The fleet contract's types (`marley.work/v1`, `marley.host/v1`), its stale rule and the pseudo
+provider live in a new pure crate, `marley_sdk`, which later carries the schemas and the
+conformance kit; `marley_fleet` stays the session envelope the rail and Marley's MCP tools use.
+The pseudo provider is data, not a mock: the contract document's examples as fixtures, moved by
+the clock, so one set of JSON documents the contract, feeds the demo and seeds the kit. The
+Fleet panel is a right-dock panel of its own (priority 20) that reads only while it shows.
+Rejected: putting the types in `marley_fleet` (it would mix the harness's session envelope with
+a store's work records) and a mock provider in the workbench (the examples would drift from the
+contract).

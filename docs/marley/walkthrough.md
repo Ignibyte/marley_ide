@@ -1482,6 +1482,27 @@ rm -rf ~/marley-tour ~/marley-tour-b ~/worktrees/marley-tour ~/marley-scratch
 
 - [ ] The tour's projects, browsers and folders are gone. Undo 10's settings if you have not.
 
+## Part 12. The Fleet panel (#607)
+
+This part needs only Marley and one settings line; do it before or after 11.5's clean-up.
+
+1. Ctrl+Alt+, opens `settings.json`. Inside the `"marley"` block, add
+   `"fleet": { "providers": [ { "kind": "pseudo" } ] },` and save.
+2. Run `marley: toggle fleet` from the palette.
+
+- [ ] The panel opens in the right dock with a FLEET header and "Pseudo provider" under it.
+- [ ] Two hosts, build-1 and vps-2, each with a server icon. Under build-1: build-1 (`working`,
+  `RB-142 · code 2/4`) and review-1 (`waiting`, a yellow warning mark, `RB-139 · test 3/4`).
+  Under vps-2: docs-1 (`error`, a red mark, `RB-151 · code 2/4`).
+- [ ] Within about 20 seconds, docs-1's chip reads `stale`.
+- [ ] A minute on, build-1 reads `test 3/4`; a minute after that, `complete 4/4`.
+- [ ] `marley: toggle fleet` again closes the panel, and once more opens it where it was.
+- [ ] Change the line to `"fleet": { "providers": [] },` and save: the panel says "The fleet is
+  not set up." and names the setting.
+
+A setting saved by hand after a layout switch in the same session may not take until a restart
+(TICKET-612); restart Marley if the panel does not change.
+
 ## Appendix A. Keys
 
 Marley's keys load after Zed's defaults and before your keymap.
@@ -1539,6 +1560,7 @@ Every Marley command runs from the palette. The ones with no key of their own:
 | `marley: browser clients` | Programs outside Marley allowed into its browser |
 | `marley: clear project browser data` | Sign every site out for this project |
 | `marley: system one check`, `marley: open decisions` | System One's check and its log |
+| `marley: toggle fleet` | Show or hide the Fleet panel (#607) |
 | `multi workspace: next project`, `previous project`, `next thread`, `previous thread` | Walk the rail |
 
 ## Appendix C. Not in yet

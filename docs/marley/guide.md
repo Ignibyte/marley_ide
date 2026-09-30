@@ -1381,6 +1381,36 @@ Every call, refused and failed ones included, is a line in `system_one/calls-<da
 Marley's data directory, readable by you alone: the masked state as sent, the answers, the reading,
 the time, the tokens and the cost.
 
+## The Fleet panel
+
+The Fleet panel (#607) lists the agents a workflow store reports, grouped under the hosts they
+run on. It is the first piece of Marley's fleet view (`docs/marley/fleet-contract.md`): the
+store says what each agent works on and where its run is, and Marley draws it. Until the Rustal
+services serve that contract, the one provider is a pseudo one that shows example data.
+
+Turn the pseudo provider on in your settings:
+
+```jsonc
+"marley": {
+  "fleet": { "providers": [ { "kind": "pseudo" } ] }
+}
+```
+
+Then run `marley: toggle fleet`. The panel opens in the right dock, beside the Agent Panel; the
+server icon in the status bar toggles it too. Each agent's row shows:
+
+- its runtime's mark (Claude Code, Codex and the others) and its name;
+- its work item's key and its phase as `name n/m`, such as `RB-142 · code 2/4`;
+- a yellow warning mark when it waits on a question, a red mark when its run failed;
+- a chip with its state: `working`, `waiting`, `idle`, `starting`, `error` or `done`, or `stale`
+  when it has not reported for three of the store's polls.
+
+The pseudo provider serves three agents on two hosts and moves on its own: the working agent's
+run takes a phase a minute, and docs-1 stops reporting after a few seconds, so it reads `stale`.
+With no provider set, the panel says "The fleet is not set up." The panel reads the providers
+only while it shows. Clicking an agent for its snapshot, the Agent tab, a host's resources over
+SSH and real stores over MCP or HTTP come next (#608 to #611).
+
 ## Key bindings
 
 Marley's own bindings load after Zed's defaults and before your keymap, so they win over a Zed
@@ -1457,7 +1487,10 @@ Marley's own keys in the file:
     // Hide secrets in what Marley's tools give agents (true by default), and more to hide: each
     // entry is a regular expression, and one that does not compile is named in a notification.
     "redact_secrets_for_agents": true,
-    "redaction_patterns": ["INTERNAL-[0-9]{6}"]
+    "redaction_patterns": ["INTERNAL-[0-9]{6}"],
+    // Where the Fleet panel's agents come from (#607): [] (the default) shows "not set up";
+    // { "kind": "pseudo" } shows Marley's example data.
+    "fleet": { "providers": [] }
   },
 
   // Marley adds a context server named "marley" to Zed's defaults for the Agent Panel's agents.

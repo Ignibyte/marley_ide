@@ -39,6 +39,7 @@ pub mod command_watch;
 pub mod decisions;
 pub mod english;
 pub mod find;
+pub mod fleet;
 pub mod github;
 pub mod groups;
 pub mod guide;
@@ -309,6 +310,9 @@ actions!(
         /// Makes the projectless group the name prompt holds, or renames it (#600).
         #[derive(Eq)]
         MakeGroup,
+        /// Shows or hides the Fleet panel: the agents the workflow stores report, by host (#607).
+        #[derive(Eq)]
+        ToggleFleet,
     ]
 );
 
@@ -365,6 +369,8 @@ pub struct MarleySettings {
     pub claude_code_worktree_trust: ClaudeCodeWorktreeTrust,
     /// The System One layer (#565).
     pub system_one: system_one::SystemOneSettings,
+    /// The workflow stores the Fleet panel reads (#607).
+    pub fleet_providers: Vec<settings::FleetProviderContent>,
 }
 
 /// The ntfy server agent events are pushed to (#535), as the user set it; [`push`] checks it.
@@ -498,6 +504,10 @@ impl Settings for MarleySettings {
             system_one: system_one::SystemOneSettings::from_content(
                 marley.and_then(|marley| marley.system_one.as_ref()),
             ),
+            fleet_providers: marley
+                .and_then(|marley| marley.fleet.as_ref())
+                .and_then(|fleet| fleet.providers.clone())
+                .unwrap_or_default(),
         }
     }
 }
@@ -603,6 +613,7 @@ pub fn init(cx: &mut App) {
     links::init(cx);
     system_one::init(cx);
     stall::init(cx);
+    fleet::init(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         worktree_agents::give_slot_reader(std::sync::Arc::clone(&workspace.app_state().fs));
         workspace.register_action_renderer(|div, _, _, cx| {
