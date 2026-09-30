@@ -3298,3 +3298,23 @@ must reach `SPAWN_SCAN_FLOOR` files, and a planted file of every form, written b
 each run, must be found exactly. The pin and floor live in the gate script, apart from the list,
 so a new spawn is a reviewed change to both. The workbench's programs go through
 `process::output` and `process::follow`, so new `git` or `gh` calls add no spawn call.
+
+## AD-claude-596-an-agent-terminals-ssh-asks-through-zeds-askpass-001
+*decided at: 2026-09-29 · status: shipped · builds on: AD-claude-537-agent-terminals-get-git-prompts-off-at-spawn-001*
+
+A terminal Marley opens for an agent CLI in a local project gets `SSH_ASKPASS`, pointing at a Zed
+`askpass::PasswordProxy` of its own (a 0700 folder with a socket and `askpass.sh`, which runs
+`marley --askpass=<socket>`), and `SSH_ASKPASS_REQUIRE=force`. Each prompt opens Zed's
+`AskPassModal` over the terminal, revealed first, headed `ssh for <agent> in <project>`; the answer
+goes to ssh's connection alone. A dismissed dialog closes the connection unanswered, so ssh reads
+an empty passphrase and fails at once. The proxy lives in the terminal's `on_release`, one per
+terminal, so a prompt knows its terminal by its socket and one terminal's prompts queue.
+`GIT_PROMPTS_OFF` gains `GIT_ASKPASS=` (empty): git falls back to `SSH_ASKPASS` for its own
+prompts, and #537 wants those to fail. The askpass program is fixed to `current_exe` at start,
+before an install can replace the file. Rejected:
+- Zed's `AskPassSession`, which holds ssh's connection open on a cancel until its caller kills the
+  command: Marley does not own a terminal's ssh;
+- one proxy for every terminal: a prompt could not say which terminal asked;
+- routing git's HTTP prompts through the dialog too: #537 decided they fail at once;
+- `GIT_SSH_COMMAND='ssh -o BatchMode=yes'`: it overrides a repository's `core.sshCommand` and
+  fails the push where Chad wants to type the passphrase.

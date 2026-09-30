@@ -5,18 +5,22 @@
 //! center terminal. The rail's `+` menu and the picker share everything here.
 
 use std::ffi::{OsStr, OsString};
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::ops::ControlFlow;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use agent_ui::{Agent, AgentPanel, NewExternalAgentThread};
 use anyhow::Context as _;
+use askpass::{AskPassDelegate, EncryptedPassword, PasswordProxy};
 use collections::HashMap;
+use futures::channel::oneshot;
 use fuzzy::{StringMatch, StringMatchCandidate};
+use git_ui_core::askpass_modal::AskPassModal;
 use gpui::{
-    App, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable, Global, Render, Task,
-    WeakEntity, Window,
+    AnyWindowHandle, App, AsyncApp, AsyncWindowContext, Context, DismissEvent, Entity,
+    EventEmitter, FocusHandle, Focusable, Global, Render, Task, WeakEntity, Window,
 };
 use marley_agent::{AgentKind, LaunchMode};
 use picker::{Picker, PickerDelegate};
@@ -27,7 +31,7 @@ use terminal_view::terminal_panel::TerminalPanel;
 use ui::{HighlightedLabel, IconName, ListItem, ListItemSpacing, prelude::*};
 use util::ResultExt as _;
 use workspace::notifications::DetachAndPromptErr as _;
-use workspace::{ModalView, Workspace};
+use workspace::{ModalView, MultiWorkspace, Workspace};
 
 use crate::NewAgent;
 
@@ -271,12 +275,7 @@ impl AgentPermissions {
 /// the agent's program name, with the arguments its permission setting asks for in this project
 /// (#532). A remote project takes the defaults, since the per-project entries name local folders.
 /// An error reaches a prompt.
-pub fn start_cli(
-    workspace: &mut Workspace,
-    kind: AgentKind,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
-) {
+pub fn start_cli(workspace: &Workspace, kind: AgentKind, window: &Window, cx: &Context<Workspace>) {
     start_cli_with_prompt(workspace, kind, "", None, window, cx).detach();
 }
 
@@ -286,17 +285,17 @@ pub fn start_cli(
 /// The task gives the agent's terminal once the command is written (#587), and none once its
 /// error has reached a prompt.
 pub fn start_cli_with_prompt(
-    workspace: &mut Workspace,
+    workspace: &Workspace,
     kind: AgentKind,
     prompt: &str,
     setup: Option<&str>,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
+    window: &Window,
+    cx: &Context<Workspace>,
 ) -> Task<Option<WeakEntity<Terminal>>> {
     let mode = launch_mode(workspace, kind, cx);
     let input = marley_agent::launch_line_after(setup.unwrap_or_default(), kind, mode, prompt);
     let directory = terminal_view::default_working_directory(workspace, cx);
-    start_in_terminal(workspace, directory, agent_env(), Some(input), window, cx).prompt_err(
+    start_in_terminal(workspace, directory, Some(kind), Some(input), window, cx).prompt_err(
         "Could not start the agent",
         window,
         cx,
@@ -324,32 +323,71 @@ pub(crate) fn launch_input(workspace: &Workspace, kind: AgentKind, cx: &App) -> 
     marley_agent::launch_line_after("", kind, launch_mode(workspace, kind, cx), "")
 }
 
-/// The variables of a terminal opened for an agent CLI: git's credential prompts off (#537).
-pub(crate) fn agent_env() -> HashMap<String, String> {
-    marley_agent::GIT_PROMPTS_OFF
+/// The variables of a terminal opened for an agent CLI: git's credential prompts off (#537), and,
+/// with a passphrase proxy's `script`, ssh's prompts sent to it (#596).
+fn agent_env(script: Option<&OsStr>) -> anyhow::Result<HashMap<String, String>> {
+    let mut env: HashMap<String, String> = marley_agent::GIT_PROMPTS_OFF
         .iter()
         .map(|(name, value)| ((*name).to_string(), (*value).to_string()))
-        .collect()
+        .collect();
+    if let Some(script) = script {
+        let script = script
+            .to_str()
+            .context("the askpass script's path is not UTF-8")?;
+        env.insert("SSH_ASKPASS".to_string(), script.to_string());
+        // `force` sends ssh to the script even where it could ask on the terminal, which the
+        // agent owns.
+        env.insert("SSH_ASKPASS_REQUIRE".to_string(), "force".to_string());
+    }
+    Ok(env)
 }
 
-/// Opens a center terminal of `workspace` in `directory` with the variables `env`, and types
-/// `input` into it once its shell says it is ready, as Zed's terminal threads start their
-/// commands (#527 split it out of [`start_cli_with_prompt`]). The task gives the terminal once
-/// the input is written.
+/// Opens a center terminal of `workspace` in `directory`, and types `input` into it once its
+/// shell says it is ready, as Zed's terminal threads start their commands (#527 split it out of
+/// [`start_cli_with_prompt`]). A terminal opened for `agent` gets [`agent_env`]'s variables and,
+/// in a local project, asks for ssh's passphrases in Marley (#596). The task gives the terminal
+/// once the input is written.
 pub(crate) fn start_in_terminal(
-    workspace: &mut Workspace,
+    workspace: &Workspace,
     directory: Option<PathBuf>,
-    env: HashMap<String, String>,
+    agent: Option<AgentKind>,
     input: Option<Vec<u8>>,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
+    window: &Window,
+    cx: &Context<Workspace>,
 ) -> Task<anyhow::Result<WeakEntity<Terminal>>> {
     let factory = launcher(cx).terminal_factory;
-    let terminal = TerminalPanel::add_center_terminal(workspace, window, cx, move |project, cx| {
-        factory(project, directory, env, cx)
+    let (folders, local) = crate::system_one::project_of(workspace, cx);
+    let dialog_title = agent.filter(|_| local).map(|kind| {
+        let project = crate::system_one::project_name(&folders);
+        SharedString::from(marley_agent::ssh_dialog_title(&project, kind))
     });
-    cx.spawn_in(window, async move |_, cx| {
-        let terminal = terminal.await?;
+    cx.spawn_in(window, async move |workspace, cx| {
+        // The proxy exists before the terminal, whose shell takes its script's path; the
+        // terminal is recorded for the dialog once it exists.
+        let asker = Arc::new(OnceLock::new());
+        let proxy = match dialog_title {
+            Some(title) => passphrase_proxy(title, Arc::clone(&asker), cx).await?,
+            None => None,
+        };
+        let script = proxy
+            .as_ref()
+            .map(|proxy| proxy.script_path().as_ref().to_os_string());
+        let env = match agent {
+            Some(_) => agent_env(script.as_deref())?,
+            None => HashMap::default(),
+        };
+        let terminal = workspace
+            .update_in(cx, |workspace, window, cx| {
+                TerminalPanel::add_center_terminal(workspace, window, cx, move |project, cx| {
+                    factory(project, directory, env, cx)
+                })
+            })?
+            .await?;
+        if let Some(proxy) = proxy {
+            asker.get_or_init(|| terminal.clone());
+            // The socket and its folder last exactly as long as the terminal.
+            terminal.update(cx, |_, cx| cx.on_release(move |_, _| drop(proxy)).detach())?;
+        }
         let Some(input) = input else {
             return Ok(terminal);
         };
@@ -373,12 +411,145 @@ pub(crate) fn start_in_terminal(
     })
 }
 
+/// Zed's askpass socket and script for one agent terminal (#596). ssh in the terminal runs the
+/// script, which runs Marley's executable in its `--askpass` mode; each prompt opens Zed's
+/// password dialog, headed `title`, over the terminal `asker` records, and the typed text goes
+/// back to ssh alone.
+///
+/// None when the socket's path would not fit a Unix socket's address: the terminal's ssh then
+/// asks on the terminal as before, and the log says why.
+async fn passphrase_proxy(
+    title: SharedString,
+    asker: Arc<OnceLock<WeakEntity<Terminal>>>,
+    cx: &mut AsyncWindowContext,
+) -> anyhow::Result<Option<PasswordProxy>> {
+    let window = cx.window_handle();
+    let delegate =
+        AskPassDelegate::new_with_cancellation(cx, move |prompt, answer, cancellation, cx| {
+            ask_passphrase(
+                window,
+                &title,
+                asker.get(),
+                prompt,
+                answer,
+                cancellation,
+                cx,
+            );
+        });
+    let executor = cx.background_executor().clone();
+    let ask = {
+        let executor = executor.clone();
+        move |prompt| {
+            let answer = delegate.ask_password(prompt);
+            executor.spawn(async move {
+                // An unanswered dialog closes the connection without a word, so ssh reads an
+                // empty passphrase and fails at once. Zed's own session holds the connection
+                // until it kills the command, which Marley cannot do to a terminal's ssh.
+                ControlFlow::Continue(
+                    answer
+                        .await
+                        .context("the passphrase dialog closed unanswered"),
+                )
+            })
+        }
+    };
+    let proxy = PasswordProxy::new(Box::new(ask), executor).await?;
+    // `askpass.sock` is the name Zed's proxy binds beside its script, inside its own task, where
+    // a failure only reaches the log.
+    let socket = Path::new(proxy.script_path().as_ref()).with_file_name("askpass.sock");
+    if !marley_browser::service::socket_fits(&socket) {
+        log::warn!(
+            "ssh in agent terminals asks on the terminal: {} is too long for a socket",
+            socket.display()
+        );
+        return Ok(None);
+    }
+    Ok(Some(proxy))
+}
+
+/// Opens the password dialog for one of ssh's prompts over `asker`'s tab, in the workspace of
+/// `window` that holds it. With no such terminal, or a password dialog already open there, the
+/// answer is dropped and ssh reads an empty one: Zed's `toggle_modal` would close the open
+/// dialog instead of showing a second, cancelling both.
+fn ask_passphrase(
+    window: AnyWindowHandle,
+    title: &SharedString,
+    asker: Option<&WeakEntity<Terminal>>,
+    prompt: String,
+    answer: oneshot::Sender<EncryptedPassword>,
+    cancellation: oneshot::Receiver<()>,
+    cx: &mut AsyncApp,
+) {
+    let Some(asker) = asker.map(|asker| asker.entity_id()) else {
+        log::warn!("ssh asked for a passphrase before its terminal opened");
+        return;
+    };
+    // Looked up before the window's update: `mcp::terminals` reads every window through its
+    // handle, and the window being updated reads as gone.
+    let found = cx.update(|cx| {
+        crate::mcp::terminals(cx)
+            .into_iter()
+            .find(|(_, view)| view.read(cx).terminal().entity_id() == asker)
+    });
+    let Some((workspace, view)) = found else {
+        log::warn!("ssh asked for a passphrase in a terminal that has closed");
+        return;
+    };
+    let title = title.clone();
+    window
+        .update(cx, move |_, window, cx| {
+            let shown_here =
+                window
+                    .root::<MultiWorkspace>()
+                    .flatten()
+                    .is_some_and(|multi_workspace| {
+                        multi_workspace
+                            .read(cx)
+                            .workspaces()
+                            .any(|shown| shown == &workspace)
+                    });
+            if !shown_here {
+                log::warn!("ssh asked for a passphrase in a terminal of another window");
+                return;
+            }
+            if workspace
+                .read(cx)
+                .active_modal::<AskPassModal>(cx)
+                .is_some()
+            {
+                log::warn!("ssh asked for a passphrase while another dialog asks; refused");
+                return;
+            }
+            crate::browser::reveal_terminal(&view, window, cx);
+            workspace.update(cx, |workspace, cx| {
+                workspace.toggle_modal(window, cx, |window, cx| {
+                    AskPassModal::new(title, prompt.into(), answer, cancellation, window, cx)
+                });
+            });
+        })
+        .log_err();
+}
+
 /// Registers `marley::NewAgent` on every workspace. [`crate::init`] calls it once.
 pub fn init(cx: &App) {
+    fix_askpass_program();
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action(new_agent);
     })
     .detach();
+}
+
+/// Fixes the program every askpass script runs to Marley's executable while the file is still
+/// the one running (#596). Zed reads `current_exe` when it makes the first script, and once an
+/// install has replaced the file Linux names the running one `… (deleted)`, which no script can
+/// run (#583 met the same for the relay). Once per process: the tests call `init` again, and a
+/// second set is a debug panic.
+fn fix_askpass_program() {
+    static FIXED: std::sync::Once = std::sync::Once::new();
+    FIXED.call_once(|| match std::env::current_exe() {
+        Ok(executable) => askpass::set_askpass_program(executable),
+        Err(error) => log::warn!("askpass scripts will find Marley when they are made: {error}"),
+    });
 }
 
 /// `marley::NewAgent`: the New Agent picker, or nothing while AI is disabled, as Zed shows none

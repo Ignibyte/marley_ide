@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **An agent's ssh asks for a key's passphrase in Marley** (#596, 2026-09-29). The terminals
+  Marley opens for an agent CLI in a local project point `SSH_ASKPASS` at a helper of their own,
+  with `SSH_ASKPASS_REQUIRE=force`. When ssh there needs a passphrase, Marley brings that
+  terminal to the front and shows Zed's password dialog over it, headed `ssh for <agent> in
+  <project>`, with the prompt ssh gave. The typed passphrase goes back to ssh alone, never to the
+  terminal, a log or the agent. Escape gives ssh an empty answer, so the command fails at once
+  instead of waiting. The helper, its socket and its folder go when the terminal closes. Git's own
+  credential prompts still fail at once in those terminals (`GIT_ASKPASS` is set empty so git
+  does not borrow ssh's helper), and every other terminal's ssh asks on the terminal as before.
+
 - **A second launch brings Marley forward as its launcher's click** (#545, 2026-09-29). When Marley
   already runs, a second launch hands over the activation token its launcher gave it
   (`XDG_ACTIVATION_TOKEN`) with its paths, and the running Marley brings its window forward with

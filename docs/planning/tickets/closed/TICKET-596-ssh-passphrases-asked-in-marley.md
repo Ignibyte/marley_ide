@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #596 (feature, prong 1 T7: the agent CLIs Marley starts; split from #537)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** (none yet: drafted at promotion)
+- **Pipeline doc:** docs/planning/pipeline/completed/596-ssh-passphrases-asked-in-marley.spec.md
 - **Source ticket:** docs/planning/pipeline/completed/537-git-credential-prompts-off.notes.md (Chad's answer, 2026-09-26)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 #537 turns git's terminal prompts off in the terminals Marley opens for agent CLIs, but ssh asks

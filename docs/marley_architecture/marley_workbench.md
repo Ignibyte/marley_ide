@@ -356,6 +356,21 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   (`GIT_TERMINAL_PROMPT=0`, `GCM_INTERACTIVE=never`), handed to Zed's
   `Project::create_terminal_shell_with_env` at spawn and never typed; a launch config's Terminal
   item, New Terminal and the Playwright script's terminal pass none.
+- **ssh's passphrases (#596).** `start_in_terminal` takes the agent (`Option<AgentKind>`) and
+  works the variables out itself. For an agent in a local project it first makes Zed's
+  `askpass::PasswordProxy` (`passphrase_proxy`: a 0700 temporary folder with a socket and
+  `askpass.sh`, which runs Marley's executable as `marley --askpass=<socket>`), adds
+  `SSH_ASKPASS` and `SSH_ASKPASS_REQUIRE=force` to `GIT_PROMPTS_OFF` (which carries
+  `GIT_ASKPASS=` so git never borrows the helper), opens the terminal, and moves the proxy into
+  the terminal's `on_release`, so the socket lives exactly as long as the terminal. Each prompt
+  runs `ask_passphrase` on the foreground: the terminal is looked up through `mcp::terminals`
+  before any window update (a window being updated reads as gone through its handle), revealed,
+  and Zed's `AskPassModal` opens in its workspace headed `marley_agent::ssh_dialog_title`. A
+  dismissed dialog drops its sender; the proxy answers `Continue(Err)`, writes nothing and closes
+  the connection, and ssh reads an empty passphrase and fails. A second prompt while a password
+  dialog is open in that workspace is refused rather than toggled. A socket path over
+  `sun_path` leaves the terminal without the helper, logged. `agents::init` fixes the askpass
+  program to `current_exe` once per process, before an install can replace the file.
 - **Recognition.** A terminal whose foreground argv names a known agent CLI
   (`marley_agent::agent_kind_of`) is an agent row. It carries the agent's icon and the title
   the CLI sets over OSC, falling back to the agent's name, and its second line is

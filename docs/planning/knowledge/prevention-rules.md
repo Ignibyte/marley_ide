@@ -2625,3 +2625,13 @@ Every e2e scenario's `setup` calls `open_path` on a folder of the run's own (a s
 in `$E2E_WORK`), and gives its terminals a HOME of their own with `terminal_env`. `script/e2e.sh`
 exits with `no folder to open` otherwise: a run that opens nothing restores the user's last
 session from the profile copy, Agent Panel threads and all.
+
+## PR-claude-596-look-up-across-windows-before-updating-one-001
+*severity: high · prevents: F-claude-596-a-lookup-inside-a-window-update-lost-that-windows-terminals-001*
+
+Inside `window.update(…)` (or `update_in`, `update_window`), never call a helper that reads windows
+through their handles (`cx.windows()`, `WindowHandle::read`, `downcast::<…>()?.read(cx)`, such as
+`mcp::terminals`): the window being updated is out of the app for the duration and reads as gone,
+so the lookup silently misses exactly the window in hand. Do the cross-window lookup first, in
+`cx.update` or before the update, and inside the update reach the window's own entities through
+the `window` argument (`window.root::<MultiWorkspace>()`).

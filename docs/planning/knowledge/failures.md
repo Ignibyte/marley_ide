@@ -2847,3 +2847,16 @@ Agent Panel's threads, whose agent Zed starts over ACP. 588's first script did t
 started the user's Claude agent (a resume, no prompt) and took a shot of their session. `shot.sh`,
 behind `just shot`, did the same by design whenever `OPEN` was unset. The runner now refuses a
 scenario with no folder to open, and `shot.sh` opens a scratch repository by default.
+
+## F-claude-596-a-lookup-inside-a-window-update-lost-that-windows-terminals-001
+*severity: high · found in: pipeline 596's Test phase (run 1) · class: reading a window through its handle while that window is updated · prevented by: PR-claude-596-look-up-across-windows-before-updating-one-001*
+
+The askpass prompt's handler found the agent's terminal with `mcp::terminals(cx)` inside
+`window.update(cx, |_, window, cx| …)`. `mcp::terminals` walks `cx.windows()` and reads each
+`MultiWorkspace` through its window handle, and while a window is being updated gpui has taken it
+out of the app, so its handle reads as gone. The one window that held the terminal contributed no
+terminals, the handler logged `ssh asked for a passphrase in a terminal that has closed`, dropped
+the answer, and ssh read an empty passphrase: the push failed and no dialog ever opened. It compiled
+and passed the review of the diff; the scenario's first run caught it. Fixed before the commit:
+the lookup runs in `cx.update` before the window's update, which only checks that the workspace
+found is one of this window's.

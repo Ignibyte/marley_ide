@@ -143,8 +143,14 @@ const fn bypass_arguments(kind: AgentKind) -> &'static [&'static str] {
 /// With them git, and Git Credential Manager where it is installed, fail with a message where they
 /// would wait on a prompt the agent cannot answer. Credential helpers still run before any prompt,
 /// so a stored credential keeps working.
-pub const GIT_PROMPTS_OFF: [(&str, &str); 2] =
-    [("GIT_TERMINAL_PROMPT", "0"), ("GCM_INTERACTIVE", "never")];
+///
+/// `GIT_ASKPASS` is empty because git falls back to `SSH_ASKPASS` for its own prompts when
+/// `GIT_ASKPASS` is unset, and an agent's terminal sets `SSH_ASKPASS` for ssh alone (#596).
+pub const GIT_PROMPTS_OFF: [(&str, &str); 3] = [
+    ("GIT_TERMINAL_PROMPT", "0"),
+    ("GCM_INTERACTIVE", "never"),
+    ("GIT_ASKPASS", ""),
+];
 
 /// What starts `kind` in a shell: its program name, the arguments `mode` asks for, and Enter.
 /// Every word is Marley's own.
@@ -533,6 +539,17 @@ pub fn event_line(project: &str, kind: AgentKind, event: TurnEvent) -> String {
         .filter(|character| !character.is_control())
         .collect();
     format!("{project}: {} {}", kind.short_name(), event.words())
+}
+
+/// The heading of the dialog where ssh in an agent's terminal asks for a passphrase, such as
+/// `ssh for Claude Code in marley_ide` (#596). The project's name loses its control characters.
+#[must_use]
+pub fn ssh_dialog_title(project: &str, kind: AgentKind) -> String {
+    let project: String = project
+        .chars()
+        .filter(|character| !character.is_control())
+        .collect();
+    format!("ssh for {} in {project}", kind.display_name())
 }
 
 /// How long an agent's terminal stays quiet before the agent reads as waiting. Claude Code and

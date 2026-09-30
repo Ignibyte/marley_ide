@@ -41,7 +41,14 @@ pub fn status_line(kind: AgentKind, status: AgentStatus) -> String;   // "Claude
 pub enum TurnEvent { NeedsInput, Finished, Failed }    // of_change(before, after), words()
 pub fn event_line(project: &str, kind: AgentKind, event: TurnEvent) -> String;
                                                      // "marley_ide: Claude needs input" (#535)
+pub const GIT_PROMPTS_OFF: [(&str, &str); 3];       // an agent terminal's git variables (#537)
+pub fn ssh_dialog_title(project: &str, kind: AgentKind) -> String;
+                                                     // "ssh for Claude Code in marley_ide" (#596)
 ```
+
+- **`GIT_PROMPTS_OFF`** is `GIT_TERMINAL_PROMPT=0`, `GCM_INTERACTIVE=never` and, since #596, an
+  empty `GIT_ASKPASS`: git falls back to `SSH_ASKPASS` for its own prompts when `GIT_ASKPASS` is
+  unset, and an agent's terminal sets `SSH_ASKPASS` for ssh alone.
 
 - **`agent_kind_of`** reads a command line's leading program, with a directory path stripped
   and arguments ignored, so `/home/me/.local/bin/claude --resume` is Claude Code. Program names

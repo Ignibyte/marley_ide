@@ -433,13 +433,14 @@ async fn open_item(
             agents::launch_input(workspace, *kind, cx)
         })?),
     };
-    // An agent's terminal has git's credential prompts off; a command's keeps them (#537).
-    let env = match &item.kind {
-        ItemKind::Agent(_) => agents::agent_env(),
-        _ => HashMap::default(),
+    // An agent's terminal has git's credential prompts off and asks for ssh's passphrases in
+    // Marley; a command's keeps its prompts (#537, #596).
+    let agent = match &item.kind {
+        ItemKind::Agent(kind) => Some(*kind),
+        _ => None,
     };
     let opening = workspace.update_in(cx, |workspace, window, cx| {
-        agents::start_in_terminal(workspace, Some(directory), env, input, window, cx)
+        agents::start_in_terminal(workspace, Some(directory), agent, input, window, cx)
     })?;
     let terminal = opening.await?;
     let title = item.title.clone();
