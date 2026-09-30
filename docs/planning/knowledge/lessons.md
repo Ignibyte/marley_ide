@@ -4001,3 +4001,25 @@ the drop handler has to end whatever the drag began.
 that list; the rail keeps its own (`SavedOrder::headers`). A Browser tab's saved item id is not a
 stable id across restarts either (the item id is the view's entity id, new each start); its page
 target is.
+
+## L-claude-603-stop-a-service-not-its-process-001
+*category: design · topic: stopping servers the user did not start in Marley · from: pipeline 603*
+
+A server that a systemd unit runs with `Restart=always` comes back five seconds after its
+process gets SIGTERM, since systemd counts that as an exit to restart from; a unit with
+`Restart=on-failure` stays down after a SIGTERM but reads as inactive though no one stopped it.
+The process's `/proc/<pid>/cgroup` names its unit (`0::…/<name>.service`, the user's own under
+`user@<uid>.service`), the same path `systemctl status <pid>` reads, so the rail can tell a
+service's process from a plain one and stop the unit with `systemctl [--user] stop`. The system's
+goes through polkit, which asks the desktop's agent; Marley never runs `sudo`. Only the path's
+last part counts: a scope under a service's slice is a process.
+
+## L-claude-603-a-scenario-fakes-a-program-for-marley-through-setups-path-001
+*category: validate · topic: e2e scenarios · from: pipeline 603*
+
+`script/e2e.sh` runs a scenario's `setup` in its own shell before it starts Marley, so a PATH
+exported there reaches Marley's own spawns (`process::output`), and not only its terminals, which
+`terminal_env` covers. A fake that answers one case and `exec`s the real program for everything
+else (the runner itself calls `systemctl --user stop` for its browser units) keeps the rest of the
+run real. Units or processes a scenario starts outside Marley go in a `teardown`, which the
+runner's EXIT trap calls however the run ends.

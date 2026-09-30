@@ -539,15 +539,17 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 
 <article id="port-rows">
-<h3>Port rows: the servers your project runs <span class="ticket">#521</span></h3>
+<h3>Port rows: the servers your project runs <span class="ticket">#521 · #603</span></h3>
 <p class="what"><strong>What it is.</strong> The rail lists the TCP ports your processes listen on from inside the project's folders: a dev server, a database, anything. A row comes within seconds of a server's start and goes when it stops.</p>
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Start a server in the project, for example <code>npm run dev</code> or <code>python3 -m http.server 8000</code>.</li>
 <li>Point at its row to see the command line, folder and pid, and three buttons: Open (the URL in a Browser tab), Copy (the URL) and Stop.</li>
 <li>Stop sends the process SIGTERM, after checking it still listens on that port.</li>
+<li>A server that a systemd service runs shows its unit on a line under the URL, and the pointer on the row says whether it is a user or a system service. Stop then stops the service, not the process, since the service would start a stopped process again: <code>systemctl --user stop</code> for a user service, <code>systemctl stop</code> for a system one, which asks for your password in the desktop's dialog. Point at Stop to see which it will do.</li>
+<li>If the service cannot be stopped (you cancel the password dialog, or are not allowed), a message says why and offers the command to run yourself, such as <code>sudo systemctl stop app.service</code>, with a Copy Command button.</li>
 </ol>
-<p class="note">A server bound to <code>0.0.0.0</code> gets a URL on <code>127.0.0.1</code>. A process that a systemd service runs may be started again by its service after Stop: stop the service with <code>systemctl</code> instead.</p>
+<p class="note">A server bound to <code>0.0.0.0</code> gets a URL on <code>127.0.0.1</code>. A server started in one of Marley's terminals runs in no service of its own, so Stop signals it.</p>
 </article>
 
 <article id="rail-keyboard">

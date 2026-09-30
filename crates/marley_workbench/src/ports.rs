@@ -6,13 +6,17 @@
 //! window. Marley's own listeners are left out: its MCP server, another Marley's, and a project
 //! Chromium's relay, which runs Marley's own executable, all named `marley`, and a Chromium an
 //! earlier build started, whose command line names Marley's `browser/` folder.
+//!
+//! Stop stops a listener's systemd service with `systemctl`, and signals any other process
+//! (#603): a service's restart policy would start a signalled process again.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+use anyhow::Context as _;
 use gpui::{App, AppContext as _, Global, Task};
-use marley_browser::ports::{Listener, Stopped, listeners_in, stop_in};
+use marley_browser::ports::{Listener, Service, Stopped, listeners_in, own_service_in, stop_in};
 use project::ProjectGroupKey;
 use workspace::MultiWorkspace;
 
@@ -153,16 +157,22 @@ fn project_folders(cx: &App) -> Vec<(ProjectGroupKey, Vec<PathBuf>)> {
 }
 
 /// Each listener of `scanned` given to the project group whose folder is the deepest holding the
-/// process's working directory; Marley's own, and those in no project, left out.
+/// process's working directory; Marley's own, and those in no project, left out. A listener in
+/// the unit Marley itself runs in, a dev server in one of its terminals, is a process: stopping
+/// the unit would stop Marley.
 fn attribute(
     scanned: anyhow::Result<Vec<Listener>>,
     folders: &[(ProjectGroupKey, Vec<PathBuf>)],
 ) -> anyhow::Result<HashMap<ProjectGroupKey, Vec<ProjectListener>>> {
     let own = std::process::id();
+    let own_service = own_service_in(Path::new(PROC));
     let browser_dir = paths::data_dir().join("browser");
     let browser_dir = browser_dir.to_string_lossy();
     let mut by_group: HashMap<ProjectGroupKey, Vec<ProjectListener>> = HashMap::new();
-    for listener in scanned? {
+    for mut listener in scanned? {
+        if listener.service.is_some() && listener.service == own_service {
+            listener.service = None;
+        }
         if listener.pid == own
             || listener.name == "marley"
             || listener.command.contains(browser_dir.as_ref())
@@ -227,10 +237,83 @@ pub fn list(cx: &App) -> Task<anyhow::Result<HashMap<ProjectGroupKey, Vec<Projec
     }))
 }
 
-/// Stops the process `pid` that listens on `port`, after a scan made now finds it listening
-/// there still.
-pub fn stop(port: u16, pid: u32, cx: &App) -> Task<anyhow::Result<Stopped>> {
-    cx.background_spawn(futures::future::lazy(move |_| {
-        stop_in(Path::new(PROC), port, pid)
-    }))
+/// How a Stop went (#603).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Stop {
+    /// The listener runs in no service, and was signalled as #521 does.
+    Signalled(Stopped),
+    /// `systemctl` stopped the listener's service.
+    Unit(Service),
+    /// `systemctl` could not stop it, for systemd's `reason`.
+    Refused {
+        /// The service.
+        service: Service,
+        /// What `systemctl` printed.
+        reason: String,
+    },
+}
+
+/// Stops what listens on `port` as `pid`, after a scan made now finds it listening there still.
+///
+/// A listener in a systemd service has its service stopped with `systemctl` (the system's through
+/// polkit, which asks the desktop's agent); any other process gets SIGTERM.
+pub fn stop(port: u16, pid: u32, cx: &App) -> Task<anyhow::Result<Stop>> {
+    cx.background_spawn(async move {
+        let proc_root = Path::new(PROC);
+        let found = listeners_in(proc_root)?
+            .into_iter()
+            .find(|listener| listener.pid == pid && listener.address.port() == port);
+        let Some(found) = found else {
+            return Ok(Stop::Signalled(Stopped::NotListening));
+        };
+        let own_service = own_service_in(proc_root);
+        match found
+            .service
+            .filter(|service| Some(service) != own_service.as_ref())
+        {
+            Some(service) => stop_unit(service).await,
+            None => Ok(Stop::Signalled(stop_in(proc_root, port, pid)?)),
+        }
+    })
+}
+
+/// Runs `systemctl stop` for `service`, with `--user` for the user's own.
+async fn stop_unit(service: Service) -> anyhow::Result<Stop> {
+    let mut args = vec!["stop", service.unit.as_str()];
+    if service.user {
+        args.insert(0, "--user");
+    }
+    let output = crate::process::output("systemctl", &args, None, &[])
+        .await
+        .context("running `systemctl`")?;
+    if output.status.success() {
+        return Ok(Stop::Unit(service));
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let reason = refusal_reason(&stderr, &service.unit)
+        .unwrap_or_else(|| format!("`systemctl` ended with {}", output.status));
+    Ok(Stop::Refused { service, reason })
+}
+
+/// systemd's reason in what `systemctl` printed: its first line, after the `Failed to stop
+/// <unit>: ` it starts with, without the pointer to the logs that follows.
+fn refusal_reason(stderr: &str, unit: &str) -> Option<String> {
+    let line = stderr
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())?;
+    let reason = line
+        .split_once(&format!("{unit}: "))
+        .map_or(line, |(_, reason)| reason);
+    Some(reason.trim_end_matches('.').to_string())
+}
+
+/// The command that stops `service` by hand, which a refusal offers to copy.
+#[must_use]
+pub fn hand_command(service: &Service) -> String {
+    if service.user {
+        format!("systemctl --user stop {}", service.unit)
+    } else {
+        format!("sudo systemctl stop {}", service.unit)
+    }
 }

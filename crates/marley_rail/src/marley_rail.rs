@@ -272,8 +272,19 @@ pub struct PortSnapshot {
     pub url: String,
     /// The process's command line, working directory and pid, for the row's tooltip.
     pub tooltip: String,
+    /// The systemd service the process runs in, when it runs in one (#603).
+    pub service: Option<PortService>,
     /// Where the filter matched the title, as for [`ProjectSnapshot::matched`].
     pub matched: Option<Vec<usize>>,
+}
+
+/// The systemd service a port's process runs in (#603), which the row's Stop stops.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PortService {
+    /// The unit's name.
+    pub unit: String,
+    /// Whether the user's own manager runs it, rather than the system's.
+    pub user: bool,
 }
 
 /// An agent CLI running in a terminal, and what it is doing.
@@ -618,6 +629,8 @@ pub struct PortRow {
     pub url: String,
     /// The tooltip.
     pub tooltip: String,
+    /// The service its process runs in (see [`PortSnapshot::service`]).
+    pub service: Option<PortService>,
     /// Whether this is the selected row.
     pub selected: bool,
     /// The byte offsets of the title's characters the filter matched, to highlight.
@@ -1390,6 +1403,7 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                 title: port.title.clone(),
                 url: port.url.clone(),
                 tooltip: port.tooltip.clone(),
+                service: port.service.clone(),
                 selected: selected == Selection::Port(port.port, port.pid),
                 highlight: highlight(port.matched.as_deref()),
             }),

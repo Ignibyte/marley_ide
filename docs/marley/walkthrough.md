@@ -429,6 +429,12 @@ npm run dev
 - [ ] Within about three seconds a row appears under `marley-tour`: a server icon, `:8000` with
   the process's name, and a URL on `127.0.0.1`, since the server listens on `0.0.0.0`.
 - [ ] Pointing at it shows the command line, folder and pid, with Open, Copy and Stop.
+- [ ] Optional, a server run by a systemd service (#603): in a terminal of `marley-tour`, run
+  `systemd-run --user --unit=marley-tour-web -p Restart=always --working-directory=$PWD python3
+  -m http.server 8010`. Its row shows `marley-tour-web.service` under the URL; Stop's tooltip
+  says "Stop the User Service"; after Stop the row goes and stays gone, and
+  `systemctl --user is-active marley-tour-web` prints `inactive`. Then run
+  `systemctl --user reset-failed marley-tour-web`.
 
 Leave the server running: Parts 5 and 7 use it.
 

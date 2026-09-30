@@ -3,7 +3,7 @@
 //! The ports come from Linux's `/proc/net/tcp` and `tcp6` (#503), and the processes of this
 //! user's that listen on them from each process's `fd` links (#521). A terminal offers a dev
 //! server's printed URL only while its port listens, and the rail lists each project's
-//! listeners.
+//! listeners, each with the systemd service it runs in, when it runs in one (#603).
 
 use std::collections::{BTreeSet, HashMap};
 use std::net::{IpAddr, SocketAddr};
@@ -81,6 +81,46 @@ pub struct Listener {
     pub command: String,
     /// Its working directory.
     pub cwd: PathBuf,
+    /// The systemd service it runs in, when it runs in one (#603).
+    pub service: Option<Service>,
+}
+
+/// A systemd service a process runs in (#603).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Service {
+    /// The unit's name, as `app.service`.
+    pub unit: String,
+    /// Whether the user's own manager runs it, rather than the system's.
+    pub user: bool,
+}
+
+/// The service a process runs in, from its `cgroup` file's text.
+///
+/// The unified hierarchy's line, `0::<path>`, names it when the path's last part is a `.service`
+/// unit. A unit under the user's manager (`user@<uid>.service`) is the user's; any other the
+/// system's. A scope, such as a desktop app's or a terminal's, is no service, and neither is a
+/// process in a scope under a service's slice.
+#[must_use]
+pub fn service_of(cgroup: &str) -> Option<Service> {
+    let path = cgroup.lines().find_map(|line| line.strip_prefix("0::"))?;
+    let mut parts = path.trim().split('/').filter(|part| !part.is_empty());
+    let unit = parts.next_back()?;
+    if !unit.ends_with(".service") {
+        return None;
+    }
+    let user = parts.any(|part| part.starts_with("user@") && part.ends_with(".service"));
+    Some(Service {
+        unit: unit.to_string(),
+        user,
+    })
+}
+
+/// The service the process reading `proc_root` runs in: `self`'s.
+#[must_use]
+pub fn own_service_in(proc_root: &Path) -> Option<Service> {
+    std::fs::read_to_string(proc_root.join("self").join("cgroup"))
+        .ok()
+        .and_then(|cgroup| service_of(&cgroup))
 }
 
 /// How [`stop_in`] went.
@@ -151,6 +191,9 @@ pub fn listeners_in(proc_root: &Path) -> Result<Vec<Listener>> {
         let command = std::fs::read(folder.join("cmdline"))
             .map(|arguments| command_line(&arguments))
             .unwrap_or_default();
+        let service = std::fs::read_to_string(folder.join("cgroup"))
+            .ok()
+            .and_then(|cgroup| service_of(&cgroup));
         // One listener per port: a server bound to two addresses of a port answers on both, and
         // the order keeps the first the same from scan to scan.
         addresses.sort_by_key(|address| (address.port(), *address));
@@ -161,6 +204,7 @@ pub fn listeners_in(proc_root: &Path) -> Result<Vec<Listener>> {
             name: name.clone(),
             command: command.clone(),
             cwd: cwd.clone(),
+            service: service.clone(),
         }));
     }
     listeners.sort_by_key(|listener| (listener.address.port(), listener.pid));

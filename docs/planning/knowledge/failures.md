@@ -2912,3 +2912,13 @@ hold is let go, and when that change came from the header's menu (Move Project) 
 think the pointer is over the rail and send no new hover-true; a drag begun then held no order,
 and the attention sort could move rows under it. Caught by the review before the gate:
 `start_drag` takes the hold when none is held.
+
+## F-claude-603-a-long-trailing-state-squeezed-the-rows-text-out-001
+*severity: medium · found in: pipeline 603's Test phase (run 1) · class: a fixed-width part beside a truncating one in a narrow row*
+
+A port row's service went on the URL's line as `RowLine::state`, the way a terminal's command
+line carries ` · done · 0 s`. The state is drawn `flex_none` beside a truncating text, so a unit
+name as long as `marley-e2e-603.service` took the whole width in the 260 px rail and the URL
+vanished; the shot showed only ` · marley-e2e-603.service`. Fixed before the commit: the unit is
+a line of its own under the URL. A row line's state is for a few short words; anything as long
+as a name gets its own line.

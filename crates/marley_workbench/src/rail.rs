@@ -31,12 +31,12 @@ use marley_agent::risk::{self, Action, Chip, ChipKind, ChipSource, ToolClass};
 use marley_agent::route::{self, Route, RouteMark, RouteSource};
 use marley_agent::{AgentKind, WAITING_AFTER, claude_events};
 use marley_browser::consequence::Class;
-use marley_browser::ports::Stopped;
+use marley_browser::ports::{Service, Stopped};
 use marley_mcp::redact::Redactor;
 use marley_rail::{
     BrowserRow, BrowserSnapshot, CommandSnapshot, DriftSnapshot, Focus, InboxEntry, InboxKind,
-    PortRow, PortSnapshot, ProjectRow, ProjectSnapshot, RailSnapshot, Reporting, Row, RunningError,
-    Selection, SwitcherRow, TerminalAgent, TerminalRow, TerminalSnapshot, ThreadRow,
+    PortRow, PortService, PortSnapshot, ProjectRow, ProjectSnapshot, RailSnapshot, Reporting, Row,
+    RunningError, Selection, SwitcherRow, TerminalAgent, TerminalRow, TerminalSnapshot, ThreadRow,
     ThreadSnapshot, ThreadStatus, TurnSnapshot, WorktreeRow, WorktreeSnapshot,
 };
 use marley_system_one::reading::{Reading, Signal};
@@ -75,7 +75,7 @@ use crate::agents::{self, AgentIcon};
 use crate::browser::{BrowserEvent, BrowserHub, BrowserView};
 use crate::github::{self, PullRequest, PullRequestState};
 use crate::groups;
-use crate::ports::{self, Ports};
+use crate::ports::{self, Ports, Stop};
 use crate::system_one::{self, Asking};
 use crate::turns::Turns;
 use crate::worktree_git::{self, BranchEnd, Drift, MergeOwner};
@@ -3057,20 +3057,24 @@ impl Rail {
         let stop = ports::stop(port, pid, cx);
         let multi_workspace = self.multi_workspace.clone();
         cx.spawn_in(window, async move |_, cx| {
-            let failure = match stop.await {
-                Ok(Stopped::Sent | Stopped::Gone) => return,
-                Ok(Stopped::NotListening) => format!(
-                    "Process {pid} no longer listens on port {port}, so Marley left it alone."
+            let toast = match stop.await {
+                Ok(Stop::Signalled(Stopped::Sent | Stopped::Gone) | Stop::Unit(_)) => return,
+                Ok(Stop::Signalled(Stopped::NotListening)) => Toast::new(
+                    NotificationId::unique::<Ports>(),
+                    format!(
+                        "Process {pid} no longer listens on port {port}, so Marley left it alone."
+                    ),
                 ),
-                Err(error) => format!("Could not stop the server on port {port}: {error:#}"),
+                Ok(Stop::Refused { service, reason }) => refused_toast(&service, &reason),
+                Err(error) => Toast::new(
+                    NotificationId::unique::<Ports>(),
+                    format!("Could not stop the server on port {port}: {error:#}"),
+                ),
             };
             let shown = multi_workspace
                 .read_with(cx, |multi_workspace, _| multi_workspace.workspace().clone());
             if let Ok(workspace) = shown {
-                workspace.update(cx, |workspace, cx| {
-                    workspace
-                        .show_toast(Toast::new(NotificationId::unique::<Ports>(), failure), cx);
-                });
+                workspace.update(cx, |workspace, cx| workspace.show_toast(toast, cx));
             }
         })
         .detach();
@@ -4504,12 +4508,15 @@ impl Rail {
                 cx.write_to_clipboard(ClipboardItem::new_string(copy_url.clone()));
             },
         );
-        let stop = button("marley-rail-port-stop", IconName::Stop, "Stop the Server").on_click(
-            cx.listener(move |rail, _, window, cx| {
+        let (stop_title, stop_meta) = stop_words(pid, row.service.as_ref());
+        let stop = IconButton::new(("marley-rail-port-stop", key), IconName::Stop)
+            .icon_size(IconSize::Small)
+            .icon_color(Color::Muted)
+            .tooltip(move |_, cx| Tooltip::with_meta(stop_title, None, stop_meta.clone(), cx))
+            .on_click(cx.listener(move |rail, _, window, cx| {
                 cx.stop_propagation();
                 rail.stop_port(port, pid, window, cx);
-            }),
-        );
+            }));
         let end = h_flex()
             .flex_none()
             .gap_0p5()
@@ -4539,7 +4546,10 @@ impl Rail {
                 .color(Color::Muted)
                 .into_any_element(),
             row_label(row.title, row.highlight, Color::Default),
-            vec![row.url],
+            // A service's unit gets a line of its own: beside the URL it would squeeze the URL out.
+            std::iter::once(row.url)
+                .chain(row.service.map(|service| service.unit))
+                .collect(),
             cx,
         )
         .child(end)
@@ -4555,6 +4565,40 @@ impl Rail {
     }
 }
 
+/// What a port row's Stop says it does (#603): stop the user's or the system's service, with the
+/// command it runs, or signal the process.
+fn stop_words(pid: u32, service: Option<&PortService>) -> (&'static str, String) {
+    match service {
+        Some(service) if service.user => (
+            "Stop the User Service",
+            format!("systemctl --user stop {}", service.unit),
+        ),
+        Some(service) => (
+            "Stop the System Service",
+            format!(
+                "systemctl stop {}, which asks for authorization",
+                service.unit
+            ),
+        ),
+        None => ("Stop the Process", format!("SIGTERM to pid {pid}")),
+    }
+}
+
+/// The toast for a service `systemctl` could not stop (#603), with the command that stops it by
+/// hand to copy. Marley does not signal its process instead: systemd would start it again.
+fn refused_toast(service: &Service, reason: &str) -> Toast {
+    let kind = if service.user { "user" } else { "system" };
+    let command = ports::hand_command(service);
+    let message = format!(
+        "Could not stop the {kind} service {}: {reason}. Marley leaves its process alone, since \
+         systemd would start it again. To stop it yourself, run: {command}",
+        service.unit
+    );
+    Toast::new(NotificationId::unique::<Ports>(), message).on_click("Copy Command", move |_, cx| {
+        cx.write_to_clipboard(ClipboardItem::new_string(command.clone()));
+    })
+}
+
 /// The project group `key`'s listeners as rows (#521): the port and the process's name as the
 /// title, the URL, and a tooltip with the command line, the working directory and the pid.
 fn port_snapshots(key: &ProjectGroupKey, filter: &str, cx: &App) -> Vec<PortSnapshot> {
@@ -4565,16 +4609,29 @@ fn port_snapshots(key: &ProjectGroupKey, filter: &str, cx: &App) -> Vec<PortSnap
             let port = listener.address.port();
             let title = format!(":{port} {}", listener.name);
             let matched = filter_match(filter, &title);
+            let service_line = listener
+                .service
+                .as_ref()
+                .map_or_else(String::new, |service| {
+                    let kind = if service.user { "user" } else { "system" };
+                    format!("\n{kind} service {}", service.unit)
+                });
+            let tooltip = format!(
+                "{}\nin {}\npid {}{service_line}",
+                listener.command,
+                listener.cwd.display(),
+                listener.pid
+            );
+            let service = listener.service.map(|service| PortService {
+                unit: service.unit,
+                user: service.user,
+            });
             PortSnapshot {
                 port,
                 pid: listener.pid,
                 url: marley_browser::ports::url(listener.address),
-                tooltip: format!(
-                    "{}\nin {}\npid {}",
-                    listener.command,
-                    listener.cwd.display(),
-                    listener.pid
-                ),
+                tooltip,
+                service,
                 title,
                 matched,
             }

@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #603 (feature, workbench shell: the rail's port rows)
 - **Owner:** abb571b4-bf75-463f-889a-b17f7d32f71e
-- **Pipeline doc:** ../../pipeline/queued/603-service-aware-port-rows.spec.md
+- **Pipeline doc:** ../../pipeline/completed/603-service-aware-port-rows.spec.md
 - **Source ticket:** Chad, 2026-09-30: "When i stop the web servers they come back open ... I wonder if we treat these differently". The Playwright server on :3101 was a system unit with `Restart=always`; Stop's SIGTERM ended it and systemd started it again five seconds later, twice.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 A port row (#521) treats every listener alike, and Stop sends SIGTERM. A listener that a systemd

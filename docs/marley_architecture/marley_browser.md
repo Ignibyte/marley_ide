@@ -187,6 +187,11 @@ for.
   `rustix::process::kill_process` only when that pid still listens on that port, so a pid
   given to another process since the last scan is left alone. It answers `Stopped::Sent`,
   `Stopped::NotListening`, or `Stopped::Gone` when the process ended first (`ESRCH`).
+- Since #603 each `Listener` carries `service`, read from the process's `cgroup` file by
+  `service_of`: the unified line `0::<path>`, whose last part names a `.service` unit, is a
+  `Service { unit, user }`, `user` when an earlier part is the user's manager (`user@….service`).
+  A scope's process, or one in a scope under a service's slice, has none. `own_service_in` reads
+  `proc_root/self/cgroup` for the unit the reading process runs in.
 
 ## Page icons (`src/favicon.rs`, #504)
 

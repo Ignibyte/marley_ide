@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Port rows that know a service** (#603, 2026-09-30). A port row whose process runs in a systemd
+  service (read from its `/proc/<pid>/cgroup`: a path ending in `<name>.service`) shows the unit
+  on a line under the URL, and its tooltip says whether it is a user or a system service. Stop
+  then stops the service instead of signalling the process, which a restart policy would start
+  again: `systemctl --user stop <unit>` for a user service, `systemctl stop <unit>` for a system
+  one, which asks the desktop's polkit agent. When `systemctl` fails, a toast names the unit and
+  systemd's reason and offers the command that stops it by hand (`sudo systemctl stop <unit>` for
+  a system service) to copy. Stop's tooltip says which of the three it will do. A process in the
+  unit Marley itself runs in is still signalled, since stopping that unit would stop Marley.
+
 - **Drag to reorder the rail** (#602, 2026-09-30). A project's or a group's header drags up or down
   among the headers, its rows with it, so a group can sit between projects; a terminal, Browser
   tab or thread row drags up or down among the rows of its kind in its own group and section. A

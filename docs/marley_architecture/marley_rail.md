@@ -16,7 +16,8 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
   tray's picks, the page's annotations, the agent's mark and the icon's id), its
   agent threads as `ThreadSnapshot`s (key, title, status, attention), and its ports as
   `PortSnapshot`s (#521: the port and the pid that listens, which together name the row, the
-  title, the URL and the tooltip), in the order the collector gives. `focus` holds the displayed workspace's group index, its active terminal's id and
+  title, the URL and the tooltip, and since #603 the systemd service it runs in as a
+  `PortService { unit, user }`, which `rail_rows` copies to `PortRow`), in the order the collector gives. `focus` holds the displayed workspace's group index, its active terminal's id and
   whether that terminal holds the window's focus, its active item's id when that is a Browser tab
   (`browser`), the thread its Agent Panel shows while the
   panel holds focus, and `cursor`, the row the keyboard is on while the rail holds focus. `filtering` says the filter holds text, and each project,

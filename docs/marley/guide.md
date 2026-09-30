@@ -217,6 +217,13 @@ goes when it stops.
   buttons: Open (the URL in a Browser tab of the project, or the tab already on it), Copy (the URL
   on the clipboard) and Stop. Stop sends the process SIGTERM once a fresh look finds it still
   listening on that port; otherwise a message says Marley left it alone.
+- A server that a systemd service runs (#603) shows its unit on a line under the URL, and the
+  pointer says whether it is a user or a system service. Stop then stops the service, since its
+  restart policy would start a signalled process again: `systemctl --user stop <unit>` for a user
+  service, `systemctl stop <unit>` for a system one, which asks for your password through the
+  desktop's dialog. If that fails, a message says why and offers the command to run yourself
+  (`sudo systemctl stop <unit>` for a system service) with a Copy Command button. Stop's tooltip
+  says which it will do.
 - Marley's own listeners and other users' processes get no row, and neither does a server whose
   working directory is in no project, such as one that moved to `/` when it went to the
   background.

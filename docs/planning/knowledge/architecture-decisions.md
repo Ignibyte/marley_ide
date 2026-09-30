@@ -3393,3 +3393,16 @@ Zed's order, and something added after the user placed the headers goes last. Re
 `move_project_group_up/down` swaps (they cannot pass a group), an additive
 `move_project_group_to` (the same limit, plus a touchpoint), and moving tabs in panes to match a
 row's place (a row's place and its tab's stay independent).
+
+## AD-claude-603-stop-stops-a-listeners-service-001
+*decided at: 2026-09-30 · status: shipped · builds on: AD-claude-521-a-projects-ports-are-found-by-their-working-directory-001*
+
+A port row's Stop stops the systemd service its process runs in, read from the process's cgroup,
+with `systemctl --user stop` or `systemctl stop` (polkit asks the desktop's agent for a system
+unit), and signals a process in no service with SIGTERM as #521 did. A refusal is a toast with
+systemd's reason and the command to run by hand, copied only when the user presses Copy Command;
+Marley never runs `sudo` and never signals a service's process instead. A process in the unit
+Marley itself runs in counts as a process, since stopping that unit would stop Marley. Rejected:
+SIGTERM for everything with a warning (the reported bug), SIGKILL (a restart policy still
+restarts), and `systemctl kill` (it leaves the unit to restart). Containers, whose published
+ports root's `docker-proxy` holds, are left to a ticket of their own.

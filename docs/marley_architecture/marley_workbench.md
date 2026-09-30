@@ -148,7 +148,11 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
 - **Port rows (#521).** `build_snapshot` gives each project the listeners `ports::Ports` holds
   for its group (`port_snapshots`): the title `:<port> <name>`, matched by the filter as a title
   is, the URL as the second line (`marley_browser::ports::url`), and a tooltip with the command
-  line, `in <cwd>` and `pid <pid>`. `render_port_row` draws `Server` in the row's round icon, and
+  line, `in <cwd>` and `pid <pid>`, and since #603 `user service <unit>` or `system service
+  <unit>` with the service's unit as a line of its own under the URL (`PortService`). Stop's
+  tooltip (`stop_words`, `Tooltip::with_meta`) says it stops the user service, the system service
+  or the process, with the command or the signal, and `stop_port` shows a refusal as a toast with
+  Copy Command (`refused_toast`). `render_port_row` draws `Server` in the row's round icon, and
   on hover (`visible_on_hover`) Open (`ToolWeb`), Copy and Stop, each in a div with its own
   debug selector (`marley-rail-port-open-<port>` and so on).
   - A click on the row, Enter, or Open runs `open_port`: the group's workspace is shown
@@ -312,8 +316,16 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   server, a project Chromium's relay, which runs Marley's executable), and any whose command line
   names `<data dir>/browser`, a Chromium an earlier build started on a port.
 - `list` scans at once for `ports_list`, and `project_names` names each group as the rail does
-  (`crate::group_names`). `stop` runs `marley_browser::ports::stop_in` on the background
-  executor.
+  (`crate::group_names`).
+- `stop` (#603) scans at once on the background executor. When the pid no longer listens on the
+  port, it answers `Stop::Signalled(Stopped::NotListening)`. A listener in a systemd service goes
+  to `stop_unit`, which runs `systemctl [--user] stop <unit>` through `process::output` (the
+  system's through polkit, which asks the desktop's agent) and answers `Stop::Unit`, or
+  `Stop::Refused` with systemd's reason (`refusal_reason`: the first line of its stderr, after
+  `Failed to stop <unit>: `). Any other listener goes to `marley_browser::ports::stop_in`
+  (SIGTERM). `attribute` and `stop` both treat a listener in the unit Marley itself runs in
+  (`own_service_in`) as a process, since stopping that unit would stop Marley. `hand_command`
+  gives the command that stops a service by hand, which a refusal's toast offers to copy.
 
 ## Threads (#439)
 

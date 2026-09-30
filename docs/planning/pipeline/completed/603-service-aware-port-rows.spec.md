@@ -1,7 +1,7 @@
 ---
 pipeline_id: 9cf4965d-533d-4428-9d3c-3b822c9056d6
 ticket: docs/planning/tickets/open/TICKET-603-service-aware-port-rows.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Port rows that know a service"
 type: feature
 slice: workbench shell (the rail's port rows), after #521
@@ -17,16 +17,24 @@ than signalling its process, so a service with a restart policy stays down.
 - **Finding the service.** For each listener, Marley reads `/proc/<pid>/cgroup`. A path ending in
   `<name>.service` under `system.slice` is a system service; one under the user's
   `user@<uid>.service` is a user service. Scopes (`.scope`, such as a desktop app's or Marley's own
-  terminals') are not services and change nothing.
-- **The row.** A service's name shows on the row's second line beside the URL, as
-  `app-playwright.service`, and in its tooltip with whether it is a system or a
-  user service.
+  terminals') are not services and change nothing. Only the process's own cgroup (the path's last
+  part) counts, so a process in a scope under a service's slice is a process.
+- **Marley's own unit is never stopped.** When Marley itself runs inside a `.service` unit, a
+  process in that same unit (a dev server started in one of its terminals) is treated as a
+  process, and Stop signals it: stopping the unit would stop Marley.
+- **The row.** A service's unit shows on a line of its own under the URL, as
+  `app-playwright.service` (beside the URL it squeezed the URL out, Test run 1), and in the row's
+  tooltip with whether it is a system or a user service.
 - **Stop, for a user service:** `systemctl --user stop <unit>`; the row goes at the next look and
   stays gone.
 - **Stop, for a system service:** `systemctl stop <unit>`, which asks the desktop's polkit agent
-  for authorization. If that fails (refused, no agent, not allowed), a toast names the unit, says
-  systemd would restart the process if Marley signalled it, and puts `sudo systemctl stop <unit>`
-  on the clipboard with a Copy button.
+  for authorization. Stop checks first, with a scan made then, that the process still listens on
+  the port in the same unit.
+- **When `systemctl` fails** (refused, no agent, not allowed), a toast names the unit and
+  systemd's reason, says Marley does not signal the process since systemd would start it again,
+  and offers a Copy Command button with the command that stops it by hand: `sudo systemctl stop
+  <unit>` for a system service, `systemctl --user stop <unit>` for a user one. Nothing goes on the
+  clipboard until the button is pressed.
 - **Stop, for anything else:** SIGTERM as #521 does.
 - **The Stop button's tooltip** says which of the three it will do.
 
@@ -54,20 +62,26 @@ same cgroup path), and stopped with systemd's own command and its polkit authori
   the workbench's `process.rs` (or another listed site), not in the rail.
 
 ## UI proof
-The scenario `script/e2e/603-service-aware-port-rows.sh` starts a transient user service with
-`systemd-run --user --unit=marley-e2e-603 --property=Restart=always python3 -m http.server <port>`
-in the scratch project's folder, shoots the rail's row with the unit's name (`row.png`) and the
-Stop tooltip (`tooltip.png`), clicks Stop and, after six seconds, shoots the rail without the row
-(`stopped.png`) and records `systemctl --user is-active marley-e2e-603` (`state.txt`: inactive).
-The system-service branch cannot be driven without root in the scenario: its toast is checked by
-review, and by a scenario step that fakes `systemctl` first on the PATH to fail with polkit's
-message (`refused.png`).
+The scenario `script/e2e/603-service-aware-port-rows.sh` (sway, since it clicks) starts two
+transient user services in the scratch project's folder with `systemd-run --user
+--property=Restart=always … python3 -m http.server <port> --bind 127.0.0.1`: `marley-e2e-603` and
+`marley-e2e-603-refused`. A `systemctl` first on Marley's PATH fails `stop` for the second with
+polkit's "Interactive authentication required." and hands every other call to the real one. It
+shoots the rail's rows with their units on a line of their own under the URL (`row.png`), the Stop tooltip (`tooltip.png`) and the row's
+own tooltip (`row-tooltip.png`); clicks Stop on the first and, after eight seconds, shoots the rail
+without its row (`stopped.png`) and records `systemctl --user is-active marley-e2e-603`
+(`state.txt`: inactive); clicks Stop on the second and shoots the toast (`refused.png`), then its
+Copy Command and the clipboard (`clipboard.txt`). Its `teardown` stops and resets both units
+whatever happened. A system service cannot be made without root: its command, `systemctl stop`,
+and its toast's `sudo` line are checked by review.
 
 ## Locked-In Decisions
 - D1 — The cgroup path decides; a `.service` unit is a service, anything else is a process.
 - D2 — Stop never signals a service's process; it stops the unit.
 - D3 — A system service goes through `systemctl stop` and polkit; Marley never runs `sudo`.
-- D4 — The `systemctl` spawn lives in a gate:22 listed file.
+- D4 — The `systemctl` spawn lives in a gate:22 listed file (`marley_workbench/src/process.rs`).
+- D5 — A process in the unit Marley itself runs in is a process, never a unit to stop.
+- D6 — A refusal offers the command to copy; Marley never writes the clipboard unasked.
 
 ## Acceptance Criteria (EARS)
 
@@ -75,9 +89,10 @@ message (`refused.png`).
 |---|---|---|
 | REQ-001 | WHEN a listener's process belongs to a systemd service, its port row shall show the unit's name, and its tooltip whether it is a system or a user service. | Shot `row.png` |
 | REQ-002 | WHEN the user clicks Stop on a user service's row, Marley shall run `systemctl --user stop <unit>`, and the row shall not come back while the unit stays stopped. | Shot `stopped.png`; `state.txt` |
-| REQ-003 | WHEN the user clicks Stop on a system service's row, Marley shall run `systemctl stop <unit>`, and IF that fails, THEN show a toast naming the unit and offering `sudo systemctl stop <unit>` to copy. | Shot `refused.png`; review |
+| REQ-003 | WHEN the user clicks Stop on a system service's row, Marley shall run `systemctl stop <unit>`, and IF that fails, THEN show a toast naming the unit and offering `sudo systemctl stop <unit>` to copy. | Review (no system service without root); shot `refused.png` and `clipboard.txt` for the same toast on a user service's refusal |
 | REQ-004 | WHERE a listener belongs to no service, Stop shall send SIGTERM as before. | Review of the diff |
-| REQ-005 | WHILE the pointer is on Stop, its tooltip shall say whether it stops a user service, a system service or a process. | Shot `tooltip.png` |
+| REQ-005 | WHILE the pointer is on Stop, its tooltip shall say whether it stops a user service, a system service or a process. | Shot `tooltip.png` (a user service); review for the other two |
+| REQ-006 | WHERE a listener runs in the unit Marley itself runs in, Stop shall signal its process and not stop the unit. | Review of the diff |
 
 ## Phase Plan
 - **P1 Plan** — promote this pair, recall, the design in the notes.
