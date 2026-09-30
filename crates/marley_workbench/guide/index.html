@@ -403,6 +403,7 @@ th { background: var(--panel); font-weight: 650; }
 <li>Click a row to show it: a terminal row focuses that terminal, a thread row opens the thread in the Agent Panel, a Browser tab row shows the tab.</li>
 <li>Fold a project with its chevron. A folded project's header counts its agents by state, as in <code>1 waiting, 2 working</code>.</li>
 <li><kbd>Ctrl+Alt+J</kbd> closes and opens the rail. It stays closed after a restart, and keeps its width.</li>
+<li>To close a thread you are done with, point at its row and click Archive at its end, or right-click it and choose Archive Thread (#605). Its row goes, and Zed's archive view in the Agent Panel brings it back.</li>
 </ol>
 <table>
 <tr><th>Row</th><th>What it shows</th><th>A click</th></tr>
@@ -411,7 +412,7 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td>Browser tab</td><td>The page's icon, its title, and its host and port</td><td>Shows the tab</td></tr>
 <tr><td>Zed agent thread</td><td>The agent's icon, the thread's title, and <code>working</code>, <code>idle</code>, <code>waiting</code> or <code>failed</code></td><td>Opens the thread in the Agent Panel</td></tr>
 <tr><td>Worktree</td><td>A branch icon, its name and branch, and its drift from its base</td><td>Shows or opens its workspace</td></tr>
-<tr><td>Port</td><td>A server icon, <code>:&lt;port&gt;</code> and the process's name, and its URL</td><td>Opens the URL in a Browser tab</td></tr>
+<tr><td>Port</td><td>A server icon, <code>:&lt;port&gt;</code> and the process's name, and its URL</td><td>Marks the row; a double-click or <kbd>Enter</kbd> opens the URL in a Browser tab</td></tr>
 </table>
 </article>
 

@@ -1,7 +1,7 @@
 ---
 pipeline_id: 9911f083-1847-4c96-b5bf-1bd7f0f6b0e5
 ticket: docs/planning/tickets/open/TICKET-605-archive-thread-rows.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Archive an agent thread from the rail"
 type: feature
 slice: workbench shell (the rail's thread rows), after #439
@@ -47,15 +47,21 @@ the hover button and the menu entry, and the history view's plain archive call.
   `render_terminal_row`'s hover close button and `right_click_menu` (around 3681-3790).
 
 ## UI proof
-The scenario `script/e2e/605-archive-thread-rows.sh` (sway) makes a Zed agent thread in the scratch
-project with a scripted ACP agent server (as `script/e2e/508-approvals-inbox.sh` does), points at its row and shoots the
-Archive button (`hover.png`), clicks it and shoots the rail without the row (`archived.png`),
-makes a second thread and archives it from the right-click menu (`menu.png`, `menu-archived.png`),
-then restarts Marley and shoots the rail (`restart.png`).
+The scenario `script/e2e/605-archive-thread-rows.sh` (sway) sets a stand-in external agent (just
+enough ACP, in Python, as #501's) as a custom agent server in the run's settings, and makes three
+of its threads in the scratch project from the rail's `+` (New Agent Thread): "first", "second"
+and "kept". It points at the first's row and shoots the Archive button and its tooltip
+(`hover.png`), clicks it and shoots the rail without the row (`archived.png`), opens the second's
+right-click menu (`menu.png`), chooses Archive Thread (`menu-archived.png`), then quits and starts
+Marley with no path and shoots the rail with the kept thread listed and the archived two not
+(`restart.png`).
 
 ## Locked-In Decisions
 - D1 — Archive, not delete; the same store call Zed's history view makes.
-- D2 — The button takes the row's end slot on hover, as the terminal row's close button does.
+- D2 — The button takes the row's end slot on hover, as the terminal row's close button does; the
+  status mark shows there otherwise.
+- D3 — Archive never opens the thread: the button stops the click, and the menu's entry acts on
+  the row it was opened on.
 
 ## Acceptance Criteria (EARS)
 
@@ -64,7 +70,7 @@ then restarts Marley and shoots the rail (`restart.png`).
 | REQ-001 | WHILE the pointer is over a thread row, the row shall show an Archive button with the tooltip "Archive Thread". | Shot `hover.png` |
 | REQ-002 | WHEN the user clicks the Archive button, Marley shall archive the thread and the rail shall no longer list it, without opening it. | Shot `archived.png` |
 | REQ-003 | WHEN the user right-clicks a thread row, the rail shall open a menu with Archive Thread, which archives it. | Shots `menu.png`, `menu-archived.png` |
-| REQ-004 | WHEN Marley restarts, an archived thread shall stay out of the rail. | Shot `restart.png` |
+| REQ-004 | WHEN Marley restarts, an archived thread shall stay out of the rail, while the project's other threads come back. | Shot `restart.png` |
 
 ## Phase Plan
 - **P1 Plan** — promote this pair, recall, the design in the notes.

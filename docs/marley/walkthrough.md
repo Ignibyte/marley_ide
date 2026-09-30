@@ -1008,6 +1008,9 @@ agent such as Claude Agent. Ctrl+Alt+C in the panel opens its settings.
 - [ ] A thread row appears under the project's terminals, reading `<agent> · working`, then idle.
 - [ ] Its dot lights when the run ends while the thread is off screen.
 - [ ] A click opens the thread, focused, in the Agent Panel on the right.
+- [ ] Pointing at the row shows Archive at its end, "Archive Thread" on hover; a click archives the
+  thread and its row goes, without opening it (#605). A right-click on another thread's row offers
+  Archive Thread too. Archived threads stay out after a restart.
 
 ### 6.2 Zed's agents use Marley's tools (#501)
 

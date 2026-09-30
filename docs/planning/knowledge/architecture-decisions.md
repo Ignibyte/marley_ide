@@ -3415,3 +3415,14 @@ nothing; a double-click, Enter or the row's Open button opens its URL in a Brows
 is a place to look at, not to go to: one click on it had started a browser each time Chad looked
 at a server. Every other row keeps opening on one click, since its click shows something the
 window already has. Rejected: no open on the row at all (the Open button alone), and a setting.
+
+## AD-claude-605-the-rail-archives-a-thread-as-zeds-history-does-001
+*decided at: 2026-09-30 · status: shipped*
+
+A thread row archives its thread with the call Zed's thread history makes,
+`ThreadMetadataStore::archive(thread_id, None, cx)`, from a hover button in the row's end slot and
+a right-click Archive Thread. The Threads Sidebar's own `archive_thread` also plans archiving a
+linked worktree's folders with its last thread and closes workspaces; the rail leaves that out,
+since Marley's worktrees have their own row and Remove (#589). Delete and unarchive stay in Zed's
+archive view. Rejected: a close that only hid the row (the thread would come back after a
+restart), and deleting the thread (not what the user asked for).

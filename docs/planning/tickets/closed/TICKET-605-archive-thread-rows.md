@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #605 (feature, workbench shell: the rail's thread rows)
 - **Owner:** abb571b4-bf75-463f-889a-b17f7d32f71e
-- **Pipeline doc:** ../../pipeline/queued/605-archive-thread-rows.spec.md
+- **Pipeline doc:** ../../pipeline/completed/605-archive-thread-rows.spec.md
 - **Source ticket:** Chad, 2026-09-30: "Is there any way to close the agent conversation on the left?" Thread rows (#439) have no close button and no menu; only Zed's layout's Threads Sidebar archives a thread today.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 A Zed agent thread's row stays in the rail for as long as the thread exists. Pointing at a thread

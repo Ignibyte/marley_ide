@@ -167,7 +167,7 @@ servers listen on. A line separates one project from the next.
 | Terminal | A `>_` icon, the title, and the working directory relative to the project root (`~` for your home outside it, empty at the root) | Shows its project, focuses the terminal, clears its bell |
 | Agent CLI | The agent's icon, the title the CLI sets (or the agent's name), and "Claude Code · working" or "Claude Code · waiting" | As a terminal row |
 | Zed agent thread | The agent's icon, the thread's title, and "Zed Agent · working" (or idle, waiting, failed) | Shows the project and opens the thread, focused, in the Agent Panel on the right |
-| Port | A server icon, `:<port>` and the process's name, and the URL | Opens the URL in a Browser tab of the project |
+| Port | A server icon, `:<port>` and the process's name, and the URL | Marks the row; a double-click or Enter opens the URL in a Browser tab of the project (#604) |
 
 One row is highlighted at a time: the Agent Panel's thread while the panel has the focus, else the
 active terminal, else the displayed project's header.
@@ -180,6 +180,10 @@ Dots mark what needs you:
   waiting for your confirmation also lights the dot on the sidebar toggle and on a folded
   project's header.
 - Zed's own desktop notifications for threads still fire.
+
+To close a thread you are done with, point at its row and click Archive at its end, or right-click
+the row and choose Archive Thread (#605). The thread is archived as Zed's thread history archives
+it, and its row goes; Zed's archive view in the Agent Panel brings it back.
 
 While an agent waits on you, **Needs you** and a count sit between the filter and the projects
 (#508), with an entry for each wait, the one that has waited longest first. An entry names the

@@ -4033,3 +4033,14 @@ row's click can change what it does, as #604's port row now marks on one click, 
 changing. When a row's click changes, check `open_row`'s arm for that row before touching Enter.
 A click that should leave the keyboard on its row must focus the rail too (`mark_row`): the
 cursor counts only while the rail holds focus, and focus leaving drops it.
+
+## L-claude-605-zed-sends-acp-request-ids-as-strings-001
+*category: validate · topic: e2e stand-in agents · from: pipeline 605*
+
+Zed's ACP client sends its JSON-RPC request ids as strings, not numbers. A stand-in agent that
+formats an id as a number (`"stand-in-%d" % request_id`) dies with a `TypeError` at
+`session/new`; Zed then shows "Failed to Launch: Incoming transport closed", and the traceback is
+in Marley's log under `agent_servers::acp` as `agent stderr`. Echo the id back as it came, and
+number anything else (sessions) with a counter of the stand-in's own. A stand-in that declares
+`loadSession: false` also cannot resume a thread after a restart: the panel shows "Loading or
+resuming sessions is not supported by this agent", which is the fixture's limit and not a fault.

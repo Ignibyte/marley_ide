@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Archive an agent thread from the rail** (#605, 2026-09-30). The pointer on a thread row shows
+  an Archive button at the row's end, in place of its status mark, with the tooltip "Archive
+  Thread"; a right-click on the row opens a menu with Archive Thread. Either archives the thread
+  as Zed's thread history does (`ThreadMetadataStore::archive`), without opening it, and the rail
+  drops its row. It stays archived after a restart; Zed's archive view in the Agent Panel brings
+  it back.
+
 - **Port rows that know a service** (#603, 2026-09-30). A port row whose process runs in a systemd
   service (read from its `/proc/<pid>/cgroup`: a path ending in `<name>.service`) shows the unit
   on a line under the URL, and its tooltip says whether it is a user or a system service. Stop

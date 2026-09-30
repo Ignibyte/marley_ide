@@ -341,6 +341,12 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   (#468): the agent's icon in the round container, the title, and a second line
   `<agent> · <status>` (`agents::thread_agent_name`, `ThreadStatus::label`), with the status at
   the row's end as Zed's `ThreadItem` draws it.
+- **Archive (#605).** The row's end holds an Archive `IconButton` shown on hover, with the status
+  mark laid over it and hidden on hover, as a terminal row's bell gives way to its close button;
+  the card sits in a `right_click_menu` with Archive Thread. Both run `archive_thread`, which calls
+  `ThreadMetadataStore::archive(thread_id, None, cx)` as Zed's history view does; the button stops
+  the click, so the row does not open the thread. The store's notify refreshes the rail, which
+  lists no archived thread.
 - **Status and attention.** Status comes from the live conversations in each member
   workspace's Agent Panel, joined to rows by thread id; a thread with no live conversation
   shows as done. The rail keeps each thread's last status, so a run that ended while the

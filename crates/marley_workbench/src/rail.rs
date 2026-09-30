@@ -4127,11 +4127,46 @@ impl Rail {
         cx: &Context<Self>,
     ) -> impl IntoElement {
         let key = row.key.clone();
+        let thread_id = thread.thread_id;
         let icon = match &thread.icon {
             AgentIcon::Named(icon) => Icon::new(*icon),
             AgentIcon::Svg(path) => Icon::from_external_svg(path.clone()),
         };
         let subtitle = thread_subtitle(&thread.agent_name, row.status);
+        // The status mark shows until the pointer is over the row, and Archive while it is (#605),
+        // as a terminal row's bell gives way to its close button.
+        let archive = IconButton::new(
+            SharedString::from(format!("marley-rail-thread-archive-{key}")),
+            IconName::Archive,
+        )
+        .icon_size(IconSize::Small)
+        .icon_color(Color::Muted)
+        .tooltip(Tooltip::text("Archive Thread"))
+        .on_click(move |_, _, cx| {
+            // The row under the button would open the thread it archives.
+            cx.stop_propagation();
+            Self::archive_thread(thread_id, cx);
+        });
+        let end = h_flex()
+            .flex_none()
+            .relative()
+            .child(
+                h_flex()
+                    .debug_selector({
+                        let key = key.clone();
+                        move || format!("marley-rail-thread-archive-{key}")
+                    })
+                    .visible_on_hover(ROW_GROUP)
+                    .child(archive),
+            )
+            .children(thread_status_mark(row.status, row.attention).map(|mark| {
+                h_flex()
+                    .absolute()
+                    .inset_0()
+                    .justify_center()
+                    .group_hover(ROW_GROUP, Styled::invisible)
+                    .child(mark)
+            }));
         let card = row_card(
             SharedString::from(format!("marley-rail-thread-{key}")),
             format!("marley-rail-thread-icon-{key}"),
@@ -4143,15 +4178,37 @@ impl Rail {
             vec![subtitle],
             cx,
         )
-        .children(thread_status_mark(row.status, row.attention))
+        .child(end)
         .on_click(cx.listener(move |rail, _, window, cx| {
             rail.open_thread(&key, window, cx).log_err();
         }));
         let card = Self::draggable_row(card, drag, cx);
-        div()
-            .debug_selector(move || format!("marley-rail-thread-{}", row.key))
-            .pl_2()
-            .child(card)
+        right_click_menu(SharedString::from(format!(
+            "marley-rail-thread-menu-{}",
+            row.key
+        )))
+        .trigger(move |_, _, _| {
+            div()
+                .debug_selector(move || format!("marley-rail-thread-{}", row.key))
+                .pl_2()
+                .child(card)
+        })
+        .menu(move |window, cx| {
+            ContextMenu::build(window, cx, move |menu, _, _| {
+                menu.entry("Archive Thread", None, move |_, cx| {
+                    Self::archive_thread(thread_id, cx);
+                })
+            })
+        })
+    }
+
+    /// Archives a thread as Zed's thread history does (#605): the store keeps it archived, and
+    /// the rail, which lists no archived thread, drops its row at the refresh the store's change
+    /// brings.
+    fn archive_thread(thread_id: ThreadId, cx: &mut App) {
+        if let Some(store) = ThreadMetadataStore::try_global(cx) {
+            store.update(cx, |store, cx| store.archive(thread_id, None, cx));
+        }
     }
 
     fn render_terminal_row(
