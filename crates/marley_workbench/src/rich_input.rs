@@ -114,8 +114,17 @@ fn open_for(view: &Entity<TerminalView>, target: Target, window: &mut Window, cx
             .filter(|typed| !typed.trim().is_empty()),
         Target::Agent(_) => None,
     };
+    let completions = matches!(target, Target::Shell).then(|| {
+        std::rc::Rc::new(crate::shell_completions::ShellCompletions {
+            terminal: view.read(cx).terminal().downgrade(),
+            workspace: view.read(cx).marley_workspace().clone(),
+        }) as std::rc::Rc<dyn editor::CompletionProvider>
+    });
     editor.update(cx, |editor, cx| {
         editor.set_placeholder_text(&placeholder(target), window, cx);
+        // The shell's command completes paths, history and tasks (#625); an agent's prompt
+        // nothing.
+        editor.set_completion_provider(completions);
         if let Some(typed) = typed {
             editor.set_text(typed, window, cx);
             editor.move_to_end(&editor::actions::MoveToEnd, window, cx);

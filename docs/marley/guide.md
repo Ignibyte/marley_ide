@@ -512,6 +512,10 @@ holding what you had typed at the prompt. Enter clears the shell's line and runs
 command as a block; Escape closes the editor and leaves the shell's line as it was. Anywhere else
 (a full-screen program, a command running), Ctrl+G reaches the program as it always did.
 
+In the shell's editor, Tab opens completions (#625): the word before the cursor as a path in the
+prompt's folder (folders end in `/`), and the command so far as the start of one from the shell's
+history or the project's tasks. Enter or Tab takes an entry without running the line.
+
 ### Attach File
 
 The bar's `+`, or `marley: attach file` for the focused terminal, opens a file chooser (#479).

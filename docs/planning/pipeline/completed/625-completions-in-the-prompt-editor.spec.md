@@ -1,7 +1,7 @@
 ---
 pipeline_id: 0636fe38-0438-490e-b49f-79ca97703c92
 ticket: docs/planning/tickets/open/TICKET-625-completions-in-the-prompt-editor.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Completions in the prompt editor"
 type: feature
 slice: prong 1 T6

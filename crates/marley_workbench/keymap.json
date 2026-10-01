@@ -104,9 +104,16 @@
     // The rich input's editor: Enter sends, Shift-Enter adds a line, Escape keeps the draft.
     "context": "MarleyRichInput > Editor",
     "bindings": {
-      "enter": "marley::SendRichInput",
       "shift-enter": "editor::Newline",
       "escape": "marley::CloseRichInput"
+    }
+  },
+  {
+    // While the completion menu shows, Enter and Tab take its entry, as Zed binds them (#625).
+    "context": "MarleyRichInput > Editor && !showing_completions",
+    "bindings": {
+      "enter": "marley::SendRichInput",
+      "tab": "editor::ShowCompletions"
     }
   },
   {

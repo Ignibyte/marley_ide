@@ -4175,3 +4175,12 @@ Zed's `task::Rerun` with `use_new_terminal: false` keeps the tab but gives its `
 by the `Terminal` (an observer, a per-terminal cache, its blocks) starts over at a rerun: watch the
 view and follow its current terminal, as `failures::watch` does.
 
+## L-claude-625-zeds-dylint-runs-in-the-gate-not-in-just-clippy-001
+*category: build · topic: the gate's lints · from: pipeline 625*
+
+`just clippy <crates>` runs clippy only; the gate's gate:21 also runs Zed's own dylint lints on the
+Marley crates, and they catch what clippy does not: an `async` block with no `.await` inside
+(`executor.spawn(async move { read_dir(..) })` in an already-background task) failed #625's first
+gate. Read the work in place when the task is already off the main thread, and expect gate:21 to
+speak where clippy was quiet.
+

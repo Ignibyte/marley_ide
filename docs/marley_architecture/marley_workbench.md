@@ -919,6 +919,21 @@ alike.
   would send its program, chords and keys that type nothing, and lets text through to the
   editor.
 
+## The shell's completions (`src/shell_completions.rs`, #625)
+
+- `ShellCompletions { terminal, workspace }`, an `editor::CompletionProvider` that `rich_input`
+  gives the shell's editor (an agent's gets none). From the buffer it takes the line before the
+  cursor and its last word; history (`autosuggest::history`, the shell's verified commands then
+  its history file, newest first) and the project's task commands
+  (`TaskInventory::list_tasks`, command and arguments joined) that start with the line, twelve at
+  most, replace the line; the word's folder part listed under the prompt's folder
+  (`AnchoredBlocks::prompt_folder`, else the terminal's) gives the entries starting with the rest,
+  folders with `/`, hidden ones only for a `.`, replacing the word. It sorts and filters itself
+  and answers incomplete, so each key asks again; no character triggers it.
+- `keymap.json`: in `MarleyRichInput > Editor && !showing_completions`, Tab is
+  `editor::ShowCompletions` and Enter `SendRichInput`, so Zed's own Enter and Tab take an entry
+  while the menu shows.
+
 ## A block's filter (`src/block_filter.rs`, #528)
 
 - `init` sets `terminal_view::MarleyTerminalOverlay` (the open panel of the view, found by the

@@ -59,17 +59,29 @@ pub fn init(cx: &mut App) {
 /// shell's hook reported, newest first, then its history file's. An agent's commands are left
 /// out where the terminal keeps them out of the history (#553).
 fn suggestion(terminal: &Entity<Terminal>, cx: &App) -> Option<String> {
+    let typed = typed_text(terminal.read(cx))?;
+    let history = history(terminal, cx);
+    marley_terminal::suggestion(&typed, history.iter().map(String::as_str)).map(str::to_string)
+}
+
+/// The commands of the shell waiting at `terminal`'s prompt, newest first: the ones its hook
+/// reported, then its history file's (#625, from #484's lookup).
+pub(crate) fn history(terminal: &Entity<Terminal>, cx: &App) -> Vec<String> {
     let agents = if terminal.read(cx).marley_anchored().agents_out_of_history() {
         crate::terminal_drive::agent_blocks(terminal.entity_id(), cx)
     } else {
         Vec::new()
     };
     let terminal = terminal.read(cx);
-    let typed = typed_text(terminal)?;
     let anchored = terminal.marley_anchored();
     // The shell at the prompt's own commands, the local one's or an ssh host's, and the history
     // file only for the local shell, since a host's names a file on the host (#526).
-    let host = anchored.prompt_shell()?.host();
+    let Some(host) = anchored
+        .prompt_shell()
+        .map(marley_terminal::PromptShell::host)
+    else {
+        return Vec::new();
+    };
     let own = anchored
         .blocks()
         .iter()
@@ -88,7 +100,7 @@ fn suggestion(terminal: &Entity<Terminal>, cx: &App) -> Option<String> {
     let from_file = file
         .iter()
         .flat_map(|commands| commands.iter().rev().map(String::as_str));
-    marley_terminal::suggestion(&typed, own.chain(from_file)).map(str::to_string)
+    own.chain(from_file).map(str::to_string).collect()
 }
 
 /// What was typed at `terminal`'s prompt: its cells from where the first key after the prompt

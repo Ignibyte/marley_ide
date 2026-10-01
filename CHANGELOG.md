@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Completions in the shell's prompt editor** (#625, 2026-09-30). In the editor Ctrl+G opens at
+  a shell prompt, Tab lists completions in Zed's menu: the word before the cursor as a path in the
+  prompt's folder, and the command so far as the start of one from the shell's history or the
+  project's tasks. Enter or Tab takes an entry; the line runs only at the next Enter.
+
 - **A prompt editor at the shell's prompt** (#624, 2026-09-30). At a shell prompt with no agent
   running, Ctrl+G opens the footer editor (#481's) for the shell, holding the line typed so far:
   Zed's editing for a command. Enter clears the shell's line and runs the command as a block;

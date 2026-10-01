@@ -67,6 +67,7 @@ pub mod routing;
 pub mod running_errors;
 pub mod send_block;
 pub mod send_selection;
+pub mod shell_completions;
 pub mod shortcut_note;
 #[cfg(unix)]
 pub mod single_instance;

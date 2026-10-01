@@ -350,6 +350,12 @@ impl AnchoredBlocks {
                 .is_some_and(|shell| shell.host() == self.block_host(block.index))
     }
 
+    /// The folder the shell waits at its prompt in, as its prompt reported it (#625).
+    #[must_use]
+    pub fn prompt_folder(&self) -> Option<&str> {
+        self.staged.as_ref()?.0.pwd.as_deref()
+    }
+
     /// The blocks, oldest first.
     #[must_use]
     pub fn blocks(&self) -> &[AnchoredBlock] {
