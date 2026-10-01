@@ -3165,3 +3165,15 @@ the terminal grid, Zed's Terminal `ctrl-shift-w: pane::CloseActiveItem` ties wit
 `workspace::CloseWindow` and wins as the later binding; from the prompt editor
 (`… > Terminal > MarleyRichInput > Editor`) the unscoped one wins outright, so the key meant to
 close a terminal closed the window. Fixed with a `MarleyRichInput > Editor` binding.
+
+## F-claude-631-a-drag-at-a-prompt-selected-nothing-001
+*severity: medium · found in: pipeline 631's first dry run (`631-03-drag`) · class: a gesture split between two focus owners*
+
+Since #627 the shell's prompt editor docks at every prompt and takes the focus whenever the
+terminal gets it, so a left press in the grid focused the terminal and, a moment later, the
+editor. Zed's element sends a drag to the terminal only while the terminal's own focus handle is
+focused, and its left release through `generic_button_handler`, which drops the event on the
+same test. So from #627 on, a drag over a terminal's output at a prompt selected nothing, and the
+release never reached the terminal (its selection was never ended). A double click still worked:
+both presses reach the terminal before the editor takes the focus. Fixed: `marley_left_pressed`
+(a left press in this terminal not yet released) lets the drag and the release through.

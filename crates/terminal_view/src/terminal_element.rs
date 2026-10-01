@@ -55,6 +55,8 @@ pub struct LayoutState {
     marley_blocks: Vec<AnyElement>,
     // Marley: the autosuggestion after the cursor (#484).
     marley_suggestion: Option<SharedString>,
+    // Marley: where each viewport row is drawn once blocks stand apart (#631).
+    marley_row_map: marley_terminal::RowMap,
 }
 
 /// Helper struct for converting terminal cursor points to displayed cursor points.
@@ -1042,7 +1044,12 @@ impl TerminalElement {
                     return;
                 }
 
-                if e.pressed_button.is_some() && !cx.has_active_drag() && focus.is_focused(window) {
+                // Marley: a press in this terminal keeps its drag after the prompt editor took the
+                // focus at the press (#631).
+                if e.pressed_button.is_some()
+                    && !cx.has_active_drag()
+                    && (focus.is_focused(window) || terminal.read(cx).marley_left_pressed())
+                {
                     let hovered = hitbox.is_hovered(window);
 
                     let scroll_top = terminal_view.read(cx).scroll_top;
@@ -1066,17 +1073,21 @@ impl TerminalElement {
             }
         });
 
-        self.interactivity.on_mouse_up(
-            MouseButton::Left,
-            TerminalElement::generic_button_handler(
-                terminal.clone(),
-                focus.clone(),
-                false,
-                move |terminal, e, cx| {
+        // Marley: the release of a press in this terminal reaches it after the prompt editor took
+        // the focus at the press, as the drag does (#631).
+        self.interactivity.on_mouse_up(MouseButton::Left, {
+            let terminal = terminal.clone();
+            let focus = focus.clone();
+            move |e, window, cx| {
+                if !focus.is_focused(window) && !terminal.read(cx).marley_left_pressed() {
+                    return;
+                }
+                terminal.update(cx, |terminal, cx| {
                     terminal.mouse_up(e, cx);
-                },
-            ),
-        );
+                    cx.notify();
+                });
+            }
+        });
         // Marley: one plain click on a link, with nothing selected and the program not taking the
         // mouse, shows the link's menu once the terminal's own mouse-up has ended the click (#579).
         self.interactivity.on_mouse_up(MouseButton::Left, {
@@ -1592,6 +1603,80 @@ impl Element for TerminalElement {
                     )
                 };
 
+                // Marley: the blocks on screen, stage one of the three-prong plan's D3 (#470).
+                let marley_spans = {
+                    let terminal = self.terminal.read(cx);
+                    marley_block_spans(terminal.last_content(), terminal.blocks())
+                };
+                // Marley: each verified block's prompt rows on screen drawn as Marley's header in
+                // place of the shell's prompt: their cells go, and the header is laid out over the
+                // same rows (#628), with a row more over a one-row prompt where the density says
+                // so (#631).
+                let marley_density = cx
+                    .try_global::<crate::MarleyBlockSpacing>()
+                    .copied()
+                    .unwrap_or_default();
+                // Marley: rows move only in a scrollable view of the main screen that nothing
+                // clips from above, with no block below the cursor; everywhere else they stay where
+                // the grid puts them. The bottom shift's rows past the bottom edge are empty
+                // (#631).
+                let marley_maps_rows = content_mode.is_scrollable()
+                    && intersection.top() == content_bounds.top()
+                    && self.block_below_cursor.is_none()
+                    && !mode.contains(Modes::ALT_SCREEN);
+                let mut marley_header_layouts = Vec::new();
+                if let Some(hook) = cx.try_global::<crate::MarleyBlockHeader>().cloned() {
+                    let prompt_rows = {
+                        let terminal = self.terminal.read(cx);
+                        marley_prompt_rows(terminal.last_content(), terminal.blocks())
+                    };
+                    for (index, rows) in prompt_rows {
+                        let tall =
+                            marley_maps_rows && marley_density.tall_headers && rows.len() == 1;
+                        if let Some(element) = (hook.0)(
+                            &self.terminal_view,
+                            &self.terminal,
+                            index,
+                            dimensions.line_height(),
+                            rows.len() + usize::from(tall),
+                            cx,
+                        ) {
+                            marley_header_layouts.push((rows, tall, element));
+                        }
+                    }
+                }
+                let marley_row_map = if marley_maps_rows {
+                    let line_height = f32::from(dimensions.line_height());
+                    // The prompt the shell waits at stands apart too: it starts the next block.
+                    let live_prompt = {
+                        let terminal = self.terminal.read(cx);
+                        marley_live_prompt_row(terminal.last_content(), terminal.marley_anchored())
+                    };
+                    let starts: Vec<usize> = marley_spans
+                        .iter()
+                        .filter(|span| span.starts_in_view)
+                        .map(|span| span.rows.start)
+                        .chain(live_prompt)
+                        .collect();
+                    let tall: Vec<usize> = marley_header_layouts
+                        .iter()
+                        .filter(|(_, tall, _)| *tall)
+                        .map(|(rows, _, _)| rows.start)
+                        .collect();
+                    marley_terminal::RowMap::new(
+                        &starts,
+                        &tall,
+                        marley_density.gap_rows * line_height,
+                        line_height,
+                        if display_offset == 0 {
+                            marley_terminal::Anchor::Bottom
+                        } else {
+                            marley_terminal::Anchor::Top
+                        },
+                    )
+                } else {
+                    marley_terminal::RowMap::default()
+                };
                 // Layout cursor. Rectangle is used for IME, so we should lay it out even
                 // if we don't end up showing it.
                 let cursor_point = DisplayCursor::from(cursor.point, display_offset);
@@ -1621,6 +1706,10 @@ impl Element for TerminalElement {
                 };
 
                 let ime_cursor_bounds = TerminalElement::cursor_position(cursor_point, dimensions)
+                    // Marley: the cursor's row where the display-row map draws it (#631).
+                    .map(|cursor_position| {
+                        marley_row_origin(cursor_position, &marley_row_map, cursor_point.line())
+                    })
                     .map(|cursor_position| Bounds {
                         origin: cursor_position,
                         size: size(cursor_width.ceil(), dimensions.line_height),
@@ -1685,46 +1774,24 @@ impl Element for TerminalElement {
                     None
                 };
 
-                // Marley: the blocks on screen, stage one of the three-prong plan's D3 (#470).
-                let marley_spans = {
-                    let terminal = self.terminal.read(cx);
-                    marley_block_spans(terminal.last_content(), terminal.blocks())
-                };
-                // Marley: each verified block's prompt rows on screen drawn as Marley's header in
-                // place of the shell's prompt: their cells go, and the header is laid out over the
-                // same rows, so no row moves (#628).
+                // Marley: the headers laid out over their prompts' rows, a tall one from the line
+                // the display-row map inserts above (#628, #631).
                 let mut marley_headers: Vec<AnyElement> = Vec::new();
                 let mut marley_hidden_rows: Vec<std::ops::Range<usize>> = Vec::new();
-                if let Some(hook) = cx.try_global::<crate::MarleyBlockHeader>().cloned() {
-                    let prompt_rows = {
-                        let terminal = self.terminal.read(cx);
-                        marley_prompt_rows(terminal.last_content(), terminal.blocks())
-                    };
+                for (rows, _, mut element) in marley_header_layouts {
                     let line_height = dimensions.line_height();
-                    for (index, rows) in prompt_rows {
-                        let Some(mut element) = (hook.0)(
-                            &self.terminal_view,
-                            &self.terminal,
-                            index,
-                            line_height,
-                            rows.len(),
-                            cx,
-                        ) else {
-                            continue;
-                        };
-                        let origin = dimensions.bounds.origin
-                            + point(px(0.), rows.start as f32 * line_height)
-                            - point(px(0.), scroll_top);
-                        let available_space = size(
-                            AvailableSpace::Definite(dimensions.width()),
-                            AvailableSpace::Definite(rows.len() as f32 * line_height),
-                        );
-                        window.with_rem_size(rem_size, |window| {
-                            element.prepaint_as_root(origin, available_space, window, cx);
-                        });
-                        marley_headers.push(element);
-                        marley_hidden_rows.push(rows);
-                    }
+                    let (top, height) = marley_rows_extent(&rows, &marley_row_map, line_height);
+                    let origin =
+                        dimensions.bounds.origin + point(px(0.), top) - point(px(0.), scroll_top);
+                    let available_space = size(
+                        AvailableSpace::Definite(dimensions.width()),
+                        AvailableSpace::Definite(height),
+                    );
+                    window.with_rem_size(rem_size, |window| {
+                        element.prepaint_as_root(origin, available_space, window, cx);
+                    });
+                    marley_headers.push(element);
+                    marley_hidden_rows.push(rows);
                 }
                 let marley_hidden = |line: i32| {
                     usize::try_from(line).is_ok_and(|line| {
@@ -1787,12 +1854,14 @@ impl Element for TerminalElement {
                             chip,
                             cx,
                         );
-                        let origin = dimensions.bounds.origin
-                            + point(px(0.), span.rows.start as f32 * line_height)
+                        // Marley: over the rows as the display-row map draws them (#631).
+                        let (top, height) =
+                            marley_rows_extent(&span.rows, &marley_row_map, line_height);
+                        let origin = dimensions.bounds.origin + point(px(0.), top)
                             - point(px(0.), scroll_top);
                         let available_space = size(
                             AvailableSpace::Definite(dimensions.width()),
-                            AvailableSpace::Definite(span.rows.len() as f32 * line_height),
+                            AvailableSpace::Definite(height),
                         );
                         window.with_rem_size(rem_size, |window| {
                             element.prepaint_as_root(origin, available_space, window, cx);
@@ -1819,8 +1888,12 @@ impl Element for TerminalElement {
                         .child(marley_keep_from_terminal(chip))
                         .into_any_element();
                     let last_row = span.rows.end.saturating_sub(1);
+                    // Marley: the row where the display-row map draws it (#631).
                     let origin = dimensions.bounds.origin
-                        + point(px(0.), last_row as f32 * line_height)
+                        + point(
+                            px(0.),
+                            last_row as f32 * line_height + px(marley_row_map.offset(last_row)),
+                        )
                         - point(px(0.), scroll_top);
                     let available_space = size(
                         AvailableSpace::Definite(dimensions.width()),
@@ -1856,6 +1929,11 @@ impl Element for TerminalElement {
                     .cloned()
                     .and_then(|hook| (hook.0)(&self.terminal, cx));
 
+                // Marley: the terminal maps the mouse back through the rows as drawn (#631).
+                self.terminal.update(cx, |terminal, _| {
+                    terminal.marley_set_row_map(marley_row_map.clone());
+                });
+
                 LayoutState {
                     hitbox,
                     batched_text_runs,
@@ -1875,6 +1953,7 @@ impl Element for TerminalElement {
                     marley_spans,
                     marley_blocks,
                     marley_suggestion,
+                    marley_row_map,
                 }
             },
         )
@@ -1956,18 +2035,25 @@ impl Element for TerminalElement {
                         }
                     });
 
+                    // Marley: each row where the display-row map draws it (#631).
+                    let marley_map = &layout.marley_row_map;
                     for rect in &layout.rects {
+                        let origin = marley_row_origin(origin, marley_map, rect.point.line);
                         rect.paint(origin, &layout.dimensions, window);
                     }
 
                     // Marley: the wash over a running or failed block's rows (#470).
                     for span in &layout.marley_spans {
                         if let Some(color) = marley_wash(span, cx.theme().status()) {
-                            let rows = marley_rows_bounds(
+                            let rows = marley_mapped_bounds(
+                                marley_rows_bounds(
+                                    &span.rows,
+                                    bounds.origin.x,
+                                    origin,
+                                    &layout.dimensions,
+                                ),
                                 &span.rows,
-                                bounds.origin.x,
-                                origin,
-                                &layout.dimensions,
+                                marley_map,
                             );
                             window.paint_quad(fill(rows, color));
                         }
@@ -1983,23 +2069,38 @@ impl Element for TerminalElement {
                             } else {
                                 Pixels::ZERO
                             };
-                            let hr = HighlightedRange {
+                            // Marley: a part per run of rows the display-row map keeps together
+                            // (#631).
+                            for (start_y, lines) in marley_split_range(
                                 start_y,
-                                line_height: layout.dimensions.line_height,
-                                lines: highlighted_range_lines,
-                                color: *color,
-                                corner_radius: corner_radius,
-                            };
-                            hr.paint(true, bounds, window);
+                                highlighted_range_lines,
+                                relative_highlighted_range,
+                                layout,
+                            ) {
+                                let hr = HighlightedRange {
+                                    start_y,
+                                    line_height: layout.dimensions.line_height,
+                                    lines,
+                                    color: *color,
+                                    corner_radius: corner_radius,
+                                };
+                                hr.paint(true, bounds, window);
+                            }
                         }
                     }
 
                     // Paint batched text runs instead of individual cells
                     let text_paint_start = Instant::now();
                     for batch in &layout.batched_text_runs {
+                        let origin = marley_row_origin(origin, marley_map, batch.start_point.line);
                         batch.paint(origin, &layout.dimensions, window, cx);
                     }
                     for block_element_rect in &layout.block_element_rects {
+                        let row = block_element_rect
+                            .point
+                            .line
+                            .div_euclid(BLOCK_SUBCELL_LINES);
+                        let origin = marley_row_origin(origin, marley_map, row);
                         block_element_rect.paint(origin, &layout.dimensions, window);
                     }
                     let text_paint_time = text_paint_start.elapsed();
@@ -2007,11 +2108,15 @@ impl Element for TerminalElement {
                     // Marley: each block's gutter bar, and the blocks' pills and actions (#470,
                     // #474).
                     for span in &layout.marley_spans {
-                        let bar = marley_gutter_bounds(
+                        let bar = marley_mapped_bounds(
+                            marley_gutter_bounds(
+                                &span.rows,
+                                bounds.origin.x,
+                                origin,
+                                &layout.dimensions,
+                            ),
                             &span.rows,
-                            bounds.origin.x,
-                            origin,
-                            &layout.dimensions,
+                            marley_map,
                         );
                         let color =
                             marley_bar_color(span, cx.theme().status(), cx.theme().colors().border);
@@ -2028,11 +2133,15 @@ impl Element for TerminalElement {
                             .iter()
                             .find(|span| span.index == selected)
                     {
-                        let rows = marley_rows_bounds(
+                        let rows = marley_mapped_bounds(
+                            marley_rows_bounds(
+                                &span.rows,
+                                bounds.origin.x,
+                                origin,
+                                &layout.dimensions,
+                            ),
                             &span.rows,
-                            bounds.origin.x,
-                            origin,
-                            &layout.dimensions,
+                            marley_map,
                         );
                         window.paint_quad(gpui::outline(
                             rows,
@@ -2047,11 +2156,15 @@ impl Element for TerminalElement {
                         && let Some(span) =
                             layout.marley_spans.iter().find(|span| span.index == scoped)
                     {
-                        let rows = marley_rows_bounds(
+                        let rows = marley_mapped_bounds(
+                            marley_rows_bounds(
+                                &span.rows,
+                                bounds.origin.x,
+                                origin,
+                                &layout.dimensions,
+                            ),
                             &span.rows,
-                            bounds.origin.x,
-                            origin,
-                            &layout.dimensions,
+                            marley_map,
                         );
                         window.paint_quad(gpui::outline(
                             rows,
@@ -2449,11 +2562,24 @@ fn marley_prompt_rows(
     marley_terminal::prompt_rows(blocks, top, content.screen_lines)
 }
 
+// Marley: the viewport row of the prompt the shell waits at, when it is on screen (#631).
+fn marley_live_prompt_row(
+    content: &Content,
+    anchored: &marley_terminal::AnchoredBlocks,
+) -> Option<usize> {
+    let top = content
+        .marley_screen_top
+        .saturating_sub(content.display_offset as u64);
+    let row = usize::try_from(anchored.staged_line()?.checked_sub(top)?).ok()?;
+    (row < content.screen_lines).then_some(row)
+}
+
 // Marley: the block under a point of the window, for the menu's Block section (#554).
 pub(crate) fn marley_block_at(terminal: &Terminal, position: GpuiPoint<Pixels>) -> Option<usize> {
     let content = terminal.last_content();
     let bounds = &content.terminal_bounds;
-    let offset = position.y - bounds.bounds.origin.y;
+    // The row as the display-row map draws it (#631).
+    let offset = terminal.marley_local(position).y;
     if offset < px(0.) {
         return None;
     }
@@ -2524,6 +2650,86 @@ fn marley_gutter_bounds(
         ),
         size(width, rows.len() as f32 * dimensions.line_height()),
     )
+}
+
+// Marley: `origin` moved by the display-row map's offset of the viewport row `line`, for what is
+// painted on that row (#631).
+fn marley_row_origin(
+    origin: GpuiPoint<Pixels>,
+    map: &marley_terminal::RowMap,
+    line: i32,
+) -> GpuiPoint<Pixels> {
+    match usize::try_from(line) {
+        Ok(row) if !map.is_identity() => origin + point(px(0.), px(map.offset(row))),
+        _ => origin,
+    }
+}
+
+// Marley: the top of the viewport rows `rows` as the display-row map draws them, from the header
+// line it inserts above the first, and their height to the last row's bottom (#631).
+fn marley_rows_extent(
+    rows: &std::ops::Range<usize>,
+    map: &marley_terminal::RowMap,
+    line_height: Pixels,
+) -> (Pixels, Pixels) {
+    let grid_top = rows.start as f32 * line_height;
+    let grid_height = rows.len() as f32 * line_height;
+    let Some(last) = rows.end.checked_sub(1).filter(|_| !map.is_identity()) else {
+        return (grid_top, grid_height);
+    };
+    let top = map.offset(rows.start) - map.lead(rows.start);
+    (grid_top + px(top), grid_height + px(map.offset(last) - top))
+}
+
+// Marley: `grid_bounds`, laid over the viewport rows `rows` where the grid puts them, moved and
+// stretched to where the display-row map draws them (#631).
+fn marley_mapped_bounds(
+    grid_bounds: Bounds<Pixels>,
+    rows: &std::ops::Range<usize>,
+    map: &marley_terminal::RowMap,
+) -> Bounds<Pixels> {
+    let Some(last) = rows.end.checked_sub(1).filter(|_| !map.is_identity()) else {
+        return grid_bounds;
+    };
+    let top = map.offset(rows.start) - map.lead(rows.start);
+    Bounds::new(
+        point(grid_bounds.origin.x, grid_bounds.origin.y + px(top)),
+        size(
+            grid_bounds.size.width,
+            grid_bounds.size.height + px(map.offset(last) - top),
+        ),
+    )
+}
+
+// Marley: a highlighted range's lines, from its first row on screen, split where the display-row
+// map inserts space, each part with its own top, so a selection over two blocks leaves the gap
+// between them clear (#631).
+fn marley_split_range(
+    start_y: Pixels,
+    lines: Vec<HighlightedRangeLine>,
+    range: &Range,
+    layout: &LayoutState,
+) -> Vec<(Pixels, Vec<HighlightedRangeLine>)> {
+    let map = &layout.marley_row_map;
+    let display_offset = i32::try_from(layout.display_offset).unwrap_or(i32::MAX);
+    let first_row = usize::try_from(range.start().line.saturating_add(display_offset)).unwrap_or(0);
+    if map.is_identity() {
+        return vec![(start_y, lines)];
+    }
+    let line_height = layout.dimensions.line_height;
+    let mut parts: Vec<(Pixels, Vec<HighlightedRangeLine>)> = Vec::new();
+    for (index, line) in lines.into_iter().enumerate() {
+        let row = first_row + index;
+        let breaks_here = index > 0 && map.breaks().any(|inserted| inserted == row);
+        match parts.last_mut() {
+            Some((_, part)) if !breaks_here => part.push(line),
+            _ => parts.push((
+                start_y + index as f32 * line_height + px(map.offset(row)),
+                vec![line],
+            )),
+        }
+    }
+    parts
 }
 
 // Marley: the wash over a block's rows: a faint `info` while it runs, a faint `error` after a

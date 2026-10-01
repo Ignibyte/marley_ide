@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #631 (feature, prong 1 T5, stage two's last slice)
 - **Owner:** claude-opus-5-5, 2026-10-01
-- **Pipeline doc:** none yet (Deliberate)
+- **Pipeline doc:** ../../pipeline/completed/631-block-gaps-and-density.spec.md
 - **Source ticket:** split from #630 at its promotion (`docs/planning/pipeline/completed/630-block-density-and-two-line-headers.spec.md`)
-- **Status:** open
+- **Status:** closed (2026-10-01)
 
 ## Summary
 #628 to #630 draw a block's header in exactly the rows its prompt took, so no row moves. What

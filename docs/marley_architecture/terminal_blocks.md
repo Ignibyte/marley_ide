@@ -176,6 +176,14 @@ real, reusable session. The Block model is the unit the **brain** later observes
   `prompt_rows(blocks, top, screen_lines)` (#628) is each block's prompt rows on screen,
   `prompt_line..output_start` as viewport rows, for a running or finished block whose command the
   nonce verified; Zed's element draws Marley's header over them.
+  `display_rows::RowMap` (#631) is where a viewport's rows are drawn once blocks stand apart: the
+  pixels inserted above some rows (a gap above each block that starts on screen, the staged
+  prompt's included through `AnchoredBlocks::staged_line`, and a header's extra line above a
+  one-row prompt), the shift that keeps the anchored edge's row in place (`Anchor::Bottom` for
+  the live screen, `Top` scrolled back), each row's `offset` and `lead`, and `grid_y`, the
+  inverse a mouse position goes through; a y inside an insert lands on the row below. Zed's
+  element builds it each frame and hands it to the terminal (`marley_set_row_map`), whose mouse
+  paths read it through `marley_local`.
   `block_lines(block, cursor_line)` (#559) is the absolute lines a block spans, `visible_spans`'s
   rule, and `scrollback_fraction` where a line sits among the lines the terminal can scroll to;
   Zed's view maps the first to grid lines for a search held to one block, and the element draws

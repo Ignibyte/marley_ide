@@ -231,6 +231,19 @@ pub struct MarleyBlockHeader(
 
 impl gpui::Global for MarleyBlockHeader {}
 
+// Marley: how far blocks stand apart and whether a header over a one-row prompt takes a second
+// row, from `marley.block_density`; Marley's workbench sets it, and without it every row is drawn
+// where the grid puts it (#631).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct MarleyBlockSpacing {
+    /// The space between blocks, in rows.
+    pub gap_rows: f32,
+    /// Whether a header over a one-row prompt takes a second row.
+    pub tall_headers: bool,
+}
+
+impl gpui::Global for MarleyBlockSpacing {}
+
 // Marley: an element drawn over the terminal's grid, such as a block's filter, or none; Marley's
 // workbench sets it (#528).
 #[derive(Clone)]

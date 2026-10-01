@@ -4358,3 +4358,14 @@ handle the action on the container, and propagate when there is nothing to do; t
 binding for the key (`editor::MoveRight`) runs next. The propagated action still bubbles to every
 ancestor that handles it first, so a workspace-level handler for the same action must also stand
 aside (here, the grid's AcceptSuggestion while the editor holds the line).
+
+## L-claude-631-the-bottom-shift-makes-every-short-terminal-look-clipped-001
+*category: build · topic: terminal element geometry · from: pipeline 631*
+
+#476's bottom shift moves the grid's bounds down past the element's bottom edge for every
+terminal whose screen is not full, so `intersection == content_bounds` in the element's prepaint
+is false for most terminals, and the cell layout takes its clipped path (rows culled by pixel
+from the top). Anything that wants to know whether the view is clipped must test the edge it
+cares about (`intersection.top() == content_bounds.top()`), not the whole rectangle. Also: the
+prompt the shell waits at is no block; it is `AnchoredBlocks`' staged prompt
+(`staged_line`), so a rule over "every block on screen" leaves it out unless it asks.

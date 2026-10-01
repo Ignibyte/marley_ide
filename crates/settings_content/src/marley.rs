@@ -62,6 +62,11 @@ pub struct MarleySettingsContent {
     ///
     /// Default: true
     pub block_headers: Option<bool>,
+    /// How blocks are spaced in a terminal: half a row between them and a header of two lines
+    /// over a one-row prompt, or no gaps and a header in the prompt's own rows (#631).
+    ///
+    /// Default: "comfortable"
+    pub block_density: Option<MarleyBlockDensity>,
     /// The command of rustal-harness's MCP server whose sessions the rail follows, read side
     /// only, in a context server's shape, such as
     /// `{"command": "/path/to/rh", "args": ["--state", "/path/to/root", "mcp"]}` (#534).
@@ -412,6 +417,30 @@ pub enum MarleyAgentTerminalWrites {
     AskEveryWrite,
     /// Never: the agent's writes go in as it sends them.
     NeverAsk,
+}
+
+/// How blocks are spaced in a terminal (#631).
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum MarleyBlockDensity {
+    /// Half a row between blocks, and a header of two lines over a one-row prompt.
+    #[default]
+    Comfortable,
+    /// No gaps, and each header in its prompt's own rows.
+    Compact,
 }
 
 /// The order the rail lists projects and rows in (#542).

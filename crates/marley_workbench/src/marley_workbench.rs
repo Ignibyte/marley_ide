@@ -363,6 +363,8 @@ pub struct MarleySettings {
     pub sticky_command_header: bool,
     /// How a block's prompt rows are drawn (#628).
     pub block_headers: BlockHeaders,
+    /// How blocks are spaced in a terminal (#631).
+    pub block_density: settings::MarleyBlockDensity,
     /// The command of the harness's MCP server the rail follows, or none (#534).
     pub harness: Option<settings::ContextServerCommand>,
     /// Whether Marley runs the harness's runtime itself (#632).
@@ -560,6 +562,9 @@ impl Settings for MarleySettings {
             block_headers: BlockHeaders::from_setting(
                 marley.and_then(|marley| marley.block_headers),
             ),
+            block_density: marley
+                .and_then(|marley| marley.block_density)
+                .unwrap_or_default(),
             long_command_seconds: marley
                 .and_then(|marley| marley.long_command_seconds)
                 .unwrap_or(30),

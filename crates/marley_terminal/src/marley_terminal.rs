@@ -49,6 +49,7 @@ pub mod anchored;
 pub mod apply;
 pub mod block;
 pub mod dcs;
+pub mod display_rows;
 pub mod english;
 pub mod failures;
 pub mod filter;
@@ -80,6 +81,7 @@ pub use dcs::{
     DcsEncoding, DcsHook, DecodeError, PrecmdValue, PreexecValue, decode_frame, decode_hook,
     encoding_for_dcs_terminator,
 };
+pub use display_rows::{Anchor, RowMap};
 pub use keys::{KeyCode, KeyInput, Route, ctrl_byte, encode_key, input_route, paste_bytes};
 pub use mouse::{MouseEvent, MouseModes, MouseMods, mouse_report};
 pub use session::{ApplyHookError, SessionError, SessionEvent, SessionOptions, TerminalSession};

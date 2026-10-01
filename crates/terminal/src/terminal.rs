@@ -1200,6 +1200,8 @@ impl TerminalBuilder {
             blocks: marley_terminal::AnchoredBlocks::default(),
             // Marley: a display-only terminal runs no program to be told an id (#520).
             marley_terminal_id: None,
+            // Marley: rows drawn where the grid puts them until the element says otherwise (#631).
+            marley_row_map: marley_terminal::RowMap::default(),
             #[cfg(any(test, feature = "test-support"))]
             input_log: Vec::new(),
             #[cfg(test)]
@@ -1608,6 +1610,9 @@ impl TerminalBuilder {
                 },
                 // Marley: the id its programs see (#520).
                 marley_terminal_id,
+                // Marley: rows drawn where the grid puts them until the element says otherwise
+                // (#631).
+                marley_row_map: marley_terminal::RowMap::default(),
                 #[cfg(any(test, feature = "test-support"))]
                 input_log: Vec::new(),
                 #[cfg(test)]
@@ -1793,6 +1798,8 @@ pub struct Terminal {
     // Marley: the `MARLEY_TERMINAL_ID` its programs were given, for a local interactive terminal
     // (#520).
     marley_terminal_id: Option<String>,
+    // Marley: where the element draws each viewport row, for the mouse to map back (#631).
+    marley_row_map: marley_terminal::RowMap,
     #[cfg(any(test, feature = "test-support"))]
     input_log: Vec<Vec<u8>>,
     #[cfg(test)]
@@ -2006,6 +2013,30 @@ impl Terminal {
     /// The shell's blocks with where it waits at a prompt and the history file it named.
     pub fn marley_anchored(&self) -> &marley_terminal::AnchoredBlocks {
         &self.blocks
+    }
+
+    // Marley: a left press in this terminal not yet released, whose drag and release still belong
+    // to it after the prompt editor took the focus at the press (#631).
+    /// Whether the left button went down in this terminal and is not up yet.
+    pub fn marley_left_pressed(&self) -> bool {
+        self.mouse_down_position.is_some()
+    }
+
+    // Marley: the element's display-row map, which the mouse paths undo (#631).
+    /// Where the element draws each viewport row: space between blocks and above taller headers.
+    pub fn marley_set_row_map(&mut self, map: marley_terminal::RowMap) {
+        self.marley_row_map = map;
+    }
+
+    /// `position`, in the window's pixels, as a position in the grid: less the grid's origin, its
+    /// y through the element's display-row map (#631).
+    pub fn marley_local(&self, position: GpuiPoint<Pixels>) -> GpuiPoint<Pixels> {
+        let mut local = position - self.last_content.terminal_bounds.bounds.origin;
+        if !self.marley_row_map.is_identity() {
+            let line_height = f32::from(self.last_content.terminal_bounds.line_height);
+            local.y = px(self.marley_row_map.grid_y(f32::from(local.y), line_height));
+        }
+        local
     }
 
     // Marley: a block's output (#464).
@@ -2299,7 +2330,8 @@ impl Terminal {
     /// The http or https link at `position`, in the window's pixels: a URL in the text, or an
     /// OSC 8 link's target.
     pub fn marley_link_at(&mut self, position: GpuiPoint<Pixels>) -> Option<MarleyLink> {
-        let position = position - self.last_content.terminal_bounds.bounds.origin;
+        // Through the element's display-row map (#631).
+        let position = self.marley_local(position);
         let osc8 = self
             .last_content
             .cells
@@ -2924,7 +2956,8 @@ impl Terminal {
     }
 
     pub fn mouse_move(&mut self, e: &MouseMoveEvent, cx: &mut Context<Self>) {
-        let position = e.position - self.last_content.terminal_bounds.bounds.origin;
+        // Marley: through the element's display-row map (#631).
+        let position = self.marley_local(e.position);
         if self.mouse_mode(e.modifiers.shift) {
             // A ctrl/cmd press on a link suppressed its button-press report in
             // `mouse_down`. Since the app never saw the press, we must swallow
@@ -3000,15 +3033,17 @@ impl Terminal {
 
         self.last_mouse_move_time = now;
         self.last_hyperlink_search_position = Some(position);
+        // Marley: through the element's display-row map (#631).
         self.events.push_back(InternalEvent::FindHyperlink(
-            position - self.last_content.terminal_bounds.bounds.origin,
+            self.marley_local(position),
             false,
         ));
         cx.notify();
     }
 
     pub fn select_word_at_event_position(&mut self, e: &MouseDownEvent) {
-        let position = e.position - self.last_content.terminal_bounds.bounds.origin;
+        // Marley: through the element's display-row map (#631).
+        let position = self.marley_local(e.position);
         let (point, side) = grid_point_and_side(
             position,
             self.last_content.terminal_bounds,
@@ -3025,7 +3060,8 @@ impl Terminal {
         region: Bounds<Pixels>,
         cx: &mut Context<Self>,
     ) {
-        let position = e.position - self.last_content.terminal_bounds.bounds.origin;
+        // Marley: through the element's display-row map (#631).
+        let position = self.marley_local(e.position);
         if !self.mouse_mode(e.modifiers.shift) {
             if let Some(hyperlink) = &self.mouse_down_hyperlink {
                 let point = grid_point(
@@ -3090,7 +3126,8 @@ impl Terminal {
     }
 
     pub fn mouse_down(&mut self, e: &MouseDownEvent, cx: &mut Context<Self>) {
-        let position = e.position - self.last_content.terminal_bounds.bounds.origin;
+        // Marley: through the element's display-row map (#631).
+        let position = self.marley_local(e.position);
         let point = grid_point(
             position,
             self.last_content.terminal_bounds,
@@ -3173,7 +3210,8 @@ impl Terminal {
     pub fn mouse_up(&mut self, e: &MouseUpEvent, cx: &Context<Self>) {
         let setting = TerminalSettings::get_global(cx);
 
-        let position = e.position - self.last_content.terminal_bounds.bounds.origin;
+        // Marley: through the element's display-row map (#631).
+        let position = self.marley_local(e.position);
         if let Some(mouse_down_hyperlink) = self.mouse_down_hyperlink.take() {
             let point = grid_point(
                 position,
@@ -3261,8 +3299,9 @@ impl Terminal {
             && scroll_lines != 0
         {
             if mouse_mode {
+                // Marley: through the element's display-row map (#631).
                 let point = grid_point(
-                    e.position - self.last_content.terminal_bounds.bounds.origin,
+                    self.marley_local(e.position),
                     self.last_content.terminal_bounds,
                     self.last_content.display_offset,
                 );

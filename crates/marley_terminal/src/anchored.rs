@@ -407,6 +407,12 @@ impl AnchoredBlocks {
         self.staged.is_some()
     }
 
+    /// The absolute line of the prompt the shell waits at, which starts the next block (#631).
+    #[must_use]
+    pub fn staged_line(&self) -> Option<u64> {
+        self.staged.as_ref().map(|(_, line)| *line)
+    }
+
     /// Notes that input was typed with the cursor at the absolute `line` and `column`. The first
     /// such point after a prompt is where the command being typed at it starts.
     pub const fn note_input(&mut self, line: u64, column: usize) {

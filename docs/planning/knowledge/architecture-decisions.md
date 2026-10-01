@@ -3669,3 +3669,22 @@ editor's footer, which recomputes the suggestion and appends it, and otherwise p
 editor, and a provider brings Tab, its context and its own accept keys); a second inlay beside the
 hint (two dimmed texts after one line); showing the suggestion with the cursor mid-line, where →
 cannot take it.
+
+## AD-claude-631-blocks-stand-apart-through-a-display-row-map-the-mouse-reads-back-001
+*decided at: 2026-10-01 · status: shipped · builds on: AD-claude-628-a-blocks-header-takes-its-prompts-rows-one-for-one-001, AD-claude-476-the-content-sits-on-the-bottom-edge-by-moving-the-grids-origin-001*
+
+Stage two's gaps and taller headers are pixels inserted above viewport rows, not grid lines: a
+pure `marley_terminal::RowMap` built in the element's prepaint each frame (a gap above each block
+that starts on screen and above the staged prompt; a header's extra row above a one-row prompt
+when the hook draws one), applied at every row-to-y site, and handed to `Terminal`, whose eight
+places that turn a window position into a grid position go through `marley_local`, so the
+internal events and vi motion stay in grid space. The live screen keeps its last row on the
+bottom edge (the oldest rows pass the top); a view scrolled back keeps its first row on the top
+edge, where block navigation and the pinned header put things. The grid's rows and size never
+change, so the PTY is never resized. `marley.block_density` (`comfortable` by default,
+`compact` for #630's look) sets `MarleyBlockSpacing`. Off in an inline terminal, on the alternate
+screen, with a block below the cursor, and in a view clipped from above. Rejected: header rows as
+grid lines (the shell owns the grid); fewer PTY rows to make room (a resize each time a block
+scrolls); pixel scrolling (Zed's terminal scrolls by lines, so the anchor change between the live
+screen and one line back moves the rows by the space inserted); a column on Zed's `terminals`
+table or a field on `TerminalBounds`, which is `Copy` and serialized.

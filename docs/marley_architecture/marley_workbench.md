@@ -1062,6 +1062,11 @@ alike.
   view's terminal, and `record_branches` stores, once per started block, the branch of its
   folder's repository in the view's project (`agent_bar::branch_of`, the agent bar's lookup made
   a function). A released view's entries go.
+- `init` sets `terminal_view::MarleyBlockSpacing` from `MarleySettings::block_density` (#631),
+  and again on each settings change that moves it: `Comfortable` is half a row between blocks
+  and a second header row over a one-row prompt, `Compact` none. The element asks the hook for
+  the header with that row more, so `header`'s two-row layout draws, and inserts the space
+  through its display-row map (`marley_terminal::RowMap`).
 
 ## The sticky command header (`src/sticky_header.rs`, #529)
 

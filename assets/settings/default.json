@@ -1693,6 +1693,10 @@
     // place of the shell's prompt, with the folder it ran in and its git branch; the prompt
     // waiting for a command stays the shell's (#628, #630).
     "block_headers": true,
+    // How blocks are spaced in a terminal: "comfortable", half a row between blocks and a header
+    // of two lines over a one-row prompt, or "compact", no gaps and each header in its prompt's
+    // own rows (#631).
+    "block_density": "comfortable",
     // Whether Marley runs rustal-harness's runtime itself (`rh serve` on a root in Marley's data
     // folder, `rh` from MARLEY_RH or the PATH) and shows its sessions in the rail; a `harness`
     // command, when set, wins (#632).

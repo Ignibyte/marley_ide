@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Gaps between blocks, and a density setting** (#631, 2026-10-01). A terminal's blocks now stand
+  half a row apart, the prompt you are at included, and a block whose prompt took one row gets a
+  two-line header: the folder and branch over the command. The prompt stays on the last row, and
+  a view scrolled back starts at the top edge. Clicks, double clicks, drags, right clicks and link
+  hovers land on the rows as drawn. Block Density on the Marley page (`marley.block_density`)
+  goes back to `compact`, #630's look with no gaps.
+
 - **History suggestions in the prompt editor** (#637, 2026-10-01). The shell's prompt editor, on at
   every prompt since #627, shows the rest of a history command your text starts, dimmed after it,
   as the terminal's own prompt did (#484): this session's commands first, then the shell's history
@@ -403,6 +410,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   standalone.
 
 ### Fixed
+
+- **A drag in a terminal at its prompt selects again** (#631, 2026-10-01). Since the prompt editor
+  docked at every prompt (#627), it took the focus as soon as you pressed in the terminal, and the
+  terminal dropped the drag and the release that followed, so dragging over output selected
+  nothing. A press made in the terminal now keeps its drag and its release.
 
 - **Ctrl-Shift-W in the prompt editor closes the terminal, and a command leaves no dirty mark**
   (#635, 2026-10-01). Since the prompt editor opens at every prompt (#627), Ctrl-Shift-W there

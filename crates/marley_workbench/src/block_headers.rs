@@ -10,6 +10,10 @@
 //! more the folder and branch take the first row and the command the second; over one, they follow
 //! the command. The branch is the one the folder was on when the block started, recorded once.
 //! `marley.block_headers` turns it off.
+//!
+//! `marley.block_density` (#631) sets `MarleyBlockSpacing`: comfortable puts half a row between
+//! blocks and gives a one-row prompt's header a second row, which the element inserts above the
+//! prompt; compact keeps every row where the grid puts it.
 
 use std::collections::HashMap;
 use std::path::{Component, Path};
@@ -17,9 +21,9 @@ use std::sync::Arc;
 
 use gpui::{AnyElement, App, Context, Entity, EntityId, Global, MouseButton, Pixels};
 use marley_terminal::BlockState;
-use settings::Settings as _;
+use settings::{MarleyBlockDensity, Settings as _, SettingsStore};
 use terminal::Terminal;
-use terminal_view::{MarleyBlockHeader, TerminalView};
+use terminal_view::{MarleyBlockHeader, MarleyBlockSpacing, TerminalView};
 use ui::prelude::*;
 
 use crate::{BlockHeaders, MarleySettings};
@@ -35,6 +39,15 @@ impl Global for Branches {}
 pub fn init(cx: &mut App) {
     cx.set_global(MarleyBlockHeader(Arc::new(header)));
     cx.set_global(Branches::default());
+    cx.set_global(spacing(cx));
+    cx.observe_global::<SettingsStore>(|cx| {
+        let spacing = spacing(cx);
+        if *cx.global::<MarleyBlockSpacing>() != spacing {
+            cx.set_global(spacing);
+            cx.refresh_windows();
+        }
+    })
+    .detach();
     cx.observe_new(
         |view: &mut TerminalView, _, cx: &mut Context<TerminalView>| {
             let terminal = view.terminal().clone();
@@ -55,6 +68,19 @@ pub fn init(cx: &mut App) {
         },
     )
     .detach();
+}
+
+/// How far blocks stand apart and whether a one-row prompt's header takes a second row, from
+/// `marley.block_density` (#631). The element gives a header its second row only when the header
+/// hook draws one, so the headers' own setting still decides.
+fn spacing(cx: &App) -> MarleyBlockSpacing {
+    match MarleySettings::get_global(cx).block_density {
+        MarleyBlockDensity::Comfortable => MarleyBlockSpacing {
+            gap_rows: 0.5,
+            tall_headers: true,
+        },
+        MarleyBlockDensity::Compact => MarleyBlockSpacing::default(),
+    }
 }
 
 /// Records the branch of each started block of `terminal` that has none recorded yet, from the

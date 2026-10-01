@@ -411,7 +411,7 @@ fn agents_section() -> [SettingsPageItem; 14] {
 }
 
 // Marley: where a URL clicked in a terminal opens (#503).
-fn terminal_section() -> [SettingsPageItem; 5] {
+fn terminal_section() -> [SettingsPageItem; 6] {
     [
         SettingsPageItem::SectionHeader("Terminal"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -477,6 +477,29 @@ fn terminal_section() -> [SettingsPageItem; 5] {
                         .marley
                         .get_or_insert_default()
                         .block_headers = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: how blocks are spaced in a terminal (#631).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Block Density",
+            description: "How blocks are spaced in a terminal: comfortable puts half a row between blocks and gives a one-row prompt's header two lines, the folder and branch over the command; compact draws no gaps and keeps each header in its prompt's own rows.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.block_density"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.block_density.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .block_density = value;
                 },
             }),
             metadata: None,

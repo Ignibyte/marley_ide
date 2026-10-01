@@ -2726,3 +2726,13 @@ loses every Terminal-context binding that an unscoped binding shares, because gp
 bindings at the deepest context. List them (a script over `default-linux.json`: keys bound both
 with no context and in `Terminal`) and bind, in the element's own context, the ones whose
 terminal meaning the user expects there; Ctrl-Shift-W is the one that was lost.
+
+## PR-claude-631-a-gesture-belongs-to-the-element-it-was-pressed-in-001
+*severity: medium · prevents: F-claude-631-a-drag-at-a-prompt-selected-nothing-001*
+
+When something takes the focus in reaction to a press (Marley's prompt editor docking at a
+prompt, a dialog, a palette), every handler that finishes that gesture (drag, release, click
+count) must ask whether the press happened in its element, not whether its element holds the
+focus now. Before moving the focus on a press, list the pressed element's drag and release
+handlers and their guards; in Zed's terminal element those are the `MouseMoveEvent` drag branch
+and the left `on_mouse_up`, both once gated on `focus.is_focused`.
