@@ -1,7 +1,7 @@
 ---
 pipeline_id: 5e00f997-355e-4943-9056-2b7e36afe8a5
 ticket: docs/planning/tickets/open/TICKET-626-a-commands-colours-at-the-prompt.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "A command's colours at the prompt"
 type: feature
 slice: prong 1 T6

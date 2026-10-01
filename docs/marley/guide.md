@@ -516,6 +516,10 @@ In the shell's editor, Tab opens completions (#625): the word before the cursor 
 prompt's folder (folders end in `/`), and the command so far as the start of one from the shell's
 history or the project's tasks. Enter or Tab takes an entry without running the line.
 
+What you type at a shell prompt is drawn in your theme's syntax colours as you type, as Zed colours
+a shell script: commands, strings, variables and operators apart (#626). The shell's editor reads
+the same way. Once the command runs, its block keeps the shell's own drawing.
+
 ### Attach File
 
 The bar's `+`, or `marley: attach file` for the focused terminal, opens a file chooser (#479).

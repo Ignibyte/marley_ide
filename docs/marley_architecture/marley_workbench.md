@@ -934,6 +934,17 @@ alike.
   `editor::ShowCompletions` and Enter `SendRichInput`, so Zed's own Enter and Tab take an entry
   while the menu shows.
 
+## A command's colours (`src/prompt_colors.rs`, #626)
+
+- `init` loads "Shell Script" (Zed's bash grammar) from the first workspace's project into a
+  `ShellLanguage` global and sets `terminal_view::MarleyPromptColoring`, which the element asks
+  once a frame: the line typed at the prompt (`autosuggest::typed_text`, so none while scrolled
+  back or on the alternate screen), highlighted with `Language::highlight_text`, each run's
+  `HighlightId` given its colour by the theme's `syntax().get`, and its bytes mapped to columns
+  from `AnchoredBlocks::input_start`. The element paints those cells in those colours
+  (`marley_layout_grid`); the grid's cells are untouched.
+- `rich_input` gives the shell's editor's buffer the same language (`shell_language`).
+
 ## A block's filter (`src/block_filter.rs`, #528)
 
 - `init` sets `terminal_view::MarleyTerminalOverlay` (the open panel of the view, found by the

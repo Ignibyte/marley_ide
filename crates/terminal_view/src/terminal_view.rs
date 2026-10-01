@@ -276,6 +276,34 @@ pub struct MarleyTerminalSuggestion(
 
 impl gpui::Global for MarleyTerminalSuggestion {}
 
+// Marley: the command typed at the shell's prompt, in the theme's syntax colours (#626).
+/// The colours of the cells on one line of the grid: each run of columns and its colour.
+#[derive(Clone, Debug, Default)]
+pub struct MarleyPromptColors {
+    /// The grid line, as the content's cells number it.
+    pub line: i32,
+    /// Each run of columns and its colour.
+    pub runs: Vec<(std::ops::Range<usize>, gpui::Hsla)>,
+}
+
+impl MarleyPromptColors {
+    /// The colour of the cell at `line` and `column`, when a run holds it.
+    pub fn color_at(&self, line: i32, column: usize) -> Option<gpui::Hsla> {
+        (line == self.line)
+            .then(|| self.runs.iter().find(|(run, _)| run.contains(&column)))
+            .flatten()
+            .map(|(_, color)| *color)
+    }
+}
+
+// Marley: the colours of what was typed at a terminal's prompt; Marley's workbench sets it (#626).
+#[derive(Clone)]
+pub struct MarleyPromptColoring(
+    pub Arc<dyn Fn(&Entity<Terminal>, &App) -> Option<MarleyPromptColors>>,
+);
+
+impl gpui::Global for MarleyPromptColoring {}
+
 // Marley: keeps each terminal's MARLEY_TERMINAL_ID across a restore, in a table of Marley's own
 // whose rows follow the `terminals` rows; Marley's workbench sets it (#575).
 #[derive(Clone)]

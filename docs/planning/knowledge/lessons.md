@@ -4184,3 +4184,19 @@ Marley crates, and they catch what clippy does not: an `async` block with no `.a
 gate. Read the work in place when the task is already off the main thread, and expect gate:21 to
 speak where clippy was quiet.
 
+## L-claude-626-a-zed-function-with-an-outside-caller-gets-a-marley-twin-001
+*category: code · topic: upstream discipline · from: pipeline 626*
+
+`TerminalElement::layout_grid` is public, and Zed's `repl` crate calls it too; adding a parameter
+for Marley's need would have touched a second Zed crate (`crates/repl/src/outputs/plain.rs`) and
+its ledger. Before changing a Zed function's signature, grep every crate for its callers; when one
+is outside the hunk's crate, keep the signature, move the body into a private twin that takes the
+extra argument, and have the public function call the twin with none.
+
+## L-claude-626-type-a-literal-dollar-without-a-shellcheck-disable-001
+*category: validate · topic: e2e scenarios · from: pipeline 626*
+
+A scenario that types a variable for the terminal to see (`$HOME`) trips shellcheck's SC2016 in
+single quotes, and the gate's no-suppressions rule makes a disable a poor answer: write it in
+double quotes with the dollar escaped, `type_text "grep h \$HOME"`.
+

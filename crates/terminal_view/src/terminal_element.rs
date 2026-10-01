@@ -456,6 +456,32 @@ impl TerminalElement {
         Vec<BatchedTextRun>,
         Vec<BlockElementLayoutRect>,
     ) {
+        Self::marley_layout_grid(
+            grid,
+            start_line_offset,
+            text_style,
+            hyperlink,
+            minimum_contrast,
+            None,
+            cx,
+        )
+    }
+
+    // Marley: `layout_grid` with the colours of the command typed at the prompt (#626), so the
+    // REPL's call stays as upstream has it.
+    fn marley_layout_grid<T: TerminalLayoutCell>(
+        grid: impl Iterator<Item = T>,
+        start_line_offset: i32,
+        text_style: &TextStyle,
+        hyperlink: Option<(HighlightStyle, &Range)>,
+        minimum_contrast: f32,
+        marley_colors: Option<&crate::MarleyPromptColors>,
+        cx: &App,
+    ) -> (
+        Vec<LayoutRect>,
+        Vec<BatchedTextRun>,
+        Vec<BlockElementLayoutRect>,
+    ) {
         let start_time = Instant::now();
         let theme = cx.theme();
 
@@ -528,7 +554,7 @@ impl TerminalElement {
                 {
                     if !is_blank(cell) {
                         cell_count += 1;
-                        let cell_style = TerminalElement::cell_style(
+                        let mut cell_style = TerminalElement::cell_style(
                             point,
                             cell,
                             fg,
@@ -538,6 +564,12 @@ impl TerminalElement {
                             hyperlink,
                             minimum_contrast,
                         );
+                        // Marley: the typed command's own colours (#626).
+                        if let Some(color) = marley_colors
+                            .and_then(|colors| colors.color_at(point.line, point.column))
+                        {
+                            cell_style.color = color;
+                        }
 
                         let cell_point = LayoutPoint::new(display_line, point.column as i32);
                         if Self::collect_block_element_regions(
@@ -1484,6 +1516,10 @@ impl Element for TerminalElement {
                 // then have that representation be converted to the appropriate highlight data structure
 
                 let content_mode = self.terminal_view.read(cx).content_mode(window, cx);
+                // Marley: the colours of the command typed at the prompt (#626).
+                let marley_colors = cx
+                    .try_global::<crate::MarleyPromptColoring>()
+                    .and_then(|hook| (hook.0)(&self.terminal, cx));
 
                 // Calculate the intersection of the terminal's bounds with the current
                 // content mask (the visible viewport after all parent clipping).
@@ -1509,7 +1545,7 @@ impl Element for TerminalElement {
                 } else if intersection == content_bounds {
                     // Fast path: terminal fully visible, no clipping needed.
                     // Avoid grouping/allocation overhead by streaming cells directly.
-                    TerminalElement::layout_grid(
+                    TerminalElement::marley_layout_grid(
                         cells.iter(),
                         0,
                         &text_style,
@@ -1517,6 +1553,7 @@ impl Element for TerminalElement {
                             .as_ref()
                             .map(|hover_match| (link_style, hover_match)),
                         minimum_contrast,
+                        marley_colors.as_ref(),
                         cx,
                     )
                 } else {
@@ -1531,7 +1568,7 @@ impl Element for TerminalElement {
                     let visible_row_count =
                         f32::from((intersection.size.height / line_height_px).ceil()) as usize + 1;
 
-                    TerminalElement::layout_grid(
+                    TerminalElement::marley_layout_grid(
                         // Group cells by line and filter to only the visible screen rows.
                         // skip() and take() work on enumerated line groups (screen position),
                         // making this work regardless of the actual cell.point.line values.
@@ -1548,6 +1585,7 @@ impl Element for TerminalElement {
                             .as_ref()
                             .map(|hover_match| (link_style, hover_match)),
                         minimum_contrast,
+                        marley_colors.as_ref(),
                         cx,
                     )
                 };

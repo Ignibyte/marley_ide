@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A command's colours at the prompt** (#626, 2026-09-30). What is typed at a shell prompt is
+  drawn in the theme's syntax colours, as Zed colours a shell script, and the shell's prompt
+  editor reads the same way. The colours are painted over the typed cells, which keep what the
+  shell gave them, so readline's own redraws are never fought; a finished block keeps the shell's
+  drawing.
+
 - **Completions in the shell's prompt editor** (#625, 2026-09-30). In the editor Ctrl+G opens at
   a shell prompt, Tab lists completions in Zed's menu: the word before the cursor as a path in the
   prompt's folder, and the command so far as the start of one from the shell's history or the

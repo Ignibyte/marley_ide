@@ -125,6 +125,13 @@ fn open_for(view: &Entity<TerminalView>, target: Target, window: &mut Window, cx
         // The shell's command completes paths, history and tasks (#625); an agent's prompt
         // nothing.
         editor.set_completion_provider(completions);
+        // And reads in the shell language's colours (#626).
+        if matches!(target, Target::Shell)
+            && let Some(language) = crate::prompt_colors::shell_language(cx)
+            && let Some(buffer) = editor.buffer().read(cx).as_singleton()
+        {
+            buffer.update(cx, |buffer, cx| buffer.set_language(Some(language), cx));
+        }
         if let Some(typed) = typed {
             editor.set_text(typed, window, cx);
             editor.move_to_end(&editor::actions::MoveToEnd, window, cx);
