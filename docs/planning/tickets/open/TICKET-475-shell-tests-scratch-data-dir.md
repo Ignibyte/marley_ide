@@ -2,7 +2,7 @@
 
 - **Ticket:** LOCAL #475 (chore, prong 1: T0 test hygiene)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** none yet (found in #474's Test phase)
+- **Pipeline doc:** ../../pipeline/queued/475-shell-tests-scratch-data-dir.spec.md
 - **Source ticket:** ../../pipeline/completed/474-block-hover-actions.notes.md (Phase 3)
 - **Status:** open
 
@@ -17,6 +17,9 @@ example through `paths::set_custom_data_dir` in each test process.
 ## Acceptance
 A run of `terminal`'s tests leaves `~/.local/share/marley/shell_integration` as it was, and the
 tests' shells still start with the scripts from the tree.
+
+## Queued 2026-10-01
+Wave 5 runs the tests again (#634), so this comes first.
 
 ## Deliberate since 2026-09-23
 #483 took the tests out of the workflow: they stay in the tree and keep building, but no gate

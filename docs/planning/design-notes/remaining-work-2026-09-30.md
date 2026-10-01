@@ -102,3 +102,8 @@ Since 2026-09-29 each ticket is proven by a visual check alone; the unit tests, 
 regression run and mutation testing were left for when the queue empties. This wave does them,
 and takes in #475 (the shell tests' scratch data directory), which matters again once the tests
 run.
+
+Specced 2026-10-01, in order: #475 (the shell tests' scratch data dir, first, so a run never
+rewrites the user's scripts), #634 (the suites run and green, no new tests), #635 (the golden
+regression run green) and #636 (a mutation run of the pure cores, its survivors reported; tests to
+kill them wait for Chad).

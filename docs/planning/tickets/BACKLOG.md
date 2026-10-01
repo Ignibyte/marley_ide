@@ -10,6 +10,10 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
+| [TICKET-475](open/TICKET-475-shell-tests-scratch-data-dir.md) | chore | wave 5 · the shell tests install Marley's scripts in a scratch data dir, before the suites run |
+| [TICKET-634](open/TICKET-634-the-test-suites-green.md) | chore | wave 5 · the test suites run and green, no new tests |
+| [TICKET-635](open/TICKET-635-the-golden-regression-green.md) | chore | wave 5 · the golden regression run green |
+| [TICKET-636](open/TICKET-636-a-mutation-run-of-the-pure-cores.md) | chore | wave 5 · a mutation run of the pure cores, survivors reported |
 
 ## Deliberate (picked explicitly, never auto-next)
 
@@ -17,6 +21,5 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 |---|---|---|
 | [TICKET-548](open/TICKET-548-system-one-via-cloudflare.md) | feature | prong 2 · Jev through Cloudflare Workers AI (stated zero retention) as a provider setting, per project; waits for the System One layer itself |
 | [TICKET-540](open/TICKET-540-session-resume-after-restart.md) | feature | prong 2 · Claude Code sessions resumed after a restart; waits on how the embedded harness keeps processes alive, so it cannot start a second Claude on a live session |
-| [TICKET-475](open/TICKET-475-shell-tests-scratch-data-dir.md) | chore | prong 1 T0 · the shell PTY tests install Marley's scripts in a scratch data directory; moot while no gate runs the tests (#483), and wanted again only if they run |
 | [TICKET-631](open/TICKET-631-block-gaps-and-density.md) | feature | prong 1 T5 · gaps between blocks and a density setting, split from #630: rows that are no grid line need a display-row map through 17 sites of Zed's terminal element; waits for Chad to weigh the look against the upstream diff |
 | [TICKET-445](open/TICKET-445-marley-release-identity.md) | chore | packaging: Marley's own keyring label, updater, app id and URL scheme; waits until Marley ships a package or needs a non-`dev` build (the `dev` channel keeps it safe until then) |
