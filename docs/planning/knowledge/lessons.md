@@ -4141,3 +4141,13 @@ lines into `$E2E_PROFILE/logs/Marley.log`, while `marley_workbench::browser=debu
 them. A scenario that wraps another (`eval "flow_$(declare -f setup)"`) can add the export
 without copying it.
 
+## L-claude-619-a-scenario-that-sets-terminal-settings-cannot-use-terminal-env-001
+*category: validate · topic: e2e scenarios · from: pipeline 619*
+
+`terminal_env` writes a `"terminal": {"env": …}` block into the run's settings at launch and
+refuses when the settings already have a `terminal` block. A scenario that also sets a terminal
+setting (`terminal.max_scroll_history_lines`, `terminal.shell`) sets the environment through the
+same block instead: `set_setting terminal.env '{"HOME": "…"}'`. And Zed's terminal shows a link's
+tooltip only after the pointer moves over the link once the link is found with Ctrl held: point,
+wait a second, move a few pixels, then shoot.
+

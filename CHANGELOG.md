@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A block's path links open at the block's folder** (#619, 2026-09-30). A path a command
+  printed, such as `src/main.rs:2:5`, opens with Ctrl+click against the folder that command ran
+  in, and its tooltip names that file, even after the shell has moved on and Zed's own guess at
+  the line's folder has given way (it does once the scrollback is full). Remote terminals and
+  blocks on another host keep Zed's resolution.
+
 - **Threads and ports under a closed project** (#617, 2026-09-30). A project the window holds no
   workspace of, as a restart leaves every one but the shown, lists its agent threads and the
   ports listening in its folders under its dimmed header, and its chevron folds them. A thread

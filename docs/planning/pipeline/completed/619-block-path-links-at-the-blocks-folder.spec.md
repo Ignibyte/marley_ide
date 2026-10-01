@@ -1,7 +1,7 @@
 ---
 pipeline_id: 13d72b7b-3240-4532-a697-ca1e8f6508b0
 ticket: docs/planning/tickets/open/TICKET-619-block-path-links-at-the-blocks-folder.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "A block's path links resolve against the block's own folder"
 type: feature
 slice: prong 1 T2
@@ -17,8 +17,8 @@ in, not the shell's folder at the time of the click (plan T2, first half).
 - `crates/terminal/src/terminal.rs` (Zed crate, an additive `// Marley:` hunk): where
   `process_hyperlink` builds a `PathLikeTarget`, a match line that lies inside a local block
   (`AnchoredBlocks`'s `block_lines`) takes that block's `prompt.pwd` as `terminal_dir`; any other
-  line keeps `cwd_at_line`. `process_hyperlink` cannot lock the terminal, so the absolute line is
-  computed from what the caller passes, as `history_size` is passed today.
+  line keeps `cwd_at_line`. `process_hyperlink` cannot lock the terminal, so its two callers,
+  which hold the lock, find the block's folder and pass it, as they pass `history_size` today.
 - The hover tooltip and the click both follow, since both go through `PathLikeTarget`.
 
 ### Out (explicitly deferred)

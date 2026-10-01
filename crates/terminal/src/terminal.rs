@@ -2157,7 +2157,10 @@ impl Terminal {
                 ) {
                     Some(hyperlink) => {
                         let history_size = term.history_size();
-                        self.process_hyperlink(hyperlink, *open, history_size, cx);
+                        // Marley: a link inside a block opens against the block's folder (#619).
+                        let block_folder =
+                            self.marley_block_folder(term, hyperlink.range.start().line);
+                        self.process_hyperlink(hyperlink, *open, history_size, block_folder, cx);
                     }
                     None => {
                         self.clear_hyperlink(cx);
@@ -2168,7 +2171,9 @@ impl Terminal {
                 // history_size must be read here since process_hyperlink cannot lock term
                 // (sync() already holds the lock when dispatching events)
                 let history_size = term.history_size();
-                self.process_hyperlink(hyperlink.clone(), *open, history_size, cx);
+                // Marley: a link inside a block opens against the block's folder (#619).
+                let block_folder = self.marley_block_folder(term, hyperlink.range.start().line);
+                self.process_hyperlink(hyperlink.clone(), *open, history_size, block_folder, cx);
             }
         }
     }
@@ -2178,6 +2183,7 @@ impl Terminal {
         hyperlink: HyperlinkMatch,
         open: bool,
         history_size: usize,
+        block_folder: Option<PathBuf>,
         cx: &mut Context<Self>,
     ) {
         let HyperlinkMatch {
@@ -2187,7 +2193,7 @@ impl Terminal {
         } = hyperlink;
         let prev_hovered_word = self.last_content.last_hovered_word.take();
         let match_line = range.start().line;
-        let working_directory = self.cwd_at_line(match_line, history_size);
+        let working_directory = block_folder.or_else(|| self.cwd_at_line(match_line, history_size));
 
         let target = if is_url {
             if let Some(path) = maybe_url_or_path.strip_prefix("file://") {
@@ -2214,6 +2220,21 @@ impl Terminal {
         } else {
             self.update_selected_word(prev_hovered_word, range, maybe_url_or_path, target, cx);
         }
+    }
+
+    // Marley: the folder of the block a link sits in, for its path (#619).
+    /// The folder of the local block holding the grid's line `line`, which a path printed there
+    /// is relative to; none for a remote terminal or on the alternate screen.
+    fn marley_block_folder(&self, term: &AlacrittyTerm, line: i32) -> Option<PathBuf> {
+        let position = alacritty_terminal::marley_hooks::HookPosition::of(term);
+        if self.is_remote_terminal || position.alt_screen {
+            return None;
+        }
+        let first = position.evicted_lines + position.history_size as u64;
+        let line = first.checked_add_signed(i64::from(line))?;
+        self.blocks
+            .folder_at(line, position.absolute_line())
+            .map(PathBuf::from)
     }
 
     fn clear_hyperlink(&mut self, cx: &mut Context<Self>) {

@@ -409,6 +409,9 @@ Every command the shell reports is a block (#470):
 The terminal's text and rows stay as they were. Nothing is drawn while a full-screen program such
 as vim holds the alternate screen.
 
+A path a command printed, such as `src/main.rs:2:5`, opens with Ctrl+click against the folder that
+command ran in, wherever the shell has gone since (#619); hold Ctrl over it to see the whole path.
+
 ### Moving between blocks, copying, rerunning
 
 - Ctrl+Up scrolls to the start of the block above the top of the view, and Ctrl+Down to the next

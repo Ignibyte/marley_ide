@@ -356,6 +356,18 @@ impl AnchoredBlocks {
         &self.blocks
     }
 
+    /// The folder the block holding the absolute `line` ran its command in (#619), with
+    /// `cursor_line` the cursor's absolute line, where a running block ends; none for a line in
+    /// no block, a block on another host, or a prompt that named no folder.
+    #[must_use]
+    pub fn folder_at(&self, line: u64, cursor_line: u64) -> Option<&str> {
+        self.blocks
+            .iter()
+            .find(|block| block_lines(block, cursor_line).contains(&line))
+            .filter(|block| self.block_host(block.index).is_none())
+            .and_then(|block| block.prompt.pwd.as_deref())
+    }
+
     /// Stamps the blocks at `now`, right after a hook applied: a block opened since the last stamp
     /// started now, and one finished since then ended now.
     pub fn stamp(&mut self, now: SystemTime) {

@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-619](open/TICKET-619-block-path-links-at-the-blocks-folder.md) | feature | terminal (wave 3) · a block's path links resolve against the block's own folder |
 | [TICKET-620](open/TICKET-620-jump-to-a-failed-blocks-first-failure.md) | feature | terminal (wave 3) · jump to a failed block's first failure |
 | [TICKET-621](open/TICKET-621-a-tasks-run-as-a-block.md) | feature | terminal (wave 3) · a task's run as a block |
 | [TICKET-622](open/TICKET-622-a-task-blocks-rerun-and-pill.md) | feature | terminal (wave 3) · a task block's Rerun and its pill |

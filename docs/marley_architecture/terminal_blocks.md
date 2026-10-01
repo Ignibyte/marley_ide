@@ -305,6 +305,14 @@ a child that ignores SIGHUP, and descriptor cleanup after a reap. The file stays
 coverage exclude list for its OS-error arms. The real-PTY tests share a process-wide lock in
 place of `#[serial]`.
 
+**Since #619 (the fork).** A path link inside a block opens against the block's folder:
+`AnchoredBlocks::folder_at(line, cursor_line)` gives the local block holding an absolute line and
+its `prompt.pwd`, and Zed's `Terminal::process_hyperlink` takes it before `cwd_at_line` (whose
+per-line history gives way to the shell's folder now once the scrollback is full). Its two
+callers find it under the terminal's lock (`marley_block_folder`: the absolute line is
+`evicted_lines + history_size + line`); remote terminals, the alternate screen and blocks on
+another host keep Zed's resolution.
+
 **Since #447.** The shim is a child module of `session`, the one module that calls it:
 `#[path = "pty_os.rs"]` keeps the file where gate:4's exclude and these notes name it, and its
 items are `pub(super)`. The reap signal logs any failure except ESRCH, the child having
