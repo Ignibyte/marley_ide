@@ -423,6 +423,11 @@ Jump to First Failure, and its state on the terminal's rail row. Point at a fini
 or right-click it, for Rerun Task, which runs the task again in its tab as the tab's own Rerun does
 (#622). In the Marley layout the block's pill takes the place of Zed's `Task … finished` line.
 
+A failed block's errors and warnings in the project's files are also the project's diagnostics
+(#623): the status bar counts them, the Diagnostics view lists them (marked `marley`), and the
+editor underlines them. The next run of the same command in the same folder replaces them, and a
+run that succeeds clears them.
+
 ### Moving between blocks, copying, rerunning
 
 - Ctrl+Up scrolls to the start of the block above the top of the view, and Ctrl+Down to the next

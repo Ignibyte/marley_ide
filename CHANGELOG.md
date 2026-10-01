@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A failed block's errors as the project's diagnostics** (#623, 2026-09-30). The errors and
+  warnings a failed block names in the project's files (rustc, the GNU shape, tsc, Python) are
+  the project's diagnostics: counted in the status bar, listed in the Diagnostics view as
+  `marley`'s, and underlined in the editor. The next run of the same command in the same folder
+  replaces them; a run that succeeds clears them.
+
 - **A task block's Rerun Task, and its pill in place of Zed's summary** (#622, 2026-09-30). A
   finished task's block offers Rerun Task on hover and in its menu, which runs the task again in
   its tab through Zed's task machinery, as the tab's own Rerun does. In the Marley layout the

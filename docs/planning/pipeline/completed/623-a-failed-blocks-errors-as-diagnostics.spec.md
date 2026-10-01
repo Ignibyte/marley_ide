@@ -1,7 +1,7 @@
 ---
 pipeline_id: 650c42a0-8e8d-4571-9d22-ef09ee59aac8
 ticket: docs/planning/tickets/open/TICKET-623-a-failed-blocks-errors-as-diagnostics.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "A failed block's errors as project diagnostics"
 type: feature
 slice: prong 1 T4

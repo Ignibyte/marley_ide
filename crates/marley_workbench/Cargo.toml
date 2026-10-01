@@ -35,6 +35,7 @@ ignore.workspace = true
 image.workspace = true
 language.workspace = true
 log.workspace = true
+lsp.workspace = true
 markdown.workspace = true
 markdown_preview.workspace = true
 marley_agent.workspace = true

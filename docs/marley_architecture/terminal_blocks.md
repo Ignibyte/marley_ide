@@ -336,6 +336,13 @@ Rerun Task button (the element) and menu item (`blocks.rs`) that dispatch `zed_a
 `register_task_finished` from appending the summary line (the command line stays with
 `show_command`).
 
+**Since #623 (the fork).** The failures of each failed block are published as the project's
+diagnostics through `LspStore::merge_lsp_diagnostics` under `BLOCK_DIAGNOSTICS`, a
+`LanguageServerId` no server takes (`usize::MAX - 623`), source `marley`, replacing what the same
+command (its text and folder) last published, and a successful run clears them; only a local
+project, only files in its worktrees. A view's watch follows its terminal (`watch`, re-armed from
+`observe_self` when the terminal changes), since Zed's task rerun gives a tab a new `Terminal`.
+
 **Since #447.** The shim is a child module of `session`, the one module that calls it:
 `#[path = "pty_os.rs"]` keeps the file where gate:4's exclude and these notes name it, and its
 items are `pub(super)`. The reap signal logs any failure except ESRCH, the child having

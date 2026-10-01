@@ -4167,3 +4167,11 @@ above the prompt at the bottom of the view, not at its top: a scenario's click "
 counted from the top lands on empty rows, and a right-click there opens Zed's terminal menu with no
 Block section. Count rows up from the prompt's row (the last row) instead.
 
+## L-claude-623-zeds-task-rerun-replaces-the-tabs-terminal-001
+*category: code · topic: Zed task terminals · from: pipeline 623*
+
+Zed's `task::Rerun` with `use_new_terminal: false` keeps the tab but gives its `TerminalView` a new
+`Terminal` entity (`TerminalPanel::replace_terminal`, then the view's `set_terminal`). Anything keyed
+by the `Terminal` (an observer, a per-terminal cache, its blocks) starts over at a rerun: watch the
+view and follow its current terminal, as `failures::watch` does.
+

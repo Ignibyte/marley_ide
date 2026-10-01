@@ -3036,3 +3036,12 @@ command (#529), so the error line was hidden and only the ` --> ` line under it 
 (`jumped.png`). Fixed before the commit: the jump reveals the row above the report, putting it
 just under the pinned command.
 
+## F-claude-623-a-reruns-new-terminal-was-not-watched-001
+*severity: medium · found in: pipeline 623's Test phase (run 1) · class: an observer on an entity a view replaces*
+
+The block reader observed the `Terminal` a view was created with. Zed's task rerun gives the tab a
+new `Terminal` (`replace_terminal`), so the rerun's block was never read, and a passing rerun left
+the failing run's diagnostics in place (`cleared.png` still counted 2 errors and 1 warning). Fixed
+before the commit: each view watches its current terminal, re-armed from `observe_self` when the
+view's terminal changes, and lets go of the one it replaced.
+
