@@ -3703,3 +3703,17 @@ flag before the windows close); `other` keeps it, as a quit reads. Rejected: two
 outlives the item id, and a change to two Zed files); reading `~/.claude/projects` or the screen
 for the id; starting the restored shell in the session's folder (a Zed change; the `cd` does it
 in the typed line, the folder one quoted word).
+
+## AD-claude-638-the-mutation-pass-runs-in-shards-on-githubs-free-runners-001
+*decided at: 2026-10-01 · status: shipped · builds on: AD-claude-443-mutation-topology-and-no-masks-001*
+
+The mutation pass, which takes hours on the dev box, runs by hand through `script/mutants`: on this
+machine (`run`, copy mode, a target per copy, `-p` per package), or on GitHub's free runners
+(`cloud`): HEAD and a commit carrying the settings go to a `mutants/<stamp>` branch, whose push
+starts `.github/workflows/marley_mutants.yml`; a matrix of N runners each takes every Nth mutant
+(round-robin, so the big crates spread), and a last job merges their outcomes into one report,
+which `cloud` downloads before deleting the branch. Rejected: a rented machine (RunPod holds the
+only key, and a public repository's runners cost nothing); `workflow_dispatch` (it needs the
+workflow on the default branch, the fork's mirror of Zed's `main`); editing Zed's 47 inherited
+workflows to keep them quiet (`cloud-setup` turns them off through the API, with no Zed file
+changed); the gpui crates by default (each mutant builds most of Zed).

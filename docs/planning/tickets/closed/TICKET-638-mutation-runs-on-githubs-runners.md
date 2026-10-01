@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #638 (chore, the testing tooling)
 - **Owner:** claude-opus-5-5, 2026-10-01
-- **Pipeline doc:** none yet
+- **Pipeline doc:** ../../pipeline/completed/638-mutation-runs-on-githubs-runners.spec.md
 - **Source ticket:** Chad, 2026-10-01: "for mutations we may run these soon but I want to set up
   the ability to run these on high cpu usage quick on the cloud because it takes hours to run
   these"; #636's run took 1 h 27 min on the dev box for the nine pure cores
-- **Status:** open
+- **Status:** closed (2026-10-01); the first cloud run waits on Actions being turned on for the fork
 
 ## Summary
 A mutation pass over Marley's crates takes hours on the dev box, two workers at a time. GitHub

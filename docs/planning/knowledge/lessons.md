@@ -4380,3 +4380,14 @@ without that key and the wrong one with it: the session could ride the terminal 
 ticket shipped with no Zed change but the setting's. At promotion, list the tickets that shipped
 since the draft on the same seams (here `git log` over `terminal_view.rs` and the workbench's
 restore paths) before re-verifying line numbers; a new seam can delete half the plan.
+
+## L-claude-638-a-forks-actions-stay-off-until-its-owner-turns-them-on-001
+*category: tooling · topic: GitHub Actions on the fork · from: pipeline 638*
+
+`Ignibyte/marley_ide` reports Actions as enabled (`actions/permissions` says `enabled: true`),
+yet lists 0 workflows and has 0 runs ever, though 47 workflow files sit on `main`: GitHub keeps a
+fork's workflows off until its owner chooses "I understand my workflows, go ahead and enable them"
+in the Actions tab, and no API call does it. Turning them on turns on every inherited workflow at
+once, so the step that turns Zed's off (`script/mutants cloud-setup`) has to follow it straight
+away. A push-triggered workflow then runs from the pushed commit, with no need to be on the
+default branch; a `workflow_dispatch` one needs the default branch.

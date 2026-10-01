@@ -52,3 +52,11 @@ regress *scenarios: idle
 # One shot of the debug Marley, hidden, with no input; `seed` edits the profile copy first.
 shot name seed="":
     NAME="{{ name }}" SEED="{{ seed }}" script/e2e.sh script/e2e/shot.sh
+
+# The mutation pass on this machine, or one shard of it; `script/mutants` says the rest (#638).
+mutants *args: idle
+    script/mutants run {{ args }}
+
+# The mutation pass on GitHub's runners, its report downloaded (`docs/marley/mutation-runs.md`).
+mutants-cloud *args:
+    script/mutants cloud {{ args }}

@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-638](open/TICKET-638-mutation-runs-on-githubs-runners.md) | chore | the mutation pass, sharded over GitHub's free runners, merged into one report (Chad, 2026-10-01) |
 | [TICKET-639](open/TICKET-639-the-startup-handshake-shows-as-a-block.md) | bug | Zed's startup handshake `printf` shows as a block before an agent's launch or a resume (#540's dry run) |
 
 ## Deliberate (picked explicitly, never auto-next)

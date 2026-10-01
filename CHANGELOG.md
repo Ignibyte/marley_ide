@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Mutation runs on GitHub's runners** (#638, 2026-10-01). `script/mutants` runs the mutation
+  pass (`just mutants`), or one shard of it, and merges any runs' outcomes into one table by crate
+  with every missed mutant. `just mutants-cloud` sends the pass to GitHub's free runners, 16
+  shards at once by default: it pushes HEAD to a `mutants/<stamp>` branch, follows the run,
+  downloads the report and deletes the branch. The fork's Actions have to be turned on once in
+  its Actions tab, then `script/mutants cloud-setup` turns off the workflows the fork carries
+  from Zed; `docs/marley/mutation-runs.md` has the steps.
+
 - **Claude Code sessions come back after a restart** (#540, 2026-10-01). Quit Marley while Claude
   Code runs in a terminal, and at the next launch that terminal runs `claude --resume` with the
   same session, in the folder the session started in, so the conversation picks up where it

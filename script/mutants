@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+# script/mutants: Marley's mutation pass, run by hand. Not a gate: the workflow keeps mutation
+# testing for the end (CONSTITUTION §0, §7), and this is how it runs when it does.
+#
+#   script/mutants run [--shard K/N] [--jobs J] [--packages "a b"] [--output DIR]
+#       The pass on this machine, or one shard of it. Copy mode: each worker copies the tree and
+#       builds in a target of its own (#443), so CARGO_TARGET_DIR and the like are cleared for it.
+#       A shard takes every Nth mutant (round-robin). Outcomes go to DIR, by default a new folder
+#       under ~/.cache/marley-mutants, never into the repository.
+#   script/mutants report DIR...
+#       One report over the outcomes of one or more runs or shards (each DIR holds a
+#       `mutants.out`): a table by crate and every missed mutant, in markdown.
+#   script/mutants cloud [--shards N] [--jobs J] [--packages "a b"] [--output DIR]
+#       The pass on GitHub's runners (#638): HEAD is pushed to a `mutants/<stamp>` branch of the
+#       origin, which starts `.github/workflows/marley_mutants.yml`; N shards run at once, one
+#       runner each, and their report is downloaded into DIR. The branch goes when the run ends.
+#   script/mutants cloud-setup
+#       Once, after Actions are turned on for the fork: turns off every workflow but this one, the
+#       ones the fork carries from Zed.
+#
+# The packages are the nine Marley crates with no gpui unless named (#636's set); the two with
+# gpui (`marley_browser`, `marley_workbench`) build most of Zed per mutant.
+# Exit: 0 when the run completed (missed mutants are a finding, not a failure), 1 when it did not,
+# 2 on a usage error.
+
+set -uo pipefail
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
+
+PURE_CORES="marley_agent marley_dcs marley_fleet marley_mcp marley_rail marley_remote marley_sdk marley_system_one marley_terminal"
+WORKFLOW=marley_mutants.yml
+# The copies, and the outcomes and reports unless an --output says where: never in the repository.
+CACHE=${MUT_SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/marley-mutants}
+WORKFLOW_NAME="Marley mutants"
+
+usage() {
+  sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'
+  exit 2
+}
+
+die() {
+  echo "mutants: $*" >&2
+  exit 1
+}
+
+need() {
+  command -v "$1" >/dev/null 2>&1 || die "$1 is missing${2:+: $2}"
+}
+
+run() {
+  local shard="" jobs=2 packages=$PURE_CORES output=""
+  while (($#)); do
+    case $1 in
+      --shard) shard=${2:?}; shift 2 ;;
+      --jobs) jobs=${2:?}; shift 2 ;;
+      --packages) packages=${2:?}; shift 2 ;;
+      --output) output=${2:?}; shift 2 ;;
+      *) usage ;;
+    esac
+  done
+  need cargo-mutants "cargo install cargo-mutants --locked"
+  need cargo-nextest "cargo install cargo-nextest --locked"
+  [[ -z $shard || $shard =~ ^[0-9]+/[0-9]+$ ]] || die "--shard takes K/N, such as 0/16"
+
+  # --no-config: a `.cargo/mutants.toml` could exclude files or stretch the timeouts.
+  local -a args=(--no-config --no-times --test-tool=nextest --jobs "$jobs")
+  local package
+  for package in $packages; do args+=(-p "$package"); done
+  [[ -n $shard ]] && args+=(--shard "$shard" --sharding round-robin)
+
+  output=${output:-$CACHE/run-$(date -u +%Y%m%d-%H%M%S)}
+  mkdir -p "$output" "$CACHE"
+  echo "mutants: [$packages]${shard:+ shard $shard} with $jobs workers into $output"
+  # Cleared for the run: what could move the outcomes away, stretch the timeout that counts as
+  # caught, or make the copies share a target again.
+  env -u CARGO_TARGET_DIR -u CARGO_MUTANTS_OUTPUT -u CARGO_MUTANTS_MINIMUM_TEST_TIMEOUT \
+    -u CARGO_BUILD_TARGET_DIR -u CARGO_BUILD_BUILD_DIR TMPDIR="$CACHE" \
+    cargo mutants "${args[@]}" --output "$output"
+  local status=$?
+  # 0: every mutant caught; 2: some missed; 3: some timed out. 1 is a usage error and 4 a failed
+  # baseline, neither of which measures anything.
+  case $status in
+    0 | 2 | 3) echo "mutants: the run completed (cargo-mutants exit $status)" ;;
+    *) die "cargo mutants did not complete a run (exit $status; 1 usage, 4 baseline failed)" ;;
+  esac
+}
+
+report() {
+  (($#)) || usage
+  need python3
+  python3 - "$@" <<'PY'
+import json, pathlib, sys
+from collections import defaultdict
+
+outcomes = []
+empty = []
+for directory in sys.argv[1:]:
+    files = sorted(pathlib.Path(directory).rglob("mutants.out/outcomes.json"))
+    if not files:
+        empty.append(directory)
+    for path in files:
+        outcomes += [o for o in json.loads(path.read_text())["outcomes"] if o["scenario"] != "Baseline"]
+if not outcomes:
+    sys.exit("mutants: no outcomes under " + " ".join(sys.argv[1:]))
+
+counts = defaultdict(lambda: defaultdict(int))
+missed = []
+for outcome in outcomes:
+    mutant = outcome["scenario"]["Mutant"]
+    counts[mutant["package"]][outcome["summary"]] += 1
+    if outcome["summary"] == "MissedMutant":
+        missed.append(mutant["name"])
+
+def row(name, c):
+    caught, timeouts, miss = c["CaughtMutant"], c["Timeout"], c["MissedMutant"]
+    viable = caught + timeouts + miss
+    score = f"{100 * (caught + timeouts) / viable:.1f}%" if viable else "n/a"
+    total = sum(c.values())
+    return f"| {name} | {total:,} | {caught:,} | {timeouts:,} | {miss:,} | {c['Unviable']:,} | {score} |"
+
+print("| Crate | Mutants | Caught | Timeouts | Missed | Unviable | Killed of viable |")
+print("|---|---|---|---|---|---|---|")
+everything = defaultdict(int)
+for name in sorted(counts):
+    print(row(f"`{name}`", counts[name]))
+    for key, value in counts[name].items():
+        everything[key] += value
+print(row("**All**", everything))
+print()
+print("Killed of viable is (caught + timeouts) / (caught + timeouts + missed).")
+print()
+if empty:
+    print(f"**{len(empty)} of {len(sys.argv) - 1} runs left no outcomes:** " + ", ".join(empty))
+    print()
+print(f"## Missed ({len(missed):,})")
+print()
+for name in sorted(missed):
+    print(f"- {name}")
+PY
+}
+
+cloud() {
+  local shards=16 jobs=2 packages=$PURE_CORES output=""
+  while (($#)); do
+    case $1 in
+      --shards) shards=${2:?}; shift 2 ;;
+      --jobs) jobs=${2:?}; shift 2 ;;
+      --packages) packages=${2:?}; shift 2 ;;
+      --output) output=${2:?}; shift 2 ;;
+      *) usage ;;
+    esac
+  done
+  need gh
+  need git
+  if ! [[ $shards =~ ^[0-9]+$ ]] || ((shards < 1 || shards > 64)); then
+    die "--shards takes 1 to 64"
+  fi
+  local stamp branch head
+  stamp=$(date -u +%Y%m%d-%H%M%S)
+  branch=mutants/$stamp
+  head=$(git rev-parse HEAD) || die "not in a git repository"
+  output=${output:-$CACHE/cloud-$stamp}
+  git diff --quiet HEAD || echo "mutants: the work tree has changes; the cloud run mutates HEAD ($head) only"
+
+  # The run's settings ride in the branch's tip commit, so the workflow reads them from the push.
+  local config tip
+  config=$(printf 'shards=%s\njobs=%s\npackages=%s\n' "$shards" "$jobs" "$packages")
+  tip=$(git commit-tree "$(git rev-parse "HEAD^{tree}")" -p "$head" -m "Mutation run $stamp
+
+$config") || die "could not make the run's commit"
+  git push --quiet origin "$tip:refs/heads/$branch" || die "could not push $branch to origin"
+  # shellcheck disable=SC2064 # the branch is fixed now
+  trap "git push --quiet origin --delete '$branch' >/dev/null 2>&1" EXIT
+  echo "mutants: pushed $branch ($shards shards of [$packages]); waiting for its run"
+
+  local run_id="" waited=0
+  while [[ -z $run_id ]]; do
+    # By the workflow's name: a workflow that has not run yet has no id to ask by.
+    run_id=$(gh run list --branch "$branch" --limit 10 --json databaseId,workflowName \
+      --jq "[.[] | select(.workflowName == \"$WORKFLOW_NAME\")][0].databaseId // empty" 2>/dev/null)
+    [[ -n $run_id ]] && break
+    ((waited >= 120)) && die "no run started for $branch in 2 minutes: Actions may be off for the fork (docs/marley/mutation-runs.md)"
+    sleep 5
+    waited=$((waited + 5))
+  done
+  echo "mutants: run $run_id: $(gh run view "$run_id" --json url --jq .url)"
+  gh run watch "$run_id" --interval 30 --exit-status >/dev/null
+  local status=$?
+  mkdir -p "$output"
+  gh run download "$run_id" --name mutants-report --dir "$output" ||
+    die "run $run_id left no report (gh run view $run_id --log-failed)"
+  ((status == 0)) || echo "mutants: run $run_id did not finish green; the report is what came back"
+  echo "mutants: the report is in $output/report.md"
+  sed -n '1,20p' "$output/report.md"
+}
+
+cloud_setup() {
+  need gh
+  local repo
+  repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner) || die "no GitHub repository here"
+  local listed
+  listed=$(gh api "repos/$repo/actions/workflows" --paginate --jq '.workflows[] | "\(.id)\t\(.path)\t\(.state)"') ||
+    die "could not list the workflows of $repo"
+  [[ -n $listed ]] || die "$repo lists no workflows: turn Actions on in its Actions tab first"
+  local id path state
+  while IFS=$'\t' read -r id path state; do
+    if [[ $path == ".github/workflows/$WORKFLOW" ]]; then
+      echo "keep     $path ($state)"
+    elif [[ $state == active ]]; then
+      gh api -X PUT "repos/$repo/actions/workflows/$id/disable" >/dev/null && echo "disabled $path"
+    fi
+  done <<<"$listed"
+}
+
+case ${1:-} in
+  run) shift; run "$@" ;;
+  report) shift; report "$@" ;;
+  cloud) shift; cloud "$@" ;;
+  cloud-setup) shift; cloud_setup "$@" ;;
+  *) usage ;;
+esac

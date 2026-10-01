@@ -7,6 +7,9 @@ crates with no gpui. Every missed mutant, with its place and its reading, is in
 
 ## How it ran
 
+Since #638 the same run is `just mutants` on this machine, or `just mutants-cloud` on GitHub's
+runners, split into shards (`docs/marley/mutation-runs.md`).
+
 - `cargo-mutants` 27.1.0, `--no-config` (no exclusions, no masks), nextest, copy mode with two
   workers, each copy building in its own target (AD-claude-443-mutation-topology-and-no-masks-001,
   F-claude-443-a-full-mutation-workers-shared-one-target-001); the copies under

@@ -1,0 +1,105 @@
+# Marley's mutation pass on GitHub's runners (#638). `script/mutants cloud` pushes HEAD to a
+# `mutants/<stamp>` branch whose tip commit carries the run's settings; this workflow splits the
+# mutants round-robin into that many shards, one runner each, and merges their outcomes into one
+# report. Not a gate: nothing else starts it.
+name: Marley mutants
+
+on:
+  push:
+    branches:
+      - "mutants/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: marley-mutants-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.settings.outputs.shards }}
+      jobs: ${{ steps.settings.outputs.jobs }}
+      packages: ${{ steps.settings.outputs.packages }}
+    steps:
+      - id: settings
+        name: Read the run's settings from its commit
+        env:
+          MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          shards=$(printf '%s\n' "$MESSAGE" | sed -n 's/^shards=//p' | head -1)
+          jobs=$(printf '%s\n' "$MESSAGE" | sed -n 's/^jobs=//p' | head -1)
+          packages=$(printf '%s\n' "$MESSAGE" | sed -n 's/^packages=//p' | head -1)
+          [[ $shards =~ ^[0-9]+$ ]] && ((shards >= 1 && shards <= 64)) || shards=16
+          [[ $jobs =~ ^[0-9]+$ ]] && ((jobs >= 1 && jobs <= 8)) || jobs=2
+          [[ $packages =~ ^[a-z0-9_\ ]+$ ]] || packages=""
+          {
+            echo "shards=$(jq -cn --argjson n "$shards" '[range($n)]')"
+            echo "jobs=$jobs"
+            echo "packages=$packages"
+          } >>"$GITHUB_OUTPUT"
+          echo "$shards shards, $jobs workers each, packages: ${packages:-the pure cores}"
+
+  shard:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Toolchain (rust-toolchain.toml, which rustup installs at the first cargo)
+        run: cargo --version
+      - name: cargo-mutants and cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants@27.1.0,cargo-nextest
+      - name: Fetch the dependencies
+        run: cargo fetch --locked
+      - name: Shard ${{ matrix.shard }} of ${{ strategy.job-total }}
+        env:
+          PACKAGES: ${{ needs.plan.outputs.packages }}
+          JOBS: ${{ needs.plan.outputs.jobs }}
+          SHARD: ${{ matrix.shard }}/${{ strategy.job-total }}
+          MUT_SCRATCH: ${{ runner.temp }}/mutants
+        run: |
+          args=(run --shard "$SHARD" --jobs "$JOBS" --output out)
+          [[ -n $PACKAGES ]] && args+=(--packages "$PACKAGES")
+          script/mutants "${args[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shard-${{ matrix.shard }}
+          path: out/mutants.out/outcomes.json
+          if-no-files-found: warn
+
+  report:
+    needs: shard
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: shard-*
+          path: shards
+      - name: Merge the shards
+        run: |
+          for dir in shards/shard-*; do
+            mkdir -p "$dir/mutants.out"
+            [[ -f $dir/outcomes.json ]] && mv "$dir/outcomes.json" "$dir/mutants.out/"
+          done
+          script/mutants report shards/shard-* >report.md
+          cat report.md >>"$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mutants-report
+          path: report.md
