@@ -434,7 +434,8 @@ npm run dev
 
 - [ ] Within about three seconds a row appears under `marley-tour`: a server icon, `:8000` with
   the process's name, and a URL on `127.0.0.1`, since the server listens on `0.0.0.0`.
-- [ ] Pointing at it shows the command line, folder and pid, with Open, Copy and Stop.
+- [ ] Pointing at it shows the whole URL, the command line, folder and pid, with Open, Copy and
+  Stop over the row's end; the URL line reads `127.0.0.1:8000/` (#618).
 - [ ] One click on the row marks it and opens nothing; Enter then opens the URL in a Browser tab,
   and so does a double-click (#604).
 - [ ] Optional, a server run by a systemd service (#603): in a terminal of `marley-tour`, run

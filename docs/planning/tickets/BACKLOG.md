@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-618](open/TICKET-618-port-row-lines-and-header-tooltip.md) | bug | rail (wave 2) · a port row's clipped lines, and a header tooltip over its menu |
 | [TICKET-612](open/TICKET-612-settings-edit-after-marley-writes.md) | bug | workbench · a hand edit to settings.json after Marley writes the file does not reload |
 
 ## Deliberate (picked explicitly, never auto-next)

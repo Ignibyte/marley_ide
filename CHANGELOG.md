@@ -280,6 +280,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A port row's lines at the default rail width, and a closed header's tooltip** (#618,
+  2026-09-30). A port row's Open, Copy and Stop no longer keep their room while hidden: they show
+  over the row's end on hover, so the URL and the unit's name have the row's width. A local
+  server's URL reads `127.0.0.1:<port>/` without `http://`, a URL still too long loses its
+  middle, and a unit's name loses its start, so its end stays. The row's tooltip begins with the
+  whole URL. A closed project's "Not open. Click to open it." no longer stays over the menu a
+  right-click on its header opens.
+
 - **A launch's first terminals at the last session's size** (#486, 2026-09-29). Marley keeps the
   size its terminals last had when it quits and opens the next launch's first terminals at it, so a
   multi-line prompt wider than 100 columns (starship's, for one) is drawn right from the first

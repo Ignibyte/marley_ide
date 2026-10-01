@@ -188,7 +188,13 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   or the process, with the command or the signal, and `stop_port` shows a refusal as a toast with
   Copy Command (`refused_toast`). `render_port_row` draws `Server` in the row's round icon, and
   on hover (`visible_on_hover`) Open (`ToolWeb`), Copy and Stop, each in a div with its own
-  debug selector (`marley-rail-port-open-<port>` and so on).
+  debug selector (`marley-rail-port-open-<port>` and so on). Since #618 the buttons are an
+  absolute strip over the row's end (the row is `relative()`), on `panel_background` blended
+  with the row's hover or selected fill so it covers the text, and the text has the row's width.
+  `RowLine.cut` (`Cut::End`, `Start`, `Middle`) picks the label's truncation: the URL line is
+  `url_label` (no `http://` before `127.0.0.1:` or `localhost:`) cut in the middle, the unit line
+  cut at its start. The row's tooltip begins with the whole URL. A closed header's tooltip is
+  built in its `right_click_menu` trigger behind `!menu_open`, as the port row's is (#615).
   - A double-click on the row, Enter, or Open runs `open_port`: the group's workspace is shown
     (`activate_workspace`), then `browser::open_url_tab` opens the URL there, or brings forward
     the tab already on it. Since #604 one click runs `mark_row` instead, which focuses the rail

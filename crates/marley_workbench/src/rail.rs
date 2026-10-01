@@ -4297,9 +4297,6 @@ impl Rail {
                     agent_search_path,
                     cx,
                 ))
-                .when(closed, |header| {
-                    header.tooltip(Tooltip::text("Not open. Click to open it."))
-                })
                 .on_click(cx.listener(move |rail, _, window, cx| {
                     if closed {
                         rail.open_closed_project(&open_key, window, cx);
@@ -4310,10 +4307,14 @@ impl Rail {
         let header = Self::takes_terminals(header, index, closed, cx);
         let header = Self::draggable_header(header, drag, cx);
         right_click_menu(("marley-rail-project-context", id))
-            .trigger(move |_, _, _| {
+            // A closed header's tooltip is built only while its menu is closed, so the menu's
+            // opening drops it (#618), as the port row's (#615).
+            .trigger(move |menu_open, _, _| {
                 div()
                     .debug_selector(move || format!("marley-rail-project-{index}"))
-                    .child(header)
+                    .child(header.when(closed && !menu_open, |header| {
+                        header.tooltip(Tooltip::text("Not open. Click to open it."))
+                    }))
             })
             .menu(move |window, cx| header_menu.build(window, cx))
     }
@@ -4939,6 +4940,7 @@ impl Rail {
                     text: error.line,
                     state: None,
                     color: Color::Error,
+                    cut: Cut::End,
                 }))
                 .collect(),
             cx,
@@ -5301,11 +5303,10 @@ impl Rail {
 }
 
 impl Rail {
-    /// A port's row (#521): the port and its process, the URL under them, and on hover Open,
-    /// Copy and Stop; its tooltip names the process. One click marks the row, and a double-click
-    /// or Enter opens it as Open does (#604).
     /// A port row's hover buttons: Open, Copy URL and Stop (a container's, a quiet restarted
-    /// service's, or the process's).
+    /// service's, or the process's). They lie over the row's end rather than keep room beside it
+    /// (#618), on the row's own shade made opaque over the rail's background, so they cover the
+    /// text under them and leave the text the row's width while hidden.
     fn port_row_buttons(
         row: &PortRow,
         workspace: &WeakEntity<Workspace>,
@@ -5314,6 +5315,13 @@ impl Rail {
     ) -> Div {
         let (port, pid) = (row.port, row.pid);
         let key = (u64::from(port) << 32) | u64::from(pid);
+        let colors = cx.theme().colors();
+        let fill = if row.selected {
+            colors.ghost_element_selected
+        } else {
+            colors.ghost_element_hover
+        };
+        let shade = colors.panel_background.blend(fill);
         let button = |id: &'static str, icon: IconName, tooltip: &'static str| {
             IconButton::new((id, key), icon)
                 .icon_size(IconSize::Small)
@@ -5365,8 +5373,15 @@ impl Rail {
                 }
             }));
         h_flex()
-            .flex_none()
+            .absolute()
+            .top_0()
+            .bottom_0()
+            .right_0()
+            .pl_1()
+            .pr_1p5()
             .gap_0p5()
+            .rounded_r_md()
+            .bg(shade)
             .visible_on_hover(ROW_GROUP)
             .child(
                 div()
@@ -5385,6 +5400,9 @@ impl Rail {
             )
     }
 
+    /// A port's row (#521): the port and its process, the URL under them, and on hover Open,
+    /// Copy and Stop; its tooltip gives the whole URL and names the process. One click marks the
+    /// row, and a double-click or Enter opens it as Open does (#604).
     fn render_port_row(
         row: PortRow,
         workspace: WeakEntity<Workspace>,
@@ -5401,6 +5419,10 @@ impl Rail {
         let url = row.url.clone();
         let (menu_workspace, menu_url, key_id) = (workspace.clone(), row.url.clone(), key);
         let row_closed = closed.clone();
+        let tooltip = format!(
+            "{}\n{}\nDouble-click, or Enter, to open in a Browser tab.",
+            row.url, row.tooltip
+        );
         let item = row_card(
             ("marley-rail-port", key),
             format!("marley-rail-port-icon-{port}"),
@@ -5411,24 +5433,31 @@ impl Rail {
                 .into_any_element(),
             row_label(row.title, row.highlight, Color::Default),
             // A service's unit, with its state (#615), or a port's container (#614), gets a line
-            // of its own: beside the URL it would squeeze the URL out.
-            std::iter::once(RowLine::muted(row.url))
-                .chain(row.service.clone().map(|service| RowLine {
-                    text: service.unit,
-                    color: if row.state.as_deref() == Some("failed") {
-                        Color::Error
-                    } else {
-                        Color::Muted
-                    },
-                    state: row.state.clone(),
-                }))
-                .chain(
-                    row.container
-                        .map(|container| RowLine::muted(container_line(&container))),
-                )
-                .collect(),
+            // of its own: beside the URL it would squeeze the URL out. A URL too long for the rail
+            // loses its middle and a unit's name its start, so the host and port and the name's
+            // end stay (#618).
+            std::iter::once(RowLine {
+                cut: Cut::Middle,
+                ..RowLine::muted(url_label(&row.url))
+            })
+            .chain(row.service.clone().map(|service| RowLine {
+                text: service.unit,
+                color: if row.state.as_deref() == Some("failed") {
+                    Color::Error
+                } else {
+                    Color::Muted
+                },
+                state: row.state.clone(),
+                cut: Cut::Start,
+            }))
+            .chain(
+                row.container
+                    .map(|container| RowLine::muted(container_line(&container))),
+            )
+            .collect(),
             cx,
         )
+        .relative()
         .child(end)
         // One click marks the row and two open it (#604): a click on a server's row to look at it
         // should not start a browser.
@@ -5451,10 +5480,6 @@ impl Rail {
             service: row.service,
             is_container,
         };
-        let tooltip = format!(
-            "{}\nDouble-click, or Enter, to open in a Browser tab.",
-            row.tooltip
-        );
         right_click_menu(("marley-rail-port-menu", key_id))
             // The row's tooltip is built only while its menu is closed, so it never lies over the
             // menu it opened, as Zed's dock buttons do.
@@ -6706,6 +6731,7 @@ fn command_line(command: CommandSnapshot) -> RowLine {
         text,
         state: Some(state),
         color,
+        cut: Cut::End,
     }
 }
 
@@ -7707,6 +7733,7 @@ struct RowLine {
     text: String,
     state: Option<String>,
     color: Color,
+    cut: Cut,
 }
 
 impl RowLine {
@@ -7715,7 +7742,29 @@ impl RowLine {
             text,
             state: None,
             color: Color::Muted,
+            cut: Cut::End,
         }
+    }
+}
+
+/// Where a row's line loses its text when it does not fit (#618).
+#[derive(Clone, Copy)]
+enum Cut {
+    End,
+    /// For a name whose end tells it apart, as a unit's.
+    Start,
+    /// For a URL, whose host and port are at its two ends.
+    Middle,
+}
+
+/// A port row's URL as its line shows it (#618): a local server's without `http://`, since its
+/// host and port are what tell it apart. Open and Copy keep the whole URL.
+fn url_label(url: &str) -> String {
+    match url.strip_prefix("http://") {
+        Some(rest) if rest.starts_with("127.0.0.1:") || rest.starts_with("localhost:") => {
+            rest.to_string()
+        }
+        _ => url.to_string(),
     }
 }
 
@@ -7768,14 +7817,16 @@ fn row_card(
                     let line: RowLine = line.into();
                     h_flex()
                         .min_w_0()
-                        .child(
-                            div().min_w_0().child(
-                                Label::new(line.text)
-                                    .size(LabelSize::XSmall)
-                                    .color(line.color)
-                                    .truncate(),
-                            ),
-                        )
+                        .child(div().min_w_0().child({
+                            let label = Label::new(line.text)
+                                .size(LabelSize::XSmall)
+                                .color(line.color);
+                            match line.cut {
+                                Cut::End => label.truncate(),
+                                Cut::Start => label.truncate_start(),
+                                Cut::Middle => label.truncate_middle(),
+                            }
+                        }))
                         .when_some(line.state, |row, state| {
                             row.child(
                                 div().flex_none().child(

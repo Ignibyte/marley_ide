@@ -4101,3 +4101,13 @@ A scenario that reopens a thread across a restart needs a stand-in that keeps ea
 messages and answers `session/load` by replaying them (#617's). And since a restored workspace's
 Agent Panel shows its last thread by itself, the thread a scenario opens should be another one, or
 the shot cannot tell the change from Zed's restore.
+
+## L-claude-618-hover-buttons-over-a-rows-end-need-an-opaque-shade-001
+*category: design · topic: gpui rows with hover buttons · from: pipeline 618*
+
+`visible_on_hover` hides an element but keeps its layout, so a row's hover buttons take their
+width from its text all the time. To give the text the row's width, make the buttons an
+`absolute()` strip at the row's end (the row `relative()`; gpui has no `inset_y_0`, use `top_0`
+and `bottom_0`) and give the strip an opaque background: the theme's hover and selected fills are
+translucent, so blend them over the background the row sits on (`panel_background.blend(fill)`).
+

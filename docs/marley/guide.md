@@ -219,7 +219,8 @@ three seconds while the rail is open, so a row comes within seconds of a server'
 goes when it stops.
 
 - A server on `0.0.0.0` or `::` gets a URL on `127.0.0.1` or `[::1]`, and a server on two
-  addresses of one port gets one row.
+  addresses of one port gets one row. A local URL reads without `http://` (#618); a line too long
+  for the rail loses a URL's middle or a unit's start, and the row's tooltip gives the whole URL.
 - One click on a row marks it (#604); a double-click, or Enter once it is marked, opens its URL in
   a Browser tab of the project, as Open does.
 - The pointer on a row shows the process's command line, working directory and pid, and three
