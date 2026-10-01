@@ -279,6 +279,8 @@ pub struct PortSnapshot {
     pub service: Option<PortService>,
     /// The container that publishes the port, when a container does (#614).
     pub container: Option<PortContainer>,
+    /// Its service's state, when it is not simply running (#615): `restarting`, `failed`, ….
+    pub state: Option<String>,
     /// Where the filter matched the title, as for [`ProjectSnapshot::matched`].
     pub matched: Option<Vec<usize>>,
 }
@@ -649,6 +651,8 @@ pub struct PortRow {
     pub service: Option<PortService>,
     /// The container that publishes it (see [`PortSnapshot::container`]).
     pub container: Option<PortContainer>,
+    /// Its service's state (see [`PortSnapshot::state`]).
+    pub state: Option<String>,
     /// Whether this is the selected row.
     pub selected: bool,
     /// The byte offsets of the title's characters the filter matched, to highlight.
@@ -1425,6 +1429,7 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                 tooltip: port.tooltip.clone(),
                 service: port.service.clone(),
                 container: port.container.clone(),
+                state: port.state.clone(),
                 selected: selected == Selection::Port(port.port, port.pid),
                 highlight: highlight(port.matched.as_deref()),
             }),

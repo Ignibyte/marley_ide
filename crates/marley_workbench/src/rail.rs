@@ -4,6 +4,7 @@
 //! state, persistence and the toggle actions; the rows and the one selected row come from
 //! `marley_rail`.
 
+use std::borrow::Cow;
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
@@ -63,6 +64,7 @@ use ui::{
 };
 use util::ResultExt as _;
 use util::path_list::PathList;
+use util::shell::ShellKind;
 use uuid::Uuid;
 use workspace::{
     MultiWorkspace, MultiWorkspaceEvent, OpenMode, ProjectGroup, RemovalIntent, SaveIntent,
@@ -77,7 +79,7 @@ use crate::agents::{self, AgentIcon};
 use crate::browser::{BrowserEvent, BrowserHub, BrowserView};
 use crate::github::{self, PullRequest, PullRequestState};
 use crate::groups;
-use crate::ports::{self, ContainerStop, Ports, ProjectListener, Stop};
+use crate::ports::{self, ContainerStop, Ports, ProjectListener, ServiceAction, Stop};
 use crate::system_one::{self, Asking};
 use crate::turns::Turns;
 use crate::worktree_git::{self, BranchEnd, Drift, MergeOwner};
@@ -3131,6 +3133,114 @@ impl Rail {
         .detach();
     }
 
+    /// Restarts the service that listens on `port` in the project `group` (#615), keeping its row
+    /// while its port is quiet, or says why it could not.
+    fn restart_port(
+        &self,
+        group: &ProjectGroupKey,
+        port: u16,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(service) = ports::begin_restart(group, port, cx) else {
+            return;
+        };
+        let unit = service.unit.clone();
+        let restart = ports::restart_service(service, cx);
+        let multi_workspace = self.multi_workspace.clone();
+        cx.spawn_in(window, async move |_, cx| {
+            let toast = match restart.await {
+                Ok(ServiceAction::Done) => return,
+                Ok(ServiceAction::Refused { command, reason }) => {
+                    let message = format!(
+                        "Could not restart the service {unit}: {reason}. To restart it yourself, \
+                         run: {command}"
+                    );
+                    Toast::new(NotificationId::unique::<Ports>(), message).on_click(
+                        "Copy Command",
+                        move |_, cx| {
+                            cx.write_to_clipboard(ClipboardItem::new_string(command.clone()));
+                        },
+                    )
+                }
+                Err(error) => Toast::new(
+                    NotificationId::unique::<Ports>(),
+                    format!("Could not restart the service {unit}: {error:#}"),
+                ),
+            };
+            let shown = multi_workspace
+                .read_with(cx, |multi_workspace, _| multi_workspace.workspace().clone());
+            if let Ok(workspace) = shown {
+                workspace.update(cx, |workspace, cx| workspace.show_toast(toast, cx));
+            }
+        })
+        .detach();
+    }
+
+    /// Stops a service itself, for a row whose process is gone (#615).
+    fn stop_service_port(&self, service: PortService, window: &Window, cx: &Context<Self>) {
+        let service = Service {
+            unit: service.unit,
+            user: service.user,
+        };
+        let stop = ports::stop_service(service, cx);
+        let multi_workspace = self.multi_workspace.clone();
+        cx.spawn_in(window, async move |_, cx| {
+            let toast = match stop.await {
+                Ok(Stop::Refused { service, reason }) => refused_toast(&service, &reason),
+                Ok(_) => return,
+                Err(error) => Toast::new(
+                    NotificationId::unique::<Ports>(),
+                    format!("Could not stop the service: {error:#}"),
+                ),
+            };
+            let shown = multi_workspace
+                .read_with(cx, |multi_workspace, _| multi_workspace.workspace().clone());
+            if let Ok(workspace) = shown {
+                workspace.update(cx, |workspace, cx| workspace.show_toast(toast, cx));
+            }
+        })
+        .detach();
+    }
+
+    /// Opens the service's journal, followed, in a new terminal of the row's project (#615).
+    fn show_logs(
+        workspace: &WeakEntity<Workspace>,
+        service: &PortService,
+        window: &Window,
+        cx: &mut App,
+    ) {
+        let unit = ShellKind::Posix
+            .try_quote(&service.unit)
+            .map_or_else(|| service.unit.clone(), Cow::into_owned);
+        let command = if service.user {
+            format!("journalctl --user -u {unit} -f")
+        } else {
+            format!("journalctl -u {unit} -f")
+        };
+        let Some(workspace) = workspace.upgrade() else {
+            return;
+        };
+        let opening = workspace.update(cx, |workspace, cx| {
+            // The project's own folder, as a terminal opened from its `+` would be.
+            let folder = workspace
+                .project()
+                .read(cx)
+                .visible_worktrees(cx)
+                .next()
+                .map(|worktree| worktree.read(cx).abs_path().to_path_buf());
+            agents::start_in_terminal(
+                workspace,
+                folder,
+                None,
+                Some(marley_agent::send_payload(&command)),
+                window,
+                cx,
+            )
+        });
+        opening.detach_and_log_err(cx);
+    }
+
     /// The switcher's rows, from the window as the rail last read it.
     fn switcher_entries(&self) -> Vec<SwitcherEntry> {
         let rail = &self.snapshot.rail;
@@ -3637,7 +3747,7 @@ impl Rail {
             .workspace()
             .downgrade();
         let rows = found.into_iter().map(|listener| {
-            let snapshot = port_snapshot(listener, "");
+            let snapshot = port_snapshot(listener, "", None);
             let row = PortRow {
                 project: usize::MAX,
                 port: snapshot.port,
@@ -3647,10 +3757,11 @@ impl Rail {
                 tooltip: snapshot.tooltip,
                 service: None,
                 container: snapshot.container,
+                state: None,
                 selected: false,
                 highlight: Vec::new(),
             };
-            Self::render_port_row(row, shown.clone(), cx).into_any_element()
+            Self::render_port_row(row, shown.clone(), None, cx).into_any_element()
         });
         Some(
             v_flex()
@@ -3703,7 +3814,8 @@ impl Rail {
                 Self::render_thread_row(row, thread, drag, cx).into_any_element()
             }),
             Row::Port(row) => self.snapshot.groups.get(row.project).map(|group| {
-                Self::render_port_row(row, group.workspace.clone(), cx).into_any_element()
+                Self::render_port_row(row, group.workspace.clone(), Some(group.key.clone()), cx)
+                    .into_any_element()
             }),
             Row::Worktree(row) => Some(Self::render_worktree_row(row, cx).into_any_element()),
         }
@@ -4840,11 +4952,13 @@ impl Rail {
     /// A port's row (#521): the port and its process, the URL under them, and on hover Open,
     /// Copy and Stop; its tooltip names the process. One click marks the row, and a double-click
     /// or Enter opens it as Open does (#604).
-    fn render_port_row(
-        row: PortRow,
-        workspace: WeakEntity<Workspace>,
+    /// A port row's hover buttons: Open, Copy URL and Stop (a container's, a quiet restarted
+    /// service's, or the process's).
+    fn port_row_buttons(
+        row: &PortRow,
+        workspace: &WeakEntity<Workspace>,
         cx: &Context<Self>,
-    ) -> impl IntoElement {
+    ) -> Div {
         let (port, pid) = (row.port, row.pid);
         let key = (u64::from(port) << 32) | u64::from(pid);
         let button = |id: &'static str, icon: IconName, tooltip: &'static str| {
@@ -4874,6 +4988,8 @@ impl Rail {
         );
         let (stop_title, stop_meta) = stop_words(pid, row.service.as_ref(), row.container.as_ref());
         let is_container = row.container.is_some();
+        // A restarted service's row kept while its port is quiet has no process (#615).
+        let kept = (pid == 0).then(|| row.service.clone()).flatten();
         let stop = IconButton::new(("marley-rail-port-stop", key), IconName::Stop)
             .icon_size(IconSize::Small)
             .icon_color(Color::Muted)
@@ -4882,11 +4998,13 @@ impl Rail {
                 cx.stop_propagation();
                 if is_container {
                     rail.stop_container_port(port, window, cx);
+                } else if let Some(service) = kept.clone() {
+                    rail.stop_service_port(service, window, cx);
                 } else {
                     rail.stop_port(port, pid, window, cx);
                 }
             }));
-        let end = h_flex()
+        h_flex()
             .flex_none()
             .gap_0p5()
             .visible_on_hover(ROW_GROUP)
@@ -4904,8 +5022,21 @@ impl Rail {
                 div()
                     .debug_selector(move || format!("marley-rail-port-stop-{port}"))
                     .child(stop),
-            );
+            )
+    }
+
+    fn render_port_row(
+        row: PortRow,
+        workspace: WeakEntity<Workspace>,
+        group: Option<ProjectGroupKey>,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
+        let (port, pid) = (row.port, row.pid);
+        let key = (u64::from(port) << 32) | u64::from(pid);
+        let is_container = row.container.is_some();
+        let end = Self::port_row_buttons(&row, &workspace, cx);
         let url = row.url.clone();
+        let (menu_workspace, menu_url, key_id) = (workspace.clone(), row.url.clone(), key);
         let item = row_card(
             ("marley-rail-port", key),
             format!("marley-rail-port-icon-{port}"),
@@ -4915,19 +5046,26 @@ impl Rail {
                 .color(Color::Muted)
                 .into_any_element(),
             row_label(row.title, row.highlight, Color::Default),
-            // A service's unit, or a port's container (#614), gets a line of its own: beside the
-            // URL it would squeeze the URL out.
-            std::iter::once(row.url)
-                .chain(row.service.map(|service| service.unit))
-                .chain(row.container.map(|container| container_line(&container)))
+            // A service's unit, with its state (#615), or a port's container (#614), gets a line
+            // of its own: beside the URL it would squeeze the URL out.
+            std::iter::once(RowLine::muted(row.url))
+                .chain(row.service.clone().map(|service| RowLine {
+                    text: service.unit,
+                    color: if row.state.as_deref() == Some("failed") {
+                        Color::Error
+                    } else {
+                        Color::Muted
+                    },
+                    state: row.state.clone(),
+                }))
+                .chain(
+                    row.container
+                        .map(|container| RowLine::muted(container_line(&container))),
+                )
                 .collect(),
             cx,
         )
         .child(end)
-        .tooltip(Tooltip::text(format!(
-            "{}\nDouble-click, or Enter, to open in a Browser tab.",
-            row.tooltip
-        )))
         // One click marks the row and two open it (#604): a click on a server's row to look at it
         // should not start a browser.
         .on_click(cx.listener(move |rail, event: &ClickEvent, window, cx| {
@@ -4938,15 +5076,117 @@ impl Rail {
                 rail.mark_row(Selection::Port(port, pid), window, cx);
             }
         }));
-        div()
-            .debug_selector(move || format!("marley-rail-port-{port}"))
-            .pl_2()
-            .child(item)
+        let menu = PortMenu {
+            rail: cx.entity().downgrade(),
+            workspace: menu_workspace,
+            group,
+            port,
+            pid,
+            url: menu_url,
+            service: row.service,
+            is_container,
+        };
+        let tooltip = format!(
+            "{}\nDouble-click, or Enter, to open in a Browser tab.",
+            row.tooltip
+        );
+        right_click_menu(("marley-rail-port-menu", key_id))
+            // The row's tooltip is built only while its menu is closed, so it never lies over the
+            // menu it opened, as Zed's dock buttons do.
+            .trigger(move |menu_open, _, _| {
+                div()
+                    .debug_selector(move || format!("marley-rail-port-{port}"))
+                    .pl_2()
+                    .child(item.when(!menu_open, |item| item.tooltip(Tooltip::text(tooltip))))
+            })
+            .menu(move |window, cx| menu.build(window, cx))
     }
 }
 
 /// What a port row's Stop says it does (#603): stop the user's or the system's service, with the
 /// command it runs, or signal the process.
+/// What a port row's right-click menu acts on (#615).
+#[derive(Clone)]
+struct PortMenu {
+    rail: WeakEntity<Rail>,
+    workspace: WeakEntity<Workspace>,
+    /// The row's project, none for a container's row listed apart.
+    group: Option<ProjectGroupKey>,
+    port: u16,
+    pid: u32,
+    url: String,
+    service: Option<PortService>,
+    is_container: bool,
+}
+
+impl PortMenu {
+    /// Open and Copy URL, then Restart Service, Stop Service and Show Logs for a service, Stop
+    /// Container for a container, or Stop Process.
+    fn build(&self, window: &mut Window, cx: &mut App) -> Entity<ContextMenu> {
+        let menu = self.clone();
+        ContextMenu::build(window, cx, move |context, _, _| {
+            let (open, copy) = (menu.clone(), menu.url.clone());
+            let context = context
+                .entry("Open in a Browser Tab", None, move |window, cx| {
+                    open.rail
+                        .update(cx, |rail, cx| {
+                            rail.open_port(&open.workspace, open.url.clone(), window, cx)
+                        })
+                        .flatten()
+                        .log_err();
+                })
+                .entry("Copy URL", None, move |_, cx| {
+                    cx.write_to_clipboard(ClipboardItem::new_string(copy.clone()));
+                })
+                .separator();
+            match (&menu.service, menu.group.clone()) {
+                (Some(service), Some(group)) => {
+                    let (restart, stop, logs) = (menu.clone(), menu.clone(), menu.clone());
+                    let (stop_service, logs_service) = (service.clone(), service.clone());
+                    context
+                        .entry("Restart Service", None, move |window, cx| {
+                            restart
+                                .rail
+                                .update(cx, |rail, cx| {
+                                    rail.restart_port(&group, restart.port, window, cx);
+                                })
+                                .log_err();
+                        })
+                        .entry("Stop Service", None, move |window, cx| {
+                            let service = stop_service.clone();
+                            stop.rail
+                                .update(cx, |rail, cx| rail.stop_service_port(service, window, cx))
+                                .log_err();
+                        })
+                        .entry("Show Logs", None, move |window, cx| {
+                            Rail::show_logs(&logs.workspace, &logs_service, window, cx);
+                        })
+                }
+                _ if menu.is_container => {
+                    let stop = menu.clone();
+                    context.entry("Stop Container", None, move |window, cx| {
+                        stop.rail
+                            .update(cx, |rail, cx| {
+                                rail.stop_container_port(stop.port, window, cx);
+                            })
+                            .log_err();
+                    })
+                }
+                _ => {
+                    let stop = menu.clone();
+                    context.entry("Stop Process", None, move |window, cx| {
+                        stop.rail
+                            .update(cx, |rail, cx| {
+                                rail.stop_port(stop.port, stop.pid, window, cx);
+                            })
+                            .log_err();
+                    })
+                }
+            }
+        })
+    }
+}
+
 fn stop_words(
     pid: u32,
     service: Option<&PortService>,
@@ -4997,12 +5237,19 @@ fn refused_toast(service: &Service, reason: &str) -> Toast {
 fn port_snapshots(key: &ProjectGroupKey, filter: &str, cx: &App) -> Vec<PortSnapshot> {
     Ports::of(key, cx)
         .into_iter()
-        .map(|found| port_snapshot(found, filter))
+        .map(|found| {
+            let state = found
+                .listener
+                .service
+                .as_ref()
+                .and_then(|service| ports::unit_word(service, found.listener.pid == 0, cx));
+            port_snapshot(found, filter, state)
+        })
         .collect()
 }
 
-/// One listener as a row's snapshot.
-fn port_snapshot(found: ProjectListener, filter: &str) -> PortSnapshot {
+/// One listener as a row's snapshot, `state` its service's word (#615).
+fn port_snapshot(found: ProjectListener, filter: &str, state: Option<String>) -> PortSnapshot {
     let listener = found.listener;
     let port = listener.address.port();
     let title = format!(":{port} {}", listener.name);
@@ -5047,6 +5294,7 @@ fn port_snapshot(found: ProjectListener, filter: &str) -> PortSnapshot {
         tooltip,
         service,
         container,
+        state,
         title,
         matched,
     }

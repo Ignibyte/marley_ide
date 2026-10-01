@@ -236,6 +236,12 @@ goes when it stops.
   projects, with the container's address ("→ 172.18.0.5:80"). Stop stops the container with
   `docker stop`; if the engine refuses (you are not in the `docker` group, say), a message says
   why and offers a command to run yourself. Marley never stops Docker's own service from a row.
+- Right-click a port row for its menu (#615): Open in a Browser Tab, Copy URL, and for a server a
+  systemd service runs, Restart Service, Stop Service and Show Logs. Restart keeps the row while
+  the service comes back; its unit line says `starting`, then the row is the new process's. The
+  unit's state shows on its line whenever it is not simply running: `failed` in red, `restarting`
+  while systemd restarts it on its own, `stopping`, `stopped`. Show Logs opens `journalctl --user
+  -u <unit> -f` in a new terminal of the project.
 - Marley's own listeners and other users' processes get no row, and neither does a server whose
   working directory is in no project, such as one that moved to `/` when it went to the
   background.

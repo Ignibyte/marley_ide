@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-615](open/TICKET-615-restart-a-service-from-its-port-row.md) | feature | rail (wave 2) · restart a service from its port row, its state and logs |
 | [TICKET-616](open/TICKET-616-delete-and-unarchive-threads-from-the-rail.md) | feature | rail (wave 2) · delete a thread, and unarchive threads, from the rail |
 | [TICKET-617](open/TICKET-617-rows-under-a-closed-project.md) | feature | rail (wave 2) · a closed project's threads and ports under its header |
 | [TICKET-618](open/TICKET-618-port-row-lines-and-header-tooltip.md) | bug | rail (wave 2) · a port row's clipped lines, and a header tooltip over its menu |

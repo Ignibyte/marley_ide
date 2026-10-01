@@ -440,6 +440,10 @@ npm run dev
   says "Stop the User Service"; after Stop the row goes and stays gone, and
   `systemctl --user is-active marley-tour-web` prints `inactive`. Then run
   `systemctl --user reset-failed marley-tour-web`.
+- [ ] Optional, with the unit running again (#615): right-click its row: the menu has Restart
+  Service, Stop Service and Show Logs. Restart Service: the row stays, its unit line saying
+  `starting` briefly, then it is the new process's (a new pid in its tooltip). Show Logs opens a
+  terminal following the unit's journal.
 - [ ] Container ports (#614): if Docker publishes ports on this machine, the rail lists them under
   a CONTAINERS label after the projects (or under a project, named by their container, when
   `docker ps` works for you and the container's Compose folder is in it). Without access to

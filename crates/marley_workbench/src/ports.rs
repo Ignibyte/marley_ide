@@ -43,6 +43,9 @@ const SLOW_SCAN: Duration = Duration::from_millis(500);
 /// How long an engine's list of containers is kept while its ports stay the same.
 const ENGINE_KEPT: Duration = Duration::from_secs(30);
 
+/// How long a restarted service's row is kept while its port does not listen again (#615).
+const RESTART_KEPT: Duration = Duration::from_mins(10);
+
 /// A listener, with the project folder that holds its working directory.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectListener {
@@ -75,6 +78,25 @@ struct EngineAnswer {
     containers: Result<Vec<Container>, String>,
 }
 
+/// A systemd unit's state, as `systemctl show` gives it (#615).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnitState {
+    /// Its `ActiveState`: `active`, `activating`, `failed`, ….
+    pub active: String,
+    /// Its `SubState`: `running`, `auto-restart`, `dead`, ….
+    pub sub: String,
+}
+
+/// A service the user restarted, whose port is kept as a row until it listens again (#615).
+#[derive(Debug, Clone)]
+struct Restarting {
+    key: ProjectGroupKey,
+    port: u16,
+    service: Service,
+    folder: PathBuf,
+    since: Instant,
+}
+
 /// A port a container publishes, as the scan found it, before the engine names it.
 #[derive(Debug, Clone)]
 struct ContainerPort {
@@ -92,6 +114,10 @@ pub struct Ports {
     containers: Vec<ProjectListener>,
     /// Each engine's last answer, asked again when its ports change or it grows old.
     engines: HashMap<Engine, EngineAnswer>,
+    /// The state of each listed service's unit, by its name and whether it is the user's (#615).
+    units: HashMap<(String, bool), UnitState>,
+    /// The services restarted from a row, kept until their ports listen again (#615).
+    restarting: Vec<Restarting>,
     /// The rails that are open, which keep the scan running.
     watchers: usize,
     scanning: bool,
@@ -159,6 +185,28 @@ fn scan_while_watched(cx: &App) -> Task<()> {
                 let apart = attribute_containers(found, &engines, &folders, &mut by_group);
                 (by_group, apart)
             });
+            let restarting = cx.update(|cx| {
+                cx.try_global::<Ports>()
+                    .map(|ports| ports.restarting.clone())
+                    .unwrap_or_default()
+            });
+            let mut services: Vec<(String, bool)> = scanned
+                .iter()
+                .flat_map(|(by_group, _)| by_group.values().flatten())
+                .filter_map(|found| found.listener.service.as_ref())
+                .chain(restarting.iter().map(|kept| &kept.service))
+                .map(|service| (service.unit.clone(), service.user))
+                .collect();
+            services.sort();
+            services.dedup();
+            let units = unit_states(&services).await;
+            let (scanned, restarting) = match scanned {
+                Ok((mut by_group, apart)) => {
+                    let restarting = keep_restarting(restarting, &mut by_group, &units);
+                    (Ok((by_group, apart)), restarting)
+                }
+                Err(error) => (Err(error), restarting),
+            };
             // Reading the global leaves the rails alone; a mutable access tells them it changed,
             // so it happens only when it did.
             let watched = cx.update(|cx| {
@@ -167,18 +215,22 @@ fn scan_while_watched(cx: &App) -> Task<()> {
                     cx.default_global::<Ports>().scanning = false;
                     return false;
                 }
-                let changed = matches!((&scanned, known), (Ok((by_group, apart)), Some(ports)) if *by_group != ports.by_group || *apart != ports.containers);
+                let changed = matches!((&scanned, known), (Ok((by_group, apart)), Some(ports)) if *by_group != ports.by_group || *apart != ports.containers || units != ports.units);
                 match scanned {
                     Ok((by_group, apart)) if changed => {
                         let ports = cx.default_global::<Ports>();
                         ports.by_group = by_group;
                         ports.containers = apart;
                         ports.engines = engines;
+                        ports.units = units;
+                        ports.restarting = restarting;
                     }
                     Ok(_) => {
                         // The engines' answers carry their age, which is not news to the rails.
                         if cx.has_global::<Ports>() {
-                            cx.global_mut::<Ports>().engines = engines;
+                            let ports = cx.global_mut::<Ports>();
+                            ports.engines = engines;
+                            ports.restarting = restarting;
                         }
                     }
                     Err(error) => log::warn!("ports: reading the listening ports: {error:#}"),
@@ -197,6 +249,114 @@ fn scan_while_watched(cx: &App) -> Task<()> {
             cx.background_executor().timer(wait).await;
         }
     })
+}
+
+/// The states of `services`' units: one `systemctl show` for the user's and one for the
+/// system's, whose blocks come in the order the units were asked (#615). A unit `systemctl` does
+/// not answer for has no state.
+async fn unit_states(services: &[(String, bool)]) -> HashMap<(String, bool), UnitState> {
+    let mut states = HashMap::new();
+    for user in [true, false] {
+        let units: Vec<&str> = services
+            .iter()
+            .filter(|(_, of_user)| *of_user == user)
+            .map(|(unit, _)| unit.as_str())
+            .collect();
+        if units.is_empty() {
+            continue;
+        }
+        let mut args = vec!["show", "-p", "ActiveState,SubState"];
+        if user {
+            args.insert(0, "--user");
+        }
+        args.extend(&units);
+        let output = match crate::process::output("systemctl", &args, None, &[]).await {
+            Ok(output) => output,
+            Err(error) => {
+                log::debug!("ports: asking systemctl for the units' states: {error}");
+                continue;
+            }
+        };
+        let text = String::from_utf8_lossy(&output.stdout);
+        for (unit, block) in units.iter().zip(text.split("\n\n")) {
+            let field = |name: &str| {
+                block
+                    .lines()
+                    .find_map(|line| line.strip_prefix(name))
+                    .unwrap_or_default()
+                    .to_string()
+            };
+            states.insert(
+                ((*unit).to_string(), user),
+                UnitState {
+                    active: field("ActiveState="),
+                    sub: field("SubState="),
+                },
+            );
+        }
+    }
+    states
+}
+
+/// The restarted services still kept: each whose project has no listener on its port yet gets a
+/// row in `by_group` (its pid 0, its unit as its name), until the port listens again, its unit
+/// stops, or [`RESTART_KEPT`] passes.
+fn keep_restarting(
+    restarting: Vec<Restarting>,
+    by_group: &mut HashMap<ProjectGroupKey, Vec<ProjectListener>>,
+    units: &HashMap<(String, bool), UnitState>,
+) -> Vec<Restarting> {
+    let kept: Vec<Restarting> = restarting
+        .into_iter()
+        .filter(|kept| {
+            let listens = by_group.get(&kept.key).is_some_and(|found| {
+                found
+                    .iter()
+                    .any(|found| found.listener.address.port() == kept.port)
+            });
+            let stopped = units
+                .get(&(kept.service.unit.clone(), kept.service.user))
+                .is_some_and(|state| state.active == "inactive");
+            !listens && !stopped && kept.since.elapsed() < RESTART_KEPT
+        })
+        .collect();
+    for kept in &kept {
+        by_group
+            .entry(kept.key.clone())
+            .or_default()
+            .push(ProjectListener {
+                folder: kept.folder.clone(),
+                listener: Listener {
+                    address: std::net::SocketAddr::from(([127, 0, 0, 1], kept.port)),
+                    pid: 0,
+                    name: kept.service.unit.clone(),
+                    command: format!("systemctl restart {}", kept.service.unit),
+                    cwd: kept.folder.clone(),
+                    service: Some(kept.service.clone()),
+                },
+                container: None,
+            });
+    }
+    kept
+}
+
+/// The word a service's row shows for its unit's state, or none while it simply runs (#615).
+/// `kept` is a row for a restarted service whose port does not listen yet.
+pub fn unit_word(service: &Service, kept: bool, cx: &App) -> Option<String> {
+    let state = cx
+        .try_global::<Ports>()
+        .and_then(|ports| ports.units.get(&(service.unit.clone(), service.user)));
+    let word = match state.map(|state| (state.active.as_str(), state.sub.as_str())) {
+        Some((_, "auto-restart")) => Some("restarting"),
+        Some(("active", _)) if kept => Some("starting"),
+        Some(("activating", _)) => Some("starting"),
+        Some(("deactivating", _)) => Some("stopping"),
+        Some(("failed", _)) => Some("failed"),
+        Some(("inactive", _)) => Some("stopped"),
+        None if kept => Some("restarting"),
+        _ => None,
+    };
+    word.map(str::to_string)
 }
 
 /// The ports containers publish: each `docker-proxy`'s, from its command line, and each port a
@@ -563,6 +723,84 @@ pub fn container_at(port: u16, cx: &App) -> Option<ContainerRef> {
         .chain(&ports.containers)
         .find(|found| found.listener.address.port() == port && found.container.is_some())
         .and_then(|found| found.container.clone())
+}
+
+/// How a service's Restart went (#615).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ServiceAction {
+    /// `systemctl` did it.
+    Done,
+    /// It could not, for `reason`; `command` does it by hand.
+    Refused {
+        /// The command to copy.
+        command: String,
+        /// Why.
+        reason: String,
+    },
+}
+
+/// Keeps a row for the service that listens on `port` in the project `key` while it restarts, and
+/// gives the service; none when no service listens there.
+pub fn begin_restart(key: &ProjectGroupKey, port: u16, cx: &mut App) -> Option<Service> {
+    let found = Ports::of(key, cx)
+        .into_iter()
+        .find(|found| found.listener.address.port() == port)?;
+    let service = found.listener.service?;
+    let ports = cx.default_global::<Ports>();
+    ports
+        .restarting
+        .retain(|kept| !(kept.key == *key && kept.port == port));
+    ports.restarting.push(Restarting {
+        key: key.clone(),
+        port,
+        service: service.clone(),
+        folder: found.folder,
+        since: Instant::now(),
+    });
+    Some(service)
+}
+
+/// Restarts `service` with `systemctl`, with `--user` for the user's own. A container engine's
+/// own unit is refused, as Stop refuses it.
+pub fn restart_service(service: Service, cx: &App) -> Task<anyhow::Result<ServiceAction>> {
+    let command = if service.user {
+        format!("systemctl --user restart {}", service.unit)
+    } else {
+        format!("sudo systemctl restart {}", service.unit)
+    };
+    if ENGINE_UNITS.contains(&service.unit.as_str()) {
+        return Task::ready(Ok(ServiceAction::Refused {
+            command,
+            reason: "Marley does not restart a container engine from a port".to_string(),
+        }));
+    }
+    cx.background_spawn(async move {
+        let mut args = vec!["restart", service.unit.as_str()];
+        if service.user {
+            args.insert(0, "--user");
+        }
+        let output = crate::process::output("systemctl", &args, None, &[])
+            .await
+            .context("running `systemctl`")?;
+        if output.status.success() {
+            return Ok(ServiceAction::Done);
+        }
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let reason = refusal_reason(&stderr, &service.unit)
+            .unwrap_or_else(|| format!("`systemctl` ended with {}", output.status));
+        Ok(ServiceAction::Refused { command, reason })
+    })
+}
+
+/// Stops `service` itself, for a row whose process is gone, such as a restarted one's (#615).
+pub fn stop_service(service: Service, cx: &App) -> Task<anyhow::Result<Stop>> {
+    if ENGINE_UNITS.contains(&service.unit.as_str()) {
+        return Task::ready(Ok(Stop::Refused {
+            service,
+            reason: "Marley does not stop a container engine from a port".to_string(),
+        }));
+    }
+    cx.background_spawn(stop_unit(service))
 }
 
 /// How a container's Stop went (#614).

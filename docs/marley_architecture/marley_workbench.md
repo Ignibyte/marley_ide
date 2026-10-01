@@ -365,6 +365,20 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   `Ports::containers` under a CONTAINERS label after the projects, opening in the shown
   workspace, outside the keys and the filter.
 
+- **Restart, state and logs (#615).** Each scan asks `unit_states` for every service row's unit
+  (one `systemctl show -p ActiveState,SubState` per manager, blocks matched by the order asked,
+  since `Id` answers the real name) into `Ports.units`; `unit_word` turns a state into the row's
+  word. `begin_restart` records a `Restarting { key, port, service, folder, since }` before
+  `restart_service` runs `systemctl [--user] restart`; `keep_restarting` gives such a port a row
+  of pid 0 while it is quiet, until it listens, the unit is inactive, or `RESTART_KEPT` (ten
+  minutes) passes. `stop_service` stops a kept row's unit; both refuse an engine's own unit. In
+  the rail, `PortMenu` builds the row's `right_click_menu` (Open in a Browser Tab, Copy URL, then
+  Restart Service, Stop Service and Show Logs, Stop Container, or Stop Process); its trigger
+  builds the row's tooltip only while the menu is closed. `show_logs` runs `journalctl [--user]
+  -u <unit> -f` in a new terminal of the project's first folder through `start_in_terminal`. The
+  unit line is a `RowLine` with the word as its state, red for `failed`; `port_row_buttons` holds
+  the hover buttons, whose Stop stops a kept row's unit.
+
 ## Threads (#439)
 
 - **Rows.** Each group's threads come from `ThreadMetadataStore`:

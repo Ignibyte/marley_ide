@@ -2671,3 +2671,11 @@ A listener's cgroup can name the container engine's own unit (`docker-proxy` run
 Docker and every container. Clear the service for `ENGINE_UNITS` wherever a listener's service is
 read for a Stop (`ports::attribute` and `ports::stop`), and route a container's port through the
 engine's own `stop`.
+
+## PR-claude-615-a-menus-trigger-owns-its-tooltip-001
+*severity: low · prevents: F-claude-615-a-rows-tooltip-lay-over-the-menu-it-opened-001*
+
+An element that opens a `right_click_menu` sets its tooltip inside the menu's `trigger`, behind
+the `is_menu_active` flag the trigger receives, never on the element outside it: gpui clears a
+tooltip that is waiting to show only on the pointer's next move, so one set outside lies over
+the menu it just opened.

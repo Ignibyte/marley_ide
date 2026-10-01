@@ -1,7 +1,7 @@
 ---
 pipeline_id: 0d263290-71b0-45e7-bdee-11700f9199c7
 ticket: docs/planning/tickets/open/TICKET-615-restart-a-service-from-its-port-row.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Restart a service from its port row, and its state and logs"
 type: feature
 slice: workbench shell, the rail's ports; after #603

@@ -2986,3 +2986,19 @@ A store that could not be reached put the first line of its whole error chain on
 (`unreachable.png`). Fixed before the commit: the header shows the error's root cause
 ("Connection refused (os error 111)"), the reason has a tooltip, and the whole chain is logged
 once when the store becomes unreachable.
+
+## F-claude-615-a-rows-tooltip-lay-over-the-menu-it-opened-001
+*severity: low · found in: pipeline 615's Test phase (run 1) · class: a tooltip set outside a menu's trigger*
+
+The port row's new right-click menu opened under the row's own tooltip, which gpui keeps until
+the pointer moves (`menu.png` showed only the tooltip). Fixed before the commit: the tooltip is
+built in `right_click_menu`'s trigger only while the menu is closed, as Zed's dock buttons build
+theirs. #618 does the same for project headers.
+
+## F-claude-615-show-logs-opened-in-marleys-own-folder-001
+*severity: low · found in: pipeline 615's Test phase (run 3) · class: a terminal started with no folder*
+
+Show Logs started its terminal through `agents::start_in_terminal` with no folder, which opens in
+Marley's own working directory (`/srv/stacks/marley_ide` on the dev box), not the project's.
+Fixed before the commit: it passes the project's first visible worktree, as the rail's other
+terminals do.

@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Restart a service from its port row, with its state and logs** (#615, 2026-09-30). A port row
+  has a right-click menu: Open in a Browser Tab and Copy URL, then, for a server a systemd service
+  runs, Restart Service, Stop Service and Show Logs (Stop Container or Stop Process for others).
+  Restart keeps the row while the port is quiet, then the new process takes it; the unit's state
+  shows on its line when it is not simply running (`starting`, `restarting`, `stopping`, `failed`
+  in red, `stopped`), from one `systemctl show` a scan. Show Logs opens `journalctl --user -u
+  <unit> -f` in a new terminal of the project. The row's tooltip no longer lies over its menu.
+
 - **Container ports in the rail** (#614, 2026-09-30). A port a Docker container publishes belongs to
   root's `docker-proxy`, which the ports scan could not see; Marley now reads each proxy's command
   line (readable by anyone) and lists its port, and a rootless Podman helper's port as a
