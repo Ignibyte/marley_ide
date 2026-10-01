@@ -3002,3 +3002,20 @@ Show Logs started its terminal through `agents::start_in_terminal` with no folde
 Marley's own working directory (`/srv/stacks/marley_ide` on the dev box), not the project's.
 Fixed before the commit: it passes the project's first visible worktree, as the rail's other
 terminals do.
+
+## F-claude-616-a-deleted-threads-panel-started-a-new-draft-001
+*severity: low · found in: pipeline 616's Test phase (run 2) · class: a Zed call with a side effect its name does not say*
+
+The delete let each Agent Panel go of the thread with `AgentPanel::remove_thread`, which puts a new
+draft in the place of an active thread it drops; the draft then showed in the rail as a "New Agent
+Thread" row the user never started (`deleted.png`). Fixed before the commit:
+`remove_thread_without_activating_draft`.
+
+## F-claude-616-a-choice-two-submenus-down-left-the-menu-open-001
+*severity: low · found in: pipeline 616's Test phase (run 5) · class: nesting Zed's context menus past one level*
+
+Archived Threads was a submenu whose threads were submenus of their own (Open Thread, Delete
+Thread…). Choosing Open Thread closed its submenu and the one above, and left the project's menu
+open: Zed's `ContextMenu` dismisses a submenu's parent only when that submenu was itself clicked
+(`create_submenu`'s `clicked` check), and the middle one was not. Fixed before the commit:
+Archived Threads is one level, and choosing a thread opens it.

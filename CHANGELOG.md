@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Delete a thread, and bring archived threads back, from the rail** (#616, 2026-09-30). A thread
+  row's right-click menu adds Delete Thread…, which asks first, then lets every Agent Panel of the
+  window drop the thread (a conversation it keeps would save it again), deletes its record,
+  cleans up the worktrees its archive kept, and deletes the agent's own session where the agent
+  can. A project's right-click menu adds Archived Threads, its archived threads with when each was
+  last updated; choosing one opens it, which brings it back to the rail.
+
 - **Restart a service from its port row, with its state and logs** (#615, 2026-09-30). A port row
   has a right-click menu: Open in a Browser Tab and Copy URL, then, for a server a systemd service
   runs, Restart Service, Stop Service and Show Logs (Stop Container or Stop Process for others).

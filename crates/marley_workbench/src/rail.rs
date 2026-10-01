@@ -260,6 +260,7 @@ struct GroupEntry {
 }
 
 /// What a header's right-click menu acts on: a project's, or a projectless group's (#600).
+#[derive(Clone)]
 struct HeaderMenu {
     rail: WeakEntity<Rail>,
     key: ProjectGroupKey,
@@ -270,6 +271,65 @@ struct HeaderMenu {
     at: (bool, bool),
     /// Whether the project is closed (#606), which has no browser to clear.
     closed: bool,
+    /// The project's archived threads, newest first (#616).
+    archived: Vec<ArchivedThread>,
+}
+
+/// A project's archived thread, as its header's menu lists it (#616).
+#[derive(Clone)]
+struct ArchivedThread {
+    thread_id: ThreadId,
+    agent: Agent,
+    work_dirs: PathList,
+    title: SharedString,
+    archived_at: String,
+}
+
+/// A thread to open in its project's Agent Panel.
+struct ThreadToOpen {
+    thread_id: ThreadId,
+    agent: Agent,
+    work_dirs: PathList,
+    title: Option<SharedString>,
+}
+
+/// How many of a project's archived threads its menu lists.
+const ARCHIVED_LISTED: usize = 20;
+
+/// The project group `key`'s archived threads, newest first, as the rail's own threads are
+/// matched: by its main folders and its host (#616).
+fn archived_threads(key: &ProjectGroupKey, cx: &App) -> Vec<ArchivedThread> {
+    let Some(store) = ThreadMetadataStore::try_global(cx) else {
+        return Vec::new();
+    };
+    let host = key.host();
+    let mut found: Vec<&ThreadMetadata> = store
+        .read(cx)
+        .archived_entries()
+        .filter(|thread| {
+            thread.main_worktree_paths() == key.path_list()
+                && thread.matches_remote_connection(host.as_ref())
+        })
+        .collect();
+    found.sort_by_key(|thread| Reverse(thread.updated_at));
+    found
+        .into_iter()
+        .take(ARCHIVED_LISTED)
+        .map(|thread| ArchivedThread {
+            thread_id: thread.thread_id,
+            agent: Agent::from(thread.agent_id.clone()),
+            work_dirs: thread.folder_paths().clone(),
+            title: thread
+                .title
+                .clone()
+                .unwrap_or_else(|| SharedString::new_static("Untitled thread")),
+            archived_at: thread
+                .updated_at
+                .with_timezone(&chrono::Local)
+                .format("%b %-d, %H:%M")
+                .to_string(),
+        })
+        .collect()
 }
 
 impl HeaderMenu {
@@ -283,15 +343,7 @@ impl HeaderMenu {
                 window,
                 cx,
             ),
-            None => Rail::project_context_menu(
-                self.rail.clone(),
-                self.key.clone(),
-                self.workspace.clone(),
-                self.at,
-                self.closed,
-                window,
-                cx,
-            ),
+            None => Rail::project_context_menu(self.clone(), window, cx),
         }
     }
 }
@@ -2349,13 +2401,31 @@ impl Rail {
             .threads
             .get(key)
             .context("the thread is no longer listed")?;
-        let (thread_id, agent, work_dirs, title) = (
-            thread.thread_id,
-            thread.agent.clone(),
-            thread.work_dirs.clone(),
-            thread.title.clone(),
-        );
-        let workspace = self.activate_workspace(&thread.workspace, window, cx)?;
+        let opening = ThreadToOpen {
+            thread_id: thread.thread_id,
+            agent: thread.agent.clone(),
+            work_dirs: thread.work_dirs.clone(),
+            title: thread.title.clone(),
+        };
+        self.open_thread_with(&thread.workspace.clone(), opening, window, cx)
+    }
+
+    /// Shows `workspace` and opens the thread in its Agent Panel, which unarchives an archived
+    /// one (#616).
+    fn open_thread_with(
+        &self,
+        workspace: &WeakEntity<Workspace>,
+        thread: ThreadToOpen,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let ThreadToOpen {
+            thread_id,
+            agent,
+            work_dirs,
+            title,
+        } = thread;
+        let workspace = self.activate_workspace(workspace, window, cx)?;
         workspace.update(cx, |workspace, cx| {
             let panel = workspace
                 .panel::<AgentPanel>(cx)
@@ -2375,6 +2445,90 @@ impl Rail {
             workspace.focus_panel::<AgentPanel>(window, cx);
             anyhow::Ok(())
         })
+    }
+
+    /// Deletes a thread once the user confirms (#616). Every Agent Panel of the window lets it go
+    /// first, since a conversation it keeps would save the thread again; then its record goes, the
+    /// worktrees its archive kept are cleaned up, and the agent deletes its session where its list
+    /// of sessions can.
+    fn delete_thread(
+        &self,
+        thread_id: ThreadId,
+        title: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let answer = window.prompt(
+            PromptLevel::Warning,
+            &format!("Delete the thread “{title}”?"),
+            Some("Its messages are deleted, not archived."),
+            &["Delete Thread", "Cancel"],
+            cx,
+        );
+        let multi_workspace = self.multi_workspace.clone();
+        cx.spawn_in(window, async move |_, cx| {
+            if answer.await.ok() != Some(0) {
+                return anyhow::Ok(());
+            }
+            let found = cx.update(|_, cx| {
+                ThreadMetadataStore::try_global(cx)
+                    .and_then(|store| store.read(cx).entry(thread_id).cloned())
+            })?;
+            let connections = multi_workspace.update_in(cx, |multi_workspace, window, cx| {
+                let panels: Vec<Entity<AgentPanel>> = multi_workspace
+                    .workspaces()
+                    .filter_map(|workspace| workspace.read(cx).panel::<AgentPanel>(cx))
+                    .collect();
+                let mut connections = None;
+                for panel in panels {
+                    panel.update(cx, |panel, cx| {
+                        connections.get_or_insert_with(|| panel.connection_store().clone());
+                        // Without a draft in its place: a delete should not start a thread.
+                        panel.remove_thread_without_activating_draft(thread_id, window, cx);
+                    });
+                }
+                connections
+            })?;
+            cx.update(|_, cx| {
+                if let Some(store) = ThreadMetadataStore::try_global(cx) {
+                    store.update(cx, |store, cx| store.delete(thread_id, cx));
+                }
+            })?;
+            thread_worktree_archive::cleanup_thread_archived_worktrees(thread_id, cx).await;
+            let (Some(found), Some(connections)) = (found, connections) else {
+                return anyhow::Ok(());
+            };
+            let Some(session) = found.session_id else {
+                return anyhow::Ok(());
+            };
+            let agent = Agent::from(found.agent_id);
+            let connecting = cx.update(|_, cx| {
+                let fs = <dyn Fs>::global(cx);
+                connections.update(cx, |connections, cx| {
+                    connections
+                        .request_connection(
+                            agent.clone(),
+                            agent.server(fs, agent::ThreadStore::global(cx)),
+                            cx,
+                        )
+                        .read(cx)
+                        .wait_for_connection()
+                })
+            })?;
+            let connected = connecting.await?;
+            let deleting = cx.update(|_, cx| {
+                connected
+                    .connection
+                    .session_list(cx)
+                    .filter(|sessions| sessions.supports_delete())
+                    .map(|sessions| sessions.delete_session(&session, cx))
+            })?;
+            if let Some(deleting) = deleting {
+                deleting.await?;
+            }
+            anyhow::Ok(())
+        })
+        .detach_and_log_err(cx);
     }
 
     /// Shows `workspace` and starts a thread of `agent` in its Agent Panel.
@@ -3960,6 +4114,7 @@ impl Rail {
             group: projectless.map(|group| (group, row.name.clone())),
             at: (index == 0, last),
             closed,
+            archived: archived_threads(&group.key, cx),
         };
         // A project's name reads as a section label, as Warp's tab list labels its tabs; a closed
         // one's is dimmed.
@@ -4126,14 +4281,19 @@ impl Rail {
     /// A project row's right-click menu: Move Project Up and Down, disabled at the ends `at`
     /// (first, last), then Clear Browser Data… (#581) and Remove Project (#507).
     fn project_context_menu(
-        rail: WeakEntity<Self>,
-        key: ProjectGroupKey,
-        workspace: WeakEntity<Workspace>,
-        (first, last): (bool, bool),
-        closed: bool,
+        header: HeaderMenu,
         window: &mut Window,
         cx: &mut App,
     ) -> Entity<ContextMenu> {
+        let HeaderMenu {
+            rail,
+            key,
+            workspace,
+            at: (first, last),
+            closed,
+            archived,
+            ..
+        } = header;
         ContextMenu::build(window, cx, move |menu, _, _| {
             let menu = [
                 ("Move Project Up", true, first),
@@ -4151,6 +4311,8 @@ impl Rail {
                     },
                 ))
             });
+            let menu =
+                Self::archived_threads_menu(menu.separator(), &rail, &workspace, archived.clone());
             // Clearing resets the project's browser (#581), which a closed project has not started
             // (#606); removing the project is what stops it (#507).
             menu.separator()
@@ -4171,6 +4333,41 @@ impl Rail {
                             .log_err();
                     }),
                 )
+        })
+    }
+
+    /// Archived Threads (#616): a submenu of the project's archived threads; choosing one opens it,
+    /// which brings it back. One level only: Zed's menu closes a nested submenu's parents only
+    /// when the submenu itself was clicked. Unlisted while there are none.
+    fn archived_threads_menu(
+        menu: ContextMenu,
+        rail: &WeakEntity<Self>,
+        workspace: &WeakEntity<Workspace>,
+        archived: Vec<ArchivedThread>,
+    ) -> ContextMenu {
+        if archived.is_empty() {
+            return menu.item(ContextMenuEntry::new("No Archived Threads").disabled(true));
+        }
+        let (rail, workspace) = (rail.clone(), workspace.clone());
+        menu.submenu("Archived Threads", move |menu, _, _| {
+            archived.iter().fold(menu, |menu, thread| {
+                let label = format!("{} · {}", thread.title, thread.archived_at);
+                let (rail, workspace, thread) = (rail.clone(), workspace.clone(), thread.clone());
+                menu.entry(label, None, move |window, cx| {
+                    let thread = thread.clone();
+                    rail.update(cx, |rail, cx| {
+                        let opening = ThreadToOpen {
+                            thread_id: thread.thread_id,
+                            agent: thread.agent,
+                            work_dirs: thread.work_dirs,
+                            title: Some(thread.title),
+                        };
+                        rail.open_thread_with(&workspace, opening, window, cx)
+                    })
+                    .flatten()
+                    .log_err();
+                })
+            })
         })
     }
 
@@ -4440,6 +4637,11 @@ impl Rail {
     ) -> impl IntoElement {
         let key = row.key.clone();
         let thread_id = thread.thread_id;
+        let rail = cx.entity().downgrade();
+        let title = thread
+            .title
+            .clone()
+            .unwrap_or_else(|| SharedString::new_static("Untitled thread"));
         let icon = match &thread.icon {
             AgentIcon::Named(icon) => Icon::new(*icon),
             AgentIcon::Svg(path) => Icon::from_external_svg(path.clone()),
@@ -4506,9 +4708,17 @@ impl Rail {
                 .child(card)
         })
         .menu(move |window, cx| {
+            let (rail, title) = (rail.clone(), title.clone());
             ContextMenu::build(window, cx, move |menu, _, _| {
+                let (rail, title) = (rail.clone(), title.clone());
                 menu.entry("Archive Thread", None, move |_, cx| {
                     Self::archive_thread(thread_id, cx);
+                })
+                .entry("Delete Thread…", None, move |window, cx| {
+                    rail.update(cx, |rail, cx| {
+                        rail.delete_thread(thread_id, &title, window, cx);
+                    })
+                    .log_err();
                 })
             })
         })

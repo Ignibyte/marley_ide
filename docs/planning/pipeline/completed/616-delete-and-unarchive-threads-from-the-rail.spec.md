@@ -1,7 +1,7 @@
 ---
 pipeline_id: 9aaeff01-d358-41c1-b283-406e52fda300
 ticket: docs/planning/tickets/open/TICKET-616-delete-and-unarchive-threads-from-the-rail.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Delete and unarchive threads from the rail"
 type: feature
 slice: workbench shell, the rail's threads; after #605
@@ -18,15 +18,17 @@ which lists that project's archived threads and brings one back.
   Zed's archive view does (`threads_archive_view.rs` `delete_thread`): closes the thread if a panel
   shows it (a live conversation re-saves its metadata), deletes its metadata, cleans up its
   archived worktrees, and deletes the agent's session where the agent supports it.
-- **Archived threads:** Archived Threads… in a project header's menu opens a picker of that
-  project's archived threads (from `archived_entries`, matched by folder), newest first, with the
-  agent's icon and when each was archived. Choosing one opens it, which unarchives it
-  (`load_agent_thread` does); Delete in the picker deletes it.
-- A thread archived together with a linked worktree it removed is listed with "its worktree was
-  removed" and opens through Zed's archive view, which restores the worktree.
+- **Archived threads:** Archived Threads in a project header's menu is a submenu of that
+  project's archived threads (from `archived_entries`, matched by its main folders and host as
+  the rail's listed threads are), newest first, with when each was last updated. Choosing one
+  opens it, which unarchives it (`load_agent_thread` does); once back in the rail it has Delete
+  Thread… on its row. (The queued spec's picker became a menu, with Zed's menu keys and no new
+  view; a delete inside it would need a second level, whose choice Zed's menu does not close.)
 
 ### Out (explicitly deferred)
-- Restoring archived worktrees from the rail.
+- Deleting an archived thread without bringing it back: Zed's archive view does that.
+- Restoring archived worktrees from the rail: a thread archived with a linked worktree it removed
+  opens without it; Zed's archive view restores it.
 - Bulk delete, and threads of projectless groups.
 
 ## Reference (§20)

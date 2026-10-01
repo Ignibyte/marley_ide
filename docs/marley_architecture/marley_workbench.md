@@ -397,6 +397,17 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   `ThreadMetadataStore::archive(thread_id, None, cx)` as Zed's history view does; the button stops
   the click, so the row does not open the thread. The store's notify refreshes the rail, which
   lists no archived thread.
+- **Delete and archived threads (#616).** The thread row's menu has Delete Thread…:
+  `delete_thread` asks with `window.prompt`, then, in the window's update, every Agent Panel's
+  `remove_thread_without_activating_draft` (a live conversation would save the thread again, and
+  a draft in its place would be a thread the user did not start), the store's `delete`, then
+  `thread_worktree_archive::cleanup_thread_archived_worktrees` and the agent's
+  `AgentSessionList::delete_session` through the panel's `AgentConnectionStore`, where the list
+  supports it. A project's menu (`HeaderMenu` now carries `archived`, from `archived_threads`:
+  `archived_entries` matched by main folders and host, newest first, twenty at most) has Archived
+  Threads, one level deep, since Zed's menu closes a nested submenu's parents only when that
+  submenu was clicked; choosing one runs `open_thread_with`, which `open_thread` shares, and
+  `load_agent_thread` unarchives it. `agent` is a normal dependency for `ThreadStore`.
 - **Status and attention.** Status comes from the live conversations in each member
   workspace's Agent Panel, joined to rows by thread id; a thread with no live conversation
   shows as done. The rail keeps each thread's last status, so a run that ended while the

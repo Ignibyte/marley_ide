@@ -1025,6 +1025,10 @@ agent such as Claude Agent. Ctrl+Alt+C in the panel opens its settings.
 - [ ] Pointing at the row shows Archive at its end, "Archive Thread" on hover; a click archives the
   thread and its row goes, without opening it (#605). A right-click on another thread's row offers
   Archive Thread too. Archived threads stay out after a restart.
+- [ ] Right-click the project's header: Archived Threads lists the thread you archived, with a
+  date; choosing it opens it and its row comes back (#616).
+- [ ] Right-click a thread's row and choose Delete Thread…: Marley asks first; after Delete Thread
+  the row goes, and it does not come back after a restart, nor under Archived Threads.
 
 ### 6.2 Zed's agents use Marley's tools (#501)
 

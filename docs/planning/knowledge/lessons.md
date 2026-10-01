@@ -4083,3 +4083,11 @@ add runs the item's `added_to_pane`, so `Item::added_to_workspace` sees the new 
 item that keeps workspace or project handles from its constructor (as `TerminalView` does) goes
 stale after such a move unless `added_to_workspace` re-points them; that is the smallest place to
 fix it, and a no-op for an item added once.
+
+## L-claude-616-zeds-context-menu-closes-cleanly-one-submenu-deep-001
+*category: design · topic: gpui context menus · from: pipeline 616*
+
+`ui::ContextMenu` closes the whole menu when an entry of a first-level submenu is chosen, but a
+choice in a submenu of a submenu closes only the submenus: a parent is dismissed only when its
+open submenu was itself clicked. Keep a menu's choices at most one submenu deep, or put a second
+level's actions on the thing itself (here, a thread's row once it is back).

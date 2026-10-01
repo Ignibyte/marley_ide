@@ -183,7 +183,10 @@ Dots mark what needs you:
 
 To close a thread you are done with, point at its row and click Archive at its end, or right-click
 the row and choose Archive Thread (#605). The thread is archived as Zed's thread history archives
-it, and its row goes; Zed's archive view in the Agent Panel brings it back.
+it, and its row goes. To bring it back, right-click the project's header and choose it under
+Archived Threads (#616), or use Zed's archive view in the Agent Panel. To delete a thread for good,
+right-click its row and choose Delete Thread…: Marley asks first, then the thread goes from every
+Agent Panel, from the rail and from the agent's own sessions where the agent keeps them.
 
 While an agent waits on you, **Needs you** and a count sit between the filter and the projects
 (#508), with an entry for each wait, the one that has waited longest first. An entry names the
@@ -263,7 +266,10 @@ header (#531):
 Marley reads neither for a repository Zed does not trust yet.
 
 A project header's right-click menu has Move Project Up and Move Project Down, which move it one
-place in the rail, past a group as well as a project. Ctrl+Alt+J closes
+place in the rail, past a group as well as a project.
+A thread row's right-click menu also has Delete Thread…, which asks first and deletes the thread
+for good (#616), and a project's has Archived Threads: its archived threads, with when each was
+last updated; choose one to open it, which brings it back. Ctrl+Alt+J closes
 and opens the rail. A rail you close stays closed after a restart, and its width is saved with
 the window; one width holds in both layouts.
 
