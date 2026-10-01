@@ -18,11 +18,13 @@
 //!
 //! The shell's editor shows #557's hint, or #573's reading, after its text as an inlay, and in
 //! `act` colours the words a command would take as arguments when the line is a command followed
-//! by English (#573); each edit tells [`crate::typed_line`] the line in front.
+//! by English (#573); each edit tells [`crate::typed_line`] the line in front. While its cursor is
+//! at the end of its text, the rest of a history command the text starts shows there instead, and
+//! → takes it, as #484's suggestion does at the grid's prompt (#637).
 
 use std::collections::HashMap;
 
-use editor::{Editor, EditorEvent, HighlightKey, Inlay, MultiBufferOffset};
+use editor::{Editor, EditorEvent, HighlightKey, Inlay, MultiBufferOffset, ToOffset as _};
 use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, EntityId, Focusable as _, Global,
     HighlightStyle, InteractiveElement as _, KeyDownEvent, WeakEntity, Window,
@@ -36,8 +38,10 @@ use workspace::Workspace;
 
 use crate::agent_bar::agent_in;
 use crate::blocks::focused_terminal;
+use crate::english::Hint;
 use crate::{
-    ClearRichInput, CloseRichInput, MarleySettings, PromptEditor, RichInput, SendRichInput,
+    AcceptSuggestion, ClearRichInput, CloseRichInput, MarleySettings, PromptEditor, RichInput,
+    SendRichInput,
 };
 use settings::Settings as _;
 
@@ -351,10 +355,15 @@ fn new_editor(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) ->
     })
     .detach();
     let view = view.downgrade();
-    cx.subscribe(&editor, move |_, event: &EditorEvent, cx| {
-        if matches!(event, EditorEvent::BufferEdited) {
-            edited(&view, cx);
+    cx.subscribe(&editor, move |_, event: &EditorEvent, cx| match event {
+        EditorEvent::BufferEdited => edited(&view, cx),
+        // The history's suggestion shows only while the cursor is at the end of the text (#637).
+        EditorEvent::SelectionsChanged { .. } => {
+            if let Some((editor, terminal)) = shell_editor(&view, cx) {
+                paint_hint(&editor, &terminal, true, cx);
+            }
         }
+        _ => {}
     })
     .detach();
     editor
@@ -363,30 +372,33 @@ fn new_editor(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) ->
 /// The shell's editor of `view` was edited: its text is the line in front of the terminal, and
 /// the hint after it follows (#573).
 fn edited(view: &WeakEntity<TerminalView>, cx: &mut App) {
-    let Some(view) = view.upgrade() else {
+    let Some((editor, terminal)) = shell_editor(view, cx) else {
         return;
     };
-    let Some(editor) = cx
-        .global::<Prompts>()
-        .0
-        .get(&view.entity_id())
-        .filter(|prompt| prompt.open && matches!(prompt.target, Target::Shell))
-        .map(|prompt| prompt.editor.clone())
-    else {
-        return;
-    };
-    let terminal = view.read(cx).terminal().clone();
     let text = editor.read(cx).text(cx);
     crate::typed_line::changed(&terminal, &text, cx);
     paint_hint(&editor, &terminal, true, cx);
 }
 
+/// The shell's editor of `view` while it is open, and the view's terminal.
+fn shell_editor(
+    view: &WeakEntity<TerminalView>,
+    cx: &App,
+) -> Option<(Entity<Editor>, Entity<Terminal>)> {
+    let view = view.upgrade()?;
+    let editor = cx
+        .global::<Prompts>()
+        .0
+        .get(&view.entity_id())
+        .filter(|prompt| prompt.open && matches!(prompt.target, Target::Shell))
+        .map(|prompt| prompt.editor.clone())?;
+    Some((editor, view.read(cx).terminal().clone()))
+}
+
 /// Draws the hint after the text of `editor`, the shell's editor of `terminal`, and colours the
 /// words the hint warns about; an agent's editor (`shell` false) shows neither.
 fn paint_hint(editor: &Entity<Editor>, terminal: &Entity<Terminal>, shell: bool, cx: &mut App) {
-    let hint = shell
-        .then(|| crate::english::hint_for(&editor.read(cx).text(cx), terminal, cx))
-        .flatten();
+    let hint = shell.then(|| shell_hint(editor, terminal, cx)).flatten();
     let warning = cx.theme().status().warning;
     editor.update(cx, |editor, cx| {
         let snapshot = editor.buffer().read(cx).snapshot(cx);
@@ -413,6 +425,57 @@ fn paint_hint(editor: &Entity<Editor>, terminal: &Entity<Terminal>, shell: bool,
             None => editor.clear_highlights(HighlightKey::Editor, cx),
         }
     });
+}
+
+/// What shows after the text of `editor`, the shell's editor of `terminal`: the history's
+/// suggestion, else #557's hint or #573's reading, as at the grid's prompt, where the hint shows
+/// only without a suggestion (#637).
+fn shell_hint(editor: &Entity<Editor>, terminal: &Entity<Terminal>, cx: &App) -> Option<Hint> {
+    let text = editor.read(cx).text(cx);
+    history_suggestion(editor, &text, terminal, cx).map_or_else(
+        || crate::english::hint_for(&text, terminal, cx),
+        |rest| {
+            Some(Hint {
+                text: rest.into(),
+                warning: None,
+            })
+        },
+    )
+}
+
+/// The rest of the history command `text`, the text of `editor`, starts, while the editor's one
+/// cursor sits at the end of it with nothing selected, as #484's suggestion shows only while
+/// nothing follows the cursor (#637).
+fn history_suggestion(
+    editor: &Entity<Editor>,
+    text: &str,
+    terminal: &Entity<Terminal>,
+    cx: &App,
+) -> Option<String> {
+    let editor = editor.read(cx);
+    let snapshot = editor.buffer().read(cx).snapshot(cx);
+    let selection = editor.selections.newest_anchor();
+    let end = snapshot.len();
+    let at_end = editor.selections.count() == 1
+        && selection.start.to_offset(&snapshot) == end
+        && selection.end.to_offset(&snapshot) == end;
+    at_end
+        .then(|| crate::autosuggest::suggestion_for(text, terminal, cx))
+        .flatten()
+}
+
+/// → in the shell's editor of `view`: the history's suggestion shown after its text is added to
+/// it; without one the key goes on, to the editor's own cursor move (#637).
+fn accept_suggestion(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
+    let suggestion = shell_editor(&view.downgrade(), cx).and_then(|(editor, terminal)| {
+        let text = editor.read(cx).text(cx);
+        let rest = history_suggestion(&editor, &text, &terminal, cx)?;
+        Some((editor, rest))
+    });
+    match suggestion {
+        Some((editor, rest)) => editor.update(cx, |editor, cx| editor.insert(&rest, window, cx)),
+        None => cx.propagate(),
+    }
 }
 
 /// Draws the hint of the shell's editor holding `terminal`'s line again, as a reading came
@@ -559,7 +622,8 @@ pub fn element(context: &MarleyFooterContext, cx: &App) -> Option<AnyElement> {
         return None;
     }
     let colors = cx.theme().colors();
-    let (send_to, close_on, clear_on) = (
+    let (send_to, close_on, clear_on, accept_on) = (
+        context.view.clone(),
         context.view.clone(),
         context.view.clone(),
         context.view.clone(),
@@ -581,6 +645,12 @@ pub fn element(context: &MarleyFooterContext, cx: &App) -> Option<AnyElement> {
             .on_action(move |_: &CloseRichInput, window, cx| {
                 on_view(&close_on, window, cx, close);
             })
+            .on_action(
+                move |_: &AcceptSuggestion, window, cx| match accept_on.upgrade() {
+                    Some(view) => accept_suggestion(&view, window, cx),
+                    None => cx.propagate(),
+                },
+            )
             // The terminal view sends its program the keys it maps: special keys and chords. The
             // editor's own keys have run by now, and a key that types text goes on to the
             // editor's text input, which the terminal leaves alone.

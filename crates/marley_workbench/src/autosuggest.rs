@@ -42,6 +42,11 @@ pub fn init(cx: &mut App) {
         workspace.register_action(|workspace, _: &AcceptSuggestion, window, cx| {
             let accepted = focused_terminal(workspace, window, cx).and_then(|view| {
                 let terminal = view.read(cx).terminal().clone();
+                // The shell's prompt editor holds the line and takes its own suggestion; the text
+                // typed at the grid behind it stays as it is (#637).
+                if crate::rich_input::holds_line_of(terminal.entity_id(), cx) {
+                    return None;
+                }
                 let rest = suggestion(&terminal, cx)?;
                 Some((terminal, rest))
             });
@@ -62,8 +67,14 @@ pub fn init(cx: &mut App) {
 /// out where the terminal keeps them out of the history (#553).
 fn suggestion(terminal: &Entity<Terminal>, cx: &App) -> Option<String> {
     let typed = typed_text(terminal.read(cx))?;
+    suggestion_for(&typed, terminal, cx)
+}
+
+/// The rest of the suggestion for `line` at `terminal`'s prompt, typed at the grid or held by the
+/// shell's prompt editor (#637).
+pub(crate) fn suggestion_for(line: &str, terminal: &Entity<Terminal>, cx: &App) -> Option<String> {
     let history = history(terminal, cx);
-    marley_terminal::suggestion(&typed, history.iter().map(String::as_str)).map(str::to_string)
+    marley_terminal::suggestion(line, history.iter().map(String::as_str)).map(str::to_string)
 }
 
 /// The commands of the shell waiting at `terminal`'s prompt, newest first: the ones its hook

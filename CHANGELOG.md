@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **History suggestions in the prompt editor** (#637, 2026-10-01). The shell's prompt editor, on at
+  every prompt since #627, shows the rest of a history command your text starts, dimmed after it,
+  as the terminal's own prompt did (#484): this session's commands first, then the shell's history
+  file. → at the end of the line takes it, and moves the cursor anywhere else; the suggestion shows
+  only while the cursor is at the end. Where no suggestion applies, the English hint shows as
+  before.
+
 - **Rusty's tools for Zed's agents** (#633, 2026-10-01). Where `rusty-mcp` is on your PATH,
   Marley offers Rusty's MCP server to Zed's agents as the context server `rusty`, beside its own
   `marley` server, so an agent in Marley reaches Rusty's brain loop and its other tools; Zed asks

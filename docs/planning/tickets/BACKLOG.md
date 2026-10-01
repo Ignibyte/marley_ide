@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-637](open/TICKET-637-history-suggestions-in-the-prompt-editor.md) | feature | #484's history suggestions in the prompt editor, the follow-up #627 deferred |
 
 ## Deliberate (picked explicitly, never auto-next)
 

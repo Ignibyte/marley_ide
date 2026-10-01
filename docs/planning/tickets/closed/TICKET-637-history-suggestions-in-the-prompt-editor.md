@@ -1,11 +1,11 @@
 # TICKET-637 — History suggestions in the prompt editor
 
 - **Ticket:** LOCAL #637 (feature, prong 1: the follow-up #627 deferred)
-- **Owner:** unassigned
-- **Pipeline doc:** none yet
+- **Owner:** claude-opus-5-5, 2026-10-01
+- **Pipeline doc:** ../../pipeline/completed/637-history-suggestions-in-the-prompt-editor.spec.md
 - **Source ticket:** #627's Scope Out ("#484's ghost text and → inside the editor … a follow-up
   ticket"), found unminted by #635's golden run
-- **Status:** open
+- **Status:** closed (2026-10-01)
 
 ## Summary
 #484 draws the rest of a command from the shell's history after the terminal's cursor, and →

@@ -3656,3 +3656,16 @@ edition 2024, and `marley_workbench` denies unsafe code); a ctor inside a librar
 (it would run in any binary that turned the feature on). Known cost: processes share the folder,
 and the install writes a changed script in place, so the first run after a script changes can race
 (an atomic write in `install_in` would close it).
+
+## AD-claude-637-the-prompt-editor-shows-the-history-suggestion-in-its-hint-inlay-001
+*decided at: 2026-10-01 · status: shipped · builds on: AD-claude-484-autosuggestions-read-the-typed-command-from-the-grid-001, AD-claude-573-the-typed-line-reads-the-open-case-after-the-line-in-the-editor-first-001*
+
+The shell's prompt editor shows #484's suggestion in the inlay #573 gave its hint, from the same
+lookup fed the editor's whole text, and only while the editor has one cursor at the end of its
+text with nothing selected. The suggestion goes first and the hint shows only without one, the
+grid's order. → is `marley::AcceptSuggestion` in `MarleyShellInput > Editor`, handled by the
+editor's footer, which recomputes the suggestion and appends it, and otherwise propagates so
+`editor::MoveRight` runs. Rejected: Zed's edit-prediction provider (the prompt editor is not a full
+editor, and a provider brings Tab, its context and its own accept keys); a second inlay beside the
+hint (two dimmed texts after one line); showing the suggestion with the cursor mid-line, where →
+cannot take it.

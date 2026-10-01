@@ -223,8 +223,8 @@ actions!(
         /// that outlives a dropped link; Rerun attaches it again (#543).
         #[derive(Eq)]
         OpenRemoteTerminal,
-        /// Types the autosuggestion shown after the cursor; without one, the key goes to the
-        /// terminal's program.
+        /// Types the autosuggestion shown after the cursor, at the grid's prompt or in the shell's
+        /// prompt editor; without one, the key goes to the terminal's program or the editor.
         #[derive(Eq)]
         AcceptSuggestion,
         /// Opens the Browser tab: the page Marley's own Chromium shows, starting the project's

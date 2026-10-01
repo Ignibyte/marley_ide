@@ -897,7 +897,11 @@ alike.
   frame; a missing file holds none.
 - `marley::AcceptSuggestion`, bound to `right` in `Terminal` and handled on every workspace,
   types the rest through `Terminal::input`, and without a suggestion calls `cx.propagate()`, so
-  → reaches the program.
+  → reaches the program. While the shell's prompt editor holds the line
+  (`rich_input::holds_line_of`) it propagates at once, so the grid's text behind the editor is
+  never completed (#637).
+- `suggestion_for(line, terminal, cx)` is the lookup for any line; the grid's `suggestion` passes
+  the typed text, and the prompt editor its own text (#637).
 
 ## Rich input (`src/rich_input.rs`, #481)
 
@@ -942,6 +946,14 @@ alike.
   theme's warning colour through `highlight_text` under `HighlightKey::Editor`; an agent's editor
   shows neither. `send` calls `typed_line::entering` first. In `MarleyShellInput > Editor`,
   Ctrl-Shift-Enter is `marley::AskAgent`.
+- Since #637 the inlay carries #484's suggestion first: `shell_hint` asks
+  `history_suggestion` (`autosuggest::suggestion_for` over the editor's text, only while the editor
+  has one cursor at the end of its text with nothing selected), and `hint_for` only without one,
+  the grid's order. The subscription repaints on `SelectionsChanged` too, so the suggestion follows
+  the cursor. In `MarleyShellInput > Editor`, `right` is `marley::AcceptSuggestion`; the footer's
+  handler (`accept_suggestion`) recomputes the suggestion and appends it with `Editor::insert`, and
+  without one calls `cx.propagate()`, so gpui dispatches the next binding for the key,
+  `editor::MoveRight`.
 - `send` (#635) writes Ctrl-U to clear readline's line only when something may be on it (input
   typed since the prompt, or not known): on an empty line readline rings the bell at Ctrl-U, and
   the bell is Zed's dirty mark. It clears the view's bell, as Zed clears it on any input from the
@@ -2630,7 +2642,8 @@ Since #483 no test is added (CONSTITUTION §7): the files above stay and keep bu
 change is proven by an e2e scenario in `script/e2e/`. `480-voice-input.sh` drives the
 microphone through a fake Voxtype whose `record toggle` moves its status on, and
 `481-rich-input.sh` types into the rich input and reads what a stand-in agent prints;
-`484-autosuggestions.sh` types prefixes at a bash with a history file of its own.
+`484-autosuggestions.sh` types prefixes at a bash with a history file of its own, and
+`637-history-suggestions-in-the-prompt-editor.sh` the same in the prompt editor.
 
 ## Known limits
 

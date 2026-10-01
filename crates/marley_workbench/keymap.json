@@ -113,11 +113,13 @@
   },
   {
     // The shell's prompt editor (#627): Ctrl-C empties it, as at a shell's prompt, and
-    // Ctrl-Shift-Enter asks the agent with its line, as at the grid's prompt (#573).
+    // Ctrl-Shift-Enter asks the agent with its line, as at the grid's prompt (#573). → takes the
+    // history's suggestion at the end of the line, and moves the cursor anywhere else (#637).
     "context": "MarleyShellInput > Editor",
     "bindings": {
       "ctrl-c": "marley::ClearRichInput",
-      "ctrl-shift-enter": "marley::AskAgent"
+      "ctrl-shift-enter": "marley::AskAgent",
+      "right": "marley::AcceptSuggestion"
     }
   },
   {

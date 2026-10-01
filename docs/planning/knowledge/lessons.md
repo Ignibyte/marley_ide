@@ -4346,3 +4346,15 @@ and bugs (90 of 1,448 here), and a file with no test at all is one finding, not 
 common-word function name (`run`, `summary`, `matches`) fools the sort, so read before counting.
 The run itself: copy mode, two workers, a target per copy, the copies under `~/.cache` on
 `/home`, 1 h 27 min for 2,658 mutants, and the working tree never touched.
+
+## L-claude-637-a-propagating-action-lets-the-keys-next-binding-run-001
+*category: build · topic: gpui key dispatch · from: pipeline 637*
+
+When several bindings match one keystroke, gpui dispatches their actions in turn, deepest context
+first and the later-defined first at a depth, and stops at the first handler that does not call
+`cx.propagate()` (`crates/gpui/src/window.rs`, the `match_result.bindings` loop). So a key can
+mean a Marley action only sometimes: bind it in a deeper context (`MarleyShellInput > Editor`),
+handle the action on the container, and propagate when there is nothing to do; the editor's own
+binding for the key (`editor::MoveRight`) runs next. The propagated action still bubbles to every
+ancestor that handles it first, so a workspace-level handler for the same action must also stand
+aside (here, the grid's AcceptSuggestion while the editor holds the line).
