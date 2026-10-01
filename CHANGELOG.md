@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Threads and ports under a closed project** (#617, 2026-09-30). A project the window holds no
+  workspace of, as a restart leaves every one but the shown, lists its agent threads and the
+  ports listening in its folders under its dimmed header, and its chevron folds them. A thread
+  row opens the project and then the thread, loading the Agent Panel if the new workspace has
+  none yet; a port row's Open and Show Logs open the project first, while Copy, Stop and Restart
+  need nothing opened. Next and Previous Thread pass over a closed project's threads, and
+  `ports_list` names a closed project's ports.
+
 - **Delete a thread, and bring archived threads back, from the rail** (#616, 2026-09-30). A thread
   row's right-click menu adds Delete Thread…, which asks first, then lets every Agent Panel of the
   window drop the thread (a conversation it keeps would save it again), deletes its record,

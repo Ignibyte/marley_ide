@@ -4091,3 +4091,13 @@ fix it, and a no-op for an item added once.
 choice in a submenu of a submenu closes only the submenus: a parent is dismissed only when its
 open submenu was itself clicked. Keep a menu's choices at most one submenu deep, or put a second
 level's actions on the thing itself (here, a thread's row once it is back).
+
+## L-claude-617-a-stand-in-agent-without-loadsession-cannot-prove-a-thread-reopens-001
+*category: testing · topic: e2e stand-in ACP agents · from: pipeline 617*
+
+#605's stand-in agent declares `loadSession: false`, so after Marley restarts no thread of it can
+be opened: the Agent Panel says "Loading or resuming sessions is not supported by this agent".
+A scenario that reopens a thread across a restart needs a stand-in that keeps each session's
+messages and answers `session/load` by replaying them (#617's). And since a restored workspace's
+Agent Panel shows its last thread by itself, the thread a scenario opens should be another one, or
+the shot cannot tell the change from Zed's restore.

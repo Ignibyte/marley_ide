@@ -293,6 +293,61 @@ struct ThreadToOpen {
     title: Option<SharedString>,
 }
 
+/// Opens the thread, focused, in the workspace's Agent Panel. A workspace the rail has just opened
+/// (#617) may not have its panel yet: the rail loads one then, and adds it unless Zed's own start
+/// of the workspace added one meanwhile.
+fn load_thread(
+    workspace: &mut Workspace,
+    thread: ThreadToOpen,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    if let Some(panel) = workspace.panel::<AgentPanel>(cx) {
+        show_thread(workspace, &panel, thread, window, cx);
+        return;
+    }
+    cx.spawn_in(window, async move |workspace, cx| {
+        let loaded = AgentPanel::load(workspace.clone(), cx.clone()).await?;
+        workspace.update_in(cx, |workspace, window, cx| {
+            let panel = workspace.panel::<AgentPanel>(cx).unwrap_or_else(|| {
+                workspace.add_panel(loaded.clone(), window, cx);
+                loaded
+            });
+            show_thread(workspace, &panel, thread, window, cx);
+        })
+    })
+    .detach_and_log_err(cx);
+}
+
+/// Loads the thread into `panel`, which unarchives an archived one (#616), and focuses the panel.
+fn show_thread(
+    workspace: &mut Workspace,
+    panel: &Entity<AgentPanel>,
+    thread: ThreadToOpen,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    let ThreadToOpen {
+        thread_id,
+        agent,
+        work_dirs,
+        title,
+    } = thread;
+    panel.update(cx, |panel, cx| {
+        panel.load_agent_thread(
+            agent,
+            thread_id,
+            Some(work_dirs),
+            title,
+            true,
+            AgentThreadSource::Sidebar,
+            window,
+            cx,
+        );
+    });
+    workspace.focus_panel::<AgentPanel>(window, cx);
+}
+
 /// How many of a project's archived threads its menu lists.
 const ARCHIVED_LISTED: usize = 20;
 
@@ -447,6 +502,9 @@ struct ThreadEntry {
     icon: AgentIcon,
     /// The agent's name, for the row's second line.
     agent_name: SharedString,
+    /// The project's key while the window holds no workspace of it (#617): `workspace` is then an
+    /// invalid handle, and opening the thread opens the project first.
+    closed: Option<ProjectGroupKey>,
 }
 
 /// The window, read once: the pure snapshot, plus the entities the handlers act on.
@@ -2407,44 +2465,67 @@ impl Rail {
             work_dirs: thread.work_dirs.clone(),
             title: thread.title.clone(),
         };
-        self.open_thread_with(&thread.workspace.clone(), opening, window, cx)
+        self.open_thread_with(
+            &thread.workspace.clone(),
+            thread.closed.clone().as_ref(),
+            opening,
+            window,
+            cx,
+        )
     }
 
     /// Shows `workspace` and opens the thread in its Agent Panel, which unarchives an archived
-    /// one (#616).
+    /// one (#616). A closed project's thread opens its own folders under the project's key first,
+    /// as Zed's Threads Sidebar opens one, so a thread that ran in a linked worktree opens there
+    /// (#617).
     fn open_thread_with(
         &self,
         workspace: &WeakEntity<Workspace>,
+        closed: Option<&ProjectGroupKey>,
         thread: ThreadToOpen,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
-        let ThreadToOpen {
-            thread_id,
-            agent,
-            work_dirs,
-            title,
-        } = thread;
-        let workspace = self.activate_workspace(workspace, window, cx)?;
-        workspace.update(cx, |workspace, cx| {
-            let panel = workspace
-                .panel::<AgentPanel>(cx)
-                .context("the project has no Agent Panel")?;
-            panel.update(cx, |panel, cx| {
-                panel.load_agent_thread(
-                    agent,
-                    thread_id,
-                    Some(work_dirs),
-                    title,
-                    true,
-                    AgentThreadSource::Sidebar,
-                    window,
-                    cx,
-                );
-            });
-            workspace.focus_panel::<AgentPanel>(window, cx);
-            anyhow::Ok(())
+        let closed = closed.map(|key| {
+            let paths = if thread.work_dirs.paths().is_empty() {
+                key.path_list().clone()
+            } else {
+                thread.work_dirs.clone()
+            };
+            (key, paths)
+        });
+        self.in_workspace(
+            workspace,
+            closed,
+            move |workspace, window, cx| load_thread(workspace, thread, window, cx),
+            window,
+            cx,
+        )
+    }
+
+    /// Runs `then` in a row's workspace, shown: at once, or for a row of a closed project (#617)
+    /// once its folders `paths` have opened.
+    fn in_workspace(
+        &self,
+        workspace: &WeakEntity<Workspace>,
+        closed: Option<(&ProjectGroupKey, PathList)>,
+        then: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>) + 'static,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let Some((key, paths)) = closed else {
+            let workspace = self.activate_workspace(workspace, window, cx)?;
+            workspace.update(cx, |workspace, cx| then(workspace, window, cx));
+            return Ok(());
+        };
+        let opening = self.open_closed(key, paths, window, cx);
+        cx.spawn_in(window, async move |_, cx| {
+            if let Some(workspace) = opening.await {
+                workspace.update_in(cx, then).log_err();
+            }
         })
+        .detach();
+        Ok(())
     }
 
     /// Deletes a thread once the user confirms (#616). Every Agent Panel of the window lets it go
@@ -2709,10 +2790,11 @@ impl Rail {
                                 .iter()
                                 .find(|shown| shown.port == port && shown.pid == pid)?;
                             let group = self.snapshot.groups.get(index)?;
-                            Some((group.workspace.clone(), shown.url.clone()))
+                            let closed = group.closed.then(|| group.key.clone());
+                            Some((group.workspace.clone(), closed, shown.url.clone()))
                         });
-                found.map_or(Ok(()), |(workspace, url)| {
-                    self.open_port(&workspace, url, window, cx)
+                found.map_or(Ok(()), |(workspace, closed, url)| {
+                    self.open_port(&workspace, closed.as_ref(), url, window, cx)
                 })
             }
             Selection::Worktree(path) => self.open_worktree(&path, window, cx),
@@ -3222,19 +3304,25 @@ impl Rail {
     }
 
     /// Shows `workspace` and opens `url` there in a Browser tab of its project, or brings forward
-    /// the tab already on it (#521).
+    /// the tab already on it (#521); a closed project's opens first (#617).
     fn open_port(
         &self,
         workspace: &WeakEntity<Workspace>,
+        closed: Option<&ProjectGroupKey>,
         url: String,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
-        let workspace = self.activate_workspace(workspace, window, cx)?;
-        workspace.update(cx, |workspace, cx| {
-            browser::open_url_tab(workspace, url, window, cx);
-        });
-        Ok(())
+        let closed = closed.map(|key| (key, key.path_list().clone()));
+        self.in_workspace(
+            workspace,
+            closed,
+            move |workspace, window, cx| {
+                browser::open_url_tab(workspace, url, window, cx);
+            },
+            window,
+            cx,
+        )
     }
 
     /// Stops the server on `port` (#521) once a scan made now finds process `pid` listening there
@@ -3357,13 +3445,16 @@ impl Rail {
         .detach();
     }
 
-    /// Opens the service's journal, followed, in a new terminal of the row's project (#615).
+    /// Opens the service's journal, followed, in a new terminal of the row's project (#615), shown;
+    /// a closed project's opens first (#617).
     fn show_logs(
+        &self,
         workspace: &WeakEntity<Workspace>,
+        closed: Option<&ProjectGroupKey>,
         service: &PortService,
-        window: &Window,
-        cx: &mut App,
-    ) {
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
         let unit = ShellKind::Posix
             .try_quote(&service.unit)
             .map_or_else(|| service.unit.clone(), Cow::into_owned);
@@ -3372,27 +3463,31 @@ impl Rail {
         } else {
             format!("journalctl -u {unit} -f")
         };
-        let Some(workspace) = workspace.upgrade() else {
-            return;
-        };
-        let opening = workspace.update(cx, |workspace, cx| {
-            // The project's own folder, as a terminal opened from its `+` would be.
-            let folder = workspace
-                .project()
-                .read(cx)
-                .visible_worktrees(cx)
-                .next()
-                .map(|worktree| worktree.read(cx).abs_path().to_path_buf());
-            agents::start_in_terminal(
-                workspace,
-                folder,
-                None,
-                Some(marley_agent::send_payload(&command)),
-                window,
-                cx,
-            )
-        });
-        opening.detach_and_log_err(cx);
+        let closed = closed.map(|key| (key, key.path_list().clone()));
+        self.in_workspace(
+            workspace,
+            closed,
+            move |workspace, window, cx| {
+                // The project's own folder, as a terminal opened from its `+` would be.
+                let folder = workspace
+                    .project()
+                    .read(cx)
+                    .visible_worktrees(cx)
+                    .next()
+                    .map(|worktree| worktree.read(cx).abs_path().to_path_buf());
+                agents::start_in_terminal(
+                    workspace,
+                    folder,
+                    None,
+                    Some(marley_agent::send_payload(&command)),
+                    window,
+                    cx,
+                )
+                .detach_and_log_err(cx);
+            },
+            window,
+            cx,
+        )
     }
 
     /// The switcher's rows, from the window as the rail last read it.
@@ -3455,23 +3550,36 @@ impl Rail {
         }
     }
 
-    /// Opens a project the window lists but holds no workspace of (#606), as Zed's Threads Sidebar
-    /// opens one: Zed restores the workspace it saved for those folders, and a remote project
-    /// connects through Zed's connection modal first.
+    /// Opens a project the window lists but holds no workspace of (#606).
     fn open_closed_project(
         &self,
         key: &ProjectGroupKey,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.open_closed(key, key.path_list().clone(), window, cx)
+            .detach();
+    }
+
+    /// Opens the folders `paths` of a project the window lists but holds no workspace of (#606),
+    /// as Zed's Threads Sidebar opens one: Zed restores the workspace it saved for those folders,
+    /// and a remote project connects through Zed's connection modal first. The workspace once it
+    /// is open and shown; why not, when it could not open, shows as a toast.
+    fn open_closed(
+        &self,
+        key: &ProjectGroupKey,
+        paths: PathList,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Task<Option<Entity<Workspace>>> {
         let Some(multi_workspace) = self.multi_workspace.upgrade() else {
-            return;
+            return Task::ready(None);
         };
         let shown = multi_workspace.read(cx).workspace().clone();
         let modal_workspace = shown.clone();
         let opened = multi_workspace.update(cx, |multi_workspace, cx| {
             multi_workspace.find_or_create_workspace(
-                key.path_list().clone(),
+                paths,
                 key.host(),
                 Some(key.clone()),
                 move |options, window, cx| {
@@ -3488,17 +3596,20 @@ impl Rail {
         cx.spawn_in(window, async move |_, cx| {
             let result = opened.await;
             remote_connection::dismiss_connection_modal(&shown, cx);
-            if let Err(error) = result {
-                let message = format!("Could not open {name}: {error:#}");
-                shown.update(cx, |workspace, cx| {
-                    workspace.show_toast(
-                        Toast::new(NotificationId::unique::<ClosedProject>(), message),
-                        cx,
-                    );
-                });
+            match result {
+                Ok(workspace) => Some(workspace),
+                Err(error) => {
+                    let message = format!("Could not open {name}: {error:#}");
+                    shown.update(cx, |workspace, cx| {
+                        workspace.show_toast(
+                            Toast::new(NotificationId::unique::<ClosedProject>(), message),
+                            cx,
+                        );
+                    });
+                    None
+                }
             }
         })
-        .detach();
     }
 
     /// Moves a project one place up or down in the rail's order, the one dragging sets (#602),
@@ -3915,7 +4026,7 @@ impl Rail {
                 selected: false,
                 highlight: Vec::new(),
             };
-            Self::render_port_row(row, shown.clone(), None, cx).into_any_element()
+            Self::render_port_row(row, shown.clone(), None, false, cx).into_any_element()
         });
         Some(
             v_flex()
@@ -3968,8 +4079,14 @@ impl Rail {
                 Self::render_thread_row(row, thread, drag, cx).into_any_element()
             }),
             Row::Port(row) => self.snapshot.groups.get(row.project).map(|group| {
-                Self::render_port_row(row, group.workspace.clone(), Some(group.key.clone()), cx)
-                    .into_any_element()
+                Self::render_port_row(
+                    row,
+                    group.workspace.clone(),
+                    Some(group.key.clone()),
+                    group.closed,
+                    cx,
+                )
+                .into_any_element()
             }),
             Row::Worktree(row) => Some(Self::render_worktree_row(row, cx).into_any_element()),
         }
@@ -4103,6 +4220,7 @@ impl Rail {
         let index = row.index;
         let last = index + 1 == self.snapshot.groups.len();
         let filtering = self.snapshot.rail.filtering;
+        let folds = self.header_folds(index, closed);
         let workspace = group.workspace.clone();
         let key = group.key.clone();
         let open_key = group.key.clone();
@@ -4125,66 +4243,70 @@ impl Rail {
         } else {
             Color::Muted
         };
-        let header = row_frame(("marley-rail-project", id), row.selected, cx)
-            .h_8()
-            .gap_1()
-            .px_1()
-            // While the filter decides which rows show, the header does not fold, and a closed
-            // one has nothing to fold.
-            .when(!filtering && !closed, |header| {
-                header.child(
-                    div()
-                        .debug_selector(move || format!("marley-rail-disclosure-{index}"))
-                        .child(
-                            Disclosure::new(("marley-rail-disclosure", id), row.expanded).on_click(
-                                cx.listener(move |rail, _, window, cx| match projectless {
-                                    Some(group) => groups::toggle_expanded(group, cx),
-                                    None => rail.toggle_expanded(&key, window, cx),
-                                }),
+        let header =
+            row_frame(("marley-rail-project", id), row.selected, cx)
+                .h_8()
+                .gap_1()
+                .px_1()
+                // While the filter decides which rows show, the header does not fold, and a closed
+                // one with no rows has nothing to fold.
+                .when(!filtering && folds, |header| {
+                    header.child(
+                        div()
+                            .debug_selector(move || format!("marley-rail-disclosure-{index}"))
+                            .child(
+                                Disclosure::new(("marley-rail-disclosure", id), row.expanded)
+                                    .on_click(cx.listener(move |rail, _, window, cx| {
+                                        // The closed header under the chevron would open its project.
+                                        if closed {
+                                            cx.stop_propagation();
+                                        }
+                                        match projectless {
+                                            Some(group) => groups::toggle_expanded(group, cx),
+                                            None => rail.toggle_expanded(&key, window, cx),
+                                        }
+                                    })),
                             ),
-                        ),
-                )
-            })
-            // A closed header keeps the chevron's room, unseen, so its name lines up with an open
-            // one's.
-            .when(!filtering && closed, |header| {
-                header.child(
-                    div().invisible().child(
+                    )
+                })
+                // A closed header keeps the chevron's room, unseen, so its name lines up with an open
+                // one's.
+                .when(!filtering && !folds, |header| {
+                    header.child(div().invisible().child(
                         Disclosure::new(("marley-rail-disclosure", id), false).disabled(true),
-                    ),
-                )
-            })
-            .children(header_icon(index, icon, projectless.is_some()).map(|icon| {
-                if closed {
-                    div().opacity(0.5).child(icon).into_any_element()
-                } else {
-                    icon
-                }
-            }))
-            .child(project_name(
-                row.name,
-                row.highlight,
-                name_color,
-                row.summary,
-            ))
-            .child(Self::render_header_end(
-                index,
-                id,
-                group,
-                row.attention,
-                agent_search_path,
-                cx,
-            ))
-            .when(closed, |header| {
-                header.tooltip(Tooltip::text("Not open. Click to open it."))
-            })
-            .on_click(cx.listener(move |rail, _, window, cx| {
-                if closed {
-                    rail.open_closed_project(&open_key, window, cx);
-                } else {
-                    rail.activate_workspace(&workspace, window, cx).log_err();
-                }
-            }));
+                    ))
+                })
+                .children(header_icon(index, icon, projectless.is_some()).map(|icon| {
+                    if closed {
+                        div().opacity(0.5).child(icon).into_any_element()
+                    } else {
+                        icon
+                    }
+                }))
+                .child(project_name(
+                    row.name,
+                    row.highlight,
+                    name_color,
+                    row.summary,
+                ))
+                .child(Self::render_header_end(
+                    index,
+                    id,
+                    group,
+                    row.attention,
+                    agent_search_path,
+                    cx,
+                ))
+                .when(closed, |header| {
+                    header.tooltip(Tooltip::text("Not open. Click to open it."))
+                })
+                .on_click(cx.listener(move |rail, _, window, cx| {
+                    if closed {
+                        rail.open_closed_project(&open_key, window, cx);
+                    } else {
+                        rail.activate_workspace(&workspace, window, cx).log_err();
+                    }
+                }));
         let header = Self::takes_terminals(header, index, closed, cx);
         let header = Self::draggable_header(header, drag, cx);
         right_click_menu(("marley-rail-project-context", id))
@@ -4194,6 +4316,18 @@ impl Rail {
                     .child(header)
             })
             .menu(move |window, cx| header_menu.build(window, cx))
+    }
+
+    /// Whether a header folds: an open project's does, and a closed one's with threads or ports
+    /// under it (#617).
+    fn header_folds(&self, index: usize, closed: bool) -> bool {
+        !closed
+            || self
+                .snapshot
+                .rail
+                .projects
+                .get(index)
+                .is_some_and(|project| !project.threads.is_empty() || !project.ports.is_empty())
     }
 
     /// A header's end: its branch's changed lines and pull request (#531), its attention dot, and
@@ -4311,8 +4445,14 @@ impl Rail {
                     },
                 ))
             });
-            let menu =
-                Self::archived_threads_menu(menu.separator(), &rail, &workspace, archived.clone());
+            let closed_key = closed.then(|| key.clone());
+            let menu = Self::archived_threads_menu(
+                menu.separator(),
+                &rail,
+                &workspace,
+                closed_key,
+                archived.clone(),
+            );
             // Clearing resets the project's browser (#581), which a closed project has not started
             // (#606); removing the project is what stops it (#507).
             menu.separator()
@@ -4343,6 +4483,7 @@ impl Rail {
         menu: ContextMenu,
         rail: &WeakEntity<Self>,
         workspace: &WeakEntity<Workspace>,
+        closed: Option<ProjectGroupKey>,
         archived: Vec<ArchivedThread>,
     ) -> ContextMenu {
         if archived.is_empty() {
@@ -4353,6 +4494,7 @@ impl Rail {
             archived.iter().fold(menu, |menu, thread| {
                 let label = format!("{} · {}", thread.title, thread.archived_at);
                 let (rail, workspace, thread) = (rail.clone(), workspace.clone(), thread.clone());
+                let closed = closed.clone();
                 menu.entry(label, None, move |window, cx| {
                     let thread = thread.clone();
                     rail.update(cx, |rail, cx| {
@@ -4362,7 +4504,7 @@ impl Rail {
                             work_dirs: thread.work_dirs,
                             title: Some(thread.title),
                         };
-                        rail.open_thread_with(&workspace, opening, window, cx)
+                        rail.open_thread_with(&workspace, closed.as_ref(), opening, window, cx)
                     })
                     .flatten()
                     .log_err();
@@ -5167,6 +5309,7 @@ impl Rail {
     fn port_row_buttons(
         row: &PortRow,
         workspace: &WeakEntity<Workspace>,
+        closed: Option<&ProjectGroupKey>,
         cx: &Context<Self>,
     ) -> Div {
         let (port, pid) = (row.port, row.pid);
@@ -5178,6 +5321,7 @@ impl Rail {
                 .tooltip(Tooltip::text(tooltip))
         };
         let (open_workspace, open_url) = (workspace.clone(), row.url.clone());
+        let open_closed = closed.cloned();
         let open = button(
             "marley-rail-port-open",
             IconName::ToolWeb,
@@ -5186,8 +5330,14 @@ impl Rail {
         .on_click(cx.listener(move |rail, _, window, cx| {
             // The row under the button would open it a second time.
             cx.stop_propagation();
-            rail.open_port(&open_workspace, open_url.clone(), window, cx)
-                .log_err();
+            rail.open_port(
+                &open_workspace,
+                open_closed.as_ref(),
+                open_url.clone(),
+                window,
+                cx,
+            )
+            .log_err();
         }));
         let copy_url = row.url.clone();
         let copy = button("marley-rail-port-copy", IconName::Copy, "Copy URL").on_click(
@@ -5239,14 +5389,18 @@ impl Rail {
         row: PortRow,
         workspace: WeakEntity<Workspace>,
         group: Option<ProjectGroupKey>,
+        closed: bool,
         cx: &Context<Self>,
     ) -> impl IntoElement {
         let (port, pid) = (row.port, row.pid);
         let key = (u64::from(port) << 32) | u64::from(pid);
         let is_container = row.container.is_some();
-        let end = Self::port_row_buttons(&row, &workspace, cx);
+        // A closed project's row opens the project first (#617).
+        let closed = group.clone().filter(|_| closed);
+        let end = Self::port_row_buttons(&row, &workspace, closed.as_ref(), cx);
         let url = row.url.clone();
         let (menu_workspace, menu_url, key_id) = (workspace.clone(), row.url.clone(), key);
+        let row_closed = closed.clone();
         let item = row_card(
             ("marley-rail-port", key),
             format!("marley-rail-port-icon-{port}"),
@@ -5280,7 +5434,7 @@ impl Rail {
         // should not start a browser.
         .on_click(cx.listener(move |rail, event: &ClickEvent, window, cx| {
             if event.click_count() >= 2 {
-                rail.open_port(&workspace, url.clone(), window, cx)
+                rail.open_port(&workspace, row_closed.as_ref(), url.clone(), window, cx)
                     .log_err();
             } else {
                 rail.mark_row(Selection::Port(port, pid), window, cx);
@@ -5290,6 +5444,7 @@ impl Rail {
             rail: cx.entity().downgrade(),
             workspace: menu_workspace,
             group,
+            closed,
             port,
             pid,
             url: menu_url,
@@ -5322,6 +5477,8 @@ struct PortMenu {
     workspace: WeakEntity<Workspace>,
     /// The row's project, none for a container's row listed apart.
     group: Option<ProjectGroupKey>,
+    /// That project's key again while it is closed (#617), which Open and Show Logs open first.
+    closed: Option<ProjectGroupKey>,
     port: u16,
     pid: u32,
     url: String,
@@ -5340,7 +5497,13 @@ impl PortMenu {
                 .entry("Open in a Browser Tab", None, move |window, cx| {
                     open.rail
                         .update(cx, |rail, cx| {
-                            rail.open_port(&open.workspace, open.url.clone(), window, cx)
+                            rail.open_port(
+                                &open.workspace,
+                                open.closed.as_ref(),
+                                open.url.clone(),
+                                window,
+                                cx,
+                            )
                         })
                         .flatten()
                         .log_err();
@@ -5369,7 +5532,18 @@ impl PortMenu {
                                 .log_err();
                         })
                         .entry("Show Logs", None, move |window, cx| {
-                            Rail::show_logs(&logs.workspace, &logs_service, window, cx);
+                            logs.rail
+                                .update(cx, |rail, cx| {
+                                    rail.show_logs(
+                                        &logs.workspace,
+                                        logs.closed.as_ref(),
+                                        &logs_service,
+                                        window,
+                                        cx,
+                                    )
+                                })
+                                .flatten()
+                                .log_err();
                         })
                 }
                 _ if menu.is_container => {
@@ -6283,10 +6457,14 @@ fn live_statuses(
 /// A group's threads, newest first. The metadata store files a thread under the main worktree
 /// paths of the project it ran in; rows written before those were kept are found by their folder
 /// paths, and a row whose paths disagree with its group by its workspace's own roots. Drafts are
-/// listed only while their panel shows them, so a new thread appears at once.
+/// listed only while their panel shows them, so a new thread appears at once. A closed group
+/// (#617) has no `listed` workspace: its rows open the project first, and their agents' icons and
+/// names are read against the shown workspace's project, whose agent servers are the user's
+/// settings and extensions as every local project's are.
 fn group_threads(
     group: &ProjectGroup,
-    listed: &Entity<Workspace>,
+    listed: Option<&Entity<Workspace>>,
+    shown: &Entity<Workspace>,
     cx: &App,
 ) -> Vec<(ThreadSnapshot, ThreadEntry)> {
     let Some(store) = ThreadMetadataStore::try_global(cx) else {
@@ -6323,7 +6501,9 @@ fn group_threads(
             let workspace = members
                 .iter()
                 .find(|(paths, _)| paths == row.folder_paths())
-                .map_or(listed, |(_, workspace)| workspace);
+                .map(|(_, workspace)| *workspace)
+                .or(listed);
+            let project = workspace.unwrap_or(shown).read(cx).project();
             let key = row.thread_id.to_key_string();
             (
                 ThreadSnapshot {
@@ -6334,17 +6514,14 @@ fn group_threads(
                     matched: None,
                 },
                 ThreadEntry {
-                    workspace: workspace.downgrade(),
+                    workspace: workspace.map_or_else(WeakEntity::new_invalid, Entity::downgrade),
                     thread_id: row.thread_id,
                     agent: Agent::from(row.agent_id.clone()),
                     work_dirs: row.folder_paths().clone(),
                     title: row.title(),
-                    icon: agents::thread_icon(&row.agent_id, workspace.read(cx).project(), cx),
-                    agent_name: agents::thread_agent_name(
-                        &row.agent_id,
-                        workspace.read(cx).project(),
-                        cx,
-                    ),
+                    icon: agents::thread_icon(&row.agent_id, project, cx),
+                    agent_name: agents::thread_agent_name(&row.agent_id, project, cx),
+                    closed: listed.is_none().then(|| group.key.clone()),
                 },
             )
         })
@@ -6665,7 +6842,7 @@ fn build_snapshot(
     let mut displayed_worktree = None;
     for ((group, name), id) in groups.iter().zip(names).zip(projectless) {
         let Some(workspace) = listed_workspace(multi_workspace, group, id.is_some(), cx) else {
-            push_closed(&mut snapshot, group, name, filter);
+            push_closed(&mut snapshot, group, name, displayed, filter, cx);
             continue;
         };
         let (worktrees, tags) = group_worktrees(group, &workspace, filter, &mut snapshot, cx);
@@ -6714,12 +6891,14 @@ fn build_snapshot(
             }
             browsers.extend(member_browsers(member, filter, &mut snapshot, cx));
         }
-        let mut threads = Vec::new();
-        for (mut thread, entry) in group_threads(group, &workspace, cx) {
-            thread.matched = filter_match(filter, &thread.title);
-            snapshot.threads.insert(thread.key.clone(), entry);
-            threads.push(thread);
-        }
+        let threads = listed_threads(
+            &mut snapshot,
+            group,
+            Some(&workspace),
+            displayed,
+            filter,
+            cx,
+        );
         inbox_entries(&name, &group.workspaces, &mut snapshot, cx);
         let matched = filter_match(filter, &name);
         snapshot.rail.projects.push(ProjectSnapshot {
@@ -6755,16 +6934,43 @@ fn build_snapshot(
     snapshot
 }
 
-/// A group the window holds no workspace of (#606): its header alone, closed.
-fn push_closed(snapshot: &mut Snapshot, group: &ProjectGroup, name: String, filter: &str) {
+/// A group's threads as its rows list them, their entities noted in `snapshot`.
+fn listed_threads(
+    snapshot: &mut Snapshot,
+    group: &ProjectGroup,
+    listed: Option<&Entity<Workspace>>,
+    shown: &Entity<Workspace>,
+    filter: &str,
+    cx: &App,
+) -> Vec<ThreadSnapshot> {
+    let mut threads = Vec::new();
+    for (mut thread, entry) in group_threads(group, listed, shown, cx) {
+        thread.matched = filter_match(filter, &thread.title);
+        snapshot.threads.insert(thread.key.clone(), entry);
+        threads.push(thread);
+    }
+    threads
+}
+
+/// A group the window holds no workspace of (#606), closed: its header, and under it its threads
+/// and the ports listening in its folders (#617), which need no workspace to be listed.
+fn push_closed(
+    snapshot: &mut Snapshot,
+    group: &ProjectGroup,
+    name: String,
+    shown: &Entity<Workspace>,
+    filter: &str,
+    cx: &App,
+) {
     let matched = filter_match(filter, &name);
+    let threads = listed_threads(snapshot, group, None, shown, filter, cx);
     snapshot.rail.projects.push(ProjectSnapshot {
         name,
         expanded: group.expanded,
         terminals: Vec::new(),
         browsers: Vec::new(),
-        threads: Vec::new(),
-        ports: Vec::new(),
+        threads,
+        ports: port_snapshots(&group.key, filter, cx),
         worktrees: Vec::new(),
         matched,
         closed: true,

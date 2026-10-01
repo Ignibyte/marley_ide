@@ -3527,3 +3527,14 @@ refusal is shown, not hidden. Stop goes through the engine's `stop`, and an engi
 unit is never what a port's Stop stops. Rejected: a Docker API crate (none is built, and the CLI
 is the published interface), and leaving container ports out without the engine (the user would
 not see them at all).
+
+## AD-claude-617-a-closed-projects-rows-open-the-project-first-001
+*status: accepted · from: pipeline 617 · supersedes the deferral in AD-claude-606*
+
+A closed project lists what needs no workspace to be listed: its threads, from the metadata store
+by its key, and the ports listening in its folders, from the key's path list. Its terminals,
+Browser tabs and worktrees stay unlisted until it opens. A row's action that needs the workspace
+(open a thread, Open a port, Show Logs) opens the project first through `Rail::in_workspace`; a
+thread opens its own folders under the group's key, as Zed's Threads Sidebar opens one. Actions
+that need no workspace (Copy, Stop, Restart, Archive, Delete) run with the project closed. Next and
+Previous Thread pass over a closed project's threads, as Next Project passes over its header.

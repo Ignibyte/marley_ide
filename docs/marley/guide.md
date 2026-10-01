@@ -274,9 +274,13 @@ and opens the rail. A rail you close stays closed after a restart, and its width
 the window; one width holds in both layouts.
 
 After a restart Zed reopens only the project the window showed. The window's other projects stay
-in the rail, dimmed, with no rows under them (#606): point at one to read "Not open. Click to open
-it.", and click it, or press Enter on it, to open it with its terminals and tabs. Its right-click
-menu still moves or removes it. Next and Previous Project pass over the dimmed ones.
+in the rail, dimmed (#606): point at one to read "Not open. Click to open it.", and click it, or
+press Enter on it, to open it with its terminals and tabs. Its right-click menu still moves or
+removes it. Next and Previous Project pass over the dimmed ones. Under a dimmed header are the
+project's agent threads and the ports listening in its folders (#617), and its chevron folds
+them. Click a thread to open the project and the thread; a port row's Open and Show Logs open the
+project first, while Copy, Stop and Restart work with the project closed. Next and Previous
+Thread pass over a closed project's threads.
 
 ### The + menu
 

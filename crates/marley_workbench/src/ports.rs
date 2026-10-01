@@ -517,7 +517,7 @@ fn deepest(
 }
 
 /// Every window's project groups, each with the folders of all its member workspaces, local
-/// ones only.
+/// ones only. A local project the window lists closed (#606) has its key's folders (#617).
 fn project_folders(cx: &App) -> Vec<(ProjectGroupKey, Vec<PathBuf>)> {
     let mut folders: Vec<(ProjectGroupKey, Vec<PathBuf>)> = Vec::new();
     for window in cx.windows() {
@@ -528,6 +528,11 @@ fn project_folders(cx: &App) -> Vec<(ProjectGroupKey, Vec<PathBuf>)> {
             continue;
         };
         for group in multi_workspace.project_groups(cx) {
+            let closed = if group.workspaces.is_empty() && group.key.host().is_none() {
+                group.key.path_list().paths().to_vec()
+            } else {
+                Vec::new()
+            };
             let roots = group.workspaces.iter().flat_map(|workspace| {
                 let workspace = workspace.read(cx);
                 if workspace.project().read(cx).is_local() {
@@ -540,6 +545,7 @@ fn project_folders(cx: &App) -> Vec<(ProjectGroupKey, Vec<PathBuf>)> {
                     Vec::new()
                 }
             });
+            let roots = roots.chain(closed);
             match folders.iter_mut().find(|(key, _)| *key == group.key) {
                 Some((_, known)) => known.extend(roots),
                 None => folders.push((group.key.clone(), roots.collect())),
@@ -623,11 +629,8 @@ pub fn project_names(cx: &App) -> HashMap<ProjectGroupKey, String> {
         else {
             continue;
         };
-        let groups: Vec<_> = multi_workspace
-            .project_groups(cx)
-            .into_iter()
-            .filter(|group| !group.workspaces.is_empty())
-            .collect();
+        // A closed project's ports are listed too (#617), under the name its header shows.
+        let groups = multi_workspace.project_groups(cx);
         for (group, name) in groups.iter().zip(crate::group_names(&groups)) {
             names.entry(group.key.clone()).or_insert(name);
         }

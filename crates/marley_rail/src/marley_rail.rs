@@ -1274,14 +1274,16 @@ pub fn cycle_project(snapshot: &RailSnapshot, forward: bool) -> Selection {
 ///
 /// The shown row under a project after the selected row, or before it, passing over project
 /// headers and wrapping at the ends. With nothing selected it is the first such row going
-/// forward and the last going back.
+/// forward and the last going back. A closed project's threads are passed over, as its header is
+/// (#617).
 #[must_use]
 pub fn cycle_row(snapshot: &RailSnapshot, forward: bool) -> Selection {
     cycle(snapshot, &selection(snapshot), forward, |row| {
         matches!(
             row,
             Selection::Terminal(_) | Selection::Browser(_) | Selection::Thread(_)
-        )
+        ) && !matches!(parent(snapshot, row), Selection::Project(index)
+            if snapshot.projects.get(index).is_some_and(|project| project.closed))
     })
 }
 

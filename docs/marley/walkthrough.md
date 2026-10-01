@@ -357,8 +357,11 @@ Then start Marley again from the app menu.
 - [ ] The header's menu holds Move Project Up, Move Project Down, Clear Browser Data… and Remove
   Project. Leave both projects in place for now.
 - [ ] Later, after any restart (#606): the project that was not shown at the quit is still
-  listed, dimmed and without rows; pointing at it reads "Not open. Click to open it.", and a click
-  opens it with its terminals back in their folders.
+  listed, dimmed; pointing at it reads "Not open. Click to open it.", and a click opens it with its
+  terminals back in their folders.
+- [ ] Under that dimmed header are its agent threads and the ports listening in its folders, and
+  its chevron folds them (#617). Clicking one of its threads opens the project with that thread
+  in the Agent Panel.
 
 ### 2.3 Dots that ask for you (#438)
 

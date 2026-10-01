@@ -109,6 +109,20 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   `OpenMode::Activate` and `remote_connection::connect_with_modal`, as the Threads Sidebar's
   `open_workspace_for_group` does; a failure is a toast. Its menu disables Clear Browser Data…,
   and `follow_icons` searches a closed local group's folder for its icon.
+- **Rows under a closed project (#617).** `push_closed` lists a closed group's threads and ports:
+  `listed_threads` and `group_threads` take an optional listed workspace, the store's
+  `entries_for_main_worktree_path` and `entries_for_path` need only the key's path list and host,
+  and with no workspace the agent's icon and name are read against the shown workspace's project.
+  `ThreadEntry.closed` and `PortMenu.closed` carry the group's key. `header_folds` gives a closed
+  header with rows its `Disclosure`, whose click stops before the header's own click opens the
+  project. Opening goes through `Rail::in_workspace`: an open project's workspace is shown and the
+  action runs at once; a closed one's `open_closed` (the folders to open, the key as the
+  provisional key) is awaited first. A thread opens its own folders, as the Threads Sidebar's
+  `open_workspace_and_activate_thread` does, then `load_thread`, which loads the Agent Panel with
+  `AgentPanel::load` and adds it when the new workspace has none yet. `open_port` and `show_logs`
+  open the key's folders. In `ports.rs`, `project_folders` gives a closed local group its key's
+  folders and `project_names` names closed groups; `marley_rail::cycle_row` passes over a closed
+  project's rows.
 - A project header has a chevron to fold it, a `+` menu with New Terminal, New Browser Tab
   (#500: `Rail::new_browser_tab` shows the project, then `browser::new_tab`, as Ctrl+T), New
   Agent Thread and the agent CLIs, and an attention dot;
