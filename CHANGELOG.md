@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A task's run is a block** (#621, 2026-09-30). A task or runnable's run in its terminal is a
+  block, as a typed command is: its output framed with the bar, the wash and the pill (its exit
+  code when it failed), its block menu, and its state on the terminal's rail row. Tasks run
+  without the shell's hooks, so the terminal opens the block when the task spawns and finishes
+  it with the task's exit code, before Zed's summary lines.
+
 - **Jump to a failed block's first failure** (#620, 2026-09-30). A failed block whose output names
   a failing place (rustc and cargo, gcc, clang and go, tsc, or a Python traceback) shows a Jump to
   Failure chip, and its right-click menu Jump to First Failure: the block scrolls to its first

@@ -324,6 +324,13 @@ top (the pinned command takes the top row, #529), and the file opened with `open
 `go_to_singleton_buffer_point`. The chip goes in `bookmarks::chip` before Ask the agent; the menu
 item heads the Block section.
 
+**Since #621 (the fork).** A task runs without Marley's hooks (Zed starts them only for an
+interactive local shell), so its terminal opens its block itself: `AnchoredBlocks::open_task`
+at line 0 in the `Terminal` literal, with the task's `command_label` (the wrapped form Zed's own
+summary prints) and its `cwd`, unverified so no typed Rerun is offered; `register_task_finished`
+calls `finish_task` at the cursor's line, before Zed appends its summary lines. Remote tasks
+open none.
+
 **Since #447.** The shim is a child module of `session`, the one module that calls it:
 `#[path = "pty_os.rs"]` keeps the file where gate:4's exclude and these notes name it, and its
 items are `pub(super)`. The reap signal logs any failure except ESRCH, the child having

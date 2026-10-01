@@ -4159,3 +4159,11 @@ already there: #620's first run printed exactly a screen's worth after the error
 bottom-anchored terminal showed it at the top before any jump. Print well over a screen below the
 target, and take a shot before the action that shows the target is out of view.
 
+## L-claude-621-a-short-terminals-rows-sit-at-the-bottom-001
+*category: validate · topic: e2e scenarios · from: pipeline 621*
+
+Since #476 a terminal draws its content against the bottom edge, so a short output's rows sit just
+above the prompt at the bottom of the view, not at its top: a scenario's click "on the output"
+counted from the top lands on empty rows, and a right-click there opens Zed's terminal menu with no
+Block section. Count rows up from the prompt's row (the last row) instead.
+

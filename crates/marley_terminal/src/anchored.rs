@@ -450,6 +450,34 @@ impl AnchoredBlocks {
         }
     }
 
+    /// Opens the block of a task's run (#621) at the absolute `line`: a task runs without the
+    /// shell's hooks, so its terminal opens the block from the task it spawned, `command` as the
+    /// block's command and `pwd` as its folder. The command is no shell's report, so it stays
+    /// unverified.
+    pub fn open_task(&mut self, command: String, pwd: Option<String>, line: u64) {
+        self.finish_running(line, ExitCode(None));
+        self.hosts.push(None);
+        self.blocks.push(AnchoredBlock {
+            index: self.blocks.len(),
+            command,
+            command_verified: false,
+            state: BlockState::Running,
+            exit_code: ExitCode(None),
+            prompt: PromptInfo {
+                pwd,
+                ..PromptInfo::default()
+            },
+            prompt_line: None,
+            output_start: line,
+            output_end: None,
+        });
+    }
+
+    /// Finishes a task's block (#621) before the absolute `line`, with the task's exit code.
+    pub fn finish_task(&mut self, line: u64, exit_code: Option<i32>) {
+        self.finish_running(line, ExitCode(exit_code));
+    }
+
     /// Carries every anchor across a resize that rewrapped the grid from `before` to `after`.
     ///
     /// The anchors are each block's prompt line, output start and output end, the staged

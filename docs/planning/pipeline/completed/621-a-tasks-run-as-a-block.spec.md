@@ -1,7 +1,7 @@
 ---
 pipeline_id: 3ba6657c-e031-4f8c-9606-0de86e34fe73
 ticket: docs/planning/tickets/open/TICKET-621-a-tasks-run-as-a-block.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "A task's run as a block"
 type: feature
 slice: prong 1 T4

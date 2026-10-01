@@ -1483,6 +1483,17 @@ impl TerminalBuilder {
             };
 
             let no_task = task.is_none();
+            // Marley: a local task's run is a block of its own, opened from the task (#621).
+            let marley_task_block = task.as_ref().filter(|_| !is_remote_terminal).map(|task| {
+                let spawned = &task.spawned_task;
+                (
+                    spawned.command_label.clone(),
+                    spawned
+                        .cwd
+                        .as_ref()
+                        .map(|cwd| cwd.to_string_lossy().into_owned()),
+                )
+            });
             let terminal = Terminal {
                 task,
                 terminal_type,
@@ -1558,6 +1569,10 @@ impl TerminalBuilder {
                     );
                     if marley_agents_out_of_history {
                         blocks.keep_agents_out_of_history();
+                    }
+                    if let Some((command, pwd)) = marley_task_block {
+                        blocks.open_task(command, pwd, 0);
+                        blocks.stamp(std::time::SystemTime::now());
                     }
                     blocks
                 },
@@ -3592,6 +3607,15 @@ impl Terminal {
                 task.status.register_terminal_exit();
             }
         };
+        // Marley: the task's block ends where its output did, before the summary lines (#621).
+        {
+            let position = alacritty_terminal::marley_hooks::HookPosition::of(&*self.term.lock());
+            let end = position.absolute_line() + u64::from(position.cursor_column > 0);
+            self.blocks
+                .finish_task(end, exit_status.and_then(|status| status.code()));
+            self.blocks.stamp(std::time::SystemTime::now());
+            cx.notify();
+        }
 
         let (finished_successfully, task_line, command_line) = task_summary(task, exit_status);
         let mut lines_to_show = Vec::new();

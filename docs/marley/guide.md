@@ -417,6 +417,10 @@ Python traceback) carries a Jump to Failure chip, and its right-click menu Jump 
 (#620): the block scrolls to its first error, under its pinned command, and the file opens at that
 line and column. `marley: jump to first failure` does it for the newest failed block.
 
+A task you run (`task: spawn`, a runnable's ▶) is a block too (#621): its output framed with the
+bar, the wash and the pill (its exit code when it fails), with the block's menu, its copies and
+Jump to First Failure, and its state on the terminal's rail row.
+
 ### Moving between blocks, copying, rerunning
 
 - Ctrl+Up scrolls to the start of the block above the top of the view, and Ctrl+Down to the next
