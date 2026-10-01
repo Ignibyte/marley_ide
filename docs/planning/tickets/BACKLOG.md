@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-624](open/TICKET-624-a-prompt-editor-at-the-shells-prompt.md) | feature | terminal (wave 3) · a prompt editor at the shell's prompt, on a key |
 | [TICKET-625](open/TICKET-625-completions-in-the-prompt-editor.md) | feature | terminal (wave 3) · completions in the prompt editor |
 | [TICKET-626](open/TICKET-626-a-commands-colours-at-the-prompt.md) | feature | terminal (wave 3) · a command's colours at the prompt |
 | [TICKET-627](open/TICKET-627-the-prompt-editor-by-default.md) | feature | terminal (wave 3) · the prompt editor by default, with the raw-passthrough ladder |

@@ -1,7 +1,7 @@
 ---
 pipeline_id: 8930fd9b-85b3-416c-b33b-84794990176a
 ticket: docs/planning/tickets/open/TICKET-624-a-prompt-editor-at-the-shells-prompt.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "A prompt editor at the shell's prompt, on a key"
 type: feature
 slice: prong 1 T3
@@ -16,8 +16,9 @@ default).
 ## Scope
 ### In
 - `crates/marley_workbench/src/rich_input.rs`: the editor opens at a shell prompt too
-  (`AnchoredBlocks::at_prompt()`), on `marley::PromptEditor` bound to `ctrl-g` in the terminal's
-  key context, prefilled from #484's `typed_text`.
+  (`AnchoredBlocks::at_prompt()`), on #481's own `marley::RichInput` (`ctrl-g` in the terminal's
+  key context), which so far passes the key on when no agent runs; prefilled from #484's
+  `typed_text`.
 - Enter: Ctrl+U to the shell (clearing its line), then the text and a return, as #481's `send`
   does; Escape closes the editor and leaves the shell's line as it was; Shift+Enter a new line.
 - #484's ghost text and → stay on the shell's own prompt; the editor shows none yet.

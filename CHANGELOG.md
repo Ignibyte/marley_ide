@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A prompt editor at the shell's prompt** (#624, 2026-09-30). At a shell prompt with no agent
+  running, Ctrl+G opens the footer editor (#481's) for the shell, holding the line typed so far:
+  Zed's editing for a command. Enter clears the shell's line and runs the command as a block;
+  Escape leaves the shell's line as it was.
+
 - **A failed block's errors as the project's diagnostics** (#623, 2026-09-30). The errors and
   warnings a failed block names in the project's files (rustc, the GNU shape, tsc, Python) are
   the project's diagnostics: counted in the status bar, listed in the Diagnostics view as

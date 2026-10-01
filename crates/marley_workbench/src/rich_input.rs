@@ -3,7 +3,12 @@
 //! While an agent runs in a terminal, Ctrl-G (`marley::RichInput`) or the bar's button opens the
 //! terminal's editor and gives it the focus. Enter sends the text to the agent as one paste,
 //! bracketed when the agent asked for it, and a carriage return; Shift-Enter adds a line; Escape
-//! closes the editor and keeps the draft. Without an agent, Ctrl-G reaches the program as before.
+//! closes the editor and keeps the draft.
+//!
+//! At a shell's prompt with no agent running, Ctrl-G opens the same editor for the shell (#624),
+//! holding the line typed so far: Enter clears the shell's line with Ctrl-U, then sends the text
+//! and a carriage return, and Escape leaves the shell's line as it was. Anywhere else, Ctrl-G
+//! reaches the program as before.
 
 use std::collections::HashMap;
 
@@ -25,6 +30,17 @@ use crate::{CloseRichInput, RichInput, SendRichInput};
 struct Prompt {
     editor: Entity<Editor>,
     open: bool,
+    /// Who the text goes to.
+    target: Target,
+}
+
+/// Who an editor's text goes to.
+#[derive(Clone, Copy)]
+enum Target {
+    /// The CLI agent running in the terminal.
+    Agent(AgentKind),
+    /// The shell, waiting at its prompt (#624).
+    Shell,
 }
 
 /// Each terminal view's editor, made the first time it opens and dropped with the view.
@@ -39,12 +55,12 @@ pub fn init(cx: &mut App) {
     cx.set_global(Prompts::default());
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action(|workspace, _: &RichInput, window, cx| {
-            let agent_view = focused_terminal(workspace, window, cx).and_then(|view| {
-                let agent = agent_in(view.read(cx).terminal().read(cx))?;
-                Some((view, agent))
+            let target_view = focused_terminal(workspace, window, cx).and_then(|view| {
+                let target = target_of(view.read(cx).terminal().read(cx))?;
+                Some((view, target))
             });
-            match agent_view {
-                Some((view, agent)) => {
+            match target_view {
+                Some((view, target)) => {
                     let workspace_entity = cx.entity();
                     crate::shortcut_note::taken(
                         &RichInput,
@@ -54,7 +70,7 @@ pub fn init(cx: &mut App) {
                         window,
                         cx,
                     );
-                    open(&view, agent, window, cx);
+                    open_for(&view, target, window, cx);
                 }
                 // The key goes on to the terminal, which sends it to the program.
                 None => cx.propagate(),
@@ -64,20 +80,65 @@ pub fn init(cx: &mut App) {
     .detach();
 }
 
+/// Who the editor of `terminal` would write to: its running agent, else its shell while that waits
+/// at a prompt off the alternate screen (#624); none, to leave Ctrl-G to the program.
+fn target_of(terminal: &terminal::Terminal) -> Option<Target> {
+    if let Some(agent) = agent_in(terminal) {
+        return Some(Target::Agent(agent));
+    }
+    let at_prompt = terminal.marley_anchored().at_prompt()
+        && !terminal
+            .last_content()
+            .mode
+            .contains(terminal::Modes::ALT_SCREEN);
+    at_prompt.then_some(Target::Shell)
+}
+
 /// Opens `view`'s editor for `agent`, with the draft it had, and gives it the focus.
 pub fn open(view: &Entity<TerminalView>, agent: AgentKind, window: &mut Window, cx: &mut App) {
+    open_for(view, Target::Agent(agent), window, cx);
+}
+
+/// Opens `view`'s editor for `target` and gives it the focus: an agent's with the draft it had, the
+/// shell's with the line typed at its prompt when there is one (#624).
+fn open_for(view: &Entity<TerminalView>, target: Target, window: &mut Window, cx: &mut App) {
     let id = view.entity_id();
     let existing = cx
         .global::<Prompts>()
         .0
         .get(&id)
         .map(|prompt| prompt.editor.clone());
-    let editor = existing.unwrap_or_else(|| new_editor(view, agent, window, cx));
+    let editor = existing.unwrap_or_else(|| new_editor(view, window, cx));
+    let typed = match target {
+        Target::Shell => crate::autosuggest::typed_text(view.read(cx).terminal().read(cx))
+            .filter(|typed| !typed.trim().is_empty()),
+        Target::Agent(_) => None,
+    };
+    editor.update(cx, |editor, cx| {
+        editor.set_placeholder_text(&placeholder(target), window, cx);
+        if let Some(typed) = typed {
+            editor.set_text(typed, window, cx);
+            editor.move_to_end(&editor::actions::MoveToEnd, window, cx);
+        }
+    });
     window.focus(&editor.focus_handle(cx), cx);
-    cx.global_mut::<Prompts>()
-        .0
-        .insert(id, Prompt { editor, open: true });
+    cx.global_mut::<Prompts>().0.insert(
+        id,
+        Prompt {
+            editor,
+            open: true,
+            target,
+        },
+    );
     view.update(cx, |_, cx| cx.notify());
+}
+
+/// What an empty editor says it is for.
+fn placeholder(target: Target) -> String {
+    match target {
+        Target::Agent(agent) => format!("A prompt for {}", agent.display_name()),
+        Target::Shell => "A command for the shell".to_string(),
+    }
 }
 
 /// Whether `view`'s editor is open (#549).
@@ -102,19 +163,11 @@ pub fn insert(view: &Entity<TerminalView>, text: &str, window: &mut Window, cx: 
     window.focus(&editor.focus_handle(cx), cx);
 }
 
-/// A new editor for `view`'s prompt to `agent`, one to eight lines tall, which goes when the view
-/// does.
-fn new_editor(
-    view: &Entity<TerminalView>,
-    agent: AgentKind,
-    window: &mut Window,
-    cx: &mut App,
-) -> Entity<Editor> {
-    let placeholder = format!("A prompt for {}", agent.display_name());
+/// A new editor for `view`'s prompt, one to eight lines tall, which goes when the view does.
+fn new_editor(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) -> Entity<Editor> {
     let editor = cx.new(|cx| {
         let mut editor = Editor::auto_height(1, 8, window, cx);
         editor.set_soft_wrap_mode(settings::SoftWrap::EditorWidth, cx);
-        editor.set_placeholder_text(&placeholder, window, cx);
         editor
     });
     let id = view.entity_id();
@@ -128,17 +181,21 @@ fn new_editor(
 /// Sends the editor's text to the agent as one paste and a carriage return, then closes it
 /// empty; an empty editor only closes.
 fn send(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
-    let Some(editor) = cx
+    let Some((editor, target)) = cx
         .global::<Prompts>()
         .0
         .get(&view.entity_id())
-        .map(|prompt| prompt.editor.clone())
+        .map(|prompt| (prompt.editor.clone(), prompt.target))
     else {
         return;
     };
     let text = editor.read(cx).text(cx);
     if !text.trim().is_empty() {
         let terminal = view.read(cx).terminal().clone();
+        // What was typed at the shell's prompt is the editor's now, so the shell's line goes first.
+        if matches!(target, Target::Shell) {
+            terminal.update(cx, |terminal, _| terminal.input(vec![0x15]));
+        }
         crate::terminal_drive::paste_then(
             &terminal,
             &text,

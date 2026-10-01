@@ -905,11 +905,15 @@ alike.
   soft wrap), made the first time it opens and dropped with the view, and whether it shows.
 - `marley::RichInput` is bound to `ctrl-g` in `Terminal` and handled on every workspace: with a
   CLI agent in the focused terminal (`agent_bar::agent_in`) it opens that terminal's editor and
-  focuses it; otherwise it calls `cx.propagate()`, and the key goes on to the terminal, which
-  sends it to the program.
+  focuses it; since #624, with none and the shell at a prompt off the alternate screen
+  (`target_of`), it opens it for the shell (`Target::Shell`), its text the line typed at the
+  prompt (`autosuggest::typed_text`); otherwise it calls `cx.propagate()`, and the key goes on to
+  the terminal, which sends it to the program. The footer of a terminal with no agent
+  (`agent_bar::footer_without_agent`) draws the editor too since #624.
 - In the editor's `MarleyRichInput` container, Enter (`marley::SendRichInput`) pastes the text
   with `Terminal::paste`, bracketed when the program asked for it, sends `\r` after
-  `terminal_drive::AFTER_PASTE` (`paste_then`, #594), clears and closes
+  `terminal_drive::AFTER_PASTE` (`paste_then`, #594), for the shell after a Ctrl-U that clears
+  its line (#624), clears and closes
   the editor and focuses the terminal; Escape (`marley::CloseRichInput`) closes it with the draft
   kept; Shift-Enter is `editor::Newline`. The container stops the key events the terminal view
   would send its program, chords and keys that type nothing, and lets text through to the

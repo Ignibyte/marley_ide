@@ -3045,3 +3045,12 @@ the failing run's diagnostics in place (`cleared.png` still counted 2 errors and
 before the commit: each view watches its current terminal, re-armed from `observe_self` when the
 view's terminal changes, and lets go of the one it replaced.
 
+## F-claude-624-the-shells-editor-opened-unseen-001
+*severity: medium · found in: pipeline 624's Test phase (run 1) · class: a widget drawn by only one of a view's footers*
+
+The terminal's footer draws #481's editor only in the agent bar's footer; a terminal with no agent
+goes through `agent_bar::footer_without_agent`, which left it out. Ctrl+G at a shell's prompt
+opened the editor (the shortcut toast showed) but nothing drew it, its focus fell nowhere, and the
+typing went on to the shell (`editor.png`, `typed.png`). Fixed before the commit: the agentless
+footer stacks the editor with the drive card and the URL strip.
+

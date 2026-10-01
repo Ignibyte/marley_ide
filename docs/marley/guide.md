@@ -505,8 +505,12 @@ While an agent CLI runs, Ctrl+G or the pencil opens a Zed editor above the bar f
 prompt, one to eight lines high (#481). Select with the mouse, undo, move by word, and press
 Shift+Enter for a new line. Enter sends the text to the agent as one paste (bracketed when the
 agent asked for bracketed paste) followed by a carriage return, and closes the editor. Escape
-closes it and keeps the draft for the next Ctrl+G. In a terminal with no agent, Ctrl+G reaches the
-program as it always did.
+closes it and keeps the draft for the next Ctrl+G.
+
+At a shell's prompt with no agent running, Ctrl+G opens the same editor for the shell (#624),
+holding what you had typed at the prompt. Enter clears the shell's line and runs the editor's
+command as a block; Escape closes the editor and leaves the shell's line as it was. Anywhere else
+(a full-screen program, a command running), Ctrl+G reaches the program as it always did.
 
 ### Attach File
 

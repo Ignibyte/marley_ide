@@ -148,13 +148,15 @@ fn branch_for<'a>(
 }
 
 /// The footer of a terminal with no agent CLI in its foreground: the card or bar of an agent
-/// typing into its program (#525), and the strip while it offers a URL (#503).
+/// typing into its program (#525), the shell's prompt editor while it is open (#624), and the
+/// strip while it offers a URL (#503).
 fn footer_without_agent(
     context: &MarleyFooterContext,
     offer: Option<AnyElement>,
     cx: &App,
 ) -> Option<AnyElement> {
     let drive = crate::terminal_drive::footer(context, cx);
+    let prompt_editor = rich_input::element(context, cx);
     let colors = cx.theme().colors();
     let strip = offer.map(|offer| {
         h_flex()
@@ -170,16 +172,20 @@ fn footer_without_agent(
             .child(offer)
             .into_any_element()
     });
-    match (drive, strip) {
-        (Some(drive), Some(strip)) => Some(
+    let mut parts: Vec<AnyElement> = [drive, prompt_editor, strip]
+        .into_iter()
+        .flatten()
+        .collect();
+    match parts.len() {
+        0 => None,
+        1 => parts.pop(),
+        _ => Some(
             v_flex()
                 .w_full()
                 .flex_none()
-                .child(drive)
-                .child(strip)
+                .children(parts)
                 .into_any_element(),
         ),
-        (drive, strip) => drive.or(strip),
     }
 }
 
