@@ -364,6 +364,8 @@ pub struct MarleySettings {
     pub block_headers: BlockHeaders,
     /// The command of the harness's MCP server the rail follows, or none (#534).
     pub harness: Option<settings::ContextServerCommand>,
+    /// Whether Marley runs the harness's runtime itself (#632).
+    pub embedded_harness: EmbeddedHarness,
     /// How long a command runs before its end notifies; 0 is never (#551).
     pub long_command_seconds: u64,
     /// Whose consequential clicks in the Browser tab wait for Allow (#571).
@@ -449,6 +451,25 @@ impl PromptEditor {
     }
 }
 
+/// Whether Marley runs the harness's runtime itself, from `marley.embedded_harness` (#632).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EmbeddedHarness {
+    /// Marley starts `rh serve` and follows it.
+    Run,
+    /// Marley runs none.
+    Off,
+}
+
+impl EmbeddedHarness {
+    /// The setting's value: off unless it is on.
+    const fn from_setting(run: Option<bool>) -> Self {
+        match run {
+            Some(true) => Self::Run,
+            _ => Self::Off,
+        }
+    }
+}
+
 /// How a block's prompt rows are drawn, from `marley.block_headers` (#628).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlockHeaders {
@@ -510,6 +531,9 @@ impl Settings for MarleySettings {
                 .and_then(|marley| marley.sticky_command_header)
                 .unwrap_or(true),
             harness: marley.and_then(|marley| marley.harness.clone()),
+            embedded_harness: EmbeddedHarness::from_setting(
+                marley.and_then(|marley| marley.embedded_harness),
+            ),
             block_headers: BlockHeaders::from_setting(
                 marley.and_then(|marley| marley.block_headers),
             ),

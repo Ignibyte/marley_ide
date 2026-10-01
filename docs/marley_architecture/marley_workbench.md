@@ -1429,6 +1429,17 @@ alike.
   { mode: tail, lines: 500 } }`'s lines in the buffer font, read when the seat's `last_event_ms`
   or state changes and every 2 s while it is not done, one read at a time; a failed read shows in
   red above the kept lines. `open` shows the one open for that id or adds one to the center.
+- Since #632 the source is `Source::{Off, Command, Embedded}`, `marley.harness` first, then
+  `marley.embedded_harness` (`EmbeddedHarness`). `embed` finds `rh` (`MARLEY_RH`, else
+  `which::which`, off the main thread), checks the root `<data dir>/harness`'s socket path against
+  107 bytes, and loops: `serve` runs `rh --state <root> serve` through
+  `process::follow_with_errors` (stderr kept), waits 10 s for the JSON ready line, then sets
+  `Runtime::Running` and starts `follow` on `rh --state <root> mcp` once (`follow_embedded`), reads
+  stdout to its end, and gives the exit and stderr's last line; a run that never got ready is
+  killed. A `serve` that says another runtime owns the root counts as running elsewhere: Marley
+  follows it and looks again after a minute. Between runs it waits 1, 2, 4 … 60 s. The `Runtime`
+  (`Starting`, `Running`, `Stopped`, `Missing`) is in the `Harness` global and speaks first in the
+  rail's header, whose tooltip holds the whole reason; the rows are stale while it is not running.
 - `shown_prompt` drops the `[wait <key>, generation <id>]` the harness adds to an actor's prompt,
   for the rail's rows and the inbox.
 - In `rail.rs`: `observe_marks` observes `Harness`; `render_harness` draws the section after the

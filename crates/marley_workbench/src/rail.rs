@@ -79,6 +79,7 @@ use crate::agents::{self, AgentIcon};
 use crate::browser::{BrowserEvent, BrowserHub, BrowserView};
 use crate::github::{self, PullRequest, PullRequestState};
 use crate::groups;
+use crate::harness::{Connection, Harness, Runtime};
 use crate::ports::{self, ContainerStop, Ports, ProjectListener, ServiceAction, Stop};
 use crate::system_one::{self, Asking};
 use crate::turns::Turns;
@@ -725,7 +726,7 @@ impl Rail {
     /// harness's sessions (#534).
     fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 6] {
         [
-            cx.observe_global_in::<crate::harness::Harness>(window, Self::refresh),
+            cx.observe_global_in::<Harness>(window, Self::refresh),
             cx.observe_global_in::<AgentEvents>(window, Self::refresh),
             cx.observe_global_in::<Turns>(window, Self::refresh),
             cx.observe_global_in::<crate::notifications::Attention>(window, Self::refresh),
@@ -4027,23 +4028,32 @@ impl Rail {
         if self.snapshot.rail.filtering {
             return None;
         }
-        let connection = crate::harness::Harness::connection(cx)?;
-        let (says, says_color) = match &connection {
-            crate::harness::Connection::Connecting => ("connecting".to_string(), Color::Muted),
-            crate::harness::Connection::Connected => ("connected".to_string(), Color::Muted),
-            crate::harness::Connection::Down(reason) => {
-                (format!("not running: {reason}"), Color::Error)
+        let connection = Harness::connection(cx);
+        let runtime = Harness::runtime(cx);
+        if connection.is_none() && runtime.is_none() {
+            return None;
+        }
+        // The runtime Marley runs itself (#632) speaks first: `rh mcp` answers while it is down.
+        let (says, says_color) = match (&runtime, &connection) {
+            (Some(Runtime::Missing(reason)), _) => (reason.to_string(), Color::Error),
+            (Some(Runtime::Stopped(reason)), _) => {
+                (format!("runtime stopped: {reason}"), Color::Error)
             }
+            (Some(Runtime::Starting), _) => ("starting the runtime".to_string(), Color::Muted),
+            (_, Some(Connection::Connected)) => ("connected".to_string(), Color::Muted),
+            (_, Some(Connection::Down(reason))) => (format!("not running: {reason}"), Color::Error),
+            (_, Some(Connection::Connecting) | None) => ("connecting".to_string(), Color::Muted),
         };
-        let stale = connection != crate::harness::Connection::Connected;
+        let stale = connection != Some(Connection::Connected)
+            || runtime.is_some_and(|runtime| runtime != Runtime::Running);
         let quiet_after_ms = MarleySettings::get_global(cx)
             .no_update_after_minutes
             .saturating_mul(60_000);
         let now = crate::harness::now_ms();
-        let rows: Vec<AnyElement> = if crate::harness::Harness::folded(cx) {
+        let rows: Vec<AnyElement> = if Harness::folded(cx) {
             Vec::new()
         } else {
-            crate::harness::Harness::seats(cx)
+            Harness::seats(cx)
                 .seats()
                 .iter()
                 .map(|seat| harness_row(seat, stale, quiet_after_ms, now, cx))
@@ -4068,13 +4078,15 @@ impl Rail {
                         )
                         .child(
                             div().min_w_0().child(
-                                Label::new(says)
+                                Label::new(says.clone())
                                     .size(LabelSize::XSmall)
                                     .color(says_color)
                                     .truncate(),
                             ),
                         )
-                        .on_click(|_, _, cx| crate::harness::Harness::toggle_folded(cx)),
+                        // A reason is longer than the rail is wide (#632).
+                        .tooltip(Tooltip::text(says))
+                        .on_click(|_, _, cx| Harness::toggle_folded(cx)),
                 )
                 .children(rows)
                 .into_any_element(),
@@ -6157,7 +6169,7 @@ fn harness_row(
 /// Each harness session waiting on a question, as an inbox entry, its options after its prompt
 /// (#534).
 fn harness_entries(snapshot: &mut Snapshot, cx: &App) {
-    for seat in crate::harness::Harness::seats(cx).seats() {
+    for seat in Harness::seats(cx).seats() {
         let Some(question) = &seat.question else {
             continue;
         };

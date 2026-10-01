@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The embedded harness** (#632, 2026-10-01). With `marley.embedded_harness` on, Marley runs
+  rustal-harness's runtime itself: it finds `rh` (`MARLEY_RH`, else the PATH), serves a root in its
+  own data folder, and shows that harness's sessions in the rail's Harness section. The header also
+  says when the runtime stopped and why, or that no `rh` was found and where Marley looked (a
+  tooltip holds the whole reason), and a stopped runtime is started again after a growing wait;
+  the harness's sessions outlive it. `marley.harness`, when set, wins.
+
 - **The harness's sessions in the rail** (#534, 2026-10-01). With `marley.harness` naming
   rustal-harness's MCP server (`{"command": "/path/to/rh", "args": ["--state", "<root>",
   "mcp"]}`), the rail gains a Harness section after the projects: the connection's state, and a

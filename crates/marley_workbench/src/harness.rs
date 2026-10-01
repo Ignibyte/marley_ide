@@ -9,7 +9,16 @@
 //! server exit, so a call that fails, or takes more than five seconds, is the sign: the section
 //! says the harness is not running and why, keeps its rows, marked stale, and starts the command
 //! again after 1 s, doubling to at most 60 s. Marley calls no write verb.
+//!
+//! With `marley.embedded_harness` on and no `marley.harness`, Marley runs the harness itself
+//! (#632): it finds `rh` (`MARLEY_RH`, else the search path), starts `rh --state <data dir>/harness
+//! serve` as a child, waits for its ready line, and follows `rh --state <root> mcp` as above. `rh
+//! mcp` reads the journal while `serve` is down, so the runtime's own state, from the child, goes
+//! in the section's header too; a runtime that ends is started again after a growing wait, and the
+//! harness's sessions, in its tmux server, outlive it.
 
+use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 use std::pin::pin;
 use std::sync::Arc;
 use std::time::Duration;
@@ -19,6 +28,7 @@ use context_server::types::requests::CallTool;
 use context_server::types::{CallToolParams, CallToolResponse};
 use context_server::{ContextServer, ContextServerCommand, ContextServerId};
 use futures::future::{Either, select};
+use futures::{AsyncBufReadExt as _, StreamExt as _};
 use gpui::{
     App, AsyncApp, Context, EventEmitter, FocusHandle, Focusable, Global, SharedString,
     Subscription, Task,
@@ -32,7 +42,7 @@ use util::ResultExt as _;
 use workspace::Workspace;
 use workspace::item::Item;
 
-use crate::MarleySettings;
+use crate::{EmbeddedHarness, MarleySettings};
 
 /// How often the fleet is asked for new events.
 const POLL: Duration = Duration::from_secs(1);
@@ -53,6 +63,15 @@ const VIEW_REFRESH: Duration = Duration::from_secs(2);
 /// How many characters of a reason the section's header shows.
 const REASON_CHARS: usize = 120;
 
+/// How long `rh serve` may take to say it is ready.
+const READY_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// The longest path a Unix socket takes, with its terminating NUL left out.
+const SOCKET_PATH_MAX: usize = 107;
+
+/// What `rh serve` says when another process already serves the root.
+const ROOT_TAKEN: &str = "another runtime owns this state root";
+
 /// The harness's connection, as the section's header says it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Connection {
@@ -62,11 +81,34 @@ pub(crate) enum Connection {
     Down(SharedString),
 }
 
+/// The runtime Marley runs itself (#632), as the section's header says it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Runtime {
+    Starting,
+    Running,
+    /// It ended, with the reason.
+    Stopped(SharedString),
+    /// No `rh` was found, with where Marley looked.
+    Missing(SharedString),
+}
+
+/// Where the harness Marley follows comes from.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+enum Source {
+    #[default]
+    Off,
+    /// `marley.harness`'s command.
+    Command(ContextServerCommand),
+    /// The runtime Marley runs itself.
+    Embedded,
+}
+
 /// What Marley follows of the harness: the setting's command, the connection, and the fleet.
 #[derive(Default)]
 pub(crate) struct Harness {
-    command: Option<ContextServerCommand>,
+    source: Source,
     connection: Option<Connection>,
+    runtime: Option<Runtime>,
     seats: FleetSnapshot,
     /// Bumped each minute while a session works, so its `no update in N m` is drawn again.
     minute: u64,
@@ -74,14 +116,21 @@ pub(crate) struct Harness {
     folded: bool,
     server: Option<Arc<ContextServer>>,
     run: Option<Task<()>>,
+    /// The embedded runtime's keeper, which starts `serve` and the run.
+    embed: Option<Task<()>>,
 }
 
 impl Global for Harness {}
 
 impl Harness {
-    /// The connection, while `marley.harness` names a command.
+    /// The connection, once Marley follows a harness.
     pub(crate) fn connection(cx: &App) -> Option<Connection> {
         cx.try_global::<Self>()?.connection.clone()
+    }
+
+    /// The state of the runtime Marley runs itself, while it runs one (#632).
+    pub(crate) fn runtime(cx: &App) -> Option<Runtime> {
+        cx.try_global::<Self>()?.runtime.clone()
     }
 
     /// Whether the rail's Harness section folds its rows.
@@ -112,23 +161,246 @@ pub fn init(cx: &mut App) {
     cx.observe_global::<SettingsStore>(follow_setting).detach();
 }
 
-/// Starts following the command `marley.harness` names, or stops, when the setting changed.
+/// Starts following the harness the settings name, or the one Marley runs itself, or stops, when
+/// the settings changed: `marley.harness` first, then `marley.embedded_harness`.
 fn follow_setting(cx: &mut App) {
-    let command = MarleySettings::get_global(cx).harness.clone();
-    if cx.global::<Harness>().command == command {
+    let settings = MarleySettings::get_global(cx);
+    let source = match (&settings.harness, settings.embedded_harness) {
+        (Some(command), _) => Source::Command(command.clone()),
+        (None, EmbeddedHarness::Run) => Source::Embedded,
+        (None, EmbeddedHarness::Off) => Source::Off,
+    };
+    if cx.global::<Harness>().source == source {
         return;
     }
-    let run = command.clone().map(|command| {
-        cx.spawn(async move |cx| {
-            follow(command, cx).await;
-        })
-    });
+    let (run, embed) = match &source {
+        Source::Off => (None, None),
+        Source::Command(command) => {
+            let command = command.clone();
+            let run = cx.spawn(async move |cx| follow(command, cx).await);
+            (Some(run), None)
+        }
+        Source::Embedded => (None, Some(cx.spawn(async move |cx| embed(cx).await))),
+    };
     let harness = cx.global_mut::<Harness>();
-    harness.connection = command.as_ref().map(|_| Connection::Connecting);
-    harness.command = command;
+    harness.connection = matches!(source, Source::Command(_)).then_some(Connection::Connecting);
+    harness.runtime = matches!(source, Source::Embedded).then_some(Runtime::Starting);
+    harness.source = source;
     harness.seats = FleetSnapshot::default();
     harness.server = None;
+    // The old run and runtime go with their tasks: `serve`'s child dies with its handle, and the
+    // harness's sessions live on in its tmux server.
     harness.run = run;
+    harness.embed = embed;
+}
+
+/// Keeps the runtime Marley runs itself: finds `rh`, serves the root, follows it once it is
+/// ready, and serves it again after a growing wait whenever `serve` ends (#632).
+async fn embed(cx: &AsyncApp) {
+    let rh = match find_rh(cx).await {
+        Ok(rh) => rh,
+        Err(reason) => {
+            set_runtime(Runtime::Missing(reason.into()), cx);
+            return;
+        }
+    };
+    let root = paths::data_dir().join("harness");
+    let socket = root.join("runtime.sock");
+    if socket.as_os_str().len() > SOCKET_PATH_MAX {
+        let reason = format!(
+            "{} is too long a path for the harness's socket",
+            socket.display()
+        );
+        set_runtime(Runtime::Stopped(reason.into()), cx);
+        return;
+    }
+    let mut failures = 0_u32;
+    loop {
+        set_runtime(Runtime::Starting, cx);
+        let ended = serve(&rh, &root, &mut failures, cx).await;
+        let wait_s = 1_u64
+            .checked_shl(failures)
+            .unwrap_or(BACKOFF_MAX_S)
+            .min(BACKOFF_MAX_S);
+        failures = failures.saturating_add(1);
+        match ended {
+            Served::Elsewhere => {
+                // Another process serves the root: follow it, and look again in a while.
+                set_runtime(Runtime::Running, cx);
+                follow_embedded(&rh, &root, cx);
+                cx.background_executor()
+                    .timer(Duration::from_secs(BACKOFF_MAX_S))
+                    .await;
+                continue;
+            }
+            Served::Ended(reason) => {
+                log::info!("harness: the runtime stopped: {reason}");
+                set_runtime(Runtime::Stopped(clip(&reason).into()), cx);
+            }
+        }
+        cx.background_executor()
+            .timer(Duration::from_secs(wait_s))
+            .await;
+    }
+}
+
+/// How a `serve` came to an end.
+enum Served {
+    /// It ran, or failed to, and ended, with why.
+    Ended(String),
+    /// The root's lock was taken: another process serves it.
+    Elsewhere,
+}
+
+/// Runs `rh --state <root> serve` until it ends: once it says it is ready, the runtime runs and
+/// Marley follows it; a run that got ready resets `failures`.
+async fn serve(rh: &Path, root: &Path, failures: &mut u32, cx: &AsyncApp) -> Served {
+    let arguments = [OsStr::new("--state"), root.as_os_str(), OsStr::new("serve")];
+    let mut child = match crate::process::follow_with_errors(rh, &arguments) {
+        Ok(child) => child,
+        Err(error) => return Served::Ended(format!("`rh serve` did not start: {error}")),
+    };
+    // The last line it writes to stderr says why it ended.
+    let errors = child.stderr.take().map(|stderr| {
+        cx.background_spawn(async move {
+            let mut lines = futures::io::BufReader::new(stderr).lines();
+            let mut last = String::new();
+            while let Some(Ok(line)) = lines.next().await {
+                if !line.trim().is_empty() {
+                    last = line;
+                }
+            }
+            last
+        })
+    });
+    let Some(stdout) = child.stdout.take() else {
+        return Served::Ended("`rh serve` gave no output".to_string());
+    };
+    let mut lines = futures::io::BufReader::new(stdout).lines();
+    // Some(ready) when the output said whether it got ready, None when the wait ran out.
+    let ready = {
+        let waiting = async {
+            while let Some(line) = lines.next().await {
+                if line.is_ok_and(|line| is_ready(&line)) {
+                    return true;
+                }
+            }
+            false
+        };
+        match select(
+            pin!(waiting),
+            pin!(cx.background_executor().timer(READY_TIMEOUT)),
+        )
+        .await
+        {
+            Either::Left((ready, _)) => Some(ready),
+            Either::Right(_) => None,
+        }
+    };
+    match ready {
+        Some(true) => {
+            *failures = 0;
+            set_runtime(Runtime::Running, cx);
+            follow_embedded(rh, root, cx);
+            // It runs until its output ends.
+            while lines.next().await.is_some() {}
+        }
+        Some(false) => {}
+        None => {
+            if let Err(error) = child.kill() {
+                log::warn!("harness: stopping a `rh serve` that never got ready: {error}");
+            }
+        }
+    }
+    let status = child.status().await;
+    let said = match errors {
+        Some(errors) => errors.await,
+        None => String::new(),
+    };
+    if said.contains(ROOT_TAKEN) {
+        return Served::Elsewhere;
+    }
+    let exit = match status {
+        Ok(status) => status.code().map_or_else(
+            || "it was stopped by a signal".to_string(),
+            |code| format!("exit {code}"),
+        ),
+        Err(error) => format!("its end was not read: {error}"),
+    };
+    Served::Ended(if said.is_empty() {
+        exit
+    } else {
+        format!("{exit}: {said}")
+    })
+}
+
+/// Whether `line` is `rh serve`'s ready line, `{"ready": true, …}`.
+fn is_ready(line: &str) -> bool {
+    serde_json::from_str::<Value>(line)
+        .ok()
+        .and_then(|value| value.get("ready")?.as_bool())
+        .unwrap_or(false)
+}
+
+/// Starts following the embedded runtime's `rh mcp`, unless Marley follows it already.
+fn follow_embedded(rh: &Path, root: &Path, cx: &AsyncApp) {
+    let command = ContextServerCommand {
+        path: rh.to_path_buf(),
+        args: vec![
+            "--state".to_string(),
+            root.display().to_string(),
+            "mcp".to_string(),
+        ],
+        env: None,
+        timeout: None,
+    };
+    cx.update(|cx| {
+        if cx.global::<Harness>().run.is_some() {
+            return;
+        }
+        let run = cx.spawn(async move |cx| follow(command, cx).await);
+        let harness = cx.global_mut::<Harness>();
+        harness.connection = Some(Connection::Connecting);
+        harness.run = Some(run);
+    });
+}
+
+/// Finds `rh`: `MARLEY_RH`, else the search path; or says where Marley looked.
+async fn find_rh(cx: &AsyncApp) -> Result<PathBuf, String> {
+    let named = std::env::var_os("MARLEY_RH").map(PathBuf::from);
+    // A stat and a walk of the search path: off the main thread.
+    cx.background_spawn(futures::future::lazy(move |_| match named {
+        Some(path) if path.is_file() => Ok(path),
+        Some(path) => Err(format!(
+            "no rh at MARLEY_RH: {} is not there",
+            path.display()
+        )),
+        None => {
+            which::which("rh").map_err(|_| "no rh on the PATH, and MARLEY_RH is unset".to_string())
+        }
+    }))
+    .await
+}
+
+/// Sets the embedded runtime's state.
+fn set_runtime(runtime: Runtime, cx: &AsyncApp) {
+    cx.update(|cx| {
+        // Taken mutably only on a change, so the rail redraws only then.
+        if cx.global::<Harness>().runtime.as_ref() != Some(&runtime) {
+            cx.global_mut::<Harness>().runtime = Some(runtime);
+        }
+    });
+}
+
+/// `reason`'s first line, cut to what a header shows.
+fn clip(reason: &str) -> String {
+    reason
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .chars()
+        .take(REASON_CHARS)
+        .collect()
 }
 
 /// Keeps a connection to the harness's MCP server: connects, follows the fleet until a call

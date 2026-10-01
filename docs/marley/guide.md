@@ -1505,6 +1505,15 @@ a context server's command is named:
 }
 ```
 
+Or let Marley run the harness itself (#632): set `"marley": { "embedded_harness": true }` where
+`rh` is installed. Marley finds `rh` through `MARLEY_RH`, else your PATH, starts `rh serve` on a
+root in its own data folder (`~/.local/share/marley/harness`), and follows it. The section's
+header then also says when the runtime is starting or stopped and why, or that no `rh` was found
+and where Marley looked; hover it for the whole reason. A stopped runtime is started again after a
+growing wait, and the harness's sessions, kept by its tmux server, outlive it: turning the setting
+off or quitting Marley ends the runtime and leaves them running. A `harness` command, when set,
+wins over this.
+
 The rail then shows a Harness section after the projects and the containers. Its header says
 whether Marley is connected, connecting, or why the harness is not running; a click on it folds
 the rows. Each session is a row: its title, a dot for its state, and under it the question it
@@ -1741,6 +1750,7 @@ Environment variables and flags:
 |---|---|---|
 | `MARLEY_CHROMIUM` | Marley | The Chromium binary to run; when set, nothing else is tried |
 | `MARLEY_SYSTEM_ONE_KEY` | Marley | The System One layer's key; it comes before the keyring |
+| `MARLEY_RH` | Marley | The harness's `rh` to run when `embedded_harness` is on; when set, the PATH is not searched |
 | `MARLEY_MCP_ENDPOINT` | The bridge | The endpoint file to read |
 | `CLAUDE_CONFIG_DIR` | Marley | Claude Code's configuration directory, for whether the plugin is installed (default `~/.claude`) |
 | `ZED_LOG`, `RUST_LOG` | Marley | The log filter. It matches the crate a line is logged from: `ZED_LOG=marley_browser=debug` logs each input-to-frame time, and `marley_workbench::browser` names the Browser tab's own lines |

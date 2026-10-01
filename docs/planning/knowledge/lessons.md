@@ -4266,3 +4266,11 @@ A client that reconnects after a second leaves no time to shoot it down. `rh mcp
 root whose mode is not 0700, so a scenario that kills `rh mcp` after `chmod 0755` on the root
 holds the client down for as long as it likes, and `chmod 0700` lets the next retry in. The root
 must be short (its sockets live under it): `$XDG_RUNTIME_DIR/rh534-<pid>`, not the scratch tree.
+
+## L-claude-632-a-new-spawn-in-a-listed-site-shares-its-spawn-call-001
+*category: validate · topic: gates · from: pipeline 632*
+
+gate:22 counts spawn calls, not files: a second function that starts a process in a listed site
+(`process.rs`) raises the count past `SPAWN_SITES_PIN`. When the new function differs only in how
+it pipes (stderr kept), have both call one private function that spawns, so the count and the pin
+stay; move the pin only for a new kind of program.

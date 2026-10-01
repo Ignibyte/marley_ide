@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #632 (feature, prong 2 C1, plan D19)
 - **Owner:** claude-opus-5-5, 2026-10-01
-- **Pipeline doc:** ../../pipeline/queued/632-the-embedded-harness.spec.md
+- **Pipeline doc:** ../../pipeline/completed/632-the-embedded-harness.spec.md
 - **Source ticket:** plan D19 ("Packaging `rh` with Marley and starting its runtime is its own ticket after #534"); wave 4 of `design-notes/remaining-work-2026-09-30.md`
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 #534 follows a harness whose MCP server `marley.harness` names. This ticket lets Marley run the

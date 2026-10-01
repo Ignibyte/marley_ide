@@ -68,6 +68,12 @@ pub struct MarleySettingsContent {
     ///
     /// Default: none, which starts nothing
     pub harness: Option<crate::ContextServerCommand>,
+    /// Whether Marley runs the harness's runtime itself, `rh serve` on a root in its data folder,
+    /// with `rh` from `MARLEY_RH` or the search path, and follows it; `harness`, when set, wins
+    /// (#632).
+    ///
+    /// Default: false
+    pub embedded_harness: Option<bool>,
     /// How many seconds a command runs before its end shows a desktop notification, when its
     /// terminal is not the one in front; 0 turns this off (#551).
     ///

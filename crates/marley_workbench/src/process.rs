@@ -64,6 +64,16 @@ pub(crate) async fn run_program(program: &Path, args: &[&OsStr]) -> anyhow::Resu
     Ok(())
 }
 
+/// Starts `program` with `args` to read its output and its errors as they come: stdin closed,
+/// stdout and stderr piped, and the process killed when the child is dropped (#632).
+///
+/// # Errors
+///
+/// When the program cannot start.
+pub(crate) fn follow_with_errors(program: &Path, args: &[&OsStr]) -> std::io::Result<Child> {
+    following(program, args, Stdio::piped())
+}
+
 /// Starts `program` with `args` to read its output as it comes: stdin and stderr closed, stdout
 /// piped, and the process killed when the child is dropped.
 ///
@@ -71,11 +81,17 @@ pub(crate) async fn run_program(program: &Path, args: &[&OsStr]) -> anyhow::Resu
 ///
 /// When the program cannot start.
 pub(crate) fn follow(program: &Path, args: &[&str]) -> std::io::Result<Child> {
+    following(program, args, Stdio::null())
+}
+
+/// Starts `program` with `args`, stdin closed, stdout piped, stderr as `stderr` says, killed when
+/// the child is dropped.
+fn following(program: &Path, args: &[impl AsRef<OsStr>], stderr: Stdio) -> std::io::Result<Child> {
     util::command::new_command(program)
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(stderr)
         .kill_on_drop(true)
         .spawn()
 }

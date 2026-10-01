@@ -3615,3 +3615,17 @@ rule) and the inbox's entries; a session opens as a read-only Marley item over `
 lines, not a display-only terminal, which the rail would list and Zed would restore as a shell.
 Read side only. Rejected: notifications and `resources/subscribe`; a two-minute quiet rule of the
 harness's own; the keys and the filter for the section in this slice.
+
+## AD-claude-632-marley-runs-the-harness-as-a-child-and-says-its-state-001
+*decided at: 2026-10-01 · status: shipped · builds on: AD-claude-534-the-harness-is-followed-by-polling-in-a-section-outside-the-rails-model-001*
+
+With `marley.embedded_harness` on (off by default: `rh` is not shipped with Marley, the harness
+has no install path or license yet) and no `marley.harness`, Marley finds `rh` (`MARLEY_RH`, else
+the PATH), runs `rh --state <data dir>/harness serve` as a child through its listed spawn site,
+and follows `rh --state <root> mcp` once `serve` prints its ready line. Because `rh mcp` reads the
+journal while `serve` is down, the runtime's own state comes from the child and speaks first in
+the section's header; a stopped runtime is served again after 1 to 60 s; a root another process
+serves is followed as is. Quitting or turning the setting off ends `serve` only: the harness's
+tmux and sessions live on, and the next `serve` reconnects to them. Rejected: a `systemd-run`
+unit (the browser's way; later, if sessions should survive Marley crashing); shipping `rh` inside
+`just install`; running `shutdown --stop-backend` on exit.
