@@ -4121,3 +4121,23 @@ write (`stat -c %i`) shows it at once, and notify logs "unable to remove watch d
 replace. Watch the file's folder as well and filter its events to the file, as
 `settings::watch_config_dir` does; #612 does it in `watch_config_file` on Linux and FreeBSD.
 
+## L-claude-578-a-screencast-start-sends-one-frame-and-a-lost-one-is-not-sent-again-001
+*category: debugging · topic: CDP screencast · from: pipeline 578*
+
+Headless Chromium answers `Page.startScreencast` with one frame within about 20 ms, even on a page
+left still for seconds (a Node probe with its built-in `WebSocket` against
+`/usr/lib/chromium/chromium --headless --remote-debugging-port=0`, 2026-09-30), and sends no
+other until the page's pixels change (L-claude-499). So a stream whose first frame is lost, by a
+failed start, a failed decode or a frame for a page the client does not know, stays blank on a
+still page. A client that streams pages to a view should watch for a first frame and start the
+stream again without one, as #578's hub does.
+
+## L-claude-578-zlog-filters-take-a-crates-name-001
+*category: debugging · topic: Marley's logs in e2e runs · from: pipeline 578*
+
+`ZED_LOG` (or `RUST_LOG`) reaches Marley from a scenario's `setup` with `export`, and `zlog` takes
+a crate's name as a directive: `ZED_LOG="info,marley_workbench=debug"` logs the crate's debug
+lines into `$E2E_PROFILE/logs/Marley.log`, while `marley_workbench::browser=debug` logged none of
+them. A scenario that wraps another (`eval "flow_$(declare -f setup)"`) can add the export
+without copying it.
+

@@ -114,7 +114,11 @@ for.
   (#494): a page made by `Target.createTarget` keeps the window of its first size, and laid out
   wider than that, a page with a cross-site iframe can stop sending screencast frames after a
   resize. The screencast is JPEG at quality 85, each frame acknowledged after it is decoded,
-  which paces Chromium to Marley. `target_info` reads the page's title: Chromium reports a new
+  which paces Chromium to Marley. A start sends one frame within about 20 ms even on a still page,
+  and a still page none after it, so `marley_workbench`'s hub watches each start (#578): a page
+  still viewed whose stream has drawn nothing two seconds later (`Stream::Started`, not
+  `Drawing`) has its stream stopped and started again, at most three times until a frame draws,
+  with an info line in the log. `target_info` reads the page's title: Chromium reports a new
   URL as a target change, with the URL as the title, but never the title the document sets.
 - `frame::decode` turns a frame's base64 JPEG into a BGRA `RenderImage`.
 

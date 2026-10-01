@@ -145,6 +145,14 @@ const STOPPED: &str = "This project's browser is not running.";
 /// How long a Chromium asked to close gets to stop before systemd stops it (#507).
 const CLOSE_WAIT: Duration = Duration::from_secs(5);
 
+/// How long a page's stream may go without drawing after it starts before the hub starts it
+/// again (#578). Chromium sends a frame within 20 ms of a start, and none after on a still page,
+/// so a stream that has drawn nothing by then has lost its first frame.
+const FIRST_FRAME_WAIT: Duration = Duration::from_secs(2);
+
+/// How many times the hub starts a page's undrawn stream again before a frame draws (#578).
+const UNDRAWN_RESTARTS: u8 = 3;
+
 /// A cross-site iframe of a page, attached with a session of its own (#492).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Iframe {
@@ -402,12 +410,25 @@ struct PageState {
     driven_by: Option<(SharedString, Instant)>,
     /// An agent's click the page's tab holds for the user (#571).
     pause: Option<PendingClick>,
-    screencasting: bool,
+    stream: Stream,
+    /// How many times the stream was started again for want of a first frame, since a frame
+    /// last drew (#578).
+    restarts: u8,
     /// The mouse buttons held in the page, in CDP's bits, so a drag that leaves the tab still
     /// reaches the page, its release too.
     held_buttons: u32,
     /// When the oldest input that no frame has shown yet was sent.
     input_at: Option<Instant>,
+}
+
+/// A page's screencast, as the hub asked Chromium for it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Stream {
+    Off,
+    /// Started, and no frame has drawn since (#578).
+    Started,
+    /// Started, and a frame has drawn.
+    Drawing,
 }
 
 /// An agent's click a tab holds until the user allows or refuses it (#571).
@@ -449,7 +470,8 @@ impl PageState {
             load_waiters: Vec::new(),
             viewport: None,
             viewers: 0,
-            screencasting: false,
+            stream: Stream::Off,
+            restarts: 0,
             held_buttons: 0,
             input_at: None,
             favicon: None,
@@ -2836,6 +2858,11 @@ impl BrowserHub {
             return;
         }
         page.viewport = Some(viewport);
+        log::debug!(
+            "browser: laying {target} out at {}x{}",
+            viewport.width,
+            viewport.height
+        );
         let session = page.page.clone();
         cx.spawn(async move |_, _| {
             session
@@ -2874,18 +2901,55 @@ impl BrowserHub {
             return;
         };
         let wanted = page.viewers > 0 && page.viewport.is_some();
-        if wanted == page.screencasting {
+        if wanted == (page.stream != Stream::Off) {
             return;
         }
-        page.screencasting = wanted;
+        page.stream = if wanted { Stream::Started } else { Stream::Off };
+        log::debug!(
+            "browser: {} the screencast of {target}",
+            if wanted { "starting" } else { "stopping" }
+        );
         let session = page.page.clone();
-        cx.spawn(async move |_, _| {
+        let target = target.to_string();
+        cx.spawn(async move |this, cx| {
             let result = if wanted {
                 session.start_screencast().await
             } else {
                 session.stop_screencast().await
             };
             result.log_err();
+            if wanted {
+                cx.background_executor().timer(FIRST_FRAME_WAIT).await;
+                this.update(cx, |this, cx| this.restart_undrawn(&target, cx))
+                    .ok();
+            }
+        })
+        .detach();
+    }
+
+    /// Starts the stream of `target` again when it has drawn nothing since it started, while a
+    /// tab still draws the page (#578): its one frame was lost, a start that failed, a frame that
+    /// did not decode or came for no page shown, and a still page sends no other.
+    fn restart_undrawn(&mut self, target: &str, cx: &Context<Self>) {
+        let Some(page) = self.page_state_mut(target) else {
+            return;
+        };
+        if page.stream != Stream::Started || page.viewers == 0 || page.restarts >= UNDRAWN_RESTARTS
+        {
+            return;
+        }
+        page.restarts += 1;
+        page.stream = Stream::Off;
+        log::info!(
+            "browser: the screencast of {target} drew nothing in {FIRST_FRAME_WAIT:?}; starting it again ({} of {UNDRAWN_RESTARTS})",
+            page.restarts
+        );
+        let session = page.page.clone();
+        let target = target.to_string();
+        cx.spawn(async move |this, cx| {
+            session.stop_screencast().await.log_err();
+            this.update(cx, |this, cx| this.sync_screencast(&target, cx))
+                .ok();
         })
         .detach();
     }
@@ -2913,6 +2977,10 @@ impl BrowserHub {
             Ok(image) => {
                 page.frame = Some(image);
                 page.metadata = Some(metadata);
+                if page.stream == Stream::Started {
+                    page.stream = Stream::Drawing;
+                }
+                page.restarts = 0;
                 if let Some(sent) = page.input_at.take() {
                     input::log_latency(sent);
                 }
@@ -3448,9 +3516,12 @@ async fn follow(
                     this.show(generation, &session, (decoded, data), metadata, cx)
                 }) {
                     Ok(Some(page)) => {
+                        log::debug!("browser: a screencast frame from {session}");
                         page.ack_frame(number).await.log_err();
                     }
-                    Ok(None) => {}
+                    Ok(None) => {
+                        log::debug!("browser: a screencast frame from {session} for no page shown");
+                    }
                     Err(_) => return,
                 }
             }
@@ -3852,7 +3923,7 @@ async fn refresh_history(
                 });
             let state = this.page_state(target);
             let viewport = state.and_then(|state| state.viewport);
-            let streaming = state.is_some_and(|state| state.screencasting);
+            let streaming = state.is_some_and(|state| state.stream != Stream::Off);
             this.page(target)
                 .map(|page| (page, forget_blank, viewport, streaming))
         })

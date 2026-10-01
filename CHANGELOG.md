@@ -280,6 +280,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A Browser tab whose stream never drew is asked again** (#578, 2026-09-30). A restored
+  Browser tab once drew nothing although its page had loaded (2 of 6 runs of #576's scenario on
+  2026-09-26; none in 26 runs since). Chromium sends one frame when a screencast starts and none
+  after on a still page, so a lost first frame (a start that failed, a frame that did not decode
+  or came for no page shown) left the tab blank for good. The hub now starts a viewed page's
+  stream again when it has drawn nothing two seconds after it started, up to three times, and
+  logs the stream's starts, stops and frames at debug level.
+
 - **A settings edit reloads after Marley has written the file** (#612, 2026-09-30). On Linux,
   once Marley or Zed had saved `settings.json` itself (the layout switch, the theme picker), an
   edit to the file outside Marley did not apply until a restart: the writers replace the file,
