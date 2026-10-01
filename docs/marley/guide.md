@@ -230,6 +230,12 @@ goes when it stops.
   desktop's dialog. If that fails, a message says why and offers the command to run yourself
   (`sudo systemctl stop <unit>` for a system service) with a Copy Command button. Stop's tooltip
   says which it will do.
+- A port a Docker or Podman container publishes (#614) is listed too. Where `docker ps` (or
+  `podman ps`) answers, the row is named by its container ("container web") and sits under the
+  project its Compose folder is in; otherwise it sits under a CONTAINERS label after the
+  projects, with the container's address ("→ 172.18.0.5:80"). Stop stops the container with
+  `docker stop`; if the engine refuses (you are not in the `docker` group, say), a message says
+  why and offers a command to run yourself. Marley never stops Docker's own service from a row.
 - Marley's own listeners and other users' processes get no row, and neither does a server whose
   working directory is in no project, such as one that moved to `/` when it went to the
   background.

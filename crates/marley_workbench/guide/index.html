@@ -548,7 +548,7 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 
 <article id="port-rows">
-<h3>Port rows: the servers your project runs <span class="ticket">#521 · #603 · #604</span></h3>
+<h3>Port rows: the servers your project runs <span class="ticket">#521 · #603 · #604 · #614</span></h3>
 <p class="what"><strong>What it is.</strong> The rail lists the TCP ports your processes listen on from inside the project's folders: a dev server, a database, anything. A row comes within seconds of a server's start and goes when it stops.</p>
 <h4>How to use it</h4>
 <ol class="steps">
@@ -558,6 +558,7 @@ th { background: var(--panel); font-weight: 650; }
 <li>Stop sends the process SIGTERM, after checking it still listens on that port.</li>
 <li>A server that a systemd service runs shows its unit on a line under the URL, and the pointer on the row says whether it is a user or a system service. Stop then stops the service, not the process, since the service would start a stopped process again: <code>systemctl --user stop</code> for a user service, <code>systemctl stop</code> for a system one, which asks for your password in the desktop's dialog. Point at Stop to see which it will do.</li>
 <li>If the service cannot be stopped (you cancel the password dialog, or are not allowed), a message says why and offers the command to run yourself, such as <code>sudo systemctl stop app.service</code>, with a Copy Command button.</li>
+<li>A port a Docker or Podman container publishes is listed too: named by its container under the project its Compose folder is in when <code>docker ps</code> answers, else under CONTAINERS after the projects with the container's address. Stop runs <code>docker stop</code>; if the engine refuses, a message offers the command to run yourself. Docker's own service is never stopped from a row.</li>
 </ol>
 <p class="note">A server bound to <code>0.0.0.0</code> gets a URL on <code>127.0.0.1</code>. A server started in one of Marley's terminals runs in no service of its own, so Stop signals it.</p>
 </article>

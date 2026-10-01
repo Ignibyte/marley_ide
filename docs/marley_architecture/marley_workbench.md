@@ -349,6 +349,22 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   (`own_service_in`) as a process, since stopping that unit would stop Marley. `hand_command`
   gives the command that stops a service by hand, which a refusal's toast offers to copy.
 
+- **Container ports (#614).** The scan's background part also runs
+  `marley_browser::containers::proxied_ports_in` (each `docker-proxy` command line, split on NULs
+  and spaces); `container_ports` takes those, and the user's Podman helper listeners
+  (`Engine::of_helper`), as container ports. `ask_engines` asks `docker ps --format '{{json .}}'`
+  or `podman ps --format json` through `process::output` when an engine's ports changed or its
+  answer (`EngineAnswer`) is 30 s old, a refusal kept as its stderr's last line;
+  `attribute_containers` gives a port whose container's Compose folder (`com.docker.compose.
+  project.working_dir`) a project holds to that project (`deepest`), the rest to
+  `Ports.containers`. `ProjectListener.container` (`ContainerRef { engine, name, target, refusal
+  }`) rides to the rail's `PortSnapshot.container`. `attribute` passes `HELPERS` by and clears an
+  engine's own unit (`ENGINE_UNITS`), as `stop` does, so no port's Stop reaches `docker.service`.
+  `stop_container` runs `<engine> stop <name>` (`ContainerStop`), or refuses a port the engine did
+  not name with a command that finds it by port. The rail's `render_containers` lists
+  `Ports::containers` under a CONTAINERS label after the projects, opening in the shown
+  workspace, outside the keys and the filter.
+
 ## Threads (#439)
 
 - **Rows.** Each group's threads come from `ThreadMetadataStore`:

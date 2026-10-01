@@ -1,7 +1,7 @@
 ---
 pipeline_id: b6f8f86e-f859-4dbc-bbdd-f2b61ef28a75
 ticket: docs/planning/tickets/open/TICKET-614-container-ports-in-the-rail.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Container ports in the rail"
 type: feature
 slice: workbench shell, the rail's ports; after #521 and #603
@@ -23,7 +23,8 @@ Marley can ask the engine, and Stop stops the container, never the engine.
 - **Naming them with the engine:** where `docker ps` or `podman ps` answers (the user can reach
   the socket), the port is named by its container, and a container whose Compose label
   `com.docker.compose.project.working_dir` is inside a project's folder is listed under that
-  project; the rest go under a Containers section at the rail's end. Where the engine refuses,
+  project; the rest go under a Containers section at the rail's end (its rows open, copy and stop
+  as a port row does; the keys and the filter pass them by in this ticket). Where the engine refuses,
   the port is listed under Containers as "container port 8081 → 172.17.0.2:80".
 - **Stop:** `docker stop <container>` or `podman stop <container>` through the workbench's spawn
   module. Without engine access, Stop is refused with the reason and Copy Command, as #603's
@@ -57,7 +58,9 @@ are the published interface read (`docker ps --format '{{json .}}'`, `podman ps 
 The scenario `script/e2e/614-container-ports-in-the-rail.sh` (sway) puts fakes first on the PATH
 (L-claude-603): a `docker` that answers `ps --format` with a container whose Compose working
 folder is the scratch project, and records `stop`; and a process named `docker-proxy` with the
-real command line's shape, listening on a free port. Shots:
+real command line's shape (Perl with its `$0` set to it). The dev box's own Docker ports (root's
+real `docker-proxy`) show too, under Containers, unnamed, since the fake engine does not list
+them. Shots:
 - `named.png`: the port under the project, named by its container;
 - `stopped.txt`: Stop ran `docker stop <container>`;
 - `refused.png`: with the fake `docker` refusing, the port under Containers with its address,

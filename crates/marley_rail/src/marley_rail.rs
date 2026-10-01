@@ -277,8 +277,21 @@ pub struct PortSnapshot {
     pub tooltip: String,
     /// The systemd service the process runs in, when it runs in one (#603).
     pub service: Option<PortService>,
+    /// The container that publishes the port, when a container does (#614).
+    pub container: Option<PortContainer>,
     /// Where the filter matched the title, as for [`ProjectSnapshot::matched`].
     pub matched: Option<Vec<usize>>,
+}
+
+/// A container that publishes a port (#614), which the row's Stop stops.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PortContainer {
+    /// The engine's command, `docker` or `podman`.
+    pub engine: String,
+    /// The container's name, when the engine said it.
+    pub name: Option<String>,
+    /// The container's address and port, when known.
+    pub target: Option<String>,
 }
 
 /// The systemd service a port's process runs in (#603), which the row's Stop stops.
@@ -634,6 +647,8 @@ pub struct PortRow {
     pub tooltip: String,
     /// The service its process runs in (see [`PortSnapshot::service`]).
     pub service: Option<PortService>,
+    /// The container that publishes it (see [`PortSnapshot::container`]).
+    pub container: Option<PortContainer>,
     /// Whether this is the selected row.
     pub selected: bool,
     /// The byte offsets of the title's characters the filter matched, to highlight.
@@ -1409,6 +1424,7 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                 url: port.url.clone(),
                 tooltip: port.tooltip.clone(),
                 service: port.service.clone(),
+                container: port.container.clone(),
                 selected: selected == Selection::Port(port.port, port.pid),
                 highlight: highlight(port.matched.as_deref()),
             }),

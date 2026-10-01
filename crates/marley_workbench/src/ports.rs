@@ -9,6 +9,11 @@
 //!
 //! Stop stops a listener's systemd service with `systemctl`, and signals any other process
 //! (#603): a service's restart policy would start a signalled process again.
+//!
+//! A port a container publishes (#614) is found from `docker-proxy`'s command line or a rootless
+//! Podman helper's socket, named by its container where the engine answers, given to the project
+//! its Compose folder is in or else listed apart, and stopped with the engine's `stop`, never
+//! through the engine's own systemd unit.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -16,6 +21,9 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
 use gpui::{App, AppContext as _, Global, Task};
+use marley_browser::containers::{
+    self, Container, ENGINE_UNITS, Engine, HELPERS, ProxiedPort, proxied_ports_in,
+};
 use marley_browser::ports::{Listener, Service, Stopped, listeners_in, own_service_in, stop_in};
 use project::ProjectGroupKey;
 use workspace::MultiWorkspace;
@@ -32,6 +40,9 @@ const SCAN_SLOWLY: Duration = Duration::from_secs(30);
 /// A scan past this reads the machine too hard to run every three seconds.
 const SLOW_SCAN: Duration = Duration::from_millis(500);
 
+/// How long an engine's list of containers is kept while its ports stay the same.
+const ENGINE_KEPT: Duration = Duration::from_secs(30);
+
 /// A listener, with the project folder that holds its working directory.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectListener {
@@ -39,12 +50,48 @@ pub struct ProjectListener {
     pub folder: PathBuf,
     /// The listener, as the scan found it.
     pub listener: Listener,
+    /// The container that publishes the port, when a container does (#614).
+    pub container: Option<ContainerRef>,
+}
+
+/// The container that publishes a port (#614).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContainerRef {
+    /// Its engine.
+    pub engine: Engine,
+    /// Its name, when the engine said it.
+    pub name: Option<String>,
+    /// The container's address and port, when its proxy's command line says them.
+    pub target: Option<String>,
+    /// Why the engine did not say which container it is, when it did not.
+    pub refusal: Option<String>,
+}
+
+/// What an engine last said about its containers, and for which of its ports.
+#[derive(Debug, Clone)]
+struct EngineAnswer {
+    ports: Vec<u16>,
+    asked: Instant,
+    containers: Result<Vec<Container>, String>,
+}
+
+/// A port a container publishes, as the scan found it, before the engine names it.
+#[derive(Debug, Clone)]
+struct ContainerPort {
+    engine: Engine,
+    pid: u32,
+    address: std::net::SocketAddr,
+    target: Option<String>,
 }
 
 /// The project groups' listeners, as the last scan found them.
 #[derive(Debug, Default)]
 pub struct Ports {
     by_group: HashMap<ProjectGroupKey, Vec<ProjectListener>>,
+    /// Container ports no project's folder holds (#614).
+    containers: Vec<ProjectListener>,
+    /// Each engine's last answer, asked again when its ports change or it grows old.
+    engines: HashMap<Engine, EngineAnswer>,
     /// The rails that are open, which keep the scan running.
     watchers: usize,
     scanning: bool,
@@ -58,6 +105,13 @@ impl Ports {
         cx.try_global::<Self>()
             .and_then(|ports| ports.by_group.get(key))
             .cloned()
+            .unwrap_or_default()
+    }
+
+    /// The container ports no project's folder holds (#614).
+    pub fn containers(cx: &App) -> Vec<ProjectListener> {
+        cx.try_global::<Self>()
+            .map(|ports| ports.containers.clone())
             .unwrap_or_default()
     }
 }
@@ -87,12 +141,24 @@ fn scan_while_watched(cx: &App) -> Task<()> {
         loop {
             let folders = cx.update(|cx| project_folders(cx));
             let started = Instant::now();
-            let scanned = cx
+            let (listened, proxied) = cx
                 .background_spawn(futures::future::lazy(move |_| {
-                    attribute(listeners_in(Path::new(PROC)), &folders)
+                    let proc_root = Path::new(PROC);
+                    (listeners_in(proc_root), proxied_ports_in(proc_root))
                 }))
                 .await;
             let took = started.elapsed();
+            let found = container_ports(listened.as_deref().unwrap_or_default(), &proxied);
+            let known = cx.update(|cx| {
+                cx.try_global::<Ports>()
+                    .map(|ports| ports.engines.clone())
+                    .unwrap_or_default()
+            });
+            let engines = ask_engines(&found, known).await;
+            let scanned = attribute(listened, &folders).map(|mut by_group| {
+                let apart = attribute_containers(found, &engines, &folders, &mut by_group);
+                (by_group, apart)
+            });
             // Reading the global leaves the rails alone; a mutable access tells them it changed,
             // so it happens only when it did.
             let watched = cx.update(|cx| {
@@ -101,10 +167,20 @@ fn scan_while_watched(cx: &App) -> Task<()> {
                     cx.default_global::<Ports>().scanning = false;
                     return false;
                 }
-                let changed = matches!((&scanned, known), (Ok(by_group), Some(ports)) if *by_group != ports.by_group);
+                let changed = matches!((&scanned, known), (Ok((by_group, apart)), Some(ports)) if *by_group != ports.by_group || *apart != ports.containers);
                 match scanned {
-                    Ok(by_group) if changed => cx.default_global::<Ports>().by_group = by_group,
-                    Ok(_) => {}
+                    Ok((by_group, apart)) if changed => {
+                        let ports = cx.default_global::<Ports>();
+                        ports.by_group = by_group;
+                        ports.containers = apart;
+                        ports.engines = engines;
+                    }
+                    Ok(_) => {
+                        // The engines' answers carry their age, which is not news to the rails.
+                        if cx.has_global::<Ports>() {
+                            cx.global_mut::<Ports>().engines = engines;
+                        }
+                    }
                     Err(error) => log::warn!("ports: reading the listening ports: {error:#}"),
                 }
                 true
@@ -121,6 +197,163 @@ fn scan_while_watched(cx: &App) -> Task<()> {
             cx.background_executor().timer(wait).await;
         }
     })
+}
+
+/// The ports containers publish: each `docker-proxy`'s, from its command line, and each port a
+/// rootless Podman helper of the user's listens on.
+fn container_ports(listened: &[Listener], proxied: &[ProxiedPort]) -> Vec<ContainerPort> {
+    let docker = proxied.iter().map(|port| ContainerPort {
+        engine: Engine::Docker,
+        pid: port.pid,
+        address: port.address,
+        target: Some(port.target.clone()),
+    });
+    let podman = listened.iter().filter_map(|listener| {
+        // A `docker-proxy` the user can read is the same port as its command line's.
+        let engine =
+            Engine::of_helper(&listener.name).filter(|engine| *engine == Engine::Podman)?;
+        Some(ContainerPort {
+            engine,
+            pid: listener.pid,
+            address: listener.address,
+            target: None,
+        })
+    });
+    let mut ports: Vec<ContainerPort> = docker.chain(podman).collect();
+    ports.sort_by_key(|port| (port.address.port(), port.pid));
+    ports.dedup_by_key(|port| port.address.port());
+    ports
+}
+
+/// Each engine with ports in `found` asked for its containers, unless its answer in `known` is
+/// for the same ports and young enough.
+async fn ask_engines(
+    found: &[ContainerPort],
+    known: HashMap<Engine, EngineAnswer>,
+) -> HashMap<Engine, EngineAnswer> {
+    let mut answers = HashMap::new();
+    for engine in [Engine::Docker, Engine::Podman] {
+        let mut ports: Vec<u16> = found
+            .iter()
+            .filter(|port| port.engine == engine)
+            .map(|port| port.address.port())
+            .collect();
+        if ports.is_empty() {
+            continue;
+        }
+        ports.sort_unstable();
+        let kept = known
+            .get(&engine)
+            .filter(|answer| answer.ports == ports && answer.asked.elapsed() < ENGINE_KEPT);
+        let answer = match kept {
+            Some(answer) => answer.clone(),
+            None => EngineAnswer {
+                ports,
+                asked: Instant::now(),
+                containers: ask_engine(engine).await,
+            },
+        };
+        answers.insert(engine, answer);
+    }
+    answers
+}
+
+/// The engine's containers, or why it would not list them: its error's last line.
+async fn ask_engine(engine: Engine) -> Result<Vec<Container>, String> {
+    let args: &[&str] = match engine {
+        Engine::Docker => &["ps", "--format", "{{json .}}"],
+        Engine::Podman => &["ps", "--format", "json"],
+    };
+    let command = engine.command();
+    let output = crate::process::output(command, args, None, &[])
+        .await
+        .map_err(|error| format!("`{command}` could not start: {error}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(stderr
+            .lines()
+            .map(str::trim)
+            .rfind(|line| !line.is_empty())
+            .map_or_else(
+                || format!("`{command} ps` ended with {}", output.status),
+                str::to_string,
+            ));
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Ok(match engine {
+        Engine::Docker => containers::parse_docker_ps(&stdout),
+        Engine::Podman => containers::parse_podman_ps(&stdout),
+    })
+}
+
+/// Each container port given to the project whose folder holds its Compose folder, into
+/// `by_group`; the rest returned, to be listed apart.
+fn attribute_containers(
+    found: Vec<ContainerPort>,
+    engines: &HashMap<Engine, EngineAnswer>,
+    folders: &[(ProjectGroupKey, Vec<PathBuf>)],
+    by_group: &mut HashMap<ProjectGroupKey, Vec<ProjectListener>>,
+) -> Vec<ProjectListener> {
+    let mut apart = Vec::new();
+    for port in found {
+        let answer = engines.get(&port.engine).map(|answer| &answer.containers);
+        let container = answer.and_then(|answer| {
+            answer
+                .as_ref()
+                .ok()?
+                .iter()
+                .find(|container| container.host_ports.contains(&port.address.port()))
+        });
+        let refusal = answer.and_then(|answer| answer.as_ref().err().cloned());
+        let name = container.map(|container| container.name.clone());
+        let working_dir = container.and_then(|container| container.working_dir.clone());
+        let command = match (&name, &port.target) {
+            (Some(name), _) => format!("{} container {name}", port.engine.command()),
+            (None, Some(target)) => format!("docker-proxy → {target}"),
+            (None, None) => format!("a {} container", port.engine.command()),
+        };
+        let listed = ProjectListener {
+            folder: working_dir.clone().unwrap_or_default(),
+            listener: Listener {
+                address: port.address,
+                pid: port.pid,
+                name: name
+                    .clone()
+                    .unwrap_or_else(|| port.engine.command().to_string()),
+                command,
+                cwd: working_dir.clone().unwrap_or_default(),
+                service: None,
+            },
+            container: Some(ContainerRef {
+                engine: port.engine,
+                name,
+                target: port.target,
+                refusal,
+            }),
+        };
+        let home = working_dir.and_then(|folder| deepest(folders, &folder));
+        match home {
+            Some((key, root)) => by_group.entry(key).or_default().push(ProjectListener {
+                folder: root,
+                ..listed
+            }),
+            None => apart.push(listed),
+        }
+    }
+    apart
+}
+
+/// The project group whose folder is the deepest holding `path`, and that folder.
+fn deepest(
+    folders: &[(ProjectGroupKey, Vec<PathBuf>)],
+    path: &Path,
+) -> Option<(ProjectGroupKey, PathBuf)> {
+    folders
+        .iter()
+        .flat_map(|(key, roots)| roots.iter().map(move |root| (key, root)))
+        .filter(|(_, root)| path.starts_with(root))
+        .max_by_key(|(_, root)| root.components().count())
+        .map(|(key, root)| (key.clone(), root.clone()))
 }
 
 /// Every window's project groups, each with the folders of all its member workspaces, local
@@ -173,6 +406,18 @@ fn attribute(
         if listener.service.is_some() && listener.service == own_service {
             listener.service = None;
         }
+        // A container's port is its container's (#614), and an engine's own unit is never what
+        // a port's Stop stops.
+        if HELPERS.contains(&listener.name.as_str()) {
+            continue;
+        }
+        if listener
+            .service
+            .as_ref()
+            .is_some_and(|service| ENGINE_UNITS.contains(&service.unit.as_str()))
+        {
+            listener.service = None;
+        }
         if listener.pid == own
             || listener.name == "marley"
             || listener.command.contains(browser_dir.as_ref())
@@ -201,6 +446,7 @@ fn attribute(
                 .push(ProjectListener {
                     folder: folder.clone(),
                     listener,
+                    container: None,
                 });
         }
     }
@@ -267,10 +513,9 @@ pub fn stop(port: u16, pid: u32, cx: &App) -> Task<anyhow::Result<Stop>> {
             return Ok(Stop::Signalled(Stopped::NotListening));
         };
         let own_service = own_service_in(proc_root);
-        match found
-            .service
-            .filter(|service| Some(service) != own_service.as_ref())
-        {
+        match found.service.filter(|service| {
+            Some(service) != own_service.as_ref() && !ENGINE_UNITS.contains(&service.unit.as_str())
+        }) {
             Some(service) => stop_unit(service).await,
             None => Ok(Stop::Signalled(stop_in(proc_root, port, pid)?)),
         }
@@ -306,6 +551,70 @@ fn refusal_reason(stderr: &str, unit: &str) -> Option<String> {
         .split_once(&format!("{unit}: "))
         .map_or(line, |(_, reason)| reason);
     Some(reason.trim_end_matches('.').to_string())
+}
+
+/// The container that publishes `port`, under a project or apart, as the last scan found it.
+pub fn container_at(port: u16, cx: &App) -> Option<ContainerRef> {
+    let ports = cx.try_global::<Ports>()?;
+    ports
+        .by_group
+        .values()
+        .flatten()
+        .chain(&ports.containers)
+        .find(|found| found.listener.address.port() == port && found.container.is_some())
+        .and_then(|found| found.container.clone())
+}
+
+/// How a container's Stop went (#614).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContainerStop {
+    /// The engine stopped it.
+    Stopped,
+    /// It could not be stopped, for `reason`; `command` stops it by hand.
+    Refused {
+        /// The command to copy.
+        command: String,
+        /// Why.
+        reason: String,
+    },
+}
+
+/// Stops the container that publishes `port`, with its engine's `stop`. A container the engine did
+/// not name is refused at once, with a command that finds it by its port.
+pub fn stop_container(container: &ContainerRef, port: u16, cx: &App) -> Task<ContainerStop> {
+    let engine = container.engine.command();
+    let Some(name) = container.name.clone() else {
+        let reason = container
+            .refusal
+            .clone()
+            .unwrap_or_else(|| format!("`{engine}` did not say which container it is"));
+        return Task::ready(ContainerStop::Refused {
+            command: format!("{engine} stop $({engine} ps -q --filter publish={port})"),
+            reason,
+        });
+    };
+    cx.background_spawn(async move {
+        let command = format!("{engine} stop {name}");
+        match crate::process::output(engine, ["stop", name.as_str()], None, &[]).await {
+            Ok(output) if output.status.success() => ContainerStop::Stopped,
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let reason = stderr
+                    .lines()
+                    .map(str::trim)
+                    .rfind(|line| !line.is_empty())
+                    .map_or_else(
+                        || format!("`{command}` ended with {}", output.status),
+                        str::to_string,
+                    );
+                ContainerStop::Refused { command, reason }
+            }
+            Err(error) => ContainerStop::Refused {
+                reason: format!("`{engine}` could not start: {error}"),
+                command,
+            },
+        }
+    })
 }
 
 /// The command that stops `service` by hand, which a refusal offers to copy.

@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Container ports in the rail** (#614, 2026-09-30). A port a Docker container publishes belongs to
+  root's `docker-proxy`, which the ports scan could not see; Marley now reads each proxy's command
+  line (readable by anyone) and lists its port, and a rootless Podman helper's port as a
+  container's rather than a process's. Where `docker ps` or `podman ps` answers, the port is named
+  by its container ("container web") and listed under the project its Compose folder is in; the
+  rest go under a CONTAINERS label after the projects, with the container's address. Stop runs
+  `docker stop` or `podman stop`; where the engine refuses (you are not in the `docker` group),
+  Stop says why and offers `docker stop $(docker ps -q --filter publish=<port>)` to copy. An
+  engine's own systemd unit (`docker.service` and the like) is never what a port's Stop stops.
+
 - **Move a terminal to another project in the rail** (#613, 2026-09-30). Drag a terminal's row onto
   another open project's (or group's) header, or choose Move to Project in its right-click menu,
   and the terminal joins that project's workspace with its shell still running, its scrollback,

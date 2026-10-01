@@ -36,9 +36,10 @@ use marley_browser::ports::{Service, Stopped};
 use marley_mcp::redact::Redactor;
 use marley_rail::{
     BrowserRow, BrowserSnapshot, CommandSnapshot, DriftSnapshot, Focus, InboxEntry, InboxKind,
-    PortRow, PortService, PortSnapshot, ProjectRow, ProjectSnapshot, RailSnapshot, Reporting, Row,
-    RunningError, Selection, SwitcherRow, TerminalAgent, TerminalRow, TerminalSnapshot, ThreadRow,
-    ThreadSnapshot, ThreadStatus, TurnSnapshot, WorktreeRow, WorktreeSnapshot,
+    PortContainer, PortRow, PortService, PortSnapshot, ProjectRow, ProjectSnapshot, RailSnapshot,
+    Reporting, Row, RunningError, Selection, SwitcherRow, TerminalAgent, TerminalRow,
+    TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus, TurnSnapshot, WorktreeRow,
+    WorktreeSnapshot,
 };
 use marley_system_one::reading::{Reading, Signal};
 use marley_system_one::{INBOX_RISK, QUESTION_ROUTE};
@@ -76,7 +77,7 @@ use crate::agents::{self, AgentIcon};
 use crate::browser::{BrowserEvent, BrowserHub, BrowserView};
 use crate::github::{self, PullRequest, PullRequestState};
 use crate::groups;
-use crate::ports::{self, Ports, Stop};
+use crate::ports::{self, ContainerStop, Ports, ProjectListener, Stop};
 use crate::system_one::{self, Asking};
 use crate::turns::Turns;
 use crate::worktree_git::{self, BranchEnd, Drift, MergeOwner};
@@ -3109,6 +3110,27 @@ impl Rail {
         .detach();
     }
 
+    /// Stops the container that publishes `port` (#614), or says why it could not.
+    fn stop_container_port(&self, port: u16, window: &Window, cx: &Context<Self>) {
+        let Some(container) = ports::container_at(port, cx) else {
+            return;
+        };
+        let stop = ports::stop_container(&container, port, cx);
+        let multi_workspace = self.multi_workspace.clone();
+        cx.spawn_in(window, async move |_, cx| {
+            let ContainerStop::Refused { command, reason } = stop.await else {
+                return;
+            };
+            let toast = container_refused_toast(command, &reason);
+            let shown = multi_workspace
+                .read_with(cx, |multi_workspace, _| multi_workspace.workspace().clone());
+            if let Ok(workspace) = shown {
+                workspace.update(cx, |workspace, cx| workspace.show_toast(toast, cx));
+            }
+        })
+        .detach();
+    }
+
     /// The switcher's rows, from the window as the rail last read it.
     fn switcher_entries(&self) -> Vec<SwitcherEntry> {
         let rail = &self.snapshot.rail;
@@ -3590,10 +3612,61 @@ impl Rail {
                 rows.push(element);
             }
         }
-        blocks
+        let mut rendered: Vec<AnyElement> = blocks
             .into_iter()
             .map(|(header, drag, rows)| Self::header_block(header, rows, drag, cx))
-            .collect()
+            .collect();
+        rendered.extend(self.render_containers(cx));
+        rendered
+    }
+
+    /// The container ports no project's folder holds (#614), under a Containers label after the
+    /// projects. Their rows open in the shown project, and stay out of the keys and the filter.
+    fn render_containers(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        if self.snapshot.rail.filtering {
+            return None;
+        }
+        let found = Ports::containers(cx);
+        if found.is_empty() {
+            return None;
+        }
+        let shown = self
+            .multi_workspace
+            .upgrade()?
+            .read(cx)
+            .workspace()
+            .downgrade();
+        let rows = found.into_iter().map(|listener| {
+            let snapshot = port_snapshot(listener, "");
+            let row = PortRow {
+                project: usize::MAX,
+                port: snapshot.port,
+                pid: snapshot.pid,
+                title: snapshot.title,
+                url: snapshot.url,
+                tooltip: snapshot.tooltip,
+                service: None,
+                container: snapshot.container,
+                selected: false,
+                highlight: Vec::new(),
+            };
+            Self::render_port_row(row, shown.clone(), cx).into_any_element()
+        });
+        Some(
+            v_flex()
+                .debug_selector(|| "marley-rail-containers".into())
+                .pt_2()
+                .gap_0p5()
+                .child(
+                    h_flex().px_3().py_1().child(
+                        Label::new("CONTAINERS")
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    ),
+                )
+                .children(rows)
+                .into_any_element(),
+        )
     }
 
     /// A row under a project's header, draggable when its kind reorders (#602).
@@ -4799,14 +4872,19 @@ impl Rail {
                 cx.write_to_clipboard(ClipboardItem::new_string(copy_url.clone()));
             },
         );
-        let (stop_title, stop_meta) = stop_words(pid, row.service.as_ref());
+        let (stop_title, stop_meta) = stop_words(pid, row.service.as_ref(), row.container.as_ref());
+        let is_container = row.container.is_some();
         let stop = IconButton::new(("marley-rail-port-stop", key), IconName::Stop)
             .icon_size(IconSize::Small)
             .icon_color(Color::Muted)
             .tooltip(move |_, cx| Tooltip::with_meta(stop_title, None, stop_meta.clone(), cx))
             .on_click(cx.listener(move |rail, _, window, cx| {
                 cx.stop_propagation();
-                rail.stop_port(port, pid, window, cx);
+                if is_container {
+                    rail.stop_container_port(port, window, cx);
+                } else {
+                    rail.stop_port(port, pid, window, cx);
+                }
             }));
         let end = h_flex()
             .flex_none()
@@ -4837,9 +4915,11 @@ impl Rail {
                 .color(Color::Muted)
                 .into_any_element(),
             row_label(row.title, row.highlight, Color::Default),
-            // A service's unit gets a line of its own: beside the URL it would squeeze the URL out.
+            // A service's unit, or a port's container (#614), gets a line of its own: beside the
+            // URL it would squeeze the URL out.
             std::iter::once(row.url)
                 .chain(row.service.map(|service| service.unit))
+                .chain(row.container.map(|container| container_line(&container)))
                 .collect(),
             cx,
         )
@@ -4867,7 +4947,20 @@ impl Rail {
 
 /// What a port row's Stop says it does (#603): stop the user's or the system's service, with the
 /// command it runs, or signal the process.
-fn stop_words(pid: u32, service: Option<&PortService>) -> (&'static str, String) {
+fn stop_words(
+    pid: u32,
+    service: Option<&PortService>,
+    container: Option<&PortContainer>,
+) -> (&'static str, String) {
+    if let Some(container) = container {
+        return (
+            "Stop the Container",
+            container.name.as_ref().map_or_else(
+                || format!("{} did not name it", container.engine),
+                |name| format!("{} stop {name}", container.engine),
+            ),
+        );
+    }
     match service {
         Some(service) if service.user => (
             "Stop the User Service",
@@ -4904,39 +4997,78 @@ fn refused_toast(service: &Service, reason: &str) -> Toast {
 fn port_snapshots(key: &ProjectGroupKey, filter: &str, cx: &App) -> Vec<PortSnapshot> {
     Ports::of(key, cx)
         .into_iter()
-        .map(|found| {
-            let listener = found.listener;
-            let port = listener.address.port();
-            let title = format!(":{port} {}", listener.name);
-            let matched = filter_match(filter, &title);
-            let service_line = listener
-                .service
-                .as_ref()
-                .map_or_else(String::new, |service| {
-                    let kind = if service.user { "user" } else { "system" };
-                    format!("\n{kind} service {}", service.unit)
-                });
-            let tooltip = format!(
-                "{}\nin {}\npid {}{service_line}",
-                listener.command,
-                listener.cwd.display(),
-                listener.pid
-            );
-            let service = listener.service.map(|service| PortService {
-                unit: service.unit,
-                user: service.user,
-            });
-            PortSnapshot {
-                port,
-                pid: listener.pid,
-                url: marley_browser::ports::url(listener.address),
-                tooltip,
-                service,
-                title,
-                matched,
-            }
-        })
+        .map(|found| port_snapshot(found, filter))
         .collect()
+}
+
+/// One listener as a row's snapshot.
+fn port_snapshot(found: ProjectListener, filter: &str) -> PortSnapshot {
+    let listener = found.listener;
+    let port = listener.address.port();
+    let title = format!(":{port} {}", listener.name);
+    let matched = filter_match(filter, &title);
+    let service_line = listener
+        .service
+        .as_ref()
+        .map_or_else(String::new, |service| {
+            let kind = if service.user { "user" } else { "system" };
+            format!("\n{kind} service {}", service.unit)
+        });
+    let container = found.container.map(|container| PortContainer {
+        engine: container.engine.command().to_string(),
+        name: container.name,
+        target: container.target,
+    });
+    let tooltip = match &container {
+        Some(container) => format!(
+            "{}{}\nproxy pid {}",
+            listener.command,
+            container
+                .target
+                .as_ref()
+                .map_or_else(String::new, |target| format!("\nto {target}")),
+            listener.pid
+        ),
+        None => format!(
+            "{}\nin {}\npid {}{service_line}",
+            listener.command,
+            listener.cwd.display(),
+            listener.pid
+        ),
+    };
+    let service = listener.service.map(|service| PortService {
+        unit: service.unit,
+        user: service.user,
+    });
+    PortSnapshot {
+        port,
+        pid: listener.pid,
+        url: marley_browser::ports::url(listener.address),
+        tooltip,
+        service,
+        container,
+        title,
+        matched,
+    }
+}
+
+/// A container port's second line: its container's name, else where its proxy sends it.
+fn container_line(container: &PortContainer) -> String {
+    match (&container.name, &container.target) {
+        (Some(name), _) => format!("container {name}"),
+        (None, Some(target)) => format!("→ {target}"),
+        (None, None) => format!("a {} container", container.engine),
+    }
+}
+
+/// The toast for a container its engine could not stop, or did not name (#614), with the command
+/// that stops it by hand to copy.
+fn container_refused_toast(command: String, reason: &str) -> Toast {
+    let message =
+        format!("Could not stop the container: {reason}. To stop it yourself, run: {command}");
+    Toast::new(NotificationId::unique::<Ports>(), message).on_click("Copy Command", move |_, cx| {
+        cx.write_to_clipboard(ClipboardItem::new_string(command.clone()));
+    })
 }
 
 /// Everything in a window the rail follows.

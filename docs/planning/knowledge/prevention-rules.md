@@ -2662,3 +2662,12 @@ Work a panel should do only while it is seen (polling, sampling, a timer) checks
 `dock.visible_panel()` (which is `None` for a closed dock), downcast through `to_any()`, each
 time it runs, and a panel that draws may start it. Do not count `Panel::set_active` calls:
 Zed's docks send them for closed docks too, and moves between docks do not pair them.
+
+## PR-claude-614-a-port-of-a-container-engines-own-unit-is-never-stopped-through-it-001
+*severity: high · prevents: stopping every container from one port row*
+
+A listener's cgroup can name the container engine's own unit (`docker-proxy` runs in
+`system.slice/docker.service`). A port's Stop that stops the listener's service would then stop
+Docker and every container. Clear the service for `ENGINE_UNITS` wherever a listener's service is
+read for a Stop (`ports::attribute` and `ports::stop`), and route a container's port through the
+engine's own `stop`.

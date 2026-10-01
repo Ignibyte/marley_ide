@@ -3514,3 +3514,16 @@ add already runs: when the workspace is a different one it re-points `workspace`
 and resubscribes. Rejected: a new view (every per-view record would need moving), and a new
 public `marley_rehome` (the add already passes the workspace). Only open projects of the same
 window are targets.
+
+## AD-claude-614-container-ports-come-from-the-proxys-command-line-and-the-engines-cli-001
+*decided at: 2026-09-30 · status: shipped*
+
+A Docker container's published port belongs to root's `docker-proxy`, whose socket a user's scan
+cannot tie to a process; the rail reads the proxy's command line (anyone can) for the port and the
+container's address, and treats a rootless Podman helper's port as a container's. The container's
+name and Compose folder come from the engine's CLI (`docker ps`, `podman ps`) through the spawn
+module, asked only when its ports change or every 30 s, and only where the engine answers; a
+refusal is shown, not hidden. Stop goes through the engine's `stop`, and an engine's own systemd
+unit is never what a port's Stop stops. Rejected: a Docker API crate (none is built, and the CLI
+is the published interface), and leaving container ports out without the engine (the user would
+not see them at all).

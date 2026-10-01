@@ -440,6 +440,11 @@ npm run dev
   says "Stop the User Service"; after Stop the row goes and stays gone, and
   `systemctl --user is-active marley-tour-web` prints `inactive`. Then run
   `systemctl --user reset-failed marley-tour-web`.
+- [ ] Container ports (#614): if Docker publishes ports on this machine, the rail lists them under
+  a CONTAINERS label after the projects (or under a project, named by their container, when
+  `docker ps` works for you and the container's Compose folder is in it). Without access to
+  Docker, a row reads ":8081 docker → 172.19.0.2:8081", and its Stop explains why it cannot stop
+  the container, with a command to copy. Don't stop a container you need.
 
 Leave the server running: Parts 5 and 7 use it.
 
