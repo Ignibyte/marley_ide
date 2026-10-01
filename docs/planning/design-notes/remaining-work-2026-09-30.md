@@ -84,6 +84,18 @@ Third batch (specced 2026-09-30), fish and T5 stage two:
 starting `rh` with Marley (D19), the harness's passthrough terminals (D10, C3), Rusty's sessions
 in the rail (C2), and #540 (Claude Code sessions resumed after a restart).
 
+Specced 2026-10-01, after #534 shipped (the harness's sessions in the rail, read side):
+
+| Ticket | What |
+|---|---|
+| #632 | The embedded harness: Marley starts `rh serve` on a root of its own (D19) |
+| #633 | Rusty's tools for Zed's agents, when `rusty-mcp` is installed (C2's context-server half) |
+
+Not specced, as intake docs: `intake/harness-session-live-terminal.md` (C3's observer half: no real
+agent seat has a terminal, and the harness's terminal stream is local only, not on `rh mcp`; waits
+for Chad on a local-only path) and `intake/rusty-sessions-in-the-rail.md` (C2's sessions half:
+rusty-mcp serves no session tools; waits on a Rusty ticket). #540 stays Deliberate.
+
 ## Wave 5: the test pass the workflow owes
 
 Since 2026-09-29 each ticket is proven by a visual check alone; the unit tests, the golden
