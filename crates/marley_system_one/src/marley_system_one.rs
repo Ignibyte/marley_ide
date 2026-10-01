@@ -680,3 +680,44 @@ pub const RUNNING_ERROR: UseSpec = UseSpec {
     set: &RUNNING_ERROR_SET,
     deadline: Duration::from_secs(2),
 };
+
+/// What a line typed at a shell's prompt is, when Marley's rules leave it open (#573): a command
+/// whose name is followed by plain words.
+pub const TYPED_LINE_SET: QuestionSet = QuestionSet {
+    id: "typed_line/1",
+    model: DEFAULT_MODEL,
+    questions: &[Question::Choice {
+        key: "kind",
+        instructions: "The state is a line typed at a shell's prompt, not yet run: its first word \
+                       names a command, and plain words follow it. What did the user mean the \
+                       line to be?",
+        options: &[
+            (
+                "command",
+                "A command for the shell, its words the command's arguments.",
+            ),
+            (
+                "request",
+                "A request in words for an assistant, which only starts with a command's name.",
+            ),
+            ("comment", "A note to themselves, not meant to run."),
+            (
+                "command_then_english",
+                "A command's name followed by a sentence: run, the shell would take the words \
+                 as the command's arguments.",
+            ),
+            (
+                "cannot_tell",
+                "The line does not say enough to tell what it is.",
+            ),
+        ],
+    }],
+};
+
+/// The typed line (#573), which asks [`TYPED_LINE_SET`] about a line at a shell's prompt the rules
+/// leave open. The user is typing, so it has 600 ms and never holds up Enter.
+pub const TYPED_LINE: UseSpec = UseSpec {
+    name: "typed_line",
+    set: &TYPED_LINE_SET,
+    deadline: Duration::from_millis(600),
+};

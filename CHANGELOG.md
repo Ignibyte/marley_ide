@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **English at the prompt, second stage** (#573, 2026-09-30). A line typed at a shell's prompt
+  that Marley's own rules leave open, a command's name followed by plain words such as `kill the
+  dev server`, can be read by the System One layer as a command, a request, a comment or a
+  command followed by English, and the reading shows after the line: with a question mark in
+  Suggest, plainly in Act, where `rm the old build folder` also has the words `rm` would take as
+  files drawn in the warning colour. It asks only after 250 ms without typing, for a listed
+  project, never for a line with a secret in it, and Enter never waits for it. The use is
+  `typed_line` in `marley.system_one.uses`, off by default. #557's hint and Ctrl+Shift+Enter now
+  work in the shell's prompt editor too, where they had gone missing since #627.
+
 - **The prompt editor by default** (#627, 2026-09-30). In a terminal with the focus, the shell's
   prompt editor docks by itself at every prompt and takes the keys: no Ctrl+G first. When a
   command starts or a full-screen program shows, it closes and the program gets every key raw,

@@ -3538,3 +3538,20 @@ Browser tabs and worktrees stay unlisted until it opens. A row's action that nee
 thread opens its own folders under the group's key, as Zed's Threads Sidebar opens one. Actions
 that need no workspace (Copy, Stop, Restart, Archive, Delete) run with the project closed. Next and
 Previous Thread pass over a closed project's threads, as Next Project passes over its header.
+
+## AD-claude-573-the-typed-line-reads-the-open-case-after-the-line-in-the-editor-first-001
+*decided at: 2026-09-30 · status: shipped · builds on: AD-claude-557-english-at-the-prompt-by-local-rules-001, AD-claude-565-the-system-one-layer-is-a-pure-core-behind-an-adapter-off-by-default-001*
+
+The System One layer reads a line typed at a shell's prompt only in the case #557's rules settle
+by their marker rule: a command followed by plain words, one of them an English marker, with no
+shell syntax, so `git status` costs nothing. It asks once the line has stayed the same for 250 ms,
+for a listed project, never for a line the redactor finds anything in, with a 600 ms deadline,
+and keeps the reading only while the line reads the same; Enter's path gained nothing that waits.
+Since #627 made the prompt editor the default input, the reading's main surface is the editor:
+an inlay after its text in Zed's suggestion style and, in act, the command's would-be arguments in
+the warning colour, which needs no Zed change; the grid keeps #557's slot with the words alone.
+#557's hint and Ctrl+Shift+Enter moved into the editor with it, and the key also asks when the
+reading offers the agent. Rejected: asking about every command followed by words (a call for each
+`git status`); the warning colour in the grid (the Zed hook's answer type would grow); an unlisted
+project's refusal row for every typed line; the footer for the reading (#557's rule against
+resizing the PTY).

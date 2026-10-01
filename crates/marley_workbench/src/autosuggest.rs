@@ -30,6 +30,8 @@ pub fn init(cx: &mut App) {
     cx.set_global(HistoryFiles::default());
     cx.set_global(MarleyTerminalSuggestion(Arc::new(|terminal, cx| {
         read_history_once_drawn(terminal, cx);
+        // The line at the grid's prompt, from the frame the hint is drawn from (#573).
+        crate::typed_line::follow_grid(terminal, cx);
         // The hint is never a suggestion: AcceptSuggestion recomputes these and types only the
         // history's (#557).
         suggestion(terminal, cx)

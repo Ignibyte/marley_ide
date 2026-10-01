@@ -15,15 +15,21 @@
 //! takes the keys there; when a command starts or a full-screen program shows, it closes and the
 //! terminal gets every key raw again. Escape gives the keys back to the shell until its next
 //! prompt; Ctrl-C empties the editor.
+//!
+//! The shell's editor shows #557's hint, or #573's reading, after its text as an inlay, and in
+//! `act` colours the words a command would take as arguments when the line is a command followed
+//! by English (#573); each edit tells [`crate::typed_line`] the line in front.
 
 use std::collections::HashMap;
 
-use editor::Editor;
+use editor::{Editor, EditorEvent, HighlightKey, Inlay, MultiBufferOffset};
 use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, EntityId, Focusable as _, Global,
-    InteractiveElement as _, KeyDownEvent, WeakEntity, Window,
+    HighlightStyle, InteractiveElement as _, KeyDownEvent, WeakEntity, Window,
 };
 use marley_agent::AgentKind;
+use project::InlayId;
+use terminal::Terminal;
 use terminal_view::{MarleyFooterContext, TerminalView};
 use ui::prelude::*;
 use workspace::Workspace;
@@ -35,12 +41,17 @@ use crate::{
 };
 use settings::Settings as _;
 
+/// The id of the shell's editor's hint inlay, far from the ids Zed hands out.
+const HINT_INLAY: usize = usize::MAX - 573;
+
 /// A terminal's editor, and whether it shows.
 struct Prompt {
     editor: Entity<Editor>,
     open: bool,
     /// Who the text goes to.
     target: Target,
+    /// The view's terminal, whose line the shell's editor holds (#573).
+    terminal: WeakEntity<Terminal>,
 }
 
 /// Who an editor's text goes to.
@@ -132,7 +143,7 @@ pub fn init(cx: &mut App) {
 
 /// Who the editor of `terminal` would write to: its running agent, else its shell while that waits
 /// at a prompt off the alternate screen (#624); none, to leave Ctrl-G to the program.
-fn target_of(terminal: &terminal::Terminal) -> Option<Target> {
+fn target_of(terminal: &Terminal) -> Option<Target> {
     if let Some(agent) = agent_in(terminal) {
         return Some(Target::Agent(agent));
     }
@@ -278,14 +289,22 @@ fn open_for(view: &Entity<TerminalView>, target: Target, window: &mut Window, cx
         }
     });
     window.focus(&editor.focus_handle(cx), cx);
+    let terminal = view.read(cx).terminal().clone();
     cx.global_mut::<Prompts>().0.insert(
         id,
         Prompt {
-            editor,
+            editor: editor.clone(),
             open: true,
             target,
+            terminal: terminal.downgrade(),
         },
     );
+    if matches!(target, Target::Shell) {
+        // A draft the editor kept is the line in front now (#573).
+        let text = editor.read(cx).text(cx);
+        crate::typed_line::changed(&terminal, &text, cx);
+    }
+    paint_hint(&editor, &terminal, matches!(target, Target::Shell), cx);
     view.update(cx, |_, cx| cx.notify());
 }
 
@@ -331,7 +350,107 @@ fn new_editor(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) ->
         cx.global_mut::<Prompts>().0.remove(&id);
     })
     .detach();
+    let view = view.downgrade();
+    cx.subscribe(&editor, move |_, event: &EditorEvent, cx| {
+        if matches!(event, EditorEvent::BufferEdited) {
+            edited(&view, cx);
+        }
+    })
+    .detach();
     editor
+}
+
+/// The shell's editor of `view` was edited: its text is the line in front of the terminal, and
+/// the hint after it follows (#573).
+fn edited(view: &WeakEntity<TerminalView>, cx: &mut App) {
+    let Some(view) = view.upgrade() else {
+        return;
+    };
+    let Some(editor) = cx
+        .global::<Prompts>()
+        .0
+        .get(&view.entity_id())
+        .filter(|prompt| prompt.open && matches!(prompt.target, Target::Shell))
+        .map(|prompt| prompt.editor.clone())
+    else {
+        return;
+    };
+    let terminal = view.read(cx).terminal().clone();
+    let text = editor.read(cx).text(cx);
+    crate::typed_line::changed(&terminal, &text, cx);
+    paint_hint(&editor, &terminal, true, cx);
+}
+
+/// Draws the hint after the text of `editor`, the shell's editor of `terminal`, and colours the
+/// words the hint warns about; an agent's editor (`shell` false) shows neither.
+fn paint_hint(editor: &Entity<Editor>, terminal: &Entity<Terminal>, shell: bool, cx: &mut App) {
+    let hint = shell
+        .then(|| crate::english::hint_for(&editor.read(cx).text(cx), terminal, cx))
+        .flatten();
+    let warning = cx.theme().status().warning;
+    editor.update(cx, |editor, cx| {
+        let snapshot = editor.buffer().read(cx).snapshot(cx);
+        let end = snapshot.anchor_after(snapshot.len());
+        let inlays = hint
+            .as_ref()
+            .map(|hint| Inlay::edit_prediction(HINT_INLAY, end, hint.text.to_string()))
+            .into_iter()
+            .collect();
+        editor.splice_inlays(&[InlayId::EditPrediction(HINT_INLAY)], inlays, cx);
+        match hint.and_then(|hint| hint.warning) {
+            Some(range) => editor.highlight_text(
+                HighlightKey::Editor,
+                vec![
+                    snapshot.anchor_before(MultiBufferOffset(range.start))
+                        ..snapshot.anchor_after(MultiBufferOffset(range.end)),
+                ],
+                HighlightStyle {
+                    color: Some(warning),
+                    ..HighlightStyle::default()
+                },
+                cx,
+            ),
+            None => editor.clear_highlights(HighlightKey::Editor, cx),
+        }
+    });
+}
+
+/// Draws the hint of the shell's editor holding `terminal`'s line again, as a reading came
+/// (#573).
+pub(crate) fn refresh_hint(terminal: EntityId, cx: &mut App) {
+    let Some((editor, terminal)) = cx.try_global::<Prompts>().and_then(|prompts| {
+        prompts.0.values().find_map(|prompt| {
+            let shell = prompt.open && matches!(prompt.target, Target::Shell);
+            let held = prompt.terminal.upgrade()?;
+            (shell && held.entity_id() == terminal).then(|| (prompt.editor.clone(), held))
+        })
+    }) else {
+        return;
+    };
+    paint_hint(&editor, &terminal, true, cx);
+}
+
+/// Whether a shell's editor holding the line of the terminal `terminal` is open: the line is the
+/// editor's then, not the grid's (#573).
+pub(crate) fn holds_line_of(terminal: EntityId, cx: &App) -> bool {
+    cx.try_global::<Prompts>().is_some_and(|prompts| {
+        prompts.0.values().any(|prompt| {
+            prompt.open
+                && matches!(prompt.target, Target::Shell)
+                && prompt.terminal.entity_id() == terminal
+        })
+    })
+}
+
+/// The text of `view`'s shell editor while it is open (#573).
+pub(crate) fn shell_text(view: &Entity<TerminalView>, cx: &App) -> Option<String> {
+    let prompt = cx.try_global::<Prompts>()?.0.get(&view.entity_id())?;
+    (prompt.open && matches!(prompt.target, Target::Shell)).then(|| prompt.editor.read(cx).text(cx))
+}
+
+/// Empties `view`'s shell editor, whose line went to an agent (#573).
+pub(crate) fn clear_shell(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
+    clear(view, window, cx);
 }
 
 /// Sends the editor's text to the agent as one paste and a carriage return, then closes it
@@ -350,6 +469,7 @@ fn send(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
         let terminal = view.read(cx).terminal().clone();
         // What was typed at the shell's prompt is the editor's now, so the shell's line goes first.
         if matches!(target, Target::Shell) {
+            crate::typed_line::entering(&terminal, cx);
             terminal.update(cx, |terminal, _| terminal.input(vec![0x15]));
         }
         crate::terminal_drive::paste_then(

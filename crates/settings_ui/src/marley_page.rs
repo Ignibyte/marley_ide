@@ -551,7 +551,7 @@ fn push_section() -> [SettingsPageItem; 4] {
 // (#565). The project lists, and each use's mode past the check's, the stop kind's (#566), the
 // find tools' (#567), the stall kind's (#569), the click consequence's (#571), the inbox's
 // (#568) and the question route's (#570), live in settings.json.
-fn system_one_section() -> [SettingsPageItem; 16] {
+fn system_one_section() -> [SettingsPageItem; 17] {
     [
         SettingsPageItem::SectionHeader("System One"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -960,6 +960,38 @@ fn system_one_section() -> [SettingsPageItem; 16] {
                     let _before = match value {
                         Some(mode) => uses.insert("running_error".to_string(), mode),
                         None => uses.remove("running_error"),
+                    };
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: the mode of the typed line (#573).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Typed Line",
+            description: "The mode of the typed line, which reads a line typed at a shell's prompt that Marley's own rules leave open, a command's name followed by plain words, as a command, a request, a comment, or a command followed by English. It asks only after 250 ms without typing, never for a line holding a secret, and never holds up Enter. Shadow logs the reading in Decisions, Suggest shows it after the line with a question mark, and Act shows it plainly and colours the words a command would take as arguments. Off asks nothing.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.system_one.uses.typed_line"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.system_one.as_ref())
+                        .and_then(|system_one| system_one.uses.as_ref())
+                        .and_then(|uses| uses.get("typed_line"))
+                },
+                write: |settings_content, value, _| {
+                    let uses = settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .system_one
+                        .get_or_insert_default()
+                        .uses
+                        .get_or_insert_default();
+                    let _before = match value {
+                        Some(mode) => uses.insert("typed_line".to_string(), mode),
+                        None => uses.remove("typed_line"),
                     };
                 },
             }),

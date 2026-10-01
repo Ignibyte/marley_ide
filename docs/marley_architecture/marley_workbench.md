@@ -936,6 +936,12 @@ alike.
   close and focus change is deferred to the window.
 - `take_focus_at_prompt` opens the editor when the terminal gets the focus at a prompt it was not
   dismissed at. `close` marks the shell's editor dismissed until the next prompt.
+- Since #573 the shell's editor subscribes to its own `BufferEdited`: the text goes to
+  `typed_line::changed` and `paint_hint` draws `english::hint_for`'s words after the text as an
+  `Inlay::edit_prediction` with the reserved id `usize::MAX - 573`, and the warning range in the
+  theme's warning colour through `highlight_text` under `HighlightKey::Editor`; an agent's editor
+  shows neither. `send` calls `typed_line::entering` first. In `MarleyShellInput > Editor`,
+  Ctrl-Shift-Enter is `marley::AskAgent`.
 
 ## The shell's completions (`src/shell_completions.rs`, #625)
 
@@ -1300,6 +1306,37 @@ alike.
 - `asks_on_127` makes #555's chip show on the newest block that ended with 127 when its verified
   command reads as English, even with no agent running; its click asks with the command
   (`ask_later`, deferred past the element's update).
+- Since #573, `hint_for(line, terminal)` gives the words for any line, the grid's or the prompt
+  editor's: #573's reading from `typed_line::shown` where one is kept for exactly that line
+  (`request`, `comment`, `command_then_english`, with `?` in suggest; `command` hides #557's hint
+  in act), else #557's; in act a command followed by English carries `arguments`, the byte range
+  of the words after the first, for the editor's warning colour. `ask_typed` reads the shell
+  editor's line while it is open (`rich_input::shell_text`, then `clear_shell`), takes a line
+  that reads as English or whose shown reading offers the agent (`offers_agent`), and writes
+  `asked the agent`. `open_case`, `reads_as_english` and `command_source` serve `typed_line`.
+
+## The typed line (`src/typed_line.rs`, #573)
+
+- `Lines`, a global keyed by the terminal's entity id: the line in front, the quiet timer, the
+  call about the line (its row, text, kind and the next block's index), the last line asked about
+  with its kind, a call entering the shell and a call whose block runs, and the view's workspace.
+- The grid's line is read in `autosuggest`'s hook, at each frame (`follow_grid`), since typing
+  reaches the terminal as wakeups that notify no observer; it is skipped while a shell editor
+  holds the terminal's line (`rich_input::holds_line_of`). The editor's line comes from its edit
+  subscription. Either goes through `changed`: a call about another line gets `edited` or
+  `cleared`; an open line (`english::open_case`), with the use on and nothing the redactor finds,
+  arms a 250 ms timer.
+- `settled` asks, when the line is unchanged: the last line asked about reuses its kind with no
+  call; an unlisted project (`system_one::detail`) makes none; otherwise `system_one::ask(TYPED_LINE)`
+  with the line as text and facts (the project, the first word and where it is known from, the
+  word count, the markers, a history match, the last exit code) and #557's reading as the verdict.
+  The ask's task is detached, so its row is always written; `answered` keeps a model's clear
+  choice for the line still in front, notifies the terminal and repaints the editor's hint
+  (`rich_input::refresh_hint`), or logs `dropped`.
+- Outcomes: `entering` (the editor's send, or the grid's prompt left) holds the call until a block
+  past its index opens with its command (`entered`), then `exit N` when that block ends, both seen
+  from an observer of the terminal; `asked_agent` writes `asked the agent`. A settings change
+  drops the kept readings and timers.
 
 ## Codex's and OpenCode's notifications (`src/agent_notify.rs`, #552)
 

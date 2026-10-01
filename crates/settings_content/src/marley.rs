@@ -253,7 +253,8 @@ pub struct SystemOneSettingsContent {
     /// Each use's mode, by the use's name.
     ///
     /// Default: {"check": "act", "stop_kind": "off", "browser_find": "off", "terminal_find": "off",
-    /// "stall_kind": "off", "click_consequence": "off", "inbox": "off", "question_route": "off"}
+    /// "stall_kind": "off", "click_consequence": "off", "inbox": "off", "question_route": "off",
+    /// "running_error": "off", "typed_line": "off"}
     pub uses: Option<BTreeMap<String, SystemOneMode>>,
 }
 

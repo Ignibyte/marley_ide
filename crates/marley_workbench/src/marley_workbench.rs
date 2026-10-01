@@ -80,6 +80,7 @@ pub mod terminal_ids;
 pub mod terminal_size;
 pub mod turn_git;
 pub mod turns;
+pub mod typed_line;
 pub mod voice;
 pub mod workflows;
 pub mod worktree_agents;
@@ -660,6 +661,7 @@ pub fn init(cx: &mut App) {
     command_watch::init(cx);
     running_errors::init(cx);
     english::init(cx);
+    typed_line::init(cx);
     agent_notify::init(cx);
     agent_bar::init(cx);
     claude_plugin::init(cx);

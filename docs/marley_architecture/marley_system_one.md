@@ -56,6 +56,10 @@ the time and names the folder. MIT OR Apache-2.0, with rustal's lint table; its 
   about a line a running command printed that Marley's shapes left open, with the lines before
   and after it: `new_failure` and `recovered`. `RUNNING_ERROR` is its use, `running_error`, with a
   2 s deadline. A shape's flag and recovery are logged as `rules` rows with their noul held.
+- **The typed line's set** (#573). `TYPED_LINE_SET` (`typed_line/1`) asks one choice, `kind`,
+  about a line at a shell's prompt the rules leave open: `command`, `request`, `comment`,
+  `command_then_english` or `cannot_tell`. `TYPED_LINE` is its use, `typed_line`, with a 600 ms
+  deadline, since the user is typing; #557's reading is its verdict.
 - **`state`.** `StateBuilder::new(detail, mask)` takes facts, kept at every `Detail`, and text,
   left out at `Detail::Facts`, each value through the host's mask. A text value is masked whole
   and then cut to 300 characters (`cut`), since a cut can split a secret the mask would find.
@@ -99,8 +103,9 @@ keychain and the settings, which the workbench owns.
 `marley_workbench::system_one` (the adapter and the check), `marley_workbench::decisions` (the
 view), since #566 `marley_workbench::agent_events` (the stop kind), since #567
 `marley_workbench::find` (the find tools), since #569 `marley_workbench::stall` (the stall
-kind), since #571 `marley_workbench::click_pause` (the click consequence), and since #572
-`marley_workbench::running_errors` (the running error).
+kind), since #571 `marley_workbench::click_pause` (the click consequence), since #572
+`marley_workbench::running_errors` (the running error), and since #573
+`marley_workbench::typed_line` (the typed line).
 
 ## Tests
 

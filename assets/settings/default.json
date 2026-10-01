@@ -1800,7 +1800,9 @@
       // with risk chips and orders it by them; the question route marks who should answer each
       // entry: you, a manager, the agent itself, or unclear; the running error tells a running
       // command that printed a failure and kept running, by the lines' shapes first and the
-      // model for the lines they leave open.
+      // model for the lines they leave open; the typed line reads a line typed at a shell's
+      // prompt that Marley's rules leave open: a command, a request, a comment, or a command
+      // followed by English.
       "uses": {
         "check": "act",
         "stop_kind": "off",
@@ -1811,6 +1813,7 @@
         "inbox": "off",
         "question_route": "off",
         "running_error": "off",
+        "typed_line": "off",
       },
     },
   },

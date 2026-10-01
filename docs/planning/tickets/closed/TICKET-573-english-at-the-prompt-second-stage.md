@@ -2,7 +2,7 @@
 
 - **Ticket:** LOCAL #573 (feature, prong 1 T3 after #557 (the local rules); the System One layer's typed-line use, on #565)
 - **Owner:** spec-drafter-2026-09-26
-- **Pipeline doc:** ../../pipeline/queued/573-english-at-the-prompt-second-stage.spec.md
+- **Pipeline doc:** ../../pipeline/completed/573-english-at-the-prompt-second-stage.spec.md
 - **Source ticket:** Chad, 2026-09-26, approving the System One uses of
   `docs/planning/design-notes/jev-system-one-2026-09-25.md` and the typed-line use of
   `docs/planning/design-notes/warp-blocks-and-natural-language-2026-09-25.md` ("Where a System
@@ -11,7 +11,8 @@
   TICKET-565 builds, with his rules: "local first and then jev second", and "we need probably every
   aspect of this configurable and turned off / on where the system will use or wont use it.
   Otherwise this becomes a jev required system." #557's D1 names this ticket as its second stage.
-- **Status:** open
+  Re-bound at promotion (2026-09-30) to #627's prompt editor, the default input since then.
+- **Status:** closed
 
 ## Summary
 #557 labels the line typed at a shell prompt by local rules (a first word not on the PATH reads as
@@ -28,7 +29,8 @@ warning color before Enter. The line leaves the box only for a project on the al
 keeps it on the machine. Off by default as the use `typed_line` in `marley.system_one.uses`.
 
 ## Acceptance
-On the `replay` provider with the project listed, `find all the large files in this repo` typed
+In the prompt editor, a line #557 reads as English shows its hint, and Ctrl+Shift+Enter asks the
+agent. On the `replay` provider with the project listed, `find all the large files in this repo` typed
 and left for 250 ms shows the replayed reading in the slot, and in `act` `rm the old build folder`
 shows a warning naming `rm`; typing again within 250 ms makes no call; a line with a candidate
 secret makes no call; Enter pressed before the reading runs the shell's line at once with no wait;

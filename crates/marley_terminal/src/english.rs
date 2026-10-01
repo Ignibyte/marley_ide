@@ -65,6 +65,35 @@ pub fn read_line(line: &str, is_command: impl Fn(&str) -> bool) -> Reading {
     }
 }
 
+/// Whether #573's model is asked about `line`: a command followed by plain words, one of them an
+/// English marker.
+///
+/// The rules above settle that case only by their marker rule. A line with shell syntax, one
+/// whose first word is no command, or a command with plain arguments such as `git status` is
+/// settled.
+#[must_use]
+pub fn open_case(line: &str, is_command: impl Fn(&str) -> bool) -> bool {
+    let line = line.trim();
+    let words: Vec<&str> = line.split_whitespace().collect();
+    let Some(first) = words.first() else {
+        return false;
+    };
+    marker_count(line) > 0
+        && !line.starts_with(['#', '!', '\\'])
+        && !first.contains('=')
+        && !words.iter().any(|word| looks_like_shell(word))
+        && is_command(first)
+}
+
+/// How many of `line`'s words after the first are English markers.
+#[must_use]
+pub fn marker_count(line: &str) -> usize {
+    line.split_whitespace()
+        .skip(1)
+        .filter(|word| MARKERS.contains(&word.to_lowercase().as_str()))
+        .count()
+}
+
 /// Whether `word` is shell syntax no sentence has: an operator, a redirection, a variable, a
 /// flag, a glob or a path.
 fn looks_like_shell(word: &str) -> bool {

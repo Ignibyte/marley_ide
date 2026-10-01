@@ -109,10 +109,12 @@
     }
   },
   {
-    // The shell's prompt editor (#627): Ctrl-C empties it, as at a shell's prompt.
+    // The shell's prompt editor (#627): Ctrl-C empties it, as at a shell's prompt, and
+    // Ctrl-Shift-Enter asks the agent with its line, as at the grid's prompt (#573).
     "context": "MarleyShellInput > Editor",
     "bindings": {
-      "ctrl-c": "marley::ClearRichInput"
+      "ctrl-c": "marley::ClearRichInput",
+      "ctrl-shift-enter": "marley::AskAgent"
     }
   },
   {

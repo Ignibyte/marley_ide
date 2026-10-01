@@ -2679,3 +2679,12 @@ An element that opens a `right_click_menu` sets its tooltip inside the menu's `t
 the `is_menu_active` flag the trigger receives, never on the element outside it: gpui clears a
 tooltip that is waiting to show only on the pointer's next move, so one set outside lies over
 the menu it just opened.
+
+## PR-claude-read-a-terminals-typed-line-where-its-frame-is-drawn-001
+*severity: medium · prevents: F-claude-573-the-grids-typed-line-was-never-read-001*
+
+A terminal's output and its echo of typed keys arrive as `Event::Wakeup`, and its `last_content`
+is synced only when the view draws. An observer (`cx.observe`) hears only `cx.notify()`, which a
+block's start and end send, and a `Wakeup` subscriber reads the frame before the one the event
+brought. To follow what is typed at a prompt, read it in a hook the terminal element calls while
+it lays out (`MarleyTerminalSuggestion`), where the content is the frame being drawn.

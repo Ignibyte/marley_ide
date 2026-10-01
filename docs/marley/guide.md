@@ -524,6 +524,14 @@ Ctrl+C empties the editor, as it drops a line at the shell's prompt. To have the
 Ctrl+G, turn off Prompt Editor in the Settings window's Layout section
 (`"marley": { "prompt_editor": false }`).
 
+A line that reads as a request in words, such as `what is using port 3000` or `kill the dev
+server`, shows `· ctrl-shift-enter asks the agent` after it, in the editor or at the shell's own
+prompt (#557). Ctrl+Shift+Enter hands it to the window's agent, a picker when there are several,
+or a new Claude Code when there is none; on a command the key goes to the shell. Marley's own
+rules decide, and nothing leaves the machine unless the System One layer's typed line is on
+([The typed line](#the-typed-line)). English at the Prompt on the settings page turns the hint
+off.
+
 What you type at a shell prompt is drawn in your theme's syntax colours as you type, as Zed colours
 a shell script: commands, strings, variables and operators apart (#626). The shell's editor reads
 the same way. Once the command runs, its block keeps the shell's own drawing.
@@ -1412,6 +1420,29 @@ With its mode on, each entry of the rail's "Needs you" section also says who sho
   answered it from the inbox, or had its terminal or thread in front while it waited, and `agent`
   when it went on without you.
 
+### The typed line
+
+With its mode on, a line typed at a shell's prompt that Marley's rules cannot settle is read by the
+model (#573): a command followed by plain words with an English word among them, such as `find
+all the large files in this repo` or `rm the old build folder`. Lines with flags, pipes, paths or
+variables, lines whose first word is no command, and plain commands such as `git status` are
+never asked about.
+
+- The reading shows after the line, where English at the prompt shows its hint: `· a request?
+  ctrl-shift-enter asks the agent`, `· a comment?`, or `· English after rm? ctrl-shift-enter
+  asks the agent`. Suggest adds the question mark; Act shows it plainly, and for a command
+  followed by English draws the words the command would take as arguments in the warning colour
+  in the prompt editor. A reading of `command` hides the hint in Act.
+- Marley asks only after the line has stayed the same for 250 ms, once per line, with the line as
+  masked text and facts such as where its first word comes from, the word count and the last
+  exit code. A line holding anything the redaction rules find is never sent. Enter never waits:
+  a reading that comes after the line changed is dropped.
+- Ctrl+Shift+Enter also asks the agent when the reading offers it. Enter always runs the line.
+- The mode is Typed Line on the settings page, or `uses.typed_line`: Off (the default) asks
+  nothing; Shadow logs the reading in Decisions and shows only the rules' hint.
+- Each call's outcome follows it in the day's file: `entered` and the command's `exit N`,
+  `asked the agent`, `edited`, `cleared`, or `dropped`.
+
 ### Decisions
 
 `marley: open decisions` opens a tab with the day's calls, newest first: the time, the use, the
@@ -1589,6 +1620,7 @@ table lists Marley's bindings and the Zed keys whose meaning Marley changes or r
 | Ctrl+G | Terminal running an agent CLI | Rich input |
 | Enter, Shift+Enter, Escape | Rich input | Sends; adds a line; closes and keeps the draft |
 | Ctrl+C | The shell's prompt editor | Empties it |
+| Ctrl+Shift+Enter | The shell's prompt editor, or a terminal at a shell prompt | Asks the agent with a line in words; a command's key goes to the shell |
 | Ctrl+Q | Terminal | Goes to the shell, not Zed (quit with `zed: quit`) |
 | Ctrl+L | Browser tab | The address bar |
 | Enter, Escape | Address bar | Goes; puts the page's URL back and focuses the page |

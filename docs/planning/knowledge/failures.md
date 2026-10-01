@@ -3064,3 +3064,13 @@ shell at a prompt both times, never saw the prompt come again, and left the edit
 marked dismissed by the send (`ran.png`: the block, the shell's cursor, no editor). Fixed before
 the commit: the observer keeps the terminal's block count too, and a new block while the shell
 waits counts as a new prompt.
+
+## F-claude-573-the-grids-typed-line-was-never-read-001
+*severity: medium · found in: pipeline 573's Test phase (run 1) · class: an observer of an entity that changes by events*
+
+The typed line's watch read the grid's line from an observer of the terminal (`cx.observe`).
+Typing reaches a terminal as `Event::Wakeup`, which notifies no observer, so with the prompt
+editor closed the typed line was never asked about, and the grid's slot kept #557's hint
+(`grid.png`). Fixed before the commit: the grid's line is read in the suggestion hook, at each
+frame, from the snapshot the slot is drawn from; the observer keeps only the blocks' starts and
+ends, which do notify.

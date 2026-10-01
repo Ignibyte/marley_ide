@@ -193,6 +193,9 @@ real, reusable session. The Block model is the unit the **brain** later observes
   leading `#`, `!` or `\`, an assignment, or any operator, flag, variable, glob or path makes a
   command; otherwise a first word that is no command is English, and a command followed by three
   or more words with an English marker (`MARKERS`) is too. The caller says what a command is.
+  `open_case` (#573) is the line a model may be asked about: a command followed by plain words,
+  one of them a marker, with no shell syntax; `marker_count` counts the markers after the first
+  word.
   `agent_commands.rs` (#556) decides an agent's `terminal_run` by two lists of regular
   expressions, Warp's defaults in `WARP_ALLOWLIST` and `WARP_DENYLIST`: `segments` splits a
   command at `|`, `||`, `&&`, `;`, `&` and newlines outside quotes; `verdict` asks when the

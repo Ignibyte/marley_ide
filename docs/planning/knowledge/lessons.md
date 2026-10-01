@@ -4208,3 +4208,11 @@ An observer that reacts to a state's edges only sees the state at each notify, a
 go through a whole command between two of them. To act on "the prompt came again", compare
 something that only grows with each occurrence (the block count, an index) with what the last
 notify saw, not a boolean that ends where it started.
+
+## L-claude-573-detach-an-ask-in-flight-instead-of-dropping-it-with-its-line-001
+*category: design · topic: System One uses · from: pipeline 573*
+
+`system_one::ask` writes its call's row when the answer comes, in the task it returns. A use that
+cancels stale work by dropping a task must keep the ask out of that task: drop only the timer
+that leads to the ask, detach the task that awaits it, and compare the answer with the state
+still in front. The row is always written, and a late answer can say so (`dropped`).

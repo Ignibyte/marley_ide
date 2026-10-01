@@ -7,20 +7,25 @@
 //! targets), a picker when there are several, or a new Claude Code with the line as its first
 //! prompt when there is none. A block that ended with 127 on such a line offers the same through
 //! #555's Ask the agent chip.
+//!
+//! The line is the shell's prompt editor's while it is open (#627), and the hint shows there too.
+//! Where #573's model has read a line the rules leave open, its reading takes the hint's place.
 
 use std::collections::HashSet;
 use std::ffi::OsString;
+use std::ops::Range;
 use std::sync::Arc;
 
 use gpui::{App, Context, Entity, Global, SharedString, Task, Window};
 use marley_agent::AgentKind;
 use marley_terminal::BlockState;
 use marley_terminal::english::{self, BUILTINS, Reading};
-use settings::Settings as _;
+use settings::{Settings as _, SystemOneMode};
 use terminal::Terminal;
 use workspace::Workspace;
 
 use crate::send_selection::{self, OnPick, Pick, Row, TargetPicker};
+use crate::typed_line::{self, Kind};
 use crate::{AskAgent, EnglishHint, MarleySettings};
 
 /// What the hint says, after the typed line.
@@ -113,39 +118,130 @@ fn is_command(word: &str, terminal: &Terminal, cx: &App) -> bool {
         })
 }
 
+/// Where `word`, a command, is known from, for #573's facts.
+pub(crate) fn command_source(word: &str, cx: &App) -> &'static str {
+    if BUILTINS.contains(&word) {
+        "a shell builtin"
+    } else if cx
+        .try_global::<Commands>()
+        .and_then(|commands| commands.names.as_ref())
+        .is_some_and(|names| names.contains(word))
+    {
+        "a program on the search path"
+    } else {
+        "a command this terminal ran"
+    }
+}
+
 /// What `line` reads as in `terminal`.
 fn reading(line: &str, terminal: &Terminal, cx: &App) -> Reading {
     english::read_line(line, |word| is_command(word, terminal, cx))
 }
 
-/// The hint after a line typed at `terminal`'s prompt that reads as English, while the setting
-/// is on; the suggestion hook shows it where no history suggestion does.
-pub(crate) fn hint(terminal: &Entity<Terminal>, cx: &App) -> Option<SharedString> {
-    if MarleySettings::get_global(cx).english_hint == EnglishHint::Hidden {
-        return None;
-    }
-    let terminal = terminal.read(cx);
-    let typed = crate::autosuggest::typed_text(terminal)?;
-    (reading(&typed, terminal, cx) == Reading::English).then(|| SharedString::from(HINT))
+/// Whether `line` reads as English in `terminal` by the rules.
+pub(crate) fn reads_as_english(line: &str, terminal: &Terminal, cx: &App) -> bool {
+    reading(line, terminal, cx) == Reading::English
 }
 
-/// Ctrl+Shift+Enter: the line typed at the focused terminal's prompt, when it reads as English,
-/// leaves the shell's line and goes to the agent, whatever the hint's setting; false otherwise,
-/// so a command's key reaches the shell.
+/// Whether #573's model is asked about `line` in `terminal`.
+pub(crate) fn open_case(line: &str, terminal: &Terminal, cx: &App) -> bool {
+    english::open_case(line, |word| is_command(word, terminal, cx))
+}
+
+/// What shows after a line at a shell's prompt, and the part of the line coloured as a warning.
+pub(crate) struct Hint {
+    pub(crate) text: SharedString,
+    /// The byte range of the words a command would take as its arguments (#573).
+    pub(crate) warning: Option<Range<usize>>,
+}
+
+/// The hint after `line` at `terminal`'s prompt while the setting is on: #573's reading of the
+/// line where there is one, else #557's when the line reads as English.
+pub(crate) fn hint_for(line: &str, terminal: &Entity<Terminal>, cx: &App) -> Option<Hint> {
+    if MarleySettings::get_global(cx).english_hint == EnglishHint::Hidden || line.trim().is_empty()
+    {
+        return None;
+    }
+    let rules = reads_as_english(line, terminal.read(cx), cx).then(|| Hint {
+        text: SharedString::from(HINT),
+        warning: None,
+    });
+    let Some((kind, mode)) = typed_line::shown(terminal.entity_id(), line, cx) else {
+        return rules;
+    };
+    // `suggest` asks; `act` says.
+    let mark = if mode == SystemOneMode::Suggest {
+        "?"
+    } else {
+        ","
+    };
+    let first = line.split_whitespace().next().unwrap_or_default();
+    let text = match kind {
+        Kind::Command if mode == SystemOneMode::Act => return None,
+        Kind::Command => return rules,
+        Kind::Request => format!("  · a request{mark} ctrl-shift-enter asks the agent"),
+        Kind::Comment => format!("  · a comment{}", mark.trim_end_matches(',')),
+        Kind::CommandThenEnglish => {
+            format!("  · English after {first}{mark} ctrl-shift-enter asks the agent")
+        }
+    };
+    let warning = (kind == Kind::CommandThenEnglish && mode == SystemOneMode::Act)
+        .then(|| arguments(line))
+        .flatten();
+    Some(Hint {
+        text: text.into(),
+        warning,
+    })
+}
+
+/// The byte range of `line`'s words after its first, on its first line.
+fn arguments(line: &str) -> Option<Range<usize>> {
+    let start = line.len() - line.trim_start().len();
+    let first_end = start + line[start..].find(char::is_whitespace)?;
+    let rest = &line[first_end..];
+    let arguments_start = first_end + (rest.len() - rest.trim_start().len());
+    let line_end = line.find('\n').unwrap_or(line.len());
+    let words = line.get(arguments_start..line_end)?.trim_end();
+    (!words.is_empty()).then(|| arguments_start..arguments_start + words.len())
+}
+
+/// The hint after the line typed at `terminal`'s grid prompt; the suggestion hook shows it where
+/// no history suggestion does.
+pub(crate) fn hint(terminal: &Entity<Terminal>, cx: &App) -> Option<SharedString> {
+    let typed = crate::autosuggest::typed_text(terminal.read(cx))?;
+    hint_for(&typed, terminal, cx).map(|hint| hint.text)
+}
+
+/// Whether Ctrl+Shift+Enter hands `line` to an agent: it reads as English, or the reading shown
+/// after it offers the agent (#573).
+fn offers_agent(line: &str, terminal: &Entity<Terminal>, cx: &App) -> bool {
+    reads_as_english(line, terminal.read(cx), cx)
+        || typed_line::shown(terminal.entity_id(), line, cx)
+            .is_some_and(|(kind, _)| matches!(kind, Kind::Request | Kind::CommandThenEnglish))
+}
+
+/// Ctrl+Shift+Enter: the line at the focused terminal's prompt, in the shell's editor while it is
+/// open, else typed at the prompt, when it offers the agent, leaves the shell's line and goes to
+/// the agent, whatever the hint's setting; false otherwise, so a command's key reaches the shell.
 fn ask_typed(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) -> bool {
     let Some(view) = crate::blocks::focused_terminal(workspace, window, cx) else {
         return false;
     };
     let terminal = view.read(cx).terminal().clone();
-    let Some(text) = crate::autosuggest::typed_text(terminal.read(cx))
-        .map(|text| text.trim().to_string())
-        .filter(|text| reading(text, terminal.read(cx), cx) == Reading::English)
-    else {
+    let in_editor = crate::rich_input::shell_text(&view, cx);
+    let typed = in_editor
+        .clone()
+        .or_else(|| crate::autosuggest::typed_text(terminal.read(cx)));
+    let Some(text) = typed.filter(|text| offers_agent(text, &terminal, cx)) else {
         return false;
     };
+    typed_line::asked_agent(&terminal, cx);
+    if in_editor.is_some() {
+        crate::rich_input::clear_shell(&view, window, cx);
+    }
     // Ctrl-U: the line is the agent's now, not the shell's.
     terminal.update(cx, |terminal, _| terminal.input(b"\x15".to_vec()));
-    ask(workspace, text, window, cx);
+    ask(workspace, text.trim().to_string(), window, cx);
     true
 }
 
