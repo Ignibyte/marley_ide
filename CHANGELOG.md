@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Rusty's tools for Zed's agents** (#633, 2026-10-01). Where `rusty-mcp` is on your PATH,
+  Marley offers Rusty's MCP server to Zed's agents as the context server `rusty`, beside its own
+  `marley` server, so an agent in Marley reaches Rusty's brain loop and its other tools; Zed asks
+  before each call as for any server. Rusty Tools for Agents on the Marley page
+  (`marley.rusty_tools`) turns it off, and a `rusty` entry of your own in `context_servers` wins.
+
 - **The embedded harness** (#632, 2026-10-01). With `marley.embedded_harness` on, Marley runs
   rustal-harness's runtime itself: it finds `rh` (`MARLEY_RH`, else the PATH), serves a root in its
   own data folder, and shows that harness's sessions in the rail's Harness section. The header also

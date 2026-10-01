@@ -1741,6 +1741,9 @@
     // Marley's suggestions (#553). Off, they are typed with a leading space that bash and zsh
     // keep out of the history, in terminals opened after the change.
     "agent_commands_in_history": true,
+    // Whether Rusty's MCP server is offered to Zed's agents as the context server "rusty" where
+    // `rusty-mcp` is on your PATH; a "rusty" entry of your own in context_servers wins (#633).
+    "rusty_tools": true,
     // Whether a line typed at a prompt that reads as English, such as "what is using port 3000",
     // shows a hint that Ctrl+Shift+Enter asks the agent, and a block that ended with 127 on one
     // offers Ask the agent (#557). Local rules decide; the key works either way.

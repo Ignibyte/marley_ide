@@ -68,6 +68,7 @@ pub mod review_notes;
 pub mod rich_input;
 pub mod routing;
 pub mod running_errors;
+pub mod rusty;
 pub mod send_block;
 pub mod send_selection;
 pub mod shell_completions;
@@ -366,6 +367,8 @@ pub struct MarleySettings {
     pub harness: Option<settings::ContextServerCommand>,
     /// Whether Marley runs the harness's runtime itself (#632).
     pub embedded_harness: EmbeddedHarness,
+    /// Whether Rusty's MCP server is offered to Zed's agents (#633).
+    pub rusty_tools: RustyTools,
     /// How long a command runs before its end notifies; 0 is never (#551).
     pub long_command_seconds: u64,
     /// Whose consequential clicks in the Browser tab wait for Allow (#571).
@@ -470,6 +473,25 @@ impl EmbeddedHarness {
     }
 }
 
+/// Whether Rusty's MCP server is offered to Zed's agents, from `marley.rusty_tools` (#633).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RustyTools {
+    /// Offered where `rusty-mcp` is installed.
+    Offered,
+    /// Never offered.
+    Off,
+}
+
+impl RustyTools {
+    /// The setting's value: offered unless it is off.
+    const fn from_setting(offered: Option<bool>) -> Self {
+        match offered {
+            Some(false) => Self::Off,
+            _ => Self::Offered,
+        }
+    }
+}
+
 /// How a block's prompt rows are drawn, from `marley.block_headers` (#628).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlockHeaders {
@@ -534,6 +556,7 @@ impl Settings for MarleySettings {
             embedded_harness: EmbeddedHarness::from_setting(
                 marley.and_then(|marley| marley.embedded_harness),
             ),
+            rusty_tools: RustyTools::from_setting(marley.and_then(|marley| marley.rusty_tools)),
             block_headers: BlockHeaders::from_setting(
                 marley.and_then(|marley| marley.block_headers),
             ),
@@ -715,6 +738,7 @@ pub fn init(cx: &mut App) {
     sticky_header::init(cx);
     block_headers::init(cx);
     harness::init(cx);
+    rusty::init(cx);
     markdown_commands::init(cx);
     command_watch::init(cx);
     running_errors::init(cx);

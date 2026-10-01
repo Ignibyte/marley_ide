@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #633 (feature, prong 2 C2, plan D11)
 - **Owner:** claude-opus-5-5, 2026-10-01
-- **Pipeline doc:** ../../pipeline/queued/633-rusty-tools-for-zeds-agents.spec.md
+- **Pipeline doc:** ../../pipeline/completed/633-rusty-tools-for-zeds-agents.spec.md
 - **Source ticket:** plan C2 ("brain-loop and Rusty tools in the default `context_servers`"), D11 ("Rusty stays Rusty … points agents at `rusty-mcp`"); wave 4
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 When `rusty-mcp` is on the search path, Marley offers it to Zed's agents as a context server named

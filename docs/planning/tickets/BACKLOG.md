@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-633](open/TICKET-633-rusty-tools-for-zeds-agents.md) | feature | prong 2 C2 · Rusty's tools for Zed's agents when `rusty-mcp` is installed (D11) |
 
 ## Deliberate (picked explicitly, never auto-next)
 

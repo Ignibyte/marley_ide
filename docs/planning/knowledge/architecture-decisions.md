@@ -3629,3 +3629,15 @@ serves is followed as is. Quitting or turning the setting off ends `serve` only:
 tmux and sessions live on, and the next `serve` reconnects to them. Rejected: a `systemd-run`
 unit (the browser's way; later, if sessions should survive Marley crashing); shipping `rh` inside
 `just install`; running `shutdown --stop-backend` on exit.
+
+## AD-claude-633-rustys-server-is-offered-where-installed-as-a-default-001
+*decided at: 2026-10-01 · status: shipped · builds on: AD-claude-501 (Marley's server offered to Zed's agents)*
+
+Where `rusty-mcp` is on the search path, Marley adds `context_servers.rusty` to Zed's default
+settings, a stdio `rusty-mcp` with no arguments as Rusty's own `.mcp.json` names it, the way #501
+adds `marley`; a user's own entry wins and `marley.rusty_tools` (on by default) takes Marley's out.
+Zed's per-call confirmation is the gate: rusty-mcp has no authentication and no grant model, and
+Marley does not narrow its tools. Rejected: Rusty over HTTP (`127.0.0.1:4174/mcp` needs the user
+service running); an offer without detection (a failing server for everyone without Rusty);
+reading Rusty's agent sessions from its registry files and socket (Rusty keeps its back end MCP
+only; the sessions wait in an intake for rusty-mcp to serve them).

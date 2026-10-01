@@ -602,6 +602,21 @@ E2E_WORK=$(mktemp -d "$shots/work.XXXXXX")
 export E2E_PROFILE E2E_WORK
 mkdir -p "$E2E_PROFILE/config"
 cp "$config/settings.json" "$E2E_PROFILE/config/"
+# Zed starts each enabled context server when a project opens, so a run on a box with Rusty would
+# start the user's own rusty-mcp on their data: the copy offers none (#633); a scenario that wants
+# Rusty's tools sets `marley.rusty_tools` back, with a stand-in.
+python3 - "$E2E_PROFILE/config/settings.json" <<'SETTINGS'
+import json, pathlib, re, sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text() if path.exists() else "{}"
+# Comments and trailing commas out: the settings file allows them and JSON does not.
+text = re.sub(r'("(?:[^"\\]|\\.)*")|//[^\n]*|/\*.*?\*/', lambda m: m.group(1) or "", text, flags=re.S)
+text = re.sub(r",(\s*[}\]])", r"\1", text)
+settings = json.loads(text) if text.strip() else {}
+settings.setdefault("marley", {})["rusty_tools"] = False
+path.write_text(json.dumps(settings, indent=2) + "\n")
+SETTINGS
 cp -r "$data/db" "$E2E_PROFILE/db"
 if [[ -d $data/threads ]]; then
   cp -r "$data/threads" "$E2E_PROFILE/threads"

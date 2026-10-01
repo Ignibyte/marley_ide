@@ -1,7 +1,7 @@
 ---
 pipeline_id: 6cd0f3b4-cd9a-4f0e-9c6d-726ef3f1b72b
 ticket: docs/planning/tickets/open/TICKET-633-rusty-tools-for-zeds-agents.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Rusty's tools for Zed's agents, when Rusty is installed"
 type: feature
 slice: prong 2 C2 (its context-server half), plan D11
@@ -23,6 +23,9 @@ brain loop and Rusty's tools; a user's own `rusty` entry, or `marley.rusty_tools
 - **The switch:** `marley.rusty_tools: Option<bool>`, on by default (it only acts where Rusty is
   installed), with a toggle on the Marley page.
 - Zed's own confirmation before each tool call stays as it is: nothing is allowed ahead.
+- **Scenarios stay off the user's Rusty:** Zed starts every enabled context server when a project
+  opens, and the e2e harness copies the user's own Marley settings, so `script/e2e.sh` sets
+  `marley.rusty_tools` false in each run's copy; a scenario that wants it sets it back.
 - `script/e2e/633-rusty-tools-for-zeds-agents.sh`.
 
 ### Out (explicitly deferred)
@@ -46,11 +49,13 @@ the Agent settings' server list) are kept as they are; Marley adds a default ent
   `ContextServerSettingsContent::{Stdio, Http}`; `agents::launcher`'s search path.
 
 ## UI proof
-`script/e2e/633-rusty-tools-for-zeds-agents.sh`: a stand-in `rusty-mcp` (a small stdio MCP server
-the scenario writes, answering `initialize` and `tools/list` with `brain_ask`, `brain_decide`,
-`brain_no_decision` and `brain_follow_up`) first on the search path; never the user's Rusty. Shots:
-- `633-01-listed`: Zed's agent settings: `rusty` running, with its four tools;
-- `633-02-off`: `marley.rusty_tools` off: no `rusty` entry;
+`script/e2e/633-rusty-tools-for-zeds-agents.sh` (`compositor sway`): a stand-in `rusty-mcp` (a
+small stdio MCP server the scenario writes, answering `initialize` and `tools/list` with
+`brain_ask`, `brain_decide`, `brain_no_decision` and `brain_follow_up`) first on the `PATH` Marley
+starts with, and `marley.rusty_tools` set back on; never the user's Rusty. Shots, on the Settings
+window's MCP Servers page (Zed's `mcp_servers_page`, which lists each server and whether it runs):
+- `633-01-listed`: `rusty` listed and running, beside `marley`;
+- `633-02-off`: `marley.rusty_tools` off: no `rusty`;
 - `633-03-own`: a user's own `context_servers.rusty` (another command): that one listed.
 
 ## Locked-In Decisions

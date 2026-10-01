@@ -908,6 +908,13 @@ to the panel's agents (#501):
 To turn it off, set `"context_servers": { "marley": { "enabled": false } }`. An entry of your own
 named `marley` replaces Marley's. `agent: open settings` opens Zed's Settings window at its AI page.
 
+Where Rusty is installed (`rusty-mcp` on your PATH), Marley also offers Rusty's MCP server to the
+same agents as the context server `rusty` (#633): a stdio `rusty-mcp`, as Rusty's own `.mcp.json`
+names it, so an agent reaches Rusty's brain loop (`brain_ask`, `brain_decide` and the rest) and its
+other tools. Zed asks before each call, as it does for every server. Rusty Tools for Agents on the
+Marley settings page (`"marley": { "rusty_tools": false }`) turns it off, and a `rusty` entry of
+your own in `context_servers` replaces Marley's. Without `rusty-mcp`, nothing is added.
+
 ## Marley's MCP server
 
 ### What it serves, and where

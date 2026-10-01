@@ -74,6 +74,11 @@ pub struct MarleySettingsContent {
     ///
     /// Default: false
     pub embedded_harness: Option<bool>,
+    /// Whether Rusty's MCP server is offered to Zed's agents as the context server `rusty`, where
+    /// `rusty-mcp` is on the search path; a `context_servers.rusty` of your own wins (#633).
+    ///
+    /// Default: true
+    pub rusty_tools: Option<bool>,
     /// How many seconds a command runs before its end shows a desktop notification, when its
     /// terminal is not the one in front; 0 turns this off (#551).
     ///

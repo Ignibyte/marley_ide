@@ -109,7 +109,7 @@ fn layout_section() -> [SettingsPageItem; 5] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 13] {
+fn agents_section() -> [SettingsPageItem; 14] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -313,6 +313,26 @@ fn agents_section() -> [SettingsPageItem; 13] {
                         .marley
                         .get_or_insert_default()
                         .agent_commands_in_history = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: Rusty's MCP server for Zed's agents (#633).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Rusty Tools for Agents",
+            description: "Whether Zed's agents get Rusty's tools, its brain loop among them, through the context server rusty, where rusty-mcp is installed. A rusty entry of your own in context_servers wins.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.rusty_tools"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.rusty_tools.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content.marley.get_or_insert_default().rusty_tools = value;
                 },
             }),
             metadata: None,

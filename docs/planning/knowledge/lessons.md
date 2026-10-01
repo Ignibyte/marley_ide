@@ -4274,3 +4274,20 @@ gate:22 counts spawn calls, not files: a second function that starts a process i
 (`process.rs`) raises the count past `SPAWN_SITES_PIN`. When the new function differs only in how
 it pipes (stderr kept), have both call one private function that spawns, so the count and the pin
 stay; move the pin only for a new kind of program.
+
+## L-claude-633-scenarios-copy-the-users-settings-so-defaults-reach-real-services-001
+*category: validate · topic: e2e scenarios · from: pipeline 633*
+
+`script/e2e.sh` copies the user's `~/.config/marley/settings.json` into each run's profile, and
+Marley inherits the user's PATH, so a default that starts a program where it is installed starts
+the user's real one in every scenario: Zed runs each enabled context server when a project opens.
+Turn such a default off in the harness's copy (as `marley.rusty_tools` is) and let the ticket's own
+scenario turn it on with a stand-in first on the PATH.
+
+## L-claude-633-the-mcp-servers-page-opens-by-a-keymap-in-the-runs-profile-001
+*category: validate · topic: e2e scenarios · from: pipeline 633*
+
+Zed's Settings window search does not list the MCP Servers page, and the palette cannot pass
+`zed::OpenSettingsAt`'s path. A scenario writes `$E2E_PROFILE/config/keymap.json` binding a key to
+`["zed::OpenSettingsAt", {"path": "context_servers"}]` and presses it; the page lists each server
+with its state's dot.

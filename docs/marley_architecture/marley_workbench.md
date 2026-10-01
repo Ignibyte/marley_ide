@@ -1789,6 +1789,18 @@ alike.
   its tools from, and `mcp_servers_for_project` hands it to each external agent's `session/new`.
   No bearer goes into a setting; a user's own `context_servers.marley` replaces the default.
 
+## Rusty's tools for Zed's agents (`src/rusty.rs`, #633)
+
+- `init` and an observer of the settings store call `offer`: while `MarleySettings::rusty_tools`
+  is `Offered`, it looks for `rusty-mcp` on the search path (`agents::launcher`) off the main
+  thread; `settle` then inserts `context_servers.rusty` into Zed's default settings as a stdio
+  server running it with no arguments, or removes Marley's entry, only when that differs from the
+  offer the `RustyOffer` global holds. The defaults' change notifies the store again, which finds
+  the offer unchanged. A user's own `context_servers.rusty` sits in the user's layer and wins.
+- `script/e2e.sh` writes `marley.rusty_tools: false` into each run's copy of the user's settings,
+  since Zed starts every enabled context server when a project opens; #633's scenario sets it back
+  with a stand-in `rusty-mcp`.
+
 ## The find tools (`src/find.rs`, #567)
 
 - `find_items(name, subject, query, items, place, cx)` is what `browser_find` and
