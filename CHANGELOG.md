@@ -280,6 +280,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A settings edit reloads after Marley has written the file** (#612, 2026-09-30). On Linux,
+  once Marley or Zed had saved `settings.json` itself (the layout switch, the theme picker), an
+  edit to the file outside Marley did not apply until a restart: the writers replace the file,
+  and the watch was on the old one. The watcher of every config file (`settings.json`,
+  `keymap.json`, a project's settings, `.editorconfig`) also watches its folder now, and reloads
+  on that file's own events.
+
 - **A port row's lines at the default rail width, and a closed header's tooltip** (#618,
   2026-09-30). A port row's Open, Copy and Stop no longer keep their room while hidden: they show
   over the row's end on hover, so the URL and the unit's name have the row's width. A local

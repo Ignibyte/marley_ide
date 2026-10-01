@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #612 (bug, workbench shell)
 - **Owner:** abb571b4-bf75-463f-889a-b17f7d32f71e
-- **Pipeline doc:** none yet
+- **Pipeline doc:** ../../pipeline/completed/612-settings-edit-after-marley-writes.spec.md
 - **Source ticket:** found in #607's Test phase
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Once Marley has written `settings.json` itself (the layout switch does, as do Zed's own writers

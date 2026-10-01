@@ -4111,3 +4111,13 @@ width from its text all the time. To give the text the row's width, make the but
 and `bottom_0`) and give the strip an opaque background: the theme's hover and selected fills are
 translucent, so blend them over the background the row sits on (`panel_background.blend(fill)`).
 
+## L-claude-612-a-watched-config-file-on-linux-needs-its-folder-watched-001
+*category: debugging · topic: file watching on Linux · from: pipeline 612*
+
+On Linux, Zed's `Fs::watch` on a plain file is an inotify watch on its inode, and Zed's writers
+(`Fs::atomic_write`, so `update_settings_file`) save by renaming a new file over the path, which
+ends the watch: the next edit is unseen until a restart. A file's inode number before and after a
+write (`stat -c %i`) shows it at once, and notify logs "unable to remove watch descriptor" at the
+replace. Watch the file's folder as well and filter its events to the file, as
+`settings::watch_config_dir` does; #612 does it in `watch_config_file` on Linux and FreeBSD.
+

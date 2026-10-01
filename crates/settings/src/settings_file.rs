@@ -4,6 +4,7 @@ use fs::{Fs, PathEventKind};
 use futures::{StreamExt, channel::mpsc};
 use gpui::{App, BackgroundExecutor, ReadGlobal};
 use std::{path::PathBuf, sync::Arc, time::Duration};
+use util::ResultExt as _;
 
 #[cfg(test)]
 mod tests {
@@ -176,7 +177,18 @@ pub fn watch_config_file(
     let (tx, rx) = mpsc::unbounded();
     let task = executor.spawn(async move {
         let path = fs.canonicalize(&path).await.unwrap_or_else(|_| path);
-        let (events, _) = fs.watch(&path, Duration::from_millis(100)).await;
+        let (events, watcher) = fs.watch(&path, Duration::from_millis(100)).await;
+        // Marley: on Linux the watch above is on the file's inode, and Zed's writers save by
+        // renaming a new file over it (`Fs::atomic_write`), which ends that watch. The folder's
+        // watch, one folder deep there, follows the file through a replace; its other entries
+        // are passed over below (#612). macOS and Windows watch by path, recursively, and a
+        // `.editorconfig` above a worktree can sit in the home folder, so they are left as they
+        // were.
+        if cfg!(any(target_os = "linux", target_os = "freebsd"))
+            && let Some(parent) = path.parent()
+        {
+            watcher.add(parent).log_err();
+        }
         futures::pin_mut!(events);
 
         let contents = fs.load(&path).await.unwrap_or_default();
@@ -184,9 +196,13 @@ pub fn watch_config_file(
             return;
         }
 
-        loop {
-            if events.next().await.is_none() {
-                break;
+        while let Some(batch) = events.next().await {
+            // Marley: only the file's own events, or a rescan, reload it (#612).
+            if !batch
+                .iter()
+                .any(|event| event.path == path || event.kind == Some(PathEventKind::Rescan))
+            {
+                continue;
             }
 
             if let Ok(contents) = fs.load(&path).await
