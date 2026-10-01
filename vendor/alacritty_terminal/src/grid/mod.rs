@@ -125,6 +125,11 @@ pub struct Grid<T> {
     #[cfg_attr(feature = "serde", serde(default))]
     evicted_lines: u64,
 
+    /// Marley: how many times Zed cleared the screen and the history to the cursor's line, so a
+    /// hook's position tells a line from before a clear from one after it (#639).
+    #[cfg_attr(feature = "serde", serde(default))]
+    marley_clears: u64,
+
     /// Number of columns.
     columns: usize,
 
@@ -147,6 +152,7 @@ impl<T: GridCell + Default + PartialEq> Grid<T> {
         Grid {
             raw: Storage::with_capacity(lines, columns),
             evicted_lines: 0,
+            marley_clears: 0,
             max_scroll_limit,
             display_offset: 0,
             saved_cursor: Cursor::default(),
@@ -160,6 +166,19 @@ impl<T: GridCell + Default + PartialEq> Grid<T> {
     #[inline]
     pub fn evicted_lines(&self) -> u64 {
         self.evicted_lines
+    }
+
+    /// Marley: the clears counted with [`Grid::marley_count_clear`] (#639).
+    #[inline]
+    pub fn marley_clears(&self) -> u64 {
+        self.marley_clears
+    }
+
+    /// Marley: counts a clear that moved the cursor's line, so hooks parsed before it can be
+    /// carried across it (#639).
+    #[inline]
+    pub fn marley_count_clear(&mut self) {
+        self.marley_clears += 1;
     }
 
     /// Update the size of the scrollback history.

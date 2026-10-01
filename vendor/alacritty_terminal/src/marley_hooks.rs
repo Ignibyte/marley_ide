@@ -43,6 +43,8 @@ pub struct HookPosition {
     pub cursor_column: usize,
     /// Whether the alternate screen, which keeps no history, was showing.
     pub alt_screen: bool,
+    /// How many clears the grid had counted before the hook (#639).
+    pub clears: u64,
 }
 
 impl HookPosition {
@@ -55,6 +57,7 @@ impl HookPosition {
             cursor_line: grid.cursor.point.line.0,
             cursor_column: grid.cursor.point.column.0,
             alt_screen: term.mode().contains(TermMode::ALT_SCREEN),
+            clears: grid.marley_clears(),
         }
     }
 

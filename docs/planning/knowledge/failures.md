@@ -3177,3 +3177,15 @@ same test. So from #627 on, a drag over a terminal's output at a prompt selected
 release never reached the terminal (its selection was never ended). A double click still worked:
 both presses reach the terminal before the editor takes the focus. Fixed: `marley_left_pressed`
 (a left press in this terminal not yet released) lets the drag and the release through.
+
+## F-claude-639-a-hook-parsed-before-a-clear-was-applied-after-it-001
+*severity: medium · found in: pipeline 639's Test (the first run for the record) · class: a position taken on one thread, used on another after the grid moved*
+
+The first fix carried Marley's block anchors across Zed's `clear_saved_screen` on the main
+thread. The shell's hook frames are parsed on the PTY thread, each with the absolute line it fell
+on, and applied later on the main thread. When the startup check's `Precmd` was parsed before the
+clear and applied after it, the prompt was staged at a line from before the clear, below where the
+agent's command then started, and that command's block covered no row: `$ claude` drew as plain
+rows. The dry run had applied the frame in time, so it passed. Fixed: the vendored grid counts
+Zed's clears, each hook carries the count, and `AnchoredBlocks::line_now` carries a hook parsed
+before a clear across it.

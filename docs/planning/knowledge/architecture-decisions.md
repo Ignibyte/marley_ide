@@ -3717,3 +3717,16 @@ only key, and a public repository's runners cost nothing); `workflow_dispatch` (
 workflow on the default branch, the fork's mirror of Zed's `main`); editing Zed's 47 inherited
 workflows to keep them quiet (`cloud-setup` turns them off through the API, with no Zed file
 changed); the gpui crates by default (each mutant builds most of Zed).
+
+## AD-claude-639-blocks-follow-zeds-clears-by-a-counted-move-001
+*decided at: 2026-10-01 · status: shipped · builds on: AD-claude-470-stage-one-draws-blocks-over-zeds-rows-001*
+
+Zed's `clear_saved_screen` (its Clear, and its clear before an agent's command) keeps the cursor's
+line and moves it to row 0. Marley carries every anchor across it (`screen_cleared`): blocks that
+ended above are emptied, keeping their indices, which other parts of Marley hold; a running block
+goes on from the new line; the staged prompt and the input start follow the cursor. The vendored
+grid counts these clears and each hook's position carries the count, so a hook parsed before a
+clear is carried across it on apply (`line_now`). Zed's startup check opens no block, recognized
+by its marker. Rejected: removing the cleared blocks (indices are ids); draining the hook channel
+before the clear (the hooks are in the event loop's queue, out of the main thread's reach);
+telling a stale line by its value (lines before and after a clear overlap).

@@ -48,6 +48,9 @@ the record of what each copy is and how it differs from upstream.
     grid, so a block read while a full-screen program shows reads the main screen (#546). At a
     re-sync, compare `grid_line_to_string` with upstream's `line_to_string`, which it copies.
   - `src/grid/tests.rs`: the two `evicted_lines` tests (#462).
+  - `src/grid/mod.rs`: `marley_clears`, with `serde(default)`, its accessor and
+    `marley_count_clear`, which Zed's `clear_saved_screen` calls (#639).
+  - `src/marley_hooks.rs`: `HookPosition::clears`, the grid's count at the hook (#639).
 - **Standalone build:** `Cargo.lock` is the copy's own, and gate:2 builds the copy with its
   tests (`cargo check --locked --all-targets --manifest-path vendor/alacritty_terminal/Cargo.toml`);
   no gate runs them (CONSTITUTION §7). Regenerate the lockfile when the copy's dependencies

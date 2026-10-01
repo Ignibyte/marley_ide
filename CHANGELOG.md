@@ -426,6 +426,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A cleared terminal shows no old blocks, and an agent's terminal starts with its own block**
+  (#639, 2026-10-01). After Clear (Ctrl-Shift-L), every old block's header stayed drawn over the
+  cleared screen, and the next command's output read as an old block's. A terminal Marley opened
+  for an agent CLI, or a resumed Claude Code session, showed Zed's startup check
+  (`printf … __zed_init_command_ready_ …`) as its first block, with the agent's output under it.
+  Blocks now follow the clear, and the startup check opens no block.
+
 - **A drag in a terminal at its prompt selects again** (#631, 2026-10-01). Since the prompt editor
   docked at every prompt (#627), it took the focus as soon as you pressed in the terminal, and the
   terminal dropped the drag and the release that followed, so dragging over output selected

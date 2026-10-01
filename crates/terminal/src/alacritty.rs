@@ -782,6 +782,8 @@ fn terminal_selection_range_from_alacritty(range: AlacSelectionRange) -> Selecti
 }
 
 pub(super) fn clear_saved_screen(term: &mut Term<ZedListener>) {
+    // Marley: hooks parsed before this clear have lines it moves; the count tells them (#639).
+    term.grid_mut().marley_count_clear();
     term.clear_screen(ClearMode::Saved);
 
     let cursor = term.grid().cursor.point;

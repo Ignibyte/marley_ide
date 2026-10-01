@@ -1977,7 +1977,10 @@ impl Terminal {
         if hook.position.alt_screen {
             return;
         }
-        let line = hook.position.absolute_line();
+        // Marley: a hook parsed before a clear the main thread has since applied (#639).
+        let line = self
+            .blocks
+            .line_now(hook.position.absolute_line(), hook.position.clears);
         let frame = marley_terminal::RawDcs {
             final_byte: hook.final_byte,
             payload: hook.payload,
@@ -2130,7 +2133,17 @@ impl Terminal {
             }
             InternalEvent::Clear => {
                 trace!("Clearing");
+                // Marley: the blocks follow the cursor's line to the top and leave the rest (#639).
+                let was = alacritty_terminal::marley_hooks::HookPosition::of(term);
                 clear_saved_screen(term);
+                let now = alacritty_terminal::marley_hooks::HookPosition::of(term);
+                if !was.alt_screen {
+                    self.blocks.screen_cleared(
+                        was.absolute_line(),
+                        now.absolute_line(),
+                        now.clears,
+                    );
+                }
                 self.reset_cwd_history();
                 cx.emit(Event::Wakeup);
             }
@@ -2684,7 +2697,14 @@ impl Terminal {
 
     fn clear_for_init_command(&mut self, cx: &mut Context<Self>) {
         let mut term = self.term.lock_unfair();
+        // Marley: the blocks follow the cursor's line to the top and leave the rest (#639).
+        let was = alacritty_terminal::marley_hooks::HookPosition::of(&term);
         clear_saved_screen(&mut term);
+        let now = alacritty_terminal::marley_hooks::HookPosition::of(&term);
+        if !was.alt_screen {
+            self.blocks
+                .screen_cleared(was.absolute_line(), now.absolute_line(), now.clears);
+        }
         self.last_content = make_content(&term, &self.last_content);
         drop(term);
         self.reset_cwd_history();

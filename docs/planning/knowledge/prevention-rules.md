@@ -2736,3 +2736,13 @@ count) must ask whether the press happened in its element, not whether its eleme
 focus now. Before moving the focus on a press, list the pressed element's drag and release
 handlers and their guards; in Zed's terminal element those are the `MouseMoveEvent` drag branch
 and the left `on_mouse_up`, both once gated on `focus.is_focused`.
+
+## PR-claude-639-a-change-to-the-grid-on-the-main-thread-carries-the-hooks-in-flight-001
+*severity: medium · prevents: F-claude-639-a-hook-parsed-before-a-clear-was-applied-after-it-001*
+
+A hook's absolute line is taken on the PTY thread when its frame is parsed, and used on the main
+thread when the hook is applied. Anything the main thread does to the grid in between (Zed's
+clear, a resize's rewrap, a scroll Marley drives) must also say how to carry a line taken before
+it: count the change on the grid, carry the count in `HookPosition`, and map the line on apply.
+Carrying only the anchors already applied leaves the hooks in flight behind. One passing run
+proves nothing about such a race; run the scenario several times.

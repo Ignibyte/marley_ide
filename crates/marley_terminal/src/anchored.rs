@@ -33,6 +33,13 @@ use crate::apply::ApplyHookError;
 use crate::block::{BlockState, ExitCode, PromptInfo};
 use crate::dcs::DcsHook;
 
+/// The start of the marker Zed's startup check prints, `__zed_init_command_ready_<n>__`
+/// (`INIT_COMMAND_STARTUP_MARKER_PREFIX` in `terminal.rs`), which only Zed types (#639).
+pub const ZED_STARTUP_MARKER: &str = "__zed_init_command_ready_";
+
+/// The clears [`AnchoredBlocks`] remembers for the hooks still in flight (#639).
+const MAX_CLEARS_KEPT: usize = 8;
+
 /// One command's block, anchored in the terminal's scrollback.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AnchoredBlock {
@@ -201,6 +208,9 @@ pub struct AnchoredBlocks {
     /// Whether the terminal's shell keeps a line typed with a leading space out of its history,
     /// as it was asked to at spawn for agents' commands (#553).
     agents_out_of_history: bool,
+    /// The last clears that moved the cursor's line: the grid's count once each was done, and
+    /// the cursor's absolute line before and after it (#639).
+    clears: Vec<(u64, u64, u64)>,
 }
 
 impl AnchoredBlocks {
@@ -248,6 +258,15 @@ impl AnchoredBlocks {
                 self.staged = None;
                 self.prompt_shell = None;
                 self.input_start = None;
+            }
+            // Zed's startup check, typed before an agent's command, is no command of the user's:
+            // the shell moves on as for any command, and no block opens (#639).
+            DcsHook::Preexec(value) if value.command.contains(ZED_STARTUP_MARKER) => {
+                self.require_shell()?;
+                self.input_start = None;
+                self.finish_running(line, ExitCode(None));
+                self.staged = None;
+                self.prompt_shell = None;
             }
             DcsHook::Preexec(value) => {
                 self.require_shell()?;
@@ -488,6 +507,58 @@ impl AnchoredBlocks {
     /// Finishes a task's block (#621) before the absolute `line`, with the task's exit code.
     pub fn finish_task(&mut self, line: u64, exit_code: Option<i32>) {
         self.finish_running(line, ExitCode(exit_code));
+    }
+
+    /// Carries every anchor across a clear of the screen and the history that kept only the
+    /// cursor's line, moved from the absolute line `cursor_was` to `cursor_now` (#639), as Zed's
+    /// Clear and its clear before an agent's command do. `clears` is the grid's count of such
+    /// clears once this one is done: a hook parsed before it reaches [`AnchoredBlocks::line_now`]
+    /// with a smaller count.
+    ///
+    /// A block that ended at or above the cursor's old line is gone from the screen and the
+    /// history, so it is emptied: it keeps its index, which other parts of Marley hold, and covers
+    /// no row. A running block goes on from the cursor's new line. The staged prompt moves with the
+    /// cursor's line, and so does where the typed input started when it was on that line.
+    pub fn screen_cleared(&mut self, cursor_was: u64, cursor_now: u64, clears: u64) {
+        self.clears.push((clears, cursor_was, cursor_now));
+        // Hooks in flight are parsed a moment before they are applied; a few clears suffice.
+        if self.clears.len() > MAX_CLEARS_KEPT {
+            let _oldest = self.clears.remove(0);
+        }
+        let moved = |line: u64| line.checked_sub(cursor_was).map(|below| cursor_now + below);
+        for block in &mut self.blocks {
+            match block.output_end {
+                Some(end) if end <= cursor_was => {
+                    block.prompt_line = None;
+                    block.output_start = cursor_now;
+                    block.output_end = Some(cursor_now);
+                }
+                _ => {
+                    block.prompt_line = block.prompt_line.and_then(moved);
+                    block.output_start = moved(block.output_start).unwrap_or(cursor_now);
+                    block.output_end = block.output_end.and_then(moved);
+                }
+            }
+        }
+        if let Some((_, line)) = &mut self.staged {
+            *line = moved(*line).unwrap_or(cursor_now);
+        }
+        self.input_start = self
+            .input_start
+            .and_then(|(line, column)| Some((moved(line)?, column)));
+    }
+
+    /// Where the absolute `line` of a hook parsed when the grid had counted `clears` clears is now:
+    /// carried across each clear counted since, as [`AnchoredBlocks::screen_cleared`] carries the
+    /// anchors (#639). A line above a clear's cursor lands on the cursor's new line.
+    #[must_use]
+    pub fn line_now(&self, line: u64, clears: u64) -> u64 {
+        self.clears
+            .iter()
+            .filter(|(count, _, _)| *count > clears)
+            .fold(line, |line, &(_, was, now)| {
+                line.checked_sub(was).map_or(now, |below| now + below)
+            })
     }
 
     /// Carries every anchor across a resize that rewrapped the grid from `before` to `after`.

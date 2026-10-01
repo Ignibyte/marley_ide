@@ -1,10 +1,10 @@
 # TICKET-639 — The startup handshake shows as a block
 
 - **Ticket:** LOCAL #639 (bug, prong 1 blocks)
-- **Owner:** unassigned
-- **Pipeline doc:** none yet
+- **Owner:** claude-opus-5-5, 2026-10-01
+- **Pipeline doc:** ../../pipeline/completed/639-the-startup-handshake-shows-as-a-block.spec.md
 - **Source ticket:** found in #540's dry run (`540-02-resumed`)
-- **Status:** open
+- **Status:** closed (2026-10-01)
 
 ## Summary
 Marley types a command into a new or restored terminal after Zed's startup handshake: the shell

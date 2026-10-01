@@ -184,6 +184,14 @@ real, reusable session. The Block model is the unit the **brain** later observes
   inverse a mouse position goes through; a y inside an insert lands on the row below. Zed's
   element builds it each frame and hands it to the terminal (`marley_set_row_map`), whose mouse
   paths read it through `marley_local`.
+  `AnchoredBlocks::screen_cleared(cursor_was, cursor_now, clears)` (#639) carries the anchors
+  across Zed's `clear_saved_screen` (its Clear, and its clear before an agent's command), which
+  keeps only the cursor's line and moves it to the top row: a block that ended above is emptied
+  (its index kept), a running one goes on from the new line, and the staged prompt and the input
+  start move with the cursor. The vendored grid counts those clears (`marley_clears`), each hook's
+  `HookPosition::clears` says how many it was parsed after, and `line_now` carries a hook parsed
+  before a clear across it, since the PTY thread parses hooks a moment before the main thread
+  applies them. A `Preexec` holding Zed's startup marker (`ZED_STARTUP_MARKER`) opens no block.
   `block_lines(block, cursor_line)` (#559) is the absolute lines a block spans, `visible_spans`'s
   rule, and `scrollback_fraction` where a line sits among the lines the terminal can scroll to;
   Zed's view maps the first to grid lines for a search held to one block, and the element draws
