@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #636 (chore, wave 5: the test pass)
 - **Owner:** claude-opus-5-5, 2026-10-01
-- **Pipeline doc:** ../../pipeline/queued/636-a-mutation-run-of-the-pure-cores.spec.md
+- **Pipeline doc:** ../../pipeline/completed/636-a-mutation-run-of-the-pure-cores.spec.md
 - **Source ticket:** wave 5 of `design-notes/remaining-work-2026-09-30.md`; AD-claude-the-workflow-is-four-phases-and-mutation-waits-for-the-end-001
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Mutation testing left the gate in 2026-09; the workflow keeps it for the end. This ticket runs

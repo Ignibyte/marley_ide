@@ -1,7 +1,7 @@
 ---
 pipeline_id: ab29863b-8334-462f-8e22-72501ed643ae
 ticket: docs/planning/tickets/open/TICKET-636-a-mutation-run-of-the-pure-cores.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "A mutation run of the Marley crates' pure cores"
 type: chore
 slice: wave 5, the test pass (after #634, whose green suites the run needs)
@@ -15,8 +15,12 @@ shows a real bug gets the bug fixed; killing the rest with new tests waits for C
 
 ## Scope
 ### In
-- The run: `cargo mutants` per pure-core crate, with the shared target dir and one job (one cargo
-  at a time on this box), a timeout per mutant, its `mutants.out` kept outside the repository.
+- The run: `cargo mutants` over the nine crates with no gpui (`marley_agent` 685 mutants,
+  `marley_dcs` 43, `marley_fleet` 38, `marley_mcp` 412, `marley_rail` 212, `marley_remote` 43,
+  `marley_sdk` 100, `marley_system_one` 113, `marley_terminal` 1,012: 2,658), in the topology
+  AD-claude-443 settled for a full run: copy mode, two workers, each copy building in its own
+  target (`CARGO_TARGET_DIR` unset), the copies under `~/.cache/marley-mutants`, `--no-config`
+  (no exclusions), nextest, the output outside the repository.
 - `docs/planning/design-notes/mutation-run-2026-10.md`: per crate the mutants, caught, missed,
   timeouts and unviable; each missed mutant with its place and a reading: **untested** (no test
   holds that behavior), **equivalent** (the mutant behaves the same), or **bug** (the mutant
@@ -45,7 +49,9 @@ summaries quoted in the findings doc; a fixed bug in UI code is seen in its own 
 
 ## Locked-In Decisions
 - D1 — No test is written to kill a survivor in this ticket; the intake asks Chad.
-- D2 — One job and the shared target dir, as the box requires (F-claude-443).
+- D2 — Copy mode, two workers, a target per copy (AD-claude-443, F-claude-443): no worker writes
+  the shared target or another's binaries, and the working tree is never mutated. The copies and
+  their targets go under `~/.cache` on `/home`, since `/mnt/fast` has 37G free.
 
 ## Acceptance Criteria (EARS)
 

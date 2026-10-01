@@ -107,3 +107,8 @@ Specced 2026-10-01, in order: #475 (the shell tests' scratch data dir, first, so
 rewrites the user's scripts), #634 (the suites run and green, no new tests), #635 (the golden
 regression run green) and #636 (a mutation run of the pure cores, its survivors reported; tests to
 kill them wait for Chad).
+
+Done 2026-10-01: #475 (67368b7c8a), #634 (52cb949cef: 724 and 3,499 tests green, and the focus
+bug), #635 (74ca2c6946: the 53 golden scenarios green, and two prompt editor bugs), #636 (the
+mutation run, its findings and the intake). Minted on the way: #637, #484's history suggestions in
+the prompt editor, the follow-up #627 deferred.

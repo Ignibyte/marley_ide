@@ -1,0 +1,1561 @@
+# Mutation run 2026-10: every missed mutant
+
+The survivors of #636's run (`mutation-run-2026-10.md`), by file, each with its place, the
+function, the mutation and its reading. **untested**: no test holds that behavior;
+**equivalent**: the mutant behaves the same. No survivor read as a bug.
+
+## `crates/marley_agent/src/risk.rs` (209)
+
+- L41 `ToolClass::of_claude_tool`: MatchArm → `(deleted)`: untested
+- L42 `ToolClass::of_claude_tool`: MatchArm → `(deleted)`: untested
+- L43 `ToolClass::of_claude_tool`: MatchArm → `(deleted)`: untested
+- L44 `ToolClass::of_claude_tool`: MatchArm → `(deleted)`: untested
+- L51 `ToolClass::base_level`: FnValue → `0`: untested
+- L51 `ToolClass::base_level`: FnValue → `1`: untested
+- L96 `ChipKind::words`: FnValue → `""`: untested
+- L96 `ChipKind::words`: FnValue → `"xyzzy"`: untested
+- L113 `ChipKind::level`: FnValue → `None`: untested
+- L113 `ChipKind::level`: FnValue → `Some(0)`: untested
+- L113 `ChipKind::level`: FnValue → `Some(1)`: untested
+- L126 `ChipKind::noul`: FnValue → `None`: untested
+- L126 `ChipKind::noul`: FnValue → `Some("")`: untested
+- L126 `ChipKind::noul`: FnValue → `Some("xyzzy")`: untested
+- L141 `ChipKind::from_noul`: FnValue → `None`: untested
+- L143 `ChipKind::from_noul`: BinaryOperator → `!=`: untested
+- L198 `classify`: FnValue → `vec![]`: untested
+- L214 `classify`: BinaryOperator → `||`: untested
+- L214 `classify`: UnaryOperator → `(deleted)`: untested
+- L220 `classify`: BinaryOperator → `||`: untested
+- L236 `level`: FnValue → `0`: untested
+- L236 `level`: FnValue → `1`: untested
+- L239 `level`: BinaryOperator → `!=`: untested
+- L240 `level`: BinaryOperator → `-`: untested
+- L240 `level`: BinaryOperator → `*`: untested
+- L254 `commands`: FnValue → `vec![]`: untested
+- L262 `commands`: BinaryOperator → `!=`: untested
+- L275 `commands`: BinaryOperator → `||`: untested
+- L275 `commands`: BinaryOperator → `!=`: untested
+- L275 `commands`: UnaryOperator → `(deleted)`: untested
+- L280 `commands`: MatchArmGuard → `true`: untested
+- L280 `commands`: MatchArmGuard → `false`: untested
+- L290 `end_word`: FnValue → `()`: untested
+- L290 `end_word`: UnaryOperator → `(deleted)`: untested
+- L298 `end_command`: FnValue → `()`: untested
+- L302 `end_command`: MatchArmGuard → `true`: untested
+- L302 `end_command`: MatchArmGuard → `false`: untested
+- L303 `end_command`: MatchArmGuard → `true`: untested
+- L303 `end_command`: MatchArmGuard → `false`: untested
+- L309 `end_command`: BinaryOperator → `&&`: untested
+- L309 `end_command`: BinaryOperator → `!=`: untested
+- L309 `end_command`: BinaryOperator → `!=`: untested
+- L319 `end_command`: UnaryOperator → `(deleted)`: untested
+- L332 `is_assignment`: FnValue → `true`: untested
+- L332 `is_assignment`: FnValue → `false`: untested
+- L333 `is_assignment`: UnaryOperator → `(deleted)`: untested
+- L334 `is_assignment`: BinaryOperator → `||`: untested
+- L336 `is_assignment`: BinaryOperator → `&&`: untested
+- L336 `is_assignment`: BinaryOperator → `!=`: untested
+- L337 `is_assignment`: BinaryOperator → `||`: untested
+- L337 `is_assignment`: UnaryOperator → `(deleted)`: untested
+- L343 `program`: FnValue → `None`: untested
+- L343 `program`: FnValue → `Some("")`: untested
+- L343 `program`: FnValue → `Some("xyzzy")`: untested
+- L349 `arguments`: FnValue → `Vec::leak(Vec::new())`: untested
+- L349 `arguments`: FnValue → `Vec::leak(vec![String::new()])`: untested
+- L349 `arguments`: FnValue → `Vec::leak(vec!["xyzzy".into()])`: untested
+- L354 `has_flag`: FnValue → `true`: untested
+- L354 `has_flag`: FnValue → `false`: untested
+- L368 `command_kinds`: FnValue → `vec![]`: untested
+- L372 `command_kinds`: BinaryOperator → `!=`: untested
+- L375 `command_kinds`: MatchArmGuard → `true`: untested
+- L375 `command_kinds`: MatchArmGuard → `false`: untested
+- L376 `command_kinds`: BinaryOperator → `&&`: untested
+- L380 `command_kinds`: MatchArm → `(deleted)`: untested
+- L381 `command_kinds`: MatchArm → `(deleted)`: untested
+- L382 `command_kinds`: MatchArmGuard → `true`: untested
+- L382 `command_kinds`: MatchArmGuard → `false`: untested
+- L385 `command_kinds`: MatchArmGuard → `true`: untested
+- L385 `command_kinds`: MatchArmGuard → `false`: untested
+- L386 `command_kinds`: MatchArmGuard → `false`: untested
+- L386 `command_kinds`: MatchArmGuard → `true`: untested
+- L386 `command_kinds`: BinaryOperator → `&&`: untested
+- L386 `command_kinds`: BinaryOperator → `!=`: untested
+- L387 `command_kinds`: MatchArmGuard → `true`: untested
+- L387 `command_kinds`: MatchArmGuard → `false`: untested
+- L388 `command_kinds`: MatchArm → `(deleted)`: untested
+- L390 `command_kinds`: MatchArmGuard → `true`: untested
+- L390 `command_kinds`: MatchArmGuard → `false`: untested
+- L393 `command_kinds`: MatchArmGuard → `true`: untested
+- L393 `command_kinds`: MatchArmGuard → `false`: untested
+- L395 `command_kinds`: MatchArmGuard → `false`: untested
+- L395 `command_kinds`: MatchArmGuard → `true`: untested
+- L400 `command_kinds`: MatchArmGuard → `true`: untested
+- L400 `command_kinds`: MatchArmGuard → `false`: untested
+- L401 `command_kinds`: BinaryOperator → `&&`: untested
+- L401 `command_kinds`: BinaryOperator → `||`: untested
+- L401 `command_kinds`: BinaryOperator → `&&`: untested
+- L402 `command_kinds`: BinaryOperator → `||`: untested
+- L421 `first_word`: FnValue → `None`: untested
+- L421 `first_word`: FnValue → `Some("xyzzy")`: untested
+- L421 `first_word`: FnValue → `Some("")`: untested
+- L424 `first_word`: UnaryOperator → `(deleted)`: untested
+- L429 `git_kinds`: FnValue → `vec![]`: untested
+- L434 `git_kinds`: BinaryOperator → `&&`: untested
+- L434 `git_kinds`: BinaryOperator → `!=`: untested
+- L434 `git_kinds`: BinaryOperator → `!=`: untested
+- L443 `git_kinds`: BinaryOperator → `!=`: untested
+- L445 `git_kinds`: MatchArmGuard → `false`: untested
+- L445 `git_kinds`: MatchArmGuard → `true`: untested
+- L446 `git_kinds`: MatchArmGuard → `false`: untested
+- L446 `git_kinds`: MatchArmGuard → `true`: untested
+- L447 `git_kinds`: MatchArmGuard → `true`: untested
+- L447 `git_kinds`: MatchArmGuard → `false`: untested
+- L447 `git_kinds`: BinaryOperator → `&&`: untested
+- L447 `git_kinds`: BinaryOperator → `||`: untested
+- L447 `git_kinds`: BinaryOperator → `!=`: untested
+- L450 `git_kinds`: MatchArmGuard → `false`: untested
+- L450 `git_kinds`: MatchArmGuard → `true`: untested
+- L451 `git_kinds`: MatchArmGuard → `false`: untested
+- L451 `git_kinds`: MatchArmGuard → `true`: untested
+- L451 `git_kinds`: BinaryOperator → `&&`: untested
+- L452 `git_kinds`: MatchArm → `(deleted)`: untested
+- L453 `git_kinds`: MatchArmGuard → `true`: untested
+- L453 `git_kinds`: MatchArmGuard → `false`: untested
+- L454 `git_kinds`: MatchArmGuard → `true`: untested
+- L454 `git_kinds`: MatchArmGuard → `false`: untested
+- L455 `git_kinds`: MatchArm → `(deleted)`: untested
+- L460 `git_kinds`: BinaryOperator → `&&`: untested
+- L473 `sends_data`: FnValue → `true`: untested
+- L473 `sends_data`: FnValue → `false`: untested
+- L474 `sends_data`: BinaryOperator → `&&`: untested
+- L474 `sends_data`: BinaryOperator → `&&`: untested
+- L474 `sends_data`: BinaryOperator → `!=`: untested
+- L474 `sends_data`: BinaryOperator → `!=`: untested
+- L474 `sends_data`: BinaryOperator → `!=`: untested
+- L475 `sends_data`: BinaryOperator → `-`: untested
+- L475 `sends_data`: BinaryOperator → `*`: untested
+- L481 `sends_data`: UnaryOperator → `(deleted)`: untested
+- L485 `sends_data`: BinaryOperator → `||`: untested
+- L485 `sends_data`: UnaryOperator → `(deleted)`: untested
+- L485 `sends_data`: UnaryOperator → `(deleted)`: untested
+- L489 `sends_data`: BinaryOperator → `!=`: untested
+- L514 `is_remote`: FnValue → `true`: untested
+- L514 `is_remote`: FnValue → `false`: untested
+- L514 `is_remote`: UnaryOperator → `(deleted)`: untested
+- L515 `is_remote`: BinaryOperator → `||`: untested
+- L517 `is_remote`: BinaryOperator → `||`: untested
+- L517 `is_remote`: UnaryOperator → `(deleted)`: untested
+- L517 `is_remote`: UnaryOperator → `(deleted)`: untested
+- L522 `gh_sends`: FnValue → `true`: untested
+- L522 `gh_sends`: FnValue → `false`: untested
+- L525 `gh_sends`: UnaryOperator → `(deleted)`: untested
+- L538 `installs`: FnValue → `true`: untested
+- L538 `installs`: FnValue → `false`: untested
+- L542 `installs`: UnaryOperator → `(deleted)`: untested
+- L545 `installs`: MatchArm → `(deleted)`: untested
+- L548 `installs`: MatchArm → `(deleted)`: untested
+- L549 `installs`: MatchArm → `(deleted)`: untested
+- L550 `installs`: BinaryOperator → `!=`: untested
+- L551 `installs`: MatchArm → `(deleted)`: untested
+- L552 `installs`: MatchArm → `(deleted)`: untested
+- L553 `installs`: MatchArm → `(deleted)`: untested
+- L553 `installs`: BinaryOperator → `&&`: untested
+- L553 `installs`: BinaryOperator → `!=`: untested
+- L553 `installs`: BinaryOperator → `||`: untested
+- L553 `installs`: BinaryOperator → `!=`: untested
+- L553 `installs`: BinaryOperator → `!=`: untested
+- L554 `installs`: MatchArm → `(deleted)`: untested
+- L554 `installs`: BinaryOperator → `!=`: untested
+- L555 `installs`: MatchArm → `(deleted)`: untested
+- L557 `installs`: BinaryOperator → `&&`: untested
+- L558 `installs`: MatchArmGuard → `true`: untested
+- L558 `installs`: MatchArmGuard → `false`: untested
+- L559 `installs`: BinaryOperator → `||`: untested
+- L559 `installs`: BinaryOperator → `||`: untested
+- L559 `installs`: BinaryOperator → `!=`: untested
+- L559 `installs`: BinaryOperator → `!=`: untested
+- L567 `piped_into_a_shell`: FnValue → `true`: untested
+- L567 `piped_into_a_shell`: FnValue → `false`: untested
+- L572 `piped_into_a_shell`: BinaryOperator → `||`: untested
+- L573 `piped_into_a_shell`: BinaryOperator → `||`: untested
+- L599 `names_credentials`: FnValue → `false`: untested
+- L599 `names_credentials`: FnValue → `true`: untested
+- L606 `names_credentials`: BinaryOperator → `&&`: untested
+- L618 `names_a_secret`: FnValue → `true`: untested
+- L618 `names_a_secret`: FnValue → `false`: untested
+- L622 `names_a_secret`: BinaryOperator → `&&`: untested
+- L623 `names_a_secret`: BinaryOperator → `&&`: untested
+- L623 `names_a_secret`: BinaryOperator → `!=`: untested
+- L624 `names_a_secret`: BinaryOperator → `&&`: untested
+- L625 `names_a_secret`: BinaryOperator → `&&`: untested
+- L627 `names_a_secret`: BinaryOperator → `||`: untested
+- L627 `names_a_secret`: BinaryOperator → `==`: untested
+- L627 `names_a_secret`: BinaryOperator → `>=`: untested
+- L627 `names_a_secret`: BinaryOperator → `<`: untested
+- L633 `reaches_outside`: FnValue → `true`: untested
+- L633 `reaches_outside`: FnValue → `false`: untested
+- L639 `reaches_outside`: BinaryOperator → `!=`: untested
+- L642 `reaches_outside`: BinaryOperator → `&&`: untested
+- L646 `reaches_outside`: BinaryOperator → `&&`: untested
+- L647 `reaches_outside`: BinaryOperator → `&&`: untested
+- L647 `reaches_outside`: BinaryOperator → `||`: untested
+- L647 `reaches_outside`: UnaryOperator → `(deleted)`: untested
+- L653 `reaches_outside`: UnaryOperator → `(deleted)`: untested
+- L653 `reaches_outside`: BinaryOperator → `||`: untested
+- L659 `reaches_outside`: UnaryOperator → `(deleted)`: untested
+- L665 `resolve`: FnValue → `None`: untested
+- L665 `resolve`: FnValue → `Some(Default::default())`: untested
+- L666 `resolve`: BinaryOperator → `!=`: untested
+- L693 `is_allowed`: FnValue → `false`: untested
+- L693 `is_allowed`: FnValue → `true`: untested
+- L694 `is_allowed`: BinaryOperator → `&&`: untested
+- L725 `words`: FnValue → `String::new()`: untested
+- L725 `words`: FnValue → `"xyzzy".into()`: untested
+- L727 `words`: UnaryOperator → `(deleted)`: untested
+- L728 `words`: UnaryOperator → `(deleted)`: untested
+- L736 `holds_any`: FnValue → `true`: untested
+- L736 `holds_any`: FnValue → `false`: untested
+
+## `crates/marley_terminal/src/links.rs` (168)
+
+- L46 `LinkRow::from_cells`: FnValue → `Default::default()`: untested
+- L47 `LinkRow::from_cells`: StructField → `(deleted)`: untested
+- L59 `LinkRow::from_cells`: UnaryOperator → `(deleted)`: untested
+- L60 `LinkRow::from_cells`: BinaryOperator → `-`: untested
+- L60 `LinkRow::from_cells`: BinaryOperator → `*`: untested
+- L67 `LinkRow::column`: FnValue → `None`: untested
+- L67 `LinkRow::column`: FnValue → `Some(0)`: untested
+- L67 `LinkRow::column`: FnValue → `Some(1)`: untested
+- L72 `LinkRow::index_at`: FnValue → `None`: untested
+- L72 `LinkRow::index_at`: FnValue → `Some(0)`: untested
+- L72 `LinkRow::index_at`: FnValue → `Some(1)`: untested
+- L72 `LinkRow::index_at`: BinaryOperator → `!=`: untested
+- L78 `LinkRow::fills_to`: FnValue → `true`: untested
+- L78 `LinkRow::fills_to`: FnValue → `false`: untested
+- L81 `LinkRow::fills_to`: BinaryOperator → `!=`: untested
+- L82 `LinkRow::fills_to`: BinaryOperator → `&&`: untested
+- L82 `LinkRow::fills_to`: BinaryOperator → `<`: untested
+- L82 `LinkRow::fills_to`: BinaryOperator → `||`: untested
+- L82 `LinkRow::fills_to`: BinaryOperator → `<`: untested
+- L82 `LinkRow::fills_to`: BinaryOperator → `-`: untested
+- L82 `LinkRow::fills_to`: BinaryOperator → `*`: untested
+- L86 `LinkRow::has_frame`: FnValue → `true`: untested
+- L86 `LinkRow::has_frame`: FnValue → `false`: untested
+- L114 `joined_url`: FnValue → `None`: untested
+- L124 `schemes`: FnValue → `vec![]`: untested
+- L124 `schemes`: FnValue → `vec![0]`: untested
+- L124 `schemes`: FnValue → `vec![1]`: untested
+- L128 `schemes`: BinaryOperator → `!=`: untested
+- L128 `schemes`: BinaryOperator → `-`: untested
+- L128 `schemes`: BinaryOperator → `*`: untested
+- L131 `schemes`: BinaryOperator → `&&`: untested
+- L133 `schemes`: BinaryOperator → `!=`: untested
+- L134 `schemes`: BinaryOperator → `&&`: untested
+- L135 `schemes`: BinaryOperator → `+`: untested
+- L135 `schemes`: BinaryOperator → `/`: untested
+- L136 `schemes`: UnaryOperator → `(deleted)`: untested
+- L136 `schemes`: BinaryOperator → `&&`: untested
+- L136 `schemes`: BinaryOperator → `!=`: untested
+- L144 `starts_afresh`: FnValue → `true`: untested
+- L144 `starts_afresh`: FnValue → `false`: untested
+- L147 `starts_afresh`: BinaryOperator → `&&`: untested
+- L147 `starts_afresh`: BinaryOperator → `!=`: untested
+- L152 `starts_afresh`: BinaryOperator → `||`: untested
+- L155 `starts_afresh`: BinaryOperator → `&&`: untested
+- L155 `starts_afresh`: BinaryOperator → `!=`: untested
+- L157 `starts_afresh`: BinaryOperator → `||`: untested
+- L157 `starts_afresh`: UnaryOperator → `(deleted)`: untested
+- L157 `starts_afresh`: BinaryOperator → `&&`: untested
+- L157 `starts_afresh`: BinaryOperator → `||`: untested
+- L157 `starts_afresh`: UnaryOperator → `(deleted)`: untested
+- L159 `starts_afresh`: BinaryOperator → `&&`: untested
+- L165 `in_url`: FnValue → `true`: untested
+- L165 `in_url`: FnValue → `false`: untested
+- L166 `in_url`: UnaryOperator → `(deleted)`: untested
+- L167 `in_url`: BinaryOperator → `&&`: untested
+- L167 `in_url`: BinaryOperator → `>`: untested
+- L168 `in_url`: BinaryOperator → `&&`: untested
+- L168 `in_url`: BinaryOperator → `||`: untested
+- L168 `in_url`: BinaryOperator → `<`: untested
+- L168 `in_url`: BinaryOperator → `>`: untested
+- L169 `in_url`: BinaryOperator → `&&`: untested
+- L178 `trim_url`: FnValue → `0`: untested
+- L178 `trim_url`: FnValue → `1`: untested
+- L184 `trim_url`: BinaryOperator → `!=`: untested
+- L185 `trim_url`: BinaryOperator → `||`: untested
+- L185 `trim_url`: BinaryOperator → `!=`: untested
+- L186 `trim_url`: BinaryOperator → `==`: untested
+- L186 `trim_url`: BinaryOperator → `<`: untested
+- L186 `trim_url`: BinaryOperator → `>=`: untested
+- L186 `trim_url`: BinaryOperator → `!=`: untested
+- L189 `trim_url`: BinaryOperator → `&&`: untested
+- L190 `trim_url`: BinaryOperator → `&&`: untested
+- L192 `trim_url`: BinaryOperator → `+=`: untested
+- L192 `trim_url`: BinaryOperator → `/=`: untested
+- L202 `edge_url`: FnValue → `None`: untested
+- L203 `edge_url`: BinaryOperator → `-`: untested
+- L203 `edge_url`: BinaryOperator → `*`: untested
+- L206 `edge_url`: BinaryOperator → `-`: untested
+- L206 `edge_url`: BinaryOperator → `*`: untested
+- L208 `edge_url`: BinaryOperator → `&&`: untested
+- L209 `edge_url`: BinaryOperator → `||`: untested
+- L209 `edge_url`: UnaryOperator → `(deleted)`: untested
+- L210 `edge_url`: BinaryOperator → `||`: untested
+- L210 `edge_url`: UnaryOperator → `(deleted)`: untested
+- L222 `edge_url`: BinaryOperator → `&&`: untested
+- L222 `edge_url`: BinaryOperator → `==`: untested
+- L222 `edge_url`: BinaryOperator → `<`: untested
+- L222 `edge_url`: BinaryOperator → `>=`: untested
+- L222 `edge_url`: UnaryOperator → `(deleted)`: untested
+- L225 `edge_url`: BinaryOperator → `-=`: untested
+- L225 `edge_url`: BinaryOperator → `*=`: untested
+- L230 `edge_url`: UnaryOperator → `(deleted)`: untested
+- L237 `edge_url`: BinaryOperator → `==`: untested
+- L238 `edge_url`: BinaryOperator → `||`: untested
+- L238 `edge_url`: BinaryOperator → `<`: untested
+- L238 `edge_url`: BinaryOperator → `>`: untested
+- L239 `edge_url`: BinaryOperator → `||`: untested
+- L239 `edge_url`: BinaryOperator → `||`: untested
+- L239 `edge_url`: BinaryOperator → `>`: untested
+- L251 `edge_url`: BinaryOperator → `==`: untested
+- L251 `edge_url`: BinaryOperator → `<`: untested
+- L251 `edge_url`: BinaryOperator → `>=`: untested
+- L254 `edge_url`: BinaryOperator → `>`: untested
+- L254 `edge_url`: BinaryOperator → `==`: untested
+- L254 `edge_url`: BinaryOperator → `<=`: untested
+- L261 `edge_url`: BinaryOperator → `||`: untested
+- L261 `edge_url`: BinaryOperator → `||`: untested
+- L261 `edge_url`: BinaryOperator → `==`: untested
+- L261 `edge_url`: BinaryOperator → `<`: untested
+- L261 `edge_url`: BinaryOperator → `>=`: untested
+- L261 `edge_url`: BinaryOperator → `+`: untested
+- L261 `edge_url`: BinaryOperator → `/`: untested
+- L261 `edge_url`: BinaryOperator → `+`: untested
+- L261 `edge_url`: UnaryOperator → `(deleted)`: untested
+- L261 `edge_url`: BinaryOperator → `/`: untested
+- L262 `edge_url`: BinaryOperator → `+=`: untested
+- L262 `edge_url`: BinaryOperator → `/=`: untested
+- L273 `framed_url`: FnValue → `None`: untested
+- L282 `framed_url`: BinaryOperator → `-`: untested
+- L282 `framed_url`: BinaryOperator → `*`: untested
+- L288 `framed_url`: BinaryOperator → `!=`: untested
+- L291 `framed_url`: BinaryOperator → `+=`: untested
+- L291 `framed_url`: BinaryOperator → `/=`: untested
+- L298 `framed_url`: BinaryOperator → `==`: untested
+- L302 `framed_url`: UnaryOperator → `(deleted)`: untested
+- L308 `framed_url`: UnaryOperator → `(deleted)`: untested
+- L309 `framed_url`: BinaryOperator → `-`: untested
+- L309 `framed_url`: BinaryOperator → `*`: untested
+- L311 `framed_url`: BinaryOperator → `&&`: untested
+- L319 `framed_url`: BinaryOperator → `&&`: untested
+- L319 `framed_url`: BinaryOperator → `<`: untested
+- L319 `framed_url`: BinaryOperator → `+`: untested
+- L319 `framed_url`: BinaryOperator → `/`: untested
+- L319 `framed_url`: BinaryOperator → `+`: untested
+- L319 `framed_url`: BinaryOperator → `/`: untested
+- L324 `framed_url`: BinaryOperator → `-`: untested
+- L324 `framed_url`: BinaryOperator → `*`: untested
+- L325 `framed_url`: BinaryOperator → `!=`: untested
+- L329 `framed_url`: BinaryOperator → `-=`: untested
+- L329 `framed_url`: BinaryOperator → `*=`: untested
+- L330 `framed_url`: BinaryOperator → `==`: untested
+- L330 `framed_url`: BinaryOperator → `<`: untested
+- L330 `framed_url`: BinaryOperator → `>=`: untested
+- L334 `framed_url`: BinaryOperator → `+`: untested
+- L334 `framed_url`: BinaryOperator → `/`: untested
+- L334 `framed_url`: BinaryOperator → `-`: untested
+- L334 `framed_url`: BinaryOperator → `*`: untested
+- L335 `framed_url`: BinaryOperator → `&&`: untested
+- L335 `framed_url`: BinaryOperator → `&&`: untested
+- L335 `framed_url`: BinaryOperator → `==`: untested
+- L335 `framed_url`: BinaryOperator → `>`: untested
+- L335 `framed_url`: BinaryOperator → `<=`: untested
+- L335 `framed_url`: BinaryOperator → `==`: untested
+- L335 `framed_url`: BinaryOperator → `>`: untested
+- L335 `framed_url`: BinaryOperator → `<=`: untested
+- L335 `framed_url`: BinaryOperator → `==`: untested
+- L335 `framed_url`: BinaryOperator → `<`: untested
+- L335 `framed_url`: BinaryOperator → `>=`: untested
+- L342 `framed_url`: UnaryOperator → `(deleted)`: untested
+- L346 `framed_url`: BinaryOperator → `+`: untested
+- L346 `framed_url`: BinaryOperator → `/`: untested
+- L349 `framed_url`: BinaryOperator → `+`: untested
+- L349 `framed_url`: BinaryOperator → `/`: untested
+- L349 `framed_url`: BinaryOperator → `-`: untested
+- L349 `framed_url`: BinaryOperator → `*`: untested
+- L350 `framed_url`: BinaryOperator → `||`: untested
+- L350 `framed_url`: BinaryOperator → `>`: untested
+- L350 `framed_url`: BinaryOperator → `<`: untested
+
+## `crates/marley_terminal/src/anchored.rs` (120)
+
+- L67 `AnchoredBlock::markdown`: FnValue → `"xyzzy".into()`: untested
+- L67 `AnchoredBlock::markdown`: FnValue → `String::new()`: untested
+- L80 `AnchoredBlock::markdown`: BinaryOperator → `==`: untested
+- L84 `AnchoredBlock::markdown`: BinaryOperator → `-`: untested
+- L84 `AnchoredBlock::markdown`: BinaryOperator → `*`: untested
+- L110 `duration_words`: FnValue → `String::new()`: untested
+- L110 `duration_words`: BinaryOperator → `==`: untested
+- L110 `duration_words`: FnValue → `"xyzzy".into()`: untested
+- L110 `duration_words`: BinaryOperator → `>`: untested
+- L110 `duration_words`: BinaryOperator → `<=`: untested
+- L123 `duration_label`: FnValue → `String::new()`: untested
+- L123 `duration_label`: FnValue → `"xyzzy".into()`: untested
+- L123 `duration_label`: BinaryOperator → `*`: untested
+- L123 `duration_label`: BinaryOperator → `%`: untested
+- L124 `duration_label`: BinaryOperator → `*`: untested
+- L124 `duration_label`: BinaryOperator → `%`: untested
+- L124 `duration_label`: BinaryOperator → `*`: untested
+- L124 `duration_label`: BinaryOperator → `%`: untested
+- L124 `duration_label`: BinaryOperator → `/`: untested
+- L124 `duration_label`: BinaryOperator → `+`: untested
+- L124 `duration_label`: BinaryOperator → `+`: untested
+- L124 `duration_label`: BinaryOperator → `/`: untested
+- L165 `PromptShell<'a>::host`: FnValue → `None`: untested
+- L165 `PromptShell<'a>::host`: FnValue → `Some("")`: untested
+- L165 `PromptShell<'a>::host`: FnValue → `Some("xyzzy")`: untested
+- L219 `AnchoredBlocks::keep_agents_out_of_history`: FnValue → `()`: untested
+- L225 `AnchoredBlocks::agents_out_of_history`: FnValue → `true`: untested
+- L225 `AnchoredBlocks::agents_out_of_history`: FnValue → `false`: untested
+- L284 `AnchoredBlocks::apply`: BinaryOperator → `!=`: untested
+- L295 `AnchoredBlocks::apply`: BinaryOperator → `!=`: untested
+- L301 `AnchoredBlocks::apply`: BinaryOperator → `!=`: untested
+- L317 `AnchoredBlocks::shell_of`: BinaryOperator → `!=`: untested
+- L328 `AnchoredBlocks::block_host`: FnValue → `None`: untested
+- L328 `AnchoredBlocks::block_host`: FnValue → `Some("")`: untested
+- L328 `AnchoredBlocks::block_host`: FnValue → `Some("xyzzy")`: untested
+- L335 `AnchoredBlocks::prompt_shell`: FnValue → `None`: untested
+- L346 `AnchoredBlocks::rerun_offered`: FnValue → `true`: untested
+- L346 `AnchoredBlocks::rerun_offered`: FnValue → `false`: untested
+- L347 `AnchoredBlocks::rerun_offered`: BinaryOperator → `||`: untested
+- L347 `AnchoredBlocks::rerun_offered`: BinaryOperator → `!=`: untested
+- L348 `AnchoredBlocks::rerun_offered`: BinaryOperator → `||`: untested
+- L350 `AnchoredBlocks::rerun_offered`: BinaryOperator → `!=`: untested
+- L356 `AnchoredBlocks::prompt_folder`: FnValue → `None`: untested
+- L356 `AnchoredBlocks::prompt_folder`: FnValue → `Some("")`: untested
+- L356 `AnchoredBlocks::prompt_folder`: FnValue → `Some("xyzzy")`: untested
+- L370 `AnchoredBlocks::folder_at`: FnValue → `Some("")`: untested
+- L370 `AnchoredBlocks::folder_at`: FnValue → `None`: untested
+- L370 `AnchoredBlocks::folder_at`: FnValue → `Some("xyzzy")`: untested
+- L380 `AnchoredBlocks::stamp`: FnValue → `()`: untested
+- L380 `AnchoredBlocks::stamp`: BinaryOperator → `>`: untested
+- L380 `AnchoredBlocks::stamp`: BinaryOperator → `==`: untested
+- L380 `AnchoredBlocks::stamp`: BinaryOperator → `<=`: untested
+- L392 `AnchoredBlocks::stamp`: BinaryOperator → `!=`: untested
+- L401 `AnchoredBlocks::times`: FnValue → `None`: untested
+- L407 `AnchoredBlocks::at_prompt`: FnValue → `true`: untested
+- L407 `AnchoredBlocks::at_prompt`: FnValue → `false`: untested
+- L413 `AnchoredBlocks::note_input`: FnValue → `()`: untested
+- L414 `AnchoredBlocks::note_input`: BinaryOperator → `||`: untested
+- L423 `AnchoredBlocks::inputs`: FnValue → `0`: untested
+- L423 `AnchoredBlocks::inputs`: FnValue → `1`: untested
+- L429 `AnchoredBlocks::input_start`: FnValue → `None`: untested
+- L429 `AnchoredBlocks::input_start`: FnValue → `Some((0, 0))`: untested
+- L429 `AnchoredBlocks::input_start`: FnValue → `Some((0, 1))`: untested
+- L429 `AnchoredBlocks::input_start`: FnValue → `Some((1, 0))`: untested
+- L429 `AnchoredBlocks::input_start`: FnValue → `Some((1, 1))`: untested
+- L435 `AnchoredBlocks::history_file`: FnValue → `None`: untested
+- L435 `AnchoredBlocks::history_file`: FnValue → `Some("")`: untested
+- L435 `AnchoredBlocks::history_file`: FnValue → `Some("xyzzy")`: untested
+- L464 `AnchoredBlocks::open_task`: FnValue → `()`: untested
+- L473 `AnchoredBlocks::open_task`: StructField → `(deleted)`: untested
+- L484 `AnchoredBlocks::finish_task`: FnValue → `()`: untested
+- L494 `AnchoredBlocks::rewrap`: FnValue → `()`: untested
+- L569 `RowsView::logical_lines`: UnaryOperator → `(deleted)`: untested
+- L583 `RowsView::place_of`: FnValue → `None`: untested
+- L587 `RowsView::place_of`: BinaryOperator → `>`: untested
+- L588 `RowsView::place_of`: BinaryOperator → `+`: untested
+- L588 `RowsView::place_of`: BinaryOperator → `/`: untested
+- L590 `RowsView::place_of`: BinaryOperator → `+`: untested
+- L590 `RowsView::place_of`: BinaryOperator → `/`: untested
+- L592 `RowsView::place_of`: BinaryOperator → `+`: untested
+- L592 `RowsView::place_of`: BinaryOperator → `/`: untested
+- L602 `RowsView::line_of`: FnValue → `(0, 0)`: untested
+- L602 `RowsView::line_of`: FnValue → `(0, 1)`: untested
+- L602 `RowsView::line_of`: FnValue → `(1, 0)`: untested
+- L602 `RowsView::line_of`: FnValue → `(1, 1)`: untested
+- L620 `RowsView::line_of`: BinaryOperator → `-`: untested
+- L620 `RowsView::line_of`: BinaryOperator → `*`: untested
+- L625 `RowsView::line_of`: BinaryOperator → `-`: untested
+- L625 `RowsView::line_of`: BinaryOperator → `*`: untested
+- L625 `RowsView::line_of`: BinaryOperator → `%`: untested
+- L625 `RowsView::line_of`: BinaryOperator → `+`: untested
+- L625 `RowsView::line_of`: BinaryOperator → `*`: untested
+- L625 `RowsView::line_of`: BinaryOperator → `/`: untested
+- L629 `RowsView::line_of`: BinaryOperator → `/`: untested
+- L629 `RowsView::line_of`: BinaryOperator → `+`: untested
+- L698 `prompt_rows`: FnValue → `vec![]`: untested
+- L699 `prompt_rows`: BinaryOperator → `+`: untested
+- L699 `prompt_rows`: BinaryOperator → `/`: untested
+- L702 `prompt_rows`: BinaryOperator → `||`: untested
+- L702 `prompt_rows`: BinaryOperator → `==`: untested
+- L705 `prompt_rows`: BinaryOperator → `<`: untested
+- L749 `sticky_block`: FnValue → `None`: untested
+- L749 `sticky_block`: FnValue → `Some(0)`: untested
+- L749 `sticky_block`: FnValue → `Some(1)`: untested
+- L750 `sticky_block`: BinaryOperator → `||`: untested
+- L750 `sticky_block`: BinaryOperator → `||`: untested
+- L750 `sticky_block`: BinaryOperator → `==`: untested
+- L750 `sticky_block`: BinaryOperator → `<`: untested
+- L750 `sticky_block`: BinaryOperator → `>=`: untested
+- L750 `sticky_block`: BinaryOperator → `!=`: untested
+- L750 `sticky_block`: UnaryOperator → `(deleted)`: untested
+- L780 `scrollback_fraction`: FnValue → `None`: untested
+- L780 `scrollback_fraction`: FnValue → `Some(0.0)`: untested
+- L780 `scrollback_fraction`: FnValue → `Some(1.0)`: untested
+- L780 `scrollback_fraction`: FnValue → `Some(-1.0)`: untested
+- L784 `scrollback_fraction`: BinaryOperator → `==`: untested
+- L784 `scrollback_fraction`: BinaryOperator → `>`: untested
+- L784 `scrollback_fraction`: BinaryOperator → `<=`: untested
+- L784 `scrollback_fraction`: BinaryOperator → `%`: untested
+- L784 `scrollback_fraction`: BinaryOperator → `*`: untested
+
+## `crates/marley_agent/src/claude_events.rs` (119)
+
+- L158 `TurnFacts::of`: FnValue → `Default::default()`: untested
+- L180 `<impl fmt::Display for DecodeError>::fmt`: FnValue → `Ok(Default::default())`: untested
+- L200 `decode`: BinaryOperator → `==`: untested
+- L200 `decode`: BinaryOperator → `<`: untested
+- L200 `decode`: BinaryOperator → `>=`: untested
+- L205 `decode`: BinaryOperator → `==`: untested
+- L220 `fold`: FnValue → `vec![]`: untested
+- L220 `fold`: BinaryOperator → `!=`: untested
+- L228 `fold`: UnaryOperator → `(deleted)`: untested
+- L236 `fold`: BinaryOperator → `!=`: untested
+- L237 `fold`: BinaryOperator → `||`: untested
+- L237 `fold`: BinaryOperator → `!=`: untested
+- L238 `fold`: BinaryOperator → `||`: untested
+- L239 `fold`: UnaryOperator → `(deleted)`: untested
+- L248 `subagents`: FnValue → `0`: untested
+- L248 `subagents`: FnValue → `1`: untested
+- L282 `seat_line`: FnValue → `String::new()`: untested
+- L282 `seat_line`: FnValue → `"xyzzy".into()`: untested
+- L282 `seat_line`: BinaryOperator → `!=`: untested
+- L284 `seat_line`: BinaryOperator → `!=`: untested
+- L285 `seat_line`: BinaryOperator → `||`: untested
+- L285 `seat_line`: BinaryOperator → `==`: untested
+- L285 `seat_line`: BinaryOperator → `<`: untested
+- L285 `seat_line`: BinaryOperator → `>=`: untested
+- L286 `seat_line`: BinaryOperator → `||`: untested
+- L288 `seat_line`: BinaryOperator → `%`: untested
+- L288 `seat_line`: BinaryOperator → `*`: untested
+- L291 `seat_line`: BinaryOperator → `!=`: untested
+- L315 `seat_activity`: FnValue → `None`: untested
+- L315 `seat_activity`: FnValue → `Some(String::new())`: untested
+- L315 `seat_activity`: FnValue → `Some("xyzzy".into())`: untested
+- L363 `Moving::note_session`: FnValue → `()`: untested
+- L367 `Moving::note_session`: BinaryOperator → `==`: untested
+- L390 `Moving::take`: FnValue → `true`: untested
+- L390 `Moving::take`: FnValue → `false`: untested
+- L392 `Moving::take`: MatchArm → `(deleted)`: untested
+- L402 `Moving::take`: MatchArmGuard → `true`: untested
+- L402 `Moving::take`: MatchArmGuard → `false`: untested
+- L415 `Moving::take`: StructField → `(deleted)`: untested
+- L420 `Moving::take`: MatchArm → `(deleted)`: untested
+- L421 `Moving::take`: MatchArm → `(deleted)`: untested
+- L425 `Moving::take`: MatchArm → `(deleted)`: untested
+- L430 `Moving::take`: BinaryOperator → `!=`: untested
+- L441 `Moving::take`: UnaryOperator → `(deleted)`: untested
+- L446 `Moving::take`: MatchArmGuard → `true`: untested
+- L446 `Moving::take`: MatchArmGuard → `false`: untested
+- L453 `Moving::take`: MatchArmGuard → `true`: untested
+- L453 `Moving::take`: MatchArmGuard → `false`: untested
+- L460 `Moving::take`: MatchArmGuard → `true`: untested
+- L460 `Moving::take`: MatchArmGuard → `false`: untested
+- L460 `Moving::take`: BinaryOperator → `!=`: untested
+- L463 `Moving::take`: MatchArm → `(deleted)`: untested
+- L467 `Moving::take`: MatchArm → `(deleted)`: untested
+- L477 `Moving::tool_starts`: FnValue → `()`: untested
+- L494 `Moving::tool_starts`: BinaryOperator → `!=`: untested
+- L507 `Moving::tool_starts`: BinaryOperator → `==`: untested
+- L514 `Moving::tool_ends`: FnValue → `()`: untested
+- L519 `Moving::tool_ends`: BinaryOperator → `!=`: untested
+- L525 `Moving::tool_ends`: UnaryOperator → `(deleted)`: untested
+- L534 `Moving::tool_ends`: BinaryOperator → `||`: untested
+- L534 `Moving::tool_ends`: BinaryOperator → `!=`: untested
+- L534 `Moving::tool_ends`: BinaryOperator → `!=`: untested
+- L536 `Moving::tool_ends`: BinaryOperator → `==`: untested
+- L545 `Moving::note_tool_end`: FnValue → `()`: untested
+- L548 `Moving::note_tool_end`: BinaryOperator → `!=`: untested
+- L549 `Moving::note_tool_end`: BinaryOperator → `||`: untested
+- L549 `Moving::note_tool_end`: BinaryOperator → `==`: untested
+- L556 `Moving::note_tool_end`: BinaryOperator → `!=`: untested
+- L558 `Moving::note_tool_end`: BinaryOperator → `||`: untested
+- L558 `Moving::note_tool_end`: UnaryOperator → `(deleted)`: untested
+- L568 `Moving::note_tool_end`: MatchArm → `(deleted)`: untested
+- L572 `Moving::note_tool_end`: MatchArm → `(deleted)`: untested
+- L579 `Moving::lead_tools`: FnValue → `::std::iter::empty()`: untested
+- L579 `Moving::lead_tools`: FnValue → `::std::iter::once("")`: untested
+- L579 `Moving::lead_tools`: FnValue → `::std::iter::once("xyzzy")`: untested
+- L586 `Moving::wait`: FnValue → `()`: untested
+- L599 `Moving::end_turn`: FnValue → `()`: untested
+- L600 `Moving::end_turn`: UnaryOperator → `(deleted)`: untested
+- L601 `Moving::end_turn`: BinaryOperator → `||`: untested
+- L601 `Moving::end_turn`: UnaryOperator → `(deleted)`: untested
+- L602 `Moving::end_turn`: BinaryOperator → `||`: untested
+- L602 `Moving::end_turn`: UnaryOperator → `(deleted)`: untested
+- L603 `Moving::end_turn`: BinaryOperator → `||`: untested
+- L603 `Moving::end_turn`: UnaryOperator → `(deleted)`: untested
+- L610 `Moving::set`: FnValue → `()`: untested
+- L614 `Moving::clear`: FnValue → `()`: untested
+- L614 `Moving::clear`: UnaryOperator → `(deleted)`: untested
+- L619 `Moving::into_events`: FnValue → `vec![]`: untested
+- L623 `Moving::into_events`: BinaryOperator → `!=`: untested
+- L646 `tool_call`: FnValue → `None`: untested
+- L646 `tool_call`: FnValue → `Some("")`: untested
+- L646 `tool_call`: FnValue → `Some("xyzzy")`: untested
+- L663 `banner_body`: FnValue → `String::new()`: untested
+- L663 `banner_body`: FnValue → `"xyzzy".into()`: untested
+- L683 `notification_text`: FnValue → `String::new()`: untested
+- L683 `notification_text`: FnValue → `"xyzzy".into()`: untested
+- L684 `notification_text`: BinaryOperator → `>`: untested
+- L687 `notification_text`: BinaryOperator → `+`: untested
+- L687 `notification_text`: BinaryOperator → `/`: untested
+- L694 `tool_line`: FnValue → `String::new()`: untested
+- L694 `tool_line`: FnValue → `"xyzzy".into()`: untested
+- L703 `one_line`: FnValue → `String::new()`: untested
+- L703 `one_line`: FnValue → `"xyzzy".into()`: untested
+- L745 `opening`: FnValue → `String::new()`: untested
+- L745 `opening`: FnValue → `"xyzzy".into()`: untested
+- L756 `is_harness_injected`: FnValue → `true`: untested
+- L756 `is_harness_injected`: FnValue → `false`: untested
+- L758 `is_harness_injected`: BinaryOperator → `&&`: untested
+- L758 `is_harness_injected`: BinaryOperator → `!=`: untested
+- L762 `is_harness_injected`: BinaryOperator → `&&`: untested
+- L770 `is_compact_continuation`: FnValue → `true`: untested
+- L770 `is_compact_continuation`: FnValue → `false`: untested
+- L798 `prompt_origin`: BinaryOperator → `&&`: untested
+- L798 `prompt_origin`: BinaryOperator → `!=`: untested
+- L801 `prompt_origin`: BinaryOperator → `!=`: untested
+- L819 `command_name`: FnValue → `None`: untested
+- L819 `command_name`: FnValue → `Some(String::new())`: untested
+- L819 `command_name`: FnValue → `Some("xyzzy".into())`: untested
+- L822 `command_name`: UnaryOperator → `(deleted)`: untested
+
+## `crates/marley_rail/src/marley_rail.rs` (99)
+
+- L97 `DriftSnapshot::conflicted`: FnValue → `true`: untested
+- L97 `DriftSnapshot::conflicted`: FnValue → `false`: untested
+- L99 `DriftSnapshot::conflicted`: UnaryOperator → `(deleted)`: untested
+- L107 `DriftSnapshot::words`: FnValue → `None`: untested
+- L107 `DriftSnapshot::words`: FnValue → `Some(String::new())`: untested
+- L107 `DriftSnapshot::words`: FnValue → `Some("xyzzy".into())`: untested
+- L107 `DriftSnapshot::words`: BinaryOperator → `!=`: untested
+- L112 `DriftSnapshot::words`: MatchArm → `(deleted)`: untested
+- L112 `DriftSnapshot::words`: BinaryOperator → `==`: untested
+- L112 `DriftSnapshot::words`: BinaryOperator → `<`: untested
+- L112 `DriftSnapshot::words`: BinaryOperator → `>=`: untested
+- L113 `DriftSnapshot::words`: MatchArm → `(deleted)`: untested
+- L121 `DriftSnapshot::ahead_words`: FnValue → `None`: untested
+- L121 `DriftSnapshot::ahead_words`: FnValue → `Some(String::new())`: untested
+- L121 `DriftSnapshot::ahead_words`: FnValue → `Some("xyzzy".into())`: untested
+- L121 `DriftSnapshot::ahead_words`: BinaryOperator → `==`: untested
+- L121 `DriftSnapshot::ahead_words`: BinaryOperator → `<`: untested
+- L121 `DriftSnapshot::ahead_words`: BinaryOperator → `>=`: untested
+- L127 `DriftSnapshot::base_name`: FnValue → `""`: untested
+- L127 `DriftSnapshot::base_name`: FnValue → `"xyzzy"`: untested
+- L138 `DriftSnapshot::tooltip`: FnValue → `String::new()`: untested
+- L138 `DriftSnapshot::tooltip`: FnValue → `"xyzzy".into()`: untested
+- L138 `DriftSnapshot::tooltip`: BinaryOperator → `!=`: untested
+- L151 `DriftSnapshot::tooltip`: MatchArmGuard → `true`: untested
+- L151 `DriftSnapshot::tooltip`: MatchArmGuard → `false`: untested
+- L151 `DriftSnapshot::tooltip`: UnaryOperator → `(deleted)`: untested
+- L154 `DriftSnapshot::tooltip`: BinaryOperator → `==`: untested
+- L154 `DriftSnapshot::tooltip`: BinaryOperator → `<`: untested
+- L154 `DriftSnapshot::tooltip`: BinaryOperator → `>=`: untested
+- L467 `waited_words`: FnValue → `String::new()`: untested
+- L467 `waited_words`: BinaryOperator → `%`: untested
+- L467 `waited_words`: FnValue → `"xyzzy".into()`: untested
+- L467 `waited_words`: BinaryOperator → `*`: untested
+- L469 `waited_words`: MatchArm → `(deleted)`: untested
+- L470 `waited_words`: MatchArm → `(deleted)`: untested
+- L842 `terminal_attention`: BinaryOperator → `==`: untested
+- L844 `terminal_attention`: MatchArm → `(deleted)`: untested
+- L845 `terminal_attention`: MatchArmGuard → `true`: untested
+- L845 `terminal_attention`: MatchArmGuard → `false`: untested
+- L846 `terminal_attention`: MatchArmGuard → `true`: untested
+- L846 `terminal_attention`: MatchArmGuard → `false`: untested
+- L846 `terminal_attention`: BinaryOperator → `!=`: untested
+- L849 `terminal_attention`: MatchArm → `(deleted)`: untested
+- L850 `terminal_attention`: MatchArmGuard → `true`: untested
+- L850 `terminal_attention`: MatchArmGuard → `false`: untested
+- L860 `thread_attention_class`: MatchArmGuard → `true`: untested
+- L860 `thread_attention_class`: MatchArmGuard → `false`: untested
+- L861 `thread_attention_class`: MatchArmGuard → `false`: untested
+- L861 `thread_attention_class`: MatchArmGuard → `true`: untested
+- L901 `held_position`: FnValue → `0`: untested
+- L901 `held_position`: FnValue → `1`: untested
+- L902 `held_position`: BinaryOperator → `!=`: untested
+- L943 `held_order`: FnValue → `Default::default()`: untested
+- L988 `run`: FnValue → `None`: untested
+- L988 `run`: BinaryOperator → `!=`: untested
+- L999 `run`: BinaryOperator → `!=`: untested
+- L1014 `run`: BinaryOperator → `!=`: untested
+- L1027 `place`: FnValue → `()`: untested
+- L1029 `place`: BinaryOperator → `!=`: untested
+- L1038 `move_to`: FnValue → `vec![]`: untested
+- L1038 `move_to`: BinaryOperator → `&&`: untested
+- L1038 `move_to`: BinaryOperator → `&&`: untested
+- L1038 `move_to`: BinaryOperator → `!=`: untested
+- L1038 `move_to`: UnaryOperator → `(deleted)`: untested
+- L1038 `move_to`: UnaryOperator → `(deleted)`: untested
+- L1043 `move_to`: BinaryOperator → `==`: untested
+- L1048 `move_to`: BinaryOperator → `!=`: untested
+- L1049 `move_to`: BinaryOperator → `-`: untested
+- L1049 `move_to`: BinaryOperator → `*`: untested
+- L1057 `summary`: FnValue → `None`: untested
+- L1061 `summary`: BinaryOperator → `==`: untested
+- L1063 `summary`: MatchArm → `(deleted)`: untested
+- L1064 `summary`: MatchArmGuard → `true`: untested
+- L1064 `summary`: MatchArmGuard → `false`: untested
+- L1065 `summary`: MatchArmGuard → `true`: untested
+- L1065 `summary`: MatchArmGuard → `false`: untested
+- L1065 `summary`: BinaryOperator → `!=`: untested
+- L1066 `summary`: MatchArm → `(deleted)`: untested
+- L1067 `summary`: MatchArmGuard → `true`: untested
+- L1067 `summary`: MatchArmGuard → `false`: untested
+- L1076 `summary`: MatchArmGuard → `true`: untested
+- L1076 `summary`: MatchArmGuard → `false`: untested
+- L1077 `summary`: MatchArmGuard → `true`: untested
+- L1077 `summary`: MatchArmGuard → `false`: untested
+- L1083 `summary`: BinaryOperator → `*=`: untested
+- L1089 `summary`: BinaryOperator → `<`: untested
+- L1122 `walk`: BinaryOperator → `!=`: untested
+- L1131 `walk`: BinaryOperator → `&&`: untested
+- L1131 `walk`: UnaryOperator → `(deleted)`: untested
+- L1190 `worktree_of`: FnValue → `None`: untested
+- L1194 `worktree_of`: BinaryOperator → `!=`: untested
+- L1322 `parent`: BinaryOperator → `!=`: untested
+- L1336 `parent`: BinaryOperator → `!=`: untested
+- L1345 `parent`: BinaryOperator → `||`: untested
+- L1345 `parent`: BinaryOperator → `!=`: untested
+- L1345 `parent`: BinaryOperator → `!=`: untested
+- L1351 `parent`: BinaryOperator → `!=`: untested
+- L1415 `rail_rows`: BinaryOperator → `!=`: untested
+- L1437 `rail_rows`: BinaryOperator → `!=`: untested
+
+## `crates/marley_agent/src/stop_kind.rs` (90)
+
+- L64 `Verdict::kind`: FnValue → `None`: untested
+- L79 `rules`: UnaryOperator → `(deleted)`: untested
+- L91 `asks`: FnValue → `true`: untested
+- L91 `asks`: FnValue → `false`: untested
+- L96 `asks`: UnaryOperator → `(deleted)`: untested
+- L99 `asks`: BinaryOperator → `&&`: untested
+- L103 `asks`: UnaryOperator → `(deleted)`: untested
+- L110 `last_sentence`: FnValue → `""`: untested
+- L110 `last_sentence`: FnValue → `"xyzzy"`: untested
+- L118 `sentence_breaks`: FnValue → `::std::iter::empty()`: untested
+- L118 `sentence_breaks`: FnValue → `::std::iter::once(0)`: untested
+- L118 `sentence_breaks`: FnValue → `::std::iter::once(1)`: untested
+- L122 `sentence_breaks`: BinaryOperator → `-`: untested
+- L122 `sentence_breaks`: BinaryOperator → `*`: untested
+- L126 `sentence_breaks`: BinaryOperator → `||`: untested
+- L127 `sentence_breaks`: BinaryOperator → `||`: untested
+- L127 `sentence_breaks`: UnaryOperator → `(deleted)`: untested
+- L128 `sentence_breaks`: BinaryOperator → `||`: untested
+- L128 `sentence_breaks`: UnaryOperator → `(deleted)`: untested
+- L132 `sentence_breaks`: BinaryOperator → `-`: untested
+- L132 `sentence_breaks`: BinaryOperator → `*`: untested
+- L132 `sentence_breaks`: BinaryOperator → `-`: untested
+- L132 `sentence_breaks`: BinaryOperator → `*`: untested
+- L142 `parts`: FnValue → `vec![]`: untested
+- L142 `parts`: FnValue → `vec![String::new()]`: untested
+- L142 `parts`: FnValue → `vec!["xyzzy".into()]`: untested
+- L155 `parts`: BinaryOperator → `||`: untested
+- L155 `parts`: BinaryOperator → `<`: untested
+- L155 `parts`: UnaryOperator → `(deleted)`: untested
+- L168 `list_items`: FnValue → `::std::iter::empty()`: untested
+- L168 `list_items`: FnValue → `::std::iter::once(0)`: untested
+- L168 `list_items`: FnValue → `::std::iter::once(1)`: untested
+- L174 `list_items`: BinaryOperator → `||`: untested
+- L174 `list_items`: BinaryOperator → `==`: untested
+- L174 `list_items`: BinaryOperator → `<`: untested
+- L174 `list_items`: BinaryOperator → `>=`: untested
+- L175 `list_items`: BinaryOperator → `-`: untested
+- L175 `list_items`: BinaryOperator → `*`: untested
+- L180 `list_items`: BinaryOperator → `&&`: untested
+- L180 `list_items`: BinaryOperator → `!=`: untested
+- L186 `is_bullet`: FnValue → `true`: untested
+- L186 `is_bullet`: FnValue → `false`: untested
+- L191 `is_numbered`: FnValue → `true`: untested
+- L191 `is_numbered`: FnValue → `false`: untested
+- L193 `is_numbered`: BinaryOperator → `||`: untested
+- L199 `strip_marker`: FnValue → `""`: untested
+- L199 `strip_marker`: FnValue → `"xyzzy"`: untested
+- L200 `strip_marker`: MatchArmGuard → `true`: untested
+- L200 `strip_marker`: MatchArmGuard → `false`: untested
+- L200 `strip_marker`: BinaryOperator → `&&`: untested
+- L226 `Kind::value`: FnValue → `""`: untested
+- L226 `Kind::value`: FnValue → `"xyzzy"`: untested
+- L240 `Kind::from_value`: FnValue → `None`: untested
+- L249 `Kind::from_value`: BinaryOperator → `!=`: untested
+- L255 `Kind::words`: FnValue → `""`: untested
+- L255 `Kind::words`: FnValue → `"xyzzy"`: untested
+- L271 `apply_evidence`: MatchArmGuard → `true`: untested
+- L271 `apply_evidence`: MatchArmGuard → `false`: untested
+- L271 `apply_evidence`: UnaryOperator → `(deleted)`: untested
+- L287 `Source::value`: FnValue → `""`: untested
+- L287 `Source::value`: FnValue → `"xyzzy"`: untested
+- L301 `labels`: FnValue → `vec![]`: untested
+- L301 `labels`: FnValue → `vec![("", String::new())]`: untested
+- L301 `labels`: FnValue → `vec![("", "xyzzy".into())]`: untested
+- L301 `labels`: FnValue → `vec![("xyzzy", String::new())]`: untested
+- L301 `labels`: FnValue → `vec![("xyzzy", "xyzzy".into())]`: untested
+- L307 `labels`: UnaryOperator → `(deleted)`: untested
+- L331 `row_word`: FnValue → `None`: untested
+- L331 `row_word`: FnValue → `Some(String::new())`: untested
+- L331 `row_word`: FnValue → `Some("xyzzy".into())`: untested
+- L345 `not_covered`: FnValue → `None`: untested
+- L345 `not_covered`: FnValue → `Some(String::new())`: untested
+- L345 `not_covered`: FnValue → `Some("xyzzy".into())`: untested
+- L345 `not_covered`: BinaryOperator → `!=`: untested
+- L364 `state_facts`: FnValue → `vec![]`: untested
+- L364 `state_facts`: FnValue → `vec![("", String::new())]`: untested
+- L364 `state_facts`: FnValue → `vec![("", "xyzzy".into())]`: untested
+- L364 `state_facts`: FnValue → `vec![("xyzzy", String::new())]`: untested
+- L364 `state_facts`: FnValue → `vec![("xyzzy", "xyzzy".into())]`: untested
+- L369 `state_facts`: BinaryOperator → `==`: untested
+- L369 `state_facts`: BinaryOperator → `<`: untested
+- L369 `state_facts`: BinaryOperator → `>=`: untested
+- L403 `duration_words`: FnValue → `String::new()`: untested
+- L403 `duration_words`: FnValue → `"xyzzy".into()`: untested
+- L403 `duration_words`: BinaryOperator → `%`: untested
+- L403 `duration_words`: BinaryOperator → `*`: untested
+- L405 `duration_words`: MatchArm → `(deleted)`: untested
+- L406 `duration_words`: MatchArm → `(deleted)`: untested
+- L407 `duration_words`: MatchArm → `(deleted)`: untested
+- L408 `duration_words`: MatchArm → `(deleted)`: untested
+
+## `crates/marley_agent/src/stall.rs` (76)
+
+- L70 `repeats`: FnValue → `None`: untested
+- L74 `repeats`: BinaryOperator → `!=`: untested
+- L77 `repeats`: BinaryOperator → `<`: untested
+- L85 `repeats`: BinaryOperator → `||`: untested
+- L85 `repeats`: BinaryOperator → `<`: untested
+- L85 `repeats`: UnaryOperator → `(deleted)`: untested
+- L96 `tool_name`: FnValue → `""`: untested
+- L96 `tool_name`: FnValue → `"xyzzy"`: untested
+- L127 `judge`: BinaryOperator → `||`: untested
+- L127 `judge`: BinaryOperator → `!=`: untested
+- L131 `judge`: MatchArmGuard → `true`: untested
+- L131 `judge`: MatchArmGuard → `false`: untested
+- L131 `judge`: BinaryOperator → `||`: untested
+- L131 `judge`: BinaryOperator → `<`: untested
+- L131 `judge`: BinaryOperator → `!=`: untested
+- L140 `checks`: FnValue → `vec![]`: untested
+- L140 `checks`: FnValue → `vec![0]`: untested
+- L140 `checks`: FnValue → `vec![1]`: untested
+- L140 `checks`: BinaryOperator → `!=`: untested
+- L152 `quiet_words`: FnValue → `String::new()`: untested
+- L152 `quiet_words`: FnValue → `"xyzzy".into()`: untested
+- L152 `quiet_words`: BinaryOperator → `%`: untested
+- L152 `quiet_words`: BinaryOperator → `*`: untested
+- L154 `quiet_words`: MatchArm → `(deleted)`: untested
+- L155 `quiet_words`: MatchArm → `(deleted)`: untested
+- L176 `Stalled::from_option`: FnValue → `None`: untested
+- L177 `Stalled::from_option`: MatchArm → `(deleted)`: untested
+- L178 `Stalled::from_option`: MatchArm → `(deleted)`: untested
+- L179 `Stalled::from_option`: MatchArm → `(deleted)`: untested
+- L187 `Stalled::option`: FnValue → `""`: untested
+- L187 `Stalled::option`: FnValue → `"xyzzy"`: untested
+- L197 `Stalled::words`: FnValue → `""`: untested
+- L197 `Stalled::words`: FnValue → `"xyzzy"`: untested
+- L218 `Flag::value`: FnValue → `String::new()`: untested
+- L218 `Flag::value`: FnValue → `"xyzzy".into()`: untested
+- L227 `Flag::from_value`: FnValue → `None`: untested
+- L227 `Flag::from_value`: BinaryOperator → `!=`: untested
+- L245 `labels`: FnValue → `vec![]`: untested
+- L245 `labels`: FnValue → `vec![("", String::new())]`: untested
+- L245 `labels`: FnValue → `vec![("", "xyzzy".into())]`: untested
+- L245 `labels`: FnValue → `vec![("xyzzy", String::new())]`: untested
+- L245 `labels`: FnValue → `vec![("xyzzy", "xyzzy".into())]`: untested
+- L267 `row_word`: FnValue → `None`: untested
+- L267 `row_word`: FnValue → `Some(String::new())`: untested
+- L267 `row_word`: FnValue → `Some("xyzzy".into())`: untested
+- L267 `row_word`: BinaryOperator → `!=`: untested
+- L283 `tooltip`: FnValue → `None`: untested
+- L283 `tooltip`: FnValue → `Some(String::new())`: untested
+- L283 `tooltip`: FnValue → `Some("xyzzy".into())`: untested
+- L283 `tooltip`: BinaryOperator → `!=`: untested
+- L304 `active`: FnValue → `true`: untested
+- L304 `active`: FnValue → `false`: untested
+- L304 `active`: BinaryOperator → `==`: untested
+- L304 `active`: BinaryOperator → `<`: untested
+- L304 `active`: BinaryOperator → `>=`: untested
+- L305 `active`: BinaryOperator → `||`: untested
+- L306 `active`: BinaryOperator → `==`: untested
+- L306 `active`: BinaryOperator → `<`: untested
+- L306 `active`: BinaryOperator → `>=`: untested
+- L315 `ticks_since_boot`: FnValue → `0`: untested
+- L315 `ticks_since_boot`: FnValue → `1`: untested
+- L315 `ticks_since_boot`: BinaryOperator → `%`: untested
+- L315 `ticks_since_boot`: BinaryOperator → `*`: untested
+- L315 `ticks_since_boot`: BinaryOperator → `*`: untested
+- L321 `boot_time_in`: FnValue → `None`: untested
+- L321 `boot_time_in`: FnValue → `Some(1)`: untested
+- L321 `boot_time_in`: FnValue → `Some(0)`: untested
+- L335 `tree_cpu_in`: FnValue → `Some(0)`: untested
+- L335 `tree_cpu_in`: FnValue → `None`: untested
+- L335 `tree_cpu_in`: FnValue → `Some(1)`: untested
+- L340 `tree_cpu_in`: UnaryOperator → `(deleted)`: untested
+- L345 `tree_cpu_in`: BinaryOperator → `<`: untested
+- L355 `children_in`: FnValue → `vec![]`: untested
+- L355 `children_in`: FnValue → `vec![0]`: untested
+- L355 `children_in`: FnValue → `vec![1]`: untested
+- L355 `children_in`: FnValue → `vec![-1]`: untested
+
+## `crates/marley_agent/src/marley_agent.rs` (67)
+
+- L73 `AgentKind::short_name`: FnValue → `""`: untested
+- L73 `AgentKind::short_name`: FnValue → `"xyzzy"`: untested
+- L170 `launch_line`: FnValue → `vec![]`: untested
+- L170 `launch_line`: FnValue → `vec![0]`: untested
+- L170 `launch_line`: FnValue → `vec![1]`: untested
+- L196 `launch_line_after`: FnValue → `vec![0]`: untested
+- L196 `launch_line_after`: FnValue → `vec![]`: untested
+- L196 `launch_line_after`: FnValue → `vec![1]`: untested
+- L226 `quote_argument`: FnValue → `"xyzzy".into()`: untested
+- L226 `quote_argument`: FnValue → `String::new()`: untested
+- L230 `quote_argument`: MatchArm → `(deleted)`: untested
+- L231 `quote_argument`: MatchArm → `(deleted)`: untested
+- L237 `quote_argument`: UnaryOperator → `(deleted)`: untested
+- L245 `quote_argument`: BinaryOperator → `&&`: untested
+- L245 `quote_argument`: UnaryOperator → `(deleted)`: untested
+- L276 `review_prompt`: FnValue → `String::new()`: untested
+- L276 `review_prompt`: FnValue → `"xyzzy".into()`: untested
+- L280 `review_prompt`: BinaryOperator → `!=`: untested
+- L285 `review_prompt`: UnaryOperator → `(deleted)`: untested
+- L297 `escape_comment`: FnValue → `String::new()`: untested
+- L297 `escape_comment`: FnValue → `"xyzzy".into()`: untested
+- L304 `escape_comment`: MatchArmGuard → `true`: untested
+- L304 `escape_comment`: MatchArmGuard → `false`: untested
+- L348 `PermissionMark::words`: FnValue → `""`: untested
+- L348 `PermissionMark::words`: FnValue → `"xyzzy"`: untested
+- L357 `PermissionMark::tooltip`: FnValue → `String::new()`: untested
+- L357 `PermissionMark::tooltip`: FnValue → `"xyzzy".into()`: untested
+- L379 `permission_mark`: FnValue → `None`: untested
+- L382 `permission_mark`: BinaryOperator → `!=`: untested
+- L403 `options`: FnValue → `Vec::leak(Vec::new())`: untested
+- L403 `options`: FnValue → `Vec::leak(vec![String::new()])`: untested
+- L403 `options`: FnValue → `Vec::leak(vec!["xyzzy".into()])`: untested
+- L403 `options`: BinaryOperator → `!=`: untested
+- L410 `claude_bypass_argument`: FnValue → `None`: untested
+- L410 `claude_bypass_argument`: FnValue → `Some("")`: untested
+- L410 `claude_bypass_argument`: FnValue → `Some("xyzzy")`: untested
+- L412 `claude_bypass_argument`: BinaryOperator → `!=`: untested
+- L415 `claude_bypass_argument`: BinaryOperator → `!=`: untested
+- L420 `claude_bypass_argument`: BinaryOperator → `!=`: untested
+- L429 `codex_full_access_argument`: FnValue → `None`: untested
+- L429 `codex_full_access_argument`: FnValue → `Some("")`: untested
+- L429 `codex_full_access_argument`: FnValue → `Some("xyzzy")`: untested
+- L431 `codex_full_access_argument`: BinaryOperator → `!=`: untested
+- L435 `codex_full_access_argument`: MatchArm → `(deleted)`: untested
+- L440 `codex_full_access_argument`: BinaryOperator → `!=`: untested
+- L444 `codex_full_access_argument`: MatchArm → `(deleted)`: untested
+- L458 `sets_full_access`: FnValue → `true`: untested
+- L458 `sets_full_access`: FnValue → `false`: untested
+- L462 `sets_full_access`: BinaryOperator → `!=`: untested
+- L463 `sets_full_access`: BinaryOperator → `||`: untested
+- L465 `sets_full_access`: BinaryOperator → `&&`: untested
+- L465 `sets_full_access`: BinaryOperator → `!=`: untested
+- L465 `sets_full_access`: BinaryOperator → `!=`: untested
+- L466 `sets_full_access`: BinaryOperator → `!=`: untested
+- L513 `TurnEvent::of_change`: FnValue → `None`: untested
+- L514 `TurnEvent::of_change`: MatchArm → `(deleted)`: untested
+- L515 `TurnEvent::of_change`: MatchArm → `(deleted)`: untested
+- L516 `TurnEvent::of_change`: MatchArm → `(deleted)`: untested
+- L517 `TurnEvent::of_change`: MatchArm → `(deleted)`: untested
+- L525 `TurnEvent::words`: FnValue → `"xyzzy"`: untested
+- L525 `TurnEvent::words`: FnValue → `""`: untested
+- L537 `event_line`: FnValue → `String::new()`: untested
+- L537 `event_line`: FnValue → `"xyzzy".into()`: untested
+- L539 `event_line`: UnaryOperator → `(deleted)`: untested
+- L548 `ssh_dialog_title`: FnValue → `String::new()`: untested
+- L548 `ssh_dialog_title`: FnValue → `"xyzzy".into()`: untested
+- L550 `ssh_dialog_title`: UnaryOperator → `(deleted)`: untested
+
+## `crates/marley_terminal/src/workflow.rs` (54)
+
+- L17 `<impl fmt::Display for MissingParameter>::fmt`: FnValue → `Ok(Default::default())`: untested
+- L33 `substitute`: FnValue → `Ok(String::new())`: untested
+- L33 `substitute`: FnValue → `Ok("xyzzy".into())`: untested
+- L37 `substitute`: BinaryOperator → `-`: untested
+- L37 `substitute`: BinaryOperator → `*`: untested
+- L44 `substitute`: BinaryOperator → `-`: untested
+- L44 `substitute`: BinaryOperator → `*`: untested
+- L57 `params_of`: FnValue → `vec![]`: untested
+- L57 `params_of`: FnValue → `vec![String::new()]`: untested
+- L57 `params_of`: FnValue → `vec!["xyzzy".into()]`: untested
+- L60 `params_of`: BinaryOperator → `-`: untested
+- L60 `params_of`: BinaryOperator → `*`: untested
+- L65 `params_of`: BinaryOperator → `||`: untested
+- L65 `params_of`: UnaryOperator → `(deleted)`: untested
+- L65 `params_of`: UnaryOperator → `(deleted)`: untested
+- L65 `params_of`: BinaryOperator → `!=`: untested
+- L68 `params_of`: BinaryOperator → `-`: untested
+- L68 `params_of`: BinaryOperator → `*`: untested
+- L77 `is_name`: FnValue → `true`: untested
+- L77 `is_name`: FnValue → `false`: untested
+- L80 `is_name`: BinaryOperator → `&&`: untested
+- L80 `is_name`: BinaryOperator → `&&`: untested
+- L80 `is_name`: BinaryOperator → `!=`: untested
+- L80 `is_name`: BinaryOperator → `!=`: untested
+- L81 `is_name`: BinaryOperator → `||`: untested
+- L81 `is_name`: BinaryOperator → `&&`: untested
+- L82 `is_name`: BinaryOperator → `||`: untested
+- L82 `is_name`: UnaryOperator → `(deleted)`: untested
+- L123 `guess`: BinaryOperator → `==`: untested
+- L123 `guess`: BinaryOperator → `>`: untested
+- L123 `guess`: BinaryOperator → `<=`: untested
+- L123 `guess`: BinaryOperator → `-`: untested
+- L123 `guess`: BinaryOperator → `*`: untested
+- L124 `guess`: BinaryOperator → `-`: untested
+- L124 `guess`: BinaryOperator → `*`: untested
+- L125 `guess`: UnaryOperator → `(deleted)`: untested
+- L127 `guess`: BinaryOperator → `-`: untested
+- L127 `guess`: BinaryOperator → `*`: untested
+- L127 `guess`: BinaryOperator → `-`: untested
+- L127 `guess`: BinaryOperator → `*`: untested
+- L130 `guess`: BinaryOperator → `||`: untested
+- L130 `guess`: UnaryOperator → `(deleted)`: untested
+- L134 `guess`: BinaryOperator → `&&`: untested
+- L134 `guess`: BinaryOperator → `||`: untested
+- L134 `guess`: UnaryOperator → `(deleted)`: untested
+- L140 `guess`: BinaryOperator → `&&`: untested
+- L142 `guess`: BinaryOperator → `!=`: untested
+- L144 `guess`: BinaryOperator → `||`: untested
+- L144 `guess`: UnaryOperator → `(deleted)`: untested
+- L155 `guess`: BinaryOperator → `!=`: untested
+- L157 `guess`: BinaryOperator → `!=`: untested
+- L180 `spans`: FnValue → `vec![]`: untested
+- L184 `spans`: MatchArm → `(deleted)`: untested
+- L188 `spans`: MatchArm → `(deleted)`: untested
+
+## `crates/marley_terminal/src/failures.rs` (47)
+
+- L41 `failures`: FnValue → `vec![]`: untested
+- L74 `failures`: BinaryOperator → `&&`: untested
+- L99 `first_failure`: FnValue → `None`: untested
+- L101 `first_failure`: BinaryOperator → `!=`: untested
+- L108 `line_rows`: FnValue → `vec![]`: untested
+- L108 `line_rows`: FnValue → `vec![0]`: untested
+- L108 `line_rows`: FnValue → `vec![1]`: untested
+- L114 `line_rows`: BinaryOperator → `-=`: untested
+- L114 `line_rows`: BinaryOperator → `*=`: untested
+- L125 `rust_header`: FnValue → `None`: untested
+- L141 `location`: FnValue → `None`: untested
+- L141 `location`: FnValue → `Some((String::new(), 0, None))`: untested
+- L141 `location`: FnValue → `Some((String::new(), 0, Some(0)))`: untested
+- L141 `location`: FnValue → `Some((String::new(), 0, Some(1)))`: untested
+- L141 `location`: FnValue → `Some((String::new(), 1, None))`: untested
+- L141 `location`: FnValue → `Some((String::new(), 1, Some(0)))`: untested
+- L141 `location`: FnValue → `Some((String::new(), 1, Some(1)))`: untested
+- L141 `location`: FnValue → `Some(("xyzzy".into(), 0, None))`: untested
+- L141 `location`: FnValue → `Some(("xyzzy".into(), 0, Some(0)))`: untested
+- L141 `location`: FnValue → `Some(("xyzzy".into(), 0, Some(1)))`: untested
+- L141 `location`: FnValue → `Some(("xyzzy".into(), 1, None))`: untested
+- L141 `location`: FnValue → `Some(("xyzzy".into(), 1, Some(0)))`: untested
+- L141 `location`: FnValue → `Some(("xyzzy".into(), 1, Some(1)))`: untested
+- L150 `gnu`: FnValue → `None`: untested
+- L152 `gnu`: UnaryOperator → `(deleted)`: untested
+- L188 `tsc`: FnValue → `None`: untested
+- L196 `tsc`: UnaryOperator → `(deleted)`: untested
+- L211 `python_frame`: FnValue → `None`: untested
+- L211 `python_frame`: FnValue → `Some((String::new(), 0))`: untested
+- L211 `python_frame`: FnValue → `Some((String::new(), 1))`: untested
+- L211 `python_frame`: FnValue → `Some(("xyzzy".into(), 0))`: untested
+- L211 `python_frame`: FnValue → `Some(("xyzzy".into(), 1))`: untested
+- L221 `looks_like_path`: FnValue → `true`: untested
+- L221 `looks_like_path`: FnValue → `false`: untested
+- L221 `looks_like_path`: UnaryOperator → `(deleted)`: untested
+- L222 `looks_like_path`: BinaryOperator → `||`: untested
+- L222 `looks_like_path`: UnaryOperator → `(deleted)`: untested
+- L223 `looks_like_path`: BinaryOperator → `||`: untested
+- L223 `looks_like_path`: UnaryOperator → `(deleted)`: untested
+- L224 `looks_like_path`: BinaryOperator → `||`: untested
+- L224 `looks_like_path`: BinaryOperator → `&&`: untested
+- L225 `looks_like_path`: BinaryOperator → `||`: untested
+- L225 `looks_like_path`: UnaryOperator → `(deleted)`: untested
+- L226 `looks_like_path`: BinaryOperator → `||`: untested
+- L226 `looks_like_path`: BinaryOperator → `==`: untested
+- L226 `looks_like_path`: BinaryOperator → `<`: untested
+- L226 `looks_like_path`: BinaryOperator → `>=`: untested
+
+## `crates/marley_mcp/src/registry.rs` (42)
+
+- L45 `Family::is_served`: FnValue → `true`: untested
+- L460 `fleet_snapshot_schema`: FnValue → `Default::default()`: untested
+- L488 `browser_schemas`: MatchArm → `(deleted)`: untested
+- L489 `browser_schemas`: MatchArm → `(deleted)`: untested
+- L490 `browser_schemas`: MatchArm → `(deleted)`: untested
+- L491 `browser_schemas`: MatchArm → `(deleted)`: untested
+- L492 `browser_schemas`: MatchArm → `(deleted)`: untested
+- L493 `browser_schemas`: MatchArm → `(deleted)`: untested
+- L494 `browser_schemas`: MatchArm → `(deleted)`: untested
+- L495 `browser_schemas`: MatchArm → `(deleted)`: untested
+- L496 `browser_schemas`: MatchArm → `(deleted)`: untested
+- L497 `browser_schemas`: MatchArm → `(deleted)`: untested
+- L498 `browser_schemas`: MatchArm → `(deleted)`: untested
+- L499 `browser_schemas`: MatchArm → `(deleted)`: untested
+- L500 `browser_schemas`: MatchArm → `(deleted)`: untested
+- L532 `tab_argument_schema`: FnValue → `Default::default()`: untested
+- L550 `browser_arguments`: UnaryOperator → `(deleted)`: untested
+- L636 `query_schema`: FnValue → `Default::default()`: untested
+- L645 `found_properties`: FnValue → `Default::default()`: untested
+- L666 `find_schemas`: FnValue → `(Default::default(), Default::default())`: untested
+- L710 `entries_schemas`: BinaryOperator → `!=`: untested
+- L751 `page_box_schema`: FnValue → `Default::default()`: untested
+- L765 `recording_properties`: FnValue → `Default::default()`: untested
+- L908 `pick_properties`: FnValue → `Default::default()`: untested
+- L943 `element_context_properties`: FnValue → `Default::default()`: untested
+- L1033 `check_schema`: FnValue → `Default::default()`: untested
+- L1085 `nullable`: FnValue → `Default::default()`: untested
+- L1091 `bundle_schema`: FnValue → `Default::default()`: untested
+- L1177 `browser_write_schemas`: BinaryOperator → `!=`: untested
+- L1189 `browser_write_schemas`: MatchArm → `(deleted)`: untested
+- L1196 `browser_write_schemas`: MatchArm → `(deleted)`: untested
+- L1206 `browser_write_schemas`: MatchArm → `(deleted)`: untested
+- L1214 `browser_write_schemas`: MatchArm → `(deleted)`: untested
+- L1220 `browser_write_schemas`: MatchArm → `(deleted)`: untested
+- L1228 `browser_write_schemas`: MatchArm → `(deleted)`: untested
+- L1250 `terminal_schemas`: MatchArm → `(deleted)`: untested
+- L1251 `terminal_schemas`: MatchArm → `(deleted)`: untested
+- L1252 `terminal_schemas`: MatchArm → `(deleted)`: untested
+- L1253 `terminal_schemas`: MatchArm → `(deleted)`: untested
+- L1254 `terminal_schemas`: MatchArm → `(deleted)`: untested
+- L1556 `terminal_find_schemas`: FnValue → `(Default::default(), Default::default())`: untested
+- L1613 `receipt_schema`: FnValue → `Default::default()`: untested
+
+## `crates/marley_agent/src/route.rs` (39)
+
+- L31 `Route::words`: FnValue → `""`: untested
+- L31 `Route::words`: FnValue → `"xyzzy"`: untested
+- L43 `Route::rank`: FnValue → `0`: untested
+- L43 `Route::rank`: FnValue → `1`: untested
+- L84 `Class::mark`: FnValue → `None`: untested
+- L128 `classify`: BinaryOperator → `&&`: untested
+- L128 `classify`: BinaryOperator → `||`: untested
+- L128 `classify`: UnaryOperator → `(deleted)`: untested
+- L137 `classify`: BinaryOperator → `!=`: untested
+- L141 `classify`: BinaryOperator → `||`: untested
+- L144 `classify`: BinaryOperator → `||`: untested
+- L155 `route_of_choice`: MatchArm → `(deleted)`: untested
+- L156 `route_of_choice`: MatchArm → `(deleted)`: untested
+- L157 `route_of_choice`: MatchArm → `(deleted)`: untested
+- L217 `names_an_amount`: FnValue → `true`: untested
+- L217 `names_an_amount`: FnValue → `false`: untested
+- L219 `names_an_amount`: BinaryOperator → `||`: untested
+- L221 `names_an_amount`: BinaryOperator → `-`: untested
+- L221 `names_an_amount`: BinaryOperator → `*`: untested
+- L222 `names_an_amount`: UnaryOperator → `(deleted)`: untested
+- L225 `names_an_amount`: UnaryOperator → `(deleted)`: untested
+- L226 `names_an_amount`: BinaryOperator → `&&`: untested
+- L234 `reads_inside`: FnValue → `true`: untested
+- L234 `reads_inside`: FnValue → `false`: untested
+- L235 `reads_inside`: BinaryOperator → `&&`: untested
+- L235 `reads_inside`: BinaryOperator → `&&`: untested
+- L239 `reads_inside`: BinaryOperator → `||`: untested
+- L239 `reads_inside`: UnaryOperator → `(deleted)`: untested
+- L245 `reads_inside`: UnaryOperator → `(deleted)`: untested
+- L246 `reads_inside`: BinaryOperator → `||`: untested
+- L268 `reads_only`: FnValue → `true`: untested
+- L268 `reads_only`: FnValue → `false`: untested
+- L269 `reads_only`: UnaryOperator → `(deleted)`: untested
+- L270 `reads_only`: BinaryOperator → `||`: untested
+- L274 `reads_only`: BinaryOperator → `&&`: untested
+- L277 `reads_only`: UnaryOperator → `(deleted)`: untested
+- L283 `reads_only`: UnaryOperator → `(deleted)`: untested
+- L288 `reads_only`: BinaryOperator → `||`: untested
+- L288 `reads_only`: UnaryOperator → `(deleted)`: untested
+
+## `crates/marley_mcp/src/transport.rs` (34)
+
+- L108 `allow_client`: FnValue → `Ok(String::new())`: untested
+- L108 `allow_client`: FnValue → `Ok("xyzzy".into())`: untested
+- L126 `set_enabled`: FnValue → `()`: untested
+- L136 `cut_off_client`: FnValue → `true`: untested
+- L136 `cut_off_client`: FnValue → `false`: untested
+- L285 `serve_connection`: BinaryOperator → `!=`: untested
+- L427 `serve_post`: StructField → `(deleted)`: untested
+- L587 `caller_terminal`: FnValue → `None`: untested
+- L587 `caller_terminal`: FnValue → `Some(String::new())`: untested
+- L587 `caller_terminal`: FnValue → `Some("xyzzy".into())`: untested
+- L587 `caller_terminal`: BinaryOperator → `!=`: untested
+- L588 `caller_terminal`: BinaryOperator → `||`: untested
+- L590 `caller_terminal`: BinaryOperator → `!=`: untested
+- L601 `caller_path`: FnValue → `None`: untested
+- L601 `caller_path`: FnValue → `Some(String::new())`: untested
+- L601 `caller_path`: FnValue → `Some("xyzzy".into())`: untested
+- L602 `caller_path`: BinaryOperator → `||`: untested
+- L602 `caller_path`: BinaryOperator → `||`: untested
+- L602 `caller_path`: BinaryOperator → `>`: untested
+- L602 `caller_path`: UnaryOperator → `(deleted)`: untested
+- L627 ``: BinaryOperator → `>>`: untested
+- L671 `read_bounded_line`: BinaryOperator → `-`: untested
+- L671 `read_bounded_line`: BinaryOperator → `*`: untested
+- L673 `read_bounded_line`: BinaryOperator → `==`: untested
+- L673 `read_bounded_line`: BinaryOperator → `>=`: untested
+- L706 `read_http_request`: BinaryOperator → `*=`: untested
+- L707 `read_http_request`: BinaryOperator → `==`: untested
+- L707 `read_http_request`: BinaryOperator → `>=`: untested
+- L780 `write_status_then_drain`: FnValue → `Ok(())`: untested
+- L785 `write_status_then_drain`: BinaryOperator → `==`: untested
+- L785 `write_status_then_drain`: BinaryOperator → `<=`: untested
+- L785 `write_status_then_drain`: BinaryOperator → `>`: untested
+- L788 `write_status_then_drain`: BinaryOperator → `*=`: untested
+- L788 `write_status_then_drain`: BinaryOperator → `-=`: untested
+
+## `crates/marley_mcp/src/clients.rs` (31)
+
+- L66 `Principal::client_name`: FnValue → `None`: untested
+- L80 `permits`: FnValue → `Ok(())`: untested
+- L83 `permits`: BinaryOperator → `&&`: untested
+- L83 `permits`: BinaryOperator → `||`: untested
+- L110 `<impl fmt::Display for ClientError>::fmt`: FnValue → `Ok(Default::default())`: untested
+- L134 `check_client_name`: FnValue → `Ok(())`: untested
+- L134 `check_client_name`: UnaryOperator → `(deleted)`: untested
+- L135 `check_client_name`: BinaryOperator → `||`: untested
+- L135 `check_client_name`: BinaryOperator → `>`: untested
+- L136 `check_client_name`: BinaryOperator → `||`: untested
+- L138 `check_client_name`: BinaryOperator → `&&`: untested
+- L138 `check_client_name`: BinaryOperator → `&&`: untested
+- L138 `check_client_name`: BinaryOperator → `!=`: untested
+- L138 `check_client_name`: BinaryOperator → `!=`: untested
+- L139 `check_client_name`: UnaryOperator → `(deleted)`: untested
+- L141 `check_client_name`: BinaryOperator → `&&`: untested
+- L174 `<impl fmt::Debug for ClientTable>::fmt`: FnValue → `Ok(Default::default())`: untested
+- L193 `ClientTable::allow`: FnValue → `Ok(())`: untested
+- L207 `ClientTable::cut_off`: FnValue → `true`: untested
+- L207 `ClientTable::cut_off`: FnValue → `false`: untested
+- L208 `ClientTable::cut_off`: BinaryOperator → `==`: untested
+- L209 `ClientTable::cut_off`: BinaryOperator → `==`: untested
+- L221 `ClientTable::resolve`: BinaryOperator → `||`: untested
+- L221 `ClientTable::resolve`: BinaryOperator → `||`: untested
+- L221 `ClientTable::resolve`: UnaryOperator → `(deleted)`: untested
+- L230 `ClientTable::touch`: FnValue → `()`: untested
+- L231 `ClientTable::touch`: BinaryOperator → `!=`: untested
+- L240 `ClientTable::is_allowed`: FnValue → `true`: untested
+- L240 `ClientTable::is_allowed`: FnValue → `false`: untested
+- L240 `ClientTable::is_allowed`: BinaryOperator → `!=`: untested
+- L246 `ClientTable::clients`: FnValue → `vec![]`: untested
+
+## `crates/marley_terminal/src/english.rs` (30)
+
+- L48 `read_line`: BinaryOperator → `&&`: untested
+- L49 `read_line`: BinaryOperator → `&&`: untested
+- L53 `read_line`: UnaryOperator → `(deleted)`: untested
+- L57 `read_line`: BinaryOperator → `<`: untested
+- L58 `read_line`: BinaryOperator → `||`: untested
+- L76 `open_case`: FnValue → `true`: untested
+- L76 `open_case`: FnValue → `false`: untested
+- L81 `open_case`: BinaryOperator → `==`: untested
+- L81 `open_case`: BinaryOperator → `<`: untested
+- L81 `open_case`: BinaryOperator → `>=`: untested
+- L82 `open_case`: BinaryOperator → `||`: untested
+- L82 `open_case`: UnaryOperator → `(deleted)`: untested
+- L83 `open_case`: BinaryOperator → `||`: untested
+- L83 `open_case`: UnaryOperator → `(deleted)`: untested
+- L84 `open_case`: BinaryOperator → `||`: untested
+- L84 `open_case`: UnaryOperator → `(deleted)`: untested
+- L85 `open_case`: BinaryOperator → `||`: untested
+- L91 `marker_count`: FnValue → `0`: untested
+- L91 `marker_count`: FnValue → `1`: untested
+- L100 `looks_like_shell`: FnValue → `true`: untested
+- L100 `looks_like_shell`: FnValue → `false`: untested
+- L101 `looks_like_shell`: BinaryOperator → `&&`: untested
+- L102 `looks_like_shell`: BinaryOperator → `&&`: untested
+- L103 `looks_like_shell`: BinaryOperator → `&&`: untested
+- L103 `looks_like_shell`: BinaryOperator → `||`: untested
+- L103 `looks_like_shell`: BinaryOperator → `||`: untested
+- L103 `looks_like_shell`: BinaryOperator → `==`: untested
+- L103 `looks_like_shell`: BinaryOperator → `<`: untested
+- L103 `looks_like_shell`: BinaryOperator → `>=`: untested
+- L103 `looks_like_shell`: UnaryOperator → `(deleted)`: untested
+
+## `crates/marley_agent/src/trust.rs` (26)
+
+- L68 `read`: FnValue → `None`: untested
+- L73 `read`: BinaryOperator → `/`: untested
+- L73 `read`: BinaryOperator → `+`: untested
+- L73 `read`: BinaryOperator → `+`: untested
+- L73 `read`: BinaryOperator → `/`: untested
+- L76 `read`: BinaryOperator → `-`: untested
+- L76 `read`: BinaryOperator → `*`: untested
+- L92 `read`: BinaryOperator → `||`: untested
+- L112 `footer_on_screen`: FnValue → `true`: untested
+- L112 `footer_on_screen`: FnValue → `false`: untested
+- L120 `TrustQuestion::answer_keys`: FnValue → `None`: untested
+- L120 `TrustQuestion::answer_keys`: FnValue → `Some(vec![])`: untested
+- L120 `TrustQuestion::answer_keys`: FnValue → `Some(vec![0])`: untested
+- L120 `TrustQuestion::answer_keys`: FnValue → `Some(vec![1])`: untested
+- L123 `TrustQuestion::answer_keys`: BinaryOperator → `!=`: untested
+- L125 `TrustQuestion::answer_keys`: BinaryOperator → `<`: untested
+- L126 `TrustQuestion::answer_keys`: BinaryOperator → `+`: untested
+- L126 `TrustQuestion::answer_keys`: BinaryOperator → `/`: untested
+- L128 `TrustQuestion::answer_keys`: BinaryOperator → `+`: untested
+- L128 `TrustQuestion::answer_keys`: BinaryOperator → `/`: untested
+- L138 `option_of`: FnValue → `(true, None)`: untested
+- L138 `option_of`: FnValue → `(false, None)`: untested
+- L158 `folder_of`: FnValue → `None`: untested
+- L158 `folder_of`: FnValue → `Some(String::new())`: untested
+- L158 `folder_of`: FnValue → `Some("xyzzy".into())`: untested
+- L161 `folder_of`: BinaryOperator → `&&`: untested
+
+## `crates/marley_terminal/src/suggest.rs` (26)
+
+- L8 `suggestion`: FnValue → `None`: untested
+- L8 `suggestion`: FnValue → `Some("")`: untested
+- L8 `suggestion`: FnValue → `Some("xyzzy")`: untested
+- L14 `suggestion`: BinaryOperator → `||`: untested
+- L14 `suggestion`: UnaryOperator → `(deleted)`: untested
+- L14 `suggestion`: UnaryOperator → `(deleted)`: untested
+- L26 `parse_history`: FnValue → `vec![]`: untested
+- L26 `parse_history`: FnValue → `vec![String::new()]`: untested
+- L26 `parse_history`: FnValue → `vec!["xyzzy".into()]`: untested
+- L26 `parse_history`: UnaryOperator → `(deleted)`: untested
+- L47 `parse_history`: BinaryOperator → `||`: untested
+- L47 `parse_history`: UnaryOperator → `(deleted)`: untested
+- L47 `parse_history`: UnaryOperator → `(deleted)`: untested
+- L59 `fish_unescape`: FnValue → `String::new()`: untested
+- L59 `fish_unescape`: FnValue → `"xyzzy".into()`: untested
+- L62 `fish_unescape`: BinaryOperator → `==`: untested
+- L81 `zsh_command`: FnValue → `None`: untested
+- L81 `zsh_command`: FnValue → `Some("")`: untested
+- L81 `zsh_command`: FnValue → `Some("xyzzy")`: untested
+- L83 `zsh_command`: BinaryOperator → `||`: untested
+- L88 `is_bash_time`: FnValue → `true`: untested
+- L88 `is_bash_time`: FnValue → `false`: untested
+- L92 `all_digits`: FnValue → `true`: untested
+- L92 `all_digits`: FnValue → `false`: untested
+- L92 `all_digits`: BinaryOperator → `||`: untested
+- L92 `all_digits`: UnaryOperator → `(deleted)`: untested
+
+## `crates/marley_terminal/src/agent_commands.rs` (22)
+
+- L64 `verdict`: BinaryOperator → `&&`: untested
+- L68 `verdict`: UnaryOperator → `(deleted)`: untested
+- L69 `verdict`: BinaryOperator → `||`: untested
+- L69 `verdict`: UnaryOperator → `(deleted)`: untested
+- L70 `verdict`: BinaryOperator → `||`: untested
+- L81 `compiled`: FnValue → `vec![]`: untested
+- L98 `segments`: FnValue → `vec![]`: untested
+- L98 `segments`: FnValue → `vec![String::new()]`: untested
+- L98 `segments`: FnValue → `vec!["xyzzy".into()]`: untested
+- L104 `segments`: MatchArmGuard → `true`: untested
+- L104 `segments`: MatchArmGuard → `false`: untested
+- L104 `segments`: BinaryOperator → `==`: untested
+- L110 `segments`: MatchArmGuard → `true`: untested
+- L110 `segments`: MatchArmGuard → `false`: untested
+- L110 `segments`: BinaryOperator → `!=`: untested
+- L114 `segments`: MatchArm → `(deleted)`: untested
+- L118 `segments`: MatchArm → `(deleted)`: untested
+- L120 `segments`: BinaryOperator → `||`: untested
+- L120 `segments`: BinaryOperator → `!=`: untested
+- L133 `segments`: UnaryOperator → `(deleted)`: untested
+- L141 `has_substitution`: FnValue → `true`: untested
+- L141 `has_substitution`: FnValue → `false`: untested
+
+## `crates/marley_terminal/src/running_errors.rs` (20)
+
+- L52 `compiled`: FnValue → `None`: untested
+- L52 `compiled`: FnValue → `Some(Default::default())`: untested
+- L58 `holds`: FnValue → `true`: untested
+- L58 `holds`: FnValue → `false`: untested
+- L76 `scan`: FnValue → `None`: untested
+- L136 `Episode::failure`: FnValue → `()`: untested
+- L136 `Episode::failure`: BinaryOperator → `!=`: untested
+- L148 `Episode::recovery`: FnValue → `None`: untested
+- L151 `Episode::recovery`: UnaryOperator → `(deleted)`: untested
+- L160 `Episode::due`: FnValue → `None`: untested
+- L169 `Episode::tick`: FnValue → `None`: untested
+- L177 `Episode::tick`: BinaryOperator → `==`: untested
+- L177 `Episode::tick`: BinaryOperator → `>`: untested
+- L177 `Episode::tick`: BinaryOperator → `<=`: untested
+- L192 `Episode::ended`: FnValue → `None`: untested
+- L198 `Episode::mark`: FnValue → `None`: untested
+- L198 `Episode::mark`: FnValue → `Some(("", true))`: untested
+- L198 `Episode::mark`: FnValue → `Some(("", false))`: untested
+- L198 `Episode::mark`: FnValue → `Some(("xyzzy", true))`: untested
+- L198 `Episode::mark`: FnValue → `Some(("xyzzy", false))`: untested
+
+## `crates/marley_terminal/src/filter.rs` (19)
+
+- L62 `<impl fmt::Display for FilterError>::fmt`: FnValue → `Ok(Default::default())`: untested
+- L74 `filter_lines`: FnValue → `Ok(Default::default())`: untested
+- L85 `filter_lines`: UnaryOperator → `(deleted)`: untested
+- L95 `filter_lines`: BinaryOperator → `==`: untested
+- L105 `filter_lines`: BinaryOperator → `+`: untested
+- L105 `filter_lines`: BinaryOperator → `/`: untested
+- L115 `filter_lines`: BinaryOperator → `||`: untested
+- L115 `filter_lines`: BinaryOperator → `==`: untested
+- L115 `filter_lines`: BinaryOperator → `<`: untested
+- L115 `filter_lines`: BinaryOperator → `>=`: untested
+- L115 `filter_lines`: BinaryOperator → `==`: untested
+- L115 `filter_lines`: BinaryOperator → `<`: untested
+- L115 `filter_lines`: BinaryOperator → `>=`: untested
+- L115 `filter_lines`: BinaryOperator → `-`: untested
+- L115 `filter_lines`: BinaryOperator → `*`: untested
+- L119 `filter_lines`: MatchArmGuard → `true`: untested
+- L119 `filter_lines`: MatchArmGuard → `false`: untested
+- L119 `filter_lines`: BinaryOperator → `||`: untested
+- L119 `filter_lines`: UnaryOperator → `(deleted)`: untested
+
+## `crates/marley_mcp/src/find.rs` (17)
+
+- L26 `words_of`: FnValue → `::std::iter::empty()`: untested
+- L26 `words_of`: FnValue → `::std::iter::once(String::new())`: untested
+- L26 `words_of`: FnValue → `::std::iter::once("xyzzy".into())`: untested
+- L26 `words_of`: UnaryOperator → `(deleted)`: untested
+- L27 `words_of`: UnaryOperator → `(deleted)`: untested
+- L34 `words`: FnValue → `vec![]`: untested
+- L34 `words`: FnValue → `vec![String::new()]`: untested
+- L34 `words`: FnValue → `vec!["xyzzy".into()]`: untested
+- L35 `words`: UnaryOperator → `(deleted)`: untested
+- L43 `matches`: FnValue → `vec![]`: untested
+- L43 `matches`: FnValue → `vec![0]`: untested
+- L43 `matches`: FnValue → `vec![1]`: untested
+- L62 `local`: MatchArm → `(deleted)`: untested
+- L63 `local`: MatchArm → `(deleted)`: untested
+- L71 `windows`: FnValue → `vec![]`: untested
+- L74 `windows`: BinaryOperator → `-`: untested
+- L74 `windows`: BinaryOperator → `*`: untested
+
+## `crates/marley_mcp/src/session.rs` (17)
+
+- L48 `client_name_of`: FnValue → `None`: untested
+- L48 `client_name_of`: FnValue → `Some(String::new())`: untested
+- L48 `client_name_of`: FnValue → `Some("xyzzy".into())`: untested
+- L53 `client_name_of`: BinaryOperator → `&&`: untested
+- L53 `client_name_of`: BinaryOperator → `!=`: untested
+- L57 `client_name_of`: UnaryOperator → `(deleted)`: untested
+- L77 `same_owner`: FnValue → `true`: untested
+- L119 `SessionRegistry::assign`: BinaryOperator → `<`: untested
+- L140 `SessionRegistry::name_client`: FnValue → `()`: untested
+- L151 `SessionRegistry::client_of`: FnValue → `None`: untested
+- L151 `SessionRegistry::client_of`: FnValue → `Some(String::new())`: untested
+- L151 `SessionRegistry::client_of`: FnValue → `Some("xyzzy".into())`: untested
+- L207 `SessionRegistry::terminate_owned_by`: FnValue → `0`: untested
+- L207 `SessionRegistry::terminate_owned_by`: FnValue → `1`: untested
+- L209 `SessionRegistry::terminate_owned_by`: BinaryOperator → `==`: untested
+- L210 `SessionRegistry::terminate_owned_by`: BinaryOperator → `+`: untested
+- L210 `SessionRegistry::terminate_owned_by`: BinaryOperator → `/`: untested
+
+## `crates/marley_remote/src/marley_remote.rs` (17)
+
+- L196 `saved_target`: FnValue → `None`: untested
+- L196 `saved_target`: BinaryOperator → `||`: untested
+- L196 `saved_target`: UnaryOperator → `(deleted)`: untested
+- L207 `saved_target`: StructField → `(deleted)`: untested
+- L225 `SessionName::parse`: FnValue → `None`: untested
+- L225 `SessionName::parse`: UnaryOperator → `(deleted)`: untested
+- L226 `SessionName::parse`: BinaryOperator → `||`: untested
+- L226 `SessionName::parse`: UnaryOperator → `(deleted)`: untested
+- L227 `SessionName::parse`: BinaryOperator → `||`: untested
+- L229 `SessionName::parse`: BinaryOperator → `&&`: untested
+- L229 `SessionName::parse`: BinaryOperator → `&&`: untested
+- L229 `SessionName::parse`: BinaryOperator → `!=`: untested
+- L236 `SessionName::as_str`: FnValue → `""`: untested
+- L236 `SessionName::as_str`: FnValue → `"xyzzy"`: untested
+- L267 `remote_terminal_command`: FnValue → `vec![]`: untested
+- L267 `remote_terminal_command`: FnValue → `vec![String::new()]`: untested
+- L267 `remote_terminal_command`: FnValue → `vec!["xyzzy".into()]`: untested
+
+## `crates/marley_terminal/src/paste.rs` (12)
+
+- L24 `strip_shared_indent`: FnValue → `Cow::Owned("".to_owned())`: untested
+- L24 `strip_shared_indent`: FnValue → `Cow::Borrowed("")`: untested
+- L24 `strip_shared_indent`: FnValue → `Cow::Borrowed("xyzzy")`: untested
+- L24 `strip_shared_indent`: FnValue → `Cow::Owned("xyzzy".to_owned())`: untested
+- L24 `strip_shared_indent`: BinaryOperator → `!=`: untested
+- L27 `strip_shared_indent`: BinaryOperator → `==`: untested
+- L31 `strip_shared_indent`: BinaryOperator → `!=`: untested
+- L45 `is_raw_image_path`: FnValue → `true`: untested
+- L45 `is_raw_image_path`: FnValue → `false`: untested
+- L57 `is_raw_image_path`: BinaryOperator → `||`: untested
+- L57 `is_raw_image_path`: UnaryOperator → `(deleted)`: untested
+- L59 `is_raw_image_path`: BinaryOperator → `&&`: untested
+
+## `crates/marley_terminal/src/shell_integration.rs` (12)
+
+- L96 `ssh_bootstrap`: FnValue → `String::new()`: untested
+- L96 `ssh_bootstrap`: FnValue → `"xyzzy".into()`: untested
+- L128 `ssh_remote_command`: FnValue → `String::new()`: untested
+- L128 `ssh_remote_command`: FnValue → `"xyzzy".into()`: untested
+- L150 `set_browser_opener`: FnValue → `()`: untested
+- L158 `browser_opener`: FnValue → `None`: untested
+- L158 `browser_opener`: FnValue → `Some(Default::default())`: untested
+- L242 `for_program`: MatchArm → `(deleted)`: untested
+- L282 `shown_arguments`: BinaryOperator → `!=`: untested
+- L287 `shown_arguments`: MatchArmGuard → `true`: untested
+- L287 `shown_arguments`: MatchArmGuard → `false`: untested
+- L287 `shown_arguments`: BinaryOperator → `!=`: untested
+
+## `crates/marley_mcp/src/redact.rs` (8)
+
+- L18 `marker`: FnValue → `String::new()`: untested
+- L18 `marker`: FnValue → `"xyzzy".into()`: untested
+- L184 `Redactor::redact`: BinaryOperator → `-=`: untested
+- L184 `Redactor::redact`: BinaryOperator → `*=`: untested
+- L196 `apply`: FnValue → `"xyzzy".into()`: untested
+- L196 `apply`: FnValue → `String::new()`: untested
+- L210 `apply`: BinaryOperator → `-=`: untested
+- L210 `apply`: BinaryOperator → `*=`: untested
+
+## `crates/marley_terminal/src/ports.rs` (8)
+
+- L45 `set_slot_reader`: FnValue → `()`: untested
+- L53 `variables`: FnValue → `vec![]`: untested
+- L53 `variables`: FnValue → `vec![(String::new(), String::new())]`: untested
+- L53 `variables`: FnValue → `vec![(String::new(), "xyzzy".into())]`: untested
+- L53 `variables`: FnValue → `vec![("xyzzy".into(), String::new())]`: untested
+- L53 `variables`: FnValue → `vec![("xyzzy".into(), "xyzzy".into())]`: untested
+- L63 `variables`: BinaryOperator → `+`: untested
+- L63 `variables`: BinaryOperator → `/`: untested
+
+## `crates/marley_terminal/src/dcs.rs` (4)
+
+- L237 `decode_hook`: MatchArm → `(deleted)`: untested
+- L243 `decode_hook`: MatchArm → `(deleted)`: untested
+- L255 `decode_hook`: UnaryOperator → `(deleted)`: untested
+- L258 `decode_hook`: MatchArmGuard → `false`: untested
+
+## `crates/marley_terminal/src/identity.rs` (4)
+
+- L25 `new_terminal_id`: FnValue → `String::new()`: untested
+- L25 `new_terminal_id`: FnValue → `"xyzzy".into()`: untested
+- L31 `is_terminal_id`: FnValue → `true`: untested
+- L31 `is_terminal_id`: FnValue → `false`: untested
+
+## `crates/marley_dcs/src/notification.rs` (3)
+
+- L11 ``: BinaryOperator → `+`: untested
+- L75 `NotificationScanner::push`: BinaryOperator → `<=`: untested
+- L100 `parse`: BinaryOperator → `||`: untested
+
+## `crates/marley_dcs/src/marley_dcs.rs` (2)
+
+- L48 ``: BinaryOperator → `+`: untested
+- L204 `foreign`: MatchArm → `(deleted)`: untested
+
+## `crates/marley_mcp/src/dispatch.rs` (2)
+
+- L83 `deferred_response`: FnValue → `String::new()`: untested
+- L83 `deferred_response`: FnValue → `"xyzzy".into()`: untested
+
+## `crates/marley_mcp/src/marley_mcp.rs` (1)
+
+- L212 `AppCall::answer`: FnValue → `()`: untested
+
+## `crates/marley_mcp/src/tools.rs` (1)
+
+- L43 `tool_answer_result`: FnValue → `Default::default()`: untested
+
+## `crates/marley_terminal/src/pty_os.rs` (1)
+
+- L121 `<impl Drop for OsPtyChannel>::drop`: BinaryOperator → `==`: equivalent
+
+## `crates/marley_terminal/src/session.rs` (1)
+
+- L580 `TerminalSession::shutdown`: FnValue → `()`: equivalent

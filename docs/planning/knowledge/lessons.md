@@ -4334,3 +4334,15 @@ the scenarios that walk it.
 `script/e2e.sh` sources the scenario before it defines its helpers, so a helper added to the
 harness under a name a scenario already uses silently replaces the scenario's (571's `setting`).
 Before adding one, compare its name with every scenario's functions.
+
+## L-claude-636-a-mutation-run-reads-only-the-mutated-crates-tests-001
+*category: validate · topic: mutation testing · from: pipeline 636*
+
+`cargo-mutants` runs the mutated crate's own tests, so a module proven only by e2e scenarios or by
+another crate's tests loses nearly every mutant (`marley_agent`: 5 unit tests, 3.2% killed),
+while crates built with tests kill everything. Read a run per file: sort each survivor by whether
+a test of its crate names its function; those that do are the ones worth reading for equivalents
+and bugs (90 of 1,448 here), and a file with no test at all is one finding, not hundreds. A
+common-word function name (`run`, `summary`, `matches`) fools the sort, so read before counting.
+The run itself: copy mode, two workers, a target per copy, the copies under `~/.cache` on
+`/home`, 1 h 27 min for 2,658 mutants, and the working tree never touched.

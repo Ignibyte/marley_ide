@@ -355,6 +355,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **A mutation run over the pure cores, reported** (#636, 2026-10-01). `cargo-mutants` over the
+  nine Marley crates with no gpui: 2,658 mutants, 40.2% of the viable ones killed. The crates
+  built with unit tests kill every mutant; the modules built since #483, proven by e2e scenarios
+  alone, keep most of theirs. No survivor read as a bug. The findings are in
+  `docs/planning/design-notes/mutation-run-2026-10.md`, and whether to write tests for the
+  survivors is an intake for Chad.
+
 - **One click on a port row marks it; a double-click opens it** (#604, 2026-09-30). A click on a
   port row's body used to open its URL in a Browser tab, so a look at a server's row started a
   browser. Now one click puts the rail's keyboard row on it, with the focus in the rail; a

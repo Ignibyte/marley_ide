@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-636](open/TICKET-636-a-mutation-run-of-the-pure-cores.md) | chore | wave 5 · a mutation run of the pure cores, survivors reported |
 | [TICKET-637](open/TICKET-637-history-suggestions-in-the-prompt-editor.md) | feature | #484's history suggestions in the prompt editor, the follow-up #627 deferred |
 
 ## Deliberate (picked explicitly, never auto-next)
