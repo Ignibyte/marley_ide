@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Jump to a failed block's first failure** (#620, 2026-09-30). A failed block whose output names
+  a failing place (rustc and cargo, gcc, clang and go, tsc, or a Python traceback) shows a Jump to
+  Failure chip, and its right-click menu Jump to First Failure: the block scrolls to its first
+  error and the file opens at that line and column, against the folder the command ran in.
+  `marley: jump to first failure` does it for the focused terminal's newest failed block.
+
 - **A block's path links open at the block's folder** (#619, 2026-09-30). A path a command
   printed, such as `src/main.rs:2:5`, opens with Ctrl+click against the folder that command ran
   in, and its tooltip names that file, even after the shell has moved on and Zed's own guess at

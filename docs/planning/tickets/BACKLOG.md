@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-620](open/TICKET-620-jump-to-a-failed-blocks-first-failure.md) | feature | terminal (wave 3) · jump to a failed block's first failure |
 | [TICKET-621](open/TICKET-621-a-tasks-run-as-a-block.md) | feature | terminal (wave 3) · a task's run as a block |
 | [TICKET-622](open/TICKET-622-a-task-blocks-rerun-and-pill.md) | feature | terminal (wave 3) · a task block's Rerun and its pill |
 | [TICKET-623](open/TICKET-623-a-failed-blocks-errors-as-diagnostics.md) | feature | terminal (wave 3) · a failed block's errors as project diagnostics |

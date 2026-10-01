@@ -3019,3 +3019,20 @@ Thread…). Choosing Open Thread closed its submenu and the one above, and left 
 open: Zed's `ContextMenu` dismisses a submenu's parent only when that submenu was itself clicked
 (`create_submenu`'s `clicked` check), and the middle one was not. Fixed before the commit:
 Archived Threads is one level, and choosing a thread opens it.
+
+## F-claude-620-an-action-jump-would-have-updated-its-own-workspace-001
+*severity: high · found in: pipeline 620's Code phase (review of the diff) · class: an entity updated inside its own update*
+
+`marley::JumpToFirstFailure`'s listener runs inside the workspace's update, and the jump opens the
+failing file with `workspace.update(..open_abs_path..)`, an update of the entity already being
+updated, which panics in gpui. Fixed before the commit: the action defers the jump
+(`window.defer`); the menu and the chip call it outside any workspace update.
+
+## F-claude-620-the-pinned-command-covered-the-jumped-to-error-001
+*severity: low · found in: pipeline 620's Test phase (run 3) · class: scrolling to a row under an overlay*
+
+The jump scrolled the error's row to the top of the view, where a scrolled-back block pins its
+command (#529), so the error line was hidden and only the ` --> ` line under it showed
+(`jumped.png`). Fixed before the commit: the jump reveals the row above the report, putting it
+just under the pinned command.
+

@@ -313,6 +313,17 @@ callers find it under the terminal's lock (`marley_block_folder`: the absolute l
 `evicted_lines + history_size + line`); remote terminals, the alternate screen and blocks on
 another host keep Zed's resolution.
 
+**Since #620 (the fork).** `marley_terminal::failures` reads a block's output for the places it
+names as failing: rustc's header over its ` --> path:l:c`, the GNU `path:l:c: …` shape, tsc's
+`path(l,c): error …` and Python's last traceback frame, each with the absolute row its report
+starts on, from `Terminal::marley_rows()` (each row's wrap flag), since `block_output` joins
+wrapped rows. `marley_workbench::failures` reads each failed block once as it finishes (an
+observer on the terminal, from the next unread block index), keeps the failures by terminal and
+block, and jumps: the block selected, `blocks::reveal_line` putting the report one row under the
+top (the pinned command takes the top row, #529), and the file opened with `open_abs_path` and
+`go_to_singleton_buffer_point`. The chip goes in `bookmarks::chip` before Ask the agent; the menu
+item heads the Block section.
+
 **Since #447.** The shim is a child module of `session`, the one module that calls it:
 `#[path = "pty_os.rs"]` keeps the file where gate:4's exclude and these notes name it, and its
 items are `pub(super)`. The reap signal logs any failure except ESRCH, the child having

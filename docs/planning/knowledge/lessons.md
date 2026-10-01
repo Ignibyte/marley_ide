@@ -4151,3 +4151,11 @@ same block instead: `set_setting terminal.env '{"HOME": "…"}'`. And Zed's term
 tooltip only after the pointer moves over the link once the link is found with Ctrl held: point,
 wait a second, move a few pixels, then shoot.
 
+## L-claude-620-a-scroll-shot-needs-the-target-off-screen-first-001
+*category: validate · topic: e2e scenarios · from: pipeline 620*
+
+A shot meant to show that an action scrolled a line to the top proves nothing when the line was
+already there: #620's first run printed exactly a screen's worth after the error, so the
+bottom-anchored terminal showed it at the top before any jump. Print well over a screen below the
+target, and take a shot before the action that shows the target is out of view.
+

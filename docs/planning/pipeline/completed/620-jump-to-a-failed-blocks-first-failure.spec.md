@@ -1,7 +1,7 @@
 ---
 pipeline_id: 6c9c862e-97b3-482b-90e7-cb261221bc20
 ticket: docs/planning/tickets/open/TICKET-620-jump-to-a-failed-blocks-first-failure.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Jump to a failed block's first failure"
 type: feature
 slice: prong 1 T2
@@ -23,7 +23,8 @@ the editor at the block's folder (plan T2, second half).
   failure found; a click on the failed-block chip (#559's `MarleyBlockChip`) doing the same. It
   scrolls the row into view (`blocks::reveal`, generalized from a block's start to any line),
   marks the row, and opens the path against the block's `prompt.pwd` through Zed's
-  `resolve_open_target`.
+  `open_abs_path`, then the editor's `go_to_singleton_buffer_point`, as `browser.rs` opens a
+  pick's source.
 
 ### Out (explicitly deferred)
 - Every failure after the first (T4c lists them as diagnostics).
@@ -55,7 +56,8 @@ noise, exiting 101; the view scrolled to the bottom.
 - `menu.png`: the failed block's menu with Jump to First Failure;
 - `jumped.png`: after it, the error's row in view and marked;
 - `opened.png`: the editor on `src/main.rs` with the cursor at 2:5;
-- `chip.png`: the failed-block chip's click doing the same from the bottom of the terminal.
+- `chip.png`: the failed block's Jump chip, and its click doing the same from the bottom of the
+  terminal.
 
 ## Locked-In Decisions
 - D1 — The first failure is the first row, top to bottom, that a shape matches; Python's traceback
@@ -66,7 +68,7 @@ noise, exiting 101; the view scrolled to the bottom.
 
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
-| REQ-001 | WHEN the user chooses Jump to First Failure on a failed block, Marley shall scroll the first failure's row into view and mark it. | Shot `jumped.png` |
+| REQ-001 | WHEN the user chooses Jump to First Failure on a failed block, Marley shall scroll the first failure's report into view under the pinned command and select the block. | Shot `jumped.png` |
 | REQ-002 | WHEN it jumps, Marley shall open the failure's file at its line and column, resolved against the block's folder. | Shot `opened.png` |
 | REQ-003 | WHILE a block failed and a failure was found in it, its menu shall offer Jump to First Failure, and its chip shall jump. | Shots `menu.png`, `chip.png` |
 | REQ-004 | The locator shall find each of the four families' shapes. | Review of the patterns |

@@ -130,7 +130,7 @@ fn step(workspace: &Workspace, forward: bool, window: &mut Window, cx: &mut Cont
 }
 
 /// Selects the block at `index` of `terminal`, until the next input reaches it.
-fn select(terminal: &Entity<Terminal>, index: usize, cx: &mut App) {
+pub(crate) fn select(terminal: &Entity<Terminal>, index: usize, cx: &mut App) {
     let inputs = terminal.read(cx).marley_anchored().inputs();
     cx.default_global::<MarleyBlockSelection>()
         .0
@@ -146,11 +146,20 @@ fn clear(terminal: &Entity<Terminal>, cx: &mut App) {
 
 /// Scrolls `terminal` so the first line of its block at `index` shows, when it does not.
 pub(crate) fn reveal(terminal: &Entity<Terminal>, index: usize, cx: &mut App) {
+    let Some(start) = terminal
+        .read(cx)
+        .blocks()
+        .get(index)
+        .map(|block| block.prompt_line.unwrap_or(block.output_start))
+    else {
+        return;
+    };
+    reveal_line(terminal, start, cx);
+}
+
+/// Scrolls `terminal` so the absolute line `start` is its top row, when it does not show (#620).
+pub(crate) fn reveal_line(terminal: &Entity<Terminal>, start: u64, cx: &mut App) {
     terminal.update(cx, |terminal, _| {
-        let Some(block) = terminal.blocks().get(index) else {
-            return;
-        };
-        let start = block.prompt_line.unwrap_or(block.output_start);
         let content = terminal.last_content();
         let display_offset = u64::try_from(content.display_offset).unwrap_or(u64::MAX);
         let top = content.marley_screen_top.saturating_sub(display_offset);
@@ -329,9 +338,21 @@ fn block_menu(
             }
         })
     };
-    menu.separator()
-        .header("Block")
-        .item(send_item)
+    // A failed block whose output names a failing place offers to go there (#620).
+    let jump_item = crate::failures::first(&terminal, index, cx).map(|_| {
+        let view = context.view.clone();
+        ContextMenuEntry::new("Jump to First Failure").handler(move |window, cx| {
+            if let Some(view) = view.upgrade() {
+                crate::failures::jump(&view, index, window, cx);
+            }
+        })
+    });
+    let menu = menu.separator().header("Block");
+    let menu = match jump_item {
+        Some(item) => menu.item(item),
+        None => menu,
+    };
+    menu.item(send_item)
         .item(bookmark_item)
         .item(find_item)
         .item(copy_item("Copy Command", Copied::Command))

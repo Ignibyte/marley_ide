@@ -39,6 +39,7 @@ pub mod close_guard;
 pub mod command_watch;
 pub mod decisions;
 pub mod english;
+pub mod failures;
 pub mod find;
 pub mod fleet;
 pub mod fleet_hosts;
@@ -139,6 +140,10 @@ actions!(
         /// Sends the selected block to a CLI agent in another terminal.
         #[derive(Eq)]
         SendBlockToAgent,
+        /// Scrolls to the first failure the focused terminal's newest failed block reports, and
+        /// opens the failing file at its place.
+        #[derive(Eq)]
+        JumpToFirstFailure,
         /// Filters the output of the focused terminal's selected block, or its newest block in
         /// view, in a panel over the terminal; again, closes it.
         #[derive(Eq)]
@@ -620,6 +625,7 @@ pub fn init(cx: &mut App) {
     block_filter::init(cx);
     workflows::init(cx);
     bookmarks::init(cx);
+    failures::init(cx);
     sticky_header::init(cx);
     markdown_commands::init(cx);
     command_watch::init(cx);

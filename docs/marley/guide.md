@@ -412,6 +412,11 @@ as vim holds the alternate screen.
 A path a command printed, such as `src/main.rs:2:5`, opens with Ctrl+click against the folder that
 command ran in, wherever the shell has gone since (#619); hold Ctrl over it to see the whole path.
 
+A failed block whose output names a failing place (rustc and cargo, gcc, clang and go, tsc, or a
+Python traceback) carries a Jump to Failure chip, and its right-click menu Jump to First Failure
+(#620): the block scrolls to its first error, under its pinned command, and the file opens at that
+line and column. `marley: jump to first failure` does it for the newest failed block.
+
 ### Moving between blocks, copying, rerunning
 
 - Ctrl+Up scrolls to the start of the block above the top of the view, and Ctrl+Down to the next

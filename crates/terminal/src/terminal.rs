@@ -1974,6 +1974,13 @@ impl Terminal {
         )
     }
 
+    // Marley: the rows a block's lines start on, for its failures (#620).
+    /// The main screen's rows: each one's wrap flag from the absolute line of the first, so a
+    /// line of [`Self::block_output`] can be found on the screen.
+    pub fn marley_rows(&self) -> marley_terminal::RowsView {
+        crate::alacritty::marley_rows_view(&self.term.lock())
+    }
+
     // Marley: a running block's new lines, for its printed errors (#572).
     /// The main screen's lines from absolute line `from` up to the cursor's, and the cursor's
     /// absolute line, where the next read starts; `None` on the alternate screen or once `from`
