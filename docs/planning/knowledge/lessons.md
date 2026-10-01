@@ -4216,3 +4216,19 @@ notify saw, not a boolean that ends where it started.
 cancels stale work by dropping a task must keep the ask out of that task: drop only the timer
 that leads to the ask, detach the task that awaits it, and compare the answer with the state
 still in front. The row is always written, and a late answer can say so (`dropped`).
+
+## L-claude-466-fish-4-waits-for-its-terminal-queries-001
+*category: validate · topic: shell integration scripts · from: pipeline 466*
+
+fish 4 asks the terminal about itself as it starts and after each prompt (DA1 `ESC [ c`, a
+cursor report `ESC [ 6n`, XTGETTCAP `ESC P + q`) and waits for the answers. Under `script -qfc
+'fish -i'` nothing answers, so fish shows one prompt and reads no more input. To prove a fish
+script on a PTY, feed the answers on its input before and after each line:
+`printf '\033[1;1R\033[?62c'`. Zed's terminal answers them, so a real Marley needs nothing.
+
+## L-claude-466-a-bash-comment-that-starts-with-shellcheck-is-a-directive-001
+*category: validate · topic: shell scripts · from: pipeline 466*
+
+shellcheck reads any comment whose first word is `shellcheck` as a directive, so a plain remark
+such as `# shellcheck cannot read fish` fails the parse (SC1126, SC1073). Start such a comment
+with another word.

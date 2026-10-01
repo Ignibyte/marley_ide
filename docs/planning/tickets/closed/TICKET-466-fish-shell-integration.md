@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #466 (feature, prong 1: T0c, third shell)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/466-fish-shell-integration.spec.md
+- **Pipeline doc:** ../../pipeline/completed/466-fish-shell-integration.spec.md
 - **Source ticket:** ../../../marley/three-prong-plan.md (T0, D5)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 fish gets Marley's integration by prepending a Marley directory to `XDG_DATA_DIRS`, whose

@@ -85,7 +85,8 @@ fn marley_integration_dir() -> PathBuf {
 // Marley: the shell a local interactive terminal starts: the given one, or, when Marley has an
 // integration for its program, the program with Marley's arguments and environment (#463). A
 // zsh is handed the `ZDOTDIR` it would have inherited, from the terminal's environment or
-// Marley's own, and a shell the integration adds no arguments to stays as it was (#465).
+// Marley's own, and a shell the integration adds no arguments to stays as it was (#465); a fish,
+// the `XDG_DATA_DIRS` it would have inherited, the same way (#466).
 #[cfg(unix)]
 fn marley_shell_integration(shell: Shell, env: &mut HashMap<String, String>) -> Shell {
     let program = match &shell {
@@ -94,13 +95,15 @@ fn marley_shell_integration(shell: Shell, env: &mut HashMap<String, String>) -> 
         Shell::WithArguments { .. } => return shell,
     };
     let dir = marley_integration_dir();
-    let user_zdotdir = env
-        .get("ZDOTDIR")
-        .cloned()
-        .or_else(|| std::env::var("ZDOTDIR").ok());
-    let Some(integration) =
-        marley_terminal::shell_integration::for_program(&program, &dir, user_zdotdir.as_deref())
-    else {
+    let inherited = |name: &str| env.get(name).cloned().or_else(|| std::env::var(name).ok());
+    let user_zdotdir = inherited("ZDOTDIR");
+    let user_data_dirs = inherited("XDG_DATA_DIRS");
+    let Some(integration) = marley_terminal::shell_integration::for_program(
+        &program,
+        &dir,
+        user_zdotdir.as_deref(),
+        user_data_dirs.as_deref(),
+    ) else {
         return shell;
     };
     if let Err(error) = marley_terminal::shell_integration::install_in(&dir) {

@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Shell integration for fish** (#466, 2026-10-01). A fish that Marley starts in a local
+  terminal reports its prompts and commands as bash and zsh do, so its commands are blocks with
+  their folder, exit status and pills, and the prompt editor docks at its prompt. Marley puts a
+  vendor snippet's folder first on `XDG_DATA_DIRS`; the snippet puts your own `XDG_DATA_DIRS`
+  back and takes Marley's values out of the environment before your `config.fish` runs. fish's
+  history file feeds the ghost text and the prompt editor's completions.
+
 - **English at the prompt, second stage** (#573, 2026-09-30). A line typed at a shell's prompt
   that Marley's own rules leave open, a command's name followed by plain words such as `kill the
   dev server`, can be read by the System One layer as a command, a request, a comment or a

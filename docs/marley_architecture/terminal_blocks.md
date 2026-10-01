@@ -159,8 +159,10 @@ real, reusable session. The Block model is the unit the **brain** later observes
   selected while the count holds), and the `History` hook (`history;file=`, which both scripts send after `init`
   with `$HISTFILE`) keeps the shell's history file. `suggest.rs` has `suggestion`, the rest of
   the first history command, newest first, that starts with the typed text and stays on one
-  line, and `parse_history`, bash's lines without their `#<seconds>` lines and zsh's extended
-  `: <seconds>:<elapsed>;` lines with backslash continuations joined.
+  line, and `parse_history`, bash's lines without their `#<seconds>` lines, zsh's extended
+  `: <seconds>:<elapsed>;` lines with backslash continuations joined, and, since #466, fish's
+  `- cmd: ` entries with its `\n` and `\\` escapes undone (`fish_unescape`), read as fish's when
+  the file's first line is one.
   `filter.rs` (#528) filters a block's output lines: `filter_lines(output, &FilterQuery)` with
   text or a regex (`regex`), case ignored unless asked, invert, and context with a `Gap` between
   groups, grep's meanings; nothing in the grid changes.
@@ -245,7 +247,14 @@ real, reusable session. The Block model is the unit the **brain** later observes
   `shell_integration/marley.zsh` as `.zshenv`, and hands the user's own `ZDOTDIR` on in
   `MARLEY_ZSH_ZDOTDIR`. The script restores it, sources the user's `.zshenv`, and at the first
   prompt puts `__marley_precmd` first in `precmd_functions` and `__marley_preexec` last in
-  `preexec_functions`.
+  `preexec_functions`. fish (#466) takes no argument either: `for_program` (given the inherited
+  `XDG_DATA_DIRS` beside `ZDOTDIR`) puts `<dir>` first on `XDG_DATA_DIRS`, followed by the user's
+  value or the XDG default, and hands the user's value on in `MARLEY_FISH_DATA_DIRS`;
+  `install_in` writes `shell_integration/marley.fish` to `<dir>/fish/vendor_conf.d/`, which fish
+  runs before `config.fish`. The script restores `XDG_DATA_DIRS`, takes the nonce and Marley's
+  other variables out, and defines `fish_postexec` (the status), `fish_prompt` (`init`,
+  `history` and `bootstrapped` once, then `precmd`) and `fish_preexec` handlers. Marley's `ssh`
+  function has no fish version. gate:11 checks the script with `fish --no-execute`.
   Since #561 it also keeps the opener a new local terminal gives its programs as `BROWSER`
   (`set_browser_opener`, `browser_opener`, a process-wide setting the workbench sets, none under
   `system_browser`).

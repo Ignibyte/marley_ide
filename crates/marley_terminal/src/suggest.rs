@@ -19,9 +19,18 @@ pub fn suggestion<'a>(typed: &str, history: impl IntoIterator<Item = &'a str>) -
 ///
 /// Bash's file is a command a line, with a `#<seconds>` line before each when `HISTTIMEFORMAT` is
 /// set; zsh's extended history is `: <seconds>:<elapsed>;<command>`, a command of several lines
-/// ending each but its last with a backslash.
+/// ending each but its last with a backslash; fish's is `- cmd: <command>` with indented lines
+/// under it, the command's newlines and backslashes escaped (#466).
 #[must_use]
 pub fn parse_history(text: &str) -> Vec<String> {
+    let first = text.lines().find(|line| !line.trim().is_empty());
+    if first.is_some_and(|line| line.starts_with(FISH_COMMAND)) {
+        return text
+            .lines()
+            .filter_map(|line| line.strip_prefix(FISH_COMMAND))
+            .map(fish_unescape)
+            .collect();
+    }
     let mut commands: Vec<String> = Vec::new();
     // Whether the last zsh command goes on to the next line.
     let mut continued = false;
@@ -40,6 +49,31 @@ pub fn parse_history(text: &str) -> Vec<String> {
         }
     }
     commands
+}
+
+/// What starts each entry of fish's history.
+const FISH_COMMAND: &str = "- cmd: ";
+
+/// A command as fish's history file escapes it: `\n` for a newline and `\\` for a backslash.
+fn fish_unescape(command: &str) -> String {
+    let mut unescaped = String::with_capacity(command.len());
+    let mut characters = command.chars();
+    while let Some(character) = characters.next() {
+        if character != '\\' {
+            unescaped.push(character);
+            continue;
+        }
+        match characters.next() {
+            Some('n') => unescaped.push('\n'),
+            // A trailing backslash stays as it was written.
+            Some('\\') | None => unescaped.push('\\'),
+            Some(other) => {
+                unescaped.push('\\');
+                unescaped.push(other);
+            }
+        }
+    }
+    unescaped
 }
 
 /// The command of a zsh extended-history line, `: <seconds>:<elapsed>;<command>`.

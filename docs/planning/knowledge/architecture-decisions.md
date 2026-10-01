@@ -3555,3 +3555,18 @@ reading offers the agent. Rejected: asking about every command followed by words
 `git status`); the warning colour in the grid (the Zed hook's answer type would grow); an unlisted
 project's refusal row for every typed line; the footer for the reading (#557's rule against
 resizing the PTY).
+
+## AD-claude-466-fish-loads-marleys-hooks-as-a-vendor-snippet-through-xdg-data-dirs-001
+*decided at: 2026-10-01 · status: shipped · builds on: AD-claude-465-zsh-loads-marleys-hooks-through-a-zdotdir-that-hands-back-the-users-001*
+
+A local interactive fish that Zed spawns starts unchanged but for its environment:
+`XDG_DATA_DIRS=<data dir>/shell_integration:<the user's value or /usr/local/share:/usr/share>`,
+`MARLEY_FISH_DATA_DIRS` with the user's value when there was one, and Marley's usual variables.
+fish runs `<dir>/fish/vendor_conf.d/marley.fish` before the user's `config.fish`; the snippet
+restores `XDG_DATA_DIRS` exactly (or unsets it), keeps the nonce in a global, and defines its
+hooks as `fish_postexec`, `fish_prompt` and `fish_preexec` handlers, which run before handlers the
+user's files define. The first prompt sends `init`, `history` (fish's history file under
+`$XDG_DATA_HOME`, named by `$fish_history`) and `bootstrapped`. Rejected: `fish --init-command`
+(an argument the title would show and a `-c` the user's own invocation could clash with); writing
+into `~/.config/fish/conf.d` (the user's folder); Marley's `ssh` function for fish (left for a
+later ticket, as the remote bootstrap is bash's and zsh's).

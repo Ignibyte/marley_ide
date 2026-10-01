@@ -375,10 +375,10 @@ toggle.
 
 ## The block terminal
 
-### Shell integration for bash and zsh
+### Shell integration for bash, zsh and fish
 
 Blocks come from the shell, which reports each prompt and each command to the terminal. When
-Marley starts an interactive bash or zsh in a local terminal, it loads its integration:
+Marley starts an interactive bash, zsh or fish in a local terminal, it loads its integration:
 
 - **bash** starts with `--rcfile ~/.local/share/marley/shell_integration/marley.bash`. The script
   sources your `~/.bashrc` first, then adds the reports (#463).
@@ -386,11 +386,17 @@ Marley starts an interactive bash or zsh in a local terminal, it loads its integ
   `.zshenv` puts your own `ZDOTDIR` back (or leaves it unset if you had none) and runs your
   `.zshenv`, so zsh reads your startup files as it always did (#465). If you have no zsh startup
   files at all, zsh's new-user menu no longer opens.
+- **fish** starts with `~/.local/share/marley/shell_integration` first on `XDG_DATA_DIRS`, where
+  fish finds `fish/vendor_conf.d/marley.fish`. fish runs that snippet before your `config.fish`;
+  it puts your own `XDG_DATA_DIRS` back (or unsets it if you had none) and adds the reports as
+  event handlers (#466). fish's history file feeds the ghost text and the prompt editor's
+  completions.
 
 A shell with the integration finds `MARLEY_SHELL_INTEGRATION=1` in its environment, and its tab
 title leaves out the arguments Marley added. Tasks, remote terminals and a shell you configure
-with arguments of its own start without the integration, and so show no blocks. fish has no
-integration yet (TICKET-466).
+with arguments of its own start without the integration, and so show no blocks. Marley's `ssh`
+function, which carries the integration to a host, is bash's and zsh's only: in fish, `ssh`
+stays fish's own.
 
 Each local terminal also gives its shell a random value, which the scripts take out of the
 environment before your files run and add to each command's report. A block's command counts as
@@ -1764,9 +1770,9 @@ Every `~/.local/share/marley` path follows `$XDG_DATA_HOME`, and a Marley starte
   that terminal, and that it is not print mode (`claude -p`), which drops the hook's escape. On
   Omarchy, notifications go to Quickshell;
   `busctl --user monitor org.freedesktop.Notifications` shows whether Marley sent one.
-- **A terminal shows no blocks.** Blocks need Marley's integration: a bash or zsh that Marley
-  started in a local interactive terminal. `echo $MARLEY_SHELL_INTEGRATION` prints `1` in one.
-  Tasks, remote terminals, a shell configured with its own arguments, and fish run without it, and
+- **A terminal shows no blocks.** Blocks need Marley's integration: a bash, zsh or fish that
+  Marley started in a local interactive terminal. `echo $MARLEY_SHELL_INTEGRATION` prints `1` in
+  one. Tasks, remote terminals and a shell configured with its own arguments run without it, and
   a full-screen program hides the blocks while it runs.
 - **Typed characters vanish on a long prompt in the first terminal of a launch.** The first
   terminals of a launch open at Zed's small starting size, and a two-line prompt wider than 100
@@ -1843,8 +1849,8 @@ approvals inbox, per-turn diffs, permission modes, worktree agents with review a
 the terminal items from Warp (an agent typing into a running program, blocks over ssh, filtering
 a block, a sticky command header, runbook commands).
 
-Waiting on purpose: fish shell integration (TICKET-466, for a machine with fish) and Marley's own
-release identity, with its keyring label, updater, app id and URL scheme (TICKET-445).
+Waiting on purpose: Marley's own release identity, with its keyring label, updater, app id and
+URL scheme (TICKET-445).
 
 `docs/marley/three-prong-plan.md` names the longer road: block-scoped path links and a jump to the
 first failure (T2), a prompt editor (T3), tasks and runnables as blocks (T4), native block headers

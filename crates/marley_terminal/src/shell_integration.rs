@@ -6,8 +6,10 @@
 //! names, from which the shell reads them at startup. [`for_program`] says how to start a
 //! program with them. bash takes `--rcfile`, and its script sources the user's own `~/.bashrc`
 //! first. zsh takes `ZDOTDIR`, and its `.zshenv` puts the user's `ZDOTDIR` back, so zsh reads
-//! the user's own files as it would have. fish follows (#466). [`shown_arguments`] is what the
-//! user is shown of a process's arguments: all but the ones [`for_program`] adds.
+//! the user's own files as it would have. fish takes a vendor snippet from the first folder of
+//! `XDG_DATA_DIRS`, which puts the user's `XDG_DATA_DIRS` back before their `config.fish` runs
+//! (#466). [`shown_arguments`] is what the user is shown of a process's arguments: all but the
+//! ones [`for_program`] adds.
 //!
 //! A terminal gives its program a [`new_nonce`] in [`NONCE_VARIABLE`]. The scripts take it out
 //! of the environment before the user's files run and add it to each command's frame, which is
@@ -45,6 +47,23 @@ pub const ZSH_FILE: &str = ".zshenv";
 /// The variable that carries the user's own `ZDOTDIR` into a zsh started with Marley's, for
 /// [`ZSH_INTEGRATION`] to put back.
 pub const ZSH_ZDOTDIR_VARIABLE: &str = "MARLEY_ZSH_ZDOTDIR";
+
+/// Marley's fish integration script (#466).
+pub const FISH_INTEGRATION: &str = include_str!("../shell_integration/marley.fish");
+
+/// The directory, inside the one [`install_in`] is given, that fish reads vendor snippets from
+/// when that one is on `XDG_DATA_DIRS`.
+pub const FISH_DIR: &str = "fish/vendor_conf.d";
+
+/// The file in [`FISH_DIR`] that [`install_in`] writes [`FISH_INTEGRATION`] to.
+pub const FISH_FILE: &str = "marley.fish";
+
+/// The variable that carries the user's own `XDG_DATA_DIRS` into a fish started with Marley's
+/// folder first on it, for [`FISH_INTEGRATION`] to put back.
+pub const FISH_DATA_DIRS_VARIABLE: &str = "MARLEY_FISH_DATA_DIRS";
+
+/// The data directories the XDG specification takes when `XDG_DATA_DIRS` is unset.
+const DEFAULT_DATA_DIRS: &str = "/usr/local/share:/usr/share";
 
 /// The variable a shell started with Marley's integration finds set.
 pub const MARKER_VARIABLE: &str = "MARLEY_SHELL_INTEGRATION";
@@ -162,8 +181,11 @@ pub struct ShellIntegration {
 pub fn install_in(dir: &Path) -> io::Result<()> {
     let zsh_dir = dir.join(ZSH_DIR);
     std::fs::create_dir_all(&zsh_dir)?;
+    let fish_dir = dir.join(FISH_DIR);
+    std::fs::create_dir_all(&fish_dir)?;
     write_if_changed(&dir.join(BASH_FILE), BASH_INTEGRATION)?;
     write_if_changed(&zsh_dir.join(ZSH_FILE), ZSH_INTEGRATION)?;
+    write_if_changed(&fish_dir.join(FISH_FILE), FISH_INTEGRATION)?;
     write_if_changed(&dir.join(SSH_COMMAND_FILE), &ssh_remote_command())
 }
 
@@ -177,13 +199,15 @@ fn write_if_changed(path: &Path, content: &str) -> io::Result<()> {
 
 /// How to start `program` with Marley's integration, or `None` for a program it has none for.
 ///
-/// The scripts are read from `dir`, where [`install_in`] writes them. `user_zdotdir` is the
-/// `ZDOTDIR` the shell would otherwise have inherited.
+/// The scripts are read from `dir`, where [`install_in`] writes them. `user_zdotdir` and
+/// `user_data_dirs` are the `ZDOTDIR` and `XDG_DATA_DIRS` the shell would otherwise have
+/// inherited.
 #[must_use]
 pub fn for_program(
     program: &str,
     dir: &Path,
     user_zdotdir: Option<&str>,
+    user_data_dirs: Option<&str>,
 ) -> Option<ShellIntegration> {
     let name = Path::new(program).file_stem()?.to_str()?;
     let marker = (MARKER_VARIABLE.to_string(), "1".to_string());
@@ -212,6 +236,27 @@ pub fn for_program(
             .into_iter()
             .chain(
                 user_zdotdir.map(|zdotdir| (ZSH_ZDOTDIR_VARIABLE.to_string(), zdotdir.to_string())),
+            )
+            .collect(),
+        }),
+        "fish" => Some(ShellIntegration {
+            args: Vec::new(),
+            env: [
+                (
+                    "XDG_DATA_DIRS".to_string(),
+                    format!(
+                        "{}:{}",
+                        dir.display(),
+                        user_data_dirs.unwrap_or(DEFAULT_DATA_DIRS)
+                    ),
+                ),
+                marker,
+                ssh_command,
+            ]
+            .into_iter()
+            .chain(
+                user_data_dirs
+                    .map(|data_dirs| (FISH_DATA_DIRS_VARIABLE.to_string(), data_dirs.to_string())),
             )
             .collect(),
         }),
@@ -245,7 +290,7 @@ pub fn shown_arguments<'a>(argv: &'a [String], dir: &Path) -> Vec<&'a str> {
         return rest.iter().map(String::as_str).collect();
     }
     let added =
-        for_program(program, dir, None).map_or_else(Vec::new, |integration| integration.args);
+        for_program(program, dir, None, None).map_or_else(Vec::new, |integration| integration.args);
     // `windows` takes no empty run.
     let run = (!added.is_empty())
         .then(|| {
@@ -284,13 +329,13 @@ mod tests {
             ],
             env: pairs(&[("MARLEY_SHELL_INTEGRATION", "1")]),
         });
-        assert_eq!(for_program("bash", dir, None), bash);
+        assert_eq!(for_program("bash", dir, None, None), bash);
         assert_eq!(
-            for_program("/usr/bin/bash", dir, Some("/home/me/zsh")),
+            for_program("/usr/bin/bash", dir, Some("/home/me/zsh"), None),
             bash
         );
-        for other in ["/bin/sh", "fish", "", "/"] {
-            assert_eq!(for_program(other, dir, None), None, "{other}");
+        for other in ["/bin/sh", "nu", "", "/"] {
+            assert_eq!(for_program(other, dir, None, None), None, "{other}");
         }
     }
 
@@ -305,12 +350,12 @@ mod tests {
             args: Vec::new(),
             env: pairs(&marleys),
         });
-        assert_eq!(for_program("zsh", dir, None), zsh);
-        assert_eq!(for_program("/usr/bin/zsh", dir, None), zsh);
+        assert_eq!(for_program("zsh", dir, None, None), zsh);
+        assert_eq!(for_program("/usr/bin/zsh", dir, None, None), zsh);
         let mut with_users = marleys.to_vec();
         with_users.push(("MARLEY_ZSH_ZDOTDIR", "/home/me/.config/zsh"));
         assert_eq!(
-            for_program("zsh", dir, Some("/home/me/.config/zsh")),
+            for_program("zsh", dir, Some("/home/me/.config/zsh"), None),
             Some(ShellIntegration {
                 args: Vec::new(),
                 env: pairs(&with_users),
