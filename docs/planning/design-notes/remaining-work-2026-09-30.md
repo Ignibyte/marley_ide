@@ -49,6 +49,35 @@ T2 (a block's paths resolved against its folder, and jump to the first failure),
 at the prompt), the rest of T3 (the prompt editor), T5 (stage two), #466 (fish) and #573
 (English at the prompt, second stage).
 
+First batch (specced 2026-09-30), T2 and the rest of T4:
+
+| Ticket | What |
+|---|---|
+| #619 | A block's path links resolve against the block's own folder |
+| #620 | Jump to a failed block's first failure |
+| #621 | A task's run as a block |
+| #622 | A task block's Rerun and its pill |
+| #623 | A failed block's errors as project diagnostics |
+
+Second batch (specced 2026-09-30), T3 and T6, the prompt, then #573 on it:
+
+| Ticket | What |
+|---|---|
+| #624 | A prompt editor at the shell's prompt, on a key |
+| #625 | Completions in the prompt editor |
+| #626 | A command's colours at the prompt |
+| #627 | The prompt editor by default, with the raw-passthrough ladder |
+| #573 | English at the prompt, second stage (queued since 2026-09-26) |
+
+Third batch (specced 2026-09-30), fish and T5 stage two:
+
+| Ticket | What |
+|---|---|
+| #466 | Shell integration for fish |
+| #628 | Blocks with native headers, PS1 hidden |
+| #629 | Block navigation in display rows |
+| #630 | Block density: two-line headers and gaps |
+
 ## Wave 4: the harness and Rusty
 
 #534 (the harness's sessions in the rail, read side; its three blockers are done), shipping and

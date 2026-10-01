@@ -10,16 +10,27 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
+| [TICKET-619](open/TICKET-619-block-path-links-at-the-blocks-folder.md) | feature | terminal (wave 3) · a block's path links resolve against the block's own folder |
+| [TICKET-620](open/TICKET-620-jump-to-a-failed-blocks-first-failure.md) | feature | terminal (wave 3) · jump to a failed block's first failure |
+| [TICKET-621](open/TICKET-621-a-tasks-run-as-a-block.md) | feature | terminal (wave 3) · a task's run as a block |
+| [TICKET-622](open/TICKET-622-a-task-blocks-rerun-and-pill.md) | feature | terminal (wave 3) · a task block's Rerun and its pill |
+| [TICKET-623](open/TICKET-623-a-failed-blocks-errors-as-diagnostics.md) | feature | terminal (wave 3) · a failed block's errors as project diagnostics |
+| [TICKET-624](open/TICKET-624-a-prompt-editor-at-the-shells-prompt.md) | feature | terminal (wave 3) · a prompt editor at the shell's prompt, on a key |
+| [TICKET-625](open/TICKET-625-completions-in-the-prompt-editor.md) | feature | terminal (wave 3) · completions in the prompt editor |
+| [TICKET-626](open/TICKET-626-a-commands-colours-at-the-prompt.md) | feature | terminal (wave 3) · a command's colours at the prompt |
+| [TICKET-627](open/TICKET-627-the-prompt-editor-by-default.md) | feature | terminal (wave 3) · the prompt editor by default, with the raw-passthrough ladder |
+| [TICKET-573](open/TICKET-573-english-at-the-prompt-second-stage.md) | feature | terminal (wave 3) · English at the prompt, second stage: a System One reading for the lines the rules leave open, on the prompt editor (#627) |
+| [TICKET-466](open/TICKET-466-fish-shell-integration.md) | feature | terminal (wave 3) · shell integration for fish (fish 4.9.2 installed 2026-09-30) |
+| [TICKET-628](open/TICKET-628-blocks-with-native-headers-and-ps1-hidden.md) | feature | terminal (wave 3) · blocks with native headers, PS1 hidden |
+| [TICKET-629](open/TICKET-629-block-navigation-in-display-rows.md) | feature | terminal (wave 3) · block navigation in display rows |
+| [TICKET-630](open/TICKET-630-block-density-and-two-line-headers.md) | feature | terminal (wave 3) · block density: two-line headers and gaps |
 
 ## Deliberate (picked explicitly, never auto-next)
 
 | Ticket | Type | Why it waits |
 |---|---|---|
-| [TICKET-578](open/TICKET-578-restored-browser-tab-draws-its-reopened-page.md) | bug | prong 3 · a restored Browser tab sometimes draws nothing (2 of 6 runs of #576's scenario); waits for a reproduction that logs the restored page's screencast frames in a blank run |
 | [TICKET-534](open/TICKET-534-harness-sessions-in-the-rail.md) | feature | prong 2 C1 · harness sessions in the rail, the read side; its blockers (#533, #508, the harness's M9) are done, and it is built in wave 4 of `design-notes/remaining-work-2026-09-30.md` |
-| [TICKET-573](open/TICKET-573-english-at-the-prompt-second-stage.md) | feature | prong 1 T3 · a System One reading for typed lines #557's local rules leave open, in the hint slot after 250 ms without typing, never in Enter's path; opt-in, redacted; waits on #557 and #565, and on a listed project or a local provider |
 | [TICKET-548](open/TICKET-548-system-one-via-cloudflare.md) | feature | prong 2 · Jev through Cloudflare Workers AI (stated zero retention) as a provider setting, per project; waits for the System One layer itself |
 | [TICKET-540](open/TICKET-540-session-resume-after-restart.md) | feature | prong 2 · Claude Code sessions resumed after a restart; waits on how the embedded harness keeps processes alive, so it cannot start a second Claude on a live session |
 | [TICKET-475](open/TICKET-475-shell-tests-scratch-data-dir.md) | chore | prong 1 T0 · the shell PTY tests install Marley's scripts in a scratch data directory; moot while no gate runs the tests (#483), and wanted again only if they run |
-| [TICKET-466](open/TICKET-466-fish-shell-integration.md) | feature | prong 1 T0c · shell integration for fish; waits for fish on a machine that can run its tests (the dev box has none) |
 | [TICKET-445](open/TICKET-445-marley-release-identity.md) | chore | packaging: Marley's own keyring label, updater, app id and URL scheme; waits until Marley ships a package or needs a non-`dev` build (the `dev` channel keeps it safe until then) |
