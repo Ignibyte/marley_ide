@@ -2688,3 +2688,15 @@ is synced only when the view draws. An observer (`cx.observe`) hears only `cx.no
 block's start and end send, and a `Wakeup` subscriber reads the frame before the one the event
 brought. To follow what is typed at a prompt, read it in a hook the terminal element calls while
 it lays out (`MarleyTerminalSuggestion`), where the content is the frame being drawn.
+
+## PR-claude-a-test-binary-that-reaches-the-data-folder-sets-its-own-001
+*severity: medium · prevents: F-claude-475-the-tests-wrote-the-users-data-folder-001*
+
+A crate whose tests reach `paths::data_dir()` or `paths::config_dir()` (a real shell through
+`TerminalBuilder::new`, a store opened by `prompt_store::init`, any Marley module that writes under
+the data directory) gives its test binary a scratch folder before the first test:
+`#[ctor::ctor(unsafe)] fn …() { terminal::marley_use_test_data_dir(); }` in a `#[cfg(test)]`
+module, with a `// SAFETY:` line above it (gate:13) and `ctor` among the dev-dependencies. Not a
+call in a test's setup: the directory is a `OnceLock` that panics when set after its first read,
+and under cargo test's threads another test can read it first. To see what a run writes, set
+`XDG_DATA_HOME` to an empty folder and list it afterwards.

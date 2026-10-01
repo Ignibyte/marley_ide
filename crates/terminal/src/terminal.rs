@@ -82,6 +82,24 @@ fn marley_integration_dir() -> PathBuf {
     paths::data_dir().join("shell_integration")
 }
 
+/// Sets the data directory to `marley-test-data` in the test binary's build folder.
+///
+/// A test binary calls it from a `ctor`, before any test reads the data directory: a test that
+/// starts a shell installs Marley's scripts there, not in the user's data directory (#475).
+///
+/// # Panics
+///
+/// When the test binary's path has no build folder above it, or the folder cannot be created.
+#[cfg(any(test, feature = "test-support"))]
+pub fn marley_use_test_data_dir() {
+    let binary = std::env::current_exe().expect("the test binary's path");
+    let build_folder = binary
+        .parent()
+        .and_then(Path::parent)
+        .expect("the test binary sits in the build folder's `deps`");
+    paths::set_custom_data_dir(&build_folder.join("marley-test-data").to_string_lossy());
+}
+
 // Marley: the shell a local interactive terminal starts: the given one, or, when Marley has an
 // integration for its program, the program with Marley's arguments and environment (#463). A
 // zsh is handed the `ZDOTDIR` it would have inherited, from the terminal's environment or
@@ -4061,6 +4079,13 @@ mod tests {
     use parking_lot::Mutex;
     use rand::{Rng, distr, rngs::StdRng};
     use task::{Shell, ShellBuilder};
+
+    // Marley: the shell tests install Marley's scripts in a scratch data directory (#475).
+    // SAFETY: before `main` it reads the binary's path and sets `paths`' `OnceLock`, nothing else.
+    #[ctor::ctor(unsafe)]
+    fn marley_test_data_dir() {
+        marley_use_test_data_dir();
+    }
 
     #[test]
     fn test_init_command_startup_marker_commands_do_not_contain_marker() {

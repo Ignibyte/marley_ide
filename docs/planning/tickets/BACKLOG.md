@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-475](open/TICKET-475-shell-tests-scratch-data-dir.md) | chore | wave 5 · the shell tests install Marley's scripts in a scratch data dir, before the suites run |
 | [TICKET-634](open/TICKET-634-the-test-suites-green.md) | chore | wave 5 · the test suites run and green, no new tests |
 | [TICKET-635](open/TICKET-635-the-golden-regression-green.md) | chore | wave 5 · the golden regression run green |
 | [TICKET-636](open/TICKET-636-a-mutation-run-of-the-pure-cores.md) | chore | wave 5 · a mutation run of the pure cores, survivors reported |

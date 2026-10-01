@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #475 (chore, prong 1: T0 test hygiene)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** ../../pipeline/queued/475-shell-tests-scratch-data-dir.spec.md
+- **Pipeline doc:** ../../pipeline/completed/475-shell-tests-scratch-data-dir.spec.md
 - **Source ticket:** ../../pipeline/completed/474-block-hover-actions.notes.md (Phase 3)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The PTY tests of #463, #465 and #474 start their shells through `TerminalBuilder::new`, which

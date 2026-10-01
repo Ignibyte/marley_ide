@@ -20,6 +20,14 @@ use workspace::dock::test::TestPanel;
 
 use super::*;
 
+// The routing tests start the system shell, and the workbench reads and writes the data
+// directory: neither may touch the user's (#475).
+// SAFETY: before `main` it reads the binary's path and sets `paths`' `OnceLock`, nothing else.
+#[ctor::ctor(unsafe)]
+fn use_test_data_dir() {
+    terminal::marley_use_test_data_dir();
+}
+
 /// Where the tests' terminal factory, [`display_only_terminal_in`], was asked to start each
 /// terminal.
 #[derive(Default)]

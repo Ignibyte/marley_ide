@@ -57,6 +57,8 @@ percent-encoding.workspace = true
 windows.workspace = true
 
 [dev-dependencies]
+# Marley: the tests' scratch data directory (#475).
+ctor.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 rand.workspace = true
 settings = { workspace = true, features = ["test-support"] }

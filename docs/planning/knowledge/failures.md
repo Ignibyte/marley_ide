@@ -3100,3 +3100,15 @@ The harness adds `[wait <key>, generation <id>]` to an actor's question prompt, 
 routed. Shown as it came, it filled the inbox's one line, and the options after it never showed
 (`Which base branch? [wait base, g…`). Fixed before the commit: the rail's rows and the inbox
 drop that trailing note for display (`harness::shown_prompt`); the question keeps it.
+
+## F-claude-475-the-tests-wrote-the-users-data-folder-001
+*severity: medium · found in: pipeline 474's Test phase; measured in pipeline 475's · class: a test reaching a process-wide path it never chose*
+
+`TerminalBuilder::new` installs Marley's shell scripts under `paths::data_dir()`, and nothing in
+the test binaries set that directory, so every test that started a bash, zsh or fish (the PTY
+tests, Zed's title and panel tests on the system shell, the workbench's routing tests) wrote the
+user's `~/.local/share/marley/shell_integration`. A run from a tree whose scripts differ from the
+installed Marley's rewrote the scripts the user's terminals load. Measured with
+`XDG_DATA_HOME` on an empty folder: a run without the fix wrote `marley/shell_integration` and
+`marley/prompts/prompts-library-db.0.mdb` there. Fixed: a `ctor` in each of the three test
+binaries sets the data directory to `marley-test-data` in the build folder before any test.

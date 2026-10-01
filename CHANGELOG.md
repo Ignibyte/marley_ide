@@ -390,6 +390,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **The tests no longer write your Marley data folder** (#475, 2026-10-01). The tests of
+  `terminal`, `terminal_view` and `marley_workbench` start real shells, and starting one installs
+  Marley's shell scripts in the data folder: until now `~/.local/share/marley`, so a test run
+  could rewrite the scripts your own terminals load, and the workbench's tests opened a prompts
+  database there too. Each of those test binaries now sets its data folder to `marley-test-data`
+  in the build folder before its first test.
+
 - **A Browser tab whose stream never drew is asked again** (#578, 2026-09-30). A restored
   Browser tab once drew nothing although its page had loaded (2 of 6 runs of #576's scenario on
   2026-09-26; none in 26 runs since). Chromium sends one frame when a screencast starts and none

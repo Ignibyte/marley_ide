@@ -2602,6 +2602,12 @@ arguments. Attach File's tests click the `+` and answer the test platform's path
 `src/claude_plugin_tests.rs` (4) writes the plugin into a scratch directory and runs its hook
 script.
 
+The test binary sets its data folder before its first test (a `ctor` in
+`marley_workbench_tests.rs` calling `terminal::marley_use_test_data_dir()`, #475): the routing
+tests start the system shell, which installs Marley's scripts, and the workbench reads and writes
+`paths::data_dir()` in many places, so a run writes `marley-test-data` in the build folder and
+never the user's.
+
 Since #483 no test is added (CONSTITUTION §7): the files above stay and keep building, and each
 change is proven by an e2e scenario in `script/e2e/`. `480-voice-input.sh` drives the
 microphone through a fake Voxtype whose `record toggle` moves its status on, and

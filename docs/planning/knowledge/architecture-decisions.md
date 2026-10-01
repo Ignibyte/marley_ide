@@ -3641,3 +3641,18 @@ Marley does not narrow its tools. Rejected: Rusty over HTTP (`127.0.0.1:4174/mcp
 service running); an offer without detection (a failing server for everyone without Rusty);
 reading Rusty's agent sessions from its registry files and socket (Rusty keeps its back end MCP
 only; the sessions wait in an intake for rusty-mcp to serve them).
+
+## AD-claude-475-the-tests-data-folder-is-one-per-build-profile-set-by-a-ctor-001
+*decided at: 2026-10-01 · status: shipped · builds on: AD-claude-483 (the tests stay, run at the end)*
+
+Each test binary that starts shells (`terminal`, `terminal_view`, `marley_workbench`) runs a
+`#[ctor::ctor(unsafe)]`, Zed's own run-before-the-tests pattern, that calls
+`terminal::marley_use_test_data_dir()` (behind `test-support`): `paths::set_custom_data_dir` on
+`marley-test-data` beside the build folder's `deps`. One folder per build profile, shared by the
+binaries and their processes: no folder left per nextest process, no fixed path under `/tmp`, and
+`cargo clean` removes it. Rejected: a per-process temporary folder (no destructor runs at exit,
+so nextest would leave one per test); `XDG_DATA_HOME` set in the test (`set_var` is unsafe in
+edition 2024, and `marley_workbench` denies unsafe code); a ctor inside a library behind a feature
+(it would run in any binary that turned the feature on). Known cost: processes share the folder,
+and the install writes a changed script in place, so the first run after a script changes can race
+(an atomic write in `install_in` would close it).

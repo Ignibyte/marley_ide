@@ -4291,3 +4291,13 @@ Zed's Settings window search does not list the MCP Servers page, and the palette
 `zed::OpenSettingsAt`'s path. A scenario writes `$E2E_PROFILE/config/keymap.json` binding a key to
 `["zed::OpenSettingsAt", {"path": "context_servers"}]` and presses it; the page lists each server
 with its state's dot.
+
+## L-claude-475-tell-a-stale-test-from-your-change-by-running-it-without-the-change-001
+*category: validate · topic: the test pass · from: pipeline 475*
+
+When a test-environment change meets failing tests, run the failures once with the change taken
+out (emptied with an Edit, put back with the inverse Edit) and compare the messages. Seven
+`marley_workbench` failures (five "Your test is not deterministic", one focus assertion stale
+since #627, one missing `RequestedDirectories`) failed the same way without #475's ctor, so they
+went to #634's triage, not #475's. Keep such a run off the user's files: with the data
+directory's fix taken out, `XDG_DATA_HOME` on a scratch folder stands in for it.

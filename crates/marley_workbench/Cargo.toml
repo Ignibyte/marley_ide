@@ -87,6 +87,7 @@ acp_thread = { workspace = true, features = ["test-support"] }
 agent = { workspace = true, features = ["test-support"] }
 agent_ui = { workspace = true, features = ["test-support"] }
 chrono.workspace = true
+ctor.workspace = true
 db = { workspace = true, features = ["test-support"] }
 fs = { workspace = true, features = ["test-support"] }
 gpui = { workspace = true, features = ["test-support"] }

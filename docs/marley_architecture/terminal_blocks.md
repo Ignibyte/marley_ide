@@ -258,6 +258,9 @@ real, reusable session. The Block model is the unit the **brain** later observes
   other variables out, and defines `fish_postexec` (the status), `fish_prompt` (`init`,
   `history` and `bootstrapped` once, then `precmd`) and `fish_preexec` handlers. Marley's `ssh`
   function has no fish version. gate:11 checks the script with `fish --no-execute`.
+  A test binary that starts shells (`terminal`, `terminal_view`, `marley_workbench`) calls
+  `terminal::marley_use_test_data_dir()` from a `ctor` before its first test, so `install_in`
+  writes to `marley-test-data` in the build folder, never the user's data folder (#475).
   Since #561 it also keeps the opener a new local terminal gives its programs as `BROWSER`
   (`set_browser_opener`, `browser_opener`, a process-wide setting the workbench sets, none under
   `system_browser`).

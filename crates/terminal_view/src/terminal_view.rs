@@ -2683,6 +2683,14 @@ mod tests {
     use workspace::item::test::{TestItem, TestProjectItem};
     use workspace::{AppState, MultiWorkspace, SelectedEntry};
 
+    // Marley: the title and panel tests start the system shell, whose Marley scripts install in a
+    // scratch data directory (#475).
+    // SAFETY: before `main` it reads the binary's path and sets `paths`' `OnceLock`, nothing else.
+    #[ctor::ctor(unsafe)]
+    fn marley_test_data_dir() {
+        terminal::marley_use_test_data_dir();
+    }
+
     fn expected_drop_text(paths: &[PathBuf]) -> String {
         let mut text = String::new();
         for path in paths {
