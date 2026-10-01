@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A task block's Rerun Task, and its pill in place of Zed's summary** (#622, 2026-09-30). A
+  finished task's block offers Rerun Task on hover and in its menu, which runs the task again in
+  its tab through Zed's task machinery, as the tab's own Rerun does. In the Marley layout the
+  block's pill says how the task ended, so Zed's `Task … finished` line is left out; the Zed
+  layout keeps it.
+
 - **A task's run is a block** (#621, 2026-09-30). A task or runnable's run in its terminal is a
   block, as a typed command is: its output framed with the bar, the wash and the pill (its exit
   code when it failed), its block menu, and its state on the terminal's rail row. Tasks run

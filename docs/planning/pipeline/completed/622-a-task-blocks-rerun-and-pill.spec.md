@@ -1,7 +1,7 @@
 ---
 pipeline_id: 5753cf0b-1be2-47c3-82ec-4c69a36c0f1f
 ticket: docs/planning/tickets/open/TICKET-622-a-task-blocks-rerun-and-pill.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "A task block's Rerun and its pill"
 type: feature
 slice: prong 1 T4
@@ -43,7 +43,9 @@ the place of Zed's appended summary line (plan T4, D6). After #621.
 ## UI proof
 `script/e2e/622-a-task-blocks-rerun-and-pill.sh` (sway): #621's `fails` task, run once.
 - `finished.png`: its block with the pill and no `⏵ Task` line under it;
-- `rerun.png`: after the block's Rerun, a second block of `fails` in the same terminal.
+- `rerun.png`: after the block's Rerun, the `fails` tab running the task again: Zed's rerun
+  replaces the tab's terminal with a new one (`replace_terminal`), so the tab shows the new run's
+  block.
 
 ## Locked-In Decisions
 - D1 — Rerun goes through Zed's task path, so reuse and reveal rules hold (AD-claude-441).
@@ -53,7 +55,7 @@ the place of Zed's appended summary line (plan T4, D6). After #621.
 
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
-| REQ-001 | WHEN the user chooses Rerun on a task block, Marley shall run that task again through Zed's task machinery. | Shot `rerun.png` |
+| REQ-001 | WHEN the user chooses Rerun on a task block, Marley shall run that task again through Zed's task machinery, in its tab. | Shot `rerun.png`; the run log's second `building` |
 | REQ-002 | WHILE the Marley layout is on, a task terminal's finish shall append no summary line. | Shot `finished.png` |
 
 ## Phase Plan

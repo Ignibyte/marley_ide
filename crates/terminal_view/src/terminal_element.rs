@@ -2525,6 +2525,30 @@ fn marley_block(
                 });
             })
     });
+    // Marley: a task's block reruns the task through Zed's task machinery, as the tab's Rerun
+    // does, once the task is not running (#622).
+    let task_rerun = rerun
+        .is_none()
+        .then(|| {
+            let terminal = terminal.read(cx);
+            let newest = terminal
+                .blocks()
+                .last()
+                .is_some_and(|last| last.index == block.index);
+            terminal
+                .task()
+                .filter(|task| newest && task.status != terminal::TaskStatus::Running)
+                .map(|task| task.spawned_task.id.clone())
+        })
+        .flatten()
+        .map(|task_id| {
+            ui::IconButton::new(("marley-block-rerun-task", index), ui::IconName::Rerun)
+                .icon_size(ui::IconSize::XSmall)
+                .tooltip(Tooltip::text("Rerun Task"))
+                .on_click(move |_, window, cx| {
+                    window.dispatch_action(Box::new(crate::terminal_rerun_override(&task_id)), cx);
+                })
+        });
     // Marley: the buttons Marley's workbench adds, such as Save as Workflow (#558).
     let extras: Vec<AnyElement> = cx
         .try_global::<crate::MarleyBlockExtras>()
@@ -2568,6 +2592,10 @@ fn marley_block(
                         .children(rerun.map(|rerun| {
                             marley_keep_from_terminal(rerun.into_any_element())
                                 .debug_selector(move || format!("marley-block-rerun-{index}"))
+                        }))
+                        .children(task_rerun.map(|rerun| {
+                            marley_keep_from_terminal(rerun.into_any_element())
+                                .debug_selector(move || format!("marley-block-rerun-task-{index}"))
                         })),
                 )
                 .children(chip.map(marley_keep_from_terminal))

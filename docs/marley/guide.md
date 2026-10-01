@@ -419,7 +419,9 @@ line and column. `marley: jump to first failure` does it for the newest failed b
 
 A task you run (`task: spawn`, a runnable's ▶) is a block too (#621): its output framed with the
 bar, the wash and the pill (its exit code when it fails), with the block's menu, its copies and
-Jump to First Failure, and its state on the terminal's rail row.
+Jump to First Failure, and its state on the terminal's rail row. Point at a finished task's block,
+or right-click it, for Rerun Task, which runs the task again in its tab as the tab's own Rerun does
+(#622). In the Marley layout the block's pill takes the place of Zed's `Task … finished` line.
 
 ### Moving between blocks, copying, rerunning
 

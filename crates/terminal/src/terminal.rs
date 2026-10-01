@@ -1069,6 +1069,15 @@ impl TerminalMode {
 /// Whether an agent's `terminal_run` commands enter the shell's history of terminals started now.
 pub struct MarleyAgentHistory(pub bool);
 
+// Marley: a task's block shows how it ended (#621), so the Marley layout leaves out Zed's line that
+// says it (#622).
+/// Whether a finished task's `⏵ Task … finished` line is left out; the workbench sets it to whether
+/// the Marley layout is on.
+#[derive(Clone, Copy, Default)]
+pub struct MarleyTaskSummaryHidden(pub bool);
+
+impl gpui::Global for MarleyTaskSummaryHidden {}
+
 impl gpui::Global for MarleyAgentHistory {}
 
 pub struct TerminalBuilder {
@@ -3619,7 +3628,11 @@ impl Terminal {
 
         let (finished_successfully, task_line, command_line) = task_summary(task, exit_status);
         let mut lines_to_show = Vec::new();
-        if task.spawned_task.show_summary {
+        // Marley: the block's pill says what the summary line would (#622).
+        let summary_hidden = cx
+            .try_global::<MarleyTaskSummaryHidden>()
+            .is_some_and(|hidden| hidden.0);
+        if task.spawned_task.show_summary && !summary_hidden {
             lines_to_show.push(task_line.as_str());
         }
         if task.spawned_task.show_command {

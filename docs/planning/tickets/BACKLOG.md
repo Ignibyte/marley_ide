@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-622](open/TICKET-622-a-task-blocks-rerun-and-pill.md) | feature | terminal (wave 3) · a task block's Rerun and its pill |
 | [TICKET-623](open/TICKET-623-a-failed-blocks-errors-as-diagnostics.md) | feature | terminal (wave 3) · a failed block's errors as project diagnostics |
 | [TICKET-624](open/TICKET-624-a-prompt-editor-at-the-shells-prompt.md) | feature | terminal (wave 3) · a prompt editor at the shell's prompt, on a key |
 | [TICKET-625](open/TICKET-625-completions-in-the-prompt-editor.md) | feature | terminal (wave 3) · completions in the prompt editor |

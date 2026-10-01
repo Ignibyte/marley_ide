@@ -956,6 +956,10 @@ fn settle_workspace(
 }
 
 fn apply_defaults(layout: MarleyLayout, cx: &mut App) {
+    // A task's block says how it ended, so the Marley layout drops Zed's summary line (#622).
+    cx.set_global(terminal::MarleyTaskSummaryHidden(
+        layout == MarleyLayout::Marley,
+    ));
     let state = cx.global::<LayoutState>();
     // Never `None`: both settings' readers unwrap their default.
     let (terminal_button, agent_dock) = match layout {

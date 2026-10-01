@@ -347,8 +347,38 @@ fn block_menu(
             }
         })
     });
+    // A task's newest block reruns the task, as the tab's Rerun does, once it is not running
+    // (#622).
+    let task_item = {
+        let terminal = terminal.read(cx);
+        let newest = terminal
+            .blocks()
+            .last()
+            .is_some_and(|last| last.index == index);
+        terminal
+            .task()
+            .filter(|task| newest && task.status != terminal::TaskStatus::Running)
+            .map(|task| task.spawned_task.id.0.clone())
+    }
+    .map(|task_id| {
+        ContextMenuEntry::new("Rerun Task").handler(move |window, cx| {
+            window.dispatch_action(
+                Box::new(zed_actions::Rerun {
+                    task_id: Some(task_id.clone()),
+                    allow_concurrent_runs: Some(true),
+                    use_new_terminal: Some(false),
+                    reevaluate_context: false,
+                }),
+                cx,
+            );
+        })
+    });
     let menu = menu.separator().header("Block");
     let menu = match jump_item {
+        Some(item) => menu.item(item),
+        None => menu,
+    };
+    let menu = match task_item {
         Some(item) => menu.item(item),
         None => menu,
     };

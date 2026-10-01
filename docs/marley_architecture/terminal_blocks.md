@@ -329,7 +329,12 @@ interactive local shell), so its terminal opens its block itself: `AnchoredBlock
 at line 0 in the `Terminal` literal, with the task's `command_label` (the wrapped form Zed's own
 summary prints) and its `cwd`, unverified so no typed Rerun is offered; `register_task_finished`
 calls `finish_task` at the cursor's line, before Zed appends its summary lines. Remote tasks
-open none.
+open none. **Since #622** a task terminal's newest block, once its task is not running, has a
+Rerun Task button (the element) and menu item (`blocks.rs`) that dispatch `zed_actions::Rerun` as
+`terminal_rerun_override` does, so Zed's reuse rules hold and the tab's terminal is replaced; and
+`MarleyTaskSummaryHidden`, which `apply_defaults` sets to the Marley layout, keeps
+`register_task_finished` from appending the summary line (the command line stays with
+`show_command`).
 
 **Since #447.** The shim is a child module of `session`, the one module that calls it:
 `#[path = "pty_os.rs"]` keeps the file where gate:4's exclude and these notes name it, and its
