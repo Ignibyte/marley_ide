@@ -2717,3 +2717,12 @@ In the workbench, blocking work runs as `cx.background_spawn(futures::future::la
 config) that a shared test setup reaches gets a seam the setup sets (`Ports::proc_root`,
 `Launcher`). Otherwise gpui's test scheduler fails every test that opens the surface, after its
 assertions passed.
+
+## PR-claude-an-editor-inside-a-terminal-rebinds-the-terminal-keys-it-must-keep-001
+*severity: high · prevents: F-claude-635-ctrl-shift-w-in-the-prompt-editor-closed-the-window-001*
+
+Any focusable element drawn inside a terminal view (the prompt editor, a rich input, a filter)
+loses every Terminal-context binding that an unscoped binding shares, because gpui ranks unscoped
+bindings at the deepest context. List them (a script over `default-linux.json`: keys bound both
+with no context and in `Terminal`) and bind, in the element's own context, the ones whose
+terminal meaning the user expects there; Ctrl-Shift-W is the one that was lost.

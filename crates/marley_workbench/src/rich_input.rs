@@ -467,11 +467,19 @@ fn send(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
     let text = editor.read(cx).text(cx);
     if !text.trim().is_empty() {
         let terminal = view.read(cx).terminal().clone();
-        // What was typed at the shell's prompt is the editor's now, so the shell's line goes first.
+        // What was typed at the shell's prompt is the editor's now, so the shell's line goes first,
+        // unless nothing was typed there: readline rings the bell at Ctrl-U on an empty line, and
+        // the bell marks the terminal dirty, so closing it asked to save changes (#635).
         if matches!(target, Target::Shell) {
             crate::typed_line::entering(&terminal, cx);
-            terminal.update(cx, |terminal, _| terminal.input(vec![0x15]));
+            let anchored = terminal.read(cx).marley_anchored();
+            let empty_line = anchored.at_prompt() && anchored.input_start().is_none();
+            if !empty_line {
+                terminal.update(cx, |terminal, _| terminal.input(vec![0x15]));
+            }
         }
+        // Sending is typing: the bell goes, as a key typed in the terminal clears it (#635).
+        view.update(cx, TerminalView::clear_bell);
         crate::terminal_drive::paste_then(
             &terminal,
             &text,

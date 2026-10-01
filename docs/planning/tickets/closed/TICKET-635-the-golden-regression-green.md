@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #635 (chore, wave 5: the test pass)
 - **Owner:** claude-opus-5-5, 2026-10-01
-- **Pipeline doc:** ../../pipeline/queued/635-the-golden-regression-green.spec.md
+- **Pipeline doc:** ../../pipeline/completed/635-the-golden-regression-green.spec.md
 - **Source ticket:** wave 5 of `design-notes/remaining-work-2026-09-30.md`
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The golden set (`script/e2e/golden`, #517) has not run since 2026-09-29: each ticket ran its own

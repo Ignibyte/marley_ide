@@ -390,6 +390,18 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Ctrl-Shift-W in the prompt editor closes the terminal, and a command leaves no dirty mark**
+  (#635, 2026-10-01). Since the prompt editor opens at every prompt (#627), Ctrl-Shift-W there
+  closed the whole window rather than the terminal, and every command sent from it rang the
+  shell's bell, so the tab showed the dirty dot, closing the terminal asked to save all changes,
+  and a quit waited on that dialog. The key now closes the terminal, as it does in the terminal,
+  and sending a command rings no bell and clears the mark.
+
+- **The golden regression set runs green** (#635, 2026-10-01). All 53 scenarios pass again:
+  seven followed the UI their tickets changed, one turns the prompt editor off to check #484's
+  suggestions where they still show (their place in the editor is #637), and the two bugs above
+  were fixed. `script/e2e.sh` gains `profile_setting`.
+
 - **A terminal counts as focused while its prompt editor has the keys** (#634, 2026-10-01). Since
   the prompt editor opens at every prompt (#627), a terminal at its prompt read as unfocused:
   ctrl-` from it refocused the terminal instead of going back to the code, the block keys found no

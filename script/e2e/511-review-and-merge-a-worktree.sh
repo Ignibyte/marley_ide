@@ -124,10 +124,12 @@ review() {
   press "" Return
 }
 
-# Chooses Merge from the menu of the worktree row at `$1`, its last entry.
+# Chooses Merge from the menu of the worktree row at `$1`, its second entry: Remove… comes last
+# since #589.
 merge() {
   row_menu "$1"
-  press "" End
+  press "" Home
+  press "" Down
   press "" Return
 }
 

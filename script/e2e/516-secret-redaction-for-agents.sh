@@ -19,9 +19,10 @@ compositor sway
 # shellcheck source=script/e2e/browser-fixture.sh
 . script/e2e/browser-fixture.sh
 
-# "Redact Secrets for Agents" on the Marley page, measured from 516-01-setting-on.
+# "Redact Secrets for Agents" on the Marley page, measured from 516-01-setting-on: below Rail
+# Order (#542), Prompt Editor (#627) and English at the Prompt (#557) since #635.
 TOGGLE_X=${TOGGLE_X:-1548}
-TOGGLE_Y=${TOGGLE_Y:-377}
+TOGGLE_Y=${TOGGLE_Y:-830}
 
 KINDS=("private key" "secret" "bearer token" "url password" "aws key id" "github token"
   "slack token" "stripe key" "google api key" "api key" "jwt")

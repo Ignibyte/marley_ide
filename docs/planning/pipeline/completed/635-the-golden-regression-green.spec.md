@@ -1,7 +1,7 @@
 ---
 pipeline_id: e1815e25-2984-402d-95ba-ff9c88b40879
 ticket: docs/planning/tickets/open/TICKET-635-the-golden-regression-green.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "The golden regression run green"
 type: chore
 slice: wave 5, the test pass (after #634)
@@ -9,7 +9,7 @@ references: [docs/planning/design-notes/remaining-work-2026-09-30.md]
 ---
 
 ## Title
-`just regress` runs the golden set's scenarios (`script/e2e/golden`, 56 lines) each in a headless
+`just regress` runs the golden set's 53 scenarios (`script/e2e/golden`) each in a headless
 sway of its own, and each checks itself. It has not run since the per-ticket regression stopped on
 2026-09-29. This ticket runs it, fixes what regressed, brings stale scenarios to the shipped UI, and
 runs it again green.
@@ -40,9 +40,10 @@ N/A — Marley-specific: the regression suite of Marley's own scenarios (#517).
   since #517.
 
 ## UI proof
-N/A — no UI delta: the change is scenarios and any code a regression exposes. Its proof is the
-`just regress` log of the first and the green run; each fixed regression is seen in its scenario's
-shots, which the notes read.
+The golden run's own log is the proof of REQ-001 and REQ-002. The two bugs it surfaced show in the
+app: `script/e2e/635-the-prompt-editor-closes-its-terminal.sh` (`635-01-two-terminals`: no dirty
+dot after a command from the prompt editor; `635-02-closed`: Ctrl-Shift-W there closes the
+terminal and keeps the window).
 
 ## Locked-In Decisions
 - D1 — The shipped behavior is the reference, as in #634.

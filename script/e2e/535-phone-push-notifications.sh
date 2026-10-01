@@ -325,8 +325,10 @@ steps() {
   settle 4
   back
   expect "a program that is not an agent pushes nothing" pushed 0
+  # The first reaches the desktop; the second falls in the project's five seconds without a
+  # second banner (#538).
   expect "its notifications still reach the desktop" \
-    holds "$E2E_WORK/banners.log" "|built" "|make|done"
+    holds "$E2E_WORK/banners.log" "|built"
   push_setting none
   type_text "claude"
   press "" Return
@@ -395,13 +397,14 @@ steps() {
   settle 5
   echo "== the server gone"
   local finished
-  finished=$(banners_with "repo finished")
+  # A banner's title is the event's line since #538.
+  finished=$(banners_with "repo: Claude finished")
   kill "$(cat "$E2E_WORK/ntfy.pid")"
   away
   next_step
   settle 2
   back
   shot 535-05-no-server
-  expect "the desktop banner still shows" more_banners "repo finished" "$finished"
+  expect "the desktop banner still shows" more_banners "repo: Claude finished" "$finished"
   expect "no banner reached the user's own bus" bash -c "! grep -qE 'STRING \"(Marley|Claude Code)\"' '$E2E_WORK/user-bus.log'"
 }

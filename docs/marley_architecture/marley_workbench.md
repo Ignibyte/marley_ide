@@ -942,6 +942,12 @@ alike.
   theme's warning colour through `highlight_text` under `HighlightKey::Editor`; an agent's editor
   shows neither. `send` calls `typed_line::entering` first. In `MarleyShellInput > Editor`,
   Ctrl-Shift-Enter is `marley::AskAgent`.
+- `send` (#635) writes Ctrl-U to clear readline's line only when something may be on it (input
+  typed since the prompt, or not known): on an empty line readline rings the bell at Ctrl-U, and
+  the bell is Zed's dirty mark. It clears the view's bell, as Zed clears it on any input from the
+  view. Marley's keymap binds Ctrl-Shift-W in `MarleyRichInput > Editor` to
+  `pane::CloseActiveItem`: gpui ranks an unscoped binding at the deepest context, so Zed's
+  unscoped `workspace::CloseWindow` would otherwise outrank the Terminal binding there.
 - `holds_focus(view, window, cx)` (#634) is whether a terminal view has the keys: its own focus
   handle, or the open editor of its terminal. The view's handle alone does not count the footer:
   Zed's terminal element tracks the same handle on the grid, gpui takes the last element to track

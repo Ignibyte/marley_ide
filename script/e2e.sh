@@ -555,6 +555,29 @@ scroll() {
   done
 }
 
+# `profile_setting <key.path> <json>`: sets a key of the run's copy of the settings, a dotted path
+# from the top, to a JSON value (#635). For a scenario's `setup`, before Marley starts. The
+# scenario is sourced before this file's helpers, so a scenario's own function of the same name
+# would be replaced: a scenario's helpers keep other names.
+profile_setting() {
+  python3 - "$E2E_PROFILE/config/settings.json" "$1" "$2" <<'SETTING'
+import json, pathlib, re, sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text() if path.exists() else "{}"
+# Comments and trailing commas out: the settings file allows them and JSON does not.
+text = re.sub(r'("(?:[^"\\]|\\.)*")|//[^\n]*|/\*.*?\*/', lambda m: m.group(1) or "", text, flags=re.S)
+text = re.sub(r",(\s*[}\]])", r"\1", text)
+settings = json.loads(text) if text.strip() else {}
+*parents, last = sys.argv[2].split(".")
+node = settings
+for key in parents:
+    node = node.setdefault(key, {})
+node[last] = json.loads(sys.argv[3])
+path.write_text(json.dumps(settings, indent=2) + "\n")
+SETTING
+}
+
 # Writes the variables `terminal_env` collected into the copy's settings, as a `terminal.env`
 # block that opens the file. A copy with a `terminal` block of its own is refused: its later key
 # would win.

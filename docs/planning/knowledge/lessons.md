@@ -4318,3 +4318,19 @@ the test's assertions all ran and passed. Its backtrace shows only the waking si
 reactor `async-io`, the reaper `async-process`, the pool `blocking-N`); find the waiting side by
 the thread's name: processes and pipes for the first two, `smol::unblock` for the last.
 `allow_parking()` also silences it, which hides real IO instead of removing it.
+
+## L-claude-635-a-scenarios-fixed-menu-steps-can-pass-on-the-wrong-entry-001
+*category: validate · topic: e2e scenarios · from: pipeline 635*
+
+511's `merge` pressed End, Merge being the last entry, and #589 put Remove… after it: the three
+"the refusal changed nothing" checks kept passing on Remove's refusal while Merge's went untested,
+and only the later merge check failed. A scenario that walks a menu by position checks the entry
+it reached (a shot read, or a check on the effect only that entry has), and a menu change reruns
+the scenarios that walk it.
+
+## L-claude-635-a-harness-helper-replaces-a-scenarios-own-of-the-same-name-001
+*category: validate · topic: e2e scenarios · from: pipeline 635*
+
+`script/e2e.sh` sources the scenario before it defines its helpers, so a helper added to the
+harness under a name a scenario already uses silently replaces the scenario's (571's `setting`).
+Before adding one, compare its name with every scenario's functions.

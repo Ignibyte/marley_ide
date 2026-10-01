@@ -102,10 +102,13 @@
   },
   {
     // The rich input's editor: Enter sends, Shift-Enter adds a line, Escape keeps the draft.
+    // Ctrl-Shift-W closes the terminal it sits in, as in the terminal: Zed's unscoped
+    // `workspace::CloseWindow` would otherwise outrank the Terminal binding here (#635).
     "context": "MarleyRichInput > Editor",
     "bindings": {
       "shift-enter": "editor::Newline",
-      "escape": "marley::CloseRichInput"
+      "escape": "marley::CloseRichInput",
+      "ctrl-shift-w": "pane::CloseActiveItem"
     }
   },
   {

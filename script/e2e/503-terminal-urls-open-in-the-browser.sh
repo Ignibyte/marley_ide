@@ -109,10 +109,13 @@ PY
 printf '\033]8;;%s\033\\\\%s\033]8;;\033\\\\\n' "$SITE/osc8.html" "Open the OSC 8 page"
 read -r _
 SH
-  # Named ssh and run by python3, so the terminal reads its foreground program as `ssh`.
+  # Named ssh and run by python3, so the terminal reads its foreground program as `ssh`. Marley's
+  # `ssh` asks `ssh -G` for the host's config first (#526); refused, it runs the plain ssh.
   cat >"$bin/ssh" <<PY
 #!/usr/bin/env python3
-import time
+import sys, time
+if "-G" in sys.argv[1:]:
+    sys.exit(255)
 print("Welcome to e2e-host")
 print("Local dev: http://localhost:$SITE_PORT/", flush=True)
 time.sleep(600)

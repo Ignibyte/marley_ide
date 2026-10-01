@@ -3146,3 +3146,22 @@ agents Marley's bridge (#501) and `rusty-mcp` (#633) as default context servers;
 starts every configured server per project, so 11 of Zed's own tests started real processes and
 failed as non-deterministic. The same binary wrote the user's data folder (#475's ctor had not
 covered it). Fixed in the tests' Marley hunk: both offers off, and #475's ctor.
+
+## F-claude-635-every-command-from-the-prompt-editor-rang-the-bell-001
+*severity: medium · found in: pipeline 635's golden run (575, 577) · class: a control key with a side effect on an empty line*
+
+The prompt editor (#627) sent Ctrl-U before each line, to clear what readline held. On an empty
+line, the usual case, readline rings the bell at Ctrl-U (`unix-line-discard` at point 0). The bell
+set the terminal view's `has_bell`, Zed's dirty mark, and only a key typed in the terminal clears
+it, which never comes while the editor has the keys. So every terminal showed the dirty dot after
+one command, a close asked "save all changes", and a quit waited on that dialog. Fixed: no Ctrl-U
+while nothing was typed since the prompt, and the bell cleared on send.
+
+## F-claude-635-ctrl-shift-w-in-the-prompt-editor-closed-the-window-001
+*severity: high · found in: pipeline 635's probe of 577 · class: an unscoped binding outranking a context's*
+
+gpui ranks a binding without a context at the deepest level of the focused element's stack. In
+the terminal grid, Zed's Terminal `ctrl-shift-w: pane::CloseActiveItem` ties with the unscoped
+`workspace::CloseWindow` and wins as the later binding; from the prompt editor
+(`… > Terminal > MarleyRichInput > Editor`) the unscoped one wins outright, so the key meant to
+close a terminal closed the window. Fixed with a `MarleyRichInput > Editor` binding.

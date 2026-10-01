@@ -19,8 +19,9 @@ SHIPPED=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["versi
 PLUS_X=${PLUS_X:-236}
 PLUS_Y=${PLUS_Y:-96}
 # Down steps from New Terminal in the + menu: New Browser Tab, New Agent Thread, then the CLIs.
-CLAUDE_STEPS=${CLAUDE_STEPS:-3}
-CODEX_STEPS=${CODEX_STEPS:-4}
+# One more since New Agent in Worktree (#510) sits above the agent CLIs.
+CLAUDE_STEPS=${CLAUDE_STEPS:-4}
+CODEX_STEPS=${CODEX_STEPS:-5}
 CHIP_X=${CHIP_X:-192}
 CHIP_Y=${CHIP_Y:-229}
 BYPASS_ROW_X=${BYPASS_ROW_X:-110}

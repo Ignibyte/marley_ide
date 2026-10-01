@@ -20,6 +20,9 @@ setup() {
   printf '%s\n' "PS1='\$ '" > "$home/.bashrc"
   printf '%s\n' 'git status' 'echo hello world' 'ls -la' > "$home/.bash_history"
   terminal_env HOME "$home"
+  # The suggestions are drawn after the terminal's cursor; since #627 the prompt editor takes the
+  # line at every prompt by default and shows none, so the run types into readline.
+  profile_setting marley.prompt_editor false
   git init -q -b autosuggest "$E2E_WORK/repo"
   open_path "$E2E_WORK/repo"
 }
