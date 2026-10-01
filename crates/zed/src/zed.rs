@@ -2910,6 +2910,14 @@ mod tests {
         open_new, open_paths, pane,
     };
 
+    // Marley: `initialize_workspace` runs Marley's init, whose MCP server, browser hub, prompt
+    // store and shells use the data directory: a scratch one, not the user's (#634).
+    // SAFETY: before `main` it reads the binary's path and sets `paths`' `OnceLock`, nothing else.
+    #[ctor::ctor(unsafe)]
+    fn marley_test_data_dir() {
+        terminal::marley_use_test_data_dir();
+    }
+
     async fn flush_workspace_serialization(
         window: &WindowHandle<MultiWorkspace>,
         cx: &mut TestAppContext,
@@ -6221,8 +6229,24 @@ mod tests {
             // Marley: the fork starts in the Marley layout; Zed's own tests test Zed's layout.
             cx.update_global::<SettingsStore, _>(|store, cx| {
                 store.update_user_settings(cx, |settings| {
-                    settings.marley.get_or_insert_default().layout =
-                        Some(settings::MarleyLayout::Zed);
+                    let marley = settings.marley.get_or_insert_default();
+                    marley.layout = Some(settings::MarleyLayout::Zed);
+                    // Marley: and without the context servers Marley offers Zed's agents (#501,
+                    // #633), which every project starts as real processes (#634).
+                    marley.rusty_tools = Some(false);
+                    settings.project.context_servers.insert(
+                        "marley".into(),
+                        settings::ContextServerSettingsContent::Stdio {
+                            enabled: false,
+                            remote: false,
+                            command: settings::ContextServerCommand {
+                                path: PathBuf::from("marley-mcp-bridge"),
+                                args: Vec::new(),
+                                env: None,
+                                timeout: None,
+                            },
+                        },
+                    );
                 });
             });
             initialize_workspace(app_state.clone(), cx);

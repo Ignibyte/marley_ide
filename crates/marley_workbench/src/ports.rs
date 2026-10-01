@@ -121,6 +121,9 @@ pub struct Ports {
     /// The rails that are open, which keep the scan running.
     watchers: usize,
     scanning: bool,
+    /// Where the scan reads the sockets in place of `/proc`: a test's folder, so a test never
+    /// reads the machine's ports or asks its container engines.
+    pub(crate) proc_root: Option<PathBuf>,
 }
 
 impl Global for Ports {}
@@ -166,11 +169,15 @@ fn scan_while_watched(cx: &App) -> Task<()> {
     cx.spawn(async move |cx| {
         loop {
             let folders = cx.update(|cx| project_folders(cx));
+            let proc_root = cx.update(|cx| {
+                cx.try_global::<Ports>()
+                    .and_then(|ports| ports.proc_root.clone())
+                    .unwrap_or_else(|| PathBuf::from(PROC))
+            });
             let started = Instant::now();
             let (listened, proxied) = cx
                 .background_spawn(futures::future::lazy(move |_| {
-                    let proc_root = Path::new(PROC);
-                    (listeners_in(proc_root), proxied_ports_in(proc_root))
+                    (listeners_in(&proc_root), proxied_ports_in(&proc_root))
                 }))
                 .await;
             let took = started.elapsed();

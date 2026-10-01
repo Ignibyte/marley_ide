@@ -306,7 +306,8 @@ mod tests {
             &[],
             r#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#,
         );
-        assert_eq!(r["result"]["tools"].as_array().expect("array").len(), 2);
+        // The served set grew past two with the terminal, browser and ports tools (#491 on).
+        assert_eq!(r["result"], crate::registry::tools_list());
     }
 
     #[test]

@@ -16,7 +16,7 @@ use std::ffi::OsString;
 use std::ops::Range;
 use std::sync::Arc;
 
-use gpui::{App, Context, Entity, Global, SharedString, Task, Window};
+use gpui::{App, AppContext as _, Context, Entity, Global, SharedString, Task, Window};
 use marley_agent::AgentKind;
 use marley_terminal::BlockState;
 use marley_terminal::english::{self, BUILTINS, Reading};
@@ -67,8 +67,12 @@ fn read_commands(cx: &mut App) {
     }
     let scanned = path.clone();
     let reading = cx.spawn(async move |cx| {
-        // A blocking walk of every directory on the path, on the blocking pool.
-        let names = smol::unblock(move || programs_on(scanned.as_deref())).await;
+        // A blocking walk of every directory on the path, off the main thread.
+        let names = cx
+            .background_spawn(futures::future::lazy(move |_| {
+                programs_on(scanned.as_deref())
+            }))
+            .await;
         cx.update(|cx| {
             let commands = cx.global_mut::<Commands>();
             commands.names = Some(Arc::new(names));

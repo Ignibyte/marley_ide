@@ -171,7 +171,7 @@ async fn projects_with_the_same_name_are_told_apart_by_their_parents(cx: &mut Te
 }
 
 #[gpui::test]
-async fn a_group_with_no_open_workspace_is_not_listed(cx: &mut TestAppContext) {
+async fn a_group_with_no_open_workspace_is_listed_closed(cx: &mut TestAppContext) {
     let (multi_workspace, _, _, rail, cx) = open_rail(cx).await;
     multi_workspace.update(cx, |multi_workspace, cx| {
         multi_workspace.test_add_project_group(ProjectGroup {
@@ -182,7 +182,8 @@ async fn a_group_with_no_open_workspace_is_not_listed(cx: &mut TestAppContext) {
         cx.notify();
     });
     cx.run_until_parked();
-    assert_eq!(names(&rail, cx), ["beta", "alpha"]);
+    // Every project group of the window is a header, a closed one too (#606).
+    assert_eq!(names(&rail, cx), ["beta", "alpha", "gamma"]);
 }
 
 #[gpui::test]
@@ -236,10 +237,12 @@ fn remove_folder(workspace: &Entity<Workspace>, root: &str, cx: &mut VisualTestC
 }
 
 #[gpui::test]
-async fn a_project_that_loses_its_last_folder_leaves_the_rail(cx: &mut TestAppContext) {
+async fn a_project_that_loses_its_last_folder_stays_closed(cx: &mut TestAppContext) {
     let (_, _, beta, rail, cx) = open_rail(cx).await;
     remove_folder(&beta, path!("/beta"), cx);
-    assert_eq!(names(&rail, cx), ["alpha"]);
+    // Zed keeps the group of a workspace whose last folder goes, and the rail lists it as a
+    // closed project (#606).
+    assert_eq!(names(&rail, cx), ["beta", "alpha"]);
 }
 
 #[gpui::test]
@@ -744,10 +747,10 @@ async fn enter_shows_the_highlighted_project(cx: &mut TestAppContext) {
 #[gpui::test]
 async fn enter_with_no_row_highlighted_does_nothing(cx: &mut TestAppContext) {
     let (multi_workspace, _, beta, rail, cx) = open_rail(cx).await;
-    // With its last folder gone, the displayed workspace leaves its project's row, so no row is
-    // the window's.
+    // With its last folder gone, the displayed workspace leaves its project, which stays as a
+    // closed header (#606), so no row is the window's.
     remove_folder(&beta, path!("/beta"), cx);
-    assert_eq!(names(&rail, cx), ["alpha"]);
+    assert_eq!(names(&rail, cx), ["beta", "alpha"]);
     focus_rail(&rail, cx);
     assert_eq!(selected(&rail, cx), Selection::None);
     dispatch(Confirm, cx);
@@ -1752,13 +1755,16 @@ mod threads {
     /// submenu's trigger carries no selector to click.
     fn open_agent_submenu(project: usize, cx: &mut VisualTestContext) {
         click(format!("marley-rail-project-menu-{project}").leak(), cx);
-        // The submenu's trigger, the row under New Terminal, carries no selector of its own, and a
-        // popover's menu takes focus only on a platform frame a test never delivers, so the
-        // pointer opens it.
-        let new_terminal = cx
-            .debug_bounds("MENU_ITEM-New Terminal")
+        // The submenu's trigger, the row under New Browser Tab (#500), carries no selector of its
+        // own, and a popover's menu takes focus only on a platform frame a test never delivers,
+        // so the pointer opens it.
+        let new_browser_tab = cx
+            .debug_bounds("MENU_ITEM-New Browser Tab")
             .expect("the project's menu is open");
-        let trigger = gpui::point(new_terminal.center().x, new_terminal.bottom() + px(12.));
+        let trigger = gpui::point(
+            new_browser_tab.center().x,
+            new_browser_tab.bottom() + px(12.),
+        );
         cx.simulate_mouse_move(trigger, None, Modifiers::none());
         cx.simulate_click(trigger, Modifiers::none());
         // The submenu anchors to its trigger's bounds from the frame before it draws.

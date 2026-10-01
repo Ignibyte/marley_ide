@@ -373,9 +373,15 @@ async fn attach_file_types_the_chosen_paths_as_a_drop_does(cx: &mut TestAppConte
         Some(vec![spaced.clone(), plain.clone()])
     });
     redraw(cx);
-    // Each path whole, quoted when it needs to be, with a space either side, in one write.
-    let expected = format!(" '{}' {} ", spaced.display(), plain.display());
-    assert_eq!(written(&terminal, cx), [expected.into_bytes()]);
+    // Each path whole, quoted when it needs to be, with a space after it, one write each: an
+    // agent CLI in the foreground takes paths as #536 types them.
+    assert_eq!(
+        written(&terminal, cx),
+        [
+            format!("'{}' ", spaced.display()).into_bytes(),
+            format!("{} ", plain.display()).into_bytes(),
+        ]
+    );
 }
 
 #[gpui::test]
@@ -398,9 +404,10 @@ async fn the_action_attaches_to_the_focused_terminal_only(cx: &mut TestAppContex
     let chosen = folder.join("README.md");
     cx.simulate_path_prompt_response(|_| Some(vec![chosen.clone()]));
     redraw(cx);
+    // The path and a space after it, as #536 types a path for an agent CLI.
     assert_eq!(
         written(&terminal, cx),
-        [format!(" {} ", chosen.display()).into_bytes()]
+        [format!("{} ", chosen.display()).into_bytes()]
     );
 
     // An empty pane beside the terminal takes the focus, and the action asks for nothing.

@@ -3112,3 +3112,37 @@ installed Marley's rewrote the scripts the user's terminals load. Measured with
 `XDG_DATA_HOME` on an empty folder: a run without the fix wrote `marley/shell_integration` and
 `marley/prompts/prompts-library-db.0.mdb` there. Fixed: a `ctor` in each of the three test
 binaries sets the data directory to `marley-test-data` in the build folder before any test.
+
+## F-claude-634-a-terminal-read-as-unfocused-while-its-prompt-editor-had-the-keys-001
+*severity: medium · found in: pipeline 634's Code phase (the routing tests) · class: focus containment across a sibling element*
+
+Since #627 the shell's prompt editor holds the keys at every prompt, drawn in the terminal view's
+footer (#477). `view.focus_handle(cx).contains_focused(..)` was false all that time: Zed's
+`TerminalElement` tracks the view's focus handle on the grid's own node, gpui maps a handle to the
+last node that tracked it, and the footer is the grid's sibling. So ctrl-` from a terminal at its
+prompt refocused it instead of going back to the code, the block keys found no focused terminal,
+the rail did not select the row, and `notifications::looking_at` let banners, phone pushes and
+notes out for the terminal being typed in. `rich_input.rs` had patched its own check
+(`|| editor_focused`) without fixing the rest. Seen in a scenario on the build before the fix.
+Fixed: `rich_input::holds_focus`, used by every such check.
+
+## F-claude-634-real-io-in-the-workbench-failed-103-tests-001
+*severity: medium · found in: pipeline 634's first run · class: work a test scheduler cannot drive*
+
+Tickets after #483, when no test ran, gave the workbench real IO on paths its tests reach: an open
+rail's ports scan read `/proc` and asked `docker` and `systemctl` (#521, #614, #615); the project
+icon search (#564), the search path's commands (#557) and the notification setup (#552) used
+`smol::unblock`; an agent's terminal bound ssh's passphrase socket first (#596). gpui's test
+scheduler fails a test whose task a foreign thread wakes, so 103 tests failed although their
+assertions passed, and two never saw their terminal open. Fixed: gpui's background executor for
+the blocking reads, and `Ports::proc_root` and `Launcher::passphrase_dialog` set by the shared
+test setups. The run went from 50 s to 11 s.
+
+## F-claude-634-zeds-tests-started-the-context-servers-marley-offers-001
+*severity: low · found in: pipeline 634's Tier 2 · class: a fork's defaults reaching upstream's tests*
+
+The `zed` crate's tests run `initialize_workspace`, which runs Marley's init, which offers Zed's
+agents Marley's bridge (#501) and `rusty-mcp` (#633) as default context servers; Zed's store
+starts every configured server per project, so 11 of Zed's own tests started real processes and
+failed as non-deterministic. The same binary wrote the user's data folder (#475's ctor had not
+covered it). Fixed in the tests' Marley hunk: both offers off, and #475's ctor.

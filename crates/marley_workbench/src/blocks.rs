@@ -416,7 +416,7 @@ pub(crate) fn focused_terminal(
         .iter()
         .chain(&panel_panes)
         .filter_map(|pane| pane.read(cx).active_item()?.downcast::<TerminalView>())
-        .find(|view| view.focus_handle(cx).contains_focused(window, cx))
+        .find(|view| crate::rich_input::holds_focus(view.read(cx), window, cx))
 }
 
 #[cfg(test)]

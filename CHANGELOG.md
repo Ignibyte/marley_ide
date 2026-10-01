@@ -390,6 +390,20 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A terminal counts as focused while its prompt editor has the keys** (#634, 2026-10-01). Since
+  the prompt editor opens at every prompt (#627), a terminal at its prompt read as unfocused:
+  ctrl-` from it refocused the terminal instead of going back to the code, the block keys found no
+  terminal, the rail did not select its row, and a terminal's notification, phone push or note
+  went out while you were typing in it. Each now asks whether the terminal or its editor has the
+  keys.
+
+- **The test suites run green** (#634, 2026-10-01). No test had run since 2026-09-23. The Marley
+  crates' tests and Marley's tests in Zed's crates (724) and the suites of the 18 other Zed crates
+  Marley changed (3,499) pass: tests updated to what tickets changed on purpose, each naming its
+  ticket; the workbench's blocking reads moved onto gpui's executor; the tests kept off the
+  machine's ports, ssh's passphrase socket and the context servers Marley offers Zed's agents;
+  and the `zed` tests given a scratch data folder.
+
 - **The tests no longer write your Marley data folder** (#475, 2026-10-01). The tests of
   `terminal`, `terminal_view` and `marley_workbench` start real shells, and starting one installs
   Marley's shell scripts in the data folder: until now `~/.local/share/marley`, so a test run

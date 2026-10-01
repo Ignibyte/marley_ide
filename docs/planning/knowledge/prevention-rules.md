@@ -2700,3 +2700,20 @@ module, with a `// SAFETY:` line above it (gate:13) and `ctor` among the dev-dep
 call in a test's setup: the directory is a `OnceLock` that panics when set after its first read,
 and under cargo test's threads another test can read it first. To see what a run writes, set
 `XDG_DATA_HOME` to an empty folder and list it afterwards.
+
+## PR-claude-ask-holds-focus-whether-a-terminal-view-has-the-keys-001
+*severity: medium · prevents: F-claude-634-a-terminal-read-as-unfocused-while-its-prompt-editor-had-the-keys-001*
+
+Never ask `terminal_view.focus_handle(cx).contains_focused(window, cx)` whether a terminal has the
+keys: it is false while the prompt editor in its footer has them, the default at every prompt. Ask
+`rich_input::holds_focus(view.read(cx), window, cx)`. The same trap waits for anything else drawn
+in the footer or the overlay that takes focus.
+
+## PR-claude-workbench-io-goes-through-gpui-or-a-seam-001
+*severity: medium · prevents: F-claude-634-real-io-in-the-workbench-failed-103-tests-001*
+
+In the workbench, blocking work runs as `cx.background_spawn(futures::future::lazy(..))`, never
+`smol::unblock`; and a process, a socket or a read of the machine (`/proc`, the PATH, a user's
+config) that a shared test setup reaches gets a seam the setup sets (`Ports::proc_root`,
+`Launcher`). Otherwise gpui's test scheduler fails every test that opens the surface, after its
+assertions passed.

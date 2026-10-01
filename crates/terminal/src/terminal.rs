@@ -5018,7 +5018,8 @@ mod tests {
         cx.new(|cx| builder.subscribe(cx))
     }
 
-    // Marley: waits for the first finished block (#464).
+    // Marley: waits for the first finished block the shell's frames made (#464), after the
+    // task's own (#621).
     #[cfg(unix)]
     async fn finished_block(
         terminal: &Entity<Terminal>,
@@ -5029,6 +5030,7 @@ mod tests {
                 terminal
                     .blocks()
                     .iter()
+                    .skip(1)
                     .find(|block| block.state == marley_terminal::BlockState::Finished)
                     .cloned()
             });

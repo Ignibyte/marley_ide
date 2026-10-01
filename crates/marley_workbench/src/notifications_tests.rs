@@ -72,17 +72,13 @@ async fn a_notification_from_a_terminal_out_of_focus_goes_to_the_desktop(cx: &mu
     assert!(!terminal_is_focused(&view, cx));
 
     send_a_line_and_wait(&terminal, &view, cx).await;
+    // The OSC 9 behind the first falls in the project's five seconds without a second banner
+    // (#538).
     let shown = cx.shown_system_notifications();
-    assert_eq!(shown.len(), 2, "{shown:?}");
+    assert_eq!(shown.len(), 1, "{shown:?}");
     assert_eq!(
         (shown[0].title.as_ref(), shown[0].body.as_ref()),
         ("Build", "done")
-    );
-    // OSC 9 gives no title, so the terminal's tab names it.
-    let tab = view.read_with(cx, |view, cx| view.tab_content_text(0, cx));
-    assert_eq!(
-        (&shown[1].title, shown[1].body.as_ref()),
-        (&tab, "tests passed")
     );
 }
 
@@ -101,10 +97,11 @@ async fn the_focused_terminal_of_the_active_window_goes_to_no_desktop(cx: &mut T
     send_a_line_and_wait(&terminal, &view, cx).await;
     assert_eq!(cx.shown_system_notifications(), []);
 
-    // The same terminal, focused in a window that is not active, is out of sight.
+    // The same terminal, focused in a window that is not active, is out of sight: its first
+    // notification shows, and the second falls in the project's cooldown (#538).
     cx.deactivate_window();
     send_a_line_and_wait(&terminal, &view, cx).await;
-    assert_eq!(cx.shown_system_notifications().len(), 2);
+    assert_eq!(cx.shown_system_notifications().len(), 1);
 }
 
 #[gpui::test]

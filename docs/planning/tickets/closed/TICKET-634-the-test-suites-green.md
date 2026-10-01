@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #634 (chore, wave 5: the test pass)
 - **Owner:** claude-opus-5-5, 2026-10-01
-- **Pipeline doc:** ../../pipeline/queued/634-the-test-suites-green.spec.md
+- **Pipeline doc:** ../../pipeline/completed/634-the-test-suites-green.spec.md
 - **Source ticket:** wave 5 of `design-notes/remaining-work-2026-09-30.md`; the workflow's "unit tests at the end" (2026-09-29)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 No gate has run the tests in the tree since 2026-09-23 (#483); every ticket since was proven by a

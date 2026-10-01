@@ -113,16 +113,25 @@ fn redraw(cx: &mut VisualTestContext) {
     cx.run_until_parked();
 }
 
-/// The absolute line at the viewport's top.
-fn top(terminal: &Entity<Terminal>, cx: &VisualTestContext) -> u64 {
-    terminal.read_with(cx, |terminal, _| {
-        let content = terminal.last_content();
-        content.marley_screen_top - content.display_offset as u64
-    })
-}
-
 fn display_offset(terminal: &Entity<Terminal>, cx: &VisualTestContext) -> usize {
     terminal.read_with(cx, |terminal, _| terminal.last_content().display_offset)
+}
+
+/// The index of `terminal`'s selected block (#554).
+fn selected(terminal: &Entity<Terminal>, cx: &VisualTestContext) -> Option<usize> {
+    cx.read(|cx| MarleyBlockSelection::selected(terminal, cx))
+}
+
+/// Whether the first line of `terminal`'s block at `index` is on the screen.
+fn shows_block(terminal: &Entity<Terminal>, index: usize, cx: &VisualTestContext) -> bool {
+    terminal.read_with(cx, |terminal, _| {
+        let content = terminal.last_content();
+        let top = content.marley_screen_top - content.display_offset as u64;
+        terminal.blocks().get(index).is_some_and(|block| {
+            let start = block.prompt_line.unwrap_or(block.output_start);
+            (top..top + content.screen_lines as u64).contains(&start)
+        })
+    })
 }
 
 #[gpui::test]
@@ -134,27 +143,38 @@ async fn the_block_keys_walk_the_focused_terminals_blocks(cx: &mut TestAppContex
         crate::load_keymap(cx);
     });
     let (_, workspaces, cx) = open_projects(&[path!("/alpha")], cx).await;
-    let (terminal, starts) = terminal_with_blocks(&workspaces[0], cx).await;
+    let (terminal, _) = terminal_with_blocks(&workspaces[0], cx).await;
     assert_eq!(display_offset(&terminal, cx), 0);
+    let last = terminal.read_with(cx, |terminal, _| terminal.blocks().len()) - 1;
 
-    // The Marley keymap's key, in the terminal: two presses before a frame count as two.
+    // The Marley keymap's key, in the terminal: each press selects the block before, scrolled
+    // into view when it is not (#554), and two presses before a frame count as two.
     cx.simulate_keystrokes("secondary-up secondary-up");
     redraw(cx);
-    assert_eq!(top(&terminal, cx), starts[1]);
-    // On to the first finished block; from it, nothing further back.
-    for expected in [starts[0], starts[0]] {
+    assert_eq!(selected(&terminal, cx), Some(last - 1));
+    assert!(shows_block(&terminal, last - 1, cx));
+    // On to the first block; from it, nothing further back.
+    for expected in (0..last - 1).rev().chain([0]) {
         cx.simulate_keystrokes("secondary-up");
         redraw(cx);
-        assert_eq!(top(&terminal, cx), expected);
+        assert_eq!(selected(&terminal, cx), Some(expected));
+        assert!(shows_block(&terminal, expected, cx), "block {expected}");
     }
-    // And the actions forward; the running block starts on the live screen, which ends it.
-    for expected in [starts[1], starts[2]] {
+    // And the actions forward; past the last block the selection ends.
+    for expected in 1..=last {
         cx.dispatch_action(NextBlock);
         redraw(cx);
-        assert_eq!(top(&terminal, cx), expected);
+        assert_eq!(selected(&terminal, cx), Some(expected));
+        assert!(shows_block(&terminal, expected, cx), "block {expected}");
     }
-    cx.simulate_keystrokes("secondary-down");
+    cx.dispatch_action(NextBlock);
     redraw(cx);
+    assert_eq!(selected(&terminal, cx), None);
+    // With nothing selected, the key forward scrolls block by block to the live screen.
+    for _ in 0..=last {
+        cx.simulate_keystrokes("secondary-down");
+        redraw(cx);
+    }
     assert_eq!(display_offset(&terminal, cx), 0);
 }
 
@@ -200,8 +220,10 @@ async fn the_block_keys_work_in_the_terminal_panel(cx: &mut TestAppContext) {
     workspace.update_in(cx, |workspace, window, cx| {
         workspace.focus_panel::<TerminalPanel>(window, cx);
     });
-    let starts = wait_for_blocks(&terminal, cx).await;
+    wait_for_blocks(&terminal, cx).await;
+    let last = terminal.read_with(cx, |terminal, _| terminal.blocks().len()) - 1;
+    // The key selects the last block (#554), which already shows.
     cx.simulate_keystrokes("secondary-up");
     redraw(cx);
-    assert_eq!(top(&terminal, cx), starts[2]);
+    assert_eq!(selected(&terminal, cx), Some(last));
 }

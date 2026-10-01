@@ -119,6 +119,12 @@ fn focused<V: Focusable>(view: &Entity<V>, cx: &mut VisualTestContext) -> bool {
     cx.update(|window, cx| view.focus_handle(cx).contains_focused(window, cx))
 }
 
+/// Whether the terminal of `view` holds the keys: a terminal at a prompt hands them to the
+/// shell's prompt editor in its footer (#627), which its focus handle does not count (#634).
+fn terminal_focused(view: &Entity<TerminalView>, cx: &mut VisualTestContext) -> bool {
+    cx.update(|window, cx| crate::rich_input::holds_focus(view.read(cx), window, cx))
+}
+
 fn center_views(
     workspace: &Entity<Workspace>,
     cx: &VisualTestContext,
@@ -302,7 +308,7 @@ async fn toggle_in_the_marley_layout_opens_a_center_terminal_when_there_is_none(
     dispatch(Toggle, cx);
     let views = center_views(&workspace, cx);
     assert_eq!(views.len(), 1);
-    assert!(focused(&views[0], cx));
+    assert!(terminal_focused(&views[0], cx));
     assert!(!focused(&item, cx));
     assert_eq!(panel_terminals(&panel, cx), 0);
     assert!(!bottom_dock_open(&workspace, cx));
@@ -317,11 +323,11 @@ async fn toggle_and_toggle_focus_switch_between_the_code_and_its_terminal(cx: &m
     dispatch(Toggle, cx);
     assert!(focused(&item, cx));
     dispatch(Toggle, cx);
-    assert!(focused(&terminal, cx));
+    assert!(terminal_focused(&terminal, cx));
     dispatch(ToggleFocus, cx);
     assert!(focused(&item, cx));
     dispatch(ToggleFocus, cx);
-    assert!(focused(&terminal, cx));
+    assert!(terminal_focused(&terminal, cx));
     assert_eq!(
         center_views(&workspace, cx).len(),
         1,
@@ -340,7 +346,10 @@ async fn toggle_goes_back_to_the_terminal_used_last(cx: &mut TestAppContext) {
     dispatch(NewTerminal::default(), cx);
     let views = center_views(&workspace, cx);
     assert_eq!(views.len(), 2);
-    assert!(!focused(&first, cx), "the second terminal has focus");
+    assert!(
+        !terminal_focused(&first, cx),
+        "the second terminal has focus"
+    );
 
     workspace.update_in(cx, |workspace, window, cx| {
         workspace.activate_item(&first, true, true, window, cx);
@@ -348,7 +357,7 @@ async fn toggle_goes_back_to_the_terminal_used_last(cx: &mut TestAppContext) {
     dispatch(Toggle, cx);
     assert!(focused(&item, cx));
     dispatch(Toggle, cx);
-    assert!(focused(&first, cx));
+    assert!(terminal_focused(&first, cx));
 }
 
 #[gpui::test]
@@ -357,10 +366,10 @@ async fn toggle_from_a_terminal_with_nothing_else_open_changes_nothing(cx: &mut 
     dispatch_from_center(&workspace, Toggle, cx);
     let views = center_views(&workspace, cx);
     assert_eq!(views.len(), 1);
-    assert!(focused(&views[0], cx));
+    assert!(terminal_focused(&views[0], cx));
     dispatch(Toggle, cx);
     assert_eq!(center_views(&workspace, cx), views);
-    assert!(focused(&views[0], cx));
+    assert!(terminal_focused(&views[0], cx));
 }
 
 #[gpui::test]
@@ -372,7 +381,7 @@ async fn the_bottom_dock_toggle_in_the_marley_layout_toggles_center_terminals(
     dispatch(ToggleBottomDock, cx);
     let views = center_views(&workspace, cx);
     assert_eq!(views.len(), 1);
-    assert!(focused(&views[0], cx));
+    assert!(terminal_focused(&views[0], cx));
     assert!(!bottom_dock_open(&workspace, cx));
     dispatch(ToggleBottomDock, cx);
     assert!(focused(&item, cx));
@@ -426,7 +435,7 @@ async fn zeds_default_keys_reach_the_center_terminals(cx: &mut TestAppContext) {
     press("ctrl-`", cx);
     let views = center_views(&workspace, cx);
     assert_eq!(views.len(), 1);
-    assert!(focused(&views[0], cx));
+    assert!(terminal_focused(&views[0], cx));
     press("ctrl-`", cx);
     assert!(focused(&item, cx));
     press("ctrl-~", cx);
@@ -554,8 +563,7 @@ async fn a_folder_opened_fresh_starts_with_a_terminal_at_its_root(cx: &TestAppCo
             workspace.items_of_type::<TerminalView>(cx).next()
         })
         .expect("a terminal view");
-    let focused = cx.update(|window, cx| view.focus_handle(cx).contains_focused(window, cx));
-    assert!(focused, "the terminal takes focus");
+    assert!(terminal_focused(&view, cx), "the terminal takes focus");
 }
 
 #[gpui::test]

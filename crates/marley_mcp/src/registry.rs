@@ -1637,6 +1637,8 @@ mod tests {
     #[test]
     fn registry_is_exactly_the_l1_set_with_correct_tiers() {
         let names: Vec<String> = registry().iter().map(ToolSpec::name).collect();
+        // The set grew past L1's five: the terminal tools (#491, #525, #556), the browser tools
+        // (#492 to #586), the finds (#567) and `ports_list` (#521).
         assert_eq!(
             names,
             [
@@ -1644,10 +1646,36 @@ mod tests {
                 "session_surface_to_human",
                 "terminal_list",
                 "terminal_blocks",
-                "terminal_read"
+                "terminal_read",
+                "terminal_find",
+                "terminal_screen",
+                "terminal_type",
+                "terminal_run",
+                "browser_tabs",
+                "browser_look",
+                "browser_snapshot",
+                "browser_find",
+                "browser_console",
+                "browser_network",
+                "browser_picks",
+                "browser_pick",
+                "browser_recordings",
+                "browser_recording",
+                "browser_draft_test",
+                "browser_annotations",
+                "browser_annotate",
+                "browser_check_pick",
+                "browser_navigate",
+                "browser_open_url",
+                "browser_back",
+                "browser_click",
+                "browser_type",
+                "browser_press",
+                "browser_scroll",
+                "ports_list"
             ]
         );
-        assert_eq!(registry().len(), 5);
+        assert_eq!(registry().len(), 31);
         assert_eq!(
             lookup("fleet_snapshot").expect("read tool").tier,
             Tier::Read
@@ -1664,10 +1692,12 @@ mod tests {
         let tools = list["tools"].as_array().expect("tools array");
         // REQ-001 / F2: the wire list is EXACTLY the served registry names, in order (no drift).
         let listed: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
+        // A conditional tool is listed only while it is enabled, and none is here (#567).
         let registered: Vec<String> = registry()
             .iter()
             .filter(|spec| spec.family.is_served())
             .map(ToolSpec::name)
+            .filter(|name| !CONDITIONAL_TOOLS.contains(&name.as_str()))
             .collect();
         assert_eq!(listed, registered);
         // REQ-001: each advertises an inputSchema AND an outputSchema.
@@ -1675,11 +1705,11 @@ mod tests {
             assert!(tool["inputSchema"].is_object());
             assert!(tool["outputSchema"].is_object());
         }
-        // the blocks tool's input requires a `terminal`.
+        // the blocks tool's input takes a `terminal`, the calling terminal when left out (#520).
         let blocks = tools
             .iter()
             .find(|t| t["name"] == "terminal_blocks")
             .expect("blocks tool");
-        assert_eq!(blocks["inputSchema"]["required"][0], "terminal");
+        assert!(blocks["inputSchema"]["properties"]["terminal"].is_object());
     }
 }

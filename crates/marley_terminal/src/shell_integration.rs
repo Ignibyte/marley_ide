@@ -327,7 +327,14 @@ mod tests {
                 "--rcfile".to_string(),
                 "/data/marley/shell_integration/marley.bash".to_string(),
             ],
-            env: pairs(&[("MARLEY_SHELL_INTEGRATION", "1")]),
+            // Marley's `ssh` command rides along since #526.
+            env: pairs(&[
+                ("MARLEY_SHELL_INTEGRATION", "1"),
+                (
+                    "MARLEY_SSH_COMMAND",
+                    "/data/marley/shell_integration/ssh-remote-command",
+                ),
+            ]),
         });
         assert_eq!(for_program("bash", dir, None, None), bash);
         assert_eq!(
@@ -342,9 +349,14 @@ mod tests {
     #[test]
     fn zsh_starts_with_marleys_zdotdir_and_carries_the_users_own() {
         let dir = Path::new("/data/marley/shell_integration");
+        // Marley's `ssh` command rides along since #526.
         let marleys = [
             ("ZDOTDIR", "/data/marley/shell_integration/zsh"),
             ("MARLEY_SHELL_INTEGRATION", "1"),
+            (
+                "MARLEY_SSH_COMMAND",
+                "/data/marley/shell_integration/ssh-remote-command",
+            ),
         ];
         let zsh = Some(ShellIntegration {
             args: Vec::new(),

@@ -114,7 +114,20 @@ pub(crate) fn init_test(cx: &TestAppContext) {
         theme_settings::init(theme::LoadThemes::JustBase, cx);
         editor::init(cx);
         terminal_view::init(cx);
+        keep_machine_io_out(cx);
     });
+}
+
+/// Keeps the machine's IO out of a test, which the test scheduler cannot drive (#634): an open
+/// rail's ports scan reads a folder with no sockets and asks no container engine, and an agent's
+/// terminal opens without ssh's passphrase socket.
+fn keep_machine_io_out(cx: &mut App) {
+    cx.default_global::<ports::Ports>().proc_root = Some(paths::data_dir().join("no-proc"));
+    let launcher = agents::Launcher {
+        passphrase_dialog: agents::PassphraseDialog::Skipped,
+        ..agents::launcher(cx)
+    };
+    cx.set_global(launcher);
 }
 
 /// The globals the thread tests need: Zed's agent test setup, which installs its own settings
@@ -141,6 +154,7 @@ pub(crate) fn init_agent_test(cx: &mut TestAppContext) {
         language_model::LanguageModelRegistry::test(cx);
         prompt_store::init(cx);
         terminal_view::init(cx);
+        keep_machine_io_out(cx);
     });
 }
 

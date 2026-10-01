@@ -11,8 +11,8 @@ use std::path::PathBuf;
 use std::process::ExitStatus;
 
 use gpui::{
-    App, AsyncWindowContext, Context, Entity, EntityId, Focusable as _, InteractiveElement as _,
-    Task, WeakEntity, Window,
+    App, AsyncWindowContext, Context, Entity, EntityId, InteractiveElement as _, Task, WeakEntity,
+    Window,
 };
 use task::{RevealTarget, SpawnInTerminal, VariableName};
 use terminal::Terminal;
@@ -283,7 +283,7 @@ fn bottom_dock_would_show_terminal_panel(workspace: &Workspace, cx: &App) -> boo
 fn toggle_terminal(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
     let in_terminal = workspace
         .active_item_as::<TerminalView>(cx)
-        .is_some_and(|view| view.focus_handle(cx).contains_focused(window, cx));
+        .is_some_and(|view| crate::rich_input::holds_focus(view.read(cx), window, cx));
     if in_terminal {
         if let Some(item) = last_item_besides_terminals(workspace, cx) {
             workspace.activate_item(item.as_ref(), true, true, window, cx);

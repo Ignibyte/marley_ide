@@ -148,14 +148,15 @@ fn read(cx: &mut App) {
     }
     notify.reading = true;
     cx.spawn(async move |cx| {
-        let (codex, opencode) = smol::unblock(|| {
-            // A missing or unreadable config asks for nothing.
-            let codex =
-                std::fs::read_to_string(codex_config()).is_ok_and(|text| codex_configured(&text));
-            let plugin = std::fs::read_to_string(opencode_plugin()).ok();
-            (codex, plugin_state(plugin.as_deref()))
-        })
-        .await;
+        let (codex, opencode) = cx
+            .background_spawn(futures::future::lazy(|_| {
+                // A missing or unreadable config asks for nothing.
+                let codex = std::fs::read_to_string(codex_config())
+                    .is_ok_and(|text| codex_configured(&text));
+                let plugin = std::fs::read_to_string(opencode_plugin()).ok();
+                (codex, plugin_state(plugin.as_deref()))
+            }))
+            .await;
         cx.update(|cx| {
             let notify = cx.global_mut::<AgentNotify>();
             let changed = notify.codex != Some(codex) || notify.opencode != Some(opencode);
@@ -248,11 +249,12 @@ fn set_up(kind: AgentKind, workspace: WeakEntity<Workspace>, cx: &mut App) {
     cx.global_mut::<AgentNotify>().writing = Some(kind);
     cx.refresh_windows();
     cx.spawn(async move |cx| {
-        let result = smol::unblock(move || match kind {
-            AgentKind::Codex => write_codex(),
-            _ => write_plugin(),
-        })
-        .await;
+        let result = cx
+            .background_spawn(futures::future::lazy(move |_| match kind {
+                AgentKind::Codex => write_codex(),
+                _ => write_plugin(),
+            }))
+            .await;
         cx.update(|cx| {
             cx.global_mut::<AgentNotify>().writing = None;
             read(cx);

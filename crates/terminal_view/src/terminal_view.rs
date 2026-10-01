@@ -3924,10 +3924,12 @@ mod tests {
     }
 
     // Marley: the frames of a command that succeeds and of one that fails, one row apart (#470).
-    // Each command's frame carries `$nonce`, which a script sets to the terminal's own to have
-    // the commands verified (#474).
+    // Each command's and each prompt's frame carries `$nonce`, which a script sets to the
+    // terminal's own to have the commands verified (#474) and the prompt known as the local
+    // shell's, where a Rerun is offered (#526). The script runs as a task, whose own block comes
+    // first and ends at the first prompt (#621), so the two commands are blocks 1 and 2.
     #[cfg(unix)]
-    const MARLEY_TWO_BLOCKS: &str = r#"printf '\033Ppinit;id=1\033\\\033Ppprecmd;exit=0\033\\$ true\r\n\033Pppreexec;command=true;nonce=%s\033\\\033Ppprecmd;exit=0\033\\$ false\r\n\033Pppreexec;command=false;nonce=%s\033\\oops\r\n\033Ppprecmd;exit=1\033\\$ ' "$nonce" "$nonce""#;
+    const MARLEY_TWO_BLOCKS: &str = r#"printf '\033Ppinit;id=1\033\\\033Ppprecmd;exit=0;nonce=%s\033\\$ true\r\n\033Pppreexec;command=true;nonce=%s\033\\\033Ppprecmd;exit=0;nonce=%s\033\\$ false\r\n\033Pppreexec;command=false;nonce=%s\033\\oops\r\n\033Ppprecmd;exit=1;nonce=%s\033\\$ ' "$nonce" "$nonce" "$nonce" "$nonce" "$nonce""#;
 
     // Marley: draws frames until the terminal holds `count` finished blocks (#470).
     #[cfg(unix)]
@@ -3966,7 +3968,7 @@ mod tests {
         // scrollback, and their rows depend on it.
         let script = format!("seq 1 200; {MARLEY_TWO_BLOCKS}");
         let (terminal, cx) = marley_hook_terminal(&script, cx).await;
-        marley_draw_until_finished(&terminal, 2, cx).await;
+        marley_draw_until_finished(&terminal, 3, cx).await;
         cx.update(|window, _| window.refresh());
         let history = terminal.read_with(cx, |terminal, _| {
             let content = terminal.last_content();
@@ -3974,10 +3976,10 @@ mod tests {
         });
         assert!(history > 0, "the output scrolled");
         let first = cx
-            .debug_bounds("marley-block-pill-0")
+            .debug_bounds("marley-block-pill-1")
             .expect("the passing block's pill");
         let second = cx
-            .debug_bounds("marley-block-pill-1")
+            .debug_bounds("marley-block-pill-2")
             .expect("the failing block's pill");
         let grid = terminal.read_with(cx, |terminal, _| terminal.last_content().terminal_bounds);
         // Each is centered in its block's first row, and the blocks start one row apart; the
@@ -4001,7 +4003,7 @@ mod tests {
         cx.executor().allow_parking();
         let script = format!(r"{MARLEY_TWO_BLOCKS}; printf '\033[?1049h'");
         let (terminal, cx) = marley_hook_terminal(&script, cx).await;
-        marley_draw_until_finished(&terminal, 2, cx).await;
+        marley_draw_until_finished(&terminal, 3, cx).await;
         for _ in 0..300 {
             let alternate = terminal.read_with(cx, |terminal, _| {
                 terminal
@@ -4019,8 +4021,8 @@ mod tests {
             cx.run_until_parked();
         }
         cx.update(|window, _| window.refresh());
-        assert!(cx.debug_bounds("marley-block-pill-0").is_none());
         assert!(cx.debug_bounds("marley-block-pill-1").is_none());
+        assert!(cx.debug_bounds("marley-block-pill-2").is_none());
     }
 
     // Marley: points at `selector`'s middle, draws a frame, and returns its bounds then (#474).
@@ -4048,7 +4050,7 @@ mod tests {
         let script =
             format!(r"nonce=$MARLEY_SHELL_NONCE; {MARLEY_TWO_BLOCKS}; printf '\033[?1000h'");
         let (terminal, cx) = marley_hook_terminal(&script, cx).await;
-        marley_draw_until_finished(&terminal, 2, cx).await;
+        marley_draw_until_finished(&terminal, 3, cx).await;
         let mut reporting = false;
         for _ in 0..300 {
             reporting = terminal.read_with(cx, |terminal, _| {
@@ -4069,15 +4071,15 @@ mod tests {
         assert!(reporting, "the program turned mouse reporting on");
 
         // Over the passing block, its buttons show and the failed block's do not.
-        marley_point_at("marley-block-pill-0", cx);
-        assert!(cx.debug_bounds("marley-block-copy-0").is_some());
-        assert!(cx.debug_bounds("marley-block-copy-1").is_none());
+        marley_point_at("marley-block-pill-1", cx);
+        assert!(cx.debug_bounds("marley-block-copy-1").is_some());
+        assert!(cx.debug_bounds("marley-block-copy-2").is_none());
 
         // A press on the failed block's output, released over Copy: the program gets both, and
         // nothing is copied.
-        let pill = marley_point_at("marley-block-pill-1", cx);
+        let pill = marley_point_at("marley-block-pill-2", cx);
         let copy = cx
-            .debug_bounds("marley-block-copy-1")
+            .debug_bounds("marley-block-copy-2")
             .expect("Copy on the failed block");
         let grid = terminal.read_with(cx, |terminal, _| terminal.last_content().terminal_bounds);
         let output = gpui::point(
@@ -4107,7 +4109,7 @@ mod tests {
         assert_eq!(buttons, [Some(b' '), Some(b'#')], "{reports:?}");
         assert!(cx.read_from_clipboard().is_none(), "nothing copied");
 
-        let copy = marley_point_at("marley-block-copy-1", cx);
+        let copy = marley_point_at("marley-block-copy-2", cx);
         cx.simulate_click(copy.center(), gpui::Modifiers::none());
         cx.run_until_parked();
         assert_eq!(
@@ -4120,7 +4122,7 @@ mod tests {
             "no mouse report"
         );
 
-        let rerun = marley_point_at("marley-block-rerun-1", cx);
+        let rerun = marley_point_at("marley-block-rerun-2", cx);
         cx.simulate_click(rerun.center(), gpui::Modifiers::none());
         cx.run_until_parked();
         assert_eq!(
@@ -4139,18 +4141,18 @@ mod tests {
             r"nonce=$MARLEY_SHELL_NONCE; {MARLEY_TWO_BLOCKS}; printf '\033Pppreexec;command=sleep 60\033\\'"
         );
         let (terminal, cx) = marley_hook_terminal(&script, cx).await;
-        marley_draw_until_finished(&terminal, 2, cx).await;
+        marley_draw_until_finished(&terminal, 3, cx).await;
         for _ in 0..300 {
-            if terminal.read_with(cx, |terminal, _| terminal.blocks().len()) == 3 {
+            if terminal.read_with(cx, |terminal, _| terminal.blocks().len()) == 4 {
                 break;
             }
             cx.background_executor
                 .timer(std::time::Duration::from_millis(10))
                 .await;
         }
-        marley_point_at("marley-block-pill-1", cx);
-        assert!(cx.debug_bounds("marley-block-copy-1").is_some());
-        assert!(cx.debug_bounds("marley-block-rerun-1").is_none());
+        marley_point_at("marley-block-pill-2", cx);
+        assert!(cx.debug_bounds("marley-block-copy-2").is_some());
+        assert!(cx.debug_bounds("marley-block-rerun-2").is_none());
     }
 
     // Marley: waits until the terminal's modes hold `mode`, drawing frames (#476).
@@ -4199,10 +4201,10 @@ mod tests {
     async fn marley_short_content_sits_on_the_bottom_edge(cx: &mut TestAppContext) {
         cx.executor().allow_parking();
         let (terminal, cx) = marley_hook_terminal(MARLEY_TWO_BLOCKS, cx).await;
-        marley_draw_until_finished(&terminal, 2, cx).await;
+        marley_draw_until_finished(&terminal, 3, cx).await;
         cx.update(|window, _| window.refresh());
         let pill = cx
-            .debug_bounds("marley-block-pill-1")
+            .debug_bounds("marley-block-pill-2")
             .expect("the failed block's pill");
         // The prompt is on the grid's last row, which Zed's own layout can leave less than a row
         // above the edge: it snaps the rows' height to whole device pixels.
@@ -4248,10 +4250,10 @@ mod tests {
         // A cleared screen over 200 lines of history, with the two blocks at its top.
         let script = format!(r"seq 1 200; printf '\033[H\033[2J'; {MARLEY_TWO_BLOCKS}");
         let (terminal, cx) = marley_hook_terminal(&script, cx).await;
-        marley_draw_until_finished(&terminal, 2, cx).await;
+        marley_draw_until_finished(&terminal, 3, cx).await;
         cx.update(|window, _| window.refresh());
         let pill = cx
-            .debug_bounds("marley-block-pill-1")
+            .debug_bounds("marley-block-pill-2")
             .expect("the failed block's pill");
         let before = marley_rows_above_the_bottom(pill, &terminal, cx);
         terminal.update(cx, |terminal, _| terminal.scroll_up_by(1));
@@ -4262,7 +4264,7 @@ mod tests {
             1
         );
         let pill = cx
-            .debug_bounds("marley-block-pill-1")
+            .debug_bounds("marley-block-pill-2")
             .expect("the pill, still in view");
         let after = marley_rows_above_the_bottom(pill, &terminal, cx);
         assert!(
@@ -4298,10 +4300,10 @@ mod tests {
         cx.executor().allow_parking();
         let script = format!(r"{MARLEY_TWO_BLOCKS}; printf '\033[?1000h'");
         let (terminal, cx) = marley_hook_terminal(&script, cx).await;
-        marley_draw_until_finished(&terminal, 2, cx).await;
+        marley_draw_until_finished(&terminal, 3, cx).await;
         marley_draw_until_mode(&terminal, terminal::Modes::MOUSE_REPORT_CLICK, cx).await;
         let pill = cx
-            .debug_bounds("marley-block-pill-1")
+            .debug_bounds("marley-block-pill-2")
             .expect("the failed block's pill");
         let grid = terminal.read_with(cx, |terminal, _| terminal.last_content().terminal_bounds);
         // `oops`, on grid line 2, is drawn on the row below the failed block's pill.
@@ -4329,9 +4331,9 @@ mod tests {
         cx.executor().allow_parking();
         let script = format!("nonce=forged; {MARLEY_TWO_BLOCKS}");
         let (terminal, cx) = marley_hook_terminal(&script, cx).await;
-        marley_draw_until_finished(&terminal, 2, cx).await;
-        marley_point_at("marley-block-pill-1", cx);
-        assert!(cx.debug_bounds("marley-block-copy-1").is_some());
-        assert!(cx.debug_bounds("marley-block-rerun-1").is_none());
+        marley_draw_until_finished(&terminal, 3, cx).await;
+        marley_point_at("marley-block-pill-2", cx);
+        assert!(cx.debug_bounds("marley-block-copy-2").is_some());
+        assert!(cx.debug_bounds("marley-block-rerun-2").is_none());
     }
 }

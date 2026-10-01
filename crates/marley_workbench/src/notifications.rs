@@ -126,7 +126,7 @@ fn watch(terminal: &Entity<Terminal>, window: &Window, cx: &mut Context<Terminal
 /// Whether the user is looking at `view`: the focused terminal of the active window, for which
 /// nothing is shown on the desktop (#478) or pushed to the phone (#535).
 pub(crate) fn looking_at(view: &TerminalView, window: &Window, cx: &App) -> bool {
-    window.is_window_active() && view.focus_handle(cx).contains_focused(window, cx)
+    window.is_window_active() && crate::rich_input::holds_focus(view, window, cx)
 }
 
 /// Marks `view` unread and shows a banner for the event its Claude Code seat made by moving from

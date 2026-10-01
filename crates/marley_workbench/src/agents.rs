@@ -59,6 +59,18 @@ pub struct Launcher {
     pub search_path: Option<OsString>,
     /// Makes the terminal that New Terminal or an agent CLI starts in.
     pub terminal_factory: TerminalFactory,
+    /// Whether an agent's terminal in a local project asks for ssh's passphrases in Marley
+    /// (#596), whose socket a test does without.
+    pub passphrase_dialog: PassphraseDialog,
+}
+
+/// Whether [`Launcher`] opens ssh's passphrase socket for an agent's terminal.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PassphraseDialog {
+    /// ssh asks in Marley's dialog.
+    Shown,
+    /// ssh asks on the terminal.
+    Skipped,
 }
 
 impl Default for Launcher {
@@ -66,6 +78,7 @@ impl Default for Launcher {
         Self {
             search_path: std::env::var_os("PATH"),
             terminal_factory: Project::create_terminal_shell_with_env,
+            passphrase_dialog: PassphraseDialog::Shown,
         }
     }
 }
@@ -355,9 +368,14 @@ pub(crate) fn start_in_terminal(
     window: &Window,
     cx: &Context<Workspace>,
 ) -> Task<anyhow::Result<WeakEntity<Terminal>>> {
-    let factory = launcher(cx).terminal_factory;
+    let Launcher {
+        terminal_factory: factory,
+        passphrase_dialog,
+        ..
+    } = launcher(cx);
     let (folders, local) = crate::system_one::project_of(workspace, cx);
-    let dialog_title = agent.filter(|_| local).map(|kind| {
+    let shown = local && passphrase_dialog == PassphraseDialog::Shown;
+    let dialog_title = agent.filter(|_| shown).map(|kind| {
         let project = crate::system_one::project_name(&folders);
         SharedString::from(marley_agent::ssh_dialog_title(&project, kind))
     });

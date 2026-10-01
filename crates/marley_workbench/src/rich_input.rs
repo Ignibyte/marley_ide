@@ -523,6 +523,26 @@ fn on_view(
     }
 }
 
+/// Whether `view` holds the keys: its terminal, or the open editor in its footer.
+///
+/// The view's focus handle does not count the footer as its own: Zed's terminal element tracks
+/// the same handle on the grid, gpui takes the last element to track a handle as its place, and
+/// the footer sits beside the grid. So while the shell's prompt editor (#627) or an agent's
+/// editor has the keys, the view alone reads as unfocused (#634).
+pub(crate) fn holds_focus(view: &TerminalView, window: &Window, cx: &App) -> bool {
+    if view.focus_handle(cx).contains_focused(window, cx) {
+        return true;
+    }
+    let terminal = view.terminal().entity_id();
+    cx.try_global::<Prompts>().is_some_and(|prompts| {
+        prompts.0.values().any(|prompt| {
+            prompt.open
+                && prompt.terminal.entity_id() == terminal
+                && prompt.editor.focus_handle(cx).contains_focused(window, cx)
+        })
+    })
+}
+
 /// The editor of the terminal in `context`, while it is open.
 pub fn element(context: &MarleyFooterContext, cx: &App) -> Option<AnyElement> {
     let view = context.view.upgrade()?;

@@ -1030,7 +1030,11 @@ impl Rail {
                 cx.background_executor().timer(wait).await;
             }
             let searched = root.clone();
-            let found = smol::unblock(move || crate::project_icons::icon_in(&searched)).await;
+            let found = cx
+                .background_spawn(futures::future::lazy(move |_| {
+                    crate::project_icons::icon_in(&searched)
+                }))
+                .await;
             rail.update(cx, |rail, cx| {
                 let now = cx.background_executor().now();
                 let Some(icon) = rail.project_icons.get_mut(&root) else {
@@ -7627,7 +7631,7 @@ fn active_rows(
     let browser = active_item.and_then(|item| item.downcast::<BrowserView>());
     let focused = terminal
         .as_ref()
-        .is_some_and(|view| view.focus_handle(cx).contains_focused(window, cx));
+        .is_some_and(|view| crate::rich_input::holds_focus(view.read(cx), window, cx));
     (
         terminal.map(|view| view.entity_id().as_u64()),
         focused,

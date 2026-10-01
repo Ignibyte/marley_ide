@@ -942,6 +942,12 @@ alike.
   theme's warning colour through `highlight_text` under `HighlightKey::Editor`; an agent's editor
   shows neither. `send` calls `typed_line::entering` first. In `MarleyShellInput > Editor`,
   Ctrl-Shift-Enter is `marley::AskAgent`.
+- `holds_focus(view, window, cx)` (#634) is whether a terminal view has the keys: its own focus
+  handle, or the open editor of its terminal. The view's handle alone does not count the footer:
+  Zed's terminal element tracks the same handle on the grid, gpui takes the last element to track
+  a handle as its place, and the footer sits beside the grid. The terminal toggle
+  (`routing::toggle_terminal`), the block keys (`blocks::focused_terminal`),
+  `notifications::looking_at` and the rail's focused terminal ask it.
 
 ## The shell's completions (`src/shell_completions.rs`, #625)
 
@@ -2601,6 +2607,12 @@ arguments. Attach File's tests click the `+` and answer the test platform's path
 `simulate_path_prompt_response`, then read the terminal's PTY write log.
 `src/claude_plugin_tests.rs` (4) writes the plugin into a scratch directory and runs its hook
 script.
+
+The shared setups (`init_test`, `init_agent_test`) keep the machine's IO out, which the test
+scheduler cannot drive (#634): an open rail's ports scan reads `Ports::proc_root`, a folder with no
+sockets, and asks no container engine; `Launcher::passphrase_dialog` is `Skipped`, so an agent's
+terminal opens without ssh's passphrase socket. Blocking reads go through gpui's background
+executor (`futures::future::lazy`), never `smol::unblock`, so a test drives them.
 
 The test binary sets its data folder before its first test (a `ctor` in
 `marley_workbench_tests.rs` calling `terminal::marley_use_test_data_dir()`, #475): the routing

@@ -4301,3 +4301,20 @@ out (emptied with an Edit, put back with the inverse Edit) and compare the messa
 since #627, one missing `RequestedDirectories`) failed the same way without #475's ctor, so they
 went to #634's triage, not #475's. Keep such a run off the user's files: with the data
 directory's fix taken out, `XDG_DATA_HOME` on a scratch folder stands in for it.
+
+## L-claude-634-a-task-terminal-opens-its-own-block-first-001
+*category: code · topic: block tests · from: pipeline 634*
+
+Since #621 a local task terminal opens the task's own block at index 0 and the first prompt
+ends it, so a test that runs its script as a task (`TerminalMode::task`) finds the script's blocks
+from index 1, and counts one more finished block. Five tests in `terminal` and `terminal_view`
+had read block 0 as the script's first.
+
+## L-claude-634-gpui-fails-a-test-at-its-end-for-a-foreign-wake-001
+*category: validate · topic: the test pass · from: pipeline 634*
+
+"Detected activity on thread …, Your test is not deterministic" is raised at the test's end, so
+the test's assertions all ran and passed. Its backtrace shows only the waking side (smol's
+reactor `async-io`, the reaper `async-process`, the pool `blocking-N`); find the waiting side by
+the thread's name: processes and pipes for the first two, `smol::unblock` for the last.
+`allow_parking()` also silences it, which hides real IO instead of removing it.
