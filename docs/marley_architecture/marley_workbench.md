@@ -1043,7 +1043,8 @@ alike.
   font, truncated, the state (`running`, a check, `exit N`) and an up arrow. A left press jumps,
   as Zed's editor sticky headers do (`blocks::reveal`, the block's first line at the top), and
   the press and its release both stop there, so the terminal starts no selection and its
-  plain-click listener (#579) opens no link menu.
+  plain-click listener (#579) opens no link menu. With `block_headers` `Native` the command has
+  no `$ `, as the native header has none (#629).
 
 ## Workflows (`src/workflows.rs`, #558)
 

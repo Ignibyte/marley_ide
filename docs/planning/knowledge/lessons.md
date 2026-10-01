@@ -4241,3 +4241,10 @@ terminal's copy key after a drag: the focus has gone back to the editor. Turn on
 `terminal.copy_on_select` in the run's settings (in the `terminal` block that also carries the
 env, as `terminal_env` refuses a second one), drag, and press Ctrl+V: the editor shows what the
 drag copied.
+
+## L-claude-629-a-search-after-the-block-keys-is-held-to-the-selected-block-001
+*category: validate · topic: e2e scenarios · from: pipeline 629*
+
+The block keys (Ctrl+Up and Ctrl+Down) select the block they land on, and Zed's search in a
+terminal with a selected block is held to that block (#559). A scenario that searches to see
+matches across blocks searches before the block keys, or clears the selection first.

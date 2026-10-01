@@ -17,7 +17,7 @@ use terminal::Terminal;
 use terminal_view::{MarleyStickyHeader, TerminalView};
 use ui::prelude::*;
 
-use crate::MarleySettings;
+use crate::{BlockHeaders, MarleySettings};
 
 /// Sets the header's hook; [`crate::init`] calls it once.
 pub fn init(cx: &mut App) {
@@ -39,10 +39,15 @@ fn header(
     let block = terminal.read(cx).blocks().get(index)?;
     let mut lines = block.command.trim().lines();
     let first = lines.next().unwrap_or_default();
+    // With Marley's headers on, the pinned row reads as the header it stands for (#629).
+    let prompt = match MarleySettings::get_global(cx).block_headers {
+        BlockHeaders::Native => "",
+        BlockHeaders::ShellPrompt => "$ ",
+    };
     let command = if lines.next().is_some() {
-        format!("$ {first} …")
+        format!("{prompt}{first} …")
     } else {
-        format!("$ {first}")
+        format!("{prompt}{first}")
     };
     let state = match (block.state, block.exit_code.0) {
         (BlockState::Pending | BlockState::Running, _) => Label::new("running")

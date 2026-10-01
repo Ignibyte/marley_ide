@@ -1508,6 +1508,8 @@ impl Element for TerminalElement {
                 for search_match in search_matches {
                     relative_highlighted_ranges.push((search_match, match_color))
                 }
+                // Marley: the search matches come first, ahead of the selection (#629).
+                let marley_search_matches = relative_highlighted_ranges.len();
                 if let Some(selection) = selection {
                     relative_highlighted_ranges
                         .push((selection.point_range(), player_color.selection));
@@ -1735,6 +1737,17 @@ impl Element for TerminalElement {
                 let block_element_rects: Vec<BlockElementLayoutRect> = block_element_rects
                     .into_iter()
                     .filter(|rect| !marley_hidden(rect.point.line.div_euclid(BLOCK_SUBCELL_LINES)))
+                    .collect();
+                // Marley: a search match in a hidden prompt would be drawn over the header, at the
+                // prompt's columns; the selection, the user's own, stays (#629).
+                let relative_highlighted_ranges: Vec<(Range, Hsla)> = relative_highlighted_ranges
+                    .into_iter()
+                    .enumerate()
+                    .filter(|(index, (range, _))| {
+                        *index >= marley_search_matches
+                            || !marley_hidden(range.start().line + display_offset as i32)
+                    })
+                    .map(|(_, highlighted)| highlighted)
                     .collect();
                 // Marley: an element over each block whose first row is on screen (#474). Rerun
                 // is offered for a block only while the shell that ran it, the local one or an

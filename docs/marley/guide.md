@@ -420,7 +420,8 @@ With Block Headers on (the Marley settings page's Terminal section, or `"marley"
 the command in the terminal's font, with its pill at the right (#628). The header takes the rows
 your prompt took, so a two-line prompt leaves the row under the command empty, and nothing moves.
 The prompt waiting for your next command is drawn as your shell draws it. A click on a header
-selects nothing. A command whose report did not carry the terminal's value (see "Shell
+selects nothing. The block keys bring a block's header to the top row, the command pinned while you
+scroll back reads as the header does, and a search skips the text a header hides (#629). A command whose report did not carry the terminal's value (see "Shell
 integration" above) keeps its prompt.
 
 A path a command printed, such as `src/main.rs:2:5`, opens with Ctrl+click against the folder that

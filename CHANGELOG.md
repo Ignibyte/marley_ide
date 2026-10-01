@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Block headers in navigation and search** (#629, 2026-10-01). With Block Headers on, the
+  command pinned over a scrolled-back block reads as its header, with no `$ `, and a search no
+  longer highlights a match inside a prompt the header hides. Moving between blocks still lands on
+  a block's header, and bookmark ticks keep their place.
+
 - **Block headers** (#628, 2026-10-01). With Block Headers on (`marley.block_headers`, off by
   default), a command's prompt rows are drawn as Marley's header: the command in the terminal's
   font with its pill, in place of the prompt the shell drew. The header takes exactly the rows the
