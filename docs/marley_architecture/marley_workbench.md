@@ -1020,6 +1020,18 @@ alike.
   forward (`reveal_terminal`), focuses it, and sends Ctrl-U and `Terminal::paste` of the text,
   with no carriage return.
 
+## Block headers (`src/block_headers.rs`, #628)
+
+- The terminal element takes each verified block's prompt rows on screen
+  (`marley_terminal::prompt_rows`) and asks the `terminal_view::MarleyBlockHeader` hook, which
+  `init` sets, with the block's index and the row height. When it gets an element it leaves those
+  rows' cells out and lays the element over the same rows, first of the block elements, so the
+  pill and the hover actions draw over it.
+- `header` gives none while `MarleySettings::block_headers` is `ShellPrompt`; otherwise a column
+  the rows' height whose first row holds the command's first line in the buffer font, `…` when
+  the command has more lines. The press and its release stop there, so the terminal under it
+  starts no selection.
+
 ## The sticky command header (`src/sticky_header.rs`, #529)
 
 - The terminal element picks the block, `marley_terminal::sticky_block` over its spans: the top

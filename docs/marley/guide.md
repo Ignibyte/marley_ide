@@ -415,6 +415,14 @@ Every command the shell reports is a block (#470):
 The terminal's text and rows stay as they were. Nothing is drawn while a full-screen program such
 as vim holds the alternate screen.
 
+With Block Headers on (the Marley settings page's Terminal section, or `"marley": {
+"block_headers": true }`), each command's prompt rows show Marley's header instead of your prompt:
+the command in the terminal's font, with its pill at the right (#628). The header takes the rows
+your prompt took, so a two-line prompt leaves the row under the command empty, and nothing moves.
+The prompt waiting for your next command is drawn as your shell draws it. A click on a header
+selects nothing. A command whose report did not carry the terminal's value (see "Shell
+integration" above) keeps its prompt.
+
 A path a command printed, such as `src/main.rs:2:5`, opens with Ctrl+click against the folder that
 command ran in, wherever the shell has gone since (#619); hold Ctrl over it to see the whole path.
 

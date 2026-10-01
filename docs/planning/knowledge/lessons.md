@@ -4232,3 +4232,12 @@ script on a PTY, feed the answers on its input before and after each line:
 shellcheck reads any comment whose first word is `shellcheck` as a directive, so a plain remark
 such as `# shellcheck cannot read fish` fails the parse (SC1126, SC1073). Start such a comment
 with another word.
+
+## L-claude-628-check-a-copy-through-the-prompt-editor-with-copy-on-select-001
+*category: validate · topic: e2e scenarios · from: pipeline 628*
+
+Since #627 the prompt editor takes the focus at every prompt, so a scenario cannot press the
+terminal's copy key after a drag: the focus has gone back to the editor. Turn on
+`terminal.copy_on_select` in the run's settings (in the `terminal` block that also carries the
+env, as `terminal_env` refuses a second one), drag, and press Ctrl+V: the editor shows what the
+drag copied.

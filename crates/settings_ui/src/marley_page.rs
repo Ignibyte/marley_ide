@@ -391,7 +391,7 @@ fn agents_section() -> [SettingsPageItem; 13] {
 }
 
 // Marley: where a URL clicked in a terminal opens (#503).
-fn terminal_section() -> [SettingsPageItem; 4] {
+fn terminal_section() -> [SettingsPageItem; 5] {
     [
         SettingsPageItem::SectionHeader("Terminal"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -434,6 +434,29 @@ fn terminal_section() -> [SettingsPageItem; 4] {
                         .marley
                         .get_or_insert_default()
                         .sticky_command_header = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: a block's prompt rows drawn as Marley's header (#628).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Block Headers",
+            description: "Whether a block's prompt rows are drawn as Marley's header, the command and its status in place of the shell's prompt. The prompt waiting for your next command stays the shell's.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.block_headers"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.block_headers.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .block_headers = value;
                 },
             }),
             metadata: None,

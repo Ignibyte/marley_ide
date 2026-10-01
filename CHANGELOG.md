@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Block headers** (#628, 2026-10-01). With Block Headers on (`marley.block_headers`, off by
+  default), a command's prompt rows are drawn as Marley's header: the command in the terminal's
+  font with its pill, in place of the prompt the shell drew. The header takes exactly the rows the
+  prompt took, so nothing scrolls or moves, and the prompt waiting for your next command stays the
+  shell's. A click on a header starts no selection.
+
 - **Shell integration for fish** (#466, 2026-10-01). A fish that Marley starts in a local
   terminal reports its prompts and commands as bash and zsh do, so its commands are blocks with
   their folder, exit status and pills, and the prompt editor docks at its prompt. Marley puts a

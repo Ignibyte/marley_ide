@@ -28,6 +28,7 @@ pub mod agent_trust;
 pub mod agents;
 pub mod autosuggest;
 pub mod block_filter;
+pub mod block_headers;
 pub mod blocks;
 pub mod bookmarks;
 pub mod browser;
@@ -358,6 +359,8 @@ pub struct MarleySettings {
     pub terminal_links: MarleyTerminalLinks,
     /// Whether a scrolled-back block's command is pinned over the terminal's top row (#529).
     pub sticky_command_header: bool,
+    /// How a block's prompt rows are drawn (#628).
+    pub block_headers: BlockHeaders,
     /// How long a command runs before its end notifies; 0 is never (#551).
     pub long_command_seconds: u64,
     /// Whose consequential clicks in the Browser tab wait for Allow (#571).
@@ -415,6 +418,15 @@ pub enum AgentCommandHistory {
 }
 
 /// Whether English typed at a prompt is answered with a hint and an exit-127 block with the Ask
+/// chip, from `marley.english_hint` (#557).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EnglishHint {
+    /// The hint and the chip show.
+    Shown,
+    /// Neither shows; Ctrl+Shift+Enter still asks.
+    Hidden,
+}
+
 /// Where the shell's prompt editor opens, from `marley.prompt_editor` (#627).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PromptEditor {
@@ -434,13 +446,23 @@ impl PromptEditor {
     }
 }
 
-/// chip, from `marley.english_hint` (#557).
+/// How a block's prompt rows are drawn, from `marley.block_headers` (#628).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EnglishHint {
-    /// The hint and the chip show.
-    Shown,
-    /// Neither shows; Ctrl+Shift+Enter still asks.
-    Hidden,
+pub enum BlockHeaders {
+    /// As Marley's header: the command, in place of the shell's prompt.
+    Native,
+    /// As the shell drew them.
+    ShellPrompt,
+}
+
+impl BlockHeaders {
+    /// The setting's value: the shell's prompt unless it is on.
+    const fn from_setting(native: Option<bool>) -> Self {
+        match native {
+            Some(true) => Self::Native,
+            _ => Self::ShellPrompt,
+        }
+    }
 }
 
 /// `patterns` as owned strings, for a list setting's fallback.
@@ -471,20 +493,7 @@ impl Settings for MarleySettings {
                 .unwrap_or(60),
             push: marley
                 .and_then(|marley| marley.push.as_ref())
-                .and_then(|push| {
-                    let set = |value: &Option<String>| {
-                        value
-                            .as_deref()
-                            .map(str::trim)
-                            .filter(|value| !value.is_empty())
-                            .map(str::to_string)
-                    };
-                    Some(PushSettings {
-                        url: set(&push.url)?,
-                        topic: set(&push.topic)?,
-                        token_file: set(&push.token_file),
-                    })
-                }),
+                .and_then(push_settings),
             ask_before_ending_a_working_agent: marley
                 .and_then(|marley| marley.ask_before_ending_a_working_agent)
                 .unwrap_or(true),
@@ -497,6 +506,9 @@ impl Settings for MarleySettings {
             sticky_command_header: marley
                 .and_then(|marley| marley.sticky_command_header)
                 .unwrap_or(true),
+            block_headers: BlockHeaders::from_setting(
+                marley.and_then(|marley| marley.block_headers),
+            ),
             long_command_seconds: marley
                 .and_then(|marley| marley.long_command_seconds)
                 .unwrap_or(30),
@@ -553,6 +565,22 @@ impl Settings for MarleySettings {
             fleet_agent_processes,
         }
     }
+}
+
+/// The push server agent events go to (#535), when its URL and topic are set.
+fn push_settings(push: &settings::MarleyPushSettingsContent) -> Option<PushSettings> {
+    let set = |value: &Option<String>| {
+        value
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+    };
+    Some(PushSettings {
+        url: set(&push.url)?,
+        topic: set(&push.topic)?,
+        token_file: set(&push.token_file),
+    })
 }
 
 /// The fleet's settings (#607, #610): its stores, the hosts its collector reads, and the process
@@ -657,6 +685,7 @@ pub fn init(cx: &mut App) {
     bookmarks::init(cx);
     failures::init(cx);
     sticky_header::init(cx);
+    block_headers::init(cx);
     markdown_commands::init(cx);
     command_watch::init(cx);
     running_errors::init(cx);

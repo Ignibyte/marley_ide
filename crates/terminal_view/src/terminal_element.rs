@@ -1688,6 +1688,54 @@ impl Element for TerminalElement {
                     let terminal = self.terminal.read(cx);
                     marley_block_spans(terminal.last_content(), terminal.blocks())
                 };
+                // Marley: each verified block's prompt rows on screen drawn as Marley's header in
+                // place of the shell's prompt: their cells go, and the header is laid out over the
+                // same rows, so no row moves (#628).
+                let mut marley_headers: Vec<AnyElement> = Vec::new();
+                let mut marley_hidden_rows: Vec<std::ops::Range<usize>> = Vec::new();
+                if let Some(hook) = cx.try_global::<crate::MarleyBlockHeader>().cloned() {
+                    let prompt_rows = {
+                        let terminal = self.terminal.read(cx);
+                        marley_prompt_rows(terminal.last_content(), terminal.blocks())
+                    };
+                    let line_height = dimensions.line_height();
+                    for (index, rows) in prompt_rows {
+                        let Some(mut element) =
+                            (hook.0)(&self.terminal_view, &self.terminal, index, line_height, cx)
+                        else {
+                            continue;
+                        };
+                        let origin = dimensions.bounds.origin
+                            + point(px(0.), rows.start as f32 * line_height)
+                            - point(px(0.), scroll_top);
+                        let available_space = size(
+                            AvailableSpace::Definite(dimensions.width()),
+                            AvailableSpace::Definite(rows.len() as f32 * line_height),
+                        );
+                        window.with_rem_size(rem_size, |window| {
+                            element.prepaint_as_root(origin, available_space, window, cx);
+                        });
+                        marley_headers.push(element);
+                        marley_hidden_rows.push(rows);
+                    }
+                }
+                let marley_hidden = |line: i32| {
+                    usize::try_from(line).is_ok_and(|line| {
+                        marley_hidden_rows.iter().any(|rows| rows.contains(&line))
+                    })
+                };
+                let rects: Vec<LayoutRect> = rects
+                    .into_iter()
+                    .filter(|rect| !marley_hidden(rect.point.line))
+                    .collect();
+                let batched_text_runs: Vec<BatchedTextRun> = batched_text_runs
+                    .into_iter()
+                    .filter(|run| !marley_hidden(run.start_point.line))
+                    .collect();
+                let block_element_rects: Vec<BlockElementLayoutRect> = block_element_rects
+                    .into_iter()
+                    .filter(|rect| !marley_hidden(rect.point.line.div_euclid(BLOCK_SUBCELL_LINES)))
+                    .collect();
                 // Marley: an element over each block whose first row is on screen (#474). Rerun
                 // is offered for a block only while the shell that ran it, the local one or an
                 // ssh host's, waits at its prompt (#526).
@@ -1734,6 +1782,9 @@ impl Element for TerminalElement {
                         element
                     })
                     .collect();
+                // Marley: the headers go first of the block elements, so the pill and the hover
+                // actions draw over them (#628).
+                marley_blocks.splice(0..0, marley_headers);
                 // Marley: the newest block's chip on its last row when its first row is above the
                 // screen, so a long failure still offers it (#555).
                 if let Some(span) = marley_spans.last().filter(|span| !span.starts_in_view)
@@ -2363,6 +2414,21 @@ fn marley_block_spans(
     let cursor_line =
         content.marley_screen_top + u64::try_from(content.cursor.point.line).unwrap_or_default();
     marley_terminal::visible_spans(blocks, top, content.screen_lines, cursor_line)
+}
+
+// Marley: each verified block's prompt rows on `content`'s screen, and none on the alternate
+// screen, as `marley_block_spans` leaves it (#628).
+fn marley_prompt_rows(
+    content: &Content,
+    blocks: &[marley_terminal::AnchoredBlock],
+) -> Vec<(usize, std::ops::Range<usize>)> {
+    if content.mode.contains(Modes::ALT_SCREEN) {
+        return Vec::new();
+    }
+    let top = content
+        .marley_screen_top
+        .saturating_sub(content.display_offset as u64);
+    marley_terminal::prompt_rows(blocks, top, content.screen_lines)
 }
 
 // Marley: the block under a point of the window, for the menu's Block section (#554).

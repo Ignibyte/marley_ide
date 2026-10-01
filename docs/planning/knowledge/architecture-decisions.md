@@ -3570,3 +3570,19 @@ user's files define. The first prompt sends `init`, `history` (fish's history fi
 (an argument the title would show and a `-c` the user's own invocation could clash with); writing
 into `~/.config/fish/conf.d` (the user's folder); Marley's `ssh` function for fish (left for a
 later ticket, as the remote bootstrap is bash's and zsh's).
+
+## AD-claude-628-a-blocks-header-takes-its-prompts-rows-one-for-one-001
+*decided at: 2026-10-01 · status: shipped · builds on: AD-claude-470-stage-one-draws-blocks-over-zeds-rows-001, AD-claude-529-the-sticky-header-is-drawn-over-row-zero-while-scrolled-back-001*
+
+Stage two's first slice draws a block's prompt rows (`prompt_line..output_start`) as Marley's
+header without a display-row map: the header takes exactly the rows the prompt took. The element
+drops those rows' text runs, background rects and block-glyph rects after `marley_layout_grid`,
+which carry the viewport row, and lays a hook's element over the same rows, first of the block
+elements, so the pill draws over it. No row moves, so the thirteen places that turn a viewport row
+into a y (cells, cursor, IME, selection and search ranges, wash, gutter, block elements, pinned
+header, bottom shift) and the four that turn a pixel back into a row keep their arithmetic. Only a
+running or finished block whose command the nonce verified hides its prompt; the prompt the shell
+waits at stays the shell's. Off by default (`marley.block_headers`). Rejected: a map that
+collapses a two-row prompt into one header row (every line-to-y site and the mouse would route
+through it; #630 can fill the second row instead); hiding only part of the prompt (the hooks do
+not mark where PS1 ends).

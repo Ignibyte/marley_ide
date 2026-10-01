@@ -173,6 +173,9 @@ real, reusable session. The Block model is the unit the **brain** later observes
   `sticky_block(spans, display_offset)` (#529) is the block whose command a scrolled-back view
   pins over its top row: the first span, when it covers row 0 and started above it; none at the
   live screen.
+  `prompt_rows(blocks, top, screen_lines)` (#628) is each block's prompt rows on screen,
+  `prompt_line..output_start` as viewport rows, for a running or finished block whose command the
+  nonce verified; Zed's element draws Marley's header over them.
   `block_lines(block, cursor_line)` (#559) is the absolute lines a block spans, `visible_spans`'s
   rule, and `scrollback_fraction` where a line sits among the lines the terminal can scroll to;
   Zed's view maps the first to grid lines for a search held to one block, and the element draws

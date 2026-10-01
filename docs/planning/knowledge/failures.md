@@ -3074,3 +3074,12 @@ editor closed the typed line was never asked about, and the grid's slot kept #55
 (`grid.png`). Fixed before the commit: the grid's line is read in the suggestion hook, at each
 frame, from the snapshot the slot is drawn from; the observer keeps only the blocks' starts and
 ends, which do notify.
+
+## F-claude-628-an-enum-landed-inside-anothers-doc-comment-001
+*severity: low · found in: pipeline 628's Code phase · class: an insertion anchored on a line inside a doc comment*
+
+#627 inserted `PromptEditor` after the first line of `EnglishHint`'s two-line doc comment, so
+`PromptEditor` carried half of `EnglishHint`'s text and `EnglishHint` began mid-sentence. Rust
+compiled it, and the gate passed. Found while adding `BlockHeaders` beside them; both doc comments
+were put back whole. An insertion made by matching text should anchor on a blank line or an item's
+end, never on a comment line.

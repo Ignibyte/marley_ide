@@ -682,6 +682,34 @@ pub fn visible_spans(
         .collect()
 }
 
+/// The rows of a viewport, `screen_lines` from the absolute line `top`, that hold each block's
+/// prompt, which Marley's header can draw in place of the shell's (#628).
+///
+/// A block's prompt runs from its prompt's line to its output's start. Only a block whose command
+/// ran (running or finished) and whose frames carried the terminal's nonce counts, so output that
+/// prints a frame cannot hide rows; a block with no prompt line, or none of it on screen, is left
+/// out. Each pair is the block's index and its rows, from the viewport's top.
+#[must_use]
+pub fn prompt_rows(
+    blocks: &[AnchoredBlock],
+    top: u64,
+    screen_lines: usize,
+) -> Vec<(usize, Range<usize>)> {
+    let bottom = top.saturating_add(u64::try_from(screen_lines).unwrap_or(u64::MAX));
+    let row = |line: u64| usize::try_from(line - top).ok();
+    blocks
+        .iter()
+        .filter(|block| block.command_verified && block.state != BlockState::Pending)
+        .filter_map(|block| {
+            let (first, last) = (block.prompt_line?.max(top), block.output_start.min(bottom));
+            if first >= last {
+                return None;
+            }
+            Some((block.index, row(first)?..row(last)?))
+        })
+        .collect()
+}
+
 /// The scroll offset that shows the previous or the next block from a viewport's top.
 ///
 /// The viewport's top is `display_offset` lines above `screen_top`, the absolute line of the

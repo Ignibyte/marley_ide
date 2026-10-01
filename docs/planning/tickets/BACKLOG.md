@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-628](open/TICKET-628-blocks-with-native-headers-and-ps1-hidden.md) | feature | terminal (wave 3) · blocks with native headers, PS1 hidden |
 | [TICKET-629](open/TICKET-629-block-navigation-in-display-rows.md) | feature | terminal (wave 3) · block navigation in display rows |
 | [TICKET-630](open/TICKET-630-block-density-and-two-line-headers.md) | feature | terminal (wave 3) · block density: two-line headers and gaps |
 
