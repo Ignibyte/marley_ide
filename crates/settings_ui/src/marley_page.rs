@@ -109,7 +109,7 @@ fn layout_section() -> [SettingsPageItem; 5] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 14] {
+fn agents_section() -> [SettingsPageItem; 15] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -152,6 +152,29 @@ fn agents_section() -> [SettingsPageItem; 14] {
                         .marley
                         .get_or_insert_default()
                         .no_update_after_minutes = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: Claude Code sessions resumed after a restart (#540).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Resume Claude Code Sessions",
+            description: "When Marley starts, a terminal that was running a Claude Code session at the last quit runs claude --resume with that session, in the folder the session started in, so the conversation comes back.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.resume_agents"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.resume_agents.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .resume_agents = value;
                 },
             }),
             metadata: None,

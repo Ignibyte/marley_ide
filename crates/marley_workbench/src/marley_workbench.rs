@@ -64,6 +64,7 @@ pub mod prompt_colors;
 pub mod push;
 mod rail;
 pub mod remote;
+pub mod resume;
 pub mod review_notes;
 pub mod rich_input;
 pub mod routing;
@@ -348,6 +349,8 @@ pub struct MarleySettings {
     /// Minutes a working Claude Code may go without an event before its row says so; 0 is never
     /// (#547).
     pub no_update_after_minutes: u64,
+    /// Whether a terminal's Claude Code session comes back after a restart (#540).
+    pub resume_agents: ResumeAgents,
     /// Seconds a working Claude Code may be quiet before the stall kind's first check; 0 is none
     /// (#569).
     pub stall_check_after_seconds: u64,
@@ -494,6 +497,26 @@ impl RustyTools {
     }
 }
 
+/// Whether a terminal's Claude Code session comes back after a restart, from
+/// `marley.resume_agents` (#540).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ResumeAgents {
+    /// Resumed at the next launch.
+    Resumed,
+    /// Left ended.
+    Off,
+}
+
+impl ResumeAgents {
+    /// The setting's value: resumed unless it is off.
+    fn from_content(marley: Option<&settings::MarleySettingsContent>) -> Self {
+        match marley.and_then(|marley| marley.resume_agents) {
+            Some(false) => Self::Off,
+            _ => Self::Resumed,
+        }
+    }
+}
+
 /// How a block's prompt rows are drawn, from `marley.block_headers` (#628).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlockHeaders {
@@ -536,6 +559,7 @@ impl Settings for MarleySettings {
             no_update_after_minutes: marley
                 .and_then(|marley| marley.no_update_after_minutes)
                 .unwrap_or(30),
+            resume_agents: ResumeAgents::from_content(marley),
             stall_check_after_seconds: marley
                 .and_then(|marley| marley.stall_check_after_seconds)
                 .unwrap_or(60),
@@ -755,6 +779,7 @@ pub fn init(cx: &mut App) {
     notifications::init(cx);
     close_guard::init(cx);
     terminal_ids::init(cx);
+    resume::init(cx);
     terminal_size::init(cx);
     groups::init(cx);
     voice::init(cx);

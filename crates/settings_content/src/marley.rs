@@ -28,6 +28,12 @@ pub struct MarleySettingsContent {
     ///
     /// Default: 30
     pub no_update_after_minutes: Option<u64>,
+    /// Whether a terminal that ran a Claude Code session when Marley quit resumes it at the next
+    /// launch: Marley types `claude --resume <id>` in the session's folder once its shell is
+    /// ready (#540).
+    ///
+    /// Default: true
+    pub resume_agents: Option<bool>,
     /// Seconds a working Claude Code may be quiet before the stall kind's first check (#569);
     /// the next come at twice, four and eight times it, and 0 turns the quiet checks off.
     ///

@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Claude Code sessions come back after a restart** (#540, 2026-10-01). Quit Marley while Claude
+  Code runs in a terminal, and at the next launch that terminal runs `claude --resume` with the
+  same session, in the folder the session started in, so the conversation picks up where it
+  stopped. A session you ended yourself (`/exit`, logging out) comes back as a plain shell, and
+  each session resumes in one terminal. Resume Claude Code Sessions on the Marley page
+  (`marley.resume_agents`) turns it off.
+
 - **Gaps between blocks, and a density setting** (#631, 2026-10-01). A terminal's blocks now stand
   half a row apart, the prompt you are at included, and a block whose prompt took one row gets a
   two-line header: the folder and branch over the command. The prompt stays on the last row, and

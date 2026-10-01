@@ -49,7 +49,7 @@ pub type TerminalFactory = fn(
 
 /// How long an agent's launch waits for the shell to say it is ready, as Zed's terminal threads
 /// wait, before writing the command anyway.
-const STARTUP_TIMEOUT: Duration = Duration::from_secs(5);
+pub(crate) const STARTUP_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Where agent CLIs are looked for, and how the terminal one starts in is made. A test sets its
 /// own, so that no real agent starts.
@@ -318,7 +318,7 @@ pub fn start_cli_with_prompt(
 
 /// The permission mode `kind` starts with in `workspace`'s project (#532); a remote project takes
 /// the defaults, since the per-project entries name local folders.
-fn launch_mode(workspace: &Workspace, kind: AgentKind, cx: &App) -> LaunchMode {
+pub(crate) fn launch_mode(workspace: &Workspace, kind: AgentKind, cx: &App) -> LaunchMode {
     let project = workspace.project().read(cx);
     let folders = if project.is_local() {
         project.project_group_key(cx).path_list().paths().to_vec()

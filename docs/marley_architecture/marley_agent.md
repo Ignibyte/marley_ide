@@ -291,6 +291,13 @@ pub fn route_of_choice(option: &str) -> Route;
 - `claude_events::HookEvent.options` (#570) carries an AskUserQuestion's first question's option
   labels, which `wait` puts in the seat's `Question.options`.
 
+## Resuming a session (`src/marley_agent.rs`, #540)
+
+- `resume_line(mode, session, folder)` is what resumes Claude Code's session in a shell:
+  `cd -- <folder> && claude [mode's arguments] --resume <session>` and Enter, the folder one
+  `quote_argument` word and the `cd` left out for an empty folder; `None` unless the session is
+  an 8-4-4-4-12 hexadecimal id. `HookEvent::reason` carries `SessionEnd`'s reason.
+
 ## Claude Code's trust question (`src/trust.rs`, #587)
 
 - `read(lines)` finds the question in a terminal's last lines, oldest first: the footer (`Enter

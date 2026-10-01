@@ -4369,3 +4369,14 @@ from the top). Anything that wants to know whether the view is clipped must test
 cares about (`intersection.top() == content_bounds.top()`), not the whole rectangle. Also: the
 prompt the shell waits at is no block; it is `AnchoredBlocks`' staged prompt
 (`staged_line`), so a rule over "every block on screen" leaves it out unless it asks.
+
+## L-claude-540-a-queued-spec-is-redesigned-against-what-shipped-since-001
+*category: plan · topic: promoting a queued spec · from: pipeline 540*
+
+#540's spec was drafted on 2026-09-25 and waited a week; in that week #575 gave every restored
+terminal its old `MARLEY_TERMINAL_ID` through a table of Marley's own. The draft's design (two
+columns on Zed's `terminals` table, a field and a setter on `TerminalView`) was the right answer
+without that key and the wrong one with it: the session could ride the terminal id, and the
+ticket shipped with no Zed change but the setting's. At promotion, list the tickets that shipped
+since the draft on the same seams (here `git log` over `terminal_view.rs` and the workbench's
+restore paths) before re-verifying line numbers; a new seam can delete half the plan.

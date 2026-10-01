@@ -186,6 +186,37 @@ pub fn launch_line(kind: AgentKind, mode: LaunchMode, prompt: &str) -> Vec<u8> {
     send_payload(&line)
 }
 
+/// What resumes Claude Code's session `session` in a shell (#540).
+///
+/// `cd` to `folder`, where the session started and where `claude --resume` looks it up, then
+/// Claude Code with the arguments `mode` asks for, `--resume` and the id, and Enter.
+///
+/// `None` unless `session` is an id in the 8-4-4-4-12 hexadecimal form Claude Code gives, so a
+/// damaged or forged value types nothing. The folder goes in as one quoted word; an empty folder
+/// leaves the `cd` out.
+#[must_use]
+pub fn resume_line(mode: LaunchMode, session: &str, folder: &str) -> Option<Vec<u8>> {
+    if !is_session_id(session) {
+        return None;
+    }
+    let resume = format!("{} --resume {session}", command(AgentKind::Claude, mode));
+    let line = if folder.is_empty() {
+        resume
+    } else {
+        format!("cd -- {} && {resume}", quote_argument(folder))
+    };
+    Some(send_payload(&line))
+}
+
+/// Whether `id` is a session id in the 8-4-4-4-12 hexadecimal form.
+fn is_session_id(id: &str) -> bool {
+    let groups: Vec<&str> = id.split('-').collect();
+    groups.len() == 5
+        && groups.iter().zip([8, 4, 4, 4, 12]).all(|(group, len)| {
+            group.len() == len && group.bytes().all(|byte| byte.is_ascii_hexdigit())
+        })
+}
+
 /// [`launch_line`] after `setup`, a command that must succeed first (#585).
 ///
 /// The line is `<setup> && <launch line>`, so the agent starts only once its worktree's install

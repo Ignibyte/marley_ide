@@ -12,7 +12,7 @@
 //! and when that runs between two terminals' restores it deletes a row the second one still
 //! needs.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use gpui::{App, AppContext as _, Global, Task};
@@ -46,6 +46,14 @@ pub fn init(cx: &mut App) {
         moved: Arc::new(moved),
         cleanup: Arc::new(cleanup),
     });
+}
+
+/// The ids of the terminals saved to be restored: the table's at the start, and each saved since
+/// (#540).
+pub(crate) fn known_ids(cx: &App) -> HashSet<String> {
+    cx.try_global::<KnownIds>()
+        .map(|known| known.0.values().cloned().collect())
+        .unwrap_or_default()
 }
 
 /// The id kept for the item, else the one in the table, when it is well formed.

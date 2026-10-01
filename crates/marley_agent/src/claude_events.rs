@@ -101,6 +101,9 @@ pub struct HookEvent {
     pub error: Option<String>,
     /// Why the session started, for `SessionStart`.
     pub source: Option<String>,
+    /// Why the session ended, for `SessionEnd`: `clear`, `resume`, `logout`, `prompt_input_exit`
+    /// or `other` (#540).
+    pub reason: Option<String>,
     /// `manual` or `auto`, for `PostCompact`.
     pub trigger: Option<String>,
     /// Whether the user interrupted the tool, for `PostToolUseFailure`.

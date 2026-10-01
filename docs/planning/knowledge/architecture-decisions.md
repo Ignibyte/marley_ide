@@ -3688,3 +3688,18 @@ grid lines (the shell owns the grid); fewer PTY rows to make room (a resize each
 scrolls); pixel scrolling (Zed's terminal scrolls by lines, so the anchor change between the live
 screen and one line back moves the rows by the space inserted); a column on Zed's `terminals`
 table or a field on `TerminalBounds`, which is `Copy` and serialized.
+
+## AD-claude-540-a-claude-code-session-resumes-by-the-terminals-id-001
+*decided at: 2026-10-01 · status: shipped · builds on: AD-claude-575-a-restored-terminal-keeps-its-id-through-marleys-table-001, AD-claude-519-claude-codes-hook-events-ride-in-band-into-marley-fleet-001*
+
+A Claude Code session comes back after a Marley restart by the id its `SessionStart` reported,
+kept in `marley_agent_sessions` under the terminal's `MARLEY_TERMINAL_ID`, which #575 keeps
+across a restore; a new view whose terminal's id holds a session types
+`cd -- <folder> && claude --resume <id>` after Zed's startup handshake, once per session per
+launch. The user's own exit (`prompt_input_exit`, `logout`) drops the row, and so does Claude Code
+leaving the foreground without a `SessionEnd`, unless Marley is quitting (`on_app_quit` sets a
+flag before the windows close); `other` keeps it, as a quit reads. Rejected: two columns on Zed's
+`terminals` table and a field on `TerminalView` (the queued draft, before #575 gave a key that
+outlives the item id, and a change to two Zed files); reading `~/.claude/projects` or the screen
+for the id; starting the restored shell in the session's folder (a Zed change; the `cd` does it
+in the typed line, the folder one quoted word).

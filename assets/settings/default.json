@@ -1671,6 +1671,9 @@
     // Minutes a working Claude Code may go without a hook event before its rail row says
     // "no update in N m" instead of "working" (#547); 0 turns this off.
     "no_update_after_minutes": 30,
+    // Whether a terminal that ran a Claude Code session when Marley quit resumes it at the next
+    // launch, with `claude --resume <id>` typed in the session's folder (#540).
+    "resume_agents": true,
     // Seconds a working Claude Code may be quiet before the stall kind's first check, with the
     // next at twice, four and eight times it (#569); 0 turns the quiet checks off. The stall kind
     // runs only while system_one.uses.stall_kind is on.

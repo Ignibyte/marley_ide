@@ -1960,6 +1960,25 @@ alike.
   the value and leaves the key empty, so a well-formed value becomes the terminal's id and no
   program, and no split rebuilt from the template, sees it.
 
+## Claude Code sessions across a restart (`src/resume.rs`, #540)
+
+- `init`, after `terminal_ids::init`, reads `MarleyAgentSessionsDb`'s table,
+  `marley_agent_sessions(terminal_id, session_id, folder)` (its own domain, keyed by the
+  terminal's `MARLEY_TERMINAL_ID`, which a restored terminal keeps), into `Sessions`, and removes
+  the rows of terminal ids no saved terminal holds (`terminal_ids::known_ids`). `on_app_quit`
+  sets `quitting`.
+- `agent_events::on_frame` hands the lead's events to `on_event`: a `SessionStart` (but a
+  compaction's) writes the terminal's row, memory first; a `SessionEnd` with `prompt_input_exit`
+  or `logout` removes it; any other end waits, since a quit reads as `other`. The rail's
+  `agent_events::end`, for a Claude Code gone without a `SessionEnd`, hands the seats to `ended`,
+  which removes their rows unless `quitting`. A remote terminal has no row.
+- Each new local `TerminalView` is recorded by its seat (`views`) and goes to `resume_restored`:
+  with `MarleySettings::resume_agents` on, no agent in the foreground, a row for its terminal's id
+  and that session not claimed this launch, it claims the session and, in a task, runs the
+  startup handshake (`agents::STARTUP_TIMEOUT`) and writes `marley_agent::resume_line` with the
+  project's launch mode for Claude Code (`agents::launch_mode`); a terminal that took input first
+  keeps its shell.
+
 ## The browser's agent tools (`src/browser_tools.rs`, #492, #493, #574)
 
 - `mcp.rs` hands each `browser_*` call to `browser_tools::answer`, which starts the caller's

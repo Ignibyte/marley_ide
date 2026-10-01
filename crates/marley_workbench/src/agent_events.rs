@@ -148,6 +148,11 @@ pub(crate) fn on_frame(
             return None;
         }
     };
+    // The lead's session, which a restart resumes (#540).
+    if event.agent_id.is_none() {
+        let terminal = view.terminal().clone();
+        crate::resume::on_event(&terminal, &event, cx);
+    }
     let seat = seat_id(cx.entity_id());
     let previous = cx
         .try_global::<AgentEvents>()
@@ -515,6 +520,8 @@ pub(crate) fn end(terminals: &[u64], cx: &mut App) {
     }
     let ended: Vec<u64> = live.iter().filter_map(|seat| seat.parse().ok()).collect();
     crate::turns::on_end(&ended, cx);
+    // Claude Code went without saying so: no session to resume there (#540).
+    crate::resume::ended(&ended, cx);
     let ts_ms = now_ms();
     let agent_events = cx.default_global::<AgentEvents>();
     for id in live {
