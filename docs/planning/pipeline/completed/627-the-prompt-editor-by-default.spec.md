@@ -1,7 +1,7 @@
 ---
 pipeline_id: 792fa05b-50e3-4ee8-a257-57ab4d014ae9
 ticket: docs/planning/tickets/open/TICKET-627-the-prompt-editor-by-default.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "The prompt editor by default, with the raw-passthrough ladder"
 type: feature
 slice: prong 1 T3
@@ -16,13 +16,15 @@ raw to the program everywhere else (plan T3, D4). After #624, #625 and #626.
 ### In
 - `crates/marley_workbench`: the footer editor docks whenever the terminal's shell is at a prompt
   (`at_prompt()`), focused with the terminal; a setting turns it off.
-- The ladder, in order: the alternate screen, a running command (no prompt), bracketed paste, and
-  application cursor mode send every key raw (`to_esc_str`), as today; otherwise keys go to the
-  editor. Ctrl+C at the editor clears it; Ctrl+D with it empty goes to the shell.
-- #484's ghost text and → move into the editor (an inline completion), and #557's hint shows
-  under it.
+- The ladder: the alternate screen or a running command (no prompt) sends every key raw
+  (`to_esc_str`), as today; otherwise keys go to the editor. Readline turns bracketed paste on at
+  every prompt, so bracketed paste and application cursor mode do not count against the editor.
+  Ctrl+C at the editor clears it; Escape closes it until the next prompt.
 
 ### Out (explicitly deferred)
+- #484's ghost text and → inside the editor, and #557's hint under it: each needs Zed's edit
+  prediction machinery or a placed overlay; a follow-up ticket.
+- Ctrl+D passing EOF from an empty editor.
 - #573's network reading (its own ticket, on the editor's idle point).
 - Remote shells without Marley's hooks (no prompt known; raw as today).
 
@@ -57,7 +59,7 @@ raw to the program everywhere else (plan T3, D4). After #624, #625 and #626.
 |---|---|---|
 | REQ-001 | WHILE the shell is at a prompt, Marley shall send typed keys to the prompt editor. | Shot `prompt.png` |
 | REQ-002 | WHILE the alternate screen is on or a command runs, Marley shall send keys to the program raw. | Shots `vim.png`, `back.png` |
-| REQ-003 | WHEN the user presses → on the editor's ghost text, the editor shall take it. | Review; a shot if the run shows it |
+| REQ-003 | WHEN the user presses Escape in the editor, Marley shall give the keys to the shell until its next prompt. | Review |
 
 ## Phase Plan
 - **P1 Plan** — promote, re-verify the seams, the design.

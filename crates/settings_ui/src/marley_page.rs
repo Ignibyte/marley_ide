@@ -21,7 +21,7 @@ pub(crate) fn marley_page() -> SettingsPage {
     }
 }
 
-fn layout_section() -> [SettingsPageItem; 4] {
+fn layout_section() -> [SettingsPageItem; 5] {
     [
         SettingsPageItem::SectionHeader("Layout"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -58,6 +58,29 @@ fn layout_section() -> [SettingsPageItem; 4] {
                 },
                 write: |settings_content, value, _| {
                     settings_content.marley.get_or_insert_default().rail_order = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: the shell's prompt editor at every prompt (#627).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Prompt Editor",
+            description: "At a terminal's shell prompt, type in a Zed editor docked under the terminal, with completions and colours, and send the command with Enter. A running command or a full-screen program still gets every key. Off, Ctrl+G at a prompt still opens it.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.prompt_editor"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.prompt_editor.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .prompt_editor = value;
                 },
             }),
             metadata: None,

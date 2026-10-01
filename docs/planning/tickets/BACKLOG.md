@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-627](open/TICKET-627-the-prompt-editor-by-default.md) | feature | terminal (wave 3) · the prompt editor by default, with the raw-passthrough ladder |
 | [TICKET-573](open/TICKET-573-english-at-the-prompt-second-stage.md) | feature | terminal (wave 3) · English at the prompt, second stage: a System One reading for the lines the rules leave open, on the prompt editor (#627) |
 | [TICKET-466](open/TICKET-466-fish-shell-integration.md) | feature | terminal (wave 3) · shell integration for fish (fish 4.9.2 installed 2026-09-30) |
 | [TICKET-628](open/TICKET-628-blocks-with-native-headers-and-ps1-hidden.md) | feature | terminal (wave 3) · blocks with native headers, PS1 hidden |

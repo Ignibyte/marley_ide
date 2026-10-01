@@ -4200,3 +4200,11 @@ A scenario that types a variable for the terminal to see (`$HOME`) trips shellch
 single quotes, and the gate's no-suppressions rule makes a disable a poor answer: write it in
 double quotes with the dollar escaped, `type_text "grep h \$HOME"`.
 
+
+## L-claude-627-count-what-happened-instead-of-sampling-a-flag-001
+*category: design · topic: gpui observers · from: pipeline 627*
+
+An observer that reacts to a state's edges only sees the state at each notify, and a terminal can
+go through a whole command between two of them. To act on "the prompt came again", compare
+something that only grows with each occurrence (the block count, an index) with what the last
+notify saw, not a boolean that ends where it started.

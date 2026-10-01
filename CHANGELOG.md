@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The prompt editor by default** (#627, 2026-09-30). In a terminal with the focus, the shell's
+  prompt editor docks by itself at every prompt and takes the keys: no Ctrl+G first. When a
+  command starts or a full-screen program shows, it closes and the program gets every key raw,
+  and it comes back, empty, at the next prompt. Escape gives the keys to the shell until then,
+  and Ctrl+C empties the editor. The setting `marley.prompt_editor` (Prompt Editor on the Settings
+  page's Layout section) set to false brings back Ctrl+G only.
+
 - **A command's colours at the prompt** (#626, 2026-09-30). What is typed at a shell prompt is
   drawn in the theme's syntax colours, as Zed colours a shell script, and the shell's prompt
   editor reads the same way. The colours are painted over the typed cells, which keep what the

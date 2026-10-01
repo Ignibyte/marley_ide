@@ -516,6 +516,14 @@ In the shell's editor, Tab opens completions (#625): the word before the cursor 
 prompt's folder (folders end in `/`), and the command so far as the start of one from the shell's
 history or the project's tasks. Enter or Tab takes an entry without running the line.
 
+The shell's editor needs no Ctrl+G (#627): in the terminal you are typing in, it docks at every
+prompt and takes the keys, so you write each command in a Zed editor. When a command starts or a
+full-screen program such as vim shows, the editor closes and the program gets every key raw; at
+the next prompt it comes back, empty. Escape gives the keys to the shell until its next prompt, and
+Ctrl+C empties the editor, as it drops a line at the shell's prompt. To have the editor only on
+Ctrl+G, turn off Prompt Editor in the Settings window's Layout section
+(`"marley": { "prompt_editor": false }`).
+
 What you type at a shell prompt is drawn in your theme's syntax colours as you type, as Zed colours
 a shell script: commands, strings, variables and operators apart (#626). The shell's editor reads
 the same way. Once the command runs, its block keeps the shell's own drawing.
@@ -1580,6 +1588,7 @@ table lists Marley's bindings and the Zed keys whose meaning Marley changes or r
 | → | Terminal, at a prompt | Takes the autosuggestion |
 | Ctrl+G | Terminal running an agent CLI | Rich input |
 | Enter, Shift+Enter, Escape | Rich input | Sends; adds a line; closes and keeps the draft |
+| Ctrl+C | The shell's prompt editor | Empties it |
 | Ctrl+Q | Terminal | Goes to the shell, not Zed (quit with `zed: quit`) |
 | Ctrl+L | Browser tab | The address bar |
 | Enter, Escape | Address bar | Goes; puts the page's URL back and focuses the page |
@@ -1616,7 +1625,8 @@ Commands with no key of their own, from the command palette:
 
 Marley keeps its settings in `~/.config/marley/settings.json`, in Zed's format (Ctrl+Alt+, opens
 the file; Ctrl+, opens the Settings window). `marley: open settings` opens the Settings window on its Marley page,
-first in the list (#515). The page has a Layout section, with the layout as a dropdown, an Agents
+first in the list (#515). The page has a Layout section, with the layout as a dropdown and the
+Prompt Editor toggle (#627), an Agents
 section with Redact Secrets for Agents (#516), and a Privacy section with the two telemetry
 toggles; later Marley settings add their sections there.
 
@@ -1627,6 +1637,8 @@ Marley's own keys in the file:
   "marley": {
     // "marley" (the default) or "zed". marley: use marley layout and use zed layout write it.
     "layout": "marley",
+    // The shell's prompt editor at every prompt (true, the default), or only on Ctrl+G (#627).
+    "prompt_editor": true,
     // Hide secrets in what Marley's tools give agents (true by default), and more to hide: each
     // entry is a regular expression, and one that does not compile is named in a notification.
     "redact_secrets_for_agents": true,

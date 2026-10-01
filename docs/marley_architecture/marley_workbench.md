@@ -915,9 +915,27 @@ alike.
   `terminal_drive::AFTER_PASTE` (`paste_then`, #594), for the shell after a Ctrl-U that clears
   its line (#624), clears and closes
   the editor and focuses the terminal; Escape (`marley::CloseRichInput`) closes it with the draft
-  kept; Shift-Enter is `editor::Newline`. The container stops the key events the terminal view
+  kept; Shift-Enter is `editor::Newline`. In the shell's editor the container's key context adds
+  `MarleyShellInput`, where Ctrl-C is `marley::ClearRichInput` (#627), which empties it. The container stops the key events the terminal view
   would send its program, chords and keys that type nothing, and lets text through to the
   editor.
+
+## The prompt editor by default (`src/rich_input.rs`, #627)
+
+- `marley.prompt_editor` (`MarleySettings::prompt_editor`, a `PromptEditor`: `AtEveryPrompt`, the
+  default, or `OnCtrlG`) decides whether the shell's editor follows the prompt.
+- `rich_input::init` observes each new `TerminalView`: its terminal (`follow_prompt`) and its
+  focus (`take_focus_at_prompt`). `Shells`, a global, keeps per view whether the shell waited at a
+  prompt at the last notify, the terminal's block count then, and whether Escape dismissed the
+  editor; the entry goes with the view.
+- `follow_prompt` counts a prompt as arrived when the shell waits now and did not before, or when
+  the block count changed: a quick command starts and ends between two notifies. An arrival clears
+  the dismissal and, when the view or its editor holds the focus, opens the editor for the shell.
+  Leaving the prompt (a command, the alternate screen) closes the editor and gives the focus back
+  to the terminal if the editor held it. Both hooks run inside the view's update, so each open,
+  close and focus change is deferred to the window.
+- `take_focus_at_prompt` opens the editor when the terminal gets the focus at a prompt it was not
+  dismissed at. `close` marks the shell's editor dismissed until the next prompt.
 
 ## The shell's completions (`src/shell_completions.rs`, #625)
 

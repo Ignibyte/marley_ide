@@ -109,6 +109,13 @@
     }
   },
   {
+    // The shell's prompt editor (#627): Ctrl-C empties it, as at a shell's prompt.
+    "context": "MarleyShellInput > Editor",
+    "bindings": {
+      "ctrl-c": "marley::ClearRichInput"
+    }
+  },
+  {
     // While the completion menu shows, Enter and Tab take its entry, as Zed binds them (#625).
     "context": "MarleyRichInput > Editor && !showing_completions",
     "bindings": {

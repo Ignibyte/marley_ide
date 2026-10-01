@@ -206,6 +206,9 @@ actions!(
         /// Sends the rich input's text to the agent as its prompt.
         #[derive(Eq)]
         SendRichInput,
+        /// Empties the shell's prompt editor, as Ctrl-C drops a line at a shell's prompt.
+        #[derive(Eq)]
+        ClearRichInput,
         /// Closes the rich input, keeping its text for the next time it opens.
         #[derive(Eq)]
         CloseRichInput,
@@ -371,6 +374,8 @@ pub struct MarleySettings {
     /// Whether a line typed at a prompt that reads as English gets a hint, and an exit-127 block
     /// the Ask chip (#557).
     pub english_hint: EnglishHint,
+    /// Whether the shell's prompt editor docks at every prompt (#627).
+    pub prompt_editor: PromptEditor,
     /// The order the rail lists projects and rows in (#542).
     pub rail_order: marley_rail::RailOrder,
     /// What Marley starts Claude Code and Codex with (#532).
@@ -409,6 +414,25 @@ pub enum AgentCommandHistory {
 }
 
 /// Whether English typed at a prompt is answered with a hint and an exit-127 block with the Ask
+/// Where the shell's prompt editor opens, from `marley.prompt_editor` (#627).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PromptEditor {
+    /// At every prompt, taking the keys there.
+    AtEveryPrompt,
+    /// Only on Ctrl+G (#624).
+    OnCtrlG,
+}
+
+impl PromptEditor {
+    /// The setting's value: at every prompt unless it is off.
+    const fn from_setting(docked: Option<bool>) -> Self {
+        match docked {
+            Some(false) => Self::OnCtrlG,
+            _ => Self::AtEveryPrompt,
+        }
+    }
+}
+
 /// chip, from `marley.english_hint` (#557).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EnglishHint {
@@ -497,6 +521,9 @@ impl Settings for MarleySettings {
                 settings::MarleyRailOrder::Attention => marley_rail::RailOrder::Attention,
                 settings::MarleyRailOrder::Window => marley_rail::RailOrder::Window,
             },
+            prompt_editor: PromptEditor::from_setting(
+                marley.and_then(|marley| marley.prompt_editor),
+            ),
             english_hint: if marley
                 .and_then(|marley| marley.english_hint)
                 .unwrap_or(true)

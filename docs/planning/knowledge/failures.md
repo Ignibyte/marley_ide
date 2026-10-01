@@ -3054,3 +3054,13 @@ opened the editor (the shortcut toast showed) but nothing drew it, its focus fel
 typing went on to the shell (`editor.png`, `typed.png`). Fixed before the commit: the agentless
 footer stacks the editor with the drive card and the URL strip.
 
+
+## F-claude-627-a-quick-commands-prompt-went-unseen-001
+*severity: medium · found in: pipeline 627's Test phase (run 1) · class: an edge read from a boolean sampled at notifies*
+
+The prompt editor docked when the shell's "at a prompt" went from false to true between two of
+the terminal's notifies. `echo hi` starts and ends between two notifies, so the observer saw the
+shell at a prompt both times, never saw the prompt come again, and left the editor closed and
+marked dismissed by the send (`ran.png`: the block, the shell's cursor, no editor). Fixed before
+the commit: the observer keeps the terminal's block count too, and a new block while the shell
+waits counts as a new prompt.

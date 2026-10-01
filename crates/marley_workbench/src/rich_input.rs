@@ -9,6 +9,12 @@
 //! holding the line typed so far: Enter clears the shell's line with Ctrl-U, then sends the text
 //! and a carriage return, and Escape leaves the shell's line as it was. Anywhere else, Ctrl-G
 //! reaches the program as before.
+//!
+//! With `marley.prompt_editor` on (the default, #627), the shell's editor docks by itself whenever
+//! the shell waits at a prompt off the alternate screen and its terminal holds the focus, and it
+//! takes the keys there; when a command starts or a full-screen program shows, it closes and the
+//! terminal gets every key raw again. Escape gives the keys back to the shell until its next
+//! prompt; Ctrl-C empties the editor.
 
 use std::collections::HashMap;
 
@@ -24,7 +30,10 @@ use workspace::Workspace;
 
 use crate::agent_bar::agent_in;
 use crate::blocks::focused_terminal;
-use crate::{CloseRichInput, RichInput, SendRichInput};
+use crate::{
+    ClearRichInput, CloseRichInput, MarleySettings, PromptEditor, RichInput, SendRichInput,
+};
+use settings::Settings as _;
 
 /// A terminal's editor, and whether it shows.
 struct Prompt {
@@ -49,10 +58,51 @@ struct Prompts(HashMap<EntityId, Prompt>);
 
 impl Global for Prompts {}
 
+/// What the prompt editor by default (#627) knows of each terminal view's shell.
+#[derive(Default)]
+struct Shells(HashMap<EntityId, ShellState>);
+
+impl Global for Shells {}
+
+#[derive(Clone, Copy, Default)]
+struct ShellState {
+    /// Whether the shell waited at a prompt at the terminal's last notify.
+    at_prompt: bool,
+    /// How many blocks the terminal had then: a quick command starts and ends between two
+    /// notifies, and only its new block tells that the prompt came again.
+    blocks: usize,
+    /// Whether the user gave the keys back to the shell with Escape, until its next prompt.
+    dismissed: bool,
+}
+
 /// Installs `marley::RichInput` on every workspace. [`crate::init`] calls it once, before any
 /// window opens.
 pub fn init(cx: &mut App) {
     cx.set_global(Prompts::default());
+    cx.set_global(Shells::default());
+    cx.observe_new(
+        |view: &mut TerminalView, window, cx: &mut Context<TerminalView>| {
+            let Some(window) = window else {
+                return;
+            };
+            let terminal = view.terminal().clone();
+            cx.observe_in(&terminal, window, |view, _, window, cx| {
+                follow_prompt(view, window, cx);
+            })
+            .detach();
+            let focus = view.focus_handle(cx);
+            cx.on_focus(&focus, window, |view, window, cx| {
+                take_focus_at_prompt(view, window, cx);
+            })
+            .detach();
+            let id = cx.entity_id();
+            cx.on_release(move |_, cx| {
+                cx.global_mut::<Shells>().0.remove(&id);
+            })
+            .detach();
+        },
+    )
+    .detach();
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action(|workspace, _: &RichInput, window, cx| {
             let target_view = focused_terminal(workspace, window, cx).and_then(|view| {
@@ -92,6 +142,96 @@ fn target_of(terminal: &terminal::Terminal) -> Option<Target> {
             .mode
             .contains(terminal::Modes::ALT_SCREEN);
     at_prompt.then_some(Target::Shell)
+}
+
+/// Whether the shell of `view`'s terminal waits at a prompt off the alternate screen, with no agent
+/// running: where the prompt editor takes the keys (#627).
+fn shell_waits(view: &TerminalView, cx: &App) -> bool {
+    let terminal = view.terminal().read(cx);
+    matches!(target_of(terminal), Some(Target::Shell))
+}
+
+/// Follows `view`'s shell into and out of its prompt (#627): at a prompt the editor docks and
+/// takes the focus the terminal held; leaving it, the editor closes and the terminal gets the keys.
+/// It runs inside the view's update, so the editor's changes are deferred.
+fn follow_prompt(view: &TerminalView, window: &Window, cx: &mut Context<TerminalView>) {
+    if MarleySettings::get_global(cx).prompt_editor != PromptEditor::AtEveryPrompt {
+        return;
+    }
+    let waits = shell_waits(view, cx);
+    let blocks = view
+        .terminal()
+        .read(cx)
+        .blocks()
+        .last()
+        .map_or(0, |block| block.index + 1);
+    let id = cx.entity_id();
+    let state = cx
+        .global::<Shells>()
+        .0
+        .get(&id)
+        .copied()
+        .unwrap_or_default();
+    let arrived = waits && (!state.at_prompt || blocks != state.blocks);
+    let left = !waits && state.at_prompt;
+    cx.global_mut::<Shells>().0.insert(
+        id,
+        ShellState {
+            at_prompt: waits,
+            blocks,
+            dismissed: state.dismissed && !arrived,
+        },
+    );
+    if !arrived && !left {
+        return;
+    }
+    let view_entity = cx.entity();
+    let editor_focused = cx
+        .global::<Prompts>()
+        .0
+        .get(&id)
+        .is_some_and(|prompt| prompt.open && prompt.editor.focus_handle(cx).is_focused(window));
+    if waits {
+        if view.focus_handle(cx).contains_focused(window, cx) || editor_focused {
+            window.defer(cx, move |window, cx| {
+                open_for(&view_entity, Target::Shell, window, cx);
+            });
+        }
+    } else if let Some(prompt) = cx.global_mut::<Prompts>().0.get_mut(&id)
+        && prompt.open
+        && matches!(prompt.target, Target::Shell)
+    {
+        prompt.open = false;
+        // The keys go back to the terminal only when the editor had them.
+        if editor_focused {
+            window.defer(cx, move |window, cx| {
+                window.focus(&view_entity.focus_handle(cx), cx);
+            });
+        }
+        cx.notify();
+    }
+}
+
+/// The terminal's focus goes on to the shell's editor while the shell waits at a prompt, unless the
+/// user gave the keys back with Escape (#627).
+fn take_focus_at_prompt(view: &TerminalView, window: &Window, cx: &mut Context<TerminalView>) {
+    if MarleySettings::get_global(cx).prompt_editor != PromptEditor::AtEveryPrompt
+        || !shell_waits(view, cx)
+    {
+        return;
+    }
+    let dismissed = cx
+        .global::<Shells>()
+        .0
+        .get(&cx.entity_id())
+        .is_some_and(|state| state.dismissed);
+    if dismissed {
+        return;
+    }
+    let view_entity = cx.entity();
+    window.defer(cx, move |window, cx| {
+        open_for(&view_entity, Target::Shell, window, cx);
+    });
 }
 
 /// Opens `view`'s editor for `agent`, with the draft it had, and gives it the focus.
@@ -224,13 +364,31 @@ fn send(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
     close(view, window, cx);
 }
 
-/// Closes `view`'s editor, keeping its text, and gives the terminal the focus back.
+/// Closes `view`'s editor, keeping its text, and gives the terminal the focus back. The shell's
+/// editor stays away until the next prompt (#627).
 fn close(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
     if let Some(prompt) = cx.global_mut::<Prompts>().0.get_mut(&view.entity_id()) {
         prompt.open = false;
+        if matches!(prompt.target, Target::Shell)
+            && let Some(state) = cx.global_mut::<Shells>().0.get_mut(&view.entity_id())
+        {
+            state.dismissed = true;
+        }
     }
     window.focus(&view.focus_handle(cx), cx);
     view.update(cx, |_, cx| cx.notify());
+}
+
+/// Empties `view`'s editor, as Ctrl-C at a shell's prompt drops the line (#627).
+fn clear(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
+    if let Some(editor) = cx
+        .global::<Prompts>()
+        .0
+        .get(&view.entity_id())
+        .map(|prompt| prompt.editor.clone())
+    {
+        editor.update(cx, |editor, cx| editor.set_text("", window, cx));
+    }
 }
 
 /// Runs `action` on the terminal view behind `view`, when it is still there.
@@ -253,11 +411,24 @@ pub fn element(context: &MarleyFooterContext, cx: &App) -> Option<AnyElement> {
         return None;
     }
     let colors = cx.theme().colors();
-    let (send_to, close_on) = (context.view.clone(), context.view.clone());
+    let (send_to, close_on, clear_on) = (
+        context.view.clone(),
+        context.view.clone(),
+        context.view.clone(),
+    );
+    // The shell's editor answers a few keys of its own (#627).
+    let mut key_context = gpui::KeyContext::new_with_defaults();
+    key_context.add("MarleyRichInput");
+    if matches!(prompt.target, Target::Shell) {
+        key_context.add("MarleyShellInput");
+    }
     Some(
         div()
             .debug_selector(|| "marley-rich-input".into())
-            .key_context("MarleyRichInput")
+            .key_context(key_context)
+            .on_action(move |_: &ClearRichInput, window, cx| {
+                on_view(&clear_on, window, cx, clear);
+            })
             .on_action(move |_: &SendRichInput, window, cx| on_view(&send_to, window, cx, send))
             .on_action(move |_: &CloseRichInput, window, cx| {
                 on_view(&close_on, window, cx, close);

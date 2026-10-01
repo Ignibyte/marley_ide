@@ -1737,6 +1737,10 @@
     // shows a hint that Ctrl+Shift+Enter asks the agent, and a block that ended with 127 on one
     // offers Ask the agent (#557). Local rules decide; the key works either way.
     "english_hint": true,
+    // Whether the shell's prompt editor docks at every prompt and takes the keys there (#627):
+    // Zed's editing, completions and colours for a command. A running command or a full-screen
+    // program still gets every key. Off, Ctrl+G at a prompt still opens it.
+    "prompt_editor": true,
     // The order the rail lists projects and rows in (#542): "attention" (waiting, failed,
     // finished unseen, working, not reporting, then the rest; ties keep the window's order, and
     // nothing moves while the pointer is over the rail) or "window".

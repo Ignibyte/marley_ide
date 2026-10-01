@@ -93,6 +93,12 @@ pub struct MarleySettingsContent {
     ///
     /// Default: true
     pub english_hint: Option<bool>,
+    /// Whether the shell's prompt editor docks at every prompt and takes the keys there, a
+    /// full-screen program or a running command still getting them raw (#627). Off, Ctrl+G
+    /// still opens it.
+    ///
+    /// Default: true
+    pub prompt_editor: Option<bool>,
     /// The order the rail lists projects and the rows under them in: what needs you first
     /// (waiting, failed, finished unseen, working, not reporting, then the rest), or the window's
     /// order (#542).
