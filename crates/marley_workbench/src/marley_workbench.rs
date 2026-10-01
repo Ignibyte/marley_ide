@@ -456,11 +456,11 @@ pub enum BlockHeaders {
 }
 
 impl BlockHeaders {
-    /// The setting's value: the shell's prompt unless it is on.
+    /// The setting's value: Marley's headers unless it is off (#630).
     const fn from_setting(native: Option<bool>) -> Self {
         match native {
-            Some(true) => Self::Native,
-            _ => Self::ShellPrompt,
+            Some(false) => Self::ShellPrompt,
+            _ => Self::Native,
         }
     }
 }

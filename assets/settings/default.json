@@ -1690,8 +1690,9 @@
     // through the block's output; a click on it scrolls to the block's start (#529).
     "sticky_command_header": true,
     // Whether a block's prompt rows are drawn as Marley's header, the command and its pill in
-    // place of the shell's prompt; the prompt waiting for a command stays the shell's (#628).
-    "block_headers": false,
+    // place of the shell's prompt, with the folder it ran in and its git branch; the prompt
+    // waiting for a command stays the shell's (#628, #630).
+    "block_headers": true,
     // How many seconds a command runs before its end shows a desktop notification, when its
     // terminal is not the one in front; 0 turns this off (#551).
     "long_command_seconds": 30,

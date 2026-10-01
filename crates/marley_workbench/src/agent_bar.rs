@@ -11,9 +11,9 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use gpui::{AnyElement, App, Context, PathPromptOptions, SharedString, WeakEntity, Window};
+use gpui::{AnyElement, App, Context, Entity, PathPromptOptions, SharedString, WeakEntity, Window};
 use marley_agent::AgentKind;
-use project::DirectoryLister;
+use project::{DirectoryLister, Project};
 use terminal::Terminal;
 use terminal_view::{MarleyFooterContext, MarleyTerminalFooter, TerminalView};
 use ui::{Button, Icon, IconButton, IconName, IconSize, Label, LabelSize, Tooltip, prelude::*};
@@ -97,33 +97,43 @@ pub fn contents(context: &MarleyFooterContext, cx: &App) -> Option<BarContents> 
     let folder = terminal.working_directory();
     let branch = folder.as_deref().and_then(|folder| {
         let project = context.project.upgrade()?;
-        let repositories = project
-            .read(cx)
-            .git_store()
-            .read(cx)
-            .repositories()
-            .values()
-            .map(|repository| {
-                let repository = repository.read(cx);
-                let branch = repository
-                    .branch
-                    .as_ref()
-                    .map(|branch| SharedString::from(branch.name().to_string()));
-                (Arc::clone(&repository.work_directory_abs_path), branch)
-            })
-            .collect::<Vec<_>>();
-        branch_for(
-            folder,
-            repositories
-                .iter()
-                .map(|(work_directory, branch)| (work_directory.as_ref(), branch.as_ref())),
-        )
+        branch_of(&project, folder, cx)
     });
     Some(BarContents {
         agent,
         folder,
         branch,
     })
+}
+
+/// The branch of `project`'s innermost repository that holds `folder`, when it is on one (#477; the
+/// block headers' too, #630).
+pub(crate) fn branch_of(
+    project: &Entity<Project>,
+    folder: &Path,
+    cx: &App,
+) -> Option<SharedString> {
+    let repositories = project
+        .read(cx)
+        .git_store()
+        .read(cx)
+        .repositories()
+        .values()
+        .map(|repository| {
+            let repository = repository.read(cx);
+            let branch = repository
+                .branch
+                .as_ref()
+                .map(|branch| SharedString::from(branch.name().to_string()));
+            (Arc::clone(&repository.work_directory_abs_path), branch)
+        })
+        .collect::<Vec<_>>();
+    branch_for(
+        folder,
+        repositories
+            .iter()
+            .map(|(work_directory, branch)| (work_directory.as_ref(), branch.as_ref())),
+    )
 }
 
 /// The CLI agent in `terminal`'s foreground, if one is.

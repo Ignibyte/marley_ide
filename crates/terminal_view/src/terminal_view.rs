@@ -213,12 +213,19 @@ pub struct MarleyStickyHeader(
 impl gpui::Global for MarleyStickyHeader {}
 
 // Marley: the header drawn over a block's prompt rows in place of the shell's prompt, given the
-// block's index and the height of a row, or none, which leaves the rows as the shell drew them;
-// Marley's workbench sets it (#628).
+// block's index, the height of a row and how many rows it covers (#630), or none, which leaves the
+// rows as the shell drew them; Marley's workbench sets it (#628).
 #[derive(Clone)]
 pub struct MarleyBlockHeader(
     pub  Arc<
-        dyn Fn(&Entity<TerminalView>, &Entity<Terminal>, usize, Pixels, &App) -> Option<AnyElement>,
+        dyn Fn(
+            &Entity<TerminalView>,
+            &Entity<Terminal>,
+            usize,
+            Pixels,
+            usize,
+            &App,
+        ) -> Option<AnyElement>,
     >,
 );
 

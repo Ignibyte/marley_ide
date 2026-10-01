@@ -1702,9 +1702,14 @@ impl Element for TerminalElement {
                     };
                     let line_height = dimensions.line_height();
                     for (index, rows) in prompt_rows {
-                        let Some(mut element) =
-                            (hook.0)(&self.terminal_view, &self.terminal, index, line_height, cx)
-                        else {
+                        let Some(mut element) = (hook.0)(
+                            &self.terminal_view,
+                            &self.terminal,
+                            index,
+                            line_height,
+                            rows.len(),
+                            cx,
+                        ) else {
                             continue;
                         };
                         let origin = dimensions.bounds.origin

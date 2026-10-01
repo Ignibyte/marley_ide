@@ -3083,3 +3083,12 @@ ends, which do notify.
 compiled it, and the gate passed. Found while adding `BlockHeaders` beside them; both doc comments
 were put back whole. An insertion made by matching text should anchor on a blank line or an item's
 end, never on a comment line.
+
+## F-claude-630-a-long-folder-pushed-the-branch-off-the-header-001
+*severity: low · found in: pipeline 630's Test phase (run 1) · class: two labels sharing a row with no order of giving way*
+
+The header put the block's whole folder and the branch in one truncating label, and over a
+one-row prompt that label and the command's shared the row with equal claims. A long folder (the
+scenario's scratch path) cut the branch off the right end, and the command shrank to `echo…`.
+Fixed before the commit: the folder keeps its last two parts after `…`, the command keeps its
+width, and the folder and branch truncate instead.

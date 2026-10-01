@@ -1027,10 +1027,17 @@ alike.
   `init` sets, with the block's index and the row height. When it gets an element it leaves those
   rows' cells out and lays the element over the same rows, first of the block elements, so the
   pill and the hover actions draw over it.
-- `header` gives none while `MarleySettings::block_headers` is `ShellPrompt`; otherwise a column
-  the rows' height whose first row holds the command's first line in the buffer font, `…` when
-  the command has more lines. The press and its release stop there, so the terminal under it
-  starts no selection.
+- `header` gives none while `MarleySettings::block_headers` is `ShellPrompt` (`Native` unless
+  the setting is `false`, since #630); otherwise a column the rows' height. Over two rows or more
+  its first row is the place, muted, and its second the command's first line in the buffer font
+  (`…` when the command has more lines); over one row the command comes first and the place
+  after it. The command keeps its width and the place truncates. The press and its release stop
+  there, so the terminal under it starts no selection.
+- The place (#630) is `folder_label` of the block's `pwd` (`~` for home; past two folders the
+  last two after `…`) and the branch `Branches` recorded for the block: `init` observes each new
+  view's terminal, and `record_branches` stores, once per started block, the branch of its
+  folder's repository in the view's project (`agent_bar::branch_of`, the agent bar's lookup made
+  a function). A released view's entries go.
 
 ## The sticky command header (`src/sticky_header.rs`, #529)
 

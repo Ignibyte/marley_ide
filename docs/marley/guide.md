@@ -415,10 +415,13 @@ Every command the shell reports is a block (#470):
 The terminal's text and rows stay as they were. Nothing is drawn while a full-screen program such
 as vim holds the alternate screen.
 
-With Block Headers on (the Marley settings page's Terminal section, or `"marley": {
-"block_headers": true }`), each command's prompt rows show Marley's header instead of your prompt:
-the command in the terminal's font, with its pill at the right (#628). The header takes the rows
-your prompt took, so a two-line prompt leaves the row under the command empty, and nothing moves.
+With Block Headers on, as it is unless you turn it off (the Marley settings page's Terminal
+section, or `"marley": { "block_headers": false }`), each command's prompt rows show Marley's
+header instead of your prompt: the command in the terminal's font, with its pill at the right
+(#628), and the folder it ran in with the git branch it was on when it started, muted (#630). The
+header takes the rows your prompt took, so nothing moves: over a two-line prompt the folder and
+branch sit above the command, over a one-line prompt they follow it. The folder reads `~` for
+your home, and a long one shows its last two folders after `…`.
 The prompt waiting for your next command is drawn as your shell draws it. A click on a header
 selects nothing. The block keys bring a block's header to the top row, the command pinned while you
 scroll back reads as the header does, and a search skips the text a header hides (#629). A command whose report did not carry the terminal's value (see "Shell

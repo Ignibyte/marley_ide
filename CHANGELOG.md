@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Block headers with the folder and branch, on by default** (#630, 2026-10-01). A block's header
+  shows the folder the command ran in (home as `~`, a long path cut to its last two folders) and
+  the git branch it was on when it started, so a later checkout leaves older headers as they were.
+  Where the prompt took two rows the folder and branch sit above the command; on one row they
+  follow it. Block Headers is now on unless you turn it off. Gaps between blocks and a density
+  setting wait in TICKET-631.
+
 - **Block headers in navigation and search** (#629, 2026-10-01). With Block Headers on, the
   command pinned over a scrolled-back block reads as its header, with no `$ `, and a search no
   longer highlights a match inside a prompt the header hides. Moving between blocks still lands on

@@ -57,9 +57,10 @@ pub struct MarleySettingsContent {
     /// Default: true
     pub sticky_command_header: Option<bool>,
     /// Whether a block's prompt rows are drawn as Marley's header, the command and its pill in
-    /// place of the shell's prompt; the prompt waiting for a command stays the shell's (#628).
+    /// place of the shell's prompt; the prompt waiting for a command stays the shell's (#628). The
+    /// header shows the folder the command ran in and its git branch (#630).
     ///
-    /// Default: false
+    /// Default: true
     pub block_headers: Option<bool>,
     /// How many seconds a command runs before its end shows a desktop notification, when its
     /// terminal is not the one in front; 0 turns this off (#551).

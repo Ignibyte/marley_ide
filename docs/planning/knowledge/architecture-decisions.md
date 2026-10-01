@@ -3586,3 +3586,16 @@ waits at stays the shell's. Off by default (`marley.block_headers`). Rejected: a
 collapses a two-row prompt into one header row (every line-to-y site and the mouse would route
 through it; #630 can fill the second row instead); hiding only part of the prompt (the hooks do
 not mark where PS1 ends).
+
+## AD-claude-630-the-header-shows-where-and-on-what-branch-in-its-prompts-rows-001
+*decided at: 2026-10-01 · status: shipped · builds on: AD-claude-628-a-blocks-header-takes-its-prompts-rows-one-for-one-001*
+
+A block's header shows the folder it ran in (`~` for home, the last two folders past two) and the
+git branch its folder was on when the block started, from Zed's git store (the agent bar's
+lookup), recorded once per block from a terminal observer, so a checkout never rewrites an older
+header. It stays in the prompt's own rows: over two rows the folder and branch take the first and
+the command the second; over one they follow the command, which keeps its width. The headers are
+on by default. Gaps and a header taller than its prompt need rows that are no grid line and went
+to #631 (Deliberate). Rejected: the hooks sending the branch (`git=` exists in the frame, but a
+`git` call at every prompt would slow every shell); the branch looked up at draw time (a checkout
+would rewrite old headers).
