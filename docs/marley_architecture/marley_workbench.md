@@ -1409,6 +1409,36 @@ alike.
   when a local group first shows, again on `WorktreeUpdatedEntries` touching a candidate, a page or
   the file it shows, at most once a second; `project_icon` draws it at 16 px before the name.
 
+## The harness's sessions (`src/harness.rs`, #534)
+
+- `marley.harness` (`MarleySettings::harness`, Zed's `ContextServerCommand`) names rustal-harness's
+  MCP server; `init` follows the setting, starting a run when it names a command and dropping the
+  run, and with it the server, when it changes.
+- The `Harness` global holds the command, the `Connection` (`Connecting`, `Connected`,
+  `Down(reason)`), the fleet (`FleetSnapshot`), the server while connected, the section's fold,
+  and a minute counter that redraws a working session's quiet line.
+- The run (`follow`, `connected`): `ContextServer::stdio` and `start` within 5 s; `seed` reads
+  `fleet_snapshot`'s structured content into a `FleetSnapshot` (the harness's conformance check
+  asserts its snapshot is Marley's fold of its events) and keeps its `cursor`; every second
+  `fleet_events { after }` pages are folded with `apply` until one is empty. An `isError` result
+  whose text starts `resync_required` re-seeds. Any other failure, or a call over 5 s (`call`),
+  ends the connection: `Down` with the root cause's first line, then a new start after 1, 2, 4 …
+  60 s. Zed's client sees no server exit, so the failing poll is the sign. The global changes only
+  when events arrive, the connection moves or the minute passes while a session works.
+- `HarnessView`, a workspace item titled with the session's title: `session_read { id, range:
+  { mode: tail, lines: 500 } }`'s lines in the buffer font, read when the seat's `last_event_ms`
+  or state changes and every 2 s while it is not done, one read at a time; a failed read shows in
+  red above the kept lines. `open` shows the one open for that id or adds one to the center.
+- `shown_prompt` drops the `[wait <key>, generation <id>]` the harness adds to an actor's prompt,
+  for the rail's rows and the inbox.
+- In `rail.rs`: `observe_marks` observes `Harness`; `render_harness` draws the section after the
+  containers, outside the model, its keys and the filter (hidden while filtering), with
+  `harness_row` per seat (a dot, the title, the question, `no update in N m` past
+  `no_update_after_minutes` for a working seat, or the state; `· stale` and muted while not
+  connected); `harness_entries` adds each seat with a question to the inbox (`InboxKind::Harness`,
+  `InboxTarget::Harness(id)`, the ask its prompt and options); `open_harness` opens the tab in the
+  displayed workspace.
+
 ## The rail's attention order (`src/rail.rs`, #542)
 
 - `terminal_snapshot` fills `reporting` from the view's #519 seat: `Stale` when it works and

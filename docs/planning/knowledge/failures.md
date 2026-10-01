@@ -3092,3 +3092,11 @@ one-row prompt that label and the command's shared the row with equal claims. A 
 scenario's scratch path) cut the branch off the right end, and the command shrank to `echo…`.
 Fixed before the commit: the folder keeps its last two parts after `…`, the command keeps its
 width, and the folder and branch truncate instead.
+
+## F-claude-534-the-harnesss-routing-note-hid-the-options-001
+*severity: low · found in: pipeline 534's Test phase (run 1) · class: a producer's annotation shown as content*
+
+The harness adds `[wait <key>, generation <id>]` to an actor's question prompt, so a reply can be
+routed. Shown as it came, it filled the inbox's one line, and the options after it never showed
+(`Which base branch? [wait base, g…`). Fixed before the commit: the rail's rows and the inbox
+drop that trailing note for display (`harness::shown_prompt`); the question keeps it.

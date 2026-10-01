@@ -4248,3 +4248,21 @@ drag copied.
 The block keys (Ctrl+Up and Ctrl+Down) select the block they land on, and Zed's search in a
 terminal with a selected block is held to that block (#559). A scenario that searches to see
 matches across blocks searches before the block keys, or clears the selection first.
+
+## L-claude-534-zeds-mcp-client-sees-no-server-exit-001
+*category: design · topic: MCP clients · from: pipeline 534*
+
+Zed's `context_server` client does not notice a stdio server exiting: `wait_for_shutdown` fires on
+a failed send only, a request in flight waits out its timeout (60 s by default), the server's
+stderr goes to Zed's debug log, and an error's JSON-RPC code is dropped for its message. A client
+that must say when its server is gone polls with a bounded call (5 s here) and treats a failure as
+the exit, reads errors from their text (`resync_required`), and writes its own `Request` type for
+a method whose answer is `{}` where Zed's typed one expects `null` (`ResourcesSubscribe`).
+
+## L-claude-534-a-harness-scenario-refuses-the-root-to-hold-a-down-state-001
+*category: validate · topic: e2e scenarios · from: pipeline 534*
+
+A client that reconnects after a second leaves no time to shoot it down. `rh mcp` refuses a state
+root whose mode is not 0700, so a scenario that kills `rh mcp` after `chmod 0755` on the root
+holds the client down for as long as it likes, and `chmod 0700` lets the next retry in. The root
+must be short (its sockets live under it): `$XDG_RUNTIME_DIR/rh534-<pid>`, not the scratch tree.

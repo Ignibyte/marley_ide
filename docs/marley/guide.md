@@ -1494,6 +1494,29 @@ Every call, refused and failed ones included, is a line in `system_one/calls-<da
 Marley's data directory, readable by you alone: the masked state as sent, the answers, the reading,
 the time, the tokens and the cost.
 
+## The harness's sessions
+
+Marley follows the sessions of a rustal-harness (#534) when your settings name its MCP server, as
+a context server's command is named:
+
+```jsonc
+"marley": {
+  "harness": { "command": "/path/to/rustal-harness/bin/rh", "args": ["--state", "/path/to/root", "mcp"] }
+}
+```
+
+The rail then shows a Harness section after the projects and the containers. Its header says
+whether Marley is connected, connecting, or why the harness is not running; a click on it folds
+the rows. Each session is a row: its title, a dot for its state, and under it the question it
+waits on, `no update in N m` for a working session quiet longer than `no_update_after_minutes`,
+or its state in a word. A click opens a tab with the session's last 500 lines, which follows its
+output while the session runs. A session waiting on a question is also in the rail's "Needs you"
+inbox, with its options; opening it opens the session's tab. Marley only reads: answering, sending
+and stopping stay the harness's own commands for now. When the harness stops answering, the
+section keeps its rows marked stale and Marley starts the command again after 1 s, then 2, 4 and
+so on up to a minute. The section stays out of the rail's keys and its filter, as the containers
+do. Without the setting Marley starts nothing.
+
 ## The Fleet panel
 
 The Fleet panel (#607) lists the agents a workflow store reports, grouped under the hosts they

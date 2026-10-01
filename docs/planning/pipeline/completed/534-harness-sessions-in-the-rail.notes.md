@@ -142,3 +142,127 @@ and the fixtures cover every state the rail draws). Both go in the Phase 3 entry
 - Retention can renumber `session_read`'s lines, which is why the view redraws its tail instead of
   appending by line number.
 - Many sessions make a long group; the header folds it.
+
+## Phase 1 — Plan (promoted 2026-10-01)
+- **Recall (§18.3):**
+  - AD-claude-611: #611's MCP fleet provider polls a stdio MCP server through Zed's client, each
+    call bounded at 5 s, with a backoff; the harness adapter follows it.
+  - BF-373: a reconnect must not rebuild an empty fleet; the rows stay, marked stale, until the
+    re-seed.
+  - AD-claude-614: the containers section sits outside the rail's model and its keys; the Harness
+    section does the same in this slice.
+  - AD-claude-508 and F-claude-508: the inbox lists every agent that waits; a new entry must reach
+    the rail through a change the rail observes.
+  - Brain (consultation ce2307479b51457a96b43e4cb8095f54): nothing on this seam.
+- **Re-binding:** the Explore map's fourteen points (the spec's Prior art); the decisions moved
+  to polling, a read-only Marley item, the section outside the rail's model, and #547's quiet rule.
+
+### Design
+- **Setting:** `harness: Option<ContextServerCommand>` in `MarleySettingsContent`;
+  `MarleySettings::harness`.
+- **`marley_workbench::harness`** (new): a global `Harness { connection: Connection, seats:
+  FleetSnapshot, cursor, server: Option<Arc<ContextServer>>, run: Option<Task<()>>, command }`,
+  `Connection::{Connecting, Connected, Down(reason)}`. `init` starts the run when the setting
+  names a command and restarts it when the setting changes. The run: connect
+  (`ContextServer::stdio` and `start`), `fleet_snapshot` (structured content
+  `{instance_id, cursor, seats}`) folded into a fresh `FleetSnapshot` as an `Upsert` and a
+  `QuestionRaised` per seat, then every second `fleet_events { after: cursor }` pages folded with
+  `apply` until a page is empty; an error result starting `resync_required` re-seeds; any other
+  failure or a 5 s timeout sets `Down(reason)` (the root cause's first line), drops the server,
+  waits 1, 2, 4 … 60 s and connects again. The global changes only when the seats, the cursor or
+  the connection do, so its observers redraw on a change.
+- **`HarnessView`** (in the module): a workspace item titled with the session's title, its lines
+  from `session_read { id, range: { mode: tail, lines: 500 } }` in the buffer font in a scrolled
+  column; it reads them when it opens, when its seat's `last_event_ms` or state changes, and every
+  2 s while its seat is not done. `open(workspace, id)` shows the open one for that id or adds one
+  to the center.
+- **Rail:** `render_harness` after `render_containers`: the header (`HARNESS` and the
+  connection's state, a click folding the rows) and a row per seat (an icon and the state's word,
+  the title, the question's prompt while waiting, `no update in N m` for a working seat past
+  `no_update_after_minutes`; muted while the connection is not up); a click opens the view; hidden
+  while filtering. The rail observes the `Harness` global. The inbox gains `InboxKind::Harness` and
+  `InboxTarget::Harness(id)`: each waiting seat with a question is an entry, its ask the prompt
+  and its options in parentheses, project `Harness`.
+
+### File manifest
+- Marley: `crates/marley_workbench/src/harness.rs` (new), `marley_workbench.rs`, `rail.rs`;
+  `crates/marley_rail/src/marley_rail.rs` (`InboxKind::Harness`);
+  `script/e2e/534-harness-sessions-in-the-rail.sh`.
+- Zed: `crates/settings_content/src/marley.rs` (the field; its row widened first).
+
+### Visual check plan
+| REQ | Scenario | Shot |
+|---|---|---|
+| REQ-001, REQ-002, REQ-003 | the harness serving worker, asker and crasher | `534-01-group` |
+| REQ-006 | a click on worker's row | `534-02-view` |
+| REQ-008 | the inbox, while asker waits | `534-04-inbox` |
+| REQ-004, REQ-007 | asker's view open; `rh actor send` | `534-03-answered` |
+| REQ-005 | past a minute of quiet (`no_update_after_minutes: 1`) | `534-05-stale` |
+| REQ-009 | `rh mcp` killed; then reconnected | `534-06-down`, `534-07-back` |
+| REQ-010 | review: no setting, no section, no process | the diff |
+
+## Phase 2 — Code (2026-10-01)
+- **Built:** `marley.harness` (`settings_content`, `MarleySettings::harness`); `harness.rs`: the
+  `Harness` global (the command, the connection, the fleet, the section's fold), the follow loop
+  (start bounded at 5 s, `fleet_snapshot` deserialized into a `FleetSnapshot`, `fleet_events`
+  every second folded with `apply`, a `resync_required` text re-seeding, any other failure
+  marking the connection down with its root cause and starting again after 1, 2, 4 … 60 s),
+  `HarnessView` (the session's last 500 lines from `session_read`, read again on an envelope
+  change and every 2 s while the session runs) and `open`; in `rail.rs`, the observer, the Harness
+  section (`render_harness`, `harness_row`), `harness_entries` for the inbox, `InboxTarget::Harness`
+  and `open_harness`; `InboxKind::Harness` in `marley_rail`.
+- **Deviations:**
+  - The snapshot is deserialized, not folded from made-up events: the harness's conformance check
+    (`harness-conformance`) asserts that its snapshot is Marley's own fold of its events, so the
+    two are the same.
+  - The fold state lives in the `Harness` global, not on `Rail`: clippy's bool limit for `Rail`,
+    and its change redraws the rail through the observer it already has.
+- **Review:** every call is bounded at 5 s, so a harness that stops answering is seen within
+  about 6 s; the old run, and its server, go when the setting changes; the global changes only
+  when events arrive, a minute passes while a session works, or the connection moves, so the rail
+  is not rebuilt each second; the view's reads run one at a time.
+- **Clippy found:** a binding too like another, an unneeded qualification, `Rail`'s bools,
+  `Rail::new`'s length, four needlessly mutable parameters.
+- **Gate:** GREEN, 17 PASS.
+
+
+## Phase 3 — Test (2026-10-01)
+- **Proved first by hand:** a 0700 root under the runtime folder, `rh serve` waited on for
+  `"ready":true`, an actor, `rh fleet` (the worker `working`), `rh mcp` answering `initialize` and
+  `session_read` (`one`, `two`, `three`), and the teardown (`rh list`, `rh stop`, `shutdown
+  --stop-backend`).
+- **Scenario:** `script/e2e/534-harness-sessions-in-the-rail.sh` (sway): the harness's built
+  `bin/rh`, a root at `$XDG_RUNTIME_DIR/rh534-<pid>`, worker, asker and crasher,
+  `marley.harness` and `no_update_after_minutes: 1`. Two runs.
+- **First run (the group shot only, to place the clicks):** the section showed connected with
+  the three sessions; but the harness adds `[wait base, generation …]` to an actor's prompt, which
+  pushed the options out of the inbox's line, and the terminal ran the user's own shell files.
+- **Fix:** `harness::shown_prompt` drops that routing note from the rows and the inbox (the
+  question keeps it); the scenario gives the terminal a scratch HOME. Gate GREEN, 17 PASS.
+- **Second run:**
+  - `534-01-group` (REQ-001 to REQ-003): `HARNESS connected`; worker `working`, asker its
+    question, crasher `error`, each with its state's dot.
+  - `534-02-view` (REQ-006): a click on worker: a `worker` tab holding `one`, `two`, `three`.
+  - `534-04-inbox` (REQ-008): `Needs you 1`: `asker · Harness`, `Which base branch? (main,
+    release)`.
+  - `534-03-answered` (REQ-004, REQ-007): asker's tab open, `rh actor send … main`: within five
+    seconds asker's row reads `working`, the inbox is empty, and its tab shows `chose it`.
+  - `534-05-stale` (REQ-005): past a minute, worker reads `no update in 1 m`.
+  - `534-06-down` (REQ-009): `rh mcp` killed and its root refused: `not running: sending into a
+    closed c…`, the rows kept, each `· stale` with a grey dot; the open tab shows its failed read
+    in red above its kept lines.
+  - `534-07-back` (REQ-009): the root allowed again: `connected`, the rows as before, the tab's
+    error gone.
+- **Review only:** REQ-010 (no setting, no section, no process): `follow_setting` starts nothing
+  without a command, and `render_harness` draws nothing without a connection; every other
+  scenario's rail shows no Harness section.
+
+## Phase 4 — Complete (2026-10-01)
+- **Documented:** `CHANGELOG.md`; the guide ("The harness's sessions"); `marley_workbench.md`
+  (the harness module); `marley_rail.md` (`InboxKind::Harness`); the plan's C1 row; the ledger
+  row of `settings_content/src/marley.rs`.
+- **Knowledge:** F-claude-534-the-harnesss-routing-note-hid-the-options-001,
+  L-claude-534-zeds-mcp-client-sees-no-server-exit-001,
+  L-claude-534-a-harness-scenario-refuses-the-root-to-hold-a-down-state-001,
+  AD-claude-534-the-harness-is-followed-by-polling-in-a-section-outside-the-rails-model-001.
+- **Brain:** the consultation closed with `brain decide`.

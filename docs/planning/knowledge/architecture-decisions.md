@@ -3599,3 +3599,19 @@ on by default. Gaps and a header taller than its prompt need rows that are no gr
 to #631 (Deliberate). Rejected: the hooks sending the branch (`git=` exists in the frame, but a
 `git` call at every prompt would slow every shell); the branch looked up at draw time (a checkout
 would rewrite old headers).
+
+## AD-claude-534-the-harness-is-followed-by-polling-in-a-section-outside-the-rails-model-001
+*decided at: 2026-10-01 · status: shipped · builds on: AD-claude-611-workflow-stores-are-polled-together-each-call-bounded-001, AD-claude-614-container-ports-come-from-the-proxys-command-line-and-the-engines-cli-001*
+
+Marley follows rustal-harness over `rh mcp` from a `marley_workbench::harness` module on Zed's MCP
+client, as #611's provider does, not from an adapter crate (plan D8's `marley_harness`): it takes
+the fleet from `fleet_snapshot` (the harness checks that snapshot against Marley's own fold) and
+polls `fleet_events` from the cursor each second, folding with `marley_fleet::apply`, since Zed's
+client cannot see the server exit or subscribe to `rh`'s resources as they answer. A failing or
+slow call (5 s) marks the connection down, keeps the rows marked stale, and restarts the command
+after 1 to 60 s. The rail draws a Harness section after the containers, outside its model, keys
+and filter, with the connection's state, a row per session (its state, its question, #547's quiet
+rule) and the inbox's entries; a session opens as a read-only Marley item over `session_read`'s
+lines, not a display-only terminal, which the rail would list and Zed would restore as a shell.
+Read side only. Rejected: notifications and `resources/subscribe`; a two-minute quiet rule of the
+harness's own; the keys and the filter for the section in this slice.

@@ -428,6 +428,8 @@ pub enum InboxKind {
     Terminal,
     /// An agent's click a Browser tab holds (#571).
     Click,
+    /// A harness session waiting on a question (#534).
+    Harness,
 }
 
 /// An agent that waits on the user, as the rail's inbox lists it (#508).

@@ -62,6 +62,12 @@ pub struct MarleySettingsContent {
     ///
     /// Default: true
     pub block_headers: Option<bool>,
+    /// The command of rustal-harness's MCP server whose sessions the rail follows, read side
+    /// only, in a context server's shape, such as
+    /// `{"command": "/path/to/rh", "args": ["--state", "/path/to/root", "mcp"]}` (#534).
+    ///
+    /// Default: none, which starts nothing
+    pub harness: Option<crate::ContextServerCommand>,
     /// How many seconds a command runs before its end shows a desktop notification, when its
     /// terminal is not the one in front; 0 turns this off (#551).
     ///

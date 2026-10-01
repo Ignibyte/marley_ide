@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The harness's sessions in the rail** (#534, 2026-10-01). With `marley.harness` naming
+  rustal-harness's MCP server (`{"command": "/path/to/rh", "args": ["--state", "<root>",
+  "mcp"]}`), the rail gains a Harness section after the projects: the connection's state, and a
+  row per harness session with its state, the question it waits on, and how long a working one
+  has been quiet. A click opens a read-only tab with the session's last 500 lines, which follows
+  its output. A waiting question joins the approvals inbox with its options. When the harness
+  stops answering, the section says why, keeps its rows marked stale, and reconnects on its own.
+  Read side only: Marley answers nothing.
+
 - **Block headers with the folder and branch, on by default** (#630, 2026-10-01). A block's header
   shows the folder the command ran in (home as `~`, a long path cut to its last two folders) and
   the git branch it was on when it started, so a later checkout leaves older headers as they were.

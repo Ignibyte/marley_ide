@@ -48,6 +48,7 @@ pub mod fleet_providers;
 pub mod github;
 pub mod groups;
 pub mod guide;
+pub mod harness;
 pub mod launch;
 pub mod links;
 pub mod markdown_commands;
@@ -361,6 +362,8 @@ pub struct MarleySettings {
     pub sticky_command_header: bool,
     /// How a block's prompt rows are drawn (#628).
     pub block_headers: BlockHeaders,
+    /// The command of the harness's MCP server the rail follows, or none (#534).
+    pub harness: Option<settings::ContextServerCommand>,
     /// How long a command runs before its end notifies; 0 is never (#551).
     pub long_command_seconds: u64,
     /// Whose consequential clicks in the Browser tab wait for Allow (#571).
@@ -506,6 +509,7 @@ impl Settings for MarleySettings {
             sticky_command_header: marley
                 .and_then(|marley| marley.sticky_command_header)
                 .unwrap_or(true),
+            harness: marley.and_then(|marley| marley.harness.clone()),
             block_headers: BlockHeaders::from_setting(
                 marley.and_then(|marley| marley.block_headers),
             ),
@@ -686,6 +690,7 @@ pub fn init(cx: &mut App) {
     failures::init(cx);
     sticky_header::init(cx);
     block_headers::init(cx);
+    harness::init(cx);
     markdown_commands::init(cx);
     command_watch::init(cx);
     running_errors::init(cx);
