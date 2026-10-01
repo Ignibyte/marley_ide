@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Move a terminal to another project in the rail** (#613, 2026-09-30). Drag a terminal's row onto
+  another open project's (or group's) header, or choose Move to Project in its right-click menu,
+  and the terminal joins that project's workspace with its shell still running, its scrollback,
+  its id and what Marley keeps for it (agent events, turns) intact; the project shows. It is the
+  same terminal view, moved with Zed's `move_item`, and Zed's `TerminalView::added_to_workspace`
+  now re-points the view at the project it joins (a small Marley hunk), so its links, menu and
+  Marley's tools act there. After a restart it comes back under its new project.
+
 - **Real workflow stores in the Fleet panel, over MCP or HTTP** (#611, 2026-09-30).
   `marley.fleet.providers` takes `{ "kind": "mcp", "command": …, "args": […] }` (an MCP server
   Marley starts, through Zed's `context_server`), `{ "kind": "mcp", "url": … }` (an MCP server

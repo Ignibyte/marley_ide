@@ -296,8 +296,10 @@ Drag a project's or a group's header up or down to move it, with its rows, among
 group can sit between projects. Drag a terminal, Browser tab or thread row up or down to move it
 among the rows of its kind in its own group (a worktree's terminals among that worktree's). A
 card with the name follows the pointer, and a line shows where it lands: above the target when
-you drag up, below it when you drag down. A row dropped on another group, a header or outside the
-rail goes back. The rail holds still while you drag, and a press that barely moves is still a
+you drag up, below it when you drag down. A terminal row dropped on another open project's or
+group's header moves to that project, with its shell still running (#613); its right-click
+menu's Move to Project does the same. Any other row dropped on another group, a header or
+outside the rail goes back. The rail holds still while you drag, and a press that barely moves is still a
 click. The order is saved with the window and comes back after a restart; under the attention
 order, a row moves within its class and the order you set breaks ties. Something added later goes
 after what you placed, and moving a row never moves its tab in the panes.

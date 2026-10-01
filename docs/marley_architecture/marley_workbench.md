@@ -138,6 +138,16 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   `TerminalView::rename_terminal`, which edits the name in the tab and keeps it through
   `set_custom_title`. Close goes through the pane (`close_item_by_id`, `SaveIntent::Close`), so
   Zed asks first while a task runs. A custom title beats an agent CLI's own on its row.
+- **Move to another project (#613).** A terminal row's menu has Move to Project, a submenu of the
+  window's other open groups (`move_targets`, computed at render so the menu reads no entity), and
+  a header takes a dragged terminal row of another project (`Rail::takes_terminals` on the
+  header's frame, not its block, since the block's rows take the same `DraggedRailRow` for a
+  reorder; `DraggedRailRow::moves_to`). Both run `move_terminal`, deferred through
+  `window.defer`: `pane_for` the view, the target workspace's active pane, Zed's
+  `workspace::move_item` to its end, then the target shown. The same view moves, so its
+  `Entity<Terminal>` and every Marley global keyed by its entity id stay; Zed's
+  `added_to_workspace` (Marley hunk) re-points its `workspace` and `project` and resubscribes, and
+  moves its database row and Marley id as for any add (#575), so it restores under its new project.
 - **Browser rows (#504).** Each `BrowserView` in a project's workspaces is a row after its
   terminals (`member_browsers`, in the order the workspace lists its items), keyed by the view's
   entity id. Its title is the tab's own text, and its second line the URL's host and port

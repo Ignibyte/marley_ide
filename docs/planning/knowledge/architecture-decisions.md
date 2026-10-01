@@ -3501,3 +3501,16 @@ incompatible, retried the same way. A token comes from the environment variable 
 and is never logged, shown or put in an error. `work_changes` is used when the handshake offers
 `changes`; `work_run` waits for a tab that needs more than the detail's run. Rejected: one store
 after another (a silent one would hold the rest), and tokens in the settings file.
+
+## AD-claude-613-a-terminal-moves-as-its-own-view-001
+*decided at: 2026-09-30 · status: shipped*
+
+A terminal moves to another project of the window as its own `TerminalView`, through Zed's
+`workspace::move_item` into the target's active pane, not as a new view over the same
+`Entity<Terminal>`: every Marley global keyed by the view's entity id (agent events, turns,
+notifications, running errors, the terminal id) stays without a migration. The view follows its
+new project through one additive hunk in Zed's `TerminalView::added_to_workspace`, which every
+add already runs: when the workspace is a different one it re-points `workspace` and `project`
+and resubscribes. Rejected: a new view (every per-view record would need moving), and a new
+public `marley_rehome` (the add already passes the workspace). Only open projects of the same
+window are targets.

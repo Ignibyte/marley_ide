@@ -478,14 +478,16 @@ Leave the server running: Parts 5 and 7 use it.
 1. With a group and `marley-tour` listed, drag the group's header up onto `marley-tour`'s header
    and hold before letting go.
 2. Let go. Then drag the last terminal row of `marley-tour` onto its first terminal row.
-3. Drag a terminal row onto another project's header and let go.
+3. Drag a terminal row that runs something (`sleep 300`) onto another project's header and let
+   go; then move it back with its right-click menu's Move to Project.
 4. Right-click `marley-tour`'s header and choose Move Project Down.
 5. Quit (`zed: quit`) and start Marley from the app menu.
 
 - [ ] While dragging, a card with the name follows the pointer, a line runs above
   `marley-tour`'s block, and nothing else in the rail moves.
 - [ ] The group lists above `marley-tour`, and the terminal you dragged is its first row.
-- [ ] Step 3 changes nothing: the row goes back.
+- [ ] Step 3 (#613): the row moves under the other project, which shows, and the terminal keeps
+  its scrollback with `sleep 300` still running; Move to Project brings it back the same way.
 - [ ] Move Project Down moves `marley-tour` one place down, past a group as well as a project.
 - [ ] After the restart, the headers and rows are in the order you left them.
 

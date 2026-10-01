@@ -1,7 +1,7 @@
 ---
 pipeline_id: 5895bb90-feff-4c37-b803-bb6fa6bcc748
 ticket: docs/planning/tickets/open/TICKET-613-move-a-terminal-to-another-project.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Move a terminal to another project in the rail"
 type: feature
 slice: workbench shell, the rail; after #602
@@ -23,8 +23,10 @@ Marley state (id, agent events, turns) kept.
 - **The move:** the same `TerminalView` entity moves from its pane to the target workspace's
   active center pane through `workspace::move_item`, so every Marley global keyed by the view's
   entity id stays; the view's workspace and project are re-pointed at the target (a small
-  additive Zed hunk in `terminal_view`, `marley_rehome`, with its touchpoint row), and its
-  terminal database row and Marley id move as `added_to_workspace` already does (AD-claude-575).
+  additive Zed hunk in `TerminalView::added_to_workspace`, which the move already calls: when the
+  workspace is another one, it re-points `workspace` and `project` and resubscribes to the
+  terminal's events, with its touchpoint row), and its terminal database row and Marley id move
+  as `added_to_workspace` already does (AD-claude-575).
 - **After the move** the rail lists the row under its new project, the rail's saved order puts
   it last there, and the target project shows.
 
@@ -62,12 +64,15 @@ one window, starts `sleep 900` in a terminal of the first (its pid written to a 
 - drags the terminal's row onto the second project's header (`dragged.png`: the row under the
   second project, the terminal in front, the same prompt and scrollback); `pid.txt` shows the
   `sleep` still running;
-- moves it back with its menu's Move to Project (`menu.png` with the submenu, `moved.png` after).
+- moves it back with its menu's Move to Project (`menu.png` with the submenu, `moved.png` after);
+- moves it once more, quits and starts Marley (`restored.png`: the terminal under the project it
+  was moved to).
 
 ## Locked-In Decisions
 - D1 — The terminal's own `TerminalView` entity moves; nothing is recreated.
-- D2 — The Zed hunk is additive: a `marley_rehome` on `TerminalView` that re-points `workspace`,
-  `project` and `workspace_id` and resubscribes, used only by the rail.
+- D2 — The Zed hunk is additive and sits in `TerminalView::added_to_workspace`, which runs on
+  every add: it re-points `workspace` and `project` and resubscribes only when the workspace is a
+  different one, so nothing changes for a view added once.
 - D3 — Only open projects of the same window are targets.
 
 ## Acceptance Criteria (EARS)
@@ -77,7 +82,8 @@ one window, starts `sleep 900` in a terminal of the first (its pid written to a 
 | REQ-001 | WHEN a terminal row is dropped on another open project's header, the rail shall list it under that project. | Shot `dragged.png` |
 | REQ-002 | WHEN a terminal moves to another project, its shell and what it runs shall keep running, with its scrollback. | `pid.txt`; shot `dragged.png` |
 | REQ-003 | WHEN the user chooses Move to Project and a project in a terminal row's menu, the terminal shall move there. | Shots `menu.png`, `moved.png` |
-| REQ-004 | WHERE a terminal moved, its links, context menu and Marley's tools shall act in the new project. | Review of `marley_rehome` and its callers |
+| REQ-004 | WHERE a terminal moved, its links, context menu and Marley's tools shall act in the new project. | Review of the `added_to_workspace` hunk and its readers |
+| REQ-005 | WHEN Marley restarts after a terminal moved, the terminal shall come back under its new project. | Shot `restored.png` |
 
 ## Phase Plan
 - **P1 Plan** — promote, recall, the design (the drop target, the rehome hunk, the menu).

@@ -4074,3 +4074,12 @@ to run and can push the panel past the window. Such a scenario puts the hosts wi
 first (the Hosts section does), scrolls for the rest, and works out a stand-in's row from `/proc`
 in the collector's own order (`standin_row` in `610-host-collector-over-ssh.sh`) rather than
 fixing a y. Its notes describe the stand-ins only.
+
+## L-claude-613-zeds-added-to-workspace-is-the-hook-for-an-item-that-changes-workspace-001
+*category: design · topic: Zed items moving between workspaces · from: pipeline 613*
+
+`workspace::move_item` works across workspaces of one window (it checks no workspace), and its
+add runs the item's `added_to_pane`, so `Item::added_to_workspace` sees the new workspace. An
+item that keeps workspace or project handles from its constructor (as `TerminalView` does) goes
+stale after such a move unless `added_to_workspace` re-points them; that is the smallest place to
+fix it, and a no-op for an item added once.

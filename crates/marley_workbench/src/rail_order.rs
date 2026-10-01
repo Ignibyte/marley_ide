@@ -214,6 +214,11 @@ impl DraggedRailRow {
     fn takes(&self, dragged: &Self) -> bool {
         dragged.selection != self.selection && dragged.run == self.run
     }
+    /// Whether this row, dropped on the header of the project at `project`, moves there: a
+    /// terminal of another project (#613).
+    const fn moves_to(&self, project: usize) -> bool {
+        matches!(self.selection, Selection::Terminal(_)) && self.project != project
+    }
 }
 
 impl Render for DraggedRailRow {
@@ -266,6 +271,38 @@ impl Rail {
             rail.update(cx, |rail, _| rail.start_drag()).log_err();
             cx.new(|_| dragged.clone())
         })
+    }
+
+    /// Makes a project's header take a terminal row of another project, which moves there
+    /// (#613). The header's frame, not its block, takes it: the block's rows take the same drag
+    /// type for a reorder, and a drop goes to the deepest target of its type.
+    pub(super) fn takes_terminals(
+        header: Stateful<Div>,
+        project: usize,
+        closed: bool,
+        cx: &Context<Self>,
+    ) -> Stateful<Div> {
+        if closed {
+            return header;
+        }
+        header
+            .can_drop(move |dragged, _, _| {
+                dragged
+                    .downcast_ref::<DraggedRailRow>()
+                    .is_some_and(|dragged| dragged.moves_to(project))
+            })
+            .drag_over::<DraggedRailRow>(|style, _, _, cx| {
+                style.bg(cx.theme().colors().drop_target_background)
+            })
+            .on_drop(
+                cx.listener(move |rail, dragged: &DraggedRailRow, window, cx| {
+                    // A drop stops the event, so the drag ends here (L-claude-602).
+                    rail.end_drag(window, cx);
+                    if let Selection::Terminal(terminal) = dragged.selection {
+                        rail.move_terminal(terminal, project, window, cx);
+                    }
+                }),
+            )
     }
 
     /// A project's header and the rows under it, as one block a dragged header lands on.

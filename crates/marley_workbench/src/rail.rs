@@ -3611,7 +3611,8 @@ impl Rail {
                     let selection = Selection::Terminal(row.id);
                     DraggedRailRow::new(selection, row.project, position, run, &row.title)
                 });
-                Self::render_terminal_row(row, terminal, drag, cx).into_any_element()
+                let targets = self.move_targets(row.project);
+                Self::render_terminal_row(row, terminal, drag, targets, cx).into_any_element()
             }),
             Row::Browser(row) => self.snapshot.browsers.get(&row.id).map(|browser| {
                 let favicon = self.snapshot.favicons.get(&row.id).cloned();
@@ -3844,6 +3845,7 @@ impl Rail {
                     rail.activate_workspace(&workspace, window, cx).log_err();
                 }
             }));
+        let header = Self::takes_terminals(header, index, closed, cx);
         let header = Self::draggable_header(header, drag, cx);
         right_click_menu(("marley-rail-project-context", id))
             .trigger(move |_, _, _| {
@@ -4340,6 +4342,7 @@ impl Rail {
         row: TerminalRow,
         terminal: &TerminalEntry,
         drag: Option<DraggedRailRow>,
+        targets: Vec<(usize, String)>,
         cx: &Context<Self>,
     ) -> impl IntoElement {
         let id = row.id;
@@ -4428,35 +4431,133 @@ impl Rail {
                     .child(item)
             })
             .menu(move |window, cx| {
-                Self::terminal_context_menu(&rail, &menu_workspace, &menu_view, window, cx)
+                Self::terminal_context_menu(
+                    &rail,
+                    &menu_workspace,
+                    &menu_view,
+                    (id, &targets),
+                    window,
+                    cx,
+                )
             });
         v_flex().child(menu).children(turns)
     }
 
-    /// A terminal row's right-click menu: Rename and Close.
+    /// A terminal row's right-click menu: Rename, Move to Project (#613) when the window has
+    /// another open project, and Close. `moves` is the terminal's id and the projects it may move
+    /// to, by their place in the rail and their names.
     fn terminal_context_menu(
         rail: &WeakEntity<Self>,
         workspace: &WeakEntity<Workspace>,
         view: &WeakEntity<TerminalView>,
+        moves: (u64, &[(usize, String)]),
         window: &mut Window,
         cx: &mut App,
     ) -> Entity<ContextMenu> {
         let (rename_rail, rename_workspace, rename_view) =
             (rail.clone(), workspace.clone(), view.clone());
         let (close_workspace, close_view) = (workspace.clone(), view.clone());
+        let (terminal, targets) = (moves.0, moves.1.to_vec());
+        let move_rail = rail.clone();
         ContextMenu::build(window, cx, move |menu, _, _| {
-            menu.entry("Rename", None, move |window, cx| {
+            let menu = menu.entry("Rename", None, move |window, cx| {
                 rename_rail
                     .update(cx, |rail, cx| {
                         rail.rename_terminal(&rename_workspace, &rename_view, window, cx)
                     })
                     .flatten()
                     .log_err();
+            });
+            let targets = targets.clone();
+            let move_rail = move_rail.clone();
+            menu.when(!targets.is_empty(), move |menu| {
+                menu.submenu("Move to Project", move |menu, _, _| {
+                    targets.iter().fold(menu, |menu, (project, name)| {
+                        let (rail, project) = (move_rail.clone(), *project);
+                        menu.entry(name.clone(), None, move |window, cx| {
+                            rail.update(cx, |rail, cx| {
+                                rail.move_terminal(terminal, project, window, cx);
+                            })
+                            .log_err();
+                        })
+                    })
+                })
             })
             .entry("Close", None, move |window, cx| {
                 Self::close_terminal(&close_workspace, &close_view, window, cx).log_err();
             })
         })
+    }
+
+    /// The open projects a terminal of the project at `project` may move to: every other one of
+    /// the window that is not closed, projectless groups (#600) included, by its place in the
+    /// rail and its name (#613).
+    fn move_targets(&self, project: usize) -> Vec<(usize, String)> {
+        self.snapshot
+            .groups
+            .iter()
+            .enumerate()
+            .filter(|(index, group)| *index != project && !group.closed)
+            .filter_map(|(index, _)| {
+                let name = self.snapshot.rail.projects.get(index)?.name.clone();
+                Some((index, name))
+            })
+            .collect()
+    }
+
+    /// Moves a terminal to the project at `project` (#613): its own view goes to that project's
+    /// active pane through Zed's `move_item`, so its shell and what Marley keeps for it stay, and
+    /// the project shows. Deferred, since it updates panes and workspaces the rail's update must
+    /// not hold.
+    fn move_terminal(
+        &self,
+        terminal: u64,
+        project: usize,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(entry) = self.snapshot.terminals.get(&terminal) else {
+            return;
+        };
+        let Some(target) = self
+            .snapshot
+            .groups
+            .get(project)
+            .filter(|group| !group.closed)
+            .map(|group| group.workspace.clone())
+        else {
+            return;
+        };
+        let (source, view) = (entry.workspace.clone(), entry.view.clone());
+        let rail = cx.entity().downgrade();
+        window.defer(cx, move |window, cx| {
+            let (Some(source), Some(view), Some(destination_workspace)) =
+                (source.upgrade(), view.upgrade(), target.upgrade())
+            else {
+                return;
+            };
+            if source == destination_workspace {
+                return;
+            }
+            let Some(source_pane) = source.read(cx).pane_for(&view) else {
+                return;
+            };
+            let destination = destination_workspace.read(cx).active_pane().clone();
+            let index = destination.read(cx).items_len();
+            workspace::move_item(
+                &source_pane,
+                &destination,
+                view.entity_id(),
+                index,
+                true,
+                window,
+                cx,
+            );
+            rail.update(cx, |rail, cx| {
+                rail.activate_workspace(&target, window, cx).log_err();
+            })
+            .log_err();
+        });
     }
 
     /// Under a terminal's card, its turns (#509): a "Turns (N)" line whose disclosure lists them,

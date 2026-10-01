@@ -2216,9 +2216,18 @@ impl Item for TerminalView {
     fn added_to_workspace(
         &mut self,
         workspace: &mut Workspace,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // Marley: the rail moves a terminal to another project's workspace (#613); the view then
+        // acts in that project, its links, menu and events included.
+        let joined = workspace.weak_handle();
+        if joined != self.workspace {
+            self.project = workspace.project().downgrade();
+            self._terminal_subscriptions =
+                subscribe_for_terminal_events(&self.terminal, joined.clone(), window, cx);
+            self.workspace = joined;
+        }
         if self.terminal().read(cx).task().is_none() {
             if let Some((new_id, old_id)) = workspace.database_id().zip(self.workspace_id) {
                 log::debug!(
