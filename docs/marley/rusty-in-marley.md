@@ -83,6 +83,7 @@ and the only writer of its data.*
 "rusty": {
   "enabled": false,
   "connection": "embedded",
+  "service_url": "http://127.0.0.1:4174/mcp",
   "agent_tools": false
 }
 ```
@@ -125,7 +126,7 @@ polls the harness's `fleet_events`. No Zed touchpoint.
 | NoteTab (a page) | A **Page** tab in the center (`impl Item`): rendered view, a source toggle that opens the vault file in a Zed editor buffer, the properties list, back and forward |
 | RightPane: backlinks, outgoing, tags | The **Knowledge** panel in the right dock, following the focused page; outline stays Zed's `outline_panel` |
 | GraphView | A **Graph** tab: `brain_graph` around the current page or project with depth, filters and colour by link type |
-| Explorer (vault tree) | A **Vault** panel in the left dock over `brain_tree`; new, rename, move and delete through `brain_new_page`, `brain_rename`, `brain_delete_*`, never the disk |
+| Explorer (vault tree) | The rail's **Brain** view (R-D9) over `brain_tree`; new, rename, move and delete through `brain_new_page`, `brain_rename`, `brain_delete_*`, never the disk |
 | SearchPane | Brain search in the Knowledge panel over `brain_search`, with its `tag:`, `path:`, `type:` operators |
 | QuickSwitcher | `rusty: open page`, a picker over `brain_list_pages` by title, favourites first, create on a miss |
 | BookmarksPane | Waits on RQ4; the Qt app keeps bookmarks in its own `workspace.json` |
@@ -147,8 +148,11 @@ off on purpose (`markdown/src/parser.rs:985-987`), so either Marley's pass produ
 elements, or Zed's parser gains a small additive switch (a touchpoint, decided in R2's Plan
 phase). A structured render from Rusty (RQ3) would remove the second parser entirely.
 
-Source edits open the vault file in a Zed editor buffer and save to disk, as Obsidian does;
-Rusty's watcher reindexes and commits them. Renames, moves, deletes and property edits go
+Source edits open the vault file in a Zed editor buffer and save to disk, as Obsidian does.
+Rusty's watcher announces a disk edit about 0.6 s later and reindexes it about 5 s after, but
+nothing commits it yet: the next tool write's `git add -A` sweeps it into that tool's commit, as
+with an Obsidian edit. Indexed now; committed on its own once Rusty's TICKET-043 lands (found
+drafting #645). Renames, moves, deletes and property edits go
 through the tools so links are rewritten.
 
 ### R-D5. The project join
@@ -182,6 +186,51 @@ Marley's origin is public and the brain is private. Every scenario runs a stand-
 `rusty-mcp` from `marley_rusty`'s fixtures over a scratch vault, never the user's, the rule
 #633's scenario already keeps (`script/e2e.sh` sets `rusty_tools` false in each copy).
 
+### R-D9. Brain navigation is a switch in the rail's header
+
+Chad, 2026-10-02, picking how Rusty's screens are reached: "Switch in the rail header". The
+rail's header, which reads `PROJECTS` today (`marley_workbench/src/rail.rs`, `render_header`),
+becomes two icon buttons, **Projects** and **Brain**, in the manner of Obsidian's ribbon and VS
+Code's activity bar. Brain swaps the rail's content for:
+
+- a fixed row: Today, Graph, Tasks, Decisions, Memory, Skills, Secrets, each one click to open
+  or focus its center tab;
+- brain search and the favourites;
+- the vault tree, where one click opens a page as a preview tab and a second keeps it, as Zed's
+  file tabs do.
+
+One key flips between the two views. The Knowledge panel in the right dock follows the open
+page whichever view the rail shows. It replaces the left-dock Vault panel the first draft had,
+which would have put two columns side by side. A pop-up menu was rejected: two clicks for every
+open, and no tree that stays open. The catch: Zed hides the whole rail when its AI features are
+off (`multi_workspace_enabled`, workbench-shell.md, "Deferred"), and the Brain view goes with
+it; the Knowledge panel and the palette actions still work. No Zed touchpoint: the rail is
+Marley's own.
+
+### R-D10. Ely GPUI Components, ported, not depended on
+
+Chad, 2026-10-02: "lets make sure we use the gpui components we found here". Ely GPUI
+Components (github.com/ZacharyZhang-NY/Ely-GPUI-Components, `MIT OR Apache-2.0`, research page
+`research/ui-and-design/ely-gpui-components`) has a part for nearly every Rusty screen. It
+can't be a dependency: it builds `gpui` from Zed's repository at rev `1a28cff`, not the fork's
+own in-tree `gpui`, and two `gpui` copies don't mix; it brings its own theme, fonts (Inter,
+JetBrains Mono, IBM Plex Sans) and Lucide icons; and it is tested on macOS only. Each slice
+copies the components it needs into `marley_rusty` (pure parts) or `marley_workbench::rusty`
+(views), with Ely's MIT notice on each file, rewritten onto the fork's `gpui`, Zed's theme
+colours and the `ui` crate's primitives, so the screens look like the rest of Marley and run on
+Linux. Every spec's Prior art names the Ely story it ports.
+
+| Ely story | For |
+|---|---|
+| `pagetree-favorites-pinned`, `filetree` | The rail's Brain view (R-D9) |
+| `markdownrenderer-tableofcontents-documentoutline-readingprogress`, `pagecover-pageicon-pageproperties` | The Page tab (R2) |
+| `markdowneditor`, `inlineedit-editabletext` | Inline title and property edits (R2) |
+| `backlinks-graphview`, `searchpanel-searchresultitem-searchfilters` | The Knowledge panel (R3, R6) |
+| `networkgraph-forcegraph-chorddiagram-parallelcoordinates` | The Graph tab (R5) |
+| `sortablelist-reorderablelist`, `kanbanboard-kanbancolumn-kanbancard-issuecard-sprint-board` | The Tasks tab (R7) |
+| `propertygrid`, `settingslayout-settingssection-settingsrow-settingssearch` | Memory, Secrets, Rusty's settings (R8) |
+| `searchpalette-spotlightsearch-quicklauncher` | `rusty: open page` (R3) |
+
 ## Rusty-side requests
 
 Work in `/srv/stacks/rusty-v3` through Rusty's own workflow, filed there when Chad confirms:
@@ -209,18 +258,23 @@ possible: a wikilink switch in `markdown/src/parser.rs`, only if R2 chooses Zed'
 | Slice | What | Size |
 |---|---|---|
 | R0 | D11 amended, decisions recorded, RQ1 to RQ5 filed in Rusty | docs |
-| R1 | The switch and the connection: `marley.rusty`, embedded or service, status on the settings page; `rusty_tools` moves in | S |
-| R2 | The Page tab: render, wikilinks, source edit in a buffer, back and forward; the Knowledge panel's backlinks and outgoing | M |
-| R3 | `rusty: open page` and brain search | S |
-| R4 | The Vault panel with rename, move and delete through tools | M |
-| R5 | The Graph tab | M |
-| R6 | The project join and the panel's project view (page, follow-ups, tasks) | S |
+| R1 | #643. The switch and the connection: `marley.rusty`, embedded or service, status on the settings page; `rusty_tools` moves in | M |
+| R4 | #644. The rail's Brain view (R-D9): the header switch, Today, search on Enter, the vault tree with new, rename, move and delete through tools | M |
+| R2 | #645. The Page tab: Zed's `markdown` with wikilinks rewritten to `rusty:` links, properties, back and forward, preview tabs, Edit in a buffer; the `rusty::OpenPage` action | M |
+| R3 | #646. The Knowledge panel: backlinks, outgoing links, tags and brain search (on Enter) | M |
+| R5 | #647. The Graph tab: whole vault or local with depth, filters, page-type colours, decision edges dashed, Ely's force layout off the main thread | M |
+| R3a | `rusty: open page`: a picker over `brain_list_pages` by title, create on a miss | S |
+| R6 | The project join (R-D5) and the panel's project view: the project's page, its follow-ups, its task group; the Graph tab's project centre | M |
+| R2b | The Page tab's outline in Read mode and inline title and property edits | S |
+| R5b | The graph's colour groups, display and force sliders (Ely's slider), arrows, the tab restored after a restart | S |
+| R4b | Favourites in the Brain view, after Rusty's TICKET-037 | S |
 | R7 | The Tasks tab and the Decisions tab | M |
 | R8 | Memory, Skills and Secrets tabs; Rusty's server settings on the settings page | M |
 | R9 | Parity check against the Qt app; the app retires in Rusty | Rusty-side |
 
-R1 comes first because nothing else can start without it; R2 and R6 give the most for the
-least, R5 is the picture Chad described, R9 waits for Chad's word after using the rest.
+The first batch, #643 to #647, was queued 2026-10-03 in this order: R1, R4, R2, R3, R5, after
+#640 to #642 (#643 builds on #642's settings changes). Drafting split out R3a, R6, R2b, R5b and
+R4b, which need tickets; R7 and R8 follow them. R9 waits for Chad's word after using the rest.
 
 ## Risks
 
@@ -274,3 +328,12 @@ TICKET-033.
   `rusty session start` also starts `rusty-mcp.service`; it shrinks to that and keeps working.
 - TICKET-039, retiring the agent host (RQ1's second half), blocked on the harness's M13; it lists
   every session with its transcript and resume id first, so nothing is stranded.
+
+Marley's drafting findings followed the same day as Rusty's TICKET-040 to TICKET-043 (Rusty
+commit `295565c`): a deleted folder's pages coming back from `archive/` into the index (040; until
+it lands, `brain_list_pages` is not to be trusted after a folder delete, and whether `brain_tree`
+shows `archive/` is open for #644); `brain_new_page` turning `a/b` into a root page `a-b` (041;
+until it lands, Marley never sends a slashed name); the page's file path and the vault root in
+`brain_read_page` and `brain_stats` (042); and disk edits committed on their own, with tool
+commits naming only their paths (043, which shares a design question with 035). `brain_graph`
+stays the Knowledge panel's source for tags: about 9 ms on the real store.
