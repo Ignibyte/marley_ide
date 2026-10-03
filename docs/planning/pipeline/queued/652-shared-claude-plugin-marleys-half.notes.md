@@ -340,3 +340,20 @@ What Marley needs from the harness:
 ## Phase 3 — Test
 
 ## Phase 4 — Complete
+
+### The harness's answer, 2026-10-03
+rustal-harness recorded MREQ-009 as answered (its D176) and queued its side as TICKET-108,
+"Marley's host in the shared Claude Code plugin" (acceptance MH-001 to MH-007), not started.
+- Asks 1 to 4, 7 and 8 accepted as written; "interactive only" applies to both hosts. MH-006 adds
+  that a failing or hanging `MARLEY_BIN`, `marley_not_running` included, leaves the session usable.
+- Ask 5: the revision is the plugin's SHA-256 as `rh` computes it (length-prefixed path and
+  contents of the three files; today `aedcac8e7a28a370be01ca8b680d18d3cfc1b05e1b2296186c98dfe722214fd1`,
+  changing when TICKET-108 lands). The licence is open: the harness declares none, and choosing
+  one or allowing publication is Chad's decision. The loading slice waits on it.
+- Ask 6: the file beside the plugin names only the harness's gate-tested pin, Claude Code
+  2.1.287; versions Marley runs beyond that belong in Marley's own table (#648).
+- Ask 7: `waiting` with a one-line activity of at most 120 characters; `working` again once
+  `tool.call`'s `next(e)` resolves, for denials and approvals alike (MH-004).
+- Timing: the mod gives a release exactly 1000 ms because Claude Code allows all `session.end`
+  hooks 1.5 s, so `$MARLEY_BIN release` must answer well under 1 s, Python startup included;
+  the Code phase measures it and keeps the helper's imports minimal.
