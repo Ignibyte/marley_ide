@@ -359,3 +359,8 @@ rustal-harness recorded MREQ-009 as answered (its D176) and queued its side as T
 - Timing: the mod gives a release exactly 1000 ms because Claude Code allows all `session.end`
   hooks 1.5 s, so `$MARLEY_BIN release` must answer well under 1 s, Python startup included;
   the Code phase measures it and keeps the helper's imports minimal.
+- The harness recorded the licence as D177 (TICKET-108's MH-008): an SPDX line at the top of
+  `register.js`, `"license": "MIT OR Apache-2.0"` in `plugin.json`, and the MIT and Apache-2.0
+  texts beside the three files, all inside the digest `rh` computes. The marks land with
+  TICKET-108's code, so the revision above (`aedcac8e…214fd1`) predates them; the loading slice
+  takes its digest from TICKET-108's outcome.
