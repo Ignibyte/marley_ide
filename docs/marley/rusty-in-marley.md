@@ -89,7 +89,10 @@ and the only writer of its data.*
 ```
 
 Off means nothing starts: no process, no MCP connection, no panel, no dock button
-(`workspace::Panel::enabled`). `connection` is `embedded` (Marley starts `rusty-mcp` on stdio,
+(`workspace::Panel::enabled`, with `Panel::icon` returning `None`, which is what hides the
+button). A `rusty:` action run while Rusty is off or not connected shows a toast saying so and
+where to turn it on, as #642's dictation action does; it opens nothing (settled 2026-10-03 across
+#643 to #659). `connection` is `embedded` (Marley starts `rusty-mcp` on stdio,
 found on the search path) or `service` (the running HTTP service). `agent_tools` is today's
 `marley.rusty_tools` (#633), off by default after #642, and moves into this block when R1
 lands. The Settings window's Marley page gets a Rusty section, with Rusty's own server
@@ -268,6 +271,13 @@ possible: a wikilink switch in `markdown/src/parser.rs`, only if R2 chooses Zed'
 | R2b | The Page tab's outline in Read mode and inline title and property edits | S |
 | R5b | The graph's colour groups, display and force sliders (Ely's slider), arrows, the tab restored after a restart | S |
 | R4b | Favourites in the Brain view, after Rusty's TICKET-037 | S |
+| R7b | Recording a follow-up from the Decisions tab (`brain_follow_up`: status, outcome, successor) | S |
+
+The second batch, #654 to #659, was queued 2026-10-03: R3a (#654, the open-page picker on
+Ctrl+Alt+U), R6 (#655, the project view), R2b (#656, the outline and in-place edits; the title
+edit sets the `title` property and a separate name field renames, Chad to confirm), R5b (#657),
+R7 split as #658 (the Tasks tab) and #659 (the Decisions tab, with Marley's System One tab
+renamed "System One calls"). R4b, R7b and R8 remain.
 | R7 | The Tasks tab and the Decisions tab | M |
 | R8 | Memory, Skills and Secrets tabs; Rusty's server settings on the settings page | M |
 | R9 | Parity check against the Qt app; the app retires in Rusty | Rusty-side |

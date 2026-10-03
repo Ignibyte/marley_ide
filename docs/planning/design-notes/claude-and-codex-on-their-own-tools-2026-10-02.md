@@ -14,8 +14,8 @@ has `codex app-server`, `codex agents` and `--remote`.
 The short answer: Marley observes Claude Code well and acts on it badly. It reads typed state
 from Claude Code's hooks, then acts by typing into the terminal (prompts, selections, review
 notes, with a fixed 200 ms wait between a paste and Enter), by reading the screen and pressing
-keys (the folder-trust question), and by leaning on fields Claude Code does not document
-(`terminalSequence`, its internal prompt tags, `installed_plugins.json`). Codex in a Marley
+keys (the folder-trust question), and by leaning on things Claude Code does not document (its
+internal prompt tags, `installed_plugins.json`; `terminalSequence` has since been documented). Codex in a Marley
 terminal gets nothing structured: a 2-second quiet timer for state, argv parsing for its
 permission chip, OSC 9 for notifications. Both agents now ship the official channels that remove
 every one of these: Codex's TUI already runs as a client of a shared App Server any other client
@@ -31,7 +31,7 @@ Claude Code mod of its own (D162, its M13), so the two should share one.
 | Types prompts into the TUI: rich input, send selection, send block, English lines, review notes (paste, wait 200 ms, CR) | `rich_input.rs:521-552`, `terminal_drive.rs:54,313-325`, `send_selection.rs:236-259` | F-claude-594 (high), F-claude-481; every path must check the seat isn't waiting, or a paste answers a permission dialog |
 | Guesses Codex, Gemini and OpenCode state from 2 s of quiet output or a bell | `marley_agent.rs:589-599`, `close_guard.rs:204` | The rail and the close guard rest on a guess |
 | Reads Codex's permission mode from argv | `marley_agent.rs:405-499` | Misses `config.toml` and profiles |
-| Hook frames ride an undocumented hook output field, `terminalSequence`, under a 4 KiB cap | `claude_plugin/marley/hooks`, `event.py:136-151` | AD-482's warning; F-claude-519 |
+| Hook frames ride the hook output field `terminalSequence`, under a 4 KiB cap (now documented in Claude Code's hooks reference, OSC 777 on its allowlist; corrected 2026-10-03, #648) | `claude_plugin/marley/hooks`, `event.py:136-151` | AD-482's warning, now out of date; F-claude-519 |
 | Tells user prompts from injected ones by 19 internal tags copied from Orca | `claude_events.rs:710-822` | A renamed tag silently becomes a "user" prompt |
 | Checks its plugin by reading Claude Code's own bookkeeping file | `claude_plugin.rs:181-208` | F-claude-547 (high) |
 | Rich input draws a Zed editor over Claude Code's prompt | `rich_input.rs` | Duplicates Claude Code's own Ctrl+G, which opens the prompt in `$VISUAL`/`$EDITOR` |
@@ -176,3 +176,17 @@ twice. Its findings for Marley's half:
   hook answering `allow` runs the call with no dialog; a hook that throws or passes 10 s of its
   own time is denied. TICKET-101 sends only `ask` verdicts to the host, shaped so another host
   can answer them.
+
+## Tickets, 2026-10-03
+
+Queued as #648 (B7, the tested-version table, `marley.allow_untested_versions`), #649 (B4,
+`marley-edit` as the agents' editor behind `marley.agent_editor_in_tab`; Ctrl+G for Claude Code,
+Codex and Gemini CLI, Ctrl+X E for OpenCode), #650 (B1 part 1, Marley's own Codex App Server and
+typed state), #651 (B1 part 2, Codex's approvals from the inbox), #652 (B2, Marley's half: agent
+reports through `$MARLEY_BIN report`, the answer to the harness's MREQ-009) and #653 (B3, Marley as
+Claude Code's IDE behind `marley.claude_code_ide`). Split out, needing tickets: B1 part 3 (prompts
+as `turn/start` and `turn/steer`), B1 part 4 (resume through `codex resume --remote`), B2's
+plugin loading (waits on the harness adding Marley's host and a licence for its plugin files),
+B2's prompts and approvals and the hook frames' retirement, B3's diffs (and a by-hand check in
+Chad's own session of what Claude Code does with an edit while connected), B7 part 2 (remote
+hosts' versions), and giving restored terminals the agent variables (found drafting #649).
