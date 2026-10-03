@@ -348,8 +348,10 @@ rustal-harness recorded MREQ-009 as answered (its D176) and queued its side as T
   that a failing or hanging `MARLEY_BIN`, `marley_not_running` included, leaves the session usable.
 - Ask 5: the revision is the plugin's SHA-256 as `rh` computes it (length-prefixed path and
   contents of the three files; today `aedcac8e7a28a370be01ca8b680d18d3cfc1b05e1b2296186c98dfe722214fd1`,
-  changing when TICKET-108 lands). The licence is open: the harness declares none, and choosing
-  one or allowing publication is Chad's decision. The loading slice waits on it.
+  changing when TICKET-108 lands). The licence was open (the harness declares none); Chad
+  decided it the same day: the three plugin files are "MIT OR Apache-2.0", so Marley's public
+  repo may carry them (the whole harness repo stays as it is). Relayed to rustal-harness to mark
+  the files; the loading slice no longer waits on it, only on TICKET-108.
 - Ask 6: the file beside the plugin names only the harness's gate-tested pin, Claude Code
   2.1.287; versions Marley runs beyond that belong in Marley's own table (#648).
 - Ask 7: `waiting` with a one-line activity of at most 120 characters; `working` again once
