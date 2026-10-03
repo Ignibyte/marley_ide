@@ -404,3 +404,8 @@ rename action, and the follow is still read off the tab.
 - A `rusty:` action run while Rusty is off or not connected shows a toast saying so and where to
   turn it on, and opens nothing (rusty-in-marley.md R-D0, settled across #643 to #659).
 - Every scenario names its stand-in in `MARLEY_RUSTY_MCP`, never first on the PATH (#643).
+- Rusty's TICKET-046 (confirmed, wider than found): `brain_rename`, `brain_update_page` and
+  `brain_add_timeline` re-render the frontmatter and lose its order; `brain_set_property` and
+  `brain_remove_property` edit the text in place and are safe today. The property editors use
+  only those two; the name field's rename reorders the page's properties until 046 lands, named
+  in Risks.

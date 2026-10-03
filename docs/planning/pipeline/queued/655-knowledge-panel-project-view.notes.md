@@ -419,3 +419,7 @@ is checked by review); REQ-025 by review and the gate.
 - A `rusty:` action run while Rusty is off or not connected shows a toast saying so and where to
   turn it on, and opens nothing (rusty-in-marley.md R-D0, settled across #643 to #659).
 - Every scenario names its stand-in in `MARLEY_RUSTY_MCP`, never first on the PATH (#643).
+- Rusty's TICKET-047: `brain_list_pages` will take property names and return their values,
+  with aliases, in one query. Until it lands the cache reads each project page as drafted; once
+  it lands, one call with `page_type: project` and properties `path` and `task_group` replaces
+  the per-page reads.

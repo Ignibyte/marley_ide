@@ -406,3 +406,8 @@ and the review checks each edited line. The golden set's 565 and 568 run by hand
 - A `rusty:` action run while Rusty is off or not connected shows a toast saying so and where to
   turn it on, and opens nothing (rusty-in-marley.md R-D0, settled across #643 to #659).
 - Every scenario names its stand-in in `MARLEY_RUSTY_MCP`, never first on the PATH (#643).
+- Rusty's TICKET-044 (confirmed): every date Rusty writes (`created`, `updated`, `decided`,
+  follow-up headings, timeline) counts the UTC day while the due list counts the local day. Until
+  it lands the tab shows `brain_due`'s flags and horizon as served and computes no overdue state
+  of its own; the 19:00 to midnight mismatch is expected and named in the notes. TICKET-048 will
+  add `superseded_by` and a `followed_up` date to the summaries.

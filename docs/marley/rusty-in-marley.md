@@ -347,3 +347,9 @@ until it lands, Marley never sends a slashed name); the page's file path and the
 `brain_read_page` and `brain_stats` (042); and disk edits committed on their own, with tool
 commits naming only their paths (043, which shares a design question with 035). `brain_graph`
 stays the Knowledge panel's source for tags: about 9 ms on the real store.
+
+The second batch's findings became Rusty's TICKET-044 to TICKET-048 (Rusty commit `5e27add`):
+every date on the UTC day instead of the local one (044), foreign keys off and writes on a
+missing id reporting success (045), three writers that reorder a page's frontmatter (046),
+aliases and chosen properties in `brain_list_pages` (047), and `superseded_by` and a follow-up
+date in the decision summaries (048).

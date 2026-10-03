@@ -483,3 +483,6 @@ list holds the focus.
 - A `rusty:` action run while Rusty is off or not connected shows a toast saying so and where to
   turn it on, and opens nothing (rusty-in-marley.md R-D0, settled across #643 to #659).
 - Every scenario names its stand-in in `MARLEY_RUSTY_MCP`, never first on the PATH (#643).
+- Rusty's TICKET-045 (confirmed): foreign keys are off and a write on a missing id returns
+  success. Until it lands the tab treats a write's success as "maybe" and re-lists the group after
+  every write, so a task written into a list another process deleted never shows as saved.
