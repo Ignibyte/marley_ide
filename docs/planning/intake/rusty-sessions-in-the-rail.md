@@ -1,11 +1,15 @@
 ---
-status: intake
+status: superseded
 created: 2026-10-01
 ticket: <unassigned>
 pipeline_spec: <unassigned>
 ---
 
 # Rusty's agent sessions in the rail (C2's sessions half)
+
+> Superseded 2026-10-02: Rusty's agent host retires once rustal-harness runs Claude Code in its
+> own interface (Chad: "Retire it"; `docs/marley/rusty-in-marley.md`, open decision 2). Its
+> sessions become harness seats or Zed threads, which the rail already shows.
 
 ## What
 Rusty's agent sessions (`rusty agent`) listed in Marley's rail beside the harness's, read side:

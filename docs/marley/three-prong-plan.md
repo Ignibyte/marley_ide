@@ -200,10 +200,13 @@ archive and live stream go in, and a claimed controller generation turns key inp
 harness managed-input writes. Blocks work on these terminals too once the seat's shell runs
 the same hooks.
 
-**D11. Rusty stays Rusty.** Marley does not rebuild the knowledge workspace. It embeds
-Rusty's sessions in the fleet rail, points agents at `rusty-mcp`, and uses the brain loop
-tools for its own decisions. Whether Rusty's agent host and the harness runtime converge is
-an open decision for the owner, not something Marley forces.
+**D11. Marley draws Rusty; Rusty keeps its data (amended by Chad, 2026-10-02).** Marley draws
+Rusty's knowledge workspace (pages, graph, search, tasks, memory, skills, secrets) natively from
+Rusty's MCP server; Rusty stays the store, the index and the only writer of its data. The plan is
+[rusty-in-marley.md](rusty-in-marley.md). Marley still points agents at `rusty-mcp` and uses the
+brain loop tools for its own decisions. Was: "Rusty stays Rusty. Marley does not rebuild the
+knowledge workspace." Whether Rusty's agent host and the harness runtime converge is that plan's
+open decision 2.
 
 **D19. The harness is embedded in Marley and also runs standalone (Chad, 2026-09-25).**
 Embedded, Marley runs `rh` as a process of its own, never linked in (§20's program boundary),
@@ -486,8 +489,10 @@ Wave 2 was specced on 2026-09-25, once wave 1 had landed (#496 to #499; the shel
    repository, `vendor/alacritty_terminal` (#461).
 2. Stage two of the terminal (native headers, PS1 hidden) as the Warp look, or stop at stage
    one and keep the shell's own prompt visible.
-3. Whether Rusty's agent host and the harness runtime should converge, and which one Marley
-   treats as the seat substrate of record.
+3. ~~Whether Rusty's agent host and the harness runtime should converge, and which one Marley
+   treats as the seat substrate of record.~~ Decided 2026-10-02: Rusty's host retires once the
+   harness runs Claude Code in its own interface (rustal-harness M13); the harness is the seat
+   substrate (rusty-in-marley.md, open decision 2).
 4. ~~Chromium packaging: a Marley-owned user unit, or one shared with the Playwright MCP.~~
    Decided 2026-09-24: Marley starts it (D16); the Playwright MCP, agent-browser and
    Claude Code attach to the endpoint in its `DevToolsActivePort`.
