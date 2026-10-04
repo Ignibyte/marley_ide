@@ -27,6 +27,13 @@ end
 set -e MARLEY_SSH_COMMAND
 set -e MARLEY_AGENT_HISTORY
 
+# Marley's editor for an agent's terminal (#649), out of the environment and exported as VISUAL
+# and EDITOR at the first prompt, once the user's files have run.
+if set -q MARLEY_AGENT_EDITOR
+    set -g __marley_agent_editor $MARLEY_AGENT_EDITOR
+    set -e MARLEY_AGENT_EDITOR
+end
+
 if status is-interactive; and not set -q __marley_hooks
     set -g __marley_hooks 1
     set -g __marley_status 0
@@ -50,6 +57,11 @@ if status is-interactive; and not set -q __marley_hooks
         if not set -q __marley_announced
             set -g __marley_announced 1
             printf '\033Pqinit;id=%d;nonce=%s\033\\\\' $fish_pid "$__marley_nonce"
+            if set -q __marley_agent_editor
+                set -gx VISUAL $__marley_agent_editor
+                set -gx EDITOR $__marley_agent_editor
+                set -e __marley_agent_editor
+            end
             # The file fish keeps its history in, which Marley's autosuggestions read; none when
             # `fish_history` is empty, which turns the history off.
             set -l session fish

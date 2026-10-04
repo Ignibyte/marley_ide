@@ -21,6 +21,7 @@
 )]
 
 pub mod agent_bar;
+pub mod agent_editor;
 pub mod agent_events;
 pub mod agent_notify;
 pub mod agent_tab;
@@ -401,6 +402,8 @@ pub struct MarleySettings {
     pub english_hint: EnglishHint,
     /// Whether the shell's prompt editor docks at every prompt (#627).
     pub prompt_editor: PromptEditor,
+    /// Where an agent's prompt opens on Ctrl-G in the terminals Marley opens for agents (#649).
+    pub agent_prompts: agent_editor::AgentPrompts,
     /// The order the rail lists projects and rows in (#542).
     pub rail_order: marley_rail::RailOrder,
     /// What Marley starts Claude Code and Codex with (#532).
@@ -623,6 +626,7 @@ impl Settings for MarleySettings {
                 .and_then(|marley| marley.agent_commands_outside_lists)
                 .unwrap_or_default(),
             rail_order: rail_order(marley),
+            agent_prompts: agent_editor::AgentPrompts::from_content(marley),
             prompt_editor: PromptEditor::from_setting(
                 marley.and_then(|marley| marley.prompt_editor),
             ),

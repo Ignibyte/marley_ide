@@ -3282,3 +3282,20 @@ The Depth row showed only in Local, so the filter field and the switches sat 26 
 in Vault; a click measured in one scope missed in the other (`647-06` showed Orbit at depth 2, the
 Vault click having missed), and a user's eye would have to find them again too. Fixed: the row
 shows in Vault as well, its buttons off.
+
+## F-claude-649-a-timed-out-wait-left-a-sender-that-read-as-a-live-waiter-001
+*severity: medium · found in: pipeline 649's review, in Code · class: a dropped receiver's oneshot sender counted as someone still listening*
+
+`editor_wait` pushes a `oneshot::Sender` into the edit and races its receiver against a timer; a
+round that times out drops the receiver and leaves the sender in the list. `ended` took any sender
+as a helper still asking and skipped the minute's expiry, so an edit whose helper was killed after
+one timed-out round stayed in the global for good. Fixed: only a sender that `is_canceled()` says
+false for counts.
+
+## F-claude-649-the-helper-printed-a-refusal-as-raw-json-with-the-tool-named-twice-001
+*severity: low · found in: pipeline 649's first scenario run, in Test · class: a user-facing line built from a wire format*
+
+`649-09` showed `marley-edit: {"result":"refused","reason":"editor_open: editor_open is for …"}`:
+the helper joined the error result's text parts, which are the structured refusal's JSON, and the
+app's reason named its tool, which `dispatch` already prefixes. Fixed: the helper prints the
+`structuredContent`'s `reason`, and the reason starts with what it says.

@@ -90,10 +90,11 @@ pub fn start(cx: &mut App) {
         .detach();
     let data_dir = paths::data_dir().clone();
     // The browser's write tools are granted: the client's approval of each call and the Browser
-    // tab, where the user watches each action, are their checks (#492 D2).
+    // tab, where the user watches each action, are their checks (#492 D2). The editor's is
+    // Marley's own `marley-edit`'s, which outside clients are refused (#649).
     let shared: transport::Shared = Arc::new((
         Mutex::new(transport::ServerData {
-            grants: GrantTable::from_classes(["browser.write", "terminal.write"]),
+            grants: GrantTable::from_classes(["browser.write", "terminal.write", "editor.write"]),
             ..transport::ServerData::default()
         }),
         Condvar::new(),
@@ -117,6 +118,7 @@ pub fn start(cx: &mut App) {
             );
             offer_to_zeds_agents(data_dir.clone(), cx);
             offer_browser_opener(data_dir.clone(), cx);
+            offer_agent_editor(data_dir.clone(), cx);
             (
                 None,
                 Some(publisher(published, cx)),
@@ -338,6 +340,26 @@ fn offer_browser_opener(data_dir: PathBuf, cx: &mut App) {
     .detach();
 }
 
+/// Writes `marley-edit` beside the opener off the main thread, and publishes its path once written
+/// (#649): the terminals Marley opens for agents get it as their editor while
+/// `marley.agent_editor_in_tab` is on.
+fn offer_agent_editor(data_dir: PathBuf, cx: &App) {
+    let written = cx.background_spawn(futures::future::lazy(move |_| {
+        write_program_in(
+            &data_dir,
+            crate::agent_editor::HELPER_FILE,
+            crate::agent_editor::HELPER,
+        )
+    }));
+    cx.spawn(async move |cx| match written.await {
+        Ok(helper) => cx.update(|cx| crate::agent_editor::set_helper(&helper, cx)),
+        Err(error) => {
+            log::error!("mcp: agents keep the Rich Input overlay: marley-edit: {error:#}");
+        }
+    })
+    .detach();
+}
+
 /// The opener for new terminals under the settings in force: none under `system_browser`, so they
 /// keep the `BROWSER` they inherit.
 fn give_browser_opener(opener: &Path, cx: &App) {
@@ -476,6 +498,10 @@ fn answer(call: AppCall, cx: &mut App) {
     }
     if call.tool.starts_with("browser_") {
         crate::browser_tools::answer(call, cx);
+        return;
+    }
+    if call.tool.starts_with("editor_") {
+        crate::agent_editor::answer(call, cx);
         return;
     }
     if call.tool == "ports_list" {

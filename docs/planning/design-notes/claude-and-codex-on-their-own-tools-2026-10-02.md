@@ -101,6 +101,11 @@ documentation.
 
 ### B4. Rich input through Claude Code's own editor key
 
+Done by #649 (2026-10-04) for the terminals Marley opens for agents in local projects, behind
+`marley.agent_editor_in_tab`, off by default: `marley-edit` as `VISUAL` and `EDITOR`, and Ctrl-G
+there sends the agent its own key (Ctrl-G to Claude Code, Codex and Gemini CLI, Ctrl-X E to
+OpenCode). Restored and remote terminals keep the overlay.
+
 Claude Code's Ctrl+G opens the prompt in `$VISUAL` or `$EDITOR`. A `marley edit` command that
 opens the file in a Marley buffer and waits until it closes gives rich input through Claude
 Code's own path, for any agent that honours `$EDITOR`; Codex's TUI has an external-editor key

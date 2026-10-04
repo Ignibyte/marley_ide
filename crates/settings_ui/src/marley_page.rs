@@ -136,7 +136,7 @@ fn layout_section() -> [SettingsPageItem; 5] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 14] {
+fn agents_section() -> [SettingsPageItem; 15] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -437,6 +437,29 @@ fn agents_section() -> [SettingsPageItem; 14] {
             metadata: None,
             files: USER,
         }),
+        // Marley: agent prompts through the agent's own editor key, in a tab (#649).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Agent Prompts in a Tab",
+            description: "Give the terminals Marley opens for agents Marley's editor: Ctrl-G, the Rich Input button and the agent's own editor key open the prompt in a tab, and closing the tab hands it back to the agent, which sends nothing until you do. Off, Ctrl-G opens Marley's Rich Input overlay. Applies to agent terminals opened after the change.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.agent_editor_in_tab"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.agent_editor_in_tab.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .agent_editor_in_tab = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
     ]
 }
 
@@ -561,7 +584,6 @@ fn terminal_section() -> [SettingsPageItem; 6] {
     ]
 }
 
-// Marley: the master switch of Marley's voice features, off by default (#642).
 // Marley: the integrations turned on outside the agent versions Marley tested them on (#648).
 fn agent_versions_section() -> [SettingsPageItem; 2] {
     [
@@ -597,6 +619,7 @@ fn agent_versions_section() -> [SettingsPageItem; 2] {
     ]
 }
 
+// Marley: the master switch of Marley's voice features, off by default (#642).
 fn voice_section() -> [SettingsPageItem; 2] {
     [
         SettingsPageItem::SectionHeader("Voice"),

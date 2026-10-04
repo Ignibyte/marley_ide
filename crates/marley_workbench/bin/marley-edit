@@ -1,0 +1,209 @@
+#!/usr/bin/env python3
+"""Opens a file in a Marley tab for an agent's editor key, and waits for the tab to close (#649).
+
+Marley gives the terminals it opens for agents this program as `VISUAL` and `EDITOR` while
+`marley.agent_editor_in_tab` is on. Claude Code, Codex, Gemini CLI and OpenCode run it with their
+prompt's file as the last argument (Gemini CLI adds `-i NONE` before it; a `+line` is ignored too)
+and read the file back when it exits. It asks the Marley whose data directory it lives in, through
+that Marley's MCP endpoint and bearer, to open the file in a tab of the workspace of the terminal it
+runs in (`MARLEY_TERMINAL_ID`), then waits until the tab closes, as `zed --wait` does: a save alone
+does not end the edit. When Marley cannot open it (no endpoint, a call from no Marley terminal, a
+refusal), it says why on stderr and exits 1, the file untouched, and the agent keeps its draft.
+
+The endpoint file is `$MARLEY_MCP_ENDPOINT`, else `mcp-endpoint.json` in the data directory this
+program was written to (`<data_dir>/mcp/marley-edit`). The bearer in it goes only to a loopback
+URL, and nothing here prints it.
+"""
+
+import http.client
+import json
+import os
+import re
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+PROTOCOL_VERSION = "2025-06-18"
+
+# Opening the file, in seconds.
+OPEN_DEADLINE = 10
+
+# Each wait for the tab to close, under Marley's 30 seconds for an answer.
+WAIT_SECONDS = 20
+
+LOOPBACK = {"127.0.0.1", "localhost", "::1"}
+
+TERMINAL_ID = re.compile(r"^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
+
+# What an exchange with Marley can fail with.
+FAILURES = (OSError, ValueError, http.client.HTTPException, urllib.error.URLError)
+
+
+class Refused(Exception):
+    """Marley answered, and declined."""
+
+
+def endpoint_path():
+    named = os.environ.get("MARLEY_MCP_ENDPOINT")
+    if named:
+        return named
+    here = os.path.dirname(os.path.realpath(__file__))
+    return os.path.join(os.path.dirname(here), "mcp-endpoint.json")
+
+
+def read_endpoint():
+    """The URL and the Authorization header in the endpoint file, when it names a loopback URL."""
+    try:
+        with open(endpoint_path(), encoding="utf-8") as file:
+            entry = json.load(file)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(entry, dict):
+        return None
+    url = entry.get("url")
+    headers = entry.get("headers")
+    if not isinstance(url, str) or not isinstance(headers, dict):
+        return None
+    authorization = headers.get("Authorization")
+    if not isinstance(authorization, str):
+        return None
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme != "http" or parsed.hostname not in LOOPBACK:
+        # The bearer never leaves this machine.
+        return None
+    return url, authorization
+
+
+def messages_in(body, kind):
+    """The JSON-RPC messages in an answer's body, JSON or a stream of events."""
+    if not body.strip():
+        return []
+    if kind.startswith("text/event-stream"):
+        found, data = [], []
+        for line in body.splitlines():
+            if line.startswith("data:"):
+                data.append(line[5:].removeprefix(" "))
+            elif not line.strip() and data:
+                found.append(json.loads("\n".join(data)))
+                data = []
+        if data:
+            found.append(json.loads("\n".join(data)))
+        return found
+    parsed = json.loads(body)
+    return parsed if isinstance(parsed, list) else [parsed]
+
+
+def request(endpoint, deadline, method, message=None, session=None):
+    """One HTTP request to Marley within the deadline: the messages it answered with, and the
+    session it gave. The terminal this runs in goes with it, as the bridge sends it."""
+    url, authorization = endpoint
+    headers = {
+        "Authorization": authorization,
+        "Accept": "application/json, text/event-stream",
+        "MCP-Protocol-Version": PROTOCOL_VERSION,
+    }
+    terminal = os.environ.get("MARLEY_TERMINAL_ID", "")
+    if TERMINAL_ID.match(terminal):
+        headers["Marley-Terminal"] = terminal
+    body = None
+    if message is not None:
+        headers["Content-Type"] = "application/json"
+        body = json.dumps(message).encode("utf-8")
+    if session:
+        headers["Mcp-Session-Id"] = session
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("Marley did not answer in time")
+    sent = urllib.request.Request(url, data=body, headers=headers, method=method)
+    with urllib.request.urlopen(sent, timeout=remaining) as answer:
+        kind = answer.headers.get("Content-Type", "")
+        text = answer.read().decode("utf-8", "replace")
+        return messages_in(text, kind), answer.headers.get("Mcp-Session-Id") or session
+
+
+def call(endpoint, deadline, session, number, name, arguments):
+    """A tool's structured result, or `Refused` with Marley's reason."""
+    answers, _ = request(endpoint, deadline, "POST", {
+        "jsonrpc": "2.0", "id": number, "method": "tools/call",
+        "params": {"name": name, "arguments": arguments},
+    }, session)
+    for answer in answers:
+        if not isinstance(answer, dict) or answer.get("id") != number:
+            continue
+        if "error" in answer:
+            raise Refused(str(answer["error"].get("message", answer["error"])))
+        result = answer.get("result")
+        if not isinstance(result, dict):
+            break
+        if result.get("isError"):
+            refusal = result.get("structuredContent")
+            if isinstance(refusal, dict) and isinstance(refusal.get("reason"), str):
+                raise Refused(refusal["reason"])
+            texts = [part.get("text", "") for part in result.get("content", [])
+                     if isinstance(part, dict)]
+            raise Refused(" ".join(text for text in texts if text) or "Marley refused")
+        content = result.get("structuredContent")
+        if isinstance(content, dict):
+            return content
+    raise Refused(f"Marley gave no answer to {name}")
+
+
+def edit(path):
+    """Has Marley open `path` and waits for its tab to close; the exit code."""
+    endpoint = read_endpoint()
+    if endpoint is None:
+        sys.stderr.write(f"marley-edit: no running Marley's endpoint at {endpoint_path()}\n")
+        return 1
+    session = None
+    try:
+        deadline = time.monotonic() + OPEN_DEADLINE
+        _, session = request(endpoint, deadline, "POST", {
+            "jsonrpc": "2.0", "id": 1, "method": "initialize",
+            "params": {"protocolVersion": PROTOCOL_VERSION, "capabilities": {},
+                       "clientInfo": {"name": "marley-edit", "version": "1"}},
+        })
+        request(endpoint, deadline, "POST",
+                {"jsonrpc": "2.0", "method": "notifications/initialized"}, session)
+        opened = call(endpoint, deadline, session, 2, "editor_open", {"path": path})
+        edit_id = opened.get("edit")
+        sys.stderr.write(f"marley-edit: {opened.get('file', os.path.basename(path))} is open in "
+                         "a Marley tab; closing the tab hands it back\n")
+        sys.stderr.flush()
+        number = 3
+        while True:
+            deadline = time.monotonic() + WAIT_SECONDS + 5
+            waited = call(endpoint, deadline, session, number, "editor_wait",
+                          {"edit": edit_id, "wait_seconds": WAIT_SECONDS})
+            if waited.get("closed") is True:
+                return 0
+            number += 1
+    except Refused as refusal:
+        sys.stderr.write(f"marley-edit: {refusal}\n")
+        return 1
+    except FAILURES as failure:
+        sys.stderr.write(f"marley-edit: Marley did not answer: {failure}\n")
+        return 1
+    finally:
+        if session:
+            try:
+                request(endpoint, time.monotonic() + 2, "DELETE", session=session)
+            except FAILURES:
+                pass
+
+
+def main():
+    # The file is the last argument; options before it (`+12`, `-i NONE`) are the agents' own.
+    if len(sys.argv) < 2:
+        sys.stderr.write("usage: marley-edit [options] <file>\n")
+        return 2
+    path = os.path.abspath(sys.argv[-1])
+    if os.path.isdir(path):
+        sys.stderr.write(f"marley-edit: {path} is a folder\n")
+        return 1
+    return edit(path)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

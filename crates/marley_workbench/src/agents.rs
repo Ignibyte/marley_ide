@@ -375,6 +375,10 @@ pub(crate) fn start_in_terminal(
     } = launcher(cx);
     let (folders, local) = crate::system_one::project_of(workspace, cx);
     let shown = local && passphrase_dialog == PassphraseDialog::Shown;
+    // Marley's editor for the agent's own editor key, in a local project only (#649).
+    let editor = agent
+        .filter(|_| local)
+        .and_then(|_| crate::agent_editor::editor_path(cx));
     let dialog_title = agent.filter(|_| shown).map(|kind| {
         let project = crate::system_one::project_name(&folders);
         SharedString::from(marley_agent::ssh_dialog_title(&project, kind))
@@ -391,7 +395,13 @@ pub(crate) fn start_in_terminal(
             .as_ref()
             .map(|proxy| proxy.script_path().as_ref().to_os_string());
         let env = match agent {
-            Some(_) => agent_env(script.as_deref())?,
+            Some(_) => {
+                let mut env = agent_env(script.as_deref())?;
+                if let Some(editor) = &editor {
+                    crate::agent_editor::add_env(&mut env, editor);
+                }
+                env
+            }
             None => HashMap::default(),
         };
         let terminal = workspace
@@ -401,6 +411,14 @@ pub(crate) fn start_in_terminal(
                 })
             })?
             .await?;
+        if editor.is_some() {
+            terminal.update(cx, |_, cx| {
+                let id = cx.entity_id();
+                crate::agent_editor::give(id, cx);
+                cx.on_release(move |_, cx| crate::agent_editor::forget(id, cx))
+                    .detach();
+            })?;
+        }
         if let Some(proxy) = proxy {
             asker.get_or_init(|| terminal.clone());
             // The socket and its folder last exactly as long as the terminal.

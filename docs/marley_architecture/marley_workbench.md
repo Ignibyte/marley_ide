@@ -927,6 +927,34 @@ alike.
   would send its program, chords and keys that type nothing, and lets text through to the
   editor.
 
+## Agent prompts in a tab (`src/agent_editor.rs`, #649)
+
+- `marley.agent_editor_in_tab` (`MarleySettings::agent_prompts`, an `AgentPrompts`: `Overlay`, the
+  default, or `InTab`) decides where an agent's prompt opens on Ctrl-G in the terminals Marley
+  opens for agents.
+- `mcp::offer_agent_editor` writes `bin/marley-edit` (`agent_editor::HELPER`, embedded) beside the
+  opener at start, and `set_helper` publishes its path unless it holds whitespace: Claude Code,
+  Gemini CLI and OpenCode split `$VISUAL` on spaces. A path with a space logs a warning and keeps
+  the overlay.
+- `agents::start_in_terminal`, for an agent in a local project while `editor_path` gives the
+  helper, adds `VISUAL`, `EDITOR` and `MARLEY_AGENT_EDITOR` (`add_env`) and records the new
+  terminal (`give`, `forget` on its release). The shell integration exports the helper again after
+  the user's files.
+- `rich_input`'s `RichInput` action and the agent bar's button, for a terminal `takes_key` accepts
+  (the switch on, the terminal given the helper), write the agent's own key
+  (`AgentKind::editor_key`) into the terminal with `press_key` and open no overlay. Any other
+  terminal keeps #481's overlay.
+- The helper, run by the agent with its prompt's file as the last argument, reads the endpoint as
+  the opener does, sends `Marley-Terminal` from `MARLEY_TERMINAL_ID`, calls `editor_open`, then
+  `editor_wait` in 20 s rounds until `closed`, and exits 0; any failure prints one `marley-edit:`
+  line (the refusal's `reason` when Marley gave one) and exits 1, the file untouched.
+- `answer` serves both tools. `open` finds the calling terminal (`mcp::caller_terminal`), opens the
+  file with `Workspace::open_abs_path` (not a preview, with the focus) through the window's handle,
+  keeps the item's `on_release` subscription in the `Edit` and drops the item handle, as Zed's
+  `--wait` does. The release defers `ended`, which marks the edit closed, wakes the live waiters,
+  keeps an edit nobody waits on for a minute, and activates the terminal view in its workspace.
+  `wait` answers at once when closed, or races a oneshot against the executor's timer.
+
 ## The prompt editor by default (`src/rich_input.rs`, #627)
 
 - `marley.prompt_editor` (`MarleySettings::prompt_editor`, a `PromptEditor`: `AtEveryPrompt`, the

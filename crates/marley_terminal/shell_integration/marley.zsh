@@ -36,6 +36,13 @@ if [[ -n ${MARLEY_AGENT_HISTORY+set} ]]; then
     unset MARLEY_AGENT_HISTORY
 fi
 
+# Marley's editor for an agent's terminal (#649), out of the environment the same way and
+# exported as VISUAL and EDITOR at the first prompt, once the user's files have run.
+if [[ -n ${MARLEY_AGENT_EDITOR+set} ]]; then
+    typeset -g __MARLEY_AGENT_EDITOR=$MARLEY_AGENT_EDITOR
+    unset MARLEY_AGENT_EDITOR
+fi
+
 # On a host Marley's ssh reached (#526): the folder the bootstrap wrote this file to goes now;
 # zsh keeps the open file readable to its end.
 if [[ -n ${__MARLEY_CLEANUP+set} ]]; then
@@ -101,6 +108,10 @@ if [[ -o interactive && -z ${__MARLEY_HOOKS-} ]]; then
             zshaddhistory_functions+=(__marley_addhistory)
         fi
         builtin printf '\033Pqinit;id=%d;nonce=%s\033\\' "$$" "${__MARLEY_NONCE-}"
+        if [[ -n ${__MARLEY_AGENT_EDITOR-} ]]; then
+            export VISUAL=$__MARLEY_AGENT_EDITOR EDITOR=$__MARLEY_AGENT_EDITOR
+            unset __MARLEY_AGENT_EDITOR
+        fi
         # The file zsh keeps its history in, which Marley's autosuggestions read.
         if [[ -n ${HISTFILE-} ]]; then
             __marley_quote "$HISTFILE"

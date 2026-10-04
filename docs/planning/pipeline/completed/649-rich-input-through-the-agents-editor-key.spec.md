@@ -1,7 +1,7 @@
 ---
 pipeline_id: ddf358d0-34fb-4e38-ab7f-7a029c380cc5
-ticket: docs/planning/tickets/open/TICKET-649-rich-input-through-the-agents-editor-key.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-649-rich-input-through-the-agents-editor-key.md
+status: Phase 4 — Complete PASS
 title: "Rich input through the agent's own editor key"
 type: feature
 slice: prong 1 T7 (T7e, the rich input); Claude Code and Codex on their own tools, B4

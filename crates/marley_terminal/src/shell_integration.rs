@@ -75,6 +75,13 @@ pub const NONCE_VARIABLE: &str = "MARLEY_SHELL_NONCE";
 /// shell's history: how an agent's `terminal_run` commands stay out of it (#553).
 pub const AGENT_HISTORY_VARIABLE: &str = "MARLEY_AGENT_HISTORY";
 
+/// The variable that names Marley's editor for an agent's terminal (#649).
+///
+/// The scripts take it out of the environment before the user's files run, and export `VISUAL` and
+/// `EDITOR` as its value once they have, so a `.bashrc` that exports its own editor does not undo
+/// Marley's.
+pub const AGENT_EDITOR_VARIABLE: &str = "MARLEY_AGENT_EDITOR";
+
 /// The file, beside the scripts, holding the remote command Marley's `ssh` runs on a host (#526).
 pub const SSH_COMMAND_FILE: &str = "ssh-remote-command";
 

@@ -90,6 +90,21 @@ impl AgentKind {
             Self::OpenCode => "OpenCode",
         }
     }
+
+    /// The bytes of the key that opens the agent's prompt in `$VISUAL` or `$EDITOR`, at its
+    /// default binding (#649).
+    ///
+    /// Ctrl-G for Claude Code (`chat:externalEditor`), Codex
+    /// (`tui.keymap.global.open_external_editor`) and Gemini CLI (`input.openExternalEditor`);
+    /// Ctrl-X then E for [`Self::OpenCode`] (`editor_open`, `<leader>e` with the leader
+    /// `ctrl+x`), whose own Ctrl-G goes to its first message.
+    #[must_use]
+    pub const fn editor_key(self) -> &'static [u8] {
+        match self {
+            Self::Claude | Self::Codex | Self::Gemini => b"\x07",
+            Self::OpenCode => b"\x18e",
+        }
+    }
 }
 
 /// Classify a command line as an agent CLI by its leading program.

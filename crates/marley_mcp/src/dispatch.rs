@@ -193,7 +193,7 @@ fn tools_call(ctx: &RequestCtx, request: &RpcRequest, id: &Value) -> Handled {
             tools::fleet_snapshot_result(ctx.snapshot),
         )),
         Family::Session => surface_to_human(ctx, &arguments, id),
-        Family::Terminal | Family::Browser | Family::Ports => Handled {
+        Family::Terminal | Family::Browser | Family::Ports | Family::Editor => Handled {
             outgoing: vec![Outgoing::Deferred(PendingCall {
                 id: id.clone(),
                 tool: spec.name(),

@@ -1794,6 +1794,11 @@
     "allow_untested_versions": {
       "claude_prompt_tags": false
     },
+    // Agent prompts in a tab (#649): the terminals Marley opens for agents get Marley's editor as
+    // VISUAL and EDITOR, so the agent's own editor key, and Ctrl-G, open its prompt in a tab, and
+    // closing the tab hands it back. Off, Ctrl-G opens Marley's Rich Input overlay. Applies to
+    // agent terminals opened after the change.
+    "agent_editor_in_tab": false,
     // Voice in Marley (#642), off until you turn it on. On, the agent bar shows a microphone where
     // Voxtype is on your PATH, and `marley: toggle dictation` dictates through it; off, Marley
     // shows no microphone and starts no voxtype. Marley never touches the audio.

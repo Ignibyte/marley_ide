@@ -23,6 +23,9 @@ pub enum Family {
     Browser,
     /// The ports each project's processes listen on, read by the app (#521).
     Ports,
+    /// Files opened for an agent's own editor key and waited on, for Marley's `marley-edit`
+    /// (#649); never listed, and Marley's own.
+    Editor,
 }
 
 impl Family {
@@ -35,6 +38,7 @@ impl Family {
             Self::Terminal => "terminal",
             Self::Browser => "browser",
             Self::Ports => "ports",
+            Self::Editor => "editor",
         }
     }
 
@@ -344,6 +348,22 @@ const REGISTRY: &[ToolSpec] = &[
                       reaches it, the pid, the process's name and its working directory. A \
                       listener outside every project is not listed.",
     },
+    ToolSpec {
+        family: Family::Editor,
+        verb: "open",
+        tier: Tier::Write,
+        grant_class: "editor.write",
+        description: "Open a file in a tab of the workspace of the Marley terminal calling, for \
+                      an agent's editor key (#649); the edit ends when the tab closes.",
+    },
+    ToolSpec {
+        family: Family::Editor,
+        verb: "wait",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "Wait up to wait_seconds for an edit editor_open began to end, its tab \
+                      closed.",
+    },
 ];
 
 /// A browser tool that reads the page (#492).
@@ -438,6 +458,7 @@ fn tool_schemas(spec: &ToolSpec) -> (Value, Value) {
         Family::Terminal => terminal_schemas(spec.verb),
         Family::Browser => browser_schemas(spec.verb),
         Family::Ports => ports_list_schemas(),
+        Family::Editor => editor_schemas(spec.verb),
         Family::Fleet => (
             json!({ "type": "object", "properties": {}, "additionalProperties": false }),
             fleet_snapshot_schema(),
@@ -1510,6 +1531,57 @@ fn terminal_type_schemas() -> (Value, Value) {
 }
 
 /// `terminal_run` (#556): a terminal, a command and how long to wait; the block it ran.
+/// `editor_open` and `editor_wait` (#649): a file's absolute path in, the edit's id out; the id
+/// and a wait in, whether the edit ended out.
+fn editor_schemas(verb: &str) -> (Value, Value) {
+    match verb {
+        "open" => (
+            json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096,
+                        "description": "The file's absolute path."
+                    }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            json!({
+                "type": "object",
+                "properties": {
+                    "edit": { "type": "integer" },
+                    "file": { "type": "string" }
+                },
+                "required": ["edit", "file"]
+            }),
+        ),
+        _ => (
+            json!({
+                "type": "object",
+                "properties": {
+                    "edit": { "type": "integer", "minimum": 0 },
+                    "wait_seconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 20,
+                        "description": "How long to wait for the tab to close; 20 when left out."
+                    }
+                },
+                "required": ["edit"],
+                "additionalProperties": false
+            }),
+            json!({
+                "type": "object",
+                "properties": { "closed": { "type": "boolean" } },
+                "required": ["closed"]
+            }),
+        ),
+    }
+}
+
 fn terminal_run_schemas() -> (Value, Value) {
     (
         json!({

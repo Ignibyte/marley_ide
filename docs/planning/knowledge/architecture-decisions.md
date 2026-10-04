@@ -3895,3 +3895,20 @@ Code's hooks reference documents it (read 2026-10-03 and 2026-10-04): an allowli
 2, 9, 99, 777 and a bare BEL, ended by BEL or ST, anything else rejected and the field ignored,
 with no length limit given. The plugin's channel rests on a documented surface, which is why #648
 gives it no row in the version table.
+
+## AD-claude-649-marleys-editor-in-the-terminals-it-opens-for-agents-001
+*decided at: 2026-10-04 · status: shipped · builds on: AD-claude-561-marley-exports-its-opener-as-browser-in-every-local-terminal-001 · plan: docs/planning/design-notes/claude-and-codex-on-their-own-tools-2026-10-02.md B4*
+
+With `marley.agent_editor_in_tab` on (off by default), a terminal Marley opens for an agent in a
+local project gets `marley-edit`, a Python program in Marley's data directory, as `VISUAL` and
+`EDITOR`, and Ctrl-G and the Rich Input button there send the agent its own editor key (Ctrl-G to
+Claude Code, Codex and Gemini CLI, Ctrl-X E to OpenCode). The helper has Marley open the file in a
+tab of the calling terminal's workspace through Marley-only MCP tools, and returns when the tab's
+item is released, as `zed --wait` does; the agent reads the file back and sends nothing until the
+user does. Inside those terminals Marley's editor wins over the user's shell files (the
+integration exports it again after them), unlike #561's opener, because the user turned the switch
+on. Every other terminal, and every terminal with the switch off, keeps #481's overlay. Rejected:
+- a `marley edit` subcommand (Marley ships no CLI, and it would start the whole app per edit);
+- Zed's CLI picking a window by worktree (a temporary file sits in none);
+- "only when `EDITOR` is unset" (Omarchy exports one, so it would never fire);
+- on by default (it changes what Ctrl-G does and which editor an agent's `git commit` opens).

@@ -634,7 +634,8 @@ cp "$config/settings.json" "$E2E_PROFILE/config/"
 # through `MARLEY_RUSTY_MCP`, which names no file until the scenario names its own. The copy also
 # allows Claude Code's prompt tags on any version (#648): no scenario's stand-in `claude` answers
 # `--version`, and the user's own Claude Code updates itself, so without it a scenario's prompts
-# would read differently from one install to the next.
+# would read differently from one install to the next. Agent prompts in a tab are off in the copy
+# (#649), so Ctrl-G in an agent's terminal opens the Rich Input overlay whatever the user chose.
 python3 - "$E2E_PROFILE/config/settings.json" <<'SETTINGS'
 import json, pathlib, re, sys
 
@@ -649,6 +650,7 @@ marley.pop("rusty_tools", None)
 marley["rusty"] = {"enabled": False, "service_url": "http://127.0.0.1:9/mcp"}
 marley.setdefault("voice", {})["enabled"] = False
 marley.setdefault("allow_untested_versions", {})["claude_prompt_tags"] = True
+marley["agent_editor_in_tab"] = False
 path.write_text(json.dumps(settings, indent=2) + "\n")
 SETTINGS
 export MARLEY_RUSTY_MCP=$E2E_WORK/no-rusty-mcp

@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Agent prompts in a tab** (#649, 2026-10-04). With Agent Prompts in a Tab on in the Marley
+  settings (off by default), the terminals Marley opens for agents give them Marley's editor,
+  `marley-edit`, as `VISUAL` and `EDITOR`, over what the user's shell files export. Ctrl-G and the
+  agent bar's pencil then send the agent its own editor key, and the agent's prompt opens in a
+  Marley tab; closing the tab hands it back to the agent, which sends nothing until you do, and
+  its terminal comes back to the front. A save alone does not end the edit, as with `zed --wait`.
+  Everywhere else Ctrl-G opens the Rich Input overlay as before.
+
 - **Marley checks the agent's version** (#648, 2026-10-04). Marley reads the version of the
   `claude` and `codex` it runs (`MARLEY_CLAUDE` and `MARLEY_CODEX`, else the PATH's) when it
   starts and again when an agent bar shows after the program changed. Claude Code's prompt tags,

@@ -3,12 +3,12 @@
 - **Ticket:** LOCAL #649 (feature, prong 1 T7: T7e's rich input; Claude Code and Codex on their
   own tools, B4)
 - **Owner:** claude-opus-5-5, 2026-10-03 (/spec)
-- **Pipeline doc:** ../../pipeline/queued/649-rich-input-through-the-agents-editor-key.spec.md
+- **Pipeline doc:** ../../pipeline/completed/649-rich-input-through-the-agents-editor-key.spec.md
 - **Source ticket:** `docs/planning/design-notes/claude-and-codex-on-their-own-tools-2026-10-02.md`
   (the fights table's rich input row, idea B4); Chad, 2026-10-02, on B4 ("rich input through the
   agents' own editor key (a `marley edit` command as `$EDITOR`; the overlay only for agents with
   no editor key)"): "Yes"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Claude Code, Codex, Gemini CLI and OpenCode each have a key that writes the prompt to a file, runs

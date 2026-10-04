@@ -1,6 +1,6 @@
 # Rich input through the agent's own editor key — Notes
 
-- **Local ticket doc:** docs/planning/tickets/open/TICKET-649-rich-input-through-the-agents-editor-key.md
+- **Local ticket doc:** docs/planning/tickets/closed/TICKET-649-rich-input-through-the-agents-editor-key.md
 - **Pipeline spec:** 649-rich-input-through-the-agents-editor-key.spec.md
 
 ## Phase 1 — Plan (queued by /spec, 2026-10-03)
@@ -288,3 +288,145 @@
   Phase Plan.
 - [x] Design with the file manifest and the three ledger rows it extends.
 - [x] Wrote the ticket, the spec and these notes; nothing else.
+
+### Promotion (2026-10-04)
+- Promoted into `active/`; the BACKLOG row removed; the ticket in-progress. Pre-flight green, no
+  other active pipeline; #640 to #648 landed (the last 701b020874).
+- **Brain:** `brain ask` (consultation `7a5bb689630a47b98fe907278d914cbe`) returned due follow-ups
+  on other work only; #481's decision stands to be revised at Complete.
+- **Phase 1's two checks.** Zed's own `--wait` (`open_listener.rs:1039-1052`) keeps the
+  `Subscription` that `ItemHandle::on_release` returns and sends on a oneshot when the item drops,
+  so a pane's close that drops the last strong handle ends it; `agent_editor` copies that. The pane
+  `open_abs_path` uses is the workspace's active one, which is the agent terminal's pane while its
+  Ctrl-G runs.
+- **Seams re-read** (an Explore pass over the thirteen areas the design names): the shapes hold,
+  with these corrections.
+  - `agents::agent_env(script)` returns `HashMap<String, String>`; `start_in_terminal` knows
+    whether the project is local (`system_one::project_of`), so the editor's variables are added
+    there, not inside `agent_env`.
+  - `marley-open-url` sends no `Marley-Terminal` header; the bridge does
+    (`claude_plugin/marley/bin/marley-mcp-bridge:163-184`, a UUID check). `marley-edit` copies the
+    bridge's `caller_headers`.
+  - `mcp::caller_terminal(caller, cx)` returns `(Entity<Workspace>, Entity<TerminalView>)`;
+    `mcp::answer` hands a call to its tool's function, which answers with `call.answer(..)` at
+    once or from a task later (`ports_list` does).
+  - `registry.rs`: `ToolSpec { family, verb, tier, grant_class, description }`; `tool_schemas`
+    matches every family with no catch-all; `terminal_run` is a Write row, `terminal_screen` a
+    Read one. `permits` lets Marley's own principal through and an outside client only its lists.
+  - `OpenOptions` has no preview field; `open_abs_path(path, OpenOptions { visible:
+    Some(OpenVisible::None), focus: Some(true), .. })` (checked in Code for a non-preview tab).
+  - `marley_agent` has no per-agent key table; `editor_key` is new. `agents_section()` grows from
+    14 items to 15. `mcp_agent` lives in `script/e2e/browser-fixture.sh`; #537's scenario is the
+    shape to copy (the picker, a New Terminal, stand-ins first on the PATH).
+  - #648 left the Voice section's comment above the Agent Versions section in `marley_page.rs`;
+    this ticket's edit of the file puts it back.
+- D1 to D10 stand as drafted.
+
+
+## Phase 2 — Code (2026-10-04)
+- **Built.**
+  - `marley_agent`: `AgentKind::editor_key`, Ctrl-G (`\x07`) for Claude Code, Codex and Gemini
+    CLI, Ctrl-X then E for OpenCode.
+  - `marley_terminal`: `AGENT_EDITOR_VARIABLE`; bash, zsh and fish each keep
+    `MARLEY_AGENT_EDITOR` in a shell global, unset it, and export `VISUAL` and `EDITOR` from it
+    after the user's files (bash after `.bashrc`, zsh in `__marley_install`, fish in the
+    first-prompt block).
+  - `marley_mcp`: `Family::Editor`, not served; `editor_open` (Write, `editor.write`) and
+    `editor_wait` (Read), with their schemas; `dispatch` hands both to the app.
+  - `marley_workbench::agent_editor` (new): `AgentPrompts`, the global (the helper's path, the
+    terminals given it, the edits), `set_helper`, `editor_path`, `add_env`, `give`, `forget`,
+    `takes_key`, `press_key`, `answer`, `open`, `ended`, `wait`.
+  - `mcp.rs` grants `editor.write` to Marley's own principal, writes the helper with
+    `offer_agent_editor` beside the opener, and routes `editor_*`. `agents::start_in_terminal`
+    adds the variables for a local project and records the terminal; `rich_input`'s action and
+    `open` send the key when `takes_key` holds.
+  - The helper `crates/marley_workbench/bin/marley-edit`.
+  - Zed: `settings_content`'s field, `default.json`'s key, `settings_ui`'s toggle in the Agents
+    section; the three ledger rows widened first.
+- **Deviations from the plan, and why.**
+  - The switch is `MarleySettings::agent_prompts`, an enum `AgentPrompts { Overlay, InTab }`, not
+    a bool: the struct already holds three bools and clippy's `struct_excessive_bools` refuses a
+    fourth. Reading it is `AgentPrompts::from_content`, which also keeps `from_settings` under the
+    100-line cap.
+  - The design's `env_for` and `wire` became `editor_path` with `add_env` (the variables added in
+    `start_in_terminal`, where the project's locality is known, as the promotion found) and
+    `give` with `forget` (on the terminal's release).
+  - `script/e2e.sh` forces `agent_editor_in_tab` off in each run's settings copy, so no other
+    scenario's agent terminal gets the helper.
+  - `marley_page.rs`: the Voice section's comment, which #648 left above Agent Versions, is back
+    above `voice_section`.
+- **Review.**
+  - Re-entrancy: the item's release runs inside the pane's close, so `ended` is deferred
+    (`cx.defer`), and the terminal is brought back through the window's handle, outside any entity
+    update. The release subscription is kept in the edit and the item handle dropped after
+    subscribing, as Zed's `--wait` does; a kept handle would keep the tab's item alive.
+  - A wait that timed out leaves its sender behind. `ended` counted it as a helper still asking
+    and skipped the expiry, so an edit nobody would ask about again stayed forever; it now counts
+    only senders that are not canceled (a review fix).
+  - Errors reach the agent's terminal: every failure the helper meets prints one `marley-edit:`
+    line on stderr and exits 1, the file untouched. The bearer goes only to a loopback URL and is
+    never printed.
+  - Outside clients: `editor.write` is outside every outside client's list, so `clients::permits`
+    refuses `editor_open` to them; `Family::Editor` is not served, so `tools/list` leaves both
+    out.
+  - No Zed function body copied; the release-and-oneshot shape is Zed's `--wait`, read for the
+    shape only.
+- **Clippy rounds:** a backtick for `OpenCode` and a long first doc paragraph; a `HashMap` hasher
+  mismatch (`add_env` takes `impl Extend`); a moved-while-borrowed tool name; an underscored field
+  in use; `from_settings` over the line cap; `offer_agent_editor` taking `&mut App` for no write;
+  SC2016 in the scenario (escaped quotes, no suppression).
+- **Gate:** `just gate-diff` green after the Test phase's fix below.
+
+## Phase 3 — Test (2026-10-04)
+- **Scenario:** `script/e2e/649-rich-input-through-the-agents-editor-key.sh`, `compositor sway`:
+  a stand-in `claude` first on the `PATH` that logs each byte it reads, runs `$VISUAL` on Ctrl-G
+  with a `claude-prompt-<n>.md`, and prints what it read back and what Enter submits; a `.bashrc`
+  exporting `VISUAL=user-visual EDITOR=user-editor`; the switch on in the run's copy. Every check
+  passes.
+- **Shots of the second run, each read:**
+  - `649-01-agent-env`: the picker's Claude Code prints `VISUAL=` and `EDITOR=` naming
+    `…/profile.*/mcp/marley-edit`, over the `.bashrc`'s values. REQ-001.
+  - `649-02-tab-open`: `claude-prompt-1.md` in front as a tab (no italic preview title) holding
+    "from the agent", the cursor in it; `keys.log` holds one `07`. REQ-003, REQ-004.
+  - `649-03-saved`: the two lines saved, the tab still open, no `editor exited` in the log.
+    REQ-005.
+  - `649-04-read-back`: the agent's terminal back in front; the helper's stderr line, `editor
+    exited 0`, `read back: edited in Marley / second line`; nothing submitted, no other key.
+    REQ-006, REQ-007.
+  - `649-05-submitted`: Enter, with no click first, gives `submitted: edited in Marley / second
+    line`. REQ-007.
+  - `649-06-button`: the bar's pencil opened `claude-prompt-2.md`; a second `07`. REQ-008.
+  - `649-07-plain-env`: a New Terminal echoes `user-visual user-editor`. REQ-002.
+  - `649-08-hand-run-overlay`: `claude` run by hand there keeps `user-visual`; Ctrl-G opens the
+    overlay ("A prompt for Claude Code") and no tab; still two `07`s. REQ-009.
+  - `649-09-refused`: `marley-edit: editor_open: it serves Marley's own terminals, and this call
+    comes from none`, then `exit 1`; the note unchanged. REQ-011.
+  - `649-10-off`: with the switch off from outside, a new picker agent prints
+    `VISUAL=user-visual`, and Ctrl-G opens the overlay. REQ-010.
+  - `649-11-setting`: the Settings window at Marley › Agents, Agent Prompts in a Tab, off, its
+    description in full. REQ-015.
+- **Fixed in Test:** the first run's `649-09` printed the refusal as Marley's raw JSON, with the
+  tool's name twice (`editor_open: editor_open is for …`). The helper now prints the refusal's
+  `reason`, and the reason no longer names the tool, which the server already prefixes.
+- **Not reached by a scenario:** zsh and fish (REQ-001), the four real agents and their keys
+  (REQ-012), Don't Save (REQ-013, Zed's close unchanged; the release ends the edit either way),
+  and the outside client's refusal (REQ-014): review.
+- The shortcut-note toasts in every shot are #563's, from the scenario's own Ctrl-Alt-N and
+  Ctrl-G in plain terminals; not in scope.
+
+## Phase 4 — Complete (2026-10-04)
+- **Docs:** `CHANGELOG.md` (Added, Agent prompts in a tab); `docs/marley/guide.md` (the paragraph
+  after Rich input, the settings key, the Agents section); `docs/marley_architecture/
+  marley_workbench.md` (Agent prompts in a tab), `marley_mcp.md` (the `editor` family) and
+  `terminal_blocks.md` (`MARLEY_AGENT_EDITOR` in the three scripts); the design note's B4 marked
+  done; the three `zed-touchpoints.md` rows checked against what shipped.
+- **Knowledge:** AD-claude-649-marleys-editor-in-the-terminals-it-opens-for-agents-001,
+  F-claude-649-a-timed-out-wait-left-a-sender-that-read-as-a-live-waiter-001,
+  F-claude-649-the-helper-printed-a-refusal-as-raw-json-with-the-tool-named-twice-001,
+  L-claude-649-an-app-tools-refusal-reason-never-names-the-tool-001,
+  L-claude-649-on-release-ends-only-when-no-strong-handle-is-left-001.
+- **Brain:** consultation `7a5bb689630a47b98fe907278d914cbe` closed with
+  `decisions/marleys-editor-in-the-terminals-it-opens-for-agents-behind-a-switch-649` (follow-up
+  2026-11-04); `decisions/marleys-rich-input-is-a-zed-editor-above-the-agent-bar` followed up as
+  revised, with that successor.
+- **Closed:** TICKET-649 in `tickets/closed/`; the pair archived to `completed/`.

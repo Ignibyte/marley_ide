@@ -29,6 +29,13 @@ if [ -n "${MARLEY_AGENT_HISTORY+set}" ]; then
     unset MARLEY_AGENT_HISTORY
 fi
 
+# Marley's editor for an agent's terminal (#649), out of the environment the same way and
+# exported as VISUAL and EDITOR once the user's files have run, over theirs.
+if [ -n "${MARLEY_AGENT_EDITOR+set}" ]; then
+    __MARLEY_AGENT_EDITOR=$MARLEY_AGENT_EDITOR
+    unset MARLEY_AGENT_EDITOR
+fi
+
 # On a host Marley's ssh reached (#526): the folder the bootstrap wrote this file to goes now,
 # since bash has read the file whole, and a login shell's files run in place of ~/.bashrc, since
 # ssh gives a login shell and --rcfile makes bash skip them.
@@ -51,6 +58,10 @@ if [ -n "${__MARLEY_LOGIN+set}" ]; then
     fi
 elif [ -r "$HOME/.bashrc" ]; then
     . "$HOME/.bashrc"
+fi
+if [ -n "${__MARLEY_AGENT_EDITOR-}" ]; then
+    export VISUAL="$__MARLEY_AGENT_EDITOR" EDITOR="$__MARLEY_AGENT_EDITOR"
+    unset __MARLEY_AGENT_EDITOR
 fi
 
 if [ -z "${__MARLEY_HOOKS-}" ]; then

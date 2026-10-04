@@ -165,6 +165,12 @@ pub struct MarleySettingsContent {
     ///
     /// Default: {"claude_prompt_tags": false}
     pub allow_untested_versions: Option<BTreeMap<String, bool>>,
+    /// Whether the terminals Marley opens for agents give them Marley's editor (#649): their own
+    /// editor key, and Ctrl-G, then open the prompt in a tab, and closing the tab hands it back.
+    /// Off, Ctrl-G opens Marley's Rich Input overlay. Applies to agent terminals opened after it.
+    ///
+    /// Default: false
+    pub agent_editor_in_tab: Option<bool>,
     /// Voice in Marley (#480, #642): dictation through Voxtype. Off until it is turned on.
     pub voice: Option<MarleyVoiceSettingsContent>,
     /// The System One layer (#565): typed questions to a model about states Marley builds from

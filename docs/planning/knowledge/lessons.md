@@ -4660,3 +4660,19 @@ To act out an agent updating itself, copy one stand-in under the version names
 __file__))` for `--version`; a link the scenario moves with `ln -sfn`, as Claude Code's own
 installer moves `~/.local/bin/claude`, is then a new install with a new identity (canonical path),
 and the program keeps its name `claude` in the terminal's foreground.
+
+## L-claude-649-an-app-tools-refusal-reason-never-names-the-tool-001
+*category: mcp · topic: refusals from app tools · from: pipeline 649*
+
+`marley_mcp::dispatch` turns an app's `Err(reason)` into `"<tool>: <reason>"` in the refusal, so a
+reason that opens with the tool's name reads it twice. A program reading a refusal takes the
+error result's `structuredContent.reason`; its `content` text is the whole JSON.
+
+## L-claude-649-on-release-ends-only-when-no-strong-handle-is-left-001
+*category: gpui · topic: waiting for a tab to close · from: pipeline 649*
+
+`ItemHandle::on_release` fires when the item's entity is dropped, not when its tab closes: a task
+that kept the `Box<dyn ItemHandle>` it awaited from `open_abs_path` keeps the item alive past the
+close. Keep the returned `Subscription`, drop the handle at once (Zed's `--wait` in
+`open_listener.rs` does the same), and defer anything that touches a pane or the workspace out of
+the callback, which runs inside the pane's close.

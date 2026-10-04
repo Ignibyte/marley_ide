@@ -125,6 +125,11 @@ pub fn init(cx: &mut App) {
                 Some((view, target))
             });
             match target_view {
+                // An agent in a terminal Marley gave its editor opens its prompt there, on its
+                // own key (#649).
+                Some((view, Target::Agent(kind))) if crate::agent_editor::takes_key(&view, cx) => {
+                    crate::agent_editor::press_key(&view, kind, window, cx);
+                }
                 Some((view, target)) => {
                     let workspace_entity = cx.entity();
                     crate::shortcut_note::taken(
@@ -251,6 +256,10 @@ fn take_focus_at_prompt(view: &TerminalView, window: &Window, cx: &mut Context<T
 
 /// Opens `view`'s editor for `agent`, with the draft it had, and gives it the focus.
 pub fn open(view: &Entity<TerminalView>, agent: AgentKind, window: &mut Window, cx: &mut App) {
+    if crate::agent_editor::takes_key(view, cx) {
+        crate::agent_editor::press_key(view, agent, window, cx);
+        return;
+    }
     open_for(view, Target::Agent(agent), window, cx);
 }
 

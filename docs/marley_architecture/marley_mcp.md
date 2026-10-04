@@ -82,6 +82,12 @@ OR Apache-2.0, with the Marley crates' lint table.
   `pid`, `name` and `cwd` (`ports_list_schemas`). `dispatch` defers it to the app, as it does the
   terminal and browser families. It is not in `CLIENT_READ_TOOLS`, so outside clients (#524)
   neither see nor call it.
+- The `editor` family (#649) is not served: `tools/list` leaves it out, and its grant class,
+  `editor.write`, is on no outside client's list, so `clients::permits` refuses it to them.
+  Marley's own `marley-edit` calls it with Marley's bearer and the `Marley-Terminal` header.
+  `editor_open` (Write) takes an absolute `path` and answers `edit` (an id) and `file`;
+  `editor_wait` (Read) takes `edit` and `wait_seconds` (1 to 20) and answers `closed`
+  (`editor_schemas`). `dispatch` defers both to the app.
 
 ## Redaction (`redact.rs`, #516, #562)
 

@@ -562,6 +562,19 @@ Shift+Enter for a new line. Enter sends the text to the agent as one paste (brac
 agent asked for bracketed paste) followed by a carriage return, and closes the editor. Escape
 closes it and keeps the draft for the next Ctrl+G.
 
+**Agent prompts in a tab** (#649), Agent Prompts in a Tab in the Marley settings, off by default.
+On, the terminals Marley opens for agents (the New Agent picker, a project's `+`, a launch
+configuration's agent) give the agent Marley's editor, `marley-edit`, as `VISUAL` and `EDITOR`,
+over what your `.bashrc` exports. There Ctrl+G and the pencil send the agent its own editor key
+(Ctrl+G for Claude Code, Codex and Gemini CLI, Ctrl+X then E for OpenCode): the agent writes its
+draft to a file and Marley opens the file in a tab, with the focus. Edit it as any file; saving
+does not hand it back, closing the tab does, and the agent's terminal comes back to the front with
+the draft in its prompt, nothing sent until you press Enter. Other programs the agent runs there
+get the same editor (a `git commit` with no message opens a tab too). A New Terminal, an agent run
+there by hand, a remote project, a terminal a restart brings back, and every terminal while the
+setting is off keep the Rich Input editor above. The setting applies to agent terminals opened
+after it changes.
+
 At a shell's prompt with no agent running, Ctrl+G opens the same editor for the shell (#624),
 holding what you had typed at the prompt. Enter clears the shell's line and runs the editor's
 command as a block; Escape closes the editor and leaves the shell's line as it was. Anywhere else
@@ -1917,7 +1930,7 @@ Marley keeps its settings in `~/.config/marley/settings.json`, in Zed's format (
 the file; Ctrl+, opens the Settings window). `marley: open settings` opens the Settings window on its Marley page,
 first in the list (#515). The page has a Layout section, with the layout as a dropdown and the
 Prompt Editor toggle (#627), an Agents
-section with Redact Secrets for Agents (#516), an Agent Versions section with Prompt Tags on
+section with Redact Secrets for Agents (#516) and Agent Prompts in a Tab (#649), an Agent Versions section with Prompt Tags on
 Untested Claude Code (#648), a Voice section with the Voice toggle (#642), a Rusty
 section with Rusty's switch, its connection and Rusty Tools for Agents, and the Rusty's Server page
 (#643), and a Privacy section with the two telemetry toggles; later Marley settings add their
@@ -1939,6 +1952,8 @@ Marley's own keys in the file:
     // What runs on an agent version Marley has not tested it on (#648): claude_prompt_tags, the
     // tags that tell your prompts from the ones Claude Code adds. Off by default.
     "allow_untested_versions": { "claude_prompt_tags": false },
+    // Agent prompts in a tab (#649): the agent's own editor key opens its prompt in a Marley tab.
+    "agent_editor_in_tab": false,
     // Dictation through Voxtype: the agent bar's microphone and marley: toggle dictation. Off
     // until you turn it on (#642).
     "voice": { "enabled": false },

@@ -280,6 +280,11 @@ real, reusable session. The Block model is the unit the **brain** later observes
   Since #561 it also keeps the opener a new local terminal gives its programs as `BROWSER`
   (`set_browser_opener`, `browser_opener`, a process-wide setting the workbench sets, none under
   `system_browser`).
+  Since #649 the three scripts take `MARLEY_AGENT_EDITOR` (`AGENT_EDITOR_VARIABLE`) out of the
+  environment at their top, into a shell global, and export its value as `VISUAL` and `EDITOR`
+  once the user's files have run: bash after `~/.bashrc`, zsh in `__marley_install`, fish in its
+  first prompt. The workbench sets it only in a terminal it opens for an agent, so a `.bashrc`
+  that exports the user's editor cannot undo it there.
 - `ports.rs` (#590): `PORT_OFFSET_VARIABLE` (`MARLEY_PORT_OFFSET`), `PORT_VARIABLE`, `PORT_BASE`
   3000 and `PORT_STEP` 10; a process-wide `SlotReader` the workbench sets (`set_slot_reader`,
   `slot_reader` to box an async function); `variables(folder)`, awaited by both of Zed's terminal
