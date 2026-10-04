@@ -173,7 +173,11 @@ async fn collect_one(host: &FleetHost, names: &str) -> Collected {
 }
 
 /// `ssh`'s arguments for one collection on `target`: no terminal, no password prompt, a short
-/// connect timeout, one connection kept for the next collection, and the script in the command.
+/// connect timeout, ssh's keepalive (#641), one connection kept for the next collection, and the
+/// script in the command.
+///
+/// The keepalive is what bounds a collection over an open connection to a host gone silent:
+/// `ConnectTimeout` covers only the connect, and a collection waits on the open master.
 fn ssh_args(target: &marley_remote::SshTarget, names: &str) -> Vec<String> {
     let mut args: Vec<String> = [
         "-T",
@@ -185,6 +189,7 @@ fn ssh_args(target: &marley_remote::SshTarget, names: &str) -> Vec<String> {
     .iter()
     .map(ToString::to_string)
     .collect();
+    args.extend(marley_remote::keepalive_options());
     // The runtime folder is the user's own, mode 0700, so the control socket needs no folder of
     // its own; without it the collection logs in each time.
     if let Ok(runtime) = std::env::var("XDG_RUNTIME_DIR")

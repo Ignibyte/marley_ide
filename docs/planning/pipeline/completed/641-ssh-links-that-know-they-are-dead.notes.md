@@ -242,6 +242,33 @@ and the reattach). A two-minute wait at the cap is reviewed, not watched.
 - **An old master.** A ControlMaster an older Marley started without the keepalive lives until
   `ControlPersist`'s 60 s of idleness, and the new options apply from the next master.
 
+### Promotion (2026-10-04)
+- Promoted into `active/`; the BACKLOG row removed; the ticket in-progress. Pre-flight green, no
+  other active pipeline, cargo idle, `/mnt/fast` 251G free.
+- **Seams re-verified** at f63b6f05cc: `marley_remote.rs` `ssh_command` `:104`,
+  `remote_status_from` `:130`, `remote_terminal_command` `:266`; `remote.rs` `ID_BASE` `:37`,
+  `is_remote` `:49`, `MARLEY_SSH` `:114`, `use_new_terminal: false` and `allow_concurrent_runs:
+  false` `:129-130`; `routing.rs` `RoutedTerminals::spawn` (`move_to_center` in the Marley layout)
+  and `run_task`, which awaits `Terminal::wait_for_completed_task`; `fleet_hosts.rs`
+  `CONNECT_TIMEOUT_S` `:26`, `CONTROL_PERSIST_S` `:29`, `ssh_args` `:177`; `terminal.rs`
+  `write_to_pty` `:2575`, `input` `:2595`, `try_keystroke` `:2850`, `paste` `:2879`,
+  `wait_for_completed_task` `:3645`; `terminal_view.rs` `MarleyTerminalOverlay` `:250`, read at
+  `:1780`; `block_filter.rs:45` sets the overlay.
+- **The two checks the plan left to promotion:**
+  - `spawn_task` with `allow_concurrent_runs` off pops the newest terminal under the task's
+    label and defers the replace until `wait_for_terminals_tasks` over the *rest* of them, none
+    for a remote task's unique label, so the replace runs on the next turn, at once
+    (`terminal_panel.rs:645-725`). `terminals_for_task` searches the panel's panes and the
+    workspace's center panes (`:793-833`), so a remote terminal moved to the center in the
+    Marley layout is found, and `replace_terminal`'s `RevealStrategy::Never` arm does nothing
+    (`:1207`), so no focus moves.
+  - Whether a refused key redraws the view stays a Code-phase check, as the design says (the
+    per-second tick bounds any lag to a second).
+- **Brain:** `brain ask` (consultation `4cbcfe958f144ad199b44004d34bf2b7`) returned due follow-ups
+  on other work only. Nothing new.
+- **The scenario's sshd:** #610's `start_sshd` (`script/e2e/610-host-collector-over-ssh.sh:76`)
+  is the base; 641's adds `SetEnv` to its config.
+
 ### Checklist (no TaskCreate in this harness)
 - [x] Read CONSTITUTION §3, §7, §14, §18, §19, §20 and the templates.
 - [x] Read the brief, the design note with Chad's answers, rustal-harness TICKET-094 and D164.
@@ -256,3 +283,147 @@ and the reattach). A two-minute wait at the cap is reviewed, not watched.
 - [x] Reference (§20), UI proof, decisions, EARS criteria and the phase plan in the spec.
 - [x] Ticket doc in `tickets/open/`, the spec and these notes in `pipeline/queued/`. BACKLOG.md
   and `active/` untouched. No build run.
+
+## Phase 2 — Code (2026-10-04)
+- **Built:**
+  - Ledger first: the `crates/terminal/src/terminal.rs` row (`zed-touchpoints.md:80`) gained the
+    held input and a merge note (keep `input`'s held check first).
+  - `marley_remote` (pure): `SERVER_ALIVE_INTERVAL_S` 5, `SERVER_ALIVE_COUNT_MAX` 3,
+    `CONNECT_TIMEOUT_S` 10, `MAX_CHECK_DELAY` 120 s, `STABLE_LINK` 60 s; `keepalive_options()`;
+    `remote_terminal_command` now `ssh -t <keepalive> -o ConnectTimeout=10 [-p N] -- dest tmux …`;
+    `link_check_command` (`ssh -T -o BatchMode=yes <keepalive> -o ConnectTimeout=10 … -- dest
+    true`); `LinkCheck { Answers, Down, Stopped }` and `read_link_check` (0 answers; 255 with a
+    link failure in ssh's last line is down; anything else stops, the reason ssh's last line);
+    `check_delay(failures)` (1 s doubling, capped). Both argv builders append after `ssh` rather
+    than splicing (`unused_results` on `splice`), and `ssh_command` and its tests are unchanged.
+  - Zed's `terminal.rs`: `marley_input_held`, `marley_inputs_refused`, `marley_hold_input()`,
+    `marley_inputs_refused() -> Option<usize>`, and `input`'s early return that counts while held.
+  - `remote.rs`: a `Links` global (each task's `Host` from `open`, its `Backoff { failures,
+    up_since }`, and the down terminals by entity, each `Down { task, host, phase, reason,
+    _checks, _redraws }`); `is_remote_task`; `starting` (the provider's run: `up_since` now, the
+    task's down entries dropped); `supervise` (255: reset the failures after a stable minute,
+    hold the input, spawn the checks and the per-second redraws, drop the entry on the terminal's
+    release; anything else: the backoff goes); `check_until_up` (wait, `Checking`, the check
+    through `process::output` with `MARLEY_SSH` honoured, then answers → `reattach`, down →
+    `failures + 1` and wait again with ssh's reason, stopped → the phase says why);
+    `reattach` (`up_since` now, `panel.spawn_task` with the provider's own unprepared task and
+    `reveal: Never`, and a detached follow that drops the old entry and supervises the new
+    terminal); `link_overlay` (an occluding, 60 %-dimmed cover with one line).
+  - `routing.rs`: `starting` before a remote run; `run_task` hands a remote task's end to
+    `supervise`. `block_filter.rs`: the overlay hook asks `link_overlay` first.
+    `fleet_hosts.rs`: `ssh_args` takes the keepalive. `rich_input.rs`: `send` leaves a held
+    terminal's prompt in the editor.
+- **Deviations from the design:**
+  - The reattach respawns the task the provider received, not the ended terminal's
+    `spawned_task`: that one is already wrapped for the shell (`prepare_task_for_spawn`), and
+    `spawn_task` would wrap it again. `RoutedTerminals::spawn`'s `task` is the unprepared one.
+  - The follow of a reattached terminal is a detached task of its own: the rerun replaces the old
+    terminal, whose release drops its `Down` entry and with it the checks that started the rerun,
+    so the checks could not follow it themselves.
+  - A ticker per down terminal (`_redraws`) draws the line each second whatever the checks do. The
+    first full run's `641-04` read "1 not sent" for 22 keys: the line redraws only with the view,
+    a key redraws it only when it pauses the cursor's blink, and during a check (its whole 10 s
+    connect timeout against a stopped sshd) nothing else ticked. With the ticker the count reads
+    22. The checks now wait on one timer.
+  - The checking phase's line keeps the host and the reason (`Link to e2e lost: … · checking now
+    · Rerun to try now`), not `Checking e2e…`: a check takes its whole timeout against a silent
+    host, so `641-02` landed in it.
+  - The stopped line trims ssh's own closing period (`publickey).. Rerun` in the first run).
+  - No `terminal_view.rs` change: `key_down` pauses the cursor's blink on every key, which redraws.
+  - `supervise` takes `&Entity<Terminal>` and `&Window` (`needless_pass_by_value`,
+    `needless_pass_by_ref_mut`), and the `Down` entry is built after its tasks are spawned, so
+    nothing writes into the underscore fields later.
+- **Review of the diff** against REQ-001 to REQ-012: every ssh Marley starts takes the keepalive
+  (the terminal, the check, the collector; REQ-001, REQ-011). Only 255 turns a terminal down
+  (REQ-010); the reattach runs only on `Answers` (REQ-006, REQ-008), with `reveal: Never` and no
+  `move_to_center`; a user's Rerun goes through the provider, whose `starting` drops the pending
+  checks before the run (REQ-009); `failures` is reset only by a drop after 60 s up (REQ-005);
+  `check_delay` caps at 120 s (REQ-004). Input: every key, paste and Marley sender goes through
+  `Terminal::input`, held and counted (REQ-003); rich input keeps its text. Re-entrancy: the
+  overlay reads the terminal entity, not the view being drawn; the global is touched in short
+  updates; `observe_release` removes by id. Provenance: herdr's numbers and its docs only, as
+  the spec cites; no Zed function body in a Marley crate (the provider's task is Zed's type,
+  respawned through Zed's public `spawn_task`). A fault the scenario found: the redraw (above),
+  an `F-…` block at Complete.
+- **Checks:** `cargo clippy -p marley_remote` and `-p marley_workbench --all-targets` green after
+  four rounds (doc paragraphs, `splice`'s result, similar names, an unneeded `gpui::` path, a
+  missing `ResultExt`, then the five above); `cargo doc` of both crates with `-D warnings` green
+  (L-640); `just build` green after one fix: an inserted method took the `#[cfg(test-support)]`
+  of the method it went in front of, so the build (no test-support) lost `marley_hold_input` and
+  gained a public `keyboard_input_sent`; the attribute is back on its own method.
+- **The scenario, run in this phase** (written before the gate, as #642's and #640's): run 1
+  passed its checks but showed the remote shell with the system's default prompt in the user's
+  own home folder (tmux starts a login shell, which reads `.bash_profile`, and sshd starts it in
+  the passwd home), and the two faults above; nothing reached the user's files (no tmux server
+  left, no history line). Run 2 failed its collector check: `grep | head -1 | grep -q` under the
+  runner's `pipefail` fails once the collector has run twice (L-582's class); `grep -m1` now.
+  Run 3: every check green, every shot as the criteria say (read in Phase 3).
+- **Gate:** `just gate-diff`: `GATE GREEN [diff]`, 17 passed, the receipt written, on the first
+  run (the docs gate checked beforehand with `cargo doc -D warnings`, L-640).
+
+## Phase 3 — Test (2026-10-04)
+- **Build and run:** `just build` on the gated tree, then `just e2e
+  script/e2e/641-ssh-links-that-know-they-are-dead.sh` (`compositor sway`), exit 0, every check
+  passed: the terminal's argv has `-t -o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o
+  ConnectTimeout=10 -p N --` (REQ-001); the collector's has the keepalive (REQ-011); the checks
+  reattached once the host answered; the host's session never got the refused line (REQ-007); no
+  check after the refusal (REQ-008); none after the user's `exit` (REQ-010). The checks' log:
+  each against the stopped sshd ran its full 10 s, then the next started 2.0 s, 4.0 s and 8.0 s
+  after the end of the one before; the fourth, after the resume, answered (0) in 0.1 s
+  (REQ-004); after the refusal one check, 255 in 0.1 s, and none in the next 20 s. Focus report:
+  "hyprland: 0 Marley windows before the run, 0 after; the run added no rule and did not reload
+  it". Every shot is Marley's window; none deleted. The run before it, in the Code phase, showed
+  the same, its `641-04` in the waiting phase.
+- **The shots, read:**
+  - `641-01-connected` (REQ-001, REQ-011): the remote tab `e2e · marley-…` with `remote$` and the
+    counter at tick 16; the Fleet panel's `lab` with its resource line and its processes.
+  - `641-02-silent` (REQ-002, REQ-012): 25 s after the stop: the grid dimmed over ticks 1 to 17,
+    the line "Link to e2e lost · checking now · Rerun to try now" (the first check under way), the
+    tab's icon and the rail row `exit 255`; `lab` marked `unreachable`.
+  - `641-03-host-reason` (REQ-012): the pointer on `lab`'s chip: "Connection timed out during banner
+    exchange".
+  - `641-04-input-off` (REQ-003): after typing `echo typed-while-down` and Enter: the screen
+    unchanged and the line ending "22 not sent" (the Code-phase run's showed the waiting phase:
+    "Link to e2e lost: Connection timed out during banner exchange · next check in 2 s · Rerun to
+    try now · 22 not sent").
+  - `641-05-reattached-behind` (REQ-006): after the resume and the reattach: the local `repo —
+    bash` still the active tab; the rail's `e2e` row `running`; `lab` unreachable until its next
+    poll.
+  - `641-06-reattached` (REQ-007): `pane: activate previous item`: the remote tab undimmed, the
+    same `remote$` session, ticks 48 to 92, no `typed-while-down`.
+  - `641-07-refused` (REQ-008): the key removed and the session's connection killed: dimmed, "Not
+    reconnecting to e2e: cpeppers@127.0.0.1: Permission denied (publickey). Rerun to log in.",
+    ssh's own "Connection to 127.0.0.1 closed by remote host." at the bottom.
+  - `641-08-rerun-now` (REQ-009): the key restored, `terminal: rerun task`: reattached at once,
+    ticks 145 to 189, undimmed.
+  - `641-09-ended` (REQ-010): `kill %1; exit`: the tab ended with ✓ and `[exited]`, the rail row
+    `done`, no dim and no line.
+  - REQ-005 (the reset after 60 s up) and the 120 s cap: the review (`supervise`, `check_delay`);
+    the refusal step waits 62 s after the reattach, and its first check came 1 s after the drop
+    (one 0.1 s check right after the kill), which shows the reset.
+- **Not reached:** a real network that drops packets (SIGSTOP stands in), a wait at the 120 s cap,
+  and a host-key change; the hand check on a real host stays for Chad (sleep the laptop or cut the
+  Wi-Fi with a remote terminal open).
+- **Pre-existing — not in scope:** none.
+
+## Phase 4 — Complete (2026-10-04)
+- **Documented (§21):** `CHANGELOG.md` Added ("SSH links that know they are dead");
+  `docs/marley_architecture/marley_remote.md` (the keepalive, the check, `read_link_check`, the
+  backoff) and `marley_workbench.md` (the Remote terminals section: `Links`, `supervise`, the
+  checks, the reattach, the overlay); `docs/marley/three-prong-plan.md` (the C3 row's stopgap and
+  the #610 line); `docs/marley/fleet-contract.md` (the collector's keepalive);
+  `docs/marley/guide.md` (a Remote terminals section after Blocks over ssh);
+  `docs/marley/walkthrough.md` (stop 4.16). The `terminal.rs` row in `zed-touchpoints.md`
+  describes what shipped (the held input and its accessors); `terminal_view.rs` was not touched.
+- **Knowledge (§19):** `F-claude-641-a-down-terminals-count-did-not-redraw-during-a-check-001`
+  with `PR-claude-641-what-a-view-draws-from-another-entity-redraws-on-its-own-001`;
+  `F-claude-641-an-inserted-method-took-the-next-methods-cfg-001` with
+  `PR-claude-641-insert-an-item-after-an-item-never-between-it-and-its-attributes-001`;
+  `AD-claude-641-ssh-links-know-they-are-dead-by-keepalive-and-a-checked-reattach-001` (it
+  corrects AD-610's bound); `L-claude-641-a-tasks-spawned-task-is-already-wrapped-for-the-shell-001`,
+  `L-claude-641-tmux-starts-a-login-shell-which-reads-bash-profile-001`,
+  `L-claude-641-a-reader-that-quits-early-fails-a-pipe-under-pipefail-001`.
+- **Brain:** `brain decide` on consultation `4cbcfe958f144ad199b44004d34bf2b7` (follow-up
+  2026-10-25).
+- **Closed:** the ticket to `tickets/closed/`, its link at `completed/`; no BACKLOG row left; the
+  pair archived.

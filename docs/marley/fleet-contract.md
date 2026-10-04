@@ -239,7 +239,9 @@ host over SSH with the user's own configuration, the script carried in the comma
 surface shows; nothing is installed there. Since #610 the script is
 `crates/marley_workbench/bin/marley-collect.sh`, and the hosts are the settings'
 `marley.fleet.hosts`. It reads `/proc` and
-`df`, needs no root and opens no port, and the same script runs locally for this machine. Any
+`df`, needs no root and opens no port, and the same script runs locally for this machine. Its ssh
+carries a keepalive (#641), so a host that goes silent behind an open connection reads
+unreachable within 20 seconds instead of holding the poll until TCP gives up. Any
 other collector that prints the same document works, and one may instead push it to the
 workflow store, which then returns it as an agent detail's `host`.
 

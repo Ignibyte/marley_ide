@@ -3189,3 +3189,22 @@ agent's command then started, and that command's block covered no row: `$ claude
 rows. The dry run had applied the frame in time, so it passed. Fixed: the vendored grid counts
 Zed's clears, each hook carries the count, and `AnchoredBlocks::line_now` carries a hook parsed
 before a clear across it.
+
+## F-claude-641-a-down-terminals-count-did-not-redraw-during-a-check-001
+*severity: low · found in: pipeline 641's scenario, run in Code · class: a view drawn from state it is not notified about*
+
+A remote terminal whose link is down draws a line over its grid with how many inputs it refused,
+read from the `Terminal` in the overlay hook. The view draws again only when it or its terminal
+notifies: a refused key notifies only when it pauses the cursor's blink, and the checks' loop
+notified each second only while it waited, not while a check ran (a full 10 s connect timeout
+against a stopped host). `641-04` read "1 not sent" after 22 keys. Fixed: a ticker of its own
+per down terminal notifies the terminal each second whatever the checks are doing.
+
+## F-claude-641-an-inserted-method-took-the-next-methods-cfg-001
+*severity: medium · found in: pipeline 641's Code, at `just build` after clippy passed · class: an edit inserted between an item and its attributes*
+
+The two `marley_` methods on Zed's `Terminal` were inserted in front of `keyboard_input_sent`,
+matched on its `pub fn` line; the `#[cfg(any(test, feature = "test-support"))]` above that line
+then sat above the first new method. Clippy `--all-targets` builds with test-support, so it
+passed; `just build` (no test-support) lost `marley_hold_input`, and `keyboard_input_sent` became
+public in every build. Fixed by moving the attribute back.

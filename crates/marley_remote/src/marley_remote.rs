@@ -5,6 +5,10 @@
 //! parses a typed target and produces an argv. The command is a `Vec<String>` (never a shell string), so
 //! nothing can inject a shell command; and a leading-dash host/user is rejected (and the argv carries a
 //! `--` before the destination) so it can never be re-parsed as an `ssh` OPTION (option-smuggling).
+//!
+//! Every link Marley starts asks ssh's own keepalive to check it, so a silent link ends within
+//! 20 s, and a remote terminal whose link ended is checked on a backoff before it reattaches
+//! (#641): [`keepalive_options`], [`link_check_command`], [`read_link_check`], [`check_delay`].
 
 // gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
 // Zed's crates keep them at warn (CONSTITUTION §0).
@@ -20,6 +24,8 @@
         shared_string_from_str_literal
     )
 )]
+
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -113,6 +119,125 @@ pub fn ssh_command(target: &SshTarget) -> Vec<String> {
         |user| format!("{user}@{}", target.host),
     ));
     argv
+}
+
+/// How often, in seconds, ssh asks the server whether it is there after hearing nothing (#641).
+pub const SERVER_ALIVE_INTERVAL_S: u32 = 5;
+
+/// How many such asks may go unanswered before ssh ends the link, so a silent link ends within
+/// 20 s instead of when TCP gives up (#641).
+pub const SERVER_ALIVE_COUNT_MAX: u32 = 3;
+
+/// How long, in seconds, a remote terminal's ssh and a link check wait to connect and finish the
+/// handshake (#641).
+pub const CONNECT_TIMEOUT_S: u32 = 10;
+
+/// The longest wait between two checks of a link that is down (#641).
+pub const MAX_CHECK_DELAY: Duration = Duration::from_secs(120);
+
+/// How long a link stays up before its next drop starts the checks over from one second (#641).
+pub const STABLE_LINK: Duration = Duration::from_secs(60);
+
+/// ssh's exit status for an error of its own, as opposed to the remote command's status.
+const SSH_ERROR: i32 = 255;
+
+/// What ssh prints when the link failed rather than the login: a check that ends with one of
+/// these is checked again (#641).
+const LINK_FAILURES: [&str; 11] = [
+    "connect to host",
+    "timed out",
+    "Could not resolve hostname",
+    "Connection closed",
+    "Connection reset",
+    "not responding",
+    "banner exchange",
+    "kex_exchange_identification",
+    "Network is unreachable",
+    "No route to host",
+    "Broken pipe",
+];
+
+/// ssh's own keepalive, for every ssh Marley starts (#641).
+///
+/// Asked through the encrypted channel every [`SERVER_ALIVE_INTERVAL_S`] seconds, the link ends
+/// after [`SERVER_ALIVE_COUNT_MAX`] unanswered asks. Given on the command line, they win over the
+/// user's `~/.ssh/config`.
+#[must_use]
+pub fn keepalive_options() -> Vec<String> {
+    vec![
+        "-o".to_string(),
+        format!("ServerAliveInterval={SERVER_ALIVE_INTERVAL_S}"),
+        "-o".to_string(),
+        format!("ServerAliveCountMax={SERVER_ALIVE_COUNT_MAX}"),
+    ]
+}
+
+/// The argv that checks whether `target` answers (#641).
+///
+/// `ssh -T -o BatchMode=yes`, the keepalive and the connect timeout, then [`ssh_command`]'s
+/// destination and `true`. `BatchMode` asks for no password, so a check never prompts behind a
+/// dimmed terminal.
+#[must_use]
+pub fn link_check_command(target: &SshTarget) -> Vec<String> {
+    let mut argv: Vec<String> = ["ssh", "-T", "-o", "BatchMode=yes"]
+        .iter()
+        .map(|word| (*word).to_string())
+        .collect();
+    argv.extend(keepalive_options());
+    argv.extend([
+        "-o".to_string(),
+        format!("ConnectTimeout={CONNECT_TIMEOUT_S}"),
+    ]);
+    // `ssh_command` puts the port, `--` and the destination after its `ssh`.
+    argv.extend(ssh_command(target).into_iter().skip(1));
+    argv.push("true".to_string());
+    argv
+}
+
+/// What a link check found (#641).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LinkCheck {
+    /// The host answered: reattach.
+    Answers,
+    /// The link is still down, with ssh's words: check again later.
+    Down(String),
+    /// Anything else, such as a refused login or a changed host key, with ssh's words: stop
+    /// checking, since another login could lock the user out.
+    Stopped(String),
+}
+
+/// Reads a link check's exit status and what it printed on stderr (#641).
+///
+/// 0 is [`LinkCheck::Answers`]; ssh's own error status with a link failure in its last line is
+/// [`LinkCheck::Down`]; anything else is [`LinkCheck::Stopped`]. The reason is the last line ssh
+/// printed.
+#[must_use]
+pub fn read_link_check(code: Option<i32>, stderr: &str) -> LinkCheck {
+    if code == Some(0) {
+        return LinkCheck::Answers;
+    }
+    let reason = stderr
+        .lines()
+        .map(str::trim)
+        .rfind(|line| !line.is_empty())
+        .unwrap_or("ssh ended without saying why")
+        .to_string();
+    if code == Some(SSH_ERROR) && LINK_FAILURES.iter().any(|failure| reason.contains(failure)) {
+        LinkCheck::Down(reason)
+    } else {
+        LinkCheck::Stopped(reason)
+    }
+}
+
+/// The wait before a down link's next check, after `failures` checks failed since it was last
+/// stable: 1 s, then twice as long each time, never more than [`MAX_CHECK_DELAY`] (#641).
+#[must_use]
+pub fn check_delay(failures: u32) -> Duration {
+    1_u64
+        .checked_shl(failures)
+        .map_or(MAX_CHECK_DELAY, |seconds| {
+            Duration::from_secs(seconds).min(MAX_CHECK_DELAY)
+        })
 }
 
 /// Whether a remote (ssh) pane is still connected (#86).
@@ -255,17 +380,22 @@ const SERVER_OPTIONS: [&[&str]; 5] = [
 
 /// The argv of a remote terminal (#543): ssh into the tmux session `session` on the host.
 ///
-/// It is [`ssh_command`] with `-t`, then the remote command that attaches the session on a tmux
-/// server of Marley's own (`-L marley`, no config file), making it if it is not there, with
-/// `MARLEY_REMOTE=1` in its shells.
+/// It is [`ssh_command`] with `-t`, the keepalive and the connect timeout (#641), then the remote
+/// command that attaches the session on a tmux server of Marley's own (`-L marley`, no config
+/// file), making it if it is not there, with `MARLEY_REMOTE=1` in its shells.
 ///
 /// ssh joins the words after the destination with spaces for the remote shell, so each word is
 /// plain text there: fixed words, the session name (`[a-z0-9-]`), and `\;`, which the remote shell
 /// turns into the `;` between tmux's commands.
 #[must_use]
 pub fn remote_terminal_command(target: &SshTarget, session: &SessionName) -> Vec<String> {
-    let mut argv = ssh_command(target);
-    argv.insert(1, "-t".to_string());
+    let mut argv = vec!["ssh".to_string(), "-t".to_string()];
+    argv.extend(keepalive_options());
+    argv.extend([
+        "-o".to_string(),
+        format!("ConnectTimeout={CONNECT_TIMEOUT_S}"),
+    ]);
+    argv.extend(ssh_command(target).into_iter().skip(1));
     let attach = [
         "tmux",
         "-L",

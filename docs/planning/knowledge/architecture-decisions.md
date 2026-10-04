@@ -3765,3 +3765,21 @@ read (tokens only, the fleet contract's Settled 3). Rejected: a typed envelope f
 keeps serving the pinned envelope, its D164); `runtime` drawn weaker (it is the runtime's own
 knowledge); a progress bar or quota colours on a rail row (text only, the Fleet panel's follow-up
 may differ).
+
+## AD-claude-641-ssh-links-know-they-are-dead-by-keepalive-and-a-checked-reattach-001
+*decided at: 2026-10-04 · status: shipped · corrects: AD-claude-610-marley-reads-hosts-with-its-own-script-in-the-ssh-command-001's bound on a slow host · builds on: AD-claude-543-remote-terminals-in-marleys-tmux-001*
+
+Every ssh Marley starts carries ssh's own keepalive (`ServerAliveInterval=5`,
+`ServerAliveCountMax=3`): a silent link ends within 20 s, and Marley sends no ping of its own.
+AD-610's "one slow host holds the loop for at most its connect timeout" held only while
+connecting; behind an open ControlMaster a silent host held the whole Fleet poll until TCP gave
+up, and the keepalive bounds that too. A remote terminal whose ssh ends with 255 turns down: the
+last screen dimmed, its input held and counted in Zed's `Terminal::input` and never replayed, a
+line saying why and when. The host is checked by a `BatchMode` ssh of its own (no password prompt
+behind the dim) on a backoff from 1 s doubling to 120 s, reset only after a link stayed up 60 s
+(herdr's habits); only ssh's link-failure words lead to another check, anything else stops, since
+retrying a refused login can lock the user out. The reattach is Zed's rerun in the same terminal,
+started by Marley through `TerminalPanel::spawn_task` with the provider's unprepared task and
+`reveal: Never`. Rejected: buffering and replaying input (a key meant for the old screen can
+answer a new prompt); a rerun as the check (a password prompt behind the dim); retrying every
+failure; the collector's own backoff and last reading (the next slice).

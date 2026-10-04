@@ -4460,3 +4460,32 @@ made it reliable: the fixture writes a time-relative value as `+N` and the stand
 time, so countdowns read the same however long Marley takes to start; and the fixture is replaced
 with `os.replace`, so the stand-in never reads half a file. #534's real-harness scenario stays the
 way to prove the wire itself.
+
+## L-claude-641-a-tasks-spawned-task-is-already-wrapped-for-the-shell-001
+*category: code · topic: rerunning a Zed task from Marley · from: pipeline 641*
+
+`Terminal::task().spawned_task` is the task after `prepare_task_for_spawn`: its command is the
+shell and its arguments carry the command line, built with `build_no_quote`. Handing it to
+`TerminalPanel::spawn_task` again wraps it a second time. To rerun a task from Marley, keep the
+`SpawnInTerminal` the task provider received (`RoutedTerminals::spawn`'s, unprepared) and spawn
+that, changing only what must change (`reveal: RevealStrategy::Never` to leave the focus alone).
+Zed's own Rerun avoids this by re-resolving the task from its inventory.
+
+## L-claude-641-tmux-starts-a-login-shell-which-reads-bash-profile-001
+*category: e2e · topic: a scenario's sshd and remote shell · from: pipeline 641*
+
+In a scenario whose own sshd stands in for a host, `SetEnv HOME=… TMUX_TMPDIR=…` in its config does
+reach the session, but tmux starts a login shell, which reads `.bash_profile` (not `.bashrc`), and
+sshd starts it in the user's passwd home. Without a `.bash_profile` in the run's HOME the remote
+prompt is the system's default with the box's host name, in the user's real home folder. Write
+`PS1` and a `cd` into the run's `.bash_profile`. Check after a first run that nothing was written
+to the user's files (no `~/.bash_history` line, no tmux server under `/tmp/tmux-UID`).
+
+## L-claude-641-a-reader-that-quits-early-fails-a-pipe-under-pipefail-001
+*category: e2e · topic: checks in scenarios · from: pipeline 641*
+
+`script/e2e.sh` runs scenarios under `set -euo pipefail`. A check written `grep pattern log | head
+-1 | grep -q …` passed on the first run and failed on the next: once the log held more than one
+matching line, `head` quit after one, the first `grep` took SIGPIPE, and pipefail failed the whole
+pipe though the last `grep` matched. Use `grep -m1`, which stops by itself, and a final `grep >
+/dev/null` rather than `grep -q`. The same class as L-582's cargo piped into `head`.

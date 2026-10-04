@@ -18,6 +18,7 @@ use task::{RevealTarget, SpawnInTerminal, VariableName};
 use terminal::Terminal;
 use terminal_view::TerminalView;
 use terminal_view::terminal_panel::{TerminalPanel, Toggle, ToggleFocus};
+use util::ResultExt as _;
 use workspace::item::ItemHandle;
 use workspace::notifications::DetachAndPromptErr as _;
 use workspace::{NewTerminal, OpenTerminal, Pane, ToggleBottomDock, Workspace};
@@ -133,6 +134,10 @@ impl workspace::TerminalProvider for RoutedTerminals {
                 });
                 moved.ok()?;
             }
+            if crate::remote::is_remote_task(&task) {
+                cx.update(|_, cx| crate::remote::starting(&task.id, cx))
+                    .ok()?;
+            }
             run_task(&panel, &task, cx).await
         })
     }
@@ -199,7 +204,8 @@ fn move_to_center(
 }
 
 /// Spawns a task in `panel` and waits for it: a spawn that fails is an error, and a window or
-/// terminal closed before the task finished has no exit status to report.
+/// terminal closed before the task finished has no exit status to report. A remote terminal's
+/// end goes to [`crate::remote::supervise`], which knows a link that died (#641).
 async fn run_task(
     panel: &Entity<TerminalPanel>,
     task: &SpawnInTerminal,
@@ -211,7 +217,17 @@ async fn run_task(
         Err(error) => return Some(Err(error)),
     };
     let completed = terminal.read_with(cx, Terminal::wait_for_completed_task);
-    completed.ok()?.await.map(Ok)
+    let status = completed.ok()?.await;
+    if crate::remote::is_remote_task(task)
+        && let Some(terminal) = terminal.upgrade()
+    {
+        let (task, panel) = (task.clone(), panel.clone());
+        cx.update(|window, cx| {
+            crate::remote::supervise(task, &terminal, status, panel, window, cx);
+        })
+        .log_err();
+    }
+    status.map(Ok)
 }
 
 /// `workspace::NewTerminal`: in the Marley layout a center terminal where the panel would have

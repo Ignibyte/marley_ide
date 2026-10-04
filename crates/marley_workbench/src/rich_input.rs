@@ -530,6 +530,11 @@ fn send(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
     let text = editor.read(cx).text(cx);
     if !text.trim().is_empty() {
         let terminal = view.read(cx).terminal().clone();
+        // A remote terminal whose link is down sends nothing, so the prompt stays in the editor
+        // (#641).
+        if terminal.read(cx).marley_inputs_refused().is_some() {
+            return;
+        }
         // What was typed at the shell's prompt is the editor's now, so the shell's line goes first,
         // unless nothing was typed there: readline rings the bell at Ctrl-U on an empty line, and
         // the bell marks the terminal dirty, so closing it asked to save changes (#635).

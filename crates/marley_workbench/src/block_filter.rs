@@ -115,9 +115,13 @@ fn open(view: &Entity<TerminalView>, block: usize, window: &mut Window, cx: &mut
     view.update(cx, |_, cx| cx.notify());
 }
 
-/// The hook Zed's terminal view asks in its render: the open panel of the view in `context`. It
-/// reads the view's id only, since the view is being rendered.
+/// The hook Zed's terminal view asks in its render: a remote terminal's down line first (#641),
+/// else the open panel of the view in `context`. It reads the view's id only, since the view is
+/// being rendered.
 fn overlay(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option<AnyElement> {
+    if let Some(down) = crate::remote::link_overlay(context, cx) {
+        return Some(down);
+    }
     let key = context.view.entity_id();
     let panel = cx.try_global::<Filters>()?.0.get(&key)?.clone();
     panel.read(cx).open.then(|| panel.into_any_element())

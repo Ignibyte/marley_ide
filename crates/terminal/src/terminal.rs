@@ -1202,6 +1202,8 @@ impl TerminalBuilder {
             marley_terminal_id: None,
             // Marley: rows drawn where the grid puts them until the element says otherwise (#631).
             marley_row_map: marley_terminal::RowMap::default(),
+            marley_input_held: false,
+            marley_inputs_refused: 0,
             #[cfg(any(test, feature = "test-support"))]
             input_log: Vec::new(),
             #[cfg(test)]
@@ -1613,6 +1615,8 @@ impl TerminalBuilder {
                 // Marley: rows drawn where the grid puts them until the element says otherwise
                 // (#631).
                 marley_row_map: marley_terminal::RowMap::default(),
+                marley_input_held: false,
+                marley_inputs_refused: 0,
                 #[cfg(any(test, feature = "test-support"))]
                 input_log: Vec::new(),
                 #[cfg(test)]
@@ -1800,6 +1804,10 @@ pub struct Terminal {
     marley_terminal_id: Option<String>,
     // Marley: where the element draws each viewport row, for the mouse to map back (#631).
     marley_row_map: marley_terminal::RowMap,
+    // Marley: a remote terminal whose link is down sends nothing, and counts what it refused
+    // (#641).
+    marley_input_held: bool,
+    marley_inputs_refused: usize,
     #[cfg(any(test, feature = "test-support"))]
     input_log: Vec<Vec<u8>>,
     #[cfg(test)]
@@ -2593,6 +2601,12 @@ impl Terminal {
     }
 
     pub fn input(&mut self, input: impl Into<Cow<'static, [u8]>>) {
+        // Marley: a remote terminal whose link is down sends nothing, and counts what it refused
+        // (#641).
+        if self.marley_input_held {
+            self.marley_inputs_refused += 1;
+            return;
+        }
         self.keyboard_input_sent = true;
         // Marley: where the command typed at a prompt starts, for its autosuggestion (#484).
         let position = alacritty_terminal::marley_hooks::HookPosition::of(&self.term.lock());
@@ -2737,6 +2751,18 @@ impl Terminal {
     #[cfg(any(test, feature = "test-support"))]
     pub fn take_pty_write_log(&mut self) -> Vec<Vec<u8>> {
         std::mem::take(self.pty_write_log.get_mut())
+    }
+
+    // Marley: holds the terminal's input from now on, for a remote terminal whose link is down
+    // (#641); a rerun gives the view a new terminal.
+    pub fn marley_hold_input(&mut self) {
+        self.marley_input_held = true;
+    }
+
+    // Marley: how many inputs the terminal refused while its input is held, or none while it is
+    // not (#641).
+    pub fn marley_inputs_refused(&self) -> Option<usize> {
+        self.marley_input_held.then_some(self.marley_inputs_refused)
     }
 
     #[cfg(any(test, feature = "test-support"))]

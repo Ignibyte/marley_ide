@@ -1,7 +1,7 @@
 ---
 pipeline_id: 53e5761f-5dd5-4949-ab42-78d6eb81fce5
 ticket: docs/planning/tickets/open/TICKET-641-ssh-links-that-know-they-are-dead.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "SSH links that know they are dead"
 type: feature
 slice: prong 2, C3's remote terminals after #543 and D20's host collector after #610; herdr's link habits, given to Marley by rustal-harness's D164

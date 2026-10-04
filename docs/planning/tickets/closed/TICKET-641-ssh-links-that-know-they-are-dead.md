@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #641 (feature, prong 2: C3's remote terminals after #543, D20's collector after #610)
 - **Owner:** claude-opus-5-5, 2026-10-02 (/spec)
-- **Pipeline doc:** ../../pipeline/queued/641-ssh-links-that-know-they-are-dead.spec.md
+- **Pipeline doc:** ../../pipeline/completed/641-ssh-links-that-know-they-are-dead.spec.md
 - **Source ticket:** herdr's remote-link habits, withdrawn from rustal-harness (its TICKET-094, D164)
   and given to Marley's own SSH connections; `docs/planning/design-notes/herdr-and-hermes-2026-10-02.md`
   Part 1 item 6
-- **Status:** open (queued)
+- **Status:** closed
 
 ## Summary
 Marley opens two kinds of SSH connection: a remote terminal (#543, ssh into a tmux session per

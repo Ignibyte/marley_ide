@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **SSH links that know they are dead** (#641, 2026-10-04). Every ssh Marley starts checks its
+  link every 5 seconds, so a remote terminal or a Fleet host whose link went silent is known dead
+  within 20 seconds instead of when the network gives up, which could take a quarter of an hour.
+  A remote terminal whose link died keeps its last screen, dimmed, under a line naming the host,
+  what ssh said and when Marley checks next; what you type is not sent, and the line counts it.
+  Marley checks the host after 1 second, then twice as long each time up to two minutes, and when
+  it answers runs the terminal again in the same tab, on the same tmux session, without moving
+  the focus. Rerun tries at once; a refused login stops the checks and says why. The Fleet panel
+  no longer freezes on a host that went silent behind an open connection.
+
 - **A harness session's source, progress and quota on its row** (#640, 2026-10-04). When
   rustal-harness says where a session's state came from, how far its agent is and how much of its
   account's quota it has used, the rail's Harness section shows it: a line such as `40 % · Running

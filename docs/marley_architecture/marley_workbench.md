@@ -1435,6 +1435,22 @@ alike.
   remote terminal's frames although its foreground is ssh, and the rail's `remote_claude` takes a
   remote terminal with a seat as Claude Code's, so its row shows the seat and `note_claude_code`
   leaves the seat to the host's `SessionEnd`.
+- Since #641 a link that dies is known dead. `remote_terminal_command` gives ssh the keepalive
+  (`marley_remote::keepalive_options`) and a connect timeout. `routing.rs` calls `starting` before
+  a remote run (its `Backoff::up_since` is now, and the task's down entries go) and hands the run's
+  end to `supervise`. An exit of 255, ssh's own error status, turns the terminal down: the
+  `Links` global keeps a `Down` by the ended terminal's entity, the terminal's input is held
+  (`Terminal::marley_hold_input`, Zed's `terminal.rs`), a ticker draws its line each second, and
+  `check_until_up` checks the host with `link_check_command` through `process::output`
+  (`MARLEY_SSH` honoured) on `check_delay`'s backoff, the failures reset by a drop after
+  `STABLE_LINK`. `Answers` calls `reattach`: `TerminalPanel::spawn_task` with the provider's own
+  unprepared task and `reveal: Never`, followed by a detached task that drops the old entry and
+  supervises the new terminal (the old terminal's release ends the checks, so they cannot follow
+  it). `Down` waits again with ssh's reason; `Stopped` leaves the line saying why. The entry goes
+  with the old terminal (`observe_release`), so a Rerun or a closed tab ends the checks.
+  `link_overlay`, asked first by `block_filter::overlay`, draws the dim, occluding cover and its
+  line. `rich_input::send` leaves a held terminal's prompt in the editor. Any other exit removes
+  the task's backoff.
 
 ## A project's own icon (`src/project_icons.rs`, `src/rail.rs`, #564)
 

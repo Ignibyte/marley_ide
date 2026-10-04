@@ -2746,3 +2746,21 @@ clear, a resize's rewrap, a scroll Marley drives) must also say how to carry a l
 it: count the change on the grid, carry the count in `HookPosition`, and map the line on apply.
 Carrying only the anchors already applied leaves the hooks in flight behind. One passing run
 proves nothing about such a race; run the scenario several times.
+
+## PR-claude-641-what-a-view-draws-from-another-entity-redraws-on-its-own-001
+*severity: low · prevents: F-claude-641-a-down-terminals-count-did-not-redraw-during-a-check-001*
+
+When a Marley hook draws into a Zed view from state the view does not own (a global, another
+entity's counter, a clock), something must notify the view when that state changes: an
+`observe`, a `notify` where the state changes, or a ticker of its own for a clock or a count the
+owner cannot notify about. A loop that also does other work (a check, a request) is not the
+redraw: it stops ticking while it waits.
+
+## PR-claude-641-insert-an-item-after-an-item-never-between-it-and-its-attributes-001
+*severity: medium · prevents: F-claude-641-an-inserted-method-took-the-next-methods-cfg-001*
+
+Adding a method or field to an upstream file by matching an existing item's first line puts the
+new item between that item and its attributes (`#[cfg]`, `#[derive]`, doc comments). Anchor an
+insertion on the end of the item before (its closing brace) or on a blank line, and read the
+lines above the anchor first. A `#[cfg(test-support)]` moved this way passes clippy
+`--all-targets` and fails only the build without the feature, so build the binary before the gate.

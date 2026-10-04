@@ -767,16 +767,22 @@ With a host you reach by `ssh <host>` whose shell is bash or zsh:
   installed there.
 - [ ] Rerun is offered for the host's blocks only while the host's shell waits at its prompt.
 
-### 4.16 A remote terminal that survives a dropped link (#543), optional
+### 4.16 A remote terminal that survives a dropped link (#543, #641), optional
 
 Needs a host in your settings' `ssh_connections` with tmux 3.3 or later.
 
 1. Run `marley: open remote terminal` and pick the host. Run `sleep 600`.
-2. Drop the connection (sleep the laptop, or cut the network), then run `terminal: rerun task`.
+2. Drop the connection (sleep the laptop, or cut the network) and wait half a minute.
 
-- [ ] The tab says the terminal ended when the link dropped.
-- [ ] Rerun attaches the same tmux session, with what it printed meanwhile and `sleep` still
-  running.
+- [ ] Within 20 seconds the terminal dims under a line naming the host, what ssh said, and the
+  next check's countdown.
+- [ ] Typing in it changes nothing on the screen; the line counts what was not sent.
+
+3. Bring the connection back and wait for the next check.
+
+- [ ] The terminal reattaches by itself: the same tmux session, `sleep` still running, nothing you
+  typed while it was dimmed.
+- [ ] `terminal: rerun task` on a dimmed terminal reattaches at once.
 
 ## Part 5. Agent CLIs in terminals
 

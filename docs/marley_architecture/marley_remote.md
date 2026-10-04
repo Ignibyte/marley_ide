@@ -56,6 +56,14 @@ guards, both applied: (1) `parse_ssh_target` REJECTS a leading-`-` host/user; (2
   Code wraps a hook's `terminalSequence` for tmux itself when `TMUX` is set, the plugin's gate passes
   on `MARLEY_REMOTE=1`, and the workbench lets a remote terminal's frames in although its
   foreground program is ssh.
+- Since #641 the crate owns the link's pure half: `keepalive_options()` (`ServerAliveInterval=5`,
+  `ServerAliveCountMax=3`, so a silent link ends within 20 s), which `remote_terminal_command`, the
+  host collector and `link_check_command` (`ssh -T -o BatchMode=yes`, the keepalive, a 10 s
+  `ConnectTimeout`, the destination, `true`) all carry; `read_link_check(code, stderr)`, which
+  reads 0 as `Answers`, 255 with a link failure in ssh's last line (`LINK_FAILURES`) as `Down`, and
+  anything else as `Stopped`, the reason ssh's last line; and `check_delay(failures)`, 1 s doubling
+  to `MAX_CHECK_DELAY` (120 s), with `STABLE_LINK` (60 s) the time up after which a drop starts
+  over. `ssh_command` is unchanged.
 - Not wired: `RemoteStatus`, `remote_badge`, `RemoteHost` and `remote_palette_actions` have no caller
   in the fork. The task tab is the status, and the hosts are Zed's `ssh_connections`, not a
   `[[remote.hosts]]` TOML setting.

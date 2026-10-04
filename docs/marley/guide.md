@@ -472,6 +472,26 @@ temporary folder the integration is written to is removed as soon as the shell h
   `RemoteCommand` or `Tag marley-plain`, and as `command ssh`. A host whose shell is neither bash nor
   zsh gets its login shell as usual.
 
+### Remote terminals (#543, #641)
+
+`marley: open remote terminal` lists the SSH hosts saved in your settings (`ssh_connections`) and
+opens a terminal on the one you pick, in a tmux session of Marley's own on the host, so a shell or
+an agent there keeps running when the link drops. Every ssh Marley starts, this one included,
+checks its link every 5 seconds, so a link that went silent is known dead within 20 seconds rather
+than when the network finally gives up.
+
+- When the link dies, the terminal keeps its last screen, dimmed, under a line that names the host,
+  says what ssh said, and counts down to Marley's next check of the host. Keys, pastes and Marley's
+  own sends are not sent while it is dimmed; the line counts them, and nothing is typed later.
+- Marley checks the host 1 second after the drop, then twice as long after each failed check, up
+  to every two minutes. A link that stays up a minute starts the next drop's checks from 1 second
+  again.
+- When the host answers, Marley runs the terminal again in the same tab, attached to the same tmux
+  session, without moving the focus or changing the tab you are on.
+- `terminal: rerun task` tries at once. If the host refuses the login (a changed key, a host key
+  that no longer matches), Marley stops checking and the line says why; Rerun logs in by hand.
+- `exit` in the session, or anything else that ends ssh normally, ends the tab as before.
+
 ### The prompt at the bottom
 
 While the screen has room to spare, as in a new terminal or one you just cleared, Marley draws its
