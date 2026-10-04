@@ -36,6 +36,8 @@
     )
 )]
 
+#[cfg(unix)]
+pub mod agent_socket;
 mod auth;
 mod clients;
 mod config;

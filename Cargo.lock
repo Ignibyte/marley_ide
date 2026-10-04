@@ -10801,6 +10801,7 @@ dependencies = [
  "log",
  "marley_fleet",
  "regex",
+ "rustix",
  "serde",
  "serde_json",
  "tempfile",

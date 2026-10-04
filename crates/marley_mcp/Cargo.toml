@@ -8,6 +8,9 @@ license = "MIT OR Apache-2.0"
 [lib]
 path = "src/marley_mcp.rs"
 
+[target.'cfg(unix)'.dependencies]
+rustix = { workspace = true, features = ["net", "process"] }
+
 [dependencies]
 log.workspace = true
 marley_fleet.workspace = true

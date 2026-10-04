@@ -1,6 +1,6 @@
 # Agent reports reach Marley through `$MARLEY_BIN report`, and the rail and resume read them first — Notes
 
-- **Local ticket doc:** docs/planning/tickets/open/TICKET-652-shared-claude-plugin-marleys-half.md
+- **Local ticket doc:** docs/planning/tickets/closed/TICKET-652-shared-claude-plugin-marleys-half.md
 - **Pipeline spec:** 652-shared-claude-plugin-marleys-half.spec.md
 
 ## Phase 1 — Plan (queued by /spec, 2026-10-03)
@@ -335,11 +335,6 @@ What Marley needs from the harness:
 - [x] Spec, notes and ticket doc written; no other file touched, no cargo run, no agent run beyond
       `claude --version`.
 
-## Phase 2 — Code
-
-## Phase 3 — Test
-
-## Phase 4 — Complete
 
 ### The harness's answer, 2026-10-03
 rustal-harness recorded MREQ-009 as answered (its D176) and queued its side as TICKET-108,
@@ -364,3 +359,156 @@ rustal-harness recorded MREQ-009 as answered (its D176) and queued its side as T
   texts beside the three files, all inside the digest `rh` computes. The marks land with
   TICKET-108's code, so the revision above (`aedcac8e…214fd1`) predates them; the loading slice
   takes its digest from TICKET-108's outcome.
+
+### Promotion (2026-10-04)
+- Promoted into `active/`; the BACKLOG row removed; the ticket in-progress. Pre-flight green, no
+  other active pipeline; #648 to #651 landed (the last a468eaefde).
+- **Brain:** `brain ask` (consultation `7705f9ffad324a13bf253aa1bdc2d1c8`) returned due follow-ups
+  on other work only.
+- **The harness, re-read** (an Explore pass, read only): the contract is as drafted.
+  `AGENT_SEATS.md` (05:24 on 10-03) holds usage and quota, which the draft already carries; `rh
+  report`'s clap definitions, `seats.rs`'s limits and `validate_resume_argv`, and `register.js` are
+  unchanged since; the plugin's digest still reads `aedcac8e…214fd1`; TICKET-108 (Marley's host in
+  the mod) is open and not started. `Report::validate` adds what the doc does not spell out: a
+  prompt not blank and without NUL, options without control characters and distinct, an activity
+  without control characters (empty allowed), a session id without control characters; no usage
+  refusal; a report object with an unknown field is `agent_report_shape`.
+- **Marley's seams re-read** (an Explore pass): the shapes hold, with these corrections.
+  - The data directory and the programs written into `<data_dir>/mcp/` live in `mcp::start`
+    (`mcp.rs:75`, called from `crates/zed/src/main.rs`), not an `mcp::init`; `write_program_in`
+    (:373) is private and becomes `pub(crate)`; the socket starts from `mcp::start` beside the
+    opener and the editor.
+  - `MARLEY_BIN` goes exactly where `MARLEY_TERMINAL_ID` does (`task.is_none() &&
+    !is_remote_terminal`): Marley's own ssh terminals (#543) are local tasks, so they get it
+    empty, as their id is.
+  - `marley_mcp` has no `nix` or `rustix`, and denies unsafe code: the socket's module takes
+    `rustix` with `net` (`socket_peercred`) and `process` (`getuid`), and std's blocking
+    `UnixListener` with a thread per connection, as its TCP transport has. The program's reach is
+    a callback, as `AppCaller` is; the workbench's callback reads the process chain on the
+    connection's thread and hands the request to the main thread.
+  - `notifications::on_seat_change` is private and titles every banner Claude Code; it becomes
+    `pub(crate)`.
+  - `resume_line` takes only an 8-4-4-4-12 session id, so the scenario's ids are UUIDs.
+  - The `terminal.rs` touchpoint row names nothing after #641; it is extended before the edit.
+- **Amended at promotion:**
+  - The report's session id rides on the seat as `report.session_id`, not `session_id`:
+    `claude_events`' fold starts a seat over when its `session_id` label changes, so a frame after
+    each report would wipe the report's labels. The overlay after each frame writes them again.
+  - The seat's `agent` label is the terminal's foreground agent's when a report creates it, so the
+    rail's `seat_of` finds it; a program the rail does not recognize keeps none (Out).
+
+## Phase 2 — Code (2026-10-04)
+- **Built.**
+  - `marley_agent::report`: TICKET-099's report (`deny_unknown_fields`), its field rules in the
+    harness's order with the harness's refusal names (`Refusal::name`), herdr's argv check
+    (`validate_resume_argv`), the labels the seat carries, the wire (`Request` tagged by `verb`,
+    `answer_ok`, `answer_refused`), and `stat_fields` for `/proc/PID/stat` (the fields after the
+    last `)`).
+  - `marley_mcp::agent_socket` (unix only): `spawn(path, handler)` binds after removing a stale
+    socket, sets 0600, accepts on a thread, serves each connection on its own thread (the peer's
+    uid checked through `rustix`'s `socket_peercred`, one line of at most 64 KiB read within 2 s,
+    the app's answer waited 3.5 s, else `marley_not_running`); `AgentSocket` removes its file on
+    drop.
+  - `marley_terminal::identity`: `BIN_VARIABLE`, the program's path in a static the workbench
+    sets, and `agent_environment`, which gives `MARLEY_BIN` the path where the terminal gets an
+    id and empty everywhere else.
+  - `terminal` (Zed): the path read before the builder's future, one call after the #520 hunk.
+    The touchpoint row was extended first.
+  - `bin/marley-agent`: `argparse` mirroring `rh report` and `rh release`, the socket from
+    `agent-socket` beside the program's real path, deadlines of 4 s and 0.9 s, exits 0, 1 and 2.
+  - `marley_workbench::agent_reports`: `start` (the socket under
+    `$XDG_RUNTIME_DIR/marley/<16 hex>.sock`, checked with `socket_fits`, its folder 0700; the
+    program and `agent-socket` written off the main thread, then handed to `marley_terminal`); the
+    connection's thread reads the chain and the agent's folder, the main thread takes the request
+    (`terminal_of`, `accept`, `announce`); `held_report`, `holds_terminal`, `forget`.
+  - `agent_events`: `apply_report` (an upsert with the report's labels over the frames', the
+    agent label from the terminal's foreground agent, the frame's wait kept over a reported
+    `working`, a `QuestionRaised` for a reported question); the overlay in `on_frame` after the
+    fold; `forget` and `end` drop the authority.
+  - `resume`: a hook's `SessionStart` is skipped while the terminal holds an authority;
+    `on_report` saves the reported session with the agent's folder; `on_release` drops it, except
+    while quitting.
+  - `notifications::on_seat_change` is `pub(crate)` for the report path's banner and push.
+- **Deviations from the plan, and why.**
+  - The socket lives in its own module, `marley_mcp::agent_socket`, with `rustix` (`net`,
+    `process`) rather than `nix` in `transport.rs`: `marley_mcp` has neither, `rustix` is the
+    workspace's, and the transport module is the HTTP server's.
+  - The start is `agent_reports::start` from `mcp::start`, where the data directory and the
+    other programs are, not an `init` from `marley_workbench.rs` (the promotion's correction).
+  - The authority lives in a global (`Reports`) keyed by the terminal view, not in `AgentEvents`:
+    the socket's intake and the frame path both reach it without an entity update in flight.
+  - The session id label is `report.session_id` (amended at promotion), the agent label the
+    foreground agent's.
+  - `browser-fixture.sh` gained `fleet-report`, a printer of a seat's report labels, rather than
+    widening `fleet`.
+- **Review.**
+  - Identity: the chain is read on the connection's thread, before the request reaches the main
+    thread, so a reporter that exits at once still names its terminal; the agent's start time
+    guards a reused pid.
+  - Re-entrancy: the intake runs on the main thread from a task of its own, outside any entity
+    update; the banner and push reach the view through its window after the seat is applied; the
+    overlay in `on_frame` runs after the fold returns.
+  - A report never moves a terminal it cannot name: an empty or wrong `MARLEY_TERMINAL_ID`, or
+    a chain that reaches no shell, is `agent_unknown`.
+  - The variable is emptied, not removed, wherever the id is (PR-claude-empty-a-variable-the-
+    child-must-not-inherit-001).
+- **Clippy rounds:** the identity module's first doc paragraph; the `Usage` fields' shared
+  postfix (serde renames); a large `Request` variant boxed; an unused `folder` field; the digest's
+  hex through `u64::from_be_bytes`; a type alias for the intake's lookup; `Option<&Path>`; the
+  `held` borrow restructured.
+- **Gate:** `just gate-diff` green after the Test phase, 17 gates on the scope (the dylint
+  warnings it prints in Zed's crates, `terminal.rs`'s async blocks among them, predate #652).
+
+## Phase 3 — Test (2026-10-04)
+- **Scenario:** `script/e2e/652-shared-claude-plugin-marleys-half.sh`, `compositor sway`. A
+  Python stand-in `claude` plays step scripts `a`, `b` and `c` (frames, reports, a release, a
+  child `sh`, a helper, a lost copy of the program, an exit), each step on a key the runner
+  sends. Every check passes on the second run.
+- **Shots, each read:**
+  - `652-01-environment`: `MARLEY_BIN=/run/user/…/marley-e2e/profile.…/mcp/marley-agent` and the
+    terminal's id. REQ-001, REQ-021.
+  - `652-02-task`: the task prints `MARLEY_BIN=[]`. REQ-002.
+  - `652-03-reported`: `report idle: exit 0`; the row `idle · Add a README` while the prompt
+    frame alone would read working. REQ-003, REQ-004, REQ-005.
+  - `652-04-waiting`: the row waiting, "Permission for Bash: cargo test", and the inbox entry,
+    after a reported `working`. REQ-005, REQ-006.
+  - `652-05-interrupted`: after the tool's end and an `idle` report with no `Stop` frame, the
+    row reads `idle · Add a README`. REQ-007.
+  - `652-06-refused`: `agent_report_stale`, `agent_report_authority`, `agent_release_authority`,
+    `agent_report_argv`, `agent_report_question`, and `marley_not_running` in 32 ms; the row
+    still idle. REQ-008, REQ-009, REQ-011, REQ-012.
+  - `652-07-released`: `release: exit 0` in 50 ms; the row a plain shell again. REQ-013.
+  - `652-08-fallback`: terminal B, frames only, `working · Fix the build`, `Bash: make`.
+    REQ-014.
+  - `652-09-lapsed`: the helper's report taken and its process gone; the next frames move the
+    row to `working · Second prompt`, `Read: README.md`. REQ-015.
+  - `652-10-resumed`: after the relaunch, C prints `resumed 2222…222c in …/repo/sub`. REQ-016,
+    REQ-017.
+- **Machine checks:** the report from outside Marley answered `agent_unknown` (REQ-010); the
+  stand-in's log holds `--resume 2222…222c @ …/repo/sub` and no resume of A's sessions (REQ-016,
+  REQ-017). `mcp_agent fleet-report` printed A's seat with `source mod:claude-code`,
+  `state.source reported`, `report.session_id` and `progress.activity`, read from the run's
+  output rather than an `expect` (REQ-018).
+- **Fixed in Test:** the first run's quit stalled on the close guard's question, since B still
+  worked by its frames; the scenario turns the guard off before the quit.
+- **Review only:** the banner and push from a report (REQ-019), the socket's mode, uid check and
+  `sun_path` check (REQ-020). Not reached: the harness's real mod in a real Claude Code, which has
+  no Marley host until TICKET-108 lands, and no real turn runs in this batch; the stand-in runs
+  the argv the mod will.
+- **Pre-existing, not in scope:** none seen.
+
+## Phase 4 — Complete (2026-10-04)
+- **Docs:** `CHANGELOG.md` (Added); `docs/marley/guide.md` ("An agent's own reports");
+  `docs/marley_architecture/marley_workbench.md` (the reports section and the resume line),
+  `marley_agent.md` (the report), `marley_mcp.md` (the agent socket), `terminal_blocks.md`
+  (`identity.rs` and `MARLEY_BIN`); the plan's C1 row; the design note's B2 Marley's half marked
+  done; the `terminal.rs` touchpoint row read against what shipped.
+- **Knowledge:** AD-claude-652-an-agents-report-outranks-its-hook-frames-001,
+  L-claude-652-a-seat-label-named-session-id-starts-the-seat-over-001;
+  L-claude-650-e2e-runs-end-without-marleys-quit-hooks-001 extended for a relaunch with a working
+  agent.
+- **Brain:** consultation `7705f9ffad324a13bf253aa1bdc2d1c8` closed with `brain decide`
+  (`decisions/marley-takes-an-agents-reports-through-marley-bin-and-lets-them-outrank-the-hook-frames`).
+- **MREQ-009:** answered; the harness recorded it as its D176 and the licence as D177, and queued
+  its side as its TICKET-108 ("The harness's answer" above).
+- **Closed:** TICKET-652 in `tickets/closed/`; the pair archived to `completed/`.

@@ -132,7 +132,7 @@ pub(crate) fn looking_at(view: &TerminalView, window: &Window, cx: &App) -> bool
 /// Marks `view` unread and shows a banner for the event its Claude Code seat made by moving from
 /// `before` to its state in `seat`, unless the user is looking at the terminal (#538). A state the
 /// seat was already in makes no event, so a repeated ping marks nothing.
-fn on_seat_change(
+pub(crate) fn on_seat_change(
     view: &TerminalView,
     before: State,
     seat: &Session,

@@ -1,11 +1,11 @@
 ---
 pipeline_id: 2a881e7d-e981-4f2b-ad77-893f98aedad1
-ticket: docs/planning/tickets/open/TICKET-652-shared-claude-plugin-marleys-half.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-652-shared-claude-plugin-marleys-half.md
+status: Phase 4 — Complete PASS
 title: "Agent reports reach Marley through `$MARLEY_BIN report`, and the rail and resume read them first"
 type: feature
 slice: prong 2 C1 (a terminal's own seat, after #519's hook frames); design note B2, Marley's half; rustal-harness MREQ-009, its D169
-references: [docs/planning/design-notes/claude-and-codex-on-their-own-tools-2026-10-02.md, docs/planning/pipeline/completed/519-claude-code-events-in-the-rail.spec.md, docs/planning/pipeline/completed/520-terminal-identity.spec.md, docs/planning/pipeline/completed/540-session-resume-after-restart.spec.md, docs/planning/pipeline/completed/561-browser-env-opener.spec.md, docs/planning/pipeline/queued/648-agent-version-check.spec.md]
+references: [docs/planning/design-notes/claude-and-codex-on-their-own-tools-2026-10-02.md, docs/planning/pipeline/completed/519-claude-code-events-in-the-rail.spec.md, docs/planning/pipeline/completed/520-terminal-identity.spec.md, docs/planning/pipeline/completed/540-session-resume-after-restart.spec.md, docs/planning/pipeline/completed/561-browser-env-opener.spec.md, docs/planning/pipeline/completed/648-agent-version-check.spec.md]
 ---
 
 ## Title
@@ -35,7 +35,7 @@ Marley's terminals is decided here and built in the next slice, because it waits
   path, beside #520's `MARLEY_TERMINAL_ID`; a task, a remote terminal and a terminal of a remote
   project get it empty. One call from Zed's terminal builder, after the #520 hunk, sets it; the
   next slice extends that call inside `marley_terminal` without touching Zed again.
-- **The way in.** A Unix stream socket in `marley_mcp::transport`: one JSON line in, one out,
+- **The way in.** A Unix stream socket in `marley_mcp` (`agent_socket`, beside the transport): one JSON line in, one out,
   mode 0600 under `$XDG_RUNTIME_DIR/marley/`, named by a digest of Marley's data directory, its
   path checked against `sun_path`. Peer credentials give the reporter's process and user.
 - **The checks.** TICKET-099's field rules and refusal names, applied by Marley, not the program
@@ -52,7 +52,9 @@ Marley's terminals is decided here and built in the next slice, because it waits
   permission request or question shows `waiting` over a reported `working` until that call ends
   or the next report. With no authority, the frames move the state as today. The seat carries
   the harness's label names (`source`, `state.source` `reported`, `progress.*`, `usage.*`,
-  `quota.*`), so `fleet_snapshot` serves what the harness's fleet serves. A reported change
+  `quota.*`), so `fleet_snapshot` serves what the harness's fleet serves; the report's session id
+  rides as `report.session_id`, since the frames' fold starts a seat over when `session_id`
+  changes (amended at promotion). A reported change
   makes the banner (#538) and the push (#535) that a frame's change makes.
 - **Resume.** While a terminal holds an authority, a restart resumes the session id it last
   reported, in the agent process's folder, with #540's line. A release while Marley runs drops
@@ -256,7 +258,7 @@ the review of the diff, or the gate's exit code.
 | REQ-015 | WHEN the authority's process ends without a release, the system shall drop the authority, so the next hook frames move the row. | Shot `652-09-lapsed` |
 | REQ-016 | WHEN Marley restarts with a terminal whose authority reported a session id, the system shall resume that session in the agent's folder, not the session a hook frame named. | Shot `652-10-resumed`; the scenario's `expect` on the stand-in's log |
 | REQ-017 | WHEN the authority releases while Marley runs, the system shall drop the terminal's saved session, so the next launch resumes nothing there. | Shot `652-10-resumed` |
-| REQ-018 | WHEN a report is accepted, the system shall serve the terminal's seat in `fleet_snapshot` with `source`, `state.source` `reported`, and the report's session id, progress, usage and quota under the harness's label names. | The scenario's `expect` on `fleet_snapshot`; review |
+| REQ-018 | WHEN a report is accepted, the system shall serve the terminal's seat in `fleet_snapshot` with `source`, `state.source` `reported`, `report.session_id`, and the report's progress, usage and quota under the harness's label names. | The scenario's `expect` on `fleet_snapshot`; review |
 | REQ-019 | WHEN a report moves a terminal the user is not looking at to idle, waiting or failed, the system shall show the banner and send the push that the same move from a hook frame gives. | Review |
 | REQ-020 | The socket shall take connections only from the user Marley runs as, at mode 0600, at a path checked against `sun_path` before it binds. | Review |
 | REQ-021 | The program shall use only Python 3's standard library and shall reach the Marley whose data directory it was written to, never a default path. | Shot `652-01-environment` (the profile copy's path); review |

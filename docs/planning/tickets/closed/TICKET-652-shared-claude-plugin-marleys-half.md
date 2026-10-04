@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #652 (feature, prong 2 C1, a terminal's own seat; design note B2, Marley's half)
 - **Owner:** claude-opus-5-5, 2026-10-03
-- **Pipeline doc:** ../../pipeline/queued/652-shared-claude-plugin-marleys-half.spec.md
+- **Pipeline doc:** ../../pipeline/completed/652-shared-claude-plugin-marleys-half.spec.md
 - **Source ticket:** `design-notes/claude-and-codex-on-their-own-tools-2026-10-02.md` (B2, Chad's
   "Yes, with the harness"); rustal-harness `docs/planning/MARLEY_REQUESTS.md` MREQ-009 and its
   D169 (one plugin, two hosts)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Marley and rustal-harness share one Claude Code plugin whose mod reports a session's state to the

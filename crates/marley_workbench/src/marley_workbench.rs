@@ -24,6 +24,7 @@ pub mod agent_bar;
 pub mod agent_editor;
 pub mod agent_events;
 pub mod agent_notify;
+pub mod agent_reports;
 pub mod agent_tab;
 pub mod agent_trust;
 pub mod agent_versions;

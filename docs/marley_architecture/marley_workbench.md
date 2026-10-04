@@ -1683,6 +1683,39 @@ alike.
   A new session, `end` and `forget` drop it. `stop_kind_shown` gives the rail the mode as a
   `StopKindShown`, and the rail's settings observer refreshes the rows, so a new mode shows at once.
 
+## An agent's reports (`src/agent_reports.rs`, `bin/marley-agent`, #652)
+
+- `mcp::start` calls `start(data_dir)`: the socket at
+  `$XDG_RUNTIME_DIR/marley/<16 hex of the data directory's SHA-256>.sock` (Zed's temporary folder
+  without one), checked with `marley_browser::service::socket_fits` and in a folder made 0700;
+  then, off the main thread, `bin/marley-agent` written into `<data_dir>/mcp/`
+  (`mcp::write_program_in`) with `agent-socket` beside it naming the socket, and only then the
+  program's path handed to `marley_terminal::identity::set_agent_program`. Any failure logs a
+  warning and terminals name no program; the hook frames go on.
+- `marley-agent` (Python 3, standard library) takes `rh report`'s and `rh release`'s arguments,
+  sends `{"verb", "terminal": $MARLEY_TERMINAL_ID, ...}` as one line, and exits 0, 1 with
+  `<refusal>: <reason>` on stderr (`marley_not_running` when nothing answers within 4 s for a
+  report, 0.9 s for a release), or 2 on arguments `rh` would refuse.
+- On the connection's thread the handler reads the peer's chain of parents with their start times
+  (`process_chain`, `report::stat_fields`, at most 32) and the working directory of its parent;
+  the main thread takes the request (`take`). `terminal_of` matches the chain against each local
+  terminal's shell (`pid_getter().fallback_pid()`), nearest first, checks the id the program sent
+  against that terminal's, and names the reporter's parent the agent. `accept` refuses a stale
+  `seq` per source and terminal, and a report from another source or another agent while the
+  holder's process lives (its pid and start time); a holder whose process ended lapses.
+- `Reports`, a global, keeps the holder per terminal view (`Held`: source, agent, terminal, last
+  report). A report goes to `agent_events::apply_report` and, with a session id and the agent's
+  folder, to `resume::on_report`; a moved state gets the banner and push (`announce`) through the
+  view's window. A release ends the seat (`agent_events::end`) and `resume::on_release` drops the
+  saved session.
+- `agent_events::apply_report(view, report, kind, frame)` upserts the seat: the frames' labels,
+  the report's over them (the progress pair cleared first), the agent label from the terminal's
+  foreground agent, the reported state, except that a frame's `waiting` stands over a reported
+  `working`, and a `QuestionRaised` for a reported question. `on_frame` runs it again after each
+  fold (`frame` true, `held_report`), so a frame never moves the state the holder reported while
+  its labels (the prompt, the tool in flight) still come through. `forget` and `end` drop the
+  holder.
+
 ## A project's changed lines and pull request (`src/rail.rs`, `src/github.rs`, #531)
 
 - `GroupEntry` carries `source` (`git_source`: the group's first workspace when its folder is a
@@ -2315,6 +2348,9 @@ alike.
   startup handshake (`agents::STARTUP_TIMEOUT`) and writes `marley_agent::resume_line` with the
   project's launch mode for Claude Code (`agents::launch_mode`); a terminal that took input first
   keeps its shell.
+- Since #652 a terminal whose agent holds a report (`agent_reports::holds_terminal`) saves the
+  session the agent reported, with the agent's own folder (`on_report`), and skips the hook's
+  `SessionStart`; the holder's release removes the row (`on_release`) unless `quitting`.
 
 ## The browser's agent tools (`src/browser_tools.rs`, #492, #493, #574)
 

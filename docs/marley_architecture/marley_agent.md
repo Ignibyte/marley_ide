@@ -361,6 +361,29 @@ pub fn route_of_choice(option: &str) -> Route;
   `quote_argument` word and the `cd` left out for an empty folder; `None` unless the session is
   an 8-4-4-4-12 hexadecimal id. `HookEvent::reason` carries `SessionEnd`'s reason.
 
+## An agent's report (`src/report.rs`, #652)
+
+- rustal-harness's report contract (its TICKET-099, `docs/AGENT_SEATS.md`), as Marley takes it
+  from `marley-agent`. `Report` is the JSON object `rh report` builds (`source`, `seq`, `state`,
+  and the optional `question`, `progress`, `session_id`, `resume_argv`, `usage`, `quota`), read
+  with `deny_unknown_fields` so an unknown field is `agent_report_shape`.
+- `Report::validate` checks the harness's field rules in its order and returns the first broken
+  as a `Refusal` and a reason; `Refusal::name` gives the harness's names (`agent_unknown`,
+  `agent_report_stale`, `agent_report_authority`, `agent_report_shape`, `_source`, `_state`,
+  `_question`, `_progress`, `_session`, `_argv`, `_quota`, `agent_release_authority`,
+  `agent_release_none`). A question is allowed only with `waiting`; `validate_resume_argv` is
+  herdr's check (1 to 64 arguments, at most 8 KiB, no control character or apostrophe, and a
+  plain command name first).
+- `fleet_state` maps the six states onto `marley_fleet::State`; `labels` gives what the seat
+  carries: `source`, `state.source` (`reported`), `report.session_id` (not `session_id`, which
+  `claude_events::fold` reads as a new session), `progress.percent`, `progress.activity`, the
+  three `usage.*` counts and `quota.KIND.percent_used` and `.resets_at_ms`.
+- `Request` is the socket's line, tagged by `verb`: `Report { terminal, report }` or
+  `Release { terminal, source }`; `answer_ok` and `answer_refused` are the answers.
+- `stat_fields(stat)` reads a `/proc/PID/stat` line's parent and start time from the fields after
+  its last `)`, since a process's name may hold spaces and parentheses. `MAX_ANCESTRY` (32) bounds
+  the walk to a terminal.
+
 ## Claude Code's trust question (`src/trust.rs`, #587)
 
 - `read(lines)` finds the question in a terminal's last lines, oldest first: the footer (`Enter

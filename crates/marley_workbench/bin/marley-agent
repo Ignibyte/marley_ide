@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+"""Reports an agent's state to the Marley terminal it runs in (#652).
+
+Marley names this program as `MARLEY_BIN` in its local terminals. An agent's plugin runs
+`"$MARLEY_BIN" report STATE --source S --seq N ...` and `"$MARLEY_BIN" release --source S` with
+exactly the arguments `rh report` and `rh release` take after `--state ROOT`, so one plugin reports
+to either host. The program checks no field rule: it sends the report, with the terminal's
+`MARLEY_TERMINAL_ID`, as one JSON line over the socket of the Marley that wrote it (named in
+`agent-socket` beside it), and Marley answers whether it took it. Accepted, it prints nothing and
+exits 0; refused, it prints the refusal's name and reason on stderr and exits 1; when no Marley
+answers, `marley_not_running`. Arguments `rh` would refuse to parse exit 2.
+"""
+
+import argparse
+import json
+import os
+import socket
+import sys
+import time
+
+# Within the plugin's budgets: a release must end inside Claude Code's `session.end`.
+DEADLINES = {"report": 4.0, "release": 0.9}
+
+
+def quota_window(text):
+    parts = text.split(":")
+    if len(parts) not in (2, 3) or not parts[0]:
+        raise argparse.ArgumentTypeError("a quota is KIND:PERCENT_USED[:RESETS_AT_MS]")
+    try:
+        used = int(parts[1])
+    except ValueError:
+        try:
+            used = float(parts[1])
+        except ValueError:
+            raise argparse.ArgumentTypeError("a quota's percent used is a number") from None
+    window = {"kind": parts[0], "percent_used": used}
+    if len(parts) == 3:
+        try:
+            window["resets_at_ms"] = int(parts[2])
+        except ValueError:
+            raise argparse.ArgumentTypeError("a quota's reset is a whole number") from None
+    return window
+
+
+def whole(text):
+    value = int(text)
+    if value < 0:
+        raise argparse.ArgumentTypeError("a whole number, not negative")
+    return value
+
+
+def parser():
+    top = argparse.ArgumentParser(prog="marley-agent")
+    top.add_argument("--request-id")
+    verbs = top.add_subparsers(dest="verb", required=True)
+    report = verbs.add_parser("report")
+    report.add_argument("--source", required=True)
+    report.add_argument("--seq", type=whole, required=True)
+    report.add_argument("state", metavar="STATE")
+    report.add_argument("--prompt")
+    report.add_argument("--option", action="append", default=[])
+    report.add_argument("--percent", type=whole)
+    report.add_argument("--activity")
+    report.add_argument("--session-id")
+    report.add_argument("--resume-arg", action="append", default=[])
+    report.add_argument("--input-tokens", type=whole)
+    report.add_argument("--output-tokens", type=whole)
+    report.add_argument("--cache-read-tokens", type=whole)
+    report.add_argument("--quota", type=quota_window, action="append", default=[])
+    release = verbs.add_parser("release")
+    release.add_argument("--source", required=True)
+    return top
+
+
+def report_of(args, fail):
+    """The report object, as `rh report` builds it from the same arguments."""
+    if (args.prompt is None) != (not args.option):
+        fail("--prompt and --option come together")
+    tokens = [args.input_tokens, args.output_tokens, args.cache_read_tokens]
+    if any(count is not None for count in tokens) and None in tokens:
+        fail("the three token counts come together")
+    if args.percent is not None and args.percent > 255:
+        fail("--percent is 0 to 255")
+    report = {"source": args.source, "seq": args.seq, "state": args.state}
+    if args.prompt is not None:
+        report["question"] = {"prompt": args.prompt, "options": args.option}
+    if args.percent is not None or args.activity is not None:
+        progress = {}
+        if args.percent is not None:
+            progress["percent"] = args.percent
+        if args.activity is not None:
+            progress["activity"] = args.activity
+        report["progress"] = progress
+    if args.session_id is not None:
+        report["session_id"] = args.session_id
+    if args.resume_arg:
+        report["resume_argv"] = args.resume_arg
+    if args.input_tokens is not None:
+        report["usage"] = {"input_tokens": args.input_tokens,
+                           "output_tokens": args.output_tokens,
+                           "cache_read_tokens": args.cache_read_tokens}
+    if args.quota:
+        report["quota"] = args.quota
+    return report
+
+
+def socket_path():
+    here = os.path.dirname(os.path.realpath(__file__))
+    with open(os.path.join(here, "agent-socket"), encoding="utf-8") as file:
+        return file.read().strip()
+
+
+def send(request, deadline):
+    """Marley's answer to `request`, or None when no Marley answers in time."""
+    try:
+        path = socket_path()
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+            conn.settimeout(max(deadline - time.monotonic(), 0.01))
+            conn.connect(path)
+            conn.sendall((json.dumps(request) + "\n").encode("utf-8"))
+            answer = b""
+            while not answer.endswith(b"\n"):
+                conn.settimeout(max(deadline - time.monotonic(), 0.01))
+                chunk = conn.recv(4096)
+                if not chunk:
+                    break
+                answer += chunk
+        return json.loads(answer.decode("utf-8")) if answer.strip() else None
+    except (OSError, ValueError):
+        return None
+
+
+def main():
+    top = parser()
+    args = top.parse_args()
+    deadline = time.monotonic() + DEADLINES[args.verb]
+    terminal = os.environ.get("MARLEY_TERMINAL_ID", "")
+    if args.verb == "report":
+        request = {"verb": "report", "terminal": terminal,
+                   "report": report_of(args, top.error)}
+    else:
+        request = {"verb": "release", "terminal": terminal, "source": args.source}
+    answer = send(request, deadline)
+    if not isinstance(answer, dict):
+        sys.stderr.write("marley_not_running: no Marley answered on its agent socket\n")
+        return 1
+    if answer.get("ok") is True:
+        return 0
+    sys.stderr.write(f"{answer.get('refused', 'agent_refused')}: {answer.get('reason', '')}\n")
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

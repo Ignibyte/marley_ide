@@ -915,6 +915,30 @@ The plugin, `marley` 1.4.0, brings three things:
   carries its options, which the inbox's question route reads (#570). The agent bar offers the
   update to a plugin that is older than Marley's.
 
+### An agent's own reports (#652)
+
+Every local terminal Marley opens names a program in `MARLEY_BIN`. An agent, or a plugin or
+wrapper around one, tells Marley its state through it, with the arguments rustal-harness's
+`rh report` and `rh release` take:
+
+```
+"$MARLEY_BIN" report working --source mod:claude-code --seq 7 --activity "Running the tests"
+"$MARLEY_BIN" release --source mod:claude-code
+```
+
+The states are `starting`, `working`, `idle`, `waiting` (with `--prompt` and one or more
+`--option`), `error` and `done`, and a report can carry `--percent`, `--session-id`, token counts
+and quota windows. `seq` must grow with each report. The process that sends the first report
+holds the terminal: a report from any other process there, such as a `claude -p` the session
+starts, is refused until the holder releases or ends. While a terminal holds a report, its row
+shows the reported state, with the prompt and the tool in flight still read from the plugin's
+hook events, and a restart resumes the session the report named, in the agent's folder.
+
+The program exits 0 when Marley took the report. Otherwise it exits 1 and prints why, such as
+`agent_report_stale: seq 6 is not past 7`, or `marley_not_running` when no Marley answers.
+Tasks, remote terminals and terminals of remote projects get `MARLEY_BIN` empty. Nothing reports
+by itself yet: the shared Claude Code plugin that will is the next step.
+
 ### Per-turn diffs
 
 With the plugin connected, Marley keeps each turn of a terminal's Claude Code that changed the

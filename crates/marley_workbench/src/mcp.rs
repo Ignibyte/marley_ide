@@ -119,6 +119,7 @@ pub fn start(cx: &mut App) {
             offer_to_zeds_agents(data_dir.clone(), cx);
             offer_browser_opener(data_dir.clone(), cx);
             offer_agent_editor(data_dir.clone(), cx);
+            crate::agent_reports::start(data_dir.clone(), cx);
             (
                 None,
                 Some(publisher(published, cx)),
@@ -370,7 +371,11 @@ fn give_browser_opener(opener: &Path, cx: &App) {
 }
 
 /// Writes `contents` into `data_dir`'s `mcp` folder as the program `name`; its path.
-fn write_program_in(data_dir: &Path, name: &str, contents: &str) -> std::io::Result<PathBuf> {
+pub(crate) fn write_program_in(
+    data_dir: &Path,
+    name: &str,
+    contents: &str,
+) -> std::io::Result<PathBuf> {
     let dir = data_dir.join("mcp");
     std::fs::create_dir_all(&dir)?;
     let program = dir.join(name);

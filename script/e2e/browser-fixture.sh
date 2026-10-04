@@ -801,6 +801,18 @@ def main():
             print(f"  seat {seat['id']}: {seat['state']}{shown}")
         if not seats:
             print("  no seats")
+    elif command == "fleet-report":
+        # An agent report's labels on each seat (#652).
+        answer = (client.tool("fleet_snapshot") or {}).get("structuredContent") or {}
+        seats = answer.get("seats", [])
+        for seat in seats:
+            labels = seat.get("labels", {})
+            keys = sorted(key for key in labels if key in ("source", "state.source", "report.session_id")
+                          or key.startswith(("progress.", "usage.", "quota.")))
+            shown = "".join(f", {key} {labels[key]!r}" for key in keys)
+            print(f"  seat {seat['id']}: {seat['state']}{shown or ', no report'}")
+        if not seats:
+            print("  no seats")
     elif command == "fleet-labels":
         # The stop kind's labels on each seat (#566), and a stall or loop flag's (#569).
         answer = (client.tool("fleet_snapshot") or {}).get("structuredContent") or {}

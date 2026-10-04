@@ -4707,7 +4707,9 @@ first entry, a chip after the state settles).
 
 `script/e2e.sh` ends a run by stopping its sway session, which takes Marley and its children
 without `on_app_quit`. A check of what Marley cleans up at quit calls `quit_marley` first (with
-the close guard turned off when an agent still waits), and reads the leftovers after it.
+the close guard turned off when an agent still waits), and reads the leftovers after it. The same
+goes for a relaunch: the guard asks about a working agent too, so #652's quit stalled until
+`marley.ask_before_ending_a_working_agent` was set false before it.
 
 ## L-claude-651-a-shared-stand-in-lives-in-a-fixture-001
 *category: e2e · topic: one stand-in for several scenarios · from: pipeline 651*
@@ -4716,3 +4718,12 @@ When a later ticket extends a stand-in an earlier scenario wrote inline, move it
 under `script/e2e/` (as `browser-fixture.sh` and `codex-fixture.sh` are) that both scenarios
 source, and run the earlier scenario again: its shots may change for the later ticket's reasons
 (#650's approval shot now lists the request #651 shows), which its notes should say.
+
+## L-claude-652-a-seat-label-named-session-id-starts-the-seat-over-001
+*category: agents · topic: labels written onto a Claude Code seat · from: pipeline 652*
+
+`claude_events::fold` reads a change of a seat's `session_id` label as a new Claude Code session
+and builds the seat again from that frame, dropping every label it did not write. A label another
+path puts on the same seat must not be called `session_id`: #652's reported session rides as
+`report.session_id`, and the report's labels are written again after each frame's fold, since
+the fold keeps only its own.

@@ -10,6 +10,7 @@
 //! stopped. One session resumes in one terminal per launch; `marley.resume_agents` turns it off.
 
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 
 use gpui::{App, AppContext as _, Context, Entity, Global, TaskExt as _};
 use marley_agent::AgentKind;
@@ -106,6 +107,8 @@ pub(crate) fn on_event(terminal: &Entity<Terminal>, event: &HookEvent, cx: &mut 
         return;
     };
     match event.event.as_str() {
+        // While an agent's report holds the terminal, its session is the report's (#652).
+        "SessionStart" if crate::agent_reports::holds_terminal(terminal.entity_id(), cx) => {}
         "SessionStart" if event.source.as_deref() != Some("compact") => {
             let (Some(session), Some(folder)) = (&event.session_id, &event.cwd) else {
                 return;
@@ -125,6 +128,33 @@ pub(crate) fn on_event(terminal: &Entity<Terminal>, event: &HookEvent, cx: &mut 
             remove(&terminal_id, cx);
         }
         _ => {}
+    }
+}
+
+/// Saves the session an agent's report named for `terminal` (#652), in the agent process's
+/// folder: it outranks a hook frame's.
+pub(crate) fn on_report(terminal: &Entity<Terminal>, session: &str, folder: &Path, cx: &mut App) {
+    let Some(terminal_id) = local_id(terminal.read(cx)) else {
+        return;
+    };
+    let saved = Saved {
+        session: session.to_string(),
+        folder: folder.to_string_lossy().into_owned(),
+    };
+    save(terminal_id, saved, cx);
+}
+
+/// Drops `terminal`'s session when its agent released it while Marley runs (#652); a release at
+/// the quit keeps it, as a quit's end does.
+pub(crate) fn on_release(terminal: &Entity<Terminal>, cx: &mut App) {
+    let quitting = cx
+        .try_global::<Sessions>()
+        .is_some_and(|sessions| sessions.quitting);
+    if quitting {
+        return;
+    }
+    if let Some(terminal_id) = local_id(terminal.read(cx)) {
+        remove(&terminal_id, cx);
     }
 }
 

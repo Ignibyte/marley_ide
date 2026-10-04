@@ -144,6 +144,84 @@ pub(crate) fn fold_codex(view: EntityId, input: &codex_events::Input<'_>, cx: &m
     }
 }
 
+/// Applies an agent's `report` to the seat of the terminal `view` (#652): its state and question,
+/// its labels over the seat's, and the seat's agent named by the terminal's program (`kind`). After
+/// a hook frame (`frame`) it only overlays a seat the frame left, and a frame's wait stays over a
+/// reported `working`. Gives the state before and the seat after, when it moved.
+pub(crate) fn apply_report(
+    view: EntityId,
+    report: &marley_agent::report::Report,
+    kind: Option<AgentKind>,
+    frame: bool,
+    cx: &mut App,
+) -> Option<(State, Session)> {
+    let seat = seat_id(view);
+    let reported = report.fleet_state()?;
+    let previous = cx
+        .try_global::<AgentEvents>()
+        .and_then(|events| events.snapshot.get(&seat))
+        .filter(|session| session.state != State::Done)
+        .cloned();
+    if frame && previous.is_none() {
+        return None;
+    }
+    let before = previous
+        .as_ref()
+        .map_or(State::Starting, |session| session.state);
+    let frame_waits = frame && before == State::Waiting && reported == State::Working;
+    let mut labels = previous
+        .as_ref()
+        .map(|session| session.labels.clone())
+        .unwrap_or_default();
+    for key in [
+        marley_agent::report::PERCENT_LABEL,
+        marley_agent::report::ACTIVITY_LABEL,
+    ] {
+        let _cleared = labels.remove(key);
+    }
+    labels.extend(report.labels());
+    if let Some(kind) = kind {
+        let _named = labels
+            .entry(claude_events::AGENT_LABEL.to_string())
+            .or_insert_with(|| crate::agent_reports::agent_label(kind).to_string());
+    }
+    let title = previous.map_or_else(
+        || kind.map_or("Agent", AgentKind::display_name).to_string(),
+        |session| session.title,
+    );
+    let state = if frame_waits {
+        State::Waiting
+    } else {
+        reported
+    };
+    let ts_ms = now_ms();
+    let mut events = vec![SessionEvent::Upsert {
+        id: seat.clone(),
+        ts_ms,
+        title,
+        state,
+        labels,
+        transport: Some(marley_fleet::Transport::Local),
+    }];
+    if let Some(question) = report.question.as_ref().filter(|_| !frame_waits) {
+        events.push(SessionEvent::QuestionRaised {
+            id: seat.clone(),
+            ts_ms,
+            question: marley_fleet::Question {
+                prompt: question.prompt.clone(),
+                options: question.options.clone(),
+                context_refs: Vec::new(),
+            },
+        });
+    }
+    let agent_events = cx.default_global::<AgentEvents>();
+    for event in &events {
+        marley_fleet::apply(&mut agent_events.snapshot, event);
+    }
+    let after = agent_events.snapshot.get(&seat).cloned()?;
+    Some((before, after))
+}
+
 /// Marks the Codex seat of the terminal `view` as heard from: its thread moves in a way the fold
 /// does not read, which still keeps #547's `no update` away (#650).
 pub(crate) fn heard_from(view: EntityId, cx: &mut App) {
@@ -228,7 +306,15 @@ pub(crate) fn on_frame(
     for event in &events {
         marley_fleet::apply(&mut agent_events.snapshot, event);
     }
-    if let Some(after) = agent_events.snapshot.get(&seat).cloned() {
+    // While an agent's report holds the terminal, the report sets the state and the frames keep
+    // their labels; a frame's wait shows over a reported `working` (#652).
+    if let Some(report) = crate::agent_reports::held_report(cx.entity_id(), cx) {
+        let _overlaid = apply_report(cx.entity_id(), &report, Some(AgentKind::Claude), true, cx);
+    }
+    let after = cx
+        .try_global::<AgentEvents>()
+        .and_then(|events| events.snapshot.get(&seat).cloned());
+    if let Some(after) = after {
         // The stall watch (#569): the event is the outcome of a call waiting for one, and a
         // working seat is watched.
         crate::stall::moved(&after, &event.event, cx);
@@ -583,6 +669,10 @@ pub(crate) fn end(terminals: &[u64], cx: &mut App) {
     crate::turns::on_end(&ended, cx);
     // Claude Code went without saying so: no session to resume there (#540).
     crate::resume::ended(&ended, cx);
+    // An agent that left takes its report's authority with it (#652).
+    for seat in &ended {
+        crate::agent_reports::forget(EntityId::from(*seat), cx);
+    }
     let ts_ms = now_ms();
     let agent_events = cx.default_global::<AgentEvents>();
     for id in live {
@@ -597,6 +687,7 @@ pub(crate) fn end(terminals: &[u64], cx: &mut App) {
 /// Forgets the seat of the terminal view `view`, which is closing, and its turns (#509).
 pub(crate) fn forget(view: EntityId, cx: &mut App) {
     crate::turns::forget(view.as_u64(), cx);
+    crate::agent_reports::forget(view, cx);
     let seat = seat_id(view);
     let known = cx
         .try_global::<AgentEvents>()

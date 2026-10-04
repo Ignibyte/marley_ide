@@ -3953,3 +3953,21 @@ own `serverRequest/resolved`, whoever answered, so the TUI's prompt and the inbo
 question. Rejected: typing the TUI's keys from the rail; answering with Codex's own fallback
 decisions; amendments and accepting an elicitation in place (the TUI collects them); listing
 sub-agents' requests (#650 lets their threads go).
+
+## AD-claude-652-an-agents-report-outranks-its-hook-frames-001
+*decided at: 2026-10-04 · status: shipped · builds on: AD-claude-519-claude-codes-hook-events-ride-in-band-into-marley-fleet-001, AD-claude-540-a-claude-code-session-resumes-by-the-terminals-id-001 · plan: docs/planning/design-notes/claude-and-codex-on-their-own-tools-2026-10-02.md B2, Marley's half; rustal-harness MREQ-009 (its D176)*
+
+An agent reports its state to the Marley terminal it runs in through `MARLEY_BIN`, a Python
+program Marley writes into its data directory that takes `rh report`'s and `rh release`'s
+arguments and sends one JSON line over a 0600 Unix socket of Marley's own, so the shared Claude
+Code plugin reaches either host with the same argv. Marley knows the caller by its processes, as
+the harness does: the peer's credentials give its pid, its parent chain must reach a local
+terminal's shell whose id the program sent, and the reporter's parent, with its start time, holds
+the terminal until it releases or ends. While it holds, the reported state outranks the hook
+frames (except a frame's `waiting` over a reported `working`), the frames still carry the prompt
+and the tool, and the reported session, in the agent's own folder, is what a restart resumes. The
+frames stay the fallback and the only path for remote terminals. Rejected: Marley's MCP server as
+the way in (a bearer in every terminal, and a mod's `$.mcp.call` waits on a permission dialog and
+fails at `session.end`); a hidden mode of the app's executable (the whole app started per
+report); naming the terminal by the variable alone; authority by source alone (a `claude -p` the
+session starts shares the source); running the reported argv on resume.

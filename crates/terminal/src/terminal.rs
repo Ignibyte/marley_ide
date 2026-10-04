@@ -1250,6 +1250,9 @@ impl TerminalBuilder {
                     .env
                     .contains_key(marley_terminal::shell_integration::BROWSER_VARIABLE)
             });
+        // Marley: the program an agent in a local interactive terminal reports its state through
+        // (#652).
+        let marley_agent_program = marley_terminal::identity::agent_program();
         // Headless hosts (e.g. the eval CLI) have no controlling TTY, so PTY
         // allocation / acquiring a controlling terminal fails with `ENOTTY`.
         // When set, run the command as a plain subprocess instead.
@@ -1333,6 +1336,13 @@ impl TerminalBuilder {
                     String::new(),
                 );
             }
+            // Marley: where the terminal names itself, it also names the program its agents report
+            // through; elsewhere the variable is emptied, as the id is (#652).
+            marley_terminal::identity::agent_environment(
+                &mut env,
+                marley_agent_program.as_deref(),
+                marley_terminal_id.is_some(),
+            );
 
             // Marley: a local terminal's programs open URLs through Marley's opener, which puts a
             // local one in a Browser tab of their project; it replaces a captured login value, and

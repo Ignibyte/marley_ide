@@ -13,6 +13,19 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Agents report their state to the terminal they run in** (#652, 2026-10-04). Every local
+  interactive terminal now names `MARLEY_BIN`, a small program Marley writes into its data
+  directory. `"$MARLEY_BIN" report STATE --source S --seq N ...` and `"$MARLEY_BIN" release
+  --source S` take exactly the arguments rustal-harness's `rh report` and `rh release` take, so
+  one Claude Code plugin can report to either host. Marley knows the caller by its processes: the
+  report must come from inside one of its terminals, and the process that sent the first one holds
+  the terminal until it releases or ends, so a `claude -p` run inside the session cannot move the
+  row. While a terminal holds a report, its rail row shows the reported state, with the prompt and
+  the tool in flight still read from the hook frames, and a restart resumes the reported session
+  in the agent's folder. A refusal names the rule it broke, with the harness's names. Tasks and
+  remote terminals get `MARLEY_BIN` empty. Until the shared plugin loads in Marley's terminals
+  (the next slice), nothing reports by itself, and the hook frames go on as before.
+
 - **Codex's approvals answered from the inbox** (#651, 2026-10-04). A Codex running on its own App
   Server (Codex App Server on) lists what it asks to approve in the rail's Needs you: a command
   with its folder, the files a change edits, the permissions it asks for, and an MCP server's

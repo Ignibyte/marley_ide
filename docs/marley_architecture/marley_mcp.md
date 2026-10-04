@@ -163,6 +163,17 @@ OR Apache-2.0, with the Marley crates' lint table.
   under the same lock for each request (`client_of`) into `Caller::client`, a courtesy that sorts
   callers, such as Zed's agent, which names itself `Zed`.
 
+## The agent socket (`agent_socket.rs`, #652, Unix only)
+
+- `spawn(path, handler)` removes a socket a Marley left at `path`, binds a `UnixListener`, sets
+  the file to 0600 and accepts on a thread of its own, each connection on another. A connection's
+  peer credentials (`rustix`'s `socket_peercred`) must name the user Marley runs as; then one line
+  of at most 64 KiB is read within 2 s and handed to `handler` as an `AgentRequest` with the
+  peer's pid, on the connection's thread. The app answers through `AgentRequest::answer`; after
+  3.5 s with no answer the peer reads `marley_not_running`.
+- What the line means is the app's (`marley_workbench::agent_reports`); this module knows no
+  report. `AgentSocket` removes its file when dropped.
+
 ## Outside clients (`clients.rs`, #524)
 
 - `Principal` is who holds a request's bearer: `Marley` for the per-boot bearer, or

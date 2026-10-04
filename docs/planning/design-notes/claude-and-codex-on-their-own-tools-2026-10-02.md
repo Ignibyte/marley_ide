@@ -87,6 +87,14 @@ Size: L. The biggest single gain.
 
 ### B2. One Claude Code plugin with a mod, shared with the harness
 
+Marley's half, the state side, done by #652 (2026-10-04): every local interactive terminal
+names `MARLEY_BIN`, a program that takes `rh report`'s and `rh release`'s arguments and sends the
+report over a socket of Marley's own; Marley knows the caller by its processes, and a terminal
+whose agent reports shows the reported state, frames still carrying the prompt and the tool, and
+resumes the reported session. The answer to MREQ-009 went to the harness, which queued its side
+as its TICKET-108. Loading the shared plugin in Marley's terminals is the next slice, after
+TICKET-108.
+
 The harness's M13 builds a Claude Code plugin whose mod declares state from turn events, decides
 tool calls, carries steering (`$.prompt.submit`) and aborts (`$.turn.abort`). Marley's plugin
 today does the first job with settings hooks and an undocumented output field. One plugin, built

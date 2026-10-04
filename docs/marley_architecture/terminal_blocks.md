@@ -285,6 +285,14 @@ real, reusable session. The Block model is the unit the **brain** later observes
   once the user's files have run: bash after `~/.bashrc`, zsh in `__marley_install`, fish in its
   first prompt. The workbench sets it only in a terminal it opens for an agent, so a `.bashrc`
   that exports the user's editor cannot undo it there.
+- `identity.rs` (#520, #575, #652): the variables a terminal names itself with,
+  `MARLEY_TERMINAL_ID` and `MARLEY_PROJECT`, and `MARLEY_RESTORED_TERMINAL_ID`, the key a restore
+  hands the builder. Since #652 `BIN_VARIABLE` (`MARLEY_BIN`) names the `marley-agent` program an
+  agent reports its state through: the workbench sets the path once the program is written
+  (`set_agent_program`), the builder reads it before its future (`agent_program`), and
+  `agent_environment(env, program, named)` gives it to a terminal that got an id and an empty
+  value to every other, emptied rather than removed so a Marley started from a Marley terminal
+  never hands its parent's on.
 - `ports.rs` (#590): `PORT_OFFSET_VARIABLE` (`MARLEY_PORT_OFFSET`), `PORT_VARIABLE`, `PORT_BASE`
   3000 and `PORT_STEP` 10; a process-wide `SlotReader` the workbench sets (`set_slot_reader`,
   `slot_reader` to box an async function); `variables(folder)`, awaited by both of Zed's terminal
