@@ -933,14 +933,39 @@ to the panel's agents (#501):
 To turn it off, set `"context_servers": { "marley": { "enabled": false } }`. An entry of your own
 named `marley` replaces Marley's. `agent: open settings` opens Zed's Settings window at its AI page.
 
-With Rusty Tools for Agents on (the Marley settings page's Agents section, or `"marley": {
-"rusty_tools": true }`; off until you turn it on, #642) and Rusty installed (`rusty-mcp` on your
-PATH), Marley also offers Rusty's MCP server to the same agents as the context server `rusty`
-(#633): a stdio `rusty-mcp`, as Rusty's own `.mcp.json` names it, so an agent reaches Rusty's brain
-loop (`brain_ask`, `brain_decide` and the rest) and its other tools. Zed asks before each call, as
-it does for every server. Turning the setting off takes the server away while Marley runs, and a
-`rusty` entry of your own in `context_servers` replaces Marley's. Without `rusty-mcp`, nothing is
-added.
+With Rusty on and Rusty Tools for Agents on (both in the Marley settings page's Rusty section,
+or `"marley": { "rusty": { "enabled": true, "agent_tools": true } }`; both off until you turn them
+on, #642, #643) and `rusty-mcp` found (as the Rusty section below finds it), Marley also offers
+Rusty's MCP server to the same agents as the context server `rusty` (#633): a stdio `rusty-mcp`, as
+Rusty's own `.mcp.json` names it, so an agent reaches Rusty's brain loop (`brain_ask`,
+`brain_decide` and the rest) and its other tools. Zed asks before each call, as it does for every
+server. Turning either setting off takes the server away while Marley runs, and a `rusty` entry of
+your own in `context_servers` replaces Marley's. Without `rusty-mcp`, nothing is added. An older
+`"rusty_tools": true` is carried into the block: Zed reads it as Rusty and its tools on, and offers
+to update the file.
+
+## Rusty
+
+Marley can connect to Rusty, Ignibyte's local assistant store, through its MCP server, `rusty-mcp`
+(#643). It is off until you turn it on: Rusty in the Marley settings page's Rusty section, or
+`"marley": { "rusty": { "enabled": true } }`. Off, Marley starts no `rusty-mcp` and opens no
+connection.
+
+- **Connection.** `embedded` (the default) starts `rusty-mcp` on stdio, from `MARLEY_RUSTY_MCP`
+  when it is set, else your PATH, and ends it when Rusty turns off or Marley quits. `service`
+  connects to Rusty's running service at the Service URL (`http://127.0.0.1:4174/mcp` by default)
+  and starts nothing; Marley reaches a service on this machine only, since Rusty's server has no
+  login.
+- **Rusty's Server.** The section's Rusty's Server page shows whether Marley is connected, to which
+  server and through what, or why not. Marley checks the connection every 5 seconds and connects
+  again after 1, 2, 4 and so on up to 60 seconds when it is lost.
+- **Rusty's settings.** The same page shows Rusty's own settings, read from Rusty: Embedding
+  Provider is Rusty's `embedding_provider` (Auto, Ollama, OpenAI or Off), and picking one writes it
+  to Rusty. Marley keeps no copy, so `settings.json` never holds it. An embedded Rusty tells Marley
+  when a setting changes elsewhere, and the page follows; a service is read again when Marley
+  connects or writes.
+- With Rusty on, `rusty-mcp` runs twice when Rusty Tools for Agents is on too: once for Marley and
+  once for Zed's agents.
 
 ## Marley's MCP server
 
@@ -1749,8 +1774,10 @@ Marley keeps its settings in `~/.config/marley/settings.json`, in Zed's format (
 the file; Ctrl+, opens the Settings window). `marley: open settings` opens the Settings window on its Marley page,
 first in the list (#515). The page has a Layout section, with the layout as a dropdown and the
 Prompt Editor toggle (#627), an Agents
-section with Redact Secrets for Agents (#516), a Voice section with the Voice toggle (#642), and a
-Privacy section with the two telemetry toggles; later Marley settings add their sections there.
+section with Redact Secrets for Agents (#516), a Voice section with the Voice toggle (#642), a Rusty
+section with Rusty's switch, its connection and Rusty Tools for Agents, and the Rusty's Server page
+(#643), and a Privacy section with the two telemetry toggles; later Marley settings add their
+sections there.
 
 Marley's own keys in the file:
 
@@ -1768,9 +1795,14 @@ Marley's own keys in the file:
     // Dictation through Voxtype: the agent bar's microphone and marley: toggle dictation. Off
     // until you turn it on (#642).
     "voice": { "enabled": false },
-    // Rusty's MCP server for Zed's agents, where rusty-mcp is installed. Off until you turn it
-    // on (#633, #642).
-    "rusty_tools": false,
+    // Rusty (#643), off until you turn it on: "embedded" starts rusty-mcp, "service" connects to
+    // Rusty's running service; agent_tools also offers Rusty's tools to Zed's agents (#633).
+    "rusty": {
+      "enabled": false,
+      "connection": "embedded",
+      "service_url": "http://127.0.0.1:4174/mcp",
+      "agent_tools": false
+    },
     // Where the Fleet panel's agents come from (#607): [] (the default) shows "not set up";
     // { "kind": "pseudo" } shows Marley's example data. "hosts" lists machines Marley reads
     // over SSH or locally (#610), "agent_processes" more process names to list as agents.

@@ -3,9 +3,33 @@
 
 use std::sync::Arc;
 
+use collections::HashMap;
+use gpui::{AnyView, Global, ScrollHandle};
+use ui::prelude::*;
 use util::ResultExt as _;
 
-use crate::{ActionLink, SettingField, SettingItem, SettingsPage, SettingsPageItem, USER};
+use crate::{
+    ActionLink, SettingField, SettingItem, SettingsPage, SettingsPageItem, SettingsWindow,
+    SubPageLink, USER,
+};
+
+/// The views Marley's crates draw on the Marley page's sub-pages, by the sub-page's name (#643):
+/// the settings UI cannot depend on a Marley crate, so the Marley crate registers its view here.
+#[derive(Default)]
+pub struct MarleyPageViews(HashMap<&'static str, AnyView>);
+
+impl Global for MarleyPageViews {}
+
+impl MarleyPageViews {
+    /// Registers `view` as the content of the sub-page `name`.
+    pub fn set(name: &'static str, view: AnyView, cx: &mut App) {
+        cx.default_global::<Self>().0.insert(name, view);
+    }
+
+    fn get(name: &str, cx: &App) -> Option<AnyView> {
+        cx.try_global::<Self>()?.0.get(name).cloned()
+    }
+}
 
 pub(crate) fn marley_page() -> SettingsPage {
     SettingsPage {
@@ -17,6 +41,7 @@ pub(crate) fn marley_page() -> SettingsPage {
             .chain(push_section())
             .chain(voice_section())
             .chain(system_one_section())
+            .chain(rusty_section())
             .chain(privacy_section())
             .collect(),
     }
@@ -110,7 +135,7 @@ fn layout_section() -> [SettingsPageItem; 5] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 15] {
+fn agents_section() -> [SettingsPageItem; 14] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -337,26 +362,6 @@ fn agents_section() -> [SettingsPageItem; 15] {
                         .marley
                         .get_or_insert_default()
                         .agent_commands_in_history = value;
-                },
-            }),
-            metadata: None,
-            files: USER,
-        }),
-        // Marley: Rusty's MCP server for Zed's agents (#633).
-        SettingsPageItem::SettingItem(SettingItem {
-            title: "Rusty Tools for Agents",
-            description: "Whether Zed's agents get Rusty's tools, its brain loop among them, through the context server rusty, where rusty-mcp is installed. A rusty entry of your own in context_servers wins.",
-            field: Box::new(SettingField {
-                organization_override: None,
-                json_path: Some("marley.rusty_tools"),
-                pick: |settings_content| {
-                    settings_content
-                        .marley
-                        .as_ref()
-                        .and_then(|marley| marley.rusty_tools.as_ref())
-                },
-                write: |settings_content, value, _| {
-                    settings_content.marley.get_or_insert_default().rusty_tools = value;
                 },
             }),
             metadata: None,
@@ -1143,6 +1148,155 @@ fn system_one_section() -> [SettingsPageItem; 17] {
             files: USER,
         }),
     ]
+}
+
+// Marley: Rusty's switch and connection (#643); the connection's state and Rusty's own settings
+// are on the Rusty's Server sub-page, which draws the view `marley_workbench::rusty` registers.
+fn rusty_section() -> [SettingsPageItem; 6] {
+    [
+        SettingsPageItem::SectionHeader("Rusty"),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Rusty",
+            description: "Connect Marley to Rusty, the local assistant store, through its MCP server, rusty-mcp. Off, Marley starts no rusty-mcp, opens no connection and offers Zed's agents no Rusty tools.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.rusty.enabled"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.rusty.as_ref())
+                        .and_then(|rusty| rusty.enabled.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .rusty
+                        .get_or_insert_default()
+                        .enabled = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Connection",
+            description: "Embedded starts rusty-mcp on stdio, from MARLEY_RUSTY_MCP or your PATH, and ends it when Rusty turns off or Marley quits. Service connects to Rusty's running service at the Service URL and starts nothing.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.rusty.connection"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.rusty.as_ref())
+                        .and_then(|rusty| rusty.connection.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .rusty
+                        .get_or_insert_default()
+                        .connection = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Service URL",
+            description: "Where Rusty's service listens, an http URL on this machine, for the Service connection.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.rusty.service_url"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.rusty.as_ref())
+                        .and_then(|rusty| rusty.service_url.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .rusty
+                        .get_or_insert_default()
+                        .service_url = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: Rusty's MCP server for Zed's agents (#633), in the Agents section until #643.
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Rusty Tools for Agents",
+            description: "Whether Zed's agents get Rusty's tools, its brain loop among them, through the context server rusty, while Rusty is on and rusty-mcp is found. A rusty entry of your own in context_servers wins.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.rusty.agent_tools"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.rusty.as_ref())
+                        .and_then(|rusty| rusty.agent_tools.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .rusty
+                        .get_or_insert_default()
+                        .agent_tools = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SubPageLink(SubPageLink {
+            title: "Rusty's Server".into(),
+            r#type: Default::default(),
+            description: Some(
+                "Whether Marley is connected to rusty-mcp, and Rusty's own settings, read from it and written to it."
+                    .into(),
+            ),
+            search_aliases: &[],
+            // A path that names no key, as `agent.skills` does, so `zed::OpenSettingsAt` opens it.
+            json_path: Some("marley.rusty.server"),
+            in_json: false,
+            files: USER,
+            render: render_rusty_server_page,
+        }),
+    ]
+}
+
+/// The Rusty's Server sub-page: the view `marley_workbench::rusty` registers as `rusty`.
+fn render_rusty_server_page(
+    _: &SettingsWindow,
+    scroll_handle: &ScrollHandle,
+    _: &mut Window,
+    cx: &mut Context<SettingsWindow>,
+) -> AnyElement {
+    let content = MarleyPageViews::get("rusty", cx).map_or_else(
+        || {
+            Label::new("Rusty's view is not loaded.")
+                .color(Color::Muted)
+                .into_any_element()
+        },
+        AnyView::into_any_element,
+    );
+    v_flex()
+        .id("marley-rusty-server-page")
+        .track_scroll(scroll_handle)
+        .size_full()
+        .pt_2p5()
+        .pb_16()
+        .overflow_y_scroll()
+        .child(v_flex().w_full().px_8().gap_2().child(content))
+        .into_any_element()
 }
 
 // The same two keys as Zed's General page, which shows them too: off unless turned on (#514).

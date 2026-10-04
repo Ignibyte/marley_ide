@@ -1,0 +1,203 @@
+#!/usr/bin/env python3
+"""A stand-in for Rusty's MCP server, `rusty-mcp`, for Marley's e2e scenarios (#643).
+
+It answers the tools Marley reads as `rusty-mcp` does (each answer JSON text in a text block),
+from `../fixtures/settings_list.json`, over a scratch state folder, `$RUSTY_STAND_IN_STATE`, and
+never reaches a real Rusty. With no arguments it speaks MCP on stdio; with `--http ADDR` it
+serves Streamable HTTP's POST and DELETE on ADDR (port 0 picks one, written to
+`$RUSTY_STAND_IN_STATE/http-addr`). Every request goes to `$RUSTY_STAND_IN_STATE/calls` with this
+process's id. On stdio it sends `notifications/resources/list_changed` when its settings file
+changes, its own `setting_set` included, as `rusty-mcp` announces each change it sees.
+"""
+
+import json
+import os
+import sys
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+FIXTURE = os.path.join(HERE, "..", "fixtures", "settings_list.json")
+STATE = os.environ.get("RUSTY_STAND_IN_STATE") or os.path.join(os.getcwd(), "rusty-stand-in")
+SETTINGS = os.path.join(STATE, "settings.json")
+CALLS = os.path.join(STATE, "calls")
+LOCK = threading.Lock()
+
+TOOL_NAMES = [
+    "settings_list",
+    "setting_get",
+    "setting_set",
+    "brain_ask",
+    "brain_decide",
+    "brain_no_decision",
+    "brain_follow_up",
+]
+
+
+def log(line):
+    with LOCK, open(CALLS, "a", encoding="utf-8") as calls:
+        calls.write(f"{os.getpid()} {line}\n")
+
+
+def load():
+    with open(SETTINGS, encoding="utf-8") as stored:
+        return json.load(stored)
+
+
+def save(settings):
+    with LOCK:
+        with open(SETTINGS + ".new", "w", encoding="utf-8") as stored:
+            json.dump(settings, stored, indent=2, sort_keys=True)
+        os.replace(SETTINGS + ".new", SETTINGS)
+
+
+def seed():
+    os.makedirs(STATE, exist_ok=True)
+    if not os.path.exists(SETTINGS):
+        with open(FIXTURE, encoding="utf-8") as fixture:
+            save({entry["key"]: entry["value"] for entry in json.load(fixture)})
+
+
+def text(value):
+    return {"content": [{"type": "text", "text": json.dumps(value, indent=2)}]}
+
+
+def error(message_id, code, message):
+    return {"jsonrpc": "2.0", "id": message_id, "error": {"code": code, "message": message}}
+
+
+def answer(message):
+    """The response to `message`, or None for a notification."""
+    method = message.get("method")
+    if "id" not in message:
+        log(f"notification {method}")
+        return None
+    message_id = message["id"]
+    params = message.get("params") or {}
+    if method == "initialize":
+        log("initialize")
+        result = {
+            "protocolVersion": params.get("protocolVersion", "2025-06-18"),
+            "capabilities": {"tools": {}, "resources": {"listChanged": True}},
+            "serverInfo": {"name": "rusty-mcp", "version": "stand-in"},
+        }
+    elif method == "ping":
+        log("ping")
+        result = {}
+    elif method == "tools/list":
+        log("tools/list")
+        result = {
+            "tools": [
+                {"name": name, "description": name, "inputSchema": {"type": "object"}}
+                for name in TOOL_NAMES
+            ]
+        }
+    elif method == "tools/call":
+        name = params.get("name")
+        arguments = params.get("arguments") or {}
+        log(f"tools/call {name} {json.dumps(arguments, sort_keys=True)}")
+        settings = load()
+        if name == "settings_list":
+            result = text([{"key": key, "value": value} for key, value in sorted(settings.items())])
+        elif name == "setting_get":
+            result = text(settings.get(str(arguments.get("key"))))
+        elif name == "setting_set":
+            settings[str(arguments.get("key"))] = str(arguments.get("value"))
+            save(settings)
+            result = text("set")
+        else:
+            return error(message_id, -32602, f"tool not found: {name}")
+    else:
+        log(f"unknown {method}")
+        return error(message_id, -32601, f"method not found: {method}")
+    return {"jsonrpc": "2.0", "id": message_id, "result": result}
+
+
+def stdio():
+    out = threading.Lock()
+
+    def send(message):
+        with out:
+            sys.stdout.write(json.dumps(message) + "\n")
+            sys.stdout.flush()
+
+    def watch():
+        def stamp():
+            try:
+                return os.stat(SETTINGS).st_mtime_ns
+            except OSError:
+                return None
+
+        last = stamp()
+        while True:
+            time.sleep(0.5)
+            now = stamp()
+            if now != last:
+                last = now
+                log("sent list_changed")
+                send({"jsonrpc": "2.0", "method": "notifications/resources/list_changed"})
+
+    threading.Thread(target=watch, daemon=True).start()
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            message = json.loads(line)
+        except ValueError:
+            continue
+        response = answer(message)
+        if response is not None:
+            send(response)
+
+
+class Handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            message = json.loads(self.rfile.read(length) or b"{}")
+        except ValueError:
+            self.send_response(400)
+            self.end_headers()
+            return
+        response = answer(message)
+        if response is None:
+            self.send_response(202)
+            self.end_headers()
+            return
+        body = json.dumps(response).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_DELETE(self):
+        self.send_response(200)
+        self.end_headers()
+
+    def log_message(self, *_):
+        pass
+
+
+def http(address):
+    host, _, port = address.rpartition(":")
+    server = ThreadingHTTPServer((host or "127.0.0.1", int(port)), Handler)
+    bound = f"{server.server_address[0]}:{server.server_address[1]}"
+    with open(os.path.join(STATE, "http-addr"), "w", encoding="utf-8") as written:
+        written.write(bound + "\n")
+    log(f"listening {bound}")
+    server.serve_forever()
+
+
+def main():
+    seed()
+    if len(sys.argv) == 3 and sys.argv[1] == "--http":
+        http(sys.argv[2])
+    else:
+        stdio()
+
+
+if __name__ == "__main__":
+    main()

@@ -376,3 +376,6 @@ pub(crate) mod m_2026_08_30 {
 
     pub(crate) use settings::nest_markdown_preview_settings;
 }
+
+// Marley: the fork's own settings migrations (#643).
+pub(crate) mod marley;

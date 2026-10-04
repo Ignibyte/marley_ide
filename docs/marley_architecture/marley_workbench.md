@@ -1856,19 +1856,37 @@ alike.
   its tools from, and `mcp_servers_for_project` hands it to each external agent's `session/new`.
   No bearer goes into a setting; a user's own `context_servers.marley` replaces the default.
 
-## Rusty's tools for Zed's agents (`src/rusty.rs`, #633)
+## Rusty (`src/rusty.rs`, #633, #643)
 
-- `init` and an observer of the settings store call `offer`: while `MarleySettings::rusty_tools`
-  is `Offered` (only when `marley.rusty_tools` is true; off by default since #642), it looks for `rusty-mcp` on the search path (`agents::launcher`) off the main
-  thread; `settle` then inserts `context_servers.rusty` into Zed's default settings as a stdio
-  server running it with no arguments, or removes Marley's entry, only when that differs from the
-  offer the `RustyOffer` global holds. The defaults' change notifies the store again, which finds
-  the offer unchanged. A user's own `context_servers.rusty` sits in the user's layer and wins.
-- `script/e2e.sh` writes `marley.rusty_tools: false` and `marley.voice.enabled: false` into each
-  run's copy of the user's settings (#642), for a user who turned either on: Zed starts every
-  enabled context server when a project opens, and Voice would start the user's `voxtype`. #633's
-  and #642's scenarios set Rusty's tools back with a stand-in `rusty-mcp`; #480's and #642's set
-  Voice back with a fake `voxtype`.
+- `MarleySettings::rusty` is `RustySettings::from_content(marley)`: `Source::{Off, Embedded,
+  Service(url)}`, off unless `marley.rusty.enabled` is on, and `agent_tools` only while it is.
+- `init` sets the `Rusty` global (the source, the `State`: `Off`, `Starting`, `Connected { server,
+  via }`, `Down(reason)`, `Missing(reason)`, Rusty's settings as last read, a refused write, the
+  server and the keeper task), makes `RustyServerView` and registers it in
+  `settings_ui::MarleyPageViews` as `rusty`, and follows the settings store. `follow_setting`
+  drops the keeper and the server when the source changes, which ends an embedded child (Zed's
+  `StdioTransport` kills its process group on drop), and starts `keep` for a new one; every change
+  goes through `update_global`, which the view observes.
+- `keep` loops over `connected`, 1 s doubling to 60 s between attempts. `server_for` builds Zed's
+  `ContextServer::stdio` for `rusty-mcp` (`find`: `MARLEY_RUSTY_MCP`, else the launcher's search
+  path, off the main thread, the reason naming where it looked) or `ContextServer::http` for a
+  loopback `http` URL (`loopback`). `connected` starts it within 5 s, says the server's name and
+  version and how it is reached, reads Rusty's settings (`settings_list` into
+  `marley_rusty::ServerSettings`), re-reads them on an embedded server's
+  `notifications/resources/list_changed`, and checks the link with a `ping` every 5 s within 5 s.
+  The `Ping` is a `Request` of its own, answered with a JSON value: Zed's typed one reads `()`,
+  which no server's `{}` parses as. `set_provider` writes `embedding_provider` with `setting_set`
+  and reads again; `call` gives a tool's text or its failure's first line.
+- `offer` and `settle` (#633) put `context_servers.rusty` into Zed's defaults while
+  `agent_tools` is on and `find` finds `rusty-mcp`, or take Marley's entry out; a user's own entry
+  sits in the user's layer and wins.
+- `RustyServerView` draws Zed's `ui::AiSettingItem` for `rusty-mcp` (a short word on the row, the
+  path or the reason under it) and, while connected, the Embedding Provider row with a
+  `ui::DropdownMenu` over a `ContextMenu` kept with `use_keyed_state`.
+- `script/e2e.sh` writes `marley.rusty` off with a service URL that reaches nothing and drops
+  `marley.rusty_tools` in each run's copy, and exports `MARLEY_RUSTY_MCP` naming no file; a
+  scenario that turns Rusty on names `marley_rusty`'s stand-in (`MARLEY_RUSTY_MCP`,
+  `RUSTY_STAND_IN_STATE`). Voice is off in the same copy (#642).
 
 ## The find tools (`src/find.rs`, #567)
 

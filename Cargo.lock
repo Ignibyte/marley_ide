@@ -10821,6 +10821,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "marley_rusty"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "marley_sdk"
 version = "0.1.0"
 dependencies = [
@@ -10893,6 +10901,7 @@ dependencies = [
  "marley_mcp",
  "marley_rail",
  "marley_remote",
+ "marley_rusty",
  "marley_sdk",
  "marley_system_one",
  "marley_terminal",
@@ -10913,6 +10922,7 @@ dependencies = [
  "serde_json",
  "settings",
  "settings_json",
+ "settings_ui",
  "sha2",
  "sidebar",
  "task",

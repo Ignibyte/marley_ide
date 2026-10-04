@@ -256,6 +256,8 @@ pub fn migrate_settings(text: &str) -> Result<Option<String>> {
         MigrationType::Json(migrations::m_2026_08_17::make_git_gutter_width_an_enum),
         MigrationType::Json(migrations::m_2026_08_26::rename_folder_icons_to_folder_indicator),
         MigrationType::Json(migrations::m_2026_08_30::nest_markdown_preview_settings),
+        // Marley: `marley.rusty_tools` moved into `marley.rusty` (#643).
+        MigrationType::Json(migrations::marley::move_rusty_tools_into_rusty),
     ];
     run_migrations(text, migrations)
 }

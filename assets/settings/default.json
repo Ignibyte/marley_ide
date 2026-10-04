@@ -1748,10 +1748,6 @@
     // Marley's suggestions (#553). Off, they are typed with a leading space that bash and zsh
     // keep out of the history, in terminals opened after the change.
     "agent_commands_in_history": true,
-    // Whether Rusty's MCP server is offered to Zed's agents as the context server "rusty" where
-    // `rusty-mcp` is on your PATH; a "rusty" entry of your own in context_servers wins (#633).
-    // Off until you turn it on (#642).
-    "rusty_tools": false,
     // Whether a line typed at a prompt that reads as English, such as "what is using port 3000",
     // shows a hint that Ctrl+Shift+Enter asks the agent, and a block that ended with 127 on one
     // offers Ask the agent (#557). Local rules decide; the key works either way.
@@ -1840,6 +1836,17 @@
         "running_error": "off",
         "typed_line": "off",
       },
+    },
+    // Rusty in Marley (#643), off until you turn it on. On, Marley starts rusty-mcp on stdio
+    // ("embedded": MARLEY_RUSTY_MCP, else your PATH) or connects to Rusty's running service
+    // ("service": `service_url`, on this machine), and the Marley settings page shows its state
+    // and Rusty's own settings. `agent_tools` also offers Rusty's tools to Zed's agents as the
+    // context server "rusty"; a "rusty" entry of your own in context_servers wins.
+    "rusty": {
+      "enabled": false,
+      "connection": "embedded",
+      "service_url": "http://127.0.0.1:4174/mcp",
+      "agent_tools": false,
     },
   },
   // Control what info is collected by Zed.

@@ -1,7 +1,7 @@
 ---
 pipeline_id: 1d2b658c-59eb-4ed1-b9c5-866af3a5a546
 ticket: docs/planning/tickets/open/TICKET-643-rusty-switch-and-connection.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Marley connects to Rusty when Rusty is turned on"
 type: feature
 slice: Rusty in Marley R1 (rusty-in-marley.md R-D0, R-D1, R-D2, R-D8); prong 2 C2

@@ -1,0 +1,10 @@
+[
+  {
+    "key": "embedding_provider",
+    "value": "ollama"
+  },
+  {
+    "key": "pin_timeout_minutes",
+    "value": "5"
+  }
+]

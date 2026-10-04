@@ -388,6 +388,38 @@ shows); REQ-003, REQ-015, REQ-016 and REQ-018 are checked in the review and by t
   against what shipped; `CHANGELOG.md` (Added: Rusty in Marley's switch and connection; Changed:
   `marley.rusty_tools` is `marley.rusty.agent_tools`).
 
+### Promotion (2026-10-04)
+- Promoted into `active/`; the BACKLOG row removed; the ticket in-progress. Pre-flight green, no
+  other active pipeline, cargo idle, `/mnt/fast` 225G free. #640 to #642 have landed (6540353632,
+  f63b6f05cc, 9c786b345a).
+- **The checks the plan left to promotion:**
+  - `zed::OpenSettingsAt` to a Marley sub-page: `open_settings_editor_at_target` filters the search
+    index by `#<path>` (`filter_by_json_path`: the path or a dotted prefix of an item's) and pushes
+    the sub-page when exactly one `SubPageLink` under a section header matches
+    (`settings_ui.rs:797-845`, `:2277-2298`). Nothing in it is specific to Zed's own pages, so
+    `marley.rusty.server`, which names one link only, opens Rusty's Server.
+  - The child behind a shell: `StdioTransport` spawns through `ShellBuilder`'s non-interactive
+    system shell with `util::process::Child`, whose `kill` is `killpg(SIGKILL)` on Unix
+    (`util/src/process.rs:115-118`): the shell and `rusty-mcp` end together when the transport is
+    dropped. No process-group handling is needed in Marley.
+  - A view made at app level drawn in the Settings window: gpui invalidates each window that drew
+    an entity when it notifies; the Code phase confirms it, and falls back to
+    `cx.refresh_windows()` on a change of the `Rusty` global, as the plan says.
+- **#642's tree, re-read:** `rusty_tools` is false by default; `script/e2e.sh:640-645` writes
+  `rusty_tools` and `voice.enabled` false into each copy; 642's scenario checks and drops
+  `marley.rusty_tools` (`:101`, `:103`) and sets it at `642-06` (`:161`), and 633's sets it at
+  `:59`, `:82`, `:87`; `zed.rs:6236` still sets it. All move to the block in the Code phase.
+  `MarleySettings::from_settings` is at clippy's 100-line cap (L-642): `rusty` replaces the one
+  `rusty_tools` line through `RustySettings::from_content(marley)`, so the count stays.
+- **Chad's confirmation** (the spec's P1 asked for it): the fourth key, `service_url`, and
+  `enabled` gating `agent_tools`, with a carried `rusty_tools: true` turning Rusty on. Taken on the
+  plan's recommendation so the queue keeps moving under Chad's "continue on tickets until
+  finished"; it is reversible before any release (a key and a migration rule), and it goes on the
+  list of choices to confirm with him when the queue is done. His own settings hold neither key,
+  so nothing changes for him.
+- **Brain:** `brain ask` (consultation `414e4f9e93f74b5fbff77b323768e71a`) returned due follow-ups
+  on other work only.
+
 ### Checklist (no TaskCreate in this harness)
 - [x] Read the brief (both parts), CONSTITUTION §3, §7, §14, §18, §19, §20, and the ticket and
       pipeline templates.
@@ -411,3 +443,150 @@ shows); REQ-003, REQ-015, REQ-016 and REQ-018 are checked in the review and by t
 - [x] Design: approach, file manifest by crate, the ledger rows to widen and add, the visual check
       plan, risks, the docs for Complete.
 - [x] Docs only: the ticket doc and this pair; no BACKLOG.md, no `active/`, no source, no cargo.
+
+## Phase 2 — Code (2026-10-04)
+- **Built, to the manifest:**
+  - Ledger first: the `Cargo.toml`, `settings_content/src/marley.rs`, `marley_page.rs`,
+    `settings_ui.rs`, `default.json` and `zed.rs` rows widened; three new rows for `migrator`'s
+    `migrations/marley.rs`, `migrations.rs` and `migrator.rs`.
+  - `crates/marley_rusty` (new, `MIT OR Apache-2.0`, rustal's lint table, no gpui):
+    `ServerSettings::from_answer` and `get`, `EmbeddingProvider` (read as Rusty's `semantic.rs`
+    reads it, written by its canonical name, with labels and Rusty's words), the tool names and
+    `setting_set_arguments`; `fixtures/settings_list.json`; `stand_in/rusty-mcp`, Python's
+    standard library only: stdio or `--http ADDR`, the settings tools and the brain loop's four in
+    `tools/list`, its state in `$RUSTY_STAND_IN_STATE` (seeded from the fixture), every request in
+    `calls` with its pid, `list_changed` on stdio when its settings file changes.
+  - Zed: `MarleySettingsContent::rusty` (`MarleyRustySettingsContent { enabled, connection,
+    service_url, agent_tools }`, `MarleyRustyConnection { Embedded, Service }`), `rusty_tools`
+    removed; `default.json`'s `rusty` block, `rusty_tools` removed; `migrations/marley.rs`'s
+    `move_rusty_tools_into_rusty`, listed last in `migrate_settings`; the Marley page's Rusty
+    section (Rusty, Connection, Service URL, Rusty Tools for Agents moved from Agents, and the
+    Rusty's Server sub-page link, `json_path` `marley.rusty.server`) with `MarleyPageViews` and
+    `render_rusty_server_page`; the `MarleyRustyConnection` dropdown renderer; the tests' Rusty
+    off in `zed.rs`.
+  - `marley_workbench::rusty`: `RustySettings::from_content` (off unless on; `agent_tools` only
+    while on); the `Rusty` global (source, state, settings, refusal, server, keeper); `find`
+    (`MARLEY_RUSTY_MCP`, else the search path, the reason naming where it looked); `loopback`;
+    `keep` and `connected` (start within 5 s, a `ping` every 5 s within 5 s, `list_changed` on
+    stdio re-reading the settings, 1 to 60 s between attempts); `read_settings`, `set_provider`,
+    `call`; #633's `offer` and `settle`, gated by `agent_tools` and finding `rusty-mcp` as the
+    connection does; `RustyServerView`, registered in `MarleyPageViews`.
+  - `MarleySettings::rusty` replaces `rusty_tools` (`from_settings` stays at 100 lines, L-642).
+  - Scripts: `script/e2e.sh` (the copy drops `rusty_tools`, writes `rusty` off with a dead service
+    URL, and the run exports `MARLEY_RUSTY_MCP` naming no file); 633's and 642's scenarios on the
+    new keys and the shared stand-in; `script/e2e/643-rusty-switch-and-connection.sh`.
+- **Deviations from the plan:**
+  - **The ping is Marley's own `Request`.** Zed's `types::requests::Ping` reads its answer as
+    `()`, which serde takes only from `null`, while MCP servers answer `{}` (rmcp, the stand-in).
+    The first scenario run lost the connection on every ping (a new stand-in every few seconds,
+    the kill finding its pid gone). `rusty.rs` defines `Ping` with `Response = Value`. Nothing in
+    Zed sends the typed `Ping`, so Zed is unchanged.
+  - **The server row keeps a short word.** `AiSettingItem`'s detail label does not wrap, and the
+    embedded path and a missing program's reason ran off the window; the row says off,
+    connecting, the server's name or not connected, and the path or the reason wraps under it
+    (`details`).
+  - `connected` is split (`server_for` builds the server) for the 100-line cap; the async
+    contexts are taken by reference (`needless_pass_by_ref_mut`).
+  - The scenario was written and run in this phase, before the gate (as #640 to #642's), so its
+    click places are set before the receipt binds it.
+- **Review of the diff** against REQ-001 to REQ-018: off starts nothing (the source is `Off`, no
+  keeper, no offer: REQ-001, REQ-012); the migration keeps a key already under `marley.rusty`
+  and carries `false` as `agent_tools` alone (REQ-003); the offer needs `enabled` and
+  `agent_tools` (REQ-009); `loopback` refuses anything but an `http` URL on this machine
+  (REQ-015); every failure reaches the page with its first line (REQ-016); the crate has no gpui
+  and rustal's table (REQ-018). Re-entrancy: the view reads the global; every change goes through
+  `update_global`, outside any entity update; the dropdown's handler spawns. Provenance: Zed's
+  client, settings UI and migrator used as they are; nothing from Warp; Ely's components read and
+  not ported, as D7 says. Two faults found by the scenario, both fixed: the typed ping, and a
+  check of the scenario's own (`none_alive` under `set -u` with no argument passed on an empty
+  list; it now fails on one).
+- **Checks:** clippy on `marley_rusty` and `marley_workbench` (`--all-targets`) green after five
+  rounds (doc wording, similar names, the line cap, semicolons, by-reference contexts, `Debug`);
+  `cargo doc -D warnings` on both green; `just build` green; the scenario green on its fourth run
+  (run 1: the ping; run 2: the false pass and the menu's place; run 3: the dropdown's place after
+  the wrap).
+- **Gate, run 1:** RED on gate:21 alone: seven string literals made into `SharedString` with
+  `.into()` in `RustyServerView` (Zed's `shared_string_from_str_literal`, denied in the Marley
+  crates; clippy does not run it). Each is `SharedString::new_static` now. The other 16 passed.
+- **Gate, run 2:** `GATE GREEN [diff]`, 17 passed, the receipt written.
+
+## Phase 3 — Test (2026-10-04)
+- **Scenario:** `script/e2e/643-rusty-switch-and-connection.sh`, under `compositor sway` (the
+  dropdown and its menu take clicks), run on the gated tree with `just build` then
+  `just e2e script/e2e/643-rusty-switch-and-connection.sh`, `SHOT_DIR` in the scratchpad. Exit 0;
+  every `expect` passed: the harness names no `rusty-mcp`, its copy turns Rusty off, points the
+  service at nothing and holds no `marley.rusty_tools` (REQ-017); no `rusty-mcp` ran while off;
+  Marley read Rusty's settings, wrote the provider with `setting_set` and read them again; a new
+  stand-in read the settings after the kill; no stand-in alive after Rusty turned off; no stdio
+  stand-in alive on the service connection, and the service answered `settings_list`.
+- **Shots, each read:**
+  - `643-01-off` (REQ-001): Rusty's Server sub-page, breadcrumb User / Marley / Rusty / Rusty's
+    Server; the `rusty-mcp` row with no dot says "off" and, under it, "Rusty is off: turn it on in
+    the Rusty section of the Marley settings."; Rusty's Settings says they show once Marley is
+    connected. No migration banner: the copy holds no old key yet.
+  - `643-02-carried` (REQ-002, REQ-004): with `marley.rusty_tools: true` written, the settings
+    search for "Rusty" shows the Rusty section: Rusty on and Rusty Tools for Agents on, each with
+    the reset mark of a value off the default; Connection Embedded; Service URL
+    `http://127.0.0.1:4174/mcp`; the Rusty's Server row with Configure. Zed's banner offers to
+    write the migration ("Your settings are out of date"). The Agents section lists no Rusty item
+    (the search shows only the Rusty section).
+  - `643-03-connected` (REQ-005, REQ-006): a green dot, "rusty-mcp stand-in" (the server's name
+    and version), under it "embedded: …/work.CPCFbB/bin/rusty-mcp", the run's link that
+    `MARLEY_RUSTY_MCP` names; Embedding Provider reads Ollama, the fixture's value, with Rusty's
+    words for it.
+  - `643-04-written` (REQ-007): after a click on the dropdown and on Off, the provider reads Off,
+    "No vectors: brain search stays full-text."; the stand-in's log holds
+    `setting_set {"key": "embedding_provider", "value": "off"}` and a `settings_list` after it.
+  - `643-05-refreshed` (REQ-008): the stand-in's file rewritten to `openai` from outside; with no
+    key pressed the page reads OpenAI, "page text leaves this machine. Needs openai_api_key in
+    Rusty's secrets."
+  - `643-06-agent-tools` (REQ-009): AI / General / MCP Servers lists `marley` and `rusty`, both
+    with a green dot.
+  - `643-07-restarted` (REQ-010): fifteen seconds after Marley's stand-in was killed, the row is
+    green again with the same path, and the provider still reads OpenAI; the log names a new pid.
+    The page between the kill and the restart (Down with the reason) passed too quickly for a
+    shot; the wait (1 << failures, capped at 60) is checked by review.
+  - `643-08-missing` (REQ-011): the program moved away and its stand-in killed: a red dot, "not
+    connected", and in red under it "MARLEY_RUSTY_MCP names …/bin/rusty-mcp, which is not
+    there"; Rusty's Settings hidden again.
+  - `643-09-off-live` (REQ-012): `enabled` turned off while Marley runs: the row says off with
+    the hint, no dot; the process check finds no stand-in alive.
+  - `643-10-no-agent-tools` (REQ-012): MCP Servers lists `marley` alone; `rusty` is withdrawn
+    while `agent_tools` is still on in the file.
+  - `643-11-on-again` (REQ-013): the program put back and `enabled` turned on: connected again,
+    green, with the path, OpenAI read, no restart of Marley.
+  - `643-12-service` (REQ-014): `connection: service` at the stand-in's HTTP address: a green
+    dot, "rusty-mcp stand-in", "service: http://127.0.0.1:34035/mcp", OpenAI read over HTTP; no
+    stdio stand-in alive, and the HTTP stand-in's pid logged `settings_list`.
+- **By review, as the spec says:** REQ-003 (the migration keeps a key already under
+  `marley.rusty`; `false` carries as `agent_tools` alone), REQ-015 (`loopback`), REQ-016 (every
+  failure's first line on the page), REQ-018 (the crate's manifest, gate:2, 9, 14, 17 green in
+  run 2).
+- **Focus report:** "hyprland: 0 Marley windows before the run, 0 after"; the run lived in its
+  own headless sway.
+- Every shot shows Marley only; none is in the repository. No fix in this phase, so no new gate
+  run: the receipt from Phase 2's run 2 stands.
+
+## Phase 4 — Complete (2026-10-04)
+- **Documented (§21):** `CHANGELOG.md` (Added: Marley connects to Rusty when Rusty is turned on;
+  Changed: `marley.rusty_tools` is now `marley.rusty.agent_tools`); `docs/marley/three-prong-plan.md`
+  (D8, C2) and `docs/marley/rusty-in-marley.md` (R1 shipped 2026-10-04); the new crate note
+  `docs/marley_architecture/marley_rusty.md`, linked from `docs/marley/README.md`; the Rusty
+  section of `docs/marley_architecture/marley_workbench.md` rewritten; `docs/marley/guide.md`
+  (the Rusty section, the Settings sections, the keys block) and `docs/marley/walkthrough.md`
+  1.4. The ledger rows in `docs/marley/zed-touchpoints.md` (`Cargo.toml`,
+  `settings_content/src/marley.rs`, `marley_page.rs`, `settings_ui.rs`, `default.json`, `zed.rs`,
+  and the three `migrator` rows) checked against what shipped.
+- **Knowledge (§19):** `F-claude-643-zeds-typed-ping-never-parses-a-servers-answer-001` with
+  `PR-claude-643-check-a-typed-requests-answer-against-a-real-peer-001`;
+  `AD-claude-643-rusty-is-one-switch-and-one-connection-marley-keeps-001`;
+  `L-claude-643-a-marley-view-on-a-settings-sub-page-001`,
+  `L-claude-643-set-u-in-a-command-substitution-passes-silently-001`,
+  `L-claude-643-zeds-dylint-lints-run-only-at-gate-21-001`.
+- **Brain:** `brain decide` on consultation `414e4f9e93f74b5fbff77b323768e71a`:
+  `decisions/rusty-in-marley-is-one-switch-and-one-connection-marley-keeps` (follow-up
+  2026-10-18).
+- **Closed:** the ticket moved to `tickets/closed/`, its link at `completed/`; no BACKLOG row was
+  left (promotion removed it). The pair archived to `pipeline/completed/`.
+- **Still to confirm with Chad** when the queue is done: the `service_url` key, and `enabled`
+  gating `agent_tools` with a carried `rusty_tools: true` turning Rusty on.

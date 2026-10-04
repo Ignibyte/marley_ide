@@ -6232,8 +6232,9 @@ mod tests {
                     let marley = settings.marley.get_or_insert_default();
                     marley.layout = Some(settings::MarleyLayout::Zed);
                     // Marley: and without the context servers Marley offers Zed's agents (#501,
-                    // #633), which every project starts as real processes (#634).
-                    marley.rusty_tools = Some(false);
+                    // #633), which every project starts as real processes (#634); Rusty, whose
+                    // switch gates its offer, off (#643).
+                    marley.rusty.get_or_insert_default().enabled = Some(false);
                     settings.project.context_servers.insert(
                         "marley".into(),
                         settings::ContextServerSettingsContent::Stdio {

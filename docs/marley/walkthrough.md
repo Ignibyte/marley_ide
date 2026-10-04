@@ -299,10 +299,13 @@ you whether the problem is Marley's or Zed's.
 Run `marley: open settings`.
 
 - [ ] The Settings window opens on its Marley page, first in the list.
-- [ ] The page has seven sections: Layout, Agents, Terminal, Push, Voice, System One and Privacy.
+- [ ] The page has eight sections: Layout, Agents, Terminal, Push, Voice, System One, Rusty and
+  Privacy.
 - [ ] Privacy shows both telemetry toggles off (#514), and Agents shows Redact Secrets for Agents
-  on (#516) and Rusty Tools for Agents off (#642).
+  on (#516).
 - [ ] Voice holds one toggle, Voice, off (#642).
+- [ ] Rusty shows Rusty and Rusty Tools for Agents off, Connection Embedded, and the Rusty's Server
+  page, which says Rusty is off (#643).
 - [ ] The Layout dropdown switches every window, as the two commands do.
 
 ### 1.5 Quit and come back (#575, #577, #486)

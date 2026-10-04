@@ -3208,3 +3208,13 @@ matched on its `pub fn` line; the `#[cfg(any(test, feature = "test-support"))]` 
 then sat above the first new method. Clippy `--all-targets` builds with test-support, so it
 passed; `just build` (no test-support) lost `marley_hold_input`, and `keyboard_input_sent` became
 public in every build. Fixed by moving the attribute back.
+
+## F-claude-643-zeds-typed-ping-never-parses-a-servers-answer-001
+*severity: medium · found in: pipeline 643's first scenario run, in Code · class: a typed protocol request whose response type no peer sends*
+
+Marley checked its connection to `rusty-mcp` with `context_server::types::requests::Ping`, whose
+response type is `()`. serde reads `()` only from `null`, and MCP servers answer `ping` with
+`{}` (rmcp, the stand-in), so every ping failed to parse and counted as a lost connection: the
+stand-in was restarted every few seconds, and the scenario's kill found its pid already gone.
+Nothing in Zed sends the typed `Ping`, so the fault had never shown. Fixed: a `Ping` of
+Marley's own (`impl context_server::types::Request`) whose response is `serde_json::Value`.

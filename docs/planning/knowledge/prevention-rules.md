@@ -2764,3 +2764,12 @@ new item between that item and its attributes (`#[cfg]`, `#[derive]`, doc commen
 insertion on the end of the item before (its closing brace) or on a blank line, and read the
 lines above the anchor first. A `#[cfg(test-support)]` moved this way passes clippy
 `--all-targets` and fails only the build without the feature, so build the binary before the gate.
+
+## PR-claude-643-check-a-typed-requests-answer-against-a-real-peer-001
+*severity: medium · prevents: F-claude-643-zeds-typed-ping-never-parses-a-servers-answer-001*
+
+Before relying on one of `context_server`'s typed requests, check that something in Zed already
+sends it to real servers (`grep -rn "request::<Name>"`); a request no caller uses may carry a
+response type no server's answer parses as. When none does, define a `Request` of Marley's own
+whose response is `serde_json::Value` or the shape the MCP specification gives, and see it
+answered by the stand-in or a real server in the scenario's first run.

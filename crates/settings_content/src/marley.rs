@@ -85,12 +85,6 @@ pub struct MarleySettingsContent {
     ///
     /// Default: false
     pub embedded_harness: Option<bool>,
-    /// Whether Rusty's MCP server is offered to Zed's agents as the context server `rusty`, where
-    /// `rusty-mcp` is on the search path; a `context_servers.rusty` of your own wins (#633). Off
-    /// until it is turned on (#642).
-    ///
-    /// Default: false
-    pub rusty_tools: Option<bool>,
     /// How many seconds a command runs before its end shows a desktop notification, when its
     /// terminal is not the one in front; 0 turns this off (#551).
     ///
@@ -170,6 +164,9 @@ pub struct MarleySettingsContent {
     /// The System One layer (#565): typed questions to a model about states Marley builds from
     /// what it knows. Off until it is turned on.
     pub system_one: Option<SystemOneSettingsContent>,
+    /// Rusty in Marley (#643): Marley's connection to Rusty's MCP server, `rusty-mcp`. Off until
+    /// it is turned on.
+    pub rusty: Option<MarleyRustySettingsContent>,
     /// The fleet (#607, `docs/marley/fleet-contract.md`): where the Fleet panel reads agents,
     /// their work and their hosts.
     pub fleet: Option<MarleyFleetSettingsContent>,
@@ -261,6 +258,56 @@ pub struct MarleyVoiceSettingsContent {
     ///
     /// Default: false
     pub enabled: Option<bool>,
+}
+
+/// Marley's connection to Rusty, Ignibyte's local assistant store (#643).
+#[with_fallible_options]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema, MergeFrom)]
+pub struct MarleyRustySettingsContent {
+    /// Whether Marley connects to Rusty at all. Off, it starts no `rusty-mcp`, opens no connection
+    /// and offers Zed's agents no Rusty tools.
+    ///
+    /// Default: false
+    pub enabled: Option<bool>,
+    /// How Marley reaches Rusty: `embedded` starts `rusty-mcp` on stdio (`MARLEY_RUSTY_MCP`, else
+    /// the search path) and ends it with the switch; `service` connects to Rusty's running service
+    /// at `service_url` and starts nothing.
+    ///
+    /// Default: "embedded"
+    pub connection: Option<MarleyRustyConnection>,
+    /// Where Rusty's service listens, an `http` URL on this machine.
+    ///
+    /// Default: "http://127.0.0.1:4174/mcp"
+    pub service_url: Option<String>,
+    /// Whether Zed's agents get Rusty's tools as the context server `rusty`, while Rusty is on and
+    /// `rusty-mcp` is found; a `context_servers.rusty` of your own wins (#633).
+    ///
+    /// Default: false
+    pub agent_tools: Option<bool>,
+}
+
+/// How Marley reaches Rusty (#643).
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum MarleyRustyConnection {
+    /// Marley starts `rusty-mcp` on stdio and ends it with the switch.
+    #[default]
+    Embedded,
+    /// Marley connects to Rusty's running service.
+    Service,
 }
 
 /// The System One layer's settings (#565). The key is never a setting: Marley reads it from

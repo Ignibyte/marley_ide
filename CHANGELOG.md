@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Marley connects to Rusty when Rusty is turned on** (#643, 2026-10-04). `marley.rusty` is
+  Rusty's switch in Marley, off by default, with a Rusty section on the Marley settings page.
+  On, Marley starts `rusty-mcp` itself (`embedded`: `MARLEY_RUSTY_MCP`, else your PATH) or
+  connects to Rusty's running service on this machine (`service`), checks the connection every 5
+  seconds and connects again after a growing wait when it is lost. The section's Rusty's Server
+  page says whether Marley is connected and why not, and shows Rusty's own Embedding Provider,
+  read from Rusty and written back to it when you pick another; Marley keeps no copy. A new
+  crate, `marley_rusty`, holds the pure half and a stand-in `rusty-mcp` the e2e scenarios use, so
+  no run reaches your own Rusty.
+
 - **SSH links that know they are dead** (#641, 2026-10-04). Every ssh Marley starts checks its
   link every 5 seconds, so a remote terminal or a Fleet host whose link went silent is known dead
   within 20 seconds instead of when the network gives up, which could take a quarter of an hour.
@@ -403,6 +413,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   setting English at the Prompt (`marley.english_hint`) turns the hint and the button off.
 
 ### Changed
+
+- **`marley.rusty_tools` is now `marley.rusty.agent_tools`** (#643, 2026-10-04). Rusty Tools for
+  Agents moved from the Agents section to the Rusty section, and offers Rusty's tools to Zed's
+  agents only while Rusty itself is on. An old `"rusty_tools": true` is carried at each load as
+  Rusty and its tools on, which also starts Marley's own connection to Rusty; `false` carries as
+  the tools off. Zed's banner offers to write the change into `settings.json`.
 
 - **Dictation and Rusty's tools wait to be turned on** (#642, 2026-10-04). The agent bar's
   microphone no longer appears wherever Voxtype is installed, and Zed's agents no longer get

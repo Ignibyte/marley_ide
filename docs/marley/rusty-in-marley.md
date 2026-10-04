@@ -261,7 +261,7 @@ possible: a wikilink switch in `markdown/src/parser.rs`, only if R2 chooses Zed'
 | Slice | What | Size |
 |---|---|---|
 | R0 | D11 amended, decisions recorded, RQ1 to RQ5 filed in Rusty | docs |
-| R1 | #643. The switch and the connection: `marley.rusty`, embedded or service, status on the settings page; `rusty_tools` moves in | M |
+| R1 | #643, shipped 2026-10-04. The switch and the connection: `marley.rusty`, embedded or service, status on the settings page; `rusty_tools` moves in | M |
 | R4 | #644. The rail's Brain view (R-D9): the header switch, Today, search on Enter, the vault tree with new, rename, move and delete through tools | M |
 | R2 | #645. The Page tab: Zed's `markdown` with wikilinks rewritten to `rusty:` links, properties, back and forward, preview tabs, Edit in a buffer; the `rusty::OpenPage` action | M |
 | R3 | #646. The Knowledge panel: backlinks, outgoing links, tags and brain search (on Enter) | M |

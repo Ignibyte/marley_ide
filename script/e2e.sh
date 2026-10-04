@@ -625,11 +625,13 @@ E2E_WORK=$(mktemp -d "$shots/work.XXXXXX")
 export E2E_PROFILE E2E_WORK
 mkdir -p "$E2E_PROFILE/config"
 cp "$config/settings.json" "$E2E_PROFILE/config/"
-# Zed starts each enabled context server when a project opens, so a run for a user who turned
-# Rusty's tools on would start their own rusty-mcp on their data, and one who turned Voice on would
-# start their voxtype and draw a microphone on every agent bar. Both are off by default (#642); the
-# copy turns them off for a user who turned them on (#633, #642). A scenario that wants either sets
-# `marley.rusty_tools` or `marley.voice.enabled` back, with a stand-in.
+# A run for a user who turned Rusty on would start their own rusty-mcp on their data, or reach their
+# running Rusty service, and Zed starts each enabled context server when a project opens; one who
+# turned Voice on would start their voxtype and draw a microphone on every agent bar. Both are off
+# by default (#642, #643); the copy turns Rusty off and points its service at a port nothing
+# listens on, takes out an old `marley.rusty_tools`, and turns Voice off, for a user who turned
+# them on (#633, #642, #643). A scenario that wants either turns it back on with a stand-in: Rusty
+# through `MARLEY_RUSTY_MCP`, which names no file until the scenario names its own.
 python3 - "$E2E_PROFILE/config/settings.json" <<'SETTINGS'
 import json, pathlib, re, sys
 
@@ -640,10 +642,12 @@ text = re.sub(r'("(?:[^"\\]|\\.)*")|//[^\n]*|/\*.*?\*/', lambda m: m.group(1) or
 text = re.sub(r",(\s*[}\]])", r"\1", text)
 settings = json.loads(text) if text.strip() else {}
 marley = settings.setdefault("marley", {})
-marley["rusty_tools"] = False
+marley.pop("rusty_tools", None)
+marley["rusty"] = {"enabled": False, "service_url": "http://127.0.0.1:9/mcp"}
 marley.setdefault("voice", {})["enabled"] = False
 path.write_text(json.dumps(settings, indent=2) + "\n")
 SETTINGS
+export MARLEY_RUSTY_MCP=$E2E_WORK/no-rusty-mcp
 cp -r "$data/db" "$E2E_PROFILE/db"
 if [[ -d $data/threads ]]; then
   cp -r "$data/threads" "$E2E_PROFILE/threads"

@@ -373,8 +373,8 @@ pub struct MarleySettings {
     pub harness: Option<settings::ContextServerCommand>,
     /// Whether Marley runs the harness's runtime itself (#632).
     pub embedded_harness: EmbeddedHarness,
-    /// Whether Rusty's MCP server is offered to Zed's agents (#633).
-    pub rusty_tools: RustyTools,
+    /// Rusty's switch and connection, and whether Zed's agents get its tools (#633, #643).
+    pub rusty: rusty::RustySettings,
     /// Whether Marley dictates through Voxtype (#642).
     pub dictation: Dictation,
     /// How long a command runs before its end notifies; 0 is never (#551).
@@ -476,25 +476,6 @@ impl EmbeddedHarness {
     const fn from_setting(run: Option<bool>) -> Self {
         match run {
             Some(true) => Self::Run,
-            _ => Self::Off,
-        }
-    }
-}
-
-/// Whether Rusty's MCP server is offered to Zed's agents, from `marley.rusty_tools` (#633).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RustyTools {
-    /// Offered where `rusty-mcp` is installed.
-    Offered,
-    /// Never offered.
-    Off,
-}
-
-impl RustyTools {
-    /// The setting's value: offered only when it is on (#642).
-    const fn from_setting(offered: Option<bool>) -> Self {
-        match offered {
-            Some(true) => Self::Offered,
             _ => Self::Off,
         }
     }
@@ -608,7 +589,7 @@ impl Settings for MarleySettings {
             embedded_harness: EmbeddedHarness::from_setting(
                 marley.and_then(|marley| marley.embedded_harness),
             ),
-            rusty_tools: RustyTools::from_setting(marley.and_then(|marley| marley.rusty_tools)),
+            rusty: rusty::RustySettings::from_content(marley),
             dictation: Dictation::from_content(marley),
             block_headers: BlockHeaders::from_setting(
                 marley.and_then(|marley| marley.block_headers),

@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #643 (feature, Rusty in Marley R1: R-D0, R-D1, R-D2, R-D8; prong 2 C2)
 - **Owner:** claude-opus-5-5, 2026-10-03 (/spec)
-- **Pipeline doc:** ../../pipeline/queued/643-rusty-switch-and-connection.spec.md
+- **Pipeline doc:** ../../pipeline/completed/643-rusty-switch-and-connection.spec.md
 - **Source ticket:** `docs/marley/rusty-in-marley.md` (R-D0 to R-D2, R-D8, the slices table's R1);
   Chad, 2026-10-03: "lets make a plan to begin the work and spec out the tickets", confirmed as
   "Queue all five"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Rusty in Marley starts with a switch and a connection. `marley.rusty` is one settings block, off

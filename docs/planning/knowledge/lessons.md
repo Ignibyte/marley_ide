@@ -4489,3 +4489,39 @@ to the user's files (no `~/.bash_history` line, no tmux server under `/tmp/tmux-
 matching line, `head` quit after one, the first `grep` took SIGPIPE, and pipefail failed the whole
 pipe though the last `grep` matched. Use `grep -m1`, which stops by itself, and a final `grep >
 /dev/null` rather than `grep -q`. The same class as L-582's cargo piped into `head`.
+
+## L-claude-643-a-marley-view-on-a-settings-sub-page-001
+*category: code · topic: the Settings window and Marley crates · from: pipeline 643*
+
+A Settings-window sub-page that draws Marley state does not need the settings UI to know Marley:
+`settings_ui::MarleyPageViews` (in `marley_page.rs`) maps a sub-page's name to an `AnyView` a
+Marley crate registers at init, and the sub-page's `render` function draws it, or a muted line.
+The view lives at app level; it observes the global it draws and notifies, and gpui redraws the
+Settings window that drew it. `zed::OpenSettingsAt { path }` opens such a sub-page when its
+`SubPageLink`'s `json_path` (which may name no real key, as `agent.skills` and
+`marley.rusty.server` do) is the only item the path matches. A dropdown in such a view is a
+`ui::DropdownMenu` over a `ContextMenu` kept with `window.use_keyed_state`, as `settings_ui`'s
+private `EnumVariantDropdown` builds one.
+
+## L-claude-643-set-u-in-a-command-substitution-passes-silently-001
+*category: e2e · topic: checks in scenarios · from: pipeline 643*
+
+The runner's `set -u` turns an unbound `$1` into an error, but inside `$(…)` the error only ends
+the substitution: `for pid in $(logged_pids "$1")` with no argument looped over nothing, and a
+check meant to find live processes passed on an empty list. Give helpers' optional arguments a
+default (`"${1:-0}"`), take a list into a variable with `|| return 1`, and fail a check whose
+list is empty when an empty list cannot be right.
+
+## L-claude-643-zeds-dylint-lints-run-only-at-gate-21-001
+*category: gate · topic: Zed's lints on the Marley crates · from: pipeline 643*
+
+Clippy and rustdoc passed and gate:21 failed 50 minutes in: seven string literals turned into
+`SharedString` with `"…".into()` in a view's `render`, which Zed's dylint library flags
+(`shared_string_from_str_literal`, denied in each Marley crate's root). Clippy does not run
+`tooling/lints`. In Marley code, build a literal `SharedString` with
+`SharedString::new_static("…")` (a `Label::new("…")` taking `impl Into<SharedString>` is fine),
+and keep the root's other denied lints in mind while writing: `async_block_without_await`
+(use `futures::future::lazy` for a blocking closure on `background_spawn`),
+`owned_string_into_shared`, `notify_in_render`, `entity_update_in_render`,
+`blocking_io_on_foreground`, `map_lookup_then_insert`. To check before the gate:
+`cargo dylint --all -- --all-targets -p <crate>` from the checkout, its output in a log.

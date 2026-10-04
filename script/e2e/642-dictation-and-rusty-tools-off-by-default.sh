@@ -1,8 +1,9 @@
 # shellcheck shell=bash
 # #642's visual check: dictation and Rusty's tools wait to be turned on. A stand-in Claude Code in
 # the terminal (480's), a fake Voxtype first on the PATH that logs each call (480's, plus the log),
-# and a stand-in `rusty-mcp` (633's). The run starts on the shipped defaults: setup checks that the
-# harness turned both switches off in its copy of the settings, then takes both keys out.
+# and `marley_rusty`'s stand-in `rusty-mcp` (#643), named by `MARLEY_RUSTY_MCP`. The run starts on
+# the shipped defaults: setup checks that the harness turned both switches off in its copy of the
+# settings, then takes both out.
 #
 # Off: no microphone and no `voxtype` started (`642-01-no-microphone`), the action's toast
 # (`642-02-dictation-is-off`), the Marley page's Voice and Rusty Tools for Agents off (`642-03`,
@@ -75,32 +76,12 @@ esac
 FAKE
   chmod +x "$bin/voxtype"
   printf '{"text": "", "alt": "idle", "class": "idle", "tooltip": ""}\n' >"$bin/status"
-  cat >"$bin/rusty-mcp" <<'PY'
-#!/usr/bin/env python3
-# A stand-in for Rusty's MCP server: it answers initialize and lists the brain loop's tools.
-import json, sys
-
-TOOLS = [{"name": name, "description": name, "inputSchema": {"type": "object"}}
-         for name in ("brain_ask", "brain_decide", "brain_no_decision", "brain_follow_up")]
-for line in sys.stdin:
-    message = json.loads(line)
-    if "id" not in message:
-        continue
-    method = message.get("method")
-    if method == "initialize":
-        result = {"protocolVersion": "2025-06-18", "capabilities": {"tools": {}},
-                  "serverInfo": {"name": "rusty-stand-in", "version": "0"}}
-    elif method == "tools/list":
-        result = {"tools": TOOLS}
-    else:
-        result = {}
-    print(json.dumps({"jsonrpc": "2.0", "id": message["id"], "result": result}), flush=True)
-PY
-  chmod +x "$bin/rusty-mcp"
+  ln -s "$PWD/crates/marley_rusty/stand_in/rusty-mcp" "$bin/rusty-mcp"
+  export MARLEY_RUSTY_MCP=$bin/rusty-mcp RUSTY_STAND_IN_STATE=$E2E_WORK/rusty
   export PATH="$bin:$PATH"
-  expect "the harness's copy turns Rusty's tools off" setting_is marley.rusty_tools false
+  expect "the harness's copy turns Rusty off" setting_is marley.rusty.enabled false
   expect "the harness's copy turns Voice off" setting_is marley.voice.enabled false
-  drop_setting marley.rusty_tools
+  drop_setting marley.rusty
   drop_setting marley.voice.enabled
   drop_setting context_servers.rusty
   # A key for the Settings window's MCP Servers page, which its search does not list.
@@ -158,7 +139,7 @@ steps() {
   shot 642-05-no-rusty
 
   echo "== Rusty's tools turned on"
-  profile_setting marley.rusty_tools true
+  profile_setting marley.rusty '{"enabled": true, "agent_tools": true}'
   settle 6
   shot 642-06-rusty-on
   close_settings

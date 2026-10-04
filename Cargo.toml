@@ -144,6 +144,7 @@ members = [
     "crates/marley_mcp",
     "crates/marley_rail",
     "crates/marley_remote",
+    "crates/marley_rusty",
     "crates/marley_sdk",
     "crates/marley_system_one",
     "crates/marley_terminal",
@@ -427,6 +428,7 @@ marley_fleet = { path = "crates/marley_fleet" }
 marley_mcp = { path = "crates/marley_mcp" }
 marley_rail = { path = "crates/marley_rail" }
 marley_remote = { path = "crates/marley_remote" }
+marley_rusty = { path = "crates/marley_rusty" }
 marley_sdk = { path = "crates/marley_sdk" }
 marley_system_one = { path = "crates/marley_system_one" }
 marley_terminal = { path = "crates/marley_terminal" }

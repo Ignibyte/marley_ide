@@ -3783,3 +3783,22 @@ started by Marley through `TerminalPanel::spawn_task` with the provider's unprep
 `reveal: Never`. Rejected: buffering and replaying input (a key meant for the old screen can
 answer a new prompt); a rerun as the check (a password prompt behind the dim); retrying every
 failure; the collector's own backoff and last reading (the next slice).
+
+## AD-claude-643-rusty-is-one-switch-and-one-connection-marley-keeps-001
+*decided at: 2026-10-04 · status: shipped · builds on: AD-claude-633-rustys-server-is-offered-where-installed-as-a-default-001, AD-claude-642-voice-and-rustys-tools-wait-to-be-turned-on-001 · plan: docs/marley/rusty-in-marley.md R-D0 to R-D2, R-D8*
+
+`marley.rusty { enabled, connection, service_url, agent_tools }` is Rusty's one block, off by
+default; `enabled` gates everything, `agent_tools` included, so off means no `rusty-mcp` at all.
+Marley keeps one connection through Zed's MCP client: `embedded` starts `rusty-mcp` on stdio
+(`MARLEY_RUSTY_MCP`, else the search path) and drops it with the switch; `service` reaches the
+running service on a loopback `http` URL only. A `ping` of Marley's own every 5 s marks a lost
+link, retried 1 to 60 s apart. Rusty's settings are read with `settings_list` and written with
+`setting_set`, never copied into `settings.json` (D11). `marley.rusty_tools` moved by a JSON
+migration in a module of Marley's own in Zed's `migrator` (`true` turns Rusty on; a key already
+under `marley.rusty` wins). The Settings window draws Rusty's state through `MarleyPageViews`, a
+global in `settings_ui` where a Marley crate registers a sub-page's view, since the UI crate cannot
+depend on Marley. The pure half is `crates/marley_rusty`, one crate for Rusty (plan D8's two
+merged), with a Python stand-in `rusty-mcp` for every scenario. Chad's confirmation of
+`service_url` and of `enabled` gating `agent_tools` was taken on the plan's recommendation and is
+on the list to confirm with him. Rejected: `agent_tools` independent of `enabled`; reading
+`rusty_tools` as a fallback; a new `SettingsPageItem` variant; porting Ely's status row.
