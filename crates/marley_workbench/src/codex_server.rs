@@ -28,7 +28,9 @@ use futures::channel::{mpsc, oneshot};
 use futures::future::Either;
 use futures::{AsyncBufReadExt as _, StreamExt as _};
 use gpui::{App, AppContext as _, AsyncApp, Entity, EntityId, Global, Task, WeakEntity};
-use marley_agent::codex_events::{self, Input, Notification, Thread, ThreadStatus};
+use marley_agent::codex_events::{
+    self, Decision, Input, Notification, Request, RequestKind, Thread, ThreadStatus,
+};
 use marley_agent::versions::{self, CODEX_APP_SERVER, Found};
 use marley_agent::{AgentKind, Remote};
 use project::Project;
@@ -109,6 +111,80 @@ struct CodexServers {
 
 impl Global for CodexServers {}
 
+/// The requests each terminal's Codex waits on that the inbox answers (#651), by the terminal,
+/// as the follow last published them.
+#[derive(Default)]
+pub(crate) struct CodexRequests {
+    terminals: HashMap<EntityId, Published>,
+}
+
+impl Global for CodexRequests {}
+
+/// One terminal's requests, its connection's generation, and the way back to its follow.
+struct Published {
+    generation: u64,
+    requests: Vec<Shown>,
+    answers: mpsc::UnboundedSender<Event>,
+}
+
+/// A request as the inbox shows it: what it asks, a file change's paths when its item named them,
+/// and the decision Marley sent, until the server reports it resolved.
+#[derive(Debug, Clone)]
+pub(crate) struct Shown {
+    pub(crate) request: Request,
+    pub(crate) files: Option<Vec<String>>,
+    pub(crate) sent: Option<Decision>,
+}
+
+/// The requests `terminal`'s Codex waits on that the inbox answers, with the connection's
+/// generation; none while it waits on nothing the inbox lists.
+pub(crate) fn requests_of(terminal: EntityId, cx: &App) -> Option<(u64, &[Shown])> {
+    let published = cx.try_global::<CodexRequests>()?.terminals.get(&terminal)?;
+    (!published.requests.is_empty())
+        .then_some((published.generation, published.requests.as_slice()))
+}
+
+/// Sends `decision` on `request`, as the inbox showed it on `terminal`'s connection `generation`,
+/// to that terminal's follow, which answers only while the same request is unresolved there.
+pub(crate) fn answer(
+    terminal: EntityId,
+    generation: u64,
+    request: &Request,
+    decision: Decision,
+    cx: &App,
+) {
+    let Some(published) = cx
+        .try_global::<CodexRequests>()
+        .and_then(|requests| requests.terminals.get(&terminal))
+    else {
+        return;
+    };
+    let answer = Answer {
+        generation,
+        id: request.id.clone(),
+        params: request.params.clone(),
+        decision,
+    };
+    if published
+        .answers
+        .unbounded_send(Event::Answer(answer))
+        .is_err()
+    {
+        log::info!("codex app server: the terminal's follow has ended; nothing was sent");
+    }
+}
+
+/// A decision the user picked in the inbox, with the request as the entry showed it.
+struct Answer {
+    generation: u64,
+    id: Value,
+    params: Value,
+    decision: Decision,
+}
+
+/// The generation of the next connection Marley makes to a server.
+static NEXT_GENERATION: AtomicU64 = AtomicU64::new(1);
+
 /// One terminal's server: its process, which a drop stops, and Marley's follow of it.
 struct Server {
     pid: u32,
@@ -160,6 +236,7 @@ impl Prepared {
 /// Stops every server when Marley quits.
 pub(crate) fn init(cx: &mut App) {
     cx.set_global(CodexServers::default());
+    cx.set_global(CodexRequests::default());
     cx.on_app_quit(|cx| {
         let servers = std::mem::take(&mut cx.default_global::<CodexServers>().servers);
         let mut sockets = Vec::new();
@@ -338,6 +415,10 @@ async fn serve(
                     socket.display()
                 );
             }
+            // Whatever ended the follow, its requests can no longer be answered (#651).
+            cx.update(|cx| {
+                let _gone = cx.default_global::<CodexRequests>().terminals.remove(&id);
+            });
         }
     });
     let server = Server {
@@ -357,6 +438,7 @@ async fn serve(
     terminal.update(cx, |_, cx| {
         cx.on_release(move |_, cx| {
             let _stopped = cx.default_global::<CodexServers>().servers.remove(&id);
+            let _gone = cx.default_global::<CodexRequests>().terminals.remove(&id);
         })
         .detach();
     });
@@ -550,10 +632,17 @@ enum Event {
     },
     Closed(String),
     ServerExited(Option<String>),
+    /// A request of the server's (#651).
+    Request {
+        id: Value,
+        method: String,
+        params: Value,
+    },
+    /// A decision the user picked in the inbox (#651).
+    Answer(Answer),
 }
 
-/// Sorts one message from the server: a response, a notification, or a request of the server's,
-/// which is left to the TUI.
+/// Sorts one message from the server: a response, a notification, or a request of the server's.
 fn sort(text: &str, events: &mpsc::UnboundedSender<Event>) {
     let message: Value = match serde_json::from_str(text) {
         Ok(message) => message,
@@ -564,10 +653,11 @@ fn sort(text: &str, events: &mpsc::UnboundedSender<Event>) {
     };
     let method = message.get("method").and_then(Value::as_str);
     let event = match (message.get("id"), method) {
-        (Some(_), Some(method)) => {
-            log::debug!("codex app server: left the server's {method} request to the TUI");
-            return;
-        }
+        (Some(id), Some(method)) => Event::Request {
+            id: id.clone(),
+            method: method.to_string(),
+            params: message.get("params").cloned().unwrap_or(Value::Null),
+        },
         (Some(id), None) => {
             let Some(id) = id.as_u64() else {
                 return;
@@ -697,6 +787,13 @@ impl Client {
         }
     }
 
+    /// Answers the server's request `id` with `result`.
+    fn respond(&self, id: &Value, result: &Value) -> anyhow::Result<()> {
+        self.outgoing
+            .unbounded_send(json!({ "id": id, "result": result }).to_string())
+            .map_err(|_| anyhow::anyhow!("the connection is closed"))
+    }
+
     fn notify(&self, method: &str) {
         self.outgoing
             .unbounded_send(json!({ "method": method }).to_string())
@@ -719,9 +816,42 @@ struct Following {
     lead: Option<Lead>,
     read: HashSet<String>,
     heard_at: Option<Instant>,
+    /// This connection's generation, which an inbox answer must name (#651).
+    generation: u64,
+    /// The lead's requests the inbox answers, in the order they came (#651).
+    requests: Vec<Shown>,
+    /// The lead's file changes' paths, by item, from `item/started` (#651).
+    files: HashMap<String, Vec<String>>,
+    /// The way an inbox answer comes back to this follow.
+    answers: mpsc::UnboundedSender<Event>,
 }
 
 impl Following {
+    /// Publishes the requests for the inbox.
+    fn publish(&self, cx: &AsyncApp) {
+        let terminal = self.terminal.entity_id();
+        let published = Published {
+            generation: self.generation,
+            requests: self.requests.clone(),
+            answers: self.answers.clone(),
+        };
+        cx.update(|cx| {
+            let _previous = cx
+                .default_global::<CodexRequests>()
+                .terminals
+                .insert(terminal, published);
+        });
+    }
+
+    /// Forgets the requests and the items, which belong to a lead that went.
+    fn forget_requests(&mut self, cx: &AsyncApp) {
+        self.files.clear();
+        if !self.requests.is_empty() {
+            self.requests.clear();
+            self.publish(cx);
+        }
+    }
+
     /// Folds `input` into the seat of the terminal's view.
     fn fold(&mut self, input: &Input<'_>, cx: &AsyncApp) {
         let terminal = self.terminal.entity_id();
@@ -783,6 +913,7 @@ async fn follow(
         }
     }
     cx.background_executor().timer(AFTER_TUI).await;
+    let answers = events.clone();
     let mut client = Client::connect(socket, events, incoming, cx).await?;
     let version = cx.update(|cx| release_channel::AppVersion::global(cx).to_string());
     let answer = client
@@ -807,6 +938,10 @@ async fn follow(
         lead: None,
         read: HashSet::new(),
         heard_at: None,
+        generation: NEXT_GENERATION.fetch_add(1, Ordering::Relaxed),
+        requests: Vec::new(),
+        files: HashMap::new(),
+        answers,
     };
     loop {
         let tick = cx.background_executor().timer(TICK);
@@ -825,6 +960,10 @@ async fn follow(
                 heard(&method, &params, &mut client, &mut following, cx).await?;
             }
             Some(Event::Response { .. }) => {}
+            Some(Event::Request { id, method, params }) => {
+                requested(&id, &method, &params, &mut following, cx);
+            }
+            Some(Event::Answer(answer)) => answered(&answer, &client, &mut following, cx),
             Some(Event::ServerExited(last)) => {
                 server_stopped(last.as_deref(), &mut following, cx);
                 return Ok(());
@@ -882,6 +1021,7 @@ async fn tick_over(
     if !following.codex_runs(cx) {
         if let Some(lead) = following.lead.take() {
             unsubscribe(client, &lead.id).await;
+            following.forget_requests(cx);
         }
         return Ok(());
     }
@@ -947,6 +1087,7 @@ async fn tick_over(
 
 /// Follows `thread` as the lead from here.
 fn follow_lead(thread: &Thread, following: &mut Following, cx: &AsyncApp) {
+    following.forget_requests(cx);
     following.lead = Some(Lead {
         id: thread.id.clone(),
         idle: thread.status == ThreadStatus::Idle,
@@ -963,6 +1104,29 @@ async fn heard(
     following: &mut Following,
     cx: &AsyncApp,
 ) -> anyhow::Result<()> {
+    // The inbox's requests: one resolved, by whichever client answered first, and the paths of a
+    // file change a request will name by its item (#651).
+    if method == "serverRequest/resolved" {
+        if let Some((thread, request)) = codex_events::resolved(params) {
+            let before = following.requests.len();
+            following
+                .requests
+                .retain(|shown| !(shown.request.thread == thread && shown.request.id == request));
+            if following.requests.len() != before {
+                following.publish(cx);
+            }
+        }
+        return Ok(());
+    }
+    if method == "item/started"
+        && let Some((thread, item, paths)) = codex_events::file_change_started(params)
+        && following
+            .lead
+            .as_ref()
+            .is_some_and(|lead| lead.id == thread)
+    {
+        let _previous = following.files.insert(item, paths);
+    }
     let notification = match Notification::decode(method, params) {
         Ok(Some(notification)) => notification,
         Ok(None) => {
@@ -1019,11 +1183,83 @@ async fn heard(
                 lead.idle = *status == ThreadStatus::Idle;
             }
         }
-        Notification::ThreadClosed { .. } => following.lead = None,
+        Notification::ThreadClosed { .. } => {
+            following.lead = None;
+            following.forget_requests(cx);
+        }
         _ => {}
     }
     following.fold(&Input::Notification(&notification), cx);
     Ok(())
+}
+
+/// A request of the server's: one the inbox answers, on the lead, joins its list; any other is
+/// left to the TUI, unanswered (#651).
+fn requested(id: &Value, method: &str, params: &Value, following: &mut Following, cx: &AsyncApp) {
+    let request = match Request::decode(id, method, params) {
+        Ok(Some(request)) => request,
+        Ok(None) => {
+            log::debug!("codex app server: left the server's {method} request to the TUI");
+            return;
+        }
+        Err(error) => {
+            log::debug!("codex app server: {error}");
+            return;
+        }
+    };
+    let on_lead = following
+        .lead
+        .as_ref()
+        .is_some_and(|lead| lead.id == request.thread);
+    if !on_lead
+        || following
+            .requests
+            .iter()
+            .any(|shown| shown.request.id == request.id)
+    {
+        return;
+    }
+    let files = match &request.kind {
+        RequestKind::FileChange { item, .. } => following.files.get(item).cloned(),
+        _ => None,
+    };
+    following.requests.push(Shown {
+        request,
+        files,
+        sent: None,
+    });
+    following.publish(cx);
+}
+
+/// A decision the user picked: sent only while the same request, with the params its entry
+/// showed, is unresolved on this connection and not answered yet; it then shows as sent until the
+/// server reports it resolved (#651).
+fn answered(answer: &Answer, client: &Client, following: &mut Following, cx: &AsyncApp) {
+    let generation = following.generation;
+    let Some(shown) = following.requests.iter_mut().find(|shown| {
+        answer.generation == generation
+            && shown.request.id == answer.id
+            && shown.request.params == answer.params
+            && shown.sent.is_none()
+    }) else {
+        log::info!("codex app server: the request changed or went before the answer; nothing sent");
+        return;
+    };
+    let Some(result) = shown.request.response(answer.decision) else {
+        log::warn!(
+            "codex app server: {} does not take {}",
+            shown.request.ask(None),
+            answer.decision.word()
+        );
+        return;
+    };
+    match client.respond(&shown.request.id, &result) {
+        Ok(()) => {
+            shown.sent = Some(answer.decision);
+            following.publish(cx);
+        }
+        Err(error) => log::warn!("codex app server: answering: {error:#}"),
+    }
 }
 
 /// Lets `thread` go; a failure only reaches the log, since the server unloads it with the rest.

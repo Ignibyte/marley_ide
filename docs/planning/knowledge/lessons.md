@@ -4708,3 +4708,11 @@ first entry, a chip after the state settles).
 `script/e2e.sh` ends a run by stopping its sway session, which takes Marley and its children
 without `on_app_quit`. A check of what Marley cleans up at quit calls `quit_marley` first (with
 the close guard turned off when an agent still waits), and reads the leftovers after it.
+
+## L-claude-651-a-shared-stand-in-lives-in-a-fixture-001
+*category: e2e · topic: one stand-in for several scenarios · from: pipeline 651*
+
+When a later ticket extends a stand-in an earlier scenario wrote inline, move it into a fixture
+under `script/e2e/` (as `browser-fixture.sh` and `codex-fixture.sh` are) that both scenarios
+source, and run the earlier scenario again: its shots may change for the later ticket's reasons
+(#650's approval shot now lists the request #651 shows), which its notes should say.

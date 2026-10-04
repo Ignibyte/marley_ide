@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #651 (feature, prong 2: B1 part 2, Codex's approvals, on #650)
 - **Owner:** claude-opus-5-5, 2026-10-03 (/spec)
-- **Pipeline doc:** ../../pipeline/queued/651-codex-approvals-and-prompts.spec.md
+- **Pipeline doc:** ../../pipeline/completed/651-codex-approvals-and-prompts.spec.md
 - **Source ticket:** `docs/planning/design-notes/claude-and-codex-on-their-own-tools-2026-10-02.md`
   (idea B1); Chad, 2026-10-02: "we need to brain storm integration into claude and codex using
   their tools instead of fighting them", and for B1 "Yes"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Once #650 runs Codex's TUI as a client of Marley's own App Server, Marley sees what Codex's server

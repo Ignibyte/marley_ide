@@ -1,7 +1,7 @@
 ---
 pipeline_id: d3fc4afd-baba-48fc-9d4a-dba59ea933d6
-ticket: docs/planning/tickets/open/TICKET-651-codex-approvals-and-prompts.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-651-codex-approvals-and-prompts.md
+status: Phase 4 — Complete PASS
 title: "Codex's approvals answered from the inbox"
 type: feature
 slice: prong 2, B1 part 2 (Codex on Marley's App Server, its approvals), on #650
@@ -21,9 +21,9 @@ keeps the brainstorm's name; prompts and resume are the next two slices (Out).
 ## Scope
 ### In
 - **Codex entries.** For each terminal whose Codex runs on its own App Server (#650, with
-  `marley.codex_app_server` on), one inbox entry per unresolved request of four methods on any
-  thread Marley follows there (the lead and its sub-agents, whose ask starts "Sub-agent:"), in
-  place of #650's seat entry "Waits on an approval", in the order the rail first saw them:
+  `marley.codex_app_server` on), one inbox entry per unresolved request of four methods on the
+  lead thread Marley follows there, in place of #650's seat entry "Waits on an approval", in the
+  order the rail first saw them:
   - `item/commandExecution/requestApproval`: the command on one line and its folder, and the
     `additionalPermissions` it asks for when the server sends them;
   - `item/fileChange/requestApproval`: "Edit N files" and their paths, from the `fileChange` item
@@ -84,8 +84,9 @@ keeps the brainstorm's name; prompts and resume are the next two slices (Out).
   choice past allow once and deny once to the thread.
 - Codex's questions (`item/tool/requestUserInput`) as entries of their own, with their options;
   until then #650's entry for the wait stays for them and opens the terminal, where the TUI asks.
-- Requests of a thread Marley does not follow, and a file change's paths when its `item/started`
-  came before Marley subscribed (after a Marley restart: the resume slice).
+- Requests of a thread Marley does not follow, sub-agents' included (#650 lets those threads go),
+  and a file change's paths when its `item/started` came before Marley subscribed (after a Marley
+  restart: the resume slice).
 - A notification per Codex wait (#538's path).
 - Codex in the Agent Panel (`codex-acp`): #508's thread entries already answer its prompts.
 
@@ -176,11 +177,11 @@ risk use is on, as #568's `shadow` run sets it. Shots:
   (#650).
 
 ## Locked-In Decisions
-- D1: Codex entries come from #650's client, one per unresolved request of the four methods on a
-  thread of the terminal's own server. They take the place of #650's seat entry, which stays only
-  while the terminal waits on nothing the inbox lists (a question), so one wait is never listed
-  twice. Sub-agents' requests are listed too: Marley follows their threads already (#650's D3),
-  and the TUI shows them only in its list of other threads' approvals.
+- D1: Codex entries come from #650's client, one per unresolved request of the four methods on the
+  lead thread of the terminal's own server. They take the place of #650's seat entry, which stays
+  only while the terminal waits on nothing the inbox lists (a question), so one wait is never
+  listed twice. Sub-agents' requests are not listed: #650 lets their threads go (amended at
+  promotion).
 - D2: Only the four simple decisions go in place, and only those the request offers: a command's
   `availableDecisions` (Codex's own list, in its order); for a file change the protocol's four,
   `decline` kept although Codex's TUI shows three, since the user at the rail may not be at the
@@ -201,10 +202,10 @@ risk use is on, as #568's `shadow` run sets it. Shots:
 - D6: Marley answers only what the user clicked. A request it does not list stays unanswered, and
   Marley never replies with an error: the server takes the first response, an error included, and
   reads an error or an unparsable response as decline, an empty grant or a denial.
-- D7: No experimental opt-in for this slice: `availableDecisions` reaches a stable connection at
-  0.155.1 and 0.158.0, the ends of the range #650 registers with #648's table. A command request
-  without it answers in the terminal only. If #650 opts in, `additionalPermissions` shows in the
-  command's line.
+- D7: #650's connection already asks for the experimental API (#650's D3 as shipped), so
+  `availableDecisions` and `additionalPermissions` reach it; the command's entry shows the extra
+  permissions it asks for. A command request without `availableDecisions` answers in the terminal
+  only (amended at promotion).
 - D8: No setting of its own. Only terminals on their own App Server have Codex entries, so
   #650's `marley.codex_app_server`, off by default, and its tested range govern them; the TUI
   keeps its prompt, and a second place to answer appears beside it.

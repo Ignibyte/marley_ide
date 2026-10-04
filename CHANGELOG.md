@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Codex's approvals answered from the inbox** (#651, 2026-10-04). A Codex running on its own App
+  Server (Codex App Server on) lists what it asks to approve in the rail's Needs you: a command
+  with its folder, the files a change edits, the permissions it asks for, and an MCP server's
+  question. Each has the decisions the request offers in place: Allow, Allow session, Deny and
+  Stop turn for a command or a file change, Allow, Allow session and Deny for permissions, and
+  Deny and Dismiss for an MCP server's question, each answering only the request you saw. Codex's
+  own prompt in the terminal closes when you answer from the inbox, and the entry leaves when you
+  answer in the terminal. A question of Codex's own still opens the terminal.
+
 - **Codex's state from its own App Server** (#650, 2026-10-04). With Codex App Server on in the
   Marley settings (off by default), each Codex Marley launches in a local project runs against an
   App Server of its own, which Marley starts for the terminal and joins as a second client once

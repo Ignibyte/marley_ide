@@ -1,6 +1,6 @@
 # Codex's approvals answered from the inbox — Notes
 
-- **Local ticket doc:** docs/planning/tickets/open/TICKET-651-codex-approvals-and-prompts.md
+- **Local ticket doc:** docs/planning/tickets/closed/TICKET-651-codex-approvals-and-prompts.md
 - **Pipeline spec:** 651-codex-approvals-and-prompts.spec.md
 
 ## Phase 1 — Plan (queued by /spec, 2026-10-03)
@@ -318,3 +318,119 @@ What no scenario reaches: Codex's real TUI closing its prompt (it needs a real s
 - [x] Spec: scope, Reference (§20), Prior art, UI proof, D1 to D10, sixteen EARS rows, phase plan.
 - [x] Design: approach, file manifest by crate, no ledger row, the visual check plan, risks.
 - [x] Docs only: the ticket doc and this pair; no BACKLOG.md, no `active/`, no source, no cargo.
+
+### Promotion (2026-10-04)
+- Promoted into `active/`; the BACKLOG row removed; the ticket in-progress. Pre-flight green, no
+  other active pipeline; #650 landed (8b8010fbe5).
+- **Brain:** `brain ask` (consultation `633cbcb7f4164fbf8e9ffe6158f99f76`) returned due follow-ups
+  on other work only.
+- **#650 as shipped, against this draft** (read in its source, which this session wrote):
+  - Marley initializes with `experimentalApi: true` (#650's D3 at promotion), so it receives
+    `availableDecisions` and `additionalPermissions` on a command request; D7's "no opt-in" is
+    moot. Both fields exist only in the experimental schema (the stable 0.155.1 bundle has neither).
+  - #650 follows the lead thread alone and unsubscribes every other thread it is attached to,
+    sub-agents' included; their requests never reach Marley. D1 narrows to the lead's requests;
+    sub-agents' go to Out.
+  - A lead from before the join is subscribed only once idle (no request then can be unresolved);
+    a request raised while Marley is not yet subscribed leaves #650's seat entry, "Waits on an
+    approval", which opens the terminal.
+  - #650's client drops a server request in `sort`; it gains an `Event::Request`. The rail's
+    answer reaches the follow as an `Event::Answer` on the same channel the follow already reads,
+    through a sender kept in the terminal's `Server`, so no new task and no lock.
+  - The connection generation is a counter the follow takes when it connects; #650 never
+    reconnects, so one follow is one generation.
+  - The seat entry (`seat_entry`) already names the seat's agent and draws Codex's icon; Codex
+    request entries take `InboxKind::Codex`.
+- **Seams re-read** (`rail.rs` at 8b8010fbe5): `InboxTarget` (:739), `observe_marks` (:762, six
+  globals), `note_inbox` (:1668), `answer_thread` (:1771), `open_inbox_entry` (:1804),
+  `render_inbox_entry` (:1883, two buttons from `answers: bool`), `answer_inbox(key, allow)`
+  (:2078), `inbox_entries` (:6261), `seat_entry` (:6509), `mark` (:6611), `seat_waiting` (:6759);
+  `marley_rail::InboxEntry` (:437, `answers: bool`) built at four sites, all in `rail.rs`.
+- **Shapes** (generated 0.155.1 stable, 0.158.0 experimental): responses `{decision}` for a
+  command and a file change; `{permissions, scope}` for permissions (deny is an empty profile with
+  scope `turn`); `{action}` for an elicitation. `serverRequest/resolved` carries a `requestId` that
+  is a string or an integer, so Marley keeps each id as the JSON value it came as. The
+  `fileChange` item (`item/started`) holds `changes[].path`.
+
+## Phase 2 — Code (2026-10-04)
+- **Built.**
+  - `marley_rail`: `InboxKind::Codex`; `InboxAnswer` (Allow, Allow session, Deny, Refuse, Stop
+    turn, Dismiss, with `words`, `tooltip` and `allows`); `InboxEntry.answers` a list in the order
+    the buttons show. The Agent Panel's entries keep Deny and Allow, a held click's Refuse and
+    Allow.
+  - `marley_agent::codex_events`: `Decision`, `RequestKind`, `Request` (`decode` for the four
+    methods, `decisions`, `response`, `ask`), `resolved`, `file_change_started`.
+  - `marley_workbench::codex_server`: a server request becomes `Event::Request`; the follow keeps
+    the lead's requests and its file changes' paths, a connection generation, and publishes them
+    in `CodexRequests` (`requests_of`); `answer` sends the user's decision to the follow as
+    `Event::Answer` on the channel it already reads; `answered` sends the response only while the
+    same request, with the same params, is unresolved and unanswered on that generation, then
+    shows it as sent. Requests leave on `serverRequest/resolved`, a new lead, the lead's close, Codex
+    leaving the foreground, the follow's end and the terminal's release.
+  - `rail.rs`: `InboxTarget::Codex`; `codex_entry` (the ask, the buttons from the request's
+    decisions, `Sent: <decision>` once sent), `inbox_answer`, `codex_decision`, `codex_waiting`
+    for #568's marks; Codex entries take the place of the seat's wait; the buttons wrap and carry
+    their tooltips; `answer_inbox` takes the button; the open path and the route's watch take Codex
+    entries; the rail observes `CodexRequests`.
+- **Deviations from the plan, and why.**
+  - Sub-agents' requests are not listed (D1 amended at promotion): #650 lets those threads go.
+  - The experimental API is #650's already (D7 amended): `availableDecisions` and
+    `additionalPermissions` reach Marley; the command's ask names the extra permissions.
+  - `InboxAnswer` is a closed set of six buttons rather than ids the rail maps back: each kind's
+    buttons are a fixed set, and the Codex mapping lives in two `const fn`s.
+  - A permissions request Marley reads nothing of offers Deny alone (D3's rule).
+  - The stand-in moved to `script/e2e/codex-fixture.sh`, which #650's scenario now sources; its
+    server plays the request cues and its TUI answers with `y` or `n`.
+- **Review.**
+  - Identity at every hop (D4, REQ-012): the key holds the view, the generation and the request
+    id; the target carries the request as rendered; the follow compares the generation, the id and
+    the params, and sends once.
+  - Nothing answered unasked (D6, REQ-014): a request of another method, or on another thread, is
+    left; a response is built only from a decision the request takes, never an error.
+  - Re-entrancy: the click only sends on a channel; the follow publishes through `cx.update`.
+- **Clippy rounds:** a long first doc paragraph, `Eq` derivable, two `format!` appends, a match
+  missing the Codex arm (the route's watch), a value parameter not consumed, `map_or_else`.
+- **Gate:** `just gate-diff` green after the Test phase, every gate on the scope.
+
+## Phase 3 — Test (2026-10-04)
+- **Scenario:** `script/e2e/651-codex-approvals-and-prompts.sh`, `compositor sway`, on the shared
+  stand-in with the switch on and the inbox's risk use in `shadow` on the replay. Every check
+  passes: Marley subscribed to the lead; the command asked; 101 answered `accept` by Marley; 102
+  answered by the TUI and nothing from Marley; 103 `decline`; 104 granted as asked with scope
+  `turn`; 105 `cancel`; nothing from Marley for the question 107; Marley answered exactly four.
+- **Shots, each read:**
+  - `651-01-command`: "Codex · repo", `rm -rf build · in …/repo`, `destroys`, Allow, Allow
+    session, Deny and Stop turn wrapped under the entry; the TUI's own prompt for 101. REQ-001,
+    REQ-002.
+  - `651-02-allowed`: the entry gone; the TUI reads "closed 101: answered elsewhere". REQ-003,
+    REQ-004.
+  - `651-03-answered-in-terminal`: `n` in the TUI answered 102; no entry. REQ-004, REQ-005.
+  - `651-04-file-change`: "Edit 2 files: README.md, src/mai…" with the four buttons. REQ-006.
+  - `651-05-denied`: the entry gone; "closed 103: answered elsewhere". REQ-007.
+  - `651-06a-permissions`, `651-06-permissions`: "Permissions: write /tmp/out, net…" with Allow,
+    Allow session and Deny; gone after Allow. REQ-009.
+  - `651-07-elicitation`: "docs: Pick a branch for the docs b…" with Deny and Dismiss only.
+    REQ-010.
+  - `651-08-opened`: from a new terminal, the entry's body brought Codex's terminal to the front.
+    REQ-011.
+  - `651-09-unlisted`: the question shows as #650's "Waits on an answer". REQ-013, REQ-014.
+  - `651-10-server-gone`: request 108's entry left with the server; the row reads failed,
+    "Codex's App Server stopped". REQ-015.
+- **#650's scenario again**, since it sources the fixture now: every check passes; its approval
+  shot lists the request itself (`rm -rf build`, no buttons: that cue sends no
+  `availableDecisions`) where it listed the seat's wait, as D1 asks.
+- **Fixed in Test:** the first run's clicks missed (the button row's places came from its shot),
+  and the last check counted the log's "resumed by marley" line.
+- **Not reached by a scenario:** a `grantRoot` and a file change whose item Marley never saw
+  (REQ-008), a click racing a resolution (REQ-012): review. A real Codex's requests need a model
+  turn.
+
+## Phase 4 — Complete (2026-10-04)
+- **Docs:** `CHANGELOG.md` (Added); `docs/marley/guide.md` (the inbox's Codex entries);
+  `docs/marley_architecture/marley_workbench.md` (the inbox's Codex entries and the answer path),
+  `marley_agent.md` (the request types), `marley_rail.md` (`InboxKind::Codex`, `InboxAnswer`); the
+  design note's B1 part 2 marked done.
+- **Knowledge:** AD-claude-651-codex-approvals-answer-in-the-inbox-only-when-clicked-001,
+  L-claude-651-a-shared-stand-in-lives-in-a-fixture-001.
+- **Brain:** consultation `633cbcb7f4164fbf8e9ffe6158f99f76` closed with `brain decide`.
+- **Closed:** TICKET-651 in `tickets/closed/`; the pair archived to `completed/`.

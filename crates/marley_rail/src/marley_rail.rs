@@ -430,6 +430,57 @@ pub enum InboxKind {
     Click,
     /// A harness session waiting on a question (#534).
     Harness,
+    /// A request Codex's App Server asks its clients to approve (#651).
+    Codex,
+}
+
+/// One way an inbox entry answers in place (#508, #651).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InboxAnswer {
+    /// Allow it once.
+    Allow,
+    /// Allow it, and the same for the rest of the agent's session.
+    AllowSession,
+    /// Deny it; the agent goes on without it.
+    Deny,
+    /// Refuse a held click (#571).
+    Refuse,
+    /// Deny it and stop the agent's turn.
+    StopTurn,
+    /// Cancel the request.
+    Dismiss,
+}
+
+impl InboxAnswer {
+    /// The button's words.
+    #[must_use]
+    pub const fn words(self) -> &'static str {
+        match self {
+            Self::Allow => "Allow",
+            Self::AllowSession => "Allow session",
+            Self::Deny => "Deny",
+            Self::Refuse => "Refuse",
+            Self::StopTurn => "Stop turn",
+            Self::Dismiss => "Dismiss",
+        }
+    }
+
+    /// What the button does in Codex's terms, for its tooltip (#651); none for the plain two.
+    #[must_use]
+    pub const fn tooltip(self) -> Option<&'static str> {
+        match self {
+            Self::AllowSession => Some("Allowed, and Codex asks no more for the same this session"),
+            Self::StopTurn => Some("Denied, and Codex's turn is interrupted"),
+            Self::Dismiss => Some("The request is cancelled"),
+            Self::Allow | Self::Deny | Self::Refuse => None,
+        }
+    }
+
+    /// Whether the answer lets the action run.
+    #[must_use]
+    pub const fn allows(self) -> bool {
+        matches!(self, Self::Allow | Self::AllowSession)
+    }
 }
 
 /// An agent that waits on the user, as the rail's inbox lists it (#508).
@@ -448,8 +499,9 @@ pub struct InboxEntry {
     pub ask: String,
     /// How long it has waited, in words: `now`, `3 m`.
     pub waited: String,
-    /// Whether it answers in place, with Allow and Deny, or Allow and Refuse for a click.
-    pub answers: bool,
+    /// The answers it takes in place, in the order they show: Deny and Allow, Refuse and Allow for
+    /// a click, or the decisions a Codex request offers (#651); none when it opens where it waits.
+    pub answers: Vec<InboxAnswer>,
     /// What its action would do, as Marley's rules and a model's reading mark it (#568); none
     /// while the inbox's risk use is off.
     pub chips: Vec<Chip>,

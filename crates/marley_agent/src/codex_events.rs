@@ -555,3 +555,351 @@ impl Moving {
 fn one_line(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
+
+/// A decision on a request Codex's App Server asks its clients to approve (#651), in the
+/// protocol's words.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Decision {
+    /// `accept`: allowed once, or for the turn.
+    Accept,
+    /// `acceptForSession`: allowed, and the same for the rest of the session.
+    AcceptForSession,
+    /// `decline`: denied; the turn goes on.
+    Decline,
+    /// `cancel`: denied and the turn interrupted, or the request cancelled.
+    Cancel,
+}
+
+impl Decision {
+    /// The protocol's word for it.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Accept => "accept",
+            Self::AcceptForSession => "acceptForSession",
+            Self::Decline => "decline",
+            Self::Cancel => "cancel",
+        }
+    }
+
+    fn of_word(word: &str) -> Option<Self> {
+        [
+            Self::Accept,
+            Self::AcceptForSession,
+            Self::Decline,
+            Self::Cancel,
+        ]
+        .into_iter()
+        .find(|decision| decision.word() == word)
+    }
+}
+
+/// What a request asks, as the inbox reads it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RequestKind {
+    /// `item/commandExecution/requestApproval`.
+    Command {
+        /// The command, when the server sent it.
+        command: Option<String>,
+        /// Where it runs.
+        cwd: Option<String>,
+        /// The simple decisions of the request's `availableDecisions`, in its order; `None` when
+        /// it sent no list.
+        offered: Option<Vec<Decision>>,
+        /// The extra permissions it asks for, in words.
+        extra: Option<String>,
+    },
+    /// `item/fileChange/requestApproval`: its item, whose `item/started` names the files.
+    FileChange {
+        /// The `fileChange` item.
+        item: String,
+        /// Why, when the server says.
+        reason: Option<String>,
+        /// Whether it asks for writes under a whole folder for the session.
+        grant_root: bool,
+    },
+    /// `item/permissions/requestApproval`.
+    Permissions {
+        /// What it asks for, in words: `write /tmp/out, network`; empty when Marley reads none of
+        /// it.
+        asks: String,
+        /// The paths it names.
+        paths: Vec<String>,
+        /// Why, when the server says.
+        reason: Option<String>,
+    },
+    /// `mcpServer/elicitation/request`.
+    Elicitation {
+        /// The MCP server.
+        server: String,
+        /// What it asks.
+        message: String,
+    },
+}
+
+/// A request Codex's App Server asks its clients to approve (#651), as it came.
+///
+/// Its JSON-RPC id (a number or a string), its thread, what it asks, and its params, which a
+/// click must still match when its answer goes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Request {
+    /// The JSON-RPC id the answer carries back.
+    pub id: Value,
+    /// Its thread.
+    pub thread: String,
+    /// What it asks.
+    pub kind: RequestKind,
+    /// The params as sent.
+    pub params: Value,
+}
+
+impl Request {
+    /// The request `method` with `id` and `params` carries; `None` for a method the inbox does not
+    /// list, such as Codex's own questions.
+    ///
+    /// # Errors
+    ///
+    /// When a listed method's params do not have the shape Codex generates.
+    pub fn decode(id: &Value, method: &str, params: &Value) -> Result<Option<Self>, String> {
+        let text = |key: &str| params.get(key).and_then(Value::as_str).map(str::to_string);
+        let thread = text("threadId").ok_or_else(|| format!("{method} names no threadId"))?;
+        let kind = match method {
+            "item/commandExecution/requestApproval" => RequestKind::Command {
+                command: text("command").map(|command| one_line(&command)),
+                cwd: text("cwd"),
+                offered: params
+                    .get("availableDecisions")
+                    .and_then(Value::as_array)
+                    .map(|decisions| {
+                        decisions
+                            .iter()
+                            .filter_map(Value::as_str)
+                            .filter_map(Decision::of_word)
+                            .collect()
+                    }),
+                extra: params
+                    .get("additionalPermissions")
+                    .map(permission_words)
+                    .map(|(words, _)| words)
+                    .filter(|words| !words.is_empty()),
+            },
+            "item/fileChange/requestApproval" => RequestKind::FileChange {
+                item: text("itemId").ok_or_else(|| format!("{method} names no itemId"))?,
+                reason: text("reason"),
+                grant_root: params.get("grantRoot").is_some_and(|root| !root.is_null()),
+            },
+            "item/permissions/requestApproval" => {
+                let (asks, paths) = params
+                    .get("permissions")
+                    .map(permission_words)
+                    .unwrap_or_default();
+                RequestKind::Permissions {
+                    asks,
+                    paths,
+                    reason: text("reason"),
+                }
+            }
+            "mcpServer/elicitation/request" => RequestKind::Elicitation {
+                server: text("serverName").unwrap_or_else(|| "An MCP server".to_string()),
+                message: text("message")
+                    .map(|message| one_line(&message))
+                    .unwrap_or_default(),
+            },
+            _ => return Ok(None),
+        };
+        Ok(Some(Self {
+            id: id.clone(),
+            thread,
+            kind,
+            params: params.clone(),
+        }))
+    }
+
+    /// The decisions the inbox offers in place, in order: only those the request offers, and an
+    /// allow only beside what it allows (`files`: a file change's paths from its item, when
+    /// known).
+    #[must_use]
+    pub fn decisions(&self, files: Option<&[String]>) -> Vec<Decision> {
+        match &self.kind {
+            RequestKind::Command {
+                command, offered, ..
+            } => offered
+                .iter()
+                .flatten()
+                .copied()
+                .filter(|decision| {
+                    command.is_some()
+                        || !matches!(decision, Decision::Accept | Decision::AcceptForSession)
+                })
+                .collect(),
+            RequestKind::FileChange { grant_root, .. } => {
+                let known = files.is_some_and(|files| !files.is_empty());
+                let mut decisions = Vec::new();
+                if known {
+                    decisions.push(Decision::Accept);
+                    if !grant_root {
+                        decisions.push(Decision::AcceptForSession);
+                    }
+                }
+                decisions.extend([Decision::Decline, Decision::Cancel]);
+                decisions
+            }
+            RequestKind::Permissions { asks, .. } if asks.is_empty() => vec![Decision::Decline],
+            RequestKind::Permissions { .. } => vec![
+                Decision::Accept,
+                Decision::AcceptForSession,
+                Decision::Decline,
+            ],
+            RequestKind::Elicitation { .. } => vec![Decision::Decline, Decision::Cancel],
+        }
+    }
+
+    /// The response that carries `decision` for this request; `None` for a decision it does not
+    /// take. Permissions are granted as the request asked them, for the turn or the session, and
+    /// denied with an empty grant, as Codex's TUI does.
+    #[must_use]
+    pub fn response(&self, decision: Decision) -> Option<Value> {
+        match &self.kind {
+            RequestKind::Command { .. } | RequestKind::FileChange { .. } => {
+                Some(serde_json::json!({ "decision": decision.word() }))
+            }
+            RequestKind::Permissions { .. } => {
+                let asked = self
+                    .params
+                    .get("permissions")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!({}));
+                match decision {
+                    Decision::Accept => {
+                        Some(serde_json::json!({ "permissions": asked, "scope": "turn" }))
+                    }
+                    Decision::AcceptForSession => {
+                        Some(serde_json::json!({ "permissions": asked, "scope": "session" }))
+                    }
+                    Decision::Decline => {
+                        Some(serde_json::json!({ "permissions": {}, "scope": "turn" }))
+                    }
+                    Decision::Cancel => None,
+                }
+            }
+            RequestKind::Elicitation { .. } => match decision {
+                Decision::Decline | Decision::Cancel => {
+                    Some(serde_json::json!({ "action": decision.word() }))
+                }
+                Decision::Accept | Decision::AcceptForSession => None,
+            },
+        }
+    }
+
+    /// What the request asks, on one line, for the inbox: the command and where, the files to
+    /// edit (`files`, when known), the permissions, or the MCP server's message.
+    #[must_use]
+    pub fn ask(&self, files: Option<&[String]>) -> String {
+        let with_reason = |text: String, reason: &Option<String>| match reason {
+            Some(reason) if !reason.trim().is_empty() => format!("{text} · {}", one_line(reason)),
+            _ => text,
+        };
+        match &self.kind {
+            RequestKind::Command {
+                command,
+                cwd,
+                extra,
+                ..
+            } => {
+                let mut text = command.clone().unwrap_or_else(|| "A command".to_string());
+                if let Some(cwd) = cwd {
+                    text.push_str(" · in ");
+                    text.push_str(cwd);
+                }
+                if let Some(extra) = extra {
+                    text.push_str(" · asks ");
+                    text.push_str(extra);
+                }
+                text
+            }
+            RequestKind::FileChange { reason, .. } => {
+                let text = match files.filter(|files| !files.is_empty()) {
+                    Some([file]) => format!("Edit 1 file: {file}"),
+                    Some(files) => format!("Edit {} files: {}", files.len(), files.join(", ")),
+                    None => "Edit files".to_string(),
+                };
+                with_reason(text, reason)
+            }
+            RequestKind::Permissions { asks, reason, .. } => {
+                let asks = if asks.is_empty() {
+                    "more access"
+                } else {
+                    asks.as_str()
+                };
+                with_reason(format!("Permissions: {asks}"), reason)
+            }
+            RequestKind::Elicitation { server, message } => format!("{server}: {message}"),
+        }
+    }
+}
+
+/// A permission profile in words, `read a, write b, network`, and the paths it names.
+fn permission_words(profile: &Value) -> (String, Vec<String>) {
+    let mut words = Vec::new();
+    let mut paths = Vec::new();
+    let file_system = profile.get("fileSystem");
+    for access in ["read", "write"] {
+        let named: Vec<String> = file_system
+            .and_then(|file_system| file_system.get(access))
+            .and_then(Value::as_array)
+            .map(|list| {
+                list.iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        if !named.is_empty() {
+            words.push(format!("{access} {}", named.join(", ")));
+            paths.extend(named);
+        }
+    }
+    let entries = file_system
+        .and_then(|file_system| file_system.get("entries"))
+        .and_then(Value::as_array)
+        .map_or(0, Vec::len);
+    if entries > 0 {
+        words.push(format!("{entries} file system entries"));
+    }
+    if profile
+        .pointer("/network/enabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        words.push("network".to_string());
+    }
+    (words.join(", "), paths)
+}
+
+/// The thread and the request a `serverRequest/resolved` names.
+#[must_use]
+pub fn resolved(params: &Value) -> Option<(String, Value)> {
+    let thread = params.get("threadId")?.as_str()?.to_string();
+    let request = params.get("requestId")?.clone();
+    Some((thread, request))
+}
+
+/// The thread, the item and the paths of an `item/started` whose item is a file change.
+#[must_use]
+pub fn file_change_started(params: &Value) -> Option<(String, String, Vec<String>)> {
+    let item = params.get("item")?;
+    if item.get("type")?.as_str()? != "fileChange" {
+        return None;
+    }
+    let paths = item
+        .get("changes")?
+        .as_array()?
+        .iter()
+        .filter_map(|change| change.get("path")?.as_str().map(str::to_string))
+        .collect();
+    Some((
+        params.get("threadId")?.as_str()?.to_string(),
+        item.get("id")?.as_str()?.to_string(),
+        paths,
+    ))
+}

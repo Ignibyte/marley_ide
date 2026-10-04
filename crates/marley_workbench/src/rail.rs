@@ -36,9 +36,9 @@ use marley_browser::consequence::Class;
 use marley_browser::ports::{Service, Stopped};
 use marley_mcp::redact::Redactor;
 use marley_rail::{
-    BrowserRow, BrowserSnapshot, CommandSnapshot, DriftSnapshot, Focus, InboxEntry, InboxKind,
-    PortContainer, PortRow, PortService, PortSnapshot, ProjectRow, ProjectSnapshot, RailSnapshot,
-    Reporting, Row, RunningError, Selection, SwitcherRow, TerminalAgent, TerminalRow,
+    BrowserRow, BrowserSnapshot, CommandSnapshot, DriftSnapshot, Focus, InboxAnswer, InboxEntry,
+    InboxKind, PortContainer, PortRow, PortService, PortSnapshot, ProjectRow, ProjectSnapshot,
+    RailSnapshot, Reporting, Row, RunningError, Selection, SwitcherRow, TerminalAgent, TerminalRow,
     TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus, TurnSnapshot, WorktreeRow,
     WorktreeSnapshot,
 };
@@ -210,7 +210,7 @@ pub struct Rail {
     _multi_workspace_subscriptions: [Subscription; 2],
     /// Claude Code's hook events, which move its terminals' rows (#519), its turns (#509), and the
     /// terminals' unread marks (#538); the projectless groups (#600); the harness (#534).
-    _agent_events: [Subscription; 6],
+    _agent_events: [Subscription; 7],
     /// The menu a right-click on the rail's empty space opens, where it opened (#600).
     empty_menu: Option<(Entity<ContextMenu>, Point<Pixels>, Subscription)>,
     /// The order the window saved: its projectless groups', which orders the groups a restart
@@ -753,15 +753,24 @@ enum InboxTarget {
     Click(String),
     /// A harness session, by its id (#534).
     Harness(String),
+    /// A request a terminal's Codex App Server asks to approve (#651): the terminal view, the
+    /// terminal, the connection's generation, and the request as its entry showed it.
+    Codex {
+        view: u64,
+        terminal: EntityId,
+        generation: u64,
+        request: Box<codex_events::Request>,
+    },
 }
 
 impl Rail {
     /// The globals whose changes redraw rows: agents' events and turns, a terminal's unread mark
-    /// (#538), a running command's failure (#572), the projectless groups (#600) and the
-    /// harness's sessions (#534).
-    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 6] {
+    /// (#538), a running command's failure (#572), the projectless groups (#600), the harness's
+    /// sessions (#534) and Codex's requests (#651).
+    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 7] {
         [
             cx.observe_global_in::<Harness>(window, Self::refresh),
+            cx.observe_global_in::<crate::codex_server::CodexRequests>(window, Self::refresh),
             cx.observe_global_in::<AgentEvents>(window, Self::refresh),
             cx.observe_global_in::<Turns>(window, Self::refresh),
             cx.observe_global_in::<crate::notifications::Attention>(window, Self::refresh),
@@ -1516,7 +1525,7 @@ impl Rail {
         if window.is_window_active() {
             for (key, state) in &mut self.routes {
                 let watched = match self.snapshot.inbox.get(key) {
-                    Some(InboxTarget::Terminal(id)) => {
+                    Some(InboxTarget::Terminal(id) | InboxTarget::Codex { view: id, .. }) => {
                         focus.terminal == Some(*id) && focus.terminal_focused
                     }
                     Some(InboxTarget::Thread { thread_key, .. }) => {
@@ -1806,7 +1815,7 @@ impl Rail {
             Some(InboxTarget::Thread { thread_key, .. }) => {
                 self.open_thread(&thread_key, window, cx).log_err();
             }
-            Some(InboxTarget::Terminal(id)) => {
+            Some(InboxTarget::Terminal(id) | InboxTarget::Codex { view: id, .. }) => {
                 if let Some(terminal) = self.snapshot.terminals.get(&id) {
                     self.activate_terminal(&terminal.workspace, &terminal.view, window, cx)
                         .log_err();
@@ -1895,6 +1904,7 @@ impl Rail {
                     .map_or(IconName::AiClaude, agents::cli_icon),
             ),
             (InboxKind::Harness, _) => Icon::new(IconName::Server),
+            (InboxKind::Codex, _) => Icon::new(IconName::AiOpenAi),
             _ => Icon::new(IconName::ToolWeb),
         };
         let open_key = key.clone();
@@ -1922,40 +1932,33 @@ impl Rail {
         }));
         let mut chips = self.render_chips(entry, cx);
         chips.extend(self.render_route(entry));
-        let buttons = entry.answers.then(|| {
-            let (allow_key, deny_key) = (key.clone(), key.clone());
-            let refuse = if entry.kind == InboxKind::Click {
-                "Refuse"
-            } else {
-                "Deny"
-            };
+        // The answers wrap under the entry when the rail is narrow (#651).
+        let buttons = (!entry.answers.is_empty()).then(|| {
             h_flex()
+                .flex_wrap()
                 .justify_end()
                 .gap_1()
                 .pr_1p5()
-                .child(
+                .children(entry.answers.iter().map(|answer| {
+                    let answer = *answer;
+                    let answer_key = key.clone();
+                    let word = answer.words().to_lowercase().replace(' ', "-");
                     Button::new(
-                        SharedString::from(format!("marley-rail-inbox-deny-{key}")),
-                        refuse,
+                        SharedString::from(format!("marley-rail-inbox-{word}-{key}")),
+                        answer.words(),
                     )
+                    .when(answer == InboxAnswer::Allow, |button| {
+                        button.style(ButtonStyle::Filled)
+                    })
+                    .when_some(answer.tooltip(), |button, tooltip| {
+                        button.tooltip(Tooltip::text(tooltip))
+                    })
                     .label_size(LabelSize::Small)
                     .on_click(cx.listener(move |rail, _, window, cx| {
                         cx.stop_propagation();
-                        rail.answer_inbox(&deny_key, false, window, cx);
-                    })),
-                )
-                .child(
-                    Button::new(
-                        SharedString::from(format!("marley-rail-inbox-allow-{key}")),
-                        "Allow",
-                    )
-                    .style(ButtonStyle::Filled)
-                    .label_size(LabelSize::Small)
-                    .on_click(cx.listener(move |rail, _, window, cx| {
-                        cx.stop_propagation();
-                        rail.answer_inbox(&allow_key, true, window, cx);
-                    })),
-                )
+                        rail.answer_inbox(&answer_key, answer, window, cx);
+                    }))
+                }))
         });
         let selector = format!("marley-rail-inbox-entry-{key}");
         let line = (!chips.is_empty() || buttons.is_some()).then(|| {
@@ -2074,8 +2077,16 @@ impl Rail {
         )
     }
 
-    /// Allow or Deny, or for a paused click Allow or Refuse, on the inbox entry `key` (#508).
-    fn answer_inbox(&mut self, key: &str, allow: bool, window: &Window, cx: &mut Context<Self>) {
+    /// Allow or Deny, or for a paused click Allow or Refuse (#508), or a Codex request's decision
+    /// (#651), on the inbox entry `key`.
+    fn answer_inbox(
+        &mut self,
+        key: &str,
+        answer: InboxAnswer,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        let allow = answer.allows();
         // For the outcome of the risk use's row (#568) and the route's (#570); a held click has
         // neither.
         if let Some(risk) = self.risk.get_mut(key) {
@@ -2090,6 +2101,16 @@ impl Rail {
                 let target = target.clone();
                 if let Some(hub) = BrowserHub::try_global(cx) {
                     hub.update(cx, |hub, cx| hub.answer_pause(&target, allow, cx));
+                }
+            }
+            Some(InboxTarget::Codex {
+                terminal,
+                generation,
+                request,
+                ..
+            }) => {
+                if let Some(decision) = codex_decision(answer) {
+                    crate::codex_server::answer(*terminal, *generation, request, decision, cx);
                 }
             }
             Some(InboxTarget::Terminal(_) | InboxTarget::Harness(_)) | None => {}
@@ -6281,6 +6302,28 @@ fn inbox_entries(project: &str, members: &[Entity<Workspace>], snapshot: &mut Sn
             }
         }
         for view in member.read(cx).items_of_type::<TerminalView>(cx) {
+            // A Codex request the inbox answers takes the place of the seat's wait (#651).
+            let terminal = view.read(cx).terminal().entity_id();
+            if let Some((generation, requests)) = crate::codex_server::requests_of(terminal, cx) {
+                let id = view.entity_id().as_u64();
+                for shown in requests {
+                    let mut entry = codex_entry(project, id, generation, shown);
+                    if let Some(scope) = &scope {
+                        mark(&mut entry, &codex_waiting(shown), scope, snapshot);
+                    }
+                    snapshot.inbox.insert(
+                        entry.key.clone(),
+                        InboxTarget::Codex {
+                            view: id,
+                            terminal,
+                            generation,
+                            request: Box::new(shown.request.clone()),
+                        },
+                    );
+                    snapshot.rail.inbox.push(entry);
+                }
+                continue;
+            }
             let waiting = cx
                 .try_global::<AgentEvents>()
                 .and_then(|events| events.seat(view.entity_id()))
@@ -6496,7 +6539,7 @@ fn harness_entries(snapshot: &mut Snapshot, cx: &App) {
                 project: "Harness".to_string(),
                 ask,
                 waited: String::new(),
-                answers: false,
+                answers: Vec::new(),
                 chips: Vec::new(),
                 level: 0,
                 route: None,
@@ -6521,10 +6564,81 @@ fn seat_entry(project: &str, id: u64, seat: &marley_fleet::Session) -> InboxEntr
         project: project.to_string(),
         ask,
         waited: String::new(),
-        answers: false,
+        answers: Vec::new(),
         chips: Vec::new(),
         level: 0,
         route: None,
+    }
+}
+
+/// A request a terminal's Codex App Server asks to approve, as an inbox entry (#651): what it asks,
+/// and the decisions it takes in place, or `Sent: <decision>` once Marley answered it, until the
+/// server reports it resolved.
+fn codex_entry(
+    project: &str,
+    view: u64,
+    generation: u64,
+    shown: &crate::codex_server::Shown,
+) -> InboxEntry {
+    let files = shown.files.as_deref();
+    let request = &shown.request;
+    let elicitation = matches!(request.kind, codex_events::RequestKind::Elicitation { .. });
+    let (ask, answers) = shown.sent.map_or_else(
+        || {
+            (
+                request.ask(files),
+                request
+                    .decisions(files)
+                    .into_iter()
+                    .map(|decision| inbox_answer(decision, elicitation))
+                    .collect(),
+            )
+        },
+        |decision| {
+            (
+                format!(
+                    "Sent: {} · {}",
+                    inbox_answer(decision, elicitation).words(),
+                    request.ask(files)
+                ),
+                Vec::new(),
+            )
+        },
+    );
+    InboxEntry {
+        key: format!("codex:{view}:{generation}:{}", request.id),
+        kind: InboxKind::Codex,
+        agent: AgentKind::Codex.display_name().to_string(),
+        project: project.to_string(),
+        ask,
+        waited: String::new(),
+        answers,
+        chips: Vec::new(),
+        level: 0,
+        route: None,
+    }
+}
+
+/// The inbox's button for a Codex decision: `cancel` stops the turn on an approval and dismisses
+/// an elicitation (#651).
+const fn inbox_answer(decision: codex_events::Decision, elicitation: bool) -> InboxAnswer {
+    match decision {
+        codex_events::Decision::Accept => InboxAnswer::Allow,
+        codex_events::Decision::AcceptForSession => InboxAnswer::AllowSession,
+        codex_events::Decision::Decline => InboxAnswer::Deny,
+        codex_events::Decision::Cancel if elicitation => InboxAnswer::Dismiss,
+        codex_events::Decision::Cancel => InboxAnswer::StopTurn,
+    }
+}
+
+/// The Codex decision an inbox button sends (#651); none for a held click's Refuse.
+const fn codex_decision(answer: InboxAnswer) -> Option<codex_events::Decision> {
+    match answer {
+        InboxAnswer::Allow => Some(codex_events::Decision::Accept),
+        InboxAnswer::AllowSession => Some(codex_events::Decision::AcceptForSession),
+        InboxAnswer::Deny => Some(codex_events::Decision::Decline),
+        InboxAnswer::StopTurn | InboxAnswer::Dismiss => Some(codex_events::Decision::Cancel),
+        InboxAnswer::Refuse => None,
     }
 }
 
@@ -6564,7 +6678,7 @@ fn click_entries(
                 project: project.to_string(),
                 ask: sentence.to_string(),
                 waited: String::new(),
-                answers: true,
+                answers: vec![InboxAnswer::Refuse, InboxAnswer::Allow],
                 level: if marking {
                     risk::level(ToolClass::Other, &chips)
                 } else {
@@ -6754,6 +6868,52 @@ fn thread_waiting(call: &acp_thread::ToolCall, agent: &str, cx: &App) -> Waiting
     }
 }
 
+/// What a Codex request waits to do, as the risk rules read it (#651): a command runs, a file
+/// change writes its files, permissions are other, and an elicitation is a question.
+fn codex_waiting(shown: &crate::codex_server::Shown) -> Waiting {
+    let request = &shown.request;
+    let (tool, tool_name, line, paths, cwd) = match &request.kind {
+        codex_events::RequestKind::Command { command, cwd, .. } => (
+            ToolClass::Execute,
+            "commandExecution".to_string(),
+            command.clone().unwrap_or_default(),
+            Vec::new(),
+            cwd.as_ref().map(PathBuf::from),
+        ),
+        codex_events::RequestKind::FileChange { .. } => (
+            ToolClass::Write,
+            "fileChange".to_string(),
+            request.ask(shown.files.as_deref()),
+            shown.files.iter().flatten().map(PathBuf::from).collect(),
+            None,
+        ),
+        codex_events::RequestKind::Permissions { paths, .. } => (
+            ToolClass::Other,
+            "permissions".to_string(),
+            request.ask(None),
+            paths.iter().map(PathBuf::from).collect(),
+            None,
+        ),
+        codex_events::RequestKind::Elicitation { server, message } => (
+            ToolClass::Question,
+            server.clone(),
+            message.clone(),
+            Vec::new(),
+            None,
+        ),
+    };
+    Waiting {
+        tool,
+        tool_name,
+        line,
+        paths,
+        cwd,
+        agent: "Codex in a terminal".to_string(),
+        options: Vec::new(),
+        prompt: None,
+    }
+}
+
 /// What a terminal's Claude Code waits on (#568): the tool and its preview of a
 /// `Permission for <Tool: preview>` wait, or a question.
 fn seat_waiting(seat: &marley_fleet::Session, ask: &str) -> Waiting {
@@ -6902,7 +7062,11 @@ fn thread_entry(
         project: project.to_string(),
         ask,
         waited: String::new(),
-        answers: answers.is_some(),
+        answers: if answers.is_some() {
+            vec![InboxAnswer::Deny, InboxAnswer::Allow]
+        } else {
+            Vec::new()
+        },
         chips: Vec::new(),
         level: 0,
         route: None,

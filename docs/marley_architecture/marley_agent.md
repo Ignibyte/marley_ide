@@ -181,6 +181,16 @@ pub fn prompt_origin(prompt: &str) -> PromptOrigin;                 // #509
   "Codex's App Server stopped" and the server's last line. `seat_words` gives the row's words,
   #547's `no update in N m` included; `seat_activity` the waiting question or the error.
 
+- Since #651 `codex_events` also reads the four requests a server asks its clients to approve:
+  `Request::decode` (a command, a file change, permissions, an MCP server's elicitation, with the
+  JSON-RPC id kept as sent and the params for a later comparison); `decisions(files)` gives only
+  those the request offers, and an allow only beside what it allows (a command with its line, a
+  file change whose files its `item/started` named, permissions Marley reads, no session allow for
+  a `grantRoot`); `response(decision)` builds the body Codex parses (`{decision}`, the requested
+  permissions back with scope `turn` or `session` and an empty grant for a denial, `{action}`);
+  `ask(files)` the inbox's line. `resolved` and `file_change_started` read `serverRequest/resolved`
+  and a file change's `item/started`.
+
 ## The versions integrations were tested on (`src/versions.rs`, #648)
 
 - A row of `INTEGRATIONS` is an integration that rests on something its agent does not document:

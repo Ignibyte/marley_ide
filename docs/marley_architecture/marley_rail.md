@@ -130,8 +130,10 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
   key naming what waits and on what, the kind (`InboxKind::Thread` for an Agent Panel tool call
   waiting for confirmation, `Terminal` for an agent CLI waiting on a permission or a question,
   `Click` for an agent's click a Browser tab holds, `Harness` for a harness session waiting on a
-  question, #534), the agent, the project, what it asks on one
-  line, how long it has waited in words, and whether it answers in place. `waited_words` gives the
+  question, #534, `Codex` for a request a Codex App Server asks to approve, #651), the agent, the
+  project, what it asks on one line, how long it has waited in words, and the answers it takes in
+  place, as a list of `InboxAnswer`s (Allow, Allow session, Deny, Refuse, Stop turn, Dismiss, each
+  with its words, its tooltip and whether it allows, #651). `waited_words` gives the
   words: `now` under a minute, then `3 m`, then `1 h 5 m`. The inbox decides no row's order or
   visibility, and the fold and the filter leave it whole. Since #568 an entry also carries its
   `chips` (`marley_agent::risk::Chip`: what the action would do, and whether Marley's rules or a

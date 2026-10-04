@@ -3939,3 +3939,17 @@ Rejected:
 Known cost: each server refreshes its login on its own, as 0.155.1's embedded TUIs already do;
 Codex's guarded re-read narrows, but does not close, the window where two spend one refresh
 token.
+
+## AD-claude-651-codex-approvals-answer-in-the-inbox-only-when-clicked-001
+*decided at: 2026-10-04 · status: shipped · builds on: AD-claude-508-one-inbox-lists-every-agent-that-waits-on-the-user-001, AD-claude-650-marley-joins-a-codex-app-server-of-its-own-per-terminal-001 · plan: docs/planning/design-notes/claude-and-codex-on-their-own-tools-2026-10-02.md B1 part 2*
+
+A Codex on its own App Server lists each command, file change, permissions and MCP elicitation
+request on its lead thread in the inbox, in place of the seat's wait, with only the decisions the
+request offers in place, and an allow only beside what Marley can read it allows. An answer goes
+only when the user clicks it, only to the request the entry showed (the view, the connection's
+generation, the request id and its params all checked), once, and never as an error, since Codex
+takes any subscriber's first reply and reads an error as a denial. The entry leaves on Codex's
+own `serverRequest/resolved`, whoever answered, so the TUI's prompt and the inbox stay one
+question. Rejected: typing the TUI's keys from the rail; answering with Codex's own fallback
+decisions; amendments and accepting an elicitation in place (the TUI collects them); listing
+sub-agents' requests (#650 lets their threads go).

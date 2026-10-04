@@ -1492,6 +1492,20 @@ alike.
   rail's row, `note_claude_code`, the inbox entry and its icon, the close guard and the Browser
   tab's Send read Codex's seats too; the stall watch and the inbox's risk and route marks keep to
   Claude Code's.
+- Approvals (#651): a server request becomes `Event::Request`; the follow keeps the lead's
+  requests of the four methods (`Shown`: the request, a file change's paths from its
+  `item/started`, the decision sent) with its connection's generation, and publishes them in
+  `CodexRequests`, which the rail observes (`requests_of`). Any other request is left to the TUI.
+  `answer(terminal, generation, request, decision)` puts an `Event::Answer` on the follow's own
+  channel; `answered` sends the response only while the same request, with the same params, waits
+  unanswered on that generation, then marks it sent. A request leaves on `serverRequest/resolved`,
+  a new lead, the lead's close, Codex leaving the foreground, the follow's end and the terminal's
+  release.
+- The inbox (`rail.rs`): a terminal with requests lists one `InboxKind::Codex` entry each
+  (`codex_entry`, keyed by the view, the generation and the request id) in place of the seat's
+  wait; its buttons come from the request's decisions (`inbox_answer`), wrap under the entry, and
+  read `Sent: <decision>` once sent; `codex_waiting` gives #568's marks; a click sends through
+  `codex_decision`, and the entry's body shows the terminal.
 
 ## Codex's and OpenCode's notifications (`src/agent_notify.rs`, #552)
 

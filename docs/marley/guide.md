@@ -200,6 +200,15 @@ on it shows where it waits.
   allowing or denying once, or a sandbox escalation, has no buttons: its click opens the thread.
 - Claude Code in a Marley terminal that waits on a permission or a question is listed with what it
   asks. Its click shows the terminal, where you answer it.
+- A Codex on its own App Server (#650) lists each request it asks you to approve (#651): a command
+  and its folder, the files a change edits, the permissions it asks for, an MCP server's question.
+  Under each are the decisions the request offers: Allow, Allow session, Deny and Stop turn (deny,
+  and Codex's turn stops) for a command or a file change; Allow, Allow session and Deny for
+  permissions; Deny and Dismiss for an MCP server's question. A decision answers that request
+  alone, and only while it still waits; Codex's own prompt in the terminal then closes, and an
+  answer you give in the terminal takes the entry away. An allow shows only where Marley can read
+  what it allows. A question of Codex's own is listed as "Waits on an answer" and opens the
+  terminal.
 - An agent's click a Browser tab holds (see "The click consequence") has Refuse and Allow, as the
   tab's card does. Its click brings the tab forward with the focus on the card.
 
