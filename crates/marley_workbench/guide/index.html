@@ -917,7 +917,7 @@ th { background: var(--panel); font-weight: 650; }
 <p class="what"><strong>What it is.</strong> A row under a terminal running an agent CLI, with the agent's name, input tools, and the folder and git branch the agent works in.</p>
 <h4>How to use it</h4>
 <ul class="points">
-<li>Left side: the agent's icon and name, <kbd>+</kbd> (Attach File), the pencil (Rich Input), the microphone where Voxtype is installed, and for Claude Code the Connect chip until Marley's plugin is installed.</li>
+<li>Left side: the agent's icon and name, <kbd>+</kbd> (Attach File), the pencil (Rich Input), the microphone where Voice is on and Voxtype is installed, and for Claude Code the Connect chip until Marley's plugin is installed.</li>
 <li>Right side: the folder (<code>~</code> for your home) and its git branch.</li>
 <li>The bar gives its row back to the terminal when the agent exits.</li>
 </ul>
@@ -973,10 +973,11 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 
 <article id="dictation">
-<h3>Dictation <span class="ticket">#480</span></h3>
-<p class="what"><strong>What it is.</strong> Where Voxtype (Omarchy's dictation tool) is installed, the agent bar has a microphone that dictates into the agent's prompt.</p>
+<h3>Dictation <span class="ticket">#480 · #642</span></h3>
+<p class="what"><strong>What it is.</strong> Where Voxtype (Omarchy's dictation tool) is installed and Voice is on, the agent bar has a microphone that dictates into the agent's prompt. Voice is off until you turn it on; off, Marley shows no microphone and starts no Voxtype.</p>
 <h4>How to use it</h4>
 <ol class="steps">
+<li>Turn on Voice in the Voice section of the Marley settings (<code>marley: open settings</code>), or set <code>"marley": { "voice": { "enabled": true } }</code>. The microphone appears without a restart.</li>
 <li>Click the microphone, or run <code>marley: toggle dictation</code>. It turns red while recording.</li>
 <li>Speak, then click again. It turns yellow while transcribing, and your words are typed where the focus is.</li>
 </ol>
@@ -1645,7 +1646,7 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td><code>marley: use marley layout</code>, <code>marley: use zed layout</code></td><td>Switch the layout in every window</td></tr>
 <tr><td><code>marley: open settings</code></td><td>The Settings window on the Marley page</td></tr>
 <tr><td><code>marley: new agent</code></td><td>The New Agent picker</td></tr>
-<tr><td><code>marley: attach file</code>, <code>marley: toggle dictation</code></td><td>Attach files to the focused terminal; start or stop dictation</td></tr>
+<tr><td><code>marley: attach file</code>, <code>marley: toggle dictation</code></td><td>Attach files to the focused terminal; start or stop dictation, while Voice is on</td></tr>
 <tr><td><code>marley: save as workflow</code></td><td>Save the selected or newest block as a task</td></tr>
 <tr><td><code>marley: send selection to agent</code></td><td>What <kbd>Ctrl+&gt;</kbd> does, in either layout</td></tr>
 <tr><td><code>marley: open remote terminal</code></td><td>A terminal on a saved SSH host, in tmux</td></tr>

@@ -384,6 +384,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Dictation and Rusty's tools wait to be turned on** (#642, 2026-10-04). The agent bar's
+  microphone no longer appears wherever Voxtype is installed, and Zed's agents no longer get
+  Rusty's MCP server wherever `rusty-mcp` is: both are off until you turn them on. The Marley
+  settings page has a new Voice section whose Voice toggle (`marley.voice.enabled`) brings the
+  microphone and `marley: toggle dictation` back; Rusty Tools for Agents in the Agents section
+  (`marley.rusty_tools`) offers the `rusty` server again. Off, Marley shows no microphone, starts
+  no `voxtype`, and `marley: toggle dictation` says dictation is off and where to turn it on.
+  Either switch takes effect without a restart. If you used either before, turn it on once.
+
 - **A mutation run over the pure cores, reported** (#636, 2026-10-01). `cargo-mutants` over the
   nine Marley crates with no gpui: 2,658 mutants, 40.2% of the viable ones killed. The crates
   built with unit tests kill every mutant; the modules built since #483, proven by e2e scenarios
@@ -1785,6 +1794,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   70 that predate the prior-art sweep now say so, which lets the reference hook accept them.
 
 ### Security
+
+- **wasmtime 48.0.5** (#642, 2026-10-04). The extension host's WebAssembly runtime moves from
+  48.0.3 to its patch release 48.0.5, with cranelift 0.135.5 and the wasm-tools crates it needs at
+  0.254.2, for seven advisories published on 2026-10-02: RUSTSEC-2026-0325, -0326 and -0327 (GC
+  heap corruption and a native stack overflow a guest could cause) and RUSTSEC-2026-0321 to -0324
+  in its WASI layer (fuel accounting a guest could get around, host memory, uninitialized padding
+  copied to a guest, a panic through a file's timestamp). Only the lockfile changed.
 
 - **wasmtime 48.0.3** (#511, 2026-09-29). The extension host's WebAssembly runtime moves from
   48.0.1 to its patch release 48.0.3, with cranelift 0.135.3, for RUSTSEC-2026-0314 (a guest

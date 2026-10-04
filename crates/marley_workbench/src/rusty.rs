@@ -1,13 +1,12 @@
 //! Rusty's tools for Zed's agents (#633).
 //!
-//! Where `rusty-mcp` is on the search path, Marley offers it to Zed's agents as the context server
-//! `rusty`, beside its own `marley` server (#501), so an agent in Marley reaches Rusty's brain loop
-//! and its other tools.
+//! While `marley.rusty_tools` is on (off by default since #642) and `rusty-mcp` is on the search
+//! path, Marley offers it to Zed's agents as the context server `rusty`, beside its own `marley`
+//! server (#501), so an agent in Marley reaches Rusty's brain loop and its other tools.
 //!
 //! The server is a stdio `rusty-mcp` with no arguments, as Rusty's own `.mcp.json` names it, added
 //! to Zed's default settings, so a `context_servers.rusty` of the user's own wins. Zed asks before
-//! each call, as for every context server. `marley.rusty_tools` turns it off, which takes Marley's
-//! entry back out.
+//! each call, as for every context server. Turning the setting off takes Marley's entry back out.
 
 use std::path::PathBuf;
 

@@ -15,6 +15,7 @@ pub(crate) fn marley_page() -> SettingsPage {
             .chain(agents_section())
             .chain(terminal_section())
             .chain(push_section())
+            .chain(voice_section())
             .chain(system_one_section())
             .chain(privacy_section())
             .collect(),
@@ -546,6 +547,38 @@ fn terminal_section() -> [SettingsPageItem; 6] {
                         .marley
                         .get_or_insert_default()
                         .long_command_seconds = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+    ]
+}
+
+// Marley: the master switch of Marley's voice features, off by default (#642).
+fn voice_section() -> [SettingsPageItem; 2] {
+    [
+        SettingsPageItem::SectionHeader("Voice"),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Voice",
+            description: "Dictate into a terminal through Voxtype, where it is installed: the agent bar's microphone and marley: toggle dictation. Off, Marley shows no microphone and starts no voxtype. Marley never touches the audio.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.voice.enabled"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.voice.as_ref())
+                        .and_then(|voice| voice.enabled.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .voice
+                        .get_or_insert_default()
+                        .enabled = value;
                 },
             }),
             metadata: None,

@@ -299,9 +299,10 @@ you whether the problem is Marley's or Zed's.
 Run `marley: open settings`.
 
 - [ ] The Settings window opens on its Marley page, first in the list.
-- [ ] The page has six sections: Layout, Agents, Terminal, Push, System One and Privacy.
+- [ ] The page has seven sections: Layout, Agents, Terminal, Push, Voice, System One and Privacy.
 - [ ] Privacy shows both telemetry toggles off (#514), and Agents shows Redact Secrets for Agents
-  on (#516).
+  on (#516) and Rusty Tools for Agents off (#642).
+- [ ] Voice holds one toggle, Voice, off (#642).
 - [ ] The Layout dropdown switches every window, as the two commands do.
 
 ### 1.5 Quit and come back (#575, #577, #486)
@@ -788,8 +789,8 @@ project?"
 - [ ] Its row shows Claude Code's icon, the title Claude Code sets, and `Claude Code · working`,
   then `waiting` once it has been quiet for two seconds.
 - [ ] The agent bar under the terminal shows the icon and name, `+` (Attach File), a pencil (Rich
-  Input), a microphone when Voxtype is installed, the Connect Claude Code to Marley chip, and at
-  the right the folder and the branch `main`.
+  Input), a microphone when Voice is on and Voxtype is installed (#642), the Connect Claude Code to
+  Marley chip, and at the right the folder and the branch `main`.
 
 ### 5.2 Connect Claude Code to Marley (#482, #500, #547)
 
@@ -844,9 +845,18 @@ Ask for another file ("Create bye.txt containing bye"), and do not answer yet.
   attaches an image.
 - [ ] The pasted reply has no leading indent shared by every line.
 
-### 5.8 The microphone (#480), optional
+### 5.8 The microphone (#480, #642), optional
 
-With Voxtype installed, click the microphone, speak, and click it again.
+With Voxtype installed, run `marley: toggle dictation` first, with Voice still off.
+
+- [ ] A toast says dictation is off and to turn it on in the Voice section of the Marley settings;
+  the agent bar has no microphone.
+
+Turn on Voice in the Voice section of the Marley settings page.
+
+- [ ] The microphone appears in the agent bar without a restart.
+
+Click the microphone, speak, and click it again.
 
 - [ ] It turns red while recording and yellow while transcribing, and your words land in the
   prompt.
@@ -1586,7 +1596,7 @@ Every Marley command runs from the palette. The ones with no key of their own:
 | `marley: use marley layout`, `marley: use zed layout` | Switch the layout in every window |
 | `marley: open settings` | The Settings window on the Marley page |
 | `marley: attach file` | Attach File for the focused terminal |
-| `marley: toggle dictation` | Start or stop a Voxtype dictation |
+| `marley: toggle dictation` | Start or stop a Voxtype dictation, while Voice is on |
 | `marley: save as workflow` | Save the selected or newest block as a task |
 | `marley: send selection to agent` | Ctrl+>'s action, in either layout |
 | `marley: open remote terminal` | A terminal on a saved SSH host, in tmux |

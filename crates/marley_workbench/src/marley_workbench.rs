@@ -185,7 +185,8 @@ actions!(
         /// Chooses files and types their paths into the focused terminal, as dropping them does.
         #[derive(Eq)]
         AttachFile,
-        /// Starts or stops a dictation with Voxtype, which types the text where the focus is.
+        /// Starts or stops a dictation with Voxtype, which types the text where the focus is,
+        /// while Voice is on in the Marley settings.
         #[derive(Eq)]
         ToggleDictation,
         /// Opens an editor for the prompt of the CLI agent in the focused terminal; without an
@@ -374,6 +375,8 @@ pub struct MarleySettings {
     pub embedded_harness: EmbeddedHarness,
     /// Whether Rusty's MCP server is offered to Zed's agents (#633).
     pub rusty_tools: RustyTools,
+    /// Whether Marley dictates through Voxtype (#642).
+    pub dictation: Dictation,
     /// How long a command runs before its end notifies; 0 is never (#551).
     pub long_command_seconds: u64,
     /// Whose consequential clicks in the Browser tab wait for Allow (#571).
@@ -488,11 +491,34 @@ pub enum RustyTools {
 }
 
 impl RustyTools {
-    /// The setting's value: offered unless it is off.
+    /// The setting's value: offered only when it is on (#642).
     const fn from_setting(offered: Option<bool>) -> Self {
         match offered {
-            Some(false) => Self::Off,
-            _ => Self::Offered,
+            Some(true) => Self::Offered,
+            _ => Self::Off,
+        }
+    }
+}
+
+/// Whether Marley dictates through Voxtype, from `marley.voice.enabled` (#642).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Dictation {
+    /// The agent bar shows the microphone where Voxtype is installed, and
+    /// `marley::ToggleDictation` dictates.
+    On,
+    /// No microphone, and no `voxtype` started.
+    Off,
+}
+
+impl Dictation {
+    /// The value of `marley.voice.enabled`: off unless it is on.
+    fn from_content(marley: Option<&settings::MarleySettingsContent>) -> Self {
+        match marley
+            .and_then(|marley| marley.voice.as_ref())
+            .and_then(|voice| voice.enabled)
+        {
+            Some(true) => Self::On,
+            _ => Self::Off,
         }
     }
 }
@@ -583,6 +609,7 @@ impl Settings for MarleySettings {
                 marley.and_then(|marley| marley.embedded_harness),
             ),
             rusty_tools: RustyTools::from_setting(marley.and_then(|marley| marley.rusty_tools)),
+            dictation: Dictation::from_content(marley),
             block_headers: BlockHeaders::from_setting(
                 marley.and_then(|marley| marley.block_headers),
             ),

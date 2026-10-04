@@ -6,7 +6,7 @@
 //!
 //! Beside the agent, Attach File (T7c) types the paths of the files chosen in a file chooser into
 //! the terminal, as dropping the files on it does, for the agent to read, and the microphone
-//! (T7d) dictates through Voxtype.
+//! (T7d) dictates through Voxtype while Voice is on (#642).
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -14,6 +14,7 @@ use std::sync::Arc;
 use gpui::{AnyElement, App, Context, Entity, PathPromptOptions, SharedString, WeakEntity, Window};
 use marley_agent::AgentKind;
 use project::{DirectoryLister, Project};
+use settings::Settings as _;
 use terminal::Terminal;
 use terminal_view::{MarleyFooterContext, MarleyTerminalFooter, TerminalView};
 use ui::{Button, Icon, IconButton, IconName, IconSize, Label, LabelSize, Tooltip, prelude::*};
@@ -27,7 +28,7 @@ use crate::claude_plugin::{self, ClaudePlugin};
 use crate::links;
 use crate::rich_input;
 use crate::voice::{self, Voice, VoiceState};
-use crate::{AttachFile, RichInput};
+use crate::{AttachFile, Dictation, MarleySettings, RichInput};
 
 /// Puts the agent bar under every terminal, and Attach File on every workspace for the focused
 /// terminal. [`crate::init`] calls it once, before any window opens.
@@ -326,9 +327,13 @@ fn attach_button(context: &MarleyFooterContext) -> AnyElement {
         .into_any_element()
 }
 
-/// The microphone, where Voxtype is on the PATH. It shows what Voxtype is doing, and a click
-/// puts the focus on its terminal, where Voxtype types, and starts or stops a dictation.
+/// The microphone, where Voice is on and Voxtype is on the PATH. It shows what Voxtype is doing,
+/// and a click puts the focus on its terminal, where Voxtype types, and starts or stops a
+/// dictation.
 fn microphone(context: &MarleyFooterContext, cx: &mut App) -> Option<AnyElement> {
+    if MarleySettings::get_global(cx).dictation == Dictation::Off {
+        return None;
+    }
     let voice = cx.try_global::<Voice>()?;
     let voxtype = voice.voxtype.clone()?;
     let (color, tooltip) = microphone_look(voice.state);

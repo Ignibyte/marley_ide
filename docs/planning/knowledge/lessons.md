@@ -4391,3 +4391,48 @@ in the Actions tab, and no API call does it. Turning them on turns on every inhe
 once, so the step that turns Zed's off (`script/mutants cloud-setup`) has to follow it straight
 away. A push-triggered workflow then runs from the pushed commit, with no need to be on the
 default branch; a `workflow_dispatch` one needs the default branch.
+
+## L-claude-642-marley-settings-from-settings-is-at-clippys-line-cap-001
+*category: code · topic: MarleySettings · from: pipeline 642*
+
+`MarleySettings::from_settings` (`marley_workbench.rs`) is at exactly 100 lines since #642, the
+`too_many_lines` cap the Marley crates' lint table enforces, and every Marley setting adds a field
+to its one struct literal. #642's five-line read of a nested key failed gate:2 at 104/100. A new
+key reads through a constructor that takes the whole block, `Kind::from_content(marley)` with
+`marley: Option<&settings::MarleySettingsContent>` (`ResumeAgents` and `Dictation` have it), so
+the literal grows by one line; a key with real reading work gets its own function, as
+`push_settings` and `fleet_settings` do. Splitting the literal itself is the next step when one
+line no longer fits.
+
+## L-claude-642-marley-open-settings-focuses-the-page-list-001
+*category: e2e · topic: the Settings window in a scenario · from: pipeline 642*
+
+`SettingsWindow::new` focuses its search bar as it builds, but `marley: open settings` then opens
+the Marley page and leaves the page list focused (its Marley entry outlined), so text typed as the
+window opens goes nowhere and a search shot shows the full page. Press Ctrl+F first:
+`search::FocusSearch` is bound in the `SettingsWindow` context and puts the keys in the search;
+Ctrl+A then selects the query for the next one. `zed::OpenSettingsAt` to a sub-page (#633's
+Ctrl+Alt+Shift+M) needs no search at all.
+
+## L-claude-642-pgrep-reads-its-pattern-as-a-regular-expression-001
+*category: e2e · topic: process checks in scenarios · from: pipeline 642*
+
+`pgrep -f` matches an extended regular expression, not a fixed string. A check for a fake's
+`tail -n +1 -f <file>` never matched: ` +1` reads as one or more spaces then `1`, so the literal
+`+` in the command line was never found, and the check failed while the process ran. Put each
+metacharacter of a command line in a bracket (`tail -n [+]1 -f …`) or match a part with none.
+The older traps still hold: a `pgrep -f` inside `bash -c` matches its own wrapper (L-448).
+
+## L-claude-642-a-wasmtime-patch-moves-with-the-wasm-tools-it-asks-for-001
+*category: tooling · topic: cargo-audit and the lockfile · from: pipeline 642*
+
+Seven wasmtime advisories published on 2026-10-02 turned gate:7 red during #642, as three had
+during #511. The fix is the family's patch release inside Zed's `"48"` requirement, but `cargo
+update` with every wasmtime, wiggle, pulley and cranelift crate named still left wasmtime at
+48.0.3 and printed "available: v48.0.5": 48.0.5 asks `^0.254.1` of the wasm-tools crates
+(`wasmparser`, `wasm-encoder`, `wasmprinter`, `wasm-metadata`, `wit-component`, `wit-parser`),
+locked at 0.254.0, and cargo keeps a locked version it was not told to move. Name those crates
+in the same `cargo update` (diff a release's requirements with `index.crates.io` to find which).
+The lockfile is gate-defining, so the commit hook refuses a lockfile-only commit without a green
+`--diff` receipt, and a receipt binds HEAD: a bump found during a ticket's gate rides in that
+ticket's commit. The gate's clippy scope builds no wasmtime; `just build` proves it compiles.

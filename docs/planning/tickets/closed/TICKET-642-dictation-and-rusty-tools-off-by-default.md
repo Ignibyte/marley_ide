@@ -3,10 +3,10 @@
 - **Ticket:** LOCAL #642 (feature, prong 1 T7d and prong 2 C2: their defaults; design note Part 3,
   V1)
 - **Owner:** claude-opus-5-5, 2026-10-02 (/spec)
-- **Pipeline doc:** ../../pipeline/queued/642-dictation-and-rusty-tools-off-by-default.spec.md
+- **Pipeline doc:** ../../pipeline/completed/642-dictation-and-rusty-tools-off-by-default.spec.md
 - **Source ticket:** `docs/planning/design-notes/herdr-and-hermes-2026-10-02.md`, Part 3
   (Switches, V1) and Chad's third round of answers: "Both off by default"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Two Marley features switch on by themselves today: the agent bar's microphone (#480) shows

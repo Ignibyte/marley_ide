@@ -5,6 +5,9 @@
 //! focus on its terminal. [`Voice`] follows `voxtype status --follow --format json`, so the
 //! microphone shows what Voxtype is doing however the dictation started: from the microphone,
 //! from `marley::ToggleDictation` or from Omarchy's keys. Marley never touches the audio.
+//!
+//! All of it waits for `marley.voice.enabled` (#642): off, there is no microphone, the action
+//! says dictation is off, and Marley starts no `voxtype`.
 
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -12,10 +15,12 @@ use std::path::{Path, PathBuf};
 use anyhow::Context as _;
 use futures::{AsyncBufReadExt as _, StreamExt as _};
 use gpui::{App, AppContext as _, AsyncApp, Context, Global, Task, WeakEntity};
+use settings::{Settings as _, SettingsStore};
 use util::ResultExt as _;
-use workspace::Workspace;
+use workspace::notifications::NotificationId;
+use workspace::{Toast, Workspace};
 
-use crate::ToggleDictation;
+use crate::{Dictation, MarleySettings, ToggleDictation};
 
 /// What Voxtype is doing, as its status last said.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -45,11 +50,24 @@ pub struct Voice {
 impl Global for Voice {}
 
 /// Finds `voxtype` on the PATH, off the main thread, and installs `marley::ToggleDictation` on
-/// every workspace. [`crate::init`] calls it once, before any window opens.
+/// every workspace.
+///
+/// It also stops following Voxtype when Voice turns off. [`crate::init`] calls it once, before
+/// any window opens, so its observer runs before the terminals redraw their bars.
 pub fn init(cx: &mut App) {
     cx.set_global(Voice::default());
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action(|workspace, _: &ToggleDictation, _, cx| {
+            if MarleySettings::get_global(cx).dictation == Dictation::Off {
+                workspace.show_toast(
+                    Toast::new(
+                        NotificationId::unique::<Voice>(),
+                        "Dictation is off. Turn it on in the Voice section of the Marley settings.",
+                    ),
+                    cx,
+                );
+                return;
+            }
             match cx.global::<Voice>().voxtype.clone() {
                 Some(voxtype) => toggle(voxtype, workspace.weak_handle(), cx),
                 None => workspace.show_error(
@@ -58,6 +76,12 @@ pub fn init(cx: &mut App) {
                 ),
             }
         });
+    })
+    .detach();
+    cx.observe_global::<SettingsStore>(|cx| {
+        if MarleySettings::get_global(cx).dictation == Dictation::Off {
+            stop_following(cx);
+        }
     })
     .detach();
     cx.spawn(async move |cx| {
@@ -98,6 +122,15 @@ pub fn toggle(voxtype: PathBuf, workspace: WeakEntity<Workspace>, cx: &mut App) 
         }
     })
     .detach();
+}
+
+/// Drops the status follower, which ends `voxtype status`. The dropped task never reaches its own
+/// reset, so this resets the state; the next microphone drawn starts a follower again.
+fn stop_following(cx: &mut App) {
+    let voice = cx.global_mut::<Voice>();
+    voice.follower = None;
+    voice.following = false;
+    voice.state = VoiceState::Idle;
 }
 
 /// Runs `voxtype status --follow` unless it runs already. When it ends, Voxtype counts as idle.

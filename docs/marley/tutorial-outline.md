@@ -18,7 +18,7 @@ connected in part 4 because the browser lessons in part 6 have it drive the page
   are optional extras for lesson 22.
 - A Zed agent set up in the Agent Panel (a model for the Zed Agent, or an external agent such as
   Claude Agent), for part 5.
-- Voxtype, optional, for the microphone in lesson 20.
+- Voxtype, optional, for the microphone in lesson 20, with Voice turned on in the Marley settings.
 
 ## The practice folders
 
@@ -254,8 +254,8 @@ server does), with its source inside the project.
 - **Goal:** use the agent bar's input tools.
 - **Do:** press Ctrl+G, write two lines with Shift+Enter between them, and press Enter. Press
   Ctrl+G, type a draft, press Escape, and press Ctrl+G again. Click the bar's `+`, choose two files,
-  and ask the agent to compare them. With Voxtype installed, click the microphone, speak, and click
-  it again.
+  and ask the agent to compare them. With Voxtype installed, turn on Voice in the Marley settings,
+  then click the microphone, speak, and click it again.
 - **See:** the editor opens above the bar and the prompt arrives as one paste; the draft is still
   there after Escape; the two files' full paths typed into the prompt, quoted where needed; the
   microphone red while recording, yellow while transcribing, and your words typed into the prompt.

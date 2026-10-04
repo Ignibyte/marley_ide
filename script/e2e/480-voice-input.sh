@@ -2,7 +2,8 @@
 # #480's e2e test: a stand-in Claude Code in the terminal, and a fake Voxtype first on Marley's
 # PATH. The fake's status follows a file, and its `record toggle` moves that file on as Voxtype
 # moves: idle, recording, transcribing, and idle again a few seconds later. The microphone shows
-# each state, and `marley: toggle dictation` from the command palette toggles.
+# each state, and `marley: toggle dictation` from the command palette toggles. Voice is turned on
+# in the run's settings, since it is off by default (#642).
 
 setup() {
   local home=$E2E_WORK/home bin=$E2E_WORK/bin
@@ -29,6 +30,7 @@ FAKE
   chmod +x "$bin/voxtype"
   printf '{"text": "", "alt": "idle", "class": "idle", "tooltip": ""}\n' > "$bin/status"
   PATH=$bin:$PATH
+  profile_setting marley.voice.enabled true
   git init -q -b voice "$E2E_WORK/repo"
   open_path "$E2E_WORK/repo"
 }

@@ -3730,3 +3730,20 @@ clear is carried across it on apply (`line_now`). Zed's startup check opens no b
 by its marker. Rejected: removing the cleared blocks (indices are ids); draining the hook channel
 before the clear (the hooks are in the event loop's queue, out of the main thread's reach);
 telling a stale line by its value (lines before and after a clear overlap).
+
+## AD-claude-642-voice-and-rustys-tools-wait-to-be-turned-on-001
+*decided at: 2026-10-04 · status: shipped · revises: AD-claude-480-marley-drives-voxtype-and-follows-its-status-001, AD-claude-633-rustys-server-is-offered-where-installed-as-a-default-001*
+
+The agent bar's microphone and Rusty's server for Zed's agents no longer switch on wherever their
+program is installed (Chad, 2026-10-02: "Both off by default"). Dictation's switch is
+`marley.voice.enabled`, the master switch of a `marley.voice` block, so later voice uses grow
+inside it with no migration (a later `dictation` key defaults to true under it);
+`MarleySettings::dictation` is read "off unless on". Off means no microphone, no `voxtype` started
+(the PATH lookup stays: it starts nothing), a running status follower dropped while Marley runs,
+and `marley: toggle dictation` answering with a toast that names the Voice section, as System
+One's check does. `marley.rusty_tools` keeps its key and defaults to false; its offer already
+follows the settings store. `default.json` carries `false` for both, so the Settings window shows
+the default and resets to it. Rejected: a flat `marley.dictation` (moving it into a block later is
+a migration); hiding the action with Zed's `CommandPaletteFilter` (no pointer to the switch);
+moving `rusty_tools` into `marley.rusty` now (#643's job; with the default off it only has to
+carry the users who turned it on).

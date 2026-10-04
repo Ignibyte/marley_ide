@@ -86,9 +86,10 @@ pub struct MarleySettingsContent {
     /// Default: false
     pub embedded_harness: Option<bool>,
     /// Whether Rusty's MCP server is offered to Zed's agents as the context server `rusty`, where
-    /// `rusty-mcp` is on the search path; a `context_servers.rusty` of your own wins (#633).
+    /// `rusty-mcp` is on the search path; a `context_servers.rusty` of your own wins (#633). Off
+    /// until it is turned on (#642).
     ///
-    /// Default: true
+    /// Default: false
     pub rusty_tools: Option<bool>,
     /// How many seconds a command runs before its end shows a desktop notification, when its
     /// terminal is not the one in front; 0 turns this off (#551).
@@ -164,6 +165,8 @@ pub struct MarleySettingsContent {
     ///
     /// Default: "ask"
     pub claude_code_worktree_trust: Option<ClaudeCodeWorktreeTrust>,
+    /// Voice in Marley (#480, #642): dictation through Voxtype. Off until it is turned on.
+    pub voice: Option<MarleyVoiceSettingsContent>,
     /// The System One layer (#565): typed questions to a model about states Marley builds from
     /// what it knows. Off until it is turned on.
     pub system_one: Option<SystemOneSettingsContent>,
@@ -247,6 +250,17 @@ pub struct MarleyPushSettingsContent {
     pub topic: Option<String>,
     /// A file holding an ntfy access token, readable by its owner alone.
     pub token_file: Option<String>,
+}
+
+/// Marley's voice features (#642).
+#[with_fallible_options]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema, MergeFrom)]
+pub struct MarleyVoiceSettingsContent {
+    /// Whether Marley dictates at all: the agent bar's microphone where Voxtype is on the PATH,
+    /// and `marley: toggle dictation`. Off, Marley shows no microphone and starts no `voxtype`.
+    ///
+    /// Default: false
+    pub enabled: Option<bool>,
 }
 
 /// The System One layer's settings (#565). The key is never a setting: Marley reads it from

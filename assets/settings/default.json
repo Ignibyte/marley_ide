@@ -1750,7 +1750,8 @@
     "agent_commands_in_history": true,
     // Whether Rusty's MCP server is offered to Zed's agents as the context server "rusty" where
     // `rusty-mcp` is on your PATH; a "rusty" entry of your own in context_servers wins (#633).
-    "rusty_tools": true,
+    // Off until you turn it on (#642).
+    "rusty_tools": false,
     // Whether a line typed at a prompt that reads as English, such as "what is using port 3000",
     // shows a hint that Ctrl+Shift+Enter asks the agent, and a block that ended with 127 on one
     // offers Ask the agent (#557). Local rules decide; the key works either way.
@@ -1790,6 +1791,12 @@
     // worktree New Agent in Worktree made (#587): "ask" (a notification, whose Trust Folder
     // answers it) or "follow_zed" (Marley answers it when Zed trusts the worktree's folder).
     "claude_code_worktree_trust": "ask",
+    // Voice in Marley (#642), off until you turn it on. On, the agent bar shows a microphone where
+    // Voxtype is on your PATH, and `marley: toggle dictation` dictates through it; off, Marley
+    // shows no microphone and starts no voxtype. Marley never touches the audio.
+    "voice": {
+      "enabled": false
+    },
     // The System One layer (#565): typed questions to a model about states Marley builds from
     // what it knows. Off, it makes no request, reads no key and writes no file. The key is
     // never a setting: Marley reads MARLEY_SYSTEM_ONE_KEY, else the system keyring.

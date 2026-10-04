@@ -625,9 +625,11 @@ E2E_WORK=$(mktemp -d "$shots/work.XXXXXX")
 export E2E_PROFILE E2E_WORK
 mkdir -p "$E2E_PROFILE/config"
 cp "$config/settings.json" "$E2E_PROFILE/config/"
-# Zed starts each enabled context server when a project opens, so a run on a box with Rusty would
-# start the user's own rusty-mcp on their data: the copy offers none (#633); a scenario that wants
-# Rusty's tools sets `marley.rusty_tools` back, with a stand-in.
+# Zed starts each enabled context server when a project opens, so a run for a user who turned
+# Rusty's tools on would start their own rusty-mcp on their data, and one who turned Voice on would
+# start their voxtype and draw a microphone on every agent bar. Both are off by default (#642); the
+# copy turns them off for a user who turned them on (#633, #642). A scenario that wants either sets
+# `marley.rusty_tools` or `marley.voice.enabled` back, with a stand-in.
 python3 - "$E2E_PROFILE/config/settings.json" <<'SETTINGS'
 import json, pathlib, re, sys
 
@@ -637,7 +639,9 @@ text = path.read_text() if path.exists() else "{}"
 text = re.sub(r'("(?:[^"\\]|\\.)*")|//[^\n]*|/\*.*?\*/', lambda m: m.group(1) or "", text, flags=re.S)
 text = re.sub(r",(\s*[}\]])", r"\1", text)
 settings = json.loads(text) if text.strip() else {}
-settings.setdefault("marley", {})["rusty_tools"] = False
+marley = settings.setdefault("marley", {})
+marley["rusty_tools"] = False
+marley.setdefault("voice", {})["enabled"] = False
 path.write_text(json.dumps(settings, indent=2) + "\n")
 SETTINGS
 cp -r "$data/db" "$E2E_PROFILE/db"

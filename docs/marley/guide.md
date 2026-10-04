@@ -31,7 +31,7 @@ entry in `CHANGELOG.md` says more. Marley is pre-1.0.
 |---|---|
 | The Marley layout | A rail on the left with each project, its terminals and its agent threads. Terminals open in the main area, the Agent Panel docks on the right, and nothing opens the bottom Terminal Panel. |
 | The block terminal | Every command you run becomes a block with its exit status. Keys move between blocks, a block's output copies and its command reruns with one click, the prompt sits on the bottom row, and history suggests the rest of what you type. |
-| Agents in terminals | Claude Code, Codex, Gemini CLI and OpenCode are recognized in any terminal. An agent bar shows the folder and branch, with rich input, Attach File and dictation. A Claude Code plugin adds desktop notifications and Marley's tools. |
+| Agents in terminals | Claude Code, Codex, Gemini CLI and OpenCode are recognized in any terminal. An agent bar shows the folder and branch, with rich input, Attach File and, once Voice is on, dictation. A Claude Code plugin adds desktop notifications and Marley's tools. |
 | Marley's MCP server | Tools that let an agent list your terminals, read each command's exit code and output, and see and drive the Browser tab. |
 | The Browser tab | A page from Marley's own Chromium, in a tab, with an address bar and one tab per page. An element picker, annotations and a flight recorder hand what you see to the agent. |
 | System One | Off until you turn it on: typed questions to a model (TypeSafe's Jev first) about what Marley knows, sent only for the projects you list and masked, with every call in Decisions. |
@@ -51,7 +51,7 @@ download again on first use.
   `systemd-run --user`.
 - For the Claude Code plugin: `claude` on the PATH, and Python 3 for its MCP bridge.
 - Optional: the agent CLIs you use (`claude`, `codex`, `gemini`, `opencode`) and Voxtype, for
-  dictation.
+  dictation once Voice is turned on.
 
 ### Install with `just install`
 
@@ -510,7 +510,7 @@ foreground. Then the terminal gives up a row to the agent bar (#477), and gets i
 agent exits.
 
 - At the left: the agent's icon and name, Attach File (`+`), Rich Input (the pencil), the
-  microphone where Voxtype is installed, and, for Claude Code, the "Connect Claude Code to Marley"
+  microphone where Voice is on and Voxtype is installed, and, for Claude Code, the "Connect Claude Code to Marley"
   chip until Marley's plugin is installed.
 - At the right: the folder the agent works in (`~` for your home) and its git branch, from the
   innermost repository of the project that holds the folder.
@@ -564,8 +564,13 @@ terminals run on. The command works in any focused terminal, agent or not.
 
 ### The microphone
 
-Where Voxtype, the dictation daemon Omarchy ships, is on the PATH, the agent bar has a microphone
-(#480). Click it, or run `marley: toggle dictation`, to start or stop a dictation. The microphone
+Dictation is off until you turn it on: Voice in the Voice section of the Marley settings page, or
+`"marley": { "voice": { "enabled": true } }` (#642). Off, Marley shows no microphone and starts no
+`voxtype`, and `marley: toggle dictation` says dictation is off and where to turn it on. Turning it
+on or off takes effect at once.
+
+With Voice on, where Voxtype, the dictation daemon Omarchy ships, is on the PATH, the agent bar has
+a microphone (#480). Click it, or run `marley: toggle dictation`, to start or stop a dictation. The microphone
 first puts the focus on its terminal, and Voxtype types what you said where the focus is. It turns
 red while Voxtype records and yellow while it transcribes, however the dictation started, Omarchy's
 own keys included. Marley never touches the audio. Without Voxtype, `marley: toggle dictation`
@@ -908,12 +913,14 @@ to the panel's agents (#501):
 To turn it off, set `"context_servers": { "marley": { "enabled": false } }`. An entry of your own
 named `marley` replaces Marley's. `agent: open settings` opens Zed's Settings window at its AI page.
 
-Where Rusty is installed (`rusty-mcp` on your PATH), Marley also offers Rusty's MCP server to the
-same agents as the context server `rusty` (#633): a stdio `rusty-mcp`, as Rusty's own `.mcp.json`
-names it, so an agent reaches Rusty's brain loop (`brain_ask`, `brain_decide` and the rest) and its
-other tools. Zed asks before each call, as it does for every server. Rusty Tools for Agents on the
-Marley settings page (`"marley": { "rusty_tools": false }`) turns it off, and a `rusty` entry of
-your own in `context_servers` replaces Marley's. Without `rusty-mcp`, nothing is added.
+With Rusty Tools for Agents on (the Marley settings page's Agents section, or `"marley": {
+"rusty_tools": true }`; off until you turn it on, #642) and Rusty installed (`rusty-mcp` on your
+PATH), Marley also offers Rusty's MCP server to the same agents as the context server `rusty`
+(#633): a stdio `rusty-mcp`, as Rusty's own `.mcp.json` names it, so an agent reaches Rusty's brain
+loop (`brain_ask`, `brain_decide` and the rest) and its other tools. Zed asks before each call, as
+it does for every server. Turning the setting off takes the server away while Marley runs, and a
+`rusty` entry of your own in `context_servers` replaces Marley's. Without `rusty-mcp`, nothing is
+added.
 
 ## Marley's MCP server
 
@@ -1704,7 +1711,7 @@ Commands with no key of their own, from the command palette:
 | `marley: open settings` | The Settings window on its Marley page |
 | `marley: new agent` | The New Agent picker (also Ctrl+Alt+N) |
 | `marley: attach file` | Attach File for the focused terminal |
-| `marley: toggle dictation` | Starts or stops a Voxtype dictation |
+| `marley: toggle dictation` | Starts or stops a Voxtype dictation, while Voice is on |
 | `marley: open browser` | Shows or opens a Browser tab |
 | `marley: new browser tab` | A new Browser tab (Ctrl+T inside one) |
 | `marley: pick element`, `marley: annotate`, `marley: record this` | The Browser tab's three buttons, while a Browser tab has the focus |
@@ -1716,8 +1723,8 @@ Marley keeps its settings in `~/.config/marley/settings.json`, in Zed's format (
 the file; Ctrl+, opens the Settings window). `marley: open settings` opens the Settings window on its Marley page,
 first in the list (#515). The page has a Layout section, with the layout as a dropdown and the
 Prompt Editor toggle (#627), an Agents
-section with Redact Secrets for Agents (#516), and a Privacy section with the two telemetry
-toggles; later Marley settings add their sections there.
+section with Redact Secrets for Agents (#516), a Voice section with the Voice toggle (#642), and a
+Privacy section with the two telemetry toggles; later Marley settings add their sections there.
 
 Marley's own keys in the file:
 
@@ -1732,6 +1739,12 @@ Marley's own keys in the file:
     // entry is a regular expression, and one that does not compile is named in a notification.
     "redact_secrets_for_agents": true,
     "redaction_patterns": ["INTERNAL-[0-9]{6}"],
+    // Dictation through Voxtype: the agent bar's microphone and marley: toggle dictation. Off
+    // until you turn it on (#642).
+    "voice": { "enabled": false },
+    // Rusty's MCP server for Zed's agents, where rusty-mcp is installed. Off until you turn it
+    // on (#633, #642).
+    "rusty_tools": false,
     // Where the Fleet panel's agents come from (#607): [] (the default) shows "not set up";
     // { "kind": "pseudo" } shows Marley's example data. "hosts" lists machines Marley reads
     // over SSH or locally (#610), "agent_processes" more process names to list as agents.

@@ -1251,7 +1251,16 @@ alike.
   `Editor::unsent_review_notes` (anchors to points, `point_to_buffer_point`, the buffer file's
   `LocalFile::abs_path`, rows from 1) and `Editor::mark_review_notes_sent`; the row's Sent label.
 
-## Voice (`src/voice.rs`, #480)
+## Voice (`src/voice.rs`, #480, #642)
+
+- Everything here waits for `MarleySettings::dictation` (`marley.voice.enabled`, read "off unless
+  on" by `Dictation::from_content`, #642). Off, `microphone` in `agent_bar.rs` returns nothing
+  before it reads `Voice` or calls `follow_once_drawn`, and `marley::ToggleDictation` answers with
+  a toast (`NotificationId::unique::<Voice>()`) that names the Voice section, so no `voxtype`
+  runs. `init` observes the settings store, and while off `stop_following` drops the follower,
+  which kills `voxtype status`, and resets `following` and the state itself, since a dropped task
+  never reaches its own reset. Turned on, the next microphone drawn starts a follower again; each
+  `TerminalView` redraws its bar on a settings change.
 
 - `Voice`, a global, holds the `voxtype` found on the PATH at `init` (a lazy background
   future), the `VoiceState` (idle, recording, transcribing) and the follower: a task running
@@ -1821,14 +1830,16 @@ alike.
 ## Rusty's tools for Zed's agents (`src/rusty.rs`, #633)
 
 - `init` and an observer of the settings store call `offer`: while `MarleySettings::rusty_tools`
-  is `Offered`, it looks for `rusty-mcp` on the search path (`agents::launcher`) off the main
+  is `Offered` (only when `marley.rusty_tools` is true; off by default since #642), it looks for `rusty-mcp` on the search path (`agents::launcher`) off the main
   thread; `settle` then inserts `context_servers.rusty` into Zed's default settings as a stdio
   server running it with no arguments, or removes Marley's entry, only when that differs from the
   offer the `RustyOffer` global holds. The defaults' change notifies the store again, which finds
   the offer unchanged. A user's own `context_servers.rusty` sits in the user's layer and wins.
-- `script/e2e.sh` writes `marley.rusty_tools: false` into each run's copy of the user's settings,
-  since Zed starts every enabled context server when a project opens; #633's scenario sets it back
-  with a stand-in `rusty-mcp`.
+- `script/e2e.sh` writes `marley.rusty_tools: false` and `marley.voice.enabled: false` into each
+  run's copy of the user's settings (#642), for a user who turned either on: Zed starts every
+  enabled context server when a project opens, and Voice would start the user's `voxtype`. #633's
+  and #642's scenarios set Rusty's tools back with a stand-in `rusty-mcp`; #480's and #642's set
+  Voice back with a fake `voxtype`.
 
 ## The find tools (`src/find.rs`, #567)
 

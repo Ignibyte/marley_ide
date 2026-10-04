@@ -262,3 +262,173 @@ scenario's outside edits stop reloading (L-607), and the window's write path is 
 - [x] Design: approach, file manifest by crate, the three touchpoint rows to extend, the visual
       check plan, risks, the user docs for Complete.
 - [x] Docs only: the ticket doc and this pair; no BACKLOG.md, no `active/`, no source, no cargo.
+
+## Phase 1 — Promotion (2026-10-04)
+- **Promoted** from `queued/` into `active/`; the BACKLOG row is gone and the ticket is
+  in-progress. Pre-flight green: cargo 1.98.1, the gate, the e2e runner, cargo-shear 1.13.4, the
+  hooks, no other active pipeline, the README marker present, cargo idle, `/mnt/fast` 280G free.
+- **Seams re-verified** against the tree at d70bb7fc21: `voice.rs` `init` `:49-73`,
+  `follow_once_drawn` `:79`, `toggle` `:88`, `follow` `:104`; `process.rs`'s `following` keeps
+  `kill_on_drop(true)` (`:95`); `agent_bar.rs` `microphone` `:331-352`; `MarleySettings`
+  `:341-409`, `EmbeddedHarness` `:464-479`, `RustyTools` `:481-497`, `from_settings` `:547`,
+  `rusty::init` `:770`, `voice::init` `:785`; `rusty.rs` `init` `:34-38`, `offer` `:41-54`;
+  `settings_content/src/marley.rs` `rusty_tools` `:88-92`, `system_one` `:169`,
+  `MarleyPushSettingsContent` `:243`, `SystemOneSettingsContent` `:256`; `default.json`
+  `embedded_harness` `:1706`, `rusty_tools` `:1753`, `system_one` `:1796`; `marley_page.rs`
+  `marley_page()` `:10-22`, Rusty Tools for Agents `:345-363`, `push_section` `:558`,
+  `system_one_section` `:643`; `system_one.rs` `check_toast` `:1225`, `show_toast` `:1252`.
+  All as the queued notes say, give or take a line.
+- **One change to the design:** `script/e2e.sh` has had `profile_setting <key.path> <json>` since
+  #635 (`:562-580`), the same Python 633's own `set_setting` carries. 480's scenario calls it
+  (`profile_setting marley.voice.enabled true` in `setup`) instead of a helper of its own, and
+  642's scenario calls it for its edits while Marley runs too; only deleting a key needs a
+  helper of the scenario's own (`drop_setting`, a name the harness does not use).
+- **The search's focus, confirmed:** `SettingsWindow::new` focuses the search bar as it builds
+  (`settings_ui.rs:2064-2066`), so the scenario types its query as the window opens; Ctrl+A
+  then selects the query for the next one.
+- **Brain:** `rusty-cli brain ask` (consultations `91c1551f35fb489db5ba6d8bc42feb70` and
+  `0f5d097a1b784df1bd851191423d2279`) returned only due follow-ups on other work;
+  `brain search` finds the two decisions this ticket revises (above). Nothing new on the seam.
+
+## Phase 2 — Code (2026-10-04)
+- **Built, to the manifest:**
+  - Ledger first: the three `zed-touchpoints.md` rows (`settings_content/src/marley.rs`,
+    `marley_page.rs`, `default.json`) widened before any Zed path was written.
+  - `settings_content/src/marley.rs`: `voice: Option<MarleyVoiceSettingsContent>` before
+    `system_one`, and `MarleyVoiceSettingsContent { enabled }` with the push block's derives;
+    `rusty_tools`' doc says off until turned on, "Default: false".
+  - `default.json`: `"voice": { "enabled": false }` with its comment, before `system_one`;
+    `"rusty_tools": false`, its comment saying so.
+  - `marley_workbench.rs`: `MarleySettings::dictation: Dictation`, `Dictation { On, Off }` read
+    "off unless on" from `marley.voice.enabled`; `RustyTools::from_setting` offers only on
+    `Some(true)`; `ToggleDictation`'s doc says "while Voice is on in the Marley settings".
+  - `voice.rs`: the action answers `Off` with the toast "Dictation is off. Turn it on in the Voice
+    section of the Marley settings." (`NotificationId::unique::<Voice>()`) before looking at
+    Voxtype; `init` observes the settings store and, while off, `stop_following` drops the
+    follower (its `kill_on_drop` child ends) and resets `following` and the state, since the
+    dropped task never reaches its own reset. The module doc says the switch gates it all.
+  - `agent_bar.rs`: `microphone` returns `None` while `Off`, before reading `Voice` or calling
+    `follow_once_drawn`.
+  - `rusty.rs`: the module doc says the setting, off by default, turns the offer on.
+  - `marley_page.rs`: `voice_section()`, a Voice header and a Voice toggle on
+    `marley.voice.enabled`, chained after Push.
+  - `script/e2e.sh`: the copy writes `marley.rusty_tools` and `marley.voice.enabled` false; the
+    comment says why with both off by default. `480-voice-input.sh`: `profile_setting
+    marley.voice.enabled true` in `setup`.
+  - The in-app guide: the agent bar line, the Dictation article (`#480 · #642`, a first step that
+    turns Voice on) and the palette row.
+- **Deviations:** (1) 480's scenario uses the harness's `profile_setting` (#635) rather than a
+  helper of its own (Promotion, above). (2) The visual check's scenario,
+  `script/e2e/642-dictation-and-rusty-tools-off-by-default.sh`, was written in this phase, before
+  the gate, because the commit receipt fingerprints `script/e2e/*.sh` and gate:11 lints them: one
+  gate run covers it instead of a second `--diff` at Complete. The Test phase runs it and may still
+  change it, which would need `--diff` again.
+- **Review of the diff** against REQ-001 to REQ-011: every path to `voxtype` is behind the switch
+  (the microphone, its click, and the action are the only callers of `follow_once_drawn` and
+  `toggle`; the PATH lookup reads directories and starts nothing). The observer touches only the
+  `Voice` global, no entity, so nothing re-enters; the action handler shows the toast on the
+  workspace it was handed. `rusty::offer` with the switch unset finds nothing and `settle(None)`
+  returns at once, so no `rusty` entry is ever added. No test in the tree reads either default
+  (`zed.rs:6236` sets `rusty_tools` false, now the default). Provenance: Marley's own patterns
+  (`EmbeddedHarness`, System One's toast and toggle); nothing from Warp. Upstream discipline: the
+  three Zed files are Marley's own additions with rows. No defect found.
+- **Checks:** `cargo check -p marley_workbench -p settings_ui` green (46 s); `shellcheck -S info`
+  on the changed scripts and the new scenario clean.
+- **Gate, run 1** (`just gate-diff`, log in the scratchpad): RED on three. gate:2, two clippy
+  lints in `marley_workbench`: `too_long_first_doc_paragraph` on `voice::init`'s doc (split into
+  a one-sentence summary and a second paragraph) and `too_many_lines` on
+  `MarleySettings::from_settings` at 104 of 100 (the five-line read of `marley.voice.enabled`
+  moved into `Dictation::from_content(marley)`, the shape `ResumeAgents::from_content` already
+  has; the function is now 100). gate:7, `cargo-audit`: seven advisories published 2026-10-02
+  against wasmtime and wasmtime-wasi 48.0.3, Zed's extension host runtime (RUSTSEC-2026-0321 to
+  -0327), not from this change. Fixed at the source as #511 did: the family's patch release
+  48.0.5, which needed cranelift 0.135.5 and the wasm-tools crates (`wasmparser`,
+  `wasm-encoder`, `wasmprinter`, `wasm-metadata`, `wit-component`, `wit-parser`) at 0.254.2 in
+  the same `cargo update` (wasmtime 48.0.5 asks `^0.254.1`, which is why a family-only update
+  left it at 48.0.3 with "available: v48.0.5"); lockfile only, `cargo audit` exit 0 after it. The
+  `Cargo.lock` row and the CHANGELOG's Security entry say so. A separate commit for the bump was
+  refused by the commit hook (the lockfile is gate-defining, so it needs a receipt too), and a
+  receipt binds HEAD, so the bump rides in #642's commit, as #511's did. The receipt step was red
+  because files changed during the run. The other 14 gates passed.
+- **Gate, run 2** (`just gate-diff` on the settled tree): `GATE GREEN [diff]`, 17 passed, the
+  receipt written. The gate's clippy scope does not build wasmtime; the Test phase's `just build`
+  compiles 48.0.5 into the debug `marley` the scenario runs.
+
+## Phase 3 — Test (2026-10-04)
+- **Build:** `just build`, the debug `marley` with this change and wasmtime 48.0.5 (ten wasmtime
+  crates compiled; the gate's clippy scope never builds them), 2 m 22 s.
+- **Run 1:** `just e2e script/e2e/642-dictation-and-rusty-tools-off-by-default.sh` (`compositor
+  sway`) stopped at the check after `642-07`: "the status process runs: FAIL". Two faults of the
+  scenario, none of Marley's: (1) the process check's `pgrep -f "tail -n +1 -f …"` reads a
+  pattern, in which ` +1` means one or more spaces then `1`, so the literal `+` never matched,
+  though `calls` already held `status --follow`; the `+` now sits in a bracket. (2) `642-03`
+  showed the Settings window's search empty: `marley: open settings` opens the window with its
+  page list focused (the Marley entry outlined), so the typed "Voxtype" went nowhere; the
+  promotion's reading of `SettingsWindow::new` (the search focused as it builds) is overridden by
+  the page the action opens. The scenario now presses Ctrl+F (`search::FocusSearch` in the
+  `SettingsWindow` context) first. Shots 01, 02 and 05 to 07 of run 1 already showed what run 2
+  shows.
+- **Run 2:** exit 0, every check passed (the copy's two switches off; no `voxtype` with Voice
+  unset and after the action; the status followed, its process running, `record toggle` run; the
+  process ended after Voice turned off). `calls` read `status --follow --format json`, `record
+  toggle`, `record toggle`. Focus report: "hyprland: 0 Marley windows before the run, 0 after; the
+  run added no rule and did not reload it"; the run's own sway stopped with its Marley. Every
+  shot is Marley's window in the run's sway; none was deleted.
+- **The shots, read:**
+  - `642-01-no-microphone` (REQ-001, REQ-002): the stand-in Claude Code's agent bar reads Claude
+    Code, `+`, the pencil, then Connect Claude Code to Marley and the folder: no microphone, with
+    the fake `voxtype` first on the PATH; `calls` empty.
+  - `642-02-dictation-is-off` (REQ-003, REQ-002): after `marley: toggle dictation`, a toast at the
+    bottom right: "Dictation is off. Turn it on in the Voice section of the Marley settings."; the
+    bar unchanged; `calls` still empty.
+  - `642-03-voice-toggle-off` (REQ-004): the Settings window searched for "Voxtype": Marley ›
+    Voice in the list; the page's Voice header and its one item, Voice, with the description
+    naming Voxtype, the microphone and `marley: toggle dictation`; its switch off.
+  - `642-04-rusty-toggle-off` (REQ-005): searched for "Rusty": Marley › Agents, Rusty Tools for
+    Agents, its switch off.
+  - `642-05-no-rusty` (REQ-006): User / AI / General / MCP Servers: `marley` alone, though the
+    stand-in `rusty-mcp` is first on the PATH.
+  - `642-06-rusty-on` (REQ-007): `marley.rusty_tools` set true from outside: `rusty` listed under
+    `marley`, its dot green (cropped and enlarged to read it), no restart.
+  - `642-07-microphone-on` (REQ-008): the Settings window closed and `marley.voice.enabled` set
+    true: a muted microphone after the pencil; `calls` holds `status --follow`.
+  - `642-08-recording` (REQ-009): `marley: toggle dictation`: the microphone red (cropped);
+    `calls` holds `record toggle`.
+  - `642-09-microphone-off` (REQ-010, REQ-002): `marley.voice.enabled` set false: the bar back to
+    Claude Code, `+`, the pencil and the chip; the fake's status `tail` gone.
+  - REQ-011: the setup's two `expect` lines passed (`marley.rusty_tools` and `marley.voice.enabled`
+    false in the harness's copy).
+- **Seen, not a criterion:** the dictation toast stays until closed, as System One's does (Zed's
+  `Toast` without `autohide`). Kept, to match System One's answer to a feature that is off.
+- **Not reached:** a real dictation (speech) and a real Rusty tool call (the user's brain), both
+  #480's and #633's and unchanged here.
+- **Pre-existing — not in scope:** none.
+- **The receipt:** the scenario's fix changed a fingerprinted file, so `just gate-diff` runs again
+  before the commit (run 3).
+- **Gate, run 3** (after the scenario's fix): `GATE GREEN [diff]`, 17 passed, the receipt
+  written over the tree that is committed.
+
+## Phase 4 — Complete (2026-10-04)
+- **Documented (§21):** `CHANGELOG.md`, Changed ("Dictation and Rusty's tools wait to be turned
+  on") and Security ("wasmtime 48.0.5"); `docs/marley_architecture/marley_workbench.md` (Voice:
+  the switch, the observer, `stop_following`; Rusty's tools: the default and the harness's two
+  lines); `docs/marley/three-prong-plan.md` (T7d and C2); the three `zed-touchpoints.md` rows
+  checked against what shipped, and the `Cargo.lock` row for 48.0.5; the user docs the plan
+  listed: `docs/marley/guide.md` (the feature table, the optional install, the bar's left side,
+  The microphone, Rusty's tools, the palette row, the Settings page's sections and keys),
+  `docs/marley/walkthrough.md` (1.4's seven sections and both switches off, 5.1's bar, 5.8 with
+  the toast and Voice turned on, the palette row), `docs/marley/tutorial-outline.md` (the
+  install line, lesson 20); the in-app guide in the Code phase.
+- **Knowledge (§19):** `AD-claude-642-voice-and-rustys-tools-wait-to-be-turned-on-001`;
+  `L-claude-642-marley-settings-from-settings-is-at-clippys-line-cap-001`,
+  `L-claude-642-marley-open-settings-focuses-the-page-list-001`,
+  `L-claude-642-pgrep-reads-its-pattern-as-a-regular-expression-001`,
+  `L-claude-642-a-wasmtime-patch-moves-with-the-wasm-tools-it-asks-for-001`. No `F-…`: the two
+  faults Test found were the scenario's, and the clippy reds were lints.
+- **Brain:** `brain decide` on consultation `91c1551f35fb489db5ba6d8bc42feb70`:
+  `decisions/marleys-dictation-and-rustys-tools-for-zeds-agents-wait-to-be-turned-on` (follow-up
+  2026-10-18); `decisions/marley-drives-voxtype-and-follows-its-status` and
+  `decisions/marley-offers-rusty-mcp-to-zeds-agents-where-it-is-installed` followed up as
+  revised, with it as successor.
+- **Closed:** the ticket moved to `tickets/closed/`, its link at `completed/`; no BACKLOG row was
+  left (promotion removed it). The pair archived to `pipeline/completed/`.

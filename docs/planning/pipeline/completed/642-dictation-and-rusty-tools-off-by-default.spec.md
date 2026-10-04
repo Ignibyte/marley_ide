@@ -1,7 +1,7 @@
 ---
 pipeline_id: 57fd9b86-facc-463a-b3c8-3b952a658754
 ticket: docs/planning/tickets/open/TICKET-642-dictation-and-rusty-tools-off-by-default.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Dictation and Rusty's tools wait to be turned on"
 type: feature
 slice: prong 1 T7d and prong 2 C2 (their defaults); design note Part 3, V1
@@ -37,7 +37,8 @@ dictation` says dictation is off and where to turn it on. Chad, 2026-10-02: "Bot
   Tools for Agents stays in the Agents section and shows off.
 - **The e2e harness:** `script/e2e.sh` keeps writing `marley.rusty_tools: false` into each run's
   copy of the user's settings, which now matters only for a user who turned it on, and also writes
-  `marley.voice.enabled: false`; `script/e2e/480-voice-input.sh` sets Voice back on for its fake.
+  `marley.voice.enabled: false`; `script/e2e/480-voice-input.sh` sets Voice back on for its fake
+  with the harness's `profile_setting` (#635).
 - **The in-app guide page** (`crates/marley_workbench/guide/index.html`): its dictation article and
   agent bar line say Voice must be on. It sits under `crates/marley_*`, which the commit receipt
   binds, so it changes in the Code phase, before the gate.
