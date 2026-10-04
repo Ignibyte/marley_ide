@@ -159,6 +159,12 @@ pub struct MarleySettingsContent {
     ///
     /// Default: "ask"
     pub claude_code_worktree_trust: Option<ClaudeCodeWorktreeTrust>,
+    /// The integrations Marley turns on even when the agent's version is outside the range it
+    /// tested them on, by their id, such as `claude_prompt_tags` (#648). Marley reads the version
+    /// of the `claude` and `codex` it runs, and the agent bar says when one is off.
+    ///
+    /// Default: {"claude_prompt_tags": false}
+    pub allow_untested_versions: Option<BTreeMap<String, bool>>,
     /// Voice in Marley (#480, #642): dictation through Voxtype. Off until it is turned on.
     pub voice: Option<MarleyVoiceSettingsContent>,
     /// The System One layer (#565): typed questions to a model about states Marley builds from

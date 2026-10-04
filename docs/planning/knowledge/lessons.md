@@ -4644,3 +4644,19 @@ On Wayland and X11 gpui turns one wheel notch into `ScrollDelta::Lines(3.0)` (`S
 `gpui_linux/src/linux/platform.rs`), and the e2e harness's `scroll` sends whole notches, positive
 for the wheel down. A zoom per line of 1.15 is 1.52 a notch; 1.05 a line gives Rusty's 1.16 a notch.
 `scroll -N` is the wheel up, which zooms in.
+
+## L-claude-648-a-tooltip-needs-the-pointer-to-move-onto-it-001
+*category: e2e · topic: hovering under sway · from: pipeline 648*
+
+A scenario's `pointer_to` to the place the pointer already rests sends no motion, so nothing new is
+hovered and no tooltip opens, though a click there works (`648-06`'s first run). Before shooting a
+tooltip, move the pointer off (`pointer_to` an empty spot, `settle 1`) and back.
+
+## L-claude-648-a-stand-in-can-print-its-version-from-its-own-file-name-001
+*category: e2e · topic: faking an agent's updates · from: pipeline 648*
+
+To act out an agent updating itself, copy one stand-in under the version names
+(`versions/2.1.287`, `versions/2.2.0`) and have it print `os.path.basename(os.path.realpath(
+__file__))` for `--version`; a link the scenario moves with `ln -sfn`, as Claude Code's own
+installer moves `~/.local/bin/claude`, is then a new install with a new identity (canonical path),
+and the program keeps its name `claude` in the terminal's foreground.

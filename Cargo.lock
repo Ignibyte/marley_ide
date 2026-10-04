@@ -10749,6 +10749,7 @@ dependencies = [
  "base64 0.22.1",
  "marley_fleet",
  "procfs-core",
+ "semver",
  "serde",
  "serde_json",
 ]

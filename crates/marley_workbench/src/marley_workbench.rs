@@ -25,6 +25,7 @@ pub mod agent_events;
 pub mod agent_notify;
 pub mod agent_tab;
 pub mod agent_trust;
+pub mod agent_versions;
 pub mod agents;
 pub mod autosuggest;
 pub mod block_filter;
@@ -406,6 +407,8 @@ pub struct MarleySettings {
     pub agent_permissions: agents::AgentPermissions,
     /// Who answers Claude Code's trust question in a new worktree (#587).
     pub claude_code_worktree_trust: ClaudeCodeWorktreeTrust,
+    /// The integrations turned on outside the agent versions they were tested on, by id (#648).
+    pub allow_untested_versions: BTreeSet<String>,
     /// The System One layer (#565).
     pub system_one: system_one::SystemOneSettings,
     /// The workflow stores the Fleet panel reads (#607).
@@ -619,13 +622,7 @@ impl Settings for MarleySettings {
             agent_commands_outside_lists: marley
                 .and_then(|marley| marley.agent_commands_outside_lists)
                 .unwrap_or_default(),
-            rail_order: match marley
-                .and_then(|marley| marley.rail_order)
-                .unwrap_or_default()
-            {
-                settings::MarleyRailOrder::Attention => marley_rail::RailOrder::Attention,
-                settings::MarleyRailOrder::Window => marley_rail::RailOrder::Window,
-            },
+            rail_order: rail_order(marley),
             prompt_editor: PromptEditor::from_setting(
                 marley.and_then(|marley| marley.prompt_editor),
             ),
@@ -649,6 +646,7 @@ impl Settings for MarleySettings {
             claude_code_worktree_trust: marley
                 .and_then(|marley| marley.claude_code_worktree_trust)
                 .unwrap_or_default(),
+            allow_untested_versions: agent_versions::allowed_in(marley),
             system_one: system_one::SystemOneSettings::from_content(
                 marley.and_then(|marley| marley.system_one.as_ref()),
             ),
@@ -656,6 +654,17 @@ impl Settings for MarleySettings {
             fleet_hosts,
             fleet_agent_processes,
         }
+    }
+}
+
+/// The order the rail lists projects and rows in (#542).
+fn rail_order(marley: Option<&settings::MarleySettingsContent>) -> marley_rail::RailOrder {
+    match marley
+        .and_then(|marley| marley.rail_order)
+        .unwrap_or_default()
+    {
+        settings::MarleyRailOrder::Attention => marley_rail::RailOrder::Attention,
+        settings::MarleyRailOrder::Window => marley_rail::RailOrder::Window,
     }
 }
 
@@ -786,6 +795,7 @@ pub fn init(cx: &mut App) {
     english::init(cx);
     typed_line::init(cx);
     agent_notify::init(cx);
+    agent_versions::init(cx);
     agent_bar::init(cx);
     claude_plugin::init(cx);
     notifications::init(cx);

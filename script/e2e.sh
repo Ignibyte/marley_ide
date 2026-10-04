@@ -631,7 +631,10 @@ cp "$config/settings.json" "$E2E_PROFILE/config/"
 # by default (#642, #643); the copy turns Rusty off and points its service at a port nothing
 # listens on, takes out an old `marley.rusty_tools`, and turns Voice off, for a user who turned
 # them on (#633, #642, #643). A scenario that wants either turns it back on with a stand-in: Rusty
-# through `MARLEY_RUSTY_MCP`, which names no file until the scenario names its own.
+# through `MARLEY_RUSTY_MCP`, which names no file until the scenario names its own. The copy also
+# allows Claude Code's prompt tags on any version (#648): no scenario's stand-in `claude` answers
+# `--version`, and the user's own Claude Code updates itself, so without it a scenario's prompts
+# would read differently from one install to the next.
 python3 - "$E2E_PROFILE/config/settings.json" <<'SETTINGS'
 import json, pathlib, re, sys
 
@@ -645,9 +648,13 @@ marley = settings.setdefault("marley", {})
 marley.pop("rusty_tools", None)
 marley["rusty"] = {"enabled": False, "service_url": "http://127.0.0.1:9/mcp"}
 marley.setdefault("voice", {})["enabled"] = False
+marley.setdefault("allow_untested_versions", {})["claude_prompt_tags"] = True
 path.write_text(json.dumps(settings, indent=2) + "\n")
 SETTINGS
 export MARLEY_RUSTY_MCP=$E2E_WORK/no-rusty-mcp
+# Marley reads the version of the codex it would run (#648); a run reads no codex of the user's
+# unless its scenario names a stand-in.
+export MARLEY_CODEX=$E2E_WORK/no-codex
 cp -r "$data/db" "$E2E_PROFILE/db"
 if [[ -d $data/threads ]]; then
   cp -r "$data/threads" "$E2E_PROFILE/threads"

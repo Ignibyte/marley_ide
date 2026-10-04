@@ -12,7 +12,8 @@ use anyhow::Context as _;
 use util::command::{Child, Stdio};
 
 /// Runs `program` with `args` in `dir` (Marley's own folder when `None`), with `env` added, and
-/// gives what it printed and how it ended, unjudged.
+/// gives what it printed and how it ended, unjudged. Dropped before it ends, as a call raced
+/// against a timeout is, the program is killed rather than left running (#648).
 ///
 /// # Errors
 ///
@@ -28,7 +29,7 @@ where
     S: AsRef<OsStr>,
 {
     let mut command = util::command::new_command(program);
-    command.args(args);
+    command.args(args).kill_on_drop(true);
     if let Some(dir) = dir {
         command.current_dir(dir);
     }

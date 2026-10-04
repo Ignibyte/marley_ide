@@ -534,11 +534,25 @@ agent exits.
 
 - At the left: the agent's icon and name, Attach File (`+`), Rich Input (the pencil), the
   microphone where Voice is on and Voxtype is installed, and, for Claude Code, the "Connect Claude Code to Marley"
-  chip until Marley's plugin is installed.
+  chip until Marley's plugin is installed, and a version chip while something is off (below).
 - At the right: the folder the agent works in (`~` for your home) and its git branch, from the
   innermost repository of the project that holds the folder.
 
 The rich input's editor opens above the bar.
+
+**The agent's version** (#648). Marley runs your own `claude` and `codex`: the one
+`MARLEY_CLAUDE` or `MARLEY_CODEX` names, else the first on Marley's PATH. It reads each one's
+version with `--version` when Marley starts, and again when an agent bar for it shows and the
+program's file changed (an update moves Claude Code's link). One part of Marley rests on something
+Claude Code does not document: the tags that tell your prompts from the ones Claude Code adds
+itself, task notifications and system reminders. Marley checked them on Claude Code 2.1.283 and
+later 2.1 releases. On another version, or one it cannot read, it keeps them off and reads every
+prompt as yours, so the rail may show a task notification as your prompt, and the agent bar shows
+a chip: "Untested Claude Code 2.2.0", "Claude Code version unknown" or "Claude Code not on
+Marley's PATH". Its tooltip says what is off, the program and version found, and the versions
+checked; a click opens the Settings window at Prompt Tags on Untested Claude Code, which turns
+them on anyway. A remote terminal's Claude Code is the host's, so its prompts are read with the
+tags and no chip shows.
 
 ### Rich input
 
@@ -1903,7 +1917,8 @@ Marley keeps its settings in `~/.config/marley/settings.json`, in Zed's format (
 the file; Ctrl+, opens the Settings window). `marley: open settings` opens the Settings window on its Marley page,
 first in the list (#515). The page has a Layout section, with the layout as a dropdown and the
 Prompt Editor toggle (#627), an Agents
-section with Redact Secrets for Agents (#516), a Voice section with the Voice toggle (#642), a Rusty
+section with Redact Secrets for Agents (#516), an Agent Versions section with Prompt Tags on
+Untested Claude Code (#648), a Voice section with the Voice toggle (#642), a Rusty
 section with Rusty's switch, its connection and Rusty Tools for Agents, and the Rusty's Server page
 (#643), and a Privacy section with the two telemetry toggles; later Marley settings add their
 sections there.
@@ -1921,6 +1936,9 @@ Marley's own keys in the file:
     // entry is a regular expression, and one that does not compile is named in a notification.
     "redact_secrets_for_agents": true,
     "redaction_patterns": ["INTERNAL-[0-9]{6}"],
+    // What runs on an agent version Marley has not tested it on (#648): claude_prompt_tags, the
+    // tags that tell your prompts from the ones Claude Code adds. Off by default.
+    "allow_untested_versions": { "claude_prompt_tags": false },
     // Dictation through Voxtype: the agent bar's microphone and marley: toggle dictation. Off
     // until you turn it on (#642).
     "voice": { "enabled": false },

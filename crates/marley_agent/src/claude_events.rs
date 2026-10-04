@@ -17,7 +17,9 @@
 //! A prompt a harness injects (a task notification, a system reminder, a slash command's
 //! envelope) is not the user's, so the seat keeps the user's prompt; the continuation after a
 //! compaction changes nothing. The tags and prefixes are the ones Orca observed, from
-//! `src/shared/harness-injected-user-turns.ts` in stablyai/orca (MIT).
+//! `src/shared/harness-injected-user-turns.ts` in stablyai/orca (MIT). Claude Code does not
+//! document them, so on a version they were not checked on a [`PromptReading::AllTyped`] reads
+//! every prompt as the user's (#648); [`fold`] reads them with the tags.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -220,6 +222,18 @@ pub fn fold(
     event: &HookEvent,
     now_ms: u64,
 ) -> Vec<SessionEvent> {
+    fold_with(seat, previous, event, now_ms, PromptReading::Recognized)
+}
+
+/// [`fold`], its prompts read as `reading` says (#648).
+#[must_use]
+pub fn fold_with(
+    seat: &str,
+    previous: Option<&Session>,
+    event: &HookEvent,
+    now_ms: u64,
+    reading: PromptReading,
+) -> Vec<SessionEvent> {
     if event.event == "SessionEnd" {
         return vec![SessionEvent::Ended {
             id: seat.to_string(),
@@ -228,7 +242,7 @@ pub fn fold(
     }
     let mut moving = Moving::from_seat(previous);
     moving.note_session(event);
-    if !moving.take(event, now_ms) {
+    if !moving.take(event, now_ms, reading) {
         return Vec::new();
     }
     // Any event is the agent moving again, which ends a stall's flag; a loop's stays while the
@@ -389,7 +403,7 @@ impl Moving {
     }
 
     /// Moves the seat for `event` at `now_ms`; false when the event changes nothing.
-    fn take(&mut self, event: &HookEvent, now_ms: u64) -> bool {
+    fn take(&mut self, event: &HookEvent, now_ms: u64, reading: PromptReading) -> bool {
         let lead = event.agent_id.is_none();
         match event.event.as_str() {
             "SessionStart" => {
@@ -404,12 +418,12 @@ impl Moving {
             }
             "UserPromptSubmit" if lead => {
                 let prompt = event.prompt.as_deref().unwrap_or_default();
-                if is_compact_continuation(prompt) {
+                if reading.is_continuation(prompt) {
                     return false;
                 }
                 self.end_turn(State::Working);
                 self.clear(&[MESSAGE_LABEL, ERROR_LABEL]);
-                if is_harness_injected(prompt) {
+                if reading.is_injected(prompt) {
                     self.facts.interrupted = false;
                     self.facts.pending.clear();
                 } else {
@@ -771,6 +785,41 @@ pub fn is_harness_injected(prompt: &str) -> bool {
 #[must_use]
 pub fn is_compact_continuation(prompt: &str) -> bool {
     opening(prompt).starts_with(COMPACT_CONTINUATION)
+}
+
+/// How a session's prompts are read (#648): with the tags and openings that mark a prompt a
+/// harness injects, or every prompt as the user's, on a Claude Code version they were not
+/// checked on.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PromptReading {
+    /// A known tag or opening marks a prompt as injected.
+    #[default]
+    Recognized,
+    /// Every prompt is the user's, as `UserPromptSubmit` means in Claude Code's hooks reference.
+    AllTyped,
+}
+
+impl PromptReading {
+    /// Whether a harness injected `prompt`, as this reading tells it.
+    #[must_use]
+    pub fn is_injected(self, prompt: &str) -> bool {
+        self == Self::Recognized && is_harness_injected(prompt)
+    }
+
+    /// Whether `prompt` is the continuation after a compaction, as this reading tells it.
+    #[must_use]
+    pub fn is_continuation(self, prompt: &str) -> bool {
+        self == Self::Recognized && is_compact_continuation(prompt)
+    }
+
+    /// Where `prompt` came from, as this reading tells it.
+    #[must_use]
+    pub fn origin(self, prompt: &str) -> PromptOrigin {
+        match self {
+            Self::Recognized => prompt_origin(prompt),
+            Self::AllTyped => PromptOrigin::User,
+        }
+    }
 }
 
 /// Where a prompt came from, as per-turn diffs title its turn (#509).

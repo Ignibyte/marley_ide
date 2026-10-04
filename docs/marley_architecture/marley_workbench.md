@@ -1399,6 +1399,29 @@ alike.
   from an observer of the terminal; `asked_agent` writes `asked the agent`. A settings change
   drops the kept readings and timers.
 
+## The agents' versions (`src/agent_versions.rs`, #648)
+
+- `AgentVersions`, a global with one `Check` each for Claude Code and Codex (the path found, its
+  identity: canonical path, size and modification time; what was found; when the last check
+  ended; whether one runs). `init` checks both, and redraws the windows when the settings move the
+  allowed rows.
+- `check(kind)` finds the program off the main thread (`MARLEY_CLAUDE` or `MARLEY_CODEX`, else
+  `which_in` on the launcher's search path) and, when its identity changed, runs `--version`
+  through `process::output` with the program's folder first on `PATH`, raced against 5 s
+  (`process::output` kills its child when dropped), reading 4 KiB of stdout, then stderr. It logs
+  `agent versions: <name> <version> at <path>` (or what went wrong) when the outcome changes, and
+  redraws the windows when a verdict moved.
+- `chip(kind, context, cx)` asks for a check when the last is 10 s old or more (as
+  `agent_notify` does), and draws a warning chip under a local terminal whose agent has a row
+  `Off` for any reason but `NotChecked`; its tooltip is `versions::reasons`, its click dispatches
+  `zed_actions::OpenSettingsAt` at `marley.allow_untested_versions.<id>`.
+- `prompt_reading(terminal, cx)`: `Recognized` for a remote terminal and while
+  `claude_prompt_tags` is on or allowed, else `AllTyped`. `agent_events::on_frame` reads it once
+  per frame and hands it to `claude_events::fold_with`, `after_fold`'s outcome note and
+  `turns::on_event`'s turn title.
+- `allowed_in` reads `marley.allow_untested_versions` into `MarleySettings`; the e2e harness
+  allows `claude_prompt_tags` in each run's copy and names a missing `MARLEY_CODEX`.
+
 ## Codex's and OpenCode's notifications (`src/agent_notify.rs`, #552)
 
 - `AgentNotify` knows whether Codex's `config.toml` (`CODEX_HOME` or `~/.codex`) asks its TUI for

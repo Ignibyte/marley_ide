@@ -1787,6 +1787,13 @@
     // worktree New Agent in Worktree made (#587): "ask" (a notification, whose Trust Folder
     // answers it) or "follow_zed" (Marley answers it when Zed trusts the worktree's folder).
     "claude_code_worktree_trust": "ask",
+    // Marley reads the version of the claude and codex it runs, and keeps off what it has not
+    // tested on that version, saying why in the agent bar (#648). An integration set true here
+    // runs on any version, for trying a new release. claude_prompt_tags: the tags that tell your
+    // prompts from the ones Claude Code adds itself (task notifications, system reminders).
+    "allow_untested_versions": {
+      "claude_prompt_tags": false
+    },
     // Voice in Marley (#642), off until you turn it on. On, the agent bar shows a microphone where
     // Voxtype is on your PATH, and `marley: toggle dictation` dictates through it; off, Marley
     // shows no microphone and starts no voxtype. Marley never touches the audio.

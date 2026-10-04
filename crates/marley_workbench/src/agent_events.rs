@@ -18,7 +18,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use gpui::{App, Context, EntityId, Global};
 use marley_agent::AgentKind;
 use marley_agent::claude_events::{
-    self, HookEvent, MESSAGE_LABEL, PROMPT_ID_LABEL, PROMPT_LABEL, SESSION_LABEL, TurnFacts,
+    self, HookEvent, MESSAGE_LABEL, PROMPT_ID_LABEL, PROMPT_LABEL, PromptReading, SESSION_LABEL,
+    TurnFacts,
 };
 use marley_agent::stop_kind::{self, Kind, Source, StopKindShown};
 use marley_fleet::{FleetSnapshot, Session, SessionEvent, State};
@@ -153,12 +154,15 @@ pub(crate) fn on_frame(
         let terminal = view.terminal().clone();
         crate::resume::on_event(&terminal, &event, cx);
     }
+    // The tags that mark an injected prompt, while the Claude Code found was tested with them
+    // (#648).
+    let reading = crate::agent_versions::prompt_reading(view.terminal().read(cx), cx);
     let seat = seat_id(cx.entity_id());
     let previous = cx
         .try_global::<AgentEvents>()
         .and_then(|events| events.snapshot.get(&seat));
     let before = previous.map_or(State::Starting, |session| session.state);
-    let events = claude_events::fold(&seat, previous, &event, now_ms());
+    let events = claude_events::fold_with(&seat, previous, &event, now_ms(), reading);
     if events.is_empty() {
         return None;
     }
@@ -173,7 +177,7 @@ pub(crate) fn on_frame(
         if after.state == State::Working {
             crate::stall::watch(cx);
         }
-        after_fold(view, &event, before, &after, cx);
+        after_fold(view, &event, before, &after, reading, cx);
     }
     let session_start = event.event == "SessionStart";
     cx.try_global::<AgentEvents>()
@@ -190,18 +194,17 @@ fn after_fold(
     event: &HookEvent,
     before: State,
     seat: &Session,
+    reading: PromptReading,
     cx: &mut Context<TerminalView>,
 ) {
     if event.agent_id.is_some() {
         return;
     }
-    crate::turns::on_event(view, cx.entity_id().as_u64(), event, seat, cx);
+    crate::turns::on_event(view, cx.entity_id().as_u64(), event, seat, reading, cx);
     match event.event.as_str() {
         "UserPromptSubmit" => {
             let prompt = event.prompt.as_deref().unwrap_or_default();
-            if !claude_events::is_harness_injected(prompt)
-                && !claude_events::is_compact_continuation(prompt)
-            {
+            if !reading.is_injected(prompt) && !reading.is_continuation(prompt) {
                 note_outcome(seat, prompt, cx);
             }
         }

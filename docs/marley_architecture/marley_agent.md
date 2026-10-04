@@ -146,6 +146,27 @@ pub fn prompt_origin(prompt: &str) -> PromptOrigin;                 // #509
   first, then the tag at the head, where a slash command's envelope (`command-name`,
   `command-message`, `command-args`) is the user's and gives the name inside `<command-name>`,
   then the openings with no tag, else the user's.
+- `PromptReading` (#648): `Recognized` reads prompts with the tags and openings, `AllTyped` reads
+  every prompt as the user's; `is_injected`, `is_continuation` and `origin` answer as the reading
+  says. `fold_with` takes a reading; `fold`, `is_harness_injected`, `is_compact_continuation` and
+  `prompt_origin` are `Recognized`'s and keep their signatures.
+
+## The versions integrations were tested on (`src/versions.rs`, #648)
+
+- A row of `INTEGRATIONS` is an integration that rests on something its agent does not document:
+  `Integration { id, agent, name, off_means, setting, tested }`, its id the key under
+  `marley.allow_untested_versions`. Today one row, `CLAUDE_PROMPT_TAGS` (`claude_prompt_tags`):
+  the tags and openings `claude_events` reads, tested from Claude Code 2.1.283 before 2.2.0.
+  `terminalSequence`, which the hook channel rides on, is documented in Claude Code's hooks
+  reference and gets no row.
+- `Range { from, before }`: `contains` judges a prerelease by its release numbers; `words` gives
+  "2.1.283 and later 2.1 releases", "X and later" or "X up to Y".
+- `parse_version` takes the first word of the first line that reads as `N.N.N` (a leading `v`
+  dropped), or says what the program printed. `Found { Version, Unreadable, Missing }`;
+  `verdict(integration, found, allowed)` is `On`, `Allowed` (out of range or unread, and the
+  user's setting on, which also covers a check not yet ended) or `Off(Untested | Unreadable |
+  Missing | NotChecked)`; an unreadable version counts as untested. `chip_label` and `reasons`
+  give the agent bar's words.
 
 ## What a stopped turn needs (`src/stop_kind.rs`, #566)
 

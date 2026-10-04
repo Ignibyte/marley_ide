@@ -12,6 +12,7 @@ path = "src/marley_agent.rs"
 base64.workspace = true
 marley_fleet.workspace = true
 procfs-core.workspace = true
+semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

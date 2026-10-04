@@ -1,6 +1,6 @@
 # Marley checks the agent's version before an untested integration turns on — Notes
 
-- **Local ticket doc:** docs/planning/tickets/open/TICKET-648-agent-version-check.md
+- **Local ticket doc:** docs/planning/tickets/closed/TICKET-648-agent-version-check.md
 - **Pipeline spec:** 648-agent-version-check.spec.md
 
 ## Phase 1 — Plan (queued by /spec, 2026-10-03)
@@ -308,3 +308,131 @@ stand-in prints the line Claude Code prints and runs the plugin's real hook); a 
 - [x] Design: approach, file manifest by crate, the ledger rows to widen, the visual check plan,
       risks, the docs for Complete.
 - [x] Docs only: the ticket doc and this pair; no BACKLOG.md, no `active/`, no source, no cargo.
+
+### Promotion (2026-10-04)
+- Promoted into `active/`; the BACKLOG row removed; the ticket in-progress. Pre-flight green, no
+  other active pipeline; #640 to #647 landed (the last 16e78a9944).
+- **Brain:** `brain ask` (consultation `1e38bf4472a749f4814b1397de1f8ba8`) returned due follow-ups
+  on other work only.
+- **The hooks reference, read again** (`code.claude.com/docs/en/hooks`, 2026-10-04):
+  `terminalSequence` is documented with its allowlist (OSC 0, 1, 2, 9, 99, 777 and bare BEL,
+  ended by BEL or ST; anything else rejected and the field ignored), no length limit given, and
+  UserPromptSubmit's input carries no version. D1 stands: the hook channel gets no row.
+- **Seams re-read** (an Explore pass, every item of the discovery list): the shapes hold, at new
+  lines. `marley_agent.rs`: modules `:34-39`, `AgentKind` `:43-53` (with `short_name` `:72`);
+  `Cargo.toml` has no `semver` (the workspace's is `Cargo.toml:855`, `marley_workbench` already
+  uses it). `claude_events.rs`: `fold` `:217`, `Moving::take` `:392` with the prompt arm
+  `:405-422`, the tags and openings `:710-772`, `prompt_origin` `:795`; non-test callers of the
+  recognition are `take`, `agent_events.rs:202-203` and `turns.rs:135` only. `agent_events.rs`:
+  `on_frame` `:132-183` (the agent-or-remote test `:139-143`, `fold` `:161`), `after_fold`
+  `:188-224`. `agent_bar.rs`: `agent_in` `:141`, the left group `:239-263` with the plugin's chip
+  `:256-260` and `agent_notify::chip` `:262`, `claude_plugin_chip` `:370-426` (a `Button` with
+  `start_icon`, `Tooltip::text`, in a `div` with a debug selector). `agent_notify.rs`: `FRESH`
+  `:34`, the read that refreshes only on a change `:144-174`, `read_if_stale` `:178`, `chip`
+  `:189`. `claude_plugin.rs:115-130` (`MARLEY_CLAUDE` `:122`). `agents.rs`: `Launcher` `:56`,
+  `launcher` `:89`, `which_in` at `:105`. `marley_workbench.rs`: `MarleySettings` `:346-417`,
+  `from_settings` `:558-659`, `init` `:753` (agent_notify, agent_bar, claude_plugin at
+  `:788-790`). `settings_content/src/marley.rs`: `claude_code_worktree_trust` `:161`,
+  `system_one` `:166`, `rusty` `:169`. `default.json`: `claude_code_worktree_trust` `:1786-1789`.
+  `marley_page.rs`: `marley_page` `:34-48`, `agents_section` `:138` (`[_; 14]`, ending with the
+  Worktree Trust Question `:418-422`), the `uses.check` map item `:809-839` (its write pattern
+  copied). `zed_actions::OpenSettingsAt { path, target }` `:149-156`. `script/e2e.sh`: the copy's
+  forcing block `:635-649` (Rusty off, Voice off), `profile_setting` `:558-578`. #519's stand-in
+  `:71-98` and its steps `:113-152`.
+- **Decided at promotion:**
+  - **`process::output` kills its child when dropped** (`kill_on_drop(true)` on the builder it
+    already makes): the 5 s race drops the losing `output`, and a `--version` that hangs must not
+    linger. No new spawn call, so gate:22's pin stays 7. Every other caller awaits its output to
+    the end, where the flag does nothing.
+  - **D1, D3 and D10 go as drafted; Chad is asked at the end of the batch** (the goal runs without
+    stops): `terminalSequence` ungated, the range accepting later 2.1 releases, remote terminals
+    read as today. Each is one line of the table or one test in `prompt_reading` to change.
+
+## Phase 2 — Code (2026-10-04)
+- **Built.**
+  - `marley_agent::versions` (new, pure, `semver` added to the crate): `Range` (`contains` judging
+    a prerelease by its release, `words`), `Integration` (id, agent, name, what off means, the
+    setting's title, the range), `CLAUDE_PROMPT_TAGS` from 2.1.283 before 2.2.0, `INTEGRATIONS`,
+    `integrations_of`, `parse_version`, `Found`, `Off`, `Verdict`, `verdict`, `chip_label`,
+    `reasons`.
+  - `claude_events`: `PromptReading { Recognized, AllTyped }` with `is_injected`, `is_continuation`
+    and `origin`; `fold_with` takes a reading and `Moving::take` asks it; `fold` and the three
+    recognition functions keep their signatures as `Recognized`'s, so the tests build unchanged.
+  - `marley_workbench::agent_versions` (new): the global, the checks, `prompt_reading`, the chip,
+    `allowed_in`. `agent_events::on_frame` reads the reading once and hands it to `fold_with`,
+    `after_fold` and `turns::on_event`. The agent bar draws the chip after `agent_notify`'s.
+    `MarleySettings::allow_untested_versions`. `process::output` kills its child when dropped.
+  - Zed: `settings_content`'s field, `default.json`'s key, `settings_ui`'s Agent Versions section;
+    the three ledger rows widened first. The e2e harness allows the row and names a missing
+    `MARLEY_CODEX`.
+- **Deviations from the plan, and why.**
+  - The default is `{"claude_prompt_tags": false}`, not `{}`: the Settings window's toggle reads
+    the defaults file, so the row is listed off there, and `settings.json`'s readers see the key.
+  - An allowed row is on even before the first check ends (the plan's `NotChecked` kept it off):
+    the user turned it on whatever the version, and the e2e harness's allow keeps every other
+    scenario's reading the same from the first frame.
+  - `Integration` carries `off_means` and `setting`, the tooltip's words, beside the plan's fields.
+  - The harness also exports `MARLEY_CODEX=$E2E_WORK/no-codex`, so no run executes the user's
+    `codex --version`.
+  - `from_settings` passed clippy's 100-line cap with the new field; `allowed_in` and a
+    `rail_order` function took two readings out of it.
+- **Review.**
+  - Re-entrancy: the checks run in `cx.spawn` and `background_spawn(lazy)`; `store` updates the
+    global and refreshes windows outside any entity update. `chip` runs while the footer draws and
+    may start a check, which only spawns.
+  - Errors reach the bar: a missing program, a failed or slow `--version` and an unreadable answer
+    each become a reason in the chip's tooltip; the log says the same, once per change (a review
+    fix: `store` logged a missing program at every recheck).
+  - The 5 s race drops the losing `output`, which now kills its child; the spawn count stays 7.
+  - Remote terminals read with the tags and draw no chip (D10).
+  - No Zed function body copied; the chip's shape is Marley's own plugin chip.
+- **Clippy rounds:** two first doc paragraphs and a missing backtick in `marley_agent`; an unused
+  import, a temporary `env` array outliving its statement, `AsyncApp::update` returning its value
+  directly; `from_settings` over the line cap.
+
+## Phase 3 — Test (2026-10-04)
+- **Scenario:** `script/e2e/648-agent-version-check.sh`, `compositor sway`: four copies of one
+  stand-in under `versions/`, the link `bin/claude` moved between them, a stand-in `codex`, a
+  scratch `CLAUDE_CONFIG_DIR` listing Marley's plugin at the shipped version. Every check passes:
+  the harness's allow; both versions read at start; 2.1.287 read once and 2.2.0 once; the garbled
+  answer logged.
+- **Shots of the second run, each read:**
+  - `648-01-tested`: the rail row keeps "Add a README to the…" through the task notification; no
+    chip. REQ-001, REQ-002 (log), REQ-005.
+  - `648-02-untested`: the chip "Untested Claude Code 2.2.0" with a warning icon after the plugin's
+    place; the rail row shows `<task-notification> T…` as the latest prompt. REQ-003, REQ-004,
+    REQ-006, REQ-007.
+  - `648-03-why`: the tooltip: prompt tags off and what that changes, the link's path and 2.2.0,
+    "Tested on 2.1.283 and later 2.1 releases.", and Prompt Tags on Untested Claude Code. REQ-008.
+  - `648-04-setting`: the Settings window at Marley › Agent Versions, Prompt Tags on Untested
+    Claude Code off. REQ-009, REQ-010.
+  - `648-05-allowed`: the map set true from outside: no chip; the row keeps the user's prompt.
+    REQ-011.
+  - `648-06-unreadable`: "Claude Code version unknown"; its tooltip quotes `--version printed
+    "garbled (Claude Code)"`. REQ-012.
+  - `648-07-back-in-range`: 2.1.300: no chip; the row keeps the user's prompt. REQ-005.
+- **Fixed in Test:** the first run's `648-06` showed the chip but no tooltip: the pointer still
+  rested where `648-03` left it, and a hover needs a move. The scenario moves it off first.
+- **Not reached by a scenario:** a missing program (REQ-013), the first check still running
+  (REQ-014), a remote terminal (REQ-015), the 5 s bound and the pure module (REQ-016): review, and
+  the gate for REQ-016. REQ-017 is setup's check.
+- **Gate:** `just gate-diff` green after the Test phase's scenario fix: every gate on the scope and
+  the receipt.
+
+## Phase 4 — Complete (2026-10-04)
+- **Docs:** `CHANGELOG.md` (Added); `docs/marley/guide.md` (the agent bar's version chip, the
+  settings key and the Agent Versions section); `docs/marley_architecture/marley_agent.md`
+  (`versions`, `PromptReading`) and `marley_workbench.md` (`agent_versions`); the design note's B7
+  marked started; the three `zed-touchpoints.md` rows checked against what shipped (the default
+  lists the row false).
+- **Knowledge:** AD-claude-648-marley-turns-off-only-what-rests-on-an-untested-agent-surface-001,
+  AD-claude-648-terminalsequence-is-documented-correcting-ad-482-001,
+  L-claude-648-a-tooltip-needs-the-pointer-to-move-onto-it-001,
+  L-claude-648-a-stand-in-can-print-its-version-from-its-own-file-name-001.
+- **Brain:** `brain decide` on consultation `1e38bf4472a749f4814b1397de1f8ba8`:
+  `decisions/marley-turns-off-only-what-rests-on-an-untested-agent-surface-with-a-chip-that-says-why-648`,
+  follow-up 2026-11-04.
+- **Open for Chad (asked at the end of the batch):** D1 (`terminalSequence` ungated), D3 (later
+  2.1 releases count as tested) and D10 (remote terminals keep the tags).
+- Ticket closed, pipeline archived, committed and pushed.
+

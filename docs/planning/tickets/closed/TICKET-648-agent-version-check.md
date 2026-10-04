@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #648 (feature, agents on their own tools B7; T-series agent terminals)
 - **Owner:** claude-opus-5-5, 2026-10-03 (/spec)
-- **Pipeline doc:** ../../pipeline/queued/648-agent-version-check.spec.md
+- **Pipeline doc:** ../../pipeline/completed/648-agent-version-check.spec.md
 - **Source ticket:** `docs/planning/design-notes/claude-and-codex-on-their-own-tools-2026-10-02.md`
   (B7); Chad, 2026-10-02: "Your install, with a check"; the batch #648 to #653, in build order
   after #640 to #647
-- **Status:** open
+- **Status:** closed (2026-10-04)
 
 ## Summary
 Marley runs whatever `claude` and `codex` the user has installed, and Claude Code updates itself

@@ -259,7 +259,9 @@ fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option
                         .flatten(),
                 )
                 // Codex's and OpenCode's notifications, set up in a click (#552).
-                .children(crate::agent_notify::chip(agent, context, cx)),
+                .children(crate::agent_notify::chip(agent, context, cx))
+                // An integration off on an untested agent version, and why (#648).
+                .children(crate::agent_versions::chip(agent, context, cx)),
         )
         .child(
             h_flex()

@@ -37,6 +37,7 @@ pub(crate) fn marley_page() -> SettingsPage {
         items: layout_section()
             .into_iter()
             .chain(agents_section())
+            .chain(agent_versions_section())
             .chain(terminal_section())
             .chain(push_section())
             .chain(voice_section())
@@ -561,6 +562,41 @@ fn terminal_section() -> [SettingsPageItem; 6] {
 }
 
 // Marley: the master switch of Marley's voice features, off by default (#642).
+// Marley: the integrations turned on outside the agent versions Marley tested them on (#648).
+fn agent_versions_section() -> [SettingsPageItem; 2] {
+    [
+        SettingsPageItem::SectionHeader("Agent Versions"),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Prompt Tags on Untested Claude Code",
+            description: "Whether Marley tells your prompts from the ones Claude Code adds itself (task notifications, system reminders) by their tags on a Claude Code version it has not checked them on. Off, it reads every prompt there as yours; the agent bar says which version it found and which it checked.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.allow_untested_versions.claude_prompt_tags"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.allow_untested_versions.as_ref())
+                        .and_then(|allowed| allowed.get("claude_prompt_tags"))
+                },
+                write: |settings_content, value, _| {
+                    let allowed = settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .allow_untested_versions
+                        .get_or_insert_default();
+                    let _before = match value {
+                        Some(on) => allowed.insert("claude_prompt_tags".to_string(), on),
+                        None => allowed.remove("claude_prompt_tags"),
+                    };
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+    ]
+}
+
 fn voice_section() -> [SettingsPageItem; 2] {
     [
         SettingsPageItem::SectionHeader("Voice"),

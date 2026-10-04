@@ -18,7 +18,7 @@ use git::repository::GitRepositoryCheckpoint;
 use git::status::DiffTreeType;
 use gpui::{App, AppContext as _, AsyncApp, Entity, Global, SharedString, Task, WeakEntity};
 use marley_agent::claude_events::{
-    self, CWD_LABEL, HookEvent, PROMPT_LABEL, PromptOrigin, SESSION_LABEL,
+    CWD_LABEL, HookEvent, PROMPT_LABEL, PromptOrigin, PromptReading, SESSION_LABEL,
 };
 use marley_fleet::Session;
 use project::git_store::Repository;
@@ -110,6 +110,7 @@ pub(crate) fn on_event(
     id: u64,
     event: &HookEvent,
     seat: &Session,
+    reading: PromptReading,
     cx: &mut App,
 ) {
     let session = event
@@ -132,7 +133,7 @@ pub(crate) fn on_event(
                 .clone()
                 .or_else(|| seat.labels.get(PROMPT_LABEL).cloned())
                 .unwrap_or_default();
-            let origin = claude_events::prompt_origin(&prompt);
+            let origin = reading.origin(&prompt);
             if origin == PromptOrigin::Continuation {
                 return;
             }

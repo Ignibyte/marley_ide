@@ -1,7 +1,7 @@
 ---
 pipeline_id: 60f8edbd-56da-4403-8031-76a95f24facd
-ticket: docs/planning/tickets/open/TICKET-648-agent-version-check.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-648-agent-version-check.md
+status: Phase 4 — Complete PASS
 title: "Marley checks the agent's version before an untested integration turns on"
 type: feature
 slice: agents on their own tools B7 (design-notes/claude-and-codex-on-their-own-tools-2026-10-02.md); T-series agent terminals

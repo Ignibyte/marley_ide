@@ -121,6 +121,10 @@ research first.
 
 ### B7. Version policy
 
+Started by #648 (2026-10-04): `marley_agent::versions`' table, the agent bar's chip and
+`marley.allow_untested_versions`; its one row is Claude Code's prompt tags. B1 to B3 add their own
+rows; B7 part 2 (a remote host's version) remains.
+
 The harness pins exact Claude Code and Codex binaries and checks their digests; Marley runs
 whatever is on the search path, which moved through four Claude Code versions in five days. With
 B1 and B2 Marley depends on typed protocols, so it should at least check the version it talks to

@@ -3868,3 +3868,30 @@ the tab shows, or its next showing; Rusty off drops everything. Rejected:
   800-page vault already makes slow;
 - a lock or channel between the layout and the drawing; the layout is lent and returned;
 - Barnes-Hut now: the cap holds the cost; it is the way past the cap.
+
+## AD-claude-648-marley-turns-off-only-what-rests-on-an-untested-agent-surface-001
+*decided at: 2026-10-04 · status: shipped · builds on: AD-claude-519-claude-codes-hook-events-ride-in-band-into-marley-fleet-001, AD-claude-552-codex-configured-opencode-given-a-file-001 · plan: docs/planning/design-notes/claude-and-codex-on-their-own-tools-2026-10-02.md B7*
+
+Marley follows the user's installed `claude` and `codex` ("Your install, with a check", Chad,
+2026-10-02). `marley_agent::versions` holds a compiled-in table of the integrations that rest on
+something the agent does not document, each with the versions it was tested on; today one row,
+Claude Code's prompt tags (2.1.283 up to 2.2.0, so later 2.1 patches count as tested). The version
+is read with `--version` at start and when a bar draws ten seconds after the last check and the
+program's file changed. Outside its range, or unread, a row is off unless
+`marley.allow_untested_versions` turns it on, and the agent bar's chip says why with a click to
+that setting. Off, the tags read every prompt as the user's; nothing else of #519 changes. A
+remote terminal keeps the tags (its host's version is not read yet). Rejected:
+- gating the whole hook channel (`terminalSequence` is documented now, and turning it off would
+  take away the seat that rich input's paste guard rests on, F-claude-594);
+- a range closed at the newest patch checked (Claude Code updates several times a week);
+- the harness's pinned binaries (Chad chose the user's install);
+- a data file of ranges (the build and its table cannot disagree).
+
+## AD-claude-648-terminalsequence-is-documented-correcting-ad-482-001
+*decided at: 2026-10-04 · status: correction · corrects: AD-claude-482-claude-code-sends-marleys-notifications-through-a-plugin-001*
+
+AD-482 says `terminalSequence` is in Claude Code's hook schema "but not its public docs". Claude
+Code's hooks reference documents it (read 2026-10-03 and 2026-10-04): an allowlist of OSC 0, 1,
+2, 9, 99, 777 and a bare BEL, ended by BEL or ST, anything else rejected and the field ignored,
+with no length limit given. The plugin's channel rests on a documented surface, which is why #648
+gives it no row in the version table.

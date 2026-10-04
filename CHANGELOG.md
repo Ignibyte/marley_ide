@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Marley checks the agent's version** (#648, 2026-10-04). Marley reads the version of the
+  `claude` and `codex` it runs (`MARLEY_CLAUDE` and `MARLEY_CODEX`, else the PATH's) when it
+  starts and again when an agent bar shows after the program changed. Claude Code's prompt tags,
+  which tell your prompts from task notifications and system reminders and which Claude Code does
+  not document, stay on for 2.1.283 and later 2.1 releases, the versions they were checked on; on
+  another version every prompt reads as yours, and the agent bar's chip says which version Marley
+  found and which it checked. A click opens the setting that turns the tags on anyway,
+  `marley.allow_untested_versions`, in a new Agent Versions section of the Marley settings.
+
 - **The Graph tab** (#647, 2026-10-04). `rusty: open graph`, or the graph icon after Today in the
   rail's Brain view, draws Rusty's vault in a center tab: pages as dots sized by their links and
   coloured by page type, links as lines, and a decision's consulted, supersedes and follows-up
