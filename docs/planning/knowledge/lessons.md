@@ -4525,3 +4525,45 @@ and keep the root's other denied lints in mind while writing: `async_block_witho
 `owned_string_into_shared`, `notify_in_render`, `entity_update_in_render`,
 `blocking_io_on_foreground`, `map_lookup_then_insert`. To check before the gate:
 `cargo dylint --all -- --all-targets -p <crate>` from the checkout, its output in a log.
+
+## L-claude-644-a-sidebar-with-two-views-forwards-focus-into-the-shown-one-001
+*category: code · topic: the rail and Zed's sidebar focus · from: pipeline 644*
+
+Zed copies the sidebar's `Focusable` handle into every workspace of the window when the sidebar
+opens (`MultiWorkspace::apply_open_sidebar` → `Workspace::set_sidebar_focus_handle`), and uses
+that copy for its focus-the-sidebar actions. A sidebar that shows one of two views (the rail's
+Projects and Brain, #644) keeps returning its own handle from `focus_handle` and forwards focus
+given to that handle into the view that shows, with `cx.on_focus(&handle, window, …)`: a handle
+returned per view goes stale on the next flip, while the forward also catches a click on the
+sidebar's own header. `on_focus` fires for the handle itself, not for its descendants, so the
+forward does not loop, and `on_focus_out` on the same handle does not fire when focus moves into
+a child.
+
+## L-claude-644-a-module-nested-in-marley-workbench-is-pub-for-two-lints-001
+*category: code · topic: visibility lints in Marley crates · from: pipeline 644*
+
+An item `pub(crate)` inside a private module nested in a module trips clippy's
+`redundant_pub_crate` (nursery, denied), and the same item `pub` trips `unreachable_pub` (warn in
+the Marley lint table, an error under `-D warnings`). A nested module whose items the crate uses
+is declared `pub mod` inside a `pub` parent (`marley_workbench::rusty::brain`, #644; the crate
+root's `pub mod rusty`), and its items stay `pub(crate)`. A public module's doc then may not link
+to its `pub(crate)` items: gate:14 runs rustdoc without private items and `-D warnings`, so such
+a link is `rustdoc::private_intra_doc_links`; name them in plain code.
+
+## L-claude-644-the-rails-struct-sits-at-clippys-bool-and-line-caps-001
+*category: code · topic: the rail · from: pipeline 644*
+
+`Rail` holds three `bool`s, so a fourth trips clippy's `struct_excessive_bools`, and
+`Rail::new` sits at the 100-line cap of `too_many_lines`. New rail state goes into a struct of
+its own built by one constructor (`BrainSide::new`, #644), so the field list and `new` each grow
+by one line; subscriptions made together go through one helper (`Rail::follow_focus`).
+
+## L-claude-644-the-stand-in-models-rustys-main-and-its-watcher-001
+*category: e2e · topic: the stand-in rusty-mcp · from: pipeline 644*
+
+Rusty changes under Marley's plans: during #644 its main shipped TICKET-040 (the root's
+`archive/` left out of `brain_tree`, writes into it refused) while the box still ran the old
+binaries. The stand-in models Rusty as its main ships it, the Rusty Marley meets once Chad
+reinstalls, and the planning notes say which commit; check `git log` in `rusty-v3` at promotion.
+It also announces `list_changed` for any change to a file in its vault, as Rusty's watcher does,
+so a scenario writes a page as another program would and needs no signal of its own.

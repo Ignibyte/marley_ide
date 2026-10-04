@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #644 (feature, Rusty in Marley R4: R-D9, R-D10)
 - **Owner:** claude-opus-5-5, 2026-10-03 (/spec)
-- **Pipeline doc:** ../../pipeline/queued/644-brain-view-in-the-rail.spec.md
+- **Pipeline doc:** ../../pipeline/completed/644-brain-view-in-the-rail.spec.md
 - **Source ticket:** `docs/marley/rusty-in-marley.md`, slice R4, R-D9 and R-D10; Chad,
   2026-10-02: "Switch in the rail header"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Rusty's knowledge workspace moves into Marley (the plan's D11, amended), and Chad chose how its

@@ -3218,3 +3218,17 @@ response type is `()`. serde reads `()` only from `null`, and MCP servers answer
 stand-in was restarted every few seconds, and the scenario's kill found its pid already gone.
 Nothing in Zed sends the typed `Ping`, so the fault had never shown. Fixed: a `Ping` of
 Marley's own (`impl context_server::types::Request`) whose response is `serde_json::Value`.
+
+## F-claude-644-opening-the-sidebar-from-inside-the-rails-update-would-panic-001
+*severity: high · found in: pipeline 644's review of the diff, in Code, before any run · class: a `MultiWorkspace` call that reads its sidebar, made while the sidebar is being updated*
+
+The design had `Rail::toggle_brain_view`, run inside `rail.update(...)`, open a closed rail with
+`MultiWorkspace::open_sidebar`. `open_sidebar` reads the sidebar it opens: `sidebar_side` asks
+the rail for its side and `apply_open_sidebar` for its focus handle
+(`multi_workspace.rs:500-526`), so the first `marley::ToggleBrainView` on a closed rail would have
+panicked with "cannot read Rail while it is already being updated". Fixed before any run: the
+action's handler (`rusty::brain::toggle_in_window`, deferred with `window.defer`) asks the rail
+whether the Brain view can show (`brain_refusal`, a read), opens the sidebar, and only then
+updates the rail. `PR-claude-defer-in-does-not-leave-the-entitys-own-update-001` covers the class
+(other code reading `T` while `T` is leased); the call here was not deferred work but a direct
+one, made from the same update.

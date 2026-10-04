@@ -81,10 +81,11 @@ use crate::github::{self, PullRequest, PullRequestState};
 use crate::groups;
 use crate::harness::{Connection, Harness, QuotaWindow, Runtime, Signals, StateSource};
 use crate::ports::{self, ContainerStop, Ports, ProjectListener, ServiceAction, Stop};
+use crate::rusty::{self, brain::BrainView};
 use crate::system_one::{self, Asking};
 use crate::turns::Turns;
 use crate::worktree_git::{self, BranchEnd, Drift, MergeOwner};
-use crate::{MarleySettings, browser, launch, worktree_agents};
+use crate::{MarleySettings, ToggleBrainView, browser, launch, worktree_agents};
 
 #[path = "rail_order.rs"]
 mod order;
@@ -223,8 +224,42 @@ pub struct Rail {
     /// The rows' ports, from the scan an open rail keeps running (#521), and the settings that
     /// can show the rail again.
     _ports: [Subscription; 2],
-    _focus_out: Subscription,
+    /// Focus leaving the rail, and focus given to it while the Brain view shows.
+    _focus: [Subscription; 2],
     _filter_edits: Subscription,
+    brain: BrainSide,
+}
+
+/// The rail's Brain view, and the connection to Rusty it follows (#644).
+struct BrainSide {
+    /// The view the user chose; Brain shows only while Rusty is connected.
+    view: RailView,
+    /// Made when it first shows, and dropped when Rusty turns off.
+    entity: Option<Entity<BrainView>>,
+    /// Whether Rusty was connected at its last change, which the header and the body follow.
+    connected: bool,
+    _rusty: Subscription,
+}
+
+impl BrainSide {
+    fn new(window: &Window, cx: &mut Context<Rail>) -> Self {
+        Self {
+            view: RailView::default(),
+            entity: None,
+            connected: rusty::is_connected(cx),
+            _rusty: cx.observe_global_in::<rusty::Rusty>(window, Rail::rusty_changed),
+        }
+    }
+}
+
+/// What the rail shows under its header (#644).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum RailView {
+    /// The projects, their rows, the filter and the inbox.
+    #[default]
+    Projects,
+    /// Rusty's vault: the [`BrainView`].
+    Brain,
 }
 
 impl std::fmt::Debug for Rail {
@@ -770,13 +805,8 @@ impl Rail {
         // waits for the end of this effect cycle.
         cx.defer_in(window, Self::refresh);
         let focus_handle = cx.focus_handle();
-        // The keyboard's row is the selection only while the rail holds focus.
-        let focus_out = cx.on_focus_out(&focus_handle, window, |rail, _, window, cx| {
-            rail.cursor = None;
-            rail.refresh(window, cx);
-        });
+        let focus = Self::follow_focus(&focus_handle, window, cx);
         let (filter_editor, filter_edits) = Self::filter_field(window, cx);
-        let agent_events = Self::observe_marks(window, cx);
         cx.on_release(|rail, cx| {
             if rail.watching_ports {
                 ports::unwatch(cx);
@@ -841,15 +871,109 @@ impl Rail {
             thread_statuses: HashMap::default(),
             noted_threads: HashSet::default(),
             _multi_workspace_subscriptions: subscriptions,
-            _agent_events: agent_events,
+            _agent_events: Self::observe_marks(window, cx),
             empty_menu: None,
             saved_order: SavedOrder::default(),
             project_icons: HashMap::default(),
             hold: Hold::default(),
             _ports: [ports_scanned, settings_changed],
-            _focus_out: focus_out,
+            _focus: focus,
             _filter_edits: filter_edits,
+            brain: BrainSide::new(window, cx),
         }
+    }
+
+    /// Follows Rusty's connection: the header's switch and the Brain view show only while it is
+    /// up, and the Brain view goes with Rusty turned off. Most changes of Rusty's state are reads
+    /// of its settings, which change nothing here (L-572).
+    fn rusty_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let connected = rusty::is_connected(cx);
+        let brain_focused = self.brain_shown() && self.contains_brain_focus(window, cx);
+        if !rusty::is_on(cx) && self.brain.entity.take().is_some() {
+            cx.notify();
+        }
+        if connected == self.brain.connected {
+            return;
+        }
+        self.brain.connected = connected;
+        if brain_focused && !connected {
+            window.focus(&self.focus_handle, cx);
+        }
+        cx.notify();
+    }
+
+    /// The Brain view, while it shows.
+    fn shown_brain(&self) -> Option<&Entity<BrainView>> {
+        self.brain
+            .entity
+            .as_ref()
+            .filter(|_| self.brain.view == RailView::Brain && self.brain.connected)
+    }
+
+    fn brain_shown(&self) -> bool {
+        self.shown_brain().is_some()
+    }
+
+    fn contains_brain_focus(&self, window: &Window, cx: &App) -> bool {
+        self.brain
+            .entity
+            .as_ref()
+            .is_some_and(|brain| brain.focus_handle(cx).contains_focused(window, cx))
+    }
+
+    /// Shows `view` under the header and focuses it; the Brain view is made the first time.
+    fn show_view(&mut self, view: RailView, window: &mut Window, cx: &mut Context<Self>) {
+        self.brain.view = view;
+        if view == RailView::Brain && self.brain.entity.is_none() {
+            let multi_workspace = self.multi_workspace.clone();
+            self.brain.entity = Some(cx.new(|cx| BrainView::new(multi_workspace, window, cx)));
+        }
+        match self.shown_brain() {
+            Some(brain) => window.focus(&brain.focus_handle(cx), cx),
+            None => window.focus(&self.focus_handle, cx),
+        }
+        cx.notify();
+    }
+
+    /// Why `marley::ToggleBrainView` cannot show the Brain view now, if it can't.
+    pub(crate) fn brain_refusal(&self, cx: &App) -> Option<SharedString> {
+        if self.brain_shown() {
+            None
+        } else {
+            rusty::unavailable(cx)
+        }
+    }
+
+    /// `marley::ToggleBrainView`: the other view, focused.
+    pub(crate) fn toggle_brain_view(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let next = if self.brain_shown() {
+            RailView::Projects
+        } else {
+            RailView::Brain
+        };
+        self.show_view(next, window, cx);
+    }
+
+    /// The keyboard's row is the selection only while the rail holds focus. While the Brain view
+    /// shows, focus given to the rail (Zed's focus-the-sidebar actions, a click on the header)
+    /// goes into it: Zed keeps the rail's own handle as the window's sidebar focus.
+    fn follow_focus(
+        focus_handle: &FocusHandle,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> [Subscription; 2] {
+        [
+            cx.on_focus_out(focus_handle, window, |rail, _, window, cx| {
+                rail.cursor = None;
+                rail.refresh(window, cx);
+            }),
+            cx.on_focus(focus_handle, window, |rail, window, cx| {
+                if let Some(brain) = rail.shown_brain() {
+                    let brain = brain.focus_handle(cx);
+                    window.focus(&brain, cx);
+                }
+            }),
+        ]
     }
 
     /// The filter's field under the header, and its edits, which refilter the rows.
@@ -2733,13 +2857,22 @@ impl Rail {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        window.focus(&self.filter_editor.focus_handle(cx), cx);
+        match self.shown_brain() {
+            Some(brain) => {
+                let search = brain.read(cx).search_focus(cx);
+                window.focus(&search, cx);
+            }
+            None => window.focus(&self.filter_editor.focus_handle(cx), cx),
+        }
     }
 
     /// Escape, as Zed's Threads Sidebar has it: it clears the filter, and from an empty filter
     /// goes back to the rows. With neither to do it passes on.
     fn cancel(&mut self, _: &Cancel, window: &mut Window, cx: &mut Context<Self>) {
-        if self.snapshot.rail.filtering {
+        // The Brain view's own Escape passed on; the hidden filter stays as it is.
+        if self.brain_shown() {
+            cx.propagate();
+        } else if self.snapshot.rail.filtering {
             self.clear_filter(window, cx);
         } else if self.filter_editor.focus_handle(cx).is_focused(window) {
             window.focus(&self.focus_handle, cx);
@@ -3951,19 +4084,71 @@ impl Rail {
                 window,
             ))
         };
+        let brain_shown = self.brain_shown();
         header
+            .map(|header| {
+                if self.brain.connected {
+                    header.child(self.render_view_switch(cx))
+                } else {
+                    header.child(
+                        Label::new("PROJECTS")
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    )
+                }
+            })
+            .child(div().flex_1().h_full().when(!brain_shown, |space| {
+                space.on_mouse_down(MouseButton::Right, cx.listener(Self::empty_space_menu))
+            }))
+            .map(|header| match self.shown_brain() {
+                Some(brain) => header.child(Self::render_new_page(brain.downgrade())),
+                None => header.child(self.render_add_project().into_any_element()),
+            })
+    }
+
+    /// The header's Projects and Brain buttons while Rusty is connected (#644); Projects carries
+    /// the rail's attention dot while Brain shows.
+    fn render_view_switch(&self, cx: &Context<Self>) -> impl IntoElement {
+        let brain_shown = self.brain_shown();
+        let attention = brain_shown
+            && (marley_rail::has_attention(&self.snapshot.rail)
+                || !self.snapshot.rail.inbox.is_empty());
+        h_flex()
+            .gap_0p5()
             .child(
-                Label::new("PROJECTS")
-                    .size(LabelSize::XSmall)
-                    .color(Color::Muted),
+                IconButton::new("marley-rail-view-projects", IconName::ListTree)
+                    .icon_size(IconSize::Small)
+                    .toggle_state(!brain_shown)
+                    .when(attention, |button| {
+                        button.indicator(Indicator::dot().color(Color::Accent))
+                    })
+                    .tooltip(|_, cx| Tooltip::for_action("Projects", &ToggleBrainView, cx))
+                    .on_click(cx.listener(|rail, _, window, cx| {
+                        rail.show_view(RailView::Projects, window, cx);
+                    })),
             )
             .child(
-                div()
-                    .flex_1()
-                    .h_full()
-                    .on_mouse_down(MouseButton::Right, cx.listener(Self::empty_space_menu)),
+                IconButton::new("marley-rail-view-brain", IconName::BookCopy)
+                    .icon_size(IconSize::Small)
+                    .toggle_state(brain_shown)
+                    .tooltip(|_, cx| Tooltip::for_action("Brain", &ToggleBrainView, cx))
+                    .on_click(cx.listener(|rail, _, window, cx| {
+                        rail.show_view(RailView::Brain, window, cx);
+                    })),
             )
-            .child(self.render_add_project())
+    }
+
+    /// The header's end while the Brain view shows: a new page in the selected row's folder.
+    fn render_new_page(brain: WeakEntity<BrainView>) -> AnyElement {
+        IconButton::new("marley-rail-new-page", IconName::Plus)
+            .icon_size(IconSize::Small)
+            .tooltip(Tooltip::text("New Page"))
+            .on_click(move |_, window, cx| {
+                brain
+                    .update(cx, |brain, cx| brain.new_page_here(window, cx))
+                    .log_err();
+            })
+            .into_any_element()
     }
 
     /// The rows, and under them the empty space a right-click opens a menu on (#600).
@@ -8319,7 +8504,7 @@ impl Sidebar for Rail {
 
 impl Render for Rail {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let rows = self.render_blocks(cx);
+        let brain = self.shown_brain().cloned();
         v_flex()
             .id("marley-rail")
             // Nothing moves under the pointer: the order the rail showed when it came over is held
@@ -8361,9 +8546,13 @@ impl Render for Rail {
             .size_full()
             .bg(cx.theme().colors().panel_background)
             .child(self.render_header(window, cx))
-            .child(self.render_filter(cx))
-            .children(self.render_inbox(cx))
-            .child(self.render_rows(rows, cx))
+            .map(|rail| match brain {
+                Some(brain) => rail.child(brain),
+                None => rail
+                    .child(self.render_filter(cx))
+                    .children(self.render_inbox(cx))
+                    .child(self.render_rows(self.render_blocks(cx), cx)),
+            })
             .children(self.empty_menu.as_ref().map(|(menu, position, _)| {
                 deferred(
                     anchored()

@@ -262,7 +262,7 @@ possible: a wikilink switch in `markdown/src/parser.rs`, only if R2 chooses Zed'
 |---|---|---|
 | R0 | D11 amended, decisions recorded, RQ1 to RQ5 filed in Rusty | docs |
 | R1 | #643, shipped 2026-10-04. The switch and the connection: `marley.rusty`, embedded or service, status on the settings page; `rusty_tools` moves in | M |
-| R4 | #644. The rail's Brain view (R-D9): the header switch, Today, search on Enter, the vault tree with new, rename, move and delete through tools | M |
+| R4 | #644, shipped 2026-10-04. The rail's Brain view (R-D9): the header switch, Today, search on Enter, the vault tree with new, rename, move and delete through tools | M |
 | R2 | #645. The Page tab: Zed's `markdown` with wikilinks rewritten to `rusty:` links, properties, back and forward, preview tabs, Edit in a buffer; the `rusty::OpenPage` action | M |
 | R3 | #646. The Knowledge panel: backlinks, outgoing links, tags and brain search (on Enter) | M |
 | R5 | #647. The Graph tab: whole vault or local with depth, filters, page-type colours, decision edges dashed, Ely's force layout off the main thread | M |
@@ -353,3 +353,51 @@ every date on the UTC day instead of the local one (044), foreign keys off and w
 missing id reporting success (045), three writers that reorder a page's frontmatter (046),
 aliases and chosen properties in `brain_list_pages` (047), and `superseded_by` and a follow-up
 date in the decision summaries (048).
+
+### Landed on Rusty's main, 2026-10-04
+
+The rusty-v3 session reported TICKET-035 and TICKET-040 to TICKET-048 on Rusty's `main` (035 is
+`ea46a83`). The box runs the old binaries until Chad reinstalls Rusty (`omarchy/install.sh` in
+its repository), so each goes live then.
+
+- **035, the change cursor (RQ2).** `changes_since { cursor?, limit? }` answers `{ cursor,
+  changes: [{ seq, kind, key, op, detail, at }], reset, more }`. Kinds: page, task, task_group,
+  memory, note, setting, secret, skill, script. Ops: created, updated, deleted, moved (`detail` is
+  the old slug), and approved and rejected for skills. Without a cursor it starts from now;
+  `reset: true` means read everything again (the log keeps 20,000 rows); `more: true` means call
+  again with the cursor it answered. It carries names, never values or bodies. A page change is
+  recorded where the shared index is written, with the content hash, so a disk edit that several
+  processes sync is recorded once. A manager's error still reaches a client as a JSON-RPC error
+  (-32603), not an `is_error` result.
+- **040.** The root's `archive/` is never indexed, written into or listed: `brain_tree` leaves it
+  out, and a write, a new folder or a move into it is refused. A deleted page's links are dropped,
+  so it is no longer a ghost backlink. This settles #644's open point: the Brain view lists what
+  `brain_tree` serves, which leaves `archive/` out.
+- **041.** `brain_new_page { path }` makes the page at exactly that path, its folders with it, and
+  returns an existing page as it is: the call for create-on-a-miss (#654). `{ folder, name }`
+  works as before.
+- **042.** `brain_read_page` and `brain_render` carry `file`, the page's absolute path;
+  `brain_stats` carries `vault_root`.
+- **044.** Every date is the local day. **045.** Foreign keys are on, and a write on a missing id
+  fails and names it. **046.** `update_page`, `add_timeline` and a rename keep the frontmatter as
+  written. **047.** `brain_list_pages` carries `aliases`, and `properties` when asked for with
+  `properties: [...]`; the index's stored frontmatter was `{}` until this (a correction of the
+  2026-10-03 triage), and pages indexed before it fill on the next sync. **048.** Decision
+  summaries carry `followed_up` and `superseded_by`.
+- Later the same day the rest of M10 but 039 landed (last `13249a8`); 039 waits on the harness's
+  M13.
+  - **043** (`6176b5d`): a vault commit holds only the paths its write touched, and an edit made
+    outside the tools gets a commit of its own from the indexer after a sync. R-D4's commit gap
+    (#645's D6) is closed.
+  - **036** (`1cd368e`): `brain_render { blocks: true }` adds `blocks`, typed blocks with byte
+    ranges into the body, inline runs with resolved wikilinks, callouts and page embeds one level
+    deep, and `body_start`, beside the HTML.
+  - **037** (`ecc2904`): bookmarks live in the vault at `.rusty/bookmarks.json`, behind
+    `bookmark_list`, `bookmark_add`, `bookmark_remove` and `bookmark_set` (entries: `kind` file,
+    folder, search or heading; `title`, `path`, `query`, `heading`). Renames carry them, deletes
+    drop them, and `brain_import` adds a vault's own. R4b, the Brain view's favourites, can be
+    planned on these. The server has 90 tools.
+  - **038** (`13249a8`): `rusty` is `crates/rusty-cmd`, a binary with no Qt: `rusty session
+    start|stop|status|run`, `rusty agent …` (the host included) and `rusty <store-script>`. The
+    window is `rusty-app` (app id `com.ignibyte.rusty`); `rusty` alone execs it, exits 127 when it
+    is not installed, and `rusty session start` then starts only `rusty-mcp.service`.

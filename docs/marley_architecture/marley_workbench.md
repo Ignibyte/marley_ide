@@ -89,6 +89,9 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
 
 ## The rail (`src/rail.rs`)
 
+> Since #644 the rail has two views under its header, Projects (all that follows) and Brain, Rusty's
+> vault; see [The rail's Brain view](#the-rails-brain-view-srcrustybrainrs-srcrustyrs-srcrailrs-644).
+
 - It implements `workspace::Sidebar`, so the `MultiWorkspace` keeps the resize handle, the open
   state, persistence and the toggle actions.
 - It follows every workspace, every listed terminal view and every Browser tab (#504). On each
@@ -1887,6 +1890,50 @@ alike.
   `marley.rusty_tools` in each run's copy, and exports `MARLEY_RUSTY_MCP` naming no file; a
   scenario that turns Rusty on names `marley_rusty`'s stand-in (`MARLEY_RUSTY_MCP`,
   `RUSTY_STAND_IN_STATE`). Voice is off in the same copy (#642).
+
+## The rail's Brain view (`src/rusty/brain.rs`, `src/rusty.rs`, `src/rail.rs`, #644)
+
+- **The vault cache** (`rusty.rs`). `Vault { tree }` is a global the Brain views observe, written
+  only when a read differs (L-572); `VaultReads { wanted, reading, again }`, apart from it, keeps
+  one `brain_tree` read in flight and one more queued. `want_vault` starts the reads when the first
+  Brain view is made; from then on `reread_vault` runs on each connection, on each embedded
+  `list_changed` (beside `read_settings`), after each write and on Refresh. The answer parses off
+  the main thread into `marley_rusty::vault::VaultNode`; a read begun before the switch moved is
+  dropped, and the tree clears when the source changes. `call_tool` calls a tool on Marley's
+  connection with Rusty's own message as a refusal's error; `is_connected`, `is_on` and
+  `unavailable` (the toast's words) give the connection's state; `vault_folder` is
+  `brain_vault_path` from `settings_list`, else `$HOME/.rusty/brain`, Rusty's own default.
+- **`BrainView`** (`rusty/brain.rs`, a `pub` module of `rusty`, so its `pub(crate)` items satisfy
+  both `unreachable_pub` and clippy's `redundant_pub_crate`). Its search `Editor`, the last query
+  and its hits (`Found`), the tree as last read, the open folders, the rows from
+  `marley_rusty::vault::rows`, and the lines the `uniform_list` draws (`Line::Row`, `Line::Draft`
+  for a name being made, `Line::Hit`); the selected path, an `Editing` (`NewPage`, `NewFolder`,
+  `Rename`, its editor and a blur subscription that commits), the scroll handle and a menu
+  deployed by hand at the pointer. The key context is `MarleyBrain menu`, with Zed's list actions,
+  `menu::Confirm` and `menu::Cancel`, inside the rail's `MarleyRail menu`, so the view handles
+  them first. Rows are `ui::ListItem`s with `indent_level` and a 20 px step, a chevron and an
+  icon in the start slot, a folder's page count at its end, under `ui::indent_guides`; each sits
+  in a `div` keyed by its vault path that drags a `DraggedVaultEntry` and takes its drop
+  (`vault::move_target`). The tree's empty space takes a drop to the top and its own menu.
+  Writes go through `write`: `call_tool`, then `reread_vault` and the follow-up on success, or a
+  toast with Rusty's message. Delete asks with `Window::prompt` first. Search calls
+  `brain_search` on Enter only (the embedding provider embeds every query). `open_page` is the one
+  open: `Workspace::project_path_for_path(.., visible: false)` and `open_path_preview`, a preview
+  where `PreviewTabsSettings` lets the project panel open one; #645 points it at its Page tab.
+- **The action.** `brain::init` registers `marley::ToggleBrainView` on every workspace, deferred
+  out of the dispatch: no rail, Zed's AI gate closed or `Rail::brain_refusal` give a toast;
+  otherwise the sidebar opens first (opening reads the rail) and `Rail::toggle_brain_view` flips.
+  The Marley keymap binds `secondary-alt-v` in `Workspace`.
+- **The rail** (`rail.rs`). `BrainSide { view, entity, connected, _rusty }`: the chosen
+  `RailView`, the `BrainView` made on first show and dropped when Rusty turns off, and whether Rusty
+  was connected at its last change, written by an observer of the `Rusty` global that notifies
+  only when that changes (F-438-a). `render_header` draws Projects and Brain `IconButton`s while
+  connected (Projects carries an `Indicator::dot` while Brain shows and `has_attention` or the
+  inbox says so), PROJECTS otherwise; the end is Add Project or New Page. `render` draws the Brain
+  view in place of the filter, the inbox and the rows. `Focusable` stays the rail's own handle,
+  which Zed keeps as the window's sidebar focus; `follow_focus` forwards focus given to it into the
+  Brain view while that shows. `focus_filter` focuses the Brain view's search field, and the
+  rail's `cancel` passes on while Brain shows.
 
 ## The find tools (`src/find.rs`, #567)
 

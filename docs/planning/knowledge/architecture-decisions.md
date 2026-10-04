@@ -3802,3 +3802,18 @@ merged), with a Python stand-in `rusty-mcp` for every scenario. Chad's confirmat
 `service_url` and of `enabled` gating `agent_tools` was taken on the plan's recommendation and is
 on the list to confirm with him. Rejected: `agent_tools` independent of `enabled`; reading
 `rusty_tools` as a fallback; a new `SettingsPageItem` variant; porting Ely's status row.
+
+## AD-claude-644-the-brain-view-is-a-view-of-its-own-and-searches-on-enter-001
+*decided at: 2026-10-04 · status: shipped · builds on: AD-claude-643-rusty-is-one-switch-and-one-connection-marley-keeps-001, AD-claude-534-the-harness-is-followed-by-polling-in-a-section-outside-the-rails-model-001, AD-claude-453-the-rails-keys-are-zeds-list-actions-001 · plan: docs/marley/rusty-in-marley.md R-D9, R-D10*
+
+The rail's Brain view (#644) is an entity of its own, `marley_workbench::rusty::brain::BrainView`,
+which the rail holds and draws under its header in place of its filter, inbox and rows; its pure
+row model is `marley_rusty::vault`, with Ely's tree walk ported. `marley_rail`'s model stays the
+window's projects, so pages never enter the project cycle, the switcher or the filter, and the
+rail keeps every `workspace::Sidebar` duty whichever view shows. The header's Projects and Brain
+buttons show only while Rusty is connected, and `marley::ToggleBrainView` (`secondary-alt-v`)
+flips them. Brain search is sent on Enter only: with an embedding provider set, Rusty embeds
+every query, and a provider such as OpenAI would send each typed prefix off the machine. Every
+change to the vault is a Rusty tool call (`brain_new_page`, `brain_new_folder`, `brain_rename`,
+the two deletes); Marley writes no file of the vault, and opening a page reads its file through
+one function, `rusty::brain::open_page`, which #645 points at its Page tab.

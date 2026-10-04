@@ -332,6 +332,10 @@ actions!(
         /// Shows or hides the Fleet panel: the agents the workflow stores report, by host (#607).
         #[derive(Eq)]
         ToggleFleet,
+        /// Flips the rail between its Projects view and its Brain view, Rusty's vault, while
+        /// Rusty is on (#644).
+        #[derive(Eq)]
+        ToggleBrainView,
     ]
 );
 

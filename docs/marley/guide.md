@@ -155,7 +155,9 @@ With AI turned off (`disable_ai`), Zed draws no sidebar at all, the rail include
 
 The header reads PROJECTS and carries Add Project (a folder with a plus). Add Project opens Zed's
 recent-projects popover: your recent projects, Open Local Folders and Open Remote Folder. The
-filter field sits under the header.
+filter field sits under the header. While Rusty is on and connected, PROJECTS gives way to two
+buttons, Projects and Brain (see [The Brain view](#the-brain-view)), and the end button follows the
+view shown.
 
 Each project has a header row: its name as a muted label, a chevron that folds it, an attention
 dot when a row it hides (folded, or filtered out) needs you, and a `+`. Under the header come the
@@ -304,7 +306,8 @@ or none.
 
 ### Groups with no folder (#600)
 
-A right-click on the rail's empty space (under the last row, or beside PROJECTS) opens a menu:
+A right-click on the rail's empty space (under the last row, or beside PROJECTS, or the Projects and
+Brain buttons) opens a menu:
 New Group… asks for a name and makes a group with no folder, listed after the window's projects
 with a group icon, a chevron and a `+`. A group's terminals and agent CLIs start in the home
 folder, and its Browser tabs use a Chromium of the group's own. New Terminal, New Browser Tab and
@@ -966,6 +969,43 @@ connection.
   connects or writes.
 - With Rusty on, `rusty-mcp` runs twice when Rusty Tools for Agents is on too: once for Marley and
   once for Zed's agents.
+
+### The Brain view
+
+While Rusty is connected, the rail's header shows Projects and Brain (#644). Brain, or Ctrl+Alt+V
+from anywhere in the window, swaps the rail's rows for Rusty's vault; the same key goes back. With
+Rusty off or not connected, the key says why in a toast. The rail starts on Projects, and goes back
+to it when the connection is lost; Brain shows again once Rusty connects.
+
+- **Today** (the notepad under the header) opens today's daily note, which Rusty makes when it is
+  missing.
+- **Search.** Type in the field and press Enter: Rusty's brain search lists its hits, title and
+  slug, in the tree's place. Rusty's `tag:`, `path:`, `file:` and `type:` work as typed. The query
+  is sent on Enter only, since with an embedding provider set Rusty embeds every query it gets.
+  Up and Down reach the hits from the field, and Enter on the same query opens the selected one.
+  Escape clears the search; a second Escape goes back to the tree.
+- **The tree.** The vault's folders and pages as Rusty lists them, folders first, each folder
+  with its page count. All folders start closed. A click on a folder opens or closes it; one
+  click on a page opens it in a preview tab, two keep the tab, as Zed's project panel opens files.
+  Until the Page tab lands (#645), a page opens as its Markdown file in the editor, and a save
+  there is an edit Rusty's watcher takes in. With the focus in the tree, Up, Down, Home and End
+  move, Right opens a folder or steps into it, Left closes it or climbs, and Enter does what a
+  click does.
+- **Changing the vault.** Right-click a folder for New Page, New Folder, Rename and Delete; a page
+  for Open, Rename and Delete; the tree's empty space for New Page, New Folder and Refresh. A new
+  name is typed in the tree: Enter makes it (an empty page name lets Rusty call it Untitled),
+  Escape drops it, and clicking away keeps a typed name. The header's `+` makes a page in the
+  selected row's folder. Drag a row onto a folder to move it there, onto a page to move it into
+  that page's folder, or onto the empty space to move it to the top. Delete asks first; Rusty
+  moves the page or folder into `archive/` and leaves the links to it. Everything goes through
+  Rusty's tools, which rewrite links on a rename or a move; Marley writes no file of the vault. A
+  refusal shows Rusty's message in a toast, such as "Could not rename delta: Already exists:
+  notes/alpha".
+- **Live.** On the embedded connection, a change Rusty makes or sees in the vault's folder shows
+  with no click. On the service connection the tree is read again after Marley's own changes and
+  on Refresh.
+- While Brain shows, a dot on Projects says something in the Projects view needs you.
+- Favourites come with Rusty's bookmarks; Rusty serves none yet.
 
 ## Marley's MCP server
 
@@ -1720,6 +1760,7 @@ table lists Marley's bindings and the Zed keys whose meaning Marley changes or r
 | Ctrl+Alt+N | Anywhere | The New Agent picker |
 | Ctrl+Alt+; | Anywhere | Moves the focus into the rail, or back out |
 | Ctrl+Alt+J | Anywhere | Opens or closes the rail |
+| Ctrl+Alt+V | Anywhere, while Rusty is connected | The rail's Projects and Brain views |
 | Ctrl+? | Anywhere | Focuses the Agent Panel (Zed's) |
 | Ctrl+\` | Marley layout | Switches between the code and the project's terminals |
 | Ctrl+J | Marley layout | The same, while the bottom dock is closed |
@@ -1729,6 +1770,8 @@ table lists Marley's bindings and the Zed keys whose meaning Marley changes or r
 | Left, Right | Rail | Folds a project or climbs to it; unfolds |
 | Ctrl+F | Rail | The filter |
 | Escape | Rail filter | Clears the filter; a second press goes back to the rows |
+| Up, Down, Home, End, Left, Right, Enter | Brain view | Move in the tree, open and close folders, open a page |
+| Enter, Escape | Brain view's search field | Searches, or opens the selected hit; clears, then goes back to the tree |
 | Ctrl+Tab, Ctrl+Shift+Tab | Rail, Agent Panel | The switcher; hold Ctrl, press Tab or Shift+Tab to move, let go to open |
 | Ctrl+Up, Ctrl+Down | Terminal | The previous or next block |
 | → | Terminal, at a prompt | Takes the autosuggestion |

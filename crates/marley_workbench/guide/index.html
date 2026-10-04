@@ -167,6 +167,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#rail-keyboard">The rail from the keyboard</a></li>
 <li><a href="#rail-filter">The filter</a></li>
 <li><a href="#rail-switcher">The switcher and next thread</a></li>
+<li><a href="#brain-view">The Brain view: Rusty&#x27;s vault in the rail</a></li>
 </ol></li>
 <li><a href="#editor">The editor</a><ol>
 <li><a href="#find-things">Find files, symbols and text</a></li>
@@ -450,7 +451,7 @@ th { background: var(--panel); font-weight: 650; }
 <p class="what"><strong>What it is.</strong> A right-click on the rail's empty space opens a menu for things that belong to no project. New Group… makes a named group with no folder: its terminals and agent CLIs start in your home folder, and its Browser tabs use a Chromium of the group's own. New Terminal, New Browser Tab and the agent CLIs in that menu open in a group named Home, which Marley makes the first time.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Right-click the empty space under the last row, or beside PROJECTS at the top of the rail.</li>
+<li>Right-click the empty space under the last row, or beside PROJECTS at the top of the rail (beside the Projects and Brain buttons while Rusty is connected).</li>
 <li>Choose New Group…, type a name and press Enter (Escape cancels; an empty name makes "Group"). The group lists after your projects, with a group icon, its chevron and its <kbd>+</kbd>.</li>
 <li>Use the group's <kbd>+</kbd> for New Terminal, New Browser Tab or an agent CLI. Threads, worktree agents and launch configs need a folder, so a group does not offer them.</li>
 <li>Or choose New Terminal, New Browser Tab or an agent from the empty space's menu: it opens in the Home group.</li>
@@ -599,6 +600,23 @@ th { background: var(--panel); font-weight: 650; }
 <li>From the command palette, <code>multi workspace: next thread</code>, <code>previous thread</code>, <code>next project</code> and <code>previous project</code> walk the rail and wrap at the ends.</li>
 </ol>
 <p class="note">In a pane of the main area, <kbd>Ctrl+Tab</kbd> stays Zed's tab switcher.</p>
+</article>
+
+<article id="brain-view">
+<h3>The Brain view: Rusty's vault in the rail <span class="ticket">#644</span></h3>
+<p class="what"><strong>What it is.</strong> While Rusty is on and connected (the Rusty section of the Marley settings), the rail's header shows two buttons, Projects and Brain, in place of PROJECTS. Brain shows Rusty's vault in the rail: Today, a brain search field and the vault's folders and pages. Everything it changes goes through Rusty's tools; Marley writes no file of the vault.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Click Brain, or press <kbd>Ctrl+Alt+V</kbd> from anywhere in the window; the same key goes back to Projects. With Rusty off or not connected, the key says why in a toast.</li>
+<li>Click a folder to open or close it. Click a page once to open it in a preview tab, twice to keep its tab. Until the Page tab lands (#645), a page opens as its Markdown file.</li>
+<li>Today opens today's daily note, which Rusty makes when it is missing.</li>
+<li>Type in the search field and press Enter: Rusty's hits replace the tree. Rusty's <code>tag:</code>, <code>path:</code> and <code>type:</code> work as typed. Escape clears the search, a second Escape goes back to the tree.</li>
+<li>In the tree, Up and Down move, Right opens a folder or steps into it, Left closes it or goes up, and Enter opens the selected page.</li>
+<li>Right-click a folder for New Page, New Folder, Rename and Delete; a page for Open, Rename and Delete; the empty space for New Page, New Folder and Refresh. A name is typed in the tree: Enter makes it, Escape drops it.</li>
+<li>Drag a page or a folder onto a folder to move it there, onto a page to move it into that page's folder, or onto the empty space to move it to the top. Rusty rewrites the links to it.</li>
+<li>Delete asks first. Rusty moves the page or folder into <code>archive/</code> and leaves the links to it.</li>
+</ol>
+<p class="note">Search is sent on Enter only: with an embedding provider set, Rusty embeds every query it is sent. A dot on the Projects button means something in the Projects view needs you. On the embedded connection, changes Rusty makes or sees in the vault's folder show without a click; on the service connection, after Marley's own changes and on Refresh. Favourites come with Rusty's bookmarks.</p>
 </article>
 </section>
 

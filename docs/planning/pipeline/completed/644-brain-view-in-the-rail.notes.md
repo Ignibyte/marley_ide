@@ -408,3 +408,250 @@ terminal-chords-yield-to-the-pty-001).
   sends the folder as `folder`, never a slashed `name`.
 - The search field sends on Enter (D-rule shared with #646); the stand-in is named in
   `MARLEY_RUSTY_MCP` (#643); the file is `rusty/brain.rs`.
+
+### Promotion (2026-10-04)
+- Promoted into `active/`; the BACKLOG row removed; the ticket in-progress. Pre-flight green, no
+  other active pipeline, cargo idle, `/mnt/fast` 202G free. #643 landed as 6bae63ef8c.
+- **Brain:** `brain ask` (consultation `77214de5010c4774a998d8185f8bb42d`) on D2 and D8 returned
+  due follow-ups on other work only; a search found nothing on the rail's view or on search
+  timing beyond the plan's own decisions.
+- **#643's names, as shipped** (`crates/marley_workbench/src/rusty.rs`): the `Rusty` global
+  (`source`, `state`, `settings`, `server`, `keeper`) with `State::Connected { server, via }`;
+  `call(server, tool, arguments, cx) -> Result<String, String>`, its errors worded
+  "`<tool>` failed: …" (Zed's client passes a JSON-RPC error's message through,
+  `context_server/src/client.rs:456`) and "`<tool>` was refused: …"; `list_changed` arrives in
+  `connected`'s loop, which re-reads the settings (`:371-377`), on the embedded connection only;
+  the stand-in is `crates/marley_rusty/stand_in/rusty-mcp`, its state in `$RUSTY_STAND_IN_STATE`,
+  its log `calls` with each request's pid. The vault cache hooks in beside `read_settings`.
+- **Seams re-read against the tree** (an Explore pass for Zed's crates and Rusty, the rail by
+  hand): every cited Zed API stands (`ListItem` `list_item.rs:32-286`, `Disclosure`
+  `disclosure.rs:23`, `indent_guides` `indent_guides.rs:53` with `with_compute_indents_fn` `:84`,
+  `ContextMenu::build` `context_menu.rs:284`, `IconButton::indicator` `icon_button.rs:117`,
+  `uniform_list` `uniform_list.rs:22` with `with_decoration` `:653`, `PreviewTabsSettings`
+  `item.rs:67`, `project_path_for_path` `workspace.rs:4359`, `open_path_preview` `:5139`,
+  `Window::prompt` `window.rs:6448`, `Toast::new` `workspace.rs:786`); the icons named in D3, D5
+  and D7 exist, with `RotateCw` for Refresh. `secondary-alt-v` is bound in neither Zed's Linux
+  keymap nor Marley's. The rail moved: `Rail` `rail.rs:120`, `new` `:739`, `focus_filter`
+  `:2730`, `cancel` `:2741`, `show_toast` `:3321`, `empty_space_menu` `:3766`, `render_header`
+  `:3928`, `render_filter` `:4229`, `Focusable` `:8173`, `impl Sidebar` `:8180`, `impl Render`
+  `:8320`; `end_drag` (`rail_order.rs:467`) acts only on the rail's own drag flag, so a vault
+  drag leaves it alone. `register_sidebar` `marley_workbench.rs:866`; `rusty::init` `:778`; the
+  Workspace block of `keymap.json` `:5-16`. The in-app guide's PROJECTS line is still
+  `guide/index.html:453`.
+- **Rusty's tools, re-read** (`rusty-v3`, `main.rs`, `brain/mod.rs`, `brain/vault.rs`): as the
+  queued notes say, with these exact shapes. `VaultNode`'s `kind` is a plain string and
+  `children` is always present; a folder's `pages` counts its pages at any depth.
+  `brain_new_page { folder, name }` answers the new slug as a bare JSON string, and `folder: ""`
+  is the root; `brain_new_folder` answers the cleaned path; `brain_rename` answers `{ from, to,
+  kind, pages_rewritten }`, and `to: "/"` is the root; `brain_delete_page` answers `"deleted"`,
+  `brain_delete_folder` the archive path; `brain_daily_note` answers a `BrainPage` with `slug`.
+  Refusals: "Already exists: …", "Not found: …", "Cannot move a folder into itself", "No folder
+  …", "Page not found: …", "Folder not found: …", "Refusing to delete the vault root".
+  `brain_tree` lists `archive/` (only dot entries are left out), and Rusty makes `archive/` with
+  the vault (`ensure_dirs`); a deleted page lands there as `<name>.md_<secs>`, a file, and a
+  deleted folder as `archive/<name>_<secs>/`, whose pages count.
+- **Decided at promotion:**
+  - **`archive/` is shown as Rusty serves it** (the reconciliation's open point): D7 stands;
+    Marley shows what `brain_tree` serves, and hiding a folder Rusty lists would be a rule of
+    Marley's on Rusty's data. Rusty's TICKET-040, reported landed on its main the same day by the
+    rusty-v3 session, leaves the root's `archive/` out of `brain_tree` and refuses writes into
+    it; the stand-in models that Rusty, the one Marley meets once Chad reinstalls, so no shot
+    lists `archive`.
+  - **The vault's folder comes from `settings_list`** (a deviation from D1's `setting_get`):
+    `settings_list` lists every stored setting (only credential-like values masked,
+    `main.rs:991-1003`), `brain_vault_path` among them when stored, and #643 already reads it on
+    connect and on each `list_changed`. Unset, Rusty's own default is `$HOME/.rusty/brain`
+    (`core.rs:73-80`), Marley's rule too. The stand-in seeds `brain_vault_path` with its scratch
+    vault, so a scenario never opens a file of the user's.
+  - **The stand-in announces vault changes as Rusty's watcher does** (a deviation from the
+    `SIGUSR1` and stop-file design): it watches its vault's files as it watches its settings
+    file, so a page the scenario writes is announced with no signal, and its own writes are too.
+    The connection is taken down as #643's scenario does, by moving the program away and killing
+    Marley's stand-in; no stop file is needed.
+  - The toasts for refusals drop `call`'s "`<tool>` failed: " prefix and say what was being done,
+    with Rusty's message after it ("Could not rename delta: Already exists: notes/alpha").
+- **Ely**, for D13: this session's scratchpad holds no clone; the /spec session's
+  (`…/531f3d65-…/scratchpad/repos/ely`, HEAD `2f8b2f6`) is read for `src/lists/tree/model.rs`
+  and `LICENSE-MIT`.
+
+## Phase 2 — Code (2026-10-04)
+- **Built, to the manifest:**
+  - `crates/marley_rusty/src/vault.rs` (new, declared in the crate root): the tool names
+    (`BRAIN_TREE` … `BRAIN_DELETE_FOLDER`), `VAULT_PATH_KEY`, `SEARCH_LIMIT` (50); `VaultNode`
+    (`holds`, `find`), `NodeKind` (any other kind read as `File`), `SearchHit`,
+    `slug_from_answer`, `page_slug_from_answer`, `RenameReport`; `VaultRow`, `rows`, `Key`,
+    `Move`, `step`, `folder_of`, `name_of`, `folders_above`, `child_path`, `rename_target`,
+    `move_target`, `reopen`. `rows`, `step`, `holds` and the drop guard ported from Ely's
+    `src/lists/tree/model.rs` at `2f8b2f6`, Ely's MIT notice on the file.
+  - The stand-in: the eight vault tools over `$RUSTY_STAND_IN_STATE/vault` (made with
+    `archive/`, stored as `brain_vault_path`), Rusty's answers and refusals, refusals as JSON-RPC
+    errors; its watch now covers the vault's files as well as its settings file. Driven by hand
+    over stdio before the scenario: every tool, both refusals and the announcement checked.
+  - `marley_workbench::rusty`: the `Vault` and `VaultReads` globals, `want_vault`,
+    `reread_vault` (one read in flight, one queued, parsed off the main thread, written only when
+    it differs, dropped when the source moved), hooked to each connection and each embedded
+    `list_changed`; `call_tool`, `is_connected`, `is_on`, `unavailable`, `vault_folder`; the
+    `Rusty` global made `pub(crate)` for the rail's observer; `pub mod brain`.
+  - `crates/marley_workbench/src/rusty/brain.rs` (new): `init` (the action on every workspace,
+    deferred), `toggle_in_window`, `open_page`, `BrainView` (fixed row, search, tree, hits, keys,
+    menus, name editor, drag, delete prompt), `DraggedVaultEntry`.
+  - `rail.rs`: `BrainSide { view, entity, connected, _rusty }` and `RailView`; `rusty_changed`,
+    `shown_brain`, `show_view`, `brain_refusal`, `toggle_brain_view`, `follow_focus`;
+    `render_header` with `render_view_switch` and `render_new_page`; the body swapped in
+    `render`; `focus_filter` and `cancel` aware of the Brain view.
+  - `marley_workbench.rs`: `ToggleBrainView` in `actions!(marley, …)`. `keymap.json`:
+    `secondary-alt-v` in the Workspace block. `Cargo.toml`: `smallvec` (the indent guides'
+    callback returns one). `guide/index.html`: the Brain view article and its contents line, the
+    PROJECTS line.
+  - `script/e2e/644-brain-view-in-the-rail.sh`, written in this phase, as #643's was, so its click
+    places are set before the receipt binds it.
+- **Deviations from the plan:**
+  - **Opening the rail happens outside the rail's update.** The design had `toggle_brain_view`
+    open the sidebar; `MultiWorkspace::open_sidebar` reads the sidebar (its side and its focus
+    handle, `multi_workspace.rs:500-526`), so from inside the rail's update it would panic.
+    `toggle_in_window` opens the sidebar first, then updates the rail. Found in review, before any
+    run.
+  - **`Focusable` stays the rail's own handle.** The design returned the Brain view's handle while
+    it shows; Zed copies the sidebar's handle into every workspace when the sidebar opens
+    (`apply_open_sidebar`), so a handle taken while one view showed would be stale after a flip.
+    The rail forwards focus given to its own handle into the Brain view instead (`follow_focus`,
+    `on_focus`), which also covers a click on the header.
+  - **The Brain view's state is one field, `BrainSide`.** A fourth `bool` in `Rail` trips clippy's
+    `struct_excessive_bools`, and four new fields put `Rail::new` five lines over the 100-line cap;
+    one field built by `BrainSide::new`, the focus subscriptions built by `follow_focus`, and
+    `observe_marks` called in the struct literal bring it back under.
+  - **`rusty::brain` is a `pub` module.** Its `pub(crate)` items trip clippy's
+    `redundant_pub_crate` inside a private module, and `pub` items trip `unreachable_pub` (warn,
+    so an error under `-D warnings`); `rusty` is itself `pub`, so a `pub mod brain` satisfies both.
+  - **Chevron icons, not `ui::Disclosure`,** in a row's start slot, as the project panel draws its
+    own: a `Disclosure` is a button with its own click inside a row that already folds on click,
+    and a page row needs a blank of the same width to line up.
+  - **The rail's Escape passes on while Brain shows,** so it never clears the hidden project
+    filter.
+- **Review of the diff** against REQ-001 to REQ-024: PROJECTS and no switch unless connected
+  (`render_header` reads `brain.connected`, written by the observer, F-438-a); the toast's words
+  from `rusty::unavailable` (REQ-002); the switch's pressed state and the attention dot
+  (`has_attention` or an inbox entry, REQ-021); the click rule from `PreviewTabsSettings`
+  (REQ-006, REQ-007); search only in `confirm` (REQ-010); every write through `Self::write` and
+  `call_tool`, nothing in the view or the rail touching the disk (REQ-024; `open_page` reads,
+  through Zed's project); a refusal is a toast and changes no row (REQ-016); delete prompts
+  first (REQ-018). Re-entrancy: the rail's observer reads globals only; the action runs deferred,
+  opens the sidebar before the rail's update; the Brain view's tasks update it through its weak
+  handle; `reread_vault` writes globals only in its spawned task. Provenance: Zed's `ui`,
+  `workspace` and `editor` used as they are; `project_panel` read for behavior only; Ely's model
+  ported under its notice; nothing from Warp.
+- **Rusty moved during the phase.** The rusty-v3 session reported Rusty's TICKET-035 and 040 to
+  048 on its main (later 036, 037, 038 and 043 too), live once Chad reinstalls Rusty. Recorded in
+  `docs/marley/rusty-in-marley.md`'s triage. For this ticket, 040: `brain_tree` leaves the root's
+  `archive/` out and writes into it are refused. The stand-in follows it (its tree, search and
+  three writers), the scenario's row numbers moved up one, and the spec's shots `644-04` and
+  `644-18` no longer name `archive`. `{folder, name}` still makes a page (041 adds `{path}`, for
+  #654).
+- **Checks:** clippy on `marley_rusty` and `marley_workbench` (`--all-targets`, `-D warnings`)
+  green after five rounds (doc paragraphs, `Self`, generic hashers; `struct_excessive_bools` and
+  the line cap, which became `BrainSide`; `redundant_pub_crate` against `unreachable_pub`, which
+  became `pub mod brain`; by-reference windows and contexts, associated functions, `map_or_else`,
+  `clone_from`, semicolons). The stand-in driven by hand over stdio. `just build` green. The
+  scenario run twice before the gate: run 1 green to `644-17`, where the guessed row pitch (22 px,
+  first row at 114) had drifted onto `projects` by row 12 and the delete check failed; run 2, with
+  the measured pitch (23 px, 117), the first toast closed, and the terminal's tab clicked before
+  the bell (an editor tab stood in front of it), green on every check. The box's cargo was held
+  by another project's Miri runs for about two hours before clippy; the wait was coordinated with
+  that session, nothing stopped.
+- **Gate, run 1:** RED on gate:14 alone: the public `rusty` module's doc linked to the
+  crate-private `Vault`, and the public `rusty::brain` module's doc to `open_page`
+  (`rustdoc::private_intra_doc_links`). Both are plain code now. The other 16 passed.
+- **Gate, run 2:** `GATE GREEN [diff]`, 17 passed, the receipt written.
+
+## Phase 3 — Test (2026-10-04)
+- **Scenario:** `script/e2e/644-brain-view-in-the-rail.sh`, under `compositor sway` (clicks,
+  right-clicks and a drag), run on the gated tree: `just build`, then `just e2e
+  script/e2e/644-brain-view-in-the-rail.sh` with `SHOT_DIR` in the scratchpad. Exit 0; every
+  check passed: the harness's copy turns Rusty off; no `rusty-mcp` ran while off; the Brain view
+  read the vault; Today asked for the daily note; nothing was searched while typing and Enter
+  searched once; the page made with `brain_new_page {"folder": "notes", "name": "gamma"}`, the
+  folder with `brain_new_folder {"path": "notes/drafts"}`, the rename `notes/gamma` →
+  `notes/delta`, the move `to: "decisions/"`, the delete `brain_delete_folder {"path":
+  "projects/marley"}`. The vault calls the run printed are only tool calls (REQ-024, with the
+  review): `brain_tree` after each change, the writes above and the refused rename.
+- **Shots, each read** (row places measured on the Code phase's runs: first row y 117, 23 px):
+  - `644-01-header-off` (REQ-001): Rusty off: the header reads PROJECTS beside Add Project; the
+    filter and the project's rows under it.
+  - `644-02-off-toast` (REQ-002): Ctrl+Alt+V while off: a toast, "Rusty is off. Turn it on in the
+    Rusty section of the Marley settings."; the rail still shows Projects.
+  - `644-03-switch` (REQ-003): `marley.rusty.enabled` set true from outside: PROJECTS gives way to
+    the ListTree and BookCopy buttons, Projects pressed (accent, read in an 8× crop), Add Project
+    still at the end.
+  - `644-04-brain` (REQ-004): Brain clicked: the Today notepad under the header, "Search the
+    brain…", and `daily` 1, `decisions` 2, `notes` 2, `projects` 2, then `home`; no `archive`
+    (Rusty's TICKET-040, the stand-in's tree); `+` (New Page) at the header's end; the tooltip
+    "Brain Ctrl-Alt-V".
+  - `644-05-unfolded` (REQ-005): `projects` and `projects/marley` open: `plan` and `shell` two steps
+    in, chevrons turned, indent guides drawn.
+  - `644-06-preview` (REQ-006): `notes` open, one click on `alpha`: an `alpha.md` tab with its
+    title in italics, the row selected.
+  - `644-07-kept` (REQ-007): a double-click: the same tab, upright.
+  - `644-08-today` (REQ-008): Today: a kept `2026-10-04.md` tab in front, `daily` opened and
+    counting 2, today's row selected.
+  - `644-09-search` (REQ-009, REQ-010): "beta" and Enter: one hit, `beta notes/beta`, in the
+    tree's place, the field's clear button shown; the log holds one `brain_search`, none while
+    typing.
+  - `644-10-keys` (REQ-011): Escape twice, Home, Down ×4, Left, Right, Down, Enter: `notes` open
+    again, `alpha` selected, its tab in front.
+  - `644-11-menu` (REQ-012): `notes` right-clicked: New Page, New Folder, a separator, Rename,
+    Delete, the first entry highlighted.
+  - `644-12-new-page` (REQ-013): New Page, "gamma", Enter: `gamma` under `notes` (3), selected; a
+    kept `gamma.md` tab in front.
+  - `644-13-new-folder` (REQ-014): New Folder, "drafts", Enter: `drafts` first under `notes` with
+    0, selected.
+  - `644-14-renamed` (REQ-015): Rename on `gamma`, "delta", Enter: `delta` in its place, selected.
+    The open tab keeps the old name until Zed sees the file move (Out: tabs following a rename).
+  - `644-15-refused` (REQ-016): Rename on `delta` to "alpha": a toast "Could not rename delta:
+    Already exists: notes/alpha"; `delta` unchanged.
+  - `644-16-moved` (REQ-017): `delta` dragged onto `decisions`: listed first under it (3),
+    `decisions` opened, the row selected; `notes` back to 2.
+  - `644-17-delete-prompt` (REQ-018): Delete on `projects/marley`: Zed's prompt, "Delete the folder
+    projects/marley and its 2 pages?", "Rusty moves it into archive/ with everything in it, and
+    leaves the links to its pages.", Delete and Cancel.
+  - `644-18-deleted` (REQ-019): Delete answered: `marley` gone, `projects` counting 0.
+  - `644-19-live` (REQ-020): `notes/epsilon.md` written from outside: `epsilon` listed under
+    `notes` (3) with no click.
+  - `644-20-attention` (REQ-021): the terminal's tab, `sleep 3; printf '\a'`, a click in the tree:
+    the Brain view shows and Projects carries the accent dot (read in an 8× crop); the terminal's
+    tab has its unread dot.
+  - `644-21-flipped` (REQ-022): Ctrl+Alt+V: the Projects view, Projects pressed, the terminal row
+    with its dot.
+  - `644-22-down` (REQ-023): Ctrl+Alt+V back to Brain, the stand-in moved away and Marley's killed:
+    the header reads PROJECTS and the project's rows show.
+- **By review:** REQ-024 (every change a tool call; `open_page` reads; nothing in the view or the
+  rail writes a file). The toasts for the Zed layout and the AI gate, the service connection's
+  missing announcements, and the flip back to Brain after a reconnect are reached by no scenario
+  (the spec's visual check plan says why).
+- **Focus report:** "hyprland: 0 Marley windows before the run, 0 after; the run added no rule and
+  did not reload it".
+- Every shot shows Marley only; none is in the repository. No fix in this phase: the receipt from
+  Phase 2's run 2 stands.
+
+## Phase 4 — Complete (2026-10-04)
+- **Documented (§21):** `CHANGELOG.md` (Added: Rusty's vault in the rail);
+  `docs/marley/rusty-in-marley.md` (R4 shipped 2026-10-04, and the triage's "Landed on Rusty's
+  main, 2026-10-04" with TICKET-035, 036, 037, 038 and 040 to 048, at the rusty-v3 session's
+  request); `docs/marley/three-prong-plan.md` (C2); `docs/marley_architecture/marley_rusty.md`
+  (the `vault` module, Ely's port, the stand-in's vault tools); `docs/marley_architecture/
+  marley_workbench.md` (the rail's two views, and "The rail's Brain view"); `docs/marley/guide.md`
+  (the rail's header, the right-click line, "The Brain view", the keys table);
+  `docs/marley/walkthrough.md` (stop 2.12); the in-app guide page (Code phase). No path outside
+  the Marley-owned set changed but `Cargo.lock` (`smallvec` for `marley_workbench`), so no
+  ledger row.
+- **Knowledge (§19):** `F-claude-644-opening-the-sidebar-from-inside-the-rails-update-would-panic-001`
+  (its class covered by `PR-claude-defer-in-does-not-leave-the-entitys-own-update-001`, so no new
+  rule); `AD-claude-644-the-brain-view-is-a-view-of-its-own-and-searches-on-enter-001`;
+  `L-claude-644-a-sidebar-with-two-views-forwards-focus-into-the-shown-one-001`,
+  `L-claude-644-a-module-nested-in-marley-workbench-is-pub-for-two-lints-001`,
+  `L-claude-644-the-rails-struct-sits-at-clippys-bool-and-line-caps-001`,
+  `L-claude-644-the-stand-in-models-rustys-main-and-its-watcher-001`.
+- **Brain:** `brain decide` on consultation `77214de5010c4774a998d8185f8bb42d`:
+  `decisions/marleys-brain-view-is-a-view-of-its-own-in-the-rail-and-searches-on-enter`
+  (follow-up 2026-10-18).
+- **Closed:** the ticket moved to `tickets/closed/`, its link at `completed/`; no BACKLOG row was
+  left (promotion removed it). The pair archived to `pipeline/completed/`.

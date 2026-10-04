@@ -508,6 +508,40 @@ Leave the server running: Parts 5 and 7 use it.
 - [ ] Move Project Down moves `marley-tour` one place down, past a group as well as a project.
 - [ ] After the restart, the headers and rows are in the order you left them.
 
+### 2.12 The Brain view (#644), optional
+
+Needs Rusty installed (`rusty-mcp` on your PATH) and Rusty on: the Rusty section of the Marley
+settings page (1.4). This stop writes to your real vault, inside one folder it makes and deletes.
+
+1. With Rusty off, press Ctrl+Alt+V. Then turn Rusty on and wait for its Rusty's Server page to say
+   it is connected.
+2. Click Brain in the rail's header. Right-click the tree's empty space, choose New Folder, type
+   `marley-tour` and press Enter.
+3. Right-click `marley-tour`, choose New Page, type `first` and press Enter. Click `first` once,
+   then twice.
+4. Right-click `first`, choose Rename, type `second` and press Enter. Make another page `third`
+   in the folder, then rename it to `second`.
+5. Type `marley-tour` in the search field and press Enter; press Escape twice.
+6. Make a folder `inner` in `marley-tour` and drag `second` onto it.
+7. Click Today. Then press Up, Down, Left and Right in the tree, and Enter on a page.
+8. Right-click `marley-tour`, choose Delete, and answer Delete.
+9. Press Ctrl+Alt+V.
+
+- [ ] Step 1: a toast says Rusty is off and where to turn it on. Once connected, the header shows
+  Projects (pressed) and Brain in place of PROJECTS.
+- [ ] Step 2: Today, a search field and your vault's folders with their page counts; `+` at the
+  header's end. `marley-tour` appears and is selected.
+- [ ] Step 3: `first` opens in a preview tab (italic title) on one click and keeps its tab on two.
+- [ ] Step 4: `first` becomes `second`. Renaming `third` to `second` shows a toast with Rusty's
+  "Already exists: marley-tour/second", and `third` stays.
+- [ ] Step 5: the hits replace the tree; the first Escape clears them, the second leaves the field.
+- [ ] Step 6: `second` lists under `inner`, and its folder stays open.
+- [ ] Step 7: today's note opens in a kept tab and is selected under `daily`; the keys move the
+  selection and open and close folders.
+- [ ] Step 8: Marley asks first, naming the folder and its pages and saying Rusty moves it into
+  `archive/`; after Delete the folder is gone.
+- [ ] Step 9: the rail shows the projects again, Projects pressed.
+
 ## Part 3. The editor
 
 Marley's editor is Zed's. This part checks the everyday tools. The first time you open

@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
-"""A stand-in for Rusty's MCP server, `rusty-mcp`, for Marley's e2e scenarios (#643).
+"""A stand-in for Rusty's MCP server, `rusty-mcp`, for Marley's e2e scenarios (#643, #644).
 
-It answers the tools Marley reads as `rusty-mcp` does (each answer JSON text in a text block),
-from `../fixtures/settings_list.json`, over a scratch state folder, `$RUSTY_STAND_IN_STATE`, and
-never reaches a real Rusty. With no arguments it speaks MCP on stdio; with `--http ADDR` it
+It answers the tools Marley reads as `rusty-mcp` does (each answer JSON text in a text block, a
+refusal a JSON-RPC error carrying Rusty's message), from `../fixtures/settings_list.json` and a
+scratch vault, over a scratch state folder, `$RUSTY_STAND_IN_STATE`, and never reaches a real
+Rusty. The vault is `$RUSTY_STAND_IN_STATE/vault`, made with `archive/` as Rusty makes its vault,
+and stored as `brain_vault_path`; as Rusty does since its TICKET-040, the root's `archive/` is left
+out of the tree and the search, and nothing is written into it but a delete. With no arguments it speaks MCP on stdio; with `--http ADDR` it
 serves Streamable HTTP's POST and DELETE on ADDR (port 0 picks one, written to
 `$RUSTY_STAND_IN_STATE/http-addr`). Every request goes to `$RUSTY_STAND_IN_STATE/calls` with this
-process's id. On stdio it sends `notifications/resources/list_changed` when its settings file
-changes, its own `setting_set` included, as `rusty-mcp` announces each change it sees.
+process's id. On stdio it sends `notifications/resources/list_changed` when its settings file or a
+file in its vault changes, its own writes included, as `rusty-mcp` announces each change its
+watcher sees. Links are not rewritten on a rename, and search matches words, not embeddings.
 """
 
 import json
 import os
+import shutil
 import sys
 import threading
 import time
@@ -22,12 +27,21 @@ FIXTURE = os.path.join(HERE, "..", "fixtures", "settings_list.json")
 STATE = os.environ.get("RUSTY_STAND_IN_STATE") or os.path.join(os.getcwd(), "rusty-stand-in")
 SETTINGS = os.path.join(STATE, "settings.json")
 CALLS = os.path.join(STATE, "calls")
+VAULT = os.path.join(STATE, "vault")
 LOCK = threading.Lock()
 
 TOOL_NAMES = [
     "settings_list",
     "setting_get",
     "setting_set",
+    "brain_tree",
+    "brain_search",
+    "brain_daily_note",
+    "brain_new_page",
+    "brain_new_folder",
+    "brain_rename",
+    "brain_delete_page",
+    "brain_delete_folder",
     "brain_ask",
     "brain_decide",
     "brain_no_decision",
@@ -54,9 +68,229 @@ def save(settings):
 
 def seed():
     os.makedirs(STATE, exist_ok=True)
-    if not os.path.exists(SETTINGS):
+    os.makedirs(os.path.join(VAULT, "archive"), exist_ok=True)
+    if os.path.exists(SETTINGS):
+        settings = load()
+    else:
         with open(FIXTURE, encoding="utf-8") as fixture:
-            save({entry["key"]: entry["value"] for entry in json.load(fixture)})
+            settings = {entry["key"]: entry["value"] for entry in json.load(fixture)}
+    if "brain_vault_path" not in settings:
+        settings["brain_vault_path"] = VAULT
+        save(settings)
+    elif not os.path.exists(SETTINGS):
+        save(settings)
+
+
+class Refused(Exception):
+    """A tool's refusal, worded as Rusty words it."""
+
+
+def clean(path):
+    return "/".join(part for part in str(path).strip().split("/") if part and part != ".")
+
+
+def in_vault(rel):
+    if ".." in rel.split("/"):
+        raise Refused("Invalid path: path traversal not allowed")
+    return os.path.join(VAULT, rel) if rel else VAULT
+
+
+def refuse_archive(rel):
+    if rel == "archive" or rel.startswith("archive/"):
+        raise Refused(
+            "archive/ holds deleted pages; delete a page to archive it, or move one out to restore it"
+        )
+
+
+def tree():
+    def node(name, rel, directory):
+        folders, files = [], []
+        for entry in os.listdir(directory):
+            if entry.startswith(".") or (not rel and entry == "archive"):
+                continue
+            path = os.path.join(directory, entry)
+            child = f"{rel}/{entry}" if rel else entry
+            if os.path.isdir(path):
+                folders.append(node(entry, child, path))
+            elif os.path.isfile(path):
+                page = entry.endswith(".md")
+                files.append(
+                    {
+                        "name": entry[:-3] if page else entry,
+                        "path": child[:-3] if page else child,
+                        "kind": "page" if page else "file",
+                        "pages": int(page),
+                        "children": [],
+                    }
+                )
+        folders.sort(key=lambda found: found["name"].lower())
+        files.sort(key=lambda found: found["name"].lower())
+        children = folders + files
+        return {
+            "name": name,
+            "path": rel,
+            "kind": "folder",
+            "pages": sum(child["pages"] for child in children),
+            "children": children,
+        }
+
+    return node(os.path.basename(VAULT), "", VAULT)
+
+
+def pages():
+    """Every page outside `archive/`, as (slug, title, text)."""
+    found = []
+    for directory, folders, files in os.walk(VAULT):
+        folders[:] = [folder for folder in folders if not folder.startswith(".")]
+        rel = os.path.relpath(directory, VAULT)
+        if rel == "archive" or rel.startswith("archive/"):
+            continue
+        for name in files:
+            if not name.endswith(".md"):
+                continue
+            slug = clean(os.path.join(rel, name[:-3]))
+            with open(os.path.join(directory, name), encoding="utf-8") as page:
+                text = page.read()
+            title = next(
+                (line[6:].strip() for line in text.splitlines() if line.startswith("title:")),
+                name[:-3],
+            )
+            found.append((slug, title, text))
+    return sorted(found)
+
+
+def search(query, limit):
+    words = query.lower().split()
+    hits = [
+        {"slug": slug, "page_type": "note", "title": title, "snippet": title, "rank": 1.0}
+        for slug, title, text in pages()
+        if words and all(word in f"{title}\n{text}".lower() for word in words)
+    ]
+    return hits[: limit or 10]
+
+
+def write_page(slug, title):
+    path = in_vault(slug + ".md")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as page:
+        page.write(f"---\ntitle: {title}\n---\n")
+
+
+def new_page(folder, name):
+    folder = clean(folder)
+    refuse_archive(folder)
+    if folder and not os.path.isdir(in_vault(folder)):
+        raise Refused(f"No folder {folder}")
+    base = (name or "").strip()
+    base = base[:-3] if base.endswith(".md") else base
+    base = base.replace("/", "-") or "Untitled"
+    prefix = f"{folder}/" if folder else ""
+    candidate, number = base, 1
+    while os.path.exists(in_vault(f"{prefix}{candidate}.md")):
+        candidate, number = f"{base} {number}", number + 1
+    write_page(prefix + candidate, candidate)
+    return prefix + candidate
+
+
+def new_folder(path):
+    path = clean(path)
+    if not path:
+        raise Refused("A folder needs a name")
+    refuse_archive(path)
+    if os.path.exists(in_vault(path)):
+        raise Refused(f"Already exists: {path}")
+    os.makedirs(in_vault(path))
+    return path
+
+
+def rename(source, target):
+    source = clean(source[:-3] if source.endswith(".md") else source)
+    into_folder = target.strip().endswith("/")
+    target = clean(target[:-3] if target.endswith(".md") else target)
+    if into_folder:
+        name = source.rsplit("/", 1)[-1]
+        target = f"{target}/{name}" if target else name
+    if not target:
+        raise Refused("A name is needed")
+    refuse_archive(target)
+    if os.path.isfile(in_vault(source + ".md")):
+        if source != target:
+            if os.path.exists(in_vault(target + ".md")):
+                raise Refused(f"Already exists: {target}")
+            os.makedirs(os.path.dirname(in_vault(target + ".md")), exist_ok=True)
+            os.rename(in_vault(source + ".md"), in_vault(target + ".md"))
+        kind = "page"
+    elif os.path.isdir(in_vault(source)) and source:
+        if target == source or target.startswith(source + "/"):
+            raise Refused("Cannot move a folder into itself")
+        if os.path.exists(in_vault(target)):
+            raise Refused(f"Already exists: {target}")
+        os.makedirs(os.path.dirname(in_vault(target)), exist_ok=True)
+        os.rename(in_vault(source), in_vault(target))
+        kind = "folder"
+    else:
+        raise Refused(f"Not found: {source}")
+    return {"from": source, "to": target, "kind": kind, "pages_rewritten": 0}
+
+
+def archive(path):
+    name = f"{os.path.basename(path)}_{int(time.time())}"
+    shutil.move(path, os.path.join(VAULT, "archive", name))
+    return f"archive/{name}"
+
+
+def delete_page(slug):
+    slug = clean(slug)
+    path = in_vault(slug + ".md")
+    if not os.path.isfile(path):
+        raise Refused(f"Page not found: {slug}")
+    archive(path)
+    return "deleted"
+
+
+def delete_folder(folder):
+    folder = clean(folder)
+    if not folder:
+        raise Refused("Refusing to delete the vault root")
+    if not os.path.isdir(in_vault(folder)):
+        raise Refused(f"Folder not found: {folder}")
+    return archive(in_vault(folder))
+
+
+def daily_note(date):
+    date = date or time.strftime("%Y-%m-%d")
+    slug = f"daily/{date}"
+    if not os.path.exists(in_vault(slug + ".md")):
+        write_page(slug, date)
+    return {
+        "slug": slug,
+        "page_type": "daily",
+        "title": date,
+        "compiled_truth": "",
+        "timeline": "",
+        "frontmatter": {"title": date, "type": "daily"},
+        "content_hash": "",
+        "created_at": 0,
+        "updated_at": 0,
+    }
+
+
+VAULT_TOOLS = {
+    "brain_tree": lambda arguments: tree(),
+    "brain_search": lambda arguments: search(
+        str(arguments.get("query") or ""), arguments.get("limit")
+    ),
+    "brain_daily_note": lambda arguments: daily_note(arguments.get("date")),
+    "brain_new_page": lambda arguments: new_page(
+        str(arguments.get("folder") or ""), arguments.get("name")
+    ),
+    "brain_new_folder": lambda arguments: new_folder(str(arguments.get("path") or "")),
+    "brain_rename": lambda arguments: rename(
+        str(arguments.get("from") or ""), str(arguments.get("to") or "")
+    ),
+    "brain_delete_page": lambda arguments: delete_page(str(arguments.get("slug") or "")),
+    "brain_delete_folder": lambda arguments: delete_folder(str(arguments.get("path") or "")),
+}
 
 
 def text(value):
@@ -106,6 +340,11 @@ def answer(message):
             settings[str(arguments.get("key"))] = str(arguments.get("value"))
             save(settings)
             result = text("set")
+        elif name in VAULT_TOOLS:
+            try:
+                result = text(VAULT_TOOLS[name](arguments))
+            except Refused as refusal:
+                return error(message_id, -32603, str(refusal))
         else:
             return error(message_id, -32602, f"tool not found: {name}")
     else:
@@ -124,10 +363,20 @@ def stdio():
 
     def watch():
         def stamp():
+            seen = []
+            for directory, folders, files in os.walk(VAULT):
+                folders[:] = sorted(folder for folder in folders if not folder.startswith("."))
+                for name in sorted(folders + files):
+                    try:
+                        changed = os.stat(os.path.join(directory, name)).st_mtime_ns
+                    except OSError:
+                        continue
+                    seen.append((os.path.join(directory, name), changed))
             try:
-                return os.stat(SETTINGS).st_mtime_ns
+                seen.append((SETTINGS, os.stat(SETTINGS).st_mtime_ns))
             except OSError:
-                return None
+                pass
+            return seen
 
         last = stamp()
         while True:

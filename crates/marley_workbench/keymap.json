@@ -11,7 +11,10 @@
       // Closed Item in the same context; this one loads later, so it is tried first, and it
       // hands the key back when nothing is held. Wherever the focus lands after the close (an
       // empty pane, the rail), the Workspace context is in its chain.
-      "ctrl-shift-t": "marley::UndoCloseTerminal"
+      "ctrl-shift-t": "marley::UndoCloseTerminal",
+      // The rail's Projects and Brain views (#644). Zed's Linux keymap binds no Ctrl-Alt-V; its
+      // Ctrl-Alt-B is the right dock and Ctrl-Alt-J the sidebar.
+      "secondary-alt-v": "marley::ToggleBrainView"
     }
   },
   {

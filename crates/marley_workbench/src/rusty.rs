@@ -15,6 +15,11 @@
 //! the context server `rusty`, beside its own `marley` server (#501), added to Zed's default
 //! settings, so a `context_servers.rusty` of the user's own wins. Zed asks before each call, as
 //! for every context server.
+//!
+//! Once a rail's Brain view has shown ([`brain`], #644), the vault is read with `brain_tree` on
+//! each connection, each announcement and each write, into the `Vault` global.
+
+pub mod brain;
 
 use std::collections::HashMap;
 use std::ffi::OsString;
@@ -36,6 +41,7 @@ use gpui::{
 };
 use http_client::Url;
 use marley_rusty::settings::{SETTING_SET, SETTINGS_LIST, setting_set_arguments};
+use marley_rusty::vault::{BRAIN_TREE, VAULT_PATH_KEY, VaultNode};
 use marley_rusty::{EmbeddingProvider, ServerSettings};
 use serde_json::{Value, json};
 use settings::settings_content::ContextServerSettingsContent;
@@ -142,7 +148,7 @@ enum State {
 
 /// Marley's connection to Rusty.
 #[derive(Default)]
-struct Rusty {
+pub(crate) struct Rusty {
     /// The source the connection follows.
     source: Source,
     state: State,
@@ -163,11 +169,34 @@ struct RustyOffer(Option<PathBuf>);
 
 impl Global for RustyOffer {}
 
+/// Rusty's vault as `brain_tree` last gave it, or why it could not be read, for the rails' Brain
+/// views (#644). Written only when a read differs, so its observers redraw for a change alone.
+#[derive(Default)]
+pub(crate) struct Vault {
+    pub(crate) tree: Option<Result<Arc<VaultNode>, SharedString>>,
+}
+
+impl Global for Vault {}
+
+/// Whether the vault is wanted, a read is under way, or one more is due when it ends. Kept apart
+/// from [`Vault`], so a read's start and end redraw nothing (L-572).
+#[derive(Default)]
+struct VaultReads {
+    wanted: bool,
+    reading: bool,
+    again: bool,
+}
+
+impl Global for VaultReads {}
+
 /// Follows `marley.rusty` and registers the Rusty's Server page's view; [`crate::init`] calls it
 /// once.
 pub fn init(cx: &mut App) {
     cx.set_global(Rusty::default());
     cx.set_global(RustyOffer::default());
+    cx.set_global(Vault::default());
+    cx.set_global(VaultReads::default());
+    brain::init(cx);
     let view = cx.new(|cx: &mut Context<RustyServerView>| {
         cx.observe_global::<Rusty>(|_, cx| cx.notify()).detach();
         RustyServerView
@@ -196,6 +225,9 @@ fn follow_setting(cx: &mut App) {
                 State::Starting
             };
         });
+        if cx.global::<Vault>().tree.is_some() {
+            cx.update_global::<Vault, _>(|vault, _| vault.tree = None);
+        }
         if source != Source::Off {
             let keeper = cx.spawn(async move |cx| keep(source, cx).await);
             update(cx, |rusty| rusty.keeper = Some(keeper));
@@ -368,10 +400,12 @@ async fn connected(source: &Source, failures: &mut u32, cx: &AsyncApp) -> Lost {
         });
     });
     read_settings(&server, cx).await;
+    cx.update(reread_vault);
     loop {
         match select(pin!(executor.timer(PING_EVERY)), announced.next()).await {
             Either::Right((Some(()), _)) => {
                 read_settings(&server, cx).await;
+                cx.update(reread_vault);
                 continue;
             }
             Either::Left(_) | Either::Right((None, _)) => {}
@@ -456,6 +490,116 @@ async fn call(
         return Err(format!("{tool} was refused: {}", first_line(&text)));
     }
     Ok(text)
+}
+
+/// Calls one of Rusty's tools on Marley's connection; a refusal's error is Rusty's own message.
+pub(crate) fn call_tool(
+    tool: &'static str,
+    arguments: Value,
+    cx: &App,
+) -> Task<Result<String, String>> {
+    let Some(server) = cx.global::<Rusty>().server.clone() else {
+        return Task::ready(Err("Rusty is not connected".to_string()));
+    };
+    cx.spawn(async move |cx| {
+        call(&server, tool, arguments, cx).await.map_err(|error| {
+            let failed = format!("{tool} failed: ");
+            let refused = format!("{tool} was refused: ");
+            error
+                .strip_prefix(&failed)
+                .or_else(|| error.strip_prefix(&refused))
+                .map_or_else(|| error.clone(), str::to_string)
+        })
+    })
+}
+
+/// Whether Marley is connected to Rusty.
+pub(crate) fn is_connected(cx: &App) -> bool {
+    matches!(cx.global::<Rusty>().state, State::Connected { .. })
+}
+
+/// Whether `marley.rusty.enabled` is on.
+pub(crate) fn is_on(cx: &App) -> bool {
+    cx.global::<Rusty>().source != Source::Off
+}
+
+/// Why the rail's Brain view cannot show now, if it can't: Rusty off, or not connected.
+pub(crate) fn unavailable(cx: &App) -> Option<SharedString> {
+    match &cx.global::<Rusty>().state {
+        State::Connected { .. } => None,
+        State::Off => Some(SharedString::new_static(
+            "Rusty is off. Turn it on in the Rusty section of the Marley settings.",
+        )),
+        State::Starting => Some(SharedString::new_static(
+            "Rusty is still connecting; the Brain view shows once it is connected.",
+        )),
+        State::Down(reason) | State::Missing(reason) => {
+            Some(format!("Rusty is not connected: {reason}").into())
+        }
+    }
+}
+
+/// The vault's folder: `brain_vault_path` as Rusty stores it, else Rusty's own default,
+/// `.rusty/brain` in the home folder.
+pub(crate) fn vault_folder(cx: &App) -> PathBuf {
+    let stored = match &cx.global::<Rusty>().settings {
+        Some(Ok(settings)) => settings.get(VAULT_PATH_KEY).map(PathBuf::from),
+        _ => None,
+    };
+    stored.unwrap_or_else(|| paths::home_dir().join(".rusty").join("brain"))
+}
+
+/// Asks for the vault once a Brain view shows: it is read now, and again on each change.
+pub(crate) fn want_vault(cx: &mut App) {
+    if cx.global::<VaultReads>().wanted {
+        return;
+    }
+    cx.global_mut::<VaultReads>().wanted = true;
+    reread_vault(cx);
+}
+
+/// Reads the vault with `brain_tree` while it is wanted and Marley is connected; with a read under
+/// way, one more runs when it ends.
+pub(crate) fn reread_vault(cx: &mut App) {
+    let reads = cx.global_mut::<VaultReads>();
+    if !reads.wanted {
+        return;
+    }
+    if reads.reading {
+        reads.again = true;
+        return;
+    }
+    let rusty = cx.global::<Rusty>();
+    let Some(server) = rusty.server.clone() else {
+        return;
+    };
+    let source = rusty.source.clone();
+    cx.global_mut::<VaultReads>().reading = true;
+    cx.spawn(async move |cx| {
+        let read = match call(&server, BRAIN_TREE, json!({}), cx).await {
+            Ok(text) => cx
+                .background_spawn(futures::future::lazy(move |_| {
+                    VaultNode::from_answer(&text)
+                }))
+                .await
+                .map(Arc::new)
+                .map_err(|error| format!("{BRAIN_TREE}'s answer did not parse: {error}")),
+            Err(error) => Err(error),
+        };
+        cx.update(|cx| {
+            // A read begun before the switch moved belongs to a connection that is gone.
+            let tree = Some(read.map_err(SharedString::from));
+            if cx.global::<Rusty>().source == source && cx.global::<Vault>().tree != tree {
+                cx.update_global::<Vault, _>(|vault, _| vault.tree = tree);
+            }
+            let reads = cx.global_mut::<VaultReads>();
+            reads.reading = false;
+            if std::mem::take(&mut reads.again) {
+                reread_vault(cx);
+            }
+        });
+    })
+    .detach();
 }
 
 /// The first line of `text`, trimmed.

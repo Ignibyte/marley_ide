@@ -1,7 +1,7 @@
 ---
 pipeline_id: 82e2078e-a618-468c-9bb5-a23a8e3c435b
 ticket: docs/planning/tickets/open/TICKET-644-brain-view-in-the-rail.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "The rail's Brain view: Rusty's vault behind a switch in the header"
 type: feature
 slice: Rusty in Marley R4 (R-D9, R-D10)
@@ -31,10 +31,11 @@ Rusty's screens are reached: "Switch in the rail header".
   move. Ported in part from Ely's tree model, with Ely's MIT notice on the file (D13).
 - **The stand-in:** #643's stand-in `rusty-mcp` gains `brain_tree`, `brain_daily_note`,
   `brain_search`, `brain_new_page`, `brain_new_folder`, `brain_rename`, `brain_delete_page` and
-  `brain_delete_folder` over its scratch vault, with Rusty's results and refusals for the cases
-  the scenario drives, and `setting_get` answering `brain_vault_path` with that vault (#645 needs
-  the same answer); it logs each `tools/call`, and announces `list_changed` after each write and
-  on `SIGUSR1`.
+  `brain_delete_folder` over its scratch vault (`$RUSTY_STAND_IN_STATE/vault`, made with
+  `archive/` as Rusty makes its vault), with Rusty's results and refusals for the cases the
+  scenario drives, and `brain_vault_path` stored in its settings as that vault (#645 needs the
+  same answer); it logs each `tools/call`, and announces `list_changed` when a file in its vault
+  changes, as Rusty's watcher does, its own writes included (promotion).
 - **The vault cache** (`marley_workbench::rusty`): `brain_tree` read once per change for every
   window's Brain view, off the main thread, kept in a global written only when the read differs
   (L-572); re-read on #643's `list_changed`, after each write the Brain view makes, and on
@@ -149,10 +150,11 @@ and VS Code's activity bar. Warp: no analog for a knowledge vault; no Warp sourc
 `script/e2e/644-brain-view-in-the-rail.sh` (`compositor sway`: it clicks, right-clicks and drags
 in the rail). Fixtures: a scratch repository opened with `open_path`; a terminal HOME whose
 `.bashrc` sets a plain prompt; #643's stand-in `rusty-mcp`, named in `MARLEY_RUSTY_MCP` (never put first on the PATH: Marley takes its PATH from the login shell, L-531, so the real `rusty-mcp` could win; reconciled 2026-10-03 to #643's rule), over a scratch vault
-the scenario fills with made-up pages, never the user's (R-D8): `daily/2026-01-05`,
-`decisions/use-a-rail` and `decisions/keep-zed`, `notes/alpha` and `notes/beta`,
-`projects/marley/plan` and `projects/marley/shell`, and `home` at the root; the stand-in
-answers `setting_get brain_vault_path` with that vault. Setup sets `marley.rusty.connection` to
+(`$RUSTY_STAND_IN_STATE/vault`) the scenario fills with made-up pages, never the user's (R-D8):
+`daily/2026-01-05`, `decisions/use-a-rail` and `decisions/keep-zed`, `notes/alpha` and
+`notes/beta`, `projects/marley/plan` and `projects/marley/shell`, and `home` at the root, beside
+the empty `archive/` Rusty makes with a vault; the stand-in stores `brain_vault_path` as that
+vault. Setup sets `marley.rusty.connection` to
 `embedded` and leaves `marley.rusty.enabled` false, as the harness writes it; later changes are
 edits of the run's settings from outside (L-607). Run before #645, a page opens as its file in
 Zed's editor; run after, as a Page tab, and the shots say which. Shots:
@@ -160,7 +162,8 @@ Zed's editor; run after, as a Page tab, and the shots say which. Shots:
 - `644-02-off-toast`: `secondary-alt-v` while off: the toast; the rail still on Projects.
 - `644-03-switch`: `marley.rusty.enabled` set true, connected: Projects (pressed) and Brain.
 - `644-04-brain`: Brain clicked: Today, the search field, the folders `daily`, `decisions`,
-  `notes`, `projects` with their page counts, then `home`; New Page at the header's end.
+  `notes`, `projects` with their page counts, then `home`; `archive/` left out, as Rusty leaves it
+  since its TICKET-040; New Page at the header's end.
 - `644-05-unfolded`: `projects` and `projects/marley` unfolded: nested rows, indent guides.
 - `644-06-preview`: one click on `alpha`: an `alpha.md` tab, title in italics; the row selected.
 - `644-07-kept`: a double-click on `alpha`: the same tab, upright.
@@ -178,12 +181,13 @@ Zed's editor; run after, as a Page tab, and the shots say which. Shots:
 - `644-16-moved`: `delta` dragged onto `decisions`: listed under it.
 - `644-17-delete-prompt`: Delete on `projects/marley`: the prompt names it, its 2 pages and
   `archive/`.
-- `644-18-deleted`: Delete answered: `projects/marley` gone, `archive` listed.
-- `644-19-live`: `notes/epsilon.md` written into the scratch vault and the stand-in signalled:
-  `epsilon` listed with no click.
+- `644-18-deleted`: Delete answered: `projects/marley` gone, `projects` counting 0.
+- `644-19-live`: `notes/epsilon.md` written into the scratch vault from outside: `epsilon`
+  listed with no click.
 - `644-20-attention`: a bell rung in the project's terminal while Brain shows: a dot on Projects.
 - `644-21-flipped`: `secondary-alt-v`: the Projects view, Projects pressed.
-- `644-22-down`: the stand-in stopped and kept down: the header reads PROJECTS, the rows show.
+- `644-22-down`: the stand-in moved away and Marley's killed, so it stays down: the header reads
+  PROJECTS, the rows show.
 
 ## Locked-In Decisions
 - D1 — **Before #645, in Chad's order; a page opens as its file until then.** The batch runs
@@ -192,9 +196,10 @@ Zed's editor; run after, as a Page tab, and the shots say which. Shots:
   Brain view (a page row's click, Enter on a page or a hit, Today, a new page) goes through one
   function, `rusty::brain::open_page(slug, preview)`. In this ticket it opens `<vault>/<slug>.md`
   in Zed's editor as Zed opens a file outside the project (`project_path_for_path` with
-  `visible: false`, then `open_path_preview`), the vault being `setting_get("brain_vault_path")`,
-  read when Rusty connects, or Rusty's default `~/.rusty/brain` when Rusty answers null
-  (`core.rs:73-81`): the rule #645's Edit view uses. #645 points it at `rusty::page::open_later`
+  `visible: false`, then `open_path_preview`), the vault being `brain_vault_path` as
+  `settings_list` gives it (read when Rusty connects and on each `list_changed`, #643), or Rusty's
+  default `$HOME/.rusty/brain` when Rusty stores none (`core.rs:73-80`): the rule #645's Edit view
+  uses. (Promotion: `settings_list` already carries the key, so no `setting_get` call.) #645 points it at `rusty::page::open_later`
   and no caller changes. Opening reads a file; a save from that buffer is a source edit, which
   Rusty's watcher indexes and commits (R-D4); the Brain view itself writes nothing to disk.
   Rejected: promoting this after #645 (its scenario reaches its tab through this tree); a click

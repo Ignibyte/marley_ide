@@ -13,6 +13,18 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Rusty's vault in the rail** (#644, 2026-10-04). While Rusty is on and connected, the rail's
+  header shows a Projects button and a Brain button in place of PROJECTS, and Ctrl+Alt+V flips
+  between them from anywhere in the window. Brain shows Today (today's daily note, made when
+  missing), a brain search field that asks Rusty when you press Enter and lists its hits, and the
+  vault's folders and pages with their page counts. A click opens a page in a preview tab, a
+  double-click keeps it; until the Page tab lands (#645), a page opens as its Markdown file. The
+  list keys walk the tree. The right-click menus make pages and folders, rename and delete them,
+  and a drag moves one into another folder, each through Rusty's tools: Marley writes no file of
+  the vault, a refusal shows Rusty's message, and a delete asks first. Changes Rusty announces
+  show with no click, a dot on Projects says something there needs you, and a lost connection
+  puts the rail back on Projects. With Rusty off, the key says so in a toast.
+
 - **Marley connects to Rusty when Rusty is turned on** (#643, 2026-10-04). `marley.rusty` is
   Rusty's switch in Marley, off by default, with a Rusty section on the Marley settings page.
   On, Marley starts `rusty-mcp` itself (`embedded`: `MARLEY_RUSTY_MCP`, else your PATH) or
