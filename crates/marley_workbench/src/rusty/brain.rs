@@ -3,7 +3,7 @@
 //! Under the header, a fixed row with Today, a brain search field that asks Rusty on Enter, and the
 //! vault tree over `brain_tree`. Its menus, its name editor and its drags make, rename, move and
 //! delete pages and folders through Rusty's tools, never the disk; every open goes through
-//! `open_page`.
+//! `open_page`, which opens a Page tab.
 
 use std::collections::HashSet;
 use std::ops::Range;
@@ -96,10 +96,8 @@ fn show_toast(workspace: &mut Workspace, message: String, cx: &mut Context<Works
     );
 }
 
-/// Opens the page `slug` in `workspace`. Until #645's Page tab takes this over, a page is its
-/// file in Zed's editor, opened as Zed opens a file outside the project: in a preview tab when
-/// `preview`, focused when `focus`. Opening reads the file; a save from that editor is an edit
-/// Rusty's watcher takes in.
+/// Opens the page `slug` in `workspace`'s Page tab (#645): in the pane's preview tab when
+/// `preview`, the keyboard moved into it when `focus`. Every open in the Brain view comes here.
 pub(crate) fn open_page(
     workspace: &Entity<Workspace>,
     slug: &str,
@@ -108,39 +106,14 @@ pub(crate) fn open_page(
     window: &Window,
     cx: &mut App,
 ) {
-    let path = super::vault_folder(cx).join(format!("{slug}.md"));
-    let project = workspace.read(cx).project().clone();
-    let found = Workspace::project_path_for_path(project, &path, false, cx);
-    let workspace = workspace.downgrade();
-    let slug = slug.to_string();
-    window
-        .spawn(cx, async move |cx| {
-            let opened = match found.await {
-                Ok((_, project_path)) => match workspace.update_in(cx, |workspace, window, cx| {
-                    workspace.open_path_preview(
-                        project_path,
-                        None,
-                        focus,
-                        preview,
-                        true,
-                        window,
-                        cx,
-                    )
-                }) {
-                    Ok(opening) => opening.await.map(|_| ()),
-                    Err(error) => Err(error),
-                },
-                Err(error) => Err(error),
-            };
-            if let Err(error) = opened {
-                workspace
-                    .update(cx, |workspace, cx| {
-                        show_toast(workspace, format!("Could not open {slug}: {error}"), cx);
-                    })
-                    .log_err();
-            }
-        })
-        .detach();
+    super::page::open_later(
+        workspace.downgrade(),
+        slug.to_string(),
+        preview,
+        focus,
+        window,
+        cx,
+    );
 }
 
 /// Whether one click opens a page in a preview tab: where Zed's project panel would open a file

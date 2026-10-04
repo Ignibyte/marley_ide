@@ -150,6 +150,14 @@
     }
   },
   {
+    // A brain page's tab (#645): Back and Forward of the tab's own, as the Browser tab binds them.
+    "context": "RustyPage",
+    "bindings": {
+      "alt-left": "rusty::PageBack",
+      "alt-right": "rusty::PageForward"
+    }
+  },
+  {
     // Ctrl-Shift-C from the tab's own fields too, where Zed's `!Terminal` binding of the key (the
     // collab panel) sits as deep as the field.
     "context": "MarleyBrowser > Editor",

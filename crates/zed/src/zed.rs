@@ -5968,6 +5968,8 @@ mod tests {
                 "recent_projects",
                 "remote_debug",
                 "repl",
+                // Marley: Rusty's page actions (#645).
+                "rusty",
                 "search",
                 "settings_editor",
                 "settings_profile_selector",

@@ -4567,3 +4567,33 @@ binaries. The stand-in models Rusty as its main ships it, the Rusty Marley meets
 reinstalls, and the planning notes say which commit; check `git log` in `rusty-v3` at promotion.
 It also announces `list_changed` for any change to a file in its vault, as Rusty's watcher does,
 so a scenario writes a page as another program would and needs no signal of its own.
+
+## L-claude-645-zed-binds-ctrl-alt-shift-o-twice-001
+*category: e2e · topic: keys a scenario binds · from: pipeline 645*
+
+A scenario that binds a key of its own in the run's `keymap.json` checks the chord against Zed's
+keymap first (`grep -n '"ctrl-alt-shift-x"' assets/keymaps/default-linux.json`, and the
+`alt-ctrl-shift-x` spelling): Zed binds `alt-ctrl-shift-o` to `projects::OpenRemote` and
+`ctrl-alt-shift-o` to `dev::ResetFrameOverlayStats`, and #645's `rusty::OpenPage` bound there never
+ran, silently. `ctrl-alt-shift-y` and `ctrl-alt-shift-k` are free.
+
+## L-claude-645-a-data-action-in-a-marley-crate-deserializes-by-hand-001
+*category: code · topic: actions with fields in Marley crates · from: pipeline 645*
+
+gpui's `#[derive(Action)]` adds a registration that clippy counts as an unsafe method, so a
+derived `serde::Deserialize` on the same type trips `clippy::unsafe_derive_deserialize` (pedantic,
+denied in the Marley crates; Zed's crates do not run it). A Marley action with fields
+(`rusty::OpenPage`, #645) derives `Action` and `JsonSchema`, and deserializes through a private
+fields struct with the derive and `deny_unknown_fields`: `impl Deserialize for OpenPage` reads the
+fields and builds the action. The unit actions of `actions!` in a Marley crate each carry
+`#[derive(Eq)]`, or clippy asks for `Eq`.
+
+## L-claude-645-a-markdown-heading-scroll-needs-a-frame-after-the-parse-001
+*category: code · topic: Zed's markdown crate in a Marley view · from: pipeline 645*
+
+`MarkdownElement::scroll_handle` makes the element scroll the view's own `ScrollHandle` to a
+heading, an autoscroll it applies while it paints: the new offset is drawn by the frame after.
+A Marley view that scrolls to a heading on load (the Page tab's `[[page#heading]]`) asks for that
+frame itself once `Markdown::is_parsing` is false
+(F-claude-645-a-heading-link-scrolled-nothing-in-a-page-at-rest-001). The autoscroll brings the
+heading into view with three lines' margin, not to the top.

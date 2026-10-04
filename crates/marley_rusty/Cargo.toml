@@ -9,6 +9,7 @@ license = "MIT OR Apache-2.0"
 path = "src/marley_rusty.rs"
 
 [dependencies]
+pulldown-cmark.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

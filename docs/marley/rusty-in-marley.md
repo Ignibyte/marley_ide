@@ -145,17 +145,21 @@ polls the harness's `fleet_events`. No Zed touchpoint.
 
 `brain_render` returns Qt rich-text HTML with inline colours (`rusty-core/src/brain/render.rs:
 192-209`), which GPUI cannot draw, though its `outline`, `links`, `unresolved` and `tasks`
-fields are usable as they are. The Page tab renders the markdown itself in `marley_rusty`,
-with wikilinks resolved from `brain_render`'s `links`; Zed's `markdown` crate turns wikilinks
-off on purpose (`markdown/src/parser.rs:985-987`), so either Marley's pass produces the
-elements, or Zed's parser gains a small additive switch (a touchpoint, decided in R2's Plan
-phase). A structured render from Rusty (RQ3) would remove the second parser entirely.
+fields are usable as they are. Zed's `markdown` crate turns wikilinks off on purpose
+(`markdown/src/parser.rs:985-987`). The Page tab (#645, shipped 2026-10-04) runs a pass in
+`marley_rusty::page` that finds the wikilinks with Rusty's own parse options and rewrites each
+into an ordinary link with Rusty's address (`rusty:page/SLUG#HEADING`, or `rusty:new/TARGET` for a
+page `brain_render`'s `links` did not resolve); Zed's `markdown` crate draws the result unchanged,
+so no touchpoint in Zed's parser. Rusty's structured render (RQ3, its TICKET-036, on its main
+since 2026-10-04 as `brain_render { blocks: true }`) would replace the pass's lookup, not Zed's
+renderer.
 
-Source edits open the vault file in a Zed editor buffer and save to disk, as Obsidian does.
-Rusty's watcher announces a disk edit about 0.6 s later and reindexes it about 5 s after, but
-nothing commits it yet: the next tool write's `git add -A` sweeps it into that tool's commit, as
-with an Obsidian edit. Indexed now; committed on its own once Rusty's TICKET-043 lands (found
-drafting #645). Renames, moves, deletes and property edits go
+Source edits open the vault file in a Zed editor buffer, inside the Page tab, and save to disk
+unformatted, as Obsidian does. Rusty's watcher announces a disk edit about 0.6 s later and
+reindexes it about 5 s after; since Rusty's TICKET-043 (on its main 2026-10-04) the indexer
+commits it on its own. With the older binaries still on the box until Chad reinstalls, nothing
+commits it until the next tool write's `git add -A` sweeps it into that tool's commit, as with an
+Obsidian edit. Renames, moves, deletes and property edits go
 through the tools so links are rewritten.
 
 ### R-D5. The project join
@@ -263,7 +267,7 @@ possible: a wikilink switch in `markdown/src/parser.rs`, only if R2 chooses Zed'
 | R0 | D11 amended, decisions recorded, RQ1 to RQ5 filed in Rusty | docs |
 | R1 | #643, shipped 2026-10-04. The switch and the connection: `marley.rusty`, embedded or service, status on the settings page; `rusty_tools` moves in | M |
 | R4 | #644, shipped 2026-10-04. The rail's Brain view (R-D9): the header switch, Today, search on Enter, the vault tree with new, rename, move and delete through tools | M |
-| R2 | #645. The Page tab: Zed's `markdown` with wikilinks rewritten to `rusty:` links, properties, back and forward, preview tabs, Edit in a buffer; the `rusty::OpenPage` action | M |
+| R2 | #645, shipped 2026-10-04. The Page tab: Zed's `markdown` with wikilinks rewritten to `rusty:` links, properties, back and forward, preview tabs, Edit in a buffer; the `rusty::OpenPage` action | M |
 | R3 | #646. The Knowledge panel: backlinks, outgoing links, tags and brain search (on Enter) | M |
 | R5 | #647. The Graph tab: whole vault or local with depth, filters, page-type colours, decision edges dashed, Ely's force layout off the main thread | M |
 | R3a | `rusty: open page`: a picker over `brain_list_pages` by title, create on a miss | S |

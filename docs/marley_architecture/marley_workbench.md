@@ -1935,6 +1935,46 @@ alike.
   Brain view while that shows. `focus_filter` focuses the Brain view's search field, and the
   rail's `cancel` passes on while Brain shows.
 
+## A brain page in a tab (`src/rusty/page.rs`, `src/rusty/properties.rs`, #645)
+
+- **The actions.** `rusty::OpenPage { slug, preview }` (`#[derive(Action)]` in the `rusty`
+  namespace, which `crates/zed/src/zed.rs`'s namespace test lists), and `actions!(rusty,
+  [PageBack, PageForward, TogglePageEdit])`. `page::init` registers `OpenPage` on every workspace;
+  with Rusty unavailable it shows `rusty::unavailable`'s words in a toast and opens nothing.
+- **The opener.** `open_later(workspace, slug, preview, focus, window, cx)` runs in `window.defer`
+  (a link's click arrives inside the `Markdown` entity's update; the opener reads every Page tab).
+  A `PageView` showing `slug` comes forward (`activate_item`), kept when not `preview`
+  (`unpreview_item_if_preview`); otherwise a new one is added to the active pane, taking the
+  preview's place through `Pane::replace_preview_item_id` and `Workspace::add_item` at the index
+  it gives, the two steps of `Workspace::open_project_item`. `rusty::brain::open_page`, the Brain
+  view's one door, calls it.
+- **`PageView`.** Its `PageHistory`, a generation counter, `Shown` (`Loading`, `Page`, `Missing`,
+  `Failed`), a `markdown::Markdown` entity (the project's language registry, heading slugs and HTML
+  on), its `ScrollHandle`, `Mode` (`Read`, or `Edit` with an `Editor` and its events), whether Rusty
+  was connected, and a problem line. `load` calls `brain_render` through `rusty::call_tool`, reads
+  the answer and runs `page_markdown` off the main thread, and drops an answer whose generation
+  moved; `show` replaces the Markdown source and asks it to scroll to the visit's heading
+  (`util::markdown::generate_heading_slug`). The tab re-reads on `rusty::Announced`, a global
+  `rusty::connected` bumps on each embedded `list_changed`, while it shows Read.
+- **Drawing.** The header (Back and Forward `IconButton`s, the folder and name, an Edit or Read
+  `Button`), the not-connected and problem lines, then in Read a scroll container tracked by the
+  `ScrollHandle`, the title as a `Headline`, `properties::render` (Ely's `DescriptionList` layout,
+  its MIT notice on the file; a list as `ui::Chip`s) and a `MarkdownElement` with Zed's Preview
+  style, a `link_callback` that mutes `rusty:new/` links, the same `ScrollHandle` for heading
+  scrolls, and an `on_url_click` that defers to `follow` (`PageLink::parse`: navigate, toast,
+  scroll, or `cx.open_url`). In Edit, the editor fills the body.
+- **Edit.** `toggle_edit` opens `brain_render`'s `file` (Rusty's TICKET-042), else
+  `page_file_in(rusty::vault_folder, slug)`, with `Project::open_local_buffer` (refused in a
+  remote project) into `Editor::for_buffer`, whose `BufferEdited` becomes `ItemEvent::Edit` (a
+  preview tab is kept) and whose dirty, saved and title events update the tab. `leave_edit_then`
+  saves a dirty buffer with `SaveOptions { format: false, autosave: true, .. }` before Read, Back,
+  Forward or a link; a failed save stays in Edit and says why.
+- **`Item`.** `tab_content` draws the title (the slug's last part until it loads) in italics while
+  `TabContentParams::preview`; `FileMarkdown` icon; the slug as tooltip; while in Edit,
+  `is_dirty`, `has_conflict`, `can_save`, `save`, `reload` and `for_each_project_item` are the
+  editor's; `added_to_workspace` keeps the workspace (L-613). `Focusable` is the editor's handle in
+  Edit. Marley's keymap binds Alt-Left and Alt-Right in `RustyPage`.
+
 ## The find tools (`src/find.rs`, #567)
 
 - `find_items(name, subject, query, items, place, cx)` is what `browser_find` and

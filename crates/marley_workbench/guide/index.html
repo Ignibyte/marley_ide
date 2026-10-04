@@ -608,13 +608,20 @@ th { background: var(--panel); font-weight: 650; }
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Click Brain, or press <kbd>Ctrl+Alt+V</kbd> from anywhere in the window; the same key goes back to Projects. With Rusty off or not connected, the key says why in a toast.</li>
-<li>Click a folder to open or close it. Click a page once to open it in a preview tab, twice to keep its tab. Until the Page tab lands (#645), a page opens as its Markdown file.</li>
+<li>Click a folder to open or close it. Click a page once to open it in a preview tab, twice to keep its tab. A page opens in a Page tab: its title, its properties and its body, with its wikilinks as links (#645).</li>
 <li>Today opens today's daily note, which Rusty makes when it is missing.</li>
 <li>Type in the search field and press Enter: Rusty's hits replace the tree. Rusty's <code>tag:</code>, <code>path:</code> and <code>type:</code> work as typed. Escape clears the search, a second Escape goes back to the tree.</li>
 <li>In the tree, Up and Down move, Right opens a folder or steps into it, Left closes it or goes up, and Enter opens the selected page.</li>
 <li>Right-click a folder for New Page, New Folder, Rename and Delete; a page for Open, Rename and Delete; the empty space for New Page, New Folder and Refresh. A name is typed in the tree: Enter makes it, Escape drops it.</li>
 <li>Drag a page or a folder onto a folder to move it there, onto a page to move it into that page's folder, or onto the empty space to move it to the top. Rusty rewrites the links to it.</li>
 <li>Delete asks first. Rusty moves the page or folder into <code>archive/</code> and leaves the links to it.</li>
+</ol>
+<h4>A page's tab</h4>
+<ol class="steps">
+<li>Click a link to open its page in the same tab; a link in muted text names a page that does not exist yet. A link with a heading opens the page at that heading.</li>
+<li>Back and Forward, at the tab's top left or <kbd>Alt+Left</kbd> and <kbd>Alt+Right</kbd>, go through the pages the tab showed.</li>
+<li>Edit shows the page's file in an editor in the same tab; typing keeps a preview tab, and the unsaved dot and <kbd>Ctrl+S</kbd> work as for any file. Read, Back and Forward save first, without formatting, and show the page as saved.</li>
+<li>A page that changes on disk, or that Rusty changes, shows its new text with no click.</li>
 </ol>
 <p class="note">Search is sent on Enter only: with an embedding provider set, Rusty embeds every query it is sent. A dot on the Projects button means something in the Projects view needs you. On the embedded connection, changes Rusty makes or sees in the vault's folder show without a click; on the service connection, after Marley's own changes and on Refresh. Favourites come with Rusty's bookmarks.</p>
 </article>

@@ -17,9 +17,12 @@
 //! for every context server.
 //!
 //! Once a rail's Brain view has shown ([`brain`], #644), the vault is read with `brain_tree` on
-//! each connection, each announcement and each write, into the `Vault` global.
+//! each connection, each announcement and each write, into the `Vault` global. A page opens in a
+//! center tab ([`page`], #645), which reads it again on each announcement.
 
 pub mod brain;
+pub mod page;
+mod properties;
 
 use std::collections::HashMap;
 use std::ffi::OsString;
@@ -178,6 +181,13 @@ pub(crate) struct Vault {
 
 impl Global for Vault {}
 
+/// How many changes Rusty has announced on Marley's connection; the Page tabs read their page
+/// again on each (#645).
+#[derive(Default)]
+pub(crate) struct Announced(u64);
+
+impl Global for Announced {}
+
 /// Whether the vault is wanted, a read is under way, or one more is due when it ends. Kept apart
 /// from [`Vault`], so a read's start and end redraw nothing (L-572).
 #[derive(Default)]
@@ -196,7 +206,9 @@ pub fn init(cx: &mut App) {
     cx.set_global(RustyOffer::default());
     cx.set_global(Vault::default());
     cx.set_global(VaultReads::default());
+    cx.set_global(Announced::default());
     brain::init(cx);
+    page::init(cx);
     let view = cx.new(|cx: &mut Context<RustyServerView>| {
         cx.observe_global::<Rusty>(|_, cx| cx.notify()).detach();
         RustyServerView
@@ -405,7 +417,10 @@ async fn connected(source: &Source, failures: &mut u32, cx: &AsyncApp) -> Lost {
         match select(pin!(executor.timer(PING_EVERY)), announced.next()).await {
             Either::Right((Some(()), _)) => {
                 read_settings(&server, cx).await;
-                cx.update(reread_vault);
+                cx.update(|cx| {
+                    cx.update_global::<Announced, _>(|announced, _| announced.0 += 1);
+                    reread_vault(cx);
+                });
                 continue;
             }
             Either::Left(_) | Either::Right((None, _)) => {}

@@ -987,8 +987,8 @@ to it when the connection is lost; Brain shows again once Rusty connects.
 - **The tree.** The vault's folders and pages as Rusty lists them, folders first, each folder
   with its page count. All folders start closed. A click on a folder opens or closes it; one
   click on a page opens it in a preview tab, two keep the tab, as Zed's project panel opens files.
-  Until the Page tab lands (#645), a page opens as its Markdown file in the editor, and a save
-  there is an edit Rusty's watcher takes in. With the focus in the tree, Up, Down, Home and End
+  A page opens in a Page tab (below); a tab already showing it comes forward. With the focus in
+  the tree, Up, Down, Home and End
   move, Right opens a folder or steps into it, Left closes it or climbs, and Enter does what a
   click does.
 - **Changing the vault.** Right-click a folder for New Page, New Folder, Rename and Delete; a page
@@ -1006,6 +1006,34 @@ to it when the connection is lost; Brain shows again once Rusty connects.
   on Refresh.
 - While Brain shows, a dot on Projects says something in the Projects view needs you.
 - Favourites come with Rusty's bookmarks; Rusty serves none yet.
+
+### A brain page in a tab
+
+A page opens in a center tab (#645), from the Brain view or with the `rusty::OpenPage` action,
+which a key of your own can bind with a slug (`["rusty::OpenPage", {"slug": "projects/marley"}]`;
+`"preview": true` opens it in the preview tab).
+
+- **What it shows.** The page's title, its properties (each frontmatter key and its value, a list
+  as chips) and its body, drawn by Zed's own Markdown renderer: headings, lists, task boxes as
+  written, code highlighted for its language, tables. The header carries Back, Forward, the
+  page's folder and name, and Edit.
+- **Links.** A wikilink is a link. One to a page opens it in the same tab, at its heading when it
+  names one (`[[page#Heading]]`); one to no page yet is drawn muted, and a click says the page does
+  not exist yet. A web link opens in your browser.
+- **Back and Forward.** The tab keeps its own history: the buttons, or Alt+Left and Alt+Right with
+  the focus in the tab.
+- **Preview tabs.** One click in the tree opens the page in the pane's preview tab (its title in
+  italics), which the next one-click page replaces; a double-click, or an edit, keeps the tab.
+  With `preview_tabs.enabled` off, every page opens kept.
+- **Edit and Read.** Edit shows the page's file in an editor inside the same tab: the unsaved dot,
+  Ctrl+S and the close prompt work as for any file. Read, Back and Forward save unsaved edits
+  first, without formatting, then show the page as saved. Rusty's watcher sees the save and
+  indexes it; Rusty commits it on its own since its TICKET-043, and with older Rusty binaries the
+  commit comes with Rusty's next write.
+- **Live.** While a tab shows a page, a change Rusty announces (one Rusty makes, or one it sees in
+  the vault's folder) shows with no click, on the embedded connection.
+- **Not connected.** With Rusty off or its connection lost, the tab keeps the page it shows and
+  says so above it.
 
 ## Marley's MCP server
 
@@ -1761,6 +1789,7 @@ table lists Marley's bindings and the Zed keys whose meaning Marley changes or r
 | Ctrl+Alt+; | Anywhere | Moves the focus into the rail, or back out |
 | Ctrl+Alt+J | Anywhere | Opens or closes the rail |
 | Ctrl+Alt+V | Anywhere, while Rusty is connected | The rail's Projects and Brain views |
+| Alt+Left, Alt+Right | A brain page's tab | Back, Forward |
 | Ctrl+? | Anywhere | Focuses the Agent Panel (Zed's) |
 | Ctrl+\` | Marley layout | Switches between the code and the project's terminals |
 | Ctrl+J | Marley layout | The same, while the bottom dock is closed |

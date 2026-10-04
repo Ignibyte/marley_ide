@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-645](open/TICKET-645-brain-page-tab.md) | feature | Rusty in Marley R2 · a brain page in a center tab: wikilinks, properties, back and forward, preview tabs, Edit in a buffer |
 | [TICKET-646](open/TICKET-646-knowledge-panel.md) | feature | Rusty in Marley R3 · the right-dock Knowledge panel: backlinks, outgoing links, tags and brain search |
 | [TICKET-647](open/TICKET-647-brain-graph-tab.md) | feature | Rusty in Marley R5 · the Graph tab: whole or local, filters, decision edges, Ely's force layout off the main thread |
 | [TICKET-648](open/TICKET-648-agent-version-check.md) | feature | B7 · the tested-version table for `claude` and `codex`: an untested integration stays off and the agent bar says why; `marley.allow_untested_versions` |

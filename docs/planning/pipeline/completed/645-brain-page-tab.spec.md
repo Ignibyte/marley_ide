@@ -1,7 +1,7 @@
 ---
 pipeline_id: 02df160f-7254-46eb-ad34-c04ca70458fd
 ticket: docs/planning/tickets/open/TICKET-645-brain-page-tab.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "A brain page in a center tab"
 type: feature
 slice: Rusty in Marley R2 (the Page tab), decision R-D4; prong 2 (D11 as amended)
@@ -22,9 +22,10 @@ the action every later click calls.
   Python stand-in `stand_in/rusty-mcp`, which a scenario names in `MARLEY_RUSTY_MCP`), the client in
   `marley_workbench::rusty` (Zed's `ContextServer`) with its connection state and its signal on
   `notifications/resources/list_changed`, and the `marley.rusty` switch; #644 makes the rail's Brain
-  view, its one door for opening a page (`rusty::brain::open_page(slug, preview)`), and the
-  stand-in's vault tools, `setting_get brain_vault_path` among them. This ticket adds to both and
-  takes their names as they ship.
+  view, its one door for opening a page (`rusty::brain::open_page(workspace, slug, preview, focus,
+  window, cx)`), the stand-in's vault tools, and `rusty::vault_folder` (`brain_vault_path` from
+  `settings_list`, else `$HOME/.rusty/brain`). This ticket adds to both and takes their names as
+  they shipped (promotion, 2026-10-04).
 - **The action and the opener.** `rusty::OpenPage { slug: String, preview: bool }` (`preview`
   defaults to false) in a new `rusty` action namespace, registered on each workspace while
   `marley.rusty.enabled` is on, and `rusty::page::open_later(workspace, slug, preview, window, cx)`
@@ -59,8 +60,9 @@ the action every later click calls.
 - **Back and Forward.** The tab's own history (`marley_rusty::page::PageHistory`), with
   `rusty::PageBack` and `rusty::PageForward` on Alt-Left and Alt-Right in the tab's key context
   (`RustyPage`, in Marley's own keymap), and the header's buttons disabled at either end.
-- **Edit.** `rusty::TogglePageEdit` and the Edit button: the page's file, `<vault>/<slug>.md` with
-  the vault from `setting_get brain_vault_path` or Rusty's default `~/.rusty/brain`, opens through
+- **Edit.** `rusty::TogglePageEdit` and the Edit button: the page's file, `brain_render`'s `file`
+  when Rusty gives it (its TICKET-042), else `<vault>/<slug>.md` with the vault from
+  `rusty::vault_folder` (promotion), opens through
   `Project::open_local_buffer` into a Zed `Editor` shown in the tab's body. While it shows, the tab
   passes `is_dirty`, `has_conflict`, `can_save`, `save`, `reload`, `for_each_project_item` and the
   editor's item events to the editor, as Zed's Markdown preview and `ProjectDiff` do, so Ctrl-S is
@@ -72,9 +74,10 @@ the action every later click calls.
   text when the call fails; and, while there is no connection, the page last drawn with a line
   saying Marley is not connected to Rusty.
 - **The stand-in** (#643's, with #644's vault tools) gains `brain_render` over its scratch vault on
-  disk: `raw`, `title`, `page_type`, `properties` from the frontmatter, `links` and `unresolved` by
-  a `<target>.md` file of the vault, `null` for a missing page. Its `list_changed` on `SIGUSR1`
-  (#644's) stands in for Rusty's watcher. Fixtures: three pages.
+  disk: `raw`, `title`, `page_type`, `properties` from the frontmatter, `file` (the page's
+  absolute path, as Rusty's TICKET-042 gives it), `links` and `unresolved` by a `<target>.md` file
+  of the vault, `null` for a missing page. Its watch of the vault's files (#644's) stands in for
+  Rusty's watcher. The scenario writes the three pages.
 - **Zed's namespace test.** `"rusty"` joins `test_action_namespaces` in `crates/zed/src/zed.rs`,
   unless #643 or #644 added it first.
 - The in-app guide page's Brain article line, and `script/e2e/645-brain-page-tab.sh`.
@@ -174,14 +177,14 @@ Warp behavior applies.
 
 ## UI proof
 `script/e2e/645-brain-page-tab.sh` (`compositor sway`: it clicks rows and links). Setup writes a
-scratch vault under `$E2E_WORK/vault` with three pages: `projects/atlas` (frontmatter with `title`,
+scratch vault, the stand-in's `$RUSTY_STAND_IN_STATE/vault` (#644), with three pages: `projects/atlas` (frontmatter with `title`,
 `type`, `status` and a `tags` list; headings, a list, `- [x]` and `- [ ]` tasks, a fenced `rust`
 block, a table, a piped wikilink to the decision, a heading link to its `## Why`, an unresolved
 `[[ideas/later]]` and a web link), `decisions/use-zeds-renderer` (long enough that `## Why` is below
 the fold) and `people/sam`. It links #643's stand-in as `$E2E_WORK/bin/rusty-mcp`, names it in
 `MARLEY_RUSTY_MCP` and points it at that vault, sets `marley.rusty` on with the embedded connection
 and `preview_tabs.enabled` and `preview_tabs.enable_preview_from_project_panel` true in the run's
-copy of the settings (the user's own may turn previews off), and binds Ctrl+Alt+Shift+O to
+copy of the settings (the user's own may turn previews off), and binds Ctrl+Alt+Shift+Y (Zed binds O) to
 `["rusty::OpenPage", {"slug": "ideas/nowhere"}]` in the run's keymap. Never the user's brain
 (R-D8). Shots:
 - `645-01-preview`: one click on Atlas in the Brain view: an italic Atlas tab; header, title,
@@ -193,8 +196,8 @@ copy of the settings (the user's own may turn previews off), and binds Ctrl+Alt+
 - `645-05-wikilink`: a click on the alias "the renderer decision": the decision page, Back enabled.
 - `645-06-back`: Alt-Left: Atlas again, Forward enabled.
 - `645-07-forward`: Alt-Right: the decision page.
-- `645-08-heading`: back to Atlas, a click on the heading link: the decision page with `Why` at the
-  top.
+- `645-08-heading`: back to Atlas, a click on the heading link: the decision page scrolled until
+  `Why` is in view (Zed's Markdown autoscroll, which brings a heading into view).
 - `645-09-unresolved`: back to Atlas, a click on `ideas/later`: the toast; the tab still Atlas.
 - `645-10-found`: one click on Sam (a second, italic tab), then one click on Atlas: Atlas's tab
   comes forward; two tabs.
@@ -202,9 +205,9 @@ copy of the settings (the user's own may turn previews off), and binds Ctrl+Alt+
 - `645-12-edit-keeps`: a line typed: the title upright with Zed's unsaved dot.
 - `645-13-read-saves`: Read: the new line rendered, no dot; the scenario checks the file on disk
   holds the line and its other lines byte for byte.
-- `645-14-live`: a line appended to `people/sam.md` from outside and the stand-in sent `SIGUSR1`
-  (its `list_changed`, as Rusty's watcher sends one): shown with no input.
-- `645-15-missing`: Ctrl+Alt+Shift+O: a tab saying there is no page `ideas/nowhere`.
+- `645-14-live`: a line appended to `people/sam.md` from outside, which the stand-in's watch
+  announces as Rusty's watcher does: shown with no input.
+- `645-15-missing`: Ctrl+Alt+Shift+Y: a tab saying there is no page `ideas/nowhere`.
 - `645-16-not-connected`: `marley.rusty.enabled` set false from outside: the tab keeps its page and
   says it is not connected.
 

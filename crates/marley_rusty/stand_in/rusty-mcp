@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A stand-in for Rusty's MCP server, `rusty-mcp`, for Marley's e2e scenarios (#643, #644).
+"""A stand-in for Rusty's MCP server, `rusty-mcp`, for Marley's e2e scenarios (#643 to #645).
 
 It answers the tools Marley reads as `rusty-mcp` does (each answer JSON text in a text block, a
 refusal a JSON-RPC error carrying Rusty's message), from `../fixtures/settings_list.json` and a
@@ -11,11 +11,13 @@ serves Streamable HTTP's POST and DELETE on ADDR (port 0 picks one, written to
 `$RUSTY_STAND_IN_STATE/http-addr`). Every request goes to `$RUSTY_STAND_IN_STATE/calls` with this
 process's id. On stdio it sends `notifications/resources/list_changed` when its settings file or a
 file in its vault changes, its own writes included, as `rusty-mcp` announces each change its
-watcher sees. Links are not rewritten on a rename, and search matches words, not embeddings.
+watcher sees. Links are not rewritten on a rename, search matches words, not embeddings, and
+`brain_render` gives no HTML: Marley reads `raw`, `properties`, `file` and `links`.
 """
 
 import json
 import os
+import re
 import shutil
 import sys
 import threading
@@ -42,6 +44,7 @@ TOOL_NAMES = [
     "brain_rename",
     "brain_delete_page",
     "brain_delete_folder",
+    "brain_render",
     "brain_ask",
     "brain_decide",
     "brain_no_decision",
@@ -275,6 +278,96 @@ def daily_note(date):
     }
 
 
+WIKILINK = re.compile(r"(!?)\[\[([^\]|]*)(?:\|[^\]]*)?\]\]")
+
+
+def scalar(text):
+    """A YAML scalar as Rusty's frontmatter parser reads the simple ones."""
+    text = text.strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in "'\"":
+        return text[1:-1]
+    if text in ("true", "false"):
+        return text == "true"
+    if text in ("", "null", "~"):
+        return None
+    for kind in (int, float):
+        try:
+            return kind(text)
+        except ValueError:
+            pass
+    return text
+
+
+def frontmatter(raw):
+    """The frontmatter's keys in file order, and the body: scalars, `[a, b]` lists and block lists."""
+    lines = raw.split("\n")
+    if not lines or lines[0].strip() != "---":
+        return [], raw
+    properties, key = [], None
+    for at, line in enumerate(lines[1:], start=1):
+        if line.strip() == "---":
+            return properties, "\n".join(lines[at + 1 :])
+        if line.startswith(("  - ", "- ")) and key is not None:
+            value = properties[-1][1]
+            properties[-1] = (key, (value if isinstance(value, list) else []) + [scalar(line.split("- ", 1)[1])])
+        elif ":" in line and not line.startswith(" "):
+            key, value = line.split(":", 1)
+            key, value = key.strip(), value.strip()
+            if value.startswith("[") and value.endswith("]"):
+                properties.append((key, [scalar(part) for part in value[1:-1].split(",") if part.strip()]))
+            else:
+                properties.append((key, scalar(value)))
+    return [], raw
+
+
+def resolve(target):
+    """The slug `target` names: its own path, else the one page with that name."""
+    if not target:
+        return None
+    if os.path.isfile(in_vault(target + ".md")):
+        return target
+    named = [slug for slug, _, _ in pages() if slug.rsplit("/", 1)[-1] == target]
+    return named[0] if len(named) == 1 else None
+
+
+def render(slug):
+    slug = clean(slug)
+    path = in_vault(slug + ".md")
+    if not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8") as page:
+        raw = page.read()
+    properties, body = frontmatter(raw)
+    values = dict(properties)
+    links, unresolved = [], []
+    for embed, destination in ((m.group(1), m.group(2)) for m in WIKILINK.finditer(body)):
+        target = destination
+        for cut in "#^":
+            target = target.split(cut, 1)[0]
+        target = target.strip().lstrip("/")
+        target = target[2:] if target.startswith("./") else target
+        target = target[:-3] if target.endswith(".md") else target
+        resolved = slug if not target else resolve(target)
+        links.append({"target": target, "slug": resolved, "alias": None, "embed": bool(embed)})
+        if resolved is None and target not in unresolved:
+            unresolved.append(target)
+    return {
+        "slug": slug,
+        "title": str(values.get("title") or slug.rsplit("/", 1)[-1]),
+        "page_type": str(values.get("type") or slug.split("/", 1)[0]),
+        "properties": [{"key": key, "value": value} for key, value in properties],
+        "raw": raw,
+        "file": os.path.abspath(path),
+        "html": "",
+        "outline": [],
+        "links": links,
+        "unresolved": unresolved,
+        "tasks": 0,
+        "words": len(body.split()),
+        "characters": len(body),
+    }
+
+
 VAULT_TOOLS = {
     "brain_tree": lambda arguments: tree(),
     "brain_search": lambda arguments: search(
@@ -290,6 +383,7 @@ VAULT_TOOLS = {
     ),
     "brain_delete_page": lambda arguments: delete_page(str(arguments.get("slug") or "")),
     "brain_delete_folder": lambda arguments: delete_folder(str(arguments.get("path") or "")),
+    "brain_render": lambda arguments: render(str(arguments.get("slug") or "")),
 }
 
 

@@ -35,6 +35,16 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   keys; Ely's rendering, lazy children, checkboxes and before/after drop places are not taken,
   since Zed's `ui` draws the tree. The tool names `BRAIN_*`, `VAULT_PATH_KEY` (`brain_vault_path`)
   and `SEARCH_LIMIT`.
+- `page` (#645): `RenderedPage` (`brain_render`'s `slug`, `title`, `properties` as `Property { key,
+  value }`, `raw`, `file` since Rusty's TICKET-042, `links` as `LinkOut { target, slug }`), read
+  with `from_answer`, `None` for Rusty's `null`; `body_of` (Rusty's `split_raw` rule),
+  `split_fragment` and `normalise_target` (Rusty's own); `page_markdown`, the pass that finds
+  wikilinks and embeds with Rusty's parse options (pulldown-cmark 0.13, `ENABLE_WIKILINKS`) and
+  splices `[TEXT](<rusty:page/SLUG#HEADING>)` or `[TEXT](<rusty:new/TARGET>)` over each, back to
+  front, the text's punctuation escaped and `%`, `<`, `>` and `\` percent-encoded in the address;
+  `PageLink::parse` (`Page`, `Missing`, `Heading`, `Local`, `External`), which decodes them;
+  `Visit` and `PageHistory` (a tab's Back and Forward, 100 behind); `page_file_in` (a slug's file
+  in a vault, `None` for one that would leave it); `BRAIN_RENDER`.
 
 ## Fixtures and the stand-in
 - `fixtures/settings_list.json`: an answer in `rusty-mcp`'s shape, neutral values.
@@ -46,11 +56,10 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   vault tools (`brain_tree`, `brain_search`, `brain_daily_note`, `brain_new_page`,
   `brain_new_folder`, `brain_rename`, `brain_delete_page`, `brain_delete_folder`) over a scratch
   vault at `$RUSTY_STAND_IN_STATE/vault`, made with `archive/` and stored as `brain_vault_path`,
-  with Rusty's answers and refusals as of Rusty's TICKET-040 (the root's `archive/` left out of the
+  and `brain_render` (no HTML; `raw`, `properties` from simple YAML, `file`, `links` resolved by path or by a unique name), with Rusty's answers and refusals as of Rusty's TICKET-040 (the root's `archive/` left out of the
   tree and the search, writes into it refused); it announces a change to any file in that vault
   too, as Rusty's watcher does. It rewrites no links and matches search words, not embeddings. The e2e
   scenarios name it with `MARLEY_RUSTY_MCP` and never reach the user's own Rusty (R-D8).
 
 ## Later slices
-#645 adds the page render's fields and the markdown pass, #646 the link and search views, #647
-the graph and its layout.
+#646 adds the link and search views, #647 the graph and its layout.

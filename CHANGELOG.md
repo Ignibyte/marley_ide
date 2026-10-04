@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A brain page in a tab** (#645, 2026-10-04). A page opened from the rail's Brain view, or with
+  the `rusty::OpenPage` action, shows in a center tab: its title, its properties (a list as chips)
+  and its body, drawn by Zed's own Markdown renderer with headings, task boxes, highlighted code
+  and tables. Wikilinks are links: one to a page opens it in the same tab, at its heading when the
+  link names one, and one to no page yet is drawn muted and says so when clicked. Back and Forward
+  (Alt+Left, Alt+Right) go through the pages the tab showed. Edit shows the page's file in an
+  editor inside the tab, with Zed's unsaved dot and save; Read, Back and Forward save first,
+  without formatting. One click in the tree previews a page, a double-click keeps it, and the tab
+  already showing a page comes forward. A page that changes shows its new text with no click.
+
 - **Rusty's vault in the rail** (#644, 2026-10-04). While Rusty is on and connected, the rail's
   header shows a Projects button and a Brain button in place of PROJECTS, and Ctrl+Alt+V flips
   between them from anywhere in the window. Brain shows Today (today's daily note, made when

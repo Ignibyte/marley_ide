@@ -3817,3 +3817,16 @@ every query, and a provider such as OpenAI would send each typed prefix off the 
 change to the vault is a Rusty tool call (`brain_new_page`, `brain_new_folder`, `brain_rename`,
 the two deletes); Marley writes no file of the vault, and opening a page reads its file through
 one function, `rusty::brain::open_page`, which #645 points at its Page tab.
+
+## AD-claude-645-a-brain-page-is-drawn-by-zeds-markdown-after-marleys-wikilink-pass-001
+*decided at: 2026-10-04 · status: shipped · builds on: AD-claude-644-the-brain-view-is-a-view-of-its-own-and-searches-on-enter-001, AD-claude-609-the-agent-tab-is-read-only-and-its-samples-live-in-memory-001 · plan: docs/marley/rusty-in-marley.md R-D3, R-D4*
+
+A page of Rusty's brain opens in a center tab, `marley_workbench::rusty::page::PageView`, drawn by
+Zed's own `markdown` crate after `marley_rusty::page::page_markdown` rewrites each wikilink into
+an ordinary link with Rusty's address (`rusty:page/SLUG#HEADING`, or `rusty:new/TARGET`), found
+with Rusty's own pulldown-cmark options and resolved by `brain_render`'s `links`. Zed's parser stays
+as it is (no touchpoint) and every Markdown view in Marley looks the same. Rusty's structured
+render (its TICKET-036, `blocks: true`) would replace the pass's lookup, not Zed's renderer. The
+tab keeps its own Back and Forward; Edit is the page's file in a Zed editor inside the tab, saved
+unformatted before Read, Back and Forward; one click previews and a double-click keeps, through
+Zed's preview-tab API; every open goes through `page::open_later` in `window.defer`.

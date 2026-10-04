@@ -362,3 +362,173 @@ click-count rule is reviewed in #644's view.
 - A disk edit through Edit is indexed but committed only with Rusty's next tool write until
   Rusty's TICKET-043 lands; the spec must not claim the edit is committed.
 - #646 has no outline; the Read-mode outline is the follow-up R2b.
+
+### Promotion (2026-10-04)
+- Promoted into `active/`; the BACKLOG row removed; the ticket in-progress. Pre-flight green, no
+  other active pipeline, `/mnt/fast` 178G free. #643 and #644 landed (6bae63ef8c, fbadf3282f).
+- **Brain:** `brain ask` (consultation `b5f8e1bd27b243ffb587dc6476129ce4`) on the rendering
+  question returned due follow-ups on other work only; a search found Rusty's project page noting
+  that `brain_render` carries the page's `file` since its TICKET-042.
+- **The names as #643 and #644 shipped them:** the client is `rusty::call_tool(tool, arguments,
+  cx) -> Task<Result<String, String>>` (a refusal's error is Rusty's message), the connection
+  `rusty::is_connected`, `is_on` and `unavailable`, a change Rusty announces re-reads the vault
+  through `rusty::Vault` (a global the tab can observe); the vault's folder is `rusty::vault_folder`
+  (`brain_vault_path` from `settings_list`, else `$HOME/.rusty/brain`), not `setting_get`; the
+  stand-in announces any change to a file in its vault (`$RUSTY_STAND_IN_STATE/vault`), with no
+  `SIGUSR1`; #644's door is `rusty::brain::open_page(workspace, slug, preview, focus, window, cx)`,
+  which this ticket points at `rusty::page::open_later` with the same arguments.
+- **Seams re-read** (an Explore pass over Zed, pulldown-cmark and Rusty's main at `13249a8`):
+  every cited API stands, with these corrections. `Item::tab_content(params, window, cx)` is
+  overridden for the italic preview title (Marley's other items set only `tab_content_text`).
+  `Button` takes `start_icon`, not `icon`. `MarkdownStyle::link_callback` is a public field of a
+  private alias type, set with `Some(Rc::new(..))`. Zed's Markdown preview passes `can_save`,
+  `save` and `reload` to its editor but not `is_dirty`; the Page tab passes `is_dirty` and
+  `has_conflict` too, so the unsaved dot and the close prompt follow the buffer.
+  `Pane::set_preview_item_id` is crate-private, so the opener takes `open_project_item`'s two steps
+  (`replace_preview_item_id`, then `Workspace::add_item` at the index it gave). `brain_render`
+  answers `null` (a success) for a missing page, records `alias: None` for every wikilink, and on
+  Rusty's main carries `file`, the page's absolute path (TICKET-042), and takes `blocks: true`
+  (TICKET-036). The workspace's `pulldown-cmark` is 0.13.4 with default features off; `[[a|b]]`
+  comes as `Tag::Link { dest_url: "a" }` with the text `b`.
+- **Decided at promotion:**
+  - **D1 stands: Marley's pass and Zed's renderer,** not Rusty's TICKET-036 blocks. The blocks
+    are on Rusty's main but not on the box until Chad reinstalls, and drawing them means a
+    renderer of Marley's own beside Zed's; the pass needs only `raw` and `links`, which every
+    Rusty answers. Chad's confirmation of D1 (the plan's P1) is taken on the plan's
+    recommendation, so the queue keeps moving under his "continue on tickets until finished", and
+    goes on the list to confirm with him when the queue is done.
+  - **Edit's file is `brain_render`'s `file` when Rusty gives one** (TICKET-042), else
+    `rusty::vault_folder` joined with `<slug>.md`, with `page_file_in`'s guard on the second; the
+    stand-in answers `file` as Rusty's main does.
+  - **R-D4's commit:** Rusty's TICKET-043 (on main) commits an edit made outside the tools on its
+    own after a sync, so once Chad reinstalls, a save from Edit is indexed, announced and
+    committed. Complete words R-D4 that way, with the old binaries' behaviour as the exception.
+  - **`"rusty"` joins `test_action_namespaces`** (#643 and #644 did not add it); the `zed.rs` row
+    widens first.
+
+## Phase 2 — Code (2026-10-04)
+- **Built, to the manifest:**
+  - `crates/marley_rusty/src/page.rs` (new; `pulldown-cmark` added to the crate): `RenderedPage`
+    (`slug`, `title`, `properties`, `raw`, `file`, `links`; `from_answer` reads Rusty's `null` as
+    `None`), `Property`, `LinkOut`, `body_of`, `split_fragment`, `normalise_target`,
+    `page_markdown`, `PageLink::parse`, `Visit`, `PageHistory`, `page_file_in`, `BRAIN_RENDER`.
+  - The stand-in: `brain_render` over its vault (`raw`, `properties` from simple YAML, `file`,
+    `links` resolved by path or a unique name, `null` for a missing page). Driven by hand over
+    stdio before the scenario.
+  - `marley_workbench::rusty`: `pub mod page; mod properties;`, the `Announced` global (bumped on
+    each embedded `list_changed`), `page::init` from `rusty::init`. `rusty/page.rs` (new):
+    `OpenPage`, `PageBack`, `PageForward`, `TogglePageEdit`, `init`, `open_later`, `open`,
+    `PageView` and its `Item`. `rusty/properties.rs` (new, Ely's `DescriptionList` layout under
+    its MIT notice). `rusty::brain::open_page` now calls `page::open_later`.
+  - `Cargo.toml` of `marley_workbench`: `schemars` (the action's `JsonSchema`). `keymap.json`: the
+    `RustyPage` block (Alt-Left, Alt-Right). `guide/index.html`: the Brain article's open line and
+    "A page's tab". `crates/zed/src/zed.rs`: `"rusty"` in `test_action_namespaces`, its ledger row
+    widened first.
+  - `script/e2e/645-brain-page-tab.sh`, written and run in this phase so its places are set before
+    the receipt binds it.
+- **Deviations from the plan:**
+  - **`OpenPage` deserializes by hand.** gpui's `#[derive(Action)]` beside a derived `Deserialize`
+    trips clippy's `unsafe_derive_deserialize` in the Marley crates; a private fields struct with
+    the derive and `deny_unknown_fields` builds the action. The unit actions carry `#[derive(Eq)]`.
+  - **A heading scroll redraws once more** (`redraw_after_parse`): found by the scenario, F below.
+  - **The scenario binds Ctrl+Alt+Shift+Y**, not O, which Zed binds twice.
+  - **`brain_render`'s `file`** opens in Edit when Rusty gives it (promotion); the vault folder and
+    `page_file_in` are the fallback. Zed's autoscroll brings a heading into view rather than to
+    the top, so shot `645-08` says "in view".
+  - The tab re-reads on `rusty::Announced`, a global the connection bumps on each announcement,
+    not on the vault cache, which changes only when the tree's shape does.
+- **Review of the diff** against REQ-001 to REQ-022: the opener matches a tab by the page it shows
+  now (PR-599); preview through `replace_preview_item_id` and `add_item`, keep through
+  `unpreview_item_if_preview`; Edit's buffer passes dirty, conflict, save, reload and project items,
+  so the close prompt is Zed's (REQ-016); Read, Back, Forward and a link save first with
+  `format: false`; a missing page is `brain_render`'s `null` (REQ-019); not connected keeps the page
+  and draws the line (REQ-020); `cx.open_url` for anything with a scheme (REQ-021); `OpenPage` while
+  Rusty is unavailable shows the reason and opens nothing (REQ-022). Re-entrancy: the opener and
+  each link run in `window.defer`; the tab's tasks update it through its weak handle. Provenance:
+  Zed's `markdown`, `workspace`, `editor` and `project` used as they are; Rusty's three helper
+  rules re-implemented from Rusty's (MIT, the same owner); Ely's layout ported under its notice;
+  nothing from Warp.
+- **Checks:** clippy on `marley_rusty` and `marley_workbench` green after three rounds
+  (`map_or`, a doc paragraph, `const fn`; the `Action` derive against `unsafe_derive_deserialize`,
+  `Eq` on the unit actions, `Arc::clone`, `map_or_else`, by-reference windows). The box's cargo was
+  shared with rustal-os's gate runs, coordinated with that session. The scenario: run 1 at guessed
+  places (links, tabs) stopped at the file check; run 2 green but for two reds in the shots, the
+  heading link that scrolled nothing (F) and the missing-page key Zed had bound; run 3, after both
+  fixes, green with every shot as the spec says.
+- **F found:** `F-claude-645-a-heading-link-scrolled-nothing-in-a-page-at-rest-001`.
+- **Gate, run 1:** RED on gate:13 alone: the doc comment of `OpenPageFields` said "an unsafe method",
+  which the source-ban grep reads as `unsafe` with no `SAFETY:`. Reworded. The other 16 passed.
+- **Gate, run 2:** `GATE GREEN [diff]`, 17 passed, the receipt written.
+
+## Phase 3 — Test (2026-10-04)
+- **Scenario:** `script/e2e/645-brain-page-tab.sh`, under `compositor sway`, run on the gated tree:
+  `just build`, then `just e2e script/e2e/645-brain-page-tab.sh` with `SHOT_DIR` in the scratchpad.
+  Exit 0; its check passed: Sam's file holds the typed line and, in order, every line the scenario
+  wrote (no formatter ran). `brain_render` was called 7 times for Atlas, 5 for Sam, 3 for the
+  decision and once for `ideas/nowhere`.
+- **Shots, each read:**
+  - `645-01-preview` (REQ-001, 005, 006, 008): one click on Atlas in the Brain view: an italic
+    "Atlas" tab with the markdown icon; the header with Back and Forward (both dim), `projects /
+    atlas` and Edit; the title; the properties `title`, `type`, `status` and `tags`, the tags as
+    chips (`rust`, `gpui`, `brain`); the body's heading, the list, the task boxes (one checked, one
+    not), the `rust` block highlighted, the table's head; "the renderer decision" and the heading
+    link in the link colour, `ideas/later` muted, Zed's site a link.
+  - `645-02-body` (REQ-007): the wheel over the body: the code block and the whole table in
+    columns.
+  - `645-03-replaced` (REQ-002): one click on Sam: one page tab, italic "Sam".
+  - `645-04-kept` (REQ-003): a double-click on Atlas: one page tab, "Atlas" upright.
+  - `645-05-wikilink` (REQ-009): "the renderer decision" clicked: "Use Zed renderer" in the same
+    tab, Back lit, Forward dim.
+  - `645-06-back` (REQ-011): Alt-Left: Atlas again, Forward lit.
+  - `645-07-forward` (REQ-012): Alt-Right: the decision page.
+  - `645-08-heading` (REQ-010): back to Atlas, the heading link clicked: the decision page scrolled
+    until `## Why` and its line are in view (Zed's autoscroll; the run before the fix showed the
+    page's top, F-claude-645-a-heading-link-scrolled-nothing-in-a-page-at-rest-001).
+  - `645-09-unresolved` (REQ-013): back to Atlas, `ideas/later` clicked: a toast "There is no page
+    ideas/later yet."; the tab still Atlas.
+  - `645-10-found` (REQ-004): one click on Sam (a second tab, italic) and one on Atlas: Atlas's tab
+    in front, two page tabs.
+  - `645-11-edit` (REQ-014): Sam's tab, Edit: the file with its frontmatter in Zed's editor, the
+    button reading Read and pressed, the tab still italic.
+  - `645-12-edit-keeps` (REQ-015, REQ-016): a line typed at the end: the tab upright with Zed's
+    unsaved dot.
+  - `645-13-read-saves` (REQ-017): Read: the page rendered with "A line typed in Edit.", no dot;
+    the file check passed.
+  - `645-14-live` (REQ-018): a line appended to Sam's file from outside: "A line written from
+    outside." shown with no input (it joins the typed line's paragraph, as the file reads).
+  - `645-15-missing` (REQ-019): the bound key with `ideas/nowhere`: a kept tab "nowhere" saying "No
+    page ideas/nowhere in the brain.", Edit disabled.
+  - `645-16-not-connected` (REQ-020): Atlas's tab, then `marley.rusty.enabled` off from outside: the
+    tab keeps Atlas under "Rusty is off. Turn it on in the Rusty section of the Marley settings.";
+    the rail back on Projects.
+- **By review:** REQ-021 (a web link goes to `cx.open_url`; a scenario would open the user's
+  browser), REQ-022 (`OpenPage` with Rusty unavailable shows the reason and opens nothing), the
+  close prompt for unsaved edits (Zed's, through the passed `is_dirty`).
+- **Focus report:** "hyprland: 0 Marley windows before the run, 0 after; the run added no rule and
+  did not reload it".
+- Every shot shows Marley only; none is in the repository. The fixes this ticket needed were made
+  in the Code phase, before its green gate; the receipt stands.
+
+## Phase 4 — Complete (2026-10-04)
+- **Documented (§21):** `CHANGELOG.md` (Added: a brain page in a tab); `docs/marley/rusty-in-marley.md`
+  (R2 shipped 2026-10-04; R-D4 reworded: the pass and Zed's renderer as shipped, TICKET-036 as a
+  later lookup, and the commit of a save as Rusty's TICKET-043 makes it, with the old binaries as
+  the exception); `docs/marley/three-prong-plan.md` (C2); `docs/marley_architecture/marley_rusty.md`
+  (the `page` module, the stand-in's `brain_render`); `docs/marley_architecture/marley_workbench.md`
+  ("A brain page in a tab"); `docs/marley/guide.md` (the Brain view's open line, "A brain page in a
+  tab", the keys table); `docs/marley/walkthrough.md` (stop 2.13); the in-app guide page (Code
+  phase). `docs/marley/zed-touchpoints.md`'s `crates/zed/src/zed.rs` row names `"rusty"` (#645),
+  as shipped.
+- **Knowledge (§19):** `F-claude-645-a-heading-link-scrolled-nothing-in-a-page-at-rest-001` (no
+  rule: the lesson below carries the fix's shape);
+  `AD-claude-645-a-brain-page-is-drawn-by-zeds-markdown-after-marleys-wikilink-pass-001`;
+  `L-claude-645-zed-binds-ctrl-alt-shift-o-twice-001`,
+  `L-claude-645-a-data-action-in-a-marley-crate-deserializes-by-hand-001`,
+  `L-claude-645-a-markdown-heading-scroll-needs-a-frame-after-the-parse-001`.
+- **Brain:** `brain decide` on consultation `b5f8e1bd27b243ffb587dc6476129ce4`:
+  `decisions/marley-draws-a-brain-page-with-zeds-markdown-crate-after-its-own-wikilink-pass`
+  (follow-up 2026-10-18).
+- **Still to confirm with Chad** when the queue is done: D1, the rendering (the plan's P1), taken on
+  the plan's recommendation.
+- **Closed:** the ticket moved to `tickets/closed/`, its link at `completed/`; no BACKLOG row was
+  left (promotion removed it). The pair archived to `pipeline/completed/`.

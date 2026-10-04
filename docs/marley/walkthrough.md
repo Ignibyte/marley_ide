@@ -542,6 +542,31 @@ settings page (1.4). This stop writes to your real vault, inside one folder it m
   `archive/`; after Delete the folder is gone.
 - [ ] Step 9: the rail shows the projects again, Projects pressed.
 
+### 2.13 A brain page in a tab (#645), optional
+
+Needs 2.12's setup: Rusty installed and on. This stop edits one page it makes, inside a folder it
+makes and deletes.
+
+1. In the Brain view, make a folder `marley-tour` and in it a page `links`. Open `links` with a
+   double-click, click Edit, and replace its body with three lines: `[[marley-tour/other|the other
+   page]]`, `[[marley-tour/other#Why]]` and `[[marley-tour/nowhere]]`. Make the page `other` too,
+   with Edit, and give it a heading `## Why` far enough down to scroll to.
+2. In `links`, click Read. Click "the other page", then Alt+Left, then Alt+Right, then Alt+Left.
+3. Click the heading link; Alt+Left; click `marley-tour/nowhere`.
+4. Click `other` once in the tree, then `links` once.
+5. In `other`'s tab click Edit, type a line, and click Read.
+6. Delete `marley-tour` from its right-click menu.
+
+- [ ] Step 1: the tab shows the page's title and properties above its body; Edit shows the file
+  with its frontmatter in an editor; typing makes the tab's title upright with an unsaved dot.
+- [ ] Step 2: Read saves (the dot goes) and shows the links; the first link opens `other` in the
+  same tab; Back and Forward move between the two, and their buttons light only when they can go.
+- [ ] Step 3: the heading link opens `other` scrolled to `Why`; `marley-tour/nowhere` is muted and
+  a click says the page does not exist yet.
+- [ ] Step 4: one click on `other` puts it in the preview tab (italic); one click on `links` brings
+  its tab forward instead of opening another.
+- [ ] Step 5: the typed line shows in the rendered page after Read.
+
 ## Part 3. The editor
 
 Marley's editor is Zed's. This part checks the everyday tools. The first time you open

@@ -3232,3 +3232,15 @@ whether the Brain view can show (`brain_refusal`, a read), opens the sidebar, an
 updates the rail. `PR-claude-defer-in-does-not-leave-the-entitys-own-update-001` covers the class
 (other code reading `T` while `T` is leased); the call here was not deferred work but a direct
 one, made from the same update.
+
+## F-claude-645-a-heading-link-scrolled-nothing-in-a-page-at-rest-001
+*severity: medium · found in: pipeline 645's second scenario run, in Code · class: a scroll a Zed element sets while it paints, in a view nothing repaints*
+
+A wikilink to a heading (`[[decisions/use-zeds-renderer#Why]]`) opened the page at its top. The
+Page tab asks Zed's `Markdown` to `scroll_to_heading_when_parsed`; when the parse ends it sets an
+autoscroll request, and `MarkdownElement` with a `scroll_handle` (`AutoscrollBehavior::Controlled`)
+moves that handle's offset while it paints, after the frame's layout, so the offset shows only on
+the next frame. Zed's Markdown preview gets one from its source editor's caret; a Page tab at rest
+draws no further frame, so the page stayed at its top until the pointer moved. Fixed:
+`PageView::redraw_after_parse` waits for `Markdown::is_parsing` to turn false, then notifies once
+more, which draws the scrolled offset.

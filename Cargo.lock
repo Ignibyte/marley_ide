@@ -10824,6 +10824,7 @@ dependencies = [
 name = "marley_rusty"
 version = "0.1.0"
 dependencies = [
+ "pulldown-cmark 0.13.4",
  "serde",
  "serde_json",
 ]
@@ -10917,6 +10918,7 @@ dependencies = [
  "release_channel",
  "remote_connection",
  "resvg",
+ "schemars 1.0.4",
  "semver",
  "serde",
  "serde_json",
