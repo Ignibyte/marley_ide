@@ -1487,6 +1487,19 @@ alike.
   connected); `harness_entries` adds each seat with a question to the inbox (`InboxKind::Harness`,
   `InboxTarget::Harness(id)`, the ask its prompt and options); `open_harness` opens the tab in the
   displayed workspace.
+- Since #640 a session's labels say more (the harness's MREQ-005 to MREQ-007, D173, D174).
+  `Signals::of(&labels)` in `harness.rs` is pure: `state.source` as `StateSource` (`protocol`,
+  `reported` and `runtime` are declared; `detected` and any other word are not), the
+  `progress.percent` and `progress.activity` pair, each `quota.KIND.percent_used` with its
+  `quota.KIND.resets_at_ms` (most used first), and `quota.account` unless it holds an `@`; a
+  value that does not parse is left out (`percent_of`: a finite number from 0 to 100, rounded).
+  No source is declared, as the harness sent before. `harness_row` mutes the dot of a state not
+  declared and puts the source's word, and `stale`, in the first line's end slot; it adds a
+  progress line and a line for the most-used window (`62 % · resets in 1 h 35 m`, `used_words` and
+  `reset_words`), and a tooltip (`Tooltip::with_meta`: the source's sentence, every window, the
+  account). `harness_entries` skips a state not declared, so only a declared question reaches the
+  inbox. The minute bump in `connected` also runs while a shown reset lies ahead. `row_card` is
+  `rems(4.5)` tall for three lines under the title.
 
 ## The rail's attention order (`src/rail.rs`, #542)
 

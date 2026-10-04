@@ -161,6 +161,31 @@ does at the harness's state of 2026-10-02, and the Phase 3 entry says so.
 - The stand-in exercises both the seed and the `upsert` path, but not a real harness's event
   order; the review checks that a `state_change` keeps the labels (it does, `reducer.rs:184-189`).
 
+### Promotion (2026-10-04)
+- Promoted into `active/`; the BACKLOG row removed; the ticket in-progress. Pre-flight green, no
+  other active pipeline, cargo idle, `/mnt/fast` 255G free.
+- **Seams re-verified** at 6540353632: `harness.rs` `Harness` `:108-121` (with `minute` `:114`),
+  `seats()` `:149-154`, `connected` `:446-506` (the minute bump `:492-504`), `seed` `:509`,
+  `answer` `:579`, `shown_prompt` `:602`, `now_ms` `:617`; `rail.rs` `render_harness` `:4031`,
+  `harness_row` `:6121-6171`, `harness_entries` `:6175` (called at `:7139`), `RowLine` `:7921`,
+  `row_card` `:7970` (`rems(3.5)` for more than one line); `marley_fleet` `reducer.rs:169-184`
+  (an `Upsert` replaces the labels, a `StateChange` keeps them); `marley_rail::waited_words`
+  `:466-473`; `fleet::how_long` `fleet.rs:1207`; `one_line` `rail.rs:6615`.
+- **The harness, re-read:** its seats now publish what the draft expected. `docs/AGENT_SEATS.md`
+  and D174 confirm the three names and `quota.account` (a digest of the login's directory, never
+  an email address, so D7's `@` rule only guards a producer that breaks the contract); the
+  percent comes "to one decimal" (D6 rounds it to a whole number); at most eight windows. New
+  since the draft: `state.source` `runtime`, which the harness sets on a seat it restarts while
+  that seat reads `starting` (D173). It is the runtime's own knowledge, so D3 now counts
+  `runtime` as declared, and the scenario gains a seventh session, `restart` (runtime,
+  starting), drawn declared. The harness also publishes `usage.*` token labels; they belong to
+  the Fleet panel follow-up (Out), as tokens on a row would crowd it.
+- **Brain:** `brain ask` (consultation `4c74b4bebee441b3a1ec5ed583dcbf9c`) returned due
+  follow-ups on other work only; `brain search` finds nothing on a state source. Nothing new.
+- **The stand-in stays:** a real `rh` now sends these labels, but only for an agent that reports
+  through `rh report` in a harness terminal; a scenario that drives that would test the harness,
+  not Marley's drawing. The stand-in serves the label table above.
+
 ### Checklist (no TaskCreate in this harness)
 - [x] Read CONSTITUTION.md §3, §7, §14, §18, §19, §20, the templates, and #633's pair for shape.
 - [x] Read MREQ-005 to MREQ-007 in full, the harness's D164, TICKET-091, `HERDR.md` feature 9 and
@@ -173,3 +198,98 @@ does at the harness's state of 2026-10-02, and the Phase 3 entry says so.
       harness session reaches it, with its follow-up named.
 - [x] Reference (§20) and Prior art's three legs filled; Warp's source not read.
 - [x] Spec, notes and ticket doc written; no other file touched, no cargo run.
+
+## Phase 2 — Code (2026-10-04)
+- **Built, to the manifest (Marley crate only, no Zed path, no ledger row):**
+  - `harness.rs`: the label constants (`state.source`, `progress.percent`, `progress.activity`,
+    the `quota.` prefix with `.percent_used` and `.resets_at_ms`, `quota.account`);
+    `StateSource { Protocol, Reported, Runtime, Detected, Other }` with `declared()` (the first
+    three) and `word()`; `Progress`, `QuotaWindow`, and `Signals::of(&labels)`, pure, which keeps a
+    source only when non-empty, a percent only as a finite number from 0 to 100 (`percent_of`,
+    rounded; the cast carries a justified `#[allow]`, as `marley_browser`'s roundings do), an
+    activity's first trimmed line, each window whose percent parses (most used first, then by
+    kind), and the account only without an `@`; `declared()` (no source is declared),
+    `is_empty()`, `resets_after(now_ms)`. The minute bump in `connected` now also runs while some
+    seat shows a reset ahead (REQ-013). The module doc says what the labels are.
+  - `rail.rs`: `harness_row` reads `Signals`; a weaker state mutes the dot (the title keeps its
+    colour); the first line's marks (the source's word, up to 12 characters, and `stale`) moved
+    into `RowLine`'s end slot, so a long question is cut before them (before, `· stale` sat in the
+    text and could be cut away); a progress line (`40 % · Running the tests`, either part alone);
+    a quota line with the most-used window's kind as text and `62 % · resets in 1 h 35 m` in the
+    end slot; a tooltip, `Tooltip::with_meta`, with the source's sentence as the title (the
+    session's title when no source is sent) and each window, then the account, as the meta;
+    `used_words` and `reset_words` (`resets now` under a minute or past, `waited_words` under a
+    day, `N d N h` beyond). `harness_entries` skips a seat that is not declared. `row_card` is
+    `rems(4.5)` tall for three lines under the title.
+- **Deviations:** (1) the scenario was written and run in this phase, before the gate, as #642's
+  was: its first run placed build's row (y 460) so `BUILD_Y` is set before the receipt binds the
+  file, and its second run took all four shots (read in Phase 3). (2) The tooltip names the
+  windows as the row does (`five_hour 62 % · resets in …`), not "% used", one wording in both
+  places through `used_words`. (3) The scenario's terminal gets a HOME of its own with `PS1='$ '`,
+  so the user's prompt is not drawn.
+- **Review of the diff** against REQ-001 to REQ-013: a source absent is declared (today's
+  harness, #534's rows unchanged: REQ-003); `runtime` declared (D3 at promotion); the inbox's only
+  harness path is `harness_entries`, now gated (REQ-004), and an `Upsert` replaces the labels, so
+  a seat turning declared enters the inbox on the next refresh (REQ-005); a `StateChange` keeps
+  the labels (`reducer.rs:184`); no `quota.` key but the window pair and the account is read, and
+  an `@` account is dropped in `Signals::of` (REQ-012); the countdown redraws each minute while a
+  reset is ahead (REQ-013). No entity is read or updated during an update: `Signals::of` is pure,
+  and the tooltip closure owns its strings. Provenance: Marley's own rail idioms; herdr and Orca
+  read only through the design note's maps. No defect found.
+- **Checks:** `cargo clippy -p marley_workbench --all-targets -- -D warnings`: three rounds. The
+  first failed to compile (a local `percent` shadowed the function `percent`, renamed
+  `percent_of`), the second had four lints (`is_empty` could be `const`; a `format!` collected
+  into a `String`, now a fold; two `match`es on `resets_at_ms`, now `used_words`'s
+  `map_or_else`), the third clean. `just build` and two scenario runs green.
+- **Gate, run 1:** RED on gate:14 alone: the module doc linked `[`Signals`]`, a `pub(crate)`
+  item, from a public module's doc (`rustdoc::private_intra_doc_links`). Now plain code text.
+  The other 16 passed. Run 2 follows.
+- **Gate, run 2:** `GATE GREEN [diff]`, 17 passed, the receipt written.
+
+## Phase 3 — Test (2026-10-04)
+- **Build and run:** `just build` on the gated tree, then `just e2e
+  script/e2e/640-agent-state-source-progress-quota.sh` (`compositor sway`), exit 0. The two runs
+  in the Code phase (one for build's place, one with every shot) showed the same. Focus report:
+  "hyprland: 0 Marley windows before the run, 0 after; the run added no rule and did not reload
+  it"; the run's sway stopped with its Marley. Every shot is Marley's window; none deleted.
+- **The shots, read** (the Harness section cropped and enlarged three times for 01):
+  - `640-01-rows` (REQ-001 to REQ-003, REQ-006 to REQ-009): HARNESS connected, seven rows.
+    build: a blue dot, `working`, `40 % · Running the tests`, `five_hour 62 % · resets in 1 h 35 m`
+    (three lines; its `seven_day` 31 % is not the most used; its `usage.input_tokens` not shown).
+    review: a yellow dot, `Merge the branch?`, `75 % · Waiting for a merge decision`. watcher: a
+    muted dot, `working · detected`. asker: a muted dot, `Allow the edit? · detected`. plain: `idle`,
+    as #534 draws it. odd: a muted dot, `working · guessed`, `Reading the logs` (the activity's
+    first line; the percent 140, the quota `lots` and the `@` account left out). restart: `starting`,
+    no source word (runtime declared). Every title in its normal colour.
+  - `640-02-inbox` (REQ-004): "Needs you 1": review · Harness, `Merge the branch? (yes, no)`;
+    asker's question is not there.
+  - `640-03-tooltip` (REQ-010): the pointer on build's row: "State from the agent's protocol",
+    then `five_hour 62 % · resets in 1 h 35 m`, `seven_day 31 % · resets in 3 d 4 h`, `Account:
+    work`, most used first.
+  - `640-04-moved` (REQ-005, REQ-011): five seconds after the fixture was rewritten: build `80 % ·
+    Writing the summary`, `five_hour 70 % · resets in 1 h 35 m`; asker, now `reported`, with a
+    yellow dot and no word, and "Needs you 2" with `asker · Harness`, `Allow the edit? (allow,
+    deny)`.
+  - REQ-012 and REQ-013: the review (Phase 2): only each window's pair and the account are read;
+    odd's `someone@example.com` is never drawn (01, and odd's tooltip would name only its source);
+    the minute bump runs while a reset is ahead.
+- **Not reached:** a real rustal-harness sending these labels for a reporting agent (the stand-in
+  serves the label table of its `AGENT_SEATS.md` and D174); the countdown crossing a minute while
+  watched (the review covers the bump).
+- **Pre-existing — not in scope:** none.
+
+## Phase 4 — Complete (2026-10-04)
+- **Documented (§21):** `CHANGELOG.md` Added ("A harness session's source, progress and quota on
+  its row"); `docs/marley_architecture/marley_workbench.md` (the harness section: `Signals`, the
+  row's lines and marks, the tooltip, the inbox's rule, the bump, `row_card`'s height);
+  `docs/marley/three-prong-plan.md` (the C1 row); `docs/marley/guide.md` (the Harness section);
+  `docs/marley/fleet-contract.md` (Later: the Fleet panel's three optional fields). No Zed path,
+  so no `zed-touchpoints.md` row. The in-app guide and the walkthrough have no harness section.
+- **Knowledge (§19):**
+  `AD-claude-640-a-harness-sessions-labels-are-drawn-and-only-declared-states-act-001`;
+  `L-claude-640-a-private-item-linked-from-a-public-doc-fails-only-the-docs-gate-001`,
+  `L-claude-640-a-stand-in-harness-serves-the-fleet-tools-from-a-fixture-001`. No `F-…`.
+- **Brain:** `brain decide` on consultation `4c74b4bebee441b3a1ec5ed583dcbf9c` (follow-up
+  2026-10-25).
+- **Closed:** the ticket to `tickets/closed/`, its link at `completed/`; no BACKLOG row left; the
+  pair archived.

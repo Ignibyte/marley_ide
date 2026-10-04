@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-640](open/TICKET-640-agent-state-source-progress-quota.md) | feature | prong 2 C1 · a harness session's state source (detected drawn weaker, never in the inbox), progress and quota on its rail row (rustal-harness MREQ-005 to MREQ-007) |
 | [TICKET-641](open/TICKET-641-ssh-links-that-know-they-are-dead.md) | feature | prong 2 · ssh keepalive on every link Marley starts; a remote terminal whose link died stays dimmed with input off and reattaches on a backoff to two minutes (herdr's habits, the harness's withdrawn TICKET-094) |
 | [TICKET-643](open/TICKET-643-rusty-switch-and-connection.md) | feature | Rusty in Marley R1 · `marley.rusty` (off by default): Marley starts `rusty-mcp` or connects to the service, status and the embedding provider in a Rusty settings section; `rusty_tools` moves in (after #642) |
 | [TICKET-644](open/TICKET-644-brain-view-in-the-rail.md) | feature | Rusty in Marley R4 · the rail's Projects and Brain switch; Today, search on Enter and the vault tree with writes through Rusty's tools |

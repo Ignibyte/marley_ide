@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #640 (feature, prong 2 C1, the harness's read side)
 - **Owner:** claude-opus-5-5, 2026-10-02
-- **Pipeline doc:** ../../pipeline/queued/640-agent-state-source-progress-quota.spec.md
+- **Pipeline doc:** ../../pipeline/completed/640-agent-state-source-progress-quota.spec.md
 - **Source ticket:** rustal-harness `docs/planning/MARLEY_REQUESTS.md` MREQ-005 to MREQ-007 and its
   D164; `design-notes/herdr-and-hermes-2026-10-02.md` (Part 1, item 3; the harness's D164 section)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 rustal-harness will send three facts about each session as labels on the `marley_fleet` envelope

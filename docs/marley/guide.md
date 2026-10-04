@@ -1532,7 +1532,13 @@ The rail then shows a Harness section after the projects and the containers. Its
 whether Marley is connected, connecting, or why the harness is not running; a click on it folds
 the rows. Each session is a row: its title, a dot for its state, and under it the question it
 waits on, `no update in N m` for a working session quiet longer than `no_update_after_minutes`,
-or its state in a word. A click opens a tab with the session's last 500 lines, which follows its
+or its state in a word. Where the harness says more (#640), the row says it too: how far the agent
+is (`40 % · Running the tests`) and its account's most-used quota window (`five_hour 62 % ·
+resets in 1 h 35 m`), each on a line of its own, and the pointer on the row shows where the state
+came from, every quota window and the account. A state the harness read off the agent's screen
+(`detected`), or one from a source Marley does not know, is drawn weaker: a grey dot and the
+source's word at the end of the line. Marley shows it and never acts on it, so its question is not
+in the inbox. A click opens a tab with the session's last 500 lines, which follows its
 output while the session runs. A session waiting on a question is also in the rail's "Needs you"
 inbox, with its options; opening it opens the session's tab. Marley only reads: answering, sending
 and stopping stay the harness's own commands for now. When the harness stops answering, the

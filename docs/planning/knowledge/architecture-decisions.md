@@ -3747,3 +3747,21 @@ the default and resets to it. Rejected: a flat `marley.dictation` (moving it int
 a migration); hiding the action with Zed's `CommandPaletteFilter` (no pointer to the switch);
 moving `rusty_tools` into `marley.rusty` now (#643's job; with the default off it only has to
 carry the users who turned it on).
+
+## AD-claude-640-a-harness-sessions-labels-are-drawn-and-only-declared-states-act-001
+*decided at: 2026-10-04 · status: shipped · builds on: AD-claude-534-the-harness-is-followed-by-polling-in-a-section-outside-the-rails-model-001*
+
+Marley reads three label conventions on a harness session (rustal-harness MREQ-005 to MREQ-007,
+D173, D174) in one pure reading, `harness::Signals::of`, kept with its reader rather than in
+`marley_fleet`, whose envelope stays uninterpreted. `state.source` `protocol`, `reported` and
+`runtime` (the harness's own `starting` while it restarts a seat) are declared, and so is a
+session with no source, as every harness sent before; `detected` and any word Marley does not know
+are not. A state not declared is drawn with the stale row's treatment on the state alone (a muted
+dot, the word in the line's end slot) and never enters the approvals inbox, so a screen read can
+never ask the user anything. Progress and the most-used quota window get a line each; the tooltip
+carries the source, every window and the account. Values are checked and a bad one left out;
+an account with an `@` is never shown; of `quota.` only each window's pair and the account are
+read (tokens only, the fleet contract's Settled 3). Rejected: a typed envelope field (the harness
+keeps serving the pinned envelope, its D164); `runtime` drawn weaker (it is the runtime's own
+knowledge); a progress bar or quota colours on a rail row (text only, the Fleet panel's follow-up
+may differ).

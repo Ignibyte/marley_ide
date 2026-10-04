@@ -79,7 +79,7 @@ use crate::agents::{self, AgentIcon};
 use crate::browser::{BrowserEvent, BrowserHub, BrowserView};
 use crate::github::{self, PullRequest, PullRequestState};
 use crate::groups;
-use crate::harness::{Connection, Harness, Runtime};
+use crate::harness::{Connection, Harness, QuotaWindow, Runtime, Signals, StateSource};
 use crate::ports::{self, ContainerStop, Ports, ProjectListener, ServiceAction, Stop};
 use crate::system_one::{self, Asking};
 use crate::turns::Turns;
@@ -6117,7 +6117,9 @@ fn inbox_entries(project: &str, members: &[Entity<Workspace>], snapshot: &mut Sn
 
 /// A harness session's row (#534): its title, then the question it waits on, how long a working
 /// session has been quiet (#547's rule), or its state; muted while the connection is not up. A
-/// click shows its tab.
+/// state its labels say was not declared is drawn weaker, its source's word at the line's end,
+/// and the labels' progress and most-used quota window get a line each (#640). A click shows its
+/// tab.
 fn harness_row(
     seat: &marley_fleet::Session,
     stale: bool,
@@ -6125,6 +6127,8 @@ fn harness_row(
     now_ms: u64,
     cx: &Context<Rail>,
 ) -> AnyElement {
+    let signals = Signals::of(&seat.labels);
+    let weaker = !signals.declared();
     let (word, color) = match seat.state {
         marley_fleet::State::Starting => ("starting", Color::Muted),
         marley_fleet::State::Working => ("working", Color::Accent),
@@ -6143,13 +6147,50 @@ fn harness_row(
         }
         _ => word.to_string(),
     };
-    let line = if stale {
-        format!("{line} · stale")
-    } else {
-        line
-    };
+    // The marks sit in the line's end slot, so a long question is cut before them.
+    let marks: String = signals
+        .source
+        .as_ref()
+        .filter(|_| weaker)
+        .map(|source| {
+            source
+                .word()
+                .chars()
+                .take(SOURCE_WORD_CHARS)
+                .collect::<String>()
+        })
+        .into_iter()
+        .chain(stale.then(|| "stale".to_string()))
+        .fold(String::new(), |mut marks, mark| {
+            marks.push_str(" · ");
+            marks.push_str(&mark);
+            marks
+        });
+    let mut lines = vec![RowLine {
+        text: line,
+        state: (!marks.is_empty()).then_some(marks),
+        color: Color::Muted,
+        cut: Cut::End,
+    }];
+    if let Some(progress) = &signals.progress {
+        let text = match (progress.percent, &progress.activity) {
+            (Some(percent), Some(activity)) => format!("{percent} % · {activity}"),
+            (Some(percent), None) => format!("{percent} %"),
+            (None, Some(activity)) => activity.clone(),
+            (None, None) => String::new(),
+        };
+        lines.push(RowLine::muted(text));
+    }
+    if let Some(window) = signals.quota.first() {
+        lines.push(RowLine {
+            text: window.kind.clone(),
+            state: Some(format!(" {}", used_words(window, now_ms))),
+            color: Color::Muted,
+            cut: Cut::End,
+        });
+    }
     let icon = Indicator::dot()
-        .color(if stale { Color::Muted } else { color })
+        .color(if stale || weaker { Color::Muted } else { color })
         .into_any_element();
     let title = Label::new(seat.title.clone())
         .size(LabelSize::Small)
@@ -6157,17 +6198,78 @@ fn harness_row(
         .truncate()
         .into_any_element();
     let id = seat.id.clone();
+    let tooltip = (!signals.is_empty()).then(|| signals_tooltip(&signals, &seat.title, now_ms));
     row_card(
         SharedString::from(format!("marley-rail-harness-{}", seat.id)),
         format!("marley-rail-harness-icon-{}", seat.id),
         false,
         icon,
         title,
-        vec![line],
+        lines,
         cx,
     )
+    .when_some(tooltip, |row, (title, meta)| {
+        row.tooltip(move |_, cx| Tooltip::with_meta(title.clone(), None, meta.clone(), cx))
+    })
     .on_click(cx.listener(move |rail, _, window, cx| rail.open_harness(&id, window, cx)))
     .into_any_element()
+}
+
+/// How many characters of a source word Marley does not know the row shows.
+const SOURCE_WORD_CHARS: usize = 12;
+
+/// A harness row's tooltip (#640): where its state came from as the title, then every quota
+/// window, most used first, and the account.
+fn signals_tooltip(signals: &Signals, title: &str, now_ms: u64) -> (SharedString, SharedString) {
+    let source = match &signals.source {
+        Some(StateSource::Protocol) => "State from the agent's protocol".to_string(),
+        Some(StateSource::Reported) => "State reported by the agent".to_string(),
+        Some(StateSource::Runtime) => {
+            "State from the harness, while it restarts the agent".to_string()
+        }
+        Some(StateSource::Detected) => {
+            "State detected from its screen: shown, not acted on".to_string()
+        }
+        Some(StateSource::Other(word)) => {
+            format!("State source \"{word}\": not known, not acted on")
+        }
+        None => title.to_string(),
+    };
+    let meta: Vec<String> = signals
+        .quota
+        .iter()
+        .map(|window| format!("{} {}", window.kind, used_words(window, now_ms)))
+        .chain(
+            signals
+                .account
+                .as_ref()
+                .map(|account| format!("Account: {account}")),
+        )
+        .collect();
+    (source.into(), meta.join("\n").into())
+}
+
+/// How much of a quota window is used and when it resets: `62 % · resets in 1 h 35 m`.
+fn used_words(window: &QuotaWindow, now_ms: u64) -> String {
+    window.resets_at_ms.map_or_else(
+        || format!("{} %", window.percent_used),
+        |reset| format!("{} % · {}", window.percent_used, reset_words(reset, now_ms)),
+    )
+}
+
+/// When a quota window resets, from `now_ms`: `resets in 35 m`, `resets in 1 h 35 m`, `resets in
+/// 3 d 4 h`, or `resets now` for one under a minute away or past (#640).
+fn reset_words(resets_at_ms: u64, now_ms: u64) -> String {
+    let seconds = resets_at_ms.saturating_sub(now_ms) / 1000;
+    match seconds {
+        0..60 => "resets now".to_string(),
+        60..86_400 => format!("resets in {}", marley_rail::waited_words(seconds)),
+        _ => format!(
+            "resets in {} d {} h",
+            seconds / 86_400,
+            seconds % 86_400 / 3600
+        ),
+    }
 }
 
 /// Each harness session waiting on a question, as an inbox entry, its options after its prompt
@@ -6177,6 +6279,10 @@ fn harness_entries(snapshot: &mut Snapshot, cx: &App) {
         let Some(question) = &seat.question else {
             continue;
         };
+        // A state the agent did not declare is shown on its row and never asks the user (#640).
+        if !Signals::of(&seat.labels).declared() {
+            continue;
+        }
         let mut ask = one_line(crate::harness::shown_prompt(&question.prompt));
         if !question.options.is_empty() {
             ask = format!("{ask} ({})", question.options.join(", "));
@@ -7965,8 +8071,9 @@ impl From<String> for RowLine {
 
 /// A terminal's or a thread's row, laid out as Warp's tab list lays out a tab: a round icon, then
 /// the title over the `lines` under it, at one height with a second line or without. An agent row
-/// whose events give it a third line (#519) is the one taller row. `icon_selector` names the
-/// icon's container for the driven tests. The caller adds the row's end and its clicks.
+/// whose events give it a third line (#519) is taller, and a harness session's row with its
+/// progress and quota lines (#640) the tallest. `icon_selector` names the icon's container for
+/// the driven tests. The caller adds the row's end and its clicks.
 fn row_card(
     id: impl Into<ElementId>,
     icon_selector: String,
@@ -7977,12 +8084,10 @@ fn row_card(
     cx: &App,
 ) -> Stateful<Div> {
     row_frame(id, selected, cx)
-        .map(|row| {
-            if lines.len() > 1 {
-                row.h(rems(3.5))
-            } else {
-                row.h_11()
-            }
+        .map(|row| match lines.len() {
+            0 | 1 => row.h_11(),
+            2 => row.h(rems(3.5)),
+            _ => row.h(rems(4.5)),
         })
         .gap_2p5()
         .pl_2()

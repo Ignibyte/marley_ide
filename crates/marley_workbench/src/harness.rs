@@ -16,7 +16,13 @@
 //! mcp` reads the journal while `serve` is down, so the runtime's own state, from the child, goes
 //! in the section's header too; a runtime that ends is started again after a growing wait, and the
 //! harness's sessions, in its tmux server, outlive it.
+//!
+//! Three label conventions on a session say more than its state (#640, the harness's MREQ-005 to
+//! MREQ-007): where the state came from, how far the agent is, and how much of its account's
+//! quota each window has used. `Signals` reads them; a state the harness's runtime, the agent's
+//! protocol or its reports did not declare is drawn weaker and never asks the user anything.
 
+use std::collections::BTreeMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::pin::pin;
@@ -110,7 +116,8 @@ pub(crate) struct Harness {
     connection: Option<Connection>,
     runtime: Option<Runtime>,
     seats: FleetSnapshot,
-    /// Bumped each minute while a session works, so its `no update in N m` is drawn again.
+    /// Bumped each minute while a session works, or a quota window it shows has a reset ahead, so
+    /// its `no update in N m` and its countdown are drawn again.
     minute: u64,
     /// Whether the rail's Harness section folds its rows under its header.
     folded: bool,
@@ -493,11 +500,11 @@ async fn connected(
         if now != minute {
             minute = now;
             cx.update(|cx| {
-                let working = Harness::seats(cx)
-                    .seats()
-                    .iter()
-                    .any(|seat| seat.state == State::Working);
-                if working {
+                let now_ms = now_ms();
+                let counting = Harness::seats(cx).seats().iter().any(|seat| {
+                    seat.state == State::Working || Signals::of(&seat.labels).resets_after(now_ms)
+                });
+                if counting {
                     cx.global_mut::<Harness>().minute = now;
                 }
             });
@@ -604,6 +611,190 @@ pub(crate) fn shown_prompt(prompt: &str) -> &str {
         Some(start) if prompt.ends_with(']') => &prompt[..start],
         _ => prompt,
     }
+}
+
+/// The label naming where a session's state came from (MREQ-005).
+const STATE_SOURCE: &str = "state.source";
+
+/// The label holding how far the agent is, from 0 to 100 (MREQ-006).
+const PROGRESS_PERCENT: &str = "progress.percent";
+
+/// The label holding what the agent is doing, one line (MREQ-006).
+const PROGRESS_ACTIVITY: &str = "progress.activity";
+
+/// What starts a quota label: `quota.KIND.percent_used` and `quota.KIND.resets_at_ms`
+/// (MREQ-007).
+const QUOTA: &str = "quota.";
+
+/// How a quota window's percent used ends its label.
+const PERCENT_USED: &str = ".percent_used";
+
+/// How a quota window's reset ends its label, in milliseconds since the epoch.
+const RESETS_AT_MS: &str = ".resets_at_ms";
+
+/// The label naming the account the quota belongs to: a digest, never an email address.
+const QUOTA_ACCOUNT: &str = "quota.account";
+
+/// Where a harness session's state came from, from its `state.source` label.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum StateSource {
+    /// The client's own protocol, such as Codex's App Server.
+    Protocol,
+    /// The agent's own reports.
+    Reported,
+    /// The harness's runtime, while a session it restarted starts (the harness's D173).
+    Runtime,
+    /// Read off the agent's screen.
+    Detected,
+    /// A word Marley does not know.
+    Other(String),
+}
+
+impl StateSource {
+    fn from_label(word: &str) -> Self {
+        match word {
+            "protocol" => Self::Protocol,
+            "reported" => Self::Reported,
+            "runtime" => Self::Runtime,
+            "detected" => Self::Detected,
+            other => Self::Other(other.to_string()),
+        }
+    }
+
+    /// Whether Marley acts on a state from here: a detected state, and one from a source Marley
+    /// does not know, is shown and never asks the user anything.
+    pub(crate) const fn declared(&self) -> bool {
+        matches!(self, Self::Protocol | Self::Reported | Self::Runtime)
+    }
+
+    /// The source as the harness names it.
+    pub(crate) fn word(&self) -> &str {
+        match self {
+            Self::Protocol => "protocol",
+            Self::Reported => "reported",
+            Self::Runtime => "runtime",
+            Self::Detected => "detected",
+            Self::Other(word) => word,
+        }
+    }
+}
+
+/// How far a session's agent is, from its `progress.` labels; either part may be missing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Progress {
+    /// From 0 to 100.
+    pub(crate) percent: Option<u8>,
+    /// The activity's first line.
+    pub(crate) activity: Option<String>,
+}
+
+/// One window of an account's quota, from its `quota.KIND.` labels.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct QuotaWindow {
+    /// The window's kind as the harness sends it, such as `five_hour`.
+    pub(crate) kind: String,
+    /// How much of the window is used, from 0 to 100.
+    pub(crate) percent_used: u8,
+    /// When the window resets, in milliseconds since the epoch.
+    pub(crate) resets_at_ms: Option<u64>,
+}
+
+/// What a harness session's labels say beside its state (#640). A value that does not parse is
+/// left out, never guessed.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Signals {
+    /// Where the state came from; none for a harness that sends no source.
+    pub(crate) source: Option<StateSource>,
+    pub(crate) progress: Option<Progress>,
+    /// Most used first, then by kind.
+    pub(crate) quota: Vec<QuotaWindow>,
+    /// The quota's account, unless it reads as an email address.
+    pub(crate) account: Option<String>,
+}
+
+impl Signals {
+    pub(crate) fn of(labels: &BTreeMap<String, String>) -> Self {
+        let source = labels
+            .get(STATE_SOURCE)
+            .map(|word| word.trim())
+            .filter(|word| !word.is_empty())
+            .map(StateSource::from_label);
+        let percent = labels
+            .get(PROGRESS_PERCENT)
+            .and_then(|text| percent_of(text));
+        let activity = labels
+            .get(PROGRESS_ACTIVITY)
+            .and_then(|text| text.lines().next())
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(str::to_string);
+        let progress =
+            (percent.is_some() || activity.is_some()).then_some(Progress { percent, activity });
+        let mut quota: Vec<QuotaWindow> = labels
+            .iter()
+            .filter_map(|(key, value)| {
+                let kind = key.strip_prefix(QUOTA)?.strip_suffix(PERCENT_USED)?;
+                if kind.is_empty() {
+                    return None;
+                }
+                let resets_at_ms = labels
+                    .get(&format!("{QUOTA}{kind}{RESETS_AT_MS}"))
+                    .and_then(|text| text.trim().parse().ok());
+                Some(QuotaWindow {
+                    kind: kind.to_string(),
+                    percent_used: percent_of(value)?,
+                    resets_at_ms,
+                })
+            })
+            .collect();
+        quota.sort_by(|left, right| {
+            right
+                .percent_used
+                .cmp(&left.percent_used)
+                .then_with(|| left.kind.cmp(&right.kind))
+        });
+        let account = labels
+            .get(QUOTA_ACCOUNT)
+            .map(|name| name.trim())
+            .filter(|name| !name.is_empty() && !name.contains('@'))
+            .map(str::to_string);
+        Self {
+            source,
+            progress,
+            quota,
+            account,
+        }
+    }
+
+    /// Whether Marley acts on the session's state; a harness that sends no source is declared.
+    pub(crate) fn declared(&self) -> bool {
+        self.source.as_ref().is_none_or(StateSource::declared)
+    }
+
+    /// Whether the labels say anything beside the state.
+    pub(crate) const fn is_empty(&self) -> bool {
+        self.source.is_none()
+            && self.progress.is_none()
+            && self.quota.is_empty()
+            && self.account.is_none()
+    }
+
+    /// Whether a quota window resets after `now_ms`, so its countdown is drawn again.
+    fn resets_after(&self, now_ms: u64) -> bool {
+        self.quota
+            .iter()
+            .any(|window| window.resets_at_ms.is_some_and(|reset| reset > now_ms))
+    }
+}
+
+/// A percent label's value: a finite number from 0 to 100, rounded to a whole one.
+fn percent_of(text: &str) -> Option<u8> {
+    let value: f64 = text.trim().parse().ok()?;
+    if !value.is_finite() || !(0.0..=100.0).contains(&value) {
+        return None;
+    }
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // rounded, from 0 to 100
+    Some(value.round() as u8)
 }
 
 /// The minutes since the epoch.

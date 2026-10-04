@@ -328,6 +328,10 @@ panes can be built, shown and tested:
   fixtures, and a conformance kit a provider runs against itself.
 - A fleet board in the center: every agent as a tile.
 - More contracts in the same pattern, such as the work items board of a whole project.
+- Where an agent's state came from, how far it is, and its account's quota: optional
+  `state_source`, `progress` and `usage.quota` on AgentList and AgentDetail, drawn on the Fleet
+  panel's row and snapshot as #640 draws a harness session's labels (rustal-harness MREQ-005 to
+  MREQ-007; until then they reach Marley only as harness session labels).
 
 ## Settled (Chad, 2026-09-30)
 

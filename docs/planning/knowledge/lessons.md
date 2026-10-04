@@ -4436,3 +4436,27 @@ in the same `cargo update` (diff a release's requirements with `index.crates.io`
 The lockfile is gate-defining, so the commit hook refuses a lockfile-only commit without a green
 `--diff` receipt, and a receipt binds HEAD: a bump found during a ticket's gate rides in that
 ticket's commit. The gate's clippy scope builds no wasmtime; `just build` proves it compiles.
+
+## L-claude-640-a-private-item-linked-from-a-public-doc-fails-only-the-docs-gate-001
+*category: gate · topic: rustdoc on the Marley crates · from: pipeline 640*
+
+`cargo clippy` passed, and gate:14's `rustdoc -D warnings` failed 40 minutes into the gate: the
+public module `harness`'s `//!` doc linked [`Signals`], a `pub(crate)` struct
+(`rustdoc::private_intra_doc_links`). Clippy does not run rustdoc's lints, so nothing before the
+gate catches it. In a module doc or a `pub` item's doc, name a crate-private item in plain code
+text (`Signals`), never as an intra-doc link; links are fine between private items' docs. To check
+before the gate: `cargo doc -p <crate> --no-deps` with `RUSTDOCFLAGS="-D warnings"`.
+
+## L-claude-640-a-stand-in-harness-serves-the-fleet-tools-from-a-fixture-001
+*category: e2e · topic: scenarios that need a harness · from: pipeline 640*
+
+A scenario that needs harness sessions with particular labels does not need a built rustal-harness:
+`script/e2e/640-agent-state-source-progress-quota.sh` writes a stdio MCP stand-in (Python, the
+standard library) that answers `initialize`, `tools/list` and `tools/call` for `fleet_snapshot`
+(`{instance_id, cursor, seats}` as `structuredContent` and as text) and `fleet_events` (an empty
+page while its fixture file is unchanged; after a rewrite, an `upsert` per seat and a
+`question_raised` per question, with the next cursor), and `marley.harness` names it. Two details
+made it reliable: the fixture writes a time-relative value as `+N` and the stand-in adds its load
+time, so countdowns read the same however long Marley takes to start; and the fixture is replaced
+with `os.replace`, so the stand-in never reads half a file. #534's real-harness scenario stays the
+way to prove the wire itself.

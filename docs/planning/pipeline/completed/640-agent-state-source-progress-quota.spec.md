@@ -1,7 +1,7 @@
 ---
 pipeline_id: 95acc0ae-4ebb-4d42-aec1-2b57b9cb4494
 ticket: docs/planning/tickets/open/TICKET-640-agent-state-source-progress-quota.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "A harness session's state source, progress and quota on its rail row"
 type: feature
 slice: prong 2, C1 (the harness's read side); rustal-harness MREQ-005 to MREQ-007, its D164
@@ -19,13 +19,14 @@ of its account's quota each window has used and when it resets (`quota.KIND.perc
 ## Scope
 ### In
 - **The reading:** a pure reading of a session's labels in `marley_workbench::harness`:
-  `state.source` (`protocol`, `reported`, `detected`, or any other word); `progress.percent` (a
+  `state.source` (`protocol`, `reported`, `runtime`, `detected`, or any other word); `progress.percent` (a
   number from 0 to 100) and `progress.activity` (its first line); for each window KIND,
   `quota.KIND.percent_used` (0 to 100) and `quota.KIND.resets_at_ms` (epoch milliseconds); and
   `quota.account`, the account's name. A value that does not parse is left out.
 - **Weaker:** a session whose source is `detected`, or a word Marley does not know, is drawn as
   the rail draws a stale row, for its state only: a muted dot, and the source's word at the end of
-  its state line. Its title keeps its colour.
+  its state line. Its title keeps its colour. `runtime`, the harness's own `starting` for a seat
+  it restarts (its D173), is declared.
 - **No approvals from a weaker state:** such a session waiting on a question shows the question on
   its row and gets no entry in the approvals inbox. A source of `protocol` or `reported`, or none
   (today's harness sends none), keeps #534's behavior.
@@ -74,7 +75,13 @@ rail's own stale row (#534: a muted dot and a word).
   first, last numbers kept and marked stale; the row's most-used window and the tooltip's order
   come from it. `docs/warp_architecture/subsystems/04-agent-ai-mcp.md` and `docs/zed_architecture/`:
   nothing on an agent's quota, progress or state source.
-- **Published material.** The harness's `docs/planning/MARLEY_REQUESTS.md` (MREQ-005 to MREQ-007),
+- **Published material.** Re-read at promotion (2026-10-04): the harness's `docs/AGENT_SEATS.md`
+  (a seat's labels: `state.source` `reported`, `runtime` while a restarted seat starts, the
+  progress pair while the authority stands, `quota.KIND.percent_used` "to one decimal" with
+  `quota.KIND.resets_at_ms`, and `quota.account`), `docs/DECISIONS.md` D173 (the restart's
+  `runtime` source) and D174 (at most eight quota windows; `quota.account` a digest of the login's
+  directory, never an email address); `docs/FLEET.md`'s label row. The harness's
+  `docs/planning/MARLEY_REQUESTS.md` (MREQ-005 to MREQ-007),
   `docs/DECISIONS.md` D164, `docs/research/HERDR.md` feature 9 and `docs/FLEET.md` (the envelope's
   label table), read 2026-10-02. Claude Code's rate-limit windows (five-hour and seven-day, each
   with a percent and a reset) as MREQ-007 reads them from its mods API (`$.session.usage()`,
@@ -101,9 +108,10 @@ rewrites; `marley.harness` names it. Six sessions: `build` (protocol, working, 4
 activity, `five_hour` 62 % and `seven_day` 31 %, account `work`), `review` (reported, 75 % and an
 activity, waiting on "Merge the branch?"), `watcher` (detected, working), `asker` (detected,
 waiting on "Allow the edit?"), `plain` (no labels, idle), `odd` (source `guessed`, a percent of
-140, a two-line activity, a quota percent of `lots`, an account with an `@`). Shots:
-- `640-01-rows`: the six rows: watcher and asker weaker with `detected`, odd with `guessed`,
-  build, review and plain as #534 draws them; asker's question on its row; build's progress and
+140, a two-line activity, a quota percent of `lots`, an account with an `@`), and `restart` (source
+`runtime`, starting). Shots:
+- `640-01-rows`: the seven rows: watcher and asker weaker with `detected`, odd with `guessed`,
+  build, review, plain and restart as #534 draws them (restart's `starting` with no source word); asker's question on its row; build's progress and
   quota lines; odd with its activity's first line and no percent or quota;
 - `640-02-inbox`: the inbox with review's question and not asker's;
 - `640-03-tooltip`: the pointer on build's row: its source, both windows most used first, the
@@ -117,7 +125,9 @@ waiting on "Allow the edit?"), `plain` (no labels, idle), `odd` (source `guessed
   Marley reads `Session.labels` and adds no envelope field.
 - D2 — The reading lives with its reader, in `marley_workbench::harness`, as #566's labels live in
   `marley_agent`; `marley_fleet` names no label (its charter: no substrate's vocabulary).
-- D3 — Only `protocol` and `reported` are declared. `detected`, and any word Marley does not know,
+- D3 — Only `protocol`, `reported` and `runtime` are declared (`runtime` added at promotion: the
+  harness labels a seat it restarts `starting` with it until the agent reports, its D173, which is
+  the runtime's own knowledge, not a screen read). `detected`, and any word Marley does not know,
   is drawn weaker and enters no inbox: Marley cannot vouch for a source it does not know. No label
   keeps #534's behavior, since the harness serves declared state only today.
 - D4 — Weaker is the stale row's treatment on the state alone: a muted dot and a word in the
@@ -140,10 +150,10 @@ the review of the diff, or the gate's exit code.
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
 | REQ-001 | WHILE a harness session's `state.source` is `detected`, the rail shall draw its row's dot muted and the word `detected` at the end of its state line. | Shot `640-01-rows` |
-| REQ-002 | WHILE a session's `state.source` is a word other than `protocol`, `reported` or `detected`, the rail shall draw its row as a detected one, with that word in place of `detected`. | Shot `640-01-rows` |
-| REQ-003 | WHILE a session's `state.source` is `protocol` or `reported`, or absent, the rail shall draw its state as #534 draws it. | Shot `640-01-rows` |
+| REQ-002 | WHILE a session's `state.source` is a word other than `protocol`, `reported`, `runtime` or `detected`, the rail shall draw its row as a detected one, with that word in place of `detected`. | Shot `640-01-rows` |
+| REQ-003 | WHILE a session's `state.source` is `protocol`, `reported` or `runtime`, or absent, the rail shall draw its state as #534 draws it. | Shot `640-01-rows` |
 | REQ-004 | WHILE a session drawn weaker waits on a question, the rail shall show the question on its row and the approvals inbox shall hold no entry for it. | Shots `640-01-rows`, `640-02-inbox` |
-| REQ-005 | WHEN a waiting session's `state.source` becomes `protocol` or `reported`, the rail shall draw it as declared and list its question in the inbox within five seconds. | Shot `640-04-moved` |
+| REQ-005 | WHEN a waiting session's `state.source` becomes `protocol`, `reported` or `runtime`, the rail shall draw it as declared and list its question in the inbox within five seconds. | Shot `640-04-moved` |
 | REQ-006 | WHILE a session carries a `progress.percent` from 0 to 100, its row shall show the percent as a whole number on a line of its own. | Shot `640-01-rows` |
 | REQ-007 | WHILE a session carries `progress.activity`, its row shall show the activity's first line after the percent. | Shot `640-01-rows` |
 | REQ-008 | WHILE a session carries one or more quota windows, its row shall show the most-used window's kind, its percent used and the time until it resets. | Shot `640-01-rows` |

@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A harness session's source, progress and quota on its row** (#640, 2026-10-04). When
+  rustal-harness says where a session's state came from, how far its agent is and how much of its
+  account's quota it has used, the rail's Harness section shows it: a line such as `40 % · Running
+  the tests`, a line for the most-used quota window such as `five_hour 62 % · resets in 1 h 35 m`,
+  and, with the pointer on the row, where the state came from, every window and the account. A
+  state the harness read off the agent's screen, or one from a source Marley does not know, is
+  drawn weaker, a grey dot with the source's word at the end of the line, and its question stays
+  out of the "Needs you" inbox. A value that does not parse is left out, and an account name that
+  looks like an email address is never shown.
+
 - **Mutation runs on GitHub's runners** (#638, 2026-10-01). `script/mutants` runs the mutation
   pass (`just mutants`), or one shard of it, and merges any runs' outcomes into one table by crate
   with every missed mutant. `just mutants-cloud` sends the pass to GitHub's free runners, 16
