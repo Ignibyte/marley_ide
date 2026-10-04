@@ -3830,3 +3830,22 @@ render (its TICKET-036, `blocks: true`) would replace the pass's lookup, not Zed
 tab keeps its own Back and Forward; Edit is the page's file in a Zed editor inside the tab, saved
 unformatted before Read, Back and Forward; one click previews and a double-click keeps, through
 Zed's preview-tab API; every open goes through `page::open_later` in `window.defer`.
+
+## AD-claude-646-the-knowledge-panel-is-always-added-and-hides-itself-while-rusty-is-off-001
+*decided at: 2026-10-04 · status: shipped · builds on: AD-claude-645-a-brain-page-is-drawn-by-zeds-markdown-after-marleys-wikilink-pass-001, AD-claude-643-rusty-is-one-switch-and-one-connection-marley-keeps-001 · plan: docs/marley/rusty-in-marley.md R-D3, R-D10*
+
+The Knowledge panel (#646), `marley_workbench::rusty::knowledge_panel::KnowledgePanel`, is added
+to every workspace's right dock and hides itself while `marley.rusty.enabled` is off, as Zed's
+Agent Panel does while AI is off: `Panel::icon` is `None` (no dock button), `enabled` is false,
+the toggle answers with a toast, and a panel that draws while off closes its dock in a deferred
+update, only when the dock shows this panel. It follows the active item as the outline panel does,
+and shows a Page tab's page from three of Rusty's tools (`brain_get_links`, `brain_graph` around
+the page, `brain_tags`); brain search is sent on Enter with the query as typed, so Rusty parses its
+own operators. The pure parts (the backlink model, the mention scan, Ely's `trimmed`, the snippet
+marks) are `marley_rusty::knowledge`; the rows are Zed's `ui`. Rejected:
+- adding and removing the panel on the switch (`setup_or_teardown_ai_panel`'s way), which loses
+  its width and place in the dock on each flip;
+- keeping the last page shown when another item is active (the no-page state is where the
+  project view, R6, goes);
+- a `picker` for search (it ranks by its own fuzzy match; Rusty ranks), and searching as typed (an
+  embedding provider would embed each partial query, off the machine when hosted).

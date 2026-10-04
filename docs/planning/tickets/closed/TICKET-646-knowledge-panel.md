@@ -3,11 +3,11 @@
 - **Ticket:** LOCAL #646 (feature, Rusty in Marley R3 and the Knowledge panel of R-D3; R6's
   project view split out to its own ticket)
 - **Owner:** claude-opus-5-5, 2026-10-03 (/spec)
-- **Pipeline doc:** ../../pipeline/queued/646-knowledge-panel.spec.md
+- **Pipeline doc:** ../../pipeline/completed/646-knowledge-panel.spec.md
 - **Source ticket:** `docs/marley/rusty-in-marley.md` (R-D3, R-D5, R-D10, slices R2, R3 and R6);
   Chad, 2026-10-03: "lets make a plan to begin the work and spec out the tickets", "lets make
   sure we use the gpui components we found here", "Queue all five"
-- **Status:** open
+- **Status:** closed (2026-10-04)
 
 ## Summary
 Rusty's Qt app keeps a right pane beside each note: its backlinks with the line each sits on,

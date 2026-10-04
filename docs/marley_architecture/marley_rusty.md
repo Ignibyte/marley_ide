@@ -1,8 +1,8 @@
 # `marley_rusty`
 
-> Per-crate architecture note, written 2026-10-04 at #643, extended at #644. Provenance:
+> Per-crate architecture note, written 2026-10-04 at #643, extended at #644 to #646. Provenance:
 > **`[Marley-original]`** (`serde` and `serde_json` only), with one port from Ely GPUI Components
-> (MIT) in `vault`, its notice on the file. The design record is
+> (MIT) in `vault` and `knowledge`, its notice on each file. The design record is
 > [rusty-in-marley.md](../marley/rusty-in-marley.md) (R-D1, R-D8), D8 and D11 in
 > [three-prong-plan.md](../marley/three-prong-plan.md).
 
@@ -45,6 +45,18 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   `PageLink::parse` (`Page`, `Missing`, `Heading`, `Local`, `External`), which decodes them;
   `Visit` and `PageHistory` (a tab's Back and Forward, 100 behind); `page_file_in` (a slug's file
   in a vault, `None` for one that would leave it); `BRAIN_RENDER`.
+- `knowledge` (#646): what the Knowledge panel shows of a page. `LinkEntry` and `PageLinks`
+  (`brain_get_links`'s `outbound` and `backlinks`, each with `context`, the line the link sits on,
+  and `resolved`), `TagCount` (`brain_tags`), `GraphNode` and `Graph` (`brain_graph`'s nodes; the
+  edges are not read). `page_knowledge` joins the three into `PageKnowledge` (title, tags with
+  their counts, `Backlink`s, `Outgoing::{Page, Missing}`), titles from the graph's page nodes and
+  the slug's last part where none is named. `mention` finds the bytes of the first `[[…]]` in a
+  line that names the page (by slug, last part or title, case aside, the target read up to `|` or
+  `#`); `trimmed` cuts a long line to start near it, the ranges moved; `snippet` takes Rusty's
+  `<b>` marks out of a search snippet and gives their byte ranges. `Backlink`, `mention` and
+  `trimmed` are ported from Ely's `src/documents/knowledge.rs` and `src/editor/search.rs` at
+  `2f8b2f6`. The tool names `BRAIN_GET_LINKS`, `BRAIN_GRAPH`, `BRAIN_TAGS`, and `SEARCH_LIMIT`
+  (60, as Rusty's search pane). `vault::SearchHit` carries `snippet` since #646.
 
 ## Fixtures and the stand-in
 - `fixtures/settings_list.json`: an answer in `rusty-mcp`'s shape, neutral values.
@@ -52,14 +64,18 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   for the tools Marley reads, over a scratch folder (`$RUSTY_STAND_IN_STATE`): stdio with no
   arguments, or `--http ADDR` (port 0 picks one, written to `http-addr`). It logs every request with
   its pid in `calls`, seeds `settings.json` from the fixture, and on stdio sends
-  `notifications/resources/list_changed` when that file changes. Since #644 it also serves the
-  vault tools (`brain_tree`, `brain_search`, `brain_daily_note`, `brain_new_page`,
-  `brain_new_folder`, `brain_rename`, `brain_delete_page`, `brain_delete_folder`) over a scratch
-  vault at `$RUSTY_STAND_IN_STATE/vault`, made with `archive/` and stored as `brain_vault_path`,
-  and `brain_render` (no HTML; `raw`, `properties` from simple YAML, `file`, `links` resolved by path or by a unique name), with Rusty's answers and refusals as of Rusty's TICKET-040 (the root's `archive/` left out of the
-  tree and the search, writes into it refused); it announces a change to any file in that vault
-  too, as Rusty's watcher does. It rewrites no links and matches search words, not embeddings. The e2e
-  scenarios name it with `MARLEY_RUSTY_MCP` and never reach the user's own Rusty (R-D8).
+  `notifications/resources/list_changed` when that file changes. Since #644 it also serves the vault
+  tools (`brain_tree`, `brain_search`, `brain_daily_note`, `brain_new_page`, `brain_new_folder`,
+  `brain_rename`, `brain_delete_page`, `brain_delete_folder`) over a scratch vault at
+  `$RUSTY_STAND_IN_STATE/vault`, made with `archive/` and stored as `brain_vault_path`,
+  `brain_render` (no HTML; `raw`, `properties` from simple YAML, `file`, `links` resolved by path or
+  by a unique name), with Rusty's answers and refusals as of Rusty's TICKET-040 (the root's
+  `archive/` left out of the tree and the search, writes into it refused), and since #646
+  `brain_get_links`, `brain_graph` (`around` and `depth`), `brain_tags`, `brain_search`'s `<b>`
+  snippets with `tag:` terms and its options, and `brain_new_page { path }`; it announces a change
+  to any file in that vault too, as Rusty's watcher does. It rewrites no links and matches search
+  words, not embeddings. The e2e scenarios name it with `MARLEY_RUSTY_MCP` and never reach the
+  user's own Rusty (R-D8).
 
 ## Later slices
-#646 adds the link and search views, #647 the graph and its layout.
+#647 adds the graph and its layout; the Knowledge panel's project view (R6) is its own ticket.

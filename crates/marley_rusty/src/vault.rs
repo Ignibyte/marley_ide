@@ -130,6 +130,10 @@ pub struct SearchHit {
     /// The page's title.
     #[serde(default)]
     pub title: String,
+    /// The words around the match, each match between `<b>` and `</b>`; empty for a query of
+    /// operators alone.
+    #[serde(default)]
+    pub snippet: String,
 }
 
 /// Reads `brain_search`'s answer, its hits in Rusty's order.

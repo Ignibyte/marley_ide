@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A stand-in for Rusty's MCP server, `rusty-mcp`, for Marley's e2e scenarios (#643 to #645).
+"""A stand-in for Rusty's MCP server, `rusty-mcp`, for Marley's e2e scenarios (#643 to #646).
 
 It answers the tools Marley reads as `rusty-mcp` does (each answer JSON text in a text block, a
 refusal a JSON-RPC error carrying Rusty's message), from `../fixtures/settings_list.json` and a
@@ -45,6 +45,9 @@ TOOL_NAMES = [
     "brain_delete_page",
     "brain_delete_folder",
     "brain_render",
+    "brain_get_links",
+    "brain_graph",
+    "brain_tags",
     "brain_ask",
     "brain_decide",
     "brain_no_decision",
@@ -162,13 +165,46 @@ def pages():
     return sorted(found)
 
 
-def search(query, limit):
-    words = query.lower().split()
-    hits = [
-        {"slug": slug, "page_type": "note", "title": title, "snippet": title, "rank": 1.0}
-        for slug, title, text in pages()
-        if words and all(word in f"{title}\n{text}".lower() for word in words)
-    ]
+def flat(text):
+    """Line breaks and runs of space as one space, the ends kept, as Rusty's `snippet_around`."""
+    return re.sub(r"\s+", " ", text)
+
+
+def search(query, limit, case_sensitive=False, regex=False):
+    """Pages matching `query`: its `tag:` terms by the page's tags, the rest as one phrase (or a
+    regular expression), each hit's snippet with the match between `<b>` and `</b>`; a query of
+    `tag:` terms alone answers no snippet, as Rusty does."""
+    terms = query.split()
+    tags = [term[4:].lower() for term in terms if term.startswith("tag:")]
+    phrase = " ".join(term for term in terms if not term.startswith("tag:"))
+    hits = []
+    for slug, title, text in pages():
+        carried = [tag.lower() for tag in page_tags(text)]
+        if not all(any(have == tag or have.startswith(tag + "/") for have in carried) for tag in tags):
+            continue
+        hit = {"slug": slug, "page_type": "note", "title": title, "snippet": "", "rank": 1.0}
+        if not phrase:
+            if tags:
+                hits.append(hit)
+            continue
+        haystack = f"{title}\n{frontmatter(text)[1]}"
+        flags = 0 if case_sensitive else re.IGNORECASE
+        pattern = phrase if regex else re.escape(phrase)
+        try:
+            found = re.search(pattern, haystack, flags)
+        except re.error as error:
+            raise Refused(f"Invalid regex: {error}")
+        if not found:
+            continue
+        start, end = found.span()
+        hit["snippet"] = (
+            flat(haystack[max(0, start - 40) : start])
+            + "<b>"
+            + flat(haystack[start:end])
+            + "</b>"
+            + flat(haystack[end : end + 60])
+        ).strip()
+        hits.append(hit)
     return hits[: limit or 10]
 
 
@@ -179,7 +215,14 @@ def write_page(slug, title):
         page.write(f"---\ntitle: {title}\n---\n")
 
 
-def new_page(folder, name):
+def new_page(folder, name, path=None):
+    if path and path.strip():
+        # Rusty's TICKET-041: the page at exactly that path, folders made, an existing one as it is.
+        slug = clean(path[:-3] if path.endswith(".md") else path)
+        refuse_archive(slug)
+        if not os.path.isfile(in_vault(slug + ".md")):
+            write_page(slug, slug.rsplit("/", 1)[-1])
+        return slug
     folder = clean(folder)
     refuse_archive(folder)
     if folder and not os.path.isdir(in_vault(folder)):
@@ -330,6 +373,134 @@ def resolve(target):
     return named[0] if len(named) == 1 else None
 
 
+def target_of(destination):
+    target = destination
+    for cut in "#^":
+        target = target.split(cut, 1)[0]
+    target = target.strip().lstrip("/")
+    target = target[2:] if target.startswith("./") else target
+    return target[:-3] if target.endswith(".md") else target
+
+
+INLINE_TAG = re.compile(r"(?<![\w/#&])#([A-Za-z][\w/-]*)")
+
+
+def page_tags(raw):
+    """The page's tags as Rusty's index holds them: the frontmatter's, then inline `#tags`."""
+    properties, body = frontmatter(raw)
+    value = dict(properties).get("tags")
+    tags = [str(tag) for tag in value] if isinstance(value, list) else [str(value)] if value else []
+    for line in body.split("\n"):
+        tags += INLINE_TAG.findall(line)
+    unique = []
+    for tag in tags:
+        if tag not in unique:
+            unique.append(tag)
+    return unique
+
+
+def links(slug):
+    """`brain_get_links`: the page's links in order, one per target, and the links to it."""
+    slug = clean(slug)
+    outbound, backlinks = [], []
+    path = in_vault(slug + ".md")
+    if os.path.isfile(path):
+        with open(path, encoding="utf-8") as page:
+            body = frontmatter(page.read())[1]
+        seen = set()
+        for line in body.split("\n"):
+            for found in WIKILINK.finditer(line):
+                target = target_of(found.group(2))
+                if target in seen:
+                    continue
+                seen.add(target)
+                resolved = slug if not target else resolve(target)
+                outbound.append(
+                    {
+                        "from_slug": slug,
+                        "to_slug": resolved or target,
+                        "link_type": "wikilink",
+                        "context": line.strip(),
+                        "resolved": resolved is not None,
+                    }
+                )
+    for other, _, text in pages():
+        if other == slug:
+            continue
+        line = next(
+            (
+                line
+                for line in frontmatter(text)[1].split("\n")
+                if any(
+                    target_of(found.group(2)) and resolve(target_of(found.group(2))) == slug
+                    for found in WIKILINK.finditer(line)
+                )
+            ),
+            None,
+        )
+        if line is not None:
+            backlinks.append(
+                {
+                    "from_slug": other,
+                    "to_slug": slug,
+                    "link_type": "wikilink",
+                    "context": line.strip(),
+                    "resolved": True,
+                }
+            )
+    return {"outbound": outbound, "backlinks": sorted(backlinks, key=lambda link: link["from_slug"])}
+
+
+def graph(around, depth):
+    """`brain_graph`'s pages and links, or the neighbourhood of `around`, `depth` links out."""
+    found = pages()
+    nodes = {
+        slug: {
+            "id": slug,
+            "kind": "page",
+            "title": title,
+            "page_type": slug.split("/", 1)[0] if "/" in slug else "",
+            "folder": slug.rsplit("/", 1)[0] if "/" in slug else "",
+            "tags": page_tags(text),
+        }
+        for slug, title, text in found
+    }
+    edges = []
+    for slug, _, text in found:
+        for hit in WIKILINK.finditer(frontmatter(text)[1]):
+            target = resolve(target_of(hit.group(2)))
+            if target and target != slug and {"from": slug, "to": target, "kind": "link"} not in edges:
+                edges.append({"from": slug, "to": target, "kind": "link"})
+    if around:
+        around = clean(around)
+        if around not in nodes:
+            return {"nodes": [], "edges": []}
+        kept, frontier = {around}, {around}
+        for _ in range(max(1, depth or 1)):
+            frontier = {
+                edge["to"] if edge["from"] in frontier else edge["from"]
+                for edge in edges
+                if edge["from"] in frontier or edge["to"] in frontier
+            } - kept
+            kept |= frontier
+        nodes = {slug: node for slug, node in nodes.items() if slug in kept}
+        edges = [edge for edge in edges if edge["from"] in kept and edge["to"] in kept]
+    return {"nodes": list(nodes.values()), "edges": edges}
+
+
+def tag_counts():
+    """`brain_tags`: each tag, and each ancestor of a nested one, with its page count."""
+    counts = {}
+    for _, _, text in pages():
+        carried = set()
+        for tag in page_tags(text):
+            parts = tag.split("/")
+            carried |= {"/".join(parts[: at + 1]) for at in range(len(parts))}
+        for tag in carried:
+            counts[tag] = counts.get(tag, 0) + 1
+    return [{"tag": tag, "count": counts[tag]} for tag in sorted(counts, key=str.lower)]
+
+
 def render(slug):
     slug = clean(slug)
     path = in_vault(slug + ".md")
@@ -371,12 +542,18 @@ def render(slug):
 VAULT_TOOLS = {
     "brain_tree": lambda arguments: tree(),
     "brain_search": lambda arguments: search(
-        str(arguments.get("query") or ""), arguments.get("limit")
+        str(arguments.get("query") or ""),
+        arguments.get("limit"),
+        bool(arguments.get("case_sensitive")),
+        bool(arguments.get("regex")),
     ),
     "brain_daily_note": lambda arguments: daily_note(arguments.get("date")),
     "brain_new_page": lambda arguments: new_page(
-        str(arguments.get("folder") or ""), arguments.get("name")
+        str(arguments.get("folder") or ""), arguments.get("name"), arguments.get("path")
     ),
+    "brain_get_links": lambda arguments: links(str(arguments.get("slug") or "")),
+    "brain_graph": lambda arguments: graph(arguments.get("around"), arguments.get("depth")),
+    "brain_tags": lambda arguments: tag_counts(),
     "brain_new_folder": lambda arguments: new_folder(str(arguments.get("path") or "")),
     "brain_rename": lambda arguments: rename(
         str(arguments.get("from") or ""), str(arguments.get("to") or "")

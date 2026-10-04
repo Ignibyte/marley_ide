@@ -2773,3 +2773,13 @@ sends it to real servers (`grep -rn "request::<Name>"`); a request no caller use
 response type no server's answer parses as. When none does, define a `Request` of Marley's own
 whose response is `serde_json::Value` or the shape the MCP specification gives, and see it
 answered by the stand-in or a real server in the scenario's first run.
+
+## PR-claude-646-a-count-beside-a-label-is-a-muted-label-not-a-countbadge-001
+*severity: low · prevents: F-claude-646-a-section-count-drew-as-an-alert-badge-off-the-panel-001*
+
+`ui::CountBadge` is an overlay for an icon (absolute, top right, error-tinted), not a count to sit
+beside text. A count in a list header, a section title or a row is a `Label` with
+`LabelSize::Small` and `Color::Muted` (in `ListSubHeader::end_slot`, as the `ui` crate's example
+does). The rail's Browser rows rejected it for the same reason
+(AD-claude-504-browser-tabs-are-rows-of-their-project-in-the-rail-001); a component's preview in
+Zed's component gallery shows what it draws before it is chosen.

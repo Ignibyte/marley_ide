@@ -1035,6 +1035,30 @@ which a key of your own can bind with a slug (`["rusty::OpenPage", {"slug": "pro
 - **Not connected.** With Rusty off or its connection lost, the tab keeps the page it shows and
   says so above it.
 
+### The Knowledge panel
+
+The Knowledge panel sits in the right dock while Rusty is on (#646): the Book button in the status
+bar, or `rusty: toggle knowledge panel` from the command palette, which opens it with the search
+field focused. With Rusty off there is no button, the command says where to turn Rusty on, and a
+panel that was showing closes.
+
+- **The page view.** While a Page tab is the active item, the panel shows that page: its title and
+  slug, its tags (frontmatter and inline) each with how many pages carry it, its backlinks with
+  the line each link sits on and the link lit, and its own links in order. A click on a backlink or
+  a link opens that page in the preview tab, and the panel follows it. A link to no page yet shows
+  as written, with Create: one click makes the page through Rusty and opens it. With any other
+  item active, the panel says to open a brain page.
+- **A tag.** A click on a tag searches for it: `tag:<name>` in the field, sent.
+- **Brain search.** The field takes Rusty's query as you would type it in Rusty's search pane:
+  words, `tag:`, `path:`, `file:` and `type:`, quotes to keep spaces, a leading `-` to exclude.
+  It asks Rusty when you press Enter, never while you type, since Rusty embeds each query it is
+  sent when an embedding provider is set. Match Case and Regular Expression sit beside the field
+  and ask again. The results show each page's title, slug and the matching words lit; Up and
+  Down move through them, Enter opens the selected one (the first when none is), Escape clears
+  the query and brings the page view back.
+- **Live.** A change Rusty announces reads the page and the query again, with no click.
+- **Not connected.** With Rusty's connection down, the panel shows why in place of the page view.
+
 ## Marley's MCP server
 
 ### What it serves, and where
@@ -1835,6 +1859,7 @@ Commands with no key of their own, from the command palette:
 | `marley: new agent` | The New Agent picker (also Ctrl+Alt+N) |
 | `marley: attach file` | Attach File for the focused terminal |
 | `marley: toggle dictation` | Starts or stops a Voxtype dictation, while Voice is on |
+| `rusty: toggle knowledge panel` | Shows or hides the Knowledge panel, while Rusty is on (#646) |
 | `marley: open browser` | Shows or opens a Browser tab |
 | `marley: new browser tab` | A new Browser tab (Ctrl+T inside one) |
 | `marley: pick element`, `marley: annotate`, `marley: record this` | The Browser tab's three buttons, while a Browser tab has the focus |

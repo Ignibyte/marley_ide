@@ -3244,3 +3244,13 @@ the next frame. Zed's Markdown preview gets one from its source editor's caret; 
 draws no further frame, so the page stayed at its top until the pointer moved. Fixed:
 `PageView::redraw_after_parse` waits for `Markdown::is_parsing` to turn false, then notifies once
 more, which draws the scrolled offset.
+
+## F-claude-646-a-section-count-drew-as-an-alert-badge-off-the-panel-001
+*severity: low · found in: pipeline 646's first scenario run, in Test · class: a `ui` component chosen by its name, not by what it draws*
+
+The Knowledge panel's Backlinks and Links headers carried their counts in `ui::CountBadge`. The
+badge is the notification count Zed draws on an icon: positioned absolutely at its parent's top
+right, tinted with the error colour, so in a `ListSubHeader`'s end slot it sat half outside the
+panel's right edge and read as an alert. The headers also started 8 px left of the rows. Fixed: a
+muted small `Label` with the count, as the `ui` crate's own `ListSubHeader` example draws it, and
+the headers and rows `inset`, the panel's own blocks at `px_2p5`.

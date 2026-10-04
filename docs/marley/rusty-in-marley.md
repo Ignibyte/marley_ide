@@ -268,7 +268,7 @@ possible: a wikilink switch in `markdown/src/parser.rs`, only if R2 chooses Zed'
 | R1 | #643, shipped 2026-10-04. The switch and the connection: `marley.rusty`, embedded or service, status on the settings page; `rusty_tools` moves in | M |
 | R4 | #644, shipped 2026-10-04. The rail's Brain view (R-D9): the header switch, Today, search on Enter, the vault tree with new, rename, move and delete through tools | M |
 | R2 | #645, shipped 2026-10-04. The Page tab: Zed's `markdown` with wikilinks rewritten to `rusty:` links, properties, back and forward, preview tabs, Edit in a buffer; the `rusty::OpenPage` action | M |
-| R3 | #646. The Knowledge panel: backlinks, outgoing links, tags and brain search (on Enter) | M |
+| R3 | #646, shipped 2026-10-04. The Knowledge panel in the right dock: the Page tab's tags with counts, backlinks with their lines, outgoing links with Create, and brain search on Enter with match case and regex; the project view went to R6 | M |
 | R5 | #647. The Graph tab: whole vault or local with depth, filters, page-type colours, decision edges dashed, Ely's force layout off the main thread | M |
 | R3a | `rusty: open page`: a picker over `brain_list_pages` by title, create on a miss | S |
 | R6 | The project join (R-D5) and the panel's project view: the project's page, its follow-ups, its task group; the Graph tab's project centre | M |
@@ -276,15 +276,15 @@ possible: a wikilink switch in `markdown/src/parser.rs`, only if R2 chooses Zed'
 | R5b | The graph's colour groups, display and force sliders (Ely's slider), arrows, the tab restored after a restart | S |
 | R4b | Favourites in the Brain view, after Rusty's TICKET-037 | S |
 | R7b | Recording a follow-up from the Decisions tab (`brain_follow_up`: status, outcome, successor) | S |
+| R7 | The Tasks tab and the Decisions tab | M |
+| R8 | Memory, Skills and Secrets tabs; Rusty's server settings on the settings page | M |
+| R9 | Parity check against the Qt app; the app retires in Rusty | Rusty-side |
 
 The second batch, #654 to #659, was queued 2026-10-03: R3a (#654, the open-page picker on
 Ctrl+Alt+U), R6 (#655, the project view), R2b (#656, the outline and in-place edits; the title
 edit sets the `title` property and a separate name field renames, Chad to confirm), R5b (#657),
 R7 split as #658 (the Tasks tab) and #659 (the Decisions tab, with Marley's System One tab
 renamed "System One calls"). R4b, R7b and R8 remain.
-| R7 | The Tasks tab and the Decisions tab | M |
-| R8 | Memory, Skills and Secrets tabs; Rusty's server settings on the settings page | M |
-| R9 | Parity check against the Qt app; the app retires in Rusty | Rusty-side |
 
 The first batch, #643 to #647, was queued 2026-10-03 in this order: R1, R4, R2, R3, R5, after
 #640 to #642 (#643 builds on #642's settings changes). Drafting split out R3a, R6, R2b, R5b and

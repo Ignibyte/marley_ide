@@ -4597,3 +4597,21 @@ A Marley view that scrolls to a heading on load (the Page tab's `[[page#heading]
 frame itself once `Markdown::is_parsing` is false
 (F-claude-645-a-heading-link-scrolled-nothing-in-a-page-at-rest-001). The autoscroll brings the
 heading into view with three lines' margin, not to the top.
+
+## L-claude-646-the-stand-ins-call-log-sorts-argument-keys-001
+*category: e2e · topic: checking the stand-in `rusty-mcp`'s call log · from: pipeline 646*
+
+The stand-in logs each `tools/call` with `json.dumps(arguments, sort_keys=True)`, so a scenario's
+`grep -F` over `$RUSTY_STAND_IN_STATE/calls` spells the arguments in sorted key order with Python's
+separators: `"case_sensitive": true, "limit": 60, "query": "orbit", "regex": true`, not the order
+the Rust `json!` wrote. A check that a query was not sent while typing greps the closing quote too
+(`"query": "orbit"`), or a longer query that starts the same counts.
+
+## L-claude-646-a-panel-that-follows-a-page-tab-needs-the-tabs-own-event-001
+*category: code · topic: a dock panel following a center item · from: pipeline 646*
+
+`workspace::Event::ActiveItemChanged` fires when another item becomes active, not when the active
+item changes what it shows. A Page tab navigates inside itself (a link, Back, Forward), so a panel
+that follows it subscribes to the tab too (`PageEvent::UpdateTab`) and keeps that subscription
+with the tab's weak handle, replacing it only when another tab becomes active. The first look at
+the active item waits for `cx.defer_in`: panels are made while the workspace is being updated.

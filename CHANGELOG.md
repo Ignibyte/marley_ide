@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Knowledge panel** (#646, 2026-10-04). While Rusty is on, the right dock holds a Knowledge
+  panel (the Book button, or `rusty: toggle knowledge panel`). With a brain page's tab active it
+  shows that page's tags with their page counts, the pages that link to it with the line each link
+  sits on and the link lit, and its own links in order; a click opens one, and a link to no page
+  yet offers Create, which makes the page through Rusty. A tag's click searches for it. Its field
+  is brain search with Rusty's operators, sent on Enter, with Match Case and Regular Expression;
+  the results show each page's title, slug and matching words, and Up, Down, Enter and Escape walk
+  and open them. A change Rusty announces shows with no click. With Rusty off there is no button,
+  the command says where to turn Rusty on, and a showing panel closes.
+
 - **A brain page in a tab** (#645, 2026-10-04). A page opened from the rail's Brain view, or with
   the `rusty::OpenPage` action, shows in a center tab: its title, its properties (a list as chips)
   and its body, drawn by Zed's own Markdown renderer with headings, task boxes, highlighted code

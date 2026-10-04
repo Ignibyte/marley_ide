@@ -567,6 +567,38 @@ makes and deletes.
   its tab forward instead of opening another.
 - [ ] Step 5: the typed line shows in the rendered page after Read.
 
+### 2.14 The Knowledge panel (#646), optional
+
+Needs 2.12's setup: Rusty installed and on. This stop makes pages inside a folder it makes and
+deletes.
+
+1. With Rusty off, look at the status bar's right end, then run `rusty: toggle knowledge panel`
+   from the command palette. Turn Rusty on and run it again.
+2. In the Brain view, make a folder `marley-tour` with a page `hub` and a page `spoke`. With Edit,
+   give `spoke` the line `See [[marley-tour/hub]].` and give `hub` the lines `tags: [tour]` in its
+   frontmatter and `Next: [[marley-tour/spoke]] and [[marley-tour/later]].` in its body. Click Read
+   in both and keep `hub`'s tab in front.
+3. In the panel, click `spoke` under Backlinks, then click `hub`'s tab.
+4. Click Create beside `marley-tour/later`.
+5. Bring `hub` back, click `#tour`, then type `marley-tour` in the field and press Enter. Click Aa,
+   press Down and Enter.
+6. Click in the field and press Escape.
+7. Delete `marley-tour` from its right-click menu.
+
+- [ ] Step 1: with Rusty off there is no book button, and the command says Rusty is off and where
+  to turn it on; with Rusty on the book button shows, and the panel opens with its search field
+  focused and the line "Open a brain page to see its tags, backlinks and links."
+- [ ] Step 2: the panel follows `hub`: its title and slug, `#tour` with its count, Backlinks 1
+  (`spoke`, its line with the link lit), and Links 2 (`spoke`, and `marley-tour/later` with Create).
+- [ ] Step 3: `spoke` opens in a preview tab and the panel follows it; `hub`'s tab brings `hub` back
+  in the panel.
+- [ ] Step 4: the page `marley-tour/later` is made and opens; `hub`'s link to it no longer offers
+  Create.
+- [ ] Step 5: `#tour` fills the field with `tag:tour` and lists `hub`; the query lists the folder's
+  pages with the words lit only after Enter; Aa lights and the list is asked again; Enter opens the
+  selected page.
+- [ ] Step 6: the field empties and the page view is back.
+
 ## Part 3. The editor
 
 Marley's editor is Zed's. This part checks the everyday tools. The first time you open
@@ -1675,6 +1707,7 @@ Every Marley command runs from the palette. The ones with no key of their own:
 | `marley: clear project browser data` | Sign every site out for this project |
 | `marley: system one check`, `marley: open decisions` | System One's check and its log |
 | `marley: toggle fleet` | Show or hide the Fleet panel (#607) |
+| `rusty: toggle knowledge panel` | Show or hide the Knowledge panel, while Rusty is on (#646) |
 | `multi workspace: next project`, `previous project`, `next thread`, `previous thread` | Walk the rail |
 
 ## Appendix C. Not in yet

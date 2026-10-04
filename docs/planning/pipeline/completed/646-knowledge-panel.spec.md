@@ -1,7 +1,7 @@
 ---
 pipeline_id: ae960003-4725-4049-9cd6-7ca99c0bf319
-ticket: docs/planning/tickets/open/TICKET-646-knowledge-panel.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-646-knowledge-panel.md
+status: Phase 4 — Complete PASS
 title: "The Knowledge panel: a page's backlinks, links and tags, and brain search"
 type: feature
 slice: Rusty in Marley R3 and R6 (R-D3, R-D5); R6's project view split out
@@ -23,8 +23,9 @@ GPUI Components' Backlinks and SearchResultItem onto Zed's `ui` crate.
   `marley_workbench::rusty` (the connection, its state, its change signal on
   `notifications/resources/list_changed`, the stand-in `rusty-mcp` and its fixture vault), and
   `marley.rusty.enabled`; #645's Page tab (the `Item` that shows one brain page, and the slug it
-  shows) and its open-page action. This ticket adds to both crates; the names below are
-  placeholders until those land.
+  shows) and its open-page action. This ticket adds to both crates; the names are theirs as they
+  shipped (the notes' promotion entry): `rusty::call_tool`, `rusty::Announced`,
+  `rusty::page::PageView` and `open_later`, `rusty::OpenPage`.
 - **The panel:** `KnowledgePanel`, an `impl workspace::Panel` in a new
   `marley_workbench::rusty::knowledge_panel` module, in the right dock only, one per workspace,
   added where `fleet::init` adds the Fleet panel. Persistent name `MarleyKnowledgePanel`, icon
@@ -48,7 +49,8 @@ GPUI Components' Backlinks and SearchResultItem onto Zed's `ui` crate.
     cut to start near the link and the link lit; a click opens that page.
   - **Links** with their count, in the page's order: a resolved link by its page's title, a click
     opening it; an unresolved one as written, with "Create", a click making the page with
-    `brain_new_page { folder: "", name: <target> }` (Rusty's app's call) and opening it.
+    `brain_new_page { path: <target>, folder, name }` (promotion: Rusty's main takes `path`, the
+    older binaries `folder` and `name`, the target split at its last `/`) and opening it.
 - **Brain search:** a single-line Zed `Editor` at the panel's top, "Search the brain…". After
   Enter it calls `brain_search { query, limit: 60, case_sensitive, regex }` with the query as
   typed, operators included (D5: on Enter, not as typed, the rule #644's rail search keeps). Two toggles beside it, match case and regular
@@ -170,12 +172,12 @@ Ctrl+Alt+Shift+D to #645's open-page action for `projects/demo` (L-633's way). S
   with its link lit), Links 2 (Orbit; Missing Page with Create).
 - `646-05-followed`: a click on Orbit's backlink: Orbit in the Page tab, the panel on Orbit.
 - `646-06-other-item`: `workspace: new file`: an editor active, the panel's no-page line.
-- `646-07-created`: Demo again; a click on Missing Page: the log holds `brain_new_page` with
-  folder `""` and name `Missing Page`; that page in the Page tab, the panel on it.
+- `646-07-created`: Demo again; a click on Missing Page's Create: the log holds `brain_new_page`
+  with `path` `Missing Page`; that page in the Page tab, the panel on it.
 - `646-08-tag-search`: Demo again; a click on `#area/demo`: the field holds `tag:area/demo`, two
   results; the log holds that query.
 - `646-09-search`: the field cleared, `orbit` typed: the count line and three rows, `Orbit` bold
-  in each snippet; the log holds `orbit` once, after the pause.
+  in each snippet; the log holds no `orbit` while it is typed, and one after Enter.
 - `646-10-toggles`: match case and regular expression clicked: both toggles on; the log holds the
   query again with `case_sensitive` and `regex` true.
 - `646-11-enter-opens`: the field focused, Down, Enter: the selected result in the Page tab.
@@ -228,6 +230,9 @@ Ctrl+Alt+Shift+D to #645's open-page action for `projects/demo` (L-633's way). S
   bounds it.
 - D8 — Create from an unresolved link is one click with no confirmation, as in Rusty's app: a new
   page is cheap to delete, and the call is Rusty's own, so its index and git history stay right.
+  The call is `brain_new_page { path, folder, name }` (promotion, 2026-10-04): `path` for Rusty's
+  main (its TICKET-041), `folder` and `name` for the binaries the box runs until Chad reinstalls;
+  never `{ folder: "", name: "a/b" }`, which Rusty flattens to `a-b`.
 - D9 — The scope is split: the project view (R6) is a second slice. This ticket's panel, page view
   and search are one shippable piece, and the project join needs a resolution rule and a task-group
   rule of its own.
@@ -244,7 +249,7 @@ Ctrl+Alt+Shift+D to #645's open-page action for `projects/demo` (L-633's way). S
 | REQ-006 | WHILE a Page tab is the active item, the panel shall list the page's backlinks with their count, each by its page's title with the line its link sits on, the link lit. | Shot `646-04-demo-page` |
 | REQ-007 | WHILE a Page tab is the active item, the panel shall list the page's outgoing links in order, a resolved one by its page's title and an unresolved one as written with Create. | Shot `646-04-demo-page` |
 | REQ-008 | WHEN the user clicks a backlink or a resolved link, the system shall open that page through #645's action, and the panel shall follow it. | Shot `646-05-followed` |
-| REQ-009 | WHEN the user clicks an unresolved link, the system shall call `brain_new_page` with folder `""` and the target as its name, then open the new page. | Shot `646-07-created`; the call log |
+| REQ-009 | WHEN the user clicks an unresolved link's Create, the system shall call `brain_new_page` with the target as its `path` (and as `folder` and `name` for older Rusty), then open the new page. | Shot `646-07-created`; the call log |
 | REQ-010 | WHEN the user clicks a tag, the system shall put `tag:<name>` in the search field and search for it. | Shot `646-08-tag-search`; the call log |
 | REQ-011 | WHEN the user presses Enter in the query field, the system shall call `brain_search` with the query as typed, and shall send no query while the user is still typing; and list each result's title, slug and snippet with the matches highlighted. | Shot `646-09-search`; the call log |
 | REQ-012 | WHEN the user turns on match case or regular expression, the system shall search again with `case_sensitive` or `regex` true. | Shot `646-10-toggles`; the call log |

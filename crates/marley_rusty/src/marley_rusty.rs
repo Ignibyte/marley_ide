@@ -10,6 +10,7 @@
 //! - [`settings`]: Rusty's own server settings and the embedding provider (#643).
 //! - [`vault`]: the vault's tree, brain search's hits, and the Brain view's rows (#644).
 //! - [`page`]: a rendered page, the wikilink pass for Zed's renderer, and a tab's history (#645).
+//! - [`knowledge`]: a page's tags, backlinks and links, and search snippets' marks (#646).
 
 // gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
 // Zed's crates keep them at warn (CONSTITUTION §0).
@@ -26,6 +27,7 @@
     )
 )]
 
+pub mod knowledge;
 pub mod page;
 pub mod settings;
 pub mod vault;

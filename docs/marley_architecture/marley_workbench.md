@@ -1975,6 +1975,41 @@ alike.
   editor's; `added_to_workspace` keeps the workspace (L-613). `Focusable` is the editor's handle in
   Edit. Marley's keymap binds Alt-Left and Alt-Right in `RustyPage`.
 
+## The Knowledge panel (`src/rusty/knowledge_panel.rs`, #646)
+
+- **The panel.** `KnowledgePanel`, a `workspace::Panel` in the right dock only (persistent name
+  `MarleyKnowledgePanel`, `IconName::Book`, activation priority 21 after the Fleet panel's 20,
+  320 px). `knowledge_panel::init` (from `rusty::init`) registers `rusty::ToggleKnowledgePanel` on
+  every workspace and adds the panel to each one that has a window. It is always added and hides
+  itself as the Agent Panel does: `enabled` and `icon` read `rusty::is_on`, so `PanelButtons`
+  draws no button while Rusty is off; the toggle shows `rusty::unavailable`'s words in a toast
+  instead. A panel that renders while off asks once (`closing`) for a `window.defer` that closes
+  the right dock only when its `visible_panel` downcasts to this panel (PR-607; `close_panel`
+  would close the dock whatever it shows).
+- **Following.** A `subscribe_in` on the workspace's `ActiveItemChanged` (the outline panel's way)
+  reads the active item; a `PageView` gives its slug, and a subscription to its
+  `PageEvent::UpdateTab` follows the tab's own navigation. Any other item shows the no-page line.
+  The first look waits for `cx.defer_in`, since the workspace is mid-update while panels are made.
+- **The page view.** `load_page` joins `brain_get_links { slug }`, `brain_graph { around: slug,
+  depth: 1 }` and `brain_tags` through `rusty::call_tool` and builds a `marley_rusty::knowledge`
+  `PageKnowledge`; one read in flight, one more queued (`Reads`), an answer for a page no longer
+  shown dropped. Tags are `ui::Chip`s inside a clickable `div` (a chip takes no click) that put
+  `tag:<name>` in the field and search; backlinks and links are `ListItem`s, a backlink's line a
+  `HighlightedLabel::from_ranges` over its mention; an unresolved link's Create button stops the
+  row's click and calls `brain_new_page { path, folder, name }`, then opens the slug it answers.
+  Opening goes through `page::open_later` as a preview, without moving the focus.
+- **Search.** A single-line `Editor` and two `IconButton`s (`CaseSensitive`, `Regex`, square,
+  `toggle_state`), as the search bar draws its options. The container's key context is
+  `KnowledgePanel menu`, so the field's Up, Down, Enter and Escape arrive as `menu` actions (L-457).
+  `confirm` sends a new query, or new options, as `brain_search { query, limit: 60,
+  case_sensitive, regex }`; the same query again opens the selected hit, else the first. `Results`
+  holds the query and options it was asked with, and an answer for another is dropped. A toggle
+  gives the field its focus back and asks again. `cancel` clears the field and the results, or
+  propagates when there is nothing to clear. Snippets are drawn with `knowledge::snippet`'s ranges.
+- **Live and states.** `rusty::Announced` reads the page and the shown query again; the `Rusty`
+  global re-reads a page whose read failed once the client connects; while not connected the body
+  is the client's state line, and a failed read shows its error in place of the sections.
+
 ## The find tools (`src/find.rs`, #567)
 
 - `find_items(name, subject, query, items, place, cx)` is what `browser_find` and

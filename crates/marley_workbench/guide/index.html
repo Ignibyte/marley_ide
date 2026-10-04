@@ -168,6 +168,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#rail-filter">The filter</a></li>
 <li><a href="#rail-switcher">The switcher and next thread</a></li>
 <li><a href="#brain-view">The Brain view: Rusty&#x27;s vault in the rail</a></li>
+<li><a href="#knowledge-panel">The Knowledge panel: a page&#x27;s links, tags and brain search</a></li>
 </ol></li>
 <li><a href="#editor">The editor</a><ol>
 <li><a href="#find-things">Find files, symbols and text</a></li>
@@ -624,6 +625,20 @@ th { background: var(--panel); font-weight: 650; }
 <li>A page that changes on disk, or that Rusty changes, shows its new text with no click.</li>
 </ol>
 <p class="note">Search is sent on Enter only: with an embedding provider set, Rusty embeds every query it is sent. A dot on the Projects button means something in the Projects view needs you. On the embedded connection, changes Rusty makes or sees in the vault's folder show without a click; on the service connection, after Marley's own changes and on Refresh. Favourites come with Rusty's bookmarks.</p>
+</article>
+
+<article id="knowledge-panel">
+<h3>The Knowledge panel: a page's links, tags and brain search <span class="ticket">#646</span></h3>
+<p class="what"><strong>What it is.</strong> A panel in the right dock, while Rusty is on, for the brain page the active tab shows: its tags with how many pages carry each, the pages that link to it with the line each link sits on, and its own links. A search field at its top asks Rusty's brain search.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Click the book in the right dock's buttons, or run <code>rusty: toggle knowledge panel</code>. With Rusty off there is no button, and the command says where to turn Rusty on.</li>
+<li>Open a brain page: the panel shows its title, its tags, its backlinks (the link lit in each line) and its links. Any other tab shows the search field alone.</li>
+<li>Click a backlink or a link to open that page. A link to no page yet has Create, which makes the page and opens it.</li>
+<li>Click a tag to search for it (<code>tag:name</code>).</li>
+<li>Type in the field and press Enter. The two buttons beside it match case and read the query as a regular expression. Up and Down move through the results, Enter opens one, Escape clears the search.</li>
+</ol>
+<p class="note">Rusty's search operators work as typed: <code>tag:</code>, <code>path:</code>, <code>file:</code>, <code>type:</code>, quotes around words with spaces, a leading <code>-</code> to exclude. The query is sent on Enter only. The panel reads its page again when Rusty announces a change.</p>
 </article>
 </section>
 

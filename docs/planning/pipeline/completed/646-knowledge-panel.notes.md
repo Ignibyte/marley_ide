@@ -1,6 +1,6 @@
 # The Knowledge panel: a page's backlinks, links and tags, and brain search — Notes
 
-- **Local ticket doc:** docs/planning/tickets/open/TICKET-646-knowledge-panel.md
+- **Local ticket doc:** docs/planning/tickets/closed/TICKET-646-knowledge-panel.md
 - **Pipeline spec:** 646-knowledge-panel.spec.md
 
 ## Phase 1 — Plan (queued by /spec, 2026-10-03)
@@ -314,3 +314,148 @@ launch per scenario; review of the deferred close). REQ-018 by review and the ga
 - [x] Design: approach, file manifest by crate, the one conditional touchpoint row, the visual
       check plan, risks, the user docs for Complete.
 - [x] Docs only: the ticket doc and this pair; no BACKLOG.md, no `active/`, no source, no cargo.
+
+### Promotion (2026-10-04)
+- Promoted into `active/`; the BACKLOG row removed; the ticket in-progress. Pre-flight green, no
+  other active pipeline. #643, #644 and #645 landed (6bae63ef8c, fbadf3282f, ce257575e4).
+- **Brain:** `brain ask` (consultation `be29fc9b28c04ac18f5765dfb972da4f`) returned due follow-ups
+  on other work only.
+- **The names as shipped** (replacing the draft's placeholders): the client is
+  `rusty::call_tool(tool, arguments, cx)` (a refusal's error is Rusty's message), the connection
+  `rusty::is_on`, `is_connected` and `unavailable` (#643's words), the change signal the
+  `rusty::Announced` global (bumped on each embedded `list_changed`, #645); the Page tab is
+  `rusty::page::PageView` with `slug()`, its page changes inside the tab with no
+  `ActiveItemChanged` (the item stays), and it emits `PageEvent::UpdateTab` when a page has loaded,
+  so the panel subscribes to it and compares the slug; the opener is `rusty::page::open_later
+  (workspace, slug, preview, focus, window, cx)` and the action `rusty::OpenPage { slug, preview
+  }`; the stand-in is `crates/marley_rusty/stand_in/rusty-mcp` over `$RUSTY_STAND_IN_STATE/vault`,
+  logging each call with its arguments to `$RUSTY_STAND_IN_STATE/calls` and announcing a change
+  to any file of its vault. `"rusty"` is already in `test_action_namespaces` (#645): no Zed file
+  changes.
+- **Seams re-read** (an Explore pass over Rusty's main at `13249a8`, Zed's dock and panels, the
+  `ui` crate and Marley's Fleet panel): as the queued notes say, with these exact shapes.
+  `brain_get_links { slug }` answers `{ outbound, backlinks }` of `LinkEntry { from_slug, to_slug,
+  link_type, context, resolved }`, outbound in document order (one row per target, `context` the
+  trimmed line of its first occurrence), backlinks ordered by `from_slug` with `resolved` always
+  true; an unresolved `to_slug` is the target normalised (case kept, no heading or alias).
+  `brain_graph { around, depth, tags, unresolved }` answers `{ nodes, edges }`, each node `{ id,
+  kind ("page", "tag", "unresolved"), title, page_type, folder, tags }`; `around` keeps the
+  neighbourhood, an unknown slug answers empty. `brain_tags` answers `[{ tag, count }]` by tag,
+  each ancestor of a nested tag counted. `brain_search` takes `case_sensitive` and `regex`, marks
+  matches with `<b>` and `</b>`, and answers an empty snippet for a query of operators alone
+  (`tag:area/demo`). `brain_new_page { path }` (Rusty's TICKET-041) makes the page at exactly that
+  path and answers its slug. `Panel::icon` `None` hides the dock button (`PanelButtons` also needs
+  `icon_tooltip`); `Panel::enabled` defaults to true; `Workspace::close_panel::<T>` closes the dock
+  holding `T`; the Agent Panel's `icon`, `enabled` and toggle check are as the spec cites.
+  `ui::Chip` has no click of its own. Ctrl+Alt+Shift+D is free in Zed's keymap and Marley's.
+- **Decided at promotion:**
+  - **Create sends `{ path, folder, name }`** (D8 amended): Rusty's main takes `path` (exactly the
+    link's target, folders made); the binaries on the box until Chad reinstalls ignore `path` and
+    take `folder` and `name`, the target split at its last `/`, which never flattens a slash into
+    the name (Rusty's TICKET-041's fault with `{ folder: "", name: "a/b" }`). Either way the answer
+    is the slug, which the tab opens.
+  - **A tag is a `Chip` inside a clickable element** (`ui::Chip` has none of its own).
+  - **A result row with no snippet** (an operators-only query) shows its title and slug alone.
+  - The stand-in gains `brain_get_links`, `brain_graph` (with `around` and `depth`), `brain_tags`,
+    a `brain_search` that marks matches with `<b>`, honours `case_sensitive`, `regex` and `tag:`,
+    and answers no snippet for a filter-only query, and `brain_new_page { path }`.
+
+## Phase 2 — Code (2026-10-04)
+- **Built.**
+  - `marley_rusty::knowledge` (new, Ely's MIT notice): `LinkEntry`, `PageLinks`, `TagCount`,
+    `GraphNode`, `Graph`, `Backlink`, `Outgoing`, `PageKnowledge`; `page_knowledge` joins the three
+    answers, titles from the graph's page nodes, the slug's last part where none is named;
+    `mention`, `trimmed` (Ely's) and `snippet`. `vault::SearchHit` gained `snippet` (serde default).
+  - The stand-in: `brain_get_links`, `brain_graph` (`around`, `depth`), `brain_tags` (ancestors
+    counted), `brain_search` with `<b>` marks, `tag:` terms, `case_sensitive`, `regex`, and an
+    empty snippet for a filter-only query, `brain_new_page { path }`. Hand-tested over the
+    scenario's pages before the panel was written.
+  - `marley_workbench::rusty::knowledge_panel` (new): the panel, its toggle and `init` (from
+    `rusty::init`), as the design says, with the names as shipped. The in-app guide page gained its
+    article.
+- **Deviations from the design.**
+  - No debounce task: D5 sends on Enter only, so `Results` keeps the query and options it was asked
+    with and an answer for another is dropped.
+  - Page reads are coalesced (`Reads { reading, again }`) rather than numbered; the answer carries
+    its slug and is dropped when another page shows. `brain_tags` is read with every page read,
+    not held: one more small call per page, and counts never stale.
+  - Opening goes through `page::open_later` (preview, no focus), not a dispatched `OpenPage`: it is
+    the one door #645 gave, and dispatching from inside the panel's update would read the panel.
+  - `create` is an associated function (clippy's `unused_self`), and the section counts are a
+    muted `Label` in `ListSubHeader::end_slot`, not a `CountBadge` (found in Test, below).
+- **Review.**
+  - Re-entrancy: the dock close is a `window.defer` and checks `visible_panel` (PR-607); the first
+    look at the active item is a `defer_in`, since the workspace is mid-update while panels are
+    made; a toggle's click gives the field its focus back.
+  - Errors reach the UI: a failed read shows its message in place of the sections, a failed Create
+    a toast with Rusty's words; parse errors name the tool.
+  - Provenance: Ely's MIT parts carry the notice; nothing from Warp; no Zed function body copied.
+  - No Zed file changes (`"rusty"` was already in `test_action_namespaces`, #645).
+- **Clippy rounds:** the module docs' first paragraphs split; `map_or`, `unused_self` and
+  by-reference parameters fixed at the source.
+- **Gate:** `just gate-diff` green after the Test phase's fix, every gate on the scope (gate:1, 2,
+  7 to 14, 16 to 18, 20 to 22) and the receipt.
+
+## Phase 3 — Test (2026-10-04)
+- **Scenario:** `script/e2e/646-knowledge-panel.sh`, `compositor sway`, the stand-in over a scratch
+  vault of three made-up pages; places measured from the first run's `646-04`. Second run: every
+  check passes (Demo's links read; Create sent `path` "Missing Page"; the tag's query; nothing
+  sent while typing, one `orbit` after Enter; the query again with both options).
+- **Shots, each read:**
+  - `646-01-off-no-button`: Rusty off; the status bar's right buttons hold no book; the project
+    panel in the right dock. REQ-001.
+  - `646-02-off-toast`: the palette's toggle: "Rusty is off. Turn it on in the Rusty section of
+    the Marley settings." and no panel. REQ-002.
+  - `646-03-no-page`: Rusty on: the book button lit, the panel open, the operator hint (shown only
+    while the field has the focus) and "Open a brain page to see its tags, backlinks and links."
+    REQ-003, REQ-004.
+  - `646-04-demo-page`: Demo, `projects/demo`, `#project 1`, `#area/demo 2`, `#draft 1` (the
+    inline tag), Backlinks 2 (Orbit and Demo uses Orbit, each line with its `[[…]]` lit, the alias
+    form too), Links 2 (Orbit by its title; Missing Page with Create). REQ-005 to REQ-007.
+  - `646-05-followed`: Orbit's backlink clicked: Orbit in the preview tab and in the panel, its
+    backlink from Demo with only the Orbit link lit. REQ-008.
+  - `646-06-other-item`: an untitled buffer active; the panel's no-page line. REQ-004.
+  - `646-07-created`: Create clicked: Missing Page made and shown in the preview tab; the panel on
+    it, Demo's line trimmed to start near the link (`…it|Orbit]] and waits on [[Missing Page]].`),
+    Links 0. REQ-009.
+  - `646-08-tag-search`: `#area/demo` clicked: `tag:area/demo` in the field, 2 pages, no snippets.
+    REQ-010.
+  - `646-09-search`: `orbit` and Enter: 3 pages, each snippet's match lit. REQ-011.
+  - `646-10-toggles`: Aa and `.*` lit, 2 pages with lowercase `orbit`, the field focused. REQ-012.
+  - `646-11-enter-opens`: Down selects Demo uses Orbit, Enter opens it in the preview tab; the
+    results stay. REQ-013.
+  - `646-12-escape`: back on Demo, Escape: the field empty with its hint, Demo's view back; Missing
+    Page now a resolved link. REQ-014.
+  - `646-13-refresh`: a page written into the scratch vault: Backlinks 3 with Later, no input.
+    REQ-015.
+  - `646-14-off-live`: Rusty off: the right dock closed, no book button, the Page tab's off line.
+    REQ-016.
+- **Fixed in Test:** the first run's `646-04` drew each section's count with `ui::CountBadge`, a
+  notification badge positioned absolutely at the header's top right in the error colour, half off
+  the panel; and the headers sat 8 px left of the rows. The counts are now a muted small `Label`
+  (the `ui` crate's own `ListSubHeader` example), the headers and rows `inset`, and the panel's own
+  blocks `px_2p5`, so everything starts at one edge. Clippy, the build and the scenario ran again;
+  the gate after.
+- **Not reached by the scenario:** REQ-017 (a client not connected is #643's state line, drawn
+  from `rusty::unavailable`; a failed call by review); REQ-018 by review and gate:8; a right dock
+  restored at start on this panel while Rusty is off (one launch per run; the deferred close is the
+  same code `646-14` drives). The toast of `646-02` stays until closed, as #644's and #645's do; the
+  scenario closes it.
+
+## Phase 4 — Complete (2026-10-04)
+- **Docs:** `CHANGELOG.md` (Added); `docs/marley/guide.md` (the Knowledge panel section after the
+  Page tab's, and the palette row); `docs/marley/walkthrough.md` (stop 2.14 and Appendix B's row);
+  `docs/marley_architecture/marley_workbench.md` (the Knowledge panel section) and
+  `marley_rusty.md` (`knowledge`, the stand-in's new tools); `docs/marley/rusty-in-marley.md` (R3
+  shipped; the R7 to R9 rows moved back inside the slices table); `docs/marley/three-prong-plan.md`
+  (C2). No Zed file changed, so no touchpoint row.
+- **Knowledge:** F-claude-646-a-section-count-drew-as-an-alert-badge-off-the-panel-001,
+  PR-claude-646-a-count-beside-a-label-is-a-muted-label-not-a-countbadge-001,
+  L-claude-646-the-stand-ins-call-log-sorts-argument-keys-001,
+  L-claude-646-a-panel-that-follows-a-page-tab-needs-the-tabs-own-event-001,
+  AD-claude-646-the-knowledge-panel-is-always-added-and-hides-itself-while-rusty-is-off-001.
+- **Brain:** `brain decide` on consultation `be29fc9b28c04ac18f5765dfb972da4f`:
+  `decisions/marleys-knowledge-panel-is-always-added-and-hides-itself-while-rusty-is-off-646`,
+  follow-up 2026-11-04.
+- Ticket closed, pipeline archived, committed and pushed.
+
