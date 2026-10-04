@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A stand-in for Rusty's MCP server, `rusty-mcp`, for Marley's e2e scenarios (#643 to #646).
+"""A stand-in for Rusty's MCP server, `rusty-mcp`, for Marley's e2e scenarios (#643 to #647).
 
 It answers the tools Marley reads as `rusty-mcp` does (each answer JSON text in a text block, a
 refusal a JSON-RPC error carrying Rusty's message), from `../fixtures/settings_list.json` and a
@@ -47,6 +47,7 @@ TOOL_NAMES = [
     "brain_render",
     "brain_get_links",
     "brain_graph",
+    "brain_page_types",
     "brain_tags",
     "brain_ask",
     "brain_decide",
@@ -451,41 +452,143 @@ def links(slug):
     return {"outbound": outbound, "backlinks": sorted(backlinks, key=lambda link: link["from_slug"])}
 
 
-def graph(around, depth):
-    """`brain_graph`'s pages and links, or the neighbourhood of `around`, `depth` links out."""
+# Rusty's page types and their folders, in the order `brain_page_types` gives them.
+TYPE_DIRS = [
+    ("person", "people"),
+    ("company", "companies"),
+    ("project", "projects"),
+    ("concept", "concepts"),
+    ("meeting", "meetings"),
+    ("idea", "ideas"),
+    ("daily", "daily"),
+    ("inbox", "inbox"),
+    ("decision", "decisions"),
+    ("conversation", "conversations"),
+    ("source", "sources"),
+]
+
+
+def page_type(slug, properties):
+    """Rusty's rule: the frontmatter's `type`, else the type its top folder names, else `note`."""
+    stated = dict(properties).get("type")
+    if stated:
+        return str(stated)
+    top = slug.split("/", 1)[0] if "/" in slug else ""
+    return next((kind for kind, folder in TYPE_DIRS if folder == top), "note")
+
+
+def as_list(value):
+    if isinstance(value, list):
+        return [str(each) for each in value if each is not None]
+    return [str(value)] if value else []
+
+
+def graph(arguments):
+    """`brain_graph` as Rusty answers it: every page; a decision's typed edges first, so they win
+    over the plain link between the same two pages; the resolved links; unresolved targets and
+    tags as nodes on request; and with `around`, that page's neighbourhood `depth` edges out,
+    breadth first over every edge. Pages are indexed once, so a vault of thousands answers in a
+    moment."""
     found = pages()
-    nodes = {
-        slug: {
-            "id": slug,
-            "kind": "page",
-            "title": title,
-            "page_type": slug.split("/", 1)[0] if "/" in slug else "",
-            "folder": slug.rsplit("/", 1)[0] if "/" in slug else "",
-            "tags": page_tags(text),
-        }
-        for slug, title, text in found
+    known = {slug for slug, _, _ in found}
+    names = {}
+    for slug, _, _ in found:
+        names.setdefault(slug.rsplit("/", 1)[-1], []).append(slug)
+
+    def resolved(target):
+        if not target:
+            return None
+        if target in known:
+            return target
+        named = names.get(target, [])
+        return named[0] if len(named) == 1 else None
+
+    nodes, edges, seen, ids, parsed = [], [], set(), set(known), []
+    for slug, title, text in found:
+        properties, body = frontmatter(text)
+        kind = page_type(slug, properties)
+        parsed.append((slug, kind, dict(properties), body, page_tags(text)))
+        nodes.append(
+            {
+                "id": slug,
+                "kind": "page",
+                "title": title,
+                "page_type": kind,
+                "folder": slug.rsplit("/", 1)[0] if "/" in slug else "",
+                "tags": parsed[-1][4],
+            }
+        )
+
+    def edge(source, target, kind):
+        if (source, target) not in seen:
+            seen.add((source, target))
+            edges.append({"from": source, "to": target, "kind": kind})
+
+    for slug, kind, properties, _, _ in parsed:
+        if kind != "decision":
+            continue
+        typed = [(target, "consulted") for target in as_list(properties.get("consulted"))]
+        typed += [(target, "supersedes") for target in as_list(properties.get("supersedes"))[:1]]
+        typed += [(target, "follows_up") for target in as_list(properties.get("superseded_by"))[:1]]
+        for target, name in typed:
+            if target in known:
+                edge(slug, target, name)
+    for slug, _, _, body, _ in parsed:
+        for hit in WIKILINK.finditer(body):
+            target = target_of(hit.group(2))
+            to = resolved(target)
+            if to and to != slug:
+                edge(slug, to, "link")
+            elif to is None and target and arguments.get("unresolved"):
+                node = "new:" + target
+                if node not in ids:
+                    ids.add(node)
+                    nodes.append(
+                        {"id": node, "kind": "unresolved", "title": target, "page_type": "", "folder": "", "tags": []}
+                    )
+                edge(slug, node, "link")
+    if arguments.get("tags"):
+        for slug, _, _, _, tags in parsed:
+            for tag in tags:
+                node = "tag:" + tag.lower()
+                if node not in ids:
+                    ids.add(node)
+                    nodes.append(
+                        {"id": node, "kind": "tag", "title": "#" + tag, "page_type": "", "folder": "", "tags": []}
+                    )
+                edge(slug, node, "link")
+    around = clean(str(arguments.get("around") or "").strip())
+    if not around:
+        return {"nodes": nodes, "edges": edges}
+    adjacent = {}
+    for each in edges:
+        adjacent.setdefault(each["from"], []).append(each["to"])
+        adjacent.setdefault(each["to"], []).append(each["from"])
+    keep, queue = set(), []
+    if around in ids:
+        keep, queue = {around}, [(around, 0)]
+    depth = max(1, int(arguments.get("depth") or 1))
+    while queue:
+        node, far = queue.pop(0)
+        if far >= depth:
+            continue
+        for other in adjacent.get(node, []):
+            if other not in keep:
+                keep.add(other)
+                queue.append((other, far + 1))
+    return {
+        "nodes": [node for node in nodes if node["id"] in keep],
+        "edges": [each for each in edges if each["from"] in keep and each["to"] in keep],
     }
-    edges = []
-    for slug, _, text in found:
-        for hit in WIKILINK.finditer(frontmatter(text)[1]):
-            target = resolve(target_of(hit.group(2)))
-            if target and target != slug and {"from": slug, "to": target, "kind": "link"} not in edges:
-                edges.append({"from": slug, "to": target, "kind": "link"})
-    if around:
-        around = clean(around)
-        if around not in nodes:
-            return {"nodes": [], "edges": []}
-        kept, frontier = {around}, {around}
-        for _ in range(max(1, depth or 1)):
-            frontier = {
-                edge["to"] if edge["from"] in frontier else edge["from"]
-                for edge in edges
-                if edge["from"] in frontier or edge["to"] in frontier
-            } - kept
-            kept |= frontier
-        nodes = {slug: node for slug, node in nodes.items() if slug in kept}
-        edges = [edge for edge in edges if edge["from"] in kept and edge["to"] in kept]
-    return {"nodes": list(nodes.values()), "edges": edges}
+
+
+def page_types():
+    """`brain_page_types`: Rusty's types in order, each with its folder and page count."""
+    counts = {}
+    for slug, _, text in pages():
+        kind = page_type(slug, frontmatter(text)[0])
+        counts[kind] = counts.get(kind, 0) + 1
+    return [{"page_type": kind, "dir": folder, "count": counts.get(kind, 0)} for kind, folder in TYPE_DIRS]
 
 
 def tag_counts():
@@ -552,7 +655,8 @@ VAULT_TOOLS = {
         str(arguments.get("folder") or ""), arguments.get("name"), arguments.get("path")
     ),
     "brain_get_links": lambda arguments: links(str(arguments.get("slug") or "")),
-    "brain_graph": lambda arguments: graph(arguments.get("around"), arguments.get("depth")),
+    "brain_graph": graph,
+    "brain_page_types": lambda arguments: page_types(),
     "brain_tags": lambda arguments: tag_counts(),
     "brain_new_folder": lambda arguments: new_folder(str(arguments.get("path") or "")),
     "brain_rename": lambda arguments: rename(

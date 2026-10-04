@@ -1059,6 +1059,37 @@ panel that was showing closes.
 - **Live.** A change Rusty announces reads the page and the query again, with no click.
 - **Not connected.** With Rusty's connection down, the panel shows why in place of the page view.
 
+### The Graph tab
+
+The Graph tab draws Rusty's vault as a graph in a center tab (#647): `rusty: open graph` from the
+command palette, or the graph icon after Today in the rail's Brain view. With a brain page in front
+it opens on that page's neighbourhood; `rusty: open local graph` turns it to the page in front, or
+says to open a page first. There is one Graph tab per window.
+
+- **What it shows.** Pages are dots, larger the more links they have, coloured by page type in
+  Zed's accent colours; the legend names each type with its count. Links are lines. A decision's
+  typed edges are dashed: consulted, supersedes and follows up, a colour each.
+- **Local and Vault.** Local is the neighbourhood of the brain page last in front, one to four
+  links deep (the Depth buttons), that page ringed in the middle; it follows the pages you open.
+  Vault is every page.
+- **The mouse.** A click on a page opens it. Rest the pointer on a dot to light it and its
+  neighbours and read its title. Drag the background to move the view, turn the wheel to zoom about
+  the pointer (a pinch too), and drag a dot to hold it while the rest settle around it. Titles show
+  once you zoom in.
+- **The panel** at the top right: Local or Vault, the depth, and a filter where every term must
+  match: words in a title or slug, `tag:name` (with tags nested under it), `path:folder/`,
+  `type:decision`. A click on a type in the legend hides it. The switches: Tags (each tag as a dot
+  joined to its pages; a click on one filters to it), Unresolved links (a hollow dot for each link
+  to no page yet), Decision edges and Orphans. Restart layout lays it out afresh, Fit shows
+  everything, and the close button folds the panel to a button.
+- **Big vaults.** The layout runs away from the window's thread and settles in a moment. Past 2,000
+  dots the tab lays out the 2,000 most linked and says how many it shows; a filter or a local graph
+  reaches the rest.
+- **Live.** While the tab shows, a change Rusty announces reads the graph again, the dots staying
+  where they were; a change while it is hidden is read when it shows. With the service connection,
+  each showing reads.
+- **Off.** With Rusty off the tab is empty, says so, and asks Rusty nothing.
+
 ## Marley's MCP server
 
 ### What it serves, and where
@@ -1860,6 +1891,7 @@ Commands with no key of their own, from the command palette:
 | `marley: attach file` | Attach File for the focused terminal |
 | `marley: toggle dictation` | Starts or stops a Voxtype dictation, while Voice is on |
 | `rusty: toggle knowledge panel` | Shows or hides the Knowledge panel, while Rusty is on (#646) |
+| `rusty: open graph`, `rusty: open local graph` | The Graph tab, on the vault or on the page in front (#647) |
 | `marley: open browser` | Shows or opens a Browser tab |
 | `marley: new browser tab` | A new Browser tab (Ctrl+T inside one) |
 | `marley: pick element`, `marley: annotate`, `marley: record this` | The Browser tab's three buttons, while a Browser tab has the focus |

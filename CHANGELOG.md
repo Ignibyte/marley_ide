@@ -13,6 +13,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Graph tab** (#647, 2026-10-04). `rusty: open graph`, or the graph icon after Today in the
+  rail's Brain view, draws Rusty's vault in a center tab: pages as dots sized by their links and
+  coloured by page type, links as lines, and a decision's consulted, supersedes and follows-up
+  edges dashed, a colour each. Local shows the neighbourhood of the brain page last in front, one
+  to four links deep, and follows it as you open pages; Vault shows every page. A click opens a
+  page, the wheel zooms about the pointer, a drag pans or holds a dot while the rest settle. The
+  panel filters by words, `tag:`, `path:` and `type:`, hides a page type from its legend, and turns
+  tags, unresolved links, decision edges and orphans on or off. The layout runs off the window's
+  thread; past 2,000 dots it keeps the most linked and says so. A change Rusty announces shows
+  with no click, and with Rusty off the tab is empty and makes no call.
+
 - **The Knowledge panel** (#646, 2026-10-04). While Rusty is on, the right dock holds a Knowledge
   panel (the Book button, or `rusty: toggle knowledge panel`). With a brain page's tab active it
   shows that page's tags with their page counts, the pages that link to it with the line each link

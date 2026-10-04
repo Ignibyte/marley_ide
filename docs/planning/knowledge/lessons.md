@@ -4615,3 +4615,32 @@ item changes what it shows. A Page tab navigates inside itself (a link, Back, Fo
 that follows it subscribes to the tab too (`PageEvent::UpdateTab`) and keeps that subscription
 with the tab's weak handle, replacing it only when another tab becomes active. The first look at
 the active item waits for `cx.defer_in`: panels are made while the workspace is being updated.
+
+## L-claude-647-a-run-of-background-batches-waits-on-the-frame-each-time-001
+*category: code · topic: background work drawn as it goes · from: pipeline 647*
+
+Work lent to the background executor and taken back with `this.update` after each slice waits, at
+each return, for the window's thread to finish the frame it is drawing. In a debug build a busy
+frame is tens of milliseconds, so slices of a few milliseconds of work are dominated by the waits
+(F-claude-647-the-capped-graph-took-four-seconds-in-one-step-batches-001). Size a slice at a frame
+or two of work (15 ms or so), and log the time worked beside the time taken, which tells the two
+apart.
+
+## L-claude-647-mul-add-and-hypot-are-library-calls-on-x86-64-001
+*category: code · topic: float loops in Marley crates · from: pipeline 647*
+
+The nursery lint `suboptimal_flops` asks for `mul_add` in place of `a * b + c`, and `imprecise_flops`
+for `hypot`. Rust's own documentation of `mul_add` warns it can be slower than a multiply and an add
+where the target has no FMA instruction, as Zed's baseline x86-64 builds do not, and `hypot` guards
+against overflow a pair of squares does not need. Outside hot loops follow the lint; in a loop run
+millions of times, write the products into named values first (`let across = dx * dx;`) and avoid
+the square root where the arithmetic allows (a push of k²/d along a unit vector is the offset times
+k²/d²). In #647 this was not the slow part (the batches were), so measure before blaming either.
+
+## L-claude-647-gpui-reports-a-wheel-notch-as-three-lines-001
+*category: code · topic: zooming on the wheel · from: pipeline 647*
+
+On Wayland and X11 gpui turns one wheel notch into `ScrollDelta::Lines(3.0)` (`SCROLL_LINES`,
+`gpui_linux/src/linux/platform.rs`), and the e2e harness's `scroll` sends whole notches, positive
+for the wheel down. A zoom per line of 1.15 is 1.52 a notch; 1.05 a line gives Rusty's 1.16 a notch.
+`scroll -N` is the wheel up, which zooms in.

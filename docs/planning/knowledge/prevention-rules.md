@@ -2783,3 +2783,11 @@ beside text. A count in a list header, a section title or a row is a `Label` wit
 does). The rail's Browser rows rejected it for the same reason
 (AD-claude-504-browser-tabs-are-rows-of-their-project-in-the-rail-001); a component's preview in
 Zed's component gallery shows what it draws before it is chosen.
+
+## PR-claude-647-log-a-background-runs-work-and-wall-time-and-read-them-in-the-scenario-001
+*severity: medium · prevents: F-claude-647-the-capped-graph-took-four-seconds-in-one-step-batches-001*
+
+A Marley feature that runs a computation off the window's thread in slices logs one line when the
+run ends with its size, its slice count, the time spent working and the time taken, and its
+scenario greps that line at the largest size it supports and reads the figures in the Test phase.
+A wall time far above the work time is the window's thread, not the computation.

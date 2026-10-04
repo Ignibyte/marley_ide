@@ -19,9 +19,11 @@
 //! Once a rail's Brain view has shown ([`brain`], #644), the vault is read with `brain_tree` on
 //! each connection, each announcement and each write, into the `Vault` global. A page opens in a
 //! center tab ([`page`], #645), which reads it again on each announcement, and the right dock's
-//! [`knowledge_panel`] (#646) shows its links and tags and brain search.
+//! [`knowledge_panel`] (#646) shows its links and tags and brain search. The vault as a graph is a
+//! center tab of its own ([`graph_tab`], #647).
 
 pub mod brain;
+pub mod graph_tab;
 pub mod knowledge_panel;
 pub mod page;
 mod properties;
@@ -212,6 +214,7 @@ pub fn init(cx: &mut App) {
     brain::init(cx);
     page::init(cx);
     knowledge_panel::init(cx);
+    graph_tab::init(cx);
     let view = cx.new(|cx: &mut Context<RustyServerView>| {
         cx.observe_global::<Rusty>(|_, cx| cx.notify()).detach();
         RustyServerView

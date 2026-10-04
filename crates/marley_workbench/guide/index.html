@@ -169,6 +169,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#rail-switcher">The switcher and next thread</a></li>
 <li><a href="#brain-view">The Brain view: Rusty&#x27;s vault in the rail</a></li>
 <li><a href="#knowledge-panel">The Knowledge panel: a page&#x27;s links, tags and brain search</a></li>
+<li><a href="#graph-tab">The Graph tab: the vault as a graph</a></li>
 </ol></li>
 <li><a href="#editor">The editor</a><ol>
 <li><a href="#find-things">Find files, symbols and text</a></li>
@@ -639,6 +640,18 @@ th { background: var(--panel); font-weight: 650; }
 <li>Type in the field and press Enter. The two buttons beside it match case and read the query as a regular expression. Up and Down move through the results, Enter opens one, Escape clears the search.</li>
 </ol>
 <p class="note">Rusty's search operators work as typed: <code>tag:</code>, <code>path:</code>, <code>file:</code>, <code>type:</code>, quotes around words with spaces, a leading <code>-</code> to exclude. The query is sent on Enter only. The panel reads its page again when Rusty announces a change.</p>
+</article>
+<article id="graph-tab">
+<h3>The Graph tab: the vault as a graph <span class="ticket">#647</span></h3>
+<p class="what"><strong>What it is.</strong> A center tab that draws Rusty's vault as a graph, while Rusty is on: pages as dots sized by their links and coloured by page type, links as lines, and a decision's consulted, supersedes and follows-up edges dashed, a colour each. Local shows the neighbourhood of the brain page last in front, to a depth of one to four; Vault shows every page.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Run <code>rusty: open graph</code>, or click the graph icon after Today in the rail's Brain view. With a brain page in front it opens on that page's neighbourhood; <code>rusty: open local graph</code> turns it to the page in front.</li>
+<li>Click a page to open it. Drag the background to move the view, turn the wheel to zoom about the pointer, and drag a dot to hold it while the rest settle around it.</li>
+<li>Rest the pointer on a dot to light it and its neighbours and read its title.</li>
+<li>In the panel at the top right: Local or Vault, the depth, a filter (words, <code>tag:</code>, <code>path:</code>, <code>type:</code>, every term matching), and the switches Tags, Unresolved links, Decision edges and Orphans. Click a page type in the legend to hide it. Restart layout, Fit and Hide panel are the panel's three buttons.</li>
+</ol>
+<p class="note">The layout runs away from the window's thread and settles in a moment. Past 2,000 dots the tab lays out the most linked and says so; a filter or a local graph reaches the rest. While the tab shows, it reads the graph again when Rusty announces a change.</p>
 </article>
 </section>
 

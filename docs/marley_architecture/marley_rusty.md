@@ -1,8 +1,8 @@
 # `marley_rusty`
 
-> Per-crate architecture note, written 2026-10-04 at #643, extended at #644 to #646. Provenance:
+> Per-crate architecture note, written 2026-10-04 at #643, extended at #644 to #647. Provenance:
 > **`[Marley-original]`** (`serde` and `serde_json` only), with one port from Ely GPUI Components
-> (MIT) in `vault` and `knowledge`, its notice on each file. The design record is
+> (MIT) in `vault`, `knowledge` and `graph_layout`, its notice on each file. The design record is
 > [rusty-in-marley.md](../marley/rusty-in-marley.md) (R-D1, R-D8), D8 and D11 in
 > [three-prong-plan.md](../marley/three-prong-plan.md).
 
@@ -58,6 +58,30 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   `2f8b2f6`. The tool names `BRAIN_GET_LINKS`, `BRAIN_GRAPH`, `BRAIN_TAGS`, and `SEARCH_LIMIT`
   (60, as Rusty's search pane). `vault::SearchHit` carries `snippet` since #646.
 
+- `graph` (#647): `brain_graph`'s answer as `Graph { nodes, edges }`, `Node { id, kind, title,
+  page_type, tags }` with `NodeKind { Page, Tag, Unresolved, Other }` and `Edge { from, to, kind }`
+  with `EdgeKind { Link, Consulted, Supersedes, FollowsUp, Other(String) }`, an unknown kind read as
+  `Other` rather than refused; `page_types_from_answer` (`brain_page_types`) and `type_order`
+  (Rusty's types first, then the graph's others by name, so a type keeps its colour). `Query` is
+  Rusty's graph filter (`GraphView.qml`'s `matches`): every space-separated term must match, `tag:`
+  with nested tags, `path:` a slug prefix, `type:`, else text in the title or slug. `shown` applies a
+  `Filters` (the query, the legend's hidden types, and the Tags, Decision edges and Orphans
+  switches) around an optional centre, always kept: tags become nodes for the pages kept, built
+  here so a local graph stays local; past `CAP` (2,000) the most linked stay, ties by id. `Shown`
+  carries the nodes, the edges by index, each node's degree, the count before the cap and the
+  centre's index.
+- `graph_layout` (#647): `Layout`, Ely's Fruchterman-Reingold `Force` in world units (`LINK` 80,
+  repulsion k²/d over every pair, attraction d²/k along each edge, a pull of 4 per unit to the
+  origin, each move capped by the heat, cooling ×0.96 from 4 links to 0.05, at most `MAX_STEPS`
+  300); `seeded` keeps a node's place by index, starts a new one beside a placed neighbour or on
+  the golden-angle spiral, pins the centre where it was kept (the origin when new), and starts
+  warm when most places are kept; `run(pairs)` steps until a pair budget is spent; `pin`, `release`, `warm`. Two nodes on one
+  spot part along an angle their indices give, so a run is the same every time. `Viewport` (Ely's,
+  kept about the view's middle): `to_view`, `to_world`, `zoomed` about a point (0.15 to 6),
+  `panned`, `fitting` (about the centre when given, no nearer than 1.6). `nearest` is Ely's hit
+  test. The pair loop pushes by the offset times k²/d² with plain products: `mul_add` and `hypot`
+  are library calls without the FMA target feature. The crate builds at `opt-level = 3` in the dev profile (#647).
+
 ## Fixtures and the stand-in
 - `fixtures/settings_list.json`: an answer in `rusty-mcp`'s shape, neutral values.
 - `stand_in/rusty-mcp`: a Python program on the standard library that answers as `rusty-mcp` does
@@ -72,10 +96,12 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   by a unique name), with Rusty's answers and refusals as of Rusty's TICKET-040 (the root's
   `archive/` left out of the tree and the search, writes into it refused), and since #646
   `brain_get_links`, `brain_graph` (`around` and `depth`), `brain_tags`, `brain_search`'s `<b>`
-  snippets with `tag:` terms and its options, and `brain_new_page { path }`; it announces a change
-  to any file in that vault too, as Rusty's watcher does. It rewrites no links and matches search
-  words, not embeddings. The e2e scenarios name it with `MARLEY_RUSTY_MCP` and never reach the
-  user's own Rusty (R-D8).
+  snippets with `tag:` terms and its options, and `brain_new_page { path }`, and since #647
+  `brain_graph` with Rusty's page types (the frontmatter's `type`, else the folder's, else `note`),
+  a decision's `consulted`, `supersedes` and `follows_up` edges first, `tags`, `unresolved`, and the
+  neighbourhood walk, and `brain_page_types`; it announces a change to any file in that vault too,
+  as Rusty's watcher does. It rewrites no links and matches search words, not embeddings. The e2e
+  scenarios name it with `MARLEY_RUSTY_MCP` and never reach the user's own Rusty (R-D8).
 
 ## Later slices
-#647 adds the graph and its layout; the Knowledge panel's project view (R6) is its own ticket.
+The Knowledge panel's project view (R6) and the graph's groups and sliders (R5b) are their own tickets; a Barnes-Hut pass would lift the 2,000-node cap.

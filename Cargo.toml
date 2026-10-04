@@ -1108,6 +1108,9 @@ serde_json = { opt-level = 3 }
 # unoptimized a frame took 130 ms, which the user felt as input lag (#489).
 image = { opt-level = 3 }
 marley_browser = { opt-level = 3 }
+# Marley: the Graph tab's layout is a float loop over every pair of nodes, run by every
+# scenario's debug build (#647).
+marley_rusty = { opt-level = 3 }
 zune-core = { opt-level = 3 }
 zune-jpeg = { opt-level = 3 }
 # Build single-source-file crates with cg=1 as it helps make `cargo build` of a whole workspace a bit faster

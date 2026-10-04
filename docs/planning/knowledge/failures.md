@@ -3254,3 +3254,31 @@ right, tinted with the error colour, so in a `ListSubHeader`'s end slot it sat h
 panel's right edge and read as an alert. The headers also started 8 px left of the rows. Fixed: a
 muted small `Label` with the count, as the `ui` crate's own `ListSubHeader` example draws it, and
 the headers and rows `inset`, the panel's own blocks at `px_2p5`.
+
+## F-claude-647-the-capped-graph-took-four-seconds-in-one-step-batches-001
+*severity: medium · found in: pipeline 647's first scenario run, in Test · class: background work that returns to the window's thread after every small slice*
+
+The Graph tab laid out the 2,000-node cap in 4.3 s although each step is a few milliseconds. The
+run lends the layout to the background executor a batch at a time and takes it back on the
+window's thread to draw; at a budget of 2 M pair checks a batch was one step at the cap, and each
+return waited behind the frame being drawn (2,000 dots and 5,800 edges in a debug build), so 108
+steps cost 108 frames. Replacing `mul_add` and `hypot` in the pair loop (library calls without the
+FMA target feature) left the time unchanged, which ruled them out. Fixed: a budget of 16 M pair
+checks, eight steps a batch at the cap, and a run line that reports the batches and the time spent
+working beside the time taken.
+
+## F-claude-647-a-dropped-centre-and-a-read-moved-the-whole-local-graph-001
+*severity: low · found in: pipeline 647's first scenario run, in Test · class: a pinned anchor re-seeded at a fixed place*
+
+The local graph's centre was pinned at the origin when each layout was seeded. Dragging the centre
+and letting it go released the pin, and the next read pinned it back at the origin, so every node
+shifted with it (`647-19-after-change`). Fixed: the centre is pinned where it was kept, at the origin
+only when new, and a dropped centre stays pinned.
+
+## F-claude-647-the-graph-panels-rows-moved-between-scopes-001
+*severity: low · found in: pipeline 647's first scenario run, in Test · class: a control row shown only in one mode, shifting the rows below it*
+
+The Depth row showed only in Local, so the filter field and the switches sat 26 px lower there than
+in Vault; a click measured in one scope missed in the other (`647-06` showed Orbit at depth 2, the
+Vault click having missed), and a user's eye would have to find them again too. Fixed: the row
+shows in Vault as well, its buttons off.

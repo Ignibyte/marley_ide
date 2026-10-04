@@ -269,7 +269,7 @@ possible: a wikilink switch in `markdown/src/parser.rs`, only if R2 chooses Zed'
 | R4 | #644, shipped 2026-10-04. The rail's Brain view (R-D9): the header switch, Today, search on Enter, the vault tree with new, rename, move and delete through tools | M |
 | R2 | #645, shipped 2026-10-04. The Page tab: Zed's `markdown` with wikilinks rewritten to `rusty:` links, properties, back and forward, preview tabs, Edit in a buffer; the `rusty::OpenPage` action | M |
 | R3 | #646, shipped 2026-10-04. The Knowledge panel in the right dock: the Page tab's tags with counts, backlinks with their lines, outgoing links with Create, and brain search on Enter with match case and regex; the project view went to R6 | M |
-| R5 | #647. The Graph tab: whole vault or local with depth, filters, page-type colours, decision edges dashed, Ely's force layout off the main thread | M |
+| R5 | #647, shipped 2026-10-04. The Graph tab: whole vault or local with depth, filters, page-type colours, decision edges dashed, Ely's force layout off the main thread, a 2,000-node cap | M |
 | R3a | `rusty: open page`: a picker over `brain_list_pages` by title, create on a miss | S |
 | R6 | The project join (R-D5) and the panel's project view: the project's page, its follow-ups, its task group; the Graph tab's project centre | M |
 | R2b | The Page tab's outline in Read mode and inline title and property edits | S |

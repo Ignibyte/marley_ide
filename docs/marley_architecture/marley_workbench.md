@@ -2010,6 +2010,55 @@ alike.
   global re-reads a page whose read failed once the client connects; while not connected the body
   is the client's state line, and a failed read shows its error in place of the sections.
 
+## The Graph tab (`src/rusty/graph_tab.rs`, #647)
+
+- **Opening.** `actions!(rusty, [OpenGraph, OpenLocalGraph])`, registered on every workspace by
+  `graph_tab::init` (from `rusty::init`); with `rusty::unavailable` they toast and open nothing.
+  `open` brings the workspace's one `GraphView` forward (`items_of_type`, `activate_item`) or adds
+  one to the active pane, Local when a Page tab is in front, else Vault; with `local` it turns the
+  tab to the page in front or the page it last followed, or toasts "Open a page first".
+  `open_later` defers it for the rail's Graph entry (`brain.rs`'s fixed row, after Today,
+  `IconName::GitGraph`), which reaches its workspace through `multi_workspace`.
+- **Following and reading.** A `subscribe_in` on the workspace's `ActiveItemChanged`: a Page tab in
+  front sets `page` (and its `PageEvent::UpdateTab` follows it as it navigates), clearing the kept
+  places of a local graph; the tab itself in front reads when the graph held is not the one wanted
+  (`ReadKey { around, depth, unresolved }`), or always when a change came while it was hidden or the
+  connection is the service one (`Rusty::source`). `rusty::Announced` reads at once while the tab
+  is its pane's active item, else marks it stale. One read in flight, one more queued; the JSON is
+  parsed on the background executor; an answer for a key no longer wanted is dropped; a failure
+  shows in the header with Read again and keeps the last graph. `brain_page_types` is read once.
+  The `Rusty` global: off drops the graph, its places, the run and the read (no call is made);
+  connected reads.
+- **The layout's run.** `rebuild` records each shown node's place by id, computes `graph::shown`,
+  seeds a `Layout` from the places kept and starts the run: `start_run` takes the layout out of the
+  view and lends it to `cx.background_spawn(futures::future::lazy(..))` for a batch of about 16
+  million pair checks (eight steps at the cap; a batch waits on the window's thread for the frame
+  under way, so small ones cost frames, not work), gets it back with its places, applies the pins
+  and releases made meanwhile, redraws, and goes on until it settles, when it logs `graph layout:
+  N nodes, E edges, S steps in B batches, W ms of work in T ms` and gives the layout back. A rebuild drops the task, so a replaced run stops at its next
+  batch. A new tab, scope or centre fits the view once settled; the Fit button fits on the next
+  frame (the canvas's bounds, kept in an `Rc<Cell<Bounds>>` its prepaint writes).
+- **Drawing.** One `canvas`: edges batched into a `PathBuilder` per line kind and emphasis,
+  clipped to the view (Liang and Barsky) and drawn and begun again before 8,000 segments or
+  dashes, so no path passes gpui's `u16` index limit; the typed edges dashed (5 and 4 px) in the
+  status colours info, warning and success; links in the border colour, lit in the accent text
+  colour around the hovered node and faint elsewhere (Ely's rule). Nodes are round quads edged in
+  the background colour (Ely's `ring`), the page types in `accents().color_for_index` by
+  `type_order`, tags in the hint colour, unresolved hollow, the centre ringed in the accent;
+  their radius Rusty's 3 + 1.6√degree, at least 2.5 px. Labels are shaped and painted in the
+  canvas: past zoom 0.9, fading in to 1.3, the 200 most linked in view, and always the hovered
+  node, its neighbours and the centre.
+- **Input.** A press on a node holds it once the pointer moves past 3 px (a `Layout::pin`), else it
+  is a click (`page::open_later(…, false, true, …)` for a page, the filter for a tag); a press
+  elsewhere pans. The local graph's centre stays pinned where it is dropped. The wheel zooms about
+  the pointer by 1.05 a line (gpui reports a notch as three lines), a pinch by its delta.
+- **The panel.** Local and Vault buttons, Depth 1 to 4 (shown in Vault too, off, so the rows
+  keep their places), a single-line `Editor` whose edits re-parse
+  the `Query`, four `Checkbox`es (Tags, Unresolved links, Decision edges, Orphans), the legend (a
+  dot, the type and its count, faint and toggled on a click; the edge kinds shown, a solid or dashed
+  sample), and Restart layout, Fit and Hide panel. `Item`: "Graph" or "Local graph",
+  `IconName::GitGraph`, no toolbar, not kept across a restart (R5b).
+
 ## The find tools (`src/find.rs`, #567)
 
 - `find_items(name, subject, query, items, place, cx)` is what `browser_find` and

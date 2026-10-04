@@ -1,6 +1,6 @@
 //! The rail's Brain view (#644): Rusty's vault behind the Brain button in the rail's header.
 //!
-//! Under the header, a fixed row with Today, a brain search field that asks Rusty on Enter, and the
+//! Under the header, a fixed row with Today and Graph (#647), a brain search field that asks Rusty on Enter, and the
 //! vault tree over `brain_tree`. Its menus, its name editor and its drags make, rename, move and
 //! delete pages and folders through Rusty's tools, never the disk; every open goes through
 //! `open_page`, which opens a Page tab.
@@ -359,6 +359,15 @@ impl BrainView {
         };
         let workspace = multi_workspace.read(cx).workspace().clone();
         open_page(&workspace, slug, preview, focus, window, cx);
+    }
+
+    /// The Graph entry: the workspace's Graph tab, opened or brought forward (#647).
+    fn open_graph(&self, window: &Window, cx: &mut App) {
+        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
+            return;
+        };
+        let workspace = multi_workspace.read(cx).workspace().downgrade();
+        super::graph_tab::open_later(workspace, window, cx);
     }
 
     fn toast(&self, message: String, cx: &mut App) {
@@ -927,6 +936,12 @@ impl BrainView {
                     .icon_size(IconSize::Small)
                     .tooltip(Tooltip::text("Today's Note"))
                     .on_click(cx.listener(|_, _, window, cx| Self::today(window, cx))),
+            )
+            .child(
+                IconButton::new("marley-brain-graph", IconName::GitGraph)
+                    .icon_size(IconSize::Small)
+                    .tooltip(Tooltip::text("Graph"))
+                    .on_click(cx.listener(|this, _, window, cx| this.open_graph(window, cx))),
             )
     }
 

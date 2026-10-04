@@ -1,6 +1,6 @@
 # The Graph tab: Rusty's vault as a graph, local or whole — Notes
 
-- **Local ticket doc:** docs/planning/tickets/open/TICKET-647-brain-graph-tab.md
+- **Local ticket doc:** docs/planning/tickets/closed/TICKET-647-brain-graph-tab.md
 - **Pipeline spec:** 647-brain-graph-tab.spec.md
 
 ## Phase 1 — Plan (queued by /spec, 2026-10-03)
@@ -407,3 +407,188 @@ the review and the log lines carry instead.
 - [x] Design: the three modules, the stand-in's additions, the file manifest by crate, the one
       touchpoint row, the visual check plan, risks, the user docs for Complete.
 - [x] Docs only: the ticket doc and this pair; no BACKLOG.md, no `active/`, no source, no cargo.
+
+### Promotion (2026-10-04)
+- Promoted into `active/`; the BACKLOG row removed; the ticket in-progress. Pre-flight green, no
+  other active pipeline. #643 to #646 landed (6bae63ef8c, fbadf3282f, ce257575e4, 6f6adc8ee1).
+- **Brain:** `brain ask` (consultation `cd68d2e7e30345e5b940a8eb798e716c`) returned due follow-ups
+  on other work only; a search found Rusty's TICKET-004 graph views and nothing on Marley's. Two
+  stray consultations from this step (`ea87ab76…`, a `--help` read as the question, and `a95fb1b0…`,
+  the same question asked twice) were closed with `brain no-decision`.
+- **The names as shipped** (replacing the draft's placeholders):
+  - The client: `rusty::call_tool(tool, arguments, cx) -> Task<Result<String, String>>`; the change
+    signal the `rusty::Announced` global, bumped on each embedded `list_changed`; `rusty::is_on`,
+    `is_connected` and `unavailable` (#643's words). Whether the connection is the service one is
+    `Rusty::source` (`Source::Service`), private to `rusty` and readable from its child modules.
+  - The opener: `rusty::page::open_later(workspace, slug, preview, focus, window, cx)`, deferred
+    itself; D12's call is `(…, false, true, …)`.
+  - The rail's fixed row: `rusty::brain::BrainView::render_fixed_row` (`brain.rs:916`), Today an
+    `IconButton` (`IconName::Notepad`, "Today's Note") before the search field; Graph goes after it.
+  - Following: #646's panel subscribes to `workspace::Event::ActiveItemChanged` and to the Page tab's
+    `PageEvent::UpdateTab` (L-claude-646-a-panel-that-follows-a-page-tab-needs-the-tabs-own-event-001);
+    the Graph tab needs the same pair, since a Page tab navigates inside itself.
+  - `"rusty"` is already in `test_action_namespaces` (#645): no Zed source changes. The only Zed
+    file is the root `Cargo.toml` (D11), whose row (`zed-touchpoints.md:47`) already names
+    `marley_rusty` among the members and `marley_browser` at `opt-level = 3` (`Cargo.toml:1110`).
+- **Seams re-read.** Zed's `gpui`, `workspace`, `ui`, `theme`, `git_ui` and `image_viewer` have no
+  commit since the draft (2026-10-02), so its Zed citations stand. Rusty's main (`13249a8`) moved
+  `BrainManager::graph` to `mod.rs:966-1121` and `decision_edges` to `decisions.rs:477-499`, same
+  behaviour: decision edges first, deduplicated by `(from, to)` so a typed edge wins over the body's
+  link; `consulted` from the property list, `supersedes` from the property, and `follows_up` from a
+  decision with `superseded_by` to its successor; unresolved nodes `new:<target>`; tag nodes
+  `tag:<lowercase>` titled `#<tag>`; the walk breadth first over every edge, depth at least 1.
+  `brain_page_types` answers `[{ page_type, dir, count }]` in `TYPE_DIRS` order. Ely's checkout at
+  `2f8b2f6` was read from a local clone.
+- **The stand-in as shipped** (#646's `graph(around, depth)`): it takes a page's type from its first
+  folder's name (`projects`, not `project`), draws no decision edges, takes neither `tags` nor
+  `unresolved`, deduplicates edges with a list scan, and has no `brain_page_types`. The Code phase
+  gives it Rusty's rules: the frontmatter `type`, else the folder's type (`TYPE_DIRS`), else `note`;
+  the three typed edges first; `unresolved` and `tags` nodes; a set for the edges, and a slug index
+  for resolving, since 3,000 pages with a scan per link would take the stand-in minutes.
+- **Decided at promotion:**
+  - **The 3,000-page vault is written by the scenario** into the scratch vault's `gen/` folder with a
+    seeded Python generator, not a stand-in mode: the stand-in already reads every page from disk on
+    each call and announces the change. Spec's Scope and `647-20` reworded.
+  - **R6's join has not landed** (#655 is queued after this): a local graph with no page focused
+    says "Open a page first", as the spec's Out says.
+  - D1 to D13 stand as drafted.
+
+## Phase 2 — Code (2026-10-04)
+- **Built.**
+  - `marley_rusty::graph` (new): the answer's types (unknown kinds read as `Other`), Rusty's filter
+    grammar as `Query`, `Filters`, `shown` (filter, legend, tags built as nodes, decision edges,
+    orphans, the 2,000 cap by degree with ties by id, the centre always kept), `type_order`,
+    `page_types_from_answer`.
+  - `marley_rusty::graph_layout` (new, Ely's MIT notice): `Layout` (Ely's force step in world
+    units, `seeded`, `run(pairs)`, `pin`, `release`, `warm`), `Viewport` (Ely's, kept about the view's
+    middle so it needs no view size until it draws), `nearest`, `places_by_id`, `float` (counts to
+    `f32` through `u16`, no cast). The constants were chosen with a NumPy prototype of the step over
+    graphs of 807, 120 and 30 nodes: gravity 4 with an 80-unit link settles every size in 108 steps
+    from cold, local edges near one link long, the vault a disc rather than a ring of orphans.
+  - `marley_workbench::rusty::graph_tab` (new): the tab, its two actions and `init` (from
+    `rusty::init`), `open`, `open_later` for the rail. The rail's fixed row gained Graph after
+    Today. The root `Cargo.toml` builds `marley_rusty` at `opt-level = 3` in the dev profile, its
+    `zed-touchpoints.md` row widened first. The in-app guide page gained its Graph article.
+  - The stand-in: Rusty's page types (frontmatter `type`, else the folder's, else `note`), the
+    three decision edges first and deduplicated by pair, `tags` and `unresolved`, the neighbourhood
+    walk, `brain_page_types`, and indexes so a 3,000-page vault answers in 0.05 s (a scan per link
+    would have taken minutes).
+- **Deviations from the plan, and why.**
+  - The actions live in `graph_tab.rs`, as `page.rs` and `knowledge_panel.rs` keep theirs.
+  - The layout's run is a `cx.spawn` loop that lends the layout to `background_spawn(lazy)` a
+    batch at a time and gets it back each time; a rebuild drops the task, so no generation check
+    is needed beyond the one kept for safety.
+  - A new scope or centre also fits once settled (the plan fitted only a tab's first read): a fresh
+    neighbourhood laid out cold is nowhere near the old view. A refresh still never fits.
+  - The Depth row shows in Vault too, its buttons off, so the panel's rows keep their places
+    across scopes (found in Test, below).
+  - The centre is pinned where it was, not always at the origin, and stays pinned when dragged and
+    dropped (found in Test, below).
+  - The pairs' push is the offset times k²/d², with plain products: no `mul_add`, no `hypot`
+    (found in Test, below).
+  - The 3,000-page vault is written by the scenario (promotion).
+- **Review.**
+  - Re-entrancy: every open goes through `open` inside the workspace's update (actions) or
+    `open_later` in `window.defer` (the rail); a node's click calls `page::open_later`, which
+    defers; `open` reads a `GraphView` and updates it while the workspace updates, never the
+    reverse. The `ActiveItemChanged` handler reads the workspace after its update ends.
+  - Errors reach the tab: a failed read shows its root cause in the header with Read again and
+    keeps the last graph; a parse error names the tool; `brain_page_types` failing logs and keeps
+    the colours by name.
+  - Off means nothing: `drop_graph` drops the read and the run (both tasks), and `read_if_needed`
+    asks only while on and connected.
+  - Panics: indexes are by construction (`shown`'s vectors share a length); `slots` is a fixed
+    array of 12 indexed by two small enums.
+  - Provenance: Ely's MIT code carries the notice in `graph_layout.rs`, and `graph_tab.rs` names
+    what it follows; nothing from Warp; no Zed function body copied.
+- **Clippy rounds:** a `const fn`, `map_or_else` over an `if let` chain (now `Term::read`), the
+  `shown` doc's first paragraph, `self` by value for `to_view` and `to_world`, `f32::midpoint`,
+  `unwrap_or_else`; borrows in `open`; `entity_id` needs the entity's context; unread fields and
+  by-reference contexts.
+- **Gate:** `just gate-diff` after the Test phase's fixes (below).
+
+## Phase 3 — Test (2026-10-04)
+- **Scenario:** `script/e2e/647-brain-graph-tab.sh`, `compositor sway`, the stand-in over twelve
+  made-up pages (six types, links, the three typed edges, `storage` and `storage/cold`, a missing
+  target, two orphans), later 3,000 generated pages. Each step that changes the graph waits for
+  Marley.log's next "graph layout:" line. Three runs; the third's every check passes (the local
+  graph asked around orbit, depth 2 asked, unresolved asked, the cap within 300 steps, no
+  `brain_graph` once Rusty was off). The layout has no randomness: runs two and three drew the
+  same places.
+- **Shots of the third run, each read:**
+  - `647-01-vault`: "Graph · 12 nodes", the pages in six accent colours, the legend's six types
+    with counts and the four line kinds, the dashed typed edges, the Depth row off in Vault.
+    REQ-001, REQ-002.
+  - `647-02-click-opens-page`: after `path:projects/orbit` and Fit, the click on the middle opened
+    Orbit's Page tab, the Graph tab in the strip. REQ-003, REQ-025.
+  - `647-03-local`: "Local graph · Orbit · depth 1 · 6 nodes", Orbit ringed in the middle and its
+    five neighbours. REQ-004.
+  - `647-04-depth-2`: 10 nodes, 2 lit in the Depth row; the call log holds `"depth": 2`. REQ-005.
+  - `647-05-hover`: Orbit and its neighbours lit, the links to them in the accent, the rest dim
+    with faded titles. REQ-006.
+  - `647-06-decision-edges`: "Local graph · Use Orbit", consulted (blue) to Orbit survey and Cold
+    storage, supersedes (orange) to Old Orbit plan, follows up (green) from Keep Lantern, plain
+    links grey; zoomed, no dash runs across the gap between two edges. REQ-007.
+  - `647-07-follows-page`: Old Orbit plan's tab brought forward while Local, then `rusty: open
+    graph`: "Local graph · Old Orbit plan", it in the middle. REQ-008.
+  - `647-08-type-hidden`: 9 nodes, no decision, the entry faint. REQ-009.
+  - `647-09-filter-tag`: `tag:storage`: Orbit, Warm cache and Cold storage (`storage/cold`).
+    REQ-010.
+  - `647-10-filter-path`: `path:research/`: the two research pages. REQ-011.
+  - `647-11-tags`: `#storage` and `#storage/cold` joined to their pages, 14 nodes. REQ-012.
+  - `647-12-unresolved`: `ghost-page` hollow beside Standup. REQ-013.
+  - `647-13-no-decision-edges`: no dashed line, the legend's kinds down to Links. REQ-014.
+  - `647-14-no-orphans`: 13 to 10 nodes: the two orphans and Old Orbit plan, whose only edge was a
+    decision's, now off. REQ-015.
+  - `647-15-pan`: the graph moved right and up by the drag's 200 and 100 px. REQ-016.
+  - `647-16-zoom`: five wheel steps up over Orbit: about twice the size, Orbit still under the
+    pointer, titles shown. REQ-017.
+  - `647-17-drag-node`: Orbit held 150 px right, under the pointer, its neighbours drawn after
+    it. REQ-018.
+  - `647-18-before-change`, `647-19-after-change`: New idea added beside Orbit, the centre where it
+    was dropped, the rest settled within a few pixels of their places. REQ-019.
+  - `647-20-capped`: "Graph · 2,000 nodes" and "2,000 of 3,013 nodes, the most linked; filter or
+    open a local graph"; the run had settled before the shot, so no "settling". Marley.log:
+    "graph layout: 2000 nodes, 5822 edges, 108 steps in 16 batches, 395 ms of work in 779 ms".
+    REQ-020, REQ-021.
+  - `647-21-rail-graph`: the rail's Brain view, Today and Graph in its fixed row; the Graph tab in
+    front. REQ-022.
+  - `647-22-off`: "Rusty is off…" in the tab; the call log's `brain_graph` count unchanged after
+    the edit. REQ-023.
+- **Fixed in Test** (each with clippy, the build and the scenario again):
+  - The capped layout took 4.3 s: 108 one-step batches, each waiting on the window's thread for the
+    frame under way. Replacing `mul_add` and `hypot` in the pair loop left it at 4.5 s, which ruled
+    them out; a batch of 16 M pair checks brought it to 0.78 s (0.40 s of work, 1.8 ns a pair). The
+    run line now reports batches and work.
+  - The Depth row moved the panel's rows between scopes, so a click measured in one missed in the
+    other: the row shows in Vault, off.
+  - A dragged centre was released, and the next read pinned it back at the origin, moving the
+    whole picture: the centre is pinned where it was kept and stays pinned when dropped.
+  - Five wheel notches zoomed out far past the view: the scenario turned the wheel down, and gpui
+    reports a notch as three lines, so 1.15 a line was 1.52 a notch. Now 1.05 a line; the
+    scenario turns it up.
+  - The header now sits on a backing, readable over a dense graph.
+- **Not reached by a scenario:** REQ-024 (a failed `brain_graph`; review: the error reaches
+  `notice`, drawn in the header with Read again, and the last graph stays); a pinch (no touchpad
+  under headless sway; it shares the wheel's zoom); the user's own vault (R-D8).
+
+## Phase 4 — Complete (2026-10-04)
+- **Docs:** `CHANGELOG.md` (Added); `docs/marley/guide.md` (the Graph tab section and the palette
+  row); `docs/marley/walkthrough.md` (stop 2.15 and Appendix B's row);
+  `docs/marley_architecture/marley_workbench.md` (the Graph tab) and `marley_rusty.md` (`graph`,
+  `graph_layout`, the stand-in's graph); `docs/marley/rusty-in-marley.md` (R5 shipped);
+  `docs/marley/three-prong-plan.md` (C2); `docs/marley/zed-touchpoints.md`'s `Cargo.toml` row
+  (written before the line, checked against what shipped).
+- **Knowledge:** F-claude-647-the-capped-graph-took-four-seconds-in-one-step-batches-001,
+  F-claude-647-a-dropped-centre-and-a-read-moved-the-whole-local-graph-001,
+  F-claude-647-the-graph-panels-rows-moved-between-scopes-001,
+  PR-claude-647-log-a-background-runs-work-and-wall-time-and-read-them-in-the-scenario-001,
+  L-claude-647-a-run-of-background-batches-waits-on-the-frame-each-time-001,
+  L-claude-647-mul-add-and-hypot-are-library-calls-on-x86-64-001,
+  L-claude-647-gpui-reports-a-wheel-notch-as-three-lines-001,
+  AD-claude-647-the-graph-tab-lays-out-off-the-window-thread-and-caps-at-2000-001.
+- **Brain:** `brain decide` on consultation `cd68d2e7e30345e5b940a8eb798e716c`:
+  `decisions/marleys-graph-tab-lays-out-off-the-windows-thread-and-caps-at-2000-nodes-647`,
+  follow-up 2026-11-04.
+- Ticket closed, pipeline archived, committed and pushed.
+

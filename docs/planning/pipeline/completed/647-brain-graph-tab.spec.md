@@ -1,7 +1,7 @@
 ---
 pipeline_id: ae551350-ede4-486a-943b-dda8e33a158c
-ticket: docs/planning/tickets/open/TICKET-647-brain-graph-tab.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-647-brain-graph-tab.md
+status: Phase 4 — Complete PASS
 title: "The Graph tab: Rusty's vault as a graph, local or whole"
 type: feature
 slice: Rusty in Marley R5 (rusty-in-marley.md R-D3, R-D10)
@@ -68,10 +68,12 @@ the gpui components we found here", "Queue all five".
   `[profile.dev.package]`, beside `marley_browser`'s.
 - **Fixtures and the stand-in** (`crates/marley_rusty/fixtures/`, `stand_in/rusty-mcp`): the
   scratch vault gains the graph this ticket's scenario reads (pages of five types, links, the
-  three decision edge kinds, tags with a nested one, an unresolved link, two orphans); the
-  stand-in gains a seeded generator for a 3,000-page vault, chosen through its state folder; its
-  `brain_graph` (#646's, with `around`) answers the whole vault, `depth` and `unresolved` as Rusty
-  does (`rusty-core/src/brain/mod.rs:885-1044`); and it answers `brain_page_types`.
+  three decision edge kinds, tags with a nested one, an unresolved link, two orphans); its
+  `brain_graph` (#646's, with `around`) answers the whole vault, the page types, the three decision
+  edge kinds, `depth`, `tags` and `unresolved` as Rusty does (`rusty-core/src/brain/mod.rs:966-1121`,
+  `decisions.rs:477-499`), and it answers `brain_page_types`. The 3,000-page vault is written by the
+  scenario into the scratch vault's `gen/` folder with a seeded generator (promotion: the stand-in
+  reads every page from disk on each call, so it needs no mode of its own).
 - **The in-app guide page** (`crates/marley_workbench/guide/index.html`): a Graph article, in the
   Code phase (the commit receipt binds the file).
 - `script/e2e/647-brain-graph-tab.sh`.
@@ -183,7 +185,7 @@ Rusty copies. No Warp code.
   `:303-309`; labels fading in with the zoom, `:347-360`; click, drag, pan and wheel, `:365-422`;
   the panel, `:447-562`), `Main.qml:400-416` (one global and one local graph tab, the local one
   following the last page), `brain_graph` (`rusty-mcp/src/main.rs:643-656`, `:1402-1415`) and
-  `BrainManager::graph` (`rusty-core/src/brain/mod.rs:885-1044`).
+  `BrainManager::graph` (`rusty-core/src/brain/mod.rs:966-1121`, at Rusty's `13249a8`).
 
 ## UI proof
 `script/e2e/647-brain-graph-tab.sh` (`compositor sway`: it clicks, drags and turns the wheel).
@@ -204,8 +206,9 @@ the first run's shots, the layout having no randomness (L-504). Shots:
 - `647-06-decision-edges`: a decision page opened from the graph, then the local graph around it:
   a `consulted`, a `supersedes` and a `follows_up` edge dashed, each in its colour, beside plain
   links, the legend naming the three.
-- `647-07-follows-page`: a neighbour clicked in the local graph (its Page tab opens), then `rusty:
-  open graph` to bring the Graph tab back: centred on the neighbour.
+- `647-07-follows-page`: a neighbour's Page tab brought to the front while the graph is Local (the
+  run's key for that page; a click on a node is `647-02`'s), then `rusty: open graph` to bring the
+  Graph tab back: centred on the neighbour.
 - `647-08-type-hidden`: Vault; the legend's `decision` entry pressed: no decision nodes, the entry
   faint.
 - `647-09-filter-tag`: the filter `tag:storage`: the pages tagged `storage` or `storage/...`.
@@ -220,8 +223,8 @@ the first run's shots, the layout having no randomness (L-504). Shots:
   its neighbours drawn after it.
 - `647-18-before-change` and `647-19-after-change`: the stand-in adds a page linking to orbit and
   sends `list_changed`: the new node beside orbit, the other nodes where they were.
-- `647-20-capped`: the stand-in switched to the generated 3,000-page vault, Vault: "2,000 of 3,000
-  nodes, the most linked" and "settling"; the run checks Marley.log's layout lines.
+- `647-20-capped`: 3,000 generated pages written into the scratch vault, Vault: "2,000 of N nodes,
+  the most linked" and "settling"; the run checks Marley.log's layout lines.
 - `647-21-rail-graph`: the Page tab in front, the rail's Brain view, the Graph entry after Today
   clicked: the
   Graph tab in front.
@@ -240,7 +243,8 @@ the first run's shots, the layout having no randomness (L-504). Shots:
   keeps the page of the Page tab last made active rather than the active item's, since the Graph
   tab is itself the active item while it shows. A change while the tab is hidden is read when it
   shows. The centre is held at the origin, so it sits in the middle after Fit, and it survives
-  every filter and the cap.
+  every filter and the cap. Amended in Test: the centre is held where it is, at the origin when new,
+  and a centre dragged and dropped stays held there, so a read again does not move the picture.
 - D3 — Tags as nodes are built in Marley from each shown page's `tags`, never through
   `brain_graph`'s `tags: true`. The server walks a local graph's neighbourhood over tag edges too,
   so a local graph with tags would take in every page sharing a tag (193 tags on 1,474 page-tag
@@ -256,7 +260,9 @@ the first run's shots, the layout having no randomness (L-504). Shots:
 - D5 — Off the main thread, with no lock and no channel. The tab owns the `Layout` and lends it to
   the background executor for one batch at a time
   (`cx.background_spawn(futures::future::lazy(..))`, L-482, L-507), getting it back with the
-  positions to draw. A batch is as many steps as fit about 2 M pair checks. Each step cools ×0.96
+  positions to draw. A batch is as many steps as fit about 16 M pair checks (amended in Test: at
+  2 M a batch was one step at the cap, and each batch waits on the window's thread for the frame
+  under way, so 108 one-step batches took four seconds in the debug build). Each step cools ×0.96
   (Ely's), and the run stops at the heat floor or after 300 steps (d3-force's default run),
   whichever is first; a drag, a filter or a read warms it a little and starts it again. A pin or
   release made while a batch is out waits for its return. The main thread only draws and finds
@@ -276,7 +282,8 @@ the first run's shots, the layout having no randomness (L-504). Shots:
 - D8 — Input as Rusty's (`GraphView.qml:365-422`): the wheel zooms about the pointer between 0.15
   and 6; a drag on the background pans; a drag on a node holds it under the pointer and lets it
   go on release; a press that moves less than 3 px is a click. A pinch zooms, as Zed's image
-  viewer. Rejected: the image viewer's plain wheel panning (Ctrl+wheel to zoom), since a graph
+  viewer. A wheel line zooms by 1.05: gpui reports a notch as three lines, so a notch is about 1.16
+  (amended in Test, from 1.15 a line). Rejected: the image viewer's plain wheel panning (Ctrl+wheel to zoom), since a graph
   has nothing to scroll and Rusty and Obsidian zoom on the wheel.
 - D9 — Reads come on opening, on a change of scope, centre, depth or Unresolved links, and on
   `list_changed` while the tab is its pane's active item; a hidden tab marks itself stale and reads
@@ -285,7 +292,8 @@ the first run's shots, the layout having no randomness (L-504). Shots:
   later changes fold into one more. A read keeps every staying node's place, starts a new node
   beside its first placed neighbour (else on Rusty's golden-angle spiral,
   `GraphView.qml:128-136`), and warms the layout a little, so the picture does not jump. Fit
-  runs after the first settle of a tab's first read and on the Fit button, never on a refresh.
+  runs after the first settle of a tab's first read and on the Fit button, never on a refresh;
+  amended in Code: also after the first settle of a new scope or centre, laid out afresh.
 - D10 — Ported, not depended on (R-D10). Ely's `Force` and `Viewport` go into
   `marley_rusty::graph_layout` with Ely's MIT notice, in world coordinates with the ideal edge
   length a constant (Rusty's link distance) instead of Ely's unit square, rewritten to the Marley
@@ -298,7 +306,8 @@ the first run's shots, the layout having no randomness (L-504). Shots:
   since #489 (a debug build took 130 ms a frame there). The layout is tight float arithmetic, the
   scenarios run the debug build, and an unoptimized step is estimated at ten to thirty times
   slower. One line, in a ledger row that exists.
-- D12 — A click on a page node calls #645's `rusty::page::open_later(workspace, slug, false, ..)`,
+- D12 — A click on a page node calls #645's `rusty::page::open_later(workspace, slug, false, true,
+  window, cx)` (not a preview, with the focus),
   the opener for Marley's own callers, which runs in `window.defer`, so the workspace's walk over
   its items never meets the Graph tab in the middle of its own update (AD-609's reason). The page
   opens as a kept tab with the focus, where #645 opens pages (Rusty's `openPage(slug, false)`), and

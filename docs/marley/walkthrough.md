@@ -599,6 +599,31 @@ deletes.
   selected page.
 - [ ] Step 6: the field empties and the page view is back.
 
+### 2.15 The Graph tab (#647), optional
+
+Needs 2.12's setup: Rusty installed and on. This stop only reads your vault.
+
+1. Run `rusty: open graph` with no brain page in front.
+2. Rest the pointer on a dot, then click one.
+3. Run `rusty: open local graph`. Click 2 beside Depth.
+4. Turn the wheel over the graph, drag the background, then drag a dot and let it go.
+5. In the panel click Vault, type `type:decision` in the filter, then clear it. Click a type in the
+   legend twice. Turn Tags on and off.
+6. Click Fit, then the close button, then the button that brings the panel back.
+7. Click the graph icon after Today in the rail's Brain view.
+
+- [ ] Step 1: a Graph tab: your pages as dots coloured by type, the header's count, the legend's
+  types with their counts; decision edges dashed in three colours.
+- [ ] Step 2: the dot and its neighbours light, the rest dim, its title shows; the click opens
+  the page in a tab, the Graph tab staying open.
+- [ ] Step 3: "Local graph" around that page, ringed in the middle; depth 2 brings more dots.
+- [ ] Step 4: the view zooms about the pointer, moves with the drag, and the dot follows the
+  pointer while its neighbours move after it.
+- [ ] Step 5: only decisions show while the filter holds; the type's dots go and come back, its
+  entry faint while hidden; Tags adds a dot per tag joined to its pages.
+- [ ] Step 6: Fit shows every dot; the panel folds to a button and comes back.
+- [ ] Step 7: the Graph tab comes to the front.
+
 ## Part 3. The editor
 
 Marley's editor is Zed's. This part checks the everyday tools. The first time you open
@@ -1708,6 +1733,7 @@ Every Marley command runs from the palette. The ones with no key of their own:
 | `marley: system one check`, `marley: open decisions` | System One's check and its log |
 | `marley: toggle fleet` | Show or hide the Fleet panel (#607) |
 | `rusty: toggle knowledge panel` | Show or hide the Knowledge panel, while Rusty is on (#646) |
+| `rusty: open graph`, `rusty: open local graph` | The Graph tab, on the vault or the page in front (#647) |
 | `multi workspace: next project`, `previous project`, `next thread`, `previous thread` | Walk the rail |
 
 ## Appendix C. Not in yet

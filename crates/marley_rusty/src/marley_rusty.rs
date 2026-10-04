@@ -11,6 +11,8 @@
 //! - [`vault`]: the vault's tree, brain search's hits, and the Brain view's rows (#644).
 //! - [`page`]: a rendered page, the wikilink pass for Zed's renderer, and a tab's history (#645).
 //! - [`knowledge`]: a page's tags, backlinks and links, and search snippets' marks (#646).
+//! - [`graph`]: the vault as a graph and the part the Graph tab shows; [`graph_layout`]: where its
+//!   nodes sit and how its view looks at them (#647).
 
 // gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
 // Zed's crates keep them at warn (CONSTITUTION §0).
@@ -27,6 +29,8 @@
     )
 )]
 
+pub mod graph;
+pub mod graph_layout;
 pub mod knowledge;
 pub mod page;
 pub mod settings;

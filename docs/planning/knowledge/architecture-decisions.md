@@ -3849,3 +3849,22 @@ marks) are `marley_rusty::knowledge`; the rows are Zed's `ui`. Rejected:
   project view, R6, goes);
 - a `picker` for search (it ranks by its own fuzzy match; Rusty ranks), and searching as typed (an
   embedding provider would embed each partial query, off the machine when hosted).
+
+## AD-claude-647-the-graph-tab-lays-out-off-the-window-thread-and-caps-at-2000-001
+*decided at: 2026-10-04 · status: shipped · builds on: AD-claude-645-a-brain-page-is-drawn-by-zeds-markdown-after-marleys-wikilink-pass-001, AD-claude-646-the-knowledge-panel-is-always-added-and-hides-itself-while-rusty-is-off-001, AD-claude-609-the-agent-tab-is-read-only-and-its-samples-live-in-memory-001 · plan: docs/marley/rusty-in-marley.md R-D3, R-D10*
+
+Rusty's vault as a graph is one center tab per workspace, `marley_workbench::rusty::graph_tab::GraphView`,
+scoped Local (the brain page last in front, one to four links out, its centre held) or Vault. It
+draws `brain_graph` with Ely's Fruchterman-Reingold step ported into `marley_rusty::graph_layout`
+(world units, a link of 80, gravity 4, cooling 0.96 from four links to 0.05, at most 300 steps), run
+on the background executor in batches of about 16 M pair checks that come back to be drawn; the
+pair loop uses plain products. Past 2,000 shown nodes the most linked stay and the header says so.
+Tags are built as nodes in Marley, so a local graph stays local; a decision's three typed edges are
+dashed in the status colours, page types in the theme's accents. Reads follow `list_changed` while
+the tab shows, or its next showing; Rusty off drops everything. Rejected:
+- Rusty's two tabs (global and local), for one tab with a scope;
+- `brain_graph`'s `tags: true`, which walks a local graph over tag edges into most of the vault;
+- the layout on the main thread with an animation frame per step (Ely's, Rusty's timer), which an
+  800-page vault already makes slow;
+- a lock or channel between the layout and the drawing; the layout is lent and returned;
+- Barnes-Hut now: the cap holds the cost; it is the way past the cap.
