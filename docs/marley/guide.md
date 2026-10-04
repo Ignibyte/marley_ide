@@ -679,7 +679,24 @@ with Shift+Tab goes at its next event. Otherwise the arguments it was started wi
 `--dangerously-skip-permissions` or `--permission-mode bypassPermissions` for Claude Code, and
 for Codex `--sandbox danger-full-access` (or `-s`), a `--config` of `sandbox_mode` to
 `danger-full-access`, or `--dangerously-bypass-approvals-and-sandbox`. A full access Codex's own
-`config.toml` sets shows no chip: Codex tells Marley nothing but its arguments.
+`config.toml` sets shows no chip: Codex tells Marley nothing but its arguments, unless it runs
+against its own App Server, below.
+
+**Codex's own App Server** (#650), Codex App Server in the Marley settings, off by default. On,
+each Codex Marley launches in a local project (the `+`, New Agent, a worktree agent, a launch
+config) runs against an App Server of its own: Marley starts `codex app-server` for the terminal,
+types `codex --remote unix://… --cd <folder>` once it is up, and joins it as a second client once
+Codex has. Codex's row then reads the thread's own state, `working`, `waiting on approval`,
+`waiting on input`, `idle`, or `failed` with the turn's error on the next line, and its token use,
+`working · 12k tokens`, however long the terminal stays quiet. A waiting Codex enters the inbox as
+Codex's, and a click shows its terminal, where you answer it. The close guard asks before a
+working or waiting Codex closes. The `full access` chip follows the sandbox the thread reports,
+whatever the arguments said, and its tooltip says so. The server's commands run with the
+environment the terminal's programs get, and the server stops with its terminal or with Marley.
+It runs on Codex 0.155.1 to 0.158.0; on another version Codex starts as before, and the agent
+bar's chip says which version Marley found (App Server on Untested Codex, in the Agent Versions
+section, runs it anyway). Marley answers nothing Codex asks. While it is joined, the user agent
+Codex sends with its requests names Marley. A Codex you type by hand runs as you typed it.
 
 The first time Claude Code starts in bypass it asks you to accept its warning, in the terminal.
 
@@ -1930,8 +1947,8 @@ Marley keeps its settings in `~/.config/marley/settings.json`, in Zed's format (
 the file; Ctrl+, opens the Settings window). `marley: open settings` opens the Settings window on its Marley page,
 first in the list (#515). The page has a Layout section, with the layout as a dropdown and the
 Prompt Editor toggle (#627), an Agents
-section with Redact Secrets for Agents (#516) and Agent Prompts in a Tab (#649), an Agent Versions section with Prompt Tags on
-Untested Claude Code (#648), a Voice section with the Voice toggle (#642), a Rusty
+section with Redact Secrets for Agents (#516), Codex App Server (#650) and Agent Prompts in a Tab (#649), an Agent Versions section with Prompt Tags on
+Untested Claude Code (#648) and App Server on Untested Codex (#650), a Voice section with the Voice toggle (#642), a Rusty
 section with Rusty's switch, its connection and Rusty Tools for Agents, and the Rusty's Server page
 (#643), and a Privacy section with the two telemetry toggles; later Marley settings add their
 sections there.
@@ -1950,10 +1967,13 @@ Marley's own keys in the file:
     "redact_secrets_for_agents": true,
     "redaction_patterns": ["INTERNAL-[0-9]{6}"],
     // What runs on an agent version Marley has not tested it on (#648): claude_prompt_tags, the
-    // tags that tell your prompts from the ones Claude Code adds. Off by default.
-    "allow_untested_versions": { "claude_prompt_tags": false },
+    // tags that tell your prompts from the ones Claude Code adds, and codex_app_server (#650).
+    // Off by default.
+    "allow_untested_versions": { "claude_prompt_tags": false, "codex_app_server": false },
     // Agent prompts in a tab (#649): the agent's own editor key opens its prompt in a Marley tab.
     "agent_editor_in_tab": false,
+    // Codex's own App Server (#650): the rail reads each launched Codex's thread. Off by default.
+    "codex_app_server": false,
     // Dictation through Voxtype: the agent bar's microphone and marley: toggle dictation. Off
     // until you turn it on (#642).
     "voice": { "enabled": false },

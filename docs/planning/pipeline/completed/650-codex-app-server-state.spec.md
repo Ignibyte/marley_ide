@@ -1,7 +1,7 @@
 ---
 pipeline_id: 9b8291bc-2e89-4f11-9b37-fa1ed3c6e3a5
-ticket: docs/planning/tickets/open/TICKET-650-codex-app-server-state.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-650-codex-app-server-state.md
+status: Phase 4 — Complete PASS
 title: "Codex's state from its own App Server"
 type: feature
 slice: prong 2, C1 (a terminal's own agent state, #519's line, now for Codex); design note B1, part 1
@@ -44,7 +44,8 @@ in this slice.
   launch config's agent item) with the switch on and the version in range, it starts
   `<codex> app-server --listen unix://<socket>` through `process.rs` while the terminal's shell
   starts: in the terminal's folder, with the environment Zed gives that folder's processes
-  (`ProjectEnvironment::directory_environment`), `agent_env`'s variables, and the terminal's
+  (`ProjectEnvironment::directory_environment`, else Marley's own when the folder is in no
+  worktree), `agent_env`'s variables, and the terminal's
   `MARLEY_TERMINAL_ID` and `MARLEY_PROJECT`. Once the socket is there (bounded at 5 s) it types
   the launch line. The server and its socket last exactly as long as the terminal, as #596's
   askpass proxy does; Marley's quit ends them.
@@ -66,24 +67,29 @@ in this slice.
   WebSocket on the Unix socket (`smol`'s `UnixStream`, `async_tungstenite::client_async` at
   `ws://localhost/rpc`, as `marley_browser::cdp::connect_unix` reaches the relay). Messages carry
   no `jsonrpc` field and notifications an `emittedAtMs`; a message with both an id and a method is
-  a server request, which this slice reads and never answers (D9). A call waits at most 5 s.
+  a server request, which this slice reads and never answers, not even with an error, since any
+  subscriber's reply resolves it and an error reads as a denial (D9). A call waits at most 5 s.
 - **Joining second (D10):** the client opens no connection until the TUI's own connection shows on
   the server's socket (an accepted connection under its path in `/proc/net/unix`, checked every
   500 ms while the terminal lives) and 1 s has passed, so the TUI's `initialize` names the
-  server's originator. Then `initialize` with `clientInfo` `marley` and Marley's version, no
-  experimental API, `optOutNotificationMethods` for the item deltas Marley does not read (the
-  server drops a connection whose queue fills), and `initialized`.
-- **Following the thread (D3):** `thread/loaded/list` once joined, each second until a lead thread
-  is found; afterwards new threads come by `thread/started`, which the server sends to every
-  connection. The lead is the newest thread that is not ephemeral (the TUI's side threads, for a
-  title and the like, are), has no `parentThreadId`, and whose `threadSource` is `user` or absent.
-  It is subscribed with a bare `thread/resume { threadId, excludeTurns: true }`, the way the TUI
-  itself rejoins a loaded thread, whose answer gives its status, approval policy and sandbox; the
-  same call at each `turn/started` reads the policies again, since `thread/settings/updated` goes
-  only to clients of the experimental API and a change made with `/approvals` or `/permissions`
-  takes effect at the next turn. A lead replaced (Codex's `/new`), or left when Codex leaves the
-  terminal's foreground, is unsubscribed (`thread/unsubscribe`), since a subscriber keeps a thread
-  loaded.
+  server's originator. Then `initialize` with `clientInfo` `marley` and Marley's version, the
+  experimental API as the TUI asks for it (D3), `optOutNotificationMethods` for the item deltas
+  Marley does not read (the server drops a connection whose queue fills; never `item/started`,
+  which #651 reads), and `initialized`.
+- **Following the thread (D3):** `thread/started` and `thread/status/changed` reach every
+  initialized connection, so the state needs no subscription. Once joined, `thread/loaded/list`
+  and a `thread/read` of each id find a lead the TUI started before Marley joined, each second
+  until there is one; afterwards new threads come by `thread/started`. The lead is the newest
+  thread that is not ephemeral (the TUI's side threads, for a title or a recap, are), has no
+  `parentThreadId`, and whose `threadSource` is `user` or absent. A lead made after Marley joined
+  is subscribed already, since the server attaches every initialized connection to each thread it
+  makes; one made before is subscribed with a bare `thread/resume { threadId, excludeTurns: true }`
+  only while its status is `idle`, since a resume renames the thread's client until the TUI's next
+  `turn/start` and Codex offers plugin installs only to `codex-tui`. Its answer gives the approval
+  policy and sandbox; `thread/settings/updated` gives them afterwards. Every other thread Marley
+  was attached to (side threads, subagents), a lead replaced (Codex's `/new`), and a lead left
+  when Codex leaves the terminal's foreground is unsubscribed (`thread/unsubscribe`), since a
+  subscriber keeps a thread loaded.
 - **The fold (D7), pure, in `marley_agent::codex_events`:** the read types (thread, status, turn,
   token use, thread settings, the resume answer) and a `fold` from a notification or an answer to
   `marley_fleet` events for the terminal's seat, as `claude_events::fold` does. `active` with no
@@ -238,7 +244,7 @@ terminal's PATH (its `.bashrc` through `terminal_env`), with `CODEX_HOME` a scra
 answers `--version` from a file the scenario writes (`codex-cli 0.155.1`). As `app-server
 --listen unix://P` it serves the WebSocket upgrade and the JSON-RPC on `P` as the 0.158.0 source
 does (`initialize` with a `userAgent` in the real shape, `thread/start`, `thread/loaded/list`,
-`thread/resume`, `thread/unsubscribe`; `thread/started` and status to every initialized
+`thread/read`, `thread/resume`, `thread/unsubscribe`; `thread/started` and status to every initialized
 connection; a new thread's subscribers are the connections initialized at its start), logs each
 method with the client that sent it, and plays recorded notifications, in the 0.155.1 schema's
 shapes, to the thread's subscribers. As `--remote unix://P` it is the TUI: it prints its
@@ -248,7 +254,7 @@ thread for its folder, and turns each line typed into it into a cue the server p
 approval request; `input`: `waitingOnUserInput`; `done`: `turn/completed`, `idle`, 15,800 tokens;
 `fail`: a failed `turn/completed` with an error message, then `idle`; `full` and `scoped`: the
 thread's sandbox moved to `dangerFullAccess` and to `workspaceWrite`, sent as
-`thread/settings/updated` to experimental clients only and answered by the next `thread/resume`;
+`thread/settings/updated` to the thread's subscribers that asked for the experimental API;
 `crash`: the server exits).
 Without `--remote` it prints its arguments and reads its input, as #532's fake does. Shots:
 - `650-01-off`: the switch off: the terminal shows `codex` started with no `--remote`; its row
@@ -275,7 +281,7 @@ Without `--remote` it prints its arguments and reads its input, as #532's fake d
 - `650-14-page`: the Marley page: the Agents section's Codex App Server toggle, off, and the Agent
   Versions section's App Server on Untested Codex.
 After the run the scenario checks the stand-in's logs: Marley's `initialize` came after each
-TUI's, its methods are only the four of REQ-017, and no stand-in server outlived its terminal.
+TUI's, its methods are only the five of REQ-017, and no stand-in server outlived its terminal.
 
 ## Locked-In Decisions
 - D1 — One App Server per Codex terminal Marley launches, owned by Marley and living exactly as long
@@ -293,13 +299,16 @@ TUI's, its methods are only the four of REQ-017, and no stand-in server outlived
 - D2 — Marley's own small client: the pure fold in `marley_agent::codex_events` beside
   `claude_events`, the IO in `marley_workbench::codex_server`, shaped as `marley_browser::cdp` but
   reading server requests too, since #651 answers them. The harness's client is not shared (Out).
-- D3 — Marley follows what reaches it and subscribes for the rest: `thread/started` and
-  `thread/status/changed` come to every initialized connection, but the TUI's first thread is
-  made before Marley joins (D10), so it is found with `thread/loaded/list` and subscribed with
-  `thread/resume`. The policies come from `thread/resume`, at the subscription and at each turn's
-  start: `thread/settings/updated` is experimental (the generated bundle lists it among the stable
-  notifications all the same), and Marley stays on the stable API, so a change shows when the turn
-  it applies to starts.
+- D3 — Marley follows what reaches it and subscribes for the rest, without touching the TUI's
+  turn: `thread/started` and `thread/status/changed` come to every initialized connection; a lead
+  made before Marley joined (D10) is found with `thread/loaded/list` and `thread/read` and
+  subscribed with `thread/resume` only while idle, since a resume renames the thread's client
+  until the TUI's next `turn/start`. The policies come from that answer and then from
+  `thread/settings/updated`, which Codex sends only to clients of the experimental API; Marley
+  asks for it, as the TUI does, and reads only `threadSettings.approvalPolicy` and
+  `sandboxPolicy`, whose shapes agree in both ends' bundles. Rejected at promotion: a
+  `thread/resume` at each `turn/started` (inside the TUI's turn) and the stable API alone (the
+  chip would lag a turn).
 - D4 — Off by default, applied at the next launch: it changes how Codex starts (two arguments, a
   server Marley owns, Codex's commands under the project's environment rather than the shell's,
   the user agent's suffix, D10), behaviour a user already has. Turning it off never stops a
@@ -348,7 +357,7 @@ the review of the diff, or the gate's exit code.
 | REQ-014 | IF a terminal's App Server exits while its Codex runs, THEN its row shall read `failed` with "Codex's App Server stopped". | Shot `650-12-server-gone` |
 | REQ-015 | IF the installed Codex, or the server's reported version, is outside 0.155.1 to 0.158.0 and `marley.allow_untested_versions` does not allow `codex_app_server`, THEN the system shall start Codex as with the switch off and #648's chip shall say the part is off and why. | Shot `650-13-outside`; review |
 | REQ-016 | WHEN a terminal with a Codex App Server closes, or Marley quits, the system shall end that server and remove its socket. | Review; the scenario's check that no stand-in server is left |
-| REQ-017 | The system shall send a Codex App Server no request other than `initialize`, `thread/loaded/list`, `thread/resume` and `thread/unsubscribe`, and answer none of its requests. | Review; the stand-in's method log |
+| REQ-017 | The system shall send a Codex App Server no request other than `initialize`, `thread/loaded/list`, `thread/read`, `thread/resume` and `thread/unsubscribe`, and answer none of its requests. | Review; the stand-in's method log |
 | REQ-018 | The system shall send its `initialize` to a Codex App Server only after the terminal's TUI has connected to it. | Review; the stand-in's log of `initialize` order |
 | REQ-019 | The Marley page shall offer the Codex App Server toggle in its Agents section, off by default, and App Server on Untested Codex in its Agent Versions section. | Shot `650-14-page` |
 

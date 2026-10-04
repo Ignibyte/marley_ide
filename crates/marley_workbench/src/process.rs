@@ -1,7 +1,7 @@
 //! The workbench's one module that starts programs (CONSTITUTION §14, gate:22).
 //!
-//! `claude`, `voxtype`, `git` and `gh` run through `output` and `follow`, and nothing else in
-//! the crate spawns a process. A program the workbench runs goes through one of them, so the
+//! `claude`, `voxtype`, `git`, `gh`, `rh` and `codex` run through `output`, `follow` and `serve`,
+//! and nothing else in the crate spawns a process. A program the workbench runs goes through one of them, so the
 //! gate's count of spawn calls stays where it is.
 
 use std::ffi::OsStr;
@@ -72,7 +72,28 @@ pub(crate) async fn run_program(program: &Path, args: &[&OsStr]) -> anyhow::Resu
 ///
 /// When the program cannot start.
 pub(crate) fn follow_with_errors(program: &Path, args: &[&OsStr]) -> std::io::Result<Child> {
-    following(program, args, Stdio::piped())
+    following(program, args, (Stdio::piped(), Stdio::piped()), None)
+}
+
+/// Starts `program` with `args` in `dir`, with `env` added to Marley's own, as a server Marley
+/// owns: stdin and stdout closed, stderr piped for its errors, and the process killed when the
+/// child is dropped (#650).
+///
+/// # Errors
+///
+/// When the program cannot start.
+pub(crate) fn serve(
+    program: &Path,
+    args: &[&OsStr],
+    dir: &Path,
+    env: &[(String, String)],
+) -> std::io::Result<Child> {
+    following(
+        program,
+        args,
+        (Stdio::null(), Stdio::piped()),
+        Some((dir, env)),
+    )
 }
 
 /// Starts `program` with `args` to read its output as it comes: stdin and stderr closed, stdout
@@ -82,17 +103,27 @@ pub(crate) fn follow_with_errors(program: &Path, args: &[&OsStr]) -> std::io::Re
 ///
 /// When the program cannot start.
 pub(crate) fn follow(program: &Path, args: &[&str]) -> std::io::Result<Child> {
-    following(program, args, Stdio::null())
+    following(program, args, (Stdio::piped(), Stdio::null()), None)
 }
 
-/// Starts `program` with `args`, stdin closed, stdout piped, stderr as `stderr` says, killed when
-/// the child is dropped.
-fn following(program: &Path, args: &[impl AsRef<OsStr>], stderr: Stdio) -> std::io::Result<Child> {
-    util::command::new_command(program)
+/// Starts `program` with `args`, stdin closed, stdout and stderr as given, in `place`'s
+/// folder with its variables added when given, killed when the child is dropped.
+fn following(
+    program: &Path,
+    args: &[impl AsRef<OsStr>],
+    (stdout, stderr): (Stdio, Stdio),
+    place: Option<(&Path, &[(String, String)])>,
+) -> std::io::Result<Child> {
+    let mut command = util::command::new_command(program);
+    command
         .args(args)
         .stdin(Stdio::null())
-        .stdout(Stdio::piped())
+        .stdout(stdout)
         .stderr(stderr)
-        .kill_on_drop(true)
-        .spawn()
+        .kill_on_drop(true);
+    if let Some((dir, env)) = place {
+        command.current_dir(dir);
+        command.envs(env.iter().map(|(key, value)| (key, value)));
+    }
+    command.spawn()
 }

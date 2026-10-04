@@ -5,4 +5,4 @@
 crates/marley_terminal/src/pty_os.rs  # the terminal's PTY and its shell
 crates/marley_browser/src/service.rs  # Chromium's user unit: systemd-run and systemctl
 crates/marley_browser/src/relay.rs  # the relay's Chromium, through /bin/sh
-crates/marley_workbench/src/process.rs  # the workbench's programs: claude, voxtype, git, gh
+crates/marley_workbench/src/process.rs  # the workbench's programs: claude, voxtype, git, gh, rh, codex

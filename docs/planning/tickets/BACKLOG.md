@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-650](open/TICKET-650-codex-app-server-state.md) | feature | B1 part 1 · Marley runs a Codex App Server per Codex terminal and reads typed state, token use and sandbox from it (`marley.codex_app_server`, off by default) |
 | [TICKET-651](open/TICKET-651-codex-approvals-and-prompts.md) | feature | B1 part 2 · Codex's approval requests answered from the inbox, only the request the user saw |
 | [TICKET-652](open/TICKET-652-shared-claude-plugin-marleys-half.md) | feature | B2 · agent reports reach Marley through `$MARLEY_BIN report`; the rail and resume read them first (Marley's answer to rustal-harness MREQ-009) |
 | [TICKET-653](open/TICKET-653-marley-as-claude-codes-ide.md) | feature | B3 · Marley as Claude Code's IDE: the lock file and link, diagnostics, selection and open file (`marley.claude_code_ide`, off by default) |

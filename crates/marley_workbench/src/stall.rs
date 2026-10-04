@@ -14,6 +14,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use gpui::{App, AppContext as _, AsyncApp, Entity, Global};
+use marley_agent::AgentKind;
 use marley_agent::claude_events::{
     self, PERMISSION_MODE_LABEL, PROMPT_ID_LABEL, PROMPT_LABEL, SESSION_LABEL, TOOL_LABEL,
     TurnFacts,
@@ -201,7 +202,8 @@ fn plan(cx: &App) -> Option<(Vec<ToSample>, Option<u64>)> {
     Some((to_sample, boot_secs))
 }
 
-/// The seats that work now.
+/// The Claude Code seats that work now; the stall rules read Claude Code's tool lines, which a
+/// Codex seat does not carry (#650).
 fn working_seats(cx: &App) -> Vec<Session> {
     cx.try_global::<AgentEvents>()
         .map(|events| {
@@ -209,7 +211,10 @@ fn working_seats(cx: &App) -> Vec<Session> {
                 .snapshot()
                 .seats()
                 .iter()
-                .filter(|seat| seat.state == State::Working)
+                .filter(|seat| {
+                    seat.state == State::Working
+                        && agent_events::seat_agent(seat) == Some(AgentKind::Claude)
+                })
                 .cloned()
                 .collect()
         })

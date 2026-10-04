@@ -3299,3 +3299,12 @@ false for counts.
 the helper joined the error result's text parts, which are the structured refusal's JSON, and the
 app's reason named its tool, which `dispatch` already prefixes. Fixed: the helper prints the
 `structuredContent`'s `reason`, and the reason starts with what it says.
+
+## F-claude-650-the-quit-hook-left-marleys-socket-folder-001
+*severity: low · found in: pipeline 650's first scenario run, in Test · class: cleanup that removes the leaf it made and not the folder made for it*
+
+The quit hook removed `marley-<pid>/codex`, the sockets' folder, and left `marley-<pid>`, made for
+it alone, in the runtime directory after every quit. The first run could not show it either way:
+the harness stops the whole sway session, and the stand-in servers removed their own sockets on
+SIGTERM. Fixed: the hook removes `marley-<pid>`, and the scenario quits Marley through
+`quit_marley` and checks the folder and every server are gone.

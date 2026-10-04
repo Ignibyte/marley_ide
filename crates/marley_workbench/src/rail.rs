@@ -31,7 +31,7 @@ use gpui::{
 };
 use marley_agent::risk::{self, Action, Chip, ChipKind, ChipSource, ToolClass};
 use marley_agent::route::{self, Route, RouteMark, RouteSource};
-use marley_agent::{AgentKind, WAITING_AFTER, claude_events};
+use marley_agent::{AgentKind, WAITING_AFTER, claude_events, codex_events};
 use marley_browser::consequence::Class;
 use marley_browser::ports::{Service, Stopped};
 use marley_mcp::redact::Redactor;
@@ -1887,7 +1887,13 @@ impl Rail {
                 AgentIcon::Named(icon) => Icon::new(*icon),
                 AgentIcon::Svg(path) => Icon::from_external_svg(path.clone()),
             },
-            (InboxKind::Terminal, _) => Icon::new(IconName::AiClaude),
+            // The entry names the seat's agent (#650).
+            (InboxKind::Terminal, _) => Icon::new(
+                AgentKind::ALL
+                    .into_iter()
+                    .find(|kind| kind.display_name() == entry.agent)
+                    .map_or(IconName::AiClaude, agents::cli_icon),
+            ),
             (InboxKind::Harness, _) => Icon::new(IconName::Server),
             _ => Icon::new(IconName::ToolWeb),
         };
@@ -2090,8 +2096,9 @@ impl Rail {
         }
     }
 
-    /// Ends the seat of each terminal that no longer runs Claude Code (#547): it left without a
-    /// `SessionEnd`, or was killed. The refresh that ending the seats causes finds none to end.
+    /// Ends the seat of each terminal that no longer runs the seat's agent (#547, #650): Claude Code
+    /// left without a `SessionEnd`, or was killed, or Codex left the foreground. The refresh that
+    /// ending the seats causes finds none to end.
     /// While a seat works, arms the refresh due when a row's `no update in N m` next changes; a
     /// timer that comes early, after a newer event, only arms the next one.
     fn note_claude_code(&mut self, rail: &RailSnapshot, window: &Window, cx: &mut Context<Self>) {
@@ -2100,9 +2107,13 @@ impl Rail {
             .iter()
             .flat_map(|project| &project.terminals)
             .filter(|terminal| {
-                terminal
-                    .agent
-                    .is_none_or(|agent| agent.kind != AgentKind::Claude)
+                let seat_agent = cx
+                    .try_global::<AgentEvents>()
+                    .and_then(|events| events.seat(EntityId::from(terminal.id)))
+                    .and_then(agent_events::seat_agent);
+                seat_agent.is_some_and(|seat_agent| {
+                    terminal.agent.is_none_or(|agent| agent.kind != seat_agent)
+                })
             })
             .map(|terminal| terminal.id)
             .collect();
@@ -3641,6 +3652,7 @@ impl Rail {
                     folder,
                     None,
                     Some(marley_agent::send_payload(&command)),
+                    None,
                     window,
                     cx,
                 )
@@ -6278,7 +6290,8 @@ fn inbox_entries(project: &str, members: &[Entity<Workspace>], snapshot: &mut Sn
             };
             let id = view.entity_id().as_u64();
             let mut entry = seat_entry(project, id, seat);
-            if let Some(scope) = &scope {
+            // Codex's waits get their risk and route marks with their answers (#651).
+            if let Some(scope) = scope.as_ref().filter(|_| !codex_events::is_codex(seat)) {
                 let waiting = seat_waiting(seat, &entry.ask);
                 mark(&mut entry, &waiting, scope, snapshot);
             }
@@ -6492,7 +6505,7 @@ fn harness_entries(snapshot: &mut Snapshot, cx: &App) {
     }
 }
 
-/// A terminal's Claude Code that waits, as an inbox entry.
+/// A terminal's Claude Code, or Codex (#650), that waits, as an inbox entry.
 fn seat_entry(project: &str, id: u64, seat: &marley_fleet::Session) -> InboxEntry {
     let ask = seat.question.as_ref().map_or_else(
         || "Waits for you".to_string(),
@@ -6501,7 +6514,10 @@ fn seat_entry(project: &str, id: u64, seat: &marley_fleet::Session) -> InboxEntr
     InboxEntry {
         key: format!("terminal:{id}:{ask}"),
         kind: InboxKind::Terminal,
-        agent: "Claude Code".to_string(),
+        agent: agent_events::seat_agent(seat)
+            .unwrap_or(AgentKind::Claude)
+            .display_name()
+            .to_string(),
         project: project.to_string(),
         ask,
         waited: String::new(),
@@ -7051,10 +7067,9 @@ fn terminal_snapshot(
         .as_deref()
         .and_then(marley_agent::agent_kind_of)
         .or_else(|| remote_claude(view, cx));
-    // Once Claude Code has sent its hook events, they say what it is doing (#519).
-    let seat = kind
-        .filter(|kind| *kind == AgentKind::Claude)
-        .and_then(|_| cx.try_global::<AgentEvents>()?.seat(view.entity_id()));
+    // Once Claude Code has sent its hook events (#519), or Codex's App Server its thread (#650),
+    // they say what it is doing.
+    let seat = kind.and_then(|kind| agent_events::seat_of(view.entity_id(), kind, cx));
     let shown = agent_events::stop_kind_shown(cx);
     let flag = crate::stall::flag_shown(cx);
     let agent = kind.map(|kind| TerminalAgent {
@@ -7069,15 +7084,7 @@ fn terminal_snapshot(
             },
             |seat| claude_events::seat_status(seat.state),
         ),
-        mark: marley_agent::permission_mark(
-            kind,
-            &terminal
-                .read(cx)
-                .marley_foreground_argv()
-                .unwrap_or_default(),
-            seat.and_then(|seat| seat.labels.get(claude_events::PERMISSION_MODE_LABEL))
-                .map(String::as_str),
-        ),
+        mark: agent_mark(kind, terminal.read(cx), seat),
     });
     let (title, subtitle) = agent.map_or_else(
         || {
@@ -7098,14 +7105,15 @@ fn terminal_snapshot(
             );
             let status = seat.map_or_else(
                 || marley_agent::status_line(agent.kind, agent.status),
-                |seat| {
-                    claude_events::seat_line(
+                |seat| match agent.kind {
+                    AgentKind::Codex => codex_line(seat, cx),
+                    _ => claude_events::seat_line(
                         seat,
                         agent_events::now_ms(),
                         no_update_after_ms(cx),
                         shown,
                         flag,
-                    )
+                    ),
                 },
             );
             (title, Some(status))
@@ -7117,7 +7125,13 @@ fn terminal_snapshot(
         subtitle,
         bell,
         agent,
-        activity: seat.and_then(|seat| claude_events::seat_activity(seat, shown)),
+        activity: seat.and_then(|seat| {
+            if codex_events::is_codex(seat) {
+                codex_events::seat_activity(seat)
+            } else {
+                claude_events::seat_activity(seat, shown)
+            }
+        }),
         flag: seat
             .filter(|seat| seat.state == marley_fleet::State::Working)
             .and_then(|seat| marley_agent::stall::tooltip(&seat.labels, flag)),
@@ -7218,10 +7232,44 @@ fn command_line(command: CommandSnapshot) -> RowLine {
 /// terminal's own foreground is ssh.
 fn remote_claude(view: &Entity<TerminalView>, cx: &App) -> Option<AgentKind> {
     let remote = crate::remote::is_remote(view.read(cx).terminal().read(cx));
-    let seat = cx
-        .try_global::<AgentEvents>()
-        .and_then(|events| events.seat(view.entity_id()));
+    let seat = agent_events::seat_of(view.entity_id(), AgentKind::Claude, cx);
     (remote && seat.is_some()).then_some(AgentKind::Claude)
+}
+
+/// The full access or bypass mark on an agent's row (#532): for Codex with a thread that reports
+/// its sandbox, the thread's (#650); otherwise Claude Code's reported mode, or the arguments.
+fn agent_mark(
+    kind: AgentKind,
+    terminal: &Terminal,
+    seat: Option<&marley_fleet::Session>,
+) -> Option<marley_agent::PermissionMark> {
+    let label = |key: &str| {
+        seat.and_then(|seat| seat.labels.get(key))
+            .map(String::as_str)
+    };
+    if kind == AgentKind::Codex
+        && let Some(sandbox) = label(codex_events::SANDBOX_LABEL)
+    {
+        return marley_agent::thread_mark(
+            sandbox,
+            label(codex_events::APPROVAL_LABEL).unwrap_or_default(),
+        );
+    }
+    marley_agent::permission_mark(
+        kind,
+        &terminal.marley_foreground_argv().unwrap_or_default(),
+        label(claude_events::PERMISSION_MODE_LABEL),
+    )
+}
+
+/// A Codex row's line from its App Server's thread (#650): the state's words, and the thread's
+/// token use once Codex reported it, such as `working · 41k tokens`.
+fn codex_line(seat: &marley_fleet::Session, cx: &App) -> String {
+    let words = codex_events::seat_words(seat, agent_events::now_ms(), no_update_after_ms(cx));
+    match codex_events::tokens(seat) {
+        Some(tokens) => format!("{words} · {} tokens", crate::fleet::compact(tokens)),
+        None => words,
+    }
 }
 
 /// Where a terminal agent's status comes from, for its class in the rail's order (#542).

@@ -417,7 +417,7 @@ async fn open_item(
         .cwd
         .as_ref()
         .map_or_else(|| root.to_path_buf(), |cwd| root.join(cwd));
-    let input = match &item.kind {
+    let (input, joining) = match &item.kind {
         ItemKind::Browser(url) => {
             if let Some(local) = marley_browser::address::local_url(url) {
                 wait_for_port(local, cx).await;
@@ -427,11 +427,14 @@ async fn open_item(
             })?;
             return Ok(Some(Box::new(view)));
         }
-        ItemKind::Terminal(command) if command.is_empty() => None,
-        ItemKind::Terminal(command) => Some(marley_agent::send_payload(command)),
-        ItemKind::Agent(kind) => Some(workspace.read_with(cx, |workspace, cx| {
-            agents::launch_input(workspace, *kind, cx)
-        })?),
+        ItemKind::Terminal(command) if command.is_empty() => (None, None),
+        ItemKind::Terminal(command) => (Some(marley_agent::send_payload(command)), None),
+        ItemKind::Agent(kind) => {
+            let (line, joining) = workspace.read_with(cx, |workspace, cx| {
+                agents::launch_input(workspace, *kind, &directory, cx)
+            })?;
+            (Some(line), joining)
+        }
     };
     // An agent's terminal has git's credential prompts off and asks for ssh's passphrases in
     // Marley; a command's keeps its prompts (#537, #596).
@@ -440,7 +443,15 @@ async fn open_item(
         _ => None,
     };
     let opening = workspace.update_in(cx, |workspace, window, cx| {
-        agents::start_in_terminal(workspace, Some(directory), agent, input, window, cx)
+        agents::start_in_terminal(
+            workspace,
+            Some(directory),
+            agent,
+            input,
+            joining,
+            window,
+            cx,
+        )
     })?;
     let terminal = opening.await?;
     let title = item.title.clone();

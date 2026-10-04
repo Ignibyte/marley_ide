@@ -13,6 +13,18 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Codex's state from its own App Server** (#650, 2026-10-04). With Codex App Server on in the
+  Marley settings (off by default), each Codex Marley launches in a local project runs against an
+  App Server of its own, which Marley starts for the terminal and joins as a second client once
+  Codex has. Codex's row then reads its thread's own state, `working`, `waiting on approval`,
+  `waiting on input`, `idle` or `failed` with the turn's error, and its token use, such as
+  `working · 12k tokens`, in place of the terminal's quiet; a waiting Codex enters the inbox as
+  Codex's, and a click shows its terminal; the close guard asks before a working Codex closes;
+  and the `full access` chip follows the sandbox the thread reports. The server lives as long as
+  its terminal. It runs on Codex 0.155.1 to 0.158.0, the versions Marley tested; outside them
+  Codex starts as before and the agent bar says why. Marley answers nothing Codex asks, and
+  Codex's requests then name Marley in their user agent.
+
 - **Agent prompts in a tab** (#649, 2026-10-04). With Agent Prompts in a Tab on in the Marley
   settings (off by default), the terminals Marley opens for agents give them Marley's editor,
   `marley-edit`, as `VISUAL` and `EDITOR`, over what the user's shell files export. Ctrl-G and the

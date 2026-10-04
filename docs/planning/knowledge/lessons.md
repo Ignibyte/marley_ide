@@ -4676,3 +4676,35 @@ that kept the `Box<dyn ItemHandle>` it awaited from `open_abs_path` keeps the it
 close. Keep the returned `Subscription`, drop the handle at once (Zed's `--wait` in
 `open_listener.rs` does the same), and defer anything that touches a pane or the workspace out of
 the callback, which runs inside the pane's close.
+
+## L-claude-650-a-codex-thread-resume-renames-its-client-001
+*category: integration · topic: Codex's App Server · from: pipeline 650*
+
+In Codex 0.155.1 to 0.158.0, `thread/resume` makes the caller a subscriber and also sets the
+thread's client name to the caller's until the next `turn/start`, and Codex gates plugin installs
+on `codex-tui`. A second client that resumes while a turn runs changes that turn. Resume only an
+idle thread; the status is broadcast to every joined connection without a subscription.
+
+## L-claude-650-proc-net-unix-shows-who-joined-a-socket-001
+*category: linux · topic: seeing a client connect to a server you started · from: pipeline 650*
+
+An accepted Unix socket carries the listening socket's path, so `/proc/net/unix` lists one line
+per accepted connection under the path with state `03`, beside the listener's `01` with flags
+`00010000`. Resolve a link first: Codex 0.158 makes the path a link to its real socket. Paths
+with whitespace break the column split.
+
+## L-claude-650-the-rail-sorts-rows-so-a-scenario-uses-the-palette-001
+*category: e2e · topic: clicking the rail · from: pipeline 650*
+
+The rail orders terminal rows by what each agent needs (#542) and puts the inbox above them, so a
+row's place moves with every state change; the first run's clicks closed the wrong terminal.
+Switch tabs with `pane: activate previous item` and close with `pane: close active item` from the
+palette, and take positions only for elements whose place the shots show stable (the inbox's
+first entry, a chip after the state settles).
+
+## L-claude-650-e2e-runs-end-without-marleys-quit-hooks-001
+*category: e2e · topic: checking cleanup at quit · from: pipeline 650*
+
+`script/e2e.sh` ends a run by stopping its sway session, which takes Marley and its children
+without `on_app_quit`. A check of what Marley cleans up at quit calls `quit_marley` first (with
+the close guard turned off when an agent still waits), and reads the leftovers after it.

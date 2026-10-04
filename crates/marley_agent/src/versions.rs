@@ -91,8 +91,26 @@ pub const CLAUDE_PROMPT_TAGS: Integration = Integration {
     },
 };
 
+/// Codex's App Server, joined as a second client (#650).
+///
+/// Its thread, status, turn, token-use and policy messages, which Codex generates per release and
+/// does not promise to keep. The range is closed at the two ends checked, 0.155.1 and 0.158.0,
+/// whose generated schemas agree on every field Marley reads.
+pub const CODEX_APP_SERVER: Integration = Integration {
+    id: "codex_app_server",
+    agent: AgentKind::Codex,
+    name: "App Servers",
+    off_means: "Codex starts as it does with Codex App Server off, and its row reads the \
+                terminal's quiet",
+    setting: "App Server on Untested Codex",
+    tested: Range {
+        from: Version::new(0, 155, 1),
+        before: Some(Version::new(0, 158, 1)),
+    },
+};
+
 /// Every integration with a tested range.
-pub static INTEGRATIONS: [Integration; 1] = [CLAUDE_PROMPT_TAGS];
+pub static INTEGRATIONS: [Integration; 2] = [CLAUDE_PROMPT_TAGS, CODEX_APP_SERVER];
 
 /// `agent`'s integrations with a tested range.
 pub fn integrations_of(agent: AgentKind) -> impl Iterator<Item = &'static Integration> {

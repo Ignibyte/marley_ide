@@ -26,10 +26,14 @@ pub enum LaunchMode { Ask, Bypass }                // #532
 pub fn launch_input(kind: AgentKind, mode: LaunchMode) -> Vec<u8>;
                                                      // the program, the mode's arguments, Enter
 pub fn launch_line(kind: AgentKind, mode: LaunchMode, prompt: &str) -> Vec<u8>;   // #510
+pub struct Remote<'a> { pub program: &'a str, pub socket: &'a str, pub folder: &'a str }  // #650
+pub fn launch_line_after(setup: &str, kind: AgentKind, mode: LaunchMode, prompt: &str,
+                         remote: Option<&Remote>) -> Vec<u8>;   // #585, #650
+pub fn thread_mark(sandbox: &str, approval: &str) -> Option<PermissionMark>;   // #650
 pub fn quote_argument(argument: &str) -> String;     // one word for bash, zsh and fish
 pub const BYPASS_MODE: &str;                         // "bypassPermissions"
 pub enum MarkKind { Bypass, FullAccess }
-pub enum MarkSource { Reported, Argument(&'static str) }
+pub enum MarkSource { Reported, Thread(&'static str), Argument(&'static str) }
 pub struct PermissionMark { pub kind: MarkKind, pub source: MarkSource }  // words(), tooltip()
 pub fn permission_mark(kind: AgentKind, argv: &[String], reported: Option<&str>)
     -> Option<PermissionMark>;
@@ -50,8 +54,9 @@ pub fn ssh_dialog_title(project: &str, kind: AgentKind) -> String;
   empty `GIT_ASKPASS`: git falls back to `SSH_ASKPASS` for its own prompts when `GIT_ASKPASS` is
   unset, and an agent's terminal sets `SSH_ASKPASS` for ssh alone.
 
-- **`agent_kind_of`** reads a command line's leading program, with a directory path stripped
-  and arguments ignored, so `/home/me/.local/bin/claude --resume` is Claude Code. Program names
+- **`agent_kind_of`** reads a command line's leading program, with a directory path stripped,
+  quotes around it dropped (a launch that joins an App Server names Codex by its quoted path,
+  #650) and arguments ignored, so `/home/me/.local/bin/claude --resume` is Claude Code. Program names
   are case-sensitive. The rail feeds it a terminal's foreground argv, never a process name:
   Claude Code's binary on the dev box is named after its version.
 - **`launch_input`** is everything the rail writes to start an agent: a program name from the
@@ -151,12 +156,39 @@ pub fn prompt_origin(prompt: &str) -> PromptOrigin;                 // #509
   says. `fold_with` takes a reading; `fold`, `is_harness_injected`, `is_compact_continuation` and
   `prompt_origin` are `Recognized`'s and keep their signatures.
 
+## Codex's App Server (`src/codex_events.rs`, `src/marley_agent.rs`, #650)
+
+- `launch_line_after` with a `Remote` names the program by its quoted full path, then
+  `--remote 'unix://<socket>' --cd '<folder>'`, then the mode's arguments and the prompt, so the
+  server and the TUI are one binary and the thread starts in the terminal's folder.
+- `thread_mark(sandbox, approval)` is `full access` when the thread reports `dangerFullAccess`,
+  whatever the approval policy; its source, `MarkSource::Thread`, carries the policy in words for
+  the tooltip.
+- `codex_events` reads the App Server's messages as Codex 0.155.1 and 0.158.0 generate them:
+  `Thread` (`is_lead`: not ephemeral, no parent, started by the user or not saying),
+  `ThreadStatus` (an unknown type is `Unknown`, which moves nothing), `Turn`, `Policies`.
+  `Notification::decode(method, params)` reads `thread/started`, `thread/status/changed`,
+  `turn/started`, `turn/completed`, `thread/tokenUsage/updated`, `thread/settings/updated` and
+  `thread/closed`, and gives `None` for any other method; `read_answer` and `resume_answer` read
+  `thread/read` and `thread/resume`.
+- `fold(seat, previous, input, now_ms)` is `claude_events::fold`'s counterpart. The status decides
+  the state (`active` working or waiting with the `wait` label `approval` or `input` and a
+  question, "Waits on an approval" or "Waits on an answer"; `idle`; `systemError` failed;
+  `notLoaded` ends the seat); a `failed` turn makes the seat failed with the turn's message under
+  `error` and keeps it so through the `idle` after it until `turn/started`; token use rides as
+  `tokens` and `context_window`, the policies as `sandbox` and `approval`, and the seat's `agent`
+  label is `codex` with the lead under `thread`. `Input::ServerStopped` fails the seat with
+  "Codex's App Server stopped" and the server's last line. `seat_words` gives the row's words,
+  #547's `no update in N m` included; `seat_activity` the waiting question or the error.
+
 ## The versions integrations were tested on (`src/versions.rs`, #648)
 
 - A row of `INTEGRATIONS` is an integration that rests on something its agent does not document:
   `Integration { id, agent, name, off_means, setting, tested }`, its id the key under
-  `marley.allow_untested_versions`. Today one row, `CLAUDE_PROMPT_TAGS` (`claude_prompt_tags`):
-  the tags and openings `claude_events` reads, tested from Claude Code 2.1.283 before 2.2.0.
+  `marley.allow_untested_versions`. `CLAUDE_PROMPT_TAGS` (`claude_prompt_tags`): the tags and
+  openings `claude_events` reads, tested from Claude Code 2.1.283 before 2.2.0. Since #650
+  `CODEX_APP_SERVER` (`codex_app_server`): the App Server's messages, from Codex 0.155.1 before
+  0.158.1, closed at the two ends checked.
   `terminalSequence`, which the hook channel rides on, is documented in Claude Code's hooks
   reference and gets no row.
 - `Range { from, before }`: `contains` judges a prerelease by its release numbers; `words` gives

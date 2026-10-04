@@ -305,15 +305,55 @@ pub fn start_cli_with_prompt(
     window: &Window,
     cx: &Context<Workspace>,
 ) -> Task<Option<WeakEntity<Terminal>>> {
-    let mode = launch_mode(workspace, kind, cx);
-    let input = marley_agent::launch_line_after(setup.unwrap_or_default(), kind, mode, prompt);
     let directory = terminal_view::default_working_directory(workspace, cx);
-    start_in_terminal(workspace, directory, Some(kind), Some(input), window, cx).prompt_err(
-        "Could not start the agent",
+    let (input, joining) = agent_line(
+        workspace,
+        kind,
+        directory.as_deref(),
+        setup.unwrap_or_default(),
+        prompt,
+        cx,
+    );
+    start_in_terminal(
+        workspace,
+        directory,
+        Some(kind),
+        Some(input),
+        joining,
         window,
         cx,
-        |_, _, _| None,
     )
+    .prompt_err("Could not start the agent", window, cx, |_, _, _| None)
+}
+
+/// The line that starts `kind` after `setup` with `prompt` in `directory` of `workspace`, and,
+/// for a Codex that joins an App Server of its own, the server and the line without it (#650).
+fn agent_line(
+    workspace: &Workspace,
+    kind: AgentKind,
+    directory: Option<&Path>,
+    setup: &str,
+    prompt: &str,
+    cx: &App,
+) -> (Vec<u8>, Option<crate::codex_server::Joining>) {
+    let mode = launch_mode(workspace, kind, cx);
+    let plain = marley_agent::launch_line_after(setup, kind, mode, prompt, None);
+    let prepared = (kind == AgentKind::Codex)
+        .then(|| crate::codex_server::prepare(workspace.project().read(cx), directory, cx))
+        .flatten();
+    match prepared {
+        Some(prepared) => {
+            let line = marley_agent::launch_line_after(
+                setup,
+                kind,
+                mode,
+                prompt,
+                Some(&prepared.remote()),
+            );
+            (line, Some(crate::codex_server::Joining { prepared, plain }))
+        }
+        None => (plain, None),
+    }
 }
 
 /// The permission mode `kind` starts with in `workspace`'s project (#532); a remote project takes
@@ -330,10 +370,16 @@ pub(crate) fn launch_mode(workspace: &Workspace, kind: AgentKind, cx: &App) -> L
         .launch_mode(kind, &folders)
 }
 
-/// What starts `kind` in a terminal of `workspace`, as the rail's Agent CLIs entries start it:
-/// its program with the arguments its permission setting asks for (#527).
-pub(crate) fn launch_input(workspace: &Workspace, kind: AgentKind, cx: &App) -> Vec<u8> {
-    marley_agent::launch_line_after("", kind, launch_mode(workspace, kind, cx), "")
+/// What starts `kind` in a terminal of `workspace` in `directory`, as the rail's Agent CLIs
+/// entries start it: its program with the arguments its permission setting asks for (#527), and
+/// for a Codex that joins an App Server of its own, the server (#650).
+pub(crate) fn launch_input(
+    workspace: &Workspace,
+    kind: AgentKind,
+    directory: &Path,
+    cx: &App,
+) -> (Vec<u8>, Option<crate::codex_server::Joining>) {
+    agent_line(workspace, kind, Some(directory), "", "", cx)
 }
 
 /// The variables of a terminal opened for an agent CLI: git's credential prompts off (#537), and,
@@ -358,13 +404,15 @@ fn agent_env(script: Option<&OsStr>) -> anyhow::Result<HashMap<String, String>> 
 /// Opens a center terminal of `workspace` in `directory`, and types `input` into it once its
 /// shell says it is ready, as Zed's terminal threads start their commands (#527 split it out of
 /// [`start_cli_with_prompt`]). A terminal opened for `agent` gets [`agent_env`]'s variables and,
-/// in a local project, asks for ssh's passphrases in Marley (#596). The task gives the terminal
-/// once the input is written.
+/// in a local project, asks for ssh's passphrases in Marley (#596). With `joining`, the Codex
+/// App Server the line names starts first, and the line without it goes in when it does not come
+/// up (#650). The task gives the terminal once the input is written.
 pub(crate) fn start_in_terminal(
     workspace: &Workspace,
     directory: Option<PathBuf>,
     agent: Option<AgentKind>,
     input: Option<Vec<u8>>,
+    joining: Option<crate::codex_server::Joining>,
     window: &Window,
     cx: &Context<Workspace>,
 ) -> Task<anyhow::Result<WeakEntity<Terminal>>> {
@@ -379,6 +427,7 @@ pub(crate) fn start_in_terminal(
     let editor = agent
         .filter(|_| local)
         .and_then(|_| crate::agent_editor::editor_path(cx));
+    let project = workspace.project().clone();
     let dialog_title = agent.filter(|_| shown).map(|kind| {
         let project = crate::system_one::project_name(&folders);
         SharedString::from(marley_agent::ssh_dialog_title(&project, kind))
@@ -404,6 +453,15 @@ pub(crate) fn start_in_terminal(
             }
             None => HashMap::default(),
         };
+        // The server's commands run with the variables the agent's terminal gets (#650).
+        let server_env: Vec<(String, String)> = joining
+            .as_ref()
+            .map(|_| {
+                env.iter()
+                    .map(|(key, value)| (key.clone(), value.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
         let terminal = workspace
             .update_in(cx, |workspace, window, cx| {
                 TerminalPanel::add_center_terminal(workspace, window, cx, move |project, cx| {
@@ -424,6 +482,20 @@ pub(crate) fn start_in_terminal(
             // The socket and its folder last exactly as long as the terminal.
             terminal.update(cx, |_, cx| cx.on_release(move |_, _| drop(proxy)).detach())?;
         }
+        let input = match joining {
+            Some(joining) => {
+                let started = crate::codex_server::start(
+                    &joining.prepared,
+                    &terminal,
+                    &project,
+                    server_env,
+                    cx,
+                )
+                .await;
+                if started { input } else { Some(joining.plain) }
+            }
+            None => input,
+        };
         let Some(input) = input else {
             return Ok(terminal);
         };

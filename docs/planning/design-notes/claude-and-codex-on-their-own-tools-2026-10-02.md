@@ -69,6 +69,11 @@ selection and the open file with each prompt, opening diffs in the editor and re
 
 ### B1. Join Codex's App Server as a second client
 
+Part 1 done by #650 (2026-10-04), behind `marley.codex_app_server`, off by default: one server per
+Codex terminal Marley launches in a local project, Marley joined second, the lead thread's state,
+token use and sandbox on the terminal's seat, Codex 0.155.1 to 0.158.0. Part 2 (answers from the
+inbox) is #651.
+
 Marley starts `codex app-server --listen unix://<Marley's socket>` and launches Codex in its
 terminals as `codex --remote unix://<that socket>`, so the TUI the user sees and Marley's client
 share one server. The rail reads typed state, the approvals inbox answers Codex's requests in

@@ -171,6 +171,13 @@ pub struct MarleySettingsContent {
     ///
     /// Default: false
     pub agent_editor_in_tab: Option<bool>,
+    /// Whether each Codex Marley launches in a local project runs against a Codex App Server of
+    /// its own, which Marley joins as a second client to read the thread's state, token use and
+    /// sandbox (#650). Codex's requests then name Marley in their user agent. Applies to Codex
+    /// launched after the change.
+    ///
+    /// Default: false
+    pub codex_app_server: Option<bool>,
     /// Voice in Marley (#480, #642): dictation through Voxtype. Off until it is turned on.
     pub voice: Option<MarleyVoiceSettingsContent>,
     /// The System One layer (#565): typed questions to a model about states Marley builds from

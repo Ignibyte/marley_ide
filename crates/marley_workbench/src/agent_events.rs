@@ -21,6 +21,7 @@ use marley_agent::claude_events::{
     self, HookEvent, MESSAGE_LABEL, PROMPT_ID_LABEL, PROMPT_LABEL, PromptReading, SESSION_LABEL,
     TurnFacts,
 };
+use marley_agent::codex_events;
 use marley_agent::stop_kind::{self, Kind, Source, StopKindShown};
 use marley_fleet::{FleetSnapshot, Session, SessionEvent, State};
 use marley_system_one::reading::{Reading, Signal};
@@ -108,12 +109,67 @@ fn seat_id(view: EntityId) -> String {
     view.as_u64().to_string()
 }
 
-/// Whether the Claude Code in the terminal `view` waits on the user: a permission or a question
-/// (#508), which a paste into it would answer.
-pub(crate) fn waiting(view: EntityId, cx: &App) -> bool {
+/// The agent a seat belongs to, by its agent label: Claude Code's events (#519) or Codex's App
+/// Server (#650).
+pub(crate) fn seat_agent(seat: &Session) -> Option<AgentKind> {
+    match seat.labels.get(claude_events::AGENT_LABEL)?.as_str() {
+        "claude-code" => Some(AgentKind::Claude),
+        codex_events::AGENT => Some(AgentKind::Codex),
+        _ => None,
+    }
+}
+
+/// The seat of the terminal view `view` when it is `kind`'s, while it has not ended.
+pub(crate) fn seat_of(view: EntityId, kind: AgentKind, cx: &App) -> Option<&Session> {
+    cx.try_global::<AgentEvents>()?
+        .seat(view)
+        .filter(|seat| seat_agent(seat) == Some(kind))
+}
+
+/// Folds `input` from the Codex App Server of the terminal `view` into the view's seat (#650). A
+/// seat of another agent, or one that ended, starts over.
+pub(crate) fn fold_codex(view: EntityId, input: &codex_events::Input<'_>, cx: &mut App) {
+    let seat = seat_id(view);
+    let previous = cx
+        .try_global::<AgentEvents>()
+        .and_then(|events| events.snapshot.get(&seat))
+        .filter(|session| codex_events::is_codex(session) && session.state != State::Done);
+    let events = codex_events::fold(&seat, previous, input, now_ms());
+    if events.is_empty() {
+        return;
+    }
+    let agent_events = cx.default_global::<AgentEvents>();
+    for event in &events {
+        marley_fleet::apply(&mut agent_events.snapshot, event);
+    }
+}
+
+/// Marks the Codex seat of the terminal `view` as heard from: its thread moves in a way the fold
+/// does not read, which still keeps #547's `no update` away (#650).
+pub(crate) fn heard_from(view: EntityId, cx: &mut App) {
+    let seat = seat_id(view);
+    let live = cx
+        .try_global::<AgentEvents>()
+        .and_then(|events| events.seat(view))
+        .is_some_and(codex_events::is_codex);
+    if live {
+        marley_fleet::apply(
+            &mut cx.default_global::<AgentEvents>().snapshot,
+            &SessionEvent::Heartbeat {
+                id: seat,
+                ts_ms: now_ms(),
+            },
+        );
+    }
+}
+
+/// The agent in the terminal `view` while its seat waits on the user (#508), Claude Code's or
+/// Codex's (#650).
+pub(crate) fn waiting_agent(view: EntityId, cx: &App) -> Option<AgentKind> {
     cx.try_global::<AgentEvents>()
         .and_then(|events| events.seat(view))
-        .is_some_and(|seat| seat.state == State::Waiting)
+        .filter(|seat| seat.state == State::Waiting)
+        .and_then(seat_agent)
 }
 
 /// Now, in the fleet's epoch milliseconds.
@@ -158,9 +214,11 @@ pub(crate) fn on_frame(
     // (#648).
     let reading = crate::agent_versions::prompt_reading(view.terminal().read(cx), cx);
     let seat = seat_id(cx.entity_id());
+    // A Codex seat the terminal had before is no start for Claude Code's (#650).
     let previous = cx
         .try_global::<AgentEvents>()
-        .and_then(|events| events.snapshot.get(&seat));
+        .and_then(|events| events.snapshot.get(&seat))
+        .filter(|session| !codex_events::is_codex(session));
     let before = previous.map_or(State::Starting, |session| session.state);
     let events = claude_events::fold_with(&seat, previous, &event, now_ms(), reading);
     if events.is_empty() {

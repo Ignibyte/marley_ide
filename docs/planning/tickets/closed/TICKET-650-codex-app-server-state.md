@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #650 (feature, prong 2 C1, a terminal's own agent state: Codex)
 - **Owner:** claude-opus-5-5, 2026-10-03 (/spec)
-- **Pipeline doc:** ../../pipeline/queued/650-codex-app-server-state.spec.md
+- **Pipeline doc:** ../../pipeline/completed/650-codex-app-server-state.spec.md
 - **Source ticket:** `design-notes/claude-and-codex-on-their-own-tools-2026-10-02.md`, idea B1,
   part 1 (part 2, #651, is approvals and prompts); Chad, 2026-10-02, on B1: "Yes"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Codex in a Marley terminal gives Marley nothing typed today: its rail row guesses from 2 s of quiet

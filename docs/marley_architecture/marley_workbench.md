@@ -1449,6 +1449,49 @@ alike.
   `turns::on_event`'s turn title.
 - `allowed_in` reads `marley.allow_untested_versions` into `MarleySettings`; the e2e harness
   allows `claude_prompt_tags` in each run's copy and names a missing `MARLEY_CODEX`.
+- Since #650 `is_on(integration, cx)` and `program(kind, cx)` (the path the check found) serve
+  `codex_server`, and the chip lists `codex_app_server` only while `marley.codex_app_server` is
+  on.
+
+## Codex's own App Server (`src/codex_server.rs`, #650)
+
+- `marley.codex_app_server` (`MarleySettings::codex_app_server`, a `CodexAppServer`: `Off`, the
+  default, or `On`). `prepare(project, folder, cx)` gives a `Prepared` (the program #648's check
+  found, a socket `marley-<pid>/codex/<n>.sock` in `XDG_RUNTIME_DIR` or Zed's temporary folder,
+  the folder) when the switch is on, the project local, the system Linux, `CODEX_APP_SERVER` on,
+  and every path free of whitespace and the socket short enough; otherwise `None`, logged.
+- `agents::agent_line` builds a Codex launch's two lines, with and without the server
+  (`Joining`); `start_cli_with_prompt` and `launch_input` (launch configs) use it.
+  `start_in_terminal` with a `Joining` calls `start` once the terminal exists, and types the plain
+  line when the server's socket does not come up in 5 s.
+- `start`: the socket's folder made 0700; the server's environment, as Zed's terminal builder
+  makes the terminal's (the folder's `directory_environment`, waited on for 3 s, the worktree's
+  ports, the terminal settings' `env`, the agent's variables, `MARLEY_TERMINAL_ID` and
+  `MARLEY_PROJECT`); `process::serve` of `<codex> app-server --listen unix://<socket>` in the
+  folder; the process task, which keeps stderr's last line, reports the server's own end, and on a
+  stop sends SIGTERM, then kills after 2 s, then removes the socket (and, for 0.158's link, the
+  socket under `/tmp/codex-daemon-<uid>/` and its lock). The `Server` is kept in `CodexServers` by
+  the terminal and dropped with it; the quit hook kills every server at once and removes
+  `marley-<pid>`.
+- The follow (`follow`): it waits for the TUI's connection, an accepted socket under the path in
+  `/proc/net/unix` (state 03), then 1 s, so the TUI's `initialize` names the originator. It
+  connects (`smol`'s `UnixStream`, `async_tungstenite` at `ws://localhost/rpc`), initializes as
+  `marley` with the experimental API and the delta notifications opted out, checks the server's
+  `userAgent` version against `CODEX_APP_SERVER`, and sends `initialized`. Each second it lets
+  the lead go when Codex left the foreground (`thread/unsubscribe`), looks for a lead with
+  `thread/loaded/list` and `thread/read`, and resumes a lead not yet resumed once it is idle
+  (`thread/resume`, `excludeTurns`), never during a turn. A `thread/started` lead becomes the
+  lead; any other thread Marley was attached to is unsubscribed. Lead notifications fold into the
+  seat (`agent_events::fold_codex`); other lead messages mark it heard from, once per 5 s. The
+  server's end, or the connection's, fails the seat with the last stderr line.
+- The client (`Client`): one channel carries the responses, the notifications, the connection's
+  close and the server's end; a call waits 5 s for its id and keeps what comes meanwhile. A
+  message with an id and a method is a server request, dropped unanswered, since any answer
+  resolves it and an error reads as a denial.
+- The readers: `agent_events::seat_agent` and `seat_of` give a seat by its agent label; the
+  rail's row, `note_claude_code`, the inbox entry and its icon, the close guard and the Browser
+  tab's Send read Codex's seats too; the stall watch and the inbox's risk and route marks keep to
+  Claude Code's.
 
 ## Codex's and OpenCode's notifications (`src/agent_notify.rs`, #552)
 

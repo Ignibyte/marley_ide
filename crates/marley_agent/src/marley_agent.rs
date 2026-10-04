@@ -10,7 +10,8 @@
 //! them into a fleet seat (#519), [`stop_kind`] says what a stopped turn needs (#566),
 //! [`stall`] what flags a looping or quiet working one (#569), [`risk`] what an action waiting in
 //! the rail's inbox would do (#568), and [`route`] who should answer it (#570). [`versions`] holds
-//! the agent versions Marley's integrations were tested on (#648). The launching and the watching
+//! the agent versions Marley's integrations were tested on (#648). [`codex_events`] reads Codex's
+//! own App Server and folds its thread into a fleet seat (#650). The launching and the watching
 //! live in `marley_workbench`.
 
 // gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
@@ -33,6 +34,7 @@ use std::time::Duration;
 use marley_fleet::State;
 
 pub mod claude_events;
+pub mod codex_events;
 pub mod risk;
 pub mod route;
 pub mod stall;
@@ -114,7 +116,11 @@ impl AgentKind {
 /// command, and for an empty or whitespace-only one.
 #[must_use]
 pub fn agent_kind_of(command: &str) -> Option<AgentKind> {
-    let token = command.split_whitespace().next()?;
+    // A launch that joins an App Server names the program by its quoted path (#650).
+    let token = command
+        .split_whitespace()
+        .next()?
+        .trim_matches(|quote| quote == '\'' || quote == '"');
     let program = token.rsplit('/').next().unwrap_or(token);
     AgentKind::ALL
         .into_iter()
@@ -173,7 +179,21 @@ pub const GIT_PROMPTS_OFF: [(&str, &str); 3] = [
 /// Every word is Marley's own.
 #[must_use]
 pub fn launch_input(kind: AgentKind, mode: LaunchMode) -> Vec<u8> {
-    send_payload(&command(kind, mode))
+    send_payload(&command(kind, mode, None))
+}
+
+/// The Codex App Server a Codex launch joins (#650).
+///
+/// The program by its full path, so the server and the TUI are one binary, the server's Unix
+/// socket, and the folder the thread starts in, which a remote TUI sends only with `--cd`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Remote<'a> {
+    /// The `codex` both run.
+    pub program: &'a str,
+    /// The server's socket.
+    pub socket: &'a str,
+    /// The terminal's folder.
+    pub folder: &'a str,
 }
 
 /// What starts `kind` in a shell with `prompt` as its first prompt (#510).
@@ -184,11 +204,16 @@ pub fn launch_input(kind: AgentKind, mode: LaunchMode) -> Vec<u8> {
 /// option. An empty prompt starts the agent with none.
 #[must_use]
 pub fn launch_line(kind: AgentKind, mode: LaunchMode, prompt: &str) -> Vec<u8> {
+    line_with(kind, mode, prompt, None)
+}
+
+/// [`launch_line`], joining `remote`'s App Server when given.
+fn line_with(kind: AgentKind, mode: LaunchMode, prompt: &str, remote: Option<&Remote>) -> Vec<u8> {
     let prompt = prompt.trim();
     if prompt.is_empty() {
-        return launch_input(kind, mode);
+        return send_payload(&command(kind, mode, remote));
     }
-    let mut line = command(kind, mode);
+    let mut line = command(kind, mode, remote);
     line.push(' ');
     match kind {
         AgentKind::Claude | AgentKind::Codex => {
@@ -216,7 +241,10 @@ pub fn resume_line(mode: LaunchMode, session: &str, folder: &str) -> Option<Vec<
     if !is_session_id(session) {
         return None;
     }
-    let resume = format!("{} --resume {session}", command(AgentKind::Claude, mode));
+    let resume = format!(
+        "{} --resume {session}",
+        command(AgentKind::Claude, mode, None)
+    );
     let line = if folder.is_empty() {
         resume
     } else {
@@ -234,14 +262,21 @@ fn is_session_id(id: &str) -> bool {
         })
 }
 
-/// [`launch_line`] after `setup`, a command that must succeed first (#585).
+/// [`launch_line`] after `setup`, a command that must succeed first (#585), joining `remote`'s
+/// App Server when given (#650).
 ///
 /// The line is `<setup> && <launch line>`, so the agent starts only once its worktree's install
 /// has, and a failed one leaves its error on the screen. An empty `setup` gives the launch line
 /// alone.
 #[must_use]
-pub fn launch_line_after(setup: &str, kind: AgentKind, mode: LaunchMode, prompt: &str) -> Vec<u8> {
-    let line = launch_line(kind, mode, prompt);
+pub fn launch_line_after(
+    setup: &str,
+    kind: AgentKind,
+    mode: LaunchMode,
+    prompt: &str,
+    remote: Option<&Remote>,
+) -> Vec<u8> {
+    let line = line_with(kind, mode, prompt, remote);
     let setup = setup.trim();
     if setup.is_empty() {
         return line;
@@ -251,9 +286,20 @@ pub fn launch_line_after(setup: &str, kind: AgentKind, mode: LaunchMode, prompt:
     after
 }
 
-/// The program and the arguments `mode` asks for.
-fn command(kind: AgentKind, mode: LaunchMode) -> String {
-    let mut line = kind.program().to_string();
+/// The program and the arguments `mode` asks for; with `remote`, the program's full path and the
+/// App Server's two arguments first, each one quoted word.
+fn command(kind: AgentKind, mode: LaunchMode, remote: Option<&Remote>) -> String {
+    let mut line = remote.map_or_else(
+        || kind.program().to_string(),
+        |remote| {
+            format!(
+                "{} --remote {} --cd {}",
+                quote_argument(remote.program),
+                quote_argument(&format!("unix://{}", remote.socket)),
+                quote_argument(remote.folder)
+            )
+        },
+    );
     if mode == LaunchMode::Bypass {
         for argument in bypass_arguments(kind) {
             line.push(' ');
@@ -376,6 +422,8 @@ pub enum MarkKind {
 pub enum MarkSource {
     /// Claude Code's hook events report [`BYPASS_MODE`].
     Reported,
+    /// Codex's thread reports [`THREAD_FULL_ACCESS`], with this approval policy (#650).
+    Thread(&'static str),
     /// The agent's process was started with this argument.
     Argument(&'static str),
 }
@@ -408,6 +456,10 @@ impl PermissionMark {
         };
         match self.source {
             MarkSource::Reported => format!("{what}: its events report {BYPASS_MODE}"),
+            MarkSource::Thread(approval) => format!(
+                "Codex runs with no sandbox: its thread reports {THREAD_FULL_ACCESS}, with \
+                 approvals {approval}"
+            ),
             MarkSource::Argument(argument) => format!("{what}: started with {argument}"),
         }
     }
@@ -443,6 +495,28 @@ pub fn permission_mark(
     Some(PermissionMark {
         kind,
         source: MarkSource::Argument(argument),
+    })
+}
+
+/// The sandbox policy a Codex thread reports when it runs with no sandbox (#650).
+pub const THREAD_FULL_ACCESS: &str = "dangerFullAccess";
+
+/// The mark for a Codex whose App Server thread reports `sandbox` with `approval` (#650).
+///
+/// Full access when the sandbox is [`THREAD_FULL_ACCESS`], whatever Codex's arguments asked for
+/// and whatever the approval policy, as the arguments' rule keys on the sandbox alone.
+#[must_use]
+pub fn thread_mark(sandbox: &str, approval: &str) -> Option<PermissionMark> {
+    let approval = match approval {
+        "never" => "never",
+        "on-request" => "on request",
+        "untrusted" => "untrusted",
+        "granular" => "granular",
+        _ => "unknown",
+    };
+    (sandbox == THREAD_FULL_ACCESS).then_some(PermissionMark {
+        kind: MarkKind::FullAccess,
+        source: MarkSource::Thread(approval),
     })
 }
 

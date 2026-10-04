@@ -136,7 +136,7 @@ fn layout_section() -> [SettingsPageItem; 5] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 15] {
+fn agents_section() -> [SettingsPageItem; 16] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -414,6 +414,29 @@ fn agents_section() -> [SettingsPageItem; 15] {
             metadata: None,
             files: USER,
         }),
+        // Marley: Codex runs against an App Server of its own, which Marley joins (#650).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Codex App Server",
+            description: "Run each Codex Marley launches in a local project against a Codex App Server of its own, and join it as a second client: the rail, the inbox and the close guard then read the thread's own state, its token use and its sandbox, not the terminal's quiet. Codex's requests then name Marley in their user agent. Applies to Codex launched after the change.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.codex_app_server"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.codex_app_server.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .codex_app_server = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
         // Marley: who answers Claude Code's trust question in a new worktree (#587).
         SettingsPageItem::SettingItem(SettingItem {
             title: "Worktree Trust Question",
@@ -585,7 +608,7 @@ fn terminal_section() -> [SettingsPageItem; 6] {
 }
 
 // Marley: the integrations turned on outside the agent versions Marley tested them on (#648).
-fn agent_versions_section() -> [SettingsPageItem; 2] {
+fn agent_versions_section() -> [SettingsPageItem; 3] {
     [
         SettingsPageItem::SectionHeader("Agent Versions"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -610,6 +633,35 @@ fn agent_versions_section() -> [SettingsPageItem; 2] {
                     let _before = match value {
                         Some(on) => allowed.insert("claude_prompt_tags".to_string(), on),
                         None => allowed.remove("claude_prompt_tags"),
+                    };
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: Codex's App Server on a Codex version Marley has not tested it on (#650).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "App Server on Untested Codex",
+            description: "Whether Codex App Server runs on a Codex version Marley has not tested it on. Off, such a Codex starts as it does with Codex App Server off, and the agent bar says which version it found and which Marley tested.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.allow_untested_versions.codex_app_server"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.allow_untested_versions.as_ref())
+                        .and_then(|allowed| allowed.get("codex_app_server"))
+                },
+                write: |settings_content, value, _| {
+                    let allowed = settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .allow_untested_versions
+                        .get_or_insert_default();
+                    let _before = match value {
+                        Some(on) => allowed.insert("codex_app_server".to_string(), on),
+                        None => allowed.remove("codex_app_server"),
                     };
                 },
             }),

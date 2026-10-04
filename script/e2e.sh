@@ -636,6 +636,8 @@ cp "$config/settings.json" "$E2E_PROFILE/config/"
 # `--version`, and the user's own Claude Code updates itself, so without it a scenario's prompts
 # would read differently from one install to the next. Agent prompts in a tab are off in the copy
 # (#649), so Ctrl-G in an agent's terminal opens the Rich Input overlay whatever the user chose.
+# Codex's App Server is off too (#650), so no run starts an App Server for a Codex; the allow map
+# gets no `codex_app_server`, so a scenario that turns it on meets #648's check.
 python3 - "$E2E_PROFILE/config/settings.json" <<'SETTINGS'
 import json, pathlib, re, sys
 
@@ -651,6 +653,7 @@ marley["rusty"] = {"enabled": False, "service_url": "http://127.0.0.1:9/mcp"}
 marley.setdefault("voice", {})["enabled"] = False
 marley.setdefault("allow_untested_versions", {})["claude_prompt_tags"] = True
 marley["agent_editor_in_tab"] = False
+marley["codex_app_server"] = False
 path.write_text(json.dumps(settings, indent=2) + "\n")
 SETTINGS
 export MARLEY_RUSTY_MCP=$E2E_WORK/no-rusty-mcp

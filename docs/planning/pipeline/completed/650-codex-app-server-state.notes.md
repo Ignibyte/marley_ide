@@ -1,6 +1,6 @@
 # Codex's state from its own App Server — Notes
 
-- **Local ticket doc:** docs/planning/tickets/open/TICKET-650-codex-app-server-state.md
+- **Local ticket doc:** docs/planning/tickets/closed/TICKET-650-codex-app-server-state.md
 - **Pipeline spec:** 650-codex-app-server-state.spec.md
 
 ## Phase 1 — Plan (queued by /spec, 2026-10-03)
@@ -335,3 +335,245 @@ and which are schema-shaped.
 - Prompts are B1 part 3 and resume B1 part 4 (split out of #651), not #651; where this spec's Out
   says #651 covers prompts, read B1 part 3.
 - `terminalSequence` is documented in Claude Code's hooks reference (#648's finding).
+
+### Promotion (2026-10-04)
+- Promoted into `active/`; the BACKLOG row removed; the ticket in-progress. Pre-flight green, no
+  other active pipeline; #640 to #649 landed (the last 308ba7584b).
+- **Brain:** `brain ask` (consultation `c60abfdf55ae40d999b172d6e29c9aef`) returned due follow-ups
+  on other work only; nothing on Codex's App Server. A repeat ask (`39a739a2…`) was closed with
+  `brain no-decision` as a duplicate.
+- **Seams re-read** (an Explore pass over the fourteen areas the design names). The shapes hold,
+  with these corrections:
+  - `agent_versions`: `AgentVersions`, its `check`, the found path and `verdict(integration, cx)`
+    are private; `prompt_reading` is the only crate-visible reader. The design adds
+    `pub(crate) fn is_on(integration, cx) -> bool` and `pub(crate) fn program(kind, cx) ->
+    Option<PathBuf>` (the path the check found). `INTEGRATIONS` grows to two; the chip, the
+    reasons and `allowed_in` take the row with no other change.
+  - `MARLEY_CODEX` reaches only #648's check; a launch types the bare `codex`. With the server, the
+    line names the checked path, so the server, the TUI and the check are one binary.
+  - `ProjectEnvironment::directory_environment(abs_path, cx)` returns `None` for a local path in
+    no worktree, and no Marley crate calls it yet (`acp_thread/src/terminal.rs:624-628` is the
+    pattern). `None` falls back to Marley's own environment.
+  - `marley_workbench` depends on `marley_browser` but not on `smol` or `async-tungstenite`
+    (workspace 2.0 and 0.33); the two are added.
+  - `process.rs`: `output` alone takes a folder and an environment; `following` takes neither.
+    `following` gains both, so the spawn count stays 7.
+  - No `XDG_RUNTIME_DIR` helper; `fleet_hosts.rs:195` reads it inline. The askpass socket sits in
+    a `tempfile` folder. `on_app_quit` hooks exist in `mcp.rs`, `clients.rs`, `browser.rs`.
+  - `MarleySettings` holds three bools under pedantic clippy: the switch is an enum
+    (`CodexAppServer { On, Off }`, `EmbeddedHarness`'s `const fn from_setting`).
+  - `tooltip` is `PermissionMark`'s, not `MarkSource`'s. `seat_entry` (rail.rs:6504) and the
+    terminal entry's icon (:1890) hard-code Claude Code; `note_claude_code` (:2097) ends every seat
+    whose row is not Claude Code's; `terminal_snapshot` reads the seat for Claude only
+    (:7055-7057); `close_guard::working_status` likewise (:186-188); `stall::working_seats` and
+    `send_selection::target_of` take any seat; `browser.rs:5235-5237` names Claude Code.
+  - `marley_page.rs`: `agents_section` is 15 items (Codex Permissions the 12th, Agent Prompts in a
+    Tab last); `agent_versions_section` is 2.
+- **Codex's source** (an Explore pass over the 0.155.1 clone and 0.158.0 at its tag, with both
+  generated schema sets). What it changed:
+  - **`thread/resume` renames the thread's client** to the resuming connection's until the TUI's
+    next `turn/start` (`thread_processor.rs:4412-4417`, `turn_processor.rs:580-588`), and Codex
+    offers plugin installs only to `codex-tui` (`request_plugin_install.rs:139-151`). The
+    design's resume at every `turn/started` would land inside the TUI's turn: dropped (D3).
+  - **Every initialized connection is attached to each thread made while it is joined**, the
+    TUI's ephemeral title and recap threads included (`lib.rs:1274-1292`), and a thread unloads
+    only with no subscriber after 60 s idle (`thread_lifecycle.rs:55-62, 416-456`). Marley
+    unsubscribes from each thread it was attached to that is not the lead.
+  - **`thread/settings/updated` goes to subscribers of the experimental API only**
+    (`transport.rs:104-127`), sent when a turn's settings change (`bespoke_event_handling.rs:1234-
+    1250`). Its `threadSettings.approvalPolicy` and `sandboxPolicy` agree in the 0.155.1 and
+    0.158.0 bundles. Marley initializes with `experimentalApi: true`, as the TUI does, and reads
+    it (D3).
+  - **`thread/status/changed` and `thread/started` are broadcast** to every initialized connection
+    (`thread_status.rs:246-251`, `thread_processor.rs:1646-1648`), so the state needs no
+    subscription; `turn/*` and `thread/tokenUsage/updated` go to subscribers only.
+  - **`thread/loaded/list` answers ids only**; `thread/read {threadId}` gives a thread with its
+    live status without subscribing (`thread_processor.rs:860-880`). REQ-017's list gains it.
+  - **Never answer a server request**, not even with an error: an error reply resolves an approval
+    as denied (`bespoke_event_handling.rs:2026-2032`), and Codex's own remote client answers
+    unknown requests with -32601 (`remote.rs:895-905`), so no ready-made client is safe here.
+  - **Tokens:** `thread/resume` with `excludeTurns` does not replay token use; the count shows from
+    the next turn.
+  - **The socket:** 0.155.1 binds the path and chmods its parent to 0700; 0.158.0 binds under
+    `/tmp/codex-daemon-<uid>/<sha256>` and links the path to it once listening; both remove what
+    they made on a clean stop. SIGTERM starts a drain that waits for running turns; a second
+    SIGTERM or the kill ends it. A bare `unix://` is Codex's shared daemon: Marley always names a
+    path.
+  - **Originator and user agent:** first-wins and replaced per initialize, by name only
+    (`initialize_processor.rs:19, 131, 166-194`); no capability opts out. No signal tells another
+    connection that the TUI initialized; with `RUST_LOG` unset the server logs nothing then. D10's
+    wait (the TUI's connection, then 1 s) stands.
+  - **Token refresh across processes:** each server has its own auth manager with an in-process
+    lock only; a guarded re-read of `auth.json` before refreshing narrows, but does not close, a
+    window where two servers spend one refresh token, the loser reading "refresh token was
+    already used" until a reload sees the winner's tokens (`login/src/auth/manager.rs`). 0.155.1's
+    embedded TUIs carry the same risk today; 0.158.0's default shares one daemon. A risk, kept
+    with D1; the switch is off by default.
+  - **Session source:** `codex app-server` records `vscode`; `codex resume` and `--last` list
+    `cli` and `vscode` alike (`tui/src/lib.rs:764-773`).
+  - **The TUI in remote mode:** initializes as `codex-tui` with `experimentalApi`, sends
+    `approvalPolicy` always and a sandbox unless its profile is external, takes the folder only
+    from `--cd`, and starts ephemeral side threads (`system` in 0.155.1; `thread_title` and
+    `system` in 0.158.0).
+  - **Framing:** no `jsonrpc` field; notifications carry `emittedAtMs`; a server request has an
+    integer id and a method. A connection whose 32,768-message queue fills is dropped;
+    `capabilities.optOutNotificationMethods` suppresses notifications by exact name.
+
+### Design, as revised at promotion
+These replace the matching parts of the Design above; the rest stands.
+- **`codex_server`'s follow:** after `initialize` (`experimentalApi: true`; the opt-outs are the
+  `*Delta` notification methods the 0.155.1 bundle lists, `item/started` kept) and `initialized`:
+  `thread/loaded/list`, then `thread/read` for each id not yet known, each second until a lead is
+  found. State comes from `thread/status/changed` for the lead whether or not Marley subscribed.
+  A lead seen first in `thread/started` after the join is subscribed already; a lead found by the
+  list is resumed (`excludeTurns: true`) at the first moment its status is `idle`, never while a
+  turn runs. Each `thread/started` that is not the lead (ephemeral, a `parentThreadId`, another
+  source) is unsubscribed at once. No resume at `turn/started`.
+- **Policies:** the resume's `approvalPolicy` and `sandbox`, then `thread/settings/updated`'s
+  `threadSettings.approvalPolicy` and `sandboxPolicy`. `codex_events` decodes both.
+- **`agent_versions`:** `pub(crate) fn is_on(integration, cx) -> bool` (the private `verdict`'s
+  answer) and `pub(crate) fn program(kind, cx) -> Option<PathBuf>` (the path the check found:
+  `MARLEY_CODEX`, else the launcher's search path).
+- **`process.rs`:** `following` takes an optional folder and an environment to add; `serve`
+  (new) calls it with stdin closed and stderr piped, kill on drop. Still one spawn call.
+- **The server's environment:** `directory_environment(folder)` awaited (bounded by the 5 s the
+  socket wait has), else Marley's own; then `agent_env`'s variables, `MARLEY_TERMINAL_ID` and
+  `MARLEY_PROJECT`.
+- **The stand-in server** keeps the real rules Marley depends on: it attaches every initialized
+  connection to a thread at its start, broadcasts `thread/started` and `thread/status/changed`,
+  sends turn, token and approval messages to subscribers only and `thread/settings/updated` to
+  experimental subscribers only, answers `thread/read` without subscribing, makes the caller of
+  `thread/resume` a subscriber and logs the thread's client name it now holds, and logs every
+  method with its connection's `clientInfo.name` and whether the thread's status was `active`
+  at a resume.
+- **Added risk:** a lead from before the join that never goes idle (a launch with a first prompt
+  whose turn runs long) has its state from the broadcast but no tokens, failure text or policies
+  until its first `idle`.
+
+## Phase 2 — Code (2026-10-04)
+- **Built.**
+  - `marley_agent`: `codex_events` (new, pure): the read types (`Thread` with `is_lead`,
+    `ThreadStatus`, `Turn`, `Policies`), `Notification::decode` for the seven methods followed,
+    `read_answer`, `resume_answer`, the `Input` enum, `fold`, `seat_words`, `seat_activity`,
+    `tokens`, `is_codex`. `Remote` and `launch_line_after`'s `remote` (the program by its quoted
+    path, `--remote` and `--cd`); `thread_mark` and `MarkSource::Thread`; `agent_kind_of` reads a
+    quoted program path. `versions::CODEX_APP_SERVER`, from 0.155.1 before 0.158.1.
+  - `marley_workbench::codex_server` (new, the adapter): `CodexAppServer`, `prepare`, `start`
+    (the folder made 0700, the environment, `process::serve`, the socket wait), the process task
+    (stderr's last line, the exit, SIGTERM then the kill), the follow (the TUI's connection in
+    `/proc/net/unix`, a second, `initialize` with the experimental API and the delta opt-outs, the
+    server's version through #648's verdict, the lead found and resumed only while idle, side
+    threads unsubscribed), the client (one channel for responses, notifications and the server's
+    end; server requests dropped unanswered), the quit hook.
+  - `process.rs`: `following` takes the outputs and an optional folder and environment; `serve`.
+    One spawn call still; `.config/spawn-sites.txt`'s line names `rh` and `codex`.
+  - `agents.rs`: `agent_line` builds both lines for a Codex that joins; `start_in_terminal` takes
+    the `Joining`, starts the server after the terminal, and types the plain line when it does not
+    come up; `launch_input` (launch configs) and `start_cli_with_prompt` use it.
+  - `agent_events`: `seat_agent`, `seat_of`, `fold_codex`, `heard_from`, `waiting_agent`; Claude
+    Code's fold starts no seat from a Codex one. `agent_versions`: `is_on`, `program`, and the
+    chip lists the App Server row only while the switch is on.
+  - Readers: the rail's row (the seat by its agent, `codex_line`, `agent_mark`, the activity),
+    `note_claude_code` ends a seat whose agent left the foreground, the inbox entry and its icon
+    by the seat's agent (risk and route marks for Claude Code's waits only); the close guard;
+    the stall watch (Claude Code's seats only); the Browser tab's Send sentence.
+  - Zed: `settings_content`'s field, `default.json`'s key and allow-map row, the page's two items;
+    the three ledger rows widened first. `script/e2e.sh` turns the switch off in each copy.
+- **Deviations from the plan, and why.**
+  - The policies ride as the labels `sandbox` and `approval`, not capabilities: no fleet event
+    sets a seat's capabilities.
+  - `agent_kind_of` trims quotes from the first word: the launch line names Codex by its quoted
+    path, and #551's long-command watch and #572's error marks would otherwise read the session as
+    a command.
+  - #648's chip lists `codex_app_server` only while `marley.codex_app_server` is on, so a user who
+    never turned the switch on sees no chip about it.
+  - The server's environment adds the worktree's port variables (#590) and the terminal
+    settings' `env` to the design's list, as Zed's terminal builder does; the folder's
+    environment waits at most 3 s.
+  - The row's name is "App Servers", so #648's tooltip line reads "App Servers are off: …".
+  - At quit the servers are killed at once (gpui gives the quit hooks 200 ms), and the whole
+    `marley-<pid>` folder goes.
+- **Review.**
+  - Re-entrancy: the follow folds through `cx.update`, outside any entity update; the terminal's
+    release only removes the server from a global, whose drop detaches the process task.
+  - Errors reach the user: a server that does not come up leaves the plain launch (logged); a
+    server that stops makes the row read failed with its last stderr line; an untested server
+    version leaves the row on the quiet timer and the chip says why.
+  - Codex's turn is never touched: no resume while the lead is active, no answer to any server
+    request.
+  - The socket's folder is the user's only (0700); the program, the socket and the folder must
+    hold no whitespace (the TUI's line and `/proc/net/unix` split on it).
+- **Offline recording** (the plan's P2, scratchpad only: it names this machine): the installed
+  0.155.1 server under a scratch `CODEX_HOME`, network off (`unshare -rn`). The `userAgent` reads
+  `codex-tui/0.155.1 (…) (codex-tui; 0.155.1)` and becomes `(marley; …)` after a second client's
+  `initialize`; `/proc/net/unix` lists the listening socket with state 01 and each accepted
+  connection under the same path with state 03; `thread/read` of an unknown id answers -32600; a
+  SIGTERM removes the socket.
+- **Clippy rounds:** a field named after its struct (`thread_source`), four first doc paragraphs,
+  two `map_or_else`, an unused import, a dead `waiting`, `serve` at 102 lines (the socket wait
+  moved out), a value parameter not consumed, `&mut AsyncApp` where `&` serves.
+- **Gate:** `just gate-diff` green after the manifest order fix (`async-tungstenite` after `askpass`, gate:17).
+
+## Phase 3 — Test (2026-10-04)
+- **Scenario:** `script/e2e/650-codex-app-server-state.sh`, `compositor sway`: one stand-in
+  `codex` (`--version`, the App Server with Codex's routing rules, the remote TUI, and #532's
+  plain fake), copies `0.155.1` and `0.150.0` behind the link `bin/codex` named by
+  `MARLEY_CODEX`. Every check passes: no `--remote` with the switch off; the line, the server,
+  Marley joining after the TUI; C's arguments still asking for full access; B's server and socket
+  gone when B closed idle; the untested Codex without `--remote`; Marley's requests only the five,
+  no request answered, no resume of an active thread; A's server and the socket folder gone after
+  the quit.
+- **Shots of the second run, each read:**
+  - `650-01-off`: the plain stand-in, `codex started with:` and nothing; the row `Codex ·
+    waiting`. REQ-001.
+  - `650-02-launched`: A's line `'…/bin/codex' --remote unix:///run/user/1000/marley-<pid>/codex/1.sock
+    --cd …/repo`; the row `idle`. REQ-002.
+  - `650-03-working`: A `working · 12k tokens`, first in the rail. REQ-003, REQ-004.
+  - `650-04-approval`: B `waiting on approval`, A `working · 12k tokens`; the inbox's `Codex ·
+    repo`, "Waits on an approval", with Codex's icon. REQ-005, REQ-007, REQ-008.
+  - `650-05-input`: A `waiting on input · 12k tokens`, B unchanged; two inbox entries. REQ-006,
+    REQ-007.
+  - `650-06-opened`: the first inbox entry clicked from A: B's terminal in front. REQ-008.
+  - `650-07-done`: B `idle · 15k tokens`, its entry gone, A's left. REQ-009, REQ-004.
+  - `650-08-failed`: B `failed · 12k tokens`, "stream disconnected before co…". REQ-010.
+  - `650-09-close-asks`: "Close Codex in repo? It is working." with `repo · Codex · working`.
+    REQ-011.
+  - `650-10-full`: B's `full access` chip; its tooltip "Codex runs with no sandbox: its thread
+    reports dangerFullAccess, with approvals on request", B started with no sandbox argument.
+    REQ-012.
+  - `650-11a-full-from-start`, `650-11-scoped`: C, started with full access, shows the chip;
+    after `scoped` and `work` the chip is gone while its line still reads `--sandbox
+    danger-full-access`. REQ-013.
+  - `650-12-server-gone`: C `failed · 12k tokens`, "Codex's App Server stopped: st…". REQ-014.
+  - `650-13-outside`: the 0.150.0 Codex typed with no `--remote`, its row on the quiet timer; the
+    bar's "Untested Codex 0.150.0" chip, its tooltip "App Servers are off: …", the path found, the
+    range, the setting. REQ-015.
+  - `650-14-page`, `650-15-versions`: Codex App Server in the Agents section (on, as the run set
+    it; the default is `default.json`'s `false`) and App Server on Untested Codex, off. REQ-019.
+- **Fixed in Test:**
+  - The first run's quit check found `marley-<pid>` left behind: the hook removed only its `codex`
+    folder. It removes the whole folder now.
+  - The first run's clicks on rail rows missed, since the rail sorts rows by what each agent
+    needs; those steps use the palette (`pane: activate previous item`, `pane: close active
+    item`), and the chip's place came from the shots.
+- **Not reached by a scenario:** the real Codex and a real turn (an account and the network); the
+  0.158.0 link socket (the stand-in binds as 0.155.1 does; `remove_leftovers` by review); the
+  token-refresh risk across servers (Codex's own, by review); zsh and fish are not involved.
+
+## Phase 4 — Complete (2026-10-04)
+- **Docs:** `CHANGELOG.md` (Added, Codex's state from its own App Server); `docs/marley/guide.md`
+  (the paragraph after the permission chip's, the settings page's list, the settings example);
+  `docs/marley_architecture/marley_agent.md` (Codex's App Server, the surface, the versions row)
+  and `marley_workbench.md` (Codex's own App Server, the agent versions' two readers); the plan's
+  C1 row; the design note's B1 part 1 marked done; the three `zed-touchpoints.md` rows checked
+  against what shipped.
+- **Knowledge:** AD-claude-650-marley-joins-a-codex-app-server-of-its-own-per-terminal-001,
+  F-claude-650-the-quit-hook-left-marleys-socket-folder-001,
+  L-claude-650-a-codex-thread-resume-renames-its-client-001,
+  L-claude-650-proc-net-unix-shows-who-joined-a-socket-001,
+  L-claude-650-the-rail-sorts-rows-so-a-scenario-uses-the-palette-001,
+  L-claude-650-e2e-runs-end-without-marleys-quit-hooks-001.
+- **Brain:** consultation `c60abfdf55ae40d999b172d6e29c9aef` closed with
+  `decisions/marley-joins-a-codex-app-server-of-its-own-per-codex-terminal-behind-a-switch-650`
+  (follow-up 2026-11-04).
+- **Closed:** TICKET-650 in `tickets/closed/`; the pair archived to `completed/`.

@@ -39,6 +39,7 @@ pub mod claude_plugin;
 pub mod click_pause;
 pub mod clients;
 pub mod close_guard;
+pub mod codex_server;
 pub mod command_watch;
 pub mod decisions;
 pub mod english;
@@ -404,6 +405,8 @@ pub struct MarleySettings {
     pub prompt_editor: PromptEditor,
     /// Where an agent's prompt opens on Ctrl-G in the terminals Marley opens for agents (#649).
     pub agent_prompts: agent_editor::AgentPrompts,
+    /// Whether a Codex Marley launches runs against an App Server of its own (#650).
+    pub codex_app_server: codex_server::CodexAppServer,
     /// The order the rail lists projects and rows in (#542).
     pub rail_order: marley_rail::RailOrder,
     /// What Marley starts Claude Code and Codex with (#532).
@@ -627,6 +630,7 @@ impl Settings for MarleySettings {
                 .unwrap_or_default(),
             rail_order: rail_order(marley),
             agent_prompts: agent_editor::AgentPrompts::from_content(marley),
+            codex_app_server: codex_server::CodexAppServer::from_content(marley),
             prompt_editor: PromptEditor::from_setting(
                 marley.and_then(|marley| marley.prompt_editor),
             ),
@@ -800,6 +804,7 @@ pub fn init(cx: &mut App) {
     typed_line::init(cx);
     agent_notify::init(cx);
     agent_versions::init(cx);
+    codex_server::init(cx);
     agent_bar::init(cx);
     claude_plugin::init(cx);
     notifications::init(cx);

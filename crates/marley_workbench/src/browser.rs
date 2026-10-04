@@ -5232,10 +5232,15 @@ impl BrowserView {
         };
         // A paste into an agent that waits on a permission or a question would answer it, so the
         // pick and its caption wait too (#508).
-        if crate::agent_events::waiting(terminal.entity_id(), cx) {
-            self.tray_error = Some(SharedString::new_static(
-                "Claude Code in that terminal waits for your answer: answer it there, then Send.",
-            ));
+        if let Some(agent) = crate::agent_events::waiting_agent(terminal.entity_id(), cx) {
+            self.tray_error = Some(SharedString::new_static(match agent {
+                marley_agent::AgentKind::Codex => {
+                    "Codex in that terminal waits for your answer: answer it there, then Send."
+                }
+                _ => {
+                    "Claude Code in that terminal waits for your answer: answer it there, then Send."
+                }
+            }));
             cx.notify();
             return;
         }

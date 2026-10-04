@@ -3912,3 +3912,30 @@ on. Every other terminal, and every terminal with the switch off, keeps #481's o
 - Zed's CLI picking a window by worktree (a temporary file sits in none);
 - "only when `EDITOR` is unset" (Omarchy exports one, so it would never fire);
 - on by default (it changes what Ctrl-G does and which editor an agent's `git commit` opens).
+
+## AD-claude-650-marley-joins-a-codex-app-server-of-its-own-per-terminal-001
+*decided at: 2026-10-04 · status: shipped · builds on: AD-claude-519-claude-codes-hook-events-ride-in-band-into-marley-fleet-001, AD-claude-648-marley-turns-off-only-what-rests-on-an-untested-agent-surface-001 · plan: docs/planning/design-notes/claude-and-codex-on-their-own-tools-2026-10-02.md B1 part 1*
+
+With `marley.codex_app_server` on (off by default), each Codex Marley launches in a local project
+runs against a `codex app-server` Marley starts for that terminal alone, so a thread maps to its
+terminal by the socket and nothing is guessed. Marley joins as a second client once the TUI's
+connection shows on the socket, and a second later, so the TUI names the server's originator. It
+follows the lead thread through what every connection hears (`thread/started`,
+`thread/status/changed`), subscribes a lead made before it joined with `thread/resume` only while
+the lead is idle (a resume renames the thread's client until the TUI's next turn, and Codex
+offers plugin installs to `codex-tui` alone), reads the policies from that answer and from
+`thread/settings/updated` (the experimental API, asked for as the TUI asks), unsubscribes every
+other thread it was attached to, and answers no server request. The fold lands on the same seat
+Claude Code's events use, so the rail, the inbox and the close guard read Codex unchanged.
+Rejected:
+- one server per Marley or per `CODEX_HOME` (threads matched to terminals by folder and
+  creation time, ambiguous for two agents in one project);
+- Marley starting the thread itself, or relaying the TUI's own traffic (Marley in the user's
+  session);
+- Codex's shared daemon (another terminal's environment, and Marley would rename every session's
+  user agent);
+- a `thread/resume` at each turn's start (inside the TUI's turn);
+- Codex's own remote client (it answers unknown requests with an error, which denies approvals).
+Known cost: each server refreshes its login on its own, as 0.155.1's embedded TUIs already do;
+Codex's guarded re-read narrows, but does not close, the window where two spend one refresh
+token.

@@ -17,7 +17,7 @@ use gpui::{AnyElement, App, Global};
 use marley_agent::AgentKind;
 use marley_agent::claude_events::PromptReading;
 use marley_agent::versions::{
-    self, CLAUDE_PROMPT_TAGS, Found, Integration, Off, Verdict, integrations_of,
+    self, CLAUDE_PROMPT_TAGS, CODEX_APP_SERVER, Found, Integration, Off, Verdict, integrations_of,
 };
 use settings::{Settings as _, SettingsStore};
 use terminal::Terminal;
@@ -315,6 +315,25 @@ fn verdict(integration: &Integration, cx: &App) -> Verdict {
     versions::verdict(integration, found, allowed)
 }
 
+/// Whether `integration` runs now: its agent's version tested, or the user allowed it (#650).
+pub(crate) fn is_on(integration: &Integration, cx: &App) -> bool {
+    verdict(integration, cx).is_on()
+}
+
+/// The program the last check found for `kind`: `MARLEY_CLAUDE` or `MARLEY_CODEX`, else the
+/// search path's, as found (#650).
+pub(crate) fn program(kind: AgentKind, cx: &App) -> Option<PathBuf> {
+    cx.try_global::<AgentVersions>()?.check(kind)?.path.clone()
+}
+
+/// Whether the user asked for `integration`, so its being off is worth a chip: Codex's App Server
+/// only while `marley.codex_app_server` is on.
+fn wanted(integration: &Integration, cx: &App) -> bool {
+    integration.id != CODEX_APP_SERVER.id
+        || MarleySettings::get_global(cx).codex_app_server
+            == crate::codex_server::CodexAppServer::On
+}
+
 /// How a terminal's Claude Code prompts are read: with the tags while they are on, or allowed,
 /// else every prompt as the user's. A remote terminal's are read with the tags: the local
 /// `claude` says nothing of the host's (D10).
@@ -341,6 +360,7 @@ pub(crate) fn chip(
         return None;
     }
     let verdicts: Vec<(&'static Integration, Off)> = integrations_of(kind)
+        .filter(|integration| wanted(integration, cx))
         .filter_map(|integration| match verdict(integration, cx) {
             Verdict::Off(Off::NotChecked) | Verdict::On | Verdict::Allowed => None,
             Verdict::Off(off) => Some((integration, off)),
