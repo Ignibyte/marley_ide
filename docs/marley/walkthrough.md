@@ -694,6 +694,25 @@ Needs 2.15's Graph tab. This stop changes only the graph settings, which step 6 
 - [ ] Step 5: the group, Arrows, 3.0 and 20.0 as you left them.
 - [ ] Step 6: the graph is as 2.15 drew it.
 
+### 2.15b The Tasks tab (#658), optional
+
+Needs 2.12's setup: Rusty installed and on. This stop makes a list of its own and deletes it.
+
+1. Click the list icon after Graph in the rail's Brain view.
+2. Click + by Lists, type `marley-tour`, press Enter. Type `first`, Enter, `second`, Enter,
+   `third`, Enter.
+3. Click `first`'s box. Click `second`, press F2, type `second, renamed`, press Enter.
+4. Drag `third` onto `first`. Press Alt+Down.
+5. Press Delete on `second, renamed`, then click Show archived.
+6. Right-click `marley-tour` in the lists and choose Delete List…, then Delete.
+
+- [ ] Step 1: a Tasks tab with your lists, the first chosen, its tasks in Rusty's order.
+- [ ] Step 2: `marley-tour` is chosen with the field ready; the three tasks land in order.
+- [ ] Step 3: `first` is struck through in place; the title changes in its row.
+- [ ] Step 4: `third` takes `first`'s place, then moves down one.
+- [ ] Step 5: the task goes, and comes back faint and marked Archived.
+- [ ] Step 6: the prompt names the list; the list goes, and the first list is chosen.
+
 ## Part 3. The editor
 
 Marley's editor is Zed's. This part checks the everyday tools. The first time you open

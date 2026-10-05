@@ -67,7 +67,7 @@ pub mod process;
 pub mod project_icons;
 pub mod prompt_colors;
 pub mod push;
-mod rail;
+pub mod rail;
 pub mod remote;
 pub mod resume;
 pub mod review_notes;

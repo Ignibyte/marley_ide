@@ -2195,6 +2195,36 @@ alike.
   window and calls `renamed` on every Page tab, which moves its history and reads the page again
   when the one it shows moved. The Brain view's rename and move call `follow_rename` too.
 
+## The Tasks tab (`src/rusty/tasks_tab.rs`, #658)
+
+- **Opening.** `rusty::OpenTasks`, registered on every workspace by `tasks_tab::init`;
+  `open_later(workspace, list, ..)` defers, then brings the workspace's `TasksView` forward or adds
+  one, and with a list calls `show_list`. The Brain view's fixed row (Tasks after Graph, through
+  the rail's multi-workspace) and the Knowledge panel's `tasks_header` (Open in Tasks on the first
+  joined group) call it.
+- **`TasksView`.** The lists, the chosen list, its tasks, the selection, Show archived, the add
+  field, a row editor (`RowTarget`: new list, a list renamed, a task renamed), the write queue,
+  the read in flight and `ReadDue` (no, after this one, when shown), `State` (reading, ready,
+  failed), `Link` (off, down, up), a hand-deployed `ContextMenu`, and a `ScrollHandle`.
+- **Reads.** `list_task_groups`, then `list_tasks` for `kept_list`'s choice with
+  `include_archived`; the tasks parsed off the window's thread; a read for a list no longer
+  chosen reads again. Triggers: opening, the link coming up (`rusty_changed` acts only on a change
+  of `Link`, since the `Rusty` global notifies for more), `Announced` while `showing` (else
+  `WhenShown`, read at the next draw), `on_focus_in` of the root from outside, window activation
+  while showing, Refresh, after each write, and `deactivated` under the service connection.
+- **Writes.** `write` queues a `TaskWrite` (refused with a toast while not connected); `pump` sends
+  one at a time through `rusty::call_tool`, chooses a new list by its answered id, toasts a
+  refusal's first line, and reads after each. A reorder is drawn before it is sent. The deletes ask
+  with `window.prompt` at Warning, the name fenced by `launch::verbatim`.
+- **Drawing and input.** A 240 px lists column (`ListItem`s, a menu each, + for a new list), the
+  header (the name, Show archived, Refresh), the add field (read only without a list), the rows
+  (`ListItem` with a filled `Checkbox`, the title struck and muted when done, archived faint with
+  "Archived"), and the notice line. A row drags as `DraggedTask` with the rail's `drag_preview`
+  and `drop_line` (`crate::rail::order`, `pub` since #658) and drops by `marley_rail::move_to`.
+  The root is `RustyTasks menu` (Zed's list keys, `menu::Confirm` and `Cancel` by where the focus
+  is); the list is `RustyTaskList`, with `not_editing` while no row editor is open, for the
+  keymap's Space, F2, Delete, Backspace, Shift-Delete, Alt-Up and Alt-Down.
+
 ## Open a page by name (`src/rusty/page_picker.rs`, #654)
 
 - `OpenPage.slug` is an `Option` (its fields read through `OpenPageFields`, `slug` defaulted), so

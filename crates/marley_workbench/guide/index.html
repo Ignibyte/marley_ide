@@ -170,6 +170,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#brain-view">The Brain view: Rusty&#x27;s vault in the rail</a></li>
 <li><a href="#knowledge-panel">The Knowledge panel: a page&#x27;s links, tags and brain search</a></li>
 <li><a href="#graph-tab">The Graph tab: the vault as a graph</a></li>
+<li><a href="#tasks-tab">The Tasks tab: Rusty's to-do lists</a></li>
 </ol></li>
 <li><a href="#editor">The editor</a><ol>
 <li><a href="#find-things">Find files, symbols and text</a></li>
@@ -674,6 +675,20 @@ th { background: var(--panel); font-weight: 650; }
 </ol>
 <p class="note">The layout runs away from the window's thread and settles in a moment. Past 2,000 dots the tab lays out the most linked and says so; a filter or a local graph reaches the rest. While the tab shows, it reads the graph again when Rusty announces a change.</p>
 <p class="note">The groups, the switches, the depth and every slider are shared by all Graph tabs and kept across restarts. A Graph tab open when Marley quits comes back in its place with its scope, page, filter, hidden types and panel, unless Rusty is off when Marley starts. The forces have Rusty's names and ranges but act on Marley's own layout, so the same numbers do not draw the same picture as Rusty's app.</p>
+</article>
+<article id="tasks-tab">
+<h3>The Tasks tab: Rusty's to-do lists <span class="ticket">#658</span></h3>
+<p class="what"><strong>What it is.</strong> A center tab over Rusty's to-do lists, while Rusty is on: the lists in a column on the left, the chosen list's tasks on the right, in Rusty's order. Every change goes to Rusty and is read back, so the tab shows what Rusty holds.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Click the list icon after Graph in the rail's Brain view, or run <code>rusty: open tasks</code>. From the Knowledge panel's project view, the list icon on its Tasks heading opens the tab on the project's task group.</li>
+<li>Click a list to see its tasks. Type in the field above them and press Enter to add one at the end; Down from the field goes to the first task.</li>
+<li>Click a task's box, or press <kbd>Space</kbd>, to check it done; a done task stays in its place, struck through. Double-click it, or press <kbd>F2</kbd> or <kbd>Enter</kbd>, to rename it in its row.</li>
+<li><kbd>Delete</kbd> archives the selected task, which hides it; Show archived lists archived tasks in their places, marked Archived, and <kbd>Delete</kbd> or the menu's Restore brings one back. <kbd>Shift+Delete</kbd> or Delete for Good asks first, then deletes it.</li>
+<li>Drag a task onto another to put it in that one's place, or press <kbd>Alt+Up</kbd> and <kbd>Alt+Down</kbd>.</li>
+<li>The + by Lists makes a list; a list's right-click menu renames or deletes it, and deleting a list asks first, since its tasks go with it.</li>
+</ol>
+<p class="note">The tab reads Rusty again when Rusty announces a change, when you come back to the tab, when Marley's window comes back to the front, and on Refresh. A task an agent adds through its own Rusty shows then, not at once.</p>
 </article>
 </section>
 

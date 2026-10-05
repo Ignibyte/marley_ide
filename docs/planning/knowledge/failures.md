@@ -3329,3 +3329,20 @@ handler ran after the slider's and focused the tab, so the keys went to the tab,
 press on the panel could also start a pan, or hold a node hidden behind it. Fixed: the panel calls
 `occlude()`, so nothing under it is hovered or pressed through it, and the slider's press stops
 propagation.
+
+## F-claude-658-the-tasks-tab-read-on-every-notification-of-the-rusty-global-001
+*severity: medium · found in: pipeline 658's scenario, in Test · class: an observer of a broad global acting on every notification, not on the change it cares about*
+
+The Tasks tab read Rusty's lists while hidden, which the scenario's check caught (`658-22`'s "no
+read while hidden"). Its observer of `rusty::Rusty` read whenever the global was notified and
+Rusty was connected, meaning to read when the connection came up. The global is notified for
+more than the connection, including each announcement, so every change Rusty announced read the
+lists even with the tab hidden: the hidden-tab rule was bypassed. Fixed: the tab keeps the link
+it last saw (`Link`: off, down, up) and acts only when it changes.
+
+## F-claude-658-the-tasks-tabs-add-field-kept-its-first-placeholder-001
+*severity: low · found in: pipeline 658's measuring run, in Test · class: a widget set up once from state that the first read fills in later*
+
+The add field read "Create a list first", read only, with Home chosen and its tasks shown. It
+was set up in the constructor, before the first read chose a list, and nothing set it up again.
+Fixed: `render` sets it up whenever whether a list is chosen differs from how it was last set.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A stand-in for Rusty's MCP server, `rusty-mcp`, for Marley's e2e scenarios (#643 to #647).
+"""A stand-in for Rusty's MCP server, `rusty-mcp`, for Marley's e2e scenarios (#643 to #658).
 
 It answers the tools Marley reads as `rusty-mcp` does (each answer JSON text in a text block, a
 refusal a JSON-RPC error carrying Rusty's message), from `../fixtures/settings_list.json` and a
@@ -11,8 +11,11 @@ serves Streamable HTTP's POST and DELETE on ADDR (port 0 picks one, written to
 `$RUSTY_STAND_IN_STATE/http-addr`). Every request goes to `$RUSTY_STAND_IN_STATE/calls` with this
 process's id. On stdio it sends `notifications/resources/list_changed` when its settings file or a
 file in its vault changes, its own writes included, as `rusty-mcp` announces each change its
-watcher sees. Links are not rewritten on a rename, search matches words, not embeddings, and
-`brain_render` gives no HTML: Marley reads `raw`, `properties`, `file` and `links`.
+watcher sees. Since #658 it serves Rusty's twelve task tools over `$RUSTY_STAND_IN_STATE/tasks.json`
+(`{"groups": [{"id", "name", "tasks": [...]}]}`), with Rusty's answers and refusals, and announces
+each task write that succeeds; it does not watch that file, so a scenario's own edit of it stands
+for a write another `rusty-mcp` makes, which reaches no other process. Search matches words, not
+embeddings, and `brain_render` gives no HTML: Marley reads `raw`, `properties`, `file` and `links`.
 """
 
 import json
@@ -44,6 +47,16 @@ TOOL_NAMES = [
     "brain_remove_property",
     "list_task_groups",
     "list_tasks",
+    "create_task_group",
+    "rename_task_group",
+    "delete_task_group",
+    "create_task",
+    "toggle_task",
+    "update_task_title",
+    "archive_task",
+    "unarchive_task",
+    "delete_task",
+    "reorder_tasks",
     "brain_search",
     "brain_daily_note",
     "brain_new_page",
@@ -321,12 +334,131 @@ def remove_property(slug, key):
     return read_page(slug)
 
 
+TASKS = os.path.join(STATE, "tasks.json")
+
+# The task tools that change `tasks.json`; Rusty announces each one's success (#658).
+TASK_WRITES = {
+    "create_task_group",
+    "rename_task_group",
+    "delete_task_group",
+    "create_task",
+    "toggle_task",
+    "update_task_title",
+    "archive_task",
+    "unarchive_task",
+    "delete_task",
+    "reorder_tasks",
+}
+
+
 def tasks_file():
     try:
-        with open(os.path.join(STATE, "tasks.json"), encoding="utf-8") as tasks:
+        with open(TASKS, encoding="utf-8") as tasks:
             return json.load(tasks).get("groups", [])
     except (OSError, ValueError):
         return []
+
+
+def save_tasks(groups):
+    with LOCK:
+        with open(TASKS + ".new", "w", encoding="utf-8") as stored:
+            json.dump({"groups": groups}, stored, indent=2)
+        os.replace(TASKS + ".new", TASKS)
+
+
+def next_id(groups):
+    """One more than the largest list or task id, so a new id is never one in use."""
+    ids = [group["id"] for group in groups]
+    ids += [task["id"] for group in groups for task in group.get("tasks", [])]
+    return max(ids, default=0) + 1
+
+
+def find_group(groups, group_id):
+    return next((group for group in groups if group["id"] == group_id), None)
+
+
+def find_task(groups, task_id):
+    for group in groups:
+        for task in group.get("tasks", []):
+            if task["id"] == task_id:
+                return group, task
+    return None, None
+
+
+def create_task_group(name):
+    """Rusty's `create_task_group`: the new list last, its id answered."""
+    groups = tasks_file()
+    new = next_id(groups)
+    groups.append({"id": new, "name": name, "tasks": []})
+    save_tasks(groups)
+    return new
+
+
+def rename_task_group(group_id, name):
+    """Rusty's `rename_task_group`; an id it does not hold changes nothing and succeeds."""
+    groups = tasks_file()
+    group = find_group(groups, group_id)
+    if group is not None:
+        group["name"] = name
+        save_tasks(groups)
+    return "renamed"
+
+
+def delete_task_group(group_id):
+    """Rusty's `delete_task_group`: the list and every task in it."""
+    save_tasks([group for group in tasks_file() if group["id"] != group_id])
+    return "deleted"
+
+
+def create_task(group_id, title):
+    """Rusty's `create_task`: the task last in its list, its id answered."""
+    groups = tasks_file()
+    group = find_group(groups, group_id)
+    if group is None:
+        raise Refused(f"No task group {group_id}")
+    new = next_id(groups)
+    group.setdefault("tasks", []).append({"id": new, "title": title})
+    save_tasks(groups)
+    return new
+
+
+def change_task(task_id, change, word):
+    """A write on one task; an id Rusty does not hold changes nothing and succeeds."""
+    groups = tasks_file()
+    group, task = find_task(groups, task_id)
+    if task is not None:
+        change(group, task)
+        save_tasks(groups)
+    return word
+
+
+def toggle_task(task_id):
+    """Rusty's `toggle_task`: the new state answered, a missing id refused as SQLite words it."""
+    groups = tasks_file()
+    _, task = find_task(groups, task_id)
+    if task is None:
+        raise Refused("Query error: Query returned no rows")
+    task["completed"] = not task.get("completed")
+    save_tasks(groups)
+    return task["completed"]
+
+
+def reorder_tasks(group_id, task_ids):
+    """Rusty's `reorder_tasks`: the ids named first, in order, then the rest as they were."""
+    groups = tasks_file()
+    group = find_group(groups, group_id)
+    if group is None:
+        raise Refused(f"No task group {group_id}")
+    held = {task["id"]: task for task in group.get("tasks", [])}
+    for task_id in task_ids:
+        if task_id not in held:
+            raise Refused(f"Task {task_id} is not in group {group_id}")
+    named = list(dict.fromkeys(task_ids))
+    group["tasks"] = [held[task_id] for task_id in named] + [
+        task for task in group.get("tasks", []) if task["id"] not in named
+    ]
+    save_tasks(groups)
+    return "reordered"
 
 
 def task_groups():
@@ -910,6 +1042,32 @@ VAULT_TOOLS = {
     "list_tasks": lambda arguments: group_tasks(
         arguments.get("group_id"), bool(arguments.get("include_archived"))
     ),
+    "create_task_group": lambda arguments: create_task_group(str(arguments.get("name") or "")),
+    "rename_task_group": lambda arguments: rename_task_group(
+        arguments.get("group_id"), str(arguments.get("name") or "")
+    ),
+    "delete_task_group": lambda arguments: delete_task_group(arguments.get("group_id")),
+    "create_task": lambda arguments: create_task(
+        arguments.get("group_id"), str(arguments.get("title") or "")
+    ),
+    "toggle_task": lambda arguments: toggle_task(arguments.get("id")),
+    "update_task_title": lambda arguments: change_task(
+        arguments.get("id"),
+        lambda group, task: task.update(title=str(arguments.get("title") or "")),
+        "updated",
+    ),
+    "archive_task": lambda arguments: change_task(
+        arguments.get("id"), lambda group, task: task.update(archived=True), "archived"
+    ),
+    "unarchive_task": lambda arguments: change_task(
+        arguments.get("id"), lambda group, task: task.update(archived=False), "unarchived"
+    ),
+    "delete_task": lambda arguments: change_task(
+        arguments.get("id"), lambda group, task: group["tasks"].remove(task), "deleted"
+    ),
+    "reorder_tasks": lambda arguments: reorder_tasks(
+        arguments.get("group_id"), list(arguments.get("task_ids") or [])
+    ),
     "brain_search": lambda arguments: search(
         str(arguments.get("query") or ""),
         arguments.get("limit"),
@@ -1040,6 +1198,11 @@ def stdio():
         response = answer(message)
         if response is not None:
             send(response)
+            # Rusty announces each task write that succeeded to every peer (#658).
+            params = message.get("params") or {}
+            if params.get("name") in TASK_WRITES and "error" not in response:
+                log("sent list_changed")
+                send({"jsonrpc": "2.0", "method": "notifications/resources/list_changed"})
 
 
 class Handler(BaseHTTPRequestHandler):

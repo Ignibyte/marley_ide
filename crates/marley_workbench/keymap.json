@@ -162,6 +162,22 @@
     }
   },
   {
+    // The Tasks tab's list (#658), with no row editor open: Space toggles as the git panel's
+    // does; F2 renames, Delete and Backspace archive, and Shift-Delete deletes for good after
+    // asking, as the project panel's keys do; Alt-Up and Alt-Down move, as the collab panel's
+    // channels and the editor's lines move.
+    "context": "RustyTaskList && not_editing",
+    "bindings": {
+      "space": "rusty::ToggleTask",
+      "f2": "rusty::RenameTask",
+      "delete": "rusty::ArchiveTask",
+      "backspace": "rusty::ArchiveTask",
+      "shift-delete": "rusty::DeleteTask",
+      "alt-up": "rusty::MoveTaskUp",
+      "alt-down": "rusty::MoveTaskDown"
+    }
+  },
+  {
     // Ctrl-Shift-C from the tab's own fields too, where Zed's `!Terminal` binding of the key (the
     // collab panel) sits as deep as the field.
     "context": "MarleyBrowser > Editor",

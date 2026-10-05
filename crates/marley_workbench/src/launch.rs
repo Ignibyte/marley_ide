@@ -305,7 +305,7 @@ fn text(config: &Config) -> String {
 /// `text` as a Markdown code block, since Zed's prompt renders its detail as Markdown: a plain
 /// detail loses its line breaks, turns `--` into a dash, and can hide part of a command as markup
 /// from the one question that approves it. The fence is longer than any run of backticks inside.
-fn verbatim(text: &str) -> String {
+pub(crate) fn verbatim(text: &str) -> String {
     let longest = text
         .split(|character| character != '`')
         .map(str::len)

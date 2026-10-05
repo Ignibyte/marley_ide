@@ -277,7 +277,7 @@ possible: a wikilink switch in `markdown/src/parser.rs`, only if R2 chooses Zed'
 | R5b | #657, shipped 2026-10-04. The Graph tab's colour groups, Display (arrows, text fade, node size, link thickness) and Forces on Ely's slider, one record for every window in Zed's key-value store, and the tab restored after a restart while Rusty is on | M |
 | R4b | Favourites in the Brain view and as the page picker's first group; Rusty's TICKET-037 landed 2026-10-04 (`bookmark_list` and its three siblings) | S |
 | R7b | Recording a follow-up from the Decisions tab (`brain_follow_up`: status, outcome, successor) | S |
-| R7 | The Tasks tab and the Decisions tab | M |
+| R7 | The Tasks tab (#658, shipped 2026-10-04: Rusty's lists and tasks over its twelve task tools, every change one call in order and read back, the drag and the keys, Open in Tasks from the project view) and the Decisions tab (#659) | M |
 | R8 | Memory, Skills and Secrets tabs; Rusty's server settings on the settings page | M |
 | R9 | Parity check against the Qt app; the app retires in Rusty | Rusty-side |
 

@@ -32,6 +32,7 @@ pub mod page_picker;
 pub mod project;
 mod properties;
 mod slider;
+pub mod tasks_tab;
 
 use std::collections::HashMap;
 use std::ffi::OsString;
@@ -222,6 +223,7 @@ pub fn init(cx: &mut App) {
     project::init(cx);
     knowledge_panel::init(cx);
     graph_tab::init(cx);
+    tasks_tab::init(cx);
     let view = cx.new(|cx: &mut Context<RustyServerView>| {
         cx.observe_global::<Rusty>(|_, cx| cx.notify()).detach();
         RustyServerView

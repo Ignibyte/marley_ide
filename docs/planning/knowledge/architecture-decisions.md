@@ -4045,3 +4045,17 @@ ranges and defaults and act as multipliers on #647's layout, so the defaults dra
 picture. Rejected: `settings.json` (a slider drag would rewrite the user's file); one store for
 both (tabs would share a centre, or closing a tab would lose the groups); a single colour for
 unmatched nodes (it would drop the type colours); Rusty's own simulation in place of #647's.
+
+## AD-claude-658-the-tasks-tab-writes-one-rusty-tool-at-a-time-and-reads-back-001
+*decided at: 2026-10-04 · status: shipped · builds on: AD-claude-655-a-project-finds-its-brain-page-by-path-then-by-name-001 · plan: docs/marley/rusty-in-marley.md R7*
+
+Marley's Tasks tab holds nothing of Rusty's lists but what Rusty last answered. Each change is
+one of Rusty's task tools, queued and sent one at a time in the order made, then read back. Only
+a reorder is drawn before Rusty answers, so a dropped row does not jump back. A refusal shows
+Rusty's words and the read shows what Rusty holds. A permanent delete asks first, naming the task
+in a fenced block; archive does not ask, since Restore undoes it. The tab reads on Rusty's
+announcement only while it shows, and again when it takes the focus, when the window comes back
+and on Refresh, because another `rusty-mcp`'s write is announced to no one. Rejected: a timer
+poll (TICKET-035's cursor is the poll Rusty is building); drawing every write before its answer
+(a refusal would flash); Rusty's page's delete without a prompt; Ely's `Reorder` drag (the rail
+and the tab bar already drag one way in this window).

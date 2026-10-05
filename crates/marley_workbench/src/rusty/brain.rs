@@ -370,6 +370,15 @@ impl BrainView {
         super::graph_tab::open_later(workspace, window, cx);
     }
 
+    /// The Tasks entry: the workspace's Tasks tab, opened or brought forward (#658).
+    fn open_tasks(&self, window: &Window, cx: &mut App) {
+        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
+            return;
+        };
+        let workspace = multi_workspace.read(cx).workspace().downgrade();
+        super::tasks_tab::open_later(workspace, None, window, cx);
+    }
+
     fn toast(&self, message: String, cx: &mut App) {
         let Some(multi_workspace) = self.multi_workspace.upgrade() else {
             return;
@@ -944,6 +953,12 @@ impl BrainView {
                     .icon_size(IconSize::Small)
                     .tooltip(Tooltip::text("Graph"))
                     .on_click(cx.listener(|this, _, window, cx| this.open_graph(window, cx))),
+            )
+            .child(
+                IconButton::new("marley-brain-tasks", IconName::ListTodo)
+                    .icon_size(IconSize::Small)
+                    .tooltip(Tooltip::text("Tasks"))
+                    .on_click(cx.listener(|this, _, window, cx| this.open_tasks(window, cx))),
             )
     }
 

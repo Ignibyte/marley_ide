@@ -1,8 +1,9 @@
-//! The rail: the Marley layout's sidebar. Each project group, and under it the terminals in that
-//! group's center panes, with the agent CLIs running in them, and the group's agent threads. It
-//! implements Zed's `workspace::Sidebar`, so the `MultiWorkspace` keeps the resize handle, open
-//! state, persistence and the toggle actions; the rows and the one selected row come from
-//! `marley_rail`.
+//! The rail: the Marley layout's sidebar.
+//!
+//! Each project group, and under it the terminals in that group's center panes, with the agent
+//! CLIs running in them, and the group's agent threads. It implements Zed's `workspace::Sidebar`,
+//! so the `MultiWorkspace` keeps the resize handle, open state, persistence and the toggle
+//! actions; the rows and the one selected row come from `marley_rail`.
 
 use std::borrow::Cow;
 use std::cmp::Reverse;
@@ -87,8 +88,9 @@ use crate::turns::Turns;
 use crate::worktree_git::{self, BranchEnd, Drift, MergeOwner};
 use crate::{MarleySettings, ToggleBrainView, browser, launch, worktree_agents};
 
+// The drag preview and drop line are shared with the Tasks tab's rows (#658).
 #[path = "rail_order.rs"]
-mod order;
+pub mod order;
 #[path = "rail_switcher.rs"]
 mod switcher;
 

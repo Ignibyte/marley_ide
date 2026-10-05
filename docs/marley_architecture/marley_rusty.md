@@ -70,7 +70,12 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   links), `summary` (the property, else the body's first paragraph, its wikilinks as words, cut
   near 300 characters).
 - `decisions` (#655): `DecisionSummary` and `due_from_answer` (`brain_due`'s `due`).
-  `tasks` (#655): `TaskGroup`, `UserTask`, `groups_from_answer`, `tasks_from_answer`.
+  `tasks` (#655): `TaskGroup`, `UserTask`, `groups_from_answer`, `tasks_from_answer`. Since #658
+  the ten write names, `UserTask`'s `archived` and `header_id`, `id_from_answer`, and `TaskWrite`
+  (one variant a tool, `tool` and `arguments` in Rusty's parameter names: a task `id`, a list
+  `group_id`), with `typed_name` (trimmed, `None` when empty or unchanged), `moved_one` (one
+  place up or down, `None` at an end), `kept_list` and `kept_task` (the choice and the selection
+  across a read).
 - `switcher` (#654): the page picker's pure part. `PageSummary` (`brain_list_pages`' `slug` and
   `title`, `shown_title` falling back to the file's name) and `parse_page_list`; `RecentPages`,
   the recently opened newest first (`visit`, at most `RECENT_CAP` 20, `from_json`, `to_json`,
@@ -137,7 +142,9 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
 - `fixtures/settings_list.json`: an answer in `rusty-mcp`'s shape, neutral values.
 - `stand_in/rusty-mcp`: a Python program on the standard library that answers as `rusty-mcp` does
   for the tools Marley reads (since #654 `brain_list_pages` too, the newest file first; since #655
-  `brain_read_page`, `brain_due`, `brain_set_property`, `list_task_groups` and `list_tasks` from a
+  `brain_read_page`, `brain_due`, `brain_set_property`, `list_task_groups` and `list_tasks` (since
+  #658 the ten task writes too, with Rusty's answers and refusals and a `list_changed` after each
+  that succeeds; the file is not watched) from a
   `tasks.json` in the state folder, and `brain_list_pages` typed by frontmatter with `aliases` and
   `properties`), over a scratch folder (`$RUSTY_STAND_IN_STATE`): stdio with no
   arguments, or `--http ADDR` (port 0 picks one, written to `http-addr`). It logs every request with

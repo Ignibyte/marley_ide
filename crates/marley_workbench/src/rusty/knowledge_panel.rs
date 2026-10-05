@@ -876,6 +876,33 @@ impl KnowledgePanel {
             .into_any_element()
     }
 
+    /// The project view's Tasks heading, with Open in Tasks when a group is joined (#658).
+    fn tasks_header(
+        label: SharedString,
+        count: usize,
+        list: Option<i64>,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
+        h_flex()
+            .w_full()
+            .child(div().flex_1().min_w_0().child(section(label, count)))
+            .children(list.map(|list| {
+                div().pr_1().child(
+                    IconButton::new("rusty-project-open-tasks", IconName::ListTodo)
+                        .icon_size(IconSize::Small)
+                        .tooltip(Tooltip::text("Open in Tasks"))
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            super::tasks_tab::open_later(
+                                this.workspace.clone(),
+                                Some(list),
+                                window,
+                                cx,
+                            );
+                        })),
+                )
+            }))
+    }
+
     fn render_project_data(data: &ProjectData, cx: &Context<Self>) -> AnyElement {
         let follow_ups = data
             .follow_ups
@@ -933,7 +960,12 @@ impl KnowledgePanel {
                 view.child(muted_line("None due.".to_string()))
             })
             .children(follow_ups)
-            .child(section(tasks_label, data.tasks.len()))
+            .child(Self::tasks_header(
+                tasks_label,
+                data.tasks.len(),
+                found.first().map(|group| group.id),
+                cx,
+            ))
             .map(|view| match no_group {
                 Some(words) => view.child(
                     v_flex()

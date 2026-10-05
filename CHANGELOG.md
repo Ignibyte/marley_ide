@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Tasks tab** (#658, 2026-10-04). Rusty's to-do lists in a center tab, from the list icon in
+  the rail's Brain view or `rusty: open tasks`: the lists on the left, the chosen list's tasks on
+  the right, in Rusty's order. Add a task from the field above them; check one done with its box
+  or Space; rename it in its row with F2 or a double-click; archive it with Delete and see
+  archived tasks with Show archived; delete one for good after a prompt; and move one by dragging
+  it or with Alt+Up and Alt+Down. Lists are made with +, and renamed or deleted from their menu.
+  Every change is one of Rusty's task tools, sent in order and read back. The tab reads again
+  when Rusty announces a change, when you come back to it, and on Refresh. The Knowledge panel's
+  project view opens it on the project's task group.
+
 - **The Graph tab's groups, display and forces, kept across a restart** (#657, 2026-10-04). The
   Graph tab's panel gains Rusty's Groups, Display and Forces. A group is a query in the filter's
   words with a colour: the pages it matches take that colour, and its row counts them. The first

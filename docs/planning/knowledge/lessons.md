@@ -4788,3 +4788,21 @@ since its name holds every letter typed. A scenario that runs two commands, one 
 other, binds a key to the action in the run's keymap. Check the key against the default keymap's
 deeper contexts: `Pane` binds Ctrl+Alt+Shift+G, which wins over a `Workspace` binding;
 Ctrl+Alt+Shift+Y has been free in #645, #647 and #657.
+
+## L-claude-658-watch-the-rusty-globals-link-not-its-notifications-001
+*category: gpui · topic: observing Marley's Rusty global · from: pipeline 658*
+
+`rusty::Rusty` is notified for its connection, its settings, its server and its offer, and around
+each announcement, so `observe_global::<Rusty>` runs far more often than the connection changes.
+A view that should act when Rusty comes up or goes off keeps the state it last saw (off, down,
+up) and acts only on a change, as the Page tab's `connected` and the Tasks tab's `Link` do; a
+view that reads on every call reads behind the rules it means to keep. Reads cheap enough to
+compare a key, like the Graph tab's `read_if_needed`, can be called each time.
+
+## L-claude-658-hide-a-tab-in-a-scenario-by-its-panes-other-tab-001
+*category: e2e · topic: putting a tab in the background · from: pipeline 658*
+
+In the Marley layout a file opened from Zed's file finder does not come to the pane holding a
+terminal and a Rusty tab, so the Rusty tab stays its pane's active item and counts as shown. To
+hide a tab in a scenario, click another tab of the same pane, such as the project's terminal, and
+click the tab again to show it.

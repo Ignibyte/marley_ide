@@ -1288,6 +1288,37 @@ front, else the project's page, or says to open a page first. There is one Graph
   reads the graph once Rusty is connected. Its dots are laid out afresh. With Rusty off when Marley
   starts, no Graph tab comes back.
 
+### The Tasks tab
+
+The Tasks tab shows Rusty's to-do lists in a center tab (#658): the list icon after Graph in the
+rail's Brain view, `rusty: open tasks` from the command palette, or the list icon on the Tasks
+heading of the Knowledge panel's project view, which opens the project's task group. There is one
+Tasks tab per window.
+
+- **What it shows.** The lists in a column on the left, the chosen one lit; its tasks on the
+  right, in Rusty's order. A done task stays in its place, struck through. Show archived lists the
+  archived tasks too, in their places, faint and marked Archived.
+- **Tasks.** Type in the field above the tasks and press Enter: the task goes last, and the field
+  stays ready for the next. A click on a task's box, or Space, checks it done or open again.
+  Double-click a title, or press F2 or Enter, to rename it in its row: Enter keeps it, Escape
+  drops it. Delete or Backspace archives the selected task, or brings an archived one back.
+  Shift+Delete, or Delete for Good… in its right-click menu, asks first, then deletes it; nothing
+  brings it back. A task's menu also has Rename and Archive or Restore.
+- **Order.** Drag a task onto another to put it in that one's place; a line shows where it lands.
+  Alt+Up and Alt+Down move the selected task one place.
+- **Lists.** The + by Lists names a new list, which is chosen with the field ready. A list's
+  right-click menu renames it, or deletes it after asking, with all its tasks.
+- **Keys.** Up and Down move the selection, Down from the field goes to the first task, and Escape
+  goes from the tasks to the field, then empties it.
+- **When it reads.** Each change goes to Rusty one at a time, in order, and the tab reads Rusty
+  again after it. It also reads when Rusty announces a change (while it is hidden, when it next
+  shows), when you click back into it, when Marley's window comes back to the front, and on
+  Refresh. A task an agent adds through its own Rusty is announced to no one else, so it shows
+  at one of those moments. A change Rusty refuses shows Rusty's words in a toast, and the tab then
+  shows what Rusty holds.
+- **Off.** With Rusty off the tab drops its lists, says so, and asks Rusty nothing; while Marley is
+  not connected it keeps what it last read and takes no edit.
+
 ## Marley's MCP server
 
 ### What it serves, and where
@@ -2091,6 +2122,7 @@ Commands with no key of their own, from the command palette:
 | `marley: toggle dictation` | Starts or stops a Voxtype dictation, while Voice is on |
 | `rusty: toggle knowledge panel` | Shows or hides the Knowledge panel, while Rusty is on (#646) |
 | `rusty: open graph`, `rusty: open local graph` | The Graph tab, on the vault or on the page in front (#647) |
+| `rusty: open tasks` | The Tasks tab, Rusty's to-do lists (#658) |
 | `rusty: toggle page outline` | Hides or shows the outline column of the brain page in front (#656) |
 | `marley: open browser` | Shows or opens a Browser tab |
 | `marley: new browser tab` | A new Browser tab (Ctrl+T inside one) |

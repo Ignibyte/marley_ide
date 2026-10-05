@@ -486,3 +486,179 @@ list holds the focus.
 - Rusty's TICKET-045 (confirmed): foreign keys are off and a write on a missing id returns
   success. Until it lands the tab treats a write's success as "maybe" and re-lists the group after
   every write, so a task written into a list another process deleted never shows as saved.
+
+### Promotion (2026-10-04)
+- Promoted into `active/`; the BACKLOG row removed; the ticket in-progress. Pre-flight green, no
+  other active pipeline; #643 to #657 landed (the last 5f5ec26706).
+- **Brain:** `brain ask` (consultation `63ba782e892d4f37bdf220090e9ac418`) returned due follow-ups
+  on other work only.
+- **Recall, added:** F-657 (a floating panel over an interactive area passes presses through unless
+  it occludes; the tab draws no overlay, but its row menus are deployed by hand, L-600);
+  L-657 (the palette runs the command used last: the scenario opens the tab by the rail and binds
+  a key where it needs the action); L-656 (a one-line editor in a `menu` key context gets Enter
+  and Escape as `menu::Confirm` and `menu::Cancel`, which this tab's row editors use).
+- **As shipped, against the draft** (an Explore pass, read only):
+  - `marley_rusty::tasks` exists (#655): `LIST_TASK_GROUPS`, `LIST_TASKS`, `TaskGroup { id, name }`,
+    `UserTask { id, title, completed }`, `groups_from_answer`, `tasks_from_answer`; the Knowledge
+    panel reads them. This ticket extends that module rather than making one: `UserTask` gains
+    `header_id`, `archived` and `created_at` (serde defaults), the ten write names join the two
+    reads, and `TaskWrite`, `id_from_answer`, `done_from_answer`, `typed_name`, `moved_one`,
+    `kept_task` and `kept_list` are added. The design's `TaskList` and `Task` are #655's
+    `TaskGroup` and `UserTask`.
+  - Rusty at `13249a8` (`rusty-mcp/src/main.rs`): a task is named `id` (not `task_id`) in
+    `toggle_task`, `archive_task`, `unarchive_task`, `delete_task` and `update_task_title`; a list
+    is `group_id`; `create_task_group { name }` and `create_task { group_id, title }` answer the new
+    id; `toggle_task` answers the new `completed`; the others answer a word. Every refusal is a
+    JSON-RPC error (`json_result`), which `rusty::call_tool` already reads, not an `isError`
+    result. Each successful write sends `list_changed` to every peer of that process.
+  - The stand-in has no `SIGUSR1`. Since #644 a watcher polls the vault and `settings.json` every
+    half second and sends `list_changed` on a change; it does not watch `tasks.json`. The scenario
+    touches a vault file where the draft sent the signal. The stand-in serves `list_task_groups`
+    and `list_tasks` over #655's `tasks.json` shape (`{"groups": [{"id", "name", "tasks": [...]}]}`).
+    The ten writes join them in that shape, a new id being one more than the largest list or task
+    id, and each write sends `list_changed` through the same writer the watcher uses.
+  - `crate::rail::order` (`rail_order.rs` under `#[path]`) holds `drag_preview(title, cx)` and
+    `drop_line(style, above, cx)`, both private, and `rail` is a private crate-root module. They
+    become reachable from `rusty::tasks_tab` at the least visibility clippy accepts.
+  - The fixed row (`brain.rs:927-948`) holds Today and Graph; Tasks goes after Graph.
+  - `launch.rs`'s `verbatim` (F-592's fence) is private; it becomes `pub(crate)` for the two delete
+    prompts.
+  - #655 landed first, so its project view gains this ticket's Open in Tasks button: an
+    `IconButton` (`IconName::ListTodo`, tooltip "Open in Tasks") at the end of its Tasks header,
+    beside the count, shown when the view joined a group. It opens the Tasks tab on the first
+    joined group through `TasksView::show_list`. `ProjectData` keeps that group's id. REQ-032 and
+    shot `658-28-from-project` are added.
+  - `keymap.json` has a `RustyPage` block; the `RustyTaskList && not_editing` block goes beside it.
+  - `IconName::ListTodo` exists; `Item::deactivated`, `Context::on_focus_in` and
+    `observe_window_activation` exist with the signatures the design uses.
+- **Phase 1 PASS** (2026-10-04): the work runs autonomously under Chad's goal.
+
+## Phase 2: Code (2026-10-04)
+- **Built:**
+  - `marley_rusty::tasks` (#655's, extended): the ten write names; `UserTask` gains `archived` and
+    `header_id`; `id_from_answer`; `TaskWrite`, whose `tool` and `arguments` use Rusty's
+    parameter names; `typed_name`, `moved_one`, `kept_list`, `kept_task`.
+  - The stand-in: the ten writes over #655's `tasks.json` shape, with Rusty's answers and refusals
+    ("No task group N", "Task N is not in group G", "Query error: Query returned no rows"), and
+    `list_changed` after each write that succeeds; the docstring says what it does not watch.
+  - `rusty/tasks_tab.rs` (new):
+    - `TasksView`: the lists column, the header (name, Show archived, Refresh), the add field, the
+      rows, and the notice line.
+    - Reads: on open, on connecting, after each write, on `Announced` while showing (else
+      `ReadDue::WhenShown`, read at the next draw), on `on_focus_in` from outside, on window
+      activation while showing, and on Refresh.
+    - The write queue; the delete prompts with `verbatim`; the right-click menus; the row editors
+      in the `menu` context.
+    - `DraggedTask` with #602's preview and line; the actions and the `menu::` handlers;
+      `show_list` and `open_later(workspace, list, ..)`.
+  - `brain.rs`: Tasks after Graph in the fixed row (`open_tasks`, through the rail's
+    multi-workspace as Graph is).
+  - `knowledge_panel.rs`: `tasks_header` with Open in Tasks on the first joined group.
+  - `keymap.json`: the `RustyTaskList && not_editing` block.
+  - `rail.rs` and `marley_workbench.rs`: `pub mod rail` and `pub mod order`, so `drag_preview`
+    and `drop_line` are `pub` (§14). `rail.rs`'s first doc paragraph was split, since a public
+    module's doc is checked.
+  - `launch.rs`: `verbatim` is `pub(crate)`. The guide gains a Tasks article.
+- **Deviations:**
+  - The tab's event is Zed's `ItemEvent`, as the Browser tab's is: it emits none, and an empty
+    enum's `match *event {}` is a lint.
+  - Two read flags became `ReadDue` (No, AfterThis, WhenShown): clippy's more-than-three-bools.
+  - The rows do not hold still for a read that lands mid-drag (D7). The tab's own writes never
+    run during a drag. A change announced then redraws the rows under it, and the drop still
+    lands by task id.
+  - The design's `TaskList` and `Task` are #655's `TaskGroup` and `UserTask` (Promotion).
+    `done_from_answer` is not written, since every write is read back.
+- **Review:**
+  - Re-entrancy: the opener defers (`open_later`), and the menu entries update the view from the
+    menu's own handler. The prompts' answers write from a spawned task, and the Open in Tasks
+    button defers through `open_later`.
+  - The add field is read only with no list, and nothing is sent for an empty or unchanged name.
+  - Writes are refused while not connected, with a toast, and edits are disabled until the
+    first read. A read that comes back for a list no longer chosen reads again.
+  - Space reaches the row editor as a space: the list context drops `not_editing` while it is
+    open. Escape walks editor, then list to field, then field emptied, then on to Zed.
+- **Gate:** clippy rounds fixed a long first doc paragraph (`rail.rs`), a single match, more than
+  three bools, `Self`, an unused `self`, the empty enum's match, two `&mut` not needed, and an
+  over-long function after fmt. `just gate-diff` GREEN, 17 of 17.
+
+## Phase 3: Test (2026-10-04)
+- **Scenario:** `script/e2e/658-rusty-tasks-tab.sh`, `compositor sway`, over the stand-in with a
+  scratch `tasks.json` (Home, Work, Someday) and a made-up project page linking the scratch folder
+  to Work. A measuring run read the positions. The fourth full run was green: every check
+  passed, and the call log read, in order, `create_task`, two `toggle_task`, `update_task_title`,
+  `archive_task`, `unarchive_task`, `delete_task`, three `reorder_tasks`, `create_task_group`,
+  `rename_task_group`, `delete_task_group` and the refused `toggle_task`. The focus report showed
+  no Marley window before or after.
+- **Bugs found and fixed at the source:**
+  - The add field said "Create a list first" with Home chosen. It was set up before the first
+    read and never again; `render` now sets it up when a list becomes chosen.
+  - On the selected row the unchecked box all but vanished into the selection's background. The
+    box is now `fill()`ed (a crop of the measuring shot showed it).
+  - The tab read while hidden. `rusty_changed` read on every notification of `Rusty`, which also
+    fires with announcements. It now reads only when the link changes (`Link` Off, Down or Up).
+- **Scenario fixes:**
+  - The right-click menu's first entry sits 17 px under the press.
+  - `notes.txt` from the file finder does not come to the Tasks tab's pane in the Marley layout,
+    so the scenario hides the tab by clicking the terminal's tab in the same pane.
+  - "Pack the charger" takes id 32, so the new list is 33.
+- **The shots, read one by one:**
+  - `01-from-rail`: the fixed row's Tasks ("Tasks" tooltip); Home chosen; its five open tasks, the
+    plumber struck through; no Fix the gate (REQ-001, 003).
+  - `02-from-palette`: the terminal in front, then `rusty: open tasks`: the one Tasks tab in front
+    (REQ-002).
+  - `03-list-chosen`: Work's three tasks (REQ-004).
+  - `04-added`: Pack the charger last; the spaces sent nothing, so one `create_task` was logged
+    (REQ-005, 006).
+  - `05-done`: the release notes struck through (REQ-007).
+  - `06-moved-selection`: Down moved the selection to the plumber (REQ-008).
+  - `07-space`: Space unstruck it (REQ-009).
+  - `08-renamed`: Call the electrician (REQ-010).
+  - `09-archived`: gone, the books selected (REQ-011).
+  - `10-archived-shown`: the electrician and the gate in their places, muted, marked Archived
+    (REQ-012).
+  - `11-restored`: the gate drawn open (REQ-013).
+  - `12-delete-prompt`: "Delete this task for good?", the title, and the line about Archive
+    (REQ-014).
+  - `13-deleted`: the books gone (REQ-015).
+  - `14-dragging`: "Clean the gutters" under the pointer, a line on the plants' top edge, the rows
+    in place (REQ-016).
+  - `15-dropped`: gutters, plants, gate, stamps (REQ-017).
+  - `16-moved-by-keys`: gate, gutters, plants, stamps; three orders in all (REQ-018).
+  - `17-new-list`: Reading last and chosen, "Nothing open. Type above to add a task." (REQ-019).
+  - `18-list-renamed`: Books (REQ-020).
+  - `19-list-delete-prompt`: the name and "Its tasks, archived ones too, go with it." (REQ-021).
+  - `20-list-deleted`: Home chosen (REQ-022).
+  - `21-live`: Sweep the porch with no click (REQ-023).
+  - `22-read-on-show`: no `list_tasks` while hidden; Oil the hinges once shown (REQ-024).
+  - `23-quiet-write`: Wash the car not listed; `24-read-on-focus`: listed after a click in the
+    tab (REQ-025).
+  - `25-refresh`: Feed the cat after Refresh (REQ-027).
+  - `26-refused`: the toast "Query error: Query returned no rows"; Buy stamps gone after the
+    read (REQ-028).
+  - `27-off`: the lists dropped, "Rusty is off…", no call after (REQ-030).
+  - `28-from-project`: the project view's Tasks · Work with its list icon, then the Tasks tab on
+    Work (REQ-032).
+- **Not driven, reviewed instead:** REQ-026 (the window's activation, in `observe_window_activation`
+  with `showing`; a headless sway has one window); REQ-029 (not connected: `editable` refuses
+  edits and the notice gives the reason); REQ-031 (every change is a `TaskWrite` through the
+  queue; the log shows them in order).
+
+## Phase 4: Complete (2026-10-04)
+- **Docs:**
+  - `CHANGELOG.md` (Added).
+  - `docs/marley/guide.md`: a Tasks tab section, and `rusty: open tasks` in the command table.
+  - `docs/marley/walkthrough.md` 2.15b.
+  - `docs/marley_architecture/marley_rusty.md`: `tasks` and the stand-in.
+  - `docs/marley_architecture/marley_workbench.md`: a section for the Tasks tab.
+  - `docs/marley/rusty-in-marley.md`: R7's Tasks half shipped.
+  - `docs/marley/three-prong-plan.md`: the C2 row gains #658.
+  - `zed-touchpoints.md` is untouched.
+- **Knowledge:**
+  - F-claude-658-the-tasks-tab-read-on-every-notification-of-the-rusty-global-001.
+  - F-claude-658-the-tasks-tabs-add-field-kept-its-first-placeholder-001.
+  - L-claude-658-watch-the-rusty-globals-link-not-its-notifications-001.
+  - L-claude-658-hide-a-tab-in-a-scenario-by-its-panes-other-tab-001.
+  - AD-claude-658-the-tasks-tab-writes-one-rusty-tool-at-a-time-and-reads-back-001.
+  - The checkbox on a selected row was a look, fixed in Test, and gets no block.
+- **Brain:** consultation `63ba782e892d4f37bdf220090e9ac418` closed with `brain decide`.
+- Ticket closed; pipeline archived.

@@ -3,11 +3,11 @@
 - **Ticket:** LOCAL #658 (feature, Rusty in Marley R7, its Tasks half;
   `docs/marley/rusty-in-marley.md` R-D3, R-D9 and R-D10)
 - **Owner:** claude-opus-5-5, 2026-10-03 (/spec)
-- **Pipeline doc:** ../../pipeline/queued/658-rusty-tasks-tab.spec.md
+- **Pipeline doc:** ../../pipeline/completed/658-rusty-tasks-tab.spec.md
 - **Source ticket:** `docs/marley/rusty-in-marley.md` (R-D3's TasksPage row: "A **Tasks** tab over
   the twelve task tools"; R-D9's fixed row; R-D10's `sortablelist-reorderablelist` row; slice R7);
   the follow-up batch #654 to #659, 2026-10-03
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Rusty's Qt app has a Tasks page (`TasksPage.qml`): to-do lists on the left, the chosen list's tasks

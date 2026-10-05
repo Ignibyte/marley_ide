@@ -229,7 +229,7 @@ impl Render for DraggedRailRow {
 
 /// What follows the pointer while a header or a row is dragged: its name on a raised card, as a
 /// pane's dragged tab shows its own.
-fn drag_preview(title: SharedString, cx: &App) -> impl IntoElement {
+pub fn drag_preview(title: SharedString, cx: &App) -> impl IntoElement {
     let colors = cx.theme().colors();
     div()
         .max_w_64()
@@ -245,7 +245,7 @@ fn drag_preview(title: SharedString, cx: &App) -> impl IntoElement {
 
 /// The line on the edge a drop lands on: the top when the target sits above what is dragged, the
 /// bottom otherwise, as a pane's tab bar draws it on the side the tab lands.
-fn drop_line(style: StyleRefinement, above: bool, cx: &App) -> StyleRefinement {
+pub fn drop_line(style: StyleRefinement, above: bool, cx: &App) -> StyleRefinement {
     let style = style
         .border_0()
         .border_color(cx.theme().colors().drop_target_border);

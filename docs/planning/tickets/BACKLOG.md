@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-658](open/TICKET-658-rusty-tasks-tab.md) | feature | Rusty in Marley R7 · the Tasks tab over Rusty's task tools |
 | [TICKET-659](open/TICKET-659-rusty-decisions-tab.md) | feature | Rusty in Marley R7 · Rusty's Decisions tab; Marley's System One tab renamed "System One calls" |
 
 ## Deliberate (picked explicitly, never auto-next)

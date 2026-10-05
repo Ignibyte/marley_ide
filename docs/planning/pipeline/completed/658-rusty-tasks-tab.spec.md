@@ -1,7 +1,7 @@
 ---
 pipeline_id: 8e4ae270-e0eb-479d-9c4c-b66202a4b114
 ticket: docs/planning/tickets/open/TICKET-658-rusty-tasks-tab.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "The Tasks tab: Rusty's to-do lists in a center tab"
 type: feature
 slice: Rusty in Marley R7, the Tasks half (rusty-in-marley.md R-D3, R-D9, R-D10)
@@ -26,7 +26,7 @@ the screen Rusty's Qt app draws as `TasksPage.qml`, and the Tasks half of the pl
   in `marley_workbench::rusty` with its connection state, its tool call and its `list_changed`
   signal; `crates/marley_rusty` with `fixtures/` and the Python stand-in `stand_in/rusty-mcp`,
   named in `MARLEY_RUSTY_MCP`), on #644 (the rail Brain view, `rusty/brain.rs`, and its fixed row,
-  where an entry appears with its tab; the stand-in's `SIGUSR1`) and on #645's `rusty` action
+  where an entry appears with its tab; the stand-in's vault watcher, which replaced the drafted `SIGUSR1`) and on #645's `rusty` action
   namespace and the way it registers `rusty::OpenPage`. It takes their names as they ship. Where
   #647 has landed, its Graph entry sits before Tasks in the fixed row, R-D9's order.
 - **The task model** (`marley_rusty::tasks`, pure, no gpui): the twelve tool names; `TaskList` and
@@ -63,8 +63,9 @@ the screen Rusty's Qt app draws as `TasksPage.qml`, and the Tasks half of the pl
 - `script/e2e/658-rusty-tasks-tab.sh`.
 
 ### Out (explicitly deferred)
-- **The project's task group link (#655):** a rail project's own list (R-D5's join, by the page's
-  `task_group` property) and the Knowledge panel's project view of it are #655's. The tab's chosen
+- **The project's task group link (#655, landed first):** the join and the project view are
+  #655's; this ticket adds only the Open in Tasks button on that view's Tasks header (REQ-032).
+  The rest of this paragraph is the draft's, kept for the record: The tab's chosen
   list is set through one function, `TasksView::show_list`, which #655's view calls; nothing here
   guesses a project's list. The button on that view's Tasks header that opens this tab on the
   project's list comes with whichever of #655 and #658 lands second (#655's Out): if #655 has
@@ -185,8 +186,8 @@ the gutters), Work (Write the release notes; Review the pull request; Book the t
 (Learn the banjo). Setup sets `marley.rusty.enabled` true and `connection` `embedded` in the run's
 settings; later changes are edits of that file from outside (L-607). A "quiet write" is the
 scenario's own edit of `tasks.json`, which the stand-in does not watch, as another `rusty-mcp`'s
-write to `rusty.db` is not announced; `kill -USR1` makes the stand-in send `list_changed`, as
-`rusty-cli refresh` does. Never the user's Rusty (R-D8). Shots:
+write to `rusty.db` is not announced; a touch of a file in the scratch vault, which the stand-in's watcher sees, makes it send
+`list_changed`, as `rusty-cli refresh` touching its sentinel does. Never the user's Rusty (R-D8). Shots:
 - `658-01-from-rail`: Brain in the rail's header, then Tasks in the fixed row: the Tasks tab;
   Home chosen above Work and Someday; Water the plants, Call the plumber struck through, Return the
   library books, Buy stamps, Clean the gutters; no Fix the gate.
@@ -219,10 +220,10 @@ write to `rusty.db` is not announced; `kill -USR1` makes the stand-in send `list
 - `658-19-list-delete-prompt`: Delete List… from Books' menu: the prompt, the name in a code block
   and its tasks going with it.
 - `658-20-list-deleted`: Delete answered: Books gone, Home chosen.
-- `658-21-live`: a quiet write adds Sweep the porch to Home, then `kill -USR1`: listed with no
+- `658-21-live`: a quiet write adds Sweep the porch to Home, then the vault touched: listed with no
   click.
-- `658-22-read-on-show`: `notes.txt` in front; a quiet write adds Oil the hinges, then `kill
-  -USR1`; the log shows no `list_tasks` after the signal; the Tasks tab clicked: Oil the hinges
+- `658-22-read-on-show`: `notes.txt` in front; a quiet write adds Oil the hinges, then the vault touched; the log shows no `list_tasks`
+  after the touch; the Tasks tab clicked: Oil the hinges
   listed.
 - `658-23-quiet-write`: the Brain view's search field clicked (the tab stays in front); a quiet
   write adds Wash the car: not listed.
@@ -233,6 +234,9 @@ write to `rusty.db` is not announced; `kill -USR1` makes the stand-in send `list
   Rusty's "Query error: Query returned no rows"; Buy stamps gone after the read.
 - `658-27-off`: `marley.rusty.enabled` set false: the tab says Rusty is off; the log shows no call
   after it.
+- `658-28-from-project` (#655 landed first): Rusty on again; the Knowledge panel's project view,
+  the window's folder linked to a made-up project page whose `task_group` is Work; its Tasks
+  header's Open in Tasks button: the Tasks tab with Work chosen.
 
 ## Locked-In Decisions
 - D1 — **One Tasks tab per workspace, from the fixed row and the palette.** `rusty::OpenTasks`
@@ -391,7 +395,7 @@ write to `rusty.db` is not announced; `kill -USR1` makes the stand-in send `list
   keeps Rusty's rules: a new list or task goes last; `reorder_tasks` puts the named ids first and
   refuses an id not in the list ("Task N is not in group G"); `toggle_task` on a missing id answers
   "Query error: Query returned no rows"; the other writes on a missing id succeed. It sends
-  `list_changed` after each of its task writes and on `SIGUSR1` (#644's), and does not watch
+  `list_changed` after each of its task writes and when its vault watcher sees a file change (#644's, in place of the drafted `SIGUSR1`), and does not watch
   `tasks.json`, so the scenario's own edit stands for a write another process makes. Every list and
   task in the fixture and the scenario is made up.
 - D13 — **What Ely gives: nothing copied.** Zed's `ui` has no reorderable list, but the pane's tab
@@ -438,11 +442,12 @@ the review of the diff, or the gate's exit code.
 | REQ-029 | WHILE Marley is not connected to Rusty, the Tasks tab shall keep the lists last read, refuse edits and say why. | Review |
 | REQ-030 | WHEN `marley.rusty.enabled` turns off while the Tasks tab is open, the tab shall drop its lists, say Rusty is off and make no further call. | Shot `658-27-off`; the log |
 | REQ-031 | The Tasks tab shall change Rusty's lists and tasks only through Rusty's task tools, one call at a time in the order the user made them. | Review of the diff; the log |
+| REQ-032 | WHEN the user clicks Open in Tasks on the Knowledge panel's project view, the system shall open the Tasks tab on the project's task group. | Shot `658-28-from-project` |
 
 ## Phase Plan
 - **P1 Plan** — promote after #644 ships (and with whatever of #645 to #647 has landed); re-read the
   names this spec takes: #643's connection state, tool call, `list_changed` signal and the
-  stand-in's state folder; #644's fixed row and `SIGUSR1`; #645's `rusty` actions and their
+  stand-in's state folder; #644's fixed row and vault watcher; #645's `rusty` actions and their
   registration; whether #655 has landed (its `tasks.json`, its two read tools, and the Tasks header
   button that then comes here); re-verify that `on_focus_in` fires on a click on a pane's tab and
   that a pane's change of active item calls `Item::deactivated`; grep Zed's keymaps for D8's keys
