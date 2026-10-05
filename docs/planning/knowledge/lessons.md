@@ -4806,3 +4806,19 @@ In the Marley layout a file opened from Zed's file finder does not come to the p
 terminal and a Rusty tab, so the Rusty tab stays its pane's active item and counts as shown. To
 hide a tab in a scenario, click another tab of the same pane, such as the project's terminal, and
 click the tab again to show it.
+
+## L-claude-659-a-listsubheader-grows-in-a-column-001
+*category: gpui · topic: Zed's list headers outside a list · from: pipeline 659*
+
+`ui::ListSubHeader` renders with `flex_1`. In a `List` or a row it only widens, but placed
+straight in a `v_flex` column it also grows in height, sharing the column's spare space with
+every other header. Wrap it in `div().flex_none()` when it heads a section of a plain column, as
+the Decisions tab's `header()` does.
+
+## L-claude-659-reach-a-settings-item-by-the-settings-search-001
+*category: e2e · topic: clicking an item deep in the Settings window · from: pipeline 659*
+
+The Marley settings page is long, and the place of an item near a section's end moved between
+runs after a scroll. Type the item's name into the Settings window's search field first: the page
+narrows to the section holding it, and a scroll to its end lands the same way every run. The
+search field sat at (912, 59) in the sway scenarios' 1600 by 1000 window.

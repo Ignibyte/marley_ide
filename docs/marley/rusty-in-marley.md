@@ -133,7 +133,7 @@ polls the harness's `fleet_events`. No Zed touchpoint.
 | SearchPane | Brain search in the Knowledge panel over `brain_search`, with its `tag:`, `path:`, `type:` operators |
 | QuickSwitcher | `rusty: open page`, a picker over `brain_list_pages` by title, favourites first, create on a miss (#654: the recently opened first until R4b's favourites) |
 | BookmarksPane | Waits on RQ4; the Qt app keeps bookmarks in its own `workspace.json` |
-| DecisionsPage | A **Decisions** tab over `brain_due` and decision pages; Marley's System One tab becomes "System One calls" (open decision 4) |
+| DecisionsPage | A **Decisions** tab over `brain_due` and decision pages; Marley's System One tab becomes "System One calls" (open decision 4). Shipped in #659 |
 | TasksPage | A **Tasks** tab over the twelve task tools |
 | MemoryPage, SkillsPage, SecretsPage | One tab each over their tools |
 | SettingsPage | The Rusty section of the Marley settings page (R-D0) |
@@ -276,8 +276,8 @@ possible: a wikilink switch in `markdown/src/parser.rs`, only if R2 chooses Zed'
 | R2b | #656, shipped 2026-10-04. The Page tab's outline column in Read (Zed's outline panel in Edit), a heading brought to the top; the title (the `title` property), the name (`brain_rename`, every tab following) and each property edited in place by its kind, removed, or added | S |
 | R5b | #657, shipped 2026-10-04. The Graph tab's colour groups, Display (arrows, text fade, node size, link thickness) and Forces on Ely's slider, one record for every window in Zed's key-value store, and the tab restored after a restart while Rusty is on | M |
 | R4b | Favourites in the Brain view and as the page picker's first group; Rusty's TICKET-037 landed 2026-10-04 (`bookmark_list` and its three siblings) | S |
-| R7b | Recording a follow-up from the Decisions tab (`brain_follow_up`: status, outcome, successor) | S |
-| R7 | The Tasks tab (#658, shipped 2026-10-04: Rusty's lists and tasks over its twelve task tools, every change one call in order and read back, the drag and the keys, Open in Tasks from the project view) and the Decisions tab (#659) | M |
+| R7b | Recording a follow-up from the Decisions tab (`brain_follow_up`: status, outcome, successor); Rusty's TICKET-048 already serves each summary's `followed_up` and `superseded_by`, which #659's rows leave out | S |
+| R7 | The Tasks tab (#658, shipped 2026-10-04: Rusty's lists and tasks over its twelve task tools, every change one call in order and read back, the drag and the keys, Open in Tasks from the project view) and the Decisions tab (#659, shipped 2026-10-04: `brain_due`'s follow-ups due, then every decision with its status and dates, each opening its page; Marley's System One log renamed System One calls, the old action id kept as an alias) | M |
 | R8 | Memory, Skills and Secrets tabs; Rusty's server settings on the settings page | M |
 | R9 | Parity check against the Qt app; the app retires in Rusty | Rusty-side |
 
@@ -313,7 +313,7 @@ R4b, which need tickets; R7 and R8 follow them. R9 waits for Chad's word after u
    now". Sent to a Rusty session with RQ1 to RQ4 the same day.
 4. ~~Rename Marley's System One "Decisions" tab (for example "System One calls") so Rusty's
    decisions keep the name.~~ Decided 2026-10-02: Marley's System One log becomes "System One
-   calls"; Rusty's tab keeps "Decisions". The rename rides with R7.
+   calls"; Rusty's tab keeps "Decisions". The rename rides with R7. Done in #659 (2026-10-04).
 5. ~~Skills: manage Rusty's store only, or also link it into `~/.agents/skills` so Zed's own
    agent sees the same skills Claude Code does.~~ Decided 2026-10-02: "Link for Zed and Codex
    too". The ops install script (`/srv/stacks/omarchy-ops/bin/install.sh`, which already links

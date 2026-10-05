@@ -6,7 +6,7 @@
 //! what the project may send, builds the masked state, and asks the configured provider inside the
 //! use's deadline. Every call, refused and failed ones included, becomes a row under
 //! `<data dir>/system_one/`, and the `SystemOne` global keeps this session's rows for the
-//! Decisions view. The check (`marley: system one check`) is the first use: it asks whether the
+//! System One calls view. The check (`marley: system one check`) is the first use: it asks whether the
 //! last command of the terminal used last failed, and shows the answer in a toast. The stop kind
 //! (#566) is the second: `agent_events` asks it when a Claude Code turn stops, logs what its own
 //! rules settle through `record`, and logs the user's next prompt through `outcome`.
@@ -42,7 +42,7 @@ use workspace::item::Item as _;
 use workspace::notifications::NotificationId;
 use workspace::{Toast, Workspace};
 
-use crate::{MarleySettings, OpenDecisions, SystemOneCheck, browser, decisions, mcp};
+use crate::{MarleySettings, OpenSystemOneCalls, SystemOneCheck, browser, mcp, system_one_calls};
 
 /// The variable the key is read from first.
 pub(crate) const KEY_VARIABLE: &str = "MARLEY_SYSTEM_ONE_KEY";
@@ -66,7 +66,7 @@ const RETRY_PAUSE: Duration = Duration::from_millis(200);
 /// How long past the deadline the timer that backs up the request's own timeout fires.
 const BACKSTOP: Duration = Duration::from_millis(250);
 
-/// The rows of this session the global keeps for the Decisions view.
+/// The rows of this session the global keeps for the System One calls view.
 const KEPT_ROWS: usize = 500;
 
 /// Numbers each call of this process, so two calls in one millisecond keep apart.
@@ -182,7 +182,7 @@ impl Key {
     }
 }
 
-/// Where the key came from, as the Decisions view names it.
+/// Where the key came from, as the System One calls view names it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum KeySource {
     /// The layer is off, or its provider needs no key.
@@ -285,7 +285,7 @@ impl SystemOne {
     }
 }
 
-/// Installs the layer: the settings it follows, the check and the Decisions view.
+/// Installs the layer: the settings it follows, the check and the System One calls view.
 pub(crate) fn init(cx: &mut App) {
     apply_settings(cx);
     cx.observe_global::<SettingsStore>(apply_settings).detach();
@@ -293,8 +293,8 @@ pub(crate) fn init(cx: &mut App) {
         workspace.register_action(|workspace, _: &SystemOneCheck, window, cx| {
             run_check(workspace, window, cx);
         });
-        workspace.register_action(|workspace, _: &OpenDecisions, window, cx| {
-            decisions::open(workspace, window, cx);
+        workspace.register_action(|workspace, _: &OpenSystemOneCalls, window, cx| {
+            system_one_calls::open(workspace, window, cx);
         });
     })
     .detach();
@@ -380,9 +380,9 @@ pub(crate) fn load_key(cx: &mut App) {
                     }
                     _ => KeySource::Missing("the keyring's item is not a key".to_string()),
                 },
-                Ok(None) => {
-                    KeySource::Missing(format!("set {KEY_VARIABLE}, or Set Key in Decisions"))
-                }
+                Ok(None) => KeySource::Missing(format!(
+                    "set {KEY_VARIABLE}, or Set Key in System One calls"
+                )),
                 Err(error) => {
                     KeySource::Missing(format!("the keyring could not be read: {error:#}"))
                 }
@@ -828,7 +828,7 @@ fn send(
         None if layer.key_source == KeySource::Reading => {
             Err("the key is still being read from the keyring")
         }
-        None => Err("no key: set MARLEY_SYSTEM_ONE_KEY, or Set Key in Decisions"),
+        None => Err("no key: set MARLEY_SYSTEM_ONE_KEY, or Set Key in System One calls"),
     };
     let key = match key {
         Ok(key) => key,
@@ -1007,7 +1007,7 @@ fn seconds(duration: Duration) -> String {
     }
 }
 
-/// Finishes the call's row with `reading`, keeps it for the Decisions view and sends it to be
+/// Finishes the call's row with `reading`, keeps it for the System One calls view and sends it to be
 /// written.
 fn finish(mut draft: Draft, reading: Reading, mode: SystemOneMode, cx: &mut App) -> Asked {
     draft.row.reading = reading.summary();
@@ -1233,7 +1233,8 @@ fn check_toast(asked: &Asked) -> String {
     };
     let failed = asked.reading.failed();
     if asked.mode == SystemOneMode::Shadow && !failed {
-        return "System One logged the check in shadow mode. Open Decisions to see it.".to_string();
+        return "System One logged the check in shadow mode. Open System One calls to see it."
+            .to_string();
     }
     let mut parts = vec![asked.reading.summary()];
     if !failed {

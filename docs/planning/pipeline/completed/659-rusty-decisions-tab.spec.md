@@ -1,7 +1,7 @@
 ---
 pipeline_id: 67d81e4f-ffdc-428a-8f98-403c10aa6b6b
-ticket: docs/planning/tickets/open/TICKET-659-rusty-decisions-tab.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-659-rusty-decisions-tab.md
+status: Phase 4 — Complete PASS
 title: "Rusty's Decisions tab, with System One's log renamed System One calls"
 type: feature
 slice: Rusty in Marley R7 (its Decisions half), R-D3's DecisionsPage row and open decision 4

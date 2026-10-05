@@ -7,7 +7,7 @@
 # with the scratch repository listed, and the key comes from MARLEY_SYSTEM_ONE_KEY, exported
 # before Marley starts. The run never presses Set Key or Forget Key: they write the keyring, and
 # the headless sway reaches the user's own. Each check is `marley: system one check` from the
-# palette after a command in the terminal: the answer in a toast and in Decisions, with the key's
+# palette after a command in the terminal: the answer in a toast and in System One calls, with the key's
 # source (REQ-002, REQ-009); the project taken off the list (REQ-003); a secret masked (REQ-004);
 # a metadata-only project (REQ-005); a slow answer, five failures and the breaker (REQ-006); a
 # budget of 0 (REQ-007); the replay provider (REQ-008); the layer off (REQ-001). Every change is
@@ -15,7 +15,7 @@
 compositor sway
 
 # In the window's logical pixels, from the first run's shots: the rail's terminal row, the first
-# row of Decisions, the rows of the masked and the metadata-only checks once every call is listed,
+# row of System One calls, the rows of the masked and the metadata-only checks once every call is listed,
 # and a point in the Settings window's page to scroll at.
 TERMINAL_ROW_X=${TERMINAL_ROW_X:-110}
 TERMINAL_ROW_Y=${TERMINAL_ROW_Y:-135}
@@ -230,8 +230,8 @@ steps() {
   expect "the state holds the facts and the command" holds "$E2E_WORK/body-failed.json" \
     'project: repo' 'exit code: 1' 'program: false' 'last command: false'
 
-  echo "== Decisions"
-  palette "marley: open decisions"
+  echo "== System One calls"
+  palette "marley: open system one calls"
   settle 3
   shot 565-02-decisions-view
   click "$DECISION_X" "$DECISION_Y"
@@ -303,8 +303,8 @@ steps() {
   expect "and its row names the replay provider" \
     bash -c "grep '\"row\":\"call\"' '$E2E_PROFILE'/system_one/calls-*.jsonl | tail -n 1 | grep -q '\"provider\":\"replay\"'"
 
-  echo "== every call in Decisions"
-  palette "marley: open decisions"
+  echo "== every call in System One calls"
+  palette "marley: open system one calls"
   settle 3
   shot 565-08b-decisions-all
   local rows_on

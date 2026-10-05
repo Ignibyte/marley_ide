@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Decisions tab** (#659, 2026-10-04). Rusty's decisions in a center tab, from the double
+  check after Tasks in the rail's Brain view or `rusty: open decisions`. Under Due come the
+  follow-ups whose day has come, in Rusty's order, an overdue one's day in the warning colour with
+  the word overdue; then every decision, the newest first, under their count, each with its
+  status (decided, kept, revised or superseded), the day it was decided and its follow-up day.
+  A click opens the decision's page. The tab reads again when Rusty announces a change, and a
+  failed read shows Rusty's words with Read again. What is due and what is overdue are Rusty's
+  answers; Marley works out no date.
+
 - **The Tasks tab** (#658, 2026-10-04). Rusty's to-do lists in a center tab, from the list icon in
   the rail's Brain view or `rusty: open tasks`: the lists on the left, the chosen list's tasks on
   the right, in Rusty's order. Add a task from the field above them; check one done with its box
@@ -566,6 +575,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   setting English at the Prompt (`marley.english_hint`) turns the hint and the button off.
 
 ### Changed
+
+- **System One's log is now System One calls** (#659, 2026-10-04). The tab that lists System
+  One's calls, its command (`marley: open system one calls`), the Marley settings page's link
+  (Open System One Calls) and every line that named it say System One calls, so Decisions is
+  Rusty's alone. A key bound to `marley::OpenDecisions` still opens it.
 
 - **The Graph tab starts on your project's page** (#655). With no brain page in front, `rusty:
   open graph` and `rusty: open local graph` show the neighbourhood of the window's project page,

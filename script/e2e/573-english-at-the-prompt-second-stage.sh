@@ -9,7 +9,7 @@
 # (REQ-002, REQ-003); typing on makes no call for the prefix (REQ-004); a command and a line with a
 # token make none (REQ-005, REQ-006); Enter at once runs the line with no call (REQ-007). In act the
 # middle names its command and colours its words (REQ-008), and the grid's slot shows the words
-# with the editor closed (REQ-009). Decisions lists the calls (REQ-010), an unlisted project makes
+# with the editor closed (REQ-009). System One calls lists the calls (REQ-010), an unlisted project makes
 # none (REQ-011), the outcomes follow the calls (REQ-012), and the mode is on the Marley page
 # (REQ-014).
 compositor sway
@@ -195,8 +195,8 @@ steps() {
   expect "an unlisted project's line made no call" test "$(calls_with 'echo what is this')" = 0
   clear_line
 
-  echo "== Decisions"
-  palette "marley: open decisions"
+  echo "== System One calls"
+  palette "marley: open system one calls"
   settle 3
   shot decisions
 

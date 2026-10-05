@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #659 (feature, Rusty in Marley R7: the Decisions tab; open decision 4)
 - **Owner:** claude-opus-5-5, 2026-10-03 (/spec)
-- **Pipeline doc:** ../../pipeline/queued/659-rusty-decisions-tab.spec.md
+- **Pipeline doc:** ../../pipeline/completed/659-rusty-decisions-tab.spec.md
 - **Source ticket:** `docs/marley/rusty-in-marley.md` (R-D3's DecisionsPage row, R-D9's fixed row,
   open decision 4, the slices table's R7); Chad, 2026-10-02, recorded there: Marley's System One
   log becomes "System One calls" and Rusty's tab keeps "Decisions"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Marley's System One log, the tab #565 named Decisions, is renamed System One calls: the tab and

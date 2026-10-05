@@ -713,6 +713,23 @@ Needs 2.12's setup: Rusty installed and on. This stop makes a list of its own an
 - [ ] Step 5: the task goes, and comes back faint and marked Archived.
 - [ ] Step 6: the prompt names the list; the list goes, and the first list is chosen.
 
+### 2.15c The Decisions tab (#659), optional
+
+Needs 2.12's setup: Rusty installed and on. This stop only reads.
+
+1. Click the double check after Tasks in the rail's Brain view.
+2. Rest the pointer on a row.
+3. Click a decision.
+4. Run `rusty: open decisions` from the command palette.
+
+- [ ] Step 1: a Decisions tab. Under the title, Rusty's loop in one line; then Due, the
+  follow-ups whose day has come, an overdue one's day in the warning colour with the word overdue;
+  then every decision, the newest decided first, under their count, each with its status, the day
+  it was decided and its follow-up day when it has one.
+- [ ] Step 2: the tooltip gives the whole title and the page's slug.
+- [ ] Step 3: the decision's page opens in a Page tab.
+- [ ] Step 4: the same Decisions tab comes forward; there is no second one.
+
 ## Part 3. The editor
 
 Marley's editor is Zed's. This part checks the everyday tools. The first time you open
@@ -1604,14 +1621,14 @@ Open `settings.json` (Ctrl+Alt+,) and merge these keys into its `marley` block, 
 `browser_click_pause_agents: "all_agents"` makes Claude Code's clicks pause too; by default only
 agents without permission prompts of their own wait.
 
-### 10.1 Decisions and the check (#565)
+### 10.1 System One calls and the check (#565)
 
 1. Run `false` in a terminal, then `marley: system one check`.
-2. Run `marley: open decisions`.
+2. Run `marley: open system one calls`.
 
 - [ ] A toast gives the reading, with `rules` as the provider.
-- [ ] Decisions lists the day's calls, newest first, and a click opens one to what was sent and
-  what came back.
+- [ ] System One calls lists the day's calls, newest first, and a click opens one to what was sent
+  and what came back.
 
 ### 10.2 What a stop needs (#566)
 
@@ -1672,7 +1689,7 @@ echo "error: build failed"; sleep 8; echo "Compiled successfully"; sleep 20
 Set `"enabled": false` under `system_one`, or remove the block, and put
 `browser_click_pause_agents` back.
 
-- [ ] Rows lose their stop kinds and flags, and Decisions records no new calls.
+- [ ] Rows lose their stop kinds and flags, and System One calls records no new calls.
 
 With a TypeSafe key, `"provider": "typesafe"` sends the questions the rules leave open to Jev; see
 the guide's System One section before you do.
@@ -1823,10 +1840,12 @@ Every Marley command runs from the palette. The ones with no key of their own:
 | `marley: playwright scripts` | The Browser tab's scripts tray |
 | `marley: browser clients` | Programs outside Marley allowed into its browser |
 | `marley: clear project browser data` | Sign every site out for this project |
-| `marley: system one check`, `marley: open decisions` | System One's check and its log |
+| `marley: system one check`, `marley: open system one calls` | System One's check and its log |
 | `marley: toggle fleet` | Show or hide the Fleet panel (#607) |
 | `rusty: toggle knowledge panel` | Show or hide the Knowledge panel, while Rusty is on (#646) |
 | `rusty: open graph`, `rusty: open local graph` | The Graph tab, on the vault or the page in front (#647) |
+| `rusty: open tasks` | The Tasks tab, Rusty's to-do lists (#658) |
+| `rusty: open decisions` | The Decisions tab, Rusty's decisions and the follow-ups due (#659) |
 | `multi workspace: next project`, `previous project`, `next thread`, `previous thread` | Walk the rail |
 
 ## Appendix C. Not in yet

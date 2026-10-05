@@ -43,7 +43,6 @@ pub mod clients;
 pub mod close_guard;
 pub mod codex_server;
 pub mod command_watch;
-pub mod decisions;
 pub mod english;
 pub mod failures;
 pub mod find;
@@ -84,6 +83,7 @@ pub mod single_instance;
 pub mod stall;
 pub mod sticky_header;
 pub mod system_one;
+pub mod system_one_calls;
 pub mod terminal_drive;
 pub mod terminal_ids;
 pub mod terminal_size;
@@ -323,10 +323,11 @@ actions!(
         /// failed, and shows what came back.
         #[derive(Eq)]
         SystemOneCheck,
-        /// Opens Decisions: the System One layer's calls today, the day's spend and where the
-        /// key comes from.
+        /// Opens System One calls: the System One layer's calls today, the day's spend and where
+        /// the key comes from.
         #[derive(Eq)]
-        OpenDecisions,
+        #[action(deprecated_aliases = ["marley::OpenDecisions"])]
+        OpenSystemOneCalls,
         /// Opens the Marley guide: in a Browser tab of this project, or in the system browser
         /// when the window shows no project.
         #[derive(Eq)]

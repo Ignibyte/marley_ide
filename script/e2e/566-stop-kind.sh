@@ -16,7 +16,7 @@ compositor sway
 HOOK=$PWD/crates/marley_workbench/claude_plugin/marley/hooks/event.py
 SHIPPED=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' \
   crates/marley_workbench/claude_plugin/marley/.claude-plugin/plugin.json)
-# The rail's agent row, where a click shows its terminal again after Decisions, from the first
+# The rail's agent row, where a click shows its terminal again after System One calls, from the first
 # run's shots.
 AGENT_ROW_X=${AGENT_ROW_X:-110}
 AGENT_ROW_Y=${AGENT_ROW_Y:-140}
@@ -264,7 +264,7 @@ steps() {
   last_call shadow-call
   expect "shadow logged the reading it would have shown" holds "$E2E_WORK/shadow-call.json" \
     '"mode":"shadow"' 'kind: done_checked 0.91' '"set":"stop_kind_1/1"'
-  palette "marley: open decisions"
+  palette "marley: open system one calls"
   settle 3
   shot 566-01-shadow
   click "$AGENT_ROW_X" "$AGENT_ROW_Y"

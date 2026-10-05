@@ -3346,3 +3346,10 @@ it last saw (`Link`: off, down, up) and acts only when it changes.
 The add field read "Create a list first", read only, with Home chosen and its tasks shown. It
 was set up in the constructor, before the first read chose a list, and nothing set it up again.
 Fixed: `render` sets it up whenever whether a list is chosen differs from how it was last set.
+
+## F-claude-659-the-decisions-tabs-headers-grew-to-fill-its-column-001
+*severity: low · found in: pipeline 659's first full scenario run, in Test · class: a ui component carrying its own `flex_1`, placed in a column it should not fill*
+
+The Decisions tab drew Due, the count and the rows with wide gaps between them. Zed's
+`ListSubHeader` renders with `flex_1`, so in the tab's `v_flex` column each header took a share
+of the spare height. Fixed: `header()` puts each one in a `div().flex_none()`.

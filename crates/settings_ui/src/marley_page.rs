@@ -895,7 +895,8 @@ fn push_section() -> [SettingsPageItem; 4] {
     ]
 }
 
-// Marley: the System One layer's switch, provider and budget, and a way to its Decisions view
+// Marley: the System One layer's switch, provider and budget, and a way to its System One calls
+// view
 // (#565). The project lists, and each use's mode past the check's, the stop kind's (#566), the
 // find tools' (#567), the stall kind's (#569), the click consequence's (#571), the inbox's
 // (#568) and the question route's (#570), live in settings.json.
@@ -1061,7 +1062,7 @@ fn system_one_section() -> [SettingsPageItem; 17] {
         // Marley: the stop kind's mode (#566).
         SettingsPageItem::SettingItem(SettingItem {
             title: "Stop Kind",
-            description: "The mode of the stop kind, which says on an idle Claude Code's rail row what its stop needs: done and checked, done and only claimed, a question for you, a block, or work still going. Shadow logs it in Decisions, Suggest adds it after idle with a question mark, and Act shows it in place of idle.",
+            description: "The mode of the stop kind, which says on an idle Claude Code's rail row what its stop needs: done and checked, done and only claimed, a question for you, a block, or work still going. Shadow logs it in System One calls, Suggest adds it after idle with a question mark, and Act shows it in place of idle.",
             field: Box::new(SettingField {
                 organization_override: None,
                 json_path: Some("marley.system_one.uses.stop_kind"),
@@ -1093,7 +1094,7 @@ fn system_one_section() -> [SettingsPageItem; 17] {
         // Marley: the mode of browser_find (#567).
         SettingsPageItem::SettingItem(SettingItem {
             title: "Browser Find",
-            description: "The mode of browser_find, an agents' tool that finds the element of a page a query in words names, such as the sign in button: by the query's words first, then by the model for what the words leave open. Off, agents do not see the tool. Shadow answers by the words and logs the model in Decisions, Suggest gives the model's candidates to check, and Act gives the element to act on when the model is sure.",
+            description: "The mode of browser_find, an agents' tool that finds the element of a page a query in words names, such as the sign in button: by the query's words first, then by the model for what the words leave open. Off, agents do not see the tool. Shadow answers by the words and logs the model in System One calls, Suggest gives the model's candidates to check, and Act gives the element to act on when the model is sure.",
             field: Box::new(SettingField {
                 organization_override: None,
                 json_path: Some("marley.system_one.uses.browser_find"),
@@ -1125,7 +1126,7 @@ fn system_one_section() -> [SettingsPageItem; 17] {
         // Marley: the mode of terminal_find (#567).
         SettingsPageItem::SettingItem(SettingItem {
             title: "Terminal Find",
-            description: "The mode of terminal_find, an agents' tool that finds the line of a block's output a query in words names, such as where the server refused the connection: by the query's words first, then by the model for what the words leave open. Off, agents do not see the tool. Shadow answers by the words and logs the model in Decisions, Suggest gives the model's candidates to check, and Act gives the line when the model is sure.",
+            description: "The mode of terminal_find, an agents' tool that finds the line of a block's output a query in words names, such as where the server refused the connection: by the query's words first, then by the model for what the words leave open. Off, agents do not see the tool. Shadow answers by the words and logs the model in System One calls, Suggest gives the model's candidates to check, and Act gives the line when the model is sure.",
             field: Box::new(SettingField {
                 organization_override: None,
                 json_path: Some("marley.system_one.uses.terminal_find"),
@@ -1157,7 +1158,7 @@ fn system_one_section() -> [SettingsPageItem; 17] {
         // Marley: the mode of the stall kind (#569).
         SettingsPageItem::SettingItem(SettingItem {
             title: "Stall Kind",
-            description: "The mode of the stall kind, which flags a working Claude Code's rail row looping? when it repeats one step and stalled? when it has gone quiet with nothing running, from Marley's own facts first and the model for the quiet case. It never stops the agent. Shadow logs in Decisions, Suggest shows the flag, and Act adds a notification.",
+            description: "The mode of the stall kind, which flags a working Claude Code's rail row looping? when it repeats one step and stalled? when it has gone quiet with nothing running, from Marley's own facts first and the model for the quiet case. It never stops the agent. Shadow logs in System One calls, Suggest shows the flag, and Act adds a notification.",
             field: Box::new(SettingField {
                 organization_override: None,
                 json_path: Some("marley.system_one.uses.stall_kind"),
@@ -1285,7 +1286,7 @@ fn system_one_section() -> [SettingsPageItem; 17] {
         // Marley: the mode of the running error (#572).
         SettingsPageItem::SettingItem(SettingItem {
             title: "Running Error",
-            description: "The mode of the running error, which tells a command that keeps running, such as a dev server, when it prints a failure and is still running five seconds later: a red mark on its rail row with the line, a notification when the terminal is not in front, and another when it recovers. The lines' shapes decide first; the model reads only the lines they leave open. Shadow logs the model in Decisions, Suggest marks its failures with a question mark and no notification, and Act treats them as the shapes'. Off watches nothing.",
+            description: "The mode of the running error, which tells a command that keeps running, such as a dev server, when it prints a failure and is still running five seconds later: a red mark on its rail row with the line, a notification when the terminal is not in front, and another when it recovers. The lines' shapes decide first; the model reads only the lines they leave open. Shadow logs the model in System One calls, Suggest marks its failures with a question mark and no notification, and Act treats them as the shapes'. Off watches nothing.",
             field: Box::new(SettingField {
                 organization_override: None,
                 json_path: Some("marley.system_one.uses.running_error"),
@@ -1317,7 +1318,7 @@ fn system_one_section() -> [SettingsPageItem; 17] {
         // Marley: the mode of the typed line (#573).
         SettingsPageItem::SettingItem(SettingItem {
             title: "Typed Line",
-            description: "The mode of the typed line, which reads a line typed at a shell's prompt that Marley's own rules leave open, a command's name followed by plain words, as a command, a request, a comment, or a command followed by English. It asks only after 250 ms without typing, never for a line holding a secret, and never holds up Enter. Shadow logs the reading in Decisions, Suggest shows it after the line with a question mark, and Act shows it plainly and colours the words a command would take as arguments. Off asks nothing.",
+            description: "The mode of the typed line, which reads a line typed at a shell's prompt that Marley's own rules leave open, a command's name followed by plain words, as a command, a request, a comment, or a command followed by English. It asks only after 250 ms without typing, never for a line holding a secret, and never holds up Enter. Shadow logs the reading in System One calls, Suggest shows it after the line with a question mark, and Act shows it plainly and colours the words a command would take as arguments. Off asks nothing.",
             field: Box::new(SettingField {
                 organization_override: None,
                 json_path: Some("marley.system_one.uses.typed_line"),
@@ -1347,15 +1348,15 @@ fn system_one_section() -> [SettingsPageItem; 17] {
             files: USER,
         }),
         SettingsPageItem::ActionLink(ActionLink {
-            title: "Decisions".into(),
+            title: "System One Calls".into(),
             description: Some("Every call the layer made today with what came back, the day's spend against the budget, and where the key comes from: MARLEY_SYSTEM_ONE_KEY or the keyring, never its value. The project lists (projects, metadata_only_projects) and each use's mode live under marley.system_one in settings.json.".into()),
-            button_text: "Open Decisions".into(),
+            button_text: "Open System One Calls".into(),
             on_click: Arc::new(|settings_window, window, cx| {
                 let Some(original_window) = settings_window.original_window else {
                     return;
                 };
                 // By its name: this crate depends on no Marley crate.
-                let Some(action) = cx.build_action("marley::OpenDecisions", None).log_err() else {
+                let Some(action) = cx.build_action("marley::OpenSystemOneCalls", None).log_err() else {
                     return;
                 };
                 original_window

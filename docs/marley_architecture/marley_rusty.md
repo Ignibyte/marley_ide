@@ -69,7 +69,13 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   named like the page), `due_for` (the due decisions among the page's backlinks and outbound
   links), `summary` (the property, else the body's first paragraph, its wikilinks as words, cut
   near 300 characters).
-- `decisions` (#655): `DecisionSummary` and `due_from_answer` (`brain_due`'s `due`).
+- `decisions` (#655): `DecisionSummary` and `due_from_answer` (`brain_due`'s `due`). Since #659
+  the whole answer: `Due { due, all }` and `parse_due`; the summary's `status` and `decided`, with
+  `follow_up` (Rusty's empty `follow_up_by` read as none), `decided_line` and `follow_up_line`
+  ("· overdue" when Rusty flags it); `DecisionStatus` (decided, kept, revised, superseded, or a
+  word Rusty adds later, an empty status read as decided); and the tab's lines, `Entry` (the Due
+  header only when something is due, the count, a row by `Section` and index), `entries` and
+  `count_line`. Nothing here works out a date.
   `tasks` (#655): `TaskGroup`, `UserTask`, `groups_from_answer`, `tasks_from_answer`. Since #658
   the ten write names, `UserTask`'s `archived` and `header_id`, `id_from_answer`, and `TaskWrite`
   (one variant a tool, `tool` and `arguments` in Rusty's parameter names: a task `id`, a list
@@ -165,7 +171,10 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   outside fences, `line` from 0 in the body), `brain_set_property` keeping a replaced key in its
   place, `brain_remove_property`, and `brain_rename` rewriting `[[from]]`, `[[from|` and `[[from#`
   in the other pages (a folder's pages by prefix), counting them, and moving a title equal to the
-  old name, as Rusty's TICKET-046 does. It matches search words, not embeddings. The e2e
+  old name, as Rusty's TICKET-046 does. Since #659 `brain_due` sorts `all` as Rusty does (decided
+  descending, then slug), a `today` file in the state folder fixes the day it counts from, and a
+  `fail` file (a tool's name, then a message) makes that tool answer a JSON-RPC error. It matches
+  search words, not embeddings. The e2e
   scenarios name it with `MARLEY_RUSTY_MCP` and never reach the user's own Rusty (R-D8).
 
 ## Later slices

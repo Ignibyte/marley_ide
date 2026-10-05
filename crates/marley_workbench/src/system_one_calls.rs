@@ -1,5 +1,6 @@
-//! Decisions (#565): the System One layer's calls today, each with what it sent and what came
-//! back, the day's spend against the budget, and where the key comes from.
+//! System One calls (#565; named Decisions until #659): the System One layer's calls today, each
+//! with what it sent and what came back, the day's spend against the budget, and where the key
+//! comes from.
 //!
 //! The view reads today's file when it opens and follows the `SystemOne` global for the calls
 //! made after, so it polls nothing. A row opens to the masked state as sent, the answers as they
@@ -20,8 +21,8 @@ use workspace::item::Item;
 use crate::SystemOneCheck;
 use crate::system_one::{self, KeySource, SystemOne};
 
-/// The Decisions view.
-pub struct DecisionsView {
+/// The System One calls view.
+pub struct SystemOneCallsView {
     focus_handle: FocusHandle,
     /// Today's rows, newest first.
     rows: Vec<CallRow>,
@@ -37,10 +38,10 @@ pub struct DecisionsView {
     _loading: Task<()>,
 }
 
-impl std::fmt::Debug for DecisionsView {
+impl std::fmt::Debug for SystemOneCallsView {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
-            .debug_struct("DecisionsView")
+            .debug_struct("SystemOneCallsView")
             .field("rows", &self.rows.len())
             .field("expanded", &self.expanded.len())
             .field("key_field", &self.key_field.is_some())
@@ -48,18 +49,18 @@ impl std::fmt::Debug for DecisionsView {
     }
 }
 
-/// Opens Decisions in the workspace, or brings forward the one open there.
+/// Opens System One calls in the workspace, or brings forward the one open there.
 pub fn open(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
-    let open = workspace.items_of_type::<DecisionsView>(cx).next();
+    let open = workspace.items_of_type::<SystemOneCallsView>(cx).next();
     if let Some(open) = open {
         workspace.activate_item(&open, true, true, window, cx);
         return;
     }
-    let view = cx.new(|cx| DecisionsView::new(window, cx));
+    let view = cx.new(|cx| SystemOneCallsView::new(window, cx));
     workspace.add_item_to_active_pane(Box::new(view), None, true, window, cx);
 }
 
-impl DecisionsView {
+impl SystemOneCallsView {
     fn new(window: &Window, cx: &mut Context<Self>) -> Self {
         let layer = cx.observe_global_in::<SystemOne>(window, |view, _, cx| {
             view.take_session_rows(cx);
@@ -76,7 +77,7 @@ impl DecisionsView {
             view.update(cx, |view, cx| {
                 match read {
                     Ok(rows) => view.add_rows(rows),
-                    Err(error) => log::warn!("decisions: reading today's calls: {error:#}"),
+                    Err(error) => log::warn!("system one calls: reading today's calls: {error:#}"),
                 }
                 cx.notify();
             })
@@ -236,18 +237,18 @@ impl DecisionsView {
         h_flex()
             .gap_2()
             .child(
-                Button::new("decisions-run-check", "Run Check").on_click(cx.listener(
+                Button::new("system-one-calls-run-check", "Run Check").on_click(cx.listener(
                     |_, _, window, cx| {
                         window.dispatch_action(Box::new(SystemOneCheck), cx);
                     },
                 )),
             )
             .child(
-                Button::new("decisions-set-key", "Set Key")
+                Button::new("system-one-calls-set-key", "Set Key")
                     .on_click(cx.listener(|view, _, window, cx| view.show_key_field(window, cx))),
             )
             .child(
-                Button::new("decisions-forget-key", "Forget Key")
+                Button::new("system-one-calls-forget-key", "Forget Key")
                     .on_click(cx.listener(|_, _, _, cx| Self::forget_key(cx))),
             )
             .when(from_environment, |this| {
@@ -289,7 +290,7 @@ impl DecisionsView {
             row.model
         );
         v_flex()
-            .id(SharedString::from(format!("decision-{}", row.id)))
+            .id(SharedString::from(format!("system-one-call-{}", row.id)))
             .w_full()
             .px_2()
             .py_1()
@@ -353,7 +354,7 @@ fn detail(title: &'static str, text: Option<String>, cx: &App) -> impl IntoEleme
     })
 }
 
-impl Render for DecisionsView {
+impl Render for SystemOneCallsView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let rows: Vec<_> = self
             .rows
@@ -361,8 +362,8 @@ impl Render for DecisionsView {
             .map(|row| self.render_row(row, cx).into_any_element())
             .collect();
         v_flex()
-            .id("decisions")
-            .key_context("Decisions")
+            .id("system-one-calls")
+            .key_context("SystemOneCalls")
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(Self::save_key))
             .on_action(cx.listener(|view, _: &menu::Cancel, window, cx| {
@@ -378,7 +379,7 @@ impl Render for DecisionsView {
             .p_4()
             .gap_3()
             .bg(cx.theme().colors().editor_background)
-            .child(Label::new("Decisions").size(LabelSize::Large))
+            .child(Label::new("System One calls").size(LabelSize::Large))
             .child(self.render_header(cx))
             .child(Self::render_buttons(cx))
             .when_some(self.key_field.clone(), |this, field| {
@@ -403,18 +404,18 @@ impl Render for DecisionsView {
     }
 }
 
-impl Focusable for DecisionsView {
+impl Focusable for SystemOneCallsView {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus_handle.clone()
     }
 }
 
-impl EventEmitter<()> for DecisionsView {}
+impl EventEmitter<()> for SystemOneCallsView {}
 
-impl Item for DecisionsView {
+impl Item for SystemOneCallsView {
     type Event = ();
 
     fn tab_content_text(&self, _detail: usize, _cx: &App) -> SharedString {
-        SharedString::new_static("Decisions")
+        SharedString::new_static("System One calls")
     }
 }

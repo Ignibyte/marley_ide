@@ -34,7 +34,7 @@ entry in `CHANGELOG.md` says more. Marley is pre-1.0.
 | Agents in terminals | Claude Code, Codex, Gemini CLI and OpenCode are recognized in any terminal. An agent bar shows the folder and branch, with rich input, Attach File and, once Voice is on, dictation. A Claude Code plugin adds desktop notifications and Marley's tools. |
 | Marley's MCP server | Tools that let an agent list your terminals, read each command's exit code and output, and see and drive the Browser tab. |
 | The Browser tab | A page from Marley's own Chromium, in a tab, with an address bar and one tab per page. An element picker, annotations and a flight recorder hand what you see to the agent. |
-| System One | Off until you turn it on: typed questions to a model (TypeSafe's Jev first) about what Marley knows, sent only for the projects you list and masked, with every call in Decisions. |
+| System One | Off until you turn it on: typed questions to a model (TypeSafe's Jev first) about what Marley knows, sent only for the projects you list and masked, with every call in System One calls. |
 
 Marley keeps its own settings, database, logs and cache in `~/.config/marley`,
 `~/.local/share/marley` and `~/.cache/marley`, apart from a stock Zed install's. To start from
@@ -1319,6 +1319,29 @@ Tasks tab per window.
 - **Off.** With Rusty off the tab drops its lists, says so, and asks Rusty nothing; while Marley is
   not connected it keeps what it last read and takes no edit.
 
+### The Decisions tab
+
+The Decisions tab lists the decisions recorded in Rusty in a center tab (#659): the double check
+after Tasks in the rail's Brain view, or `rusty: open decisions` from the command palette. There is
+one Decisions tab per window. System One's log is another tab, System One calls.
+
+- **What it shows.** Under the title, Rusty's loop in one line: `brain_ask` before a choice,
+  `brain_decide` when it is made, `brain_follow_up` when its day comes. Then Due, the decisions
+  whose follow-up day has come, in Rusty's order; an overdue one shows its day in the warning
+  colour with the word overdue. Then every decision, the newest decided first, under their count.
+  A row gives the title, the status (decided, kept, revised or superseded), the day it was decided,
+  and the follow-up day when one is set. A long title is cut; hover the row for the whole title and
+  the page's slug.
+- **Opening one.** A click on a row opens the decision's page in a Page tab.
+- **When it reads.** It asks Rusty (`brain_due`) when it opens and when Rusty announces a change;
+  while it is hidden it waits until it shows again. What is due and what is overdue are Rusty's
+  answers: Marley works out no date.
+- **A failed read** shows Rusty's words and Read again above the list it last drew.
+- **Off.** With Rusty off the tab says so and asks Rusty nothing, and `rusty: open decisions` shows
+  a toast naming the switch; while Marley is not connected the tab keeps what it last read.
+- **Following up.** The tab does not record a follow-up yet; an agent records one with
+  `brain_follow_up`.
+
 ## Marley's MCP server
 
 ### What it serves, and where
@@ -1657,9 +1680,9 @@ request, reads no key and writes no file.
 ### Turning it on
 
 1. Give Marley the key: set `MARLEY_SYSTEM_ONE_KEY` in the environment Marley starts from, or open
-   Decisions (`marley: open decisions`), choose Set Key, paste the key and press Enter, which
-   writes it to the system keyring at the provider's URL. The variable comes before the keyring.
-   Decisions shows where the key came from and never shows the key.
+   System One calls (`marley: open system one calls`), choose Set Key, paste the key and press
+   Enter, which writes it to the system keyring at the provider's URL. The variable comes before
+   the keyring. System One calls shows where the key came from and never shows the key.
 2. List the folders whose projects may send their state, in `settings.json`:
 
    ```jsonc
@@ -1713,9 +1736,9 @@ covered: "Add a license."`.
   call; Shadow asks and logs, and the row keeps saying `idle`; Suggest adds the kind after `idle`
   with a question mark (`idle · still going?`); Act shows it in place of `idle`. The next prompt you
   type clears it. Agents reading `fleet_snapshot` see the kind as the seat's `stop_kind` labels.
-- Each stop is a row in Decisions, the ones the rules settled under the provider `rules`, and your
-  next prompt adds an outcome to the day's file: how long it came after the stop and how long it
-  was.
+- Each stop is a row in System One calls, the ones the rules settled under the provider `rules`,
+  and your next prompt adds an outcome to the day's file: how long it came after the stop and how
+  long it was.
 
 ### The find tools
 
@@ -1733,8 +1756,8 @@ a whole page or block.
   the words' answer and a note, with no call.
 - The modes are Browser Find and Terminal Find on the settings page, or `uses.browser_find` and
   `uses.terminal_find`: Off (the default) takes the tool out of the agents' list; Shadow answers by
-  the words and logs the model in Decisions; Suggest gives the model's candidates marked to check;
-  Act gives the element or the line to act on when the model found one and is sure.
+  the words and logs the model in System One calls; Suggest gives the model's candidates marked to
+  check; Act gives the element or the line to act on when the model found one and is sure.
 - An answer that is not sure names the tool to read with (`browser_snapshot`, `terminal_read`).
 
 ### The stall kind
@@ -1763,8 +1786,8 @@ flag: the flag only marks the row.
   Act adds one desktop notification for the quiet spell, `repo: Claude Code may be stuck`, when the
   terminal is not in front. The agent's next event takes the flag off, and a loop's leaves when the
   loop ends. Agents reading `fleet_snapshot` see the flag as the seat's `flag` labels.
-- Each reading is a row in Decisions, a loop's under the provider `rules`, and what came next is
-  its outcome in the day's file: how long until the agent's next event, and which it was.
+- Each reading is a row in System One calls, a loop's under the provider `rules`, and what came
+  next is its outcome in the day's file: how long until the agent's next event, and which it was.
 
 ### The click consequence
 
@@ -1794,8 +1817,8 @@ shop.example", with Refuse and Allow, and a toast with Show points you to it.
 - The mode is Click Consequence on the settings page, or `uses.click_consequence`: Off (the
   default) pauses nothing; Shadow pauses on the rules and logs the model's reading; Suggest adds a
   notice after a click the model reads as consequential; Act pauses on that reading too.
-- Each pause is a row in Decisions, a rule's under the provider `rules`, with how it ended, and
-  the flight recorder keeps the pause and its end.
+- Each pause is a row in System One calls, a rule's under the provider `rules`, with how it ended,
+  and the flight recorder keeps the pause and its end.
 
 ### The inbox risk
 
@@ -1821,8 +1844,8 @@ longest.
   oldest first with no chips; Shadow shows the rules' chips and order and logs the model's
   reading; Suggest shows the model's chips with a question mark; Act shows them with a dashed
   border and lets them order the inbox too.
-- Each entry is a row in Decisions, a rule's under the provider `rules`, and how it was cleared,
-  from the inbox or elsewhere, is its outcome.
+- Each entry is a row in System One calls, a rule's under the provider `rules`, and how it was
+  cleared, from the inbox or elsewhere, is its outcome.
 
 ### The question route
 
@@ -1845,7 +1868,7 @@ With its mode on, each entry of the rail's "Needs you" section also says who sho
   shows no marks; Shadow shows the rules' marks and logs the model's; Suggest shows the model's
   with a question mark; Act shows them and orders the entries within each level: yours and the
   unclear first, then the manager's, then what could proceed.
-- Each entry is a row in Decisions, and its outcome says who answered it: `owner` when you
+- Each entry is a row in System One calls, and its outcome says who answered it: `owner` when you
   answered it from the inbox, or had its terminal or thread in front while it waited, and `agent`
   when it went on without you.
 
@@ -1868,18 +1891,19 @@ never asked about.
   a reading that comes after the line changed is dropped.
 - Ctrl+Shift+Enter also asks the agent when the reading offers it. Enter always runs the line.
 - The mode is Typed Line on the settings page, or `uses.typed_line`: Off (the default) asks
-  nothing; Shadow logs the reading in Decisions and shows only the rules' hint.
+  nothing; Shadow logs the reading in System One calls and shows only the rules' hint.
 - Each call's outcome follows it in the day's file: `entered` and the command's `exit N`,
   `asked the agent`, `edited`, `cleared`, or `dropped`.
 
-### Decisions
+### System One calls
 
-`marley: open decisions` opens a tab with the day's calls, newest first: the time, the use, the
-project, the provider and model, the reading (refused and unavailable calls in red), the time
+`marley: open system one calls` opens a tab with the day's calls, newest first: the time, the use,
+the project, the provider and model, the reading (refused and unavailable calls in red), the time
 taken, the tokens and the cost. A click opens a row to the state as it was sent and the answers as
 they came. The header gives the day's calls and spend against the budget, the provider, where the
 key came from, and whether the breaker is open. Run Check runs the check, and Set Key and Forget
-Key write and remove the keyring's key.
+Key write and remove the keyring's key. The tab was called Decisions before #659, when Rusty's
+Decisions tab took the name; a key bound to `marley::OpenDecisions` still opens it.
 
 ### Providers, budget and failures
 
@@ -1898,7 +1922,7 @@ Key write and remove the keyring's key.
   reads as unavailable, with the reason. A 429, 503 or 529 is tried once more while the deadline
   leaves time. Five failures in a row hold calls for two minutes.
 - A state the same as the last one answered for the same terminal makes no new call.
-- `uses` sets each feature's mode: `off`, `shadow` (ask and log, shown only in Decisions),
+- `uses` sets each feature's mode: `off`, `shadow` (ask and log, shown only in System One calls),
   `suggest` or `act`. The check, the stop kind and the two find tools are the four so far.
 
 Every call, refused and failed ones included, is a line in `system_one/calls-<day>.jsonl` under
@@ -2123,6 +2147,7 @@ Commands with no key of their own, from the command palette:
 | `rusty: toggle knowledge panel` | Shows or hides the Knowledge panel, while Rusty is on (#646) |
 | `rusty: open graph`, `rusty: open local graph` | The Graph tab, on the vault or on the page in front (#647) |
 | `rusty: open tasks` | The Tasks tab, Rusty's to-do lists (#658) |
+| `rusty: open decisions` | The Decisions tab, Rusty's decisions and the follow-ups due (#659) |
 | `rusty: toggle page outline` | Hides or shows the outline column of the brain page in front (#656) |
 | `marley: open browser` | Shows or opens a Browser tab |
 | `marley: new browser tab` | A new Browser tab (Ctrl+T inside one) |

@@ -411,3 +411,167 @@ and the review checks each edited line. The golden set's 565 and 568 run by hand
   it lands the tab shows `brain_due`'s flags and horizon as served and computes no overdue state
   of its own; the 19:00 to midnight mismatch is expected and named in the notes. TICKET-048 will
   add `superseded_by` and a `followed_up` date to the summaries.
+
+### Promotion (2026-10-04)
+- Promoted into `active/`; the BACKLOG row removed; the ticket in-progress. Pre-flight green, no
+  other active pipeline; #643 to #658 landed (the last 22e0b4dafc).
+- **Brain:** `brain ask` before the rename (a consultation id with due follow-ups on other work
+  only).
+- **Recall, added:**
+  - L-657: the palette ranks the command used last first; the scenario binds keys where two
+    names share a prefix.
+  - L-658: act on a change of the `Rusty` global's link, not on each of its notifications; hide a
+    tab by its pane's other tab.
+  - F-658: the hidden-tab rule broken by a broad observer.
+- **As shipped, against the draft:**
+  - `marley_rusty::decisions` exists (#655): `BRAIN_DUE`, `DecisionSummary { slug, title,
+    follow_up_by: Option<String>, overdue }` and `due_from_answer` (the `due` list only); the
+    Knowledge panel's project view reads it. This ticket extends it, adding `status`, `decided`,
+    `all`, `Due`, `DecisionStatus`, the entries and the row's words. The project view's reader
+    keeps working. Rusty serves `follow_up_by` as a string, empty when none: the view reads an
+    empty one as none.
+  - Rusty at `13249a8` also serves `followed_up` and `superseded_by` on each summary (its
+    TICKET-048), which the draft's Out says it lacks. They stay out of this ticket's rows (the
+    rows show what the spec names) and are noted for the follow-up ticket.
+  - Rusty sorts `all` by `decided` descending, then slug, and `due` by `follow_up_by`. The
+    stand-in's `brain_due` (#655) serves files in vault order and the real date. It gains Rusty's
+    `all` order, a state-folder `today` that fixes its date, and a `fail` file that makes the named
+    tool answer a JSON-RPC error.
+  - The stand-in has no `SIGUSR1`. Its vault watcher announces each page edit by itself, so the
+    scenario's edits of decision pages are announced with no signal.
+  - The fixed row holds Today, Graph and Tasks. Decisions goes last and opens through the rail's
+    multi-workspace, as Graph and Tasks do (`open_later`), not by `dispatch_action`, which from
+    the rail does not reach the workspace's handlers.
+  - The `rusty` actions are declared per module (`graph_tab.rs`, `tasks_tab.rs`), so
+    `OpenDecisions` is declared in `decisions_tab.rs`.
+  - `marley_workbench::decisions` (#565's System One view) is the module the rename moves; the
+    touchpoint rows for `settings_ui/src/marley_page.rs` (`:63`) and
+    `settings_content/src/marley.rs` (`:59`) exist and are widened before their hunks.
+- **Phase 1 PASS** (2026-10-04): the work runs autonomously under Chad's goal.
+
+## Phase 2: Code (2026-10-04)
+- **Built, part 1:**
+  - `decisions.rs` was moved by `git mv` to `system_one_calls.rs`: `SystemOneCallsView`, the ids
+    `system-one-calls*`, the key context `SystemOneCalls`, the heading and tab "System One calls",
+    and the log line.
+  - `marley::OpenSystemOneCalls` with `deprecated_aliases = ["marley::OpenDecisions"]`.
+  - `system_one.rs`: the import, the registration, the comments, and the three strings.
+  - `find.rs`, `reading.rs`, `settings_content/src/marley.rs`: comments and the Shadow text.
+  - `marley_page.rs`: the comment, the six descriptions, and the link (System One Calls, Open
+    System One Calls, `marley::OpenSystemOneCalls`).
+  - The guide's article `system-one-calls` and its mentions; scenarios 565, 566, 568 and 573;
+    the golden list's two lines. Both ledger rows were widened first.
+- **Built, part 2:**
+  - `marley_rusty::decisions` (#655's, extended): `status`, `decided`; `follow_up`,
+    `decided_line` and `follow_up_line` (empty `follow_up_by` read as none); `DecisionStatus`;
+    `Due` with `all`; `parse_due`; `Section`, `Entry`, `entries`, `count_line`.
+    `due_from_answer` stays for the project view.
+  - The stand-in: the state folder's `today`, a `fail` file naming a tool and its message, and
+    `all` in Rusty's order.
+  - `rusty/decisions_tab.rs` (new):
+    - `rusty::OpenDecisions`, `open` and `open_later`.
+    - `BrainDecisionsView` with `Link` and `ReadDue` (L-658), the title and Rusty's line on the
+      loop, and the state lines.
+    - Due and the count as `ListSubHeader`s; rows as `ListItem`s (title, a status `Chip`, the
+      decided line, the follow-up line in the warning colour when overdue, a tooltip with the
+      slug) opening the page through `page::open_later`.
+  - `brain.rs`: Decisions after Tasks in the fixed row. The guide gains a Decisions article.
+- **Deviations:**
+  - The rows are a plain scrolling column, not a `uniform_list`: headers and rows differ in
+    height, and Rusty lists at most 1,000 decisions.
+  - The fixed row's entry opens through the rail's multi-workspace, not `dispatch_action`
+    (Promotion).
+  - The tooltip is `Tooltip::text`, since the entry is reached by click.
+- **Review:**
+  - The read rules are the Tasks tab's: no read while hidden (`ReadDue::WhenShown`, read at the
+    next draw), a read on the link coming up, and Rusty off drops the list and calls nothing.
+  - A failure keeps the list drawn and shows Read again. Nothing computes a date: `overdue` and
+    the order are Rusty's. The open defers.
+  - The sweep finds "Decisions" only in the alias line and the module doc's history.
+- **Gate:** `just gate-diff` GREEN, 17 of 17, on the first run.
+
+## Phase 3: Test (2026-10-04)
+- **Scenario:** `script/e2e/659-rusty-decisions-tab.sh` under `compositor sway`, against the debug
+  `marley`. The final run exited 0 with its four checks passing: "brain_due was asked", "no
+  brain_due while hidden", "one more brain_due once shown" and "no brain_due once off". The
+  stand-in's log closes on four `brain_due {"days": 0}` calls from one pid.
+- **Measuring runs** (scratch scripts, not committed) found the positions. The Settings window's
+  System One section is long and its end moved between runs, so the scenario types "System One
+  Calls" into the settings search, which narrows the page to that section, and scrolls to its end.
+- **Bug found in Test:** the first full run drew the Due header, the count and the rows with wide
+  gaps. `ListSubHeader` carries `flex_1`, so in the tab's column each header grew to share the
+  spare height. The headers are now wrapped in `div().flex_none()` (`header()` in
+  `decisions_tab.rs`). A source change after the Phase 2 green: the final gate runs again at
+  Complete.
+- **Shot 06 retaken:** its first take had the rail header's tooltip ("Brain Ctrl-Alt-V") over the
+  third and fourth entries. The scenario now moves the pointer off the header before the shot.
+- **Shots**, each read:
+  - `659-01-system-one-calls` (REQ-001): the tab titled System One calls, heading System One calls,
+    the off line, provider, key, Run Check, Set Key, Forget Key, "No calls today."
+  - `659-02-palette` (REQ-002): "open decisions" typed; one match, `rusty: open decisions`; no
+    `marley: open decisions`.
+  - `659-03-old-id` (REQ-003): Ctrl+Alt+Shift+Y, bound to `marley::OpenDecisions`, opened the
+    System One calls tab.
+  - `659-04-settings-link` (REQ-004, REQ-006): the System One section's end: System One Calls with
+    Open System One Calls; the Stall Kind, Running Error and Typed Line descriptions say "in System
+    One calls".
+  - `659-05-settings-opened` (REQ-005): Marley's window alone on the output, the System One calls
+    tab in front.
+  - `659-06-fixed-row` (REQ-008): cropped at 4x: Today, Graph, Tasks, then Decisions (the double
+    check), last.
+  - `659-07-decisions` (REQ-009 to REQ-013): the Decisions tab with Rusty's line on the loop; Due
+    holds Try the stand-in (follow up by 2026-09-27 · overdue, in the warning colour) above Ship
+    the rail switch (follow up by 2026-10-03); "7 decisions", newest decided first; decided, kept,
+    revised and superseded chips (superseded muted); decided dates on every row, follow-up dates
+    where set. The entry's tooltip reads Decisions.
+  - `659-08-opened` (REQ-014): Use a rail in a kept Page tab in front: title, status kept, decided
+    2026-09-10.
+  - `659-09-found` (REQ-015, REQ-016): the same Decisions tab in front, one in the bar; Due holds
+    Try the stand-in alone; Ship the rail switch reads kept with no follow-up. The log held no
+    `brain_due` while the Page tab showed and one more after the palette.
+  - `659-10-live` (REQ-017): no Due section; Try the stand-in revised, follow up by 2026-10-17.
+  - `659-11-failed` (REQ-018): "The brain is busy; try again." in the error colour with Read again,
+    the seven rows kept below.
+  - `659-12-read-again` (REQ-019): the list, no error line.
+  - `659-13-empty` (REQ-020): "No decisions yet. brain_ask, then brain_decide, writes the first
+    one."; the rail's tree holds projects only. The open Page tab's title falls back to its slug
+    once its page is gone: the Page tab's own behaviour, not this ticket's.
+  - `659-14-off` (REQ-021): "Rusty is off. Turn it on in the Rusty section of the Marley settings.";
+    the rail is back on Projects; no `brain_due` after the switch.
+  - `659-15-off-action` (REQ-022): the toast with the same words; one Decisions tab in the bar.
+- **The title cut**, which the UI proof names under `659-07`: at the window's full width the long
+  title fits, so a scratch run moved the tab into a half-width pane (`pane: split and move right`).
+  Its shot shows "Keep Zed's theme for every…" cut before the status chip, with the dates intact.
+- **Not reached by a shot:** the not-connected line (REQ-023) and the computed-nothing rule
+  (REQ-024), by review as planned; REQ-006's other strings and REQ-007 by the diff and the sweep.
+- **Focus:** no stray focus seen; the palette, the keys and the clicks all reached Marley.
+
+## Phase 4: Complete (2026-10-04)
+- **Documented:**
+  - `CHANGELOG.md`: Added (the Decisions tab) and Changed (System One calls).
+  - `docs/marley/guide.md`: System One's section renamed throughout (`### System One calls`, the
+    command, the key step, every "row in" line, the modes), with a line on the old name and
+    alias; a `### The Decisions tab` section after the Tasks tab's; the palette table's row.
+  - `docs/marley/walkthrough.md`: stop 2.15c (the Decisions tab, read only); 10.1 and 10.8
+    renamed; the palette table's System One row renamed, and rows for `rusty: open tasks` (which
+    #658 missed) and `rusty: open decisions`.
+  - `docs/marley_architecture/marley_workbench.md`: the System One section's file, type, action,
+    a note on the rename and alias, the Agent tab's `system_one_calls::open`; a Decisions tab
+    section.
+  - `docs/marley_architecture/marley_rusty.md`: the `decisions` module's #659 additions; the
+    stand-in's `all` order, `today` and `fail`.
+  - `docs/marley/rusty-in-marley.md`: R-D3's DecisionsPage row shipped, R7 shipped, R7b names
+    TICKET-048's fields, open decision 4 done. `docs/marley/three-prong-plan.md`: C2 gains the
+    Decisions tab; S1 names System One calls.
+  - `docs/marley/zed-touchpoints.md`: the `settings_content/src/marley.rs` and
+    `settings_ui/src/marley_page.rs` rows checked; both describe what shipped.
+- **Knowledge:** F-claude-659-the-decisions-tabs-headers-grew-to-fill-its-column-001,
+  L-claude-659-a-listsubheader-grows-in-a-column-001,
+  L-claude-659-reach-a-settings-item-by-the-settings-search-001,
+  AD-claude-659-decisions-is-rustys-and-system-ones-log-is-system-one-calls-001.
+- **Brain:** `brain decide` on the Promotion's consultation, follow up by 2026-10-18:
+  `decisions/marley-decisions-is-rustys-tab-system-ones-log-is-system-one-calls`.
+- **Closed:** the ticket in `tickets/closed/`, the BACKLOG row gone (removed at promotion), this
+  pair in `completed/`.
+- **Gate:** run again after every edit, since the source changed after Phase 2's green (the
+  `header()` fix).

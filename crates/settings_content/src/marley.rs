@@ -428,7 +428,7 @@ pub enum SystemOneMode {
     /// The use asks nothing.
     #[default]
     Off,
-    /// The use asks and logs; what it read shows only in the Decisions view.
+    /// The use asks and logs; what it read shows only in the System One calls view.
     Shadow,
     /// The use shows what it read, for you to confirm.
     Suggest,

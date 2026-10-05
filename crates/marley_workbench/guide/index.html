@@ -171,6 +171,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#knowledge-panel">The Knowledge panel: a page&#x27;s links, tags and brain search</a></li>
 <li><a href="#graph-tab">The Graph tab: the vault as a graph</a></li>
 <li><a href="#tasks-tab">The Tasks tab: Rusty's to-do lists</a></li>
+<li><a href="#rusty-decisions">Decisions: Rusty's brain loop</a></li>
 </ol></li>
 <li><a href="#editor">The editor</a><ol>
 <li><a href="#find-things">Find files, symbols and text</a></li>
@@ -244,7 +245,7 @@ th { background: var(--panel); font-weight: 650; }
 </ol></li>
 <li><a href="#system-one">System One</a><ol>
 <li><a href="#system-one-on">Turn it on</a></li>
-<li><a href="#decisions">Decisions</a></li>
+<li><a href="#system-one-calls">System One calls</a></li>
 <li><a href="#stop-kind">What a stopped agent needs</a></li>
 <li><a href="#stall-kind">A stuck agent</a></li>
 <li><a href="#find-tools">Find by words, for agents</a></li>
@@ -689,6 +690,16 @@ th { background: var(--panel); font-weight: 650; }
 <li>The + by Lists makes a list; a list's right-click menu renames or deletes it, and deleting a list asks first, since its tasks go with it.</li>
 </ol>
 <p class="note">The tab reads Rusty again when Rusty announces a change, when you come back to the tab, when Marley's window comes back to the front, and on Refresh. A task an agent adds through its own Rusty shows then, not at once.</p>
+</article>
+<article id="rusty-decisions">
+<h3>Decisions: Rusty's brain loop <span class="ticket">#659</span></h3>
+<p class="what"><strong>What it is.</strong> A center tab over the decisions Rusty's brain loop records, while Rusty is on: the follow-ups due first, under Due, the overdue ones marked; then every decision, the newest first, with its status (decided, kept, revised or superseded), the day it was decided and its follow-up day. Rusty's agents write them: <code>brain_ask</code> before a choice, <code>brain_decide</code> when it is made, <code>brain_follow_up</code> when its day comes.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Click the double check after Tasks in the rail's Brain view, or run <code>rusty: open decisions</code>.</li>
+<li>Click a decision to open its page in a tab.</li>
+</ol>
+<p class="note">The tab reads Rusty again when Rusty announces a change, and when you come back to it after one. System One's own log is a different tab, System One calls.</p>
 </article>
 </section>
 
@@ -1521,19 +1532,19 @@ th { background: var(--panel); font-weight: 650; }
     "uses": { "stop_kind": "act", "stall_kind": "act", "inbox": "act" }
   }
 }</code></pre></li>
-<li>Each use has a mode: <code>off</code>, <code>shadow</code> (asked and logged, shown only in Decisions), <code>suggest</code> (shown with a question mark) or <code>act</code>.</li>
-<li>For a model: set <code>"provider": "typesafe"</code> and give Marley the key, in <code>MARLEY_SYSTEM_ONE_KEY</code> or through Decisions' Set Key (the system keyring).</li>
+<li>Each use has a mode: <code>off</code>, <code>shadow</code> (asked and logged, shown only in System One calls), <code>suggest</code> (shown with a question mark) or <code>act</code>.</li>
+<li>For a model: set <code>"provider": "typesafe"</code> and give Marley the key, in <code>MARLEY_SYSTEM_ONE_KEY</code> or through System One calls' Set Key (the system keyring).</li>
 <li>Only projects under a folder in <code>projects</code> send anything; those in <code>metadata_only_projects</code> send facts and none of their text. Every value is masked with the secret rules first.</li>
 <li><code>marley: system one check</code> asks one question about the last command of the terminal you used last, to see a request and an answer.</li>
 </ol>
 </article>
 
-<article id="decisions">
-<h3>Decisions <span class="ticket">#565</span></h3>
+<article id="system-one-calls">
+<h3>System One calls <span class="ticket">#565</span></h3>
 <p class="what"><strong>What it is.</strong> A tab listing the day's System One calls: when, which use, which project, the provider, the reading, the time taken and the cost.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Run <code>marley: open decisions</code>.</li>
+<li>Run <code>marley: open system one calls</code>.</li>
 <li>Click a row to see the state exactly as it was sent and the answer as it came.</li>
 <li>The header shows the day's spend against the budget (<code>daily_budget_cents</code>, 50 by default), where the key comes from, and Run Check, Set Key and Forget Key.</li>
 </ol>
@@ -1745,7 +1756,7 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td><code>marley: playwright scripts</code></td><td>The Browser tab's scripts tray</td></tr>
 <tr><td><code>marley: browser clients</code></td><td>Programs outside Marley allowed into its browser</td></tr>
 <tr><td><code>marley: clear project browser data</code></td><td>Sign the project out of every site</td></tr>
-<tr><td><code>marley: system one check</code>, <code>marley: open decisions</code></td><td>System One's check, and its log</td></tr>
+<tr><td><code>marley: system one check</code>, <code>marley: open system one calls</code></td><td>System One's check, and its log</td></tr>
 <tr><td><code>marley: toggle fleet</code></td><td>Show or hide the Fleet panel</td></tr>
 <tr><td><code>multi workspace: next project</code> / <code>previous project</code> / <code>next thread</code> / <code>previous thread</code></td><td>Walk the rail</td></tr>
 </table>

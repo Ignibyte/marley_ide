@@ -379,6 +379,15 @@ impl BrainView {
         super::tasks_tab::open_later(workspace, None, window, cx);
     }
 
+    /// The Decisions entry: the workspace's Decisions tab, opened or brought forward (#659).
+    fn open_decisions(&self, window: &Window, cx: &mut App) {
+        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
+            return;
+        };
+        let workspace = multi_workspace.read(cx).workspace().downgrade();
+        super::decisions_tab::open_later(workspace, window, cx);
+    }
+
     fn toast(&self, message: String, cx: &mut App) {
         let Some(multi_workspace) = self.multi_workspace.upgrade() else {
             return;
@@ -959,6 +968,12 @@ impl BrainView {
                     .icon_size(IconSize::Small)
                     .tooltip(Tooltip::text("Tasks"))
                     .on_click(cx.listener(|this, _, window, cx| this.open_tasks(window, cx))),
+            )
+            .child(
+                IconButton::new("marley-brain-decisions", IconName::CheckDouble)
+                    .icon_size(IconSize::Small)
+                    .tooltip(Tooltip::text("Decisions"))
+                    .on_click(cx.listener(|this, _, window, cx| this.open_decisions(window, cx))),
             )
     }
 

@@ -140,7 +140,7 @@ fn signal(question: &Question, answer: Option<&Answer>) -> Signal {
 }
 
 impl Reading {
-    /// The reading as one line, for a toast and the Decisions view: `command failed: yes (0.92)`,
+    /// The reading as one line, for a toast and the System One calls view: `command failed: yes (0.92)`,
     /// `Refused: project not listed`.
     #[must_use]
     pub fn summary(&self) -> String {
@@ -153,7 +153,7 @@ impl Reading {
         }
     }
 
-    /// Whether the reading is a refusal or no answer, which the Decisions view marks.
+    /// Whether the reading is a refusal or no answer, which the System One calls view marks.
     #[must_use]
     pub const fn failed(&self) -> bool {
         matches!(self, Self::Refused(_) | Self::Unavailable(_))

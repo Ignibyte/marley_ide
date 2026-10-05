@@ -1923,7 +1923,7 @@ alike.
   `question`, `white_check_mark` or `x`, the line as the body. `report` logs a refusal, and a
   failure too, with one toast (`Pushes::failing`) until a post succeeds.
 
-## System One (`src/system_one.rs`, `src/decisions.rs`, #565)
+## System One (`src/system_one.rs`, `src/system_one_calls.rs`, #565, #659)
 
 - `SystemOneSettings`, in `MarleySettings`, is `marley.system_one` resolved: the switch, the
   provider, the endpoint, the model, the two project lists (with `~/` as the home directory), the
@@ -1932,7 +1932,7 @@ alike.
   a lossy cast) and each use's mode.
 - The `SystemOne` global holds the settings it applied, the key and its source, the gate, the
   recorded answers, this session's rows and the log's sender. `init` applies the settings and
-  follows them, and registers the check and `OpenDecisions` on each workspace.
+  follows them, and registers the check and `OpenSystemOneCalls` on each workspace.
 - **The key.** `Key` prints as `Key(***)` and leaves only as the `Authorization` header and as its
   own mask. `load_key` reads it only while the layer is on and its provider sends requests: the
   variable `MARLEY_SYSTEM_ONE_KEY`, else gpui's `read_credentials` at the endpoint's URL, never
@@ -1952,8 +1952,8 @@ alike.
   tries once more on 429, 503 or 529 while the deadline leaves time. `read_posted` spends on an
   answer, counts a failure toward the breaker, and marks the key refused on a 401 until the key
   changes; an error kept is cut to 300 characters and masked with the key.
-- `finish` fills in the row, keeps it for Decisions and sends it to the log task, which the first
-  call starts and which appends each row off the main thread (`files::append_in` under
+- `finish` fills in the row, keeps it for System One calls and sends it to the log task, which the
+  first call starts and which appends each row off the main thread (`files::append_in` under
   `<data dir>/system_one/`).
 - **The check** (`SystemOneCheck`) asks about `browser::last_terminal`, the terminal the focus
   entered last: the project's name, the block's index, the exit code and the program as facts, and
@@ -1973,12 +1973,18 @@ alike.
 - Since #569 `project_name(folders)` gives the name a state calls a project by, its first
   folder's or `a project`, which the check, the stop kind, `terminal_find` and the stall kind
   share.
-- **Decisions** (`DecisionsView`, a workspace item) reads today's file when it opens and follows the
-  global for the calls made after, newest first; a click opens a row to the state as sent, the
-  answers and the error. Its header gives the day's calls and spend against the budget, the
-  provider and model, the key's source and an open breaker; Run Check dispatches the check, and Set
-  Key shows a masked single-line editor whose Enter (`menu::Confirm`) writes the keyring and whose
-  Escape (`editor::Cancel`, which the editor lets through) puts it away.
+- **System One calls** (`SystemOneCallsView`, a workspace item) reads today's file when it opens
+  and follows the global for the calls made after, newest first; a click opens a row to the state
+  as sent, the answers and the error. Its header gives the day's calls and spend against the
+  budget, the provider and model, the key's source and an open breaker; Run Check dispatches the
+  check, and Set Key shows a masked single-line editor whose Enter (`menu::Confirm`) writes the
+  keyring and whose Escape (`editor::Cancel`, which the editor lets through) puts it away.
+- **The rename** (#659). The tab was `DecisionsView` in `src/decisions.rs`, titled Decisions, until
+  Rusty's Decisions tab took the name. The ids are `system-one-calls*`, the key context
+  `SystemOneCalls`, and `marley::OpenSystemOneCalls` declares `marley::OpenDecisions` in
+  `deprecated_aliases`, so a keymap binding the old id still opens the tab and the palette lists
+  only the new name. The Marley settings page's link is System One Calls, dispatched by its name
+  through `build_action`.
 
 ## Marley's MCP server (`src/mcp.rs`, #491, #501)
 
@@ -2224,6 +2230,26 @@ alike.
   The root is `RustyTasks menu` (Zed's list keys, `menu::Confirm` and `Cancel` by where the focus
   is); the list is `RustyTaskList`, with `not_editing` while no row editor is open, for the
   keymap's Space, F2, Delete, Backspace, Shift-Delete, Alt-Up and Alt-Down.
+
+## The Decisions tab (`src/rusty/decisions_tab.rs`, #659)
+
+- **Opening.** `rusty::OpenDecisions`, registered on every workspace by `decisions_tab::init`,
+  toasts `rusty::unavailable`'s reason and opens nothing while Rusty is off; else it brings the
+  workspace's `BrainDecisionsView` forward or adds one to the active pane. `open_later` defers that
+  for the Brain view's fixed row (Decisions after Tasks, through the rail's multi-workspace).
+- **Reads.** `brain_due { days: 0 }` through `rusty::call_tool`, parsed off the window's thread by
+  `marley_rusty::decisions::parse_due`. Triggers: opening, the link coming up (`Link` as the Tasks
+  tab keeps it, L-658), `Announced` while the tab is its pane's active item (else `ReadDue`'s
+  `WhenShown`, read at the next draw), Read again, and `deactivated` under the service connection.
+  A read while one runs queues one more (`AfterThis`). Rusty off drops the list and calls nothing.
+- **Drawing.** The title and Rusty's line on the loop, then one state line (off, not connected
+  with the reason, a failure's first line with Read again over the list kept, reading, or none
+  yet), then `decisions::entries` in a scrolling column: Due and the count as `ListSubHeader`s,
+  each in a `flex_none` box since the header carries `flex_1` and would grow in the column, and
+  each decision a `ListItem` (the title cut, a status `Chip`, muted for superseded, the decided
+  line, the follow-up line in the warning colour when Rusty flags it overdue, a tooltip with the
+  title and slug) that opens the page through `page::open_later`. Nothing works out a date: the
+  order, the horizon and `overdue` are Rusty's.
 
 ## Open a page by name (`src/rusty/page_picker.rs`, #654)
 
@@ -3168,7 +3194,7 @@ A `Remote` per `mcp` or `http` provider, found again by its settings entry.
 One agent of the fleet in full, in the center, read-only and not serialized.
 - **Opening.** `open_later(workspace, selected, window, cx)` defers through `Window::defer` to
   `open`, which activates the `AgentView` among `Workspace::items_of_type` whose `Selected`
-  matches, or adds a new one to the active pane (as `decisions::open`). The defer is load-bearing:
+  matches, or adds a new one to the active pane (as `system_one_calls::open`). The defer is load-bearing:
   `open` reads every Agent tab, and a neighbour row's click comes from inside one's update.
 - **Its data.** `AgentView::new` puts its entity id and `Selected` in `Wanted`, so the reads keep
   the agent's detail, and runs `fleet::read_now` deferred so the tab fills at once; its release

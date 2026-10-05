@@ -165,7 +165,7 @@ pub(crate) async fn find_items(
         let task = cx.update(|cx| system_one::ask(spec, &asking, cx));
         asks.push((window, task));
     }
-    // Shadow answers from the words alone; the asks go on, and Decisions shows what they read.
+    // Shadow answers from the words alone; the asks go on, and System One calls shows what they read.
     if mode == SystemOneMode::Shadow {
         for (_, task) in asks {
             task.detach();

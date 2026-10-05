@@ -23,6 +23,7 @@
 //! center tab of its own ([`graph_tab`], #647).
 
 pub mod brain;
+pub mod decisions_tab;
 mod graph_store;
 pub mod graph_tab;
 mod inline_edit;
@@ -224,6 +225,7 @@ pub fn init(cx: &mut App) {
     knowledge_panel::init(cx);
     graph_tab::init(cx);
     tasks_tab::init(cx);
+    decisions_tab::init(cx);
     let view = cx.new(|cx: &mut Context<RustyServerView>| {
         cx.observe_global::<Rusty>(|_, cx| cx.notify()).detach();
         RustyServerView

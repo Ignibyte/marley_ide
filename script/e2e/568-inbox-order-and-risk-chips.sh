@@ -7,7 +7,7 @@
 # recorded answer reads the cleanup as destroying data at 0.86 and urgent. With the use off the
 # inbox is #508's (REQ-001); in shadow code's chips come with rules rows and no calls, and the
 # entries order by level, then age (REQ-002, REQ-003), the cleanup alone is asked with facts and
-# its ask as text (REQ-004), and Decisions says what the reading would show (REQ-007); suggest
+# its ask as text (REQ-004), and System One calls says what the reading would show (REQ-007); suggest
 # adds `destroys?` and keeps the order (REQ-006); act dashes the chip and raises the cleanup
 # (REQ-005); Allow and Deny answer as #508's do and log their outcomes (REQ-009, REQ-010); the
 # claim of approval raises its entry (REQ-008); the held click carries its class's chip and asks
@@ -424,8 +424,8 @@ steps() {
       grep -q 'code found: destroys' '$E2E_WORK/rows.txt' &&
       grep -q 'code found: sends out' '$E2E_WORK/rows.txt'"
 
-  echo "== Decisions says what the reading would show"
-  palette "marley: open decisions"
+  echo "== System One calls says what the reading would show"
+  palette "marley: open system one calls"
   settle 3
   shot 568-03-decisions
   press CTRL w

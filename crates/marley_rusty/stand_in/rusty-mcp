@@ -25,6 +25,7 @@ import shutil
 import sys
 import threading
 import time
+from datetime import date, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.realpath(__file__))
@@ -239,11 +240,23 @@ def read_page(slug):
     }
 
 
+def today_in_state():
+    """The day the stand-in takes as today: the state folder's `today` file when a scenario
+    fixes it (#659), else the local date."""
+    try:
+        with open(os.path.join(STATE, "today"), encoding="utf-8") as fixed:
+            return date.fromisoformat(fixed.read().strip())
+    except (OSError, ValueError):
+        return date.today()
+
+
 def due(days):
     """Rusty's `brain_due`: decided or revised decisions whose follow-up is on or before today
-    plus `days`, the follow-up day first; `overdue` before today."""
-    today = time.strftime("%Y-%m-%d")
-    horizon = time.strftime("%Y-%m-%d", time.localtime(time.time() + 86400 * int(days or 0)))
+    plus `days`, the follow-up day first; `overdue` before today; and every decision, the
+    newest decided first, as Rusty sorts them."""
+    day = today_in_state()
+    today = day.isoformat()
+    horizon = (day + timedelta(days=int(days or 0))).isoformat()
     summaries = []
     for slug, title, text in pages():
         fields = dict(frontmatter(text)[0])
@@ -267,6 +280,8 @@ def due(days):
         and summary["follow_up_by"] <= horizon
     ]
     due_now.sort(key=lambda summary: (summary["follow_up_by"], summary["slug"]))
+    summaries.sort(key=lambda summary: summary["slug"])
+    summaries.sort(key=lambda summary: summary["decided"], reverse=True)
     return {"due": due_now, "all": summaries}
 
 
@@ -1092,6 +1107,19 @@ VAULT_TOOLS = {
 }
 
 
+def failing(name):
+    """The error the state folder's `fail` file gives tool `name`: its first line names the tool,
+    its second is the message."""
+    try:
+        with open(os.path.join(STATE, "fail"), encoding="utf-8") as fail:
+            lines = fail.read().splitlines()
+    except OSError:
+        return None
+    if lines and lines[0].strip() == name:
+        return lines[1] if len(lines) > 1 else f"{name} failed"
+    return None
+
+
 def text(value):
     return {"content": [{"type": "text", "text": json.dumps(value, indent=2)}]}
 
@@ -1139,6 +1167,9 @@ def answer(message):
             settings[str(arguments.get("key"))] = str(arguments.get("value"))
             save(settings)
             result = text("set")
+        elif failing(name) is not None:
+            # A scenario's `fail` file makes the tool it names fail as `rusty-mcp` fails (#659).
+            return error(message_id, -32603, failing(name))
         elif name in VAULT_TOOLS:
             try:
                 result = text(VAULT_TOOLS[name](arguments))

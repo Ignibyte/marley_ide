@@ -4059,3 +4059,16 @@ and on Refresh, because another `rusty-mcp`'s write is announced to no one. Reje
 poll (TICKET-035's cursor is the poll Rusty is building); drawing every write before its answer
 (a refusal would flash); Rusty's page's delete without a prompt; Ely's `Reorder` drag (the rail
 and the tab bar already drag one way in this window).
+
+## AD-claude-659-decisions-is-rustys-and-system-ones-log-is-system-one-calls-001
+*decided at: 2026-10-04 · status: shipped · builds on: AD-claude-658-the-tasks-tab-writes-one-rusty-tool-at-a-time-and-reads-back-001 · plan: docs/marley/rusty-in-marley.md R7, open decision 4*
+
+The name Decisions belongs to Rusty's brain loop: a center tab over `brain_due` that lists the
+follow-ups due, then every decision, and opens each page. System One's log of model calls is now
+System One calls in every place it showed, and its action is `marley::OpenSystemOneCalls`, with
+`marley::OpenDecisions` kept as gpui's deprecated alias, so a user's binding still works while
+the palette lists only the new name. The tab draws Rusty's order, horizon and `overdue` as served
+and works out no date, because Rusty counts dates in two calendars until its TICKET-044 lands and
+a second count in Marley would disagree with both. Rejected: keeping both tabs named Decisions; a
+plain rename of the action id with no alias (it would break saved keymaps); dates computed in
+Marley; a follow-up form in this ticket (R7b).
