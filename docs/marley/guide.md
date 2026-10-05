@@ -1264,6 +1264,29 @@ front, else the project's page, or says to open a page first. There is one Graph
   where they were; a change while it is hidden is read when it shows. With the service connection,
   each showing reads.
 - **Off.** With Rusty off the tab is empty, says so, and asks Rusty nothing.
+- **Groups** (#657). Under the switches, Groups, Display and Forces fold open with a click on
+  their names. New group adds a row: type a query in the filter's words and the pages it matches
+  take the group's colour (red, then green, yellow, magenta, cyan and blue, from your theme's
+  terminal colours), the row counting them. A page two groups match takes the first one's colour,
+  so a group whose pages an earlier one already has counts 0. The dot gives the group the next
+  colour, and × removes it. With no group, pages keep their type's colour.
+- **Display.** Arrows draws a head at the end of each link and decision edge where it points;
+  a tag's lines have none. Text fade threshold, 0 to 1 (0.5 to start), sets how far you zoom in
+  before titles show: at 1 they show from far out, at 0 only close in. Node size (0.3 to 3) and
+  Link thickness (0.2 to 4) scale every dot and every line.
+- **Forces.** Center force (0 to 1, 0.5) pulls everything to the middle, Repel force (0 to 20,
+  10) pushes dots apart, Link force (0 to 1, 1) pulls linked dots together, and Link distance (30
+  to 500, 250) is the length links settle at. A change lays the graph out again from where it is.
+  The names and ranges are Rusty's, but they move Marley's own layout, so a value does not draw
+  the picture Rusty's app draws with it.
+- **Sliders.** Drag the thumb, click the track, or, with the focus on the slider, use the arrow
+  keys, Page Up and Page Down for ten steps, and Home and End for the ends. The value shows by
+  the slider's name.
+- **Kept.** The groups, the four switches, the depth and every slider are one set for all Graph
+  tabs in every window, and Marley keeps them across restarts. A Graph tab open when Marley quits
+  comes back in its place with its scope, page, filter, hidden types, panel and open sections, and
+  reads the graph once Rusty is connected. Its dots are laid out afresh. With Rusty off when Marley
+  starts, no Graph tab comes back.
 
 ## Marley's MCP server
 

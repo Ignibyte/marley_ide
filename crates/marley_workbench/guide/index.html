@@ -667,8 +667,13 @@ th { background: var(--panel); font-weight: 650; }
 <li>Click a page to open it. Drag the background to move the view, turn the wheel to zoom about the pointer, and drag a dot to hold it while the rest settle around it.</li>
 <li>Rest the pointer on a dot to light it and its neighbours and read its title.</li>
 <li>In the panel at the top right: Local or Vault, the depth, a filter (words, <code>tag:</code>, <code>path:</code>, <code>type:</code>, every term matching), and the switches Tags, Unresolved links, Decision edges and Orphans. Click a page type in the legend to hide it. Restart layout, Fit and Hide panel are the panel's three buttons.</li>
+<li>Groups (#657): New group, then a query in the filter's words. The pages it matches take its colour, and the row counts them. A page two groups match takes the first one's colour, so a group listed under another that already has its pages counts 0. Click the colour dot for the next colour, and the &times; to remove the group.</li>
+<li>Display (#657): Arrows puts a head on each link and decision edge at the page it points to. Text fade threshold sets how far in you zoom before titles show; Node size and Link thickness scale the dots and the lines.</li>
+<li>Forces (#657): Center force pulls everything to the middle, Repel force pushes dots apart, Link force pulls linked dots together, and Link distance is the length links settle at. A change lays the graph out again from where it is.</li>
+<li>Each slider takes a drag, a click on its track, or with the focus on it the arrow keys, Page Up and Page Down for ten steps, and Home and End for its ends. Its value shows beside its name.</li>
 </ol>
 <p class="note">The layout runs away from the window's thread and settles in a moment. Past 2,000 dots the tab lays out the most linked and says so; a filter or a local graph reaches the rest. While the tab shows, it reads the graph again when Rusty announces a change.</p>
+<p class="note">The groups, the switches, the depth and every slider are shared by all Graph tabs and kept across restarts. A Graph tab open when Marley quits comes back in its place with its scope, page, filter, hidden types and panel, unless Rusty is off when Marley starts. The forces have Rusty's names and ranges but act on Marley's own layout, so the same numbers do not draw the same picture as Rusty's app.</p>
 </article>
 </section>
 

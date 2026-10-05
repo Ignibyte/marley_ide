@@ -3318,3 +3318,14 @@ seconds: the workspace emits `ActiveItemChanged` far more often than its active 
 100 ms rest. Fixed: a broadcast skips a selection equal to the one sent last, while a client that
 has just named its process still gets the current one; the scenario checks the empty selection
 is sent once.
+
+## F-claude-657-a-press-on-the-graph-panel-also-reached-the-canvas-under-it-001
+*severity: medium · found in: pipeline 657's first scenario run, in Test · class: a floating panel drawn over an interactive canvas without blocking it*
+
+A press on a slider's track moved the value, but End and the arrow keys then did nothing
+(`657-06` read "0.3" where End should give 3.0). The Graph tab's panel is drawn over its canvas, and
+gpui sends a press to every hitbox under the pointer unless one blocks. The canvas's own press
+handler ran after the slider's and focused the tab, so the keys went to the tab, not the slider. A
+press on the panel could also start a pan, or hold a node hidden behind it. Fixed: the panel calls
+`occlude()`, so nothing under it is hovered or pressed through it, and the slider's press stops
+propagation.

@@ -664,6 +664,13 @@ export MARLEY_RUSTY_MCP=$E2E_WORK/no-rusty-mcp
 # unless its scenario names a stand-in.
 export MARLEY_CODEX=$E2E_WORK/no-codex
 cp -r "$data/db" "$E2E_PROFILE/db"
+# The user's graph settings stay out of every run: their groups name the user's tags and folders
+# (R-D8), and their sliders would change what a scenario sees (#657).
+for db in "$E2E_PROFILE"/db/*/db.sqlite; do
+  [[ -e $db ]] || continue
+  sqlite3 "$db" "delete from scoped_kv_store where namespace = 'marley-rusty-graph'" \
+    2>/dev/null || true
+done
 if [[ -d $data/threads ]]; then
   cp -r "$data/threads" "$E2E_PROFILE/threads"
 fi

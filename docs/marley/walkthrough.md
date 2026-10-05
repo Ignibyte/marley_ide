@@ -675,6 +675,25 @@ Needs 2.12's setup: Rusty installed and on. This stop only reads your vault.
 - [ ] Step 6: Fit shows every dot; the panel folds to a button and comes back.
 - [ ] Step 7: the Graph tab comes to the front.
 
+### 2.15a The Graph tab's groups, display and forces (#657), optional
+
+Needs 2.15's Graph tab. This stop changes only the graph settings, which step 6 puts back.
+
+1. In the panel open Groups, click New group, and type `type:decision`. Click the group's dot.
+2. Open Display: turn Arrows on, click Node size's track, then press End.
+3. Open Forces: drag Repel force's thumb to the right end.
+4. Quit Marley from the menu and start it again.
+5. Look at the panel's three sections.
+6. Remove the group, turn Arrows off, press Home on each slider and then type its default back
+   with the arrow keys (Node size 1.0, Repel force 10.0).
+
+- [ ] Step 1: your decisions take the group's red, the row counts them; the dot turns them green.
+- [ ] Step 2: heads point at the pages links lead to; "3.0" and every dot larger.
+- [ ] Step 3: "20.0", and the graph spreads out.
+- [ ] Step 4: the Graph tab is back where it was, on the same scope and page.
+- [ ] Step 5: the group, Arrows, 3.0 and 20.0 as you left them.
+- [ ] Step 6: the graph is as 2.15 drew it.
+
 ## Part 3. The editor
 
 Marley's editor is Zed's. This part checks the everyday tools. The first time you open

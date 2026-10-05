@@ -3,12 +3,12 @@
 - **Ticket:** LOCAL #657 (feature, Rusty in Marley R5b; `docs/marley/rusty-in-marley.md` R-D3 and
   R-D10)
 - **Owner:** claude-opus-5-5, 2026-10-03 (/spec)
-- **Pipeline doc:** ../../pipeline/queued/657-brain-graph-groups-and-forces.spec.md
+- **Pipeline doc:** ../../pipeline/completed/657-brain-graph-groups-and-forces.spec.md
 - **Source ticket:** `docs/marley/rusty-in-marley.md` (slice R5b in the slices table); #647's Out
   (`docs/planning/pipeline/queued/647-brain-graph-tab.spec.md`, "R5b, the second slice"); Chad's
   batch of 2026-10-02 and 2026-10-03: "lets make a plan to begin the work and spec out the
   tickets", "lets make sure we use the gpui components we found here", "Queue all five"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 #647's Graph tab ships Rusty's default forces and display and is not restored after a restart.

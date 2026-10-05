@@ -10,6 +10,11 @@
 //! drawing of nodes, the light on a node's neighbours and the hit test follow Ely GPUI Components'
 //! `NetworkGraph` (`src/charts/network.rs` at `2f8b2f6`, MIT, its notice on
 //! `marley_rusty::graph_layout`), drawn in one canvas with Zed's theme.
+//!
+//! Since #657 the panel has Rusty's Groups, Display and Forces (Obsidian's): colour groups by
+//! query, arrows, the label fade, node size, link thickness and the four forces, on sliders ported
+//! from Ely (`rusty::slider`). They are one record for every window (`rusty::graph_store`), and
+//! the tab is saved with its workspace and restored at the next launch while Rusty is on.
 
 use std::cell::Cell;
 use std::collections::{BTreeSet, HashMap};
@@ -18,27 +23,36 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use anyhow::Context as _;
 use editor::{Editor, EditorEvent};
 use gpui::{
-    AnyElement, App, Bounds, ContentMask, Context, Entity, EventEmitter, FocusHandle, Focusable,
-    Font, Hsla, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PathBuilder, PinchEvent,
-    Pixels, Point, ScrollDelta, ScrollWheelEvent, SharedString, Subscription, Task, TextAlign,
-    TextRun, WeakEntity, Window, actions, canvas, fill, point, px, size,
+    AnyElement, App, Bounds, ContentMask, Context, ElementId, Entity, EventEmitter, FocusHandle,
+    Focusable, Font, Hsla, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PathBuilder,
+    PinchEvent, Pixels, Point, ScrollDelta, ScrollWheelEvent, SharedString, Subscription, Task,
+    TextAlign, TextRun, WeakEntity, Window, actions, canvas, fill, point, px, size,
 };
 use marley_rusty::graph::{
-    BRAIN_PAGE_TYPES, CAP, EdgeKind, Filters, Graph, NodeKind, Query, Shown,
+    BRAIN_PAGE_TYPES, CAP, EdgeKind, Filters, Graph, NodeKind, Query, Shown, ShownNode,
     page_types_from_answer, shown, type_order,
 };
-use marley_rusty::graph_layout::{Layout, Viewport, float, nearest};
+use marley_rusty::graph_layout::{Layout, Viewport, arrowhead, float, nearest};
+use marley_rusty::graph_settings::{
+    CENTER_FORCE, DEPTHS, Forces, GraphSettings, Group, GroupColor, GroupColoring, LINK_DISTANCE,
+    LINK_FORCE, LINK_THICKNESS, NODE_SIZE, REPEL_FORCE, SliderRange, Switch, TEXT_FADE,
+    group_colors,
+};
 use marley_rusty::knowledge::BRAIN_GRAPH;
+use project::Project;
 use serde_json::json;
-use ui::{Checkbox, Tooltip, prelude::*};
+use ui::{Checkbox, Disclosure, Tooltip, prelude::*};
 use util::ResultExt as _;
-use workspace::item::{Item, ItemEvent};
+use workspace::item::{Item, ItemEvent, SerializableItem};
 use workspace::notifications::NotificationId;
-use workspace::{Toast, Workspace};
+use workspace::{ItemId, Toast, Workspace, WorkspaceId};
 
+use super::graph_store::{self, SavedGraphTab, Sections};
 use super::page::{PageEvent, PageView};
+use super::slider::Slider;
 
 actions!(
     rusty,
@@ -64,10 +78,6 @@ const CLICK_SLOP: f32 = 3.0;
 /// View pixels around a node that still hit it (Rusty's).
 const HIT_SLACK: f32 = 6.0;
 
-/// The zoom labels start to show at, and how much more zoom brings them in whole.
-const LABEL_ZOOM: f32 = 0.9;
-const LABEL_FADE: f32 = 0.4;
-
 /// The most labels a frame paints besides the hovered node's, by link count.
 const LABELS: usize = 200;
 
@@ -86,11 +96,12 @@ const PATH_UNITS: f32 = 8_000.0;
 const DASH: f32 = 5.0;
 const GAP: f32 = 4.0;
 
-/// The local graph's depths.
-const DEPTHS: [usize; 4] = [1, 2, 3, 4];
-
-/// Registers the two actions on every workspace; `rusty::init` calls it once.
-pub(super) fn init(cx: &App) {
+/// Reads what the Graph tab keeps, makes it an item Zed saves with its workspace, and registers
+/// the two actions on every workspace; `rusty::init` calls it once, whatever the switch says, so
+/// Zed knows the item to refuse it while Rusty is off.
+pub(super) fn init(cx: &mut App) {
+    graph_store::init(cx);
+    workspace::register_serializable_item::<GraphView>(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action(|workspace, _: &OpenGraph, window, cx| {
             open(workspace, false, window, cx);
@@ -147,7 +158,8 @@ fn open(workspace: &mut Workspace, local: bool, window: &mut Window, cx: &mut Co
         return;
     }
     let workspace_entity = cx.entity();
-    let view = cx.new(|cx| GraphView::new(&workspace_entity, front, project_page, window, cx));
+    let view =
+        cx.new(|cx| GraphView::new(&workspace_entity, None, front, project_page, window, cx));
     workspace.add_item_to_active_pane(Box::new(view), None, true, window, cx);
 }
 
@@ -201,11 +213,12 @@ enum Gesture {
     },
 }
 
-/// A pin or a release made while a batch is out, applied when it comes back.
+/// A pin, a release or new forces made while a batch is out, applied when it comes back.
 #[derive(Clone, Copy, Debug)]
 enum Change {
     Pin(usize, (f32, f32)),
     Release(usize),
+    Forces(Forces),
 }
 
 /// The layout's run: the task driving its batches, the changes waiting for the next, and a
@@ -235,6 +248,8 @@ struct Look {
 /// The Graph tab.
 pub(crate) struct GraphView {
     workspace: WeakEntity<Workspace>,
+    /// The workspace's events, followed again when the tab moves to another (L-613).
+    workspace_events: Subscription,
     focus_handle: FocusHandle,
     scope: Scope,
     depth: usize,
@@ -265,10 +280,21 @@ pub(crate) struct GraphView {
     canvas: Rc<Cell<Bounds<Pixels>>>,
     hover: Option<usize>,
     gesture: Option<Gesture>,
+    /// The graph settings as this tab last took them; the switches and the depth are copied into
+    /// `filters`, `unresolved` and `depth`, which the reads and the filter use (#657).
+    settings: GraphSettings,
+    /// Which group colours each shown node.
+    coloring: GroupColoring,
+    /// Each group's query field, by the group's place.
+    group_fields: Vec<(Entity<Editor>, Subscription)>,
+    /// New group was pressed: its field takes the focus once it is made.
+    focus_new_group: bool,
+    sections: Sections,
     _subscriptions: Vec<Subscription>,
 }
 
-/// The tab's title and tooltip change with its scope and centre.
+/// The tab's title and tooltip change with its scope and centre, and the tab's own state with
+/// them, which Zed saves on this event.
 pub(crate) enum GraphEvent {
     UpdateTab,
 }
@@ -276,34 +302,42 @@ pub(crate) enum GraphEvent {
 impl EventEmitter<GraphEvent> for GraphView {}
 
 impl GraphView {
+    /// The one constructor, behind `rusty: open graph` and the restore (PR restore-is-a-second-
+    /// constructor): a restored tab takes `saved`, a new one its page and the project's.
     fn new(
         workspace: &Entity<Workspace>,
+        saved: Option<SavedGraphTab>,
         page: Option<String>,
         project_page: Option<String>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        let restored = saved.is_some();
+        let local = page.is_some() || project_page.is_some();
+        let saved = saved.unwrap_or_else(|| SavedGraphTab {
+            local,
+            page,
+            ..SavedGraphTab::default()
+        });
         let filter_field = cx.new(|cx| {
             let mut editor = Editor::single_line(window, cx);
             editor.set_placeholder_text("Filter: words, tag:, path:, type:", window, cx);
+            editor.set_text(saved.filter.clone(), window, cx);
             editor
         });
+        let settings = graph_store::settings(cx).clone();
         let subscriptions = vec![
-            cx.subscribe_in(
-                workspace,
-                window,
-                |this, workspace, event: &workspace::Event, window, cx| {
-                    if matches!(event, workspace::Event::ActiveItemChanged) {
-                        this.follow_active_item(workspace, window, cx);
-                    }
-                },
-            ),
             cx.subscribe(&filter_field, |this, field, event: &EditorEvent, cx| {
                 if matches!(event, EditorEvent::BufferEdited) {
-                    this.filters.query = Query::parse(&field.read(cx).text(cx));
-                    this.rebuild(cx);
+                    let query = Query::parse(&field.read(cx).text(cx));
+                    if query != this.filters.query {
+                        this.filters.query = query;
+                        cx.emit(GraphEvent::UpdateTab);
+                        this.rebuild(cx);
+                    }
                 }
             }),
+            cx.observe_global_in::<graph_store::GraphSettingsStore>(window, Self::settings_changed),
             cx.observe_global::<super::Announced>(|this, cx| {
                 if this.showing(cx) {
                     this.read_if_needed(true, cx);
@@ -321,22 +355,30 @@ impl GraphView {
             }),
             cx.observe_global::<super::project::ProjectPages>(Self::follow_project),
         ];
-        let scope = if page.is_some() || project_page.is_some() {
+        let scope = if saved.local {
             Scope::Local
         } else {
             Scope::Vault
         };
+        let filters = Filters {
+            query: Query::parse(&saved.filter),
+            hidden_types: saved.hidden_types.iter().cloned().collect(),
+            tags: settings.is_on(Switch::Tags),
+            decision_edges: settings.is_on(Switch::DecisionEdges),
+            orphans: settings.is_on(Switch::Orphans),
+        };
         let mut view = Self {
             workspace: workspace.downgrade(),
+            workspace_events: Self::follow_workspace(workspace, window, cx),
             focus_handle: cx.focus_handle(),
             scope,
-            depth: 1,
-            page,
+            depth: settings.depth,
+            page: saved.page,
             project_page,
             page_tab: None,
             filter_field,
-            filters: Filters::default(),
-            unresolved: false,
+            filters,
+            unresolved: settings.is_on(Switch::Unresolved),
             graph: None,
             page_types: Vec::new(),
             notice: None,
@@ -352,15 +394,152 @@ impl GraphView {
                 viewport: Viewport::default(),
                 fit_wanted: false,
                 fitted: false,
-                panel_open: true,
+                panel_open: saved.panel_open,
             },
             canvas: Rc::new(Cell::new(Bounds::default())),
             hover: None,
             gesture: None,
+            settings,
+            coloring: GroupColoring::default(),
+            group_fields: Vec::new(),
+            focus_new_group: false,
+            sections: saved.sections,
             _subscriptions: subscriptions,
         };
+        view.sync_group_fields(window, cx);
+        if restored {
+            // The project's page is found once the restore's update is over, since it reads the
+            // workspace (#655).
+            cx.defer_in(window, |this, _, cx| this.follow_project(cx));
+        }
         view.read_if_needed(false, cx);
         view
+    }
+
+    /// Follows the workspace's active item, as the local graph's centre.
+    fn follow_workspace(
+        workspace: &Entity<Workspace>,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Subscription {
+        cx.subscribe_in(
+            workspace,
+            window,
+            |this, workspace, event: &workspace::Event, window, cx| {
+                if matches!(event, workspace::Event::ActiveItemChanged) {
+                    this.follow_active_item(workspace, window, cx);
+                }
+            },
+        )
+    }
+
+    /// The graph settings changed, in this tab or another: only what changed is done again (D2).
+    fn settings_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let new = graph_store::settings(cx).clone();
+        if new == self.settings {
+            return;
+        }
+        let old = mem::replace(&mut self.settings, new);
+        let new = &self.settings;
+        let changed = |switch| old.is_on(switch) != new.is_on(switch);
+        let switched = [Switch::Tags, Switch::DecisionEdges, Switch::Orphans]
+            .into_iter()
+            .any(changed);
+        let reread = old.depth != new.depth || changed(Switch::Unresolved);
+        let forces = (old.forces != new.forces).then_some(new.forces);
+        let regrouped = old.groups != new.groups;
+        self.filters.tags = new.is_on(Switch::Tags);
+        self.filters.decision_edges = new.is_on(Switch::DecisionEdges);
+        self.filters.orphans = new.is_on(Switch::Orphans);
+        self.unresolved = new.is_on(Switch::Unresolved);
+        self.depth = new.depth;
+        if regrouped {
+            self.sync_group_fields(window, cx);
+            self.color_groups();
+        }
+        if reread {
+            cx.emit(GraphEvent::UpdateTab);
+            self.read_if_needed(false, cx);
+        }
+        if switched {
+            self.rebuild(cx);
+        } else if let Some(forces) = forces {
+            self.change_layout(Change::Forces(forces), cx);
+        }
+        cx.notify();
+    }
+
+    /// A query field for each group: made again when a group comes or goes, and an unfocused
+    /// field's text set when another tab changed its group's query. A text set to what the field
+    /// holds is skipped, so no edit comes back from it.
+    fn sync_group_fields(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let groups = self.settings.groups.clone();
+        if self.group_fields.len() != groups.len() {
+            self.group_fields = groups
+                .iter()
+                .enumerate()
+                .map(|(at, group)| Self::group_field(at, &group.query, window, cx))
+                .collect();
+            if mem::take(&mut self.focus_new_group)
+                && let Some((field, _)) = self.group_fields.last()
+            {
+                window.focus(&field.focus_handle(cx), cx);
+            }
+            return;
+        }
+        for ((field, _), group) in self.group_fields.iter().zip(&groups) {
+            let held = field.read(cx).text(cx);
+            if held != group.query && !field.focus_handle(cx).is_focused(window) {
+                field.update(cx, |field, cx| {
+                    field.set_text(group.query.clone(), window, cx);
+                });
+            }
+        }
+    }
+
+    fn group_field(
+        at: usize,
+        query: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> (Entity<Editor>, Subscription) {
+        let field = cx.new(|cx| {
+            let mut editor = Editor::single_line(window, cx);
+            editor.set_placeholder_text("tag:x path:y type:z or text", window, cx);
+            editor.set_text(query, window, cx);
+            editor
+        });
+        let edits = cx.subscribe(&field, move |_, field, event: &EditorEvent, cx| {
+            if matches!(event, EditorEvent::BufferEdited) {
+                let query = field.read(cx).text(cx);
+                graph_store::update(cx, |settings| {
+                    if let Some(group) = settings.groups.get_mut(at) {
+                        group.query = query;
+                    }
+                });
+            }
+        });
+        (field, edits)
+    }
+
+    /// Which group colours each shown node, again.
+    fn color_groups(&mut self) {
+        self.coloring = match &self.graph {
+            Some((graph, _)) => group_colors(graph, &self.shown, &self.settings.groups),
+            None => GroupColoring::default(),
+        };
+    }
+
+    /// The tab's own state, as it is saved.
+    fn saved(&self, cx: &App) -> SavedGraphTab {
+        SavedGraphTab {
+            local: self.scope == Scope::Local,
+            page: self.page.clone(),
+            filter: self.filter_field.read(cx).text(cx),
+            hidden_types: self.filters.hidden_types.iter().cloned().collect(),
+            panel_open: self.look.panel_open,
+            sections: self.sections,
+        }
     }
 
     /// Whether this tab is its pane's active item.
@@ -424,10 +603,11 @@ impl GraphView {
             return;
         }
         self.page = Some(slug);
+        // The page is the tab's saved state in either scope (#657).
+        cx.emit(GraphEvent::UpdateTab);
         if self.scope == Scope::Local {
             self.kept.clear();
             self.look.fitted = false;
-            cx.emit(GraphEvent::UpdateTab);
             cx.notify();
         }
     }
@@ -504,11 +684,9 @@ impl GraphView {
         cx.notify();
     }
 
-    fn set_depth(&mut self, depth: usize, cx: &mut Context<Self>) {
-        self.depth = depth;
-        cx.emit(GraphEvent::UpdateTab);
-        self.read_if_needed(false, cx);
-        cx.notify();
+    /// The depth is the graph settings' (#657): every Graph tab takes it.
+    fn set_depth(depth: usize, cx: &mut App) {
+        graph_store::update(cx, |settings| settings.depth = depth);
     }
 
     /// What a read now would ask for; none for a local graph with no page.
@@ -656,9 +834,16 @@ impl GraphView {
             .map(|node| self.kept.get(&node.id).copied())
             .collect();
         let edges = self.shown.edges.iter().map(|(a, b, _)| (*a, *b)).collect();
-        let layout = Layout::seeded(self.shown.nodes.len(), edges, &seeds, self.shown.centre);
+        let layout = Layout::seeded(
+            self.shown.nodes.len(),
+            edges,
+            &seeds,
+            self.shown.centre,
+            self.settings.forces,
+        );
         self.places = layout.places().to_vec();
         self.layout = Some(layout);
+        self.color_groups();
         let mut by_links: Vec<usize> = (0..self.shown.nodes.len()).collect();
         by_links.sort_by_key(|at| std::cmp::Reverse(self.shown.degree[*at]));
         self.by_links = by_links;
@@ -722,10 +907,7 @@ impl GraphView {
             return false;
         }
         for change in self.run.pending.drain(..) {
-            match change {
-                Change::Pin(at, place) => layout.pin(at, place),
-                Change::Release(at) => layout.release(at),
-            }
+            apply(layout, change);
         }
         self.places = layout.places().to_vec();
         cx.notify();
@@ -733,13 +915,15 @@ impl GraphView {
             return true;
         }
         log::info!(
-            "graph layout: {} nodes, {} edges, {} steps in {} batches, {} ms of work in {} ms",
+            "graph layout: {} nodes, {} edges, {} steps in {} batches, {} ms of work in {} ms, \
+             forces {}",
             self.shown.nodes.len(),
             self.shown.edges.len(),
             layout.steps(),
             clock.batches,
             clock.work.as_millis(),
-            clock.started.elapsed().as_millis()
+            clock.started.elapsed().as_millis(),
+            layout.forces().describe()
         );
         self.layout = Some(mem::take(layout));
         self.run.task = None;
@@ -752,13 +936,10 @@ impl GraphView {
 
     fn change_layout(&mut self, change: Change, cx: &Context<Self>) {
         if let Some(layout) = self.layout.as_mut() {
-            match change {
-                Change::Pin(at, place) => layout.pin(at, place),
-                Change::Release(at) => layout.release(at),
-            }
+            apply(layout, change);
             self.places = layout.places().to_vec();
             self.start_run(cx);
-        } else {
+        } else if self.run.task.is_some() {
             self.run.pending.push(change);
         }
     }
@@ -791,7 +972,7 @@ impl GraphView {
         self.shown
             .degree
             .iter()
-            .map(|degree| radius(*degree, zoom))
+            .map(|degree| radius(*degree, zoom, self.settings.display.node_size))
             .collect()
     }
 
@@ -937,6 +1118,7 @@ impl GraphView {
         if !self.filters.hidden_types.remove(page_type) {
             let _added = self.filters.hidden_types.insert(page_type.to_string());
         }
+        cx.emit(GraphEvent::UpdateTab);
         self.rebuild(cx);
     }
 
@@ -1006,10 +1188,35 @@ impl GraphView {
     }
 
     /// Everything one frame draws, its colours resolved from the theme.
-    fn scene(&self, window: &Window, cx: &App) -> Scene {
+    /// A node's colour: its group's hue, else its page type's accent, else its kind's (#657).
+    fn node_colour(&self, at: usize, node: &ShownNode, cx: &App) -> Hsla {
+        let group = self
+            .coloring
+            .per_node
+            .get(at)
+            .copied()
+            .flatten()
+            .and_then(|group| self.settings.groups.get(group));
         let theme = cx.theme();
-        let colors = theme.colors();
-        let status = theme.status();
+        match (group, node.kind) {
+            (Some(group), _) => hue(group.color, cx),
+            (None, NodeKind::Page) => {
+                let place = self
+                    .type_order
+                    .iter()
+                    .position(|page_type| *page_type == node.page_type)
+                    .unwrap_or(0);
+                theme
+                    .accents()
+                    .color_for_index(u32::try_from(place).unwrap_or(0))
+            }
+            (None, NodeKind::Tag) => theme.status().hint,
+            (None, NodeKind::Unresolved | NodeKind::Other) => theme.colors().text_muted,
+        }
+    }
+
+    fn scene(&self, window: &Window, cx: &App) -> Scene {
+        let colors = cx.theme().colors();
         let zoom = self.look.viewport.zoom;
         let lit: Option<BTreeSet<usize>> = self.hover.map(|at| self.shown.neighbourhood(at));
         let is_lit = |at: usize| lit.as_ref().is_none_or(|lit| lit.contains(&at));
@@ -1019,20 +1226,7 @@ impl GraphView {
             .iter()
             .enumerate()
             .map(|(at, node)| {
-                let colour = match node.kind {
-                    NodeKind::Page => {
-                        let place = self
-                            .type_order
-                            .iter()
-                            .position(|page_type| *page_type == node.page_type)
-                            .unwrap_or(0);
-                        theme
-                            .accents()
-                            .color_for_index(u32::try_from(place).unwrap_or(0))
-                    }
-                    NodeKind::Tag => status.hint,
-                    NodeKind::Unresolved | NodeKind::Other => colors.text_muted,
-                };
+                let colour = self.node_colour(at, node, cx);
                 let faint = if is_lit(at) { 1.0 } else { 0.25 };
                 let centre = self.shown.centre == Some(at);
                 NodeLook {
@@ -1044,7 +1238,7 @@ impl GraphView {
                     edge: if centre {
                         colors.text_accent
                     } else if node.kind == NodeKind::Unresolved {
-                        colors.text_muted.opacity(faint)
+                        colour.opacity(faint)
                     } else {
                         colors.editor_background
                     },
@@ -1053,7 +1247,7 @@ impl GraphView {
                     } else {
                         1.0
                     },
-                    radius: radius(self.shown.degree[at], zoom),
+                    radius: radius(self.shown.degree[at], zoom, self.settings.display.node_size),
                 }
             })
             .collect();
@@ -1067,10 +1261,18 @@ impl GraphView {
                     Some(at) if *from == at || *to == at => Emphasis::Lit,
                     Some(_) => Emphasis::Faint,
                 };
-                (*from, *to, Line::of(kind), emphasis)
+                // A tag's edge says a page carries it and points nowhere (D8).
+                let directed = [*from, *to].iter().all(|at| {
+                    self.shown
+                        .nodes
+                        .get(*at)
+                        .is_some_and(|node| node.kind != NodeKind::Tag)
+                });
+                (*from, *to, Line::of(kind), emphasis, directed)
             })
             .collect();
-        let fade = ((zoom - LABEL_ZOOM) / LABEL_FADE).clamp(0.0, 1.0);
+        let display = self.settings.display;
+        let fade = display.label_alpha(zoom);
         let mut forced: BTreeSet<usize> = lit.clone().unwrap_or_default();
         forced.extend(self.shown.centre);
         Scene {
@@ -1078,6 +1280,8 @@ impl GraphView {
             places: self.places.clone(),
             nodes,
             edges,
+            arrows: display.arrows,
+            thickness: display.link_thickness,
             strokes: Strokes::of(cx),
             labels: Labels {
                 titles: self
@@ -1208,14 +1412,12 @@ impl GraphView {
                             .label_size(LabelSize::Small)
                             .disabled(self.scope == Scope::Vault)
                             .toggle_state(self.scope == Scope::Local && self.depth == depth)
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.set_depth(depth, cx);
-                            }))
+                            .on_click(move |_, _, cx| Self::set_depth(depth, cx))
                     })),
             )
     }
 
-    fn render_switches(&self, cx: &Context<Self>) -> impl IntoElement {
+    fn render_switches(&self) -> impl IntoElement {
         let switch = |id: &'static str, label: &'static str, on: bool| {
             Checkbox::new(id, ToggleState::from(on))
                 .label(label)
@@ -1223,13 +1425,13 @@ impl GraphView {
         };
         v_flex()
             .gap_0p5()
+            // The switches are the graph settings' (#657): every Graph tab takes them.
             .child(
-                switch("rusty-graph-tags", "Tags", self.filters.tags).on_click(cx.listener(
-                    |this, _: &ToggleState, _, cx| {
-                        this.filters.tags = !this.filters.tags;
-                        this.rebuild(cx);
+                switch("rusty-graph-tags", "Tags", self.filters.tags).on_click(
+                    |_: &ToggleState, _, cx| {
+                        graph_store::update(cx, |settings| settings.toggle(Switch::Tags));
                     },
-                )),
+                ),
             )
             .child(
                 switch(
@@ -1237,11 +1439,9 @@ impl GraphView {
                     "Unresolved links",
                     self.unresolved,
                 )
-                .on_click(cx.listener(|this, _: &ToggleState, _, cx| {
-                    this.unresolved = !this.unresolved;
-                    this.read_if_needed(false, cx);
-                    cx.notify();
-                })),
+                .on_click(|_: &ToggleState, _, cx| {
+                    graph_store::update(cx, |settings| settings.toggle(Switch::Unresolved));
+                }),
             )
             .child(
                 switch(
@@ -1249,17 +1449,17 @@ impl GraphView {
                     "Decision edges",
                     self.filters.decision_edges,
                 )
-                .on_click(cx.listener(|this, _: &ToggleState, _, cx| {
-                    this.filters.decision_edges = !this.filters.decision_edges;
-                    this.rebuild(cx);
-                })),
+                .on_click(|_: &ToggleState, _, cx| {
+                    graph_store::update(cx, |settings| {
+                        settings.toggle(Switch::DecisionEdges);
+                    });
+                }),
             )
             .child(
                 switch("rusty-graph-orphans", "Orphans", self.filters.orphans).on_click(
-                    cx.listener(|this, _: &ToggleState, _, cx| {
-                        this.filters.orphans = !this.filters.orphans;
-                        this.rebuild(cx);
-                    }),
+                    |_: &ToggleState, _, cx| {
+                        graph_store::update(cx, |settings| settings.toggle(Switch::Orphans));
+                    },
                 ),
             )
     }
@@ -1343,19 +1543,18 @@ impl GraphView {
                         .tooltip(Tooltip::text("Show Panel"))
                         .on_click(cx.listener(|this, _, _, cx| {
                             this.look.panel_open = true;
+                            cx.emit(GraphEvent::UpdateTab);
                             cx.notify();
                         })),
                 )
                 .into_any_element();
         }
         let colors = cx.theme().colors();
-        let button = |id: &'static str, icon: IconName, tip: &'static str| {
-            IconButton::new(id, icon)
-                .icon_size(IconSize::Small)
-                .tooltip(Tooltip::text(tip))
-        };
         v_flex()
             .id("rusty-graph-panel")
+            // The canvas under the panel takes no press, wheel or focus from it (#657): a press on
+            // a slider keeps the slider's focus for its keys.
+            .occlude()
             .absolute()
             .top_2()
             .right_2()
@@ -1368,39 +1567,7 @@ impl GraphView {
             .border_1()
             .border_color(colors.border)
             .bg(colors.elevated_surface_background)
-            .child(
-                h_flex()
-                    .justify_between()
-                    .child(
-                        Label::new("GRAPH")
-                            .size(LabelSize::XSmall)
-                            .color(Color::Muted),
-                    )
-                    .child(
-                        h_flex()
-                            .child(
-                                button("rusty-graph-restart", IconName::RotateCw, "Restart Layout")
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        this.restart_layout(cx);
-                                    })),
-                            )
-                            .child(
-                                button("rusty-graph-fit", IconName::Maximize, "Fit").on_click(
-                                    cx.listener(|this, _, _, cx| {
-                                        this.look.fit_wanted = true;
-                                        cx.notify();
-                                    }),
-                                ),
-                            )
-                            .child(
-                                button("rusty-graph-hide-panel", IconName::Close, "Hide Panel")
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        this.look.panel_open = false;
-                                        cx.notify();
-                                    })),
-                            ),
-                    ),
-            )
+            .child(Self::render_panel_header(cx))
             .child(self.render_scope(cx))
             .child(
                 div()
@@ -1411,16 +1578,314 @@ impl GraphView {
                     .border_color(colors.border)
                     .child(self.filter_field.clone()),
             )
-            .child(self.render_switches(cx))
+            .child(self.render_switches())
+            .child(Self::section_header(
+                "rusty-graph-groups",
+                "Groups",
+                self.sections.groups,
+                |sections| sections.groups = !sections.groups,
+                cx,
+            ))
+            .when(self.sections.groups, |panel| {
+                panel.child(self.render_groups(cx))
+            })
+            .child(Self::section_header(
+                "rusty-graph-display",
+                "Display",
+                self.sections.display,
+                |sections| sections.display = !sections.display,
+                cx,
+            ))
+            .when(self.sections.display, |panel| {
+                panel.child(self.render_display())
+            })
+            .child(Self::section_header(
+                "rusty-graph-forces",
+                "Forces",
+                self.sections.forces,
+                |sections| sections.forces = !sections.forces,
+                cx,
+            ))
+            .when(self.sections.forces, |panel| {
+                panel.child(self.render_forces())
+            })
             .child(self.render_legend(cx))
             .into_any_element()
     }
+
+    /// The panel's first row: its name, Restart Layout, Fit and Hide Panel.
+    fn render_panel_header(cx: &Context<Self>) -> impl IntoElement {
+        let button = |id: &'static str, icon: IconName, tip: &'static str| {
+            IconButton::new(id, icon)
+                .icon_size(IconSize::Small)
+                .tooltip(Tooltip::text(tip))
+        };
+        h_flex()
+            .justify_between()
+            .child(
+                Label::new("GRAPH")
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            )
+            .child(
+                h_flex()
+                    .child(
+                        button("rusty-graph-restart", IconName::RotateCw, "Restart Layout")
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.restart_layout(cx);
+                            })),
+                    )
+                    .child(
+                        button("rusty-graph-fit", IconName::Maximize, "Fit").on_click(cx.listener(
+                            |this, _, _, cx| {
+                                this.look.fit_wanted = true;
+                                cx.notify();
+                            },
+                        )),
+                    )
+                    .child(
+                        button("rusty-graph-hide-panel", IconName::Close, "Hide Panel").on_click(
+                            cx.listener(|this, _, _, cx| {
+                                this.look.panel_open = false;
+                                cx.emit(GraphEvent::UpdateTab);
+                                cx.notify();
+                            }),
+                        ),
+                    ),
+            )
+    }
+
+    /// A section's header row: a click opens or folds it, which the tab keeps (#657).
+    fn section_header(
+        id: &'static str,
+        name: &'static str,
+        open: bool,
+        toggle: fn(&mut Sections),
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
+        h_flex()
+            .id(id)
+            .gap_1()
+            .cursor_pointer()
+            .child(Disclosure::new(
+                ElementId::from((ElementId::from(id), "disclosure")),
+                open,
+            ))
+            .child(Label::new(name).size(LabelSize::Small))
+            .on_click(cx.listener(move |this, _, _, cx| {
+                toggle(&mut this.sections);
+                cx.emit(GraphEvent::UpdateTab);
+                cx.notify();
+            }))
+    }
+
+    /// Groups: a row per group (its swatch, its query, how many nodes it colours, remove), then New
+    /// group (Rusty's, `GraphView.qml:503-537`).
+    fn render_groups(&self, cx: &Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors();
+        let rows = self
+            .settings
+            .groups
+            .iter()
+            .zip(&self.group_fields)
+            .enumerate()
+            .map(|(at, (group, (field, _)))| {
+                let count = self.coloring.counts.get(at).copied().unwrap_or(0);
+                h_flex()
+                    .gap_1()
+                    .child(
+                        div()
+                            .id(("rusty-graph-group-colour", at))
+                            .flex_none()
+                            .size_3()
+                            .rounded_full()
+                            .cursor_pointer()
+                            .bg(hue(group.color, cx))
+                            .tooltip(Tooltip::text("Next colour"))
+                            .on_click(move |_, _, cx| {
+                                graph_store::update(cx, |settings| {
+                                    if let Some(group) = settings.groups.get_mut(at) {
+                                        group.color = group.color.next();
+                                    }
+                                });
+                            }),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .px_1()
+                            .rounded_sm()
+                            .border_1()
+                            .border_color(colors.border)
+                            .child(field.clone()),
+                    )
+                    .child(
+                        Label::new(count.to_string())
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                    )
+                    .child(
+                        IconButton::new(("rusty-graph-group-remove", at), IconName::Close)
+                            .icon_size(IconSize::XSmall)
+                            .icon_color(Color::Muted)
+                            .tooltip(Tooltip::text("Remove group"))
+                            .on_click(move |_, _, cx| {
+                                graph_store::update(cx, |settings| {
+                                    if at < settings.groups.len() {
+                                        let _removed = settings.groups.remove(at);
+                                    }
+                                });
+                            }),
+                    )
+            });
+        v_flex().gap_1().children(rows).child(
+            Button::new("rusty-graph-new-group", "New group")
+                .start_icon(Icon::new(IconName::Plus).size(IconSize::Small))
+                .label_size(LabelSize::Small)
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.focus_new_group = true;
+                    graph_store::update(cx, |settings| {
+                        let color = GroupColor::for_place(settings.groups.len());
+                        settings.groups.push(Group {
+                            query: String::new(),
+                            color,
+                        });
+                    });
+                })),
+        )
+    }
+
+    /// Display: Arrows and three sliders (Rusty's, `GraphView.qml:538-548`).
+    fn render_display(&self) -> impl IntoElement {
+        let display = self.settings.display;
+        v_flex()
+            .gap_1()
+            .child(
+                Checkbox::new("rusty-graph-arrows", ToggleState::from(display.arrows))
+                    .label("Arrows")
+                    .label_size(LabelSize::Small)
+                    .on_click(|_: &ToggleState, _, cx| {
+                        graph_store::update(cx, |settings| {
+                            settings.display.arrows = !settings.display.arrows;
+                        });
+                    }),
+            )
+            .child(slider_row(
+                "rusty-graph-text-fade",
+                "Text fade threshold",
+                TEXT_FADE,
+                display.text_fade,
+                |settings, value| settings.display.text_fade = value,
+            ))
+            .child(slider_row(
+                "rusty-graph-node-size",
+                "Node size",
+                NODE_SIZE,
+                display.node_size,
+                |settings, value| settings.display.node_size = value,
+            ))
+            .child(slider_row(
+                "rusty-graph-link-thickness",
+                "Link thickness",
+                LINK_THICKNESS,
+                display.link_thickness,
+                |settings, value| settings.display.link_thickness = value,
+            ))
+    }
+
+    /// Forces: four sliders (Rusty's, `GraphView.qml:549-559`).
+    fn render_forces(&self) -> impl IntoElement {
+        let forces = self.settings.forces;
+        v_flex()
+            .gap_1()
+            .child(slider_row(
+                "rusty-graph-center-force",
+                "Center force",
+                CENTER_FORCE,
+                forces.center,
+                |settings, value| settings.forces.center = value,
+            ))
+            .child(slider_row(
+                "rusty-graph-repel-force",
+                "Repel force",
+                REPEL_FORCE,
+                forces.repel,
+                |settings, value| settings.forces.repel = value,
+            ))
+            .child(slider_row(
+                "rusty-graph-link-force",
+                "Link force",
+                LINK_FORCE,
+                forces.link,
+                |settings, value| settings.forces.link = value,
+            ))
+            .child(slider_row(
+                "rusty-graph-link-distance",
+                "Link distance",
+                LINK_DISTANCE,
+                forces.distance,
+                |settings, value| settings.forces.distance = value,
+            ))
+    }
 }
 
-/// A node's radius in view pixels: Rusty's growth with the square root of its links, never
-/// smaller than a dot.
-fn radius(degree: usize, zoom: f32) -> f32 {
-    (float(degree).sqrt().mul_add(1.6, 3.0) * zoom).max(2.5)
+/// A slider's row: its name and value over the track; a change goes to the graph settings.
+fn slider_row(
+    id: &'static str,
+    name: &'static str,
+    range: SliderRange,
+    value: f32,
+    set: fn(&mut GraphSettings, f32),
+) -> impl IntoElement {
+    v_flex()
+        .child(
+            h_flex()
+                .justify_between()
+                .child(Label::new(name).size(LabelSize::Small).color(Color::Muted))
+                .child(
+                    Label::new(format!("{value:.decimals$}", decimals = range.decimals()))
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                ),
+        )
+        .child(
+            Slider::new(id, value)
+                .range(range.min, range.max)
+                .step(range.step)
+                .label(name)
+                .on_change(move |value, _, cx| {
+                    graph_store::update(cx, |settings| set(settings, range.clamp(value)));
+                }),
+        )
+}
+
+/// A node's radius in view pixels: Rusty's growth with the square root of its links, times the
+/// panel's node size, never smaller than a dot.
+fn radius(degree: usize, zoom: f32, node_size: f32) -> f32 {
+    (float(degree).sqrt().mul_add(1.6, 3.0) * zoom * node_size).max(2.5)
+}
+
+/// A pin, a release or new forces, on the layout.
+fn apply(layout: &mut Layout, change: Change) {
+    match change {
+        Change::Pin(at, place) => layout.pin(at, place),
+        Change::Release(at) => layout.release(at),
+        Change::Forces(forces) => layout.set_forces(forces),
+    }
+}
+
+/// A group's hue in the theme's terminal colours.
+fn hue(color: GroupColor, cx: &App) -> Hsla {
+    let colors = cx.theme().colors();
+    match color {
+        GroupColor::Red => colors.terminal_ansi_red,
+        GroupColor::Green => colors.terminal_ansi_green,
+        GroupColor::Yellow => colors.terminal_ansi_yellow,
+        GroupColor::Magenta => colors.terminal_ansi_magenta,
+        GroupColor::Cyan => colors.terminal_ansi_cyan,
+        GroupColor::Blue => colors.terminal_ansi_blue,
+    }
 }
 
 fn beyond_slop(start: Point<Pixels>, now: Point<Pixels>) -> bool {
@@ -1557,7 +2022,12 @@ struct Scene {
     viewport: Viewport,
     places: Vec<(f32, f32)>,
     nodes: Vec<NodeLook>,
-    edges: Vec<(usize, usize, Line, Emphasis)>,
+    /// Each edge's ends, its line, its emphasis and whether it has a direction.
+    edges: Vec<(usize, usize, Line, Emphasis, bool)>,
+    /// Whether heads are drawn at the edges' targets.
+    arrows: bool,
+    /// Every edge's width times this.
+    thickness: f32,
     strokes: Strokes,
     labels: Labels,
 }
@@ -1574,6 +2044,9 @@ fn paint(scene: &Scene, bounds: Bounds<Pixels>, window: &mut Window, cx: &mut Ap
         .collect();
     window.with_content_mask(Some(ContentMask { bounds }), |window| {
         paint_edges(scene, &view, size, origin, window);
+        if scene.arrows {
+            paint_heads(scene, &view, size, origin, window);
+        }
         for (at, look) in scene.nodes.iter().enumerate() {
             let Some((x, y)) = view.get(at).copied() else {
                 continue;
@@ -1614,7 +2087,7 @@ fn paint_edges(
     // One path per line kind and emphasis, drawn and begun again before gpui's index limit.
     let mut batches: Vec<Batch> = Vec::new();
     let mut slots: [Option<usize>; 12] = [None; 12];
-    for (from, to, line, emphasis) in &scene.edges {
+    for (from, to, line, emphasis, _) in &scene.edges {
         let (Some(a), Some(b)) = (view.get(*from), view.get(*to)) else {
             continue;
         };
@@ -1632,7 +2105,7 @@ fn paint_edges(
         };
         let at = *slots[line.index() * 3 + emphasis.index()].get_or_insert_with(|| {
             batches.push(Batch {
-                path: builder(dashed, *emphasis),
+                path: builder(dashed, *emphasis, scene.thickness),
                 units: 0.0,
                 dashed,
                 emphasis: *emphasis,
@@ -1649,13 +2122,64 @@ fn paint_edges(
             .line_to(point(px(origin.0 + b.0), px(origin.1 + b.1)));
         batch.units += units;
         if batch.units >= PATH_UNITS {
-            let full = mem::replace(&mut batch.path, builder(batch.dashed, batch.emphasis));
+            let full = mem::replace(
+                &mut batch.path,
+                builder(batch.dashed, batch.emphasis, scene.thickness),
+            );
             batch.units = 0.0;
             draw(full, batch.colour, window);
         }
     }
     for batch in batches {
         draw(batch.path, batch.colour, window);
+    }
+}
+
+/// The heads of the edges that have a direction, filled in their edges' colours, one path a
+/// colour and drawn again before gpui's index limit; a head whose target is out of view is
+/// skipped (D8).
+fn paint_heads(
+    scene: &Scene,
+    view: &[(f32, f32)],
+    size: (f32, f32),
+    origin: (f32, f32),
+    window: &mut Window,
+) {
+    let mut heads: Vec<(PathBuilder, f32, Hsla)> = Vec::new();
+    let mut slots: [Option<usize>; 12] = [None; 12];
+    for (from, to, line, emphasis, directed) in &scene.edges {
+        if !directed {
+            continue;
+        }
+        let (Some(a), Some(b), Some(target)) =
+            (view.get(*from), view.get(*to), scene.nodes.get(*to))
+        else {
+            continue;
+        };
+        if b.0 < 0.0 || b.1 < 0.0 || b.0 > size.0 || b.1 > size.1 {
+            continue;
+        }
+        let Some(points) = arrowhead(*a, *b, target.radius + target.edge_width) else {
+            continue;
+        };
+        let (colour, _) = scene.strokes.of_line(*line);
+        let colour = edge_colour(colour, scene.strokes.lit, *line, *emphasis);
+        let at = *slots[line.index() * 3 + emphasis.index()].get_or_insert_with(|| {
+            heads.push((PathBuilder::fill(), 0.0, colour));
+            heads.len() - 1
+        });
+        let (path, units, colour) = &mut heads[at];
+        let corners = points.map(|(x, y)| point(px(origin.0 + x), px(origin.1 + y)));
+        path.add_polygon(&corners, true);
+        *units += 1.0;
+        if *units >= PATH_UNITS {
+            let full = mem::replace(path, PathBuilder::fill());
+            *units = 0.0;
+            draw(full, *colour, window);
+        }
+    }
+    for (path, _, colour) in heads {
+        draw(path, colour, window);
     }
 }
 
@@ -1668,9 +2192,9 @@ struct Batch {
     colour: Hsla,
 }
 
-fn builder(dashed: bool, emphasis: Emphasis) -> PathBuilder {
+fn builder(dashed: bool, emphasis: Emphasis, thickness: f32) -> PathBuilder {
     let width = if dashed { 1.5 } else { 1.0 } + if emphasis == Emphasis::Lit { 0.5 } else { 0.0 };
-    let path = PathBuilder::stroke(px(width));
+    let path = PathBuilder::stroke(px(width * thickness));
     if dashed {
         path.dash_array(&[px(DASH), px(GAP)])
     } else {
@@ -1865,5 +2389,79 @@ impl Item for GraphView {
 
     fn show_toolbar(&self) -> bool {
         false
+    }
+
+    fn added_to_workspace(
+        &mut self,
+        workspace: &mut Workspace,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        // L-613: a tab moved to another workspace follows that workspace's items.
+        self.workspace = workspace.weak_handle();
+        if let Some(workspace) = self.workspace.upgrade() {
+            self.workspace_events = Self::follow_workspace(&workspace, window, cx);
+        }
+    }
+}
+
+/// A Graph tab is saved with its workspace (#657). The workspace's layout holds only the item;
+/// the tab's own state goes in its row, and the graph settings are every tab's.
+impl SerializableItem for GraphView {
+    fn serialized_item_kind() -> &'static str {
+        "MarleyRustyGraph"
+    }
+
+    fn cleanup(
+        workspace_id: WorkspaceId,
+        alive_items: Vec<ItemId>,
+        _window: &mut Window,
+        cx: &mut App,
+    ) -> Task<anyhow::Result<()>> {
+        graph_store::cleanup(workspace_id, alive_items, cx)
+    }
+
+    fn deserialize(
+        _project: Entity<Project>,
+        workspace: WeakEntity<Workspace>,
+        workspace_id: WorkspaceId,
+        item_id: ItemId,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Task<anyhow::Result<Entity<Self>>> {
+        // Rusty off restores nothing; Zed logs the refusal and the cleanup drops the row (D4).
+        if !super::is_on(cx) {
+            return Task::ready(Err(anyhow::anyhow!(
+                "Rusty is off; the Graph tab is not restored"
+            )));
+        }
+        let Some(saved) = graph_store::saved_tab(workspace_id, item_id, cx) else {
+            return Task::ready(Err(anyhow::anyhow!("no Graph tab was saved for the item")));
+        };
+        window.spawn(cx, async move |cx| {
+            cx.update(|window, cx| {
+                let workspace = workspace
+                    .upgrade()
+                    .context("the workspace closed before its Graph tab was restored")?;
+                super::project::ensure(cx);
+                Ok(cx.new(|cx| Self::new(&workspace, Some(saved), None, None, window, cx)))
+            })?
+        })
+    }
+
+    fn serialize(
+        &mut self,
+        workspace: &mut Workspace,
+        item_id: ItemId,
+        _closing: bool,
+        cx: &mut Context<Self>,
+    ) -> Option<Task<anyhow::Result<()>>> {
+        let workspace_id = workspace.database_id()?;
+        let tab = self.saved(cx);
+        Some(graph_store::save_tab(workspace_id, item_id, tab, cx))
+    }
+
+    fn should_serialize(&self, event: &GraphEvent) -> bool {
+        matches!(event, GraphEvent::UpdateTab)
     }
 }

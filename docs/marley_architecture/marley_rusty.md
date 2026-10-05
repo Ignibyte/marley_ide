@@ -1,6 +1,6 @@
 # `marley_rusty`
 
-> Per-crate architecture note, written 2026-10-04 at #643, extended at #644 to #647. Provenance:
+> Per-crate architecture note, written 2026-10-04 at #643, extended at #644 to #657. Provenance:
 > **`[Marley-original]`** (`serde` and `serde_json` only), with one port from Ely GPUI Components
 > (MIT) in `vault`, `knowledge` and `graph_layout`, its notice on each file. The design record is
 > [rusty-in-marley.md](../marley/rusty-in-marley.md) (R-D1, R-D8), D8 and D11 in
@@ -115,6 +115,23 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   `panned`, `fitting` (about the centre when given, no nearer than 1.6). `nearest` is Ely's hit
   test. The pair loop pushes by the offset times k²/d² with plain products: `mul_add` and `hypot`
   are library calls without the FMA target feature. The crate builds at `opt-level = 3` in the dev profile (#647).
+  Since #657 a `Layout` holds its `Forces`: `seeded` takes them, every length and heat is in units
+  of `forces.length(LINK)` (`LINK` at the default distance), the pair push is scaled by Repel force
+  over 10, the pull along an edge by Link force, and the pull to the origin by Center force over
+  0.5, so the defaults are #647's arithmetic. `set_forces` puts the run back to its starting heat
+  from the places it has; `forces()` reads them. `arrowhead(from, to, radius)` gives a head's
+  three points in view pixels (10 px long, 10 wide, its tip 2 px off the target's rim), `None` when
+  the two ends are too close.
+- `graph_settings` (#657): the Graph tab's record. `SliderRange` (`min`, `max`, `step`,
+  `default`; `clamp` onto the grid, `holds`, `decimals`) and Rusty's seven ranges; `DEPTHS`;
+  `Forces` (`length`, `repel_scale`, `center_scale`, `describe` for the run line); `Display`
+  (arrows, text fade, node size, link thickness; `label_alpha(zoom)`, which starts at #647's 0.9
+  at 0.5 and moves 1.6 a unit, Rusty's slope); `GroupColor` (six terminal hues by name, `next`,
+  `for_place`); `Group`; `Switch` (Tags, Unresolved, Decision edges, Orphans, a set rather than
+  four bools); `GraphSettings` with `is_on`, `toggle`, `from_stored` (field by field, each
+  fallback to Rusty's default given as a reason) and `to_stored` (flat JSON).
+  `group_colors(graph, shown, groups)` gives each shown node the first group whose query matches
+  its graph node, and each group's count.
 
 ## Fixtures and the stand-in
 - `fixtures/settings_list.json`: an answer in `rusty-mcp`'s shape, neutral values.

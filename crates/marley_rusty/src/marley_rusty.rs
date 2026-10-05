@@ -12,7 +12,8 @@
 //! - [`page`]: a rendered page, the wikilink pass for Zed's renderer, and a tab's history (#645).
 //! - [`knowledge`]: a page's tags, backlinks and links, and search snippets' marks (#646).
 //! - [`graph`]: the vault as a graph and the part the Graph tab shows; [`graph_layout`]: where its
-//!   nodes sit and how its view looks at them (#647).
+//!   nodes sit and how its view looks at them (#647); [`graph_settings`]: the panel's groups,
+//!   display and forces, kept for every window (#657).
 //! - [`switcher`]: the page picker's list, its recently opened pages and its order (#654).
 //! - [`project`]: a workspace's folders joined to a brain project page; [`decisions`] and
 //!   [`tasks`]: the follow-ups due and the task groups the project view reads (#655).
@@ -35,6 +36,7 @@
 pub mod decisions;
 pub mod graph;
 pub mod graph_layout;
+pub mod graph_settings;
 pub mod knowledge;
 pub mod page;
 pub mod project;

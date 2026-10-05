@@ -23,6 +23,7 @@
 //! center tab of its own ([`graph_tab`], #647).
 
 pub mod brain;
+mod graph_store;
 pub mod graph_tab;
 mod inline_edit;
 pub mod knowledge_panel;
@@ -30,6 +31,7 @@ pub mod page;
 pub mod page_picker;
 pub mod project;
 mod properties;
+mod slider;
 
 use std::collections::HashMap;
 use std::ffi::OsString;

@@ -4778,3 +4778,13 @@ measured click. Every panel in a dock keeps its own width: showing Zed's outline
 dock moves the centre's header buttons, and "close all docks" moves them again. Put the dock's
 first panel back with its own `toggle focus` command twice (show, then focus back to the centre),
 and the measured positions hold.
+
+## L-claude-657-the-palette-runs-the-command-used-last-for-a-shared-prefix-001
+*category: e2e · topic: running an action from a scenario · from: pipeline 657*
+
+Zed's command palette ranks recently used commands first. Once a run has used
+`rusty: open local graph`, typing `rusty: open graph` and pressing Enter runs the local one again,
+since its name holds every letter typed. A scenario that runs two commands, one name inside the
+other, binds a key to the action in the run's keymap. Check the key against the default keymap's
+deeper contexts: `Pane` binds Ctrl+Alt+Shift+G, which wins over a `Workspace` binding;
+Ctrl+Alt+Shift+Y has been free in #645, #647 and #657.

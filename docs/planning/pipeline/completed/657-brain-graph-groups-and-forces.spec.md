@@ -1,7 +1,7 @@
 ---
 pipeline_id: b738bd02-d8d7-45e8-af92-cd95dee453ec
 ticket: docs/planning/tickets/open/TICKET-657-brain-graph-groups-and-forces.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "Colour groups, sliders and arrows on the Graph tab, restored after a restart"
 type: feature
 slice: Rusty in Marley R5b (rusty-in-marley.md R-D3, R-D10)
@@ -26,7 +26,7 @@ draft split this slice out (its Out, "R5b, the second slice").
 - **Built on #647, after it, replacing none of it.** #647's `GraphView` (`marley_workbench::
   rusty::graph_tab`, an `impl workspace::Item`) with its scope, centre, `Filters`, `Shown`, the
   layout lent to the background executor a batch at a time with its `pending` changes, its panel
-  (`Disclosure` sections Filters and Legend, the four switches, depth 1 to 4), its canvas and its
+  (the scope and depth rows, the filter field, the four switches and the legend), its canvas and its
   run log line; `marley_rusty::graph` (`Query::parse`, `Query::matches`, `shown`) and
   `marley_rusty::graph_layout` (`Layout`, `Viewport`, Ely's notice). Through #647: #643's switch,
   client and `Rusty` global with its connection state, the crate `crates/marley_rusty` and its
@@ -49,7 +49,7 @@ draft split this slice out (its Out, "R5b, the second slice").
   change shows in each (D2).
 - **Kept across a restart** (D1 to D4): the record in Zed's key-value store (scope
   `marley-rusty-graph`), read at `init` and written 300 ms after the last change and at quit; the
-  tab's own state (scope, centre slug and title, filter, hidden page types, the panel and its open
+  tab's own state (scope, the focused page, filter, hidden page types, the panel and its open
   sections) in `marley_rusty_graph_tabs`, keyed by workspace and item and read into memory at
   `init`; `impl SerializableItem for GraphView` (kind `MarleyRustyGraph`), registered in
   `rusty::init`. A restored tab waits for #643's connection before it reads.
@@ -82,11 +82,10 @@ draft split this slice out (its Out, "R5b, the second slice").
   tab is made active.
 - **Importing the Qt app's graph settings** (`ui.graph` in Rusty's window state): the Qt app is
   frozen (RQ5) and retires at R9.
-- **R6's project centre** (#655: with no focused page, the local graph centres on the project's
-  page). A restored tab's saved centre counts as its focused page until a Page tab is made active,
-  so #655's rule applies only to a tab saved with no centre; the saved state is a JSON object, so
-  whichever of #655 and this ticket lands second adds a "the centre is the project's" flag with no
-  migration.
+- **R6's project centre** (#655, landed first). The tab keeps a focused page (`page`) apart from
+  the project's page (`project_page`), so the saved state holds `page` alone: a tab saved while it
+  centred on the project's page is saved with none, and its restore resolves the project's page
+  again, as `rusty: open graph` does. No flag is needed.
 - `changes_since` (Rusty's TICKET-035) and Barnes-Hut stay where #647 left them.
 
 ## Reference (§20)
@@ -213,7 +212,7 @@ Before the relaunch the scenario clears `OPEN` so the session restores (L-601). 
   (`GraphView.qml:101-106`), are one record for all of Marley in Zed's key-value store
   (`KeyValueStore::scoped("marley-rusty-graph")`, key `settings`), as Rusty keeps one `graph`
   entry in its window state for both its graph tabs (`Main.qml:251-252`) and Obsidian one
-  `graph.json`. The tab's own state (scope, centre slug and title, filter, hidden page types,
+  `graph.json`. The tab's own state (scope, the focused page, filter, hidden page types,
   whether the panel and each section are open) is its row in Marley's table, restored with the
   tab and gone when it closes, as Rusty's `saveTabs` keeps a tab's kind and slug
   (`Main.qml:466-473`) and `GitGraph` its search. Rejected: `settings.json` (a slider drag would
@@ -243,7 +242,8 @@ Before the relaunch the scenario clears `OPEN` so the session restores (L-601). 
   through the same construction as `rusty: open graph`'s (PR-claude-restore-is-a-second-
   constructor-001) and, until #643's `Rusty` global says connected, shows the connection's state
   in its notice line ("Connecting to Rusty", or #643's reason it is down) and reads nothing; it
-  reads once connected. A restored local graph whose page is gone gets Rusty's empty answer
+  reads once connected. #647 shipped that behaviour (its `Rusty` observer and `read_if_needed`'s
+  guard), so the restore adds none. A restored local graph whose page is gone gets Rusty's empty answer
   (`rusty-core/src/brain/mod.rs:1022`) and #647's "No links around this page yet".
 - D5 — Groups as Rusty's (`GraphView.qml:169-174`, `:503-537`). A group is a query in #647's
   filter grammar (`Query::parse`) and a colour; an empty query matches nothing. A shown node takes
@@ -261,24 +261,24 @@ Before the relaunch the scenario clears `OPEN` so the session restores (L-601). 
   free picker (Out).
 - D7 — Display as Rusty's (`:33-36`). Node size multiplies every node's radius (Rusty's
   `radiusOf`, `:244`), and the hit test uses the same radius, so the pointer finds a node where it
-  is drawn. Link thickness multiplies every edge's width (`:308`); dashes keep their length. Text
-  fade threshold sets the zoom labels start at, 2.2 − 1.6 × the value, fading in over the next 0.6
-  of zoom (`:348`); 0.5 gives #647's threshold. #647's cap of 200 labels a frame and its labels
+  is drawn. Link thickness multiplies every edge's width (`:308`); dashes keep their length. Text fade threshold sets the zoom labels start at,
+  0.9 + 1.6 × (0.5 − the value), fading in over the next 0.4 of zoom: #647's `LABEL_ZOOM` and
+  `LABEL_FADE` at 0.5, with Rusty's slope of 1.6 (`:348`), so 0 starts them at 1.7 and 1 at 0.1. #647's cap of 200 labels a frame and its labels
   that always show (the hovered node, its neighbours, the centre) stay.
 - D8 — Arrows on the edges that have a direction: every edge `brain_graph` sends, from the
   linking page to its target (an unresolved target too) and from a decision to the page its
-  property names (`decisions.rs:436-459`); not the tag edges Marley builds (#647's D3), which say
-  a page carries a tag and point nowhere. A head is a filled triangle in its edge's colour, lit or
+  property names (`decisions.rs:436-459`); not the tag edges Marley builds (#647's D3), which say a page carries a tag and point nowhere. Marley builds those as `EdgeKind::Link` from the
+  page to a `NodeKind::Tag` node (`graph.rs:379`), so an edge with a tag at either end gets no head. A head is a filled triangle in its edge's colour, lit or
   dimmed with it, its tip on the target's rim, 10 px long and 10 px wide at any zoom (Rusty's,
   `:314-326`), batched into one fill path per edge style under #647's u16 split (three vertices a
   head); a head whose target is out of view is skipped. Two pages linking each other get a head at
   each end. Off by default, as Rusty's.
 - D9 — Rusty's force sliders on #647's layout. Rusty's simulation (velocities and damping,
   `:189-240`) is not #647's (Ely's Fruchterman-Reingold), so the four sliders keep Rusty's names,
-  ranges and defaults and act as multipliers on #647's step: the ideal edge length k is 0.6 × Link
-  distance (Rusty's spring rest length, `:214`: 150 at the default 250, #647's constant);
-  repulsion k²/d × Repel force / 10; attraction d²/k × Link force; the pull to the origin ×
-  Center force / 0.5. At the defaults every multiplier is 1, so a graph with no record is laid out
+  ranges and defaults and act as multipliers on #647's step: the ideal edge length k is #647's `LINK`
+  (80) × Link distance / 250, as Rusty's spring rest length is 0.6 × Link distance (`:214`), and
+  the heats #647 measures in `LINK` take k; repulsion k²/d × Repel force / 10; attraction d²/k ×
+  Link force; the pull to the origin, #647's `GRAVITY`, × Center force / 0.5. At the defaults every multiplier is 1, so a graph with no record is laid out
   as #647 lays it out, place for place. A change warms the layout to its starting heat from the
   places it has, pins kept, as Rusty's `restart` (`:188`); one made while a batch is out waits in
   `pending` for its return (#647's D5); the run's log line names the forces it ran with.
@@ -308,9 +308,11 @@ Before the relaunch the scenario clears `OPEN` so the session restores (L-601). 
 
   The switches keep #647's defaults, which are Rusty's (Tags off, Unresolved links off, Decision
   edges on, Orphans on), the depth 1, Arrows off, no group.
-- D12 — The panel takes Obsidian's order: Filters, Groups, Display, Forces, then #647's Legend,
-  each a `Disclosure`. The three new sections start folded on a new tab, so #647's panel looks as
-  it did until one is opened; the panel scrolls when its open sections pass the tab's height.
+- D12 — The panel takes Obsidian's order: #647's filter rows (scope, depth, the filter field and
+  the four switches, under no heading of their own), then Groups, Display and Forces, each a
+  section with a `ui::Disclosure` and its name, then #647's legend. The three new sections start
+  folded on a new tab, so #647's panel gains three header rows and is otherwise as it was; the
+  panel already scrolls when its rows pass the tab's height.
   Rusty's words: "Groups", "New group", the placeholder "tag:x path:y type:z or text", "Next
   colour", "Remove group"; "Display", "Arrows", "Text fade threshold", "Node size", "Link
   thickness"; "Forces", "Center force", "Repel force", "Link force", "Link distance".

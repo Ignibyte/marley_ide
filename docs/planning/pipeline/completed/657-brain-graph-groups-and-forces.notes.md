@@ -388,3 +388,207 @@ returns, under a second, so the log's order carries REQ-014.
 - A `rusty:` action run while Rusty is off or not connected shows a toast saying so and where to
   turn it on, and opens nothing (rusty-in-marley.md R-D0, settled across #643 to #659).
 - Every scenario names its stand-in in `MARLEY_RUSTY_MCP`, never first on the PATH (#643).
+
+### Promotion (2026-10-04)
+- Promoted into `active/`; the BACKLOG row removed; the ticket in-progress. Pre-flight green, no
+  other active pipeline; #643 to #656 landed (the last c49cdc989b).
+- **Brain:** `brain ask` (consultation `2fd1f03c304641da84d20bc75a4ce61a`) returned due follow-ups
+  on other work only.
+- **Recall, added:** F-647's three blocks (the batch budget, the kept centre pin, the rows that
+  moved between scopes: a control row shown in one mode only moves every row under it, so the new
+  sections' header rows show in both scopes); L-647's three (batches wait on the frame,
+  `mul_add` and `hypot` in hot loops, a wheel notch is three lines); PR restore-is-a-second-
+  constructor and PR persist-verify-trigger, read again.
+- **#647 and #655 as shipped** (an Explore pass, read only), against the names above:
+  - `graph_tab.rs` (1,869 lines): `GraphView`'s fields include `scope: Scope { Local, Vault }`,
+    `depth: usize`, `page` and `project_page` (slugs), `filter_field`, `filters: Filters`,
+    `unresolved: bool` (beside `Filters`, not in it), `graph`, `shown`, `layout`, `run: Run {
+    task, pending: Vec<Change>, generation }`, `look: Look { viewport, fit_wanted, fitted,
+    panel_open }`, `hover`, `gesture`. `GraphView::new(&Entity<Workspace>, page, project_page,
+    window, cx)` is the one constructor (`open`, `:117-152`). `init(cx: &App)` registers the two
+    actions through `observe_new`; `rusty::init` calls it (`rusty.rs:222`).
+  - The tab already observes `rusty::Rusty` (drops the graph when off, reads when connected) and
+    `read_if_needed` returns early unless on and connected, while `empty_state` shows
+    `rusty::unavailable` or "Reading the graph…". D4's wait is shipped; the restore adds nothing.
+  - No `added_to_workspace`, no `SerializableItem`; `GraphEvent::UpdateTab` maps to
+    `ItemEvent::UpdateTab`.
+  - The panel is no set of `Disclosure` sections: a header row (GRAPH, Restart Layout, Fit, Hide
+    Panel), `render_scope` (Local and Vault, Depth 1 to 4), the filter field, `render_switches`
+    (four `Checkbox`es) and `render_legend`, in a 240 px `v_flex` that scrolls. D12 is amended.
+  - Paint: `radius(degree, zoom)` (`:1420`) for the dots and `radii()` for `nearest`'s hit test;
+    `builder(dashed, emphasis)` (`:1671`) gives the stroke width (1.0, 1.5 dashed, +0.5 lit);
+    labels fade by `LABEL_ZOOM` 0.9 and `LABEL_FADE` 0.4 under a cap of `LABELS` 200;
+    `paint_edges` batches twelve slots and starts a new path at `PATH_UNITS` 8,000. Page colours
+    come from `accents().color_for_index` by `type_order`. D7 is amended to keep #647's threshold
+    at 0.5.
+  - The run line (`:736`): `"graph layout: {} nodes, {} edges, {} steps in {} batches, {} ms of
+    work in {} ms"`, written once when the run settles; there is no separate settled line. The
+    forces go at its end, so #647's prefix stays.
+  - `graph_layout.rs`: `LINK` 80, `GRAVITY` 4, `HEAT_START` 4, `HEAT_WARM` 1, `HEAT_SETTLED`
+    0.05 and `MAX_STEPS` 300, heats in units of `LINK`; repulsion and attraction inline in
+    `step`; `warm()` raises the heat to `HEAT_WARM` and zeroes the steps. D9 is amended: k is
+    `LINK` × distance / 250, and the heats take k.
+  - `graph.rs`: `Query::matches(&Node)` takes the graph's `Node`, not the shown one; tag edges
+    are `EdgeKind::Link` to a `NodeKind::Tag` node (`:379`). D8 is amended to read the tag off the
+    node.
+  - `rusty.rs`: `is_on`, `is_connected`, `unavailable`, `call_tool`; `State` private.
+  - Persistence: `browser.rs:7007-7161` and `terminal_ids.rs` are the shapes to copy; the key-value
+    store's `read` is synchronous and `write` async (`kvp.rs:89-134`); `page_picker.rs:40-71`
+    writes through `background_spawn`.
+  - `script/e2e.sh:666` copies the database and nothing deletes from it yet.
+- **The design, amended:**
+  - The record holds the four switches and the depth. The tab keeps #647's fields (`filters.tags`,
+    `filters.decision_edges`, `filters.orphans`, `unresolved`, `depth`) as copies the settings
+    observer refreshes, so #647's code that reads them is unchanged; the tab's own controls
+    update the store, never the copies directly.
+  - `SavedGraphTab { scope, page: Option<String>, filter, hidden_types, panel_open,
+    open_sections }`. No centre title: the header shows the title once the graph is read. A tab
+    centred on the project's page saves no `page` and resolves the project's page again on
+    restore (spec, Out, amended for #655).
+  - `graph_tab::init` takes `&mut App` (for `register_serializable_item` and the store's read).
+  - `added_to_workspace` is new: it re-points `workspace` (L-613).
+  - `group_colors(graph, shown, groups)` maps each shown node to its graph `Node` by id for
+    `Query::matches`.
+  - The heads are filled triangles in fill builders per slot, the split counting a head as two
+    units; no head on an edge with a tag at either end.
+  - New sections between the switches and the legend: three header rows in both scopes.
+    #647's scenario's legend coordinate moves down by them; #647 is not in the golden set, so
+    nothing runs it now (§7), and the regression phase at the end measures again.
+  - The scenario waits on Marley.log's `graph layout:` lines, with #647's `await_layout`, where the
+    visual check plan says "settled".
+- **Phase 1 PASS** (2026-10-04): the work runs autonomously under Chad's goal; D5 and D9, as
+  amended, go to Chad with the end-of-batch questions only if the shots show a problem.
+
+## Phase 2: Code (2026-10-04)
+- **Built:**
+  - `marley_rusty::graph_settings` (new, pure): `SliderRange` (`clamp`, `holds`, `decimals`) and
+    the seven ranges; `DEPTHS`; `Forces` (`length`, `repel_scale`, `center_scale`, `describe`);
+    `Display` with `label_alpha`; `GroupColor` (`ALL`, `for_place`, `next`, `name`); `Group`;
+    `Switch` and `GraphSettings` (`is_on`, `toggle`, `from_stored` field by field with its
+    reasons, `to_stored`); `group_colors` → `GroupColoring`.
+  - `graph_layout`: `Layout` holds its `Forces`; `seeded` takes them; heats and lengths are in
+    units of `forces.length(LINK)`; `set_forces` heats the run to its start from the places it
+    has; `forces()`; `arrowhead`.
+  - `rusty/slider.rs` (new, Ely's notice): `Slider` (`new`, `range`, `step`, `label`,
+    `on_change`), `Track`, the rail and fill, the thumb with `Role::Slider` and its aria values,
+    the owner-checked drag, the track press, the keys.
+  - `rusty/graph_store.rs` (new): `GraphSettingsStore` (read at `init` with each fallback
+    logged, written 300 ms after the last change through `set_global`, and at quit);
+    `SavedGraphTab` and `Sections`; the rows read into memory at `init`; `saved_tab`,
+    `save_tab`, `cleanup`; `MarleyRustyGraphTabsDb` with its one migration.
+  - `graph_tab.rs`:
+    - `GraphView::new` is the one constructor (`saved` for a restore), with `settings`,
+      `coloring`, `group_fields`, `sections` and `workspace_events`.
+    - `settings_changed` does only what changed; `sync_group_fields` and `group_field`;
+      `color_groups` in `rebuild`.
+    - The switches and depth write the store. `Change::Forces` goes through `apply`. The run line
+      ends with the forces.
+    - `node_colour` (group, then type, then kind); the radius × node size; the strokes ×
+      thickness; the label fade from `label_alpha`; `paint_heads`.
+    - The panel's sections (`section_header` with `ui::Disclosure`, `render_groups`,
+      `render_display`, `render_forces`, `slider_row`) and `render_panel_header`.
+    - `added_to_workspace`; `impl SerializableItem` (`MarleyRustyGraph`).
+  - `rusty.rs`: the two modules. `script/e2e.sh`: the scope deleted from each copied
+    database. The guide's Graph article: Groups, Display, Forces, sliders, what a restart keeps.
+- **Deviations:**
+  - The four switches are a `BTreeSet<Switch>` in the record, not four bools: clippy's
+    `struct_excessive_bools`. They are stored under their own keys.
+  - The record's write replaces the global (`set_global`, which notifies its observers), so the
+    pending write sits in an underscore field that is never read.
+  - `SavedGraphTab` has no centre title (Promotion). A restored tab finds the project's page in a
+    deferred `follow_project`, since it reads the workspace.
+  - `change_layout` drops a change when there is neither a layout nor a run (no graph yet). A
+    rebuild seeds the forces in force, and there is no node to pin.
+  - The slider's row puts the name and value over the track; 240 px holds no label column.
+- **Review:**
+  - Re-entrancy: every control writes the store from a listener, never from inside the observer.
+    The observer sets a field's text only when it differs and the field is unfocused, and an
+    equal record notifies nobody, so no edit loops. The restore's `follow_project` is deferred.
+    Zed's `deserialize` futures run after the update that started them.
+  - Every saved-state change emits `UpdateTab`: the filter (when its query changes), a legend
+    toggle, the panel shown or hidden, a fold, a page followed in either scope, scope and depth
+    (PR persist-verify-trigger).
+  - The table keys by workspace and item with no `UNIQUE(item_id)` (F-576); the restore reads
+    memory (PR a-row-a-restore-reads); a refused restore is Zed's `log_err`.
+  - The hit test uses the drawn radius with node size (`radii`). A head is skipped when its
+    target is off the canvas, and an edge with a tag at either end has none.
+  - Provenance: the slider is Ely's under its notice. The forces' numbers and the arrowhead's
+    sizes are Rusty's (MIT). No Zed function body was copied.
+- **Gate:** the clippy rounds fixed `bool_to_int_with_if`, excessive bools, a single match,
+  `pub(crate)` in private modules, `map_or_else`, an underscore field read, a by-value
+  argument, two over-long functions, `Self`, `()` in a closure, too many arguments, and a missing
+  `;`. gate:14 caught a private doc link. `just gate-diff` GREEN, 17 of 17.
+
+## Phase 3: Test (2026-10-04)
+- **Scenario:** `script/e2e/657-brain-graph-groups-and-forces.sh`, `compositor sway`, three
+  launches. It runs over #647's twelve-page vault through the stand-in. The run's keymap binds
+  Ctrl+Alt+Shift+Y to `rusty::OpenGraph`. A measuring run read the three headers and the controls
+  inside each section. The fourth run was green: every check passed, and the focus report showed
+  no Marley window before or after and no rule added.
+- **A real bug found in Test, fixed at the source:** a press on a slider's track moved the value
+  but left the keyboard with the canvas under the panel. The canvas's own press handler took the
+  focus after the slider did, so End and the arrows reached the tab. Shot 06 read "0.3" where End
+  should have given 3.0. Fixed: the panel `occlude`s the canvas under it (a press, a wheel turn
+  or the focus no longer reaches it through the panel), and the slider's press stops there.
+  Clippy green again; the gate rerun.
+- **Scenario fixes:**
+  - The thumb drag began 2 px past the track's end and was moved inside it.
+  - The palette ranks the command used last first, so "rusty: open graph" ran "open local graph"
+    after the restore. The run binds a key to the action instead, and #647's Ctrl+Alt+Shift+Y
+    was known free; Ctrl+Alt+Shift+G is the Pane's `search::SelectPreviousMatch`.
+  - Link distance goes to its far end before the restart, so the restored picture can be read.
+- **The shots, read one by one:**
+  - `01-group`: `path:research/` red, Orbit survey and Latency notes red, the count 2 (REQ-001).
+  - `02-first-group-wins`: `type:research` green with 0, the two pages still red (REQ-002).
+  - `03-group-removed`: the one group left, the two pages green, 2 (REQ-003).
+  - `04-next-colour`: the swatch clicked ("Next colour"), the pages yellow (REQ-004).
+  - `05-arrows`: Tags on, the wheel three notches in; heads at Old Orbit plan, Orbit, Lantern,
+    Cold storage and Orbit survey, none on the two `#storage` edges (REQ-005).
+  - `06-node-size`: "3.0", every dot larger (REQ-006, REQ-011).
+  - `07-slider-keys`: "2.8" after Left twice (REQ-011).
+  - `08-link-thickness`: "4.0", every line thick (REQ-007).
+  - `09-thumb-drag`: "2.1" from the thumb dragged to the track's middle, the lines thinner than
+    in 08 (REQ-010).
+  - `10-text-fade-low` and `11-text-fade-high`: "0.00", no titles; "1.00", every title, at the
+    same zoom (REQ-008).
+  - `12-repel`: "20.0", the graph wider than 11; the run line names "repel 20.0" (REQ-009).
+  - `13-link-distance`: "30", the graph a clump; "distance 30" in the run line (REQ-009).
+  - `14-before-restart`: "Local graph · Orbit · depth 2 · 3 nodes", the filter `path:research/`,
+    `note` faint, Orbit's Page tab beside it.
+  - `15-restored`: after the quit and relaunch, the same header, filter and faint `note`, the
+    research pages yellow, and the heads. The new stand-in's `initialize` came before its
+    `brain_graph` around Orbit at depth 2 (REQ-012, REQ-013, REQ-014). Orbit's Page tab is not
+    back (#645's D10, Out).
+  - `16-restored-settings`: `type:research` in yellow with 2, Arrows on, 1.00, 2.8, 2.1, 0.50,
+    20.0, 1.00, 500 (REQ-013).
+  - `17-settings-kept`: after Ctrl+W and the key, a Vault tab: the yellow pages, the heads, the
+    wide layout, an empty filter, `note` shown (REQ-015).
+  - `18-off-not-restored`: Rusty off by an outside edit, quit, relaunch: no Graph tab. Marley.log
+    has "Rusty is off; the Graph tab is not restored" from Zed's item loader, and no new stand-in
+    pid appeared (REQ-016).
+- **The setup's check:** the run's database copy holds no `marley-rusty-graph` row (REQ-021).
+- **Not driven, reviewed instead:** REQ-017 (a second workspace: the same observer the run
+  drives); REQ-018 (the scope, the table and the reads at `init`); REQ-019 (`from_stored`'s
+  fallbacks; the harness leaves every run on the defaults); REQ-020 (every multiplier 1 at the
+  defaults: `length(LINK)` is `LINK` at 250, `repel_scale` and `center_scale` are 1, and
+  `link` is 1, so `seeded` and `step` are #647's arithmetic).
+
+## Phase 4: Complete (2026-10-04)
+- **Docs:**
+  - `CHANGELOG.md` (Added).
+  - `docs/marley/guide.md`: the Graph tab gains Groups, Display, Forces, Sliders and Kept.
+  - `docs/marley/walkthrough.md` 2.15a.
+  - `docs/marley_architecture/marley_rusty.md`: the forces in `graph_layout`, and
+    `graph_settings`.
+  - `docs/marley_architecture/marley_workbench.md`: a section for the settings and the restore.
+  - `docs/marley/rusty-in-marley.md`: R5b shipped, and the slider's Ely row.
+  - `docs/marley/three-prong-plan.md`: the C2 row gains #657.
+  - `zed-touchpoints.md` is untouched: every path is Marley-owned.
+  - The in-app guide was changed in Code.
+- **Knowledge:**
+  - F-claude-657-a-press-on-the-graph-panel-also-reached-the-canvas-under-it-001.
+  - L-claude-657-the-palette-runs-the-command-used-last-for-a-shared-prefix-001.
+  - AD-claude-657-graph-settings-are-one-kept-record-and-each-tab-a-row-001.
+- **Brain:** consultation `2fd1f03c304641da84d20bc75a4ce61a` closed with `brain decide`
+  (`decisions/marleys-graph-tab-keeps-one-graph-settings-record-and-restores-each-tab-from-its-own-row`).
+- Ticket closed; pipeline archived.

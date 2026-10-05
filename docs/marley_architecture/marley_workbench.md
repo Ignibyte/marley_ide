@@ -2334,7 +2334,49 @@ alike.
   the `Query`, four `Checkbox`es (Tags, Unresolved links, Decision edges, Orphans), the legend (a
   dot, the type and its count, faint and toggled on a click; the edge kinds shown, a solid or dashed
   sample), and Restart layout, Fit and Hide panel. `Item`: "Graph" or "Local graph",
-  `IconName::GitGraph`, no toolbar, not kept across a restart (R5b).
+  `IconName::GitGraph`, no toolbar.
+
+## The Graph tab's settings and restore (`graph_tab.rs`, `graph_store.rs`, `slider.rs`, #657)
+
+- **The record.** `graph_store::GraphSettingsStore`, a global holding `marley_rusty`'s
+  `GraphSettings`: read from Zed's key-value store (scope `marley-rusty-graph`, key `settings`)
+  at `init`, before any window restores, each fallback logged; `update` applies a change, skips one
+  that changes nothing, replaces the global (`set_global` notifies its observers) and a pending
+  write that waits 300 ms; `on_app_quit` writes it once more. The four switches and the depth live
+  here, so every Graph tab shares them, as Rusty's two graph tabs share one record.
+- **The tab's row.** `marley_rusty_graph_tabs(workspace_id, item_id, state)`, keyed by the pair
+  with no `UNIQUE(item_id)` (#576), `state` a JSON `SavedGraphTab` (local, page, filter, hidden
+  types, panel open, `Sections`). The rows are read into the `SavedGraphTabs` global at `init`;
+  `save_tab` updates it and writes the row; `cleanup` drops the unloaded items from both.
+  `impl SerializableItem for GraphView` (`MarleyRustyGraph`): `deserialize` refuses while Rusty is
+  off ("Rusty is off; the Graph tab is not restored", logged by Zed's loader), reads the memory
+  copy and builds the tab with the same `GraphView::new` as `open`, a deferred `follow_project`
+  finding the project's page; `serialize` on each `GraphEvent::UpdateTab`, which every change of
+  the tab's own state emits. `added_to_workspace` re-points the workspace and its subscription.
+  A restored tab reads once #647's `Rusty` observer sees the connection up.
+- **The tab.** `GraphView` keeps a copy of the record; `settings_changed` (its observer) does only
+  what changed: the group fields and `coloring`, a rebuild for a switch, a read for the depth or
+  Unresolved links, `Change::Forces` through the run's `pending` for a force, a repaint for
+  Display. The panel's controls write the store from their listeners. `node_colour` takes a
+  group's terminal hue before the type's accent; radii and the hit test take Node size; every
+  stroke takes Link thickness; labels fade by `label_alpha`; `paint_heads` fills the heads per
+  line style, skipping an edge with a tag at either end and a head whose target is off the
+  canvas. The run line ends with the forces. The panel `occlude`s the canvas under it, so a press
+  in it never reaches the canvas, which would take the focus from a slider.
+- **The panel's sections.** Under the switches, Groups, Display and Forces, each a header row
+  with a `ui::Disclosure` (folded on a new tab), then the legend. Groups: a swatch (Next colour),
+  a single-line `Editor` per group (its edits write the query; another tab's change sets an
+  unfocused field's text when it differs), the count, Remove group, and New group (whose field
+  takes the focus). Display: the Arrows `Checkbox` and three slider rows; Forces: four. A row is
+  the name and the value over a `Slider`.
+- **The slider** (`slider.rs`, Ely GPUI Components' `Slider`, its MIT notice on the file): one
+  thumb, horizontal, `f32`. Keyed states hold the drag's owner, the thumb's focus handle
+  (`tab_stop`) and the track's measured bounds. The rail is in `border` and the fill in
+  `text_accent`; the thumb is `elevated_surface_background`, edged in `border` or
+  `border_focused`, with `Role::Slider` and its aria values. A press on the track jumps there and
+  takes the focus, a drag sets the value under the pointer (owner checked), and the keys step,
+  jump ten and go to the ends. A change under half a step is none, and a slider whose range or step
+  makes no sense does not move.
 
 ## The find tools (`src/find.rs`, #567)
 

@@ -13,6 +13,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Graph tab's groups, display and forces, kept across a restart** (#657, 2026-10-04). The
+  Graph tab's panel gains Rusty's Groups, Display and Forces. A group is a query in the filter's
+  words with a colour: the pages it matches take that colour, and its row counts them. The first
+  matching group wins, and a click on the dot gives the next colour. Display has Arrows (a head at
+  each link's and decision edge's target), Text fade threshold, Node size and Link thickness, and
+  Forces has Center, Repel and Link force and Link distance. Each is on a slider that takes a
+  drag, a click on its track, the arrow keys, Page Up and Page Down, and Home and End. The groups,
+  the switches, the depth and the sliders are one set for every Graph tab, kept across restarts,
+  and a Graph tab open at quit comes back in its place with its scope, page, filter, hidden types
+  and panel, unless Rusty is off at the start.
+
 - **A brain page's outline, and edits in place** (#656, 2026-10-04). In Read, a column beside a
   Page tab's body lists the page's headings, indented by level; a click brings one to the top of
   the page, and the Outline button beside Forward (`rusty: toggle page outline`) hides the column.

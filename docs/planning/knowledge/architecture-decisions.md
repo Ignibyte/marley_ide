@@ -4030,3 +4030,18 @@ signal held until the last answer. A rename moves every Page tab's history throu
 of tabs. Rejected: the title renaming the file, as Rusty's app does (a title is often not a file
 name); headings found by slug (a wikilink or punctuation in a heading changes its slug); a hidden
 editor in Read to feed Zed's panel; writes in parallel.
+
+## AD-claude-657-graph-settings-are-one-kept-record-and-each-tab-a-row-001
+*decided at: 2026-10-04 · status: shipped · builds on: AD-claude-647-the-graph-tab-lays-out-off-the-window-thread-and-caps-at-2000-001 · plan: docs/marley/rusty-in-marley.md R5b*
+
+The Graph tab's settings (the four switches, the depth, the colour groups, Display and the four
+forces) are one record for every window in Zed's key-value store. It is read before any window
+restores and written 300 ms after the last change and at quit, as Rusty keeps one graph record
+for its two graph tabs. Each tab's own state (scope, page, filter, hidden types, panel and
+sections) is its row in a table keyed by workspace and item, read into memory at start; the tab is
+a `SerializableItem` that comes back only while Rusty is on. A group colours the nodes its query
+matches, first match winning, else a node keeps its type's colour. The forces keep Rusty's names,
+ranges and defaults and act as multipliers on #647's layout, so the defaults draw #647's
+picture. Rejected: `settings.json` (a slider drag would rewrite the user's file); one store for
+both (tabs would share a centre, or closing a tab would lose the groups); a single colour for
+unmatched nodes (it would drop the type colours); Rusty's own simulation in place of #647's.

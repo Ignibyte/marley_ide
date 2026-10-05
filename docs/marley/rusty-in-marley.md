@@ -234,6 +234,7 @@ Linux. Every spec's Prior art names the Ely story it ports.
 | `markdowneditor`, `inlineedit-editabletext` | Inline title and property edits (R2b; `InlineEdit` ported as `rusty/inline_edit.rs`, #656) |
 | `backlinks-graphview`, `searchpanel-searchresultitem-searchfilters` | The Knowledge panel (R3, R6) |
 | `networkgraph-forcegraph-chorddiagram-parallelcoordinates` | The Graph tab (R5) |
+| `slider-rangeslider-verticalslider` | The Graph tab's Display and Forces (R5b; `Slider` ported as `rusty/slider.rs`, #657) |
 | `sortablelist-reorderablelist`, `kanbanboard-kanbancolumn-kanbancard-issuecard-sprint-board` | The Tasks tab (R7) |
 | `propertygrid`, `settingslayout-settingssection-settingsrow-settingssearch` | Memory, Secrets, Rusty's settings (R8) |
 | `searchpalette-spotlightsearch-quicklauncher` | `rusty: open page` (R3) |
@@ -273,7 +274,7 @@ possible: a wikilink switch in `markdown/src/parser.rs`, only if R2 chooses Zed'
 | R3a | #654, shipped 2026-10-04. `rusty: open page` (Ctrl+Alt+U): a picker over `brain_list_pages`, titles and slugs matched in Marley, the recently opened first, create on a miss through `brain_new_page { path }`; an unresolved link makes its page | S |
 | R6 | #655, shipped 2026-10-04. The project join (R-D5) and the panel's project view: the project's page by `path:` then by name, its follow-ups due, its task group's open tasks, Link a Page and Link a Task Group through `brain_set_property`; the Graph tab's project centre | M |
 | R2b | #656, shipped 2026-10-04. The Page tab's outline column in Read (Zed's outline panel in Edit), a heading brought to the top; the title (the `title` property), the name (`brain_rename`, every tab following) and each property edited in place by its kind, removed, or added | S |
-| R5b | The graph's colour groups, display and force sliders (Ely's slider), arrows, the tab restored after a restart | S |
+| R5b | #657, shipped 2026-10-04. The Graph tab's colour groups, Display (arrows, text fade, node size, link thickness) and Forces on Ely's slider, one record for every window in Zed's key-value store, and the tab restored after a restart while Rusty is on | M |
 | R4b | Favourites in the Brain view and as the page picker's first group; Rusty's TICKET-037 landed 2026-10-04 (`bookmark_list` and its three siblings) | S |
 | R7b | Recording a follow-up from the Decisions tab (`brain_follow_up`: status, outcome, successor) | S |
 | R7 | The Tasks tab and the Decisions tab | M |

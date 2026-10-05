@@ -37,6 +37,8 @@
 use std::collections::HashMap;
 use std::f32::consts::TAU;
 
+use crate::graph_settings::Forces;
+
 /// The length an edge settles towards, in world units: a node's spacing.
 pub const LINK: f32 = 80.0;
 
@@ -81,19 +83,25 @@ pub struct Layout {
     pinned: Vec<bool>,
     heat: f32,
     steps: usize,
+    /// The panel's forces (#657); every heat and length is in units of their edge length, which
+    /// is [`LINK`] at the defaults.
+    forces: Forces,
 }
 
 impl Layout {
-    /// A layout for `count` nodes joined by `edges`: a node in `kept` stays where it was, a new
-    /// one starts beside its first placed neighbour or on the golden-angle spiral, and `centre`
-    /// is pinned at the origin. A layout that keeps most of its places starts warm, not hot.
+    /// A layout for `count` nodes joined by `edges`, moved by `forces`: a node in `kept` stays
+    /// where it was, a new one starts beside its first placed neighbour or on the golden-angle
+    /// spiral, and `centre` is pinned at the origin. A layout that keeps most of its places starts
+    /// warm, not hot.
     #[must_use]
     pub fn seeded(
         count: usize,
         edges: Vec<(usize, usize)>,
         kept: &[Option<(f32, f32)>],
         centre: Option<usize>,
+        forces: Forces,
     ) -> Self {
+        let link = forces.length(LINK);
         let mut places: Vec<Option<(f32, f32)>> = (0..count)
             .map(|at| kept.get(at).copied().flatten())
             .collect();
@@ -105,7 +113,7 @@ impl Layout {
                 neighbours[*to].push(*from);
             }
         }
-        let spread = (float(count).sqrt() * LINK * 0.3).max(LINK);
+        let spread = (float(count).sqrt() * link * 0.3).max(link);
         for at in 0..count {
             if places[at].is_some() {
                 continue;
@@ -121,8 +129,8 @@ impl Layout {
                 },
                 |(x, y)| {
                     (
-                        angle.cos().mul_add(LINK * 0.5, x),
-                        angle.sin().mul_add(LINK * 0.5, y),
+                        angle.cos().mul_add(link * 0.5, x),
+                        angle.sin().mul_add(link * 0.5, y),
                     )
                 },
             ));
@@ -138,14 +146,34 @@ impl Layout {
             HEAT_WARM
         } else {
             HEAT_START
-        } * LINK;
+        } * link;
         Self {
             places: places.into_iter().map(Option::unwrap_or_default).collect(),
             edges,
             pinned,
             heat,
             steps: 0,
+            forces,
         }
+    }
+
+    /// The forces the layout moves by.
+    #[must_use]
+    pub const fn forces(&self) -> Forces {
+        self.forces
+    }
+
+    /// The edge length the forces give, in world units.
+    fn link(&self) -> f32 {
+        self.forces.length(LINK)
+    }
+
+    /// Moves the layout with new `forces` from the places it has, hot again, as Rusty's
+    /// `restart` does; pins are kept.
+    pub fn set_forces(&mut self, forces: Forces) {
+        self.forces = forces;
+        self.heat = self.heat.max(HEAT_START * self.link());
+        self.steps = 0;
     }
 
     /// The nodes' places, in world units.
@@ -163,12 +191,12 @@ impl Layout {
     /// Whether the run is over: cooled to rest, or out of steps.
     #[must_use]
     pub fn settled(&self) -> bool {
-        self.heat < HEAT_SETTLED * LINK || self.steps >= MAX_STEPS
+        self.heat < HEAT_SETTLED * self.link() || self.steps >= MAX_STEPS
     }
 
     /// Starts the run again from a little heat, as a change asks.
     pub fn warm(&mut self) {
-        self.heat = self.heat.max(HEAT_WARM * LINK);
+        self.heat = self.heat.max(HEAT_WARM * self.link());
         self.steps = 0;
     }
 
@@ -202,9 +230,14 @@ impl Layout {
     }
 
     /// One step (Ely's `Force::step`): every pair pushes apart, every edge pulls together, the
-    /// origin pulls everything, and each free node moves no farther than the heat.
+    /// origin pulls everything, and each free node moves no farther than the heat. The forces
+    /// scale each part; at their defaults every scale is 1.
     fn step(&mut self) {
         let count = self.places.len();
+        let link = self.link();
+        let push_scale = link * link * self.forces.repel_scale();
+        let pull_scale = self.forces.link / link;
+        let gravity = GRAVITY * self.forces.center_scale();
         let mut moves = vec![(0.0_f32, 0.0_f32); count];
         // The push k²/d along the unit vector is the offset times k²/d², so the pairs need no
         // square root. Plain products, not `mul_add` or `hypot`: without the FMA target feature,
@@ -220,10 +253,10 @@ impl Layout {
                 let squared = across + down;
                 let push = if squared < NEAR * NEAR {
                     let (x, y, distance) = apart((ax, ay), (bx, by), a, b);
-                    let scale = LINK * LINK / distance;
+                    let scale = push_scale / distance;
                     (x * scale, y * scale)
                 } else {
-                    let scale = LINK * LINK / squared;
+                    let scale = push_scale / squared;
                     (dx * scale, dy * scale)
                 };
                 moves[a].0 += push.0;
@@ -237,7 +270,7 @@ impl Layout {
                 continue;
             };
             let (x, y, distance) = apart(*from, *to, *a, *b);
-            let pull = distance * distance / LINK;
+            let pull = distance * distance * pull_scale;
             moves[*a] = (
                 (-x).mul_add(pull, moves[*a].0),
                 (-y).mul_add(pull, moves[*a].1),
@@ -249,8 +282,8 @@ impl Layout {
                 continue;
             }
             let (x, y) = (
-                (-place.0).mul_add(GRAVITY, moves[at].0),
-                (-place.1).mul_add(GRAVITY, moves[at].1),
+                (-place.0).mul_add(gravity, moves[at].0),
+                (-place.1).mul_add(gravity, moves[at].1),
             );
             let length = x.hypot(y).max(1e-6);
             let reach = length.min(self.heat) / length;
@@ -263,6 +296,42 @@ impl Layout {
 
 /// Two places nearer than this count as one spot.
 const NEAR: f32 = 0.01;
+
+/// An arrowhead's length and half its width, and its gap from the target's rim, in view pixels
+/// at any zoom (Rusty's, `GraphView.qml:314-326`).
+const HEAD_LENGTH: f32 = 10.0;
+const HEAD_HALF_WIDTH: f32 = 5.0;
+const HEAD_GAP: f32 = 2.0;
+
+/// The head of an edge drawn from `from` to `to` in view pixels: its tip on the target's rim of
+/// `target_radius` and a little off it, its base behind. `None` when the two are too near for a
+/// head to show.
+#[must_use]
+pub fn arrowhead(from: (f32, f32), to: (f32, f32), target_radius: f32) -> Option<[(f32, f32); 3]> {
+    let (dx, dy) = (to.0 - from.0, to.1 - from.1);
+    let distance = dx.hypot(dy);
+    let back = target_radius + HEAD_GAP;
+    if distance <= back + HEAD_LENGTH {
+        return None;
+    }
+    let (ux, uy) = (dx / distance, dy / distance);
+    let tip = ((-ux).mul_add(back, to.0), (-uy).mul_add(back, to.1));
+    let base = (
+        (-ux).mul_add(HEAD_LENGTH, tip.0),
+        (-uy).mul_add(HEAD_LENGTH, tip.1),
+    );
+    Some([
+        tip,
+        (
+            (-uy).mul_add(HEAD_HALF_WIDTH, base.0),
+            ux.mul_add(HEAD_HALF_WIDTH, base.1),
+        ),
+        (
+            uy.mul_add(HEAD_HALF_WIDTH, base.0),
+            (-ux).mul_add(HEAD_HALF_WIDTH, base.1),
+        ),
+    ])
+}
 
 /// The unit vector from `b` to `a` and their distance; two nodes on one spot part along an angle
 /// their indices give, where Rusty draws a random one, so every run is the same.
