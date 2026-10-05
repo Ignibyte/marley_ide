@@ -572,3 +572,7 @@ project entity, review; the Test phase adds a shot if a second project opens in 
 - **Open for Chad:** the by-hand check on a real Claude Code (REQ-020), which would give the three
   rows their first version.
 - **Closed:** TICKET-653 in `tickets/closed/`; the pair archived to `completed/`.
+
+## Chad's answer (2026-10-05)
+- Chad runs the by-hand check (REQ-020) himself, from the walkthrough's stop 5.12a; the version it
+  passes on becomes the three rows' `from`, with `before` 2.2.0, in a small follow-up change.

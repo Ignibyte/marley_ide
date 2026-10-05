@@ -511,3 +511,6 @@ waits for it to settle and the list's order is read from the rows above it.
 - **Brain:** consultation `2f146a3064c5457ca6f4b62a3657c30d` closed with `brain decide`.
 - **Open for Chad:** the key, `secondary-alt-u` (Ctrl+Alt+U), which the plan asked him to confirm.
 - **Closed:** TICKET-654 in `tickets/closed/`; the pair archived to `completed/`.
+
+## Chad's answer (2026-10-05)
+- the key, Ctrl+Alt+U: keep.

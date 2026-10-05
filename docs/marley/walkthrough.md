@@ -1140,6 +1140,27 @@ Open `site/app.js`, select the three lines of `greet`, and press Ctrl+> (Ctrl+Sh
   prompt footer, and Ctrl+> puts the mention into its prompt instead of typing `@site/app.js#L1-3`
   (#653).
 
+### 5.12a Claude Code's IDE link, checked by hand (#653)
+
+No Claude Code release has been checked on the IDE link yet, so it works only with its three
+Agent Versions items on. This stop is that check: the version it passes on becomes the first one
+Marley trusts, from that release up to 2.2.0.
+
+1. In any terminal run `claude --version`, and note the version.
+2. On the Marley page's Agents section turn on Claude Code IDE Link, and under Agent Versions turn
+   on IDE Link, IDE Selection and IDE Mentions on Untested Claude Code.
+3. Open a new terminal in the project and run `claude`. In it, type `/ide`.
+4. Open `site/app.js` and select the three lines of `greet`.
+5. Press Ctrl+> with the lines still selected.
+6. Ask Claude Code: "Add a comment above greet in site/app.js." Do not accept the edit.
+7. Turn the three Agent Versions items off again.
+
+- [ ] Step 3: `/ide` names Marley as connected.
+- [ ] Step 4: Claude Code's prompt footer reads `⧉ Selected 3 lines from site/app.js`.
+- [ ] Step 5: a mention of the lines lands in Claude Code's prompt, not `@site/app.js#L1-3` typed.
+- [ ] Step 6: the proposed edit shows in Claude Code's terminal, as without the link.
+- [ ] Tell the agent working on Marley the version from step 1 and which boxes you ticked.
+
 ### 5.13 Send a block to the agent (#555)
 
 1. In the other terminal, run `ls /nonexistent` again.

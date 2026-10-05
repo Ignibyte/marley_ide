@@ -532,3 +532,7 @@ click-count rule is reviewed in #644's view.
   the plan's recommendation.
 - **Closed:** the ticket moved to `tickets/closed/`, its link at `completed/`; no BACKLOG row was
   left (promotion removed it). The pair archived to `pipeline/completed/`.
+
+## Chad's answer (2026-10-05)
+- D1, Zed's `markdown` crate after Marley's wikilink pass: keep; callouts and embeds can come later
+  as additions.

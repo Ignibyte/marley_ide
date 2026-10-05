@@ -563,3 +563,7 @@ rename action, and the follow is still read off the tab.
 - **For Chad:** D5 (the title edits the property, the name renames) and the `markdown`
   touchpoint, both shipped as planned and both still his to confirm.
 - Ticket closed; pipeline archived.
+
+## Chad's answer (2026-10-05)
+- D5, the title edits the `title` property and the name field renames: keep them split. The
+  `markdown` touchpoint (`request_autoscroll_to_top`): keep.

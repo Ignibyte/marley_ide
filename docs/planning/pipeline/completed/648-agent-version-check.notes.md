@@ -436,3 +436,7 @@ stand-in prints the line Claude Code prints and runs the plugin's real hook); a 
   2.1 releases count as tested) and D10 (remote terminals keep the tags).
 - Ticket closed, pipeline archived, committed and pushed.
 
+
+## Chad's answer (2026-10-05)
+- D3, every 2.1 release from 2.1.283 counted as tested: keep. D1, only the prompt tags gated
+  (`terminalSequence` is documented): keep. D10, remote terminals read the tags with no chip: keep.

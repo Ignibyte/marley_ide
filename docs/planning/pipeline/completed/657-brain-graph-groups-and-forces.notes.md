@@ -592,3 +592,6 @@ returns, under a second, so the log's order carries REQ-014.
 - **Brain:** consultation `2fd1f03c304641da84d20bc75a4ce61a` closed with `brain decide`
   (`decisions/marleys-graph-tab-keeps-one-graph-settings-record-and-restores-each-tab-from-its-own-row`).
 - Ticket closed; pipeline archived.
+
+## Chad's answer (2026-10-05)
+- the Forces sliders as multipliers on Marley's own layout, Rusty's names and ranges: keep as built.

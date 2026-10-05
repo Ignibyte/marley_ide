@@ -590,3 +590,7 @@ shows); REQ-003, REQ-015, REQ-016 and REQ-018 are checked in the review and by t
   left (promotion removed it). The pair archived to `pipeline/completed/`.
 - **Still to confirm with Chad** when the queue is done: the `service_url` key, and `enabled`
   gating `agent_tools` with a carried `rusty_tools: true` turning Rusty on.
+
+## Chad's answer (2026-10-05)
+- the `service_url` key and `enabled` gating `agent_tools` (a carried `rusty_tools: true` turning
+  Rusty on): keep as built.

@@ -580,3 +580,6 @@ is checked by review); REQ-025 by review and the gate.
 - **Open for Chad:** the `task_group` key's name, and that a pick writes to the brain with no
   second confirmation (the plan asked him to confirm both).
 - **Closed:** TICKET-655 in `tickets/closed/`; the pair archived to `completed/`.
+
+## Chad's answer (2026-10-05)
+- the `task_group` key and a pick writing to the brain with no second confirmation: keep both.

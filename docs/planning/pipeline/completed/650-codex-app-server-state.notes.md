@@ -577,3 +577,8 @@ These replace the matching parts of the Design above; the rest stands.
   `decisions/marley-joins-a-codex-app-server-of-its-own-per-codex-terminal-behind-a-switch-650`
   (follow-up 2026-11-04).
 - **Closed:** TICKET-650 in `tickets/closed/`; the pair archived to `completed/`.
+
+## Chad's answer (2026-10-05)
+- the refresh-token race between two App Servers: fine as a written-down risk while
+  `codex_app_server` is off by default; revisit when Codex 0.158's shared server is the one
+  installed.

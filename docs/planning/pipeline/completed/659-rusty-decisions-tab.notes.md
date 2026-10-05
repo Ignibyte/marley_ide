@@ -575,3 +575,7 @@ and the review checks each edited line. The golden set's 565 and 568 run by hand
   pair in `completed/`.
 - **Gate:** run again after every edit, since the source changed after Phase 2's green (the
   `header()` fix).
+
+## Chad's answer (2026-10-05)
+- R7b, recording a follow-up from the Decisions tab: write the ticket and put it at the top of the
+  Queue (TICKET-660).
