@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-656](open/TICKET-656-brain-page-outline-and-property-edits.md) | feature | Rusty in Marley R2b · the Page tab's outline, and the title, name and properties edited in place |
 | [TICKET-657](open/TICKET-657-brain-graph-groups-and-forces.md) | feature | Rusty in Marley R5b · the Graph tab's colour groups, sliders and arrows, restored after a restart |
 | [TICKET-658](open/TICKET-658-rusty-tasks-tab.md) | feature | Rusty in Marley R7 · the Tasks tab over Rusty's task tools |
 | [TICKET-659](open/TICKET-659-rusty-decisions-tab.md) | feature | Rusty in Marley R7 · Rusty's Decisions tab; Marley's System One tab renamed "System One calls" |

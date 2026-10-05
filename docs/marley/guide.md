@@ -1125,7 +1125,7 @@ which a key of your own can bind with a slug (`["rusty::OpenPage", {"slug": "pro
 - **What it shows.** The page's title, its properties (each frontmatter key and its value, a list
   as chips) and its body, drawn by Zed's own Markdown renderer: headings, lists, task boxes as
   written, code highlighted for its language, tables. The header carries Back, Forward, the
-  page's folder and name, and Edit.
+  Outline button (#656), the page's folder and name, and Edit.
 - **Links.** A wikilink is a link. One to a page opens it in the same tab, at its heading when it
   names one (`[[page#Heading]]`); one to no page yet is drawn muted, and a click makes the page at
   that path, its folders too, and shows it (#654); Rusty's refusal, for a path under `archive/`
@@ -1143,7 +1143,33 @@ which a key of your own can bind with a slug (`["rusty::OpenPage", {"slug": "pro
 - **Live.** While a tab shows a page, a change Rusty announces (one Rusty makes, or one it sees in
   the vault's folder) shows with no click, on the embedded connection.
 - **Not connected.** With Rusty off or its connection lost, the tab keeps the page it shows and
-  says so above it.
+  says so above it; nothing on it opens an editor.
+- **The outline** (#656). In Read, a column beside the body lists the page's headings in order,
+  indented by level, each as drawn (`[[people/sam|Sam]]` reads Sam). A click brings that heading to
+  the top of the body, the second of two same-named headings included. The Outline button, or
+  `rusty: toggle page outline`, hides and shows the column; a page with no headings has no column
+  and the button is dimmed. In Edit the tab hands its editor to Zed, so Zed's outline panel lists
+  the file's headings (and its frontmatter keys) as for any Markdown file.
+- **Editing in place** (#656). In Read, with Rusty connected, a click on the title, the page's name
+  in the header or a property's value opens a one-line editor in its place, all of its text
+  selected. Enter keeps it, a click elsewhere keeps it too, and Escape drops it.
+  - The title sets the page's `title` property; the file keeps its name.
+  - The name renames the page in its folder (a `/` becomes `-`). Rusty rewrites the links to it and
+    a toast says in how many pages. A name that is taken shows Rusty's refusal and the old name
+    stays.
+  - A value edits by its kind. Text takes any text; a number only a number, which Rusty stores as a
+    number; a date only `YYYY-MM-DD`. A refused value keeps the editor open with the form it needs
+    under it. A checkbox changes with a click. A list adds an item with + (the field stays open for
+    the next) and drops one with its ×. A value that is an object, or a list holding anything but
+    text, shows with no editor.
+  - Each row's × removes the property. Add property, under the rows, asks for the kind (Text,
+    List, Number, Checkbox or Date), then the key; a key the page has is refused. The new property
+    starts empty: no text, an empty list, 0, unchecked, or today.
+  - Each change goes to Rusty in order, one at a time (`brain_set_property`,
+    `brain_remove_property`, `brain_rename`), and Rusty commits each. After the last, the tab reads
+    the page again and shows what Rusty holds, a refused change included.
+  - A rename or a move, from a tab or from the Brain view, moves every Page tab that shows the page,
+    or has it in its history, along with it.
 
 ### Open a page by name (#654)
 
@@ -2042,6 +2068,7 @@ Commands with no key of their own, from the command palette:
 | `marley: toggle dictation` | Starts or stops a Voxtype dictation, while Voice is on |
 | `rusty: toggle knowledge panel` | Shows or hides the Knowledge panel, while Rusty is on (#646) |
 | `rusty: open graph`, `rusty: open local graph` | The Graph tab, on the vault or on the page in front (#647) |
+| `rusty: toggle page outline` | Hides or shows the outline column of the brain page in front (#656) |
 | `marley: open browser` | Shows or opens a Browser tab |
 | `marley: new browser tab` | A new Browser tab (Ctrl+T inside one) |
 | `marley: pick element`, `marley: annotate`, `marley: record this` | The Browser tab's three buttons, while a Browser tab has the focus |

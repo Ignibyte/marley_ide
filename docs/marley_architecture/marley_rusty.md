@@ -24,7 +24,8 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
 - `vault` (#644): `VaultNode`, `brain_tree`'s nested answer (`name`, `path`, `kind`, `pages` at any
   depth, `children` folders first), with `holds` and `find`; `NodeKind { Folder, Page, File }`,
   any other kind read as `File`; `SearchHit` from `brain_search`; the slugs `brain_new_page` and
-  `brain_daily_note` answer; `RenameReport` from `brain_rename`. The rail's Brain view's model:
+  `brain_daily_note` answer; `RenameReport` from `brain_rename` (since #656 with `pages_rewritten`,
+  0 from a Rusty that does not send it). The rail's Brain view's model:
   `rows` (the visible rows through the open folders, each with its depth and parent; the root and
   files that are not pages left out), `step` over `Key { Next, Previous, First, Last, Child,
   Parent }` giving a `Move { To, Open, Close }`, `folder_of`, `name_of`, `folders_above`,
@@ -44,7 +45,13 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   front, the text's punctuation escaped and `%`, `<`, `>` and `\` percent-encoded in the address;
   `PageLink::parse` (`Page`, `Missing`, `Heading`, `Local`, `External`), which decodes them;
   `Visit` and `PageHistory` (a tab's Back and Forward, 100 behind); `page_file_in` (a slug's file
-  in a vault, `None` for one that would leave it); `BRAIN_RENDER`. Since #654 `NewPage { path }`:
+  in a vault, `None` for one that would leave it); `BRAIN_RENDER`. Since #656 `RenderedPage.outline`,
+  Rusty's headings as `Heading { level, text, line }` (`line` from 0 in `body_of`'s text, which
+  `page_markdown` keeps line for line), with `line_offset` and `outline_label` (a heading's text as
+  drawn, from pulldown-cmark's text and code events with wikilinks on); `PropertyKind` (`Text`,
+  `Number`, `Date`, `Checkbox`, `List`, `ReadOnly`) with `of`, `ADDABLE`, `name`, `empty_value`
+  and `parse` (the words for a refused number or date); `is_date`; `PageHistory::rename`, which
+  moves a renamed page or folder through the history; `BRAIN_REMOVE_PROPERTY`. Since #654 `NewPage { path }`:
   `from_target` (the heading cut, the target normalised, `None` for an empty part or a `..`) and
   `arguments()`, `brain_new_page`'s `path` with its `folder` and `name`, so a Rusty with its
   TICKET-041 and an older one both make the page at the path.
@@ -130,7 +137,11 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   `brain_graph` with Rusty's page types (the frontmatter's `type`, else the folder's, else `note`),
   a decision's `consulted`, `supersedes` and `follows_up` edges first, `tags`, `unresolved`, and the
   neighbourhood walk, and `brain_page_types`; it announces a change to any file in that vault too,
-  as Rusty's watcher does. It rewrites no links and matches search words, not embeddings. The e2e
+  as Rusty's watcher does. Since #656: `brain_render`'s `outline` by Rusty's rule (ATX headings
+  outside fences, `line` from 0 in the body), `brain_set_property` keeping a replaced key in its
+  place, `brain_remove_property`, and `brain_rename` rewriting `[[from]]`, `[[from|` and `[[from#`
+  in the other pages (a folder's pages by prefix), counting them, and moving a title equal to the
+  old name, as Rusty's TICKET-046 does. It matches search words, not embeddings. The e2e
   scenarios name it with `MARLEY_RUSTY_MCP` and never reach the user's own Rusty (R-D8).
 
 ## Later slices

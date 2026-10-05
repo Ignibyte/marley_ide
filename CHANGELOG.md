@@ -13,6 +13,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A brain page's outline, and edits in place** (#656, 2026-10-04). In Read, a column beside a
+  Page tab's body lists the page's headings, indented by level; a click brings one to the top of
+  the page, and the Outline button beside Forward (`rusty: toggle page outline`) hides the column.
+  In Edit, Zed's outline panel lists the file's headings. The title, the page's name in the tab's
+  header and each property are edited where they are drawn: the title sets the `title` property,
+  the name renames the page in its folder (Rusty rewrites the links to it, and a toast says in how
+  many pages), and a property edits by its kind: text, a number, a `YYYY-MM-DD` date, a checkbox,
+  or a list of chips with add and remove. Each property can be removed, and Add property asks for
+  the kind, then the key. The changes go to Rusty one at a time, in order, and every Page tab
+  follows a rename or a move, from the tab or from the Brain view.
+
 - **The Knowledge panel's project view** (#655, 2026-10-04). With no brain page in front, the
   Knowledge panel shows your project's brain page: the project page whose `path` lists the
   window's folder, else the one named like it. It shows the page's summary, the follow-ups due

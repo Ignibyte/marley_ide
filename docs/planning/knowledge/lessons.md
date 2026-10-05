@@ -4758,3 +4758,23 @@ toggling a dock), so a panel that reads its workspace entity there panics on the
 Defer the work with `cx.defer_in(window, ..)`. The same holds for a workspace action handler that
 toasts: call `show_toast` on the `&mut Workspace` it was given, not `WeakEntity::update` on the
 same workspace.
+
+## L-claude-656-an-inline-editor-takes-enter-and-escape-from-a-menu-context-001
+*category: gpui · topic: an editor in place of a value · from: pipeline 656*
+
+A one-line `Editor` put in place of a value needs no keymap of its own for Enter and Escape. Wrap
+it in a `div().key_context("menu")` with `on_action` handlers for `menu::Confirm` and
+`menu::Cancel`. The editor binds Escape to `editor::Cancel`, which propagates when there is
+nothing to dismiss, and binds no Enter in single-line mode. Both keys fall through to Zed's
+`menu` bindings, the way the project panel's rename gets them. Keep the cancel handler's
+`cx.propagate()` for when no editor is open, so Escape still reaches the tab's parents.
+
+## L-claude-656-a-scenario-drives-a-zed-menu-by-keys-and-restores-the-dock-001
+*category: e2e · topic: menus and dock widths in a scenario · from: pipeline 656*
+
+A `ContextMenu` opened by a click, from a right-click or a `PopoverMenu`, starts with its first
+entry selected, so a scenario picks the third entry with Down, Down and Return rather than with a
+measured click. Every panel in a dock keeps its own width: showing Zed's outline panel in the right
+dock moves the centre's header buttons, and "close all docks" moves them again. Put the dock's
+first panel back with its own `toggle focus` command twice (show, then focus back to the centre),
+and the measured positions hold.

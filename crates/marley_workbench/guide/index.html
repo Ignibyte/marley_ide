@@ -625,6 +625,15 @@ th { background: var(--panel); font-weight: 650; }
 <li>Edit shows the page's file in an editor in the same tab; typing keeps a preview tab, and the unsaved dot and <kbd>Ctrl+S</kbd> work as for any file. Read, Back and Forward save first, without formatting, and show the page as saved.</li>
 <li>A page that changes on disk, or that Rusty changes, shows its new text with no click.</li>
 </ol>
+<h4>A page's outline, and edits in place <span class="ticket">#656</span></h4>
+<ol class="steps">
+<li>In Read, a column beside the page lists its headings, indented by level. Click one to bring it to the top of the page. The Outline button, beside Forward, or <code>rusty: toggle page outline</code>, hides and shows the column. In Edit, Zed's outline panel lists the file's headings.</li>
+<li>Click the title to change it: Enter or a click elsewhere keeps it, Escape drops it. The title changes the page's <code>title</code> property; the file keeps its name.</li>
+<li>Click the page's name in the tab's header to rename the page in its folder. Rusty rewrites the links to it, and a toast says in how many pages. Every Page tab showing it follows, as they do after a rename or a move in the Brain view.</li>
+<li>Click a property's value to change it. A number takes only a number and a date only <code>YYYY-MM-DD</code>; the line under the field says what it needs. A checkbox changes with a click. A list adds an item with + and drops one with its &times;. Each row's &times; removes the property.</li>
+<li>Add property, under the properties, asks for the kind (text, list, number, checkbox or date) and then the key. A key the page already has is refused.</li>
+<li>Each change goes to Rusty, one at a time and in order. A change Rusty refuses shows Rusty's message, and the page shows what Rusty holds. While Rusty is not connected, or Edit shows, nothing opens an editor.</li>
+</ol>
 <h4>Open a page by name <span class="ticket">#654</span></h4>
 <ol class="steps">
 <li>Press <kbd>Ctrl+Alt+U</kbd> from anywhere in the window, or run <code>rusty: open page</code> from the command palette: a picker lists every page of the brain, its title and its slug, the pages you opened most recently first.</li>

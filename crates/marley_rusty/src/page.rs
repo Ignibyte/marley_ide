@@ -18,6 +18,9 @@ use serde_json::Value;
 /// The tool that renders a page.
 pub const BRAIN_RENDER: &str = "brain_render";
 
+/// Rusty's tool for one frontmatter property's removal (#656).
+pub const BRAIN_REMOVE_PROPERTY: &str = "brain_remove_property";
+
 /// How many pages Back keeps.
 const HISTORY_LIMIT: usize = 100;
 
@@ -41,6 +44,168 @@ pub struct RenderedPage {
     /// Every wikilink's target and the slug it resolved to.
     #[serde(default)]
     pub links: Vec<LinkOut>,
+    /// The body's headings, in order (#656).
+    #[serde(default)]
+    pub outline: Vec<Heading>,
+}
+
+/// One heading of a page as `brain_render`'s `outline` gives it (#656).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct Heading {
+    /// Its level, 1 to 6.
+    pub level: u8,
+    /// Its text as written, Markdown and all.
+    pub text: String,
+    /// Its line in the body, from 0.
+    pub line: usize,
+}
+
+/// Where line `line` starts in `text`: [`page_markdown`] keeps the body's lines, so a heading's
+/// line in the body is the same line of the text Zed's renderer parses (#656).
+#[must_use]
+pub fn line_offset(text: &str, line: usize) -> Option<usize> {
+    if line == 0 {
+        return Some(0);
+    }
+    text.match_indices('\n').nth(line - 1).map(|(at, _)| at + 1)
+}
+
+/// A heading's text for the outline: its Markdown taken out, a wikilink as its words or target,
+/// read with Rusty's parse options (#656).
+#[must_use]
+pub fn outline_label(text: &str) -> String {
+    let mut label = String::new();
+    for event in Parser::new_ext(text, rusty_options()) {
+        match event {
+            Event::Text(words) | Event::Code(words) => label.push_str(&words),
+            Event::SoftBreak | Event::HardBreak => label.push(' '),
+            _ => {}
+        }
+    }
+    let label = label.trim();
+    if label.is_empty() {
+        text.trim().to_string()
+    } else {
+        label.to_string()
+    }
+}
+
+/// How a property's value is edited, by its JSON value, as Rusty's app types it (#656).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PropertyKind {
+    /// Text, or an empty value.
+    Text,
+    /// A number.
+    Number,
+    /// A `YYYY-MM-DD` calendar date.
+    Date,
+    /// A boolean.
+    Checkbox,
+    /// A list of text.
+    List,
+    /// Anything else, which is shown and not edited.
+    ReadOnly,
+}
+
+impl PropertyKind {
+    /// The kind of `value`.
+    #[must_use]
+    pub fn of(value: &Value) -> Self {
+        match value {
+            Value::String(text) if is_date(text) => Self::Date,
+            Value::Null | Value::String(_) => Self::Text,
+            Value::Number(_) => Self::Number,
+            Value::Bool(_) => Self::Checkbox,
+            Value::Array(items) if items.iter().all(Value::is_string) => Self::List,
+            Value::Array(_) | Value::Object(_) => Self::ReadOnly,
+        }
+    }
+
+    /// The five kinds a new property can be, in Add property's order.
+    pub const ADDABLE: [Self; 5] = [
+        Self::Text,
+        Self::List,
+        Self::Number,
+        Self::Checkbox,
+        Self::Date,
+    ];
+
+    /// The kind's name.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Text => "Text",
+            Self::Number => "Number",
+            Self::Date => "Date",
+            Self::Checkbox => "Checkbox",
+            Self::List => "List",
+            Self::ReadOnly => "Other",
+        }
+    }
+
+    /// A new property's value of this kind: `today` for a date.
+    #[must_use]
+    pub fn empty_value(self, today: &str) -> Value {
+        match self {
+            Self::Text | Self::ReadOnly => Value::String(String::new()),
+            Self::Number => Value::from(0),
+            Self::Date => Value::String(today.to_string()),
+            Self::Checkbox => Value::Bool(false),
+            Self::List => Value::Array(Vec::new()),
+        }
+    }
+
+    /// The value `typed` makes for this kind.
+    ///
+    /// # Errors
+    ///
+    /// The words to show when `typed` is not of the kind's form.
+    pub fn parse(self, typed: &str) -> Result<Value, &'static str> {
+        let typed = typed.trim();
+        match self {
+            Self::Text | Self::ReadOnly | Self::List => Ok(Value::String(typed.to_string())),
+            Self::Number => typed.parse::<i64>().map(Value::from).or_else(|_| {
+                typed
+                    .parse::<f64>()
+                    .ok()
+                    .filter(|number| number.is_finite())
+                    .and_then(serde_json::Number::from_f64)
+                    .map(Value::Number)
+                    .ok_or("Enter a number")
+            }),
+            Self::Date if is_date(typed) => Ok(Value::String(typed.to_string())),
+            Self::Date => Err("Enter a date as YYYY-MM-DD"),
+            Self::Checkbox => Ok(Value::Bool(typed.eq_ignore_ascii_case("true"))),
+        }
+    }
+}
+
+/// Whether `text` is exactly a `YYYY-MM-DD` calendar date.
+#[must_use]
+pub fn is_date(text: &str) -> bool {
+    let parts: Vec<&str> = text.split('-').collect();
+    let [year, month, day] = parts.as_slice() else {
+        return false;
+    };
+    if year.len() != 4 || month.len() != 2 || day.len() != 2 {
+        return false;
+    }
+    let (Ok(year), Ok(month), Ok(day)) = (
+        year.parse::<u32>(),
+        month.parse::<u32>(),
+        day.parse::<u32>(),
+    ) else {
+        return false;
+    };
+    let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+    let days = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => return false,
+    };
+    (1..=days).contains(&day)
 }
 
 impl RenderedPage {
@@ -424,6 +589,21 @@ impl PageHistory {
     #[must_use]
     pub const fn can_forward(&self) -> bool {
         !self.ahead.is_empty()
+    }
+
+    /// Points every place at `from`, or under the folder `from`, at `to` instead: a page or a
+    /// folder Rusty renamed (#656).
+    pub fn rename(&mut self, from: &str, to: &str) {
+        let moved = |visit: &mut Visit| {
+            if visit.slug == from {
+                visit.slug = to.to_string();
+            } else if let Some(rest) = visit.slug.strip_prefix(&format!("{from}/")) {
+                visit.slug = format!("{to}/{rest}");
+            }
+        };
+        self.behind.iter_mut().for_each(&moved);
+        moved(&mut self.current);
+        self.ahead.iter_mut().for_each(&moved);
     }
 }
 

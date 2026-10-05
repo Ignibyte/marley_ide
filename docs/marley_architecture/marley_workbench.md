@@ -2155,6 +2155,46 @@ alike.
   editor's; `added_to_workspace` keeps the workspace (L-613). `Focusable` is the editor's handle in
   Edit. Marley's keymap binds Alt-Left and Alt-Right in `RustyPage`.
 
+## A page's outline and edits in place (`src/rusty/page.rs`, `src/rusty/inline_edit.rs`, #656)
+
+- **The outline.** In Read, `render_read` puts the scrolling body and, while `outline_shown` and
+  the page has headings, a column of `ListItem`s beside it: one per `RenderedPage.outline` entry,
+  indented by its level less the shallowest, labelled by `outline_label`. A click runs
+  `scroll_to_heading_line`: `line_offset` on the Markdown's source, past the heading's marks, then
+  Zed's `Markdown::request_autoscroll_to_top` (the `markdown.rs` touchpoint), which puts that line
+  three lines under the top of the tab's `ScrollHandle`. `rusty::TogglePageOutline` and the
+  header's `IconButton` (`ListTree`) flip `outline_shown`; the button is disabled with "No
+  headings" for a page with none, and in Edit. In Edit, `act_as_type` hands Zed the tab's
+  `Editor`, so Zed's outline panel lists the file's headings; the `UpdateTab` each Read and Edit
+  change emits is the `ActiveItemChanged` the panel looks again on.
+- **The in-place editor.** `inline_edit.rs` is Ely GPUI Components' `InlineEdit`, under Ely's MIT
+  notice, on Zed's single-line `Editor`: `shown` (the value with a hover background and a pencil
+  on hover), `editor_for` (the text, all selected) and `field` (the editor and a red line for
+  what the text needs). The tab holds one `InlineEditing` (its `EditTarget`: `Title`, `Name`,
+  `Value`, `ListItem` or `NewKey`, the editor, an error, and a blur subscription). The field sits in
+  a `key_context("menu")` div, so the editor's Enter and Escape, which the editor lets through,
+  reach the tab as `menu::Confirm` and `menu::Cancel`. A blur keeps the text while the window is
+  active. Nothing opens unless `can_edit`: connected, in Read, with a page shown.
+- **The commits.** `commit_title` writes `title`; `commit_name` sends `Rename` with
+  `vault::rename_target`; `commit_value` parses by `PropertyKind` and keeps the editor open with
+  the parse's words on a refusal; `commit_item` and `remove_item` write the whole list;
+  `toggle_checkbox` writes the other boolean; `remove_property` sends `Remove`; `commit_key`
+  refuses a key the page has and writes the kind's `empty_value` (a date takes today). Each
+  shows its value at once (`set_local`) and queues the write.
+- **Properties.** `properties.rs` keeps #645's layout as `row` (key, value, the row's end, the
+  hairline) and `value`; `render_properties` builds each row's value by kind (an editable text,
+  a `Checkbox`, chips with remove buttons and an add button, or `properties::value` for an object
+  or a mixed list), the row's remove button, and Add property's `PopoverMenu` over
+  `PropertyKind::ADDABLE`, whose entry defers to the window before opening the key's editor.
+- **The write queue.** `Writes` holds `(slug, Write)` pairs (`Set`, `Remove`, `Rename`) and sends
+  them one at a time through `rusty::call_tool` (`pump`). A failure shows Rusty's message in a
+  toast. With the queue empty, the tab reads the page again once. A change Rusty announces while
+  a write is out waits for the last answer (`read_after`).
+- **Renames.** The `PageViews` global lists every Page tab. A rename's answer (`RenameReport`)
+  moves the tab's own `PageHistory` and toasts `renamed_words`; `follow_rename` then defers to the
+  window and calls `renamed` on every Page tab, which moves its history and reads the page again
+  when the one it shows moved. The Brain view's rename and move call `follow_rename` too.
+
 ## Open a page by name (`src/rusty/page_picker.rs`, #654)
 
 - `OpenPage.slug` is an `Option` (its fields read through `OpenPageFields`, `slug` defaulted), so

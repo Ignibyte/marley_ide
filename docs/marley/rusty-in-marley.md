@@ -230,8 +230,8 @@ Linux. Every spec's Prior art names the Ely story it ports.
 | Ely story | For |
 |---|---|
 | `pagetree-favorites-pinned`, `filetree` | The rail's Brain view (R-D9) |
-| `markdownrenderer-tableofcontents-documentoutline-readingprogress`, `pagecover-pageicon-pageproperties` | The Page tab (R2) |
-| `markdowneditor`, `inlineedit-editabletext` | Inline title and property edits (R2) |
+| `markdownrenderer-tableofcontents-documentoutline-readingprogress`, `pagecover-pageicon-pageproperties` | The Page tab (R2); its outline read for R2b's column (#656) |
+| `markdowneditor`, `inlineedit-editabletext` | Inline title and property edits (R2b; `InlineEdit` ported as `rusty/inline_edit.rs`, #656) |
 | `backlinks-graphview`, `searchpanel-searchresultitem-searchfilters` | The Knowledge panel (R3, R6) |
 | `networkgraph-forcegraph-chorddiagram-parallelcoordinates` | The Graph tab (R5) |
 | `sortablelist-reorderablelist`, `kanbanboard-kanbancolumn-kanbancard-issuecard-sprint-board` | The Tasks tab (R7) |
@@ -272,7 +272,7 @@ possible: a wikilink switch in `markdown/src/parser.rs`, only if R2 chooses Zed'
 | R5 | #647, shipped 2026-10-04. The Graph tab: whole vault or local with depth, filters, page-type colours, decision edges dashed, Ely's force layout off the main thread, a 2,000-node cap | M |
 | R3a | #654, shipped 2026-10-04. `rusty: open page` (Ctrl+Alt+U): a picker over `brain_list_pages`, titles and slugs matched in Marley, the recently opened first, create on a miss through `brain_new_page { path }`; an unresolved link makes its page | S |
 | R6 | #655, shipped 2026-10-04. The project join (R-D5) and the panel's project view: the project's page by `path:` then by name, its follow-ups due, its task group's open tasks, Link a Page and Link a Task Group through `brain_set_property`; the Graph tab's project centre | M |
-| R2b | The Page tab's outline in Read mode and inline title and property edits | S |
+| R2b | #656, shipped 2026-10-04. The Page tab's outline column in Read (Zed's outline panel in Edit), a heading brought to the top; the title (the `title` property), the name (`brain_rename`, every tab following) and each property edited in place by its kind, removed, or added | S |
 | R5b | The graph's colour groups, display and force sliders (Ely's slider), arrows, the tab restored after a restart | S |
 | R4b | Favourites in the Brain view and as the page picker's first group; Rusty's TICKET-037 landed 2026-10-04 (`bookmark_list` and its three siblings) | S |
 | R7b | Recording a follow-up from the Decisions tab (`brain_follow_up`: status, outcome, successor) | S |

@@ -3,12 +3,12 @@
 - **Ticket:** LOCAL #656 (feature, Rusty in Marley R2b: the Page tab's outline and inline edits;
   decision R-D4)
 - **Owner:** claude-opus-5-5, 2026-10-03 (/spec)
-- **Pipeline doc:** ../../pipeline/queued/656-brain-page-outline-and-property-edits.spec.md
+- **Pipeline doc:** ../../pipeline/completed/656-brain-page-outline-and-property-edits.spec.md
 - **Source ticket:** `docs/marley/rusty-in-marley.md` (the slices table's R2b, R-D3's NoteTab row,
   R-D4, R-D10); #645's Out list and #646's D4, which hand this slice both halves; Chad, 2026-10-02
   and 2026-10-03: "Plan it now", "lets make a plan to begin the work and spec out the tickets",
   "lets make sure we use the gpui components we found here"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 #645's Page tab gains what Rusty's app has and #645 left out. In Read, a column beside the body

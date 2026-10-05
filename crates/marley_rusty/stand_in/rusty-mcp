@@ -41,6 +41,7 @@ TOOL_NAMES = [
     "brain_read_page",
     "brain_due",
     "brain_set_property",
+    "brain_remove_property",
     "list_task_groups",
     "list_tasks",
     "brain_search",
@@ -265,34 +266,58 @@ def yaml_value(value):
     return " " + json.dumps(value)
 
 
-def set_property(slug, key, value):
-    """Rusty's `brain_set_property`: the key's line, and a block list under it, replaced or added
-    at the frontmatter's end."""
+def frontmatter_lines(slug):
+    """The page's lines and where its frontmatter closes, a frontmatter added when it has none."""
     slug = clean(slug)
     path = in_vault(slug + ".md")
     if not os.path.isfile(path):
         raise Refused(f"Page not found: {slug}")
     with open(path, encoding="utf-8") as page:
         lines = page.read().split("\n")
-    line = f"{key}:{yaml_value(value)}"
     if not lines or lines[0].strip() != "---":
-        lines = ["---", line, "---"] + lines
+        lines = ["---", "---"] + lines
+    close = next((at for at in range(1, len(lines)) if lines[at].strip() == "---"), None)
+    if close is None:
+        raise Refused(f"The frontmatter of {slug} does not close")
+    return path, lines, close
+
+
+def key_span(lines, close, key):
+    """The lines a key holds, its block list included, or None."""
+    for at in range(1, close):
+        if lines[at].split(":", 1)[0].strip() == key and not lines[at].startswith(" "):
+            end = at + 1
+            while end < close and lines[end].startswith(("  - ", "- ")):
+                end += 1
+            return at, end
+    return None
+
+
+def set_property(slug, key, value):
+    """Rusty's `brain_set_property`: a key replaced where it is, a new one at the frontmatter's
+    end; the other keys in order and the body as it was."""
+    if not key.strip():
+        raise Refused("A property needs a key")
+    path, lines, close = frontmatter_lines(slug)
+    line = f"{key}:{yaml_value(value)}"
+    span = key_span(lines, close, key)
+    if span:
+        lines = lines[: span[0]] + [line] + lines[span[1] :]
     else:
-        close = next((at for at in range(1, len(lines)) if lines[at].strip() == "---"), None)
-        if close is None:
-            raise Refused(f"The frontmatter of {slug} does not close")
-        kept, at = [], 1
-        while at < close:
-            if lines[at].split(":", 1)[0].strip() == key and not lines[at].startswith(" "):
-                at += 1
-                while at < close and lines[at].startswith(("  - ", "- ")):
-                    at += 1
-                continue
-            kept.append(lines[at])
-            at += 1
-        lines = ["---"] + kept + [line] + lines[close:]
+        lines = lines[:close] + [line] + lines[close:]
     with open(path, "w", encoding="utf-8") as page:
         page.write("\n".join(lines))
+    return read_page(slug)
+
+
+def remove_property(slug, key):
+    """Rusty's `brain_remove_property`: the key and its block list gone, the rest as it was."""
+    path, lines, close = frontmatter_lines(slug)
+    span = key_span(lines, close, key)
+    if span:
+        lines = lines[: span[0]] + lines[span[1] :]
+        with open(path, "w", encoding="utf-8") as page:
+            page.write("\n".join(lines))
     return read_page(slug)
 
 
@@ -443,7 +468,47 @@ def rename(source, target):
         kind = "folder"
     else:
         raise Refused(f"Not found: {source}")
-    return {"from": source, "to": target, "kind": kind, "pages_rewritten": 0}
+    rewritten = rewrite_links(source, target, kind)
+    if kind == "page":
+        follow_title(target, source.rsplit("/", 1)[-1], target.rsplit("/", 1)[-1])
+    return {"from": source, "to": target, "kind": kind, "pages_rewritten": rewritten}
+
+
+def rewrite_links(source, target, kind):
+    """Rusty's link rewrite after a rename: `[[from]]`, `[[from|` and `[[from#` in every other
+    page, a folder's pages by their prefix; the count of pages changed."""
+    if kind == "page":
+        pattern = re.compile(r"\[\[" + re.escape(source) + r"(?=[\]|#])")
+        replace = lambda match: "[[" + target
+    else:
+        pattern = re.compile(r"\[\[" + re.escape(source) + "/")
+        replace = lambda match: "[[" + target + "/"
+    changed = 0
+    for slug, _, text in pages():
+        new = pattern.sub(replace, text)
+        if new != text:
+            with open(in_vault(slug + ".md"), "w", encoding="utf-8") as page:
+                page.write(new)
+            changed += 1
+    return changed
+
+
+def follow_title(slug, old_name, new_name):
+    """Rusty's TICKET-046: a title equal to the old file name moves along with the rename."""
+    path = in_vault(slug + ".md")
+    with open(path, encoding="utf-8") as page:
+        lines = page.read().split("\n")
+    if not lines or lines[0].strip() != "---":
+        return
+    for at in range(1, len(lines)):
+        if lines[at].strip() == "---":
+            return
+        key, _, value = lines[at].partition(":")
+        if key.strip() == "title" and str(scalar(value)).lower() == old_name.lower():
+            lines[at] = f"title: {new_name}"
+            with open(path, "w", encoding="utf-8") as page:
+                page.write("\n".join(lines))
+            return
 
 
 def archive(path):
@@ -770,6 +835,26 @@ def tag_counts():
     return [{"tag": tag, "count": counts[tag]} for tag in sorted(counts, key=str.lower)]
 
 
+def outline(body):
+    """Rusty's outline: each ATX heading outside a fence, its level, its text as written and its
+    line in the body from 0."""
+    headings, fence = [], False
+    for at, line in enumerate(body.split("\n")):
+        stripped = line.lstrip()
+        if stripped.startswith(("```", "~~~")):
+            fence = not fence
+            continue
+        if fence:
+            continue
+        hashes = len(stripped) - len(stripped.lstrip("#"))
+        rest = stripped[hashes:]
+        if 1 <= hashes <= 6 and rest[:1] in (" ", "\t"):
+            text = rest.strip().rstrip("#").strip()
+            if text:
+                headings.append({"level": hashes, "text": text, "line": at})
+    return headings
+
+
 def render(slug):
     slug = clean(slug)
     path = in_vault(slug + ".md")
@@ -799,7 +884,7 @@ def render(slug):
         "raw": raw,
         "file": os.path.abspath(path),
         "html": "",
-        "outline": [],
+        "outline": outline(body),
         "links": links,
         "unresolved": unresolved,
         "tasks": 0,
@@ -815,6 +900,9 @@ VAULT_TOOLS = {
     ),
     "brain_read_page": lambda arguments: read_page(str(arguments.get("slug") or "")),
     "brain_due": lambda arguments: due(arguments.get("days")),
+    "brain_remove_property": lambda arguments: remove_property(
+        str(arguments.get("slug") or ""), str(arguments.get("key") or "")
+    ),
     "brain_set_property": lambda arguments: set_property(
         str(arguments.get("slug") or ""), str(arguments.get("key") or ""), arguments.get("value")
     ),

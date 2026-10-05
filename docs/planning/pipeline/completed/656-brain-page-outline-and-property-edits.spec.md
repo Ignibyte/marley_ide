@@ -1,7 +1,7 @@
 ---
 pipeline_id: a1dc2d17-aaea-4fb8-a462-d777636e0a27
 ticket: docs/planning/tickets/open/TICKET-656-brain-page-outline-and-property-edits.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: "A brain page's outline, and its title, name and properties edited in place"
 type: feature
 slice: Rusty in Marley R2b (outline and inline edits), R-D4; prong 2 (D11 as amended)

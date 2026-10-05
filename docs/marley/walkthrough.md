@@ -581,6 +581,27 @@ Needs 2.13's pages, before step 6 deletes them.
   its tab forward.
 - [ ] Step 3: the last row reads Create page: marley-tour/later; Enter makes it and opens it.
 
+### 2.13b A page's outline and edits in place (#656), optional
+
+Needs 2.13's pages, before step 6 deletes them.
+
+1. Open `other`. Click Why in the column beside the body, then the Outline button beside Forward,
+   then the button again.
+2. Click the title, type `Other page`, press Enter. Click it again, type `x`, press Escape.
+3. Click Add property, choose Number, type `stars`, press Enter. Click its `0`, type `four`, press
+   Enter; type `4`, press Enter.
+4. Click Add property, choose List, type `tags`, press Enter. Click its +, type `tour`, press Enter,
+   then Escape. Click the × after `tour`, then the × at the end of the `stars` row.
+5. Click `other` in the header, type `other-renamed`, press Enter. Open `links`.
+
+- [ ] Step 1: the column lists Why; a click brings Why to the top of the body; the button hides the
+  column and shows it again.
+- [ ] Step 2: the title and the tab read Other page; Escape leaves it unchanged.
+- [ ] Step 3: `stars` appears with `0`; "four" shows "Enter a number" under the field; `4` is kept.
+- [ ] Step 4: the `tour` chip appears and goes; the `stars` row goes.
+- [ ] Step 5: the header reads `marley-tour / other-renamed` and a toast says links were updated in
+  1 page; `links`' first link still opens it.
+
 ### 2.14 The Knowledge panel (#646), optional
 
 Needs 2.12's setup: Rusty installed and on. This stop makes pages inside a folder it makes and

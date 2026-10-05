@@ -4017,3 +4017,16 @@ one `brain_set_property` each, keeping what `path:` held. All project pages are 
 from one `brain_list_pages` call that asks for the three properties, falling back to a read per
 page for an older Rusty. Rejected: a map kept by Marley (the brain is the store); a fuzzy name; a
 folder inside a listed path; overwriting `path:`; a second confirmation after the pick.
+
+## AD-claude-656-the-title-edits-its-property-and-the-name-renames-001
+*decided at: 2026-10-04 · status: shipped · builds on: AD-claude-655-a-project-finds-its-brain-page-by-path-then-by-name-001 · plan: docs/marley/rusty-in-marley.md R2b*
+
+On a brain page's tab, the title in the body edits the page's `title` property and the name in the
+header renames the file in its folder through `brain_rename`, where Rusty rewrites the links. The
+outline in Read is the tab's own column from `brain_render`'s `outline`, found by line, with one
+seam in Zed's `markdown` to bring a heading to the top. In Edit, the tab hands its editor to Zed's
+outline panel. Values edit by their JSON kind and write one at a time, in order, with Rusty's change
+signal held until the last answer. A rename moves every Page tab's history through an app-wide list
+of tabs. Rejected: the title renaming the file, as Rusty's app does (a title is often not a file
+name); headings found by slug (a wikilink or punctuation in a heading changes its slug); a hidden
+editor in Read to feed Zed's panel; writes in parallel.

@@ -721,7 +721,7 @@ impl BrainView {
                     BRAIN_RENAME,
                     json!({ "from": path, "to": to }),
                     format!("Could not rename {}", vault::name_of(&path)),
-                    |this, answer, _, cx| this.renamed(&answer, cx),
+                    |this, answer, window, cx| this.renamed(&answer, window, cx),
                     window,
                     cx,
                 );
@@ -730,11 +730,13 @@ impl BrainView {
     }
 
     /// After a rename or a move: the open folders follow a folder, and the row is selected.
-    fn renamed(&mut self, answer: &str, cx: &mut Context<Self>) {
+    fn renamed(&mut self, answer: &str, window: &Window, cx: &mut Context<Self>) {
         match RenameReport::from_answer(answer) {
             Ok(report) => {
                 self.open = vault::reopen(&self.open, &report.from, &report.to);
                 self.reveal(&report.to);
+                // Open Page tabs follow the page or folder (#656).
+                super::page::follow_rename(&report, window, cx);
                 cx.notify();
             }
             Err(error) => self.toast(
@@ -762,7 +764,7 @@ impl BrainView {
             BRAIN_RENAME,
             json!({ "from": dragged.path, "to": to }),
             format!("Could not move {}", dragged.name),
-            |this, answer, _, cx| this.renamed(&answer, cx),
+            |this, answer, window, cx| this.renamed(&answer, window, cx),
             window,
             cx,
         );

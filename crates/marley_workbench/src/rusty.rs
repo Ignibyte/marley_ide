@@ -24,6 +24,7 @@
 
 pub mod brain;
 pub mod graph_tab;
+mod inline_edit;
 pub mod knowledge_panel;
 pub mod page;
 pub mod page_picker;

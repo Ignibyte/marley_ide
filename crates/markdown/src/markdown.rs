@@ -483,6 +483,9 @@ pub struct Markdown {
     autoscroll_request: Option<usize>,
     pending_heading_scroll: Option<SharedString>,
     pending_autoscroll: Option<usize>,
+    // Marley: the source index a top-aligned request named, so only that request lands at the top
+    // (#656).
+    marley_top_index: Option<usize>,
     active_root_block: Option<usize>,
     parsed_markdown: ParsedMarkdown,
     images_by_source_offset: HashMap<usize, Arc<Image>>,
@@ -687,6 +690,7 @@ impl Markdown {
             autoscroll_request: None,
             pending_heading_scroll: None,
             pending_autoscroll: None,
+            marley_top_index: None,
             active_root_block: None,
             should_reparse: false,
             images_by_source_offset: Default::default(),
@@ -1005,6 +1009,13 @@ impl Markdown {
             self.autoscroll_request = Some(source_index);
         }
         cx.refresh_windows();
+    }
+
+    /// Marley: as `request_autoscroll_to_source_index`, but a controlled scroll puts the line at
+    /// the top of the view, three lines under its edge, wherever it is (#656).
+    pub fn request_autoscroll_to_top(&mut self, source_index: usize, cx: &mut Context<Self>) {
+        self.marley_top_index = Some(source_index);
+        self.request_autoscroll_to_source_index(source_index, cx);
     }
 
     fn footnote_definition_content_start(&self, label: &SharedString) -> Option<usize> {
@@ -2496,9 +2507,13 @@ impl MarkdownElement {
         window: &mut Window,
         cx: &mut App,
     ) -> Option<()> {
-        let autoscroll_index = self
-            .markdown
-            .update(cx, |markdown, _| markdown.autoscroll_request.take())?;
+        // Marley: whether the request taken is the top-aligned one (#656).
+        let (autoscroll_index, marley_to_top) = self.markdown.update(cx, |markdown, _| {
+            let index = markdown.autoscroll_request.take();
+            let to_top = index.is_some() && markdown.marley_top_index.take() == index;
+            (index, to_top)
+        });
+        let autoscroll_index = autoscroll_index?;
         let (position, line_height) = rendered_text.position_for_source_index(autoscroll_index)?;
 
         match &self.autoscroll {
@@ -2509,7 +2524,9 @@ impl MarkdownElement {
                 let bottom_goal = viewport.bottom() - margin;
                 let current_offset = scroll_handle.offset();
 
-                let new_offset_y = if position.y < top_goal {
+                let new_offset_y = if marley_to_top {
+                    current_offset.y + (top_goal - position.y)
+                } else if position.y < top_goal {
                     current_offset.y + (top_goal - position.y)
                 } else if position.y + line_height > bottom_goal {
                     current_offset.y + (bottom_goal - (position.y + line_height))

@@ -174,6 +174,9 @@ pub struct RenameReport {
     pub from: String,
     /// The path now.
     pub to: String,
+    /// How many other pages Rusty rewrote links in (#656).
+    #[serde(default)]
+    pub pages_rewritten: usize,
 }
 
 impl RenameReport {

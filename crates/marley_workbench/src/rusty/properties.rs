@@ -1,5 +1,6 @@
 //! A page's properties on its Page tab (#645): each frontmatter key in a quiet column and its value
-//! beside it, a value short of room dropping under its key, a hairline between rows. The layout is
+//! beside it, a value short of room dropping under its key, a hairline between rows. The Page tab
+//! puts its in-place editors and remove buttons into these rows (#656). The layout is
 //! Ely GPUI Components' `DescriptionList` (`src/data_display/records.rs` at `2f8b2f6`), ported
 //! onto Zed's theme and `ui` crate; its notice is below.
 
@@ -27,44 +28,42 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use gpui::{AnyElement, App, rems};
-use marley_rusty::page::Property;
+use gpui::{AnyElement, App, SharedString, rems};
 use serde_json::Value;
 use ui::{Chip, prelude::*};
 
-/// The properties, in file order; nothing for a page with none.
-pub(super) fn render(properties: &[Property], cx: &App) -> Option<AnyElement> {
-    if properties.is_empty() {
-        return None;
-    }
-    let border = cx.theme().colors().border_variant;
-    let last = properties.len().saturating_sub(1);
-    Some(
-        v_flex()
-            .w_full()
-            .children(properties.iter().enumerate().map(|(at, property)| {
-                h_flex()
-                    .flex_wrap()
-                    .items_start()
-                    .gap_x_4()
-                    .gap_y_0p5()
-                    .py_1p5()
-                    .when(at < last, |row| row.border_b_1().border_color(border))
-                    .child(
-                        div().flex_none().w(rems(10.)).child(
-                            Label::new(property.key.clone())
-                                .size(LabelSize::Small)
-                                .color(Color::Muted),
-                        ),
-                    )
-                    .child(div().flex_1().min_w(rems(5.)).child(value(&property.value)))
-            }))
-            .into_any_element(),
-    )
+/// One property's row: its key in a quiet column, its value beside it (dropping under the key
+/// when short of room), what ends the row, and a hairline under it unless it is the last.
+pub(super) fn row(
+    key: SharedString,
+    value: AnyElement,
+    end: Option<AnyElement>,
+    hairline: bool,
+    cx: &App,
+) -> AnyElement {
+    h_flex()
+        .flex_wrap()
+        .items_start()
+        .gap_x_4()
+        .gap_y_0p5()
+        .py_1p5()
+        .when(hairline, |row| {
+            row.border_b_1()
+                .border_color(cx.theme().colors().border_variant)
+        })
+        .child(
+            div()
+                .flex_none()
+                .w(rems(10.))
+                .child(Label::new(key).size(LabelSize::Small).color(Color::Muted)),
+        )
+        .child(div().flex_1().min_w(rems(5.)).child(value))
+        .children(end)
+        .into_any_element()
 }
 
 /// A value as the page shows it: a list as chips, a scalar as its text, an object as compact JSON.
-fn value(value: &Value) -> AnyElement {
+pub(super) fn value(value: &Value) -> AnyElement {
     match value {
         Value::Array(items) => h_flex()
             .flex_wrap()

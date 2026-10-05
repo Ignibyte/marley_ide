@@ -409,3 +409,157 @@ rename action, and the follow is still read off the tab.
   `brain_remove_property` edit the text in place and are safe today. The property editors use
   only those two; the name field's rename reorders the page's properties until 046 lands, named
   in Risks.
+
+### Promotion (2026-10-04)
+- Promoted into `active/`; the BACKLOG row removed; the ticket in-progress. Pre-flight green, no
+  other active pipeline; #643 to #655 landed (the last 7d37ac3e1b).
+- **Brain:** `brain ask` (consultation `043bef00dcd7418bbd8b80542aa1f26b`) returned due follow-ups on
+  other work only.
+- **#645 and #644 as shipped** (an Explore pass, read only):
+  - `PageView` (`rusty/page.rs`): `render_header` (Back, Forward, the folder and name, Edit),
+    `render_read` (one scroll handle over `Headline` title, `properties::render`, and the
+    `MarkdownElement` with `scroll_handle`), `Mode::Edit { editor }` from `Editor::for_buffer`
+    (full mode); `impl Item` has no `act_as_type`; entering and leaving Edit emit `UpdateTab`,
+    which Zed turns into `ActiveItemChanged`, the event the outline panel re-reads on, so no
+    breadcrumbs event is needed.
+  - `marley_rusty::page`: `RenderedPage` has no `outline` (serde takes an added field);
+    `page_markdown` keeps every line of the body (a wikilink's replacement stays on its line), so a
+    body line is the same line of the text Zed parses; `PageHistory` has no rename.
+  - `rusty/properties.rs` (`render(&[Property], cx)`) draws read-only rows.
+  - `rusty/brain.rs`: the tree's rename (`commit_edit`) and move (`dropped`) write `brain_rename`
+    and parse `RenameReport { from, to }` in `renamed`.
+  - Zed's `markdown`: `request_autoscroll_to_source_index`; the controlled autoscroll reveals with
+    a three-line margin, never to the top; heading-slug scrolling is upstream Zed's.
+  - The stand-in: `brain_render`'s `outline` is `[]`; `scalar()` types numbers and booleans;
+    `brain_rename` rewrites no link (`pages_rewritten: 0`); no `brain_remove_property`; #655's
+    `brain_set_property` moves a replaced key to the end, unlike Rusty.
+- **Rusty at `13249a8`:** `outline` entries are `{ level, text, line }`, `line` 0-based in
+  `body_of(raw)`, ATX headings outside fences; `brain_rename` answers `{ from, to, kind,
+  pages_rewritten }` and, since its TICKET-046, moves a title equal to the old file name along;
+  `brain_set_property` keeps a replaced key in its place; `brain_remove_property { slug, key }`;
+  both answer the page (not its render), so the tab reads again after them.
+- **Amended at promotion:**
+  - `RenderedPage` gains `outline`; a heading's line becomes the byte offset of that line's start
+    in `page_markdown`'s output (D2 holds: lines are kept).
+  - D1: the Edit half needs only `act_as_type`; `UpdateTab` already announces each change.
+  - The `markdown` hunk (D3) is a request that names its source index, compared when the element
+    takes it, so a later request of Zed's scrolls as Zed does.
+  - `PageHistory::rename(from, to)` and `RenameReport.pages_rewritten` are added.
+  - The stand-in: `outline` by Rusty's rule, `brain_set_property` in place, `brain_remove_property`,
+    and `brain_rename` rewriting `[[from]]`, `[[from|` and `[[from#` in other pages with their count
+    and moving a title equal to the old name, as Rusty does.
+
+## Phase 2: Code (2026-10-04)
+- **Built:**
+  - `markdown.rs`: `marley_top_index` and `request_autoscroll_to_top`. The element takes the index
+    with Zed's request; only a request whose index matches lands at the top. The row was widened
+    before the hunk.
+  - `marley_rusty::page`: `Heading` and `RenderedPage.outline`, `line_offset`, `outline_label`,
+    `PropertyKind` (`of`, `ADDABLE`, `name`, `empty_value`, `parse`), `is_date`,
+    `PageHistory::rename` and `BRAIN_REMOVE_PROPERTY`. `vault::RenameReport.pages_rewritten`.
+  - The stand-in: `outline` and `rewrite_links` (page and folder) with `follow_title` in
+    `brain_rename`. `brain_set_property` keeps a key in place; `brain_remove_property` is new.
+  - `rusty/inline_edit.rs`: the port, under Ely's notice (`editor_for`, `shown`, `field`).
+  - `rusty/page.rs`:
+    - The outline column, the Outline button and `rusty::TogglePageOutline`.
+    - `act_as_type` (Self, and the editor in Edit).
+    - The title, name and value editors, the list chips with add and remove, the checkbox, remove
+      property, and Add property's menu of five kinds.
+    - The write queue (`Writes`): one call at a time, Rusty's change signal held until the last.
+    - `follow_rename` over the `PageViews` global, and the rename toast's words.
+  - `rusty/properties.rs`: `row` and `value` for the tab's editors (#645's `render` is gone).
+  - `rusty/brain.rs`: its rename and move call `follow_rename`.
+  - The guide's article gains "A page's outline, and edits in place".
+- **Deviations:**
+  - `follow_rename` walks a `PageViews` global of weak handles, not `workspace.items_of_type`. The
+    Brain view's caller holds no workspace; a page tab in any workspace follows.
+  - `today` comes from `chrono` in `marley_workbench`, which already depends on it, so
+    `marley_rusty` takes no `chrono`: `empty_value` takes the date as text.
+  - No breadcrumbs event: `UpdateTab` already re-runs the outline panel (amended at promotion).
+- **Review:**
+  - `Context::entity()` in `new` changed to `weak_entity()`.
+  - The title edit now updates the `title` row with the headline, so the two agree before the
+    read.
+  - Blur keeps the text only while the window is active (REQ-011). Escape propagates when no
+    editor is open. A refused number or date keeps the editor open with its line. Every write is
+    queued with the slug it was made on.
+  - Re-entrancy: the Add property entry defers to the window before it opens the key's editor.
+    `follow_rename` defers. The pump's answer runs in `update_in` from a spawned task.
+- **Gate:** clippy rounds fixed identical match arms, a redundant closure, an unused `self` and
+  two `&mut` not needed. `just gate-diff` GREEN, 17 of 17.
+
+## Phase 3: Test (2026-10-04)
+- **Scenario:** `script/e2e/656-brain-page-outline-and-property-edits.sh`, `compositor sway`. The
+  stand-in runs over a scratch vault of three pages. The run's keymap binds Ctrl+Alt+Shift+Y to
+  Draft idea (Zed binds O). Zed's outline panel is reached from the command palette, since the
+  editor binds Ctrl+Alt+Shift+B. A measuring run read the positions first. Each write's check
+  compares the call's arguments as JSON, types included. The third run was green, every check
+  passing; the focus report showed no Marley window before or after and no rule added.
+- **Fixes to the scenario, none to the source:**
+  - "Close all docks" after shot 05 moved the Read button, so the title clicks typed into the
+    editor. The scenario puts the project panel back in the right dock instead.
+  - A miscounted write total at shot 18 was corrected to 8 (the remove is its own tool).
+- **The shots, read one by one:**
+  - `01-outline`: nine entries, Background and Steps indented, "Links to Sam" with no brackets,
+    and Why below the fold (REQ-001, 002).
+  - `02-outline-scroll`: Why near the top of the body, "The reason is here." under it (REQ-003).
+  - `03-same-name`: the second Notes at the top over "Second notes." (REQ-004).
+  - `04-outline-hidden`: no column, the body's hairlines running to the tab's edge (REQ-005).
+  - `05-edit-outline-panel`: the source in the editor, Zed's outline panel listing the frontmatter
+    keys and the headings, no column in the tab (REQ-007).
+  - `06-title-open`: an editor holding "Draft idea", all of it selected; the column back (REQ-008,
+    005).
+  - `07-title-set`: the headline, the `title` row and the tab read Draft plan (REQ-009; the log
+    holds `"Draft plan"`).
+  - `08-title-escape`: Draft plan unchanged; still one write (REQ-010).
+  - `09-text`: status `doing` (REQ-012).
+  - `10-number`: stars `4`; the log holds the number 4 (REQ-013).
+  - `11-number-refused`: "four" in the open editor, "Enter a number" in red under it; no write
+    (REQ-014).
+  - `12-date-on-blur`: due `2026-11-01` after a click on the body (REQ-015, 011).
+  - `13-checkbox`: reviewed checked; the log holds `true` (REQ-016).
+  - `14-list-add`: chips idea, marley and rusty, and the add field open again (REQ-017).
+  - `15-list-remove`: marley and rusty (REQ-018).
+  - `16-property-removed`: no status row; `brain_remove_property` with `status` (REQ-020).
+  - `17-property-added`: priority `0` last; the log holds the number 0 (REQ-021).
+  - `18-key-taken`: Text, "stars", "A property named stars exists"; no write (REQ-022).
+  - `19-no-headings`: Sam's page with no column and the Outline button dimmed (REQ-006).
+  - `20-renamed`: the header reads `notes / first-idea`, the title still Draft plan, and the toast
+    "Renamed to notes/first-idea; links updated in 1 page." (REQ-023).
+  - `21-history-follows`: after Alt-Right and Alt-Left, first-idea's page, not a missing page
+    (REQ-025).
+  - `22-rename-refused`: the toast "Already exists: notes/linker"; the header still `first-idea`
+    (REQ-026).
+  - `23-tree-rename-follows`: after the Brain view's rename, Alt-Right shows `people / samuel`.
+    Its title became samuel by Rusty's TICKET-046 rule, which the stand-in follows: a title
+    equal to the old name, compared without case (`eq_ignore_ascii_case` in Rusty's
+    `brain/mod.rs`), moves with it (REQ-025).
+  - `24-not-connected`: the "Rusty is off" line; the title click opened nothing; no remove
+    buttons, no Add property, the checkbox disabled (REQ-028).
+- **Not driven, reviewed instead:** REQ-011 for an inactive window (`is_window_active` in the
+  blur handler), REQ-014 for a date (the same `parse` path), REQ-019 (`PropertyKind::ReadOnly` for
+  an object or a mixed list draws `properties::value` with no editor), REQ-024 (`rename_target`
+  from #644), REQ-027 (`Writes`), REQ-029 (`commit_name` and `can_edit` check Read), REQ-030
+  (the hunk's flag), REQ-031 (the notice; gate:2 and cargo-deny green).
+
+## Phase 4: Complete (2026-10-04)
+- **Docs:**
+  - `CHANGELOG.md` (Added).
+  - `docs/marley/guide.md`: the Page tab's header, the outline and editing in place, and the
+    command table's `rusty: toggle page outline`.
+  - `docs/marley/walkthrough.md` 2.13b.
+  - `docs/marley_architecture/marley_rusty.md`: `page`, `vault` and the stand-in.
+  - `docs/marley_architecture/marley_workbench.md`: a section for #656.
+  - `docs/marley/rusty-in-marley.md`: R2b shipped, and the two Ely rows as ported and read.
+  - `docs/marley/three-prong-plan.md`: the C2 row gains #654, #655 and #656, which it lacked.
+  - The `markdown.rs` row checked against the hunk; a missing full stop added in its merge column.
+  - The in-app guide was changed in Code.
+- **Knowledge:** L-claude-656-an-inline-editor-takes-enter-and-escape-from-a-menu-context-001,
+  L-claude-656-a-scenario-drives-a-zed-menu-by-keys-and-restores-the-dock-001,
+  AD-claude-656-the-title-edits-its-property-and-the-name-renames-001. No `F-` block: Code's review
+  and Test found no product bug; the two Test fixes were to the scenario.
+- **Brain:** consultation `043bef00dcd7418bbd8b80542aa1f26b` closed with `brain decide`
+  (`decisions/marleys-brain-page-the-title-edits-its-property-the-name-renames`).
+- **For Chad:** D5 (the title edits the property, the name renames) and the `markdown`
+  touchpoint, both shipped as planned and both still his to confirm.
+- Ticket closed; pipeline archived.
