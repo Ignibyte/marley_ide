@@ -13,7 +13,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
 
-use gpui::{AnyElement, App, Global};
+use gpui::{AnyElement, App, Global, Subscription};
 use marley_agent::AgentKind;
 use marley_agent::claude_events::PromptReading;
 use marley_agent::versions::{
@@ -320,18 +320,38 @@ pub(crate) fn is_on(integration: &Integration, cx: &App) -> bool {
     verdict(integration, cx).is_on()
 }
 
+/// What the last check found for `kind`, if one has ended (#653).
+pub(crate) fn found(kind: AgentKind, cx: &App) -> Option<Found> {
+    cx.try_global::<AgentVersions>()?.check(kind)?.found.clone()
+}
+
 /// The program the last check found for `kind`: `MARLEY_CLAUDE` or `MARLEY_CODEX`, else the
 /// search path's, as found (#650).
 pub(crate) fn program(kind: AgentKind, cx: &App) -> Option<PathBuf> {
     cx.try_global::<AgentVersions>()?.check(kind)?.path.clone()
 }
 
+/// Calls `changed` after each check and each change of the allowed rows, so a feature that
+/// follows a verdict sees it move (#653).
+pub(crate) fn observe(cx: &mut App, changed: impl FnMut(&mut App) + 'static) -> Subscription {
+    cx.observe_global::<AgentVersions>(changed)
+}
+
 /// Whether the user asked for `integration`, so its being off is worth a chip: Codex's App Server
-/// only while `marley.codex_app_server` is on.
+/// only while `marley.codex_app_server` is on, Claude Code's IDE link only while
+/// `marley.claude_code_ide` is (#653).
 fn wanted(integration: &Integration, cx: &App) -> bool {
-    integration.id != CODEX_APP_SERVER.id
-        || MarleySettings::get_global(cx).codex_app_server
-            == crate::codex_server::CodexAppServer::On
+    let settings = MarleySettings::get_global(cx);
+    if integration.id == CODEX_APP_SERVER.id {
+        settings.codex_app_server == crate::codex_server::CodexAppServer::On
+    } else if crate::claude_ide::ROWS
+        .iter()
+        .any(|row| row.id == integration.id)
+    {
+        settings.claude_code_ide == crate::claude_ide::ClaudeCodeIde::On
+    } else {
+        true
+    }
 }
 
 /// How a terminal's Claude Code prompts are read: with the tags while they are on, or allowed,

@@ -198,11 +198,16 @@ pub fn prompt_origin(prompt: &str) -> PromptOrigin;                 // #509
   `marley.allow_untested_versions`. `CLAUDE_PROMPT_TAGS` (`claude_prompt_tags`): the tags and
   openings `claude_events` reads, tested from Claude Code 2.1.283 before 2.2.0. Since #650
   `CODEX_APP_SERVER` (`codex_app_server`): the App Server's messages, from Codex 0.155.1 before
-  0.158.1, closed at the two ends checked.
+  0.158.1, closed at the two ends checked. Since #653 `CLAUDE_IDE_CONNECTION`,
+  `CLAUDE_IDE_SELECTION` and `CLAUDE_IDE_MENTION` (`claude_ide_connection`,
+  `claude_ide_selection`, `claude_ide_mention`): Claude Code's IDE link, its selection and
+  send selection's mention, each with `NOT_YET_CHECKED`, a range that holds no version, until a
+  release is checked by hand.
   `terminalSequence`, which the hook channel rides on, is documented in Claude Code's hooks
   reference and gets no row.
 - `Range { from, before }`: `contains` judges a prerelease by its release numbers; `words` gives
-  "2.1.283 and later 2.1 releases", "X and later" or "X up to Y".
+  "2.1.283 and later 2.1 releases", "X and later" or "X up to Y", and "no version yet" for a
+  `before` at or below `from` (#653).
 - `parse_version` takes the first word of the first line that reads as `N.N.N` (a leading `v`
   dropped), or says what the program printed. `Found { Version, Unreadable, Missing }`;
   `verdict(integration, found, allowed)` is `On`, `Allowed` (out of range or unread, and the

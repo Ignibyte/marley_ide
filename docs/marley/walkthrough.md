@@ -1029,6 +1029,10 @@ Open `site/app.js`, select the three lines of `greet`, and press Ctrl+> (Ctrl+Sh
   focus.
 - [ ] With several agents running, a picker asks which; with none, the key adds the selection to
   Zed's Agent Panel as in Zed.
+- [ ] With Claude Code IDE Link on (and its three items under Agent Versions while no release is
+  checked), a `claude` started in a new terminal of the project shows the selection in its
+  prompt footer, and Ctrl+> puts the mention into its prompt instead of typing `@site/app.js#L1-3`
+  (#653).
 
 ### 5.13 Send a block to the agent (#555)
 

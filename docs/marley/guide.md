@@ -915,6 +915,38 @@ The plugin, `marley` 1.4.0, brings three things:
   carries its options, which the inbox's question route reads (#570). The agent bar offers the
   update to a plugin that is older than Marley's.
 
+### Claude Code's IDE link (#653)
+
+Claude Code links to an IDE through a small server the IDE runs and a lock file in Claude Code's
+`ide` folder. With **Claude Code IDE Link** on (the Marley page's Agents section, off by default),
+Marley is that IDE for each local project:
+
+- It writes `<port>.lock` into `~/.claude/ide/`, or `$CLAUDE_CONFIG_DIR/ide/` when Marley was
+  started with that variable, naming Marley and the project's folders, and removes it when the
+  project closes, the switch turns off or Marley quits. It also removes a lock file an earlier
+  Marley left behind, and touches no other IDE's.
+- Each new terminal of the project gets `CLAUDE_CODE_SSE_PORT` and
+  `CLAUDE_CODE_AUTO_CONNECT_IDE=true`, so a `claude` started there links to this project's Marley
+  at its start. Terminals opened before the switch turned on, tasks and remote terminals get
+  neither. From any other terminal, `/ide` lists the Marley projects whose folders hold the
+  current folder, and `claude --ide` links when there is one.
+- Claude Code then gets, with each prompt, the selection and the file of the last file editor you
+  used (a terminal taking the focus leaves it as it was), the language servers' diagnostics
+  through its `getDiagnostics` tool, and send selection (Ctrl+>) mentions the lines in its prompt
+  instead of typing `@path#La-b`. Edits still show in Claude Code's terminal; diffs in Marley come
+  later.
+
+Claude Code's docs name the lock file, the token and `getDiagnostics`, but not the rest of the
+link, so the connection, the selection and the mention are three rows of Marley's version table
+(#648). No Claude Code release has been checked on them yet, so the agent bar shows Untested
+Claude Code while the switch is on, and **IDE Link**, **IDE Selection** and **IDE Mentions on
+Untested Claude Code** under Agent Versions turn each on anyway.
+
+Any program of yours that can read the lock file can connect and read the selection, as with
+Claude Code's own editor extensions. If Claude Code does not link: a `CLAUDE_CONFIG_DIR` your
+shell profile sets for terminals but not for Marley sends it to another folder, and an
+`http_proxy` without `127.0.0.1` in `no_proxy` can route the local connection through the proxy.
+
 ### An agent's own reports (#652)
 
 Every local terminal Marley opens names a program in `MARLEY_BIN`. An agent, or a plugin or

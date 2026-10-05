@@ -159,7 +159,7 @@ fn now_epoch_ms() -> u64 {
 /// Read 16 bytes of OS CSPRNG from `/dev/urandom` (#375, D1) — the bearer + every session id are minted
 /// from this. On macOS `/dev/urandom` is the CSPRNG and cannot block. `None` on any read failure → the
 /// caller refuses to start (never a weaker fallback — D2). Masked (raw file IO).
-fn read_entropy() -> Option<[u8; 16]> {
+pub(crate) fn read_entropy() -> Option<[u8; 16]> {
     let mut buf = [0u8; 16];
     std::fs::File::open("/dev/urandom")
         .ok()?
@@ -617,11 +617,11 @@ const MAX_BODY_BYTES: usize = 1 << 20;
 const MAX_LINE_BYTES: usize = 8 << 10;
 
 /// The most header lines a request may carry (#524).
-const MAX_HEADER_LINES: usize = 100;
+pub(crate) const MAX_HEADER_LINES: usize = 100;
 
 /// How long a connection has to send its whole request, however slowly its bytes come (#524).
 /// Before, a connection that sent nothing held its thread for good.
-const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
+pub(crate) const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// The most a refused peer's unread bytes are read and dropped, so it gets its reply (#524).
 const MAX_DRAIN_BYTES: usize = 64 << 10;
@@ -631,7 +631,7 @@ const DRAIN_TIMEOUT: Duration = Duration::from_secs(1);
 
 /// Why a request could not be read.
 #[derive(Debug)]
-enum RequestError {
+pub(crate) enum RequestError {
     /// A line or the header section passed its bound: 431, and nothing more is read.
     TooLarge,
     /// The connection failed or ran out of time: it ends with no reply.
@@ -646,9 +646,9 @@ impl From<std::io::Error> for RequestError {
 
 /// The connection, read against a deadline: each read waits only for the time left, so a peer
 /// that trickles bytes runs out of time as surely as one that sends none.
-struct Deadlined {
-    stream: std::net::TcpStream,
-    deadline: Instant,
+pub(crate) struct Deadlined {
+    pub(crate) stream: std::net::TcpStream,
+    pub(crate) deadline: Instant,
 }
 
 impl Read for Deadlined {
@@ -664,7 +664,7 @@ impl Read for Deadlined {
 
 /// Reads one line of at most [`MAX_LINE_BYTES`] into `line`; the bytes read, 0 at the end of the
 /// stream.
-fn read_bounded_line<R: Read>(
+pub(crate) fn read_bounded_line<R: Read>(
     reader: &mut BufReader<R>,
     line: &mut String,
 ) -> Result<usize, RequestError> {
@@ -772,7 +772,7 @@ fn write_sse_response(
 /// the reply (#524): closing with its bytes unread would reset the connection, and a reset can
 /// drop the reply before the peer reads it. The rest is read and dropped, up to
 /// [`MAX_DRAIN_BYTES`] and [`DRAIN_TIMEOUT`], after the write side is shut.
-fn write_status_then_drain(
+pub(crate) fn write_status_then_drain(
     stream: &mut std::net::TcpStream,
     code: u16,
     reason: &str,
@@ -792,7 +792,11 @@ fn write_status_then_drain(
 }
 
 /// Write a bare HTTP status line (for a refusal / bad request).
-fn write_status(stream: &mut std::net::TcpStream, code: u16, reason: &str) -> std::io::Result<()> {
+pub(crate) fn write_status(
+    stream: &mut std::net::TcpStream,
+    code: u16,
+    reason: &str,
+) -> std::io::Result<()> {
     write!(
         stream,
         "HTTP/1.1 {code} {reason}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"

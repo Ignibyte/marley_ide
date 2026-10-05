@@ -174,6 +174,36 @@ OR Apache-2.0, with the Marley crates' lint table.
 - What the line means is the app's (`marley_workbench::agent_reports`); this module knows no
   report. `AgentSocket` removes its file when dropped.
 
+## Claude Code's IDE server (`ide.rs`, `ide_transport.rs`, #653)
+
+- `ide` is pure. `lock_json(pid, folders, token)` is the lock file Claude Code reads (`pid`,
+  `workspaceFolders`, `ideName` `Marley`, `transport` `ws`, `authToken`, `runningInWindows`);
+  `is_stale_marley_lock(json, alive)` says whether a lock file names Marley and a process gone.
+  `Upgrade` collects an upgrade request's headers and `admit(upgrade, token, port)` takes it or
+  refuses it: not a WebSocket upgrade (400), another host or a page's `Origin` (403), the token
+  in `X-Claude-Code-Ide-Authorization` missing or wrong, compared with `auth::ct_eq` (401). The
+  client's version comes from its `User-Agent` (`version_of_user_agent`) or `initialize`'s
+  `clientInfo`.
+- `step(message, parts)` answers `initialize` (the client's protocol version echoed, `Marley` as
+  the server), `tools/list`, `prompts/list` (empty), `ping`, and turns `ide_connected` into the
+  client's pid and a `tools/call` into a `Tool` for the app. `Parts { selection, mention }` is what
+  a client may be sent: without `selection`, `getCurrentSelection`, `getLatestSelection` and
+  `getOpenEditors` are neither listed nor called. Any other tool is a tool error naming it.
+  `selection_changed`, `at_mentioned` and the five answers (`selection_answer`,
+  `open_editors_answer`, `folders_answer`, `diagnostics_answer`, each a text item of JSON) build
+  the messages, places in LSP lines and UTF-16 characters.
+- `ide_transport::spawn_ide(judge, handler)` binds `127.0.0.1:0`, mints the token with
+  `mint_secret`, and serves each client on a thread of its own, at most `MAX_CONNECTIONS` (8;
+  the ninth gets 503). The upgrade is read with the HTTP transport's `Deadlined` reader,
+  `read_bounded_line` and its limits, so nothing before the token grows without bound; the 101
+  carries `derive_accept_key` and `mcp` when asked, and `tungstenite`'s `from_partially_read`
+  takes the bytes read past the headers, frames and messages capped at 1 MiB. A client's loop
+  reads in 50 ms slices and between them writes what the app queued (`IdeServer::notify`), the
+  replies of the calls the app answered (`IdeCall::answer`, 30 s at most), and a ping every 30 s;
+  a client that misses two pongs is dropped. The `Judge` decides each client's `Parts` from its
+  version on the client's thread. Dropping `IdeServer` closes every client and wakes the accept
+  loop so it ends.
+
 ## Outside clients (`clients.rs`, #524)
 
 - `Principal` is who holds a request's bearer: `Marley` for the per-boot bearer, or

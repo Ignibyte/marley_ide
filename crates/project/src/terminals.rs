@@ -357,6 +357,13 @@ impl Project {
             .is_none()
             .then(|| self.first_project_directory(cx))
             .flatten();
+        // Marley: while Marley serves Claude Code's IDE link for this local project, its port, so
+        // a `claude` started here links to this project's Marley (#653).
+        let marley_ide_env = if self.remote_client.is_none() {
+            marley_terminal::ide::variables(cx.entity_id().as_u64())
+        } else {
+            Vec::new()
+        };
 
         let mut settings_location = None;
         if let Some(path) = path.as_ref()
@@ -418,6 +425,9 @@ impl Project {
             // Marley: a worktree agent's worktree gives its terminals a port of their own, before
             // the settings' `env` so the user's values win (#590).
             env.extend(marley_terminal::ports::variables(marley_project.clone()).await);
+            // Marley: Claude Code's IDE port, before the settings' `env` so the user's values win
+            // (#653).
+            env.extend(marley_ide_env);
             env.extend(settings.env);
             // Marley: the terminal's own variables, over the settings' (#537).
             env.extend(marley_extra_env);

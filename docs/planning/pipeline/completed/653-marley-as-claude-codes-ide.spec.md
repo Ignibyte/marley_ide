@@ -1,7 +1,7 @@
 ---
 pipeline_id: b9cf18ea-194e-4c29-af68-b23a7a537160
-ticket: docs/planning/tickets/open/TICKET-653-marley-as-claude-codes-ide.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-653-marley-as-claude-codes-ide.md
+status: Phase 4 — Complete PASS
 title: "Marley as Claude Code's IDE: the link, diagnostics, selection and open file"
 type: feature
 slice: prong 2, Claude Code on its own tools (design note B3, "Yes, with version checks"); #549's send selection
@@ -20,7 +20,7 @@ versions in #648's table and stays off outside them, with the reason shown. Diff
 
 ## Scope
 ### In
-- **The server** (`marley_mcp::ide`, the pure core, and `marley_mcp::transport::ide`, the
+- **The server** (`marley_mcp::ide`, the pure core, and `marley_mcp::ide_transport`, the
   sockets): one per open project (Zed's `Project`), bound to `127.0.0.1:0`. The upgrade request
   is read with the HTTP transport's pre-auth bounds (#524); the token in
   `X-Claude-Code-Ide-Authorization` is compared in constant time; a non-loopback `Origin` and a
@@ -78,8 +78,9 @@ versions in #648's table and stays off outside them, with the reason shown. Diff
   and new terminals get the variables or not.
 - **Scenarios stay off the user's Claude Code**: `script/e2e.sh` writes
   `marley.claude_code_ide: false` into each run's copy of the user's settings, as #633 did for
-  Rusty, and adds the three rows' ids to #648's allow map there; a scenario that wants the link
-  turns it back on with a scratch `CLAUDE_CONFIG_DIR`.
+  Rusty, and leaves the three ids out of #648's allow map there, as #650 does; a scenario that
+  wants the link turns it back on, allows the ids, and keeps a scratch `CLAUDE_CONFIG_DIR`
+  (amended at promotion).
 - `script/e2e/653-marley-as-claude-codes-ide.sh`, with a stand-in IDE client named `claude` and a
   stand-in language server.
 
@@ -191,8 +192,9 @@ Setup: a scratch repository with `src/auth.txt` (ten numbered lines), `src/main.
 `Cargo.toml`, opened with `open_path`; a HOME whose `.bashrc` puts the scenario's `bin` first on
 the PATH (`terminal_env HOME`); `CLAUDE_CONFIG_DIR` exported to a scratch directory, so Marley and
 its terminals use the scenario's `ide` directory, and `MARLEY_CLAUDE` naming the stand-in, the
-`claude` whose version #648 reads (F-claude-547); `marley.allow_untested_versions` set back to
-`{}` in the run's settings, so #648's verdict is the version's own. In that `ide` directory, a
+`claude` whose version #648 reads (F-claude-547); the three IDE ids set `true` in
+`marley.allow_untested_versions` in the run's settings when the switch turns on, since the rows
+ship with no tested version (D4, amended), and taken out one at a time for `653-11` and `653-13`. In that `ide` directory, a
 stale `1.lock` (`ideName` `Marley`, the pid of a process the setup started and ended) and a
 foreign `2.lock` (`ideName` `Neovim`).
 
@@ -231,13 +233,14 @@ Shots:
   …/src/auth.txt 1-3`, no `typed:` line, the terminal focused.
 - `653-10-fallback`: a second terminal running `claude --offline`; `ctrl->`, the picker's second
   row: `typed: @src/auth.txt#L2-4` in it.
-- `653-11-old-client`: a third terminal, `claude --as 9.9.9`; a new selection in the editor:
-  nothing in it; `diag`: answered.
+- `653-11-old-client`: `claude_ide_selection` taken out of the allow map; a third terminal,
+  `claude --as 9.9.9`; a new selection in the editor: nothing in it; `diag`: answered.
 - `653-12-off-again`: the switch set off: each connected stand-in prints `closed`; the listing
   holds `2.lock` alone.
-- `653-13-untested`: the version file set to `9.9.9`, the switch on, Marley restarted; a new
-  terminal, `claude`: `port: unset`, `lock: none`; the pointer on #648's chip under it
-  (`Untested Claude Code 9.9.9`): its tooltip names the IDE link among what is off.
+- `653-13-untested`: the switch on again with `claude_ide_connection` out of the allow map; a new
+  terminal, `claude --offline`: `port: unset`, `lock: none`; the pointer on #648's chip under it
+  (`Untested Claude Code …`): its tooltip names the IDE link among what is off, tested on "no
+  version yet".
 
 Machine checks: the run log holds `at_mentioned` once and `typed: @src/auth.txt#L2-4` once; after
 `quit_marley` the `ide` directory holds `2.lock` alone.
@@ -245,7 +248,7 @@ Machine checks: the run log holds `at_mentioned` once and `typed: @src/auth.txt#
 ## Locked-In Decisions
 - D1 — **The server lives in `marley_mcp`, beside the HTTP server, not inside it.** A second
   server kind, `marley_mcp::ide` (the methods, the lock file's JSON, the versions read from a
-  client) and `marley_mcp::transport::ide` (the listener and frames), because the crate already
+  client) and `marley_mcp::ide_transport` (the listener and frames), because the crate already
   holds every guard this needs (the bounded pre-auth read, `ct_eq`, the loopback bind, the token,
   the 0600 file, the deferred app call) and §14 puts sockets in `marley_mcp::transport`. It is a
   separate listener with its own tool set: Marley's own families (`terminal_*`, `browser_*`) are
@@ -277,6 +280,9 @@ Machine checks: the run log holds `at_mentioned` once and `typed: @src/auth.txt#
   D3: `from` the version the by-hand check passed on at P3 (2.1.288 on 2026-10-03), `before`
   2.2.0, so later 2.1 releases count as tested. If the check does not pass, the rows ship with no
   range Marley accepts, and only `marley.allow_untested_versions` turns the link on.
+  **Amended at promotion:** the by-hand check needs a real Claude Code in Chad's session and this
+  batch runs none, so the rows ship with an empty range (`before` equal to `from`, read as "no
+  version yet") until Chad runs it; the bounds it gives land in a later change, with REQ-020.
 - D5 — **The selection is the last file editor's.** Claude Code's terminal is often the focused
   item in the Marley layout; VS Code keeps its last text editor active while the terminal has the
   focus, and claudecode.nvim ignores its Claude terminal. Debounced 100 ms (Zed's cursor position
@@ -321,13 +327,13 @@ the review of the diff, or the gate's exit code.
 | REQ-011 | WHEN `getDiagnostics` is called with a file's `uri`, the system shall answer that file's diagnostics alone. | Shot `653-08-diagnostics` |
 | REQ-012 | WHEN send selection targets a Claude Code whose connection is known and in the mention row's range, the system shall send `at_mentioned` with the file and its 0-based lines to that connection alone, focus its terminal, and type nothing. | Shot `653-09-mention` |
 | REQ-013 | WHERE the targeted Claude Code has no known connection, the system shall type `@path#La-b` at its prompt as #549 does. | Shot `653-10-fallback` |
-| REQ-014 | IF a connecting client's version is outside the selection row's range, THEN the system shall send it no `selection_changed` and still answer its `getDiagnostics`. | Shot `653-11-old-client` |
+| REQ-014 | IF the selection row is off for a connected client (its version outside the row's range and the row not allowed), THEN the system shall send it no `selection_changed` and still answer its `getDiagnostics`. | Shot `653-11-old-client` (the row's id taken out of the allow map); review for a client outside a non-empty range |
 | REQ-015 | WHEN the switch turns off, the system shall close the project's connections and remove its lock file. | Shot `653-12-off-again` |
-| REQ-016 | WHILE #648's verdict for the installed Claude Code leaves `claude_ide_connection` off, the system shall start no server, write no lock file and set no variable, and #648's chip shall name the IDE link among what is off. | Shot `653-13-untested` |
+| REQ-016 | WHILE #648's verdict for the installed Claude Code leaves `claude_ide_connection` off, the system shall start no server, write no lock file and set no variable, and #648's chip shall name the IDE link among what is off. | Shot `653-13-untested` (the connection's id taken out of the allow map) |
 | REQ-017 | WHEN a project closes or Marley quits, the system shall remove that project's lock file. | The run's closing check; review |
 | REQ-018 | WHEN a folder is added to or removed from the project, the system shall rewrite the lock file's `workspaceFolders`. | Review |
 | REQ-019 | The system shall bound every read before the token is checked in bytes per line, in header lines and in total time, cap a frame and a message at 1 MiB, and hold at most 8 connections per server. | Review |
-| REQ-020 | WHERE a Claude Code version becomes a bound of these rows, each row's doc comment in #648's table shall name the by-hand check it passed on that version: `/ide` names Marley connected, a selection made in Marley shows `⧉ Selected N lines from <file>`, send selection puts the mention into Claude Code's prompt, and an edit proposal still shows in the terminal. | Review of the rows after the check (P3, with Chad) |
+| REQ-020 | (Deferred at promotion to Chad's by-hand check; the rows ship with no version.) WHERE a Claude Code version becomes a bound of these rows, each row's doc comment in #648's table shall name the by-hand check it passed on that version: `/ide` names Marley connected, a selection made in Marley shows `⧉ Selected N lines from <file>`, send selection puts the mention into Claude Code's prompt, and an edit proposal still shows in the terminal. | Review of the rows after the check (P3, with Chad) |
 | REQ-021 | The change shall pass `script/gates.sh --diff`. | Gate |
 
 ## Phase Plan
@@ -336,7 +342,7 @@ the review of the diff, or the gate's exit code.
   Versions section, the harness's allow map) and fit the three rows to it; confirm that
   `lsp.rust-analyzer.binary.path` starts a stand-in in a scenario and what trust it waits on; check
   that Zed restores terminals after the servers start; ask the brain.
-- **P2 Code** — `tungstenite` in the workspace; `marley_mcp::ide` and `transport::ide`; the
+- **P2 Code** — `tungstenite` in the workspace; `marley_mcp::ide` and `ide_transport`; the
   per-project ports in `marley_terminal` and their read in `project/src/terminals.rs`;
   `marley_workbench::claude_ide` (lifecycle, lock file, selection, tools, the connection's
   terminal, the rows, holding the box's Claude Code version as the candidate); send selection's

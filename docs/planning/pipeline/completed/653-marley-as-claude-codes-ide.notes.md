@@ -1,6 +1,6 @@
 # Marley as Claude Code's IDE: the link, diagnostics, selection and open file — Notes
 
-- **Local ticket doc:** docs/planning/tickets/open/TICKET-653-marley-as-claude-codes-ide.md
+- **Local ticket doc:** docs/planning/tickets/closed/TICKET-653-marley-as-claude-codes-ide.md
 - **Pipeline spec:** 653-marley-as-claude-codes-ide.spec.md
 
 ## Phase 1 — Plan (queued by /spec, 2026-10-03)
@@ -368,3 +368,207 @@ project entity, review; the Test phase adds a shot if a second project opens in 
 - [x] Design: approach, file manifest by crate, the touchpoint rows widened, the visual check plan,
       risks, the docs for Complete.
 - [x] Docs only: the ticket doc and this pair; no BACKLOG.md, no `active/`, no source, no cargo.
+
+### Promotion (2026-10-04)
+- Promoted into `active/`; the BACKLOG row removed; the ticket in-progress. Pre-flight green, no
+  other active pipeline; #648 to #652 landed (the last 0187ee407a).
+- **Brain:** `brain ask` (consultation `a4c7036a0a7d40e5aeb2a0a7fb9c510a`) returned due follow-ups
+  on other work only.
+- **#648 as shipped** (an Explore pass, read only):
+  - `Integration` is `{ id, agent, name, off_means, setting, tested: Range }`; there is no
+    `rests_on` field, so each row's doc comment names the parts it rests on, as the two rows do.
+    `INTEGRATIONS` is a `static [Integration; 2]` and becomes `[_; 5]`.
+  - `verdict(integration, found, allowed)` gives `On` in range, `Allowed` when the id is allowed
+    (even before the first check ends), else `Off`. `agent_versions::is_on` judges the installed
+    version; `codex_server::server_tested` judges a live peer's version with `verdict` directly,
+    which is the model for a client's own version here.
+  - Nothing publishes a change of verdict: the check runs at `init` and when an agent bar draws
+    after 10 s, and `store` refreshes windows when verdicts move. The link needs to follow it, so
+    `agent_versions` gains an observer hook over its global.
+  - The chip lists the rows `wanted` passes; `wanted` hard-codes #650's switch, and gains the
+    same clause for the three IDE rows (shown only while `marley.claude_code_ide` is on). The
+    tooltip's words come from each row's `name`, `off_means` and `setting`.
+  - The Agent Versions items are hand-written, one per row (`[SettingsPageItem; 3]` becomes 6),
+    each title equal to its row's `setting`. The toggle follows "Codex App Server" in the Agents
+    section (`[SettingsPageItem; 16]` becomes 17).
+  - `allow_untested_versions` is `Option<BTreeMap<String, bool>>`; `default.json` lists each id
+    as `false` so the Settings toggle reads a default, and gains the three ids.
+  - `MarleySettings` already holds three plain bools, so the switch is an enum
+    (`ClaudeCodeIde { Off, On }` with `from_content`), as `CodexAppServer` is; `from_settings` is
+    at the 100-line cap, so the field is one line.
+  - `script/e2e.sh` sets `codex_app_server` false and leaves its id out of the allow map, so a
+    scenario that turns the feature on meets the check; #653 does the same with
+    `claude_code_ide`.
+- **Zed's seams** (an Explore pass, read only):
+  - `create_terminal_shell_internal` (`terminals.rs:343`) runs in `Context<Project>`; the
+    project's entity id is `cx.entity_id()` (the builder's `window_id`, :484). The variables are
+    read synchronously beside `first_project_directory` (:355) and merged after the ports (:420)
+    and before `settings.env` (:421). `create_terminal_task` (:64) is not touched, and the
+    builder empties nothing new: the variables are added only for a local project, and a remote
+    one (`remote_client`) gets none.
+  - Order: Marley's `observe_new::<Workspace>` runs before any restored terminal spawns its
+    shell (`Workspace::new_local` opens items in a later update; `marley_workbench::init` registers
+    before zed's panel loader). A server bound synchronously there is in place for restored
+    terminals, once the version verdict allows it; before #648's first check ends the verdict is
+    `NotChecked`, so restored terminals of a session where the check is slower than the login
+    shell's environment miss the variables (the risk stands).
+  - `lsp.rust-analyzer.binary.path` starts the given program with no toolchain check
+    (`lsp_store.rs:725`), after worktree trust, which `session.trust_all_worktrees: true` grants.
+    No scenario has a stand-in language server yet.
+  - `send_selection::send` (:350) is where the link route goes; the kind comes from
+    `agent_in`; rich input (:373) and the waiting refusal (:380) stay first, inside `send_text`,
+    so the link route repeats the two checks before it sends.
+  - `tungstenite` 0.28.0 is in the lock (from `async-tungstenite` 0.33); `handshake` is its
+    default feature and its four crates are locked; `derive_accept_key` is public;
+    `from_partially_read(stream, bytes, Role::Server, config)` hands over what the header read
+    took past the blank line. A read timeout returns `Io(WouldBlock)` and the next `read` resumes
+    the frame.
+  - `read_http_request` keeps no header map, so the IDE transport reads the upgrade with its own
+    function over the same `Deadlined` reader, `read_bounded_line` and limits (made
+    `pub(crate)`). `write_endpoint_file_in` writes in place, so the lock file is written to a
+    temporary name with it and renamed.
+  - The connection's terminal reuses #652's process walk (`report::stat_fields`, the chain read
+    in `agent_reports`), so the workbench needs no `procfs-core`.
+- **Amended at promotion:**
+  - **D4: the rows ship with no tested version.** REQ-020's by-hand check needs a real Claude
+    Code in Chad's session, and this batch runs none (R-D8), so the three rows carry an empty range
+    (`before` equal to `from`, which `Range::words` reads as "no version yet") and only
+    `marley.allow_untested_versions` turns the link on. The check, and the bounds it gives, are a
+    question for Chad at the end of the batch; REQ-020 applies then.
+  - REQ-014 and REQ-016 are shown through the allow map: removing an id turns its part off for the
+    install and for every client. The per-client range test with a non-empty range is review only
+    until the rows have bounds.
+  - The scenario allows the three ids itself; `script/e2e.sh` writes only the switch off.
+  - The unit of a server is the workspace's project (one per `Workspace`), followed by
+    `observe_new::<Workspace>` and the project's release, not `MultiWorkspace`'s events.
+- **The manifest, as amended:** add `crates/marley_workbench/src/agent_versions.rs` (the observer
+  hook and the `wanted` clause), `crates/marley_agent/src/versions.rs` (`Range::words` for an
+  empty range, the three rows), `crates/marley_workbench/src/agent_reports.rs` (its process chain
+  shared with `claude_ide`), and `assets/settings/default.json`'s allow map (the three ids,
+  `false`). Drop `crates/marley_workbench/Cargo.toml`'s `procfs-core`. The IDE transport lives
+  in `crates/marley_mcp/src/ide_transport.rs` beside `transport.rs`, whose reader pieces become
+  `pub(crate)`, so no `transport/` folder appears.
+- **Phase 1 closeout:** spec status set to PASS; `## Reference (§20)`, `### Prior art` and
+  `## UI proof` filled; the work runs autonomously under the batch's goal, so no review wait.
+
+## Phase 2 — Code (2026-10-04)
+- **Built.**
+  - `marley_mcp::ide` (pure): the lock file's JSON and the stale-lock test; `Upgrade` and
+    `admit` (a WebSocket upgrade, the server's own loopback host, a loopback `Origin` if any, the
+    token in constant time; 400, 403, 401); the client's version from `User-Agent`; `Parts`;
+    `Tool`; `step` over `initialize` (the client's protocol version echoed, its `clientInfo`
+    version read), `ide_connected`, `tools/list` (the selection tools only with the selection
+    part), `tools/call` (any other tool a tool error naming it), `prompts/list`, `ping`; the
+    notifications and the five answers; `file_url` and `path_of_uri`.
+  - `marley_mcp::ide_transport`: `spawn_ide(judge, handler)`, a listener on `127.0.0.1:0` and a
+    thread per client, at most 8; the upgrade read through the HTTP transport's bounded reader
+    (its pieces made `pub(crate)`), the 101 with `derive_accept_key` and `mcp`, then
+    `tungstenite`'s `from_partially_read` with 1 MiB caps; each client's loop reads in 50 ms
+    slices, writes the app's queue, the answered calls (30 s each) and a ping every 30 s, and
+    drops a client that misses two pongs. Dropping `IdeServer` closes every client and wakes the
+    listener to end it.
+  - `marley_terminal::ide`: the two variable names and the port per project entity id.
+  - `project` (Zed): the variables read by the project's entity id beside `MARLEY_PROJECT`'s
+    folder, for a local project, and added after the ports and before the settings' `env`.
+  - `marley_agent::versions`: the three rows with an empty range, which `Range::words` reads as
+    "no version yet"; `INTEGRATIONS` of five.
+  - `marley_workbench::claude_ide`: `ClaudeCodeIde`; the global of local workspaces and served
+    projects; `reconcile` (the switch and the connection row's verdict, from the settings, #648's
+    checks and the workspaces); `start` (the server, the port, the lock file written off the main
+    thread after the stale sweep, through a temporary name), `stop`, `refolder`; the judge state
+    the clients' threads read; the main-thread intake (versions logged per client, a client's
+    terminal from its process chain, the selection sent once it named its process); the last
+    file editor followed from `ActiveItemChanged`, its `SelectionsChanged` settled 100 ms; the
+    five answers, `getDiagnostics` opening each file and reading its groups' primary entries;
+    `mention` for send selection. `agent_versions` gained `observe`, `found`, and the IDE rows in
+    `wanted`; `agent_reports` shares `process_chain` and `terminal_on_chain`.
+  - `send_selection::send`: a Claude Code target that does not wait, without rich input open,
+    whose link takes mentions gets `at_mentioned` and the focus; every other case types as #549
+    does.
+  - The switch (`settings_content`, `default.json` with the three ids, the Marley page's toggle
+    and three Agent Versions items, `MarleySettings`), and `script/e2e.sh`'s copy with the switch
+    off.
+- **Deviations from the plan, and why.**
+  - The rows ship with no tested version (D4, amended at promotion): the by-hand check waits on
+    Chad.
+  - The transport is `ide_transport.rs` beside `transport.rs`, not `transport/ide.rs`.
+  - The server's threads judge a client's parts through a closure over a shared state the main
+    thread refreshes (the allowed rows and the installed version), so `tools/list` answers right
+    after `initialize` without a round trip to the app.
+  - `getDiagnostics` without a file lists the files with errors or warnings: Zed's summaries count
+    only those two.
+  - A selection equal to the one sent last is not sent again (found in Test, below).
+- **Review.**
+  - Safety in Claude Code's folder: Marley removes only lock files naming `Marley` whose process
+    is gone (`/proc`), never on a guess where `/proc` is missing; its own file is written 0600
+    through a temporary name; every path comes from `CLAUDE_CONFIG_DIR` as Claude Code reads it,
+    so a scenario's scratch folder keeps the user's untouched.
+  - Re-entrancy: the workspace observer defers its reconcile, since the workspace is being built;
+    the editor and project subscriptions run outside any update of what they read.
+  - Pre-auth bounds: the upgrade goes through #524's limits; a refusal writes a status and closes.
+- **Clippy rounds:** two first doc paragraphs, `Eq` derivable, a value parameter not consumed,
+  `map_or_else`, a field named after its struct (`Upgrade.upgrade`), a lock guard held past its
+  use, a `&mut App` not needed, a single-pattern `match`. **Docs gate:** a module doc linked a
+  private constant.
+- **Gate:** `just gate-diff` green after the Test phase's fix, 17 gates on the scope.
+
+## Phase 3 — Test (2026-10-04)
+- **Scenario:** `script/e2e/653-marley-as-claude-codes-ide.sh`, `compositor sway`, a terminal pane
+  beside an editor pane (`pane: split and move right`). A Python stand-in `claude` links as
+  Claude Code does, with a hand-written WebSocket client; a Python stand-in language server named
+  in `lsp.rust-analyzer.binary.path` gives `src/main.rs` one error. Every check passes (25).
+- **Shots, each read:**
+  - `653-01-off`: `port: unset · auto-connect: unset`, `lock: none`, the folder holds `1.lock` and
+    `2.lock` as set up. REQ-001.
+  - `653-02-lock`: the port and `auto-connect: true`; `ideName Marley · transport ws`, a
+    32-character token, `windows False`, the repository as the folder, `0o600` in `0o700`; the
+    folder holds `2.lock` and the port's lock, `1.lock` gone; the 101 with `mcp`, `server:
+    Marley`, the five tools. REQ-002, REQ-003, REQ-004, REQ-006.
+  - `653-03-refused`: `badtoken: HTTP/1.1 401 Unauthorized`. REQ-005.
+  - `653-05-selection`: lines 2 to 4 selected in the right pane; the stand-in got `src/auth.txt
+    1:0-3:18` with the three lines (and the file's caret once, when it opened). REQ-007.
+  - `653-06-open-file`: `main.rs` opened, `selection_changed src/main.rs 0:0-0:0 empty`; the
+    stand-in server's error underlines `missing`. REQ-008.
+  - `653-07-latest`: the terminal focused, `latest: src/main.rs 0:0-0:0 empty`. REQ-009.
+  - `653-08-diagnostics`: `diag all: 1 file(s)`, `src/main.rs 2:4 Error stand-in E0425`;
+    `diag src/auth.txt`: one file, none. REQ-010, REQ-011.
+  - `653-09-mention`: `at_mentioned src/auth.txt 1-3`, the terminal focused, the Enter after it
+    typed nothing. REQ-012.
+  - `653-10a-picker`, `653-10-fallback`: two Claude Code targets; the offline one got
+    `@src/auth.txt#L2-4` at its prompt and printed `typed: @src/auth.txt#L2-4`. REQ-013.
+  - `653-11-old-client`: with `claude_ide_selection` out of the allow map, a new client is listed
+    `getDiagnostics, getWorkspaceFolders`, gets no selection after a new one is made, and its
+    `diag` is answered; the chip reads Untested Claude Code 2.1.288. REQ-014.
+  - `653-12-off-again`: the switch off, the client printed `closed` and the folder holds `2.lock`
+    alone. REQ-015.
+  - `653-13-untested`: the switch on, the connection's id out of the allow map: `port: unset`,
+    `lock: none`; the chip's tooltip reads "IDE links are off: Marley serves no IDE link, …
+    Tested on no version yet. Turn on IDE Link on Untested Claude Code …", and the same for IDE
+    selections. REQ-016.
+- **Machine checks:** the stale lock removed and the other IDE's kept (REQ-004); one
+  `at_mentioned` and one typed reference in the whole run; after `quit_marley`, with the link
+  running, the folder holds `2.lock` alone (REQ-017).
+- **Fixed in Test:** the first run showed the same empty selection sent about two dozen times:
+  the workspace reports `ActiveItemChanged` far more often than its active item changes, and each
+  report re-sent an unchanged selection. A broadcast now skips the selection sent last; the run
+  checks it is sent once. The first run's checks also expected `3:16` for an 18-character line,
+  and counted `port: unset` across runs; both were the scenario's.
+- **Review only:** a project closed while Marley runs (REQ-017's other half), a folder added
+  (REQ-018), the bounds and caps (REQ-019). Not reached: a real Claude Code (REQ-020, deferred to
+  Chad's by-hand check; no real turn in this batch), two projects with a port each.
+
+## Phase 4 — Complete (2026-10-04)
+- **Docs:** `CHANGELOG.md` (Added); `docs/marley/guide.md` ("Claude Code's IDE link");
+  `docs/marley/walkthrough.md` §5.12 (the mention); `docs/marley_architecture/marley_mcp.md` (the
+  IDE server), `marley_workbench.md` (`claude_ide` and send selection's route), `marley_agent.md`
+  (the three rows, the empty range's words), `terminal_blocks.md` (`marley_terminal::ide`); the
+  plan's C0 row; the design note's B3 first slice; the six touchpoint rows read against what
+  shipped.
+- **Knowledge:** F-claude-653-an-active-item-event-resent-an-unchanged-selection-001,
+  AD-claude-653-marley-is-claude-codes-ide-per-project-001,
+  L-claude-653-a-stand-in-language-server-by-its-binary-path-001.
+- **Brain:** consultation `a4c7036a0a7d40e5aeb2a0a7fb9c510a` closed with `brain decide`
+  (`decisions/marley-serves-claude-codes-ide-link-per-local-project-its-unnamed-parts-gated-by-the-version-table`).
+- **Open for Chad:** the by-hand check on a real Claude Code (REQ-020), which would give the three
+  rows their first version.
+- **Closed:** TICKET-653 in `tickets/closed/`; the pair archived to `completed/`.

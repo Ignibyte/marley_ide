@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-653](open/TICKET-653-marley-as-claude-codes-ide.md) | feature | B3 · Marley as Claude Code's IDE: the lock file and link, diagnostics, selection and open file (`marley.claude_code_ide`, off by default) |
 | [TICKET-654](open/TICKET-654-rusty-open-page-picker.md) | feature | Rusty in Marley R3a · `rusty: open page` (Ctrl+Alt+U): a picker over the vault's titles, create on a miss |
 | [TICKET-655](open/TICKET-655-knowledge-panel-project-view.md) | feature | Rusty in Marley R6 · the Knowledge panel's project view: the project's brain page, follow-ups and task group, linked when none matches |
 | [TICKET-656](open/TICKET-656-brain-page-outline-and-property-edits.md) | feature | Rusty in Marley R2b · the Page tab's outline, and the title, name and properties edited in place |

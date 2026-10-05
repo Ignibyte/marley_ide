@@ -45,6 +45,8 @@ pub mod discovery;
 mod dispatch;
 mod expose;
 pub mod find;
+pub mod ide;
+pub mod ide_transport;
 pub mod jsonrpc;
 mod permission;
 pub mod redact;

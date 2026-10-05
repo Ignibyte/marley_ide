@@ -4727,3 +4727,15 @@ and builds the seat again from that frame, dropping every label it did not write
 path puts on the same seat must not be called `session_id`: #652's reported session rides as
 `report.session_id`, and the report's labels are written again after each frame's fold, since
 the fold keeps only its own.
+
+## L-claude-653-a-stand-in-language-server-by-its-binary-path-001
+*category: e2e · topic: diagnostics in a scenario · from: pipeline 653*
+
+A scenario gets a language server of its own by naming a stand-in program in
+`lsp.<server>.binary.path` (here `lsp.rust-analyzer.binary.path`) with
+`session.trust_all_worktrees: true` in the run's settings: `get_language_server_binary` returns
+the path without a toolchain check, and the trust is what it waits on. A Python stand-in that
+answers `initialize` with full sync and publishes diagnostics on `textDocument/didOpen` gives
+the editor and every diagnostics reader a known error. To show a terminal and an editor in one
+shot, open the file and run `pane: split and move right`; `workspace: activate pane left` and
+`right` move the focus between them.

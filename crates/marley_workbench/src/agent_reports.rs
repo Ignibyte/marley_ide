@@ -149,8 +149,8 @@ fn private_folder(folder: &Path) -> std::io::Result<()> {
 }
 
 /// `pid` and its parents, nearest first, each with its start time, at most
-/// [`report::MAX_ANCESTRY`] of them.
-fn process_chain(pid: u32) -> Vec<(u32, u64)> {
+/// [`report::MAX_ANCESTRY`] of them. It reads `/proc`, so callers run it off the main thread.
+pub(crate) fn process_chain(pid: u32) -> Vec<(u32, u64)> {
     let mut chain = Vec::new();
     let mut next = pid;
     while next > 1 && chain.len() < report::MAX_ANCESTRY {
@@ -201,6 +201,24 @@ fn terminal_of(
     cx: &App,
 ) -> Result<Found, (Refusal, String)> {
     let unknown = |reason: &str| Err((Refusal::Unknown, reason.to_string()));
+    let Some((workspace, view)) = terminal_on_chain(chain, cx) else {
+        return unknown("the caller runs in none of Marley's local terminals");
+    };
+    if view.read(cx).terminal().read(cx).marley_terminal_id() != Some(terminal_id) {
+        return unknown("the caller's MARLEY_TERMINAL_ID is not its terminal's");
+    }
+    let Some(agent) = chain.get(1).copied() else {
+        return unknown("the caller has no parent process");
+    };
+    Ok((workspace, view, agent))
+}
+
+/// The local terminal, of any window, whose shell is the nearest of `chain`'s processes, with its
+/// workspace.
+pub(crate) fn terminal_on_chain(
+    chain: &[(u32, u64)],
+    cx: &App,
+) -> Option<(Entity<Workspace>, Entity<TerminalView>)> {
     let shells: HashMap<u32, (Entity<Workspace>, Entity<TerminalView>)> = crate::mcp::terminals(cx)
         .into_iter()
         .filter_map(|(workspace, view)| {
@@ -212,16 +230,10 @@ fn terminal_of(
             Some((shell, (workspace, view)))
         })
         .collect();
-    let Some((workspace, view)) = chain.iter().find_map(|(pid, _)| shells.get(pid)) else {
-        return unknown("the caller runs in none of Marley's local terminals");
-    };
-    if view.read(cx).terminal().read(cx).marley_terminal_id() != Some(terminal_id) {
-        return unknown("the caller's MARLEY_TERMINAL_ID is not its terminal's");
-    }
-    let Some(agent) = chain.get(1).copied() else {
-        return unknown("the caller has no parent process");
-    };
-    Ok((workspace.clone(), view.clone(), agent))
+    chain
+        .iter()
+        .find_map(|(pid, _)| shells.get(pid))
+        .map(|(workspace, view)| (workspace.clone(), view.clone()))
 }
 
 /// Takes a report or a release, or says why not.

@@ -17,6 +17,9 @@ use crate::AgentKind;
 
 /// The versions an integration was tested on: from `from`, up to but not including `before`, or
 /// every later one when `before` is `None`.
+///
+/// A `before` at or below `from` holds no version: an integration not yet checked on any release
+/// (#653).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Range {
     /// The oldest version checked.
@@ -40,6 +43,7 @@ impl Range {
     pub fn words(&self) -> String {
         match &self.before {
             None => format!("{} and later", self.from),
+            Some(before) if *before <= self.from => "no version yet".to_string(),
             Some(before)
                 if before.major == self.from.major
                     && before.minor == self.from.minor + 1
@@ -109,8 +113,66 @@ pub const CODEX_APP_SERVER: Integration = Integration {
     },
 };
 
+/// The range of an integration no release has been checked on yet (#653).
+const NOT_YET_CHECKED: Range = Range {
+    from: Version::new(0, 0, 0),
+    before: Some(Version::new(0, 0, 0)),
+};
+
+/// Marley as Claude Code's IDE: the connection (#653).
+///
+/// It rests on the lock file's fields (`pid`, `workspaceFolders`, `ideName`, `transport`,
+/// `authToken`, `runningInWindows`), `CLAUDE_CODE_SSE_PORT` choosing the lock file, the `mcp`
+/// subprotocol, `ide_connected`, and `getWorkspaceFolders`, which the docs leave unnamed.
+/// No release has been checked by hand yet: a real Claude Code linked to Marley, `/ide` naming
+/// it, from a project's root and a subfolder, and an edit proposal still shown in the terminal.
+pub const CLAUDE_IDE_CONNECTION: Integration = Integration {
+    id: "claude_ide_connection",
+    agent: AgentKind::Claude,
+    name: "IDE links",
+    off_means: "Marley serves no IDE link, so Claude Code gets no selection, open file or \
+                diagnostics from it",
+    setting: "IDE Link on Untested Claude Code",
+    tested: NOT_YET_CHECKED,
+};
+
+/// Marley as Claude Code's IDE: the selection and the open file (#653).
+///
+/// It rests on `selection_changed` and the `getCurrentSelection`, `getLatestSelection` and
+/// `getOpenEditors` tools, which the docs leave unnamed. No release has been checked by hand yet:
+/// a selection made in Marley shown as `⧉ Selected N lines from <file>` in Claude Code's prompt.
+pub const CLAUDE_IDE_SELECTION: Integration = Integration {
+    id: "claude_ide_selection",
+    agent: AgentKind::Claude,
+    name: "IDE selections",
+    off_means: "Claude Code gets no selection or open file from Marley's editors",
+    setting: "IDE Selection on Untested Claude Code",
+    tested: NOT_YET_CHECKED,
+};
+
+/// Marley as Claude Code's IDE: send selection as a mention (#653).
+///
+/// It rests on `at_mentioned` with 0-based `lineStart` and `lineEnd`, which the docs leave
+/// unnamed. No release has been checked by hand yet: send selection putting the mention into
+/// Claude Code's prompt.
+pub const CLAUDE_IDE_MENTION: Integration = Integration {
+    id: "claude_ide_mention",
+    agent: AgentKind::Claude,
+    name: "IDE mentions",
+    off_means: "send selection types `@path#La-b` at Claude Code's prompt, as it does without \
+                the IDE link",
+    setting: "IDE Mentions on Untested Claude Code",
+    tested: NOT_YET_CHECKED,
+};
+
 /// Every integration with a tested range.
-pub static INTEGRATIONS: [Integration; 2] = [CLAUDE_PROMPT_TAGS, CODEX_APP_SERVER];
+pub static INTEGRATIONS: [Integration; 5] = [
+    CLAUDE_PROMPT_TAGS,
+    CODEX_APP_SERVER,
+    CLAUDE_IDE_CONNECTION,
+    CLAUDE_IDE_SELECTION,
+    CLAUDE_IDE_MENTION,
+];
 
 /// `agent`'s integrations with a tested range.
 pub fn integrations_of(agent: AgentKind) -> impl Iterator<Item = &'static Integration> {

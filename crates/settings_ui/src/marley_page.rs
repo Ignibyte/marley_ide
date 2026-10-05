@@ -136,7 +136,7 @@ fn layout_section() -> [SettingsPageItem; 5] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 16] {
+fn agents_section() -> [SettingsPageItem; 17] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -437,6 +437,29 @@ fn agents_section() -> [SettingsPageItem; 16] {
             metadata: None,
             files: USER,
         }),
+        // Marley: Marley as Claude Code's IDE for each local project (#653).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Claude Code IDE Link",
+            description: "Serve Claude Code's IDE link for each local project: Marley writes a lock file into Claude Code's ide folder and names the project's port in its new terminals, so a claude started there gets your selection and open file with each prompt and the language servers' diagnostics, and send selection mentions the lines in its prompt. /ide reaches it from other terminals. Any program of yours that can read the lock file can connect and read the selection.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.claude_code_ide"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.claude_code_ide.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .claude_code_ide = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
         // Marley: who answers Claude Code's trust question in a new worktree (#587).
         SettingsPageItem::SettingItem(SettingItem {
             title: "Worktree Trust Question",
@@ -608,7 +631,7 @@ fn terminal_section() -> [SettingsPageItem; 6] {
 }
 
 // Marley: the integrations turned on outside the agent versions Marley tested them on (#648).
-fn agent_versions_section() -> [SettingsPageItem; 3] {
+fn agent_versions_section() -> [SettingsPageItem; 6] {
     [
         SettingsPageItem::SectionHeader("Agent Versions"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -662,6 +685,93 @@ fn agent_versions_section() -> [SettingsPageItem; 3] {
                     let _before = match value {
                         Some(on) => allowed.insert("codex_app_server".to_string(), on),
                         None => allowed.remove("codex_app_server"),
+                    };
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: Claude Code's IDE link on a version Marley has not checked it on (#653).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "IDE Link on Untested Claude Code",
+            description: "Whether Claude Code IDE Link serves a Claude Code version Marley has not checked the link on. Off, Marley serves no IDE link to it, and the agent bar says which version it found and which Marley checked.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.allow_untested_versions.claude_ide_connection"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.allow_untested_versions.as_ref())
+                        .and_then(|allowed| allowed.get("claude_ide_connection"))
+                },
+                write: |settings_content, value, _| {
+                    let allowed = settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .allow_untested_versions
+                        .get_or_insert_default();
+                    let _before = match value {
+                        Some(on) => allowed.insert("claude_ide_connection".to_string(), on),
+                        None => allowed.remove("claude_ide_connection"),
+                    };
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: the IDE link's selection on an unchecked version (#653).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "IDE Selection on Untested Claude Code",
+            description: "Whether the IDE link sends your selection and open file to a Claude Code version Marley has not checked them on. Off, such a Claude Code gets diagnostics from Marley but no selection.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.allow_untested_versions.claude_ide_selection"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.allow_untested_versions.as_ref())
+                        .and_then(|allowed| allowed.get("claude_ide_selection"))
+                },
+                write: |settings_content, value, _| {
+                    let allowed = settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .allow_untested_versions
+                        .get_or_insert_default();
+                    let _before = match value {
+                        Some(on) => allowed.insert("claude_ide_selection".to_string(), on),
+                        None => allowed.remove("claude_ide_selection"),
+                    };
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: send selection's mention on an unchecked version (#653).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "IDE Mentions on Untested Claude Code",
+            description: "Whether send selection mentions the lines in the prompt of a Claude Code version Marley has not checked mentions on. Off, it types @path#La-b at the prompt instead.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.allow_untested_versions.claude_ide_mention"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.allow_untested_versions.as_ref())
+                        .and_then(|allowed| allowed.get("claude_ide_mention"))
+                },
+                write: |settings_content, value, _| {
+                    let allowed = settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .allow_untested_versions
+                        .get_or_insert_default();
+                    let _before = match value {
+                        Some(on) => allowed.insert("claude_ide_mention".to_string(), on),
+                        None => allowed.remove("claude_ide_mention"),
                     };
                 },
             }),

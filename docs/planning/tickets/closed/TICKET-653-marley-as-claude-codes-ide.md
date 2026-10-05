@@ -3,12 +3,12 @@
 - **Ticket:** LOCAL #653 (feature, prong 2: Claude Code on its own tools, design note B3; with
   #549's send selection)
 - **Owner:** claude-opus-5-5, 2026-10-03 (/spec)
-- **Pipeline doc:** ../../pipeline/queued/653-marley-as-claude-codes-ide.spec.md
+- **Pipeline doc:** ../../pipeline/completed/653-marley-as-claude-codes-ide.spec.md
 - **Source ticket:** `docs/planning/design-notes/claude-and-codex-on-their-own-tools-2026-10-02.md`
   (B3, and B7 for the version checks); Chad, 2026-10-02: "we need to brain storm integration into
   claude and codex using their tools instead of fighting them", and on B3: "Yes, with version
   checks"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Claude Code connects to an editor that serves its IDE MCP server: a loopback WebSocket server

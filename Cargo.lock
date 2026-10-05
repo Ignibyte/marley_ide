@@ -10805,6 +10805,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "tungstenite 0.28.0",
  "urlencoding",
 ]
 

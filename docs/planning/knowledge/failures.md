@@ -3308,3 +3308,13 @@ it alone, in the runtime directory after every quit. The first run could not sho
 the harness stops the whole sway session, and the stand-in servers removed their own sockets on
 SIGTERM. Fixed: the hook removes `marley-<pid>`, and the scenario quits Marley through
 `quit_marley` and checks the folder and every server are gone.
+
+## F-claude-653-an-active-item-event-resent-an-unchanged-selection-001
+*severity: low · found in: pipeline 653's first scenario run, in Test · class: a push keyed to an event that fires more often than its subject changes*
+
+Claude Code's link got the same empty selection of `auth.txt` about two dozen times in ten
+seconds: the workspace emits `ActiveItemChanged` far more often than its active item changes
+(focus moves, pane activations), and each one re-sent the last file editor's selection after the
+100 ms rest. Fixed: a broadcast skips a selection equal to the one sent last, while a client that
+has just named its process still gets the current one; the scenario checks the empty selection
+is sent once.

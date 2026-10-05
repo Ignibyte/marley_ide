@@ -3971,3 +3971,20 @@ the way in (a bearer in every terminal, and a mod's `$.mcp.call` waits on a perm
 fails at `session.end`); a hidden mode of the app's executable (the whole app started per
 report); naming the terminal by the variable alone; authority by source alone (a `claude -p` the
 session starts shares the source); running the reported argv on resume.
+
+## AD-claude-653-marley-is-claude-codes-ide-per-project-001
+*decided at: 2026-10-04 · status: shipped · builds on: AD-claude-491-marleys-mcp-server-runs-in-the-app-behind-a-stdio-bridge-001, AD-claude-648-marley-turns-off-only-what-rests-on-an-untested-agent-surface-001 · plan: docs/planning/design-notes/claude-and-codex-on-their-own-tools-2026-10-02.md B3*
+
+With `marley.claude_code_ide` on, Marley serves Claude Code's IDE link for each local project: a
+WebSocket server of its own in `marley_mcp` (not Marley's MCP server, whose tools and grants it
+never lists), a lock file in Claude Code's `ide` folder, and the project's port in its new
+terminals as `CLAUDE_CODE_SSE_PORT`, with `CLAUDE_CODE_AUTO_CONNECT_IDE`, so a `claude` started
+there links to its own project's Marley even when two windows show the same folder. The link
+carries the last file editor's selection (a terminal taking the focus leaves it), Zed's
+diagnostics, the folders, the open editors and send selection's mention. Every part the docs do
+not name is a row of #648's table, judged for the installed version (the server) and for each
+client's own version (selection, mention); the rows shipped with no checked version, so only
+the allow map turns the link on until a release is checked by hand. Rejected: a server per
+window or per terminal (every shell's lock file in every other Claude Code's `/ide`); frames by
+hand rather than `tungstenite`; a smol server in the workbench outside `marley_mcp`'s guards;
+claiming a tested version no real Claude Code was checked on.

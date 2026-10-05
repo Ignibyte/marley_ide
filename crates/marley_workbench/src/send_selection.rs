@@ -346,8 +346,32 @@ fn target_of(project: String, view: Entity<TerminalView>, cx: &App) -> Option<Ta
     })
 }
 
-/// Types the selection's reference at `target`'s prompt, as [`send_text`] does.
+/// Mentions the selection to `target` over Claude Code's IDE link when it has one that takes
+/// mentions, its terminal brought to the front and focused (#653); otherwise types its reference
+/// at the prompt, as [`send_text`] does. Rich input open on the terminal, and an agent that waits,
+/// go to [`send_text`] as before.
 fn send(target: Target, selection: &Selection, window: AnyWindowHandle, cx: &mut App) {
+    if target.kind == AgentKind::Claude
+        && !target.waiting
+        && !crate::rich_input::is_open(&target.view, cx)
+        && crate::claude_ide::mention(
+            target.view.entity_id(),
+            &selection.path,
+            selection.lines,
+            cx,
+        )
+    {
+        cx.defer(move |cx| {
+            window
+                .update(cx, |_, window, cx| {
+                    window.activate_window();
+                    crate::browser::reveal_terminal(&target.view, window, cx);
+                    window.focus(&target.view.focus_handle(cx), cx);
+                })
+                .log_err();
+        });
+        return;
+    }
     let text = reference(
         target.kind,
         &selection.path,

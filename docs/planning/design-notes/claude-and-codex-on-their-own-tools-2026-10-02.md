@@ -106,6 +106,11 @@ with the harness.
 
 ### B3. Marley as Claude Code's IDE
 
+First slice done by #653 (2026-10-04), behind `marley.claude_code_ide`, off by default: a server
+and lock file per local project, the port in its terminals, the selection and open file,
+diagnostics, and send selection's mention; three rows of B7's table, which ship with no checked
+version until Chad's by-hand check. Diffs (`openDiff`) are the next slice.
+
 Marley serves the IDE MCP server and writes the lock file, so Claude Code in a Marley terminal
 gets the selection and open file with every prompt, Zed's language-server diagnostics, and diffs
 opened in Marley's diff view. Replaces send selection's typed `@path`. Catch: only diagnostics are

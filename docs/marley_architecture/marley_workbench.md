@@ -1152,6 +1152,41 @@ alike.
 - `blocks.rs` puts Send to Agent first in the Block section and handles `SendBlockToAgent`
   (`ctrl-shift-enter` in `Terminal && MarleyBlockSelected`) for the selected block.
 
+## Marley as Claude Code's IDE (`src/claude_ide.rs`, #653)
+
+- `marley.claude_code_ide` (`MarleySettings::claude_code_ide`, a `ClaudeCodeIde`, off by
+  default). `init` keeps each local workspace with its project's entity id (`observe_new`, which
+  defers its `reconcile`, since the workspace is still being built; `on_release`), and runs
+  `reconcile` on each settings change and each change of #648's checks
+  (`agent_versions::observe`). `reconcile` serves every local project while the switch is on and
+  `agent_versions::is_on(&CLAUDE_IDE_CONNECTION)`, and stops every other server; it also refreshes
+  the state the servers' threads judge clients by (the allowed rows and the installed version,
+  `agent_versions::found`).
+- `start` spawns the project's `IdeServer`, sets the port in `marley_terminal::ide`, and writes
+  the lock file off the main thread into `ClaudePlugin::config_dir`'s `ide` folder
+  (`write_lock_in`: the folder made 0700 only when missing, the stale Marley locks swept, the file
+  written 0600 with `discovery::write_endpoint_file_in` under a temporary name and renamed). A
+  project's `WorktreeAdded` or `WorktreeRemoved` rewrites it (`refolder`); `stop` and the quit
+  hook remove it.
+- A client's messages come to the main thread through one channel: its version (logged with its
+  parts), its process (`ide_connected`'s pid, its chain read on the client's thread with
+  `agent_reports::process_chain` and matched by `agent_reports::terminal_on_chain`), its leaving,
+  and its tool calls (`answer`).
+- The selection: the workspace's `ActiveItemChanged` makes a local file editor the project's
+  last one (`follow_editor`, which subscribes to its `SelectionsChanged`); a change rests 100 ms
+  (`settle_then_send`, one task per project) and goes as `selection_changed` to the clients whose
+  version takes it, unless it is the one sent last (the workspace reports `ActiveItemChanged`
+  far more often than its item changes). A client that names its process gets the current one.
+  `editor_selection` reads the newest selection through the multi-buffer snapshot, its text and
+  its places in UTF-16.
+- The tools: `getWorkspaceFolders` from the lock file's folders, `getCurrentSelection` from the
+  last file editor, `getLatestSelection` from the last sent, `getOpenEditors` from the
+  workspace's file editors, and `getDiagnostics` for one file or for every file whose summary has
+  errors or warnings, each opened (`Project::open_buffer`) and read for its groups' primary
+  entries.
+- `mention(view, path, lines)` is send selection's way in: the link whose client runs in the
+  terminal `view` gets `at_mentioned` when its version takes mentions.
+
 ## Sending the selection to an agent (`src/send_selection.rs`, #549)
 
 - `init` registers `marley::SendSelectionToAgent` on every workspace and, through
@@ -1175,6 +1210,10 @@ alike.
   front first; a seat in `State::Waiting` gets nothing and a toast; otherwise the window
   activated, the terminal revealed (`browser::reveal_terminal`) and focused, one
   `Terminal::paste`, no Enter.
+- Since #653 `send` first offers the selection to Claude Code's IDE link: for a Claude Code
+  target that does not wait, without rich input open, `claude_ide::mention` sends `at_mentioned`
+  (the lines from 0) to the link of its terminal when that link takes mentions, and the terminal
+  is brought to the front and focused; nothing is typed. Every other case goes to `send_text`.
 - Since #522 the picker is shared: `TargetPicker::new(rows, placeholder, on_pick, ..)`, each
   `Row` a label and a `Pick` (`Agent(Target)` or `Copy`), and `on_pick` what the confirm does.
   `Target` gains `ready` (its seat in `State::Idle`); `Target`, `agent_targets` and the picker are

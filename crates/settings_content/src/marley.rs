@@ -163,7 +163,8 @@ pub struct MarleySettingsContent {
     /// tested them on, by their id, such as `claude_prompt_tags` (#648). Marley reads the version
     /// of the `claude` and `codex` it runs, and the agent bar says when one is off.
     ///
-    /// Default: {"claude_prompt_tags": false}
+    /// Default: {"claude_prompt_tags": false, "codex_app_server": false, "claude_ide_connection":
+    /// false, "claude_ide_selection": false, "claude_ide_mention": false}
     pub allow_untested_versions: Option<BTreeMap<String, bool>>,
     /// Whether the terminals Marley opens for agents give them Marley's editor (#649): their own
     /// editor key, and Ctrl-G, then open the prompt in a tab, and closing the tab hands it back.
@@ -178,6 +179,13 @@ pub struct MarleySettingsContent {
     ///
     /// Default: false
     pub codex_app_server: Option<bool>,
+    /// Whether Marley serves Claude Code's IDE link for each local project (#653): a lock file in
+    /// Claude Code's `ide` folder, and the project's port in its new terminals, so a `claude`
+    /// started there gets the editor's selection and open file and Zed's diagnostics, and send
+    /// selection mentions the lines in its prompt.
+    ///
+    /// Default: false
+    pub claude_code_ide: Option<bool>,
     /// Voice in Marley (#480, #642): dictation through Voxtype. Off until it is turned on.
     pub voice: Option<MarleyVoiceSettingsContent>,
     /// The System One layer (#565): typed questions to a model about states Marley builds from

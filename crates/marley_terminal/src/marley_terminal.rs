@@ -53,6 +53,7 @@ pub mod display_rows;
 pub mod english;
 pub mod failures;
 pub mod filter;
+pub mod ide;
 pub mod identity;
 pub mod keys;
 pub mod links;

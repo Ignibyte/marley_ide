@@ -285,6 +285,11 @@ real, reusable session. The Block model is the unit the **brain** later observes
   once the user's files have run: bash after `~/.bashrc`, zsh in `__marley_install`, fish in its
   first prompt. The workbench sets it only in a terminal it opens for an agent, so a `.bashrc`
   that exports the user's editor cannot undo it there.
+- `ide.rs` (#653): `PORT_VARIABLE` (`CLAUDE_CODE_SSE_PORT`), `AUTO_CONNECT_VARIABLE`
+  (`CLAUDE_CODE_AUTO_CONNECT_IDE`) and the port of Claude Code's IDE link per project entity id
+  (`set_port`), which the workbench sets while it serves the project; `variables(project)`, read
+  by `create_terminal_shell_internal` for a local project and added after the port variables and
+  before the settings' `env`.
 - `identity.rs` (#520, #575, #652): the variables a terminal names itself with,
   `MARLEY_TERMINAL_ID` and `MARLEY_PROJECT`, and `MARLEY_RESTORED_TERMINAL_ID`, the key a restore
   hands the builder. Since #652 `BIN_VARIABLE` (`MARLEY_BIN`) names the `marley-agent` program an

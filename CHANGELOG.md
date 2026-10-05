@@ -13,6 +13,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Marley as Claude Code's IDE** (#653, 2026-10-04). With Claude Code IDE Link on in the Marley
+  settings (off by default), Marley serves Claude Code's IDE connection for each local project: a
+  lock file in Claude Code's `ide` folder, and the project's port in its new terminals, so a
+  `claude` started there links to that project's Marley, and `/ide` reaches it from other
+  terminals. Claude Code then gets the selection and the open file of your last file editor with
+  each prompt, the language servers' diagnostics through its `getDiagnostics` tool, the project's
+  folders and its open editors, and send selection mentions the lines in its prompt instead of
+  typing `@path#La-b`. The parts Claude Code's docs leave unnamed are rows of the version table,
+  which no release has been checked on yet: until one is, the agent bar says so, and the three IDE
+  items under Agent Versions turn them on. Diffs opened in Marley come later.
+
 - **Agents report their state to the terminal they run in** (#652, 2026-10-04). Every local
   interactive terminal now names `MARLEY_BIN`, a small program Marley writes into its data
   directory. `"$MARLEY_BIN" report STATE --source S --seq N ...` and `"$MARLEY_BIN" release

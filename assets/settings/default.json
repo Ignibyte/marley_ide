@@ -1791,10 +1791,15 @@
     // tested on that version, saying why in the agent bar (#648). An integration set true here
     // runs on any version, for trying a new release. claude_prompt_tags: the tags that tell your
     // prompts from the ones Claude Code adds itself (task notifications, system reminders).
-    // codex_app_server: Codex's App Server, below.
+    // codex_app_server: Codex's App Server, below. claude_ide_connection, claude_ide_selection and
+    // claude_ide_mention: Claude Code's IDE link, below, its selection and send selection's
+    // mention.
     "allow_untested_versions": {
       "claude_prompt_tags": false,
-      "codex_app_server": false
+      "codex_app_server": false,
+      "claude_ide_connection": false,
+      "claude_ide_selection": false,
+      "claude_ide_mention": false
     },
     // Agent prompts in a tab (#649): the terminals Marley opens for agents get Marley's editor as
     // VISUAL and EDITOR, so the agent's own editor key, and Ctrl-G, open its prompt in a tab, and
@@ -1806,6 +1811,12 @@
     // close guard read the thread's own state, token use and sandbox. Codex's requests then name
     // Marley in their user agent. Applies to Codex launched after the change.
     "codex_app_server": false,
+    // Claude Code's IDE link (#653): Marley serves Claude Code's IDE connection for each local
+    // project, writes its lock file into Claude Code's ide folder and names the project's port in
+    // its new terminals, so a claude started there gets the editor's selection and open file and
+    // the language servers' diagnostics, and send selection mentions the lines in its prompt. Any
+    // program of yours that can read the lock file can connect and read the selection.
+    "claude_code_ide": false,
     // Voice in Marley (#642), off until you turn it on. On, the agent bar shows a microphone where
     // Voxtype is on your PATH, and `marley: toggle dictation` dictates through it; off, Marley
     // shows no microphone and starts no voxtype. Marley never touches the audio.

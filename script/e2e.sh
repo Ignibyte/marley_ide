@@ -637,7 +637,9 @@ cp "$config/settings.json" "$E2E_PROFILE/config/"
 # would read differently from one install to the next. Agent prompts in a tab are off in the copy
 # (#649), so Ctrl-G in an agent's terminal opens the Rich Input overlay whatever the user chose.
 # Codex's App Server is off too (#650), so no run starts an App Server for a Codex; the allow map
-# gets no `codex_app_server`, so a scenario that turns it on meets #648's check.
+# gets no `codex_app_server`, so a scenario that turns it on meets #648's check. Claude Code's IDE
+# link is off as well (#653), so no run writes a lock file a real Claude Code would find, and its
+# three ids stay out of the allow map in the same way.
 python3 - "$E2E_PROFILE/config/settings.json" <<'SETTINGS'
 import json, pathlib, re, sys
 
@@ -654,6 +656,7 @@ marley.setdefault("voice", {})["enabled"] = False
 marley.setdefault("allow_untested_versions", {})["claude_prompt_tags"] = True
 marley["agent_editor_in_tab"] = False
 marley["codex_app_server"] = False
+marley["claude_code_ide"] = False
 path.write_text(json.dumps(settings, indent=2) + "\n")
 SETTINGS
 export MARLEY_RUSTY_MCP=$E2E_WORK/no-rusty-mcp
