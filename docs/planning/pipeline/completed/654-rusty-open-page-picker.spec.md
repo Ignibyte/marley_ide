@@ -1,7 +1,7 @@
 ---
 pipeline_id: a98df00e-cd49-4963-80ba-f0f787cb7b9c
-ticket: docs/planning/tickets/open/TICKET-654-rusty-open-page-picker.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-654-rusty-open-page-picker.md
+status: Phase 4 — Complete PASS
 title: "Open a brain page by name, or make it, from a picker"
 type: feature
 slice: Rusty in Marley R3a (`rusty: open page`, R-D3's QuickSwitcher row, R-D10)
@@ -197,7 +197,7 @@ create when nothing matches. No Warp behavior applies: Warp keeps no notes vault
 Setup writes a scratch vault under `$E2E_WORK/vault` with made-up pages, their mtimes set so
 Rusty's order is known (newest first): `home`, `people/sam` ("Sam"), `notes/2026-q3` ("Quarterly
 review"), `decisions/use-zeds-renderer` ("Use Zed's renderer"), `projects/atlas` ("Atlas", with
-the unresolved links `[[ideas/later]]` and `[[drafts/soon]]`), `projects/marley/shell` ("Shell"),
+the unresolved links `[[ideas/later]]` and `[[archive/gone]]`), `projects/marley/shell` ("Shell"),
 `ideas/seed` ("Seed"); there is no `drafts/` folder. It links #643's stand-in as
 `$E2E_WORK/bin/rusty-mcp`, names it in `MARLEY_RUSTY_MCP`, points it at that vault, and sets
 `marley.rusty.enabled` true with the embedded connection in the run's settings; it deletes the
@@ -217,17 +217,18 @@ Shots:
 - `654-08-create-row`: "projects/marley/review": "Create page: projects/marley/review" alone and
   selected.
 - `654-09-created`: Enter: a kept "review" tab; the stand-in's log holds `brain_new_page` with
-  `folder` `projects/marley` and `name` `review`.
-- `654-10-refused`: "drafts/soon", Enter: a toast with "No folder drafts"; the picker open with
-  "drafts/soon".
+  `path` `projects/marley/review`, `folder` `projects/marley` and `name` `review`.
+- `654-10-refused`: "archive/old", Enter: a toast with the stand-in's refusal ("archive/ holds
+  deleted pages…"); the picker open with "archive/old" (amended at promotion: a current Rusty
+  makes a missing folder, so the refusal is one both refuse).
 - `654-11-link-created`: Escape; Atlas's tab; a click on `ideas/later`: the tab shows "later", Back
   enabled; the log holds `folder` `ideas` and `name` `later`.
 - `654-12-link-resolved`: Alt-Left: Atlas, `ideas/later` now in the link colour.
-- `654-13-link-refused`: a click on `drafts/soon`: the toast; Atlas still shown.
+- `654-13-link-refused`: a click on `archive/gone`: the toast; Atlas still shown.
 - `654-14-palette`: the command palette, "open page" typed: `rusty: open page` with Ctrl+Alt+U.
 - `654-15-from-palette`: Enter: the picker.
-- `654-16-not-connected`: Escape; the stand-in's stop file made and its process killed; Ctrl+Alt+U:
-  the toast with #643's reason; no picker.
+- `654-16-not-connected`: Escape; the stand-in's link moved away and its process killed, as #643's
+  `643-08-missing`; Ctrl+Alt+U: "Rusty is not connected: …"; no picker.
 - `654-17-off`: `marley.rusty.enabled` set false from outside; Ctrl+Alt+U: "Rusty is off…"; no
   picker.
 
@@ -284,7 +285,10 @@ Shots:
   File: path" whenever no file is there, so Enter on the first row still opens the best match.
   Confirm splits PATH at its last `/` into `folder` and `name` and sends `brain_new_page { folder,
   name }`: Rusty's TICKET-041 turns a slashed `name` into a root page `a-b`, and the split stays
-  right after it lands. The picker stays open with the row reading "Creating…" and a second confirm
+  right after it lands. **Amended at promotion:** TICKET-041 landed (2026-10-04) with a `path`
+  parameter that wins over `folder` and `name`, makes missing folders and returns an existing
+  page; the installed Rusty predates it and ignores the unknown field. The confirm sends `{ path,
+  folder, name }`, so either Rusty makes the page at PATH. The picker stays open with the row reading "Creating…" and a second confirm
   does nothing until Rusty answers; then it closes and opens the returned slug kept, with a toast
   naming that slug when it is not PATH (Rusty numbers a clash `X 1`); a refusal shows Rusty's
   message in a toast of its own id (L-587) and keeps the query. Rejected: `brain_new_folder` before
@@ -351,7 +355,7 @@ the review of the diff, or the gate's exit code.
 | REQ-009 | The system shall keep at most 20 recently opened pages in Zed's key-value store, so their order holds after a restart. | Review |
 | REQ-010 | WHERE the query, read as a page path, names no listed page, the picker shall end its list with a row offering to create the page at that path. | Shots `654-02-by-title`, `654-08-create-row` |
 | REQ-011 | WHERE the query names a listed page by its slug, the picker shall offer no create row. | Shot `654-04-exact` |
-| REQ-012 | WHEN the user confirms the create row, the system shall call `brain_new_page` with the path's text before its last `/` as `folder` and the rest as `name`, and show the slug Rusty returns in a kept Page tab. | Shot `654-09-created`; the stand-in's log |
+| REQ-012 | WHEN the user confirms the create row, the system shall call `brain_new_page` with the path as `path`, and its text before its last `/` as `folder` and the rest as `name`, and show the slug Rusty returns in a kept Page tab. | Shot `654-09-created`; the stand-in's log |
 | REQ-013 | IF Rusty refuses to create the page, THEN the system shall show Rusty's message in a toast and keep the picker open with its query. | Shot `654-10-refused` |
 | REQ-014 | WHEN the user clicks an unresolved link in a Page tab, the system shall create the linked page the same way and show it in that tab. | Shots `654-11-link-created`, `654-12-link-resolved`; the log |
 | REQ-015 | IF Rusty refuses to create a linked page, THEN the system shall show Rusty's message in a toast and leave the tab as it is. | Shot `654-13-link-refused` |

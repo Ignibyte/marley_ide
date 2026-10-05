@@ -620,10 +620,16 @@ th { background: var(--panel); font-weight: 650; }
 </ol>
 <h4>A page's tab</h4>
 <ol class="steps">
-<li>Click a link to open its page in the same tab; a link in muted text names a page that does not exist yet. A link with a heading opens the page at that heading.</li>
+<li>Click a link to open its page in the same tab. A link in muted text names a page that does not exist yet: clicking it makes the page at that path, its folders too, and shows it (#654). A link with a heading opens the page at that heading.</li>
 <li>Back and Forward, at the tab's top left or <kbd>Alt+Left</kbd> and <kbd>Alt+Right</kbd>, go through the pages the tab showed.</li>
 <li>Edit shows the page's file in an editor in the same tab; typing keeps a preview tab, and the unsaved dot and <kbd>Ctrl+S</kbd> work as for any file. Read, Back and Forward save first, without formatting, and show the page as saved.</li>
 <li>A page that changes on disk, or that Rusty changes, shows its new text with no click.</li>
+</ol>
+<h4>Open a page by name <span class="ticket">#654</span></h4>
+<ol class="steps">
+<li>Press <kbd>Ctrl+Alt+U</kbd> from anywhere in the window, or run <code>rusty: open page</code> from the command palette: a picker lists every page of the brain, its title and its slug, the pages you opened most recently first.</li>
+<li>Type part of a title or a path; the matched letters light up. Enter opens the selected page in a kept tab, or brings forward the tab that shows it.</li>
+<li>When what you typed, read as a path such as <code>projects/marley/review</code>, names no page, the list ends with Create page: Enter there makes the page at that path and opens it. Rusty's refusal shows in a toast and the picker stays open.</li>
 </ol>
 <p class="note">Search is sent on Enter only: with an embedding provider set, Rusty embeds every query it is sent. A dot on the Projects button means something in the Projects view needs you. On the embedded connection, changes Rusty makes or sees in the vault's folder show without a click; on the service connection, after Marley's own changes and on Refresh. Favourites come with Rusty's bookmarks.</p>
 </article>

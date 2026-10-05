@@ -117,6 +117,39 @@ pub fn normalise_target(target: &str) -> String {
     target.strip_suffix(".md").unwrap_or(target).to_string()
 }
 
+/// A page to make at a path the user named, from a link's target or the page picker's query
+/// (#654).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewPage {
+    /// The page's path in the vault, without `.md`: `projects/marley/review`.
+    pub path: String,
+}
+
+impl NewPage {
+    /// The page `target` names: its heading cut off, normalised as Rusty normalises a link, and
+    /// `None` for a path with an empty part, a `..`, or nothing at all.
+    #[must_use]
+    pub fn from_target(target: &str) -> Option<Self> {
+        let path = normalise_target(split_fragment(target).0);
+        let parts_ok = path
+            .split('/')
+            .all(|part| !part.trim().is_empty() && part != "..");
+        (!path.is_empty() && parts_ok).then_some(Self { path })
+    }
+
+    /// `brain_new_page`'s arguments: the path, which a Rusty with its TICKET-041 takes as given
+    /// (folders made, an existing page returned), and the folder and the name, which an older
+    /// Rusty takes instead and the newer one ignores.
+    #[must_use]
+    pub fn arguments(&self) -> Value {
+        serde_json::json!({
+            "path": self.path,
+            "folder": crate::vault::folder_of(&self.path),
+            "name": crate::vault::name_of(&self.path),
+        })
+    }
+}
+
 /// Rusty's parse options, so the pass finds the wikilinks Rusty found.
 fn rusty_options() -> Options {
     Options::ENABLE_TABLES

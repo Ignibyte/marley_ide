@@ -131,7 +131,7 @@ polls the harness's `fleet_events`. No Zed touchpoint.
 | GraphView | A **Graph** tab: `brain_graph` around the current page or project with depth, filters and colour by link type |
 | Explorer (vault tree) | The rail's **Brain** view (R-D9) over `brain_tree`; new, rename, move and delete through `brain_new_page`, `brain_rename`, `brain_delete_*`, never the disk |
 | SearchPane | Brain search in the Knowledge panel over `brain_search`, with its `tag:`, `path:`, `type:` operators |
-| QuickSwitcher | `rusty: open page`, a picker over `brain_list_pages` by title, favourites first, create on a miss |
+| QuickSwitcher | `rusty: open page`, a picker over `brain_list_pages` by title, favourites first, create on a miss (#654: the recently opened first until R4b's favourites) |
 | BookmarksPane | Waits on RQ4; the Qt app keeps bookmarks in its own `workspace.json` |
 | DecisionsPage | A **Decisions** tab over `brain_due` and decision pages; Marley's System One tab becomes "System One calls" (open decision 4) |
 | TasksPage | A **Tasks** tab over the twelve task tools |
@@ -270,11 +270,11 @@ possible: a wikilink switch in `markdown/src/parser.rs`, only if R2 chooses Zed'
 | R2 | #645, shipped 2026-10-04. The Page tab: Zed's `markdown` with wikilinks rewritten to `rusty:` links, properties, back and forward, preview tabs, Edit in a buffer; the `rusty::OpenPage` action | M |
 | R3 | #646, shipped 2026-10-04. The Knowledge panel in the right dock: the Page tab's tags with counts, backlinks with their lines, outgoing links with Create, and brain search on Enter with match case and regex; the project view went to R6 | M |
 | R5 | #647, shipped 2026-10-04. The Graph tab: whole vault or local with depth, filters, page-type colours, decision edges dashed, Ely's force layout off the main thread, a 2,000-node cap | M |
-| R3a | `rusty: open page`: a picker over `brain_list_pages` by title, create on a miss | S |
+| R3a | #654, shipped 2026-10-04. `rusty: open page` (Ctrl+Alt+U): a picker over `brain_list_pages`, titles and slugs matched in Marley, the recently opened first, create on a miss through `brain_new_page { path }`; an unresolved link makes its page | S |
 | R6 | The project join (R-D5) and the panel's project view: the project's page, its follow-ups, its task group; the Graph tab's project centre | M |
 | R2b | The Page tab's outline in Read mode and inline title and property edits | S |
 | R5b | The graph's colour groups, display and force sliders (Ely's slider), arrows, the tab restored after a restart | S |
-| R4b | Favourites in the Brain view, after Rusty's TICKET-037 | S |
+| R4b | Favourites in the Brain view and as the page picker's first group; Rusty's TICKET-037 landed 2026-10-04 (`bookmark_list` and its three siblings) | S |
 | R7b | Recording a follow-up from the Decisions tab (`brain_follow_up`: status, outcome, successor) | S |
 | R7 | The Tasks tab and the Decisions tab | M |
 | R8 | Memory, Skills and Secrets tabs; Rusty's server settings on the settings page | M |

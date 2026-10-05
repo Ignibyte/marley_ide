@@ -14,7 +14,11 @@
       "ctrl-shift-t": "marley::UndoCloseTerminal",
       // The rail's Projects and Brain views (#644). Zed's Linux keymap binds no Ctrl-Alt-V; its
       // Ctrl-Alt-B is the right dock and Ctrl-Alt-J the sidebar.
-      "secondary-alt-v": "marley::ToggleBrainView"
+      "secondary-alt-v": "marley::ToggleBrainView",
+      // Rusty's page picker (#654). No keymap Zed ships binds Ctrl-Alt-U (TextMate's on macOS is
+      // Ctrl, where `secondary` is Cmd). Rusty's own Ctrl-O stays Zed's Open Files and the
+      // terminal's program's.
+      "secondary-alt-u": "rusty::OpenPage"
     }
   },
   {

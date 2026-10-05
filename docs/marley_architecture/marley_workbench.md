@@ -2155,6 +2155,33 @@ alike.
   editor's; `added_to_workspace` keeps the workspace (L-613). `Focusable` is the editor's handle in
   Edit. Marley's keymap binds Alt-Left and Alt-Right in `RustyPage`.
 
+## Open a page by name (`src/rusty/page_picker.rs`, #654)
+
+- `OpenPage.slug` is an `Option` (its fields read through `OpenPageFields`, `slug` defaulted), so
+  gpui builds the action from `{}` and the command palette lists `rusty: open page`. `page::init`'s
+  handler checks `rusty::unavailable` first; a slug goes to `open_later`, none to
+  `page_picker::toggle`. The Marley keymap binds `secondary-alt-u` to it in `Workspace`.
+- `toggle` shows the shortcut note when a terminal had the focus (`shortcut_note::taken`), reads the
+  active Page tab's slug, and opens `PagePicker` with `Workspace::toggle_modal` (a second press
+  closes it): `Picker::uniform_list` over `PagePickerDelegate`, key context `RustyPagePicker`.
+- The delegate reads `brain_list_pages { limit: 100000 }` once per open through
+  `rusty::call_tool`, parses it off the main thread and refreshes the picker (`List::Reading`,
+  `Read`, `Failed` with the first line). An empty query takes `switcher::empty_order`; any other
+  runs two `fuzzy_nucleo::match_strings_async` calls, over titles and over slugs, merges them
+  (`switcher::merge`, 100 rows) and appends `switcher::create_target`'s row. Rows draw
+  `IconName::FileMarkdown`, the title and the slug as `HighlightedLabel`s.
+- Confirming a page dismisses the picker and calls `open_later(workspace, slug, false, true, ..)`.
+  The create row calls `page::create` (`brain_new_page` with `NewPage::arguments`, the slug parsed
+  with `vault::slug_from_answer`), the row reading "Creating…" until Rusty answers: then the picker
+  closes and the page opens kept, with a toast when Rusty named another slug; a refusal shows in
+  a toast and the picker stays.
+- `Recent`, a global, holds `RecentPages`, read at `rusty::init` from Zed's key-value store
+  (`marley-rusty-recent-pages`, key `pages`); `opened(slug)` puts a slug first and writes the list
+  in the background. `page::open` (every opener), and a Page tab's `navigate`, `back` and
+  `forward`, call it.
+- `PageView::follow`'s `PageLink::Missing` arm makes the page (`create_linked`: `NewPage::from_target`,
+  `page::create`) and navigates to the slug Rusty returns; a refusal shows in the tab's toast.
+
 ## The Knowledge panel (`src/rusty/knowledge_panel.rs`, #646)
 
 - **The panel.** `KnowledgePanel`, a `workspace::Panel` in the right dock only (persistent name

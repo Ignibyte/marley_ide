@@ -10887,6 +10887,7 @@ dependencies = [
  "fs",
  "futures 0.3.34",
  "fuzzy",
+ "fuzzy_nucleo",
  "git",
  "git_ui",
  "git_ui_core",

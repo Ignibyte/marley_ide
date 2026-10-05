@@ -13,6 +13,7 @@
 //! - [`knowledge`]: a page's tags, backlinks and links, and search snippets' marks (#646).
 //! - [`graph`]: the vault as a graph and the part the Graph tab shows; [`graph_layout`]: where its
 //!   nodes sit and how its view looks at them (#647).
+//! - [`switcher`]: the page picker's list, its recently opened pages and its order (#654).
 
 // gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
 // Zed's crates keep them at warn (CONSTITUTION §0).
@@ -34,6 +35,7 @@ pub mod graph_layout;
 pub mod knowledge;
 pub mod page;
 pub mod settings;
+pub mod switcher;
 pub mod vault;
 
 pub use settings::{EmbeddingProvider, ServerSettings};

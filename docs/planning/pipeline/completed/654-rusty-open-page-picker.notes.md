@@ -1,6 +1,6 @@
 # Open a brain page by name, or make it, from a picker: Notes
 
-- **Local ticket doc:** docs/planning/tickets/open/TICKET-654-rusty-open-page-picker.md
+- **Local ticket doc:** docs/planning/tickets/closed/TICKET-654-rusty-open-page-picker.md
 - **Pipeline spec:** 654-rusty-open-page-picker.spec.md
 
 ## Phase 1: Plan (queued by /spec, 2026-10-03)
@@ -369,3 +369,145 @@ waits for it to settle and the list's order is read from the rows above it.
 - A `rusty:` action run while Rusty is off or not connected shows a toast saying so and where to
   turn it on, and opens nothing (rusty-in-marley.md R-D0, settled across #643 to #659).
 - Every scenario names its stand-in in `MARLEY_RUSTY_MCP`, never first on the PATH (#643).
+
+### Promotion (2026-10-04)
+- Promoted into `active/`; the BACKLOG row removed; the ticket in-progress. Pre-flight green, no
+  other active pipeline; #643 to #653 landed (the last 5f0266ee93).
+- **Brain:** `brain ask` (consultation `2f146a3064c5457ca6f4b62a3657c30d`) returned due follow-ups
+  on other work only.
+- **#643 to #647 as shipped** (an Explore pass, read only):
+  - `rusty.rs`: `call_tool(tool, arguments, cx) -> Task<Result<String, String>>` (:517) is the
+    client to use (5 s, the failed and refused prefixes stripped, "Rusty is not connected" with no
+    server); `unavailable(cx) -> Option<SharedString>` (:548) gives every "not now" toast: off
+    ("Rusty is off. Turn it on in the Rusty section of the Marley settings."), starting, and
+    "Rusty is not connected: REASON". No toast of #644's own exists.
+  - `rusty/page.rs`: `OpenPage { slug: String, preview: bool }` (:46) with a hand-written
+    `Deserialize` through `OpenPageFields` (`deny_unknown_fields`, `preview` defaulted);
+    `page::init` (:89) checks `unavailable`, then `open_later(workspace, slug, preview, focus,
+    window, cx)` (:115, a `focus` argument the draft did not have). `PageView::follow` (:452)
+    handles a click; `navigate(Visit, ..)` (:424), `back` (:432), `forward` (:441) move the tab;
+    `PageLink::Missing { target }` toasts "There is no page TARGET yet." (:459).
+  - `marley_rusty::page`: `split_fragment` (:98), `normalise_target` (:114), `PageLink` (:235).
+    `marley_rusty::vault` holds `BRAIN_NEW_PAGE`, `slug_from_answer`, `folder_of`, `name_of`.
+  - The stand-in (`crates/marley_rusty/stand_in/rusty-mcp`) keeps everything under
+    `RUSTY_STAND_IN_STATE` (vault, `calls` log with the pid first); it has no stop or pid file
+    (scenarios kill the pid the log shows, and move the link away to make it missing, as #643's
+    does); it has no `brain_list_pages`; its `brain_new_page` already takes TICKET-041's `path`.
+  - The keymap's `Workspace` block holds `secondary-alt-n`, `ctrl-shift-t`, `secondary-alt-v`;
+    `secondary-alt-u` is bound nowhere (Marley's keymap, every file under `assets/keymaps/`).
+  - `shortcut_note::taken(action, did, terminal_focus, workspace, window, cx)`, called as
+    `agents.rs:673-684` does. `fuzzy_nucleo` is not yet a dependency of `marley_workbench`.
+  - The guide's Brain article (`guide/index.html:607-629`) says a muted link "names a page that
+    does not exist yet"; it changes with D7.
+  - The scenarios 643 to 647 clear nothing from the run's database copy; 576's scenario writes to
+    `$E2E_PROFILE/db/*/db.sqlite`, the table `scoped_kv_store(namespace, key, value)`.
+- **Rusty, 2026-10-04:** TICKET-037 (bookmarks: `bookmark_list` and three more tools) and
+  TICKET-041 (`brain_new_page { path }`: the page at exactly that path, missing folders made, an
+  existing page returned; `..` or a leading `/` refused, "Invalid page path") are closed. The
+  installed `rusty-mcp` (2026-09-17) predates both, and Rusty's params ignore unknown fields.
+- **Amended at promotion:**
+  - **D6:** the create sends `brain_new_page { path, folder, name }`: a Rusty with TICKET-041 takes
+    `path` (it wins over the other two), one without it takes `folder` and `name`. The picker's
+    refusal case is now one both refuse: a path under `archive/` (the stand-in's refusal, Rusty's
+    `archive` guard) in the scenario; a missing folder is no longer refused by a current Rusty.
+  - **REQ-019, REQ-020:** the toasts are `rusty::unavailable`'s, shared with every Rusty action.
+  - **Favourites:** TICKET-037 landed, so favourites are no longer waiting on Rusty. They stay Out
+    here: the Brain view (#644) and this picker both want them, from the same `bookmark_list`, so
+    one ticket of their own does both; an intake doc records it at Complete.
+  - **The scenario:** Atlas links `[[ideas/later]]` (made) and `[[archive/gone]]` (refused); the
+    picker's refusal types `archive/old`; not-connected moves the stand-in's link away and kills
+    it, as #643's `643-08-missing`; the recent pages' scope and the note's row are deleted from the
+    run's database copy with `sqlite3`.
+
+## Phase 2 — Code (2026-10-04)
+- **Built.**
+  - `marley_rusty::page::NewPage { path }`: `from_target` (the heading cut, #645's normalising,
+    `None` for an empty part, a `..` or nothing) and `arguments()` (`path`, `folder`, `name`).
+  - `marley_rusty::switcher`: `PageSummary` (`slug`, `title`, `shown_title`), `parse_page_list`,
+    `RecentPages` (`visit`, 20 at most, `from_json`, `to_json`, `rank`), `empty_order` (the active
+    page, the recent pages the list holds, the separator, the rest; the selection on the second
+    row after the active page), `merge` (each page at its better score, lit in the field that gave
+    it, ties to the recent and then to the list's order, 100 rows), `create_target`.
+  - The stand-in's `brain_list_pages` (newest file first, `limit`, `page_type`).
+  - `rusty::page_picker`: the `Recent` global loaded from Zed's key-value store
+    (`marley-rusty-recent-pages`, key `pages`) and written in the background by `opened`;
+    `toggle` (the shortcut note from a terminal, the active Page tab's slug, `toggle_modal`);
+    `PagePicker` over `Picker::uniform_list`, key context `RustyPagePicker`; the delegate reads
+    `brain_list_pages { limit: 100000 }` once per open and refreshes, matches titles and slugs with
+    two `fuzzy_nucleo::match_strings_async` calls, ends with the create row, opens through
+    `open_later(.., false, true, ..)`, and creates through `page::create`, the picker open with
+    "Creating…" until Rusty answers, a renamed slug or a refusal in a toast of its own id.
+  - `rusty::page`: `OpenPage.slug` optional (the palette lists `rusty: open page`); its handler
+    sends a slug to `open_later` and none to the picker, after `unavailable`'s check; `open`,
+    `navigate`, `back` and `forward` record the page as opened; `create` (`brain_new_page` with
+    `NewPage::arguments`, the slug parsed); a missing link's click makes its page and navigates to
+    it, a refusal in a toast.
+  - The keymap's `secondary-alt-u`; `fuzzy_nucleo` in `marley_workbench`'s manifest; the in-app
+    guide's Brain article.
+- **Deviations from the plan, and why.**
+  - The create sends `path` with `folder` and `name` (amended at promotion: TICKET-041 landed).
+  - The toasts are `rusty::unavailable`'s, shared with every Rusty action, rather than strings of
+    the picker's own.
+  - The recent list is a gpui global loaded once at `rusty::init` (as the plan said) and the
+    shortcut note is `taken` with an `OpenPage` whose slug is `None`.
+  - A query's rows can reach 101: 100 matches and the create row; `match_count` is the rows' length,
+    so the selection never passes a row drawn (BF-symbol-picker-render-cap).
+- **Review.**
+  - Re-entrancy: `confirm` runs in the picker's update; the open goes through `open_later`, which
+    defers, and the dismiss updates the modal, another entity. A link's create runs from
+    `follow`, which a deferred click calls, and navigates after Rusty answers.
+  - Nothing typed reaches Rusty: the query is matched in Marley; only the create sends a path.
+  - The recent list is written only on a change of its first slug, in the background.
+- **Clippy rounds:** three first doc paragraphs, a `const fn`, a `&mut Window` not needed.
+- **Gate:** `just gate-diff` green after the Test phase, 17 gates on the scope.
+
+## Phase 3 — Test (2026-10-04)
+- **Scenario:** `script/e2e/654-rusty-open-page-picker.sh`, `compositor sway`, the stand-in over a
+  scratch vault of seven pages with set file times, the recent scope and the note's row deleted
+  from the run's database copy. Every check passes.
+- **Shots, each read:**
+  - `654-01-listed`: the seven pages newest first (Home, Sam, Quarterly review, Use Zed's
+    renderer, Atlas, Shell, Seed), title and slug on each, the first selected; the note "Ctrl-Alt-U
+    opened Rusty's page picker; the program in this terminal did not get the key." REQ-001,
+    REQ-002, REQ-016, REQ-017.
+  - `654-02-by-title`: "quart rev": Quarterly review first, "Quart" and "rev" lit; "Create page:
+    quart rev" last. REQ-003, REQ-010.
+  - `654-03-by-slug`: "peop sam": Sam, `people/sam` lit. REQ-004.
+  - `654-04-exact`: "people/sam": Sam alone, no create row. REQ-011.
+  - `654-05-opened`: a kept Quarterly review tab with the focus. REQ-005.
+  - `654-06-recent`: Atlas (the active page), Sam, Quarterly review, a separator, then Home, Use
+    Zed's renderer, Shell, Seed; Sam selected. REQ-006, REQ-007.
+  - `654-07-back`: Enter: Sam's tab in front, no new tab. REQ-008.
+  - `654-08-create-row`: "Create page: projects/marley/review" alone and selected. REQ-010.
+  - `654-09-created`: a kept "review" tab at `projects / marley / review`; the stand-in's log holds
+    `{"folder": "projects/marley", "name": "review", "path": "projects/marley/review"}`. REQ-012.
+  - `654-10-refused`: "archive/old": the toast "archive/ holds deleted pages…", the picker open
+    with the query. REQ-013.
+  - `654-11-link-created`: Atlas's `ideas/later` clicked: the tab shows "later", Back enabled; the
+    log's `path` `ideas/later`. REQ-014.
+  - `654-12-link-resolved`: Alt+Left: Atlas, `ideas/later` in the link colour. REQ-014.
+  - `654-13-link-refused`: `archive/gone` clicked: a second refusal toast, Atlas shown. REQ-015.
+  - `654-14-palette`: "open page": `rusty: open page` first, with Ctrl-Alt-U. REQ-018.
+  - `654-15-from-palette`: the picker, Atlas first, `later` (opened by its link) selected.
+    REQ-018, REQ-006.
+  - `654-16-not-connected`: the stand-in gone: "Rusty is not connected: MARLEY_RUSTY_MCP names …,
+    which is not there"; no picker. REQ-019.
+  - `654-17-off`: "Rusty is off. Turn it on in the Rusty section of the Marley settings."; no
+    picker. REQ-020.
+- **Fixed in Test:** the scenario's first run met the project-trust modal (it now trusts the
+  scratch repository first) and the links' places were guesses (taken from `654-11`'s first shot).
+- **Review only:** a restart with the recent list kept (REQ-009), a failed list read (REQ-021), a
+  renamed slug (REQ-022), `OpenPage` with a slug (REQ-023; #645's scenario binds one).
+
+## Phase 4 — Complete (2026-10-04)
+- **Docs:** `CHANGELOG.md` (Added: the picker; Changed: an unresolved link makes its page);
+  `docs/marley/guide.md` ("Open a page by name", the link line, the keys table);
+  `docs/marley/walkthrough.md` (stop 2.13a, 2.13's link line); `docs/marley/rusty-in-marley.md`
+  (R3a shipped, R4b with the picker's favourites now that TICKET-037 landed, the QuickSwitcher
+  row); `docs/marley_architecture/marley_rusty.md` (`switcher`, `NewPage`, the stand-in's tool),
+  `marley_workbench.md` (the picker); the in-app guide in the Code phase. No Zed file changed.
+- **Knowledge:** AD-claude-654-the-page-picker-matches-in-marley-and-keeps-its-own-recent-list-001,
+  L-claude-654-a-new-rusty-parameter-goes-beside-the-old-ones-001.
+- **Brain:** consultation `2f146a3064c5457ca6f4b62a3657c30d` closed with `brain decide`.
+- **Open for Chad:** the key, `secondary-alt-u` (Ctrl+Alt+U), which the plan asked him to confirm.
+- **Closed:** TICKET-654 in `tickets/closed/`; the pair archived to `completed/`.

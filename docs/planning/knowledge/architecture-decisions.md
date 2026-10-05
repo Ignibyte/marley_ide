@@ -3988,3 +3988,18 @@ the allow map turns the link on until a release is checked by hand. Rejected: a 
 window or per terminal (every shell's lock file in every other Claude Code's `/ide`); frames by
 hand rather than `tungstenite`; a smol server in the workbench outside `marley_mcp`'s guards;
 claiming a tested version no real Claude Code was checked on.
+
+## AD-claude-654-the-page-picker-matches-in-marley-and-keeps-its-own-recent-list-001
+*decided at: 2026-10-04 · status: shipped · builds on: AD-claude-450-new-agent-is-a-picker-behind-the-marley-keymap-001 · plan: docs/marley/rusty-in-marley.md R3a, R-D3*
+
+`rusty: open page` is Zed's `Picker` in the modal layer over one `brain_list_pages { limit:
+100000 }` read per open, matched in Marley with Zed's `fuzzy_nucleo` over titles and slugs, so no
+keystroke reaches Rusty or an embedding provider. Rusty serves no recent pages, so Marley keeps
+the last 20 opened (every opener, links, Back and Forward) in Zed's key-value store and lists them
+first on an empty query, the active page heading them with the selection on the next row, as
+Zed's file finder does. A query that names no page ends with a create row; the create, and an
+unresolved link's click, send `brain_new_page { path, folder, name }`, which a Rusty with its
+TICKET-041 takes by `path` and an older one by `folder` and `name`. The key is
+`secondary-alt-u`, unbound in every keymap Zed ships. Rejected: Ely's `SearchPalette` (a search
+on every render, no virtual list); `brain_search` per keystroke; recent pages in memory only (no
+Page tab survives a restart); Rusty's Ctrl+O (Zed's Open Files, and a terminal's).

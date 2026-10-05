@@ -27,6 +27,7 @@ env_var.workspace = true
 fs.workspace = true
 futures.workspace = true
 fuzzy.workspace = true
+fuzzy_nucleo.workspace = true
 git.workspace = true
 git_ui.workspace = true
 git_ui_core.workspace = true

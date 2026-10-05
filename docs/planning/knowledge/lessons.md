@@ -4739,3 +4739,13 @@ answers `initialize` with full sync and publishes diagnostics on `textDocument/d
 the editor and every diagnostics reader a known error. To show a terminal and an editor in one
 shot, open the file and run `pane: split and move right`; `workspace: activate pane left` and
 `right` move the focus between them.
+
+## L-claude-654-a-new-rusty-parameter-goes-beside-the-old-ones-001
+*category: rusty · topic: calling a Rusty tool across Rusty versions · from: pipeline 654*
+
+Rusty's tool parameters are serde structs without `deny_unknown_fields`, and the installed
+`rusty-mcp` can be weeks older than Rusty's code (2026-09-17 against TICKET-041's 2026-10-04 on
+this box). When a ticket lands a new parameter that supersedes old ones, send it beside them
+(`brain_new_page { path, folder, name }`): the new Rusty lets the new one win, the old one never
+sees it. Check `~/.local/bin/rusty-mcp`'s date against the ticket's commit before relying on the
+new behaviour alone.

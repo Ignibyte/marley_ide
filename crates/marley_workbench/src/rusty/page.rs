@@ -21,7 +21,8 @@ use gpui::{
 use language::LanguageRegistry;
 use markdown::{Markdown, MarkdownElement, MarkdownFont, MarkdownOptions, MarkdownStyle};
 use marley_rusty::page::{
-    BRAIN_RENDER, PageHistory, PageLink, RenderedPage, Visit, body_of, page_file_in, page_markdown,
+    BRAIN_RENDER, NewPage, PageHistory, PageLink, RenderedPage, Visit, body_of, page_file_in,
+    page_markdown,
 };
 use marley_rusty::vault;
 use project::Project;
@@ -41,13 +42,15 @@ use super::properties;
 const PARSE_CHECK: Duration = Duration::from_millis(50);
 const PARSE_CHECKS: usize = 40;
 
-/// Opens a page of Rusty's brain in a tab, or brings forward the tab that shows it; with
-/// `preview`, in the pane's preview tab, as one click in the project panel opens a file.
+/// Opens a page of Rusty's brain in a tab, or brings forward the tab that shows it.
+///
+/// With `preview`, in the pane's preview tab, as one click in the project panel opens a file.
+/// Without a slug, opens the picker over every page (#654).
 #[derive(Clone, Debug, PartialEq, Eq, JsonSchema, Action)]
 #[action(namespace = rusty)]
 pub struct OpenPage {
-    /// The page's slug, such as `projects/marley`.
-    pub slug: String,
+    /// The page's slug, such as `projects/marley`; none opens the page picker.
+    pub slug: Option<String>,
     /// Whether the page opens in the pane's preview tab.
     pub preview: bool,
 }
@@ -58,7 +61,8 @@ pub struct OpenPage {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct OpenPageFields {
-    slug: String,
+    #[serde(default)]
+    slug: Option<String>,
     #[serde(default)]
     preview: bool,
 }
@@ -96,14 +100,17 @@ pub(super) fn init(cx: &App) {
                 );
                 return;
             }
-            open_later(
-                cx.weak_entity(),
-                action.slug.clone(),
-                action.preview,
-                !action.preview,
-                window,
-                cx,
-            );
+            match &action.slug {
+                Some(slug) => open_later(
+                    cx.weak_entity(),
+                    slug.clone(),
+                    action.preview,
+                    !action.preview,
+                    window,
+                    cx,
+                ),
+                None => super::page_picker::toggle(workspace, window, cx),
+            }
         });
     })
     .detach();
@@ -139,6 +146,7 @@ fn open(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
+    super::page_picker::opened(&slug, cx);
     let shown = workspace
         .items_of_type::<PageView>(cx)
         .find(|view| view.read(cx).slug() == slug);
@@ -165,6 +173,17 @@ fn open(
         None
     };
     workspace.add_item(pane, Box::new(view), destination, true, focus, window, cx);
+}
+
+/// Makes `new_page` through `brain_new_page`, and answers the slug Rusty gave it, or Rusty's
+/// refusal (#654).
+pub(crate) fn create(new_page: &NewPage, cx: &App) -> Task<Result<String, String>> {
+    let asking = super::call_tool(vault::BRAIN_NEW_PAGE, new_page.arguments(), cx);
+    cx.spawn(async move |_| {
+        let answer = asking.await?;
+        vault::slug_from_answer(&answer)
+            .map_err(|error| format!("{}'s answer did not parse: {error}", vault::BRAIN_NEW_PAGE))
+    })
 }
 
 /// What the tab has of its page.
@@ -424,6 +443,7 @@ impl PageView {
     fn navigate(&mut self, visit: Visit, window: &mut Window, cx: &mut Context<Self>) {
         self.leave_edit_then(window, cx, move |this, window, cx| {
             this.history.visit(visit);
+            this.moved(cx);
             this.scroll.set_offset(Point::default());
             this.load(window, cx);
         });
@@ -432,6 +452,7 @@ impl PageView {
     fn back(&mut self, _: &PageBack, window: &mut Window, cx: &mut Context<Self>) {
         self.leave_edit_then(window, cx, |this, window, cx| {
             if this.history.back() {
+                this.moved(cx);
                 this.scroll.set_offset(Point::default());
                 this.load(window, cx);
             }
@@ -441,6 +462,7 @@ impl PageView {
     fn forward(&mut self, _: &PageForward, window: &mut Window, cx: &mut Context<Self>) {
         self.leave_edit_then(window, cx, |this, window, cx| {
             if this.history.forward() {
+                this.moved(cx);
                 this.scroll.set_offset(Point::default());
                 this.load(window, cx);
             }
@@ -456,9 +478,7 @@ impl PageView {
                 target: slug,
                 heading,
             } => self.navigate(Visit { slug, heading }, window, cx),
-            PageLink::Missing { target } => {
-                self.toast(format!("There is no page {target} yet."), cx);
-            }
+            PageLink::Missing { target } => self.create_linked(&target, window, cx),
             PageLink::Heading(heading) => {
                 self.markdown.update(cx, |view, cx| {
                     view.scroll_to_heading(&generate_heading_slug(&heading), cx);
@@ -466,6 +486,31 @@ impl PageView {
             }
             PageLink::External(address) => cx.open_url(&address),
         }
+    }
+
+    /// The tab moved to another page: it counts as opened for the page picker (#654).
+    fn moved(&self, cx: &mut App) {
+        let slug = self.slug().to_string();
+        super::page_picker::opened(&slug, cx);
+    }
+
+    /// An unresolved link's page made through `brain_new_page` and shown here; Rusty's refusal in
+    /// a toast, the tab as it was (#654).
+    fn create_linked(&self, target: &str, window: &Window, cx: &mut Context<Self>) {
+        let Some(new_page) = NewPage::from_target(target) else {
+            self.toast(format!("{target} names no page Rusty can make."), cx);
+            return;
+        };
+        let creating = create(&new_page, cx);
+        cx.spawn_in(window, async move |this, cx| {
+            let made = creating.await;
+            this.update_in(cx, |this, window, cx| match made {
+                Ok(slug) => this.navigate(Visit::page(slug), window, cx),
+                Err(message) => this.toast(message, cx),
+            })
+            .log_err();
+        })
+        .detach();
     }
 
     fn toast(&self, message: String, cx: &mut App) {

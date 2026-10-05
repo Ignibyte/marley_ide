@@ -1127,8 +1127,9 @@ which a key of your own can bind with a slug (`["rusty::OpenPage", {"slug": "pro
   written, code highlighted for its language, tables. The header carries Back, Forward, the
   page's folder and name, and Edit.
 - **Links.** A wikilink is a link. One to a page opens it in the same tab, at its heading when it
-  names one (`[[page#Heading]]`); one to no page yet is drawn muted, and a click says the page does
-  not exist yet. A web link opens in your browser.
+  names one (`[[page#Heading]]`); one to no page yet is drawn muted, and a click makes the page at
+  that path, its folders too, and shows it (#654); Rusty's refusal, for a path under `archive/`
+  say, shows in a toast. A web link opens in your browser.
 - **Back and Forward.** The tab keeps its own history: the buttons, or Alt+Left and Alt+Right with
   the focus in the tab.
 - **Preview tabs.** One click in the tree opens the page in the pane's preview tab (its title in
@@ -1143,6 +1144,30 @@ which a key of your own can bind with a slug (`["rusty::OpenPage", {"slug": "pro
   the vault's folder) shows with no click, on the embedded connection.
 - **Not connected.** With Rusty off or its connection lost, the tab keeps the page it shows and
   says so above it.
+
+### Open a page by name (#654)
+
+`rusty: open page`, or Ctrl+Alt+U from anywhere in the window (a terminal included, where Marley
+takes the key from the program), opens a picker over every page of the brain.
+
+- **The list.** Each row shows the page's title and its slug. With nothing typed, the pages you
+  opened most recently come first, newest first, then a line, then the rest in the order Rusty
+  lists them, the most recently changed first. When a page's tab is in front, that page heads the
+  list and the selection starts on the next one, so Enter goes back to the page before. Marley
+  keeps the last 20 pages opened, from the picker, the Brain view, links, Back and Forward, in its
+  own database, so the order holds after a restart.
+- **Typing.** Part of a title or of a path, in any order of words (`quart rev`, `peop sam`); the
+  matched letters light up. The list is read from Rusty once when the picker opens and matched in
+  Marley, so nothing you type is sent to Rusty or to an embedding provider.
+- **Opening.** Enter, or a click, opens the page in a kept tab with the focus, or brings forward
+  the tab that shows it.
+- **Making a page.** When what you typed, read as a path (`projects/marley/review`), names no
+  page, the list ends with Create page. Enter on it makes the page at that path, its folders too,
+  and opens it; a Rusty older than its TICKET-041 makes it from the folder and the name instead,
+  and refuses a folder that does not exist. A refusal shows in a toast and the picker keeps what
+  you typed.
+
+With Rusty off, or not connected, the key says so in a toast and opens nothing.
 
 ### The Knowledge panel
 
@@ -1953,6 +1978,7 @@ table lists Marley's bindings and the Zed keys whose meaning Marley changes or r
 | Ctrl+Alt+; | Anywhere | Moves the focus into the rail, or back out |
 | Ctrl+Alt+J | Anywhere | Opens or closes the rail |
 | Ctrl+Alt+V | Anywhere, while Rusty is connected | The rail's Projects and Brain views |
+| Ctrl+Alt+U | Anywhere, while Rusty is connected | `rusty: open page`, the page picker |
 | Alt+Left, Alt+Right | A brain page's tab | Back, Forward |
 | Ctrl+? | Anywhere | Focuses the Agent Panel (Zed's) |
 | Ctrl+\` | Marley layout | Switches between the code and the project's terminals |

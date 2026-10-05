@@ -3,13 +3,13 @@
 - **Ticket:** LOCAL #654 (feature, Rusty in Marley R3a: `rusty: open page`, R-D3's QuickSwitcher
   row)
 - **Owner:** claude-opus-5-5, 2026-10-03 (/spec)
-- **Pipeline doc:** ../../pipeline/queued/654-rusty-open-page-picker.spec.md
+- **Pipeline doc:** ../../pipeline/completed/654-rusty-open-page-picker.spec.md
 - **Source ticket:** `docs/marley/rusty-in-marley.md` (R-D3's QuickSwitcher row, R-D10's
   `searchpalette-spotlightsearch-quicklauncher` row, the slices table's R3a, Rusty's triage);
   #645's Out list ("The second slice, its own ticket: `rusty: open page`'s picker"); Chad,
   2026-10-03: "lets make a plan to begin the work and spec out the tickets", "lets make sure we use
   the gpui components we found here"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 `rusty: open page` opens a picker over every page of Rusty's brain, the screen Rusty's Qt app

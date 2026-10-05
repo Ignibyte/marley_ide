@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-654](open/TICKET-654-rusty-open-page-picker.md) | feature | Rusty in Marley R3a · `rusty: open page` (Ctrl+Alt+U): a picker over the vault's titles, create on a miss |
 | [TICKET-655](open/TICKET-655-knowledge-panel-project-view.md) | feature | Rusty in Marley R6 · the Knowledge panel's project view: the project's brain page, follow-ups and task group, linked when none matches |
 | [TICKET-656](open/TICKET-656-brain-page-outline-and-property-edits.md) | feature | Rusty in Marley R2b · the Page tab's outline, and the title, name and properties edited in place |
 | [TICKET-657](open/TICKET-657-brain-graph-groups-and-forces.md) | feature | Rusty in Marley R5b · the Graph tab's colour groups, sliders and arrows, restored after a restart |

@@ -562,10 +562,24 @@ makes and deletes.
 - [ ] Step 2: Read saves (the dot goes) and shows the links; the first link opens `other` in the
   same tab; Back and Forward move between the two, and their buttons light only when they can go.
 - [ ] Step 3: the heading link opens `other` scrolled to `Why`; `marley-tour/nowhere` is muted and
-  a click says the page does not exist yet.
+  a click makes it in `marley-tour` and shows it (#654).
 - [ ] Step 4: one click on `other` puts it in the preview tab (italic); one click on `links` brings
   its tab forward instead of opening another.
 - [ ] Step 5: the typed line shows in the rendered page after Read.
+
+### 2.13a Open a page by name (#654), optional
+
+Needs 2.13's pages, before step 6 deletes them.
+
+1. Press Ctrl+Alt+U from a terminal, then from the `links` tab.
+2. Type `tour oth`, then `marley-tour/other`, then Enter.
+3. Ctrl+Alt+U, type `marley-tour/later`, Enter.
+
+- [ ] Step 1: the picker lists every page, its title and slug; from the terminal a note says
+  Ctrl+Alt+U was Marley's; from `links` that page heads the list with the next row selected.
+- [ ] Step 2: the matched letters light up; the exact path lists `other` alone, and Enter brings
+  its tab forward.
+- [ ] Step 3: the last row reads Create page: marley-tour/later; Enter makes it and opens it.
 
 ### 2.14 The Knowledge panel (#646), optional
 

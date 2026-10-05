@@ -37,6 +37,7 @@ TOOL_NAMES = [
     "setting_get",
     "setting_set",
     "brain_tree",
+    "brain_list_pages",
     "brain_search",
     "brain_daily_note",
     "brain_new_page",
@@ -164,6 +165,28 @@ def pages():
             )
             found.append((slug, title, text))
     return sorted(found)
+
+
+def list_pages(limit, page_type=None):
+    """Every page outside `archive/`, the most recently changed file first, as Rusty's
+    `brain_list_pages`: 50 unless `limit` says otherwise."""
+    found = []
+    for slug, title, _ in pages():
+        kind = slug.split("/", 1)[0] if "/" in slug else "page"
+        if page_type and kind != page_type:
+            continue
+        found.append((os.path.getmtime(in_vault(slug + ".md")), slug, title, kind))
+    found.sort(key=lambda page: (-page[0], page[1]))
+    count = 50 if limit is None else max(int(limit), 0)
+    return [
+        {
+            "slug": slug,
+            "page_type": kind,
+            "title": title,
+            "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(changed)),
+        }
+        for changed, slug, title, kind in found[:count]
+    ]
 
 
 def flat(text):
@@ -644,6 +667,9 @@ def render(slug):
 
 VAULT_TOOLS = {
     "brain_tree": lambda arguments: tree(),
+    "brain_list_pages": lambda arguments: list_pages(
+        arguments.get("limit"), arguments.get("page_type")
+    ),
     "brain_search": lambda arguments: search(
         str(arguments.get("query") or ""),
         arguments.get("limit"),

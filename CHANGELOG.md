@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Open a brain page by name** (#654, 2026-10-04). `rusty: open page`, Ctrl+Alt+U from anywhere
+  in the window, opens a picker over every page of Rusty's brain: its title and its slug on each
+  row, the pages you opened most recently first (kept across restarts), and the matched letters
+  lit as you type. Enter opens the page in a kept tab, or brings forward the tab that shows it.
+  When what you type, read as a path, names no page, the list ends with Create page, which makes
+  it there. The query is matched in Marley; nothing you type goes to Rusty.
+
 - **Marley as Claude Code's IDE** (#653, 2026-10-04). With Claude Code IDE Link on in the Marley
   settings (off by default), Marley serves Claude Code's IDE connection for each local project: a
   lock file in Claude Code's `ide` folder, and the project's port in its new terminals, so a
@@ -518,6 +525,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   setting English at the Prompt (`marley.english_hint`) turns the hint and the button off.
 
 ### Changed
+
+- **An unresolved link makes its page** (#654). In a brain page's tab, clicking a muted link to a
+  page that does not exist yet makes the page at that path, its folders too, and shows it, where
+  it used to say the page did not exist.
 
 - **`marley.rusty_tools` is now `marley.rusty.agent_tools`** (#643, 2026-10-04). Rusty Tools for
   Agents moved from the Agents section to the Rusty section, and offers Rusty's tools to Zed's

@@ -44,7 +44,18 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   front, the text's punctuation escaped and `%`, `<`, `>` and `\` percent-encoded in the address;
   `PageLink::parse` (`Page`, `Missing`, `Heading`, `Local`, `External`), which decodes them;
   `Visit` and `PageHistory` (a tab's Back and Forward, 100 behind); `page_file_in` (a slug's file
-  in a vault, `None` for one that would leave it); `BRAIN_RENDER`.
+  in a vault, `None` for one that would leave it); `BRAIN_RENDER`. Since #654 `NewPage { path }`:
+  `from_target` (the heading cut, the target normalised, `None` for an empty part or a `..`) and
+  `arguments()`, `brain_new_page`'s `path` with its `folder` and `name`, so a Rusty with its
+  TICKET-041 and an older one both make the page at the path.
+- `switcher` (#654): the page picker's pure part. `PageSummary` (`brain_list_pages`' `slug` and
+  `title`, `shown_title` falling back to the file's name) and `parse_page_list`; `RecentPages`,
+  the recently opened newest first (`visit`, at most `RECENT_CAP` 20, `from_json`, `to_json`,
+  `rank`); `empty_order(pages, recent, active)` (the active page, the recent pages the list holds,
+  the separator after them, the rest in Rusty's order, the selection on the second row after the
+  active page); `merge(titles, slugs, pages, recent, cap)` (each page at the better of its two
+  fields' scores, lit in the field that gave it, ties to the more recently opened then the list's
+  order); `create_target(query, pages)`; `BRAIN_LIST_PAGES`, `LIST_LIMIT` 100,000, `MATCH_CAP` 100.
 - `knowledge` (#646): what the Knowledge panel shows of a page. `LinkEntry` and `PageLinks`
   (`brain_get_links`'s `outbound` and `backlinks`, each with `context`, the line the link sits on,
   and `resolved`), `TagCount` (`brain_tags`), `GraphNode` and `Graph` (`brain_graph`'s nodes; the
@@ -85,7 +96,8 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
 ## Fixtures and the stand-in
 - `fixtures/settings_list.json`: an answer in `rusty-mcp`'s shape, neutral values.
 - `stand_in/rusty-mcp`: a Python program on the standard library that answers as `rusty-mcp` does
-  for the tools Marley reads, over a scratch folder (`$RUSTY_STAND_IN_STATE`): stdio with no
+  for the tools Marley reads (since #654 `brain_list_pages` too, the newest file first), over a
+  scratch folder (`$RUSTY_STAND_IN_STATE`): stdio with no
   arguments, or `--http ADDR` (port 0 picks one, written to `http-addr`). It logs every request with
   its pid in `calls`, seeds `settings.json` from the fixture, and on stdio sends
   `notifications/resources/list_changed` when that file changes. Since #644 it also serves the vault
