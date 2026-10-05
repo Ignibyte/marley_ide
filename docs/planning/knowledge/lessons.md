@@ -4749,3 +4749,12 @@ this box). When a ticket lands a new parameter that supersedes old ones, send it
 (`brain_new_page { path, folder, name }`): the new Rusty lets the new one win, the old one never
 sees it. Check `~/.local/bin/rusty-mcp`'s date against the ticket's commit before relying on the
 new behaviour alone.
+
+## L-claude-655-a-panels-set-active-runs-inside-the-workspaces-update-001
+*category: gpui · topic: panel activation · from: pipeline 655*
+
+The dock calls `Panel::set_active` while the workspace is being updated (opening, focusing or
+toggling a dock), so a panel that reads its workspace entity there panics on the double lease.
+Defer the work with `cx.defer_in(window, ..)`. The same holds for a workspace action handler that
+toasts: call `show_toast` on the `&mut Workspace` it was given, not `WeakEntity::update` on the
+same workspace.

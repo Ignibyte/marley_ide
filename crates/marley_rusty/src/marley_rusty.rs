@@ -14,6 +14,8 @@
 //! - [`graph`]: the vault as a graph and the part the Graph tab shows; [`graph_layout`]: where its
 //!   nodes sit and how its view looks at them (#647).
 //! - [`switcher`]: the page picker's list, its recently opened pages and its order (#654).
+//! - [`project`]: a workspace's folders joined to a brain project page; [`decisions`] and
+//!   [`tasks`]: the follow-ups due and the task groups the project view reads (#655).
 
 // gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
 // Zed's crates keep them at warn (CONSTITUTION §0).
@@ -30,12 +32,15 @@
     )
 )]
 
+pub mod decisions;
 pub mod graph;
 pub mod graph_layout;
 pub mod knowledge;
 pub mod page;
+pub mod project;
 pub mod settings;
 pub mod switcher;
+pub mod tasks;
 pub mod vault;
 
 pub use settings::{EmbeddingProvider, ServerSettings};

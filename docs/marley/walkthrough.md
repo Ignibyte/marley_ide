@@ -613,6 +613,22 @@ deletes.
   selected page.
 - [ ] Step 6: the field empties and the page view is back.
 
+### 2.14a The project view (#655), optional
+
+Needs 2.12's setup: Rusty installed and on, and a project page of yours whose `path` lists the
+folder this window has open (or one named like it).
+
+1. Close every brain page tab and open the Knowledge panel.
+2. Click Open Page, close the tab, then click a follow-up if one is due.
+3. Run `rusty: open graph` with no page in front.
+
+- [ ] Step 1: the panel shows your project's page, "matched by path" (or "by name"), its summary,
+  its follow-ups due and its task group's open tasks; with no page matching, a callout offers Link
+  a Page, and the pick adds this folder to that page's `path`.
+- [ ] Step 2: Open Page opens the page in a tab; closing it brings the project view back; a
+  follow-up opens its decision.
+- [ ] Step 3: the Graph tab opens on the project's page, "(project)" in its header.
+
 ### 2.15 The Graph tab (#647), optional
 
 Needs 2.12's setup: Rusty installed and on. This stop only reads your vault.

@@ -271,7 +271,7 @@ possible: a wikilink switch in `markdown/src/parser.rs`, only if R2 chooses Zed'
 | R3 | #646, shipped 2026-10-04. The Knowledge panel in the right dock: the Page tab's tags with counts, backlinks with their lines, outgoing links with Create, and brain search on Enter with match case and regex; the project view went to R6 | M |
 | R5 | #647, shipped 2026-10-04. The Graph tab: whole vault or local with depth, filters, page-type colours, decision edges dashed, Ely's force layout off the main thread, a 2,000-node cap | M |
 | R3a | #654, shipped 2026-10-04. `rusty: open page` (Ctrl+Alt+U): a picker over `brain_list_pages`, titles and slugs matched in Marley, the recently opened first, create on a miss through `brain_new_page { path }`; an unresolved link makes its page | S |
-| R6 | The project join (R-D5) and the panel's project view: the project's page, its follow-ups, its task group; the Graph tab's project centre | M |
+| R6 | #655, shipped 2026-10-04. The project join (R-D5) and the panel's project view: the project's page by `path:` then by name, its follow-ups due, its task group's open tasks, Link a Page and Link a Task Group through `brain_set_property`; the Graph tab's project centre | M |
 | R2b | The Page tab's outline in Read mode and inline title and property edits | S |
 | R5b | The graph's colour groups, display and force sliders (Ely's slider), arrows, the tab restored after a restart | S |
 | R4b | Favourites in the Brain view and as the page picker's first group; Rusty's TICKET-037 landed 2026-10-04 (`bookmark_list` and its three siblings) | S |

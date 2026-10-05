@@ -640,12 +640,14 @@ th { background: var(--panel); font-weight: 650; }
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Click the book in the right dock's buttons, or run <code>rusty: toggle knowledge panel</code>. With Rusty off there is no button, and the command says where to turn Rusty on.</li>
-<li>Open a brain page: the panel shows its title, its tags, its backlinks (the link lit in each line) and its links. Any other tab shows the search field alone.</li>
+<li>Open a brain page: the panel shows its title, its tags, its backlinks (the link lit in each line) and its links.</li>
+<li>With no brain page in front, the panel shows your project's page (#655): the project page whose <code>path</code> lists this project's folder, else the one named like the folder. It shows the page's summary, the follow-ups due among the decisions linked to it, and the open tasks of its task group (named by its <code>task_group</code> property, else the group named like the page). Open Page opens it; a follow-up opens its decision.</li>
+<li>When no page matches, Link a Page picks one and adds this folder to its <code>path</code>, keeping what was there. When several pages share the name, Link on one does the same. With no task group, Link a Task Group writes the group you pick to the page's <code>task_group</code>.</li>
 <li>Click a backlink or a link to open that page. A link to no page yet has Create, which makes the page and opens it.</li>
 <li>Click a tag to search for it (<code>tag:name</code>).</li>
 <li>Type in the field and press Enter. The two buttons beside it match case and read the query as a regular expression. Up and Down move through the results, Enter opens one, Escape clears the search.</li>
 </ol>
-<p class="note">Rusty's search operators work as typed: <code>tag:</code>, <code>path:</code>, <code>file:</code>, <code>type:</code>, quotes around words with spaces, a leading <code>-</code> to exclude. The query is sent on Enter only. The panel reads its page again when Rusty announces a change.</p>
+<p class="note">Rusty's search operators work as typed: <code>tag:</code>, <code>path:</code>, <code>file:</code>, <code>type:</code>, quotes around words with spaces, a leading <code>-</code> to exclude. The query is sent on Enter only. The panel reads its page again when Rusty announces a change. Linking writes only on your pick, through Rusty, which commits it.</p>
 </article>
 <article id="graph-tab">
 <h3>The Graph tab: the vault as a graph <span class="ticket">#647</span></h3>

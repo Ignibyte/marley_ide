@@ -1180,8 +1180,22 @@ panel that was showing closes.
   slug, its tags (frontmatter and inline) each with how many pages carry it, its backlinks with
   the line each link sits on and the link lit, and its own links in order. A click on a backlink or
   a link opens that page in the preview tab, and the panel follows it. A link to no page yet shows
-  as written, with Create: one click makes the page through Rusty and opens it. With any other
-  item active, the panel says to open a brain page.
+  as written, with Create: one click makes the page through Rusty and opens it.
+- **The project view** (#655). With no Page tab in front, the panel shows the brain page of the
+  window's project: the project page whose `path` property lists the project's folder, else the
+  one project page named like the folder (by Rusty's slug rule: `My Demo` is `my-demo`). It shows
+  the page's title and slug, how it matched, Open Page, its `summary` property (else the first
+  paragraph of its body), the follow-ups due today or overdue among the decisions linked to or from
+  it (a click opens the decision; an overdue day in the warning colour), and the open tasks of its
+  task group: the groups its `task_group` property names, else the group named like the page.
+  A path can be absolute or under `~`; text such as `old laptop ~/code/demo` names another machine
+  and matches nothing. A window with no folder shows the line to open a brain page.
+- **Linking.** When no page matches, a callout says what it looked for and offers Link a Page
+  (`rusty: link project page`), a picker over the project pages: the pick adds the folder to that
+  page's `path`, after what was there, through Rusty, which commits it. When several pages share the
+  folder's name, none is taken, and each has Link. With no task group, Link a Task Group
+  (`rusty: link task group`) writes the group you pick to the page's `task_group`. Nothing is
+  written except on your pick. A remote project matches by name only and offers no link.
 - **A tag.** A click on a tag searches for it: `tag:<name>` in the field, sent.
 - **Brain search.** The field takes Rusty's query as you would type it in Rusty's search pane:
   words, `tag:`, `path:`, `file:` and `type:`, quotes to keep spaces, a leading `-` to exclude.
@@ -1197,8 +1211,9 @@ panel that was showing closes.
 
 The Graph tab draws Rusty's vault as a graph in a center tab (#647): `rusty: open graph` from the
 command palette, or the graph icon after Today in the rail's Brain view. With a brain page in front
-it opens on that page's neighbourhood; `rusty: open local graph` turns it to the page in front, or
-says to open a page first. There is one Graph tab per window.
+it opens on that page's neighbourhood; with none, on the neighbourhood of the window's project page
+(#655), its header marking it "(project)". `rusty: open local graph` turns it to the page in
+front, else the project's page, or says to open a page first. There is one Graph tab per window.
 
 - **What it shows.** Pages are dots, larger the more links they have, coloured by page type in
   Zed's accent colours; the legend names each type with its count. Links are lines. A decision's

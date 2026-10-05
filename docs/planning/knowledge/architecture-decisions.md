@@ -4003,3 +4003,17 @@ TICKET-041 takes by `path` and an older one by `folder` and `name`. The key is
 `secondary-alt-u`, unbound in every keymap Zed ships. Rejected: Ely's `SearchPalette` (a search
 on every render, no virtual list); `brain_search` per keystroke; recent pages in memory only (no
 Page tab survives a restart); Rusty's Ctrl+O (Zed's Open Files, and a terminal's).
+
+## AD-claude-655-a-project-finds-its-brain-page-by-path-then-by-name-001
+*decided at: 2026-10-04 · status: shipped · builds on: AD-claude-654-the-page-picker-matches-in-marley-and-keeps-its-own-recent-list-001 · plan: docs/marley/rusty-in-marley.md R6, R-D5*
+
+A workspace's project (its project group's folders) joins to a brain project page by the page's
+`path:` property listing a folder, read without the disk (absolute or under `~`; words naming
+another machine match nothing), else by the one page named like a folder under Rusty's slug rule;
+a tie by name chooses none and offers Link on each. The project view shows the page, the
+follow-ups due among the decisions linked either way, and the open tasks of the groups its
+`task_group` names (else the group named like the page). Marley writes only on the user's pick,
+one `brain_set_property` each, keeping what `path:` held. All project pages are cached app-wide
+from one `brain_list_pages` call that asks for the three properties, falling back to a read per
+page for an older Rusty. Rejected: a map kept by Marley (the brain is the store); a fuzzy name; a
+folder inside a listed path; overwriting `path:`; a second confirmation after the pick.

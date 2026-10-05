@@ -48,6 +48,22 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   `from_target` (the heading cut, the target normalised, `None` for an empty part or a `..`) and
   `arguments()`, `brain_new_page`'s `path` with its `folder` and `name`, so a Rusty with its
   TICKET-041 and an older one both make the page at the path.
+- `project` (#655): the project join. `ListedPage` (`brain_list_pages`' summary with `aliases`
+  and the asked `properties`, absent from a Rusty before that parameter) and `PageRead`
+  (`brain_read_page`'s `slug`, `title`, `compiled_truth`, `frontmatter`); `ProjectPage` from
+  either (`path` as `PathValue::{Absent, Text, List, Other}`, `task_groups`, `summary`).
+  `local_paths(value, home)` takes the parts that are paths on this machine (absolute, `~`),
+  `lexical` normalises without the disk, `name_key` is Rusty's `title_to_slug` rule.
+  `resolve(project, pages, home)`: the pages listing a folder (sorted by slug; the one also named
+  like a folder wins, the rest named `also`), else the one page named like a folder, else
+  `Candidates` or `Unmatched`; a remote project matches by name only; `archive/` never matches.
+  `path_value_with` adds the folders to a `path` (text with `, `, a list, or new text), `None` when
+  all are listed, refused for any other value. `group_join` (the `task_group` names, else the group
+  named like the page), `due_for` (the due decisions among the page's backlinks and outbound
+  links), `summary` (the property, else the body's first paragraph, its wikilinks as words, cut
+  near 300 characters).
+- `decisions` (#655): `DecisionSummary` and `due_from_answer` (`brain_due`'s `due`).
+  `tasks` (#655): `TaskGroup`, `UserTask`, `groups_from_answer`, `tasks_from_answer`.
 - `switcher` (#654): the page picker's pure part. `PageSummary` (`brain_list_pages`' `slug` and
   `title`, `shown_title` falling back to the file's name) and `parse_page_list`; `RecentPages`,
   the recently opened newest first (`visit`, at most `RECENT_CAP` 20, `from_json`, `to_json`,
@@ -96,8 +112,10 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
 ## Fixtures and the stand-in
 - `fixtures/settings_list.json`: an answer in `rusty-mcp`'s shape, neutral values.
 - `stand_in/rusty-mcp`: a Python program on the standard library that answers as `rusty-mcp` does
-  for the tools Marley reads (since #654 `brain_list_pages` too, the newest file first), over a
-  scratch folder (`$RUSTY_STAND_IN_STATE`): stdio with no
+  for the tools Marley reads (since #654 `brain_list_pages` too, the newest file first; since #655
+  `brain_read_page`, `brain_due`, `brain_set_property`, `list_task_groups` and `list_tasks` from a
+  `tasks.json` in the state folder, and `brain_list_pages` typed by frontmatter with `aliases` and
+  `properties`), over a scratch folder (`$RUSTY_STAND_IN_STATE`): stdio with no
   arguments, or `--http ADDR` (port 0 picks one, written to `http-addr`). It logs every request with
   its pid in `calls`, seeds `settings.json` from the fixture, and on stdio sends
   `notifications/resources/list_changed` when that file changes. Since #644 it also serves the vault

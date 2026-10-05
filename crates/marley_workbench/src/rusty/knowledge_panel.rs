@@ -7,6 +7,10 @@
 //! It is always added and hides itself while Rusty is off, as Zed's Agent Panel does while AI is
 //! off: no dock button, a toggle that says why, and a dock that closes when it was showing the
 //! panel. It follows the workspace's active item, as Zed's outline panel follows the editor.
+//!
+//! With no Page tab in front it shows the project view (#655): the brain project page the
+//! workspace's folders resolve to, its summary, its follow-ups due and its task group's open tasks,
+//! or the pages to link when none resolves.
 
 use std::mem;
 
@@ -15,15 +19,23 @@ use gpui::{
     Action, AnyElement, App, Context, Entity, EventEmitter, FocusHandle, Focusable, Pixels,
     SharedString, Subscription, WeakEntity, Window, actions, px,
 };
+use marley_rusty::decisions::{BRAIN_DUE, DecisionSummary, due_from_answer};
 use marley_rusty::knowledge::{
     BRAIN_GET_LINKS, BRAIN_GRAPH, BRAIN_TAGS, Graph, Outgoing, PageKnowledge, PageLinks,
     SEARCH_LIMIT, TagCount, page_knowledge, snippet,
 };
+use marley_rusty::project::{
+    BRAIN_READ_PAGE, GroupJoin, Matched, ProjectPage, Resolution, due_for, group_join,
+    read_from_answer, summary,
+};
+use marley_rusty::tasks::{
+    LIST_TASK_GROUPS, LIST_TASKS, TaskGroup, UserTask, groups_from_answer, tasks_from_answer,
+};
 use marley_rusty::vault::{self, BRAIN_NEW_PAGE, BRAIN_SEARCH, SearchHit, hits_from_answer};
 use serde_json::json;
 use ui::{
-    Chip, HighlightedLabel, IconButtonShape, ListItem, ListItemSpacing, ListSubHeader, Tooltip,
-    prelude::*,
+    Callout, Chip, HighlightedLabel, IconButtonShape, ListItem, ListItemSpacing, ListSubHeader,
+    Tooltip, prelude::*,
 };
 use util::ResultExt as _;
 use workspace::dock::{DockPosition, Panel, PanelEvent};
@@ -31,6 +43,7 @@ use workspace::notifications::NotificationId;
 use workspace::{Toast, Workspace};
 
 use super::page::{PageEvent, PageView};
+use super::project::{self, Join, LinkProjectPage, LinkTaskGroup};
 
 actions!(
     rusty,
@@ -84,6 +97,23 @@ struct Reads {
     again: bool,
 }
 
+/// Whether the panel shows in its dock.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum InDock {
+    Hidden,
+    Shown,
+}
+
+/// What the project view shows of its page (#655).
+struct ProjectData {
+    title: String,
+    summary: String,
+    follow_ups: Vec<DecisionSummary>,
+    groups: GroupJoin,
+    /// The open tasks of the groups found.
+    tasks: Vec<UserTask>,
+}
+
 /// Brain search's last query and what came back: `None` while Rusty answers.
 struct Results {
     query: String,
@@ -109,7 +139,16 @@ pub(crate) struct KnowledgePanel {
     results: Option<Results>,
     /// Whether a close of the dock is already asked for, while Rusty is off.
     closing: bool,
-    _subscriptions: [Subscription; 4],
+    /// Whether the panel shows in its dock, so the project pages are worth reading.
+    shown_in_dock: InDock,
+    /// The project's join, for the project view (#655).
+    join: Join,
+    /// The resolved page's slug, and what Rusty gave of it.
+    project_view: Option<(String, Option<Result<ProjectData, SharedString>>)>,
+    project_reads: Reads,
+    /// The workspace's project's folder changes.
+    project_events: Option<Subscription>,
+    _subscriptions: [Subscription; 5],
 }
 
 impl KnowledgePanel {
@@ -129,10 +168,14 @@ impl KnowledgePanel {
                     }
                 },
             ),
-            // A change Rusty announces: the page and the query are read again.
+            // A change Rusty announces: the page, the project's page and the query are read again.
             cx.observe_global_in::<super::Announced>(window, |this, _, cx| {
                 this.load_page(cx);
+                this.load_project(cx);
                 this.search_again(cx);
+            }),
+            cx.observe_global_in::<project::ProjectPages>(window, |this, _, cx| {
+                this.refresh_join(cx);
             }),
             // The connection's state line, and a panel that opened while Rusty was down.
             cx.observe_global_in::<super::Rusty>(window, |this, _, cx| {
@@ -156,6 +199,7 @@ impl KnowledgePanel {
             let weak_workspace = weak_workspace.clone();
             move |this, window, cx| {
                 if let Some(workspace) = weak_workspace.upgrade() {
+                    this.watch_project(&workspace, window, cx);
                     this.follow_active_item(&workspace, window, cx);
                 }
             }
@@ -172,8 +216,119 @@ impl KnowledgePanel {
             page_reads: Reads::default(),
             results: None,
             closing: false,
+            shown_in_dock: InDock::Hidden,
+            join: Join::NoProject,
+            project_view: None,
+            project_reads: Reads::default(),
+            project_events: None,
             _subscriptions: subscriptions,
         }
+    }
+
+    /// Follows the workspace's project's folders, which the join reads.
+    fn watch_project(
+        &mut self,
+        workspace: &Entity<Workspace>,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        let project = workspace.read(cx).project().clone();
+        self.project_events = Some(cx.subscribe_in(
+            &project,
+            window,
+            |_, _, event: &::project::Event, window, cx| {
+                if matches!(
+                    event,
+                    ::project::Event::WorktreePathsChanged { .. }
+                        | ::project::Event::WorktreeAdded(_)
+                        | ::project::Event::WorktreeRemoved(_)
+                ) {
+                    // The project emits these in its own update; the join reads the workspace.
+                    cx.defer_in(window, |this, _, cx| this.refresh_join(cx));
+                }
+            },
+        ));
+    }
+
+    /// The project's join again; a newly resolved page is read.
+    fn refresh_join(&mut self, cx: &mut Context<Self>) {
+        let Some(workspace) = self.workspace.upgrade() else {
+            return;
+        };
+        if self.shown_in_dock == InDock::Shown && self.slug.is_none() {
+            project::ensure(cx);
+        }
+        let join = project::join(workspace.read(cx), cx);
+        if join == self.join {
+            return;
+        }
+        let slug = match &join {
+            Join::Resolved(Resolution::Page { slug, .. }) => Some(slug.clone()),
+            _ => None,
+        };
+        self.join = join;
+        if slug.as_deref() != self.project_view.as_ref().map(|(shown, _)| shown.as_str()) {
+            self.project_view = slug.map(|slug| (slug, None));
+            self.load_project(cx);
+        }
+        cx.notify();
+    }
+
+    /// Reads the project page, its links, the follow-ups due and the task groups, then the open
+    /// tasks of the groups it joins; an answer for a page no longer shown is dropped.
+    fn load_project(&mut self, cx: &Context<Self>) {
+        let Some(slug) = self.project_view.as_ref().map(|(slug, _)| slug.clone()) else {
+            return;
+        };
+        if self.project_reads.reading {
+            self.project_reads.again = true;
+            return;
+        }
+        self.project_reads.reading = true;
+        let page = super::call_tool(BRAIN_READ_PAGE, json!({ "slug": slug }), cx);
+        let links = super::call_tool(BRAIN_GET_LINKS, json!({ "slug": slug }), cx);
+        let due = super::call_tool(BRAIN_DUE, json!({ "days": 0 }), cx);
+        let groups = super::call_tool(LIST_TASK_GROUPS, json!({}), cx);
+        cx.spawn(async move |this, cx| {
+            let (page, links, due, groups) = futures::join!(page, links, due, groups);
+            let data = match project_reads(page, links, due, groups) {
+                Err(error) => Err(error),
+                Ok((data, ids)) => {
+                    let asking = this.update(cx, |_, cx| {
+                        ids.iter()
+                            .map(|id| {
+                                super::call_tool(
+                                    LIST_TASKS,
+                                    json!({ "group_id": id, "include_archived": false }),
+                                    cx,
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                    });
+                    match asking {
+                        Ok(asking) => {
+                            let answers = futures::future::join_all(asking).await;
+                            open_tasks(answers).map(|tasks| ProjectData { tasks, ..data })
+                        }
+                        Err(error) => Err(error.to_string()),
+                    }
+                }
+            };
+            this.update(cx, |this, cx| {
+                this.project_reads.reading = false;
+                if let Some((shown, read)) = &mut this.project_view
+                    && *shown == slug
+                {
+                    *read = Some(data.map_err(SharedString::from));
+                    cx.notify();
+                }
+                if mem::take(&mut this.project_reads.again) {
+                    this.load_project(cx);
+                }
+            })
+            .log_err();
+        })
+        .detach();
     }
 
     /// The active item's page, when it is a Page tab, followed as it navigates.
@@ -190,6 +345,7 @@ impl KnowledgePanel {
         let Some(page) = page else {
             self.page_tab = None;
             self.show(None, cx);
+            self.refresh_join(cx);
             return;
         };
         let followed = self
@@ -627,6 +783,200 @@ impl KnowledgePanel {
             .into_any_element()
     }
 
+    /// The project view, in the no-page place (#655).
+    fn render_project(&self, cx: &Context<Self>) -> AnyElement {
+        match &self.join {
+            Join::NoProject => {
+                muted_line("Open a brain page to see its tags, backlinks and links.".to_string())
+            }
+            Join::Reading => muted_line("Reading the brain's project pages…".to_string()),
+            Join::Failed(error) => error_line(error.to_string()),
+            Join::Resolved(Resolution::Page { slug, by, also }) => {
+                self.render_project_page(slug, *by, also, cx)
+            }
+            Join::Resolved(Resolution::Candidates { name, slugs }) => {
+                render_candidates(name, slugs, cx)
+            }
+            Join::Resolved(Resolution::Unmatched { folders, names }) => {
+                render_unmatched(folders, names)
+            }
+        }
+    }
+
+    fn render_project_page(
+        &self,
+        slug: &str,
+        by: Matched,
+        also: &[String],
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let read = self
+            .project_view
+            .as_ref()
+            .filter(|(shown, _)| shown == slug)
+            .and_then(|(_, read)| read.as_ref());
+        let title = match read {
+            Some(Ok(data)) => data.title.clone(),
+            _ => title_of(slug, cx),
+        };
+        let matched = match by {
+            Matched::Path => "matched by path",
+            Matched::Name => "matched by name",
+        };
+        let opened = slug.to_string();
+        let header = v_flex()
+            .px_2p5()
+            .pt_2()
+            .gap_0p5()
+            .child(
+                h_flex()
+                    .justify_between()
+                    .gap_2()
+                    .child(Label::new(title).size(LabelSize::Large).truncate())
+                    .child(
+                        Button::new("rusty-project-open", "Open Page")
+                            .end_icon(Icon::new(IconName::ArrowUpRight).size(IconSize::Small))
+                            .label_size(LabelSize::Small)
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.open_kept(&opened, window, cx);
+                            })),
+                    ),
+            )
+            .child(
+                Label::new(format!("{slug} · {matched}"))
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
+            );
+        let also_lines = also.iter().enumerate().map(|(at, other)| {
+            let opened = other.clone();
+            ListItem::new(("rusty-project-also", at))
+                .inset(true)
+                .spacing(ListItemSpacing::Sparse)
+                .child(
+                    Label::new(format!("{} also lists this folder.", title_of(other, cx)))
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    this.open(&opened, window, cx);
+                }))
+                .into_any_element()
+        });
+        let body = match read {
+            None => muted_line(format!("Reading {slug}…")),
+            Some(Err(error)) => error_line(error.to_string()),
+            Some(Ok(data)) => Self::render_project_data(data, cx),
+        };
+        v_flex()
+            .w_full()
+            .gap_1()
+            .child(header)
+            .children(also_lines)
+            .child(body)
+            .into_any_element()
+    }
+
+    fn render_project_data(data: &ProjectData, cx: &Context<Self>) -> AnyElement {
+        let follow_ups = data
+            .follow_ups
+            .iter()
+            .enumerate()
+            .map(|(at, decision)| follow_up_row(at, decision, cx));
+        let found: Vec<&TaskGroup> = match &data.groups {
+            GroupJoin::Named { found, .. } => found.iter().collect(),
+            GroupJoin::Like(group) => vec![group],
+            GroupJoin::Nothing => Vec::new(),
+        };
+        let tasks_label = if found.is_empty() {
+            SharedString::new_static("Tasks")
+        } else {
+            let names: Vec<&str> = found.iter().map(|group| group.name.as_str()).collect();
+            format!("Tasks · {}", names.join(", ")).into()
+        };
+        let missing = match &data.groups {
+            GroupJoin::Named { missing, .. } => missing.clone(),
+            GroupJoin::Like(_) | GroupJoin::Nothing => Vec::new(),
+        };
+        let no_group = match (&data.groups, missing.first()) {
+            (GroupJoin::Nothing, _) => Some("No task group for this project.".to_string()),
+            (GroupJoin::Named { .. }, Some(name)) if found.is_empty() => {
+                Some(format!("No task group named {name}."))
+            }
+            _ => None,
+        };
+        let tasks = data.tasks.iter().enumerate().map(|(at, task)| {
+            ListItem::new(("rusty-project-task", at))
+                .inset(true)
+                .spacing(ListItemSpacing::Sparse)
+                .start_slot(
+                    Icon::new(IconName::Circle)
+                        .size(IconSize::Small)
+                        .color(Color::Muted),
+                )
+                .child(Label::new(task.title.clone()).truncate())
+                .into_any_element()
+        });
+        v_flex()
+            .w_full()
+            .gap_1()
+            .when(!data.summary.is_empty(), |view| {
+                view.child(
+                    div().px_2p5().child(
+                        Label::new(data.summary.clone())
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                    ),
+                )
+            })
+            .child(section("Follow-ups due", data.follow_ups.len()))
+            .when(data.follow_ups.is_empty(), |view| {
+                view.child(muted_line("None due.".to_string()))
+            })
+            .children(follow_ups)
+            .child(section(tasks_label, data.tasks.len()))
+            .map(|view| match no_group {
+                Some(words) => view.child(
+                    v_flex()
+                        .px_2p5()
+                        .py_1()
+                        .gap_1()
+                        .items_start()
+                        .child(Label::new(words).size(LabelSize::Small).color(Color::Muted))
+                        .child(
+                            Button::new("rusty-project-link-group", "Link a Task Group")
+                                .start_icon(Icon::new(IconName::Link).size(IconSize::Small))
+                                .label_size(LabelSize::Small)
+                                .on_click(|_, window, cx| {
+                                    window.dispatch_action(LinkTaskGroup.boxed_clone(), cx);
+                                }),
+                        ),
+                ),
+                None if data.tasks.is_empty() => {
+                    view.child(muted_line("No open tasks.".to_string()))
+                }
+                None => view.children(tasks),
+            })
+            .into_any_element()
+    }
+
+    /// Opens `slug` in a kept tab with the focus, as Open Page does.
+    fn open_kept(&self, slug: &str, window: &Window, cx: &mut App) {
+        super::page::open_later(
+            self.workspace.clone(),
+            slug.to_string(),
+            false,
+            true,
+            window,
+            cx,
+        );
+    }
+
+    fn link(&self, slug: &str, cx: &mut App) {
+        if let Some(workspace) = self.workspace.upgrade() {
+            project::link_page(&workspace, slug, cx);
+        }
+    }
+
     fn render_body(&self, window: &Window, cx: &Context<Self>) -> AnyElement {
         if !super::is_connected(cx) {
             let reason = super::unavailable(cx).unwrap_or_default();
@@ -644,9 +994,7 @@ impl KnowledgePanel {
                 )
             });
         let view = match (&self.slug, &self.knowledge) {
-            (None, _) => {
-                muted_line("Open a brain page to see its tags, backlinks and links.".to_string())
-            }
+            (None, _) => self.render_project(cx),
             (Some(slug), None) => muted_line(format!("Reading {slug}…")),
             (Some(_), Some(Err(error))) => error_line(error.to_string()),
             (Some(_), Some(Ok(knowledge))) => Self::render_page(knowledge, cx),
@@ -703,8 +1051,170 @@ fn outgoing_row(at: usize, link: &Outgoing, cx: &Context<KnowledgePanel>) -> Any
     }
 }
 
+/// A follow-up due: the decision's title and its day, overdue in the warning colour; a click
+/// opens the decision.
+fn follow_up_row(
+    at: usize,
+    decision: &DecisionSummary,
+    cx: &Context<KnowledgePanel>,
+) -> AnyElement {
+    let opened = decision.slug.clone();
+    let by = decision.follow_up_by.clone().unwrap_or_default();
+    ListItem::new(("rusty-project-follow-up", at))
+        .inset(true)
+        .spacing(ListItemSpacing::Sparse)
+        .start_slot(
+            Icon::new(IconName::Clock)
+                .size(IconSize::Small)
+                .color(Color::Muted),
+        )
+        .child(
+            v_flex()
+                .min_w_0()
+                .child(Label::new(decision.title.clone()).truncate())
+                .child(
+                    Label::new(format!("follow up by {by}"))
+                        .size(LabelSize::Small)
+                        .color(if decision.overdue {
+                            Color::Warning
+                        } else {
+                            Color::Muted
+                        }),
+                ),
+        )
+        .on_click(cx.listener(move |this, _, window, cx| {
+            this.open(&opened, window, cx);
+        }))
+        .into_any_element()
+}
+
+/// A project page's title from the cache, else its slug.
+fn title_of(slug: &str, cx: &App) -> String {
+    project::cached(slug, cx).map_or_else(|| slug.to_string(), |page| page.title)
+}
+
+/// The pages named like the project, each with Link; none is taken as the project's.
+fn render_candidates(name: &str, slugs: &[String], cx: &Context<KnowledgePanel>) -> AnyElement {
+    let rows = slugs.iter().enumerate().map(|(at, slug)| {
+        let linked = slug.clone();
+        let opened = slug.clone();
+        ListItem::new(("rusty-project-candidate", at))
+            .inset(true)
+            .spacing(ListItemSpacing::Sparse)
+            .child(
+                v_flex()
+                    .min_w_0()
+                    .child(Label::new(title_of(slug, cx)).truncate())
+                    .child(
+                        Label::new(slug.clone())
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                    ),
+            )
+            .end_slot(
+                Button::new(("rusty-project-link", at), "Link")
+                    .start_icon(Icon::new(IconName::Link).size(IconSize::Small))
+                    .label_size(LabelSize::Small)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        cx.stop_propagation();
+                        this.link(&linked, cx);
+                    })),
+            )
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.open(&opened, window, cx);
+            }))
+            .into_any_element()
+    });
+    v_flex()
+        .w_full()
+        .gap_1()
+        .child(muted_line(format!(
+            "{} project pages are named {name}. Link one to this folder.",
+            slugs.len()
+        )))
+        .children(rows)
+        .into_any_element()
+}
+
+/// No page: the folders and the name looked for, and Link a Page.
+fn render_unmatched(folders: &[std::path::PathBuf], names: &[String]) -> AnyElement {
+    let folders: Vec<String> = folders
+        .iter()
+        .map(|folder| folder.to_string_lossy().into_owned())
+        .collect();
+    div()
+        .px_2()
+        .py_2()
+        .child(
+            Callout::new()
+                .icon(IconName::Info)
+                .title("No brain page for this project")
+                .description(format!(
+                    "No project page lists {} in its path, and none is named {}.",
+                    folders.join(", "),
+                    names.join(", ")
+                ))
+                .actions_slot(
+                    Button::new("rusty-project-link-page", "Link a Page")
+                        .start_icon(Icon::new(IconName::Link).size(IconSize::Small))
+                        .label_size(LabelSize::Small)
+                        .on_click(|_, window, cx| {
+                            window.dispatch_action(LinkProjectPage.boxed_clone(), cx);
+                        }),
+                ),
+        )
+        .into_any_element()
+}
+
+/// The project page and its follow-ups from the first four answers, with the ids of the task
+/// groups it joins; or the first failure.
+fn project_reads(
+    page: Result<String, String>,
+    links: Result<String, String>,
+    due: Result<String, String>,
+    groups: Result<String, String>,
+) -> Result<(ProjectData, Vec<i64>), String> {
+    let read = read_from_answer(&page?)
+        .map_err(|error| format!("{BRAIN_READ_PAGE}'s answer did not parse: {error}"))?
+        .ok_or_else(|| "The project page is gone from the brain.".to_string())?;
+    let links: PageLinks = serde_json::from_str(&links?)
+        .map_err(|error| format!("{BRAIN_GET_LINKS}'s answer did not parse: {error}"))?;
+    let due = due_from_answer(&due?)
+        .map_err(|error| format!("{BRAIN_DUE}'s answer did not parse: {error}"))?;
+    let groups = groups_from_answer(&groups?)
+        .map_err(|error| format!("{LIST_TASK_GROUPS}'s answer did not parse: {error}"))?;
+    let page = ProjectPage::from_read(&read);
+    let groups = group_join(&page, &groups);
+    let ids = match &groups {
+        GroupJoin::Named { found, .. } => found.iter().map(|group| group.id).collect(),
+        GroupJoin::Like(group) => vec![group.id],
+        GroupJoin::Nothing => Vec::new(),
+    };
+    Ok((
+        ProjectData {
+            title: read.title.clone(),
+            summary: summary(page.summary.as_deref(), &read.compiled_truth),
+            follow_ups: due_for(&due, &links),
+            groups,
+            tasks: Vec::new(),
+        },
+        ids,
+    ))
+}
+
+/// The open tasks from `list_tasks`' answers, in their groups' order; or the first failure.
+fn open_tasks(answers: Vec<Result<String, String>>) -> Result<Vec<UserTask>, String> {
+    let mut open = Vec::new();
+    for answer in answers {
+        let tasks = tasks_from_answer(&answer?)
+            .map_err(|error| format!("{LIST_TASKS}'s answer did not parse: {error}"))?;
+        open.extend(tasks.into_iter().filter(|task| !task.completed));
+    }
+    Ok(open)
+}
+
 /// A section's header with its count, as the `ui` crate's own example draws one.
-fn section(label: &'static str, count: usize) -> impl IntoElement {
+fn section(label: impl Into<SharedString>, count: usize) -> impl IntoElement {
     ListSubHeader::new(label).inset(true).end_slot(
         Label::new(count.to_string())
             .size(LabelSize::Small)
@@ -795,6 +1305,18 @@ impl Render for KnowledgePanel {
 impl Panel for KnowledgePanel {
     fn persistent_name() -> &'static str {
         "MarleyKnowledgePanel"
+    }
+
+    fn set_active(&mut self, active: bool, window: &mut Window, cx: &mut Context<Self>) {
+        self.shown_in_dock = if active {
+            InDock::Shown
+        } else {
+            InDock::Hidden
+        };
+        if active {
+            // The dock opens inside the workspace's update; the join reads the workspace.
+            cx.defer_in(window, |this, _, cx| this.refresh_join(cx));
+        }
     }
 
     fn panel_key() -> &'static str {

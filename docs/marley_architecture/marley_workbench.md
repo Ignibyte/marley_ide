@@ -2182,6 +2182,36 @@ alike.
 - `PageView::follow`'s `PageLink::Missing` arm makes the page (`create_linked`: `NewPage::from_target`,
   `page::create`) and navigates to the slug Rusty returns; a refusal shows in the tab's toast.
 
+## The project view (`src/rusty/project.rs`, #655)
+
+- `ProjectPages`, a global the panel and the Graph tab observe, holds every project page, or the
+  read's failure, written only when it differs; `ProjectReads` keeps the read in flight, one
+  queued, the delayed second look and the pages an older Rusty gave by read. `ensure` starts the
+  first read (from a panel shown in its dock, or `rusty: open graph`); `Announced` re-lists now and
+  6 s later. The list is `brain_list_pages { page_type: "project", limit: 1000, properties: [path,
+  task_group, summary] }`; a summary without `properties` is read with `brain_read_page`, eight
+  at a time, again only when its `updated_at` moved.
+- `project_of(workspace)` is the project group's folders (`Workspace::project_group_key`) and
+  whether its host is remote; `join` resolves it over the cache (`marley_rusty::project::resolve`,
+  the home folder from `util::paths`), `project_page` gives the slug for the Graph tab.
+- `link_page(workspace, slug)` adds the folders to the cached page's `path` with
+  `path_value_with` and writes it with `brain_set_property`; `write` reads the pages again after,
+  and a refusal goes to a toast. `rusty::LinkProjectPage` and `rusty::LinkTaskGroup` (each with
+  `unavailable`'s toast, a "no folder" and a "link a page first" toast) open `LinkPicker`, Zed's
+  `Picker` over choices matched with `fuzzy`, its pick a closure run after the picker's update.
+- In the Knowledge panel, the no-page place draws the project view from the panel's `join`:
+  `render_project_page` (title, slug and how it matched, Open Page, the others that list the
+  folder, the summary, Follow-ups due, Tasks · GROUP or Link a Task Group), `render_candidates`
+  (Link per row), `render_unmatched` (`ui::Callout` with Link a Page). `refresh_join` runs on the
+  cache's change, on the project's folder events (deferred), when no Page tab is in front and when
+  the dock shows the panel (`Panel::set_active`, deferred: the dock calls it inside the
+  workspace's update). `load_project` reads the page, its links, `brain_due { days: 0 }` and the
+  task groups, then `list_tasks` for the groups it joins, coalesced as the page view's reads.
+- The Graph tab keeps `project_page` beside `page`; `centre()` is the page last in front, else the
+  project's; the header marks a project centre "(project)"; `open` starts Local when either
+  exists and says "Open a page first, or link this project to its page in the Knowledge panel."
+  with neither; `go_project` turns an open tab to it.
+
 ## The Knowledge panel (`src/rusty/knowledge_panel.rs`, #646)
 
 - **The panel.** `KnowledgePanel`, a `workspace::Panel` in the right dock only (persistent name

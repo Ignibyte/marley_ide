@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Knowledge panel's project view** (#655, 2026-10-04). With no brain page in front, the
+  Knowledge panel shows your project's brain page: the project page whose `path` lists the
+  window's folder, else the one named like it. It shows the page's summary, the follow-ups due
+  among the decisions linked to it, and the open tasks of its Rusty task group (named by its
+  `task_group`, else the group named like the page), with Open Page. When no page matches, Link a
+  Page adds the folder to the page you pick, keeping its `path`; when several share the folder's
+  name, each has Link; Link a Task Group writes the group you pick. Nothing is written except on
+  your pick, and Rusty commits each write.
+
 - **Open a brain page by name** (#654, 2026-10-04). `rusty: open page`, Ctrl+Alt+U from anywhere
   in the window, opens a picker over every page of Rusty's brain: its title and its slug on each
   row, the pages you opened most recently first (kept across restarts), and the matched letters
@@ -525,6 +534,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   setting English at the Prompt (`marley.english_hint`) turns the hint and the button off.
 
 ### Changed
+
+- **The Graph tab starts on your project's page** (#655). With no brain page in front, `rusty:
+  open graph` and `rusty: open local graph` show the neighbourhood of the window's project page,
+  marked "(project)", where they showed the vault or asked to open a page first.
 
 - **An unresolved link makes its page** (#654). In a brain page's tab, clicking a muted link to a
   page that does not exist yet makes the page at that path, its folders too, and shows it, where

@@ -3,12 +3,12 @@
 - **Ticket:** LOCAL #655 (feature, Rusty in Marley R6: the project join of R-D5 and the panel's
   project view; the Graph tab's project centre)
 - **Owner:** claude-opus-5-5, 2026-10-03 (/spec)
-- **Pipeline doc:** ../../pipeline/queued/655-knowledge-panel-project-view.spec.md
+- **Pipeline doc:** ../../pipeline/completed/655-knowledge-panel-project-view.spec.md
 - **Source ticket:** `docs/marley/rusty-in-marley.md` (R-D3, R-D5, slice R6), split out of #646
   (its Out list and the discovery its notes kept) and #647 (its Out list); Chad, 2026-10-02:
   "manage these projects", and for the Rusty batches "lets make a plan to begin the work and spec
   out the tickets"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Rusty knows about the projects on the box: 101 project pages in the brain, decisions that name

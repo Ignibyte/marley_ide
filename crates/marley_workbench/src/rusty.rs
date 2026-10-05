@@ -27,6 +27,7 @@ pub mod graph_tab;
 pub mod knowledge_panel;
 pub mod page;
 pub mod page_picker;
+pub mod project;
 mod properties;
 
 use std::collections::HashMap;
@@ -215,6 +216,7 @@ pub fn init(cx: &mut App) {
     brain::init(cx);
     page::init(cx);
     page_picker::init(cx);
+    project::init(cx);
     knowledge_panel::init(cx);
     graph_tab::init(cx);
     let view = cx.new(|cx: &mut Context<RustyServerView>| {

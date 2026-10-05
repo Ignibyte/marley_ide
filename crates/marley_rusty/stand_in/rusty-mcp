@@ -38,6 +38,11 @@ TOOL_NAMES = [
     "setting_set",
     "brain_tree",
     "brain_list_pages",
+    "brain_read_page",
+    "brain_due",
+    "brain_set_property",
+    "list_task_groups",
+    "list_tasks",
     "brain_search",
     "brain_daily_note",
     "brain_new_page",
@@ -167,26 +172,164 @@ def pages():
     return sorted(found)
 
 
-def list_pages(limit, page_type=None):
+def list_pages(limit, wanted_type=None, properties=()):
     """Every page outside `archive/`, the most recently changed file first, as Rusty's
-    `brain_list_pages`: 50 unless `limit` says otherwise."""
+    `brain_list_pages`: 50 unless `limit` says otherwise, typed as Rusty types a page, with its
+    aliases and the properties asked for."""
     found = []
-    for slug, title, _ in pages():
-        kind = slug.split("/", 1)[0] if "/" in slug else "page"
-        if page_type and kind != page_type:
+    for slug, title, text in pages():
+        fields, _ = frontmatter(text)
+        kind = page_type(slug, fields)
+        if wanted_type and kind != wanted_type:
             continue
-        found.append((os.path.getmtime(in_vault(slug + ".md")), slug, title, kind))
+        found.append((os.path.getmtime(in_vault(slug + ".md")), slug, title, kind, dict(fields)))
     found.sort(key=lambda page: (-page[0], page[1]))
     count = 50 if limit is None else max(int(limit), 0)
-    return [
-        {
+    listed = []
+    for changed, slug, title, kind, fields in found[:count]:
+        aliases = fields.get("aliases") or []
+        entry = {
             "slug": slug,
             "page_type": kind,
             "title": title,
-            "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(changed)),
+            "updated_at": int(changed),
+            "aliases": aliases if isinstance(aliases, list) else [aliases],
         }
-        for changed, slug, title, kind in found[:count]
+        if properties:
+            entry["properties"] = {key: fields[key] for key in properties if key in fields}
+        listed.append(entry)
+    return listed
+
+
+def read_page(slug):
+    """Rusty's `brain_read_page`: the page with its frontmatter, `None` when there is none."""
+    slug = clean(slug)
+    path = in_vault(slug + ".md")
+    if not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8") as page:
+        raw = page.read()
+    fields, body = frontmatter(raw)
+    compiled = body.split("\n## Timeline", 1)[0]
+    meta = dict(fields)
+    meta.setdefault("title", slug.rsplit("/", 1)[-1])
+    meta.setdefault("type", page_type(slug, fields))
+    return {
+        "slug": slug,
+        "page_type": page_type(slug, fields),
+        "title": meta["title"],
+        "compiled_truth": compiled.strip("\n"),
+        "timeline": "",
+        "frontmatter": meta,
+        "updated_at": int(os.path.getmtime(path)),
+    }
+
+
+def due(days):
+    """Rusty's `brain_due`: decided or revised decisions whose follow-up is on or before today
+    plus `days`, the follow-up day first; `overdue` before today."""
+    today = time.strftime("%Y-%m-%d")
+    horizon = time.strftime("%Y-%m-%d", time.localtime(time.time() + 86400 * int(days or 0)))
+    summaries = []
+    for slug, title, text in pages():
+        fields = dict(frontmatter(text)[0])
+        if page_type(slug, frontmatter(text)[0]) != "decision":
+            continue
+        follow_up = str(fields.get("follow_up_by") or "")
+        summaries.append({
+            "slug": slug,
+            "title": title,
+            "question": "",
+            "status": str(fields.get("status") or "decided"),
+            "decided": str(fields.get("decided") or ""),
+            "follow_up_by": follow_up,
+            "overdue": bool(follow_up) and follow_up < today,
+            "followed_up": False,
+            "superseded_by": None,
+        })
+    due_now = [
+        summary for summary in summaries
+        if summary["status"] in ("decided", "revised") and summary["follow_up_by"]
+        and summary["follow_up_by"] <= horizon
     ]
+    due_now.sort(key=lambda summary: (summary["follow_up_by"], summary["slug"]))
+    return {"due": due_now, "all": summaries}
+
+
+def yaml_value(value):
+    """A value as one frontmatter line's text, or a block list's lines."""
+    if isinstance(value, list):
+        return "\n" + "\n".join(f"  - {json.dumps(str(item))}" for item in value)
+    if isinstance(value, bool):
+        return " true" if value else " false"
+    return " " + json.dumps(value)
+
+
+def set_property(slug, key, value):
+    """Rusty's `brain_set_property`: the key's line, and a block list under it, replaced or added
+    at the frontmatter's end."""
+    slug = clean(slug)
+    path = in_vault(slug + ".md")
+    if not os.path.isfile(path):
+        raise Refused(f"Page not found: {slug}")
+    with open(path, encoding="utf-8") as page:
+        lines = page.read().split("\n")
+    line = f"{key}:{yaml_value(value)}"
+    if not lines or lines[0].strip() != "---":
+        lines = ["---", line, "---"] + lines
+    else:
+        close = next((at for at in range(1, len(lines)) if lines[at].strip() == "---"), None)
+        if close is None:
+            raise Refused(f"The frontmatter of {slug} does not close")
+        kept, at = [], 1
+        while at < close:
+            if lines[at].split(":", 1)[0].strip() == key and not lines[at].startswith(" "):
+                at += 1
+                while at < close and lines[at].startswith(("  - ", "- ")):
+                    at += 1
+                continue
+            kept.append(lines[at])
+            at += 1
+        lines = ["---"] + kept + [line] + lines[close:]
+    with open(path, "w", encoding="utf-8") as page:
+        page.write("\n".join(lines))
+    return read_page(slug)
+
+
+def tasks_file():
+    try:
+        with open(os.path.join(STATE, "tasks.json"), encoding="utf-8") as tasks:
+            return json.load(tasks).get("groups", [])
+    except (OSError, ValueError):
+        return []
+
+
+def task_groups():
+    """Rusty's `list_task_groups`, from `tasks.json` in the state folder."""
+    return [
+        {"id": group["id"], "name": group["name"], "sort_order": at}
+        for at, group in enumerate(tasks_file())
+    ]
+
+
+def group_tasks(group_id, include_archived=False):
+    """Rusty's `list_tasks` for one group."""
+    for group in tasks_file():
+        if group["id"] == group_id:
+            return [
+                {
+                    "id": task["id"],
+                    "header_id": group_id,
+                    "title": task["title"],
+                    "completed": bool(task.get("completed")),
+                    "archived": bool(task.get("archived")),
+                    "sort_order": at,
+                    "created_at": 0,
+                }
+                for at, task in enumerate(group.get("tasks", []))
+                if include_archived or not task.get("archived")
+            ]
+    return []
 
 
 def flat(text):
@@ -668,7 +811,16 @@ def render(slug):
 VAULT_TOOLS = {
     "brain_tree": lambda arguments: tree(),
     "brain_list_pages": lambda arguments: list_pages(
-        arguments.get("limit"), arguments.get("page_type")
+        arguments.get("limit"), arguments.get("page_type"), arguments.get("properties") or ()
+    ),
+    "brain_read_page": lambda arguments: read_page(str(arguments.get("slug") or "")),
+    "brain_due": lambda arguments: due(arguments.get("days")),
+    "brain_set_property": lambda arguments: set_property(
+        str(arguments.get("slug") or ""), str(arguments.get("key") or ""), arguments.get("value")
+    ),
+    "list_task_groups": lambda arguments: task_groups(),
+    "list_tasks": lambda arguments: group_tasks(
+        arguments.get("group_id"), bool(arguments.get("include_archived"))
     ),
     "brain_search": lambda arguments: search(
         str(arguments.get("query") or ""),

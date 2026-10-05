@@ -1,7 +1,7 @@
 ---
 pipeline_id: 10854dfc-6550-4c64-b51e-264282c4bf7b
-ticket: docs/planning/tickets/open/TICKET-655-knowledge-panel-project-view.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-655-knowledge-panel-project-view.md
+status: Phase 4 — Complete PASS
 title: "The Knowledge panel's project view: a project's brain page, follow-ups and tasks"
 type: feature
 slice: Rusty in Marley R6 (rusty-in-marley.md R-D5, R-D3); after #646 and #647
@@ -289,9 +289,11 @@ the stand-in's call log. Shots:
   quote or code fence, with each wikilink shown as its alias or target; cut at 300 characters on a
   word, with an ellipsis. Every project page has such a paragraph today.
 - D8: **The data.** One app-wide cache, `ProjectPages`, a global written only when what it holds
-  differs (L-572): `brain_list_pages { page_type: "project", limit: 1000 }` (Rusty's default of 50
-  would miss half of the 101), then `brain_read_page` for each page not held or whose `updated_at`
-  moved, eight at a time, each bounded as #643's client bounds a call; a page that fails to read is
+  differs (L-572): `brain_list_pages { page_type: "project", limit: 1000, properties: ["path",
+  "task_group", "summary"] }` (Rusty's default of 50 would miss half of the 101; **amended at
+  promotion:** Rusty now answers the properties asked, so a summary carrying them needs no read),
+  then, only for a summary without `properties` (a Rusty before that parameter),
+  `brain_read_page` for each page not held or whose `updated_at` moved, eight at a time, each bounded as #643's client bounds a call; a page that fails to read is
   left out and its error logged once; a slug under `archive/` is skipped (TICKET-040). It is built
   when a project view or a project centre first asks, re-listed on each change signal, and an empty
   or failed answer is kept as an outcome, so nothing re-asks in a loop

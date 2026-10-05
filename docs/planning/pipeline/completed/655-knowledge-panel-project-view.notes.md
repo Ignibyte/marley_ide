@@ -1,6 +1,6 @@
 # Notes: The Knowledge panel's project view: a project's brain page, follow-ups and tasks
 
-- **Local ticket doc:** docs/planning/tickets/open/TICKET-655-knowledge-panel-project-view.md
+- **Local ticket doc:** docs/planning/tickets/closed/TICKET-655-knowledge-panel-project-view.md
 - **Pipeline spec:** 655-knowledge-panel-project-view.spec.md
 
 ## Phase 1: Plan (queued by /spec, 2026-10-03)
@@ -423,3 +423,160 @@ is checked by review); REQ-025 by review and the gate.
   with aliases, in one query. Until it lands the cache reads each project page as drafted; once
   it lands, one call with `page_type: project` and properties `path` and `task_group` replaces
   the per-page reads.
+
+### Promotion (2026-10-04)
+- Promoted into `active/`; the BACKLOG row removed; the ticket in-progress. Pre-flight green, no
+  other active pipeline; #643 to #654 landed (the last 9975baf95a); #658 and #659 have not.
+- **Brain:** `brain ask` (consultation `82431580205f41fcbf6b9e13f9a36884`) returned due follow-ups on
+  other work only.
+- **#643 to #647 as shipped** (an Explore pass, read only):
+  - `knowledge_panel.rs`: `KnowledgePanel` with `page_tab`, `slug`, `knowledge`, `page_reads:
+    Reads { reading, again }`, `_subscriptions: [Subscription; 4]`; `follow_active_item` follows
+    the active `PageView`'s slug; `render_body` draws `unavailable`'s line when not connected,
+    search results first, else the page, else "Open a brain page to see its tags, backlinks and
+    links."; `section(label, count)` is a `ListSubHeader` with the count; `open` calls
+    `page::open_later(.., true, false, ..)` (a preview). The `Announced` global (only on the embedded
+    connection's `list_changed`) and the `Rusty` global are observed.
+  - `graph_tab.rs`: the centre is `page: Option<String>`; `open(workspace, local, ..)` starts a new
+    tab with the active Page tab's slug (Local) or none (Vault), and `rusty: open local graph` with
+    no page toasts "Open a page first"; the header reads "Local graph · TITLE · depth N · N nodes";
+    `wanted()` is `None` for Local without a page.
+  - `rusty.rs`: `call_tool(tool, arguments, cx)`, `unavailable`, `is_connected`, `is_on`;
+    `page::open_later(workspace, slug, preview, focus, window, cx)`.
+  - The stand-in: no `brain_read_page`, `brain_due`, `brain_set_property`, `list_task_groups` or
+    `list_tasks`; its `brain_list_pages` (#654's) types a page by its top folder and gives
+    `updated_at` as text. Its change signal is a watcher of the vault's mtimes (every 0.5 s, stdio
+    only), not `SIGUSR1`; scenarios change the vault and settle. Its `frontmatter(raw)` reads
+    scalars and lists. #646's scenario builds its vault inline (`fixtures/` holds only
+    `settings_list.json`).
+  - `marley_rusty`: no `decisions` or `tasks` module yet; `knowledge::PageLinks`, `LinkEntry`.
+  - Zed: `Workspace::project_group_key` (`workspace.rs:2506`), `ProjectGroupKey { paths: PathList,
+    host }`, `PathList::paths()`, `project::Event::WorktreePathsChanged` as the spec has them.
+- **Rusty at `13249a8`:** `brain_list_pages` takes `properties: [names]` and answers `aliases` and,
+  when asked, `properties` (the Out item "one call for every project page's properties" is now
+  Rusty's); `updated_at` is an integer. `brain_read_page` answers `frontmatter` nested (`title`,
+  `type`, `aliases`, extras such as `path`), `compiled_truth`. `brain_due { days }` answers `{ due,
+  all }` of `DecisionSummary { slug, title, follow_up_by, overdue, .. }`. `brain_set_property {
+  slug, key, value }` answers the page. `list_task_groups` answers `TaskHeader { id, name,
+  sort_order }`; `list_tasks { group_id, include_archived }` answers `UserTask { id, title,
+  completed, .. }`. The installed `rusty-mcp` (2026-09-17) predates `properties`.
+- **Amended at promotion:**
+  - **D8:** the cache lists `brain_list_pages { page_type: "project", limit: 1000, properties:
+    ["path", "task_group", "summary"] }`; a summary that carries `properties` is used as it is (no
+    read), and only one without them (a Rusty before the `properties` parameter) is read with
+    `brain_read_page`, eight at a time, keyed on `updated_at` as before. Aliases come from the list
+    when it gives them, else from the read's frontmatter.
+  - **The project view's page read:** the shown page is read with `brain_read_page` beside
+    `brain_get_links`, `brain_due` and the tasks, for D7's summary fallback (`compiled_truth`) and
+    the latest properties.
+  - **The change signal** in the scenario is a vault edit and a settle (the stand-in's watcher), not
+    `SIGUSR1`; the vault is built inline, as #646's scenario builds it.
+  - **The typed views** for `brain_due` and the tasks go in new `marley_rusty::decisions` and
+    `marley_rusty::tasks` (#658 and #659 have not landed), with the fields Rusty answers.
+  - **The stand-in** gains the five tools, and its `brain_list_pages` types a page by its
+    frontmatter `type` (else its folder's), gives `updated_at` as an integer, `aliases`, and the
+    asked `properties`.
+  - The Tasks tab's button (#658) stays Out: #658 has not landed.
+
+## Phase 2 — Code (2026-10-04)
+- **Built.**
+  - `marley_rusty::project` (pure): `ListedPage`, `PageRead`, `PathValue`, `ProjectPage` (from a
+    listing that carries properties, or from a read), `lexical`, `local_paths`, `name_key`
+    (Rusty's `title_to_slug` rule), `Project`, `resolve` (path tier, name tier, the tie rules,
+    `archive/` dropped), `path_value_with` (the four cases, `None` when nothing is new),
+    `group_join`, `due_for`, `summary`. `marley_rusty::decisions` (`DecisionSummary`,
+    `due_from_answer`) and `marley_rusty::tasks` (`TaskGroup`, `UserTask`, the two answers).
+  - The stand-in: `brain_read_page`, `brain_due`, `brain_set_property`, `list_task_groups`,
+    `list_tasks` (from `tasks.json`), and `brain_list_pages` typed as Rusty types a page, with
+    `updated_at` an integer, `aliases`, and the asked `properties`.
+  - `rusty::project`: the `ProjectPages` and `ProjectReads` globals; `ensure`, `refresh` (now and
+    6 s later), `read` (the list with properties; a page read only from a Rusty that gives none,
+    eight at a time, keyed on `updated_at`; a failure kept); `project_of`, `join`,
+    `project_page`, `cached`; `link_page` and `write` (`brain_set_property`, then a re-read);
+    `rusty::LinkProjectPage` and `rusty::LinkTaskGroup` with one `LinkPicker` over Zed's
+    `Picker` and `fuzzy`, a pick run after the picker's update.
+  - `knowledge_panel.rs`: the project view in the no-page place (the page with "matched by path"
+    or "by name" and Open Page, the summary, Follow-ups due, Tasks · GROUP, the others that list
+    the folder; the tie with Link on each row; the unmatched `Callout` with Link a Page; the
+    reading and failed lines); its reads coalesced as the page view's; the join followed on the
+    cache, the folders and the panel showing in its dock.
+  - `graph_tab.rs`: `project_page` beside `page`, `centre()`, the header's "(project)",
+    `open`'s rule and notice, `go_project`, the tab following the cache.
+  - The in-app guide's Knowledge panel article.
+- **Deviations from the plan, and why.**
+  - One cached list call, not a read per page (D8 amended: Rusty now answers properties); the
+    per-page read stays for an older Rusty, the one installed on this box.
+  - The shown page is read with `brain_read_page` beside the links, the follow-ups and the groups,
+    for the summary's fallback and its latest properties.
+  - One `LinkPicker` serves both links, its pick a closure, rather than two picker types.
+  - The project pages are read first when the panel shows in its dock (`Panel::set_active`), or a
+    Graph tab opens, not at every window's start.
+  - The candidates' rows open their page on a click beside their Link button.
+- **Review.**
+  - Re-entrancy: the dock calls `set_active` inside the workspace's update, so the join it starts
+    is deferred; a toast from an action handler goes through the workspace it was handed, never
+    `WeakEntity::update` on the same workspace; a pick runs after the picker's update; the project's
+    folder events are handled after a defer.
+  - Writes: only `brain_set_property`, only on a pick or a Link click; nothing written when every
+    folder is listed already; a value neither text nor a list refused in words.
+  - Nothing of Ely's or Zed's agent code carried; the summary and the join are Marley's.
+- **Clippy rounds:** an unused `pop` result, a binding too like another, two `Eq` derives, a
+  redundant closure, a struct's fourth bool (now an enum), a 103-line function split, a
+  `&mut` not needed twice, a needless borrow, a value not consumed, `sort_by_key`; `Button`'s icon
+  methods are `start_icon` and `end_icon` here.
+- **Gate:** `just gate-diff` green after the Test phase, 17 gates on the scope (its first run
+  failed gate:14 on a public doc linking a private constant, fixed in the words).
+
+## Phase 3 — Test (2026-10-04)
+- **Scenario:** `script/e2e/655-knowledge-panel-project-view.sh`, `compositor sway`, a scratch
+  folder `repos/demo` and the stand-in over a scratch vault and `tasks.json`; every change an
+  edit of the vault that the stand-in's watcher announces. Every check passes.
+- **Shots, each read:**
+  - `655-01-by-path`: Demo, `projects/demo · matched by path`, the summary; Follow-ups due 1,
+    "Demo uses Orbit", "follow up by 2026-01-05" in the warning colour (not "Demo keeps its name",
+    2099, nor Orbit's own); Tasks · Demo 2, the two open tasks, not the done one. REQ-001 to
+    REQ-004.
+  - `655-02-open-page`: Demo in a kept Page tab; the panel on Demo's page view. REQ-005.
+  - `655-03-back`: the tab closed: the project view again. REQ-006.
+  - `655-04-group-property`: `task_group: Chores` written from outside: Tasks · Chores 1, with no
+    input. REQ-007, REQ-008.
+  - `655-05-graph-project`: "Local graph · Demo (project) · depth 1 · 4 nodes", Demo in the
+    middle; the log's `brain_graph` around `projects/demo`. REQ-009.
+  - `655-06-follow-up-opens`: "Demo uses Orbit" in a Page tab. REQ-010.
+  - `655-07-graph-page-wins`: the Graph tab centred on the decision. REQ-011.
+  - `655-08-graph-local`: a new local graph around Demo, "(project)". REQ-012.
+  - `655-09-by-name`: `path: old laptop ~/code/demo`: "matched by name"; no write in the log.
+    REQ-013.
+  - `655-10-name-tie`: "2 project pages are named demo. Link one to this folder.", two rows with
+    Link. REQ-014.
+  - `655-11-linked-from-tie`: Link on `projects/demo`: "matched by path"; the log's write
+    `"old laptop ~/code/demo, <the folder>"`. REQ-015.
+  - `655-12-none`: the callout "No brain page for this project", naming the folder and `demo`, with
+    Link a Page. REQ-016.
+  - `655-13-page-picker`: the picker, Demo Site and Orbit Site.
+  - `655-14-page-linked`: "demo", Enter: Demo Site "matched by path", its body's first paragraph
+    as the summary, "None due.", "No task group for this project." with Link a Task Group; the
+    log's write of the folder alone. REQ-017, REQ-018, REQ-002's fallback.
+  - `655-15-group-picker`, `655-16-group-linked`: "chores", Enter: Tasks · Chores 1; the log's
+    `task_group` write. REQ-019.
+- **Machine checks:** no write before the first pick, three writes in all, each with its exact
+  arguments (REQ-024).
+- **Fixed in Test:** the first runs' clicks missed: the search field's hint shows while the panel
+  has just opened and moves Open Page down, and a missed click left the focus in the panel, where
+  Ctrl+W closed the dock; the places are now the shots'.
+- **Review only:** a path tie (REQ-020), a remote project (REQ-021), a projectless workspace
+  (REQ-022), the reading, not-connected and failed lines (REQ-023), REQ-025.
+
+## Phase 4 — Complete (2026-10-04)
+- **Docs:** `CHANGELOG.md` (Added: the project view and linking; Changed: the Graph tab starts on
+  the project's page); `docs/marley/guide.md` (the project view, linking, the Graph tab's start);
+  `docs/marley/walkthrough.md` (stop 2.14a); `docs/marley/rusty-in-marley.md` (R6 shipped);
+  `docs/marley_architecture/marley_rusty.md` (`project`, `decisions`, `tasks`, the stand-in's
+  tools), `marley_workbench.md` (the project view); the in-app guide in the Code phase. No Zed
+  file changed.
+- **Knowledge:** AD-claude-655-a-project-finds-its-brain-page-by-path-then-by-name-001,
+  L-claude-655-a-panels-set-active-runs-inside-the-workspaces-update-001.
+- **Brain:** consultation `82431580205f41fcbf6b9e13f9a36884` closed with `brain decide`.
+- **Open for Chad:** the `task_group` key's name, and that a pick writes to the brain with no
+  second confirmation (the plan asked him to confirm both).
+- **Closed:** TICKET-655 in `tickets/closed/`; the pair archived to `completed/`.

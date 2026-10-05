@@ -123,27 +123,37 @@ fn open(workspace: &mut Workspace, local: bool, window: &mut Window, cx: &mut Co
         .active_item(cx)
         .and_then(|item| item.downcast::<PageView>())
         .map(|page| page.read(cx).slug().to_string());
+    // With no page in front, the workspace's project page is the centre (#655).
+    super::project::ensure(cx);
+    let project_page = super::project::project_page(workspace, cx);
     let open = workspace.items_of_type::<GraphView>(cx).next();
     if let Some(view) = open {
         if local {
             let page = front.or_else(|| view.read(cx).page.clone());
-            let Some(page) = page else {
-                toast(workspace, "Open a page first".to_string(), cx);
-                return;
-            };
-            view.update(cx, |view, cx| view.go_local(page, cx));
+            match page {
+                Some(page) => view.update(cx, |view, cx| view.go_local(page, cx)),
+                None if project_page.is_some() => view.update(cx, GraphView::go_project),
+                None => {
+                    toast(workspace, NO_CENTRE.to_string(), cx);
+                    return;
+                }
+            }
         }
         workspace.activate_item(&view, true, true, window, cx);
         return;
     }
-    if local && front.is_none() {
-        toast(workspace, "Open a page first".to_string(), cx);
+    if local && front.is_none() && project_page.is_none() {
+        toast(workspace, NO_CENTRE.to_string(), cx);
         return;
     }
     let workspace_entity = cx.entity();
-    let view = cx.new(|cx| GraphView::new(&workspace_entity, front, window, cx));
+    let view = cx.new(|cx| GraphView::new(&workspace_entity, front, project_page, window, cx));
     workspace.add_item_to_active_pane(Box::new(view), None, true, window, cx);
 }
+
+/// What `rusty: open local graph` says with no centre to take.
+const NO_CENTRE: &str =
+    "Open a page first, or link this project to its page in the Knowledge panel.";
 
 fn toast(workspace: &mut Workspace, message: String, cx: &mut Context<Workspace>) {
     workspace.show_toast(
@@ -230,6 +240,8 @@ pub(crate) struct GraphView {
     depth: usize,
     /// The brain page last in front, the local graph's centre.
     page: Option<String>,
+    /// The workspace's project page, the centre while no page has been in front (#655).
+    project_page: Option<String>,
     page_tab: Option<(WeakEntity<PageView>, Subscription)>,
     filter_field: Entity<Editor>,
     filters: Filters,
@@ -267,6 +279,7 @@ impl GraphView {
     fn new(
         workspace: &Entity<Workspace>,
         page: Option<String>,
+        project_page: Option<String>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -306,8 +319,9 @@ impl GraphView {
                 }
                 cx.notify();
             }),
+            cx.observe_global::<super::project::ProjectPages>(Self::follow_project),
         ];
-        let scope = if page.is_some() {
+        let scope = if page.is_some() || project_page.is_some() {
             Scope::Local
         } else {
             Scope::Vault
@@ -318,6 +332,7 @@ impl GraphView {
             scope,
             depth: 1,
             page,
+            project_page,
             page_tab: None,
             filter_field,
             filters: Filters::default(),
@@ -417,6 +432,47 @@ impl GraphView {
         }
     }
 
+    /// The local graph's centre: the page last in front, else the project's page.
+    fn centre(&self) -> Option<&str> {
+        self.page.as_deref().or(self.project_page.as_deref())
+    }
+
+    /// Whether the centre is the project's page, which the header says.
+    const fn project_centred(&self) -> bool {
+        self.page.is_none() && self.project_page.is_some()
+    }
+
+    /// The workspace's project page again; a project centre follows it.
+    fn follow_project(&mut self, cx: &mut Context<Self>) {
+        let Some(workspace) = self.workspace.upgrade() else {
+            return;
+        };
+        let page = super::project::project_page(workspace.read(cx), cx);
+        if page == self.project_page {
+            return;
+        }
+        self.project_page = page;
+        if self.page.is_none() && self.scope == Scope::Local {
+            self.kept.clear();
+            self.look.fitted = false;
+            cx.emit(GraphEvent::UpdateTab);
+            self.read_if_needed(false, cx);
+        }
+        cx.notify();
+    }
+
+    /// `rusty: open local graph` with no page in front: the project page's neighbourhood.
+    fn go_project(&mut self, cx: &mut Context<Self>) {
+        if self.scope != Scope::Local {
+            self.kept.clear();
+            self.look.fitted = false;
+        }
+        self.scope = Scope::Local;
+        cx.emit(GraphEvent::UpdateTab);
+        self.read_if_needed(false, cx);
+        cx.notify();
+    }
+
     /// `rusty: open local graph`: the neighbourhood of `page`, read now.
     fn go_local(&mut self, page: String, cx: &mut Context<Self>) {
         if self.scope != Scope::Local || self.page.as_deref() != Some(page.as_str()) {
@@ -458,7 +514,7 @@ impl GraphView {
     /// What a read now would ask for; none for a local graph with no page.
     fn wanted(&self) -> Option<ReadKey> {
         let around = match self.scope {
-            Scope::Local => Some(self.page.clone()?),
+            Scope::Local => Some(self.centre()?.to_string()),
             Scope::Vault => None,
         };
         Some(ReadKey {
@@ -588,11 +644,11 @@ impl GraphView {
             return;
         };
         let centre = match self.scope {
-            Scope::Local => self.page.as_deref(),
+            Scope::Local => self.centre().map(str::to_string),
             Scope::Vault => None,
         };
         self.type_order = type_order(&self.page_types, graph);
-        self.shown = shown(graph, &self.filters, centre, CAP);
+        self.shown = shown(graph, &self.filters, centre.as_deref(), CAP);
         let seeds: Vec<Option<(f32, f32)>> = self
             .shown
             .nodes
@@ -895,9 +951,17 @@ impl GraphView {
                     .centre
                     .and_then(|at| self.shown.nodes.get(at))
                     .map(|node| node.title.clone())
-                    .or_else(|| self.page.clone())
+                    .or_else(|| self.centre().map(str::to_string))
                     .unwrap_or_default();
-                format!("Local graph · {title} · depth {} · {count}", self.depth)
+                let project = if self.project_centred() {
+                    " (project)"
+                } else {
+                    ""
+                };
+                format!(
+                    "Local graph · {title}{project} · depth {} · {count}",
+                    self.depth
+                )
             }
         };
         if self.run.task.is_some() {
@@ -919,7 +983,7 @@ impl GraphView {
             return super::unavailable(cx);
         }
         if self.graph.is_none() {
-            if self.scope == Scope::Local && self.page.is_none() {
+            if self.scope == Scope::Local && self.centre().is_none() {
                 return Some(SharedString::new_static(
                     "Open a page to see its local graph",
                 ));
@@ -1785,7 +1849,7 @@ impl Item for GraphView {
     }
 
     fn tab_tooltip_text(&self, _cx: &App) -> Option<SharedString> {
-        Some(match (self.scope, &self.page) {
+        Some(match (self.scope, self.centre()) {
             (Scope::Local, Some(page)) => {
                 format!("Local graph of {page}, depth {}", self.depth).into()
             }
