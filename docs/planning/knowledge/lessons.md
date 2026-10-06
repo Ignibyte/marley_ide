@@ -4942,3 +4942,13 @@ changes the id and so makes a fresh editor holding it; an edit in progress lives
 row whose value reads back the same (a credential Rusty masks every time) keeps its editor, so
 clear it yourself after the write. In the Settings window, Enter with the focus off a field takes
 the window back a page: a scenario must click inside the field.
+
+## L-claude-667-zeds-mcp-client-logs-whole-messages-at-trace-001
+*category: security · topic: what an MCP server's messages leave in Zed's log · from: pipeline 667*
+
+Zed's `context_server` client writes every message it sends and receives whole to its log at trace
+level (`recv:`, `outgoing message:`), the stdio transport writes the outgoing ones again, and a
+message that parses as nothing is written at error level. Any server whose tools take or return a
+secret (a PIN, a token, a key) needs `context_server::client::log_messages_by_size(<server name>)`
+before it starts. Prove it with a run at `ZED_LOG=info,context_server=trace`: the server's lines
+read `… bytes`, and a grep for the secrets the run used finds nothing.

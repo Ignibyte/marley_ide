@@ -2445,6 +2445,25 @@ alike.
   `RevealTarget::Center`, the summary shown and the command hidden (Zed's summary would leave out
   the path). Marley's terminal routing puts it in the center; no process starts in this crate.
 
+## The Secrets tab (`src/rusty/secrets_tab.rs`, #667)
+
+- **Logs.** `rusty::init` calls `context_server::client::log_messages_by_size` for `MARLEY_SERVER`
+  (`marley-rusty`) and `CONTEXT_SERVER` (`rusty`), so Zed's MCP client logs their messages by size
+  (the `context_server` touchpoints). The tab itself logs only `secret_lock`'s answer.
+- **Reads.** The Decisions tab's `Link` and `ReadDue`: `secret_list` and `secret_pin_status` read
+  together; off or a lost connection forgets the token.
+- **The token.** `secret_unlock`'s token lives in `BrainSecretsView::token` alone, with an `expiry`
+  task that locks after `expires_in_seconds`. `lock` drops the token, the revealed value, the
+  replace target and the timer, and sends `secret_lock`; it runs on Lock, on expiry, on
+  `observe_window_activation` reporting the window inactive, and from `on_release` when the tab
+  closes. `can_write` is true with no PIN, or with the token.
+- **Fields.** `Fields` holds the PIN, again, unlock PIN, key, value and replace editors, the PIN and
+  value ones `set_masked`; each is emptied as its text is sent. Each row's `RustySecret menu`
+  context turns Enter into its action.
+- **Writes.** `send(&SecretWrite, done)` carries the token, sets the notice to `done` or Rusty's
+  refusal, and reads again; Delete asks through `window.prompt`; Copy writes the clipboard; Reveal
+  toggles `revealed`.
+
 ## The project view (`src/rusty/project.rs`, #655)
 
 - `ProjectPages`, a global the panel and the Graph tab observe, holds every project page, or the

@@ -4180,3 +4180,17 @@ stays on screen and the mask is never sent back (Rusty would refuse it). Marley 
 through `settings_list`, which masks, never `setting_get`. The page keeps no copy of any value.
 Rejected: showing the mask in the field (Enter would send it back); a Save button for the whole
 page (Rusty's app writes one key at a time, and so does Rusty).
+
+## AD-claude-667-rustys-secrets-never-reach-a-log-and-the-token-lives-in-the-tab-001
+*decided at: 2026-10-06 · status: shipped · builds on: AD-claude-666-rustys-settings-are-written-only-when-changed-and-never-as-the-mask-001 · plan: docs/marley/rusty-in-marley.md R-D7*
+
+The Secrets tab follows Rusty's app: names for anyone, values behind the PIN, the PIN set twice,
+an unlock that lives for `pin_timeout_minutes`, the tab locking on expiry, on Lock, when Marley's
+window loses the focus and when the tab closes. The token lives in the tab's memory alone and goes
+with every guarded call, `secret_set` and `secret_delete` included once a PIN is set (Rusty's
+TICKET-049). Every PIN and value field is masked and emptied once sent. Nothing logs a secret:
+Zed's MCP client logs Rusty's two servers by size through a small registry in `context_server`
+(two additive hunks with ledger rows), and Marley's parse errors and `Debug` output leave values
+out. Rejected: turning off trace logging for every MCP server (it hides what other servers do);
+filtering message text for secret tool names (an answer to `secret_reveal` carries no tool name);
+keeping the token in a global so other views could use it.

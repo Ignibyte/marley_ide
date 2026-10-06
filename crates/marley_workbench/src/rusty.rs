@@ -37,6 +37,7 @@ pub mod page;
 pub mod page_picker;
 pub mod project;
 mod properties;
+mod secrets_tab;
 mod skills_tab;
 mod slider;
 pub mod tasks_tab;
@@ -82,6 +83,9 @@ use crate::MarleySettings;
 
 /// The context server Zed's agents know Rusty's tools by.
 const CONTEXT_SERVER: &str = "rusty";
+
+/// Marley's own connection to Rusty, apart from Zed's agents'.
+const MARLEY_SERVER: &str = "marley-rusty";
 
 /// The program Rusty's MCP server is.
 const PROGRAM: &str = "rusty-mcp";
@@ -252,6 +256,11 @@ pub fn init(cx: &mut App) {
     import::init(cx);
     memory_tab::init(cx);
     skills_tab::init(cx);
+    secrets_tab::init(cx);
+    // Rusty's messages carry its PIN, tokens and secrets: Zed's MCP client logs them by size
+    // only, for Marley's connection and for Zed's agents' (#667, R-D7).
+    context_server::client::log_messages_by_size(MARLEY_SERVER);
+    context_server::client::log_messages_by_size(CONTEXT_SERVER);
     let view = cx.new(|cx: &mut Context<RustyServerView>| {
         cx.observe_global::<Rusty>(|_, cx| cx.notify()).detach();
         RustyServerView
@@ -392,7 +401,7 @@ async fn keep(source: Source, cx: &AsyncApp) {
 
 /// The server `source` names, and how it is reached, for the page; not yet started.
 async fn server_for(source: &Source, cx: &AsyncApp) -> Result<(ContextServer, String), Lost> {
-    let id = ContextServerId(Arc::from("marley-rusty"));
+    let id = ContextServerId(Arc::from(MARLEY_SERVER));
     Ok(match source {
         Source::Off => return Err(Lost::Missing("Rusty is off".to_string())),
         Source::Embedded => {

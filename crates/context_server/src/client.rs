@@ -29,6 +29,23 @@ use crate::{
 const JSON_RPC_VERSION: &str = "2.0";
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 
+// Marley: the servers whose messages can carry secrets (Rusty's PIN, unlock token and revealed
+// values, #667) are logged by size, never by content.
+static QUIET_SERVERS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// Marley: logs the messages of the server named `id` by their size only, from its next start on
+/// (#667).
+pub fn log_messages_by_size(id: &str) {
+    let mut quiet = QUIET_SERVERS.lock();
+    if !quiet.iter().any(|known| known == id) {
+        quiet.push(id.to_string());
+    }
+}
+
+fn logs_by_size(id: &ContextServerId) -> bool {
+    QUIET_SERVERS.lock().iter().any(|known| **known == *id.0)
+}
+
 // Standard JSON-RPC error codes
 pub const PARSE_ERROR: i32 = -32700;
 pub const INVALID_REQUEST: i32 = -32600;
@@ -206,6 +223,8 @@ impl Client {
         let response_handlers =
             Arc::new(Mutex::new(Some(HashMap::<_, ResponseHandler>::default())));
         let request_handlers = Arc::new(Mutex::new(HashMap::<_, RequestHandler>::default()));
+        // Marley: #667.
+        let quiet = logs_by_size(&server_id);
 
         let receive_input_task = cx.spawn({
             let subscription_set = subscription_set.clone();
@@ -218,6 +237,7 @@ impl Client {
                     subscription_set,
                     request_handlers,
                     response_handlers,
+                    quiet,
                     cx,
                 )
                 .log_err()
@@ -243,6 +263,7 @@ impl Client {
                 output_done_tx,
                 response_handlers.clone(),
                 last_transport_error,
+                quiet,
             )
             .log_err()
         });
@@ -274,12 +295,18 @@ impl Client {
         subscription_set: Arc<Mutex<NotificationSubscriptionSet>>,
         request_handlers: Arc<Mutex<HashMap<&'static str, RequestHandler>>>,
         response_handlers: Arc<Mutex<Option<HashMap<RequestId, ResponseHandler>>>>,
+        quiet: bool,
         cx: &mut AsyncApp,
     ) -> anyhow::Result<()> {
         let mut receiver = transport.receive();
 
         while let Some(message) = receiver.next().await {
-            log::trace!("recv: {message}");
+            // Marley: #667.
+            if quiet {
+                log::trace!("recv: {} bytes", message.len());
+            } else {
+                log::trace!("recv: {message}");
+            }
             if let Ok(request) = serde_json::from_str::<AnyRequest>(&message) {
                 let mut request_handlers = request_handlers.lock();
                 if let Some(handler) = request_handlers.get_mut(request.method) {
@@ -302,7 +329,15 @@ impl Client {
                     cx,
                 )
             } else {
-                log::error!("Unhandled JSON from context_server: {}", message);
+                // Marley: #667.
+                if quiet {
+                    log::error!(
+                        "Unhandled JSON from context_server: {} bytes",
+                        message.len()
+                    );
+                } else {
+                    log::error!("Unhandled JSON from context_server: {}", message);
+                }
             }
         }
 
@@ -330,6 +365,7 @@ impl Client {
         output_done_tx: barrier::Sender,
         response_handlers: Arc<Mutex<Option<HashMap<RequestId, ResponseHandler>>>>,
         last_transport_error: Arc<Mutex<Option<anyhow::Error>>>,
+        quiet: bool,
     ) -> anyhow::Result<()> {
         let _clear_response_handlers = util::defer({
             let response_handlers = response_handlers.clone();
@@ -338,7 +374,12 @@ impl Client {
             }
         });
         while let Ok(message) = outbound_rx.recv().await {
-            log::trace!("outgoing message: {}", message);
+            // Marley: #667.
+            if quiet {
+                log::trace!("outgoing message: {} bytes", message.len());
+            } else {
+                log::trace!("outgoing message: {}", message);
+            }
             if let Err(err) = transport.send(message).await {
                 log::debug!("transport send failed: {:#}", err);
                 *last_transport_error.lock() = Some(err);

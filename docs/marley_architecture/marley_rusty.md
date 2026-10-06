@@ -125,6 +125,12 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   name, as Rusty's app sorts); the answers' parsers, `UpdateAnswer` and `ScriptText`;
   `blocked_by_scan`; `SkillWrite` (`Create`, `Update`, `Delete`, `Approve { force }`, `Reject`,
   `UpdateScript`) with `tool` and `arguments`.
+- `secrets` (#667): the nine secret tools' names; `PinStatus { set, unlocked, locked_out_seconds }`;
+  `Unlock { token, expires_in_seconds }` and `Revealed { key, value }`, whose `Debug` leaves out the
+  token and the value; `names_from_answer`, `status_from_answer`, `unlock_from_answer`,
+  `revealed_from_answer`, whose errors never quote the answer; `SecretWrite` (`Set`, `Update`,
+  `Delete`, `PinSet`) with `tool`, `arguments` (a token not held left out) and a `Debug` naming the
+  tool and the key only.
 - `knowledge` (#646): what the Knowledge panel shows of a page. `LinkEntry` and `PageLinks`
   (`brain_get_links`'s `outbound` and `backlinks`, each with `context`, the line the link sits on,
   and `resolved`), `TagCount` (`brain_tags`), `GraphNode` and `Graph` (`brain_graph`'s nodes; the
@@ -232,7 +238,10 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   them) with Rusty's name rule, scan, refusals and answers, and announces each write. Since #666
   `settings_list` and `setting_get` mask a credential-looking key's value, `setting_set` refuses the
   mask in Rusty's words, and `brain_semantic_status` answers from a `semantic.json` in the state
-  folder (full-text only without one). It matches search words, not embeddings. The e2e
+  folder (full-text only without one). Since #667 it serves the nine secret tools over
+  `secrets.json` and a `pin` file in its state folder, with an in-process token that expires after
+  `pin_timeout_minutes` (or its own `pin_timeout_seconds`), five wrong PINs locking a minute, and
+  Rusty's refusals; vault writes are announced. It matches search words, not embeddings. The e2e
   scenarios name it with `MARLEY_RUSTY_MCP` and never reach the user's own Rusty (R-D8).
 
 ## Later slices

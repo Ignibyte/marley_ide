@@ -846,6 +846,23 @@ back.
 - [ ] Step 3: the keys Rusty stores beyond the ten; any key, token or password shows as an empty
   field marked hidden, never its value.
 
+### 2.15i The Secrets tab (#667), optional
+
+Needs 2.12's setup: Rusty installed and on. This stop adds a made-up secret and deletes it; if
+your vault has no PIN yet, step 2 sets the one you will keep.
+
+1. Click the lock after Skills in the Brain view.
+2. If it asks for a PIN, set yours (twice). Type it and press Enter to unlock.
+3. Type `tour_secret` and `made-up` and press Enter. Click Reveal on it, then Copy.
+4. Click Delete on `tour_secret` and answer Delete.
+5. Unlock again, then click another window so Marley loses the focus, and come back.
+
+- [ ] Step 1: your secrets' names, each value hidden.
+- [ ] Step 2: Unlocked, with Lock and Change PIN; each name has Reveal, Replace and Delete.
+- [ ] Step 3: `tour_secret` is listed; Reveal shows `made-up`; Copy puts it on the clipboard.
+- [ ] Step 4: `tour_secret` is gone.
+- [ ] Step 5: the tab is locked again, every value hidden.
+
 ## Part 3. The editor
 
 Marley's editor is Zed's. This part checks the everyday tools. The first time you open
@@ -1989,6 +2006,7 @@ Every Marley command runs from the palette. The ones with no key of their own:
 | `rusty: import vault`, `rusty: open today` | An Obsidian vault into the brain after its plan; today's daily note (#663) |
 | `rusty: open memory` | The Memory tab, what Rusty remembers across conversations (#664) |
 | `rusty: open skills` | The Skills tab, Rusty's skills and scripts (#665) |
+| `rusty: open secrets` | The Secrets tab, Rusty's vault behind its PIN (#667) |
 | `rusty: open decisions` | The Decisions tab, Rusty's decisions and the follow-ups due, each followed up from its row (#659, #660) |
 | `multi workspace: next project`, `previous project`, `next thread`, `previous thread` | Walk the rail |
 

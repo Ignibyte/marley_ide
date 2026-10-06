@@ -1257,6 +1257,24 @@ agent writes waits, staged, for your approval. A script is a `.sh` beside a skil
   on Rusty's announcement, and when you come back to it; an edit in progress stays in the editors
   until you choose another skill.
 
+### The Secrets tab (#667)
+
+Rusty's vault of keys and tokens for providers and services. The lock after Skills in the Brain
+view, or `rusty: open secrets`, opens it. The names show to anyone; a value shows, changes or goes
+only behind your PIN. Never type the PIN to an agent.
+
+- **The PIN.** The first time, set one: six characters or more, typed twice. Change PIN, while
+  unlocked, sets a new one the same way.
+- **Unlock.** Type the PIN and press Enter or Unlock. For Rusty's `pin_timeout_minutes` (five by
+  default) each name has Reveal (then Hide), Copy while shown, Replace (a new value, Enter saves)
+  and Delete, asked first. Five wrong PINs lock Unlock for a minute, and Rusty's words say so.
+- **A new secret.** Its key and value, then Set or Enter; once a PIN is set this needs the unlock.
+- **Locking.** Lock, the unlock running out, Marley's window losing the focus, or closing the tab
+  locks it again: the values hide and the unlock is dropped.
+- **What stays private.** Every PIN and value field hides what you type and empties once sent. The
+  unlock lives only in the tab. Marley writes no PIN, unlock or value to its log, and with Zed's
+  trace logging on, Rusty's messages are logged by their size alone.
+
 ### Capture and import (#663)
 
 While Rusty is on, these commands in the palette put things into its brain:

@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-667](open/TICKET-667-rusty-secrets-tab.md) | feature | Rusty in Marley R8 · the Secrets tab behind Rusty's PIN; no secret in Zed's logs |
 | [TICKET-668](open/TICKET-668-test-runs-act-on-nothing-of-the-users.md) | chore | the e2e harness · a run's profile keeps none of the user's push, harness, fleet or System One settings or keys |
 
 ## Deliberate (picked explicitly, never auto-next)

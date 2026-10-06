@@ -423,6 +423,15 @@ impl BrainView {
         super::skills_tab::open_later(workspace, window, cx);
     }
 
+    /// The Secrets entry: the workspace's Secrets tab, opened or brought forward (#667).
+    fn open_secrets(&self, window: &Window, cx: &mut App) {
+        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
+            return;
+        };
+        let workspace = multi_workspace.read(cx).workspace().downgrade();
+        super::secrets_tab::open_later(workspace, window, cx);
+    }
+
     fn toast(&self, message: String, cx: &mut App) {
         let Some(multi_workspace) = self.multi_workspace.upgrade() else {
             return;
@@ -1040,6 +1049,12 @@ impl BrainView {
                     .icon_size(IconSize::Small)
                     .tooltip(Tooltip::text("Skills"))
                     .on_click(cx.listener(|this, _, window, cx| this.open_skills(window, cx))),
+            )
+            .child(
+                IconButton::new("marley-brain-secrets", IconName::Lock)
+                    .icon_size(IconSize::Small)
+                    .tooltip(Tooltip::text("Secrets"))
+                    .on_click(cx.listener(|this, _, window, cx| this.open_secrets(window, cx))),
             )
     }
 

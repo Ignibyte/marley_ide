@@ -103,6 +103,15 @@ TOOL_NAMES = [
     "script_list",
     "script_view",
     "script_update",
+    "secret_list",
+    "secret_pin_status",
+    "secret_pin_set",
+    "secret_unlock",
+    "secret_lock",
+    "secret_reveal",
+    "secret_update",
+    "secret_set",
+    "secret_delete",
 ]
 
 # The tools Rusty may take long over, answered on a thread of their own as Rusty answers every
@@ -1511,6 +1520,136 @@ def script_update(name, body):
     return script
 
 
+SECRETS = os.path.join(STATE, "secrets.json")
+PIN_FILE = os.path.join(STATE, "pin")
+
+# Rusty announces each vault write that succeeded (#667).
+SECRET_WRITES = {"secret_set", "secret_delete", "secret_update", "secret_pin_set"}
+
+# The lock's state lives in the process, as Rusty's does: a token is good only on the process that
+# issued it.
+PIN_LOCK = {"failures": 0, "locked_until": 0.0, "token": None, "expires": 0.0}
+
+
+def load_secrets():
+    try:
+        with open(SECRETS, encoding="utf-8") as stored:
+            return json.load(stored)
+    except (OSError, ValueError):
+        return {}
+
+
+def save_secrets(secrets):
+    with open(SECRETS, "w", encoding="utf-8") as stored:
+        json.dump(secrets, stored, indent=2, sort_keys=True)
+
+
+def pin_timeout():
+    """How long an unlock lives: Rusty's `pin_timeout_minutes`, or the stand-in's own
+    `pin_timeout_seconds` for a scenario that waits for the expiry."""
+    settings = load()
+    try:
+        if "pin_timeout_seconds" in settings:
+            return max(1, int(settings["pin_timeout_seconds"]))
+        return max(1, int(settings.get("pin_timeout_minutes", "5"))) * 60
+    except ValueError:
+        return 300
+
+
+def token_check(token):
+    live = PIN_LOCK["token"]
+    if live is None or token != live:
+        raise Refused("that unlock is not the live one; unlock again")
+    if time.time() >= PIN_LOCK["expires"]:
+        PIN_LOCK["token"] = None
+        raise Refused("the unlock has expired; unlock again")
+
+
+def check_write(token):
+    """Rusty's TICKET-049: once a PIN is set, a write needs the live token."""
+    if not os.path.exists(PIN_FILE):
+        return
+    if not token:
+        raise Refused("the vault is locked; unlock with the PIN and pass the token")
+    token_check(token)
+
+
+def pin_status():
+    left = max(0, int(PIN_LOCK["locked_until"] - time.time() + 0.999))
+    live = PIN_LOCK["token"] is not None and time.time() < PIN_LOCK["expires"]
+    return {"set": os.path.exists(PIN_FILE), "unlocked": live, "locked_out_seconds": left}
+
+
+def pin_set(pin, token):
+    pin = str(pin or "")
+    if os.path.exists(PIN_FILE):
+        token_check(token or "")
+    if len(pin) < 6:
+        raise Refused("a PIN needs at least 6 characters")
+    if "\n" in pin or "\r" in pin:
+        raise Refused("a PIN cannot hold a line break")
+    with open(PIN_FILE, "w", encoding="utf-8") as stored:
+        stored.write(pin)
+    return "set"
+
+
+def unlock(pin):
+    """Rusty's `secret_unlock`: five wrong PINs in a row lock it for a minute."""
+    if not os.path.exists(PIN_FILE):
+        raise Refused("no PIN is set; set one in the app first")
+    left = int(PIN_LOCK["locked_until"] - time.time() + 0.999)
+    if left > 0:
+        raise Refused(f"locked for another {left} seconds")
+    with open(PIN_FILE, encoding="utf-8") as stored:
+        right = stored.read()
+    if str(pin or "") != right:
+        PIN_LOCK["failures"] += 1
+        if PIN_LOCK["failures"] >= 5:
+            PIN_LOCK["failures"] = 0
+            PIN_LOCK["locked_until"] = time.time() + 60
+            raise Refused("wrong PIN 5 times; locked for a minute")
+        raise Refused("wrong PIN")
+    PIN_LOCK["failures"] = 0
+    lifetime = pin_timeout()
+    PIN_LOCK["token"] = uuid.uuid4().hex
+    PIN_LOCK["expires"] = time.time() + lifetime
+    return {"token": PIN_LOCK["token"], "expires_in_seconds": lifetime}
+
+
+def lock_vault():
+    PIN_LOCK["token"] = None
+    return "locked"
+
+
+def reveal(key, token):
+    token_check(token)
+    secrets = load_secrets()
+    if key not in secrets:
+        raise Refused(f"no secret named {key}")
+    return {"key": key, "value": secrets[key]}
+
+
+def write_secret(key, value, token, word, guard):
+    guard(token)
+    key = str(key or "").strip()
+    if not key:
+        raise Refused("a secret needs a key")
+    secrets = load_secrets()
+    secrets[key] = str(value or "")
+    save_secrets(secrets)
+    return word
+
+
+def delete_secret(key, token):
+    check_write(token)
+    secrets = load_secrets()
+    if key not in secrets:
+        raise Refused(f"no secret named {key}")
+    del secrets[key]
+    save_secrets(secrets)
+    return "deleted"
+
+
 WIKILINK = re.compile(r"(!?)\[\[([^\]|]*)(?:\|[^\]]*)?\]\]")
 
 
@@ -1965,6 +2104,21 @@ VAULT_TOOLS = {
     "script_list": lambda arguments: script_list(bool(arguments.get("include_pending"))),
     "script_view": lambda arguments: script_view(arguments.get("name")),
     "script_update": lambda arguments: script_update(arguments.get("name"), arguments.get("body")),
+    "secret_list": lambda arguments: sorted(load_secrets()),
+    "secret_pin_status": lambda arguments: pin_status(),
+    "secret_pin_set": lambda arguments: pin_set(arguments.get("pin"), arguments.get("token")),
+    "secret_unlock": lambda arguments: unlock(arguments.get("pin")),
+    "secret_lock": lambda arguments: lock_vault(),
+    "secret_reveal": lambda arguments: reveal(str(arguments.get("key") or ""), arguments.get("token")),
+    "secret_update": lambda arguments: write_secret(
+        arguments.get("key"), arguments.get("value"), arguments.get("token"), "updated", token_check
+    ),
+    "secret_set": lambda arguments: write_secret(
+        arguments.get("key"), arguments.get("value"), arguments.get("token"), "set", check_write
+    ),
+    "secret_delete": lambda arguments: delete_secret(
+        str(arguments.get("key") or ""), arguments.get("token")
+    ),
 }
 
 
@@ -2096,7 +2250,7 @@ def stdio():
             send(response)
             # Rusty announces each task write that succeeded to every peer (#658).
             params = message.get("params") or {}
-            if params.get("name") in TASK_WRITES | MEMORY_WRITES | SKILL_WRITES and "error" not in response:
+            if params.get("name") in TASK_WRITES | MEMORY_WRITES | SKILL_WRITES | SECRET_WRITES and "error" not in response:
                 log("sent list_changed")
                 send({"jsonrpc": "2.0", "method": "notifications/resources/list_changed"})
 

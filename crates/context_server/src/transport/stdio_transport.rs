@@ -99,7 +99,9 @@ impl StdioTransport {
         let mut stdin = BufWriter::new(stdin);
         let mut pinned_rx = Box::pin(outbound_rx);
         while let Some(message) = pinned_rx.next().await {
-            log::trace!("outgoing message: {}", message);
+            // Marley: the client logs each message itself, by size for a server whose messages
+            // carry secrets (#667), so this line gives the size alone.
+            log::trace!("outgoing message: {} bytes", message.len());
 
             stdin.write_all(message.as_bytes()).await?;
             stdin.write_all(b"\n").await?;

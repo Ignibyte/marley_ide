@@ -21,6 +21,7 @@
 //! - [`capture`]: a line or a URL captured into the brain, and a vault imported (#663).
 //! - [`memories`]: Rusty's long-term memories and the writes to them (#664).
 //! - [`skills`]: Rusty's skills and scripts, and the writes to them (#665).
+//! - [`secrets`]: Rusty's secrets vault behind its PIN, and the writes to it (#667).
 
 // gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
 // Zed's crates keep them at warn (CONSTITUTION §0).
@@ -47,6 +48,7 @@ pub mod knowledge;
 pub mod memories;
 pub mod page;
 pub mod project;
+pub mod secrets;
 pub mod settings;
 pub mod skills;
 pub mod switcher;

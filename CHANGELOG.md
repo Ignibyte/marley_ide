@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Secrets tab** (#667, 2026-10-06). Rusty's vault in a center tab, from the lock after Skills
+  in the Brain view or `rusty: open secrets`: the names show to anyone, and a value shows, changes
+  or goes only behind your PIN. Set a PIN (six characters or more, typed twice), then Unlock for
+  a few minutes: each name has Reveal (Hide), Copy, Replace and Delete, asked first, and a new
+  secret is a key and a value with Set. The tab locks when the unlock runs out, on Lock, when
+  Marley's window loses the focus, and when the tab closes. Every PIN and value field hides what
+  you type and empties once sent; the unlock lives only in the tab. Rusty's refusals, a wrong PIN
+  say, show in its words.
+
 - **Rusty's own settings on the Rusty's Server page** (#666, 2026-10-06). The page shows how far
   Rusty's brain search has pages embedded, then the ten settings Rusty's app lists (the vault and
   notes folders, the embedding provider and model, Ollama's address, how long a Secrets unlock
@@ -710,6 +719,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   standalone.
 
 ### Fixed
+
+- **Rusty's PIN, unlocks and secrets stay out of Zed's log** (#667, 2026-10-06). With trace
+  logging on, Zed's MCP client wrote every message whole to its log, so a PIN, an unlock token or
+  a revealed secret would have landed there. Rusty's connections are now logged by message size
+  only; other MCP servers log as before.
 
 - **A long line no longer widens a brain page's tab** (#663, 2026-10-06). A line that could not
   wrap, such as a path in code, made the Page tab's body wider than the tab, pushing the outline

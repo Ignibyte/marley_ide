@@ -175,6 +175,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#rusty-capture">Capture and import: lines, URLs and a vault into Rusty</a></li>
 <li><a href="#rusty-memory">Memory: what Rusty remembers</a></li>
 <li><a href="#rusty-skills">Skills: Rusty's skills and scripts</a></li>
+<li><a href="#rusty-secrets">Secrets: Rusty's vault behind its PIN</a></li>
 </ol></li>
 <li><a href="#editor">The editor</a><ol>
 <li><a href="#find-things">Find files, symbols and text</a></li>
@@ -748,6 +749,20 @@ th { background: var(--panel); font-weight: 650; }
 <li>New Skill asks for a name (lowercase letters, digits and hyphens), a description and a body, and whether to stage it; Delete asks first.</li>
 </ol>
 <p class="note">If Rusty refuses a change, its words show in the tab or the form. Run works from a project on this machine, where Rusty keeps the scripts, and a staged skill's scripts cannot run until it is approved.</p>
+</article>
+
+<article id="rusty-secrets">
+<h3>Secrets: Rusty's vault behind its PIN <span class="ticket">#667</span></h3>
+<p class="what"><strong>What it is.</strong> A center tab over Rusty's secrets: the keys for providers and services that Rusty and its agents use. The names show to anyone; a value shows, changes or goes only behind your PIN. Never type the PIN to an agent.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Click the lock after Skills in the rail's Brain view, or run <code>rusty: open secrets</code>.</li>
+<li>The first time, set a PIN: six characters or more, typed twice.</li>
+<li>Type the PIN and click Unlock. For a few minutes (Rusty's <code>pin_timeout_minutes</code>) each name has Reveal, Replace and Delete; a shown value has Copy and Hide.</li>
+<li>To add a secret, type its key and value and click Set. Replace asks for a new value; Enter saves it. Delete asks first.</li>
+<li>Click Lock when you are done. The tab also locks when the unlock runs out, when Marley's window loses the focus, and when you close the tab.</li>
+</ol>
+<p class="note">Every PIN and value field hides what you type and empties once it is sent. Marley keeps the unlock only in the tab and writes no PIN, unlock or value to its log; with Zed's trace logging on, Rusty's messages are logged by their size alone. Rusty's refusals, a wrong PIN say, show in the tab in its words.</p>
 </article>
 </section>
 

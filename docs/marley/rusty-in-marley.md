@@ -138,7 +138,7 @@ polls the harness's `fleet_events`. No Zed touchpoint.
 | BookmarksPane | The Brain view's **Favourites** over `bookmark_list` and its three siblings, the Page tab's star (#662) |
 | DecisionsPage | A **Decisions** tab over `brain_due` and decision pages; Marley's System One tab becomes "System One calls" (open decision 4). Shipped in #659 |
 | TasksPage | A **Tasks** tab over the twelve task tools |
-| MemoryPage, SkillsPage, SecretsPage | One tab each over their tools; Memory shipped in #664, Skills in #665 |
+| MemoryPage, SkillsPage, SecretsPage | One tab each over their tools; Memory shipped in #664, Skills in #665, Secrets in #667 |
 | SettingsPage | The Rusty section of the Marley settings page (R-D0) |
 | Main.qml dialogs | Palette actions (#663): `rusty: capture to today`, `rusty: capture to inbox`, `rusty: capture url`, `rusty: import vault` (the plan, then the import and its report), `rusty: open today` |
 | Agent screens | Not rebuilt (R-D6) |
@@ -189,6 +189,9 @@ decision 2.
 Every secrets action has a tool. The unlock token lives only in the tab's memory; it and any
 revealed value never reach Marley's MCP server, its logs, a notification or System One's
 masked state, and the tab locks when Marley's window loses focus, as Rusty's page does.
+Since #667 Zed's MCP client logs the messages of Rusty's two servers (`marley-rusty`, `rusty`)
+by size, never by content, so a PIN, a token or a value cannot reach Zed's log through trace
+logging either (the `context_server` rows in `docs/marley/zed-touchpoints.md`).
 
 ### R-D8. Scenarios never touch the real brain
 
@@ -281,7 +284,7 @@ possible: a wikilink switch in `markdown/src/parser.rs`, only if R2 chooses Zed'
 | R4b | #662, shipped 2026-10-06. Favourites above the Brain view's tree (pages, folders, searches and headings in Rusty's order, renamed and removed from their menu), the Page tab's star and Ctrl+D, and the favourite pages as the page picker's first group, over `bookmark_list` and its three siblings | S |
 | R7b | #660, shipped 2026-10-05. Recording a follow-up from the Decisions tab (`brain_follow_up`: status, outcome, a new day when revised, the successor when superseded, picked from the tab's decisions); the rows show TICKET-048's `followed_up` and `superseded_by` | S |
 | R7 | The Tasks tab (#658, shipped 2026-10-04: Rusty's lists and tasks over its twelve task tools, every change one call in order and read back, the drag and the keys, Open in Tasks from the project view) and the Decisions tab (#659, shipped 2026-10-04: `brain_due`'s follow-ups due, then every decision with its status and dates, each opening its page; Marley's System One log renamed System One calls, the old action id kept as an alias) | M |
-| R8 | Memory, Skills and Secrets tabs; Rusty's server settings on the settings page. The Memory tab shipped in #664 (2026-10-06): the memories in Rusty's order, added, filtered by category, edited and deleted over Rusty's four memory tools. The Skills tab shipped in #665 (2026-10-06): staged skills approved, approved anyway or rejected, skills and scripts edited, made and deleted over Rusty's eleven skill and script tools, and a script run in a terminal. Rusty's settings on the Rusty's Server page shipped in #666 (2026-10-06): the ten keys Rusty's app lists, the other stored keys with credentials masked, a key added, and the embedding status | M |
+| R8 | Memory, Skills and Secrets tabs; Rusty's server settings on the settings page. The Memory tab shipped in #664 (2026-10-06): the memories in Rusty's order, added, filtered by category, edited and deleted over Rusty's four memory tools. The Skills tab shipped in #665 (2026-10-06): staged skills approved, approved anyway or rejected, skills and scripts edited, made and deleted over Rusty's eleven skill and script tools, and a script run in a terminal. Rusty's settings on the Rusty's Server page shipped in #666 (2026-10-06): the ten keys Rusty's app lists, the other stored keys with credentials masked, a key added, and the embedding status. The Secrets tab shipped in #667 (2026-10-06): the names, the PIN set and unlocked, values revealed, copied, replaced and deleted with the token, the tab locking on expiry, on Lock and on losing focus, and Rusty's MCP messages logged by size only. R8 is complete | M |
 | R9 | Parity check against the Qt app; the app retires in Rusty | Rusty-side |
 
 The second batch, #654 to #659, was queued 2026-10-03: R3a (#654, the open-page picker on
@@ -289,8 +292,8 @@ Ctrl+Alt+U), R6 (#655, the project view), R2b (#656, the outline and in-place ed
 edit sets the `title` property and a separate name field renames, confirmed by Chad 2026-10-05), R5b (#657),
 R7 split as #658 (the Tasks tab) and #659 (the Decisions tab, with Marley's System One tab
 renamed "System One calls"). R7b followed as #660, R4b as #662, and R-D3's Main.qml dialogs as
-#663 (capture and import from the palette). R8 continues: Memory as #664, then Skills, Rusty's
-settings and Secrets as #665 to #667.
+#663 (capture and import from the palette). R8 followed as #664 (Memory), #665 (Skills), #666
+(Rusty's settings) and #667 (Secrets). R9 waits for Chad's word.
 
 The first batch, #643 to #647, was queued 2026-10-03 in this order: R1, R4, R2, R3, R5, after
 #640 to #642 (#643 builds on #642's settings changes). Drafting split out R3a, R6, R2b, R5b and
