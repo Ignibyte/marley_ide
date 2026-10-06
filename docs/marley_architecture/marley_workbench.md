@@ -2089,7 +2089,14 @@ alike.
   `notifications/resources/list_changed`, and checks the link with a `ping` every 5 s within 5 s.
   The `Ping` is a `Request` of its own, answered with a JSON value: Zed's typed one reads `()`,
   which no server's `{}` parses as. `set_provider` writes `embedding_provider` with `setting_set`
-  and reads again; `call` gives a tool's text or its failure's first line, within 5 s. Since #663
+  and reads again (`set_setting` since #666, for any key); `call` gives a tool's text or its
+  failure's first line, within 5 s. Since #666 `read_settings` also reads `brain_semantic_status`
+  into the global's `semantic`, and the page's settings section (`settings_section`) draws the
+  status, a row per key in `KNOWN` (the provider's dropdown for `embedding_provider`), the other
+  stored keys and the add row. Each field is `window.use_keyed_state` under the key and a hash of
+  Rusty's value, so a value read back makes a fresh field; Enter in a row's `RustySetting menu`
+  context writes `value_to_write`'s value, and a masked key's field is emptied after its write, as
+  Rusty answers the mask again. Since #663
   `call_within` and `call_tool_within` take a deadline of their own, given both to Zed's client
   (`request_with`, which otherwise stops at its own 60 s) and to Marley's timer, whose failure
   names the seconds.

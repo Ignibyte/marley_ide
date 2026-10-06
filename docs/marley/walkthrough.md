@@ -829,6 +829,23 @@ Needs 2.12's setup: Rusty installed and on. This stop makes one staged skill and
 - [ ] Step 3: "The scan is clean." under the body.
 - [ ] Step 4: `tour-skill` is gone.
 
+### 2.15h Rusty's settings (#666), optional
+
+Needs 2.12's setup: Rusty installed and on. This stop changes one of Rusty's settings and puts it
+back.
+
+1. Open the Settings window's Rusty's Server page (the Rusty section of the Marley page, then
+   Rusty's Server).
+2. Click `pin_timeout_minutes`' field, type a new number, press Enter. Then type the old one back
+   and press Enter.
+3. Scroll to Other Stored Keys.
+
+- [ ] Step 1: a line on Rusty's embedding status, then the ten settings with Rusty's words, values
+  where Rusty stores them and defaults where it does not.
+- [ ] Step 2: the field reads the new number after Enter, then the old one.
+- [ ] Step 3: the keys Rusty stores beyond the ten; any key, token or password shows as an empty
+  field marked hidden, never its value.
+
 ## Part 3. The editor
 
 Marley's editor is Zed's. This part checks the everyday tools. The first time you open

@@ -44,6 +44,7 @@ pub mod tasks_tab;
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::ffi::OsString;
+use std::hash::{DefaultHasher, Hash as _, Hasher as _};
 use std::path::PathBuf;
 use std::pin::pin;
 use std::sync::Arc;
@@ -54,15 +55,19 @@ use context_server::types::Request;
 use context_server::types::requests::CallTool;
 use context_server::types::{CallToolParams, CallToolResponse};
 use context_server::{ContextServer, ContextServerCommand, ContextServerId};
+use editor::Editor;
 use futures::StreamExt as _;
 use futures::channel::mpsc;
 use futures::future::{Either, select};
 use gpui::{
-    App, AppContext as _, AsyncApp, BorrowAppContext as _, Context, Global, Render, SharedString,
-    Task, Window,
+    App, AppContext as _, AsyncApp, BorrowAppContext as _, Context, ElementId, Entity, Global,
+    Render, SharedString, Task, Window,
 };
 use http_client::Url;
-use marley_rusty::settings::{SETTING_SET, SETTINGS_LIST, setting_set_arguments};
+use marley_rusty::settings::{
+    BRAIN_SEMANTIC_STATUS, KNOWN, KnownSetting, MASK, SETTING_SET, SETTINGS_LIST, SemanticStatus,
+    setting_set_arguments, value_to_write,
+};
 use marley_rusty::vault::{BRAIN_TREE, VAULT_PATH_KEY, VaultNode};
 use marley_rusty::{EmbeddingProvider, ServerSettings};
 use serde_json::{Value, json};
@@ -176,6 +181,8 @@ pub(crate) struct Rusty {
     state: State,
     /// Rusty's settings as last read, or why they could not be.
     settings: Option<Result<ServerSettings, SharedString>>,
+    /// How far Rusty's brain search has its pages embedded, as last read (#666).
+    semantic: Option<Result<SemanticStatus, SharedString>>,
     /// The last write Rusty refused, its first line.
     refused: Option<SharedString>,
     server: Option<Arc<ContextServer>>,
@@ -502,7 +509,8 @@ async fn connected(source: &Source, failures: &mut u32, cx: &AsyncApp) -> Lost {
     }
 }
 
-/// Reads Rusty's settings with `settings_list` into the `Rusty` global.
+/// Reads Rusty's settings with `settings_list`, and its embedding status, into the `Rusty`
+/// global.
 async fn read_settings(server: &ContextServer, cx: &AsyncApp) {
     let read = call(server, SETTINGS_LIST, json!({}), cx)
         .await
@@ -510,21 +518,28 @@ async fn read_settings(server: &ContextServer, cx: &AsyncApp) {
             ServerSettings::from_answer(&text)
                 .map_err(|error| format!("{SETTINGS_LIST}'s answer did not parse: {error}"))
         });
+    let semantic = call(server, BRAIN_SEMANTIC_STATUS, json!({}), cx)
+        .await
+        .and_then(|text| {
+            SemanticStatus::from_answer(&text)
+                .map_err(|error| format!("{BRAIN_SEMANTIC_STATUS}'s answer did not parse: {error}"))
+        });
     cx.update(|cx| {
         update(cx, |rusty| {
             rusty.settings = Some(read.map_err(SharedString::from));
+            rusty.semantic = Some(semantic.map_err(SharedString::from));
         });
     });
 }
 
-/// Writes Rusty's embedding provider with `setting_set`, then reads the settings again; a
-/// refusal stays on the page.
-fn set_provider(provider: EmbeddingProvider, cx: &App) {
+/// Writes one of Rusty's settings with `setting_set`, then reads the settings again; a refusal
+/// stays on the page.
+fn set_setting(key: String, value: String, cx: &App) {
     let Some(server) = cx.global::<Rusty>().server.clone() else {
         return;
     };
     cx.spawn(async move |cx| {
-        let arguments = setting_set_arguments(EmbeddingProvider::KEY, provider.as_setting());
+        let arguments = setting_set_arguments(&key, &value);
         let written = call(&server, SETTING_SET, arguments, cx).await;
         cx.update(|cx| {
             update(cx, |rusty| {
@@ -804,6 +819,7 @@ impl Render for RustyServerView {
             };
         let connected = matches!(rusty.state, State::Connected { .. });
         let settings = rusty.settings.clone();
+        let semantic = rusty.semantic.clone();
         let refused = rusty.refused.clone();
         let item = AiSettingItem::new(
             "marley-rusty-server",
@@ -818,9 +834,7 @@ impl Render for RustyServerView {
                 .child(Label::new(under).size(LabelSize::Small).color(under_color)),
         );
         let provider_row = match (connected, settings) {
-            (true, Some(Ok(settings))) => {
-                Some(provider_row(settings.embedding_provider(), window, cx))
-            }
+            (true, Some(Ok(settings))) => Some(settings_section(&settings, semantic, window, cx)),
             (true, Some(Err(reason))) => Some(muted(reason)),
             (true, None) => Some(muted(SharedString::new_static("Reading Rusty's settings…"))),
             (false, _) => None,
@@ -863,6 +877,170 @@ fn muted(text: SharedString) -> AnyElement {
         .into_any_element()
 }
 
+/// Rusty's settings on the page (#666): the embedding status, the keys Rusty's app lists, the
+/// other stored keys, and a row to add one.
+fn settings_section(
+    settings: &ServerSettings,
+    semantic: Option<Result<SemanticStatus, SharedString>>,
+    window: &mut Window,
+    cx: &mut Context<RustyServerView>,
+) -> AnyElement {
+    let status = match semantic {
+        Some(Ok(status)) => muted(status.line().into()),
+        Some(Err(reason)) => muted(reason),
+        None => muted(SharedString::new_static("Reading the embedding status…")),
+    };
+    let mut known = Vec::new();
+    for setting in &KNOWN {
+        known.push(if setting.key == EmbeddingProvider::KEY {
+            provider_row(settings.embedding_provider(), window, cx)
+        } else {
+            known_row(setting, settings.get(setting.key), window, cx)
+        });
+    }
+    let mut others = Vec::new();
+    for (key, value) in settings.others() {
+        let placeholder = if value == MASK {
+            "hidden; type a new value to replace it"
+        } else {
+            ""
+        };
+        others.push(setting_row(key, Some(value), placeholder, window, cx));
+    }
+    v_flex()
+        .gap_3()
+        .child(status)
+        .children(known)
+        .child(Label::new("Other Stored Keys"))
+        .children(others)
+        .child(add_row(window, cx))
+        .into_any_element()
+}
+
+/// A key Rusty's app lists: its field, then Rusty's words and its default.
+fn known_row(
+    setting: &KnownSetting,
+    stored: Option<&str>,
+    window: &mut Window,
+    cx: &mut Context<RustyServerView>,
+) -> AnyElement {
+    v_flex()
+        .gap_1()
+        .child(setting_row(
+            setting.key,
+            stored,
+            setting.fallback,
+            window,
+            cx,
+        ))
+        .child(muted(
+            format!("{} Default: {}.", setting.about, setting.fallback).into(),
+        ))
+        .into_any_element()
+}
+
+/// A setting's key and its field, Enter writing a changed value. The field is keyed by Rusty's
+/// value, so one read back makes a fresh field holding it.
+fn setting_row(
+    key: &str,
+    stored: Option<&str>,
+    placeholder: &str,
+    window: &mut Window,
+    cx: &mut Context<RustyServerView>,
+) -> AnyElement {
+    let mut hasher = DefaultHasher::new();
+    stored.hash(&mut hasher);
+    let id = ElementId::NamedInteger(
+        format!("marley-rusty-setting-{key}").into(),
+        hasher.finish(),
+    );
+    let masked = stored == Some(MASK);
+    let shown = stored.filter(|_| !masked).unwrap_or_default().to_string();
+    let placeholder = placeholder.to_string();
+    let field = window.use_keyed_state(id, cx, move |window, cx| {
+        let mut editor = Editor::single_line(window, cx);
+        editor.set_text(shown, window, cx);
+        editor.set_placeholder_text(&placeholder, window, cx);
+        editor
+    });
+    let writing = field.clone();
+    let name = key.to_string();
+    let stored = stored.map(str::to_string);
+    h_flex()
+        .key_context("RustySetting menu")
+        .on_action(cx.listener(move |_, _: &menu::Confirm, window, cx| {
+            let typed = writing.read(cx).text(cx);
+            if let Some(value) = value_to_write(stored.as_deref(), &typed) {
+                set_setting(name.clone(), value, cx);
+                // Rusty answers a credential masked again, so its field would keep the secret.
+                if masked {
+                    writing.update(cx, |editor, cx| editor.set_text("", window, cx));
+                }
+            }
+        }))
+        .w_full()
+        .gap_4()
+        .child(
+            div()
+                .flex_none()
+                .w(rems(13.))
+                .child(Label::new(key.to_string()).buffer_font(cx).truncate()),
+        )
+        .child(boxed(&field, cx).flex_1().min_w_0())
+        .into_any_element()
+}
+
+/// The row that adds a key: its name, its value, and Set (or Enter).
+fn add_row(window: &mut Window, cx: &mut Context<RustyServerView>) -> AnyElement {
+    let key = window.use_keyed_state("marley-rusty-setting-new-key", cx, |window, cx| {
+        let mut editor = Editor::single_line(window, cx);
+        editor.set_placeholder_text("new key", window, cx);
+        editor
+    });
+    let value = window.use_keyed_state("marley-rusty-setting-new-value", cx, |window, cx| {
+        let mut editor = Editor::single_line(window, cx);
+        editor.set_placeholder_text("value", window, cx);
+        editor
+    });
+    let add = {
+        let key = key.clone();
+        let value = value.clone();
+        move |window: &mut Window, cx: &mut App| {
+            let name = key.read(cx).text(cx).trim().to_string();
+            if name.is_empty() {
+                return;
+            }
+            set_setting(name, value.read(cx).text(cx), cx);
+            key.update(cx, |editor, cx| editor.set_text("", window, cx));
+            value.update(cx, |editor, cx| editor.set_text("", window, cx));
+        }
+    };
+    let on_enter = add.clone();
+    h_flex()
+        .key_context("RustySetting menu")
+        .on_action(cx.listener(move |_, _: &menu::Confirm, window, cx| on_enter(window, cx)))
+        .w_full()
+        .gap_2()
+        .child(boxed(&key, cx).flex_none().w(rems(13.)))
+        .child(boxed(&value, cx).flex_1().min_w_0())
+        .child(
+            Button::new("marley-rusty-setting-set", "Set")
+                .on_click(cx.listener(move |_, _, window, cx| add(window, cx))),
+        )
+        .into_any_element()
+}
+
+/// An editor in a box with a border.
+fn boxed(editor: &Entity<Editor>, cx: &App) -> Div {
+    div()
+        .px_2()
+        .py_1()
+        .rounded_sm()
+        .border_1()
+        .border_color(cx.theme().colors().border)
+        .child(editor.clone())
+}
+
 /// The embedding provider's row: its name, Rusty's words for the current one, and a dropdown
 /// that writes Rusty's setting.
 fn provider_row(
@@ -879,7 +1057,13 @@ fn provider_row(
                         provider == current,
                         IconPosition::End,
                         None,
-                        move |_, cx| set_provider(provider, cx),
+                        move |_, cx| {
+                            set_setting(
+                                EmbeddingProvider::KEY.to_string(),
+                                provider.as_setting().to_string(),
+                                cx,
+                            );
+                        },
                     );
                 }
                 menu

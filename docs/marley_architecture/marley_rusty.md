@@ -20,7 +20,10 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   value as Rusty's `semantic.rs` reads it (trimmed and lower-cased; `off`, `none` and `false` off;
   anything else, and no value, auto), written back by `as_setting`, with each provider's label and
   Rusty's words for it; the tool names `SETTINGS_LIST` and `SETTING_SET`, and
-  `setting_set_arguments`.
+  `setting_set_arguments`. Since #666: `MASK` and `looks_secret` (Rusty's rule), `KnownSetting`
+  and `KNOWN` (the ten keys Rusty's app lists, its words and defaults), `ServerSettings::others`,
+  `value_to_write` (nothing when unchanged, an empty field over a mask, or the mask itself), and
+  `SemanticStatus` with `line` over `brain_semantic_status`.
 - `vault` (#644): `VaultNode`, `brain_tree`'s nested answer (`name`, `path`, `kind`, `pages` at any
   depth, `children` folders first), with `holds` and `find`; `NodeKind { Folder, Page, File }`,
   any other kind read as `File`; `SearchHit` from `brain_search`; the slugs `brain_new_page` and
@@ -226,7 +229,10 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   Rusty's order, defaults, importance words and refusals, announces each memory write, and watches
   the file. Since #665 it serves the skill and script tools over a store in `skills/` of its state
   folder (`.claude/skills/<name>/SKILL.md` active, `staging/<name>/SKILL.md` staged, `*.sh` beside
-  them) with Rusty's name rule, scan, refusals and answers, and announces each write. It matches search words, not embeddings. The e2e
+  them) with Rusty's name rule, scan, refusals and answers, and announces each write. Since #666
+  `settings_list` and `setting_get` mask a credential-looking key's value, `setting_set` refuses the
+  mask in Rusty's words, and `brain_semantic_status` answers from a `semantic.json` in the state
+  folder (full-text only without one). It matches search words, not embeddings. The e2e
   scenarios name it with `MARLEY_RUSTY_MCP` and never reach the user's own Rusty (R-D8).
 
 ## Later slices

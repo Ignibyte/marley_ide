@@ -4168,3 +4168,15 @@ captured output suit an agent, not a person watching. The editors keep an edit i
 reads; a change made elsewhere shows when the skill is chosen again. Rejected: `script_run` with
 its output in the tab; a reread that refills the editors (it would drop typing); a skill's other
 frontmatter keys in the form (Rusty keeps them).
+
+## AD-claude-666-rustys-settings-are-written-only-when-changed-and-never-as-the-mask-001
+*decided at: 2026-10-06 · status: shipped · builds on: AD-claude-665-the-skills-tab-follows-rustys-app-and-runs-in-a-terminal-001 · plan: docs/marley/rusty-in-marley.md R8*
+
+The Rusty's Server page lists the ten settings Rusty's app lists, in its words, then every other
+key Rusty stores and a row to add one, with the embedding status above. Enter writes a field only
+when its text differs from what Rusty stores; a credential Rusty masks shows as an empty field and
+is written only when a new value is typed, after which the field is emptied, so a secret never
+stays on screen and the mask is never sent back (Rusty would refuse it). Marley reads settings only
+through `settings_list`, which masks, never `setting_get`. The page keeps no copy of any value.
+Rejected: showing the mask in the field (Enter would send it back); a Save button for the whole
+page (Rusty's app writes one key at a time, and so does Rusty).

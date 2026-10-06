@@ -45,6 +45,7 @@ TOOL_NAMES = [
     "settings_list",
     "setting_get",
     "setting_set",
+    "brain_semantic_status",
     "brain_tree",
     "brain_list_pages",
     "brain_read_page",
@@ -139,6 +140,29 @@ def seed():
         save(settings)
     elif not os.path.exists(SETTINGS):
         save(settings)
+
+
+MASK = "•••"
+
+
+def looks_secret(key):
+    """Rusty's rule for a key whose value a read must not echo: a key, token, secret or password."""
+    key = key.lower()
+    return any(needle in key for needle in ("key", "token", "secret", "password", "passwd"))
+
+
+def masked(key, value):
+    return MASK if looks_secret(key) else value
+
+
+def semantic_status():
+    """Rusty's `brain_semantic_status`, from the state folder's `semantic.json` when a scenario
+    writes one, else full-text only (#666)."""
+    try:
+        with open(os.path.join(STATE, "semantic.json"), encoding="utf-8") as stored:
+            return json.load(stored)
+    except (OSError, ValueError):
+        return {"provider": None, "stats": {"model": None, "dims": 0, "pages": 0, "chunks": 0}, "stale": 0}
 
 
 class Refused(Exception):
@@ -1997,13 +2021,24 @@ def answer(message):
         log(f"tools/call {name} {json.dumps(arguments, sort_keys=True)}")
         settings = load()
         if name == "settings_list":
-            result = text([{"key": key, "value": value} for key, value in sorted(settings.items())])
+            result = text([{"key": key, "value": masked(key, value)} for key, value in sorted(settings.items())])
         elif name == "setting_get":
-            result = text(settings.get(str(arguments.get("key"))))
+            key = str(arguments.get("key"))
+            result = text(None if key not in settings else masked(key, settings[key]))
         elif name == "setting_set":
-            settings[str(arguments.get("key"))] = str(arguments.get("value"))
+            key, value = str(arguments.get("key")), str(arguments.get("value"))
+            # Rusty's `refuse_the_mask` (its TICKET-050).
+            if looks_secret(key) and value == MASK:
+                return error(
+                    message_id,
+                    -32603,
+                    f'{key} holds a hidden value; "{MASK}" is the mask a read returns, not a value to store',
+                )
+            settings[key] = value
             save(settings)
             result = text("set")
+        elif name == "brain_semantic_status":
+            result = text(semantic_status())
         elif failing(name) is not None:
             # A scenario's `fail` file makes the tool it names fail as `rusty-mcp` fails (#659).
             return error(message_id, -32603, failing(name))

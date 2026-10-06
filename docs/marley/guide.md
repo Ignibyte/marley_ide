@@ -1073,11 +1073,21 @@ the switch alone. A key bound to a Rusty command says Rusty is off.
 - **Rusty's Server.** The section's Rusty's Server page shows whether Marley is connected, to which
   server and through what, or why not. Marley checks the connection every 5 seconds and connects
   again after 1, 2, 4 and so on up to 60 seconds when it is lost.
-- **Rusty's settings.** The same page shows Rusty's own settings, read from Rusty: Embedding
-  Provider is Rusty's `embedding_provider` (Auto, Ollama, OpenAI or Off), and picking one writes it
-  to Rusty. Marley keeps no copy, so `settings.json` never holds it. An embedded Rusty tells Marley
-  when a setting changes elsewhere, and the page follows; a service is read again when Marley
-  connects or writes.
+- **Rusty's settings.** The same page shows Rusty's own settings, read from Rusty. Marley keeps no
+  copy, so `settings.json` never holds them. An embedded Rusty tells Marley when a setting changes
+  elsewhere, and the page follows; a service is read again when Marley connects or writes.
+  - **The embedding status** (#666): one line on how far Rusty's brain search has pages embedded,
+    with which provider and model, and how many pages wait; or that brain search is full-text only.
+  - **The ten settings Rusty's app lists** (#666): `brain_vault_path`, `notes_path`,
+    `embedding_provider`, `embedding_model`, `ollama_url`, `pin_timeout_minutes`, `skills_enabled`,
+    `skills_path`, `brain_auto_enrich` and `default_workflow`, each with Rusty's words and its
+    default, which shows in an empty field. Embedding Provider is a menu (Auto, Ollama, OpenAI or
+    Off); the rest are fields: type and press Enter to write a changed value.
+  - **Other Stored Keys** (#666): any other key Rusty stores. A key, token, secret or password
+    shows as an empty field, "hidden; type a new value to replace it": Enter with nothing typed
+    writes nothing, and a new value replaces the old without either showing.
+  - **Adding a key** (#666): a key and a value, then Set or Enter.
+  - Rusty's refusal of a write shows under the settings.
 - With Rusty on, `rusty-mcp` runs twice when Rusty Tools for Agents is on too: once for Marley and
   once for Zed's agents.
 

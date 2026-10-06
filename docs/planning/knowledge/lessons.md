@@ -4931,3 +4931,14 @@ one, and its shellcheck and typos findings cost a whole second run. Run `shellch
 script/e2e/<N>-<slug>.sh` and `typos script/e2e/<N>-<slug>.sh` as soon as the scenario is written.
 A fixture that needs a literal backtick or `$` goes in a quoted heredoc (`<<'EOF'`), which
 shellcheck reads as meant.
+
+## L-claude-666-a-field-per-row-from-use-keyed-state-001
+*category: gpui · topic: editable rows in a view that keeps no state · from: pipeline 666*
+
+A view drawn from a global (the Rusty's Server page) can still give each row an editor:
+`window.use_keyed_state(id, cx, |window, cx| Editor::single_line(..))`, with the id built from the
+row's key and a hash of the value it shows (`ElementId::NamedInteger`). A new value read back
+changes the id and so makes a fresh editor holding it; an edit in progress lives until then. A
+row whose value reads back the same (a credential Rusty masks every time) keeps its editor, so
+clear it yourself after the write. In the Settings window, Enter with the focus off a field takes
+the window back a page: a scenario must click inside the field.

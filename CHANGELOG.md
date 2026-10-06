@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Rusty's own settings on the Rusty's Server page** (#666, 2026-10-06). The page shows how far
+  Rusty's brain search has pages embedded, then the ten settings Rusty's app lists (the vault and
+  notes folders, the embedding provider and model, Ollama's address, how long a Secrets unlock
+  lasts, the skills store, enrichment, the default workflow), each with Rusty's words and its
+  default, then any other key Rusty stores and a row to add one. Type in a field and press Enter
+  to change it; Rusty keeps it and the page reads it back. A key, token or password shows hidden,
+  and typing a new value replaces it without the old one ever showing.
+
 - **The Skills tab** (#665, 2026-10-06). Rusty's skills store in a center tab, from the hammer
   after Memory in the Brain view or `rusty: open skills`: staged skills first, waiting for your
   approval, then the active ones Claude Code loads, then the scripts beside them. Choose a skill to
