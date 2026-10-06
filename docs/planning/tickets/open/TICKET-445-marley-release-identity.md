@@ -5,7 +5,8 @@
 - **Pipeline doc:** none yet (not specced)
 - **Source ticket:** the #437 inspect ledger (`../../pipeline/completed/437-marley-app-identity.notes.md`)
 - **Status:** open (held: Chad, 2026-10-01, "wait on 445 that way if there is any bugs we wont
-  have to cut multiple releases")
+  have to cut multiple releases"; asked again 2026-10-05 once every other ticket was done: keep it
+  parked until the first release)
 
 ## Summary
 #437 gave the fork its own directories (`APP_NAME = "Marley"`) and binary, but some of Zed's
