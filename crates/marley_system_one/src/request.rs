@@ -1,6 +1,7 @@
-//! The `/v1/systemone` request and its answer.
+//! The `/v1/systemone` request and its answer, and the same through Cloudflare Workers AI (#548).
 //!
-//! The request is the published `/v1/systemone` shape. The answer is read as Jev gives it: a noul's
+//! The request is the published `/v1/systemone` shape; Cloudflare's carries the same `state` and
+//! `questions` inside `input` and answers inside its REST envelope's `result`. The answer is read as Jev gives it: a noul's
 //! `noul`, a choice's `choice`, `confidence` and `probabilities`, and a score's fractional
 //! `score` with its `confidence`, `probabilities` and `legend`, then `model` and `usage`. What the
 //! reader does not know it ignores, so a field the provider adds breaks nothing.
@@ -17,15 +18,30 @@ use crate::{Question, QuestionSet};
 /// The most characters of an error's body that are kept: a body can echo the request.
 pub const ERROR_LIMIT: usize = 300;
 
+/// Jev's name on Cloudflare Workers AI, which carries no version.
+pub const CLOUDFLARE_MODEL: &str = "typesafe/jev";
+
 /// The request for `set` about `state`, asked of `model`.
 #[must_use]
 pub fn build(model: &str, state: &str, set: &QuestionSet) -> Value {
-    let questions: Map<String, Value> = set
-        .questions
+    json!({ "model": model, "state": state, "questions": questions_json(set) })
+}
+
+/// The Workers AI request for `set` about `state`: Jev's own `state` and `questions` inside
+/// `input`, the model named as Cloudflare names it.
+#[must_use]
+pub fn build_cloudflare(state: &str, set: &QuestionSet) -> Value {
+    json!({
+        "model": CLOUDFLARE_MODEL,
+        "input": { "state": state, "questions": questions_json(set) },
+    })
+}
+
+fn questions_json(set: &QuestionSet) -> Map<String, Value> {
+    set.questions
         .iter()
         .map(|question| (question.key().to_string(), question_json(question)))
-        .collect();
-    json!({ "model": model, "state": state, "questions": questions })
+        .collect()
 }
 
 /// One question as the request asks it.
@@ -116,6 +132,8 @@ pub enum ParseError {
     NotJson(String),
     /// The body holds no `answers` object.
     NoAnswers,
+    /// Cloudflare's envelope says the run failed; its first error's words.
+    Failed(String),
 }
 
 impl fmt::Display for ParseError {
@@ -123,6 +141,7 @@ impl fmt::Display for ParseError {
         match self {
             Self::NotJson(reason) => write!(formatter, "the answer is not JSON: {reason}"),
             Self::NoAnswers => formatter.write_str("the answer holds no answers"),
+            Self::Failed(reason) => formatter.write_str(reason),
         }
     }
 }
@@ -138,6 +157,49 @@ impl std::error::Error for ParseError {}
 pub fn parse(body: &str) -> Result<Answers, ParseError> {
     let value: Value =
         serde_json::from_str(body).map_err(|error| ParseError::NotJson(error.to_string()))?;
+    parse_value(&value)
+}
+
+/// Reads a Workers AI answer: Jev's answer is the envelope's `result`.
+///
+/// # Errors
+///
+/// When the body is not JSON, when the envelope says it failed or holds no `result` (its first
+/// error's words), or when `result` holds no `answers` object.
+pub fn parse_cloudflare(body: &str) -> Result<Answers, ParseError> {
+    let envelope: Value =
+        serde_json::from_str(body).map_err(|error| ParseError::NotJson(error.to_string()))?;
+    let failed = envelope.get("success").and_then(Value::as_bool) == Some(false);
+    match envelope.get("result").filter(|result| !result.is_null()) {
+        Some(result) if !failed => parse_value(result),
+        _ => Err(ParseError::Failed(
+            cloudflare_error_of(&envelope)
+                .unwrap_or_else(|| "Cloudflare answered with no result".to_string()),
+        )),
+    }
+}
+
+/// The first error of a Workers AI envelope, with its code, when the body is one: what an error
+/// status's body says, in Cloudflare's words.
+#[must_use]
+pub fn cloudflare_error(body: &str) -> Option<String> {
+    serde_json::from_str::<Value>(body)
+        .ok()
+        .and_then(|envelope| cloudflare_error_of(&envelope))
+}
+
+fn cloudflare_error_of(envelope: &Value) -> Option<String> {
+    let first = envelope.get("errors")?.as_array()?.first()?;
+    let message = first.get("message").and_then(Value::as_str)?.trim();
+    Some(
+        first
+            .get("code")
+            .and_then(Value::as_i64)
+            .map_or_else(|| message.to_string(), |code| format!("{message} ({code})")),
+    )
+}
+
+fn parse_value(value: &Value) -> Result<Answers, ParseError> {
     let raw = value
         .get("answers")
         .and_then(Value::as_object)

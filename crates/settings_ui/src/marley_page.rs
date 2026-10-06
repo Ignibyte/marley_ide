@@ -900,7 +900,7 @@ fn push_section() -> [SettingsPageItem; 4] {
 // (#565). The project lists, and each use's mode past the check's, the stop kind's (#566), the
 // find tools' (#567), the stall kind's (#569), the click consequence's (#571), the inbox's
 // (#568) and the question route's (#570), live in settings.json.
-fn system_one_section() -> [SettingsPageItem; 17] {
+fn system_one_section() -> [SettingsPageItem; 18] {
     [
         SettingsPageItem::SectionHeader("System One"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -930,7 +930,7 @@ fn system_one_section() -> [SettingsPageItem; 17] {
         }),
         SettingsPageItem::SettingItem(SettingItem {
             title: "Provider",
-            description: "TypeSafe's API; another server that speaks the same request, at the endpoint below; each use's own rules, with no request; or answers recorded in system_one/replay.jsonl under Marley's data directory.",
+            description: "TypeSafe's API; another server that speaks the same request, at the endpoint below; each use's own rules, with no request; answers recorded in system_one/replay.jsonl under Marley's data directory; or Jev through Cloudflare Workers AI, which states it keeps no data, in the Cloudflare account below. provider_by_project in settings.json picks one per project.",
             field: Box::new(SettingField {
                 organization_override: None,
                 json_path: Some("marley.system_one.provider"),
@@ -973,6 +973,32 @@ fn system_one_section() -> [SettingsPageItem; 17] {
                         .system_one
                         .get_or_insert_default()
                         .endpoint = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: #548, the account the cloudflare provider runs Jev in.
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Cloudflare Account ID",
+            description: "The Cloudflare account the cloudflare provider runs Jev in. Its API token comes from MARLEY_CLOUDFLARE_API_TOKEN, or Set Cloudflare Token in System One calls.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.system_one.cloudflare_account_id"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.system_one.as_ref())
+                        .and_then(|system_one| system_one.cloudflare_account_id.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .system_one
+                        .get_or_insert_default()
+                        .cloudflare_account_id = value;
                 },
             }),
             metadata: None,

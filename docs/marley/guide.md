@@ -1926,7 +1926,28 @@ Decisions tab took the name; a key bound to `marley::OpenDecisions` still opens 
 | `compatible` | Another server that speaks the same request, at `endpoint`: `https`, or `http` on this machine |
 | `rules` | Each feature's own rules, with no request |
 | `replay` | Answers recorded in `system_one/replay.jsonl` under Marley's data directory |
+| `cloudflare` | Jev through Cloudflare Workers AI, which states it keeps no data, in the account `cloudflare_account_id` (#548) |
 
+- **Cloudflare** (#548). Set `cloudflare_account_id` (also on the settings page) and give Marley
+  an API token that may run Workers AI: `MARLEY_CLOUDFLARE_API_TOKEN`, or Set Cloudflare Token in
+  System One calls, which writes it to the keyring at the account's URL. Marley reads the token
+  only while the layer is on and some project uses Cloudflare, masks it in every state as it does
+  the key, and never shows it. Cloudflare's model is `typesafe/jev`, at the same price as
+  TypeSafe's. A 401 or 403 from Cloudflare marks the token refused until it changes; Cloudflare's
+  own words show in the call. `cloudflare_api` (`https://api.cloudflare.com/client/v4`) moves the
+  base: `https`, or `http` on this machine.
+- **A provider per project** (#548). `provider_by_project` names one for a project, by folder:
+
+  ```jsonc
+  "provider": "typesafe",
+  // A client's code goes through Cloudflare, which keeps nothing; the rest go direct.
+  "provider_by_project": { "~/work/client": "cloudflare" }
+  ```
+
+  An entry applies to a local project with a folder in it or under it, the longest folder
+  winning; every other project takes `provider`. A project still sends only when `projects`
+  lists it. Only your own settings set this, never a project's `.zed/settings.json`. The budget
+  and the breaker are the whole layer's: five failures through one provider hold the others too.
 - `model` is pinned (`jev-1.13.0`).
 - `daily_budget_cents` (50) caps the day's spend, counted from the input tokens at the model's
   price: 0.042 USD per million for Jev, or `price_cents_per_million_tokens` for a compatible
@@ -2236,6 +2257,7 @@ Environment variables and flags:
 |---|---|---|
 | `MARLEY_CHROMIUM` | Marley | The Chromium binary to run; when set, nothing else is tried |
 | `MARLEY_SYSTEM_ONE_KEY` | Marley | The System One layer's key; it comes before the keyring |
+| `MARLEY_CLOUDFLARE_API_TOKEN` | Marley | The `cloudflare` provider's API token (#548); it comes before the keyring |
 | `MARLEY_RH` | Marley | The harness's `rh` to run when `embedded_harness` is on; when set, the PATH is not searched |
 | `MARLEY_MCP_ENDPOINT` | The bridge | The endpoint file to read |
 | `CLAUDE_CONFIG_DIR` | Marley | Claude Code's configuration directory, for whether the plugin is installed (default `~/.claude`) |

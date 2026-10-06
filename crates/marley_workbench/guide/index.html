@@ -1522,8 +1522,8 @@ th { background: var(--panel); font-weight: 650; }
 <p class="area-intro">Readings about what your agents and pages are doing: from Marley's own local rules, and optionally from a model. Off until you turn it on. Nothing here approves, sends or stops anything.</p>
 
 <article id="system-one-on">
-<h3>Turn it on <span class="ticket">#565</span></h3>
-<p class="what"><strong>What it is.</strong> A layer that asks typed questions (a yes or no, a choice, a score) about states Marley builds. The <code>rules</code> provider answers from Marley's own rules on this machine, with no key and no request; the <code>typesafe</code> provider asks TypeSafe's Jev model about what the rules leave open.</p>
+<h3>Turn it on <span class="ticket">#565, #548</span></h3>
+<p class="what"><strong>What it is.</strong> A layer that asks typed questions (a yes or no, a choice, a score) about states Marley builds. The <code>rules</code> provider answers from Marley's own rules on this machine, with no key and no request; the <code>typesafe</code> provider asks TypeSafe's Jev model about what the rules leave open, and the <code>cloudflare</code> provider asks the same model through Cloudflare Workers AI, which states it keeps no data.</p>
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Add to your settings (or use the Marley page's System One section):
@@ -1537,6 +1537,7 @@ th { background: var(--panel); font-weight: 650; }
 }</code></pre></li>
 <li>Each use has a mode: <code>off</code>, <code>shadow</code> (asked and logged, shown only in System One calls), <code>suggest</code> (shown with a question mark) or <code>act</code>.</li>
 <li>For a model: set <code>"provider": "typesafe"</code> and give Marley the key, in <code>MARLEY_SYSTEM_ONE_KEY</code> or through System One calls' Set Key (the system keyring).</li>
+<li>Through Cloudflare: set <code>"provider": "cloudflare"</code> and <code>"cloudflare_account_id"</code>, and give Marley an API token that may run Workers AI, in <code>MARLEY_CLOUDFLARE_API_TOKEN</code> or through System One calls' Set Cloudflare Token. For some projects only, name them instead: <code>"provider_by_project": { "~/work/client": "cloudflare" }</code>; the longest folder holding a project wins, and every other project keeps <code>provider</code>.</li>
 <li>Only projects under a folder in <code>projects</code> send anything; those in <code>metadata_only_projects</code> send facts and none of their text. Every value is masked with the secret rules first.</li>
 <li><code>marley: system one check</code> asks one question about the last command of the terminal you used last, to see a request and an answer.</li>
 </ol>

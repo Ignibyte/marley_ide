@@ -338,7 +338,8 @@ pub enum MarleyRustyConnection {
 }
 
 /// The System One layer's settings (#565). The key is never a setting: Marley reads it from
-/// `MARLEY_SYSTEM_ONE_KEY`, else from the system keyring.
+/// `MARLEY_SYSTEM_ONE_KEY`, else from the system keyring, and Cloudflare's token from
+/// `MARLEY_CLOUDFLARE_API_TOKEN`, else from the keyring (#548).
 #[with_fallible_options]
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema, MergeFrom)]
 pub struct SystemOneSettingsContent {
@@ -350,8 +351,24 @@ pub struct SystemOneSettingsContent {
     ///
     /// Default: "typesafe"
     pub provider: Option<SystemOneProvider>,
+    // Marley: #548, a provider per project.
+    /// Who answers for a project, by the project's folder (`~/` for your home folder), over
+    /// `provider`. An entry applies to a local project whose main folder is its folder or inside
+    /// it, and the longest folder wins. Only your own settings set this.
+    ///
+    /// Default: {}
+    pub provider_by_project: Option<BTreeMap<String, SystemOneProvider>>,
     /// The `compatible` provider's URL: `https`, or `http` on this machine.
     pub endpoint: Option<String>,
+    /// The Cloudflare account the `cloudflare` provider runs Jev in, as Cloudflare's dashboard
+    /// shows it.
+    ///
+    /// Default: ""
+    pub cloudflare_account_id: Option<String>,
+    /// The Cloudflare API the `cloudflare` provider calls: `https`, or `http` on this machine.
+    ///
+    /// Default: "https://api.cloudflare.com/client/v4"
+    pub cloudflare_api: Option<String>,
     /// The model asked, pinned to a version.
     ///
     /// Default: "jev-1.13.0"
@@ -406,6 +423,10 @@ pub enum SystemOneProvider {
     Rules,
     /// Answers recorded in `system_one/replay.jsonl` under Marley's data directory.
     Replay,
+    // Marley: #548, Jev through Cloudflare Workers AI.
+    /// Jev through Cloudflare Workers AI, which states it keeps no data, in the account
+    /// `cloudflare_account_id`.
+    Cloudflare,
 }
 
 /// How a use of the System One layer acts on what it reads (#565).

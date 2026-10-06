@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Jev through Cloudflare Workers AI, for every project or some** (#548, 2026-10-05). System
+  One's new `cloudflare` provider asks the same model through Cloudflare, which states it keeps
+  no data, in the account set as Cloudflare Account ID on the Marley settings page.
+  `provider_by_project` sends chosen projects that way by folder, so a client's code can go
+  through Cloudflare while the rest go direct. The token comes from `MARLEY_CLOUDFLARE_API_TOKEN`
+  or Set Cloudflare Token in System One calls, which shows where it came from and never the
+  token. Each call's row names its provider, and Cloudflare's own words show when it refuses.
+
 - **Record a decision's follow-up from the Decisions tab** (#660, 2026-10-05). Follow Up on a row
   under Due, or Follow Up… in any decision's right-click menu, opens a form: choose Kept, Revised
   or Superseded, write how it went, and give the next follow-up day when revised or pick the

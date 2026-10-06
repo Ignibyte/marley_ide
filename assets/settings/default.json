@@ -1829,9 +1829,16 @@
     "system_one": {
       "enabled": false,
       // "typesafe", "compatible" (another server at `endpoint` that speaks the same request),
-      // "rules" (each use's own rules, no request) or "replay" (answers recorded in
-      // system_one/replay.jsonl under Marley's data directory).
+      // "rules" (each use's own rules, no request), "replay" (answers recorded in
+      // system_one/replay.jsonl under Marley's data directory) or "cloudflare" (Jev through
+      // Cloudflare Workers AI, which states it keeps no data, in `cloudflare_account_id`, with
+      // the token from MARLEY_CLOUDFLARE_API_TOKEN or the keyring) (#548).
       "provider": "typesafe",
+      // A provider per project, by folder ("~/" for home), over "provider"; the longest folder
+      // holding a project's main folder wins, for example {"~/work/client": "cloudflare"}.
+      "provider_by_project": {},
+      "cloudflare_account_id": "",
+      "cloudflare_api": "https://api.cloudflare.com/client/v4",
       "model": "jev-1.13.0",
       // Folders whose projects may send their state, and folders whose projects send the facts
       // Marley computes and none of their text.
@@ -1842,7 +1849,7 @@
       // A "compatible" provider's price, in cents per million input tokens.
       "price_cents_per_million_tokens": 0,
       // Each use's mode: "off", "shadow" (the model asked and logged, its reading shown only in
-      // Decisions, while a use's own rules still act), "suggest" or "act". The check runs only when
+      // System One calls, while a use's own rules still act), "suggest" or "act". The check runs only when
       // you run it; the stop kind says on an idle Claude Code's rail row what its stop needs;
       // browser_find and terminal_find are agents' tools that find an element of a page or a line
       // of a block from words, listed only while not "off"; the stall kind flags a working Claude

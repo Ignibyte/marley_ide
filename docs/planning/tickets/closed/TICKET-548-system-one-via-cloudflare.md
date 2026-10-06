@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #548 (feature, prong 2, the System One layer's second provider)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** (none yet)
+- **Pipeline doc:** ../../pipeline/completed/548-system-one-via-cloudflare.spec.md
 - **Source ticket:** Chad, 2026-09-26: "lets add a ticket to add cloudflare as a configurable
   option at some point", after choosing TypeSafe's own API for Jev
   (`docs/planning/design-notes/jev-system-one-2026-09-25.md`, "Chad's answers")
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Marley's System One layer (`marley_system_one`, not yet ticketed; the Jev note's use 0) calls Jev

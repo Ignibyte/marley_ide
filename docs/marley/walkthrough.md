@@ -1732,7 +1732,9 @@ Set `"enabled": false` under `system_one`, or remove the block, and put
 - [ ] Rows lose their stop kinds and flags, and System One calls records no new calls.
 
 With a TypeSafe key, `"provider": "typesafe"` sends the questions the rules leave open to Jev; see
-the guide's System One section before you do.
+the guide's System One section before you do. With a Cloudflare account, `"provider": "cloudflare"`
+does the same through Cloudflare Workers AI, which states it keeps no data, and
+`provider_by_project` sends only some projects that way (#548).
 
 ## Part 11. Living with Marley
 

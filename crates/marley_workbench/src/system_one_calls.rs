@@ -13,13 +13,14 @@ use editor::Editor;
 use gpui::{App, Entity, EventEmitter, FocusHandle, Focusable, Subscription, Task};
 use marley_system_one::files::{self, CallRow};
 use menu::Confirm;
+use settings::SystemOneProvider;
 use ui::{Button, Color, Label, LabelSize, prelude::*};
 use util::ResultExt as _;
 use workspace::Workspace;
 use workspace::item::Item;
 
 use crate::SystemOneCheck;
-use crate::system_one::{self, KeySource, SystemOne};
+use crate::system_one::{self, KeySource, Slot, SystemOne};
 
 /// The System One calls view.
 pub struct SystemOneCallsView {
@@ -30,9 +31,9 @@ pub struct SystemOneCallsView {
     shown: HashSet<String>,
     /// The rows opened to their state and answers.
     expanded: HashSet<String>,
-    /// The field the key is typed into, while it shows.
-    key_field: Option<Entity<Editor>>,
-    /// What the last Set Key or Forget Key came to.
+    /// The field a key is typed into, and which key, while it shows.
+    key_field: Option<(Slot, Entity<Editor>)>,
+    /// What the last Set Key or Forget Key, or their Cloudflare pair, came to.
     key_note: Option<SharedString>,
     _layer: Subscription,
     _loading: Task<()>,
@@ -120,34 +121,38 @@ impl SystemOneCallsView {
         self.add_rows(rows);
     }
 
-    fn show_key_field(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn show_key_field(&mut self, slot: Slot, window: &mut Window, cx: &mut Context<Self>) {
         let field = cx.new(|cx| {
             let mut editor = Editor::single_line(window, cx);
             editor.set_masked(true, cx);
-            editor.set_placeholder_text("Paste the key, then press Enter", window, cx);
+            editor.set_placeholder_text(
+                &format!("Paste the {}, then press Enter", slot.noun()),
+                window,
+                cx,
+            );
             editor
         });
         field.focus_handle(cx).focus(window, cx);
-        self.key_field = Some(field);
+        self.key_field = Some((slot, field));
         self.key_note = None;
         cx.notify();
     }
 
     fn save_key(&mut self, _: &Confirm, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(field) = self.key_field.take() else {
+        let Some((slot, field)) = self.key_field.take() else {
             return;
         };
         let key = field.read(cx).text(cx);
         if key.trim().is_empty() {
-            self.key_field = Some(field);
+            self.key_field = Some((slot, field));
             return;
         }
         self.focus_handle.focus(window, cx);
-        let write = system_one::store_key(&key, cx);
+        let write = system_one::store_key(slot, &key, cx);
         cx.spawn(async move |view, cx| {
             let note: SharedString = match write.await {
-                Ok(()) => SharedString::new_static("The key is in the keyring."),
-                Err(error) => format!("The key was not written: {error:#}").into(),
+                Ok(()) => format!("The {} is in the keyring.", slot.noun()).into(),
+                Err(error) => format!("The {} was not written: {error:#}", slot.noun()).into(),
             };
             view.update(cx, |view, cx| {
                 view.key_note = Some(note);
@@ -168,12 +173,12 @@ impl SystemOneCallsView {
         }
     }
 
-    fn forget_key(cx: &mut Context<Self>) {
-        let delete = system_one::forget_key(cx);
+    fn forget_key(slot: Slot, cx: &mut Context<Self>) {
+        let delete = system_one::forget_key(slot, cx);
         cx.spawn(async move |view, cx| {
             let note: SharedString = match delete.await {
-                Ok(()) => SharedString::new_static("The key is gone from the keyring."),
-                Err(error) => format!("The key was not removed: {error:#}").into(),
+                Ok(()) => format!("The {} is gone from the keyring.", slot.noun()).into(),
+                Err(error) => format!("The {} was not removed: {error:#}", slot.noun()).into(),
             };
             view.update(cx, |view, cx| {
                 view.key_note = Some(note);
@@ -210,7 +215,17 @@ impl SystemOneCallsView {
                     system_one::provider_name(settings.provider),
                     settings.model
                 )));
-                lines.push(SharedString::from(format!("Key: {}", layer.key_source())));
+                lines.push(SharedString::from(format!(
+                    "Key: {}",
+                    layer.key_source(Slot::Direct)
+                )));
+                if settings.enabled && settings.uses_provider(SystemOneProvider::Cloudflare) {
+                    lines.push(SharedString::from(format!(
+                        "Cloudflare: account {} · token {}",
+                        settings.cloudflare_account.as_deref().unwrap_or("not set"),
+                        layer.key_source(Slot::Cloudflare)
+                    )));
+                }
                 (lines, layer.breaker_open())
             },
         );
@@ -231,33 +246,72 @@ impl SystemOneCallsView {
     }
 
     fn render_buttons(cx: &Context<Self>) -> impl IntoElement {
-        let from_environment = cx
-            .try_global::<SystemOne>()
-            .is_some_and(|layer| layer.key_source() == KeySource::Environment);
-        h_flex()
-            .gap_2()
-            .child(
-                Button::new("system-one-calls-run-check", "Run Check").on_click(cx.listener(
-                    |_, _, window, cx| {
-                        window.dispatch_action(Box::new(SystemOneCheck), cx);
-                    },
-                )),
-            )
-            .child(
-                Button::new("system-one-calls-set-key", "Set Key")
-                    .on_click(cx.listener(|view, _, window, cx| view.show_key_field(window, cx))),
-            )
-            .child(
-                Button::new("system-one-calls-forget-key", "Forget Key")
-                    .on_click(cx.listener(|_, _, _, cx| Self::forget_key(cx))),
-            )
-            .when(from_environment, |this| {
-                this.child(
-                    Label::new("MARLEY_SYSTEM_ONE_KEY is set, and it comes before the keyring.")
-                        .size(LabelSize::Small)
-                        .color(Color::Muted),
-                )
+        let from_environment = |slot: Slot| {
+            cx.try_global::<SystemOne>().is_some_and(|layer| {
+                layer.key_source(slot) == KeySource::Environment(slot.variable())
             })
+        };
+        let cloudflare = cx.try_global::<SystemOne>().is_some_and(|layer| {
+            let settings = layer.settings();
+            settings.enabled && settings.uses_provider(SystemOneProvider::Cloudflare)
+        });
+        let notes = [Slot::Direct, Slot::Cloudflare]
+            .into_iter()
+            .filter(|slot| from_environment(*slot))
+            .map(|slot| {
+                Label::new(format!(
+                    "{} is set, and it comes before the keyring.",
+                    slot.variable()
+                ))
+                .size(LabelSize::Small)
+                .color(Color::Muted)
+            });
+        v_flex()
+            .gap_1()
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(
+                        Button::new("system-one-calls-run-check", "Run Check").on_click(
+                            cx.listener(|_, _, window, cx| {
+                                window.dispatch_action(Box::new(SystemOneCheck), cx);
+                            }),
+                        ),
+                    )
+                    .child(Button::new("system-one-calls-set-key", "Set Key").on_click(
+                        cx.listener(|view, _, window, cx| {
+                            view.show_key_field(Slot::Direct, window, cx);
+                        }),
+                    ))
+                    .child(
+                        Button::new("system-one-calls-forget-key", "Forget Key").on_click(
+                            cx.listener(|_, _, _, cx| Self::forget_key(Slot::Direct, cx)),
+                        ),
+                    )
+                    .when(cloudflare, |this| {
+                        this.child(
+                            Button::new(
+                                "system-one-calls-set-cloudflare-token",
+                                "Set Cloudflare Token",
+                            )
+                            .on_click(cx.listener(
+                                |view, _, window, cx| {
+                                    view.show_key_field(Slot::Cloudflare, window, cx);
+                                },
+                            )),
+                        )
+                        .child(
+                            Button::new(
+                                "system-one-calls-forget-cloudflare-token",
+                                "Forget Cloudflare Token",
+                            )
+                            .on_click(
+                                cx.listener(|_, _, _, cx| Self::forget_key(Slot::Cloudflare, cx)),
+                            ),
+                        )
+                    }),
+            )
+            .children(notes)
     }
 
     fn render_row(&self, row: &CallRow, cx: &Context<Self>) -> impl IntoElement {
@@ -382,11 +436,17 @@ impl Render for SystemOneCallsView {
             .child(Label::new("System One calls").size(LabelSize::Large))
             .child(self.render_header(cx))
             .child(Self::render_buttons(cx))
-            .when_some(self.key_field.clone(), |this, field| {
+            .when_some(self.key_field.clone(), |this, (slot, field)| {
                 this.child(
                     h_flex()
                         .gap_2()
-                        .child(Label::new("Key").size(LabelSize::Small))
+                        .child(
+                            Label::new(match slot {
+                                Slot::Direct => "Key",
+                                Slot::Cloudflare => "Cloudflare token",
+                            })
+                            .size(LabelSize::Small),
+                        )
                         .child(div().w_96().child(field)),
                 )
             })

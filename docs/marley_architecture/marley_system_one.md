@@ -72,7 +72,12 @@ the time and names the folder. MIT OR Apache-2.0, with rustal's lint table; its 
   `probabilities`; a score's fractional `score` (the expected level), `confidence`, `probabilities`
   by level and `legend`, kept as JSON; then `model` and `usage.input_tokens`. Unknown fields are
   ignored, and an answer of an unknown kind is listed in `unreadable`. `error_excerpt` cuts an
-  error body to 300 characters, since a body can echo the request.
+  error body to 300 characters, since a body can echo the request. Since #548 the same questions
+  go to Cloudflare Workers AI: `build_cloudflare(state, set)` renders `{model: CLOUDFLARE_MODEL
+  ("typesafe/jev"), input: {state, questions}}`, `parse_cloudflare(body)` reads the REST
+  envelope's `result` through the same parse (`parse_value`), and `success: false` or a missing
+  `result` gives `ParseError::Failed` with the first error's words and code, which
+  `cloudflare_error(body)` also reads from an error status's body.
 - **`reading`.** `read(set, answers)` reads each question against its threshold. A choice or a
   score counts at a confidence of 0.5 or more, and never for `cannot_tell` or `none`; a noul
   between 0.35 and 0.65, the band widened by 1e-9, is no signal. `Reading` is `Off`, `Rules`,

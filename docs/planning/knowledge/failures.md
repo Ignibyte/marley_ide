@@ -3369,3 +3369,18 @@ The form called `cx.observe(&outcome, ..)` to keep Record's state in step with t
 words. An `Editor` notifies for its caret's blink, its scroll and its selections too, so the form
 drew again twice a second while open. Fixed: it subscribes to `EditorEvent::BufferEdited`, as the
 rail's filter and the workflows' fields do.
+
+## F-claude-548-the-defaults-file-still-said-decisions-after-659-001
+*severity: low · found in: pipeline 548's Code, reading the System One block of `assets/settings/default.json` · class: a user-visible rename swept through `crates/`, `docs/` and `script/` but not `assets/`*
+
+#659 renamed System One's log from Decisions to System One calls, and its sweep (`grep -rn` over
+the crates, the docs and the scenarios) came back clean. The defaults file's comment for `uses`
+still said a shadow reading is "shown only in Decisions", in the file every user's settings
+editor shows. Fixed in #548's hunk of the same file.
+
+## PR-claude-548-a-user-visible-rename-sweeps-assets-too-001
+*severity: low · prevents: F-claude-548-the-defaults-file-still-said-decisions-after-659-001*
+
+When a name the user sees changes, sweep `assets/` (the defaults file, the keymaps, the bundled
+docs) with `crates/`, `docs/` and `script/`: `grep -rn '<old name>' assets crates docs script`.
+The defaults file's comments are what the settings editor shows beside every key.

@@ -1923,7 +1923,7 @@ alike.
   `question`, `white_check_mark` or `x`, the line as the body. `report` logs a refusal, and a
   failure too, with one toast (`Pushes::failing`) until a post succeeds.
 
-## System One (`src/system_one.rs`, `src/system_one_calls.rs`, #565, #659)
+## System One (`src/system_one.rs`, `src/system_one_calls.rs`, #565, #659, #548)
 
 - `SystemOneSettings`, in `MarleySettings`, is `marley.system_one` resolved: the switch, the
   provider, the endpoint, the model, the two project lists (with `~/` as the home directory), the
@@ -1985,6 +1985,25 @@ alike.
   `deprecated_aliases`, so a keymap binding the old id still opens the tab and the palette lists
   only the new name. The Marley settings page's link is System One Calls, dispatched by its name
   through `build_action`.
+- **Cloudflare, and a provider per project** (#548).
+  - `SystemOneSettings` holds `by_project` (folders with `~/` expanded, each with its provider),
+    `cloudflare_account` and `cloudflare_api`. `provider_for(folders)` picks the deepest folder
+    holding one of the project's, as `agents.rs` does for `agent_permissions_by_project`, else
+    `provider`; `uses_provider` asks whether the default or any entry names one.
+  - The keys are two `Slot`s, `Direct` (`typesafe`, `compatible`; `MARLEY_SYSTEM_ONE_KEY`) and
+    `Cloudflare` (`MARLEY_CLOUDFLARE_API_TOKEN`), each a `Credential` with its key, source, refused
+    flag and load counter. `load_key` loads both; a slot reads only while the layer is on and some
+    provider in use sends with it, at the URL of `slot_provider` (the default when it sends with
+    the slot, else the first project's entry). `store_key` and `forget_key` take the slot.
+    `state_for` masks with both keys.
+  - `ask` resolves the project's provider and the `Draft` carries it; `record` stays `rules`.
+    `endpoint(settings, provider)` builds Cloudflare's `{api}/accounts/{account}/ai/run` (the id
+    letters and digits only) through `guarded_url`, the `https` or loopback `http` check
+    `compatible` shares. `send` takes the slot's key and builds `build_cloudflare` at Jev's
+    price, and the row records `typesafe/jev`; `read_posted` parses the envelope, refuses the
+    Cloudflare token on 401 or 403, and puts Cloudflare's words in the reading.
+  - System One calls adds a Cloudflare line (account, token source) and Set Cloudflare Token and
+    Forget Cloudflare Token while Cloudflare is in use; its key field knows its slot.
 
 ## Marley's MCP server (`src/mcp.rs`, #491, #501)
 

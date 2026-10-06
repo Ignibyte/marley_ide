@@ -4847,3 +4847,22 @@ A click outside Zed's modal layer closes the modal with no event a scenario sees
 click on a form's button drops the form unsent and the next steps run against a different state.
 Measure a modal's buttons from a shot of that exact form (its height changes with the fields it
 shows), and `expect` on what the click should have sent right after it.
+
+## L-claude-548-workers-ai-takes-the-model-in-the-body-and-wraps-the-answer-001
+*category: api · topic: Cloudflare Workers AI's REST call · from: pipeline 548*
+
+Cloudflare's model page for Jev shows the generic `POST
+https://api.cloudflare.com/client/v4/accounts/{account}/ai/run` with `Authorization: Bearer
+<token>` and the model in the body (`{"model": "typesafe/jev", "input": {...}}`), not the older
+`/ai/run/@cf/<model>` path. The REST page says every answer comes as `{"result", "success",
+"errors", "messages"}`: the model's own answer is `result`, and an error's words are
+`errors[0].message` with its `code`. Read both pages (developers.cloudflare.com/ai/models/<vendor>/
+<model>/ and /workers-ai/get-started/rest-api/) before assuming either shape; a summary of the model
+page alone leaves the envelope out.
+
+## L-claude-548-format-before-the-gate-not-during-it-001
+*category: process · topic: the gate's receipt · from: pipeline 548*
+
+`just gate-diff` records the tree it ran on, and its receipt fails when a file changes while it
+runs. Run `cargo fmt` (or `rustfmt` on the files touched) before starting the gate; the Stop hook's
+own rustfmt check catches a missed format after the fact, and the gate then needs a second run.

@@ -47,6 +47,13 @@ use crate::{MarleySettings, OpenSystemOneCalls, SystemOneCheck, browser, mcp, sy
 /// The variable the key is read from first.
 pub(crate) const KEY_VARIABLE: &str = "MARLEY_SYSTEM_ONE_KEY";
 
+/// The variable Cloudflare's API token is read from first (#548): Marley's own name, since a
+/// `CLOUDFLARE_API_TOKEN` set for wrangler may hold far more than Workers AI.
+pub(crate) const CLOUDFLARE_TOKEN_VARIABLE: &str = "MARLEY_CLOUDFLARE_API_TOKEN";
+
+/// Cloudflare's API, unless `cloudflare_api` names another.
+const CLOUDFLARE_API: &str = "https://api.cloudflare.com/client/v4";
+
 /// The endpoint of the `typesafe` provider, which is also where the keyring keeps its key.
 const TYPESAFE_URL: &str = "https://api.typesafe.ai/v1/systemone";
 
@@ -54,7 +61,7 @@ const TYPESAFE_URL: &str = "https://api.typesafe.ai/v1/systemone";
 const KEY_USERNAME: &str = "system-one";
 
 /// What `api.typesafe.ai` charges for Jev, in thousandths of a cent per million input tokens
-/// (0.042 USD).
+/// (0.042 USD); Cloudflare charges the same.
 const TYPESAFE_PRICE: u64 = 4_200;
 
 /// Statuses a call is tried again on, once, while the deadline leaves time.
@@ -79,8 +86,14 @@ pub struct SystemOneSettings {
     pub enabled: bool,
     /// Who answers.
     pub provider: SystemOneProvider,
+    /// Who answers for a project, by folder, over `provider` (#548).
+    pub by_project: Vec<(PathBuf, SystemOneProvider)>,
     /// The `compatible` provider's URL.
     pub endpoint: Option<String>,
+    /// The Cloudflare account the `cloudflare` provider runs Jev in.
+    pub cloudflare_account: Option<String>,
+    /// The Cloudflare API the `cloudflare` provider calls.
+    pub cloudflare_api: String,
     /// The model asked.
     pub model: String,
     /// Folders whose projects may send their state.
@@ -117,7 +130,18 @@ impl SystemOneSettings {
             provider: content
                 .and_then(|content| content.provider)
                 .unwrap_or_default(),
+            by_project: content
+                .and_then(|content| content.provider_by_project.as_ref())
+                .into_iter()
+                .flatten()
+                .filter_map(|(folder, provider)| Some((folder_path(folder)?, *provider)))
+                .collect(),
             endpoint: text(content.and_then(|content| content.endpoint.as_ref())),
+            cloudflare_account: text(
+                content.and_then(|content| content.cloudflare_account_id.as_ref()),
+            ),
+            cloudflare_api: text(content.and_then(|content| content.cloudflare_api.as_ref()))
+                .unwrap_or_else(|| CLOUDFLARE_API.to_string()),
             model: text(content.and_then(|content| content.model.as_ref()))
                 .unwrap_or_else(|| DEFAULT_MODEL.to_string()),
             projects: folders(content.and_then(|content| content.projects.as_ref())),
@@ -133,6 +157,73 @@ impl SystemOneSettings {
             uses: content
                 .and_then(|content| content.uses.clone())
                 .unwrap_or_default(),
+        }
+    }
+
+    /// Who answers for a project with `folders`: the deepest `by_project` folder holding one of
+    /// them, as `agent_permissions_by_project` picks, else `provider`.
+    pub(crate) fn provider_for(&self, folders: &[PathBuf]) -> SystemOneProvider {
+        self.by_project
+            .iter()
+            .filter(|(listed, _)| folders.iter().any(|folder| folder.starts_with(listed)))
+            .max_by_key(|(listed, _)| listed.components().count())
+            .map_or(self.provider, |(_, provider)| *provider)
+    }
+
+    /// Whether the default or some project's entry names `provider`.
+    pub(crate) fn uses_provider(&self, provider: SystemOneProvider) -> bool {
+        self.provider == provider || self.by_project.iter().any(|(_, each)| *each == provider)
+    }
+
+    /// The provider a slot's key goes to, and whose URL keeps it in the keyring: the default
+    /// when it sends with the slot, else the first project's entry that does.
+    fn slot_provider(&self, slot: Slot) -> Option<SystemOneProvider> {
+        std::iter::once(self.provider)
+            .chain(self.by_project.iter().map(|(_, provider)| *provider))
+            .find(|provider| Slot::of(*provider) == Some(slot))
+    }
+}
+
+/// Which key a provider sends with (#548): the direct key for the `typesafe` and `compatible`
+/// providers, Cloudflare's API token for `cloudflare`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Slot {
+    /// `MARLEY_SYSTEM_ONE_KEY`, for `typesafe` and `compatible`.
+    Direct,
+    /// `MARLEY_CLOUDFLARE_API_TOKEN`, for `cloudflare`.
+    Cloudflare,
+}
+
+impl Slot {
+    /// The slot `provider` sends with; none for a provider that sends nothing.
+    pub(crate) const fn of(provider: SystemOneProvider) -> Option<Self> {
+        match provider {
+            SystemOneProvider::Typesafe | SystemOneProvider::Compatible => Some(Self::Direct),
+            SystemOneProvider::Cloudflare => Some(Self::Cloudflare),
+            SystemOneProvider::Rules | SystemOneProvider::Replay => None,
+        }
+    }
+
+    /// The variable its key is read from first.
+    pub(crate) const fn variable(self) -> &'static str {
+        match self {
+            Self::Direct => KEY_VARIABLE,
+            Self::Cloudflare => CLOUDFLARE_TOKEN_VARIABLE,
+        }
+    }
+
+    /// What the System One calls view calls its key, and the button that sets it.
+    pub(crate) const fn noun(self) -> &'static str {
+        match self {
+            Self::Direct => "key",
+            Self::Cloudflare => "Cloudflare token",
+        }
+    }
+
+    const fn set_button(self) -> &'static str {
+        match self {
+            Self::Direct => "Set Key",
+            Self::Cloudflare => "Set Cloudflare Token",
         }
     }
 }
@@ -183,12 +274,13 @@ impl Key {
 }
 
 /// Where the key came from, as the System One calls view names it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) enum KeySource {
-    /// The layer is off, or its provider needs no key.
+    /// The layer is off, or no provider in use sends with this key.
+    #[default]
     NotNeeded,
-    /// `MARLEY_SYSTEM_ONE_KEY`.
-    Environment,
+    /// The slot's variable.
+    Environment(&'static str),
     /// The system keyring, at the provider's URL.
     Keyring,
     /// Being read from the keyring.
@@ -201,7 +293,7 @@ impl fmt::Display for KeySource {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotNeeded => formatter.write_str("not needed"),
-            Self::Environment => write!(formatter, "environment ({KEY_VARIABLE})"),
+            Self::Environment(variable) => write!(formatter, "environment ({variable})"),
             Self::Keyring => formatter.write_str("keyring"),
             Self::Reading => formatter.write_str("reading the keyring"),
             Self::Missing(reason) => write!(formatter, "none ({reason})"),
@@ -209,16 +301,23 @@ impl fmt::Display for KeySource {
     }
 }
 
-/// The System One layer's state: the settings it applied, the key, the gate, the recorded
+/// One key's state: the key, where it came from, and whether its provider refused it.
+#[derive(Debug, Default)]
+struct Credential {
+    key: Option<Key>,
+    source: KeySource,
+    /// Whether the provider refused the key; calls wait until the key changes.
+    refused: bool,
+    /// Counts the key's loads, so a keyring read that finishes after a newer load is dropped.
+    load: u64,
+}
+
+/// The System One layer's state: the settings it applied, the two keys, the gate, the recorded
 /// answers, and this session's rows.
 pub(crate) struct SystemOne {
     settings: SystemOneSettings,
-    key: Option<Key>,
-    key_source: KeySource,
-    /// Whether the provider refused the key; calls wait until the key changes.
-    key_refused: bool,
-    /// Counts the key's loads, so a keyring read that finishes after a newer load is dropped.
-    key_load: u64,
+    direct: Credential,
+    cloudflare: Credential,
     gate: policy::Gate,
     replay: Replay,
     rows: Vec<CallRow>,
@@ -231,10 +330,8 @@ impl Default for SystemOne {
     fn default() -> Self {
         Self {
             settings: SystemOneSettings::from_content(None),
-            key: None,
-            key_source: KeySource::NotNeeded,
-            key_refused: false,
-            key_load: 0,
+            direct: Credential::default(),
+            cloudflare: Credential::default(),
             gate: policy::Gate::default(),
             replay: Replay::default(),
             rows: Vec::new(),
@@ -252,15 +349,31 @@ impl SystemOne {
         &self.settings
     }
 
-    /// Where the key came from.
-    pub(crate) fn key_source(&self) -> KeySource {
-        if self.key_refused {
+    /// Where `slot`'s key came from.
+    pub(crate) fn key_source(&self, slot: Slot) -> KeySource {
+        let credential = self.credential(slot);
+        if credential.refused {
             KeySource::Missing(format!(
-                "the provider refused the key from {}",
-                self.key_source
+                "the provider refused the {} from {}",
+                slot.noun(),
+                credential.source
             ))
         } else {
-            self.key_source.clone()
+            credential.source.clone()
+        }
+    }
+
+    const fn credential(&self, slot: Slot) -> &Credential {
+        match slot {
+            Slot::Direct => &self.direct,
+            Slot::Cloudflare => &self.cloudflare,
+        }
+    }
+
+    const fn credential_mut(&mut self, slot: Slot) -> &mut Credential {
+        match slot {
+            Slot::Direct => &mut self.direct,
+            Slot::Cloudflare => &mut self.cloudflare,
         }
     }
 
@@ -313,10 +426,15 @@ fn apply_settings(cx: &mut App) {
     let key_changed = before.as_ref().is_none_or(|before| {
         before.enabled != settings.enabled
             || before.provider != settings.provider
+            || before.by_project != settings.by_project
             || before.endpoint != settings.endpoint
+            || before.cloudflare_account != settings.cloudflare_account
+            || before.cloudflare_api != settings.cloudflare_api
     });
     let replay_changed = before.as_ref().is_none_or(|before| {
-        before.enabled != settings.enabled || before.provider != settings.provider
+        before.enabled != settings.enabled
+            || before.uses_provider(SystemOneProvider::Replay)
+                != settings.uses_provider(SystemOneProvider::Replay)
     });
     cx.default_global::<SystemOne>().settings = settings;
     if key_changed {
@@ -327,61 +445,72 @@ fn apply_settings(cx: &mut App) {
     }
 }
 
-/// Reads the key the settings call for: `MARLEY_SYSTEM_ONE_KEY`, else the keyring at the
-/// provider's URL. With the layer off, or a provider that sends nothing, nothing is read, so a
-/// user who leaves the layer off never meets the keyring's unlock prompt.
+/// Reads both keys the settings call for (#548).
 pub(crate) fn load_key(cx: &mut App) {
+    load_slot(Slot::Direct, cx);
+    load_slot(Slot::Cloudflare, cx);
+}
+
+/// Reads `slot`'s key: its variable, else the keyring at its provider's URL. With the layer off,
+/// or no provider in use that sends with it, nothing is read, so a user who leaves the layer off,
+/// or never names Cloudflare, never meets the keyring's unlock prompt.
+fn load_slot(slot: Slot, cx: &mut App) {
     let settings = {
         let layer = cx.default_global::<SystemOne>();
-        layer.key_load += 1;
-        layer.key = None;
-        layer.key_refused = false;
+        let credential = layer.credential_mut(slot);
+        credential.load += 1;
+        credential.key = None;
+        credential.refused = false;
         layer.settings.clone()
     };
-    if !settings.enabled || !needs_key(settings.provider) {
-        cx.default_global::<SystemOne>().key_source = KeySource::NotNeeded;
+    let provider = settings.slot_provider(slot).filter(|_| settings.enabled);
+    let Some(provider) = provider else {
+        cx.default_global::<SystemOne>().credential_mut(slot).source = KeySource::NotNeeded;
         return;
-    }
-    if let Some(value) = env_var::EnvVar::new(SharedString::new_static(KEY_VARIABLE))
+    };
+    if let Some(value) = env_var::EnvVar::new(SharedString::new_static(slot.variable()))
         .value
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
     {
-        let layer = cx.default_global::<SystemOne>();
-        layer.key = Some(Key(value));
-        layer.key_source = KeySource::Environment;
+        let credential = cx.default_global::<SystemOne>().credential_mut(slot);
+        credential.key = Some(Key(value));
+        credential.source = KeySource::Environment(slot.variable());
         return;
     }
-    let url = match endpoint(&settings) {
+    let url = match endpoint(&settings, provider) {
         Ok(url) => url,
         Err(reason) => {
-            cx.default_global::<SystemOne>().key_source = KeySource::Missing(reason);
+            cx.default_global::<SystemOne>().credential_mut(slot).source =
+                KeySource::Missing(reason);
             return;
         }
     };
     let load = {
-        let layer = cx.default_global::<SystemOne>();
-        layer.key_source = KeySource::Reading;
-        layer.key_load
+        let credential = cx.default_global::<SystemOne>().credential_mut(slot);
+        credential.source = KeySource::Reading;
+        credential.load
     };
     let read = cx.read_credentials(url.as_str());
     cx.spawn(async move |cx| {
         let found = read.await;
         cx.update(|cx| {
-            let layer = cx.default_global::<SystemOne>();
-            if layer.key_load != load {
+            let credential = cx.default_global::<SystemOne>().credential_mut(slot);
+            if credential.load != load {
                 return;
             }
-            layer.key_source = match found {
+            credential.source = match found {
                 Ok(Some((_, secret))) => match String::from_utf8(secret) {
                     Ok(key) if !key.trim().is_empty() => {
-                        layer.key = Some(Key(key.trim().to_string()));
+                        credential.key = Some(Key(key.trim().to_string()));
                         KeySource::Keyring
                     }
-                    _ => KeySource::Missing("the keyring's item is not a key".to_string()),
+                    _ => KeySource::Missing(format!("the keyring's item is not a {}", slot.noun())),
                 },
                 Ok(None) => KeySource::Missing(format!(
-                    "set {KEY_VARIABLE}, or Set Key in System One calls"
+                    "set {}, or {} in System One calls",
+                    slot.variable(),
+                    slot.set_button()
                 )),
                 Err(error) => {
                     KeySource::Missing(format!("the keyring could not be read: {error:#}"))
@@ -392,10 +521,18 @@ pub(crate) fn load_key(cx: &mut App) {
     .detach();
 }
 
-/// Writes `key` to the keyring at the provider's URL, then reads the key again.
-pub(crate) fn store_key(key: &str, cx: &mut App) -> Task<anyhow::Result<()>> {
+/// The keyring URL of `slot`'s key: its provider's endpoint.
+fn slot_url(slot: Slot, cx: &mut App) -> Result<Url, String> {
     let settings = cx.default_global::<SystemOne>().settings.clone();
-    let url = match endpoint(&settings) {
+    let provider = settings
+        .slot_provider(slot)
+        .ok_or_else(|| format!("no provider in use sends a {}", slot.noun()))?;
+    endpoint(&settings, provider)
+}
+
+/// Writes `key` to the keyring at `slot`'s provider's URL, then reads the keys again.
+pub(crate) fn store_key(slot: Slot, key: &str, cx: &mut App) -> Task<anyhow::Result<()>> {
+    let url = match slot_url(slot, cx) {
         Ok(url) => url,
         Err(reason) => return Task::ready(Err(anyhow::anyhow!(reason))),
     };
@@ -407,10 +544,9 @@ pub(crate) fn store_key(key: &str, cx: &mut App) -> Task<anyhow::Result<()>> {
     })
 }
 
-/// Removes the key from the keyring at the provider's URL, then reads the key again.
-pub(crate) fn forget_key(cx: &mut App) -> Task<anyhow::Result<()>> {
-    let settings = cx.default_global::<SystemOne>().settings.clone();
-    let url = match endpoint(&settings) {
+/// Removes `slot`'s key from the keyring at its provider's URL, then reads the keys again.
+pub(crate) fn forget_key(slot: Slot, cx: &mut App) -> Task<anyhow::Result<()>> {
+    let url = match slot_url(slot, cx) {
         Ok(url) => url,
         Err(reason) => return Task::ready(Err(anyhow::anyhow!(reason))),
     };
@@ -422,10 +558,10 @@ pub(crate) fn forget_key(cx: &mut App) -> Task<anyhow::Result<()>> {
     })
 }
 
-/// Loads `replay.jsonl` when the provider is `replay`, off the main thread.
+/// Loads `replay.jsonl` when the default or a project's provider is `replay`, off the main thread.
 fn load_replay(cx: &mut App) {
     let settings = cx.default_global::<SystemOne>().settings.clone();
-    if !settings.enabled || settings.provider != SystemOneProvider::Replay {
+    if !settings.enabled || !settings.uses_provider(SystemOneProvider::Replay) {
         cx.default_global::<SystemOne>().replay = Replay::default();
         return;
     }
@@ -451,14 +587,6 @@ pub(crate) fn today() -> String {
     chrono::Local::now().format("%Y-%m-%d").to_string()
 }
 
-/// Whether `provider` sends requests, and so needs a key.
-const fn needs_key(provider: SystemOneProvider) -> bool {
-    matches!(
-        provider,
-        SystemOneProvider::Typesafe | SystemOneProvider::Compatible
-    )
-}
-
 /// The provider's name, as rows and settings write it.
 pub(crate) const fn provider_name(provider: SystemOneProvider) -> &'static str {
     match provider {
@@ -466,6 +594,7 @@ pub(crate) const fn provider_name(provider: SystemOneProvider) -> &'static str {
         SystemOneProvider::Compatible => "compatible",
         SystemOneProvider::Rules => "rules",
         SystemOneProvider::Replay => "replay",
+        SystemOneProvider::Cloudflare => "cloudflare",
     }
 }
 
@@ -479,31 +608,52 @@ const fn mode_name(mode: SystemOneMode) -> &'static str {
     }
 }
 
-/// Where the provider's requests go. A `compatible` endpoint must be `https`, or `http` on this
-/// machine, so the key never crosses a network in the clear.
-fn endpoint(settings: &SystemOneSettings) -> Result<Url, String> {
-    match settings.provider {
+/// Where `provider`'s requests go. A `compatible` endpoint and the Cloudflare API must be
+/// `https`, or `http` on this machine, so the key never crosses a network in the clear.
+fn endpoint(settings: &SystemOneSettings, provider: SystemOneProvider) -> Result<Url, String> {
+    match provider {
         SystemOneProvider::Typesafe => Url::parse(TYPESAFE_URL).map_err(|error| error.to_string()),
         SystemOneProvider::Compatible => {
             let endpoint = settings.endpoint.as_deref().ok_or_else(|| {
                 "set marley.system_one.endpoint for the compatible provider".to_string()
             })?;
-            let url = Url::parse(endpoint).map_err(|_| format!("`{endpoint}` is not a URL"))?;
-            let on_this_machine = match url.host() {
-                Some(Host::Domain(domain)) => domain == "localhost",
-                Some(Host::Ipv4(address)) => address.is_loopback(),
-                Some(Host::Ipv6(address)) => address.is_loopback(),
-                None => false,
-            };
-            if url.scheme() == "https" || (url.scheme() == "http" && on_this_machine) {
-                Ok(url)
-            } else {
-                Err("the endpoint must be https, or http on this machine".to_string())
+            guarded_url(endpoint, "the endpoint")
+        }
+        SystemOneProvider::Cloudflare => {
+            let account = settings.cloudflare_account.as_deref().ok_or_else(|| {
+                "set marley.system_one.cloudflare_account_id for the cloudflare provider"
+                    .to_string()
+            })?;
+            // The id goes into the path: letters and digits only, as Cloudflare's are.
+            if !account.chars().all(|letter| letter.is_ascii_alphanumeric()) {
+                return Err(format!("`{account}` is not a Cloudflare account id"));
             }
+            let api = guarded_url(&settings.cloudflare_api, "cloudflare_api")?;
+            let run = format!(
+                "{}/accounts/{account}/ai/run",
+                api.as_str().trim_end_matches('/')
+            );
+            Url::parse(&run).map_err(|error| error.to_string())
         }
         SystemOneProvider::Rules | SystemOneProvider::Replay => {
             Err("this provider makes no request".to_string())
         }
+    }
+}
+
+/// `text` as a URL a key may be sent to: `https`, or `http` on this machine.
+fn guarded_url(text: &str, name: &str) -> Result<Url, String> {
+    let url = Url::parse(text).map_err(|_| format!("`{text}` is not a URL"))?;
+    let on_this_machine = match url.host() {
+        Some(Host::Domain(domain)) => domain == "localhost",
+        Some(Host::Ipv4(address)) => address.is_loopback(),
+        Some(Host::Ipv6(address)) => address.is_loopback(),
+        None => false,
+    };
+    if url.scheme() == "https" || (url.scheme() == "http" && on_this_machine) {
+        Ok(url)
+    } else {
+        Err(format!("{name} must be https, or http on this machine"))
     }
 }
 
@@ -546,6 +696,8 @@ struct Draft {
     row: CallRow,
     subject: String,
     answers: Option<Answers>,
+    /// Who answers this call: the project's provider (#548).
+    provider: SystemOneProvider,
 }
 
 impl Draft {
@@ -554,6 +706,7 @@ impl Draft {
         settings: &SystemOneSettings,
         asking: &Asking,
         mode: SystemOneMode,
+        provider: SystemOneProvider,
     ) -> Self {
         let now = chrono::Local::now();
         let number = CALLS.fetch_add(1, Ordering::Relaxed);
@@ -561,13 +714,19 @@ impl Draft {
             day: now.format("%Y-%m-%d").to_string(),
             subject: format!("{}:{}", spec.name, asking.subject),
             answers: None,
+            provider,
             row: CallRow {
                 id: format!("{}-{number}", now.format("%Y%m%dT%H%M%S%3f")),
                 time: now.to_rfc3339(),
                 use_name: spec.name.to_string(),
                 set: spec.set.id.to_string(),
-                model: settings.model.clone(),
-                provider: provider_name(settings.provider).to_string(),
+                // Cloudflare names one model, with no version (#548).
+                model: if provider == SystemOneProvider::Cloudflare {
+                    request::CLOUDFLARE_MODEL.to_string()
+                } else {
+                    settings.model.clone()
+                },
+                provider: provider_name(provider).to_string(),
                 project: Some(asking.project.clone()),
                 mode: mode_name(mode).to_string(),
                 verdict: asking.verdict.as_ref().map(|verdict| verdict.raw.clone()),
@@ -632,7 +791,8 @@ pub(crate) fn ask(spec: UseSpec, asking: &Asking, cx: &mut App) -> Task<Asked> {
             answers: None,
         });
     }
-    let mut draft = Draft::new(&spec, &settings, asking, mode);
+    let provider = settings.provider_for(&asking.folders);
+    let mut draft = Draft::new(&spec, &settings, asking, mode, provider);
     let detail = match policy::may_send(
         &asking.folders,
         asking.local,
@@ -650,12 +810,9 @@ pub(crate) fn ask(spec: UseSpec, asking: &Asking, cx: &mut App) -> Task<Asked> {
             cx,
         ));
     };
-    let key = cx
-        .try_global::<SystemOne>()
-        .and_then(|layer| layer.key.clone());
     draft.row.state = Some(state.text.clone());
     draft.row.state_hash = Some(state.hash.clone());
-    match settings.provider {
+    match provider {
         SystemOneProvider::Rules => {
             let reads = asking.verdict.as_ref().map_or_else(
                 || nothing(&spec, "the use gave no verdict"),
@@ -680,25 +837,29 @@ pub(crate) fn ask(spec: UseSpec, asking: &Asking, cx: &mut App) -> Task<Asked> {
             };
             Task::ready(finish(draft, reading, mode, cx))
         }
-        SystemOneProvider::Typesafe | SystemOneProvider::Compatible => {
-            send(spec, &settings, draft, &state, key, mode, cx)
-        }
+        SystemOneProvider::Typesafe
+        | SystemOneProvider::Compatible
+        | SystemOneProvider::Cloudflare => send(spec, &settings, draft, &state, mode, cx),
     }
 }
 
 /// The state of `asking` at `detail`, each value masked with #516's rules and the user's patterns,
-/// whatever agents' redaction says, and with the key's value; `None` when it holds nothing.
+/// whatever agents' redaction says, and with both keys' values; `None` when it holds nothing.
 fn state_for(asking: &Asking, detail: Detail, cx: &App) -> Option<State> {
     let redactor = mcp::model_redactor(cx);
-    let key = cx
+    let keys: Vec<Key> = cx
         .try_global::<SystemOne>()
-        .and_then(|layer| layer.key.clone());
+        .map(|layer| {
+            [&layer.direct.key, &layer.cloudflare.key]
+                .into_iter()
+                .flatten()
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
     let mask = |text: &str| {
-        let masked = redactor.redact(text).text;
-        match &key {
-            Some(key) => key.mask(&masked),
-            None => masked,
-        }
+        keys.iter()
+            .fold(redactor.redact(text).text, |masked, key| key.mask(&masked))
     };
     let facts = asking.facts.iter().fold(
         StateBuilder::new(detail, &mask),
@@ -755,8 +916,7 @@ pub(crate) fn record(spec: UseSpec, asking: &Asking, cx: &mut App) -> Asked {
             answers: None,
         };
     };
-    let mut draft = Draft::new(&spec, &settings, asking, mode);
-    draft.row.provider = provider_name(SystemOneProvider::Rules).to_string();
+    let mut draft = Draft::new(&spec, &settings, asking, mode, SystemOneProvider::Rules);
     if let Some(state) = detail(asking, cx)
         .ok()
         .and_then(|detail| state_for(asking, detail, cx))
@@ -806,39 +966,52 @@ fn refused(refusal: Refusal) -> Reading {
     }
 }
 
-/// Sends the request to a `typesafe` or `compatible` provider, past the key's and the gate's
-/// checks, and reads what comes back.
+/// Sends the request to a `typesafe`, `compatible` or `cloudflare` provider, past the key's and
+/// the gate's checks, and reads what comes back.
 fn send(
     spec: UseSpec,
     settings: &SystemOneSettings,
     mut draft: Draft,
     state: &State,
-    key: Option<Key>,
     mode: SystemOneMode,
     cx: &mut App,
 ) -> Task<Asked> {
-    let url = match endpoint(settings) {
+    let provider = draft.provider;
+    let url = match endpoint(settings, provider) {
         Ok(url) => url,
         Err(reason) => return Task::ready(finish(draft, Reading::Refused(reason), mode, cx)),
     };
+    let Some(slot) = Slot::of(provider) else {
+        return Task::ready(finish(
+            draft,
+            Reading::Refused("this provider makes no request".to_string()),
+            mode,
+            cx,
+        ));
+    };
     let layer = cx.default_global::<SystemOne>();
-    let key = match key {
-        Some(_) if layer.key_refused => Err("the provider refused the key; set a new one"),
-        Some(key) => Ok(key),
-        None if layer.key_source == KeySource::Reading => {
-            Err("the key is still being read from the keyring")
-        }
-        None => Err("no key: set MARLEY_SYSTEM_ONE_KEY, or Set Key in System One calls"),
+    let credential = layer.credential(slot);
+    let key = match &credential.key {
+        Some(_) if credential.refused => Err(format!(
+            "the provider refused the {}; set a new one",
+            slot.noun()
+        )),
+        Some(key) => Ok(key.clone()),
+        None if credential.source == KeySource::Reading => Err(format!(
+            "the {} is still being read from the keyring",
+            slot.noun()
+        )),
+        None => Err(format!(
+            "no {}: set {}, or {} in System One calls",
+            slot.noun(),
+            slot.variable(),
+            slot.set_button()
+        )),
     };
     let key = match key {
         Ok(key) => key,
         Err(reason) => {
-            return Task::ready(finish(
-                draft,
-                Reading::Unavailable(reason.to_string()),
-                mode,
-                cx,
-            ));
+            return Task::ready(finish(draft, Reading::Unavailable(reason), mode, cx));
         }
     };
     let now = layer.now();
@@ -851,17 +1024,26 @@ fn send(
     ) {
         return Task::ready(finish(draft, refused(refusal), mode, cx));
     }
-    let price = match settings.provider {
-        SystemOneProvider::Typesafe => TYPESAFE_PRICE,
-        _ => settings.price,
+    let (price, body) = match provider {
+        SystemOneProvider::Cloudflare => (
+            TYPESAFE_PRICE,
+            request::build_cloudflare(&state.text, spec.set),
+        ),
+        SystemOneProvider::Typesafe => (
+            TYPESAFE_PRICE,
+            request::build(&settings.model, &state.text, spec.set),
+        ),
+        _ => (
+            settings.price,
+            request::build(&settings.model, &state.text, spec.set),
+        ),
     };
-    let body = request::build(&settings.model, &state.text, spec.set).to_string();
     let posting = cx.background_spawn(post(
         cx.http_client(),
         cx.background_executor().clone(),
         url.to_string(),
         key.bearer(),
-        body,
+        body.to_string(),
         spec.deadline,
     ));
     let started = Instant::now();
@@ -947,7 +1129,8 @@ async fn post(
 }
 
 /// Reads what a request came back with, and tells the gate: an answer spends, a failure counts
-/// toward the breaker, and a refused key waits for a new one.
+/// toward the breaker, and a refused key waits for a new one. Cloudflare's answer comes in its
+/// REST envelope, and it refuses a token with 403 as well as 401 (#548).
 fn read_posted(
     posted: Posted,
     spec: &UseSpec,
@@ -957,11 +1140,28 @@ fn read_posted(
     draft: &mut Draft,
     cx: &mut App,
 ) -> Reading {
+    let cloudflare = draft.provider == SystemOneProvider::Cloudflare;
+    // What an error's body says: Cloudflare's first error when it sent its envelope.
+    let said = |body: &str| {
+        let said = if cloudflare {
+            request::cloudflare_error(body)
+        } else {
+            None
+        };
+        key.mask(&request::error_excerpt(
+            &said.unwrap_or_else(|| body.to_string()),
+        ))
+    };
     let layer = cx.default_global::<SystemOne>();
     let now = layer.now();
     match posted {
         Posted::Answered { status, body } if (200..300).contains(&status) => {
-            match request::parse(&body) {
+            let parsed = if cloudflare {
+                request::parse_cloudflare(&body)
+            } else {
+                request::parse(&body)
+            };
+            match parsed {
                 Ok(answers) => {
                     let cost = policy::cost(answers.input_tokens, price);
                     layer.gate.answered(&draft.subject, hash, cost);
@@ -972,19 +1172,34 @@ fn read_posted(
                 Err(error) => {
                     layer.gate.failed(now);
                     draft.row.error = Some(key.mask(&request::error_excerpt(&body)));
-                    Reading::Unavailable(error.to_string())
+                    Reading::Unavailable(key.mask(&request::error_excerpt(&error.to_string())))
                 }
             }
         }
-        Posted::Answered { status: 401, body } => {
-            layer.key_refused = true;
-            draft.row.error = Some(key.mask(&request::error_excerpt(&body)));
-            Reading::Unavailable("the provider refused the key".to_string())
+        Posted::Answered { status, body } if status == 401 || (cloudflare && status == 403) => {
+            let slot = if cloudflare {
+                Slot::Cloudflare
+            } else {
+                Slot::Direct
+            };
+            layer.credential_mut(slot).refused = true;
+            let said = said(&body);
+            draft.row.error = Some(said.clone());
+            if cloudflare {
+                Reading::Unavailable(format!("Cloudflare refused the token: {said}"))
+            } else {
+                Reading::Unavailable("the provider refused the key".to_string())
+            }
         }
         Posted::Answered { status, body } => {
             layer.gate.failed(now);
-            draft.row.error = Some(key.mask(&request::error_excerpt(&body)));
-            Reading::Unavailable(format!("the provider answered {status}"))
+            let said = said(&body);
+            draft.row.error = Some(said.clone());
+            if cloudflare {
+                Reading::Unavailable(format!("Cloudflare answered {status}: {said}"))
+            } else {
+                Reading::Unavailable(format!("the provider answered {status}"))
+            }
         }
         Posted::TimedOut => {
             layer.gate.failed(now);

@@ -4085,3 +4085,19 @@ delegate. Marley sends one `brain_follow_up`, shows a refusal in Rusty's words w
 kept, and reads `brain_due` again on success. It checks no date: the day goes as typed and Rusty
 judges it, as the tab shows Rusty's days as served. Rejected: a form unfolding under the row; the
 Follow Up button on every row; a typed successor slug; a default status; a date check in Marley.
+
+## AD-claude-548-cloudflare-is-a-provider-chosen-per-project-with-its-own-token-001
+*decided at: 2026-10-05 · status: shipped · builds on: AD-claude-565-the-system-one-layer-is-a-pure-core-behind-an-adapter-off-by-default-001 · plan: docs/marley/three-prong-plan.md S1*
+
+Jev through Cloudflare Workers AI is a fifth System One provider, `cloudflare`, chosen as the
+default or for a project by `provider_by_project`, a folder map the user's own settings hold and
+the deepest folder wins, as `agent_permissions_by_project` does. Cloudflare's token is a second
+key slot beside the direct key: its own variable, `MARLEY_CLOUDFLARE_API_TOKEN` (not wrangler's
+`CLOUDFLARE_API_TOKEN`), its own keyring item at the account's URL, read only while some project
+uses Cloudflare, refused on 401 or 403, and masked in every state with the direct key. The account
+id is a setting, since it names a path and is no secret. Jev's own `state` and `questions` go inside
+Cloudflare's `input`, and its envelope's `result` is parsed by the same reader. One gate stands
+in front of every provider. Rejected: `compatible` pointed at Cloudflare (a different body, path
+and envelope); a `cloudflare_projects` list (the map reads the same and names any provider); a
+project's `.zed/settings.json` choosing (a cloned repository could route its owner's state); a
+Cloudflare SDK (AD-565).
