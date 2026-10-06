@@ -639,7 +639,10 @@ cp "$config/settings.json" "$E2E_PROFILE/config/"
 # Codex's App Server is off too (#650), so no run starts an App Server for a Codex; the allow map
 # gets no `codex_app_server`, so a scenario that turns it on meets #648's check. Claude Code's IDE
 # link is off as well (#653), so no run writes a lock file a real Claude Code would find, and its
-# three ids stay out of the allow map in the same way.
+# three ids stay out of the allow map in the same way. The copy leaves out every setting that reaches
+# outside the run (#668): `marley.push` (the user's phone), `marley.harness` and
+# `marley.embedded_harness` (their agent harness), `marley.fleet` (their providers and hosts) and
+# `marley.system_one` (their System One account); a scenario that needs one sets its own fake.
 python3 - "$E2E_PROFILE/config/settings.json" <<'SETTINGS'
 import json, pathlib, re, sys
 
@@ -657,8 +660,13 @@ marley.setdefault("allow_untested_versions", {})["claude_prompt_tags"] = True
 marley["agent_editor_in_tab"] = False
 marley["codex_app_server"] = False
 marley["claude_code_ide"] = False
+for reaches_out in ("push", "harness", "embedded_harness", "fleet", "system_one"):
+    marley.pop(reaches_out, None)
 path.write_text(json.dumps(settings, indent=2) + "\n")
 SETTINGS
+# Nor does a run inherit the user's System One or Cloudflare key (#668): a scenario that tests
+# System One exports a fake of its own in `setup`.
+unset MARLEY_SYSTEM_ONE_KEY MARLEY_CLOUDFLARE_API_TOKEN
 export MARLEY_RUSTY_MCP=$E2E_WORK/no-rusty-mcp
 # Marley reads the version of the codex it would run (#648); a run reads no codex of the user's
 # unless its scenario names a stand-in.

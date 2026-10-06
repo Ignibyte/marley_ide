@@ -10,7 +10,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-668](open/TICKET-668-test-runs-act-on-nothing-of-the-users.md) | chore | the e2e harness · a run's profile keeps none of the user's push, harness, fleet or System One settings or keys |
+| [TICKET-669](open/TICKET-669-test-runs-list-none-of-the-machines-containers.md) | chore | a test run's rail lists the machine's real containers, each with a Stop; list only what the run started (found in #668) |
 
 ## Deliberate (picked explicitly, never auto-next)
 

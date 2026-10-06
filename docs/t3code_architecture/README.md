@@ -168,7 +168,8 @@ Report 07 found these in how T3 Code is built:
 - **Test runs that act on nothing.** `script/e2e.sh` copies Chad's profile and turns off Rusty,
   voice, the IDE link and Codex's App Server, but keeps `marley.push`, the harness settings, fleet
   hosts and System One's key, so a scenario can push to the phone or read real hosts. T3's
-  `migrate-dev-db` keeps only what a run needs. S, and worth doing first.
+  `migrate-dev-db` keeps only what a run needs. S, and worth doing first. Done in #668: the copy
+  drops all five settings and the run unsets both System One keys.
 - **The guide changes with the feature.** The guide still says "through #516", its planned table
   lists shipped tickets, and #528, #535, #540, #550 and #556 have no entry. A "Guide:" line in the
   notes template, and a catch-up pass. S.

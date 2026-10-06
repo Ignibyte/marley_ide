@@ -4194,3 +4194,16 @@ Zed's MCP client logs Rusty's two servers by size through a small registry in `c
 out. Rejected: turning off trace logging for every MCP server (it hides what other servers do);
 filtering message text for secret tool names (an answer to `secret_reveal` carries no tool name);
 keeping the token in a global so other views could use it.
+
+## AD-claude-668-a-test-run-inherits-nothing-that-reaches-outside-it-001
+*decided at: 2026-10-06 · status: shipped · builds on: R-D8 · plan: docs/t3code_architecture/README.md ("For Marley's own workflow")*
+
+A test run copies the user's settings for how Marley looks and behaves, and leaves out every
+setting and variable that would act on something of the user's: Rusty, Voice, Codex's App Server
+and Claude Code's IDE link were turned off before (#633 to #653); `marley.push`,
+`marley.harness`, `marley.embedded_harness`, `marley.fleet` and `marley.system_one` are dropped
+whole, and `MARLEY_SYSTEM_ONE_KEY` and `MARLEY_CLOUDFLARE_API_TOKEN` unset, before any scenario's
+`setup` (#668). A scenario that tests one of them sets its own fake. Rejected: copying only a list
+of known settings, as T3 Code's `migrate-dev-db` does (every scenario would lose the user's look,
+and a new harmless setting would need a line); turning parts of each off (none has a part a run
+needs). The machine's containers in a run's rail, found in the same check, are TICKET-669.

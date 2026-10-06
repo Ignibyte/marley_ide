@@ -4952,3 +4952,13 @@ message that parses as nothing is written at error level. Any server whose tools
 secret (a PIN, a token, a key) needs `context_server::client::log_messages_by_size(<server name>)`
 before it starts. Prove it with a run at `ZED_LOG=info,context_server=trace`: the server's lines
 read `… bytes`, and a grep for the secrets the run used finds nothing.
+
+## L-claude-668-a-scenario-can-stand-in-for-the-users-settings-001
+*category: testing · topic: checking what the e2e harness copies · from: pipeline 668*
+
+`script/e2e.sh` sources the scenario at top level before it copies `$config/settings.json` into
+the run's profile, so a scenario that sets `config` at top level (to a folder under `SHOT_DIR`)
+hands the harness a settings file of its own and never reads the user's. Variables it exports
+there reach the harness's later lines too. That is how to check the copy itself: write the
+settings a user might hold, export the variables a user might have, and let `setup` read
+`$E2E_PROFILE/config/settings.json` and its own environment, which Marley inherits.

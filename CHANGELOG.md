@@ -2089,6 +2089,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Security
 
+- **Test runs leave the user's phone, harness, hosts and System One alone** (#668, 2026-10-06).
+  `script/e2e.sh` copies the user's settings into each run's profile; the copy now drops
+  `marley.push`, `marley.harness`, `marley.embedded_harness`, `marley.fleet` and
+  `marley.system_one`, and the run unsets `MARLEY_SYSTEM_ONE_KEY` and
+  `MARLEY_CLOUDFLARE_API_TOKEN`, so no scenario can push to the user's phone, reach their agent
+  harness or hosts, or spend their System One budget. A scenario that tests one of them sets its
+  own fake, as the six that do already did.
+
 - **wasmtime 48.0.5** (#642, 2026-10-04). The extension host's WebAssembly runtime moves from
   48.0.3 to its patch release 48.0.5, with cranelift 0.135.5 and the wasm-tools crates it needs at
   0.254.2, for seven advisories published on 2026-10-02: RUSTSEC-2026-0325, -0326 and -0327 (GC

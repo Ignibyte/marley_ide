@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #668 (chore, the e2e harness)
 - **Owner:** claude-opus-5-5, 2026-10-06 (from the T3 Code survey, `docs/t3code_architecture/README.md`, "For Marley's own workflow")
-- **Pipeline doc:** (none yet)
+- **Pipeline doc:** ../../pipeline/completed/668-test-runs-act-on-nothing-of-the-users.spec.md
 - **Source ticket:** `docs/t3code_architecture/07-engineering-and-releases.md`; T3 Code's `migrate-dev-db` keeps only what a run needs
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 `script/e2e.sh` copies the user's `settings.json` into each run's profile and turns off Rusty,
