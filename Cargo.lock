@@ -10879,6 +10879,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "collections",
+ "command_palette_hooks",
  "context_server",
  "ctor",
  "db",

@@ -3384,3 +3384,12 @@ editor shows. Fixed in #548's hunk of the same file.
 When a name the user sees changes, sweep `assets/` (the defaults file, the keymaps, the bundled
 docs) with `crates/`, `docs/` and `script/`: `grep -rn '<old name>' assets crates docs script`.
 The defaults file's comments are what the settings editor shows beside every key.
+
+## F-claude-661-a-rebuilt-settings-page-kept-the-old-search-matches-001
+*severity: low · found in: pipeline 661's scenario, in Test · class: a rebuild that re-applies a filter against an index it has not rebuilt yet*
+
+Turning Rusty on while the Settings window was open and searched for "Rusty" left the page at
+the switch alone. Zed's `rebuild_pages` runs `build_ui`, which calls `update_matches`, before it
+calls `build_search_index`, so the search ran on the old pages' index and its item numbers. Fixed
+in Marley's hunk: `update_matches` again after `rebuild_pages`. Zed's own staff-flag rebuild has
+the same order.

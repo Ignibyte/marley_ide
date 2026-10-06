@@ -4866,3 +4866,14 @@ page alone leaves the envelope out.
 `just gate-diff` records the tree it ran on, and its receipt fails when a file changes while it
 runs. Run `cargo fmt` (or `rustfmt` on the files touched) before starting the gate; the Stop hook's
 own rustfmt check catches a missed format after the fact, and the gate then needs a second run.
+
+## L-claude-661-hide-a-feature-from-the-palette-with-zeds-filter-001
+*category: gpui · topic: a setting that hides a feature's commands · from: pipeline 661*
+
+Zed hides commands with `command_palette_hooks::CommandPaletteFilter::update_global`:
+`hide_namespace` for a whole `actions!` namespace and `hide_action_types` for one action in a
+shared namespace (a shown type overrides a hidden namespace). `update_global` does nothing until
+`command_palette::init` has run, which Zed does before `initialize_workspace`; set it at init and
+again on every settings change, only when the value changed. The settings window builds its pages
+from `cx` (`settings_data(cx)`), so a page can leave items out by state and `rebuild_pages` them on
+a change; run `update_matches` after it when a search may be open.

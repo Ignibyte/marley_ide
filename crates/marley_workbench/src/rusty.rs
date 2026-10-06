@@ -36,6 +36,7 @@ mod properties;
 mod slider;
 pub mod tasks_tab;
 
+use std::any::TypeId;
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -43,6 +44,7 @@ use std::pin::pin;
 use std::sync::Arc;
 use std::time::Duration;
 
+use command_palette_hooks::CommandPaletteFilter;
 use context_server::types::Request;
 use context_server::types::requests::CallTool;
 use context_server::types::{CallToolParams, CallToolResponse};
@@ -211,6 +213,12 @@ struct VaultReads {
 
 impl Global for VaultReads {}
 
+/// Whether the command palette shows Rusty's commands, as last set; none before the first (#661).
+#[derive(Default)]
+struct PaletteShown(Option<bool>);
+
+impl Global for PaletteShown {}
+
 /// Follows `marley.rusty` and registers the Rusty's Server page's view; [`crate::init`] calls it
 /// once.
 pub fn init(cx: &mut App) {
@@ -264,6 +272,31 @@ fn follow_setting(cx: &mut App) {
         }
     }
     offer(wanted.agent_tools, cx);
+    filter_palette(wanted.source != Source::Off, cx);
+}
+
+/// Hides Rusty's commands from the command palette while Rusty is off, as Zed hides its AI
+/// commands while `disable_ai` is set (#661): the `rusty` namespace, and the Brain view's
+/// toggle, whose namespace is Marley's own. A key bound to one still answers with the toast.
+fn filter_palette(on: bool, cx: &mut App) {
+    if cx.default_global::<PaletteShown>().0 == Some(on) {
+        return;
+    }
+    // Before the palette has its filter there is nothing to set; the next call sets it.
+    if CommandPaletteFilter::try_global(cx).is_none() {
+        return;
+    }
+    cx.default_global::<PaletteShown>().0 = Some(on);
+    let toggle = [TypeId::of::<crate::ToggleBrainView>()];
+    CommandPaletteFilter::update_global(cx, |filter, _| {
+        if on {
+            filter.show_namespace("rusty");
+            filter.show_action_types(&toggle);
+        } else {
+            filter.hide_namespace("rusty");
+            filter.hide_action_types(&toggle);
+        }
+    });
 }
 
 /// Changes the `Rusty` global, so its observers, the Rusty's Server page among them, hear it.

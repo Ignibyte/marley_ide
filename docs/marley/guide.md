@@ -1061,7 +1061,9 @@ to update the file.
 Marley can connect to Rusty, Ignibyte's local assistant store, through its MCP server, `rusty-mcp`
 (#643). It is off until you turn it on: Rusty in the Marley settings page's Rusty section, or
 `"marley": { "rusty": { "enabled": true } }`. Off, Marley starts no `rusty-mcp` and opens no
-connection.
+connection, and shows nothing of Rusty but the switch (#661): the command palette lists no
+`rusty:` command and no `marley: toggle brain view`, and the settings page's Rusty section holds
+the switch alone. A key bound to a Rusty command says Rusty is off.
 
 - **Connection.** `embedded` (the default) starts `rusty-mcp` on stdio, from `MARLEY_RUSTY_MCP`
   when it is set, else your PATH, and ends it when Rusty turns off or Marley quits. `service`

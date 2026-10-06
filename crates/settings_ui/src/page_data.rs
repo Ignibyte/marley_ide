@@ -64,8 +64,8 @@ macro_rules! concat_sections {
 
 pub(crate) fn settings_data(cx: &App) -> Vec<SettingsPage> {
     vec![
-        // Marley: Marley's own page, first (#515).
-        crate::marley_page::marley_page(),
+        // Marley: Marley's own page, first (#515); built from `cx` for Rusty's switch (#661).
+        crate::marley_page::marley_page(cx),
         general_page(cx),
         appearance_page(),
         keymap_page(),

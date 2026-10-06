@@ -1839,8 +1839,19 @@ impl SettingsWindow {
         .detach();
 
         let mut ui_font_size = ThemeSettings::get_global(cx).ui_font_size(cx);
+        // Marley: the Marley page leaves Rusty's items out while Rusty is off, so the pages are
+        // rebuilt when its switch changes (#661).
+        let mut marley_rusty_on = marley_page::rusty_on(cx);
         cx.observe_global_in::<SettingsStore>(window, move |this, window, cx| {
             this.fetch_files(window, cx);
+            let rusty_on = marley_page::rusty_on(cx);
+            if rusty_on != marley_rusty_on {
+                marley_rusty_on = rusty_on;
+                this.rebuild_pages(window, cx);
+                // `rebuild_pages` matches the search against the old index before it builds the
+                // new one, so an open search would keep the old page's items: match it again.
+                this.update_matches(cx);
+            }
 
             // Whenever settings are changed, it's possible that the changed
             // settings affects the rendering of the `SettingsWindow`, like is

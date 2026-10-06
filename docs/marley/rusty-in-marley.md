@@ -92,7 +92,10 @@ Off means nothing starts: no process, no MCP connection, no panel, no dock butto
 (`workspace::Panel::enabled`, with `Panel::icon` returning `None`, which is what hides the
 button). A `rusty:` action run while Rusty is off or not connected shows a toast saying so and
 where to turn it on, as #642's dictation action does; it opens nothing (settled 2026-10-03 across
-#643 to #659). `connection` is `embedded` (Marley starts `rusty-mcp` on stdio,
+#643 to #659). Since #661 off also hides every `rusty:` command and `marley: toggle brain view` from
+the command palette (Zed's `CommandPaletteFilter`, as `disable_ai` uses it) and leaves the settings
+page's Rusty section to its switch: Chad chose one build with one switch (2026-10-06), and off
+shows nothing of Rusty but the switch; a bound key keeps the toast. `connection` is `embedded` (Marley starts `rusty-mcp` on stdio,
 found on the search path) or `service` (the running HTTP service). `agent_tools` is today's
 `marley.rusty_tools` (#633), off by default after #642, and moves into this block when R1
 lands. The Settings window's Marley page gets a Rusty section, with Rusty's own server

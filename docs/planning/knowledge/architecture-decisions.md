@@ -4101,3 +4101,15 @@ in front of every provider. Rejected: `compatible` pointed at Cloudflare (a diff
 and envelope); a `cloudflare_projects` list (the map reads the same and names any provider); a
 project's `.zed/settings.json` choosing (a cloned repository could route its owner's state); a
 Cloudflare SDK (AD-565).
+
+## AD-claude-661-the-assistant-off-shows-nothing-but-its-switch-001
+*decided at: 2026-10-06 · status: shipped · builds on: AD-claude-659-decisions-is-rustys-and-system-ones-log-is-system-one-calls-001 · plan: docs/marley/rusty-in-marley.md R-D0*
+
+Chad chose one build with one switch for the personal assistant (2026-10-06). With
+`marley.rusty.enabled` off, Marley shows nothing of Rusty but the switch: the command palette
+filters the `rusty` namespace and `marley::ToggleBrainView` (Zed's `CommandPaletteFilter`, as
+`disable_ai` hides AI), the settings page's Rusty section keeps its header and switch, and the
+settings window rebuilds its pages when the switch changes. A key bound to a Rusty command keeps
+the toast that names the switch, since a key that does nothing would look broken. Rejected: two
+builds (a cargo feature; every check twice); unregistering the actions; a per-item hide on every
+settings sub-page link.

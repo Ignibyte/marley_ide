@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use collections::HashMap;
 use gpui::{AnyView, Global, ScrollHandle};
+use settings::SettingsStore;
 use ui::prelude::*;
 use util::ResultExt as _;
 
@@ -31,7 +32,7 @@ impl MarleyPageViews {
     }
 }
 
-pub(crate) fn marley_page() -> SettingsPage {
+pub(crate) fn marley_page(cx: &App) -> SettingsPage {
     SettingsPage {
         title: "Marley",
         items: layout_section()
@@ -42,7 +43,12 @@ pub(crate) fn marley_page() -> SettingsPage {
             .chain(push_section())
             .chain(voice_section())
             .chain(system_one_section())
-            .chain(rusty_section())
+            // While Rusty is off its section holds the header and the switch alone (#661).
+            .chain(
+                rusty_section()
+                    .into_iter()
+                    .take(if rusty_on(cx) { usize::MAX } else { 2 }),
+            )
             .chain(privacy_section())
             .collect(),
     }
@@ -1398,8 +1404,21 @@ fn system_one_section() -> [SettingsPageItem; 18] {
     ]
 }
 
+/// Whether `marley.rusty.enabled` is on, as the settings resolve it: the Marley page shows Rusty's
+/// items past its switch only then, and the window rebuilds its pages when it changes (#661).
+pub(crate) fn rusty_on(cx: &App) -> bool {
+    cx.global::<SettingsStore>()
+        .merged_settings()
+        .marley
+        .as_ref()
+        .and_then(|marley| marley.rusty.as_ref())
+        .and_then(|rusty| rusty.enabled)
+        .unwrap_or(false)
+}
+
 // Marley: Rusty's switch and connection (#643); the connection's state and Rusty's own settings
 // are on the Rusty's Server sub-page, which draws the view `marley_workbench::rusty` registers.
+// The header and the switch come first: while Rusty is off the page keeps those two (#661).
 fn rusty_section() -> [SettingsPageItem; 6] {
     [
         SettingsPageItem::SectionHeader("Rusty"),

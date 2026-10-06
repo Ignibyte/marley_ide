@@ -592,6 +592,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Rusty off leaves no trace** (#661, 2026-10-06). With Rusty's switch off, the command palette
+  lists no `rusty:` command and no `marley: toggle brain view`, and the Marley settings page's
+  Rusty section shows the switch alone. Turning it on brings the commands and the section's
+  other settings back at once, the Settings window included. A key bound to a Rusty command
+  still says Rusty is off.
+
 - **System One's log is now System One calls** (#659, 2026-10-04). The tab that lists System
   One's calls, its command (`marley: open system one calls`), the Marley settings page's link
   (Open System One Calls) and every line that named it say System One calls, so Decisions is

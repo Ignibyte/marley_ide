@@ -2068,6 +2068,11 @@ alike.
 
 - `MarleySettings::rusty` is `RustySettings::from_content(marley)`: `Source::{Off, Embedded,
   Service(url)}`, off unless `marley.rusty.enabled` is on, and `agent_tools` only while it is.
+- **Off leaves no trace** (#661). `follow_setting` ends with `filter_palette`, which on a change
+  (kept in `PaletteShown`) hides or shows the `rusty` namespace and `ToggleBrainView`'s type
+  through `command_palette_hooks::CommandPaletteFilter`, as `agent_ui` does for `disable_ai`.
+  The settings page's half is in `settings_ui` (`marley_page::rusty_on`, the page built from
+  `cx`, and a rebuild when the switch changes; see the ledger rows).
 - `init` sets the `Rusty` global (the source, the `State`: `Off`, `Starting`, `Connected { server,
   via }`, `Down(reason)`, `Missing(reason)`, Rusty's settings as last read, a refused write, the
   server and the keeper task), makes `RustyServerView` and registers it in
