@@ -116,6 +116,12 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   `memories_from_answer`; `Importance` (`ALL`, `word`, `label`, `parse` reading `medium` as normal);
   `categories` (sorted, once each); `count_line`; `category_or_default`; `MemoryWrite` (`Store`,
   `Update` leaving out an importance not picked, `Delete`) with `tool` and `arguments`.
+- `skills` (#665): the skill and script tools' names; `Skill` (`name`, `description`, `origin`,
+  `status`, `path`, `body`) with `is_pending` and `is_auto`; `Script` (`name`, `skill`, `path`,
+  `status`) with `is_pending` and `qualified` (`skill/name`); `ordered` (staged first, then by
+  name, as Rusty's app sorts); the answers' parsers, `UpdateAnswer` and `ScriptText`;
+  `blocked_by_scan`; `SkillWrite` (`Create`, `Update`, `Delete`, `Approve { force }`, `Reject`,
+  `UpdateScript`) with `tool` and `arguments`.
 - `knowledge` (#646): what the Knowledge panel shows of a page. `LinkEntry` and `PageLinks`
   (`brain_get_links`'s `outbound` and `backlinks`, each with `context`, the line the link sits on,
   and `resolved`), `TagCount` (`brain_tags`), `GraphNode` and `Graph` (`brain_graph`'s nodes; the
@@ -218,7 +224,9 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   daily note takes today from the `today` file too. Since #664 it serves `list_memories`,
   `store_memory`, `update_memory` and `delete_memory` over `memories.json` in the state folder with
   Rusty's order, defaults, importance words and refusals, announces each memory write, and watches
-  the file. It matches search words, not embeddings. The e2e
+  the file. Since #665 it serves the skill and script tools over a store in `skills/` of its state
+  folder (`.claude/skills/<name>/SKILL.md` active, `staging/<name>/SKILL.md` staged, `*.sh` beside
+  them) with Rusty's name rule, scan, refusals and answers, and announces each write. It matches search words, not embeddings. The e2e
   scenarios name it with `MARLEY_RUSTY_MCP` and never reach the user's own Rusty (R-D8).
 
 ## Later slices

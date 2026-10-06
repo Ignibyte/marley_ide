@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Skills tab** (#665, 2026-10-06). Rusty's skills store in a center tab, from the hammer
+  after Memory in the Brain view or `rusty: open skills`: staged skills first, waiting for your
+  approval, then the active ones Claude Code loads, then the scripts beside them. Choose a skill to
+  edit its description and body and Save, run Rusty's safety scan, or Approve or Reject a staged
+  one; when the scan blocks an approval, Rusty says why and Approve Anyway appears. Choose a script
+  to edit it, or Run it in a terminal. New Skill makes one, active or staged, and Delete asks
+  first. Rusty commits every change and its refusals show in the tab.
+
 - **The Memory tab** (#664, 2026-10-06). What Rusty remembers across conversations, in a center
   tab from the book after Decisions in the Brain view or `rusty: open memory`: the memories in
   Rusty's order (high first, the newest first within each), each with its category, importance,

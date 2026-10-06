@@ -811,6 +811,24 @@ in step 4.
 - [ ] Step 3: `tour` shows that memory alone, "1 memory"; All shows them all again.
 - [ ] Step 4: the edited text shows among the low ones; after Delete it is gone and the count drops.
 
+### 2.15g The Skills tab (#665), optional
+
+Needs 2.12's setup: Rusty installed and on. This stop makes one staged skill and deletes it in step
+4; it changes nothing else in your store.
+
+1. Click the hammer after Memory in the Brain view.
+2. Click New Skill, type `Tour Skill`, click Create. Then make the name `tour-skill`, check "Stage
+   for approval", click Create.
+3. Click Scan.
+4. Click Delete and answer Delete.
+
+- [ ] Step 1: Skills lists any staged skills first, marked pending, then your active ones, then
+  the scripts.
+- [ ] Step 2: Rusty refuses `Tour Skill` in the form; `tour-skill` then shows first, pending, with
+  its description and body on the right.
+- [ ] Step 3: "The scan is clean." under the body.
+- [ ] Step 4: `tour-skill` is gone.
+
 ## Part 3. The editor
 
 Marley's editor is Zed's. This part checks the everyday tools. The first time you open
@@ -1953,6 +1971,7 @@ Every Marley command runs from the palette. The ones with no key of their own:
 | `rusty: capture to today`, `rusty: capture to inbox`, `rusty: capture url` | A line into today's note or the inbox, or a URL kept as a source page (#663) |
 | `rusty: import vault`, `rusty: open today` | An Obsidian vault into the brain after its plan; today's daily note (#663) |
 | `rusty: open memory` | The Memory tab, what Rusty remembers across conversations (#664) |
+| `rusty: open skills` | The Skills tab, Rusty's skills and scripts (#665) |
 | `rusty: open decisions` | The Decisions tab, Rusty's decisions and the follow-ups due, each followed up from its row (#659, #660) |
 | `multi workspace: next project`, `previous project`, `next thread`, `previous thread` | Walk the rail |
 

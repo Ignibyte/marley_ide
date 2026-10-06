@@ -174,6 +174,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#rusty-decisions">Decisions: Rusty's brain loop</a></li>
 <li><a href="#rusty-capture">Capture and import: lines, URLs and a vault into Rusty</a></li>
 <li><a href="#rusty-memory">Memory: what Rusty remembers</a></li>
+<li><a href="#rusty-skills">Skills: Rusty's skills and scripts</a></li>
 </ol></li>
 <li><a href="#editor">The editor</a><ol>
 <li><a href="#find-things">Find files, symbols and text</a></li>
@@ -732,6 +733,20 @@ th { background: var(--panel); font-weight: 650; }
 <li>Click a memory to edit it: change the text, the category or the importance and click Save. Delete asks first, then Rusty forgets it.</li>
 </ol>
 <p class="note">Rusty keeps the order: high first, then normal, then low, the newest first within each. If Rusty refuses a change, its words show in the form. The tab reads Rusty again when Rusty announces a change, when you come back to it after one, and after each change you make.</p>
+</article>
+
+<article id="rusty-skills">
+<h3>Skills: Rusty's skills and scripts <span class="ticket">#665</span></h3>
+<p class="what"><strong>What it is.</strong> A center tab over Rusty's skills store, while Rusty is on. A skill is a <code>SKILL.md</code> that Claude Code loads once it is active; an agent's new skill waits, staged, for your approval. A script is a <code>.sh</code> beside a skill, the command <code>rusty &lt;name&gt;</code>. Rusty commits every change to the store.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Click the hammer after Memory in the rail's Brain view, or run <code>rusty: open skills</code>. Staged skills come first, marked pending; <code>auto</code> marks one an agent wrote.</li>
+<li>Click a skill to see its description and body. Edit either and click Save; Scan runs Rusty's safety scan and lists what it found.</li>
+<li>On a staged skill, Approve makes it active and Reject removes it. If the scan blocks Approve, Rusty says why and Approve Anyway appears.</li>
+<li>Click a script to see its text; Save keeps an edit, and Run opens a terminal in the center running it.</li>
+<li>New Skill asks for a name (lowercase letters, digits and hyphens), a description and a body, and whether to stage it; Delete asks first.</li>
+</ol>
+<p class="note">If Rusty refuses a change, its words show in the tab or the form. Run works from a project on this machine, where Rusty keeps the scripts, and a staged skill's scripts cannot run until it is approved.</p>
 </article>
 </section>
 

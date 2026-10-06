@@ -2417,6 +2417,27 @@ alike.
   Save while the content holds text. A success has the tab read again and dismisses; a refusal's
   first line stays.
 
+## The Skills tab (`src/rusty/skills_tab.rs`, #665)
+
+- **Opening and reads.** `OpenSkills` and the Brain view's Skills button (`ToolHammer`) bring the
+  workspace's one `BrainSkillsView` forward; the Decisions tab's `Link` and `ReadDue` drive the
+  reads, `skill_list` and `script_list` (both with the staged ones) read together and kept as one
+  answer, the skills `ordered`.
+- **The choice.** `Chosen` is a skill by name or a script by path. Choosing fills the editors (the
+  description `single_line`, the body `multi_line`, which fills the right side); a script's text
+  comes from `script_view` on a task of its own, dropped if the choice moved on. A read that no
+  longer lists the choice clears it; one that does leaves the editors as they are, so a read never
+  overwrites an edit in progress.
+- **Writes.** `send` calls the write's tool and `answered` sets the notice, the findings after
+  `skill_update`, `blocked` after an Approve refused by `blocked_by_scan` (which shows Approve
+  Anyway), and clears the choice after Delete or Reject; every write reads again. Delete asks
+  through `window.prompt`. `NewSkillForm` hands the skill Rusty answers to the tab, which lists
+  and chooses it before its read lands.
+- **Run.** `run_script` checks the project is on this machine, then schedules a `TaskTemplate`:
+  `bash` with the shell-quoted path, the script's folder as the directory, label `rusty <name>`,
+  `RevealTarget::Center`, the summary shown and the command hidden (Zed's summary would leave out
+  the path). Marley's terminal routing puts it in the center; no process starts in this crate.
+
 ## The project view (`src/rusty/project.rs`, #655)
 
 - `ProjectPages`, a global the panel and the Graph tab observe, holds every project page, or the

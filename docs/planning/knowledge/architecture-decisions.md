@@ -4155,3 +4155,16 @@ from before Rusty's TICKET-052 keeps it until Low, Normal or High is picked, whe
 send `low`. Delete asks first. The tab shares the Decisions tab's link and read bookkeeping rather
 than a copy. Rejected: a search box (Rusty's tools have none); editing in the row (the form keeps
 the list's rows one height).
+
+## AD-claude-665-the-skills-tab-follows-rustys-app-and-runs-in-a-terminal-001
+*decided at: 2026-10-06 · status: shipped · builds on: AD-claude-664-the-memory-tab-follows-rustys-app-001 · plan: docs/marley/rusty-in-marley.md R8*
+
+The Skills tab draws Rusty's store as Rusty's app does: staged skills first, Approve Anyway only
+after the scan blocked an Approve, Delete asked first, a new staged skill marked as an agent's (as
+Rusty marks it). Every write is one of Rusty's tools, which commit the store since its
+TICKET-051. A script runs in a Marley terminal through Zed's task system (`bash <path>` from the
+script's folder, as Rusty runs it), never through `script_run`, whose sixty-second cut and
+captured output suit an agent, not a person watching. The editors keep an edit in progress across
+reads; a change made elsewhere shows when the skill is chosen again. Rejected: `script_run` with
+its output in the tab; a reread that refills the editors (it would drop typing); a skill's other
+frontmatter keys in the form (Rusty keeps them).

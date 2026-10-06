@@ -1226,6 +1226,27 @@ memory`, opens it in a center tab.
   (one made in its app, its CLI or by an agent), and after each change you make. With Rusty off it
   says so.
 
+### The Skills tab (#665)
+
+Rusty's skills store: a skill is a `SKILL.md` Claude Code loads once it is active, and a skill an
+agent writes waits, staged, for your approval. A script is a `.sh` beside a skill, the command
+`rusty <name>`. The hammer after Memory in the Brain view, or `rusty: open skills`, opens the tab.
+
+- **The lists.** Skills, staged first (marked pending; `auto` marks one an agent wrote), then the
+  active ones, each with its description; then Scripts, `$ name` with its skill.
+- **A skill.** Its description and body in editors; Save sends both, and Rusty answers with its
+  safety scan, whose findings show under the editor. Scan runs the scan alone. A staged skill has
+  Approve and Reject; if the scan blocks Approve, Rusty says why and Approve Anyway appears.
+  Delete asks first.
+- **A script.** Its text in an editor and Save. Run opens a terminal in the center that runs it
+  with `bash`, as Rusty runs it, from the script's folder; it works from a project on this
+  machine, and a staged skill's script waits for the approval.
+- **New Skill.** A name (lowercase letters, digits and hyphens: Rusty refuses others in its own
+  words), a description, a body, and whether to stage it. The skill is listed and chosen at once.
+- **Live.** Rusty commits each change to its store. The tab reads Rusty again after each change,
+  on Rusty's announcement, and when you come back to it; an edit in progress stays in the editors
+  until you choose another skill.
+
 ### Capture and import (#663)
 
 While Rusty is on, these commands in the palette put things into its brain:

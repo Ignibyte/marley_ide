@@ -91,6 +91,17 @@ TOOL_NAMES = [
     "store_memory",
     "update_memory",
     "delete_memory",
+    "skill_list",
+    "skill_view",
+    "skill_create",
+    "skill_update",
+    "skill_delete",
+    "skill_scan",
+    "skill_approve",
+    "skill_reject",
+    "script_list",
+    "script_view",
+    "script_update",
 ]
 
 # The tools Rusty may take long over, answered on a thread of their own as Rusty answers every
@@ -132,6 +143,10 @@ def seed():
 
 class Refused(Exception):
     """A tool's refusal, worded as Rusty words it."""
+
+
+def refuse(message):
+    raise Refused(message)
 
 
 def clean(path):
@@ -1241,6 +1256,237 @@ def delete_memory(memory_id):
     return "deleted"
 
 
+SKILLS = os.path.join(STATE, "skills")
+
+# Rusty announces each store write that succeeded, as it does a task write (#665).
+SKILL_WRITES = {
+    "skill_create",
+    "skill_update",
+    "skill_delete",
+    "skill_approve",
+    "skill_reject",
+    "script_update",
+}
+
+SECRET_MARKERS = ["ghp_", "github_pat_", "gho_", "glpat-", "AKIA", "xoxb-", "xoxp-", "-----BEGIN"]
+
+
+def skills_base(status):
+    return os.path.join(SKILLS, ".claude", "skills") if status == "active" else os.path.join(SKILLS, "staging")
+
+
+def valid_skill_name(name):
+    """Rusty's rule: lowercase letters, digits and hyphens, no hyphen at either end."""
+    return bool(name) and not name.startswith("-") and not name.endswith("-") and all(
+        char.islower() and char.isascii() or char.isdigit() or char == "-" for char in name
+    )
+
+
+def split_skill(raw):
+    """A SKILL.md's frontmatter lines and its body."""
+    lines = raw.split("\n")
+    if lines and lines[0].strip() == "---":
+        for at in range(1, len(lines)):
+            if lines[at].strip() == "---":
+                return lines[1:at], "\n".join(lines[at + 1 :]).lstrip("\n")
+    return [], raw
+
+
+def frontmatter_value(lines, key):
+    for line in lines:
+        if line.split(":", 1)[0].strip() == key and ":" in line:
+            return scalar(line.split(":", 1)[1])
+    return None
+
+
+def read_skill(name, status):
+    path = os.path.join(skills_base(status), name, "SKILL.md")
+    with open(path, encoding="utf-8") as stored:
+        lines, body = split_skill(stored.read())
+    return {
+        "name": name,
+        "display_name": frontmatter_value(lines, "name") or name,
+        "description": frontmatter_value(lines, "description") or "",
+        "origin": "auto" if frontmatter_value(lines, "rusty_origin") == "auto" else "user",
+        "status": status,
+        "path": path,
+        "body": body,
+    }
+
+
+def skill_list(include_pending):
+    """Rusty's `skill_list`: the active skills, and the staged ones when asked, by name."""
+    found = []
+    for status in ("active", "pending") if include_pending else ("active",):
+        base = skills_base(status)
+        if os.path.isdir(base):
+            found += [
+                read_skill(name, status)
+                for name in os.listdir(base)
+                if os.path.isfile(os.path.join(base, name, "SKILL.md"))
+            ]
+    return sorted(found, key=lambda skill: skill["name"])
+
+
+def find_skill(name):
+    for status in ("active", "pending"):
+        if os.path.isfile(os.path.join(skills_base(status), str(name), "SKILL.md")):
+            return read_skill(name, status)
+    return None
+
+
+def scan_skill(raw):
+    """Rusty's `scan_skill_md`: too long, `allowed-tools`, a bang-backtick, a secret's marker."""
+    findings = []
+    lines = raw.count("\n") + (0 if raw.endswith("\n") else 1)
+    if lines > 200:
+        findings.append(f"oversized: {lines} lines (> 200)")
+    front, _ = split_skill(raw)
+    if any(line.split(":", 1)[0].strip() in ("allowed-tools", "allowed_tools") for line in front):
+        findings.append("declares allowed-tools (pre-approves tools without prompting)")
+    if "!`" in raw or "```!" in raw:
+        findings.append("contains a dynamic command-injection marker (bang-backtick)")
+    findings += [f"possible secret marker: {marker}" for marker in SECRET_MARKERS if marker in raw]
+    return findings
+
+
+def skill_text(name, description, body, auto):
+    head = f"---\nname: {name}\ndescription: {json.dumps(description)}\n"
+    if auto:
+        head += "rusty_origin: auto\n"
+    return head + "---\n" + body
+
+
+def skill_create(name, description, body, pending, force):
+    name = str(name or "")
+    if not valid_skill_name(name):
+        raise Refused(f'invalid skill name "{name}": use lowercase letters, digits, and hyphens')
+    status = "pending" if pending else "active"
+    path = os.path.join(skills_base(status), name, "SKILL.md")
+    if os.path.exists(path) and not (force or pending):
+        raise Refused(f'skill "{name}" already exists (use --force to overwrite)')
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as stored:
+        stored.write(skill_text(name, str(description or ""), str(body or ""), bool(pending)))
+    return read_skill(name, status)
+
+
+def skill_update(name, description, body):
+    """Rusty's `skill_update`: the description and body rewritten, other keys kept; the skill as
+    reread, and the new file's scan."""
+    skill = find_skill(name)
+    if skill is None:
+        raise Refused(f'skill "{name}" not found')
+    with open(skill["path"], encoding="utf-8") as stored:
+        front, old_body = split_skill(stored.read())
+    if description is not None:
+        front = [line for line in front if line.split(":", 1)[0].strip() != "description"]
+        front.insert(1 if front and front[0].startswith("name:") else 0, f"description: {json.dumps(description)}")
+    raw = "---\n" + "\n".join(front) + "\n---\n" + (old_body if body is None else body)
+    with open(skill["path"], "w", encoding="utf-8") as stored:
+        stored.write(raw)
+    return {"skill": read_skill(name, skill["status"]), "findings": scan_skill(raw)}
+
+
+def skill_delete(name):
+    skill = find_skill(name)
+    if skill is None:
+        raise Refused(f'skill "{name}" not found')
+    shutil.rmtree(os.path.dirname(skill["path"]))
+    return "deleted"
+
+
+def skill_scan(name):
+    skill = find_skill(name)
+    if skill is None:
+        raise Refused(f'skill "{name}" not found')
+    with open(skill["path"], encoding="utf-8") as stored:
+        return scan_skill(stored.read())
+
+
+def skill_approve(name, force):
+    """Rusty's `skill_approve`: a staged skill made active, refused while its scan has findings
+    unless forced."""
+    name = str(name or "")
+    if not valid_skill_name(name):
+        raise Refused(f'invalid skill name "{name}"')
+    source = os.path.join(skills_base("pending"), name)
+    if not os.path.isfile(os.path.join(source, "SKILL.md")):
+        raise Refused(f'no pending skill "{name}" to approve')
+    target = os.path.join(skills_base("active"), name)
+    if os.path.exists(target):
+        raise Refused(f'an active skill "{name}" already exists')
+    with open(os.path.join(source, "SKILL.md"), encoding="utf-8") as stored:
+        findings = scan_skill(stored.read())
+    if findings and not force:
+        raise Refused(
+            f"blocked by safety scan ({len(findings)} issue(s)): {'; '.join(findings)}"
+            " — re-run with --force to override"
+        )
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    shutil.move(source, target)
+    return "approved"
+
+
+def skill_reject(name):
+    name = str(name or "")
+    source = os.path.join(skills_base("pending"), name)
+    if not valid_skill_name(name) or not os.path.isfile(os.path.join(source, "SKILL.md")):
+        raise Refused(f'no pending skill "{name}" to reject')
+    shutil.rmtree(source)
+    return "rejected"
+
+
+def script_list(include_pending):
+    """Rusty's `script_list`: each `*.sh` beside a skill, by name then skill."""
+    found = []
+    for status in ("active", "pending") if include_pending else ("active",):
+        base = skills_base(status)
+        if not os.path.isdir(base):
+            continue
+        for skill in os.listdir(base):
+            folder = os.path.join(base, skill)
+            if not os.path.isdir(folder):
+                continue
+            for name in os.listdir(folder):
+                if name.endswith(".sh"):
+                    path = os.path.join(folder, name)
+                    found.append({
+                        "name": name[:-3],
+                        "skill": skill,
+                        "path": path,
+                        "status": status,
+                        "executable": os.access(path, os.X_OK),
+                    })
+    return sorted(found, key=lambda script: (script["name"], script["skill"]))
+
+
+def find_script(name):
+    name = str(name or "").strip()
+    name = name[:-3] if name.endswith(".sh") else name
+    skill, _, base = name.rpartition("/")
+    found = [
+        script for script in script_list(True)
+        if script["name"] == base and (not skill or script["skill"] == skill)
+    ]
+    if not found:
+        raise Refused(f"no script named {name}")
+    return found[0]
+
+
+def script_view(name):
+    script = find_script(name)
+    with open(script["path"], encoding="utf-8") as stored:
+        return {"script": script, "text": stored.read()}
+
+
+def script_update(name, body):
+    script = find_script(name)
+    with open(script["path"], "w", encoding="utf-8") as stored:
+        stored.write(str(body or ""))
+    return script
+
+
 WIKILINK = re.compile(r"(!?)\[\[([^\]|]*)(?:\|[^\]]*)?\]\]")
 
 
@@ -1673,6 +1919,28 @@ VAULT_TOOLS = {
         arguments.get("importance"),
     ),
     "delete_memory": lambda arguments: delete_memory(arguments.get("id")),
+    "skill_list": lambda arguments: skill_list(bool(arguments.get("include_pending"))),
+    "skill_view": lambda arguments: find_skill(arguments.get("name"))
+    or refuse(f"no skill named {arguments.get('name')}"),
+    "skill_create": lambda arguments: skill_create(
+        arguments.get("name"),
+        arguments.get("description"),
+        arguments.get("body"),
+        bool(arguments.get("pending")),
+        bool(arguments.get("force")),
+    ),
+    "skill_update": lambda arguments: skill_update(
+        arguments.get("name"), arguments.get("description"), arguments.get("body")
+    ),
+    "skill_delete": lambda arguments: skill_delete(arguments.get("name")),
+    "skill_scan": lambda arguments: skill_scan(arguments.get("name")),
+    "skill_approve": lambda arguments: skill_approve(
+        arguments.get("name"), bool(arguments.get("force"))
+    ),
+    "skill_reject": lambda arguments: skill_reject(arguments.get("name")),
+    "script_list": lambda arguments: script_list(bool(arguments.get("include_pending"))),
+    "script_view": lambda arguments: script_view(arguments.get("name")),
+    "script_update": lambda arguments: script_update(arguments.get("name"), arguments.get("body")),
 }
 
 
@@ -1793,7 +2061,7 @@ def stdio():
             send(response)
             # Rusty announces each task write that succeeded to every peer (#658).
             params = message.get("params") or {}
-            if params.get("name") in TASK_WRITES | MEMORY_WRITES and "error" not in response:
+            if params.get("name") in TASK_WRITES | MEMORY_WRITES | SKILL_WRITES and "error" not in response:
                 log("sent list_changed")
                 send({"jsonrpc": "2.0", "method": "notifications/resources/list_changed"})
 

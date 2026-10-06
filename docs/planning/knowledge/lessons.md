@@ -4912,3 +4912,22 @@ Zed's `ToggleButtonGroup` makes itself as wide as its parent. Alone in a column 
 reads as intended; in an `h_flex` beside a `flex_1` field it takes the field's space. Put it in
 `div().flex_none().w(rems(N))` and let the field grow. A `ContextMenu` behind a `DropdownMenu` opens
 on the choice shown, so a scenario picks an entry with Home first, then Down.
+
+## L-claude-665-a-task-runs-one-command-in-a-center-terminal-001
+*category: gpui · topic: running a command in a terminal from a Marley tab · from: pipeline 665*
+
+To run one command in a terminal tab from Marley code, build a `TaskTemplate` (the command and its
+shell-quoted arguments, a `label` for the tab's title, `RevealTarget::Center`) and pass the resolved
+task to `Workspace::schedule_resolved_task`, as `remote.rs` opens ssh. Marley's terminal routing
+puts it in the center, the tab shows a finished mark, and no process starts in the Marley crate, so
+gate:22's spawn sites stay as they are. Set `show_command: false`: Zed's summary line names the
+command without its arguments, which reads as if the wrong thing ran.
+
+## L-claude-665-check-a-new-scenario-before-the-final-gate-001
+*category: testing · topic: a scenario joins the gate's scope only at Complete · from: pipelines 664 and 665*
+
+The Code phase's gate runs before the scenario exists, so a scenario's first gate is the final
+one, and its shellcheck and typos findings cost a whole second run. Run `shellcheck -x
+script/e2e/<N>-<slug>.sh` and `typos script/e2e/<N>-<slug>.sh` as soon as the scenario is written.
+A fixture that needs a literal backtick or `$` goes in a quoted heredoc (`<<'EOF'`), which
+shellcheck reads as meant.

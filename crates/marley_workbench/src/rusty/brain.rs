@@ -414,6 +414,15 @@ impl BrainView {
         super::memory_tab::open_later(workspace, window, cx);
     }
 
+    /// The Skills entry: the workspace's Skills tab, opened or brought forward (#665).
+    fn open_skills(&self, window: &Window, cx: &mut App) {
+        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
+            return;
+        };
+        let workspace = multi_workspace.read(cx).workspace().downgrade();
+        super::skills_tab::open_later(workspace, window, cx);
+    }
+
     fn toast(&self, message: String, cx: &mut App) {
         let Some(multi_workspace) = self.multi_workspace.upgrade() else {
             return;
@@ -1025,6 +1034,12 @@ impl BrainView {
                     .icon_size(IconSize::Small)
                     .tooltip(Tooltip::text("Memory"))
                     .on_click(cx.listener(|this, _, window, cx| this.open_memory(window, cx))),
+            )
+            .child(
+                IconButton::new("marley-brain-skills", IconName::ToolHammer)
+                    .icon_size(IconSize::Small)
+                    .tooltip(Tooltip::text("Skills"))
+                    .on_click(cx.listener(|this, _, window, cx| this.open_skills(window, cx))),
             )
     }
 

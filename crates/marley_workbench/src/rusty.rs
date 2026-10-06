@@ -37,6 +37,7 @@ pub mod page;
 pub mod page_picker;
 pub mod project;
 mod properties;
+mod skills_tab;
 mod slider;
 pub mod tasks_tab;
 
@@ -243,6 +244,7 @@ pub fn init(cx: &mut App) {
     capture::init(cx);
     import::init(cx);
     memory_tab::init(cx);
+    skills_tab::init(cx);
     let view = cx.new(|cx: &mut Context<RustyServerView>| {
         cx.observe_global::<Rusty>(|_, cx| cx.notify()).detach();
         RustyServerView
