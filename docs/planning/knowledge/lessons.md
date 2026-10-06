@@ -4962,3 +4962,12 @@ hands the harness a settings file of its own and never reads the user's. Variabl
 there reach the harness's later lines too. That is how to check the copy itself: write the
 settings a user might hold, export the variables a user might have, and let `setup` read
 `$E2E_PROFILE/config/settings.json` and its own environment, which Marley inherits.
+
+## L-claude-669-a-fourth-bool-in-marley-settings-is-a-two-variant-enum-001
+*category: rust · topic: adding a switch to MarleySettings · from: pipeline 669*
+
+`MarleySettings` holds three `bool` fields, clippy's `struct_excessive_bools` limit, and
+`from_settings` sits at the `too_many_lines` limit. A new on/off setting is a two-variant enum
+beside `PromptEditor` and `EmbeddedHarness`, built by a `from_content(marley)` that fits on one
+line of `from_settings`, as `CodexAppServer::from_content` does; a plain `bool` with
+`.and_then(..).unwrap_or(..)` fails both lints at once.

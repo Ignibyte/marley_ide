@@ -456,7 +456,9 @@ npm run dev
   a CONTAINERS label after the projects (or under a project, named by their container, when
   `docker ps` works for you and the container's Compose folder is in it). Without access to
   Docker, a row reads ":8081 docker → 172.19.0.2:8081", and its Stop explains why it cannot stop
-  the container, with a command to copy. Don't stop a container you need.
+  the container, with a command to copy. Don't stop a container you need. Turn off Containers in
+  the Rail on the Settings window's Marley page: the CONTAINERS list goes at once (#669); turn it
+  back on.
 
 Leave the server running: Parts 5 and 7 use it.
 

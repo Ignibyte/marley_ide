@@ -14,8 +14,9 @@
 # (`640-04-moved`, REQ-005, REQ-011).
 compositor sway
 
-# Where build's row sits in the rail, from the first shot; 0 takes the group shot only.
-BUILD_Y=${BUILD_Y:-460}
+# Where build's row sits in the rail, from the first shot, with no Containers list above the
+# Harness section (#669); 0 takes the group shot only.
+BUILD_Y=${BUILD_Y:-310}
 
 # Writes the fixture: the seven sessions, with build's numbers and asker's source as `$1` says.
 write_fleet() {

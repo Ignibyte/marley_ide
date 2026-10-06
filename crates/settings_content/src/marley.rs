@@ -134,6 +134,12 @@ pub struct MarleySettingsContent {
     ///
     /// Default: "attention"
     pub rail_order: Option<MarleyRailOrder>,
+    /// Whether the rail lists, under Containers, the ports of containers no project's folder holds
+    /// (#669). A container whose Compose folder is in a project shows under that project either
+    /// way.
+    ///
+    /// Default: true
+    pub rail_containers: Option<bool>,
     /// Whether Marley starts Claude Code with its own permission prompts or with
     /// `--dangerously-skip-permissions` (#532). An entry of `agent_permissions_by_project` wins
     /// for its project.

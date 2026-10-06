@@ -386,7 +386,9 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   `stop_container` runs `<engine> stop <name>` (`ContainerStop`), or refuses a port the engine did
   not name with a command that finds it by port. The rail's `render_containers` lists
   `Ports::containers` under a CONTAINERS label after the projects, opening in the shown
-  workspace, outside the keys and the filter.
+  workspace, outside the keys and the filter. `MarleySettings::rail_containers`
+  (`RailContainers::Hidden`, from `marley.rail_containers` off) leaves the section out; the scan
+  runs as before, so a project's containers still show under it (#669).
 
 - **Restart, state and logs (#615).** Each scan asks `unit_states` for every service row's unit
   (one `systemctl show -p ActiveState,SubState` per manager, blocks matched by the order asked,

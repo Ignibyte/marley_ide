@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #669 (chore, the rail's port scan and the e2e harness)
 - **Owner:** claude-opus-5-5, 2026-10-06 (found in #668's visual check)
-- **Pipeline doc:** none yet
+- **Pipeline doc:** ../../pipeline/completed/669-test-runs-list-none-of-the-machines-containers.spec.md
 - **Source ticket:** TICKET-668's Phase 3 notes; #614 (container ports in the rail)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 In every e2e run the rail's Containers section lists the containers running on the machine:

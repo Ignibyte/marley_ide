@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Containers in the Rail** (#669, 2026-10-06). A setting on the Settings window's Marley page,
+  `marley.rail_containers`, on by default: off, the rail leaves out the CONTAINERS list after the
+  projects, the ports of containers running on this machine that no project's folder holds. A
+  container whose Compose folder is in a project still shows under that project. Each e2e run's
+  copy of the settings turns it off, so no scenario lists the machine's containers or can stop one;
+  #614's scenario turns it back on.
+
 - **The Secrets tab** (#667, 2026-10-06). Rusty's vault in a center tab, from the lock after Skills
   in the Brain view or `rusty: open secrets`: the names show to anyone, and a value shows, changes
   or goes only behind your PIN. Set a PIN (six characters or more, typed twice), then Unlock for

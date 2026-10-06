@@ -54,7 +54,7 @@ pub(crate) fn marley_page(cx: &App) -> SettingsPage {
     }
 }
 
-fn layout_section() -> [SettingsPageItem; 5] {
+fn layout_section() -> [SettingsPageItem; 6] {
     [
         SettingsPageItem::SectionHeader("Layout"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -91,6 +91,29 @@ fn layout_section() -> [SettingsPageItem; 5] {
                 },
                 write: |settings_content, value, _| {
                     settings_content.marley.get_or_insert_default().rail_order = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: the machine's containers in the rail (#669).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Containers in the Rail",
+            description: "List, under Containers at the foot of the rail, the ports of the containers running on this machine that no project's folder holds, each with Stop. A container whose Compose folder is in a project shows under that project either way.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.rail_containers"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.rail_containers.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .rail_containers = value;
                 },
             }),
             metadata: None,

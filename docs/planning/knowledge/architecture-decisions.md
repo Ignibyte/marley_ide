@@ -4207,3 +4207,14 @@ whole, and `MARLEY_SYSTEM_ONE_KEY` and `MARLEY_CLOUDFLARE_API_TOKEN` unset, befo
 of known settings, as T3 Code's `migrate-dev-db` does (every scenario would lose the user's look,
 and a new harmless setting would need a line); turning parts of each off (none has a part a run
 needs). The machine's containers in a run's rail, found in the same check, are TICKET-669.
+
+## AD-claude-669-the-machines-containers-in-the-rail-are-a-setting-off-in-every-test-run-001
+*decided at: 2026-10-06 · status: shipped · builds on: AD-claude-668-a-test-run-inherits-nothing-that-reaches-outside-it-001*
+
+The rail's Containers list (#614) is `marley.rail_containers`, on by default, shown on the
+Settings window's Marley page as Containers in the Rail; off, `render_containers` draws nothing,
+and the scan runs as before, so a project's containers still show under it. Each e2e run's copy
+turns it off; #614's scenario turns it back on. Rejected: a test-only variable that points the
+scan at another `/proc` (it hides the run's own listeners from #521's, #603's and #615's
+scenarios, and gives users nothing); faking `docker` for every run (root's `docker-proxy` rows
+still come from `/proc`); a Rust filter on the run's processes (Marley cannot tell them apart).

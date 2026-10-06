@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-669](open/TICKET-669-test-runs-list-none-of-the-machines-containers.md) | chore | a test run's rail lists the machine's real containers, each with a Stop; list only what the run started (found in #668) |
 
 ## Deliberate (picked explicitly, never auto-next)
 

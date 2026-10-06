@@ -3,7 +3,8 @@
 # lists a container `web-614` publishing a free port, its Compose folder the scratch project, and
 # records `stop`; a stand-in `docker-proxy` (Perl with its `$0` set to the real command line's
 # shape) holds that port's command line. The dev box's own Docker ports, root's real
-# `docker-proxy`, show too, under Containers, since the fake does not list them.
+# `docker-proxy`, show too, under Containers, since the fake does not list them: the scenario
+# turns `marley.rail_containers` back on, which each run's copy turns off (#669).
 #
 # The port under `repo`, named "container web-614" (`named`, REQ-001); Stop runs `docker stop
 # web-614` (`stopped.txt`, REQ-002); with the fake refusing, the port under Containers with its
@@ -18,8 +19,9 @@ ROW_X=130
 WEB_Y=188
 # The row's Stop button, shown on hover at its end.
 STOP_X=233
-# The stand-in's row under Containers once the engine refuses: the third, after the box's two.
-APART_Y=${APART_Y:-338}
+# The stand-in's row under Containers once the engine refuses: the first, since rows there go by
+# port and the stand-in's, 614, is below any the box publishes (#669).
+APART_Y=${APART_Y:-222}
 
 setup() {
   local home=$E2E_WORK/home
@@ -27,7 +29,9 @@ setup() {
   printf 'PS1=%q\n' '$ ' >"$home/.bashrc"
   terminal_env HOME "$home"
   printf '# repo\n' >"$E2E_WORK/repo/README.md"
-  PORT=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
+  # The stand-in binds nothing, so its port is only a number on its command line.
+  PORT=614
+  profile_setting marley.rail_containers true
   echo answer >"$E2E_WORK/docker-mode"
   cat >"$E2E_WORK/bin/docker" <<FAKE
 #!/bin/sh

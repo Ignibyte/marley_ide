@@ -2791,3 +2791,12 @@ A Marley feature that runs a computation off the window's thread in slices logs 
 run ends with its size, its slice count, the time spent working and the time taken, and its
 scenario greps that line at the largest size it supports and reads the figures in the Test phase.
 A wall time far above the work time is the window's thread, not the computation.
+
+## PR-claude-669-a-runs-rail-shows-only-what-the-run-started-001
+*severity: medium · prevents: F-claude-669-scenario-coordinates-measured-with-the-machines-containers-in-the-rail-001*
+
+A rail section that lists something of the machine's (its containers, its hosts, its processes) is
+off in `script/e2e.sh`'s copy of the settings, and a scenario that tests it turns it on and gives
+its own rows an order that puts them first, so no coordinate rests on what the machine runs and no
+click can reach the machine's own. When a new section reads the machine, its setting joins the
+copy's Python block in the same ticket.

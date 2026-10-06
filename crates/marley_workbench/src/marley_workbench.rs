@@ -414,6 +414,8 @@ pub struct MarleySettings {
     pub claude_code_ide: claude_ide::ClaudeCodeIde,
     /// The order the rail lists projects and rows in (#542).
     pub rail_order: marley_rail::RailOrder,
+    /// Whether the rail lists the container ports no project's folder holds (#669).
+    pub rail_containers: RailContainers,
     /// What Marley starts Claude Code and Codex with (#532).
     pub agent_permissions: agents::AgentPermissions,
     /// Who answers Claude Code's trust question in a new worktree (#587).
@@ -476,6 +478,26 @@ impl PromptEditor {
         match docked {
             Some(false) => Self::OnCtrlG,
             _ => Self::AtEveryPrompt,
+        }
+    }
+}
+
+/// Whether the rail lists the container ports no project's folder holds, from
+/// `marley.rail_containers` (#669).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RailContainers {
+    /// Under Containers, after the projects.
+    Listed,
+    /// Not at all.
+    Hidden,
+}
+
+impl RailContainers {
+    /// The setting's value: listed unless it is off.
+    fn from_content(marley: Option<&settings::MarleySettingsContent>) -> Self {
+        match marley.and_then(|marley| marley.rail_containers) {
+            Some(false) => Self::Hidden,
+            _ => Self::Listed,
         }
     }
 }
@@ -634,6 +656,7 @@ impl Settings for MarleySettings {
                 .and_then(|marley| marley.agent_commands_outside_lists)
                 .unwrap_or_default(),
             rail_order: rail_order(marley),
+            rail_containers: RailContainers::from_content(marley),
             agent_prompts: agent_editor::AgentPrompts::from_content(marley),
             codex_app_server: codex_server::CodexAppServer::from_content(marley),
             claude_code_ide: claude_ide::ClaudeCodeIde::from_content(marley),

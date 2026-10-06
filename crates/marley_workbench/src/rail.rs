@@ -86,7 +86,7 @@ use crate::rusty::{self, brain::BrainView};
 use crate::system_one::{self, Asking};
 use crate::turns::Turns;
 use crate::worktree_git::{self, BranchEnd, Drift, MergeOwner};
-use crate::{MarleySettings, ToggleBrainView, browser, launch, worktree_agents};
+use crate::{MarleySettings, RailContainers, ToggleBrainView, browser, launch, worktree_agents};
 
 // The drag preview and drop line are shared with the Tasks tab's rows (#658).
 #[path = "rail_order.rs"]
@@ -4319,8 +4319,11 @@ impl Rail {
 
     /// The container ports no project's folder holds (#614), under a Containers label after the
     /// projects. Their rows open in the shown project, and stay out of the keys and the filter.
+    /// `marley.rail_containers` off leaves the section out (#669).
     fn render_containers(&self, cx: &Context<Self>) -> Option<AnyElement> {
-        if self.snapshot.rail.filtering {
+        if self.snapshot.rail.filtering
+            || MarleySettings::get_global(cx).rail_containers == RailContainers::Hidden
+        {
             return None;
         }
         let found = Ports::containers(cx);

@@ -643,6 +643,8 @@ cp "$config/settings.json" "$E2E_PROFILE/config/"
 # outside the run (#668): `marley.push` (the user's phone), `marley.harness` and
 # `marley.embedded_harness` (their agent harness), `marley.fleet` (their providers and hosts) and
 # `marley.system_one` (their System One account); a scenario that needs one sets its own fake.
+# The rail's Containers list is off in the copy too (#669): it lists the containers running on
+# the machine, each with a Stop, and their number moves every row below them.
 python3 - "$E2E_PROFILE/config/settings.json" <<'SETTINGS'
 import json, pathlib, re, sys
 
@@ -662,6 +664,7 @@ marley["codex_app_server"] = False
 marley["claude_code_ide"] = False
 for reaches_out in ("push", "harness", "embedded_harness", "fleet", "system_one"):
     marley.pop(reaches_out, None)
+marley["rail_containers"] = False
 path.write_text(json.dumps(settings, indent=2) + "\n")
 SETTINGS
 # Nor does a run inherit the user's System One or Cloudflare key (#668): a scenario that tests

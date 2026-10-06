@@ -3429,3 +3429,15 @@ The Memory tab's add row put the content editor (`flex_1`), the category editor 
 space and left the content field a few pixels wide: the scenario's typed line went nowhere and the
 add could not be used. Fixed: the group sits in a `flex_none` box of a fixed width (16 rem in the
 row, 14 rem in the form), and the field takes the rest (L-664).
+
+## F-claude-669-scenario-coordinates-measured-with-the-machines-containers-in-the-rail-001
+*severity: medium · found in: pipeline 668's Test, confirmed in 669's · class: a scenario's coordinates resting on the machine's state*
+
+Every run's rail listed the containers running on the dev box under Containers (#614), each with a
+Stop. #614 measured its refused row (`APART_Y=338`, "the third, after the box's two") and #640 its
+build row (`BUILD_Y=460`) with the box's two containers above them; with 13 running on 2026-10-06,
+#640's Harness rows sat below the window and its tooltip shot showed a container's, and #614's
+refused-row click landed on one of the box's rows (reaching only the scenario's fake `docker`).
+The scenarios passed: neither checks where its pointer is. Fixed: `marley.rail_containers`, off in
+each run's copy (#669); #614 turns it on with its stand-in on port 614, first under Containers, and
+both coordinates were measured again.
