@@ -95,51 +95,75 @@ impl RecentPages {
 pub struct Order {
     /// The rows in order.
     pub rows: Vec<usize>,
-    /// The row a separator follows: the last of the recent group.
-    pub separator_after: Option<usize>,
+    /// The rows a separator follows: the last of each group with rows after it.
+    pub separators_after: Vec<usize>,
     /// The row selected first.
     pub selected: usize,
 }
 
-/// The empty query's rows: the active tab's page, the recently opened pages, then the rest.
+/// The empty query's rows: the active tab's page, the favourite pages (#662), the recently
+/// opened pages, then the rest.
 ///
-/// The recent group holds the pages the list holds, newest first, and a separator follows it; the
-/// rest keep the list's order. With the active page first and another row after it, the selection
-/// starts on that row, so Enter goes back.
+/// With no favourite the active page heads the recent group, as before #662; with favourites it
+/// heads theirs, and the recent group follows. Each group holds the pages the list holds, once, and
+/// a separator follows it; the rest keep the list's order. With the active page first and another
+/// row after it, the selection starts on that row, so Enter goes back.
 #[must_use]
-pub fn empty_order(pages: &[PageSummary], recent: &RecentPages, active: Option<&str>) -> Order {
+pub fn empty_order(
+    pages: &[PageSummary],
+    recent: &RecentPages,
+    active: Option<&str>,
+    favourites: &[String],
+) -> Order {
     let index: HashMap<&str, usize> = pages
         .iter()
         .enumerate()
         .map(|(row, page)| (page.slug.as_str(), row))
         .collect();
-    let mut group: Vec<usize> = Vec::new();
-    for slug in active
-        .into_iter()
-        .chain(recent.slugs().iter().map(String::as_str))
-    {
+    let mut rows: Vec<usize> = Vec::new();
+    let push = |slug: &str, rows: &mut Vec<usize>| {
         if let Some(&row) = index.get(slug)
-            && !group.contains(&row)
+            && !rows.contains(&row)
         {
-            group.push(row);
+            rows.push(row);
         }
+    };
+    let mut group_ends = Vec::new();
+    if let Some(slug) = active {
+        push(slug, &mut rows);
     }
-    let rest: Vec<usize> = (0..pages.len())
-        .filter(|row| !group.contains(row))
+    let active_rows = rows.len();
+    for slug in favourites {
+        push(slug, &mut rows);
+    }
+    // With favourites, the active page and they make the first group; without, the active page
+    // heads the recent group.
+    if rows.len() > active_rows {
+        group_ends.push(rows.len());
+    }
+    let recent_start = rows.len();
+    for slug in recent.slugs() {
+        push(slug, &mut rows);
+    }
+    if rows.len() > recent_start || (group_ends.is_empty() && !rows.is_empty()) {
+        group_ends.push(rows.len());
+    }
+    let rest: Vec<usize> = (0..pages.len()).filter(|row| !rows.contains(row)).collect();
+    rows.extend(rest);
+    let separators_after = group_ends
+        .into_iter()
+        .filter(|&end| end < rows.len())
+        .map(|end| end - 1)
         .collect();
-    let separator_after = (!group.is_empty() && group.len() < pages.len()).then(|| group.len() - 1);
     let active_first = active.is_some_and(|slug| {
-        group
-            .first()
+        rows.first()
             .and_then(|&row| pages.get(row))
             .is_some_and(|page| page.slug == slug)
     });
-    let mut rows = group;
-    rows.extend(rest);
     let selected = usize::from(active_first && rows.len() > 1);
     Order {
         rows,
-        separator_after,
+        separators_after,
         selected,
     }
 }

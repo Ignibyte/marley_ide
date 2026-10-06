@@ -4113,3 +4113,19 @@ settings window rebuilds its pages when the switch changes. A key bound to a Rus
 the toast that names the switch, since a key that does nothing would look broken. Rejected: two
 builds (a cargo feature; every check twice); unregistering the actions; a per-item hide on every
 settings sub-page link.
+
+## AD-claude-662-favourites-are-rustys-bookmarks-read-whole-001
+*decided at: 2026-10-06 · status: shipped · builds on: AD-claude-661-the-assistant-off-shows-nothing-but-its-switch-001 · plan: docs/marley/rusty-in-marley.md R4b*
+
+The Brain view's Favourites, the Page tab's star and the page picker's favourite pages are one
+list: Rusty's bookmarks (its TICKET-037, `.rusty/bookmarks.json` in the vault), read whole through
+`bookmark_list` into one global and changed only through `bookmark_add`, `bookmark_remove` and
+`bookmark_set`, whose answer is the whole list. Marley keeps no copy and works out no identity of
+its own: a bookmark is known by Rusty's key (the kind with the path, the query, or the page and
+heading). The list is read on first need, on Rusty's announcement, when the connection comes up
+and after Marley's own vault writes (the service connection announces nothing), and dropped while
+Rusty is off. A rename sends the whole list with one title changed, since Rusty has no retitle
+tool. A heading favourite lands its heading where #656's outline does, three lines under the top.
+Rejected: favourites in Marley's own database (two lists that disagree with Rusty's app); a
+Bookmarks pane of its own (one more panel, away from the tree the vault is browsed in); drag to
+reorder in the group (`bookmark_set` allows it; left for a later ticket).

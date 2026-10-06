@@ -1116,7 +1116,11 @@ to it when the connection is lost; Brain shows again once Rusty connects.
   with no click. On the service connection the tree is read again after Marley's own changes and
   on Refresh.
 - While Brain shows, a dot on Projects says something in the Projects view needs you.
-- Favourites come with Rusty's bookmarks; Rusty serves none yet.
+- **Favourites** (#662). Rusty's bookmarks, listed above the tree in Rusty's order whenever it
+  holds one. A page opens as a tree row does; a folder opens in the tree and is selected; a search
+  puts its query in the field and lists its hits; a heading opens its page with that heading at
+  the top. Right-click one for Rename… (typed in place, Enter keeps it) and Remove. A page's star
+  adds it here (below).
 
 ### A brain page in a tab
 
@@ -1127,7 +1131,11 @@ which a key of your own can bind with a slug (`["rusty::OpenPage", {"slug": "pro
 - **What it shows.** The page's title, its properties (each frontmatter key and its value, a list
   as chips) and its body, drawn by Zed's own Markdown renderer: headings, lists, task boxes as
   written, code highlighted for its language, tables. The header carries Back, Forward, the
-  Outline button (#656), the page's folder and name, and Edit.
+  Outline button (#656), the page's folder and name, the star (#662), and Edit.
+- **The star** (#662). Filled when the page is one of Rusty's bookmarks. A click, or Ctrl+D with
+  the focus in the tab, adds the page to the Brain view's Favourites or removes it; the change is
+  Rusty's, in its vault, so Rusty's own app shows it too. A change made in Rusty's app fills or
+  empties the star with no click, on the embedded connection.
 - **Links.** A wikilink is a link. One to a page opens it in the same tab, at its heading when it
   names one (`[[page#Heading]]`); one to no page yet is drawn muted, and a click makes the page at
   that path, its folders too, and shows it (#654); Rusty's refusal, for a path under `archive/`
@@ -1178,12 +1186,13 @@ which a key of your own can bind with a slug (`["rusty::OpenPage", {"slug": "pro
 `rusty: open page`, or Ctrl+Alt+U from anywhere in the window (a terminal included, where Marley
 takes the key from the program), opens a picker over every page of the brain.
 
-- **The list.** Each row shows the page's title and its slug. With nothing typed, the pages you
-  opened most recently come first, newest first, then a line, then the rest in the order Rusty
-  lists them, the most recently changed first. When a page's tab is in front, that page heads the
-  list and the selection starts on the next one, so Enter goes back to the page before. Marley
-  keeps the last 20 pages opened, from the picker, the Brain view, links, Back and Forward, in its
-  own database, so the order holds after a restart.
+- **The list.** Each row shows the page's title and its slug. With nothing typed, your favourite
+  pages come first, each with a star, in the Brain view's order (#662); then a line, the pages you
+  opened most recently, newest first; then a line and the rest in the order Rusty lists them, the
+  most recently changed first. When a page's tab is in front, that page heads the list and the
+  selection starts on the row after it; with no favourite that row is the page you had open
+  before, so Enter goes back to it. Marley keeps the last 20 pages opened, from the picker, the
+  Brain view, links, Back and Forward, in its own database, so the order holds after a restart.
 - **Typing.** Part of a title or of a path, in any order of words (`quart rev`, `peop sam`); the
   matched letters light up. The list is read from Rusty once when the picker opens and matched in
   Marley, so nothing you type is sent to Rusty or to an embedding provider.

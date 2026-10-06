@@ -17,6 +17,7 @@ use gpui::{
     Subscription, UniformListScrollHandle, WeakEntity, Window, anchored, deferred, px,
     uniform_list,
 };
+use marley_rusty::bookmarks::{Bookmark, BookmarkKind, BookmarkWrite};
 use marley_rusty::vault::{
     self, BRAIN_DAILY_NOTE, BRAIN_DELETE_FOLDER, BRAIN_DELETE_PAGE, BRAIN_NEW_FOLDER,
     BRAIN_NEW_PAGE, BRAIN_RENAME, BRAIN_SEARCH, Key, Move, NodeKind, RenameReport, SEARCH_LIMIT,
@@ -29,13 +30,15 @@ use serde_json::{Value, json};
 use settings::Settings as _;
 use smallvec::SmallVec;
 use ui::{
-    ContextMenu, IndentGuideColors, ListItem, ListItemSpacing, Tooltip, indent_guides, prelude::*,
+    ContextMenu, IndentGuideColors, ListItem, ListItemSpacing, ListSubHeader, Tooltip,
+    indent_guides, prelude::*,
 };
 use util::ResultExt as _;
 use workspace::item::PreviewTabsSettings;
 use workspace::notifications::NotificationId;
 use workspace::{MultiWorkspace, Toast, Workspace};
 
+use super::favourites;
 use crate::ToggleBrainView;
 use crate::rail::Rail;
 
@@ -142,9 +145,19 @@ enum Line {
 /// A name being typed in the tree.
 #[derive(Clone, PartialEq, Eq)]
 enum Edit {
-    NewPage { folder: String },
-    NewFolder { parent: String },
-    Rename { path: String },
+    NewPage {
+        folder: String,
+    },
+    NewFolder {
+        parent: String,
+    },
+    Rename {
+        path: String,
+    },
+    /// A favourite's title, by the bookmark's key (#662).
+    BookmarkTitle {
+        key: String,
+    },
 }
 
 struct Editing {
@@ -203,6 +216,7 @@ pub(crate) struct BrainView {
     /// The menu a right-click opened, where it opened.
     menu: Option<(Entity<ContextMenu>, Point<Pixels>, Subscription)>,
     _vault: Subscription,
+    _bookmarks: Subscription,
 }
 
 impl BrainView {
@@ -218,6 +232,8 @@ impl BrainView {
         });
         let vault = cx.observe_global::<super::Vault>(Self::vault_changed);
         super::want_vault(cx);
+        let bookmarks = cx.observe_global::<favourites::Bookmarks>(|_, cx| cx.notify());
+        favourites::ensure(cx);
         let mut this = Self {
             multi_workspace,
             focus_handle: cx.focus_handle(),
@@ -233,6 +249,7 @@ impl BrainView {
             scroll: UniformListScrollHandle::new(),
             menu: None,
             _vault: vault,
+            _bookmarks: bookmarks,
         };
         this.rebuild();
         this
@@ -621,6 +638,9 @@ impl BrainView {
             this.update_in(cx, |this, window, cx| match answer {
                 Ok(text) => {
                     super::reread_vault(cx);
+                    // Rusty's renames and deletes carry and drop bookmarks, unannounced on the
+                    // service connection (#662).
+                    favourites::read(cx);
                     done(this, text, window, cx);
                 }
                 Err(error) => this.toast(format!("{failure}: {error}"), cx),
@@ -633,7 +653,9 @@ impl BrainView {
     /// Puts a name editor in the tree: a new row under its folder, or in place of a row's name,
     /// the name selected.
     fn start_edit(&mut self, edit: Edit, window: &mut Window, cx: &mut Context<Self>) {
-        if self.found.is_some() {
+        // A favourite's title is typed in the Favourites group, so a search stays (#662).
+        let in_tree = !matches!(edit, Edit::BookmarkTitle { .. });
+        if in_tree && self.found.is_some() {
             self.search
                 .update(cx, |editor, cx| editor.set_text("", window, cx));
             self.found = None;
@@ -650,6 +672,11 @@ impl BrainView {
                 self.selected = Some(path.clone());
                 vault::name_of(path).to_string()
             }
+            Edit::BookmarkTitle { key } => favourites::list(cx)
+                .iter()
+                .find(|bookmark| bookmark.key() == *key)
+                .map(|bookmark| bookmark.shown_title().to_string())
+                .unwrap_or_default(),
         };
         let editor = cx.new(|cx| {
             let mut editor = Editor::single_line(window, cx);
@@ -667,14 +694,16 @@ impl BrainView {
             editor,
             _blur: blur,
         });
-        self.rebuild();
-        if let Some(line) = self
-            .lines
-            .iter()
-            .position(|line| matches!(line, Line::Draft(_)))
-            .or_else(|| self.selected_line())
-        {
-            self.scroll.scroll_to_item(line, ScrollStrategy::Nearest);
+        if in_tree {
+            self.rebuild();
+            if let Some(line) = self
+                .lines
+                .iter()
+                .position(|line| matches!(line, Line::Draft(_)))
+                .or_else(|| self.selected_line())
+            {
+                self.scroll.scroll_to_item(line, ScrollStrategy::Nearest);
+            }
         }
         cx.notify();
     }
@@ -743,6 +772,13 @@ impl BrainView {
                     window,
                     cx,
                 );
+            }
+            Edit::BookmarkTitle { key } => {
+                if !typed.trim().is_empty()
+                    && let Some(workspace) = self.workspace(cx)
+                {
+                    favourites::retitle(&key, &typed, workspace, cx);
+                }
             }
         }
     }
@@ -1173,7 +1209,9 @@ impl BrainView {
         };
         let icon = match editing.edit {
             Edit::NewFolder { .. } => IconName::Folder,
-            Edit::NewPage { .. } | Edit::Rename { .. } => IconName::FileTextOutlined,
+            Edit::NewPage { .. } | Edit::Rename { .. } | Edit::BookmarkTitle { .. } => {
+                IconName::FileTextOutlined
+            }
         };
         ListItem::new("marley-brain-draft")
             .indent_level(depth)
@@ -1242,6 +1280,186 @@ fn start_slot(open: Option<bool>, icon: IconName) -> impl IntoElement {
         .child(Icon::new(icon).size(IconSize::Small).color(Color::Muted))
 }
 
+/// Rusty's bookmarks above the tree (#662).
+impl BrainView {
+    /// The Favourites group: Rusty's bookmarks in its order, drawn only while it holds one.
+    fn render_favourites(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        let list = favourites::list(cx);
+        if list.is_empty() {
+            return None;
+        }
+        let rows: Vec<AnyElement> = list
+            .iter()
+            .enumerate()
+            .map(|(index, bookmark)| self.render_favourite(index, bookmark, cx))
+            .collect();
+        Some(
+            v_flex()
+                .flex_none()
+                .w_full()
+                .pb_1()
+                .border_b_1()
+                .border_color(cx.theme().colors().border_variant)
+                // `ListSubHeader` grows in a column (F-659).
+                .child(
+                    div()
+                        .flex_none()
+                        .child(ListSubHeader::new("Favourites").inset(true)),
+                )
+                .children(rows)
+                .into_any_element(),
+        )
+    }
+
+    fn render_favourite(
+        &self,
+        index: usize,
+        bookmark: &Bookmark,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let key = bookmark.key();
+        let renaming = match &self.editing {
+            Some(Editing {
+                edit: Edit::BookmarkTitle { key: edited },
+                editor,
+                ..
+            }) if *edited == key => Some(editor.clone()),
+            _ => None,
+        };
+        let (icon, detail) = match bookmark.kind() {
+            BookmarkKind::Folder => (IconName::Folder, bookmark.path.clone()),
+            BookmarkKind::Search => (IconName::MagnifyingGlass, bookmark.query.clone()),
+            BookmarkKind::Heading => (
+                IconName::Hash,
+                format!("{} › {}", bookmark.path, bookmark.heading),
+            ),
+            BookmarkKind::File | BookmarkKind::Other(_) => {
+                (IconName::FileTextOutlined, bookmark.path.clone())
+            }
+        };
+        let title = SharedString::from(bookmark.shown_title().to_string());
+        ListItem::new(("marley-brain-favourite", index))
+            .spacing(ListItemSpacing::Dense)
+            .start_slot(Icon::new(icon).size(IconSize::Small).color(Color::Muted))
+            .tooltip(Tooltip::text(detail))
+            .child(renaming.map_or_else(
+                || Label::new(title).truncate().into_any_element(),
+                |editor| div().flex_1().child(editor).into_any_element(),
+            ))
+            .on_click(cx.listener({
+                let bookmark = bookmark.clone();
+                move |this, event: &ClickEvent, window, cx| {
+                    this.favourite_clicked(&bookmark, event.click_count(), window, cx);
+                }
+            }))
+            .on_secondary_mouse_down(cx.listener({
+                let bookmark = bookmark.clone();
+                move |this, event: &MouseDownEvent, window, cx| {
+                    // The rail's focus on a mouse-down would take the keyboard from the menu
+                    // (L-600).
+                    cx.stop_propagation();
+                    window.prevent_default();
+                    this.deploy_favourite_menu(bookmark.clone(), event.position, window, cx);
+                }
+            }))
+            .into_any_element()
+    }
+
+    /// A click on a favourite: a page opens as a tree row's does, a folder opens in the tree, a
+    /// search runs its query, and a heading opens its page at that heading.
+    fn favourite_clicked(
+        &mut self,
+        bookmark: &Bookmark,
+        click_count: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match bookmark.kind() {
+            BookmarkKind::Folder => {
+                if self.found.is_some() {
+                    self.clear_search(window, cx);
+                }
+                self.open.insert(bookmark.path.clone());
+                self.reveal(&bookmark.path);
+                cx.notify();
+            }
+            BookmarkKind::Search => {
+                let query = bookmark.query.clone();
+                self.search
+                    .update(cx, |editor, cx| editor.set_text(query.clone(), window, cx));
+                self.search_for(query, cx);
+            }
+            BookmarkKind::Heading => {
+                if let Some(workspace) = self.workspace(cx) {
+                    super::page::open_at_heading_later(
+                        workspace,
+                        bookmark.path.clone(),
+                        bookmark.heading.clone(),
+                        window,
+                        cx,
+                    );
+                }
+            }
+            BookmarkKind::File | BookmarkKind::Other(_) => {
+                self.selected = Some(bookmark.path.clone());
+                let preview = click_count == 1 && preview_on_click(cx);
+                self.open(&bookmark.path, preview, click_count > 1, window, cx);
+                cx.notify();
+            }
+        }
+    }
+
+    /// A favourite's right-click menu: Rename… edits its title in place; Remove asks Rusty to
+    /// drop it.
+    fn deploy_favourite_menu(
+        &mut self,
+        bookmark: Bookmark,
+        position: Point<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let view = cx.entity().downgrade();
+        let key = bookmark.key();
+        let menu = ContextMenu::build(window, cx, move |menu, _, _| {
+            menu.entry(
+                "Rename…",
+                None,
+                on(&view, move |this, window, cx| {
+                    let edit = Edit::BookmarkTitle { key: key.clone() };
+                    this.start_edit(edit, window, cx);
+                }),
+            )
+            .entry(
+                "Remove",
+                None,
+                on(&view, move |this, _, cx| {
+                    if let Some(workspace) = this.workspace(cx) {
+                        favourites::write(&BookmarkWrite::Remove(bookmark.clone()), workspace, cx);
+                    }
+                }),
+            )
+        });
+        let subscription = cx.subscribe_in(&menu, window, |this, _, _: &DismissEvent, _, cx| {
+            this.menu = None;
+            cx.notify();
+        });
+        window.focus(&menu.focus_handle(cx), cx);
+        self.menu = Some((menu, position, subscription));
+        cx.notify();
+    }
+
+    /// The workspace the rail shows, for the openers and the toasts.
+    fn workspace(&self, cx: &App) -> Option<WeakEntity<Workspace>> {
+        Some(
+            self.multi_workspace
+                .upgrade()?
+                .read(cx)
+                .workspace()
+                .downgrade(),
+        )
+    }
+}
+
 /// A menu entry's handler that runs `action` on the Brain view.
 fn on(
     view: &WeakEntity<BrainView>,
@@ -1301,6 +1519,7 @@ impl Render for BrainView {
             .w_full()
             .child(Self::render_fixed_row(cx))
             .child(self.render_search(cx))
+            .children(self.render_favourites(cx))
             .child(self.render_body(cx))
             .children(self.menu.as_ref().map(|(menu, position, _)| {
                 deferred(

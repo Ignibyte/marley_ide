@@ -17,6 +17,7 @@
 //! - [`switcher`]: the page picker's list, its recently opened pages and its order (#654).
 //! - [`project`]: a workspace's folders joined to a brain project page; [`decisions`] and
 //!   [`tasks`]: the follow-ups due and the task groups the project view reads (#655).
+//! - [`bookmarks`]: Rusty's bookmarks and favourites, and the writes to them (#662).
 
 // gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
 // Zed's crates keep them at warn (CONSTITUTION §0).
@@ -33,6 +34,7 @@
     )
 )]
 
+pub mod bookmarks;
 pub mod decisions;
 pub mod graph;
 pub mod graph_layout;

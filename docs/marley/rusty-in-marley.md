@@ -134,8 +134,8 @@ polls the harness's `fleet_events`. No Zed touchpoint.
 | GraphView | A **Graph** tab: `brain_graph` around the current page or project with depth, filters and colour by link type |
 | Explorer (vault tree) | The rail's **Brain** view (R-D9) over `brain_tree`; new, rename, move and delete through `brain_new_page`, `brain_rename`, `brain_delete_*`, never the disk |
 | SearchPane | Brain search in the Knowledge panel over `brain_search`, with its `tag:`, `path:`, `type:` operators |
-| QuickSwitcher | `rusty: open page`, a picker over `brain_list_pages` by title, favourites first, create on a miss (#654: the recently opened first until R4b's favourites) |
-| BookmarksPane | Waits on RQ4; the Qt app keeps bookmarks in its own `workspace.json` |
+| QuickSwitcher | `rusty: open page`, a picker over `brain_list_pages` by title, favourites first, create on a miss (#654; the favourite pages after the page in front since #662) |
+| BookmarksPane | The Brain view's **Favourites** over `bookmark_list` and its three siblings, the Page tab's star (#662) |
 | DecisionsPage | A **Decisions** tab over `brain_due` and decision pages; Marley's System One tab becomes "System One calls" (open decision 4). Shipped in #659 |
 | TasksPage | A **Tasks** tab over the twelve task tools |
 | MemoryPage, SkillsPage, SecretsPage | One tab each over their tools |
@@ -278,7 +278,7 @@ possible: a wikilink switch in `markdown/src/parser.rs`, only if R2 chooses Zed'
 | R6 | #655, shipped 2026-10-04. The project join (R-D5) and the panel's project view: the project's page by `path:` then by name, its follow-ups due, its task group's open tasks, Link a Page and Link a Task Group through `brain_set_property`; the Graph tab's project centre | M |
 | R2b | #656, shipped 2026-10-04. The Page tab's outline column in Read (Zed's outline panel in Edit), a heading brought to the top; the title (the `title` property), the name (`brain_rename`, every tab following) and each property edited in place by its kind, removed, or added | S |
 | R5b | #657, shipped 2026-10-04. The Graph tab's colour groups, Display (arrows, text fade, node size, link thickness) and Forces on Ely's slider, one record for every window in Zed's key-value store, and the tab restored after a restart while Rusty is on | M |
-| R4b | Favourites in the Brain view and as the page picker's first group; Rusty's TICKET-037 landed 2026-10-04 (`bookmark_list` and its three siblings) | S |
+| R4b | #662, shipped 2026-10-06. Favourites above the Brain view's tree (pages, folders, searches and headings in Rusty's order, renamed and removed from their menu), the Page tab's star and Ctrl+D, and the favourite pages as the page picker's first group, over `bookmark_list` and its three siblings | S |
 | R7b | #660, shipped 2026-10-05. Recording a follow-up from the Decisions tab (`brain_follow_up`: status, outcome, a new day when revised, the successor when superseded, picked from the tab's decisions); the rows show TICKET-048's `followed_up` and `superseded_by` | S |
 | R7 | The Tasks tab (#658, shipped 2026-10-04: Rusty's lists and tasks over its twelve task tools, every change one call in order and read back, the drag and the keys, Open in Tasks from the project view) and the Decisions tab (#659, shipped 2026-10-04: `brain_due`'s follow-ups due, then every decision with its status and dates, each opening its page; Marley's System One log renamed System One calls, the old action id kept as an alias) | M |
 | R8 | Memory, Skills and Secrets tabs; Rusty's server settings on the settings page | M |
@@ -288,7 +288,7 @@ The second batch, #654 to #659, was queued 2026-10-03: R3a (#654, the open-page 
 Ctrl+Alt+U), R6 (#655, the project view), R2b (#656, the outline and in-place edits; the title
 edit sets the `title` property and a separate name field renames, confirmed by Chad 2026-10-05), R5b (#657),
 R7 split as #658 (the Tasks tab) and #659 (the Decisions tab, with Marley's System One tab
-renamed "System One calls"). R7b followed as #660. R4b and R8 remain.
+renamed "System One calls"). R7b followed as #660, R4b as #662. R8 remains.
 
 The first batch, #643 to #647, was queued 2026-10-03 in this order: R1, R4, R2, R3, R5, after
 #640 to #642 (#643 builds on #642's settings changes). Drafting split out R3a, R6, R2b, R5b and

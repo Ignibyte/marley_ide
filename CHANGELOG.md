@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Favourites from Rusty's bookmarks** (#662, 2026-10-06). The Brain view lists Rusty's bookmarks
+  under Favourites, above the tree, in Rusty's order: a page opens as a tree row does, a folder
+  opens in the tree, a search runs in the search field, and a heading opens its page with the
+  heading at the top. Right-click one to rename or remove it. A Page tab's star, or Ctrl+D in the
+  tab, adds the page or removes it, and `rusty: open page` lists favourite pages, starred, after
+  the page in front and before the recent ones. On the embedded connection a change made in Rusty's
+  app shows at once. The bookmarks stay in Rusty's vault; Marley keeps no copy.
+
 - **Jev through Cloudflare Workers AI, for every project or some** (#548, 2026-10-05). System
   One's new `cloudflare` provider asks the same model through Cloudflare, which states it keeps
   no data, in the account set as Cloudflare Account ID on the Marley settings page.

@@ -3393,3 +3393,20 @@ the switch alone. Zed's `rebuild_pages` runs `build_ui`, which calls `update_mat
 calls `build_search_index`, so the search ran on the old pages' index and its item numbers. Fixed
 in Marley's hunk: `update_matches` again after `rebuild_pages`. Zed's own staff-flag rebuild has
 the same order.
+
+## F-claude-662-renaming-a-favourite-cleared-the-brain-search-001
+*severity: low · found in: pipeline 662's scenario, in Test · class: a shared start-edit path that assumes every edit is typed in the tree*
+
+Rename… on a favourite while a brain search was open emptied the search and put the tree back.
+`BrainView::start_edit` cleared the search for every edit, because a new page, a new folder and a
+rename are typed in the tree's rows. A favourite's title is typed in the Favourites group, so the
+search has nothing to do with it. Fixed: `start_edit` leaves the search, the rebuild and the tree's
+scroll alone for `Edit::BookmarkTitle`.
+
+## F-claude-662-the-star-tooltip-kept-its-old-words-after-a-click-001
+*severity: low · found in: pipeline 662's scenario, in Test · class: a tooltip whose words name a state the click changes*
+
+After a click on a Page tab's star, the tooltip still read "Add to Favourites" beside the filled
+star until the pointer left. GPUI builds a tooltip's view once, when it shows, and keeps it in the
+element's state, so a re-render does not change its words. Fixed by giving the starred and the
+unstarred button their own element ids: the click's re-render drops the old tooltip (L-662).

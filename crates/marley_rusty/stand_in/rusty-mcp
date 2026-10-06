@@ -74,7 +74,10 @@ TOOL_NAMES = [
     "brain_ask",
     "brain_decide",
     "brain_no_decision",
-    "brain_follow_up",
+    "bookmark_list",
+    "bookmark_add",
+    "bookmark_remove",
+    "bookmark_set",
 ]
 
 
@@ -679,6 +682,7 @@ def rename(source, target):
     else:
         raise Refused(f"Not found: {source}")
     rewritten = rewrite_links(source, target, kind)
+    follow_bookmarks(source, target, kind)
     if kind == "page":
         follow_title(target, source.rsplit("/", 1)[-1], target.rsplit("/", 1)[-1])
     return {"from": source, "to": target, "kind": kind, "pages_rewritten": rewritten}
@@ -721,6 +725,107 @@ def follow_title(slug, old_name, new_name):
             return
 
 
+BOOKMARKS = os.path.join(VAULT, ".rusty", "bookmarks.json")
+
+BOOKMARK_KINDS = ("file", "folder", "search", "heading")
+
+
+def load_bookmarks():
+    try:
+        with open(BOOKMARKS, encoding="utf-8") as stored:
+            return json.load(stored)
+    except (OSError, ValueError):
+        return []
+
+
+def bookmark_key(bookmark):
+    """Rusty's identity for a bookmark: its kind, and its path, query or page and heading."""
+    kind = bookmark.get("kind", "")
+    if kind == "search":
+        return f"search:{bookmark.get('query', '')}"
+    if kind == "heading":
+        return f"heading:{bookmark.get('path', '')}#{bookmark.get('heading', '')}"
+    return f"{kind}:{bookmark.get('path', '')}"
+
+
+def checked_bookmark(fields):
+    """A bookmark from a tool's parameters, refused as Rusty refuses it, its title filled."""
+    bookmark = {key: str(fields.get(key) or "").strip() for key in ("kind", "title", "path", "query", "heading")}
+    kind = bookmark["kind"]
+    if kind not in BOOKMARK_KINDS:
+        raise Refused(f"Unknown bookmark kind: {kind}")
+    if kind in ("file", "folder", "heading") and not bookmark["path"]:
+        raise Refused(f"A {kind} bookmark needs a path")
+    if kind == "search" and not bookmark["query"]:
+        raise Refused("A search bookmark needs a query")
+    if kind == "heading" and not bookmark["heading"]:
+        raise Refused("A heading bookmark needs a heading")
+    if not bookmark["title"]:
+        bookmark["title"] = {
+            "search": bookmark["query"],
+            "heading": bookmark["heading"],
+        }.get(kind, bookmark["path"].rsplit("/", 1)[-1])
+    return {key: value for key, value in bookmark.items() if value}
+
+
+def save_bookmarks(bookmarks):
+    """Rusty's store: duplicates by key dropped, the first kept, in order."""
+    kept, seen = [], set()
+    for bookmark in bookmarks:
+        if bookmark_key(bookmark) not in seen:
+            seen.add(bookmark_key(bookmark))
+            kept.append(bookmark)
+    os.makedirs(os.path.dirname(BOOKMARKS), exist_ok=True)
+    with open(BOOKMARKS, "w", encoding="utf-8") as stored:
+        json.dump(kept, stored, indent=2)
+    return kept
+
+
+def bookmark_add(fields):
+    bookmark = checked_bookmark(fields)
+    return save_bookmarks(load_bookmarks() + [bookmark])
+
+
+def bookmark_remove(fields):
+    key = bookmark_key({key: str(value or "").strip() for key, value in fields.items()})
+    bookmarks = load_bookmarks()
+    kept = [bookmark for bookmark in bookmarks if bookmark_key(bookmark) != key]
+    if len(kept) == len(bookmarks):
+        raise Refused(f"No bookmark {key}")
+    return save_bookmarks(kept)
+
+
+def bookmark_set(items):
+    return save_bookmarks([checked_bookmark(item) for item in items or []])
+
+
+def follow_bookmarks(source, target, kind):
+    """Rusty's rename rule: a page's and a folder's bookmarks follow it; searches stay."""
+    bookmarks = load_bookmarks()
+    if not os.path.exists(BOOKMARKS):
+        return
+    for bookmark in bookmarks:
+        path = bookmark.get("path", "")
+        if bookmark.get("kind") == "search" or not path:
+            continue
+        if path == source:
+            bookmark["path"] = target
+        elif kind == "folder" and path.startswith(source + "/"):
+            bookmark["path"] = target + path[len(source):]
+    save_bookmarks(bookmarks)
+
+
+def drop_bookmarks(path, folder):
+    """Rusty's delete rule: the bookmarks of a deleted page, or of anything in a deleted folder."""
+    if not os.path.exists(BOOKMARKS):
+        return
+    save_bookmarks([
+        bookmark for bookmark in load_bookmarks()
+        if bookmark.get("kind") == "search"
+        or not (bookmark.get("path", "") == path or (folder and bookmark.get("path", "").startswith(path + "/")))
+    ])
+
+
 def archive(path):
     name = f"{os.path.basename(path)}_{int(time.time())}"
     shutil.move(path, os.path.join(VAULT, "archive", name))
@@ -733,6 +838,7 @@ def delete_page(slug):
     if not os.path.isfile(path):
         raise Refused(f"Page not found: {slug}")
     archive(path)
+    drop_bookmarks(slug, False)
     return "deleted"
 
 
@@ -742,7 +848,9 @@ def delete_folder(folder):
         raise Refused("Refusing to delete the vault root")
     if not os.path.isdir(in_vault(folder)):
         raise Refused(f"Folder not found: {folder}")
-    return archive(in_vault(folder))
+    archived = archive(in_vault(folder))
+    drop_bookmarks(folder, True)
+    return archived
 
 
 def daily_note(date):
@@ -1110,6 +1218,10 @@ VAULT_TOOLS = {
     ),
     "brain_read_page": lambda arguments: read_page(str(arguments.get("slug") or "")),
     "brain_due": lambda arguments: due(arguments.get("days")),
+    "bookmark_list": lambda arguments: load_bookmarks(),
+    "bookmark_add": bookmark_add,
+    "bookmark_remove": bookmark_remove,
+    "bookmark_set": lambda arguments: bookmark_set(arguments.get("bookmarks")),
     "brain_follow_up": lambda arguments: follow_up(
         str(arguments.get("slug") or ""),
         str(arguments.get("outcome") or ""),
@@ -1272,10 +1384,11 @@ def stdio():
                     except OSError:
                         continue
                     seen.append((os.path.join(directory, name), changed))
-            try:
-                seen.append((SETTINGS, os.stat(SETTINGS).st_mtime_ns))
-            except OSError:
-                pass
+            for watched in (SETTINGS, BOOKMARKS):
+                try:
+                    seen.append((watched, os.stat(watched).st_mtime_ns))
+                except OSError:
+                    pass
             return seen
 
         last = stamp()

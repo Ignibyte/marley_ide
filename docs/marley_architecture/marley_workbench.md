@@ -2332,6 +2332,39 @@ alike.
   `forward`, call it.
 - `PageView::follow`'s `PageLink::Missing` arm makes the page (`create_linked`: `NewPage::from_target`,
   `page::create`) and navigates to the slug Rusty returns; a refusal shows in the tab's toast.
+- Since #662 the delegate keeps the file bookmarks' slugs (`favourites::list`) for
+  `switcher::empty_order`, draws a separator after each index `Order::separators_after` names, and
+  puts a filled star in a favourite row's end slot. `toggle` calls `favourites::ensure`.
+
+## Favourites (`src/rusty/favourites.rs`, `src/rusty/brain.rs`, `src/rusty/page.rs`, #662)
+
+- **The list.** `Bookmarks`, a global the Brain view and every Page tab observe, holds Rusty's list
+  as last answered, or nothing while unread or Rusty is off. `BookmarkReads` (observed by nothing)
+  holds whether a view has asked (`ensure`), the read's state (`Reading`: idle, running, running
+  with one more queued) and the connection as last seen, so a read follows the connection coming
+  up and not every notification of `Rusty` (L-658). `init` reads again on `Announced` and when the
+  connection comes up, and drops the list when Rusty turns off. `keep` sets the global only when
+  the list differs.
+- **Writes.** `write(&BookmarkWrite, workspace, cx)` calls the tool and keeps the list it answers;
+  a refusal's first line goes to the workspace's toast and the list is read again. `toggle_page`
+  adds the page or removes its bookmark; `retitle` sends `bookmark_set` with
+  `marley_rusty::bookmarks::retitled`. The Brain view's own writes (rename, move, delete) read the
+  list again after Rusty answers, since the service connection announces nothing and Rusty
+  carries or drops bookmarks on those.
+- **The Brain view.** `render_favourites` draws nothing for an empty list, else an inset
+  `ListSubHeader` (in a `flex_none` div, F-659) and a `ListItem` per bookmark with the kind's icon
+  (`Folder`, `MagnifyingGlass`, `Hash`, `FileTextOutlined`) and the path, query or heading in its
+  tooltip. `favourite_clicked`: a page opens as a tree row does; a folder clears a search, opens and
+  `reveal`s; a search sets the field's text and runs `search_for`; a heading calls
+  `page::open_at_heading_later`. The right-click menu has Rename… (`Edit::BookmarkTitle { key }`,
+  the inline editor typed in the row; `start_edit` leaves the search and the tree's scroll alone
+  for it) and Remove.
+- **The Page tab.** `render_star_button` between the name and Edit: `Star` or `StarFilled` in the
+  accent colour, each with its own element id so a click drops a tooltip built for the other
+  state. `ToggleBookmark` (`rusty: toggle bookmark`, `ctrl-d` in `RustyPage`) does what the star
+  does. `open` takes a `Visit`, so a tab already showing the page goes to the heading
+  (`go_to_heading`); `show` lands a visit's heading through `outline_line` and
+  `scroll_to_heading_line` when the outline holds it.
 
 ## The project view (`src/rusty/project.rs`, #655)
 

@@ -89,11 +89,19 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
 - `switcher` (#654): the page picker's pure part. `PageSummary` (`brain_list_pages`' `slug` and
   `title`, `shown_title` falling back to the file's name) and `parse_page_list`; `RecentPages`,
   the recently opened newest first (`visit`, at most `RECENT_CAP` 20, `from_json`, `to_json`,
-  `rank`); `empty_order(pages, recent, active)` (the active page, the recent pages the list holds,
-  the separator after them, the rest in Rusty's order, the selection on the second row after the
-  active page); `merge(titles, slugs, pages, recent, cap)` (each page at the better of its two
+  `rank`); `empty_order(pages, recent, active, favourites)` (the active page, since #662 the
+  favourite pages, then the recent pages the list holds, each group once with a separator after it
+  in `Order::separators_after`, the rest in Rusty's order, the selection on the second row after
+  the active page); `merge(titles, slugs, pages, recent, cap)` (each page at the better of its two
   fields' scores, lit in the field that gave it, ties to the more recently opened then the list's
   order); `create_target(query, pages)`; `BRAIN_LIST_PAGES`, `LIST_LIMIT` 100,000, `MATCH_CAP` 100.
+- `bookmarks` (#662): Rusty's bookmarks (its TICKET-037). `BOOKMARK_LIST`, `BOOKMARK_ADD`,
+  `BOOKMARK_REMOVE`, `BOOKMARK_SET`; `BookmarkKind` (file, folder, search, heading, and any other
+  kind as written); `Bookmark` as Rusty serves it (`kind`, `title`, `path`, `query`, `heading`),
+  with `page(slug)`, `is_page`, `key` (Rusty's identity: the kind and the path, the query, or the
+  page and heading), `shown_title` (Rusty's fallback for a blank title) and `arguments` (empty
+  fields left out); `bookmarks_from_answer`; `retitled(list, key, title)`, the list a rename
+  sends; `BookmarkWrite` (`Add`, `Remove`, `Set`) with `tool` and `arguments`.
 - `knowledge` (#646): what the Knowledge panel shows of a page. `LinkEntry` and `PageLinks`
   (`brain_get_links`'s `outbound` and `backlinks`, each with `context`, the line the link sits on,
   and `resolved`), `TagCount` (`brain_tags`), `GraphNode` and `Graph` (`brain_graph`'s nodes; the
@@ -181,7 +189,11 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   it serves `brain_follow_up` as Rusty does (its five refusals in Rusty's words; the follow-up
   section before `## Timeline`; `status`, `followed_up`, `follow_up_by` set or removed,
   `superseded_by`; Rusty's timeline line left out), and `brain_due` serves `followed_up` and
-  `superseded_by` as strings. It matches search words, not embeddings. The e2e
+  `superseded_by` as strings. Since #662 it serves `bookmark_list`, `bookmark_add`,
+  `bookmark_remove` and `bookmark_set` over `vault/.rusty/bookmarks.json` with Rusty's rules (a
+  second of the same key dropped, a blank title filled, an unknown one refused); `brain_rename`
+  carries a page's or a folder's bookmarks and the deletes drop them; and a change to the file is
+  announced as a change to the vault is. It matches search words, not embeddings. The e2e
   scenarios name it with `MARLEY_RUSTY_MCP` and never reach the user's own Rusty (R-D8).
 
 ## Later slices

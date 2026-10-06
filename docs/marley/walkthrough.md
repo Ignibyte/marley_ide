@@ -602,6 +602,25 @@ Needs 2.13's pages, before step 6 deletes them.
 - [ ] Step 5: the header reads `marley-tour / other-renamed` and a toast says links were updated in
   1 page; `links`' first link still opens it.
 
+### 2.13c Favourites (#662), optional
+
+Needs 2.13's pages, before step 6 deletes them. This stop adds one bookmark to your Rusty and
+removes it again; bookmarks you already have show in the group throughout.
+
+1. Open `other` and click the star in its header, between its name and Edit.
+2. Click the `links` tab and press Ctrl+Alt+U, then Escape.
+3. Right-click `other` under Favourites, choose Rename…, type `Tour page` and press Enter.
+4. Open `links` again, then click `Tour page` under Favourites.
+5. With `other`'s tab in front, press Ctrl+D.
+
+- [ ] Step 1: the star fills, and `other` appears under Favourites above the tree.
+- [ ] Step 2: `links` heads the list, then `other` with a star and selected, then a line and the
+  pages you opened recently.
+- [ ] Step 3: the row reads Tour page in place; Rusty's own app shows the same title.
+- [ ] Step 4: `other`'s tab comes forward.
+- [ ] Step 5: the star empties and Tour page leaves Favourites; with no other bookmark the group
+  goes.
+
 ### 2.14 The Knowledge panel (#646), optional
 
 Needs 2.12's setup: Rusty installed and on. This stop makes pages inside a folder it makes and
@@ -1887,6 +1906,7 @@ Every Marley command runs from the palette. The ones with no key of their own:
 | `rusty: toggle knowledge panel` | Show or hide the Knowledge panel, while Rusty is on (#646) |
 | `rusty: open graph`, `rusty: open local graph` | The Graph tab, on the vault or the page in front (#647) |
 | `rusty: open tasks` | The Tasks tab, Rusty's to-do lists (#658) |
+| `rusty: toggle bookmark` | Add the page in front to Favourites, or remove it (Ctrl+D in a Page tab, #662) |
 | `rusty: open decisions` | The Decisions tab, Rusty's decisions and the follow-ups due, each followed up from its row (#659, #660) |
 | `multi workspace: next project`, `previous project`, `next thread`, `previous thread` | Walk the rail |
 

@@ -24,6 +24,7 @@
 
 pub mod brain;
 pub mod decisions_tab;
+mod favourites;
 mod follow_up;
 mod graph_store;
 pub mod graph_tab;
@@ -235,6 +236,7 @@ pub fn init(cx: &mut App) {
     graph_tab::init(cx);
     tasks_tab::init(cx);
     decisions_tab::init(cx);
+    favourites::init(cx);
     let view = cx.new(|cx: &mut Context<RustyServerView>| {
         cx.observe_global::<Rusty>(|_, cx| cx.notify()).detach();
         RustyServerView

@@ -15,6 +15,7 @@ use gpui::{
     App, AppContext as _, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
     Global, SharedString, Task, WeakEntity, Window,
 };
+use marley_rusty::bookmarks::BookmarkKind;
 use marley_rusty::page::NewPage;
 use marley_rusty::switcher::{self, BRAIN_LIST_PAGES, Matched, PageSummary, RecentPages};
 use picker::{Picker, PickerDelegate};
@@ -71,6 +72,8 @@ pub(crate) fn opened(slug: &str, cx: &mut App) {
 
 /// Opens the picker, or closes it when it is open; the caller checked that Rusty is connected.
 pub(super) fn toggle(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
+    // Favourite pages head the list (#662).
+    super::favourites::ensure(cx);
     // From a terminal the key is Marley's, not the program's (#563).
     if let Some(view) = crate::blocks::focused_terminal(workspace, window, cx) {
         let workspace_entity = cx.entity();
@@ -114,7 +117,8 @@ impl PagePicker {
             active,
             list: List::Reading,
             rows: Vec::new(),
-            separator_after: None,
+            separators_after: Vec::new(),
+            favourites: Vec::new(),
             selected: 0,
             creating: false,
         };
@@ -197,7 +201,9 @@ struct PagePickerDelegate {
     active: Option<String>,
     list: List,
     rows: Vec<Row>,
-    separator_after: Option<usize>,
+    separators_after: Vec<usize>,
+    /// The favourite pages' slugs, in Rusty's order (#662).
+    favourites: Vec<String>,
     selected: usize,
     /// Whether a create waits on Rusty's answer.
     creating: bool,
@@ -296,7 +302,7 @@ impl PickerDelegate for PagePickerDelegate {
     }
 
     fn separators_after_indices(&self) -> Vec<usize> {
-        self.separator_after.into_iter().collect()
+        self.separators_after.clone()
     }
 
     fn placeholder_text(&self, _: &mut Window, _: &mut App) -> Arc<str> {
@@ -319,7 +325,7 @@ impl PickerDelegate for PagePickerDelegate {
     ) -> Task<()> {
         let Some(pages) = self.pages().cloned() else {
             self.rows.clear();
-            self.separator_after = None;
+            self.separators_after.clear();
             self.selected = 0;
             return Task::ready(());
         };
@@ -327,8 +333,14 @@ impl PickerDelegate for PagePickerDelegate {
             .try_global::<Recent>()
             .map(|recent| recent.0.clone())
             .unwrap_or_default();
+        self.favourites = super::favourites::list(cx)
+            .iter()
+            .filter(|bookmark| bookmark.kind() == BookmarkKind::File)
+            .map(|bookmark| bookmark.path.clone())
+            .collect();
         if query.trim().is_empty() {
-            let order = switcher::empty_order(&pages, &recent, self.active.as_deref());
+            let order =
+                switcher::empty_order(&pages, &recent, self.active.as_deref(), &self.favourites);
             self.rows = order
                 .rows
                 .into_iter()
@@ -338,7 +350,7 @@ impl PickerDelegate for PagePickerDelegate {
                     slug_positions: Vec::new(),
                 })
                 .collect();
-            self.separator_after = order.separator_after;
+            self.separators_after = order.separators_after;
             self.selected = order.selected;
             return Task::ready(());
         }
@@ -396,7 +408,7 @@ impl PickerDelegate for PagePickerDelegate {
                         })
                         .chain(create.map(Row::Create))
                         .collect();
-                    delegate.separator_after = None;
+                    delegate.separators_after.clear();
                     delegate.selected = 0;
                     cx.notify();
                 })
@@ -449,8 +461,16 @@ impl PickerDelegate for PagePickerDelegate {
                 slug_positions,
             } => {
                 let page = self.pages()?.get(*page)?;
+                let favourite = self.favourites.contains(&page.slug);
                 Some(
                     item.start_slot(Icon::new(IconName::FileMarkdown).color(Color::Muted))
+                        .when(favourite, |item| {
+                            item.end_slot(
+                                Icon::new(IconName::StarFilled)
+                                    .size(IconSize::Small)
+                                    .color(Color::Accent),
+                            )
+                        })
                         .child(
                             h_flex()
                                 .gap_2()

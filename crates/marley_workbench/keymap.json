@@ -158,7 +158,8 @@
     "context": "RustyPage",
     "bindings": {
       "alt-left": "rusty::PageBack",
-      "alt-right": "rusty::PageForward"
+      "alt-right": "rusty::PageForward",
+      "ctrl-d": "rusty::ToggleBookmark"
     }
   },
   {

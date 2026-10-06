@@ -96,6 +96,9 @@ actions!(
         /// Shows or hides the Page tab's outline of the page's headings.
         #[derive(Eq)]
         TogglePageOutline,
+        /// Adds the page in front as one of Rusty's bookmarks, or removes it when it is one.
+        #[derive(Eq)]
+        ToggleBookmark,
     ]
 );
 
@@ -182,7 +185,30 @@ pub(crate) fn open_later(
     window.defer(cx, move |window, cx| {
         workspace
             .update(cx, |workspace, cx| {
-                open(workspace, slug, preview, focus, window, cx);
+                open(workspace, Visit::page(slug), preview, focus, window, cx);
+            })
+            .log_err();
+    });
+}
+
+/// Opens page `slug` with `heading` at the top once the update in progress ends (#662): a
+/// heading bookmark's open. The tab showing the page comes forward and scrolls there, else a
+/// new kept tab opens there.
+pub(crate) fn open_at_heading_later(
+    workspace: WeakEntity<Workspace>,
+    slug: String,
+    heading: String,
+    window: &Window,
+    cx: &mut App,
+) {
+    window.defer(cx, move |window, cx| {
+        let visit = Visit {
+            slug,
+            heading: Some(heading),
+        };
+        workspace
+            .update(cx, |workspace, cx| {
+                open(workspace, visit, false, true, window, cx);
             })
             .log_err();
     });
@@ -190,16 +216,16 @@ pub(crate) fn open_later(
 
 fn open(
     workspace: &mut Workspace,
-    slug: String,
+    visit: Visit,
     preview: bool,
     focus: bool,
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
-    super::page_picker::opened(&slug, cx);
+    super::page_picker::opened(&visit.slug, cx);
     let shown = workspace
         .items_of_type::<PageView>(cx)
-        .find(|view| view.read(cx).slug() == slug);
+        .find(|view| view.read(cx).slug() == visit.slug);
     if let Some(shown) = shown {
         workspace.activate_item(&shown, true, focus, window, cx);
         if !preview && let Some(pane) = workspace.pane_for(&shown) {
@@ -207,11 +233,14 @@ fn open(
                 pane.unpreview_item_if_preview(shown.entity_id());
             });
         }
+        if let Some(heading) = visit.heading {
+            shown.update(cx, |view, cx| view.go_to_heading(heading, window, cx));
+        }
         return;
     }
     let languages = Arc::clone(workspace.project().read(cx).languages());
     let weak_workspace = cx.weak_entity();
-    let view = cx.new(|cx| PageView::new(Visit::page(slug), weak_workspace, languages, window, cx));
+    let view = cx.new(|cx| PageView::new(visit, weak_workspace, languages, window, cx));
     let pane = workspace.active_pane().clone();
     // Zed's own two steps (`Workspace::open_project_item`): the new item takes the preview's
     // place, then is added there.
@@ -284,7 +313,7 @@ pub(crate) struct PageView {
     /// The open in-place editor (#656).
     inline: Option<InlineEditing>,
     writes: Writes,
-    _subscriptions: [Subscription; 2],
+    _subscriptions: [Subscription; 3],
 }
 
 /// `brain_render`'s answer, and the body for Zed's renderer; run off the main thread.
@@ -330,7 +359,10 @@ impl PageView {
                 }
             }),
             cx.observe_global_in::<super::Rusty>(window, Self::rusty_changed),
+            // The star follows Rusty's bookmarks (#662).
+            cx.observe_global::<super::favourites::Bookmarks>(|_, cx| cx.notify()),
         ];
+        super::favourites::ensure(cx);
         let mut this = Self {
             workspace,
             focus_handle: cx.focus_handle(),
@@ -417,15 +449,25 @@ impl PageView {
         match read {
             Ok(Some((page, markdown))) => {
                 let scrolls = heading.is_some();
+                // A heading the outline holds goes to the top, as the outline's click puts it
+                // (#662); another, such as one a link names by its anchor, is scrolled into view.
+                let top = heading
+                    .as_deref()
+                    .and_then(|heading| outline_line(&page, heading));
                 self.markdown.update(cx, |view, cx| {
                     view.replace(markdown, cx);
-                    if let Some(heading) = heading {
+                    if top.is_none()
+                        && let Some(heading) = heading
+                    {
                         view.scroll_to_heading_when_parsed(
                             generate_heading_slug(&heading).into(),
                             cx,
                         );
                     }
                 });
+                if let Some(line) = top {
+                    self.scroll_to_heading_line(line, cx);
+                }
                 if scrolls {
                     self.redraw_after_parse(window, cx);
                 }
@@ -908,6 +950,30 @@ impl PageView {
         cx.notify();
     }
 
+    /// Brings `heading` to the top: in the page shown when its outline holds it, else by a visit to
+    /// the page at that heading (#662).
+    fn go_to_heading(&mut self, heading: String, window: &mut Window, cx: &mut Context<Self>) {
+        let line = match &self.shown {
+            Shown::Page(page) if page.slug == self.slug() => outline_line(page, &heading),
+            _ => None,
+        };
+        if let Some(line) = line {
+            self.scroll_to_heading_line(line, cx);
+            cx.notify();
+        } else {
+            let visit = Visit {
+                slug: self.slug().to_string(),
+                heading: Some(heading),
+            };
+            self.navigate(visit, window, cx);
+        }
+    }
+
+    /// The star and `rusty: toggle bookmark` (#662).
+    fn toggle_bookmark(&mut self, _: &ToggleBookmark, _: &mut Window, cx: &mut Context<Self>) {
+        super::favourites::toggle_page(self.slug(), self.workspace.clone(), cx);
+    }
+
     fn toggle_outline(&mut self, _: &TogglePageOutline, _: &mut Window, cx: &mut Context<Self>) {
         self.outline_shown = !self.outline_shown;
         cx.notify();
@@ -1071,6 +1137,7 @@ impl PageView {
                     })
                     .child(self.render_name(cx)),
             )
+            .child(self.render_star_button(cx))
             .child(
                 Button::new(
                     "rusty-page-edit",
@@ -1088,6 +1155,36 @@ impl PageView {
                     this.toggle_edit(&TogglePageEdit, window, cx);
                 })),
             )
+    }
+
+    /// The star: filled while the page is one of Rusty's bookmarks (#662).
+    fn render_star_button(&self, cx: &Context<Self>) -> impl IntoElement {
+        let starred = super::favourites::is_page(self.slug(), cx);
+        // An id of its own for each state drops a shown tooltip on a click, which would otherwise
+        // keep the words it was built with.
+        let (id, icon) = if starred {
+            ("rusty-page-starred", IconName::StarFilled)
+        } else {
+            ("rusty-page-star", IconName::Star)
+        };
+        IconButton::new(id, icon)
+            .icon_size(IconSize::Small)
+            .icon_color(if starred { Color::Accent } else { Color::Muted })
+            .disabled(!matches!(self.shown, Shown::Page(_)))
+            .tooltip(move |_, cx| {
+                Tooltip::for_action(
+                    if starred {
+                        "Remove from Favourites"
+                    } else {
+                        "Add to Favourites"
+                    },
+                    &ToggleBookmark,
+                    cx,
+                )
+            })
+            .on_click(cx.listener(|this, _, window, cx| {
+                this.toggle_bookmark(&ToggleBookmark, window, cx);
+            }))
     }
 
     fn render_outline_button(&self, cx: &Context<Self>) -> impl IntoElement {
@@ -1570,6 +1667,7 @@ impl Render for PageView {
             .on_action(cx.listener(Self::forward))
             .on_action(cx.listener(Self::toggle_edit))
             .on_action(cx.listener(Self::toggle_outline))
+            .on_action(cx.listener(Self::toggle_bookmark))
             .size_full()
             .bg(cx.theme().colors().editor_background)
             .child(self.render_header(cx))
@@ -1698,4 +1796,14 @@ impl Item for PageView {
         // L-613: an item moved to another workspace follows it.
         self.workspace = workspace.weak_handle();
     }
+}
+
+/// The line of the heading of `page` whose text, as written or as the outline shows it, is
+/// `heading`: how Rusty's app finds a heading bookmark's place.
+fn outline_line(page: &RenderedPage, heading: &str) -> Option<usize> {
+    let heading = heading.trim();
+    page.outline
+        .iter()
+        .find(|entry| entry.text.trim() == heading || outline_label(&entry.text) == heading)
+        .map(|entry| entry.line)
 }

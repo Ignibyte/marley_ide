@@ -4877,3 +4877,13 @@ shared namespace (a shown type overrides a hidden namespace). `update_global` do
 again on every settings change, only when the value changed. The settings window builds its pages
 from `cx` (`settings_data(cx)`), so a page can leave items out by state and `rebuild_pages` them on
 a change; run `update_matches` after it when a search may be open.
+
+## L-claude-662-a-tooltip-that-names-a-state-needs-an-id-per-state-001
+*category: gpui · topic: a toggle button's tooltip · from: pipeline 662*
+
+`.tooltip(..)` builds its view once per hover and keeps it in the element's state under the
+element's id; a re-render after a click keeps the words it was built with. When the words name the
+state the click changes ("Add to Favourites" and "Remove from Favourites"), give each state its own
+element id (`IconButton::new(if on { "x-on" } else { "x-off" }, ..)`): the new id drops the shown
+tooltip, and the next hover builds one with the right words. A tooltip with fixed words needs
+nothing.
