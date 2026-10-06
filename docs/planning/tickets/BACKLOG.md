@@ -16,6 +16,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 | [TICKET-665](open/TICKET-665-rusty-skills-tab.md) | feature | Rusty in Marley R8 · the Skills tab: pending skills to approve, skills and scripts to edit, a script run in a terminal |
 | [TICKET-666](open/TICKET-666-rusty-settings-on-the-settings-page.md) | feature | Rusty in Marley R8 · every Rusty setting on the Rusty's Server page, credentials masked |
 | [TICKET-667](open/TICKET-667-rusty-secrets-tab.md) | feature | Rusty in Marley R8 · the Secrets tab behind Rusty's PIN; no secret in Zed's logs |
+| [TICKET-668](open/TICKET-668-test-runs-act-on-nothing-of-the-users.md) | chore | the e2e harness · a run's profile keeps none of the user's push, harness, fleet or System One settings or keys |
 
 ## Deliberate (picked explicitly, never auto-next)
 
