@@ -3420,3 +3420,12 @@ the body past the tab, and the outline column and the properties' × buttons wen
 minimum width defaults to its content's, so a line that cannot wrap set the body's width. In the
 Page tab since #645; the report page showed it. Fixed: the body is `min_w_0` and clips in x, so the
 line wraps where it can and the column stays.
+
+## F-claude-664-a-toggle-group-squeezed-the-field-beside-it-001
+*severity: medium · found in: pipeline 664's scenario, in Test · class: a component that fills its parent, placed in a row beside a flex_1 child*
+
+The Memory tab's add row put the content editor (`flex_1`), the category editor and Zed's
+`ToggleButtonGroup` side by side. The group fills its parent's width, so in the row it took the
+space and left the content field a few pixels wide: the scenario's typed line went nowhere and the
+add could not be used. Fixed: the group sits in a `flex_none` box of a fixed width (16 rem in the
+row, 14 rem in the form), and the field takes the rest (L-664).

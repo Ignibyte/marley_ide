@@ -4143,3 +4143,15 @@ sent. The folder for an import is always this machine's (`DirectoryLister::Local
 reads its own disk. Rejected: one longer deadline for every call (a stuck read would hang the
 Brain view for as long); a progress stream from Rusty (it has none); closing the import's form
 early with a toast for the report (the plan and the report belong together).
+
+## AD-claude-664-the-memory-tab-follows-rustys-app-001
+*decided at: 2026-10-06 · status: shipped · builds on: AD-claude-663-a-call-to-rusty-names-its-deadline-001 · plan: docs/marley/rusty-in-marley.md R8*
+
+The Memory tab draws `list_memories` in Rusty's order and filters by category in Marley, asking
+Rusty nothing more. It follows Rusty's app where Rusty's tools leave a choice: an add with no
+category files it under `context` (Rusty's MCP default is `fact`), and an edit sends content,
+category and importance together. It differs in one place: a memory holding an importance word
+from before Rusty's TICKET-052 keeps it until Low, Normal or High is picked, where the app would
+send `low`. Delete asks first. The tab shares the Decisions tab's link and read bookkeeping rather
+than a copy. Rejected: a search box (Rusty's tools have none); editing in the row (the form keeps
+the list's rows one height).

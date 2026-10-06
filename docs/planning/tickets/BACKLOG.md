@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-664](open/TICKET-664-rusty-memory-tab.md) | feature | Rusty in Marley R8 · the Memory tab over Rusty's four memory tools |
 | [TICKET-665](open/TICKET-665-rusty-skills-tab.md) | feature | Rusty in Marley R8 · the Skills tab: pending skills to approve, skills and scripts to edit, a script run in a terminal |
 | [TICKET-666](open/TICKET-666-rusty-settings-on-the-settings-page.md) | feature | Rusty in Marley R8 · every Rusty setting on the Rusty's Server page, credentials masked |
 | [TICKET-667](open/TICKET-667-rusty-secrets-tab.md) | feature | Rusty in Marley R8 · the Secrets tab behind Rusty's PIN; no secret in Zed's logs |

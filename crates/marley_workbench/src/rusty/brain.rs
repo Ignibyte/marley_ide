@@ -405,6 +405,15 @@ impl BrainView {
         super::decisions_tab::open_later(workspace, window, cx);
     }
 
+    /// The Memory entry: the workspace's Memory tab, opened or brought forward (#664).
+    fn open_memory(&self, window: &Window, cx: &mut App) {
+        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
+            return;
+        };
+        let workspace = multi_workspace.read(cx).workspace().downgrade();
+        super::memory_tab::open_later(workspace, window, cx);
+    }
+
     fn toast(&self, message: String, cx: &mut App) {
         let Some(multi_workspace) = self.multi_workspace.upgrade() else {
             return;
@@ -1010,6 +1019,12 @@ impl BrainView {
                     .icon_size(IconSize::Small)
                     .tooltip(Tooltip::text("Decisions"))
                     .on_click(cx.listener(|this, _, window, cx| this.open_decisions(window, cx))),
+            )
+            .child(
+                IconButton::new("marley-brain-memory", IconName::Book)
+                    .icon_size(IconSize::Small)
+                    .tooltip(Tooltip::text("Memory"))
+                    .on_click(cx.listener(|this, _, window, cx| this.open_memory(window, cx))),
             )
     }
 

@@ -80,16 +80,16 @@ fn open(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspa
     workspace.add_item_to_active_pane(Box::new(view), None, true, window, cx);
 }
 
-/// Marley's link to Rusty, as the tab last saw it (L-658).
+/// Marley's link to Rusty, as the tab last saw it (L-658); the Memory tab's too (#664).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Link {
+pub(super) enum Link {
     Off,
     Down,
     Up,
 }
 
 impl Link {
-    fn now(cx: &App) -> Self {
+    pub(super) fn now(cx: &App) -> Self {
         if !super::is_on(cx) {
             Self::Off
         } else if super::is_connected(cx) {
@@ -102,7 +102,7 @@ impl Link {
 
 /// A read the tab owes: none, one more after the one running, or one when it next shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ReadDue {
+pub(super) enum ReadDue {
     No,
     AfterThis,
     WhenShown,

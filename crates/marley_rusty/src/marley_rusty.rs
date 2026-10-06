@@ -19,6 +19,7 @@
 //!   [`tasks`]: the follow-ups due and the task groups the project view reads (#655).
 //! - [`bookmarks`]: Rusty's bookmarks and favourites, and the writes to them (#662).
 //! - [`capture`]: a line or a URL captured into the brain, and a vault imported (#663).
+//! - [`memories`]: Rusty's long-term memories and the writes to them (#664).
 
 // gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
 // Zed's crates keep them at warn (CONSTITUTION §0).
@@ -42,6 +43,7 @@ pub mod graph;
 pub mod graph_layout;
 pub mod graph_settings;
 pub mod knowledge;
+pub mod memories;
 pub mod page;
 pub mod project;
 pub mod settings;

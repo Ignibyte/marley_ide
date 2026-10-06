@@ -28,6 +28,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from datetime import date, timedelta
 from html import unescape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -86,6 +87,10 @@ TOOL_NAMES = [
     "source_capture",
     "brain_import_plan",
     "brain_import",
+    "list_memories",
+    "store_memory",
+    "update_memory",
+    "delete_memory",
 ]
 
 # The tools Rusty may take long over, answered on a thread of their own as Rusty answers every
@@ -1150,6 +1155,92 @@ def import_vault(source):
     }
 
 
+MEMORIES = os.path.join(STATE, "memories.json")
+
+# Rusty announces each memory write that succeeded, as it does a task write (#664).
+MEMORY_WRITES = {"store_memory", "update_memory", "delete_memory"}
+
+IMPORTANCE_LEVEL = {"high": 2, "normal": 1, "low": 0}
+
+
+def load_memories():
+    try:
+        with open(MEMORIES, encoding="utf-8") as stored:
+            return json.load(stored)
+    except (OSError, ValueError):
+        return []
+
+
+def save_memories(memories):
+    with open(MEMORIES, "w", encoding="utf-8") as stored:
+        json.dump(memories, stored, indent=2)
+
+
+def importance_word(word):
+    """Rusty's TICKET-052: low, normal or high, `medium` read as normal, any other refused."""
+    word = str(word).strip().lower()
+    if word == "medium":
+        return "normal"
+    if word in IMPORTANCE_LEVEL:
+        return word
+    raise Refused(f'importance is low, normal or high, not "{word}"')
+
+
+def list_memories(category):
+    """Rusty's `list_memories`: high first, then normal (and any other word), then low, the
+    newest first within each."""
+    found = [memory for memory in load_memories() if not category or memory.get("category") == category]
+    return sorted(
+        found,
+        key=lambda memory: (
+            -IMPORTANCE_LEVEL.get(memory.get("importance"), 1),
+            -int(memory.get("created_at") or 0),
+        ),
+    )
+
+
+def store_memory(content, category, importance):
+    """Rusty's `store_memory`: the new memory's id; category `fact` and importance `normal` when
+    none is given."""
+    now = int(time.time())
+    memory = {
+        "id": str(uuid.uuid4()),
+        "category": category or "fact",
+        "importance": importance_word(importance or "normal"),
+        "content": str(content or ""),
+        "type": "memory",
+        "source": "mcp",
+        "created_at": now,
+        "updated_at": now,
+    }
+    save_memories(load_memories() + [memory])
+    return memory["id"]
+
+
+def update_memory(memory_id, content, category, importance):
+    """Rusty's `update_memory`: the given fields changed, the rest kept; the memory answered."""
+    importance = None if importance is None else importance_word(importance)
+    memories = load_memories()
+    memory = next((each for each in memories if each.get("id") == memory_id), None)
+    if memory is None:
+        raise Refused(f"Memory not found: {memory_id}")
+    for key, value in (("content", content), ("category", category), ("importance", importance)):
+        if value is not None:
+            memory[key] = value
+    memory["updated_at"] = int(time.time())
+    save_memories(memories)
+    return memory
+
+
+def delete_memory(memory_id):
+    memories = load_memories()
+    kept = [memory for memory in memories if memory.get("id") != memory_id]
+    if len(kept) == len(memories):
+        raise Refused(f"Memory not found: {memory_id}")
+    save_memories(kept)
+    return "deleted"
+
+
 WIKILINK = re.compile(r"(!?)\[\[([^\]|]*)(?:\|[^\]]*)?\]\]")
 
 
@@ -1571,6 +1662,17 @@ VAULT_TOOLS = {
     "source_capture": lambda arguments: capture_url(arguments.get("url")),
     "brain_import_plan": lambda arguments: import_plan(arguments.get("path")),
     "brain_import": lambda arguments: import_vault(arguments.get("path")),
+    "list_memories": lambda arguments: list_memories(arguments.get("category")),
+    "store_memory": lambda arguments: store_memory(
+        arguments.get("content"), arguments.get("category"), arguments.get("importance")
+    ),
+    "update_memory": lambda arguments: update_memory(
+        arguments.get("id"),
+        arguments.get("content"),
+        arguments.get("category"),
+        arguments.get("importance"),
+    ),
+    "delete_memory": lambda arguments: delete_memory(arguments.get("id")),
 }
 
 
@@ -1669,7 +1771,7 @@ def stdio():
                     except OSError:
                         continue
                     seen.append((os.path.join(directory, name), changed))
-            for watched in (SETTINGS, BOOKMARKS):
+            for watched in (SETTINGS, BOOKMARKS, MEMORIES):
                 try:
                     seen.append((watched, os.stat(watched).st_mtime_ns))
                 except OSError:
@@ -1691,7 +1793,7 @@ def stdio():
             send(response)
             # Rusty announces each task write that succeeded to every peer (#658).
             params = message.get("params") or {}
-            if params.get("name") in TASK_WRITES and "error" not in response:
+            if params.get("name") in TASK_WRITES | MEMORY_WRITES and "error" not in response:
                 log("sent list_changed")
                 send({"jsonrpc": "2.0", "method": "notifications/resources/list_changed"})
 

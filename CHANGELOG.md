@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Memory tab** (#664, 2026-10-06). What Rusty remembers across conversations, in a center
+  tab from the book after Decisions in the Brain view or `rusty: open memory`: the memories in
+  Rusty's order (high first, the newest first within each), each with its category, importance,
+  who stored it and the day it last changed. Type a line at the top, give a category and Low,
+  Normal or High, and press Enter to add one; the Category menu shows one category; a click opens
+  a memory to edit its text, category or importance, or to delete it after asking. Rusty's
+  refusal shows in the form, and a change made elsewhere shows at once.
+
 - **Capture a line or a URL, and import a vault, into Rusty from the palette** (#663, 2026-10-06).
   `rusty: capture to today` and `rusty: capture to inbox` open a one-line form; Enter adds the line
   to that page's timeline and a toast names the page, with Open. `rusty: capture url` has Rusty

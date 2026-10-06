@@ -110,6 +110,12 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   `ImportPlan` (`brings_anything`, `summary`, `details`, its bookmarks `bookmarks::Bookmark`) and
   `ImportReport` (`summary`), worded as Rusty's app words them, with `plan_from_answer` and
   `report_from_answer`.
+- `memories` (#664): `LIST_MEMORIES`, `STORE_MEMORY`, `UPDATE_MEMORY`, `DELETE_MEMORY`;
+  `DEFAULT_CATEGORY` (`context`, Rusty's app's default); `Memory` as Rusty serves it (`id`,
+  `category`, `importance`, `content`, `source`, `updated_at` in seconds) with `importance()`;
+  `memories_from_answer`; `Importance` (`ALL`, `word`, `label`, `parse` reading `medium` as normal);
+  `categories` (sorted, once each); `count_line`; `category_or_default`; `MemoryWrite` (`Store`,
+  `Update` leaving out an importance not picked, `Delete`) with `tool` and `arguments`.
 - `knowledge` (#646): what the Knowledge panel shows of a page. `LinkEntry` and `PageLinks`
   (`brain_get_links`'s `outbound` and `backlinks`, each with `context`, the line the link sits on,
   and `resolved`), `TagCount` (`brain_tags`), `GraphNode` and `Graph` (`brain_graph`'s nodes; the
@@ -209,7 +215,10 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   collisions, tags, unresolved links, `.obsidian/bookmarks.json`, bare names rewritten to paths,
   the bookmarks added, a report page under `inbox/`). The last three answer on a thread of their
   own, as Rusty answers requests side by side, so Marley's pings go on during a slow fetch; its
-  daily note takes today from the `today` file too. It matches search words, not embeddings. The e2e
+  daily note takes today from the `today` file too. Since #664 it serves `list_memories`,
+  `store_memory`, `update_memory` and `delete_memory` over `memories.json` in the state folder with
+  Rusty's order, defaults, importance words and refusals, announces each memory write, and watches
+  the file. It matches search words, not embeddings. The e2e
   scenarios name it with `MARLEY_RUSTY_MCP` and never reach the user's own Rusty (R-D8).
 
 ## Later slices

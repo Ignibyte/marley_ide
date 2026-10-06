@@ -794,6 +794,23 @@ a source page, and one imported page with its report, which step 6 removes.
 - [ ] Step 5: the form reports 1 page imported; the report page opens; `tour-import` shows in the
   Brain view.
 
+### 2.15f The Memory tab (#664), optional
+
+Needs 2.12's setup: Rusty installed and on. This stop adds one memory to your Rusty and deletes it
+in step 4.
+
+1. Click the book after Decisions in the Brain view.
+2. Type `Marley tour memory` in the top field, `tour` as the category, click High, press Enter.
+3. Choose `tour` in the Category menu, then All again.
+4. Click `Marley tour memory`, change it to `Marley tour memory, edited`, click Low and Save. Click
+   it again, click Delete and answer Delete.
+
+- [ ] Step 1: the Memory tab lists your memories, high first, each with its category, importance,
+  source and day.
+- [ ] Step 2: the memory shows among the high ones, with today's day; the field empties.
+- [ ] Step 3: `tour` shows that memory alone, "1 memory"; All shows them all again.
+- [ ] Step 4: the edited text shows among the low ones; after Delete it is gone and the count drops.
+
 ## Part 3. The editor
 
 Marley's editor is Zed's. This part checks the everyday tools. The first time you open
@@ -1935,6 +1952,7 @@ Every Marley command runs from the palette. The ones with no key of their own:
 | `rusty: toggle bookmark` | Add the page in front to Favourites, or remove it (Ctrl+D in a Page tab, #662) |
 | `rusty: capture to today`, `rusty: capture to inbox`, `rusty: capture url` | A line into today's note or the inbox, or a URL kept as a source page (#663) |
 | `rusty: import vault`, `rusty: open today` | An Obsidian vault into the brain after its plan; today's daily note (#663) |
+| `rusty: open memory` | The Memory tab, what Rusty remembers across conversations (#664) |
 | `rusty: open decisions` | The Decisions tab, Rusty's decisions and the follow-ups due, each followed up from its row (#659, #660) |
 | `multi workspace: next project`, `previous project`, `next thread`, `previous thread` | Walk the rail |
 

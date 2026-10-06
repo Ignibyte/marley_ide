@@ -2396,6 +2396,27 @@ alike.
   Importing, so neither Escape nor a click outside drops the import's answer. Done rereads the vault
   and the bookmarks (AD-662).
 
+## The Memory tab (`src/rusty/memory_tab.rs`, #664)
+
+- **Opening.** `OpenMemory` on every workspace, and the Brain view's Memory button (`Book`) through
+  `open_later`, bring the workspace's one `BrainMemoryView` forward or add it to the active pane;
+  with Rusty unavailable, a toast says why.
+- **Reads.** The Decisions tab's `Link` and `ReadDue` (now `pub(super)` there): a read when it
+  opens, when the link comes up, on `Announced` while it shows (else when it next shows, AD-609),
+  after each write and on Read again; off drops the list. `list_memories` is drawn in Rusty's
+  order; a filter whose category went away falls back to All.
+- **Drawing.** The title and Rusty's line; while connected, the add row: the content editor
+  (`flex_1`), the category editor (10 rem), and the importance `ToggleButtonGroup` in a 16 rem box,
+  since the group fills its parent; then the state line, the count and the Category
+  `DropdownMenu`, whose `ContextMenu` is keyed by the categories and the choice; then the rows
+  (`ListItem`: the content `line_clamp(3)`, a `Chip` for the category, importance, source and the
+  day in this machine's zone through `chrono::Local`).
+- **Writes.** `menu::Confirm` in `RustyMemoryAdd menu` stores the content (a refusal toasts). A row
+  opens `MemoryForm` through `window.defer` and `toggle_modal`: an auto-height content editor, the
+  category, the importance group (none chosen for an older word), Delete through `window.prompt`,
+  Save while the content holds text. A success has the tab read again and dismisses; a refusal's
+  first line stays.
+
 ## The project view (`src/rusty/project.rs`, #655)
 
 - `ProjectPages`, a global the panel and the Graph tab observe, holds every project page, or the

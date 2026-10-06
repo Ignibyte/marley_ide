@@ -1206,6 +1206,26 @@ takes the key from the program), opens a picker over every page of the brain.
 
 With Rusty off, or not connected, the key says so in a toast and opens nothing.
 
+### The Memory tab (#664)
+
+What Rusty remembers across conversations: the facts, preferences and context its agents read at
+the start of one, the high ones first. The book after Decisions in the Brain view, or `rusty: open
+memory`, opens it in a center tab.
+
+- **The list.** Rusty's order: high, then normal, then low, the newest first within each. Each
+  memory shows its text (up to three lines), its category, its importance, who stored it and the
+  day it last changed. The count above it follows the Category menu, which shows All or one
+  category.
+- **Adding.** Type in the top field, give a category (empty files it under `context`, as Rusty's
+  app does), choose Low, Normal or High, and press Enter. The field empties and the memory shows
+  in its place in the list.
+- **Editing.** Click a memory: a form holds its text, category and importance. Save sends all
+  three; Delete asks "Forget this memory?" and then removes it. If Rusty refuses, its words show in
+  the form and nothing changes.
+- **Live.** The tab reads Rusty when it opens, when Rusty connects, when Rusty announces a change
+  (one made in its app, its CLI or by an agent), and after each change you make. With Rusty off it
+  says so.
+
 ### Capture and import (#663)
 
 While Rusty is on, these commands in the palette put things into its brain:

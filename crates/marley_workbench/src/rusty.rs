@@ -32,6 +32,7 @@ pub mod graph_tab;
 mod import;
 mod inline_edit;
 pub mod knowledge_panel;
+mod memory_tab;
 pub mod page;
 pub mod page_picker;
 pub mod project;
@@ -241,6 +242,7 @@ pub fn init(cx: &mut App) {
     favourites::init(cx);
     capture::init(cx);
     import::init(cx);
+    memory_tab::init(cx);
     let view = cx.new(|cx: &mut Context<RustyServerView>| {
         cx.observe_global::<Rusty>(|_, cx| cx.notify()).detach();
         RustyServerView

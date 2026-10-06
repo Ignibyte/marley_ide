@@ -4904,3 +4904,11 @@ outside it (the network, a sleep, a big folder) goes in that set.
 `derive_partial_eq_without_eq`. Put `#[derive(Eq)]` on each action inside the macro, as
 `tasks_tab.rs` does; the module's visibility has nothing to do with it (the lint looks at the
 struct, which the macro always makes `pub`).
+
+## L-claude-664-toggle-button-group-needs-a-box-of-its-own-001
+*category: gpui · topic: `ToggleButtonGroup` beside other children in a row · from: pipeline 664*
+
+Zed's `ToggleButtonGroup` makes itself as wide as its parent. Alone in a column (#660's form) that
+reads as intended; in an `h_flex` beside a `flex_1` field it takes the field's space. Put it in
+`div().flex_none().w(rems(N))` and let the field grow. A `ContextMenu` behind a `DropdownMenu` opens
+on the choice shown, so a scenario picks an entry with Home first, then Down.

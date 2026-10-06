@@ -173,6 +173,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#tasks-tab">The Tasks tab: Rusty's to-do lists</a></li>
 <li><a href="#rusty-decisions">Decisions: Rusty's brain loop</a></li>
 <li><a href="#rusty-capture">Capture and import: lines, URLs and a vault into Rusty</a></li>
+<li><a href="#rusty-memory">Memory: what Rusty remembers</a></li>
 </ol></li>
 <li><a href="#editor">The editor</a><ol>
 <li><a href="#find-things">Find files, symbols and text</a></li>
@@ -718,6 +719,19 @@ th { background: var(--panel); font-weight: 650; }
 <li>Run <code>rusty: import vault</code> and choose the vault's folder. Rusty's plan shows what comes in, what is skipped because the brain already has it, the links that will not resolve and the bookmarks. Import brings it in; the form then gives the report, and Open Report shows Rusty's report page.</li>
 </ol>
 <p class="note">If Rusty refuses (an empty line, an address that is not http or https), its words show in the form and nothing is written. <kbd>Escape</kbd> closes a capture's form; a capture already sent still lands. The import's form stays until Rusty answers, and an import that fails part way leaves nothing behind. Rusty reads the vault and never writes it.</p>
+</article>
+
+<article id="rusty-memory">
+<h3>Memory: what Rusty remembers <span class="ticket">#664</span></h3>
+<p class="what"><strong>What it is.</strong> A center tab over Rusty's long-term memories, while Rusty is on: the facts, preferences and context its agents read at the start of a conversation, the high ones first. Each row shows the memory, its category, its importance, who stored it and the day it last changed.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Click the book after Decisions in the rail's Brain view, or run <code>rusty: open memory</code>.</li>
+<li>To add one, type it in the top field, give a category (empty files it under <code>context</code>), choose Low, Normal or High, and press <kbd>Enter</kbd>.</li>
+<li>Choose a category in the Category menu to see only those; All shows every memory again.</li>
+<li>Click a memory to edit it: change the text, the category or the importance and click Save. Delete asks first, then Rusty forgets it.</li>
+</ol>
+<p class="note">Rusty keeps the order: high first, then normal, then low, the newest first within each. If Rusty refuses a change, its words show in the form. The tab reads Rusty again when Rusty announces a change, when you come back to it after one, and after each change you make.</p>
 </article>
 </section>
 
