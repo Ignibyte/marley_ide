@@ -3353,3 +3353,19 @@ Fixed: `render` sets it up whenever whether a list is chosen differs from how it
 The Decisions tab drew Due, the count and the rows with wide gaps between them. Zed's
 `ListSubHeader` renders with `flex_1`, so in the tab's `v_flex` column each header took a share
 of the spare height. Fixed: `header()` puts each one in a `div().flex_none()`.
+
+## F-claude-660-the-successor-picker-ran-past-the-follow-up-forms-edge-001
+*severity: low · found in: pipeline 660's scenario, in Test · class: a Zed picker embedded in a container of the width it opens at, before the container's padding*
+
+The follow-up form's successor picker drew its selected row about 10 px past the form's right
+edge (`660-11` of the second run). `Picker` opens at Zed's modal width, 34 rem, and the form was
+34 rem wide with 0.75 rem padding a side. Fixed: the picker opens at the form's inner width
+(`initial_width(rems(FORM_WIDTH - 1.5))`).
+
+## F-claude-660-the-follow-up-form-drew-again-on-every-caret-blink-001
+*severity: low · found in: pipeline 660's review, in Code · class: observing a whole editor entity to follow its text*
+
+The form called `cx.observe(&outcome, ..)` to keep Record's state in step with the outcome's
+words. An `Editor` notifies for its caret's blink, its scroll and its selections too, so the form
+drew again twice a second while open. Fixed: it subscribes to `EditorEvent::BufferEdited`, as the
+rail's filter and the workflows' fields do.

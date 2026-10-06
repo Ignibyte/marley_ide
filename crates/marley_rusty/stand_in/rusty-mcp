@@ -44,6 +44,7 @@ TOOL_NAMES = [
     "brain_list_pages",
     "brain_read_page",
     "brain_due",
+    "brain_follow_up",
     "brain_set_property",
     "brain_remove_property",
     "list_task_groups",
@@ -271,8 +272,8 @@ def due(days):
             "decided": str(fields.get("decided") or ""),
             "follow_up_by": follow_up,
             "overdue": bool(follow_up) and follow_up < today,
-            "followed_up": False,
-            "superseded_by": None,
+            "followed_up": str(fields.get("followed_up") or "") or last_follow_up(text),
+            "superseded_by": str(fields.get("superseded_by") or ""),
         })
     due_now = [
         summary for summary in summaries
@@ -283,6 +284,68 @@ def due(days):
     summaries.sort(key=lambda summary: summary["slug"])
     summaries.sort(key=lambda summary: summary["decided"], reverse=True)
     return {"due": due_now, "all": summaries}
+
+
+FOLLOW_UP_HEADING = re.compile(r"^### Follow-up (\d{4}-\d{2}-\d{2}):", re.MULTILINE)
+
+
+def last_follow_up(raw):
+    """The day of the page's last `### Follow-up DAY:` heading, as Rusty reads a page written
+    before it kept `followed_up`; empty when there is none."""
+    found = FOLLOW_UP_HEADING.findall(raw)
+    return found[-1] if found else ""
+
+
+def is_iso_date(text):
+    """Rusty's check: ten characters, digits but for the two dashes."""
+    return len(text) == 10 and all(
+        char == "-" if at in (4, 7) else char.isdigit() for at, char in enumerate(text)
+    )
+
+
+def follow_up(slug, outcome, status, successor, follow_up_by):
+    """Rusty's `brain_follow_up` (#660): its refusals in its order and words, then the section
+    `### Follow-up DAY: status` with the outcome before `## Timeline` (or at the end), `status`,
+    `followed_up`, `follow_up_by` set or removed, and `superseded_by`. Rusty's timeline line is
+    left out: nothing Marley shows reads it."""
+    if status not in ("kept", "revised", "superseded"):
+        raise Refused("status must be one of kept, revised, superseded")
+    if not outcome.strip():
+        raise Refused("follow_up needs an outcome")
+    if follow_up_by is not None and not is_iso_date(follow_up_by):
+        raise Refused(f"follow_up_by is not a date (YYYY-MM-DD): {follow_up_by}")
+    slug = clean(slug)
+    page = read_page(slug)
+    if page is None:
+        raise Refused(f"no decision {slug}")
+    if page["page_type"] != "decision":
+        raise Refused(f"{slug} is not a decision")
+    if status == "superseded":
+        if successor is None:
+            raise Refused("superseded needs the successor's slug")
+        following = read_page(successor)
+        if following is None:
+            raise Refused(f"no successor {successor}")
+        if following["page_type"] != "decision":
+            raise Refused(f"{successor} is not a decision")
+    today = today_in_state().isoformat()
+    path = in_vault(slug + ".md")
+    with open(path, encoding="utf-8") as current:
+        raw = current.read()
+    entry = f"\n### Follow-up {today}: {status}\n\n{outcome.strip()}\n"
+    at = raw.find("\n## Timeline")
+    raw = raw[:at] + entry + raw[at:] if at >= 0 else raw.rstrip("\n") + "\n" + entry
+    with open(path, "w", encoding="utf-8") as page_file:
+        page_file.write(raw)
+    set_property(slug, "status", status)
+    set_property(slug, "followed_up", today)
+    if follow_up_by is None:
+        remove_property(slug, "follow_up_by")
+    else:
+        set_property(slug, "follow_up_by", follow_up_by)
+    if status == "superseded":
+        set_property(slug, "superseded_by", successor)
+    return read_page(slug)
 
 
 def yaml_value(value):
@@ -1047,6 +1110,13 @@ VAULT_TOOLS = {
     ),
     "brain_read_page": lambda arguments: read_page(str(arguments.get("slug") or "")),
     "brain_due": lambda arguments: due(arguments.get("days")),
+    "brain_follow_up": lambda arguments: follow_up(
+        str(arguments.get("slug") or ""),
+        str(arguments.get("outcome") or ""),
+        str(arguments.get("status") or ""),
+        arguments.get("successor"),
+        arguments.get("follow_up_by"),
+    ),
     "brain_remove_property": lambda arguments: remove_property(
         str(arguments.get("slug") or ""), str(arguments.get("key") or "")
     ),

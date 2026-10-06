@@ -4822,3 +4822,28 @@ The Marley settings page is long, and the place of an item near a section's end 
 runs after a scroll. Type the item's name into the Settings window's search field first: the page
 narrows to the section holding it, and a scroll to its end lands the same way every run. The
 search field sat at (912, 59) in the sway scenarios' 1600 by 1000 window.
+
+## L-claude-660-a-picker-inside-a-form-opens-at-the-modal-width-001
+*category: gpui · topic: embedding Zed's picker in a Marley view · from: pipeline 660*
+
+`Picker::uniform_list` opens at `DEFAULT_MODAL_WIDTH` (34 rem) whatever holds it, and a plain
+picker's opening width is also its minimum. Inside a form or panel with padding, call
+`initial_width` with the container's inner width, or its rows run past the container's edge.
+An embedded picker's Escape and pick reach the container through its delegate's callbacks; defer
+them (`cx.defer`), since they run inside the picker's own update.
+
+## L-claude-660-zeds-toggle-group-reads-as-a-choice-only-outlined-001
+*category: ui · topic: a choice among a few in a Marley form · from: pipeline 660*
+
+`ui::ToggleButtonGroup` defaults to the transparent style, where the unchosen buttons are plain
+words with no edge. Every Zed use passes `.style(ToggleButtonGroupStyle::Outlined)`; do the same.
+To show none chosen, pass `selected_index` an index past the buttons: the group lights entry 0
+by default.
+
+## L-claude-660-a-missed-click-outside-a-zed-modal-closes-it-silently-001
+*category: e2e · topic: clicking inside a modal in a scenario · from: pipeline 660*
+
+A click outside Zed's modal layer closes the modal with no event a scenario sees, so a mis-measured
+click on a form's button drops the form unsent and the next steps run against a different state.
+Measure a modal's buttons from a shot of that exact form (its height changes with the fields it
+shows), and `expect` on what the click should have sent right after it.

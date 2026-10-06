@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-660](open/TICKET-660-rusty-decision-follow-up.md) | feature | Rusty in Marley R7b · record a decision's follow-up from the Decisions tab; show the last follow-up and the successor |
 
 ## Deliberate (picked explicitly, never auto-next)
 

@@ -75,7 +75,11 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   ("· overdue" when Rusty flags it); `DecisionStatus` (decided, kept, revised, superseded, or a
   word Rusty adds later, an empty status read as decided); and the tab's lines, `Entry` (the Due
   header only when something is due, the count, a row by `Section` and index), `entries` and
-  `count_line`. Nothing here works out a date.
+  `count_line`. Nothing here works out a date. Since #660 the summary's `followed_up` and
+  `superseded_by` (`followed_up_line`, `successor`), `BRAIN_FOLLOW_UP`, `FollowUpStatus` (kept,
+  revised, superseded; `ALL`, `word`, `label`), `Missing` with its hint, and `FollowUpDraft`
+  (`missing`, and `arguments`: the outcome trimmed, `follow_up_by` only for revised and given, the
+  successor only for superseded; the day goes as typed, Rusty judges it).
   `tasks` (#655): `TaskGroup`, `UserTask`, `groups_from_answer`, `tasks_from_answer`. Since #658
   the ten write names, `UserTask`'s `archived` and `header_id`, `id_from_answer`, and `TaskWrite`
   (one variant a tool, `tool` and `arguments` in Rusty's parameter names: a task `id`, a list
@@ -173,8 +177,11 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   in the other pages (a folder's pages by prefix), counting them, and moving a title equal to the
   old name, as Rusty's TICKET-046 does. Since #659 `brain_due` sorts `all` as Rusty does (decided
   descending, then slug), a `today` file in the state folder fixes the day it counts from, and a
-  `fail` file (a tool's name, then a message) makes that tool answer a JSON-RPC error. It matches
-  search words, not embeddings. The e2e
+  `fail` file (a tool's name, then a message) makes that tool answer a JSON-RPC error. Since #660
+  it serves `brain_follow_up` as Rusty does (its five refusals in Rusty's words; the follow-up
+  section before `## Timeline`; `status`, `followed_up`, `follow_up_by` set or removed,
+  `superseded_by`; Rusty's timeline line left out), and `brain_due` serves `followed_up` and
+  `superseded_by` as strings. It matches search words, not embeddings. The e2e
   scenarios name it with `MARLEY_RUSTY_MCP` and never reach the user's own Rusty (R-D8).
 
 ## Later slices

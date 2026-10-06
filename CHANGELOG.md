@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Record a decision's follow-up from the Decisions tab** (#660, 2026-10-05). Follow Up on a row
+  under Due, or Follow Up… in any decision's right-click menu, opens a form: choose Kept, Revised
+  or Superseded, write how it went, and give the next follow-up day when revised or pick the
+  decision that replaced it when superseded. Enter or Record sends it to Rusty, Shift+Enter starts
+  a new line, and Escape closes the form without recording. If Rusty refuses, its words show in
+  the form and nothing is written. The rows also show the day of each decision's last follow-up,
+  and a replaced decision names the one that replaced it, which opens with a click.
+
 - **The Decisions tab** (#659, 2026-10-04). Rusty's decisions in a center tab, from the double
   check after Tasks in the rail's Brain view or `rusty: open decisions`. Under Due come the
   follow-ups whose day has come, in Rusty's order, an overdue one's day in the warning colour with

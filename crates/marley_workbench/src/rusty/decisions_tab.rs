@@ -3,22 +3,26 @@
 //! `brain_due` gives the follow-ups due and every decision; the tab draws the due ones first under
 //! Due, then every decision with its status and dates, each row opening its page. It draws what
 //! Rusty serves and computes no date. It reads when it opens, when Rusty connects, on Rusty's
-//! announcement while it shows (else when it next shows), and on Read again after a failure.
+//! announcement while it shows (else when it next shows), on Read again after a failure, and after
+//! a follow-up recorded from its form (#660).
 
 use gpui::{
-    AnyElement, App, Context, EventEmitter, FocusHandle, Focusable, Render, SharedString,
-    Subscription, Task, WeakEntity, Window, actions,
+    Anchor, AnyElement, App, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
+    MouseDownEvent, Pixels, Point, Render, SharedString, Subscription, Task, WeakEntity, Window,
+    actions, anchored, deferred,
 };
 use marley_rusty::decisions::{
     BRAIN_DUE, DecisionStatus, DecisionSummary, Due, Entry, Section, count_line, entries, parse_due,
 };
 use serde_json::json;
-use ui::{Chip, ListItem, ListItemSpacing, ListSubHeader, Tooltip, prelude::*};
+use ui::{Chip, ContextMenu, ListItem, ListItemSpacing, ListSubHeader, Tooltip, prelude::*};
 use util::ResultExt as _;
 use workspace::Toast;
 use workspace::Workspace;
 use workspace::item::{Item, ItemEvent};
 use workspace::notifications::NotificationId;
+
+use super::follow_up::{self, Candidate};
 
 actions!(
     rusty,
@@ -115,6 +119,7 @@ pub(crate) struct BrainDecisionsView {
     reading: Option<Task<()>>,
     due: ReadDue,
     link: Link,
+    menu: Option<(Entity<ContextMenu>, Point<Pixels>, Subscription)>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -138,6 +143,7 @@ impl BrainDecisionsView {
             reading: None,
             due: ReadDue::No,
             link: Link::now(cx),
+            menu: None,
             _subscriptions: subscriptions,
         };
         view.read(cx);
@@ -202,6 +208,13 @@ impl BrainDecisionsView {
         }));
     }
 
+    /// Reads again after the follow-up form recorded one: with the service connection Rusty
+    /// announces nothing (#647's D9).
+    pub(super) fn read_again(&mut self, cx: &mut Context<Self>) {
+        self.read(cx);
+        cx.notify();
+    }
+
     fn take_read(&mut self, read: Result<Due, String>, cx: &mut Context<Self>) {
         self.reading = None;
         match read {
@@ -231,51 +244,20 @@ impl BrainDecisionsView {
     fn render_row(&self, section: Section, index: usize, cx: &Context<Self>) -> Option<AnyElement> {
         let summary = self.summary(section, index)?;
         let slug = summary.slug.clone();
-        let title = if summary.title.is_empty() {
-            summary.slug.clone()
-        } else {
-            summary.title.clone()
-        };
-        let status = summary.status();
+        let title = shown_title(summary);
         let id = SharedString::from(format!(
             "rusty-decision-{}-{}",
-            match section {
-                Section::Due => "due",
-                Section::All => "all",
-            },
+            section_word(section),
             summary.slug
         ));
         let tooltip = format!("{title}\n{slug}");
-        let follow_up = summary.follow_up_line().map(|line| {
-            Label::new(line)
-                .size(LabelSize::Small)
-                .color(if summary.overdue {
-                    Color::Warning
-                } else {
-                    Color::Muted
-                })
-        });
-        let decided = summary
-            .decided_line()
-            .map(|line| Label::new(line).size(LabelSize::Small).color(Color::Muted));
+        let superseded = summary.status() == DecisionStatus::Superseded;
         Some(
             ListItem::new(id)
                 .spacing(ListItemSpacing::Sparse)
                 .tooltip(Tooltip::text(tooltip))
                 .child(div().flex_1().min_w_0().child(Label::new(title).truncate()))
-                .end_slot(
-                    h_flex()
-                        .gap_3()
-                        .child(Chip::new(status.word().to_string()).label_color(
-                            if status == DecisionStatus::Superseded {
-                                Color::Muted
-                            } else {
-                                Color::Default
-                            },
-                        ))
-                        .children(decided)
-                        .children(follow_up),
-                )
+                .end_slot(self.render_end_slot(summary, section, index, cx))
                 .on_click(cx.listener(move |this, _, window, cx| {
                     super::page::open_later(
                         this.workspace.clone(),
@@ -286,8 +268,189 @@ impl BrainDecisionsView {
                         cx,
                     );
                 }))
+                .on_secondary_mouse_down(cx.listener(
+                    move |this, event: &MouseDownEvent, window, cx| {
+                        cx.stop_propagation();
+                        window.prevent_default();
+                        // A replaced decision's next step is its successor's (D10).
+                        let mut choices = Vec::new();
+                        if !superseded && super::is_connected(cx) {
+                            choices.push(("Follow Up…", MenuChoice::FollowUp(section, index)));
+                        }
+                        choices.push(("Open Page", MenuChoice::OpenPage(section, index)));
+                        this.deploy_menu(event.position, choices, window, cx);
+                    },
+                ))
                 .into_any_element(),
         )
+    }
+
+    /// A row's end: the status chip, its days as Rusty serves them, the successor of a replaced
+    /// decision, and Follow Up on a Due row.
+    fn render_end_slot(
+        &self,
+        summary: &DecisionSummary,
+        section: Section,
+        index: usize,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
+        let status = summary.status();
+        let muted = |line: String| Label::new(line).size(LabelSize::Small).color(Color::Muted);
+        let follow_up = summary.follow_up_line().map(|line| {
+            Label::new(line)
+                .size(LabelSize::Small)
+                .color(if summary.overdue {
+                    Color::Warning
+                } else {
+                    Color::Muted
+                })
+        });
+        let successor = summary
+            .successor()
+            .filter(|_| status == DecisionStatus::Superseded)
+            .map(|successor| self.render_successor(&summary.slug, successor, cx));
+        let follow_up_button = (section == Section::Due
+            && status != DecisionStatus::Superseded
+            && super::is_connected(cx))
+        .then(|| {
+            Button::new(
+                SharedString::from(format!("rusty-decision-follow-up-{}", summary.slug)),
+                "Follow Up",
+            )
+            .label_size(LabelSize::Small)
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.open_follow_up(section, index, window, cx);
+            }))
+        });
+        h_flex()
+            .gap_3()
+            .child(Chip::new(status.word().to_string()).label_color(
+                if status == DecisionStatus::Superseded {
+                    Color::Muted
+                } else {
+                    Color::Default
+                },
+            ))
+            .children(summary.decided_line().map(muted))
+            .children(summary.followed_up_line().map(muted))
+            .children(follow_up)
+            .children(successor)
+            .children(follow_up_button)
+    }
+
+    /// "replaced by" and the successor's title, which opens its page and not the row's.
+    fn render_successor(&self, slug: &str, successor: &str, cx: &Context<Self>) -> AnyElement {
+        let title = self
+            .listed
+            .as_ref()
+            .and_then(|listed| listed.all.iter().find(|each| each.slug == successor))
+            .map_or_else(|| successor.to_string(), shown_title);
+        let successor = successor.to_string();
+        h_flex()
+            .gap_1()
+            .child(
+                Label::new("replaced by")
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
+            )
+            .child(
+                Button::new(
+                    SharedString::from(format!("rusty-decision-successor-{slug}")),
+                    title,
+                )
+                .label_size(LabelSize::Small)
+                .color(Color::Accent)
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    super::page::open_later(
+                        this.workspace.clone(),
+                        successor.clone(),
+                        false,
+                        true,
+                        window,
+                        cx,
+                    );
+                })),
+            )
+            .into_any_element()
+    }
+
+    /// Opens the follow-up form for a row, with every other decision as a possible successor.
+    fn open_follow_up(
+        &self,
+        section: Section,
+        index: usize,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(summary) = self.summary(section, index).cloned() else {
+            return;
+        };
+        let candidates = self
+            .listed
+            .iter()
+            .flat_map(|listed| listed.all.iter())
+            .filter(|each| each.slug != summary.slug)
+            .map(|each| Candidate {
+                slug: each.slug.clone(),
+                title: SharedString::from(shown_title(each)),
+            })
+            .collect();
+        let tab = cx.entity().downgrade();
+        let workspace = self.workspace.clone();
+        // The form opens in the workspace's modal layer, after the update this click runs in.
+        window.defer(cx, move |window, cx| {
+            workspace
+                .update(cx, |workspace, cx| {
+                    follow_up::open(workspace, tab, &summary, candidates, window, cx);
+                })
+                .log_err();
+        });
+    }
+
+    /// A right-click menu, deployed by hand at the pointer, as the Tasks tab's.
+    fn deploy_menu(
+        &mut self,
+        position: Point<Pixels>,
+        choices: Vec<(&'static str, MenuChoice)>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let view = cx.entity().downgrade();
+        let menu = ContextMenu::build(window, cx, move |mut menu, _, _| {
+            for (label, choice) in choices {
+                let view = view.clone();
+                menu = menu.entry(label, None, move |window, cx| {
+                    view.update(cx, |this, cx| this.chose(choice, window, cx))
+                        .log_err();
+                });
+            }
+            menu
+        });
+        let subscription = cx.subscribe_in(&menu, window, |this, _, _: &DismissEvent, _, cx| {
+            this.menu = None;
+            cx.notify();
+        });
+        window.focus(&menu.focus_handle(cx), cx);
+        self.menu = Some((menu, position, subscription));
+        cx.notify();
+    }
+
+    fn chose(&self, choice: MenuChoice, window: &Window, cx: &mut Context<Self>) {
+        match choice {
+            MenuChoice::FollowUp(section, index) => self.open_follow_up(section, index, window, cx),
+            MenuChoice::OpenPage(section, index) => {
+                if let Some(summary) = self.summary(section, index) {
+                    super::page::open_later(
+                        self.workspace.clone(),
+                        summary.slug.clone(),
+                        false,
+                        true,
+                        window,
+                        cx,
+                    );
+                }
+            }
+        }
     }
 
     /// The lines over the list: Rusty off, not connected, reading, a failure, or none yet.
@@ -333,6 +496,29 @@ impl BrainDecisionsView {
             )),
             Some(_) => None,
         }
+    }
+}
+
+/// A right-click menu's entry, by what it does to which row.
+#[derive(Clone, Copy, Debug)]
+enum MenuChoice {
+    FollowUp(Section, usize),
+    OpenPage(Section, usize),
+}
+
+/// A decision's title, or its slug when it has none.
+fn shown_title(summary: &DecisionSummary) -> String {
+    if summary.title.is_empty() {
+        summary.slug.clone()
+    } else {
+        summary.title.clone()
+    }
+}
+
+const fn section_word(section: Section) -> &'static str {
+    match section {
+        Section::Due => "due",
+        Section::All => "all",
     }
 }
 
@@ -407,6 +593,15 @@ impl Render for BrainDecisionsView {
                     .overflow_y_scroll()
                     .children(rows),
             )
+            .children(self.menu.as_ref().map(|(menu, position, _)| {
+                deferred(
+                    anchored()
+                        .position(*position)
+                        .anchor(Anchor::TopLeft)
+                        .child(menu.clone()),
+                )
+                .with_priority(1)
+            }))
     }
 }
 

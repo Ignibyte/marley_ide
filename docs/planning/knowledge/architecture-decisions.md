@@ -4072,3 +4072,16 @@ and works out no date, because Rusty counts dates in two calendars until its TIC
 a second count in Marley would disagree with both. Rejected: keeping both tabs named Decisions; a
 plain rename of the action id with no alias (it would break saved keymaps); dates computed in
 Marley; a follow-up form in this ticket (R7b).
+
+## AD-claude-660-a-follow-up-is-a-form-over-one-brain-follow-up-call-001
+*decided at: 2026-10-05 · status: shipped · builds on: AD-claude-659-decisions-is-rustys-and-system-ones-log-is-system-one-calls-001 · plan: docs/marley/rusty-in-marley.md R7b*
+
+Marley records a decision's follow-up through a form in the workspace's modal layer, opened from
+a Due row's Follow Up or any row's right-click menu, never on a superseded row. The status starts
+unchosen, since a wrong default would write to the brain. The form asks only what Rusty's tool
+documents: the outcome always, a next day only when revised (Kept and Superseded clear it), the
+successor only when superseded, picked from the decisions the tab holds with #655's shared picker
+delegate. Marley sends one `brain_follow_up`, shows a refusal in Rusty's words with every field
+kept, and reads `brain_due` again on success. It checks no date: the day goes as typed and Rusty
+judges it, as the tab shows Rusty's days as served. Rejected: a form unfolding under the row; the
+Follow Up button on every row; a typed successor slug; a default status; a date check in Marley.

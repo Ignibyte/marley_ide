@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #660 (feature, Rusty in Marley R7b)
 - **Owner:** claude-opus-5-5, 2026-10-05 (Chad's answer at the end of the #643 to #659 batch)
-- **Pipeline doc:** ../../pipeline/active/660-rusty-decision-follow-up.spec.md
+- **Pipeline doc:** ../../pipeline/completed/660-rusty-decision-follow-up.spec.md
 - **Source ticket:** `docs/marley/rusty-in-marley.md` (the slices table's R7b); #659's Out (the
   follow-up form split from the Decisions tab); Chad, 2026-10-05: write it and queue it first
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The Decisions tab (#659) only reads. Chad's brain holds about 15 overdue follow-ups, and only an

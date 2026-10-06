@@ -692,14 +692,17 @@ th { background: var(--panel); font-weight: 650; }
 <p class="note">The tab reads Rusty again when Rusty announces a change, when you come back to the tab, when Marley's window comes back to the front, and on Refresh. A task an agent adds through its own Rusty shows then, not at once.</p>
 </article>
 <article id="rusty-decisions">
-<h3>Decisions: Rusty's brain loop <span class="ticket">#659</span></h3>
-<p class="what"><strong>What it is.</strong> A center tab over the decisions Rusty's brain loop records, while Rusty is on: the follow-ups due first, under Due, the overdue ones marked; then every decision, the newest first, with its status (decided, kept, revised or superseded), the day it was decided and its follow-up day. Rusty's agents write them: <code>brain_ask</code> before a choice, <code>brain_decide</code> when it is made, <code>brain_follow_up</code> when its day comes.</p>
+<h3>Decisions: Rusty's brain loop <span class="ticket">#659, #660</span></h3>
+<p class="what"><strong>What it is.</strong> A center tab over the decisions Rusty's brain loop records, while Rusty is on: the follow-ups due first, under Due, the overdue ones marked; then every decision, the newest first, with its status (decided, kept, revised or superseded), the day it was decided, the day of its last follow-up, its next follow-up day, and for a replaced decision the one that replaced it. Rusty's agents write them: <code>brain_ask</code> before a choice, <code>brain_decide</code> when it is made, <code>brain_follow_up</code> when its day comes. You can record that follow-up yourself.</p>
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Click the double check after Tasks in the rail's Brain view, or run <code>rusty: open decisions</code>.</li>
-<li>Click a decision to open its page in a tab.</li>
+<li>Click a decision to open its page in a tab. On a replaced decision, click the title after "replaced by" to open the one that replaced it.</li>
+<li>To record a follow-up, click Follow Up on a row under Due, or right-click any decision that is not replaced and choose Follow Up….</li>
+<li>Choose Kept, Revised or Superseded and write how it went. For Revised, give the next follow-up day (<code>YYYY-MM-DD</code>) or leave it empty; for Superseded, pick the decision that replaced it.</li>
+<li>Press <kbd>Enter</kbd> or click Record. <kbd>Shift+Enter</kbd> starts a new line; <kbd>Escape</kbd> closes the form without recording.</li>
 </ol>
-<p class="note">The tab reads Rusty again when Rusty announces a change, and when you come back to it after one. System One's own log is a different tab, System One calls.</p>
+<p class="note">Rusty checks the follow-up: if it refuses, its words show in the form and nothing is written. Kept and Superseded clear the follow-up day, so the decision leaves Due. The tab reads Rusty again when Rusty announces a change, when you come back to it after one, and after you record a follow-up. System One's own log is a different tab, System One calls.</p>
 </article>
 </section>
 

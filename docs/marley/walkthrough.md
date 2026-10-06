@@ -730,6 +730,25 @@ Needs 2.12's setup: Rusty installed and on. This stop only reads.
 - [ ] Step 3: the decision's page opens in a Page tab.
 - [ ] Step 4: the same Decisions tab comes forward; there is no second one.
 
+### 2.15d Record a follow-up (#660), optional
+
+Needs 2.15c. This stop writes to your brain: pick a decision whose follow-up you mean to record.
+
+1. Click Follow Up on a row under Due.
+2. Click Revised, write a line, press Shift+Enter, write a second line.
+3. Type `next week` as the next follow-up day and press Enter.
+4. Replace the day with a real one, `YYYY-MM-DD`, and press Enter.
+5. Right-click a decision that is not replaced and choose Follow Up…, then click Superseded.
+6. Press Escape.
+
+- [ ] Step 1: a form named for the decision, with Kept, Revised and Superseded, none chosen, and
+  Record waiting.
+- [ ] Step 2: the outcome keeps both lines, and a Next follow-up field appears.
+- [ ] Step 3: Rusty's words say the day is not a date; the form keeps everything you typed.
+- [ ] Step 4: the form closes; the row reads revised, followed up today, with the new day.
+- [ ] Step 5: a list of the other decisions to pick the one that replaced it.
+- [ ] Step 6: the form closes and nothing is recorded.
+
 ## Part 3. The editor
 
 Marley's editor is Zed's. This part checks the everyday tools. The first time you open
@@ -1866,7 +1885,7 @@ Every Marley command runs from the palette. The ones with no key of their own:
 | `rusty: toggle knowledge panel` | Show or hide the Knowledge panel, while Rusty is on (#646) |
 | `rusty: open graph`, `rusty: open local graph` | The Graph tab, on the vault or the page in front (#647) |
 | `rusty: open tasks` | The Tasks tab, Rusty's to-do lists (#658) |
-| `rusty: open decisions` | The Decisions tab, Rusty's decisions and the follow-ups due (#659) |
+| `rusty: open decisions` | The Decisions tab, Rusty's decisions and the follow-ups due, each followed up from its row (#659, #660) |
 | `multi workspace: next project`, `previous project`, `next thread`, `previous thread` | Walk the rail |
 
 ## Appendix C. Not in yet

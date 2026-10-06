@@ -1330,17 +1330,30 @@ one Decisions tab per window. System One's log is another tab, System One calls.
   whose follow-up day has come, in Rusty's order; an overdue one shows its day in the warning
   colour with the word overdue. Then every decision, the newest decided first, under their count.
   A row gives the title, the status (decided, kept, revised or superseded), the day it was decided,
-  and the follow-up day when one is set. A long title is cut; hover the row for the whole title and
-  the page's slug.
-- **Opening one.** A click on a row opens the decision's page in a Page tab.
+  the day of its last follow-up, and the next follow-up day when one is set; a replaced decision
+  names the one that replaced it. A long title is cut; hover the row for the whole title and the
+  page's slug.
+- **Opening one.** A click on a row opens the decision's page in a Page tab, and a click on the
+  title after "replaced by" opens the decision that replaced it. A row's right-click menu has Open
+  Page too.
 - **When it reads.** It asks Rusty (`brain_due`) when it opens and when Rusty announces a change;
   while it is hidden it waits until it shows again. What is due and what is overdue are Rusty's
   answers: Marley works out no date.
 - **A failed read** shows Rusty's words and Read again above the list it last drew.
 - **Off.** With Rusty off the tab says so and asks Rusty nothing, and `rusty: open decisions` shows
   a toast naming the switch; while Marley is not connected the tab keeps what it last read.
-- **Following up.** The tab does not record a follow-up yet; an agent records one with
-  `brain_follow_up`.
+- **Following up** (#660). Follow Up at the end of a row under Due, or Follow Up… in the
+  right-click menu of any decision that is not replaced, opens a form named for the decision:
+  - Choose Kept, Revised or Superseded; none is chosen at first.
+  - Write how it went. Shift+Enter starts a new line.
+  - Revised asks for the next follow-up day, `YYYY-MM-DD`; leave it empty for none. Kept and
+    Superseded clear the day, so the decision leaves Due.
+  - Superseded asks for the decision that replaced it, from a list of the others you can filter
+    by typing; Change… picks again.
+  - Enter or Record sends the follow-up to Rusty (`brain_follow_up`). Rusty adds it to the page,
+    sets the status and the days, and the tab reads again. If Rusty refuses, a day that is not a
+    date for one, its words show in the form and nothing is written. Escape, or a click outside,
+    closes the form without recording.
 
 ## Marley's MCP server
 
@@ -2147,7 +2160,7 @@ Commands with no key of their own, from the command palette:
 | `rusty: toggle knowledge panel` | Shows or hides the Knowledge panel, while Rusty is on (#646) |
 | `rusty: open graph`, `rusty: open local graph` | The Graph tab, on the vault or on the page in front (#647) |
 | `rusty: open tasks` | The Tasks tab, Rusty's to-do lists (#658) |
-| `rusty: open decisions` | The Decisions tab, Rusty's decisions and the follow-ups due (#659) |
+| `rusty: open decisions` | The Decisions tab, Rusty's decisions and the follow-ups due, each followed up from its row (#659, #660) |
 | `rusty: toggle page outline` | Hides or shows the outline column of the brain page in front (#656) |
 | `marley: open browser` | Shows or opens a Browser tab |
 | `marley: new browser tab` | A new Browser tab (Ctrl+T inside one) |

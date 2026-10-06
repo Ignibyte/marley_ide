@@ -2250,6 +2250,37 @@ alike.
   line, the follow-up line in the warning colour when Rusty flags it overdue, a tooltip with the
   title and slug) that opens the page through `page::open_later`. Nothing works out a date: the
   order, the horizon and `overdue` are Rusty's.
+- **Since #660, the rows** (`render_end_slot`) add `followed_up_line` after the decided line, and
+  on a superseded row with a successor "replaced by" and a `Button` with the successor's title
+  (from the list, else its slug) that opens that page; a `Button`'s click stops there, so the row's
+  own page stays shut. A Due row that is not superseded ends with a Follow Up `Button` while
+  connected. A right-click deploys a `ContextMenu` by hand, as the Tasks tab's: Follow Up… (not on
+  a superseded row, not while disconnected) and Open Page.
+
+## The follow-up form (`src/rusty/follow_up.rs`, #660)
+
+- **Opening.** The tab's `open_follow_up` hands `follow_up::open` the summary and every other
+  decision as a `Candidate` (slug, title), deferred into the workspace's `toggle_modal`.
+- **`FollowUpModal`** holds the status (`Option<FollowUpStatus>`), the successor's index, the
+  outcome (`Editor::auto_height(3, 8)`), the day (`Editor::single_line`), the successor picker
+  while it shows, the call in flight, Rusty's refusal and a refocus flag. Its `draft()` reads the
+  editors into `marley_rusty::decisions::FollowUpDraft`; `missing()` gives Record's hint and
+  whether it is enabled, `arguments(slug)` the call's.
+- **Drawing.** The title and the decision's follow-up line; `ToggleButtonGroup::single_row`,
+  `Outlined`, with an index past the three while none is chosen; Replaced by for Superseded (the
+  embedded picker, or the choice and Change…); the outcome; Next follow-up for Revised; the
+  refusal in the error colour; the hint and Record (Recording… during the call). The form is
+  `FORM_WIDTH` (34 rem) wide, and the picker opens at that less the padding, since a `Picker`
+  opens at Zed's modal width.
+- **Keys.** The root's context is `RustyFollowUp menu`: Enter in either editor falls through to
+  `menu::Confirm`, which records (the auto-height editor binds no Enter; Shift+Enter and
+  Ctrl+Enter are its newlines), and `menu::Cancel` closes. The picker's own keys win while it
+  shows; its Escape and its pick come back through `cx.defer`, and the next draw focuses the
+  outcome. A status click focuses the outcome too. The form watches the outcome's
+  `BufferEdited` only, not every notification of the editor.
+- **Recording.** `rusty::call_tool(BRAIN_FOLLOW_UP, ..)`; on `Ok` the tab's `read_again` and
+  `DismissEvent`; on `Err` the first line stays as the refusal. Closing the form during a call
+  drops the task; Rusty may still record it, and the tab shows it at its next read.
 
 ## Open a page by name (`src/rusty/page_picker.rs`, #654)
 
@@ -2295,6 +2326,8 @@ alike.
   and a refusal goes to a toast. `rusty::LinkProjectPage` and `rusty::LinkTaskGroup` (each with
   `unavailable`'s toast, a "no folder" and a "link a page first" toast) open `LinkPicker`, Zed's
   `Picker` over choices matched with `fuzzy`, its pick a closure run after the picker's update.
+  Since #660 `LinkDelegate` takes its pick and its close as callbacks, and whether a pick also
+  closes, so the follow-up form embeds the same delegate for a decision's successor.
 - In the Knowledge panel, the no-page place draws the project view from the panel's `join`:
   `render_project_page` (title, slug and how it matched, Open Page, the others that list the
   folder, the summary, Follow-ups due, Tasks · GROUP or Link a Task Group), `render_candidates`

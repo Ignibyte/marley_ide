@@ -276,7 +276,7 @@ possible: a wikilink switch in `markdown/src/parser.rs`, only if R2 chooses Zed'
 | R2b | #656, shipped 2026-10-04. The Page tab's outline column in Read (Zed's outline panel in Edit), a heading brought to the top; the title (the `title` property), the name (`brain_rename`, every tab following) and each property edited in place by its kind, removed, or added | S |
 | R5b | #657, shipped 2026-10-04. The Graph tab's colour groups, Display (arrows, text fade, node size, link thickness) and Forces on Ely's slider, one record for every window in Zed's key-value store, and the tab restored after a restart while Rusty is on | M |
 | R4b | Favourites in the Brain view and as the page picker's first group; Rusty's TICKET-037 landed 2026-10-04 (`bookmark_list` and its three siblings) | S |
-| R7b | #660, queued 2026-10-05. Recording a follow-up from the Decisions tab (`brain_follow_up`: status, outcome, successor); Rusty's TICKET-048 already serves each summary's `followed_up` and `superseded_by`, which #659's rows leave out | S |
+| R7b | #660, shipped 2026-10-05. Recording a follow-up from the Decisions tab (`brain_follow_up`: status, outcome, a new day when revised, the successor when superseded, picked from the tab's decisions); the rows show TICKET-048's `followed_up` and `superseded_by` | S |
 | R7 | The Tasks tab (#658, shipped 2026-10-04: Rusty's lists and tasks over its twelve task tools, every change one call in order and read back, the drag and the keys, Open in Tasks from the project view) and the Decisions tab (#659, shipped 2026-10-04: `brain_due`'s follow-ups due, then every decision with its status and dates, each opening its page; Marley's System One log renamed System One calls, the old action id kept as an alias) | M |
 | R8 | Memory, Skills and Secrets tabs; Rusty's server settings on the settings page | M |
 | R9 | Parity check against the Qt app; the app retires in Rusty | Rusty-side |
@@ -285,7 +285,7 @@ The second batch, #654 to #659, was queued 2026-10-03: R3a (#654, the open-page 
 Ctrl+Alt+U), R6 (#655, the project view), R2b (#656, the outline and in-place edits; the title
 edit sets the `title` property and a separate name field renames, confirmed by Chad 2026-10-05), R5b (#657),
 R7 split as #658 (the Tasks tab) and #659 (the Decisions tab, with Marley's System One tab
-renamed "System One calls"). R4b, R7b and R8 remain.
+renamed "System One calls"). R7b followed as #660. R4b and R8 remain.
 
 The first batch, #643 to #647, was queued 2026-10-03 in this order: R1, R4, R2, R3, R5, after
 #640 to #642 (#643 builds on #642's settings changes). Drafting split out R3a, R6, R2b, R5b and

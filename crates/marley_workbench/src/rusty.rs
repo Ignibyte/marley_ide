@@ -24,6 +24,7 @@
 
 pub mod brain;
 pub mod decisions_tab;
+mod follow_up;
 mod graph_store;
 pub mod graph_tab;
 mod inline_edit;

@@ -474,12 +474,15 @@ fn open_group_picker(
 }
 
 /// What a pick does, given the picked choice's index.
-type OnPick = Rc<dyn Fn(usize, &mut App)>;
+pub(super) type OnPick = Rc<dyn Fn(usize, &mut App)>;
+
+/// What closing the picker does: its modal's dismissal, or the follow-up form's way back (#660).
+pub(super) type OnClose = Rc<dyn Fn(&mut App)>;
 
 /// One choice of a link picker: its words, and a muted detail.
-struct Choice {
-    label: SharedString,
-    detail: Option<SharedString>,
+pub(super) struct Choice {
+    pub(super) label: SharedString,
+    pub(super) detail: Option<SharedString>,
 }
 
 /// A picker over choices whose pick writes a link, in the workspace's modal layer.
@@ -495,14 +498,11 @@ impl LinkPicker {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let delegate = LinkDelegate {
-            modal: cx.entity().downgrade(),
-            choices,
-            matches: Vec::new(),
-            selected: 0,
-            placeholder,
-            on_pick,
-        };
+        let modal = cx.entity().downgrade();
+        let on_close: OnClose = Rc::new(move |cx| {
+            modal.update(cx, |_, cx| cx.emit(DismissEvent)).log_err();
+        });
+        let delegate = LinkDelegate::new(choices, placeholder, on_pick, on_close, true);
         Self {
             picker: cx.new(|cx| Picker::uniform_list(delegate, window, cx)),
         }
@@ -528,13 +528,37 @@ impl Render for LinkPicker {
     }
 }
 
-struct LinkDelegate {
-    modal: WeakEntity<LinkPicker>,
+/// A picker's choices, matched by their words; shared by the link pickers and the follow-up
+/// form's successor (#660).
+pub(super) struct LinkDelegate {
     choices: Vec<Choice>,
     matches: Vec<StringMatch>,
     selected: usize,
     placeholder: &'static str,
     on_pick: OnPick,
+    on_close: OnClose,
+    /// Whether a pick also closes the picker; the follow-up form closes its own.
+    closes_on_pick: bool,
+}
+
+impl LinkDelegate {
+    pub(super) fn new(
+        choices: Vec<Choice>,
+        placeholder: &'static str,
+        on_pick: OnPick,
+        on_close: OnClose,
+        closes_on_pick: bool,
+    ) -> Self {
+        Self {
+            choices,
+            matches: Vec::new(),
+            selected: 0,
+            placeholder,
+            on_pick,
+            on_close,
+            closes_on_pick,
+        }
+    }
 }
 
 impl PickerDelegate for LinkDelegate {
@@ -615,7 +639,9 @@ impl PickerDelegate for LinkDelegate {
             .matches
             .get(self.selected)
             .map(|found| found.candidate_id);
-        self.dismissed(window, cx);
+        if self.closes_on_pick {
+            self.dismissed(window, cx);
+        }
         if let Some(index) = picked {
             let on_pick = Rc::clone(&self.on_pick);
             // The pick reads the workspace, which may be the update this one runs in.
@@ -624,9 +650,7 @@ impl PickerDelegate for LinkDelegate {
     }
 
     fn dismissed(&mut self, _: &mut Window, cx: &mut Context<Picker<Self>>) {
-        self.modal
-            .update(cx, |_, cx| cx.emit(DismissEvent))
-            .log_err();
+        (self.on_close)(cx);
     }
 
     fn render_match(
