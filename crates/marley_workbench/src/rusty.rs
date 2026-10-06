@@ -23,11 +23,13 @@
 //! center tab of its own ([`graph_tab`], #647).
 
 pub mod brain;
+mod capture;
 pub mod decisions_tab;
 mod favourites;
 mod follow_up;
 mod graph_store;
 pub mod graph_tab;
+mod import;
 mod inline_edit;
 pub mod knowledge_panel;
 pub mod page;
@@ -237,6 +239,8 @@ pub fn init(cx: &mut App) {
     tasks_tab::init(cx);
     decisions_tab::init(cx);
     favourites::init(cx);
+    capture::init(cx);
+    import::init(cx);
     let view = cx.new(|cx: &mut Context<RustyServerView>| {
         cx.observe_global::<Rusty>(|_, cx| cx.notify()).detach();
         RustyServerView
@@ -536,22 +540,40 @@ async fn call(
     arguments: Value,
     cx: &AsyncApp,
 ) -> Result<String, String> {
+    call_within(server, tool, arguments, CALL_TIMEOUT, cx).await
+}
+
+/// [`call`] with its own deadline, for the tools that fetch or import (#663).
+async fn call_within(
+    server: &ContextServer,
+    tool: &str,
+    arguments: Value,
+    deadline: Duration,
+    cx: &AsyncApp,
+) -> Result<String, String> {
     let protocol = server
         .client()
         .ok_or_else(|| format!("{PROGRAM} is not running"))?;
-    let asking = protocol.request::<CallTool>(CallToolParams {
-        name: tool.to_string(),
-        arguments: Some(arguments),
-        meta: None,
-    });
+    // Zed's client gives up after 60 s of its own unless told otherwise.
+    let asking = protocol.request_with::<CallTool>(
+        CallToolParams {
+            name: tool.to_string(),
+            arguments: Some(arguments),
+            meta: None,
+        },
+        None,
+        Some(deadline),
+    );
     let executor = cx.background_executor().clone();
     let response: CallToolResponse =
-        match select(pin!(asking), pin!(executor.timer(CALL_TIMEOUT))).await {
+        match select(pin!(asking), pin!(executor.timer(deadline))).await {
             Either::Left((Ok(response), _)) => response,
             Either::Left((Err(error), _)) => {
                 return Err(format!("{tool} failed: {}", first_line(&error.to_string())));
             }
-            Either::Right(_) => return Err(format!("{tool} took more than 5 s")),
+            Either::Right(_) => {
+                return Err(format!("{tool} took more than {} s", deadline.as_secs()));
+            }
         };
     let text = response.text_contents();
     if response.is_error == Some(true) {
@@ -566,18 +588,30 @@ pub(crate) fn call_tool(
     arguments: Value,
     cx: &App,
 ) -> Task<Result<String, String>> {
+    call_tool_within(tool, arguments, CALL_TIMEOUT, cx)
+}
+
+/// [`call_tool`] with its own deadline (#663).
+pub(crate) fn call_tool_within(
+    tool: &'static str,
+    arguments: Value,
+    deadline: Duration,
+    cx: &App,
+) -> Task<Result<String, String>> {
     let Some(server) = cx.global::<Rusty>().server.clone() else {
         return Task::ready(Err("Rusty is not connected".to_string()));
     };
     cx.spawn(async move |cx| {
-        call(&server, tool, arguments, cx).await.map_err(|error| {
-            let failed = format!("{tool} failed: ");
-            let refused = format!("{tool} was refused: ");
-            error
-                .strip_prefix(&failed)
-                .or_else(|| error.strip_prefix(&refused))
-                .map_or_else(|| error.clone(), str::to_string)
-        })
+        call_within(&server, tool, arguments, deadline, cx)
+            .await
+            .map_err(|error| {
+                let failed = format!("{tool} failed: ");
+                let refused = format!("{tool} was refused: ");
+                error
+                    .strip_prefix(&failed)
+                    .or_else(|| error.strip_prefix(&refused))
+                    .map_or_else(|| error.clone(), str::to_string)
+            })
     })
 }
 

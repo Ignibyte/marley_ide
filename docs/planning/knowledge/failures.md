@@ -3410,3 +3410,13 @@ After a click on a Page tab's star, the tooltip still read "Add to Favourites" b
 star until the pointer left. GPUI builds a tooltip's view once, when it shows, and keeps it in the
 element's state, so a re-render does not change its words. Fixed by giving the starred and the
 unstarred button their own element ids: the click's re-render drops the old tooltip (L-662).
+
+## F-claude-663-a-long-line-widened-the-brain-page-tab-001
+*severity: low · found in: pipeline 663's scenario, in Test · class: a flex child with no min_w_0 that grows to its widest line*
+
+The import's report page names the vault's path in code. Opened in a Page tab, that line widened
+the body past the tab, and the outline column and the properties' × buttons went out of sight.
+`render_read` lays the body and the outline in a row with the body `flex_1`, and a flex child's
+minimum width defaults to its content's, so a line that cannot wrap set the body's width. In the
+Page tab since #645; the report page showed it. Fixed: the body is `min_w_0` and clips in x, so the
+line wraps where it can and the column stays.

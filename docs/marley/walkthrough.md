@@ -768,6 +768,32 @@ Needs 2.15c. This stop writes to your brain: pick a decision whose follow-up you
 - [ ] Step 5: a list of the other decisions to pick the one that replaced it.
 - [ ] Step 6: the form closes and nothing is recorded.
 
+### 2.15e Capture and import (#663), optional
+
+Needs 2.12's setup: Rusty installed and on. This stop writes to your brain: a line in today's note,
+a source page, and one imported page with its report, which step 6 removes.
+
+1. Run `rusty: capture to today` and press Enter with nothing typed. Then type `Marley tour
+   capture`, press Enter, and click Open on the toast.
+2. Run `rusty: capture url`, type `https://example.com` and press Enter.
+3. Run `rusty: capture url` again, type `ftp://example.com` and press Enter; then press Escape.
+4. Make a folder `marley-tour-vault` in your home with one file, `tour-import.md`, holding
+   `# Tour import`. Run `rusty: import vault` and choose that folder.
+5. Click Import, then Open Report.
+6. In the Brain view, delete `tour-import`, the report page under `inbox`, and the `example.com`
+   source under `sources`; delete the folder from your home. Edit today's note to drop the line.
+
+- [ ] Step 1: Rusty's "Nothing to capture" shows in the form; then the form closes, the toast names
+  today's note, and Open shows the line under Timeline.
+- [ ] Step 2: the form says Capturing… for a moment, then the source page for example.com opens
+  with its text.
+- [ ] Step 3: Rusty's "only http and https URLs are captured" shows in the form, with the address
+  kept.
+- [ ] Step 4: the form names the folder and says it will bring in 1 page; the lists show
+  `tour-import` under Pages.
+- [ ] Step 5: the form reports 1 page imported; the report page opens; `tour-import` shows in the
+  Brain view.
+
 ## Part 3. The editor
 
 Marley's editor is Zed's. This part checks the everyday tools. The first time you open
@@ -1907,6 +1933,8 @@ Every Marley command runs from the palette. The ones with no key of their own:
 | `rusty: open graph`, `rusty: open local graph` | The Graph tab, on the vault or the page in front (#647) |
 | `rusty: open tasks` | The Tasks tab, Rusty's to-do lists (#658) |
 | `rusty: toggle bookmark` | Add the page in front to Favourites, or remove it (Ctrl+D in a Page tab, #662) |
+| `rusty: capture to today`, `rusty: capture to inbox`, `rusty: capture url` | A line into today's note or the inbox, or a URL kept as a source page (#663) |
+| `rusty: import vault`, `rusty: open today` | An Obsidian vault into the brain after its plan; today's daily note (#663) |
 | `rusty: open decisions` | The Decisions tab, Rusty's decisions and the follow-ups due, each followed up from its row (#659, #660) |
 | `multi workspace: next project`, `previous project`, `next thread`, `previous thread` | Walk the rail |
 

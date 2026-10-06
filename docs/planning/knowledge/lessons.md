@@ -4887,3 +4887,20 @@ state the click changes ("Add to Favourites" and "Remove from Favourites"), give
 element id (`IconButton::new(if on { "x-on" } else { "x-off" }, ..)`): the new id drops the shown
 tooltip, and the next hover builds one with the right words. A tooltip with fixed words needs
 nothing.
+
+## L-claude-663-the-stand-in-answers-a-slow-tool-on-its-own-thread-001
+*category: testing · topic: the Rusty stand-in and Marley's ping · from: pipeline 663*
+
+Marley pings Rusty every 5 s and counts a missed answer as a lost connection. The stand-in read
+stdin one request at a time, so a tool that took longer (a 7 s fetch) would have held the ping
+behind it and dropped the connection mid-scenario. Rusty answers requests side by side, so the
+stand-in now runs `SLOW_TOOLS` on a thread of their own. Any stand-in tool that waits on something
+outside it (the network, a sleep, a big folder) goes in that set.
+
+## L-claude-663-actions-in-marley-crates-derive-eq-001
+*category: clippy · topic: `actions!` and derive_partial_eq_without_eq · from: pipeline 663*
+
+`gpui::actions!` derives `PartialEq` on unit structs, and the Marley crates' clippy denies
+`derive_partial_eq_without_eq`. Put `#[derive(Eq)]` on each action inside the macro, as
+`tasks_tab.rs` does; the module's visibility has nothing to do with it (the lint looks at the
+struct, which the macro always makes `pub`).

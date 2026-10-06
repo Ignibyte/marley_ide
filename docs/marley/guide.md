@@ -1206,6 +1206,31 @@ takes the key from the program), opens a picker over every page of the brain.
 
 With Rusty off, or not connected, the key says so in a toast and opens nothing.
 
+### Capture and import (#663)
+
+While Rusty is on, these commands in the palette put things into its brain:
+
+- **`rusty: capture to today`** and **`rusty: capture to inbox`** open a small form with one field.
+  Type a line and press Enter: Rusty adds it to the timeline of today's daily note, or of the
+  inbox page, making the page when it is missing. A toast names the page for a few seconds, with
+  Open. Rusty refuses an empty line, and its words show in the form.
+- **`rusty: capture url`** takes an `http` or `https` address. Rusty fetches it (a web page, a PDF,
+  Markdown or text, within 20 seconds) and keeps it as a source page under `sources/`; the form
+  says Capturing… meanwhile, and the page opens when Rusty answers. A fetch that failed still
+  makes the page, marked failed with Rusty's reason, and a toast gives the reason. An address
+  Rusty does not take shows its refusal in the form. A source page's text came from the web: Rusty
+  marks it as data, never instructions.
+- **`rusty: import vault`** asks for an Obsidian vault's folder on this machine (Rusty reads its own
+  disk), then shows Rusty's plan: the pages, folders, attachments, tags and bookmarks that come in,
+  the collisions (pages the brain has already, which are skipped and never overwritten), and the
+  links that will not resolve, each list in full. Import brings it in; the form stays until Rusty
+  answers, then gives the report, and Open Report opens Rusty's report page under `inbox/`. Rusty
+  never writes the vault, and an import that fails part way leaves nothing behind.
+- **`rusty: open today`** opens today's daily note, as Today in the Brain view does.
+
+Escape closes a capture's form; a capture already sent still lands. While Rusty is off or not
+connected, each command says so in a toast.
+
 ### The Knowledge panel
 
 The Knowledge panel sits in the right dock while Rusty is on (#646): the Book button in the status

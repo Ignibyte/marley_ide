@@ -25,7 +25,11 @@ import shutil
 import sys
 import threading
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import date, timedelta
+from html import unescape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.realpath(__file__))
@@ -78,7 +82,15 @@ TOOL_NAMES = [
     "bookmark_add",
     "bookmark_remove",
     "bookmark_set",
+    "brain_capture",
+    "source_capture",
+    "brain_import_plan",
+    "brain_import",
 ]
+
+# The tools Rusty may take long over, answered on a thread of their own as Rusty answers every
+# request, so Marley's pings go on meanwhile (#663).
+SLOW_TOOLS = {"source_capture", "brain_import_plan", "brain_import"}
 
 
 def log(line):
@@ -854,7 +866,7 @@ def delete_folder(folder):
 
 
 def daily_note(date):
-    date = date or time.strftime("%Y-%m-%d")
+    date = date or today_in_state().isoformat()
     slug = f"daily/{date}"
     if not os.path.exists(in_vault(slug + ".md")):
         write_page(slug, date)
@@ -868,6 +880,273 @@ def daily_note(date):
         "content_hash": "",
         "created_at": 0,
         "updated_at": 0,
+    }
+
+
+def capture_line(text, target, day):
+    """Rusty's `brain_capture`: the line as a timeline entry of the daily note or the inbox, the
+    page made first when missing (#663)."""
+    text = str(text or "").strip()
+    if not text:
+        raise Refused("Nothing to capture")
+    target = str(target or "daily")
+    if target not in ("daily", "inbox"):
+        raise Refused(f"Unknown capture target: {target} (use daily or inbox)")
+    day = str(day or "").strip() or today_in_state().isoformat()
+    if not is_iso_date(day):
+        raise Refused(f"Invalid date: {day} (use YYYY-MM-DD)")
+    slug = f"daily/{day}" if target == "daily" else "inbox/inbox"
+    path = in_vault(slug + ".md")
+    created = not os.path.isfile(path)
+    if created:
+        write_page(slug, day if target == "daily" else "Inbox")
+    with open(path, encoding="utf-8") as page:
+        raw = page.read().rstrip("\n")
+    entry = f"- **{day}** (mcp) — {text}"
+    raw += f"\n\n{entry}\n" if "\n## Timeline" in raw else f"\n\n## Timeline\n\n{entry}\n"
+    with open(path, "w", encoding="utf-8") as page:
+        page.write(raw)
+    return {"slug": slug, "entry_id": int(time.time() * 1000) % 2**31, "created_page": created}
+
+
+SCRIPT_OR_STYLE = re.compile(r"<(script|style)\b.*?</\1>", re.IGNORECASE | re.DOTALL)
+TITLE_TAG = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
+BLOCK_TAG = re.compile(r"</?(p|div|h[1-6]|li|br|tr|section|article)\b[^>]*>", re.IGNORECASE)
+
+
+def readable(body, kind):
+    """A fetched page's title and its text: the `<title>` and the paragraphs of an HTML page,
+    the first line of anything else."""
+    if kind != "html":
+        lines = [line.strip() for line in body.splitlines() if line.strip()]
+        return (lines[0][:80] if lines else ""), body.strip()
+    found = TITLE_TAG.search(body)
+    title = " ".join(unescape(found.group(1)).split()) if found else ""
+    body = SCRIPT_OR_STYLE.sub(" ", body)
+    body = TITLE_TAG.sub(" ", body)
+    body = BLOCK_TAG.sub("\n", body)
+    body = unescape(re.sub(r"<[^>]+>", " ", body))
+    paragraphs = [" ".join(line.split()) for line in body.split("\n")]
+    return title, "\n\n".join(line for line in paragraphs if line)
+
+
+def source_slug(base):
+    """A free slug under `sources/` for `base`."""
+    words = re.sub(r"[^a-z0-9]+", "-", base.lower()).strip("-")[:60] or "source"
+    slug, number = f"sources/{words}", 2
+    while os.path.exists(in_vault(slug + ".md")):
+        slug, number = f"sources/{words}-{number}", number + 1
+    return slug
+
+
+def capture_url(url):
+    """Rusty's `source_capture`: the URL fetched within 20 s and kept as a `source` page, a URL
+    captured before updating its page; a failed fetch recorded on the page, not refused."""
+    url = str(url or "").strip()
+    if not (url.startswith("http://") or url.startswith("https://")):
+        raise Refused("only http and https URLs are captured")
+    site = urllib.parse.urlsplit(url).hostname or ""
+    captured = time.strftime("%Y-%m-%dT%H:%M:%S")
+    existing = next(
+        (slug for slug, _, text in pages()
+         if slug.startswith("sources/") and dict(frontmatter(text)[0]).get("url") == url),
+        None,
+    )
+    properties = {"url": url, "site": site, "captured": captured}
+    try:
+        request = urllib.request.Request(url, headers={"User-Agent": "rusty"})
+        with urllib.request.urlopen(request, timeout=20) as response:
+            kind = "html" if "html" in response.headers.get_content_type() else "text"
+            body = response.read(8 << 20).decode("utf-8", "replace")
+        title, text = readable(body, kind)
+        title = title or site
+        properties["kind"] = kind
+        body = text + "\n"
+    except urllib.error.HTTPError as failure:
+        title, body = site, None
+        properties.update(status="failed", error=f"HTTP {failure.code} {failure.reason}")
+    except (urllib.error.URLError, OSError, ValueError) as failure:
+        title, body = site, None
+        properties.update(status="failed", error=str(getattr(failure, "reason", failure)))
+    if body is None:
+        body = f"Capture failed: {properties['error']}\n"
+    slug = existing or source_slug(title if "error" not in properties else site)
+    # A plain title reads back as written in `pages()`; one YAML would misread goes quoted.
+    plain = title and not re.search(r"[:#'\"\[\]{}]", title) and title == title.strip()
+    lines = ["---", f"title: {title}" if plain else f"title:{yaml_value(title)}", "type: source"]
+    lines += [f"{key}:{yaml_value(value)}" for key, value in properties.items()]
+    path = in_vault(slug + ".md")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as page:
+        page.write("\n".join(lines) + "\n---\n" + body)
+    return {
+        "slug": slug,
+        "page_type": "source",
+        "title": title,
+        "compiled_truth": body,
+        "timeline": "",
+        "frontmatter": {"title": title, "type": "source", **properties},
+        "content_hash": "",
+        "untrusted": True,
+    }
+
+
+def scan_vault(source):
+    """An Obsidian vault's pages (slug, file) and attachments (path, file), dot entries skipped."""
+    if not os.path.isdir(source):
+        raise Refused(f"{source} is not a folder")
+    found, attachments = [], []
+    for directory, folders, files in os.walk(source):
+        folders[:] = sorted(folder for folder in folders if not folder.startswith("."))
+        rel = os.path.relpath(directory, source)
+        for name in sorted(files):
+            if name.startswith("."):
+                continue
+            path = clean(os.path.join(rel, name))
+            if name.endswith(".md"):
+                found.append((path[:-3], os.path.join(directory, name)))
+            else:
+                attachments.append((path, os.path.join(directory, name)))
+    return found, attachments
+
+
+def vault_bookmarks(source):
+    """`.obsidian/bookmarks.json`'s files, folders and searches as Rusty's bookmarks, and the
+    rest with why they do not come across."""
+    try:
+        with open(os.path.join(source, ".obsidian", "bookmarks.json"), encoding="utf-8") as stored:
+            items = json.load(stored).get("items") or []
+    except (OSError, ValueError, AttributeError):
+        return [], []
+    carried, skipped = [], []
+    while items:
+        item = items.pop(0)
+        kind = item.get("type")
+        if kind == "group":
+            items[:0] = item.get("items") or []
+        elif kind in ("file", "folder"):
+            path = str(item.get("path") or "")
+            path = path[:-3] if path.endswith(".md") else path
+            title = item.get("title") or path.rsplit("/", 1)[-1]
+            carried.append({"kind": kind, "title": title, "path": path})
+        elif kind == "search":
+            query = str(item.get("query") or "")
+            carried.append({"kind": "search", "title": item.get("title") or query, "query": query})
+        else:
+            skipped.append(f"{item.get('title') or kind}: a {kind} bookmark is not carried")
+    return carried, skipped
+
+
+def import_plan(source):
+    """Rusty's `brain_import_plan`: what importing the vault would do; nothing is written."""
+    source = str(source or "").strip()
+    found, attachments = scan_vault(source)
+    collisions = [slug for slug, _ in found if os.path.exists(in_vault(slug + ".md"))]
+    collisions += [path for path, _ in attachments if os.path.exists(in_vault(path))]
+    coming = [slug for slug, _ in found if slug not in collisions]
+    attaching = [path for path, _ in attachments if path not in collisions]
+    folders = sorted({path.rsplit("/", 1)[0] for path in coming + attaching if "/" in path})
+    names = {}
+    for slug in coming:
+        names.setdefault(slug.rsplit("/", 1)[-1], []).append(slug)
+    tags, unresolved = [], []
+    for slug, file in found:
+        if slug not in coming:
+            continue
+        with open(file, encoding="utf-8") as page:
+            raw = page.read()
+        for tag in page_tags(raw):
+            if tag not in tags:
+                tags.append(tag)
+        for embed, destination in WIKILINK.findall(raw):
+            target = target_of(destination)
+            if embed or not target or target in coming or len(names.get(target, [])) == 1:
+                continue
+            if resolve(target) is None:
+                unresolved.append(f"{slug}: [[{target}]]")
+    carried, skipped = vault_bookmarks(source)
+    return {
+        "source": source,
+        "name": os.path.basename(source.rstrip("/")),
+        "pages": coming,
+        "folders": folders,
+        "attachments": attaching,
+        "collisions": collisions,
+        "tags": tags,
+        "unresolved_links": unresolved,
+        "bookmarks": carried,
+        "bookmarks_skipped": skipped,
+    }
+
+
+BARE_LINK = re.compile(r"\[\[([^\]|#/]+)([^\]]*)\]\]")
+
+
+def import_vault(source):
+    """Rusty's `brain_import`: the plan carried out, bare-name links rewritten to vault paths,
+    the vault's bookmarks added, and a report page under `inbox/`."""
+    plan = import_plan(source)
+    found, attachments = scan_vault(plan["source"])
+    names = {}
+    for slug in plan["pages"]:
+        names.setdefault(slug.rsplit("/", 1)[-1], []).append(slug)
+    rewritten = 0
+    for slug, file in found:
+        if slug not in plan["pages"]:
+            continue
+        with open(file, encoding="utf-8") as page:
+            raw = page.read()
+
+        def to_path(found_link):
+            nonlocal rewritten
+            named = names.get(found_link.group(1).strip(), [])
+            if len(named) != 1 or "/" not in named[0]:
+                return found_link.group(0)
+            rewritten += 1
+            return f"[[{named[0]}{found_link.group(2)}]]"
+
+        raw = BARE_LINK.sub(to_path, raw)
+        path = in_vault(slug + ".md")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as page:
+            page.write(raw)
+    for rel, file in attachments:
+        if rel in plan["attachments"]:
+            os.makedirs(os.path.dirname(in_vault(rel)), exist_ok=True)
+            shutil.copyfile(file, in_vault(rel))
+    held = load_bookmarks()
+    keys = {bookmark_key(bookmark) for bookmark in held}
+    added = [bookmark for bookmark in plan["bookmarks"] if bookmark_key(bookmark) not in keys]
+    if added:
+        save_bookmarks(held + added)
+    day = today_in_state().isoformat()
+    report = f"inbox/import-{re.sub(r'[^a-z0-9]+', '-', plan['name'].lower()).strip('-')}-{day}"
+    def count(number, noun):
+        return f"{number} {noun}" if number == 1 else f"{number} {noun}s"
+
+    lines = [
+        f"Imported {count(len(plan['pages']), 'page')} and "
+        f"{count(len(plan['attachments']), 'attachment')} from `{plan['source']}`; "
+        f"{count(rewritten, 'link')} rewritten to vault paths; {count(len(added), 'bookmark')} "
+        "added.",
+        "",
+        "## Skipped, already in the brain",
+        "",
+    ] + [f"- {path}" for path in plan["collisions"] or ["none"]] + [
+        "",
+        "## Unresolved links",
+        "",
+    ] + [f"- {link}" for link in plan["unresolved_links"] or ["none"]]
+    write_page(report, f"Import of {plan['name']}")
+    with open(in_vault(report + ".md"), "a", encoding="utf-8") as page:
+        page.write("\n".join(lines) + "\n")
+    return {
+        "plan": plan,
+        "imported_pages": len(plan["pages"]),
+        "imported_attachments": len(plan["attachments"]),
+        "links_rewritten": rewritten,
+        "bookmarks_added": len(added),
+        "report_slug": report,
     }
 
 
@@ -1286,6 +1565,12 @@ VAULT_TOOLS = {
     "brain_delete_page": lambda arguments: delete_page(str(arguments.get("slug") or "")),
     "brain_delete_folder": lambda arguments: delete_folder(str(arguments.get("path") or "")),
     "brain_render": lambda arguments: render(str(arguments.get("slug") or "")),
+    "brain_capture": lambda arguments: capture_line(
+        arguments.get("text"), arguments.get("target"), arguments.get("date")
+    ),
+    "source_capture": lambda arguments: capture_url(arguments.get("url")),
+    "brain_import_plan": lambda arguments: import_plan(arguments.get("path")),
+    "brain_import": lambda arguments: import_vault(arguments.get("path")),
 }
 
 
@@ -1400,6 +1685,16 @@ def stdio():
                 log("sent list_changed")
                 send({"jsonrpc": "2.0", "method": "notifications/resources/list_changed"})
 
+    def reply(message):
+        response = answer(message)
+        if response is not None:
+            send(response)
+            # Rusty announces each task write that succeeded to every peer (#658).
+            params = message.get("params") or {}
+            if params.get("name") in TASK_WRITES and "error" not in response:
+                log("sent list_changed")
+                send({"jsonrpc": "2.0", "method": "notifications/resources/list_changed"})
+
     threading.Thread(target=watch, daemon=True).start()
     for line in sys.stdin:
         line = line.strip()
@@ -1409,14 +1704,11 @@ def stdio():
             message = json.loads(line)
         except ValueError:
             continue
-        response = answer(message)
-        if response is not None:
-            send(response)
-            # Rusty announces each task write that succeeded to every peer (#658).
-            params = message.get("params") or {}
-            if params.get("name") in TASK_WRITES and "error" not in response:
-                log("sent list_changed")
-                send({"jsonrpc": "2.0", "method": "notifications/resources/list_changed"})
+        params = message.get("params") or {}
+        if message.get("method") == "tools/call" and params.get("name") in SLOW_TOOLS:
+            threading.Thread(target=reply, args=(message,), daemon=True).start()
+        else:
+            reply(message)
 
 
 class Handler(BaseHTTPRequestHandler):

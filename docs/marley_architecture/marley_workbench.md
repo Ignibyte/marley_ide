@@ -2089,7 +2089,10 @@ alike.
   `notifications/resources/list_changed`, and checks the link with a `ping` every 5 s within 5 s.
   The `Ping` is a `Request` of its own, answered with a JSON value: Zed's typed one reads `()`,
   which no server's `{}` parses as. `set_provider` writes `embedding_provider` with `setting_set`
-  and reads again; `call` gives a tool's text or its failure's first line.
+  and reads again; `call` gives a tool's text or its failure's first line, within 5 s. Since #663
+  `call_within` and `call_tool_within` take a deadline of their own, given both to Zed's client
+  (`request_with`, which otherwise stops at its own 60 s) and to Marley's timer, whose failure
+  names the seconds.
 - `offer` and `settle` (#633) put `context_servers.rusty` into Zed's defaults while
   `agent_tools` is on and `find` finds `rusty-mcp`, or take Marley's entry out; a user's own entry
   sits in the user's layer and wins.
@@ -2188,7 +2191,8 @@ alike.
 ## A page's outline and edits in place (`src/rusty/page.rs`, `src/rusty/inline_edit.rs`, #656)
 
 - **The outline.** In Read, `render_read` puts the scrolling body and, while `outline_shown` and
-  the page has headings, a column of `ListItem`s beside it: one per `RenderedPage.outline` entry,
+  the page has headings, a column of `ListItem`s beside it (the body `min_w_0` and clipped in x
+  since #663, so a line that cannot wrap keeps the column in view): one per `RenderedPage.outline` entry,
   indented by its level less the shallowest, labelled by `outline_label`. A click runs
   `scroll_to_heading_line`: `line_offset` on the Markdown's source, past the heading's marks, then
   Zed's `Markdown::request_autoscroll_to_top` (the `markdown.rs` touchpoint), which puts that line
@@ -2365,6 +2369,32 @@ alike.
   does. `open` takes a `Visit`, so a tab already showing the page goes to the heading
   (`go_to_heading`); `show` lands a visit's heading through `outline_line` and
   `scroll_to_heading_line` when the outline holds it.
+
+## Capture and import (`src/rusty/capture.rs`, `src/rusty/import.rs`, #663)
+
+- **Commands.** `capture::init` registers `CaptureToToday`, `CaptureToInbox`, `CaptureUrl` and
+  `OpenToday`, and `import::init` `ImportVault`, on every workspace; each first calls
+  `capture::ready`, which shows `rusty::unavailable`'s reason in a toast. The actions carry
+  `#[derive(Eq)]`, as `tasks_tab`'s do, for clippy's `derive_partial_eq_without_eq`.
+- **`CaptureForm`** (a `ModalView` through `Workspace::toggle_modal`, key context `RustyCapture
+  menu`): a `Kind` (a line for a `CaptureTarget`, or a URL), one `Editor::single_line`, the task in
+  flight and Rusty's refusal. `menu::Confirm` sends what the field holds, as typed. A line goes by
+  `call_tool(BRAIN_CAPTURE)`; its receipt rereads the vault, toasts "Captured to `<slug>`" with
+  Open (`page::open_later`) and `autohide`, and dismisses. A URL goes by
+  `call_tool_within(SOURCE_CAPTURE, CAPTURE_URL_DEADLINE)`; the page opens kept and focused,
+  `SourcePage::failed` toasts the error without autohide, and the form dismisses. A refusal's first
+  line stays in the form.
+- **`open_today`** calls `brain_daily_note` from the workspace's own spawn and opens the slug with
+  `page::open_later`; a failure toasts through the workspace it is updating.
+- **The import.** `choose_folder` asks `Workspace::prompt_for_open_path` for one directory with
+  `DirectoryLister::Local`, since Rusty reads its own machine's disk, then opens `ImportForm` on
+  the path. Its `Stage` runs Reading (`brain_import_plan` within `IMPORT_PLAN_DEADLINE`), Plan,
+  Importing (`brain_import` within `IMPORT_DEADLINE`), Done or Failed. The form draws the path
+  truncated from its start, the stage's sentence (`ImportPlan::summary`, `ImportReport::summary`),
+  the plan's `details` in a scrolled block, and the stage's buttons; `menu::Confirm` imports a plan
+  that `brings_anything` and closes a report. `on_before_dismiss` answers `Dismiss(false)` while
+  Importing, so neither Escape nor a click outside drops the import's answer. Done rereads the vault
+  and the bookmarks (AD-662).
 
 ## The project view (`src/rusty/project.rs`, #655)
 

@@ -1569,11 +1569,15 @@ impl PageView {
 
     fn render_read(&self, window: &Window, cx: &Context<Self>) -> AnyElement {
         if let Shown::Page(page) = &self.shown {
+            // A line too long to wrap (a path in code, #663's report) must not widen the body
+            // past the tab and push the outline out.
             let body = div()
                 .id("rusty-page-body")
                 .flex_1()
+                .min_w_0()
                 .min_h_0()
                 .h_full()
+                .overflow_x_hidden()
                 .overflow_y_scroll()
                 .track_scroll(&self.scroll)
                 .child(

@@ -140,7 +140,7 @@ polls the harness's `fleet_events`. No Zed touchpoint.
 | TasksPage | A **Tasks** tab over the twelve task tools |
 | MemoryPage, SkillsPage, SecretsPage | One tab each over their tools |
 | SettingsPage | The Rusty section of the Marley settings page (R-D0) |
-| Main.qml dialogs | Palette actions: import a vault, capture a URL, today's note, capture a line |
+| Main.qml dialogs | Palette actions (#663): `rusty: capture to today`, `rusty: capture to inbox`, `rusty: capture url`, `rusty: import vault` (the plan, then the import and its report), `rusty: open today` |
 | Agent screens | Not rebuilt (R-D6) |
 | TopBar, Splitter, Scanlines, Icon, CommandPalette | Zed's own chrome; the CRT overlay is dropped |
 
@@ -288,7 +288,8 @@ The second batch, #654 to #659, was queued 2026-10-03: R3a (#654, the open-page 
 Ctrl+Alt+U), R6 (#655, the project view), R2b (#656, the outline and in-place edits; the title
 edit sets the `title` property and a separate name field renames, confirmed by Chad 2026-10-05), R5b (#657),
 R7 split as #658 (the Tasks tab) and #659 (the Decisions tab, with Marley's System One tab
-renamed "System One calls"). R7b followed as #660, R4b as #662. R8 remains.
+renamed "System One calls"). R7b followed as #660, R4b as #662, and R-D3's Main.qml dialogs as
+#663 (capture and import from the palette). R8 remains.
 
 The first batch, #643 to #647, was queued 2026-10-03 in this order: R1, R4, R2, R3, R5, after
 #640 to #642 (#643 builds on #642's settings changes). Drafting split out R3a, R6, R2b, R5b and

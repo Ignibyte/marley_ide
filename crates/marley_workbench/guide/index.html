@@ -172,6 +172,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#graph-tab">The Graph tab: the vault as a graph</a></li>
 <li><a href="#tasks-tab">The Tasks tab: Rusty's to-do lists</a></li>
 <li><a href="#rusty-decisions">Decisions: Rusty's brain loop</a></li>
+<li><a href="#rusty-capture">Capture and import: lines, URLs and a vault into Rusty</a></li>
 </ol></li>
 <li><a href="#editor">The editor</a><ol>
 <li><a href="#find-things">Find files, symbols and text</a></li>
@@ -640,7 +641,7 @@ th { background: var(--panel); font-weight: 650; }
 </ol>
 <h4>Open a page by name <span class="ticket">#654</span></h4>
 <ol class="steps">
-<li>Press <kbd>Ctrl+Alt+U</kbd> from anywhere in the window, or run <code>rusty: open page</code> from the command palette: a picker lists every page of the brain, its title and its slug, the pages you opened most recently first.</li>
+<li>Press <kbd>Ctrl+Alt+U</kbd> from anywhere in the window, or run <code>rusty: open page</code> from the command palette: a picker lists every page of the brain, its title and its slug: your favourite pages first with a star (#662), then the pages you opened most recently.</li>
 <li>Type part of a title or a path; the matched letters light up. Enter opens the selected page in a kept tab, or brings forward the tab that shows it.</li>
 <li>When what you typed, read as a path such as <code>projects/marley/review</code>, names no page, the list ends with Create page: Enter there makes the page at that path and opens it. Rusty's refusal shows in a toast and the picker stays open.</li>
 </ol>
@@ -705,6 +706,18 @@ th { background: var(--panel); font-weight: 650; }
 <li>Press <kbd>Enter</kbd> or click Record. <kbd>Shift+Enter</kbd> starts a new line; <kbd>Escape</kbd> closes the form without recording.</li>
 </ol>
 <p class="note">Rusty checks the follow-up: if it refuses, its words show in the form and nothing is written. Kept and Superseded clear the follow-up day, so the decision leaves Due. The tab reads Rusty again when Rusty announces a change, when you come back to it after one, and after you record a follow-up. System One's own log is a different tab, System One calls.</p>
+</article>
+
+<article id="rusty-capture">
+<h3>Capture and import: lines, URLs and a vault into Rusty <span class="ticket">#663</span></h3>
+<p class="what"><strong>What it is.</strong> Commands that put things into Rusty's brain without leaving what you are doing, while Rusty is on: a line into today's daily note or the inbox, a web page or a file kept as a source page by its URL, and a whole Obsidian vault imported. Rusty does the work; Marley sends it and shows what came back.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Run <code>rusty: capture to today</code> or <code>rusty: capture to inbox</code> from the command palette, type the line and press <kbd>Enter</kbd>. A toast says which page it went to; Open shows it. <code>rusty: open today</code> opens today's note.</li>
+<li>Run <code>rusty: capture url</code>, paste an <code>http</code> or <code>https</code> address and press <kbd>Enter</kbd>. The form says Capturing… while Rusty fetches (up to 20 seconds), then the source page opens. If the fetch failed, Rusty still makes the page and says why on it, and a toast gives the reason.</li>
+<li>Run <code>rusty: import vault</code> and choose the vault's folder. Rusty's plan shows what comes in, what is skipped because the brain already has it, the links that will not resolve and the bookmarks. Import brings it in; the form then gives the report, and Open Report shows Rusty's report page.</li>
+</ol>
+<p class="note">If Rusty refuses (an empty line, an address that is not http or https), its words show in the form and nothing is written. <kbd>Escape</kbd> closes a capture's form; a capture already sent still lands. The import's form stays until Rusty answers, and an import that fails part way leaves nothing behind. Rusty reads the vault and never writes it.</p>
 </article>
 </section>
 

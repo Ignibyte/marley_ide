@@ -102,6 +102,14 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   page and heading), `shown_title` (Rusty's fallback for a blank title) and `arguments` (empty
   fields left out); `bookmarks_from_answer`; `retitled(list, key, title)`, the list a rename
   sends; `BookmarkWrite` (`Add`, `Remove`, `Set`) with `tool` and `arguments`.
+- `capture` (#663): `BRAIN_CAPTURE`, `SOURCE_CAPTURE`, `BRAIN_IMPORT_PLAN`, `BRAIN_IMPORT` and their
+  deadlines (`CAPTURE_URL_DEADLINE` 45 s, `IMPORT_PLAN_DEADLINE` 60 s, `IMPORT_DEADLINE` 600 s);
+  `CaptureTarget` (`daily`, `inbox`; the form's title; `arguments`); `CaptureReceipt` and
+  `receipt_from_answer`; `source_arguments`; `SourcePage` from `source_page_from_answer` (the
+  slug, and Rusty's `error` when `frontmatter.status` is `failed`); `import_arguments`;
+  `ImportPlan` (`brings_anything`, `summary`, `details`, its bookmarks `bookmarks::Bookmark`) and
+  `ImportReport` (`summary`), worded as Rusty's app words them, with `plan_from_answer` and
+  `report_from_answer`.
 - `knowledge` (#646): what the Knowledge panel shows of a page. `LinkEntry` and `PageLinks`
   (`brain_get_links`'s `outbound` and `backlinks`, each with `context`, the line the link sits on,
   and `resolved`), `TagCount` (`brain_tags`), `GraphNode` and `Graph` (`brain_graph`'s nodes; the
@@ -193,7 +201,15 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   `bookmark_remove` and `bookmark_set` over `vault/.rusty/bookmarks.json` with Rusty's rules (a
   second of the same key dropped, a blank title filled, an unknown one refused); `brain_rename`
   carries a page's or a folder's bookmarks and the deletes drop them; and a change to the file is
-  announced as a change to the vault is. It matches search words, not embeddings. The e2e
+  announced as a change to the vault is. Since #663 it serves `brain_capture` (the daily note or
+  `inbox/inbox` made when missing, the line under `## Timeline`, the receipt), `source_capture` (a
+  20 s fetch with `urllib`, an HTML page's title and paragraphs, a failure recorded on the page as
+  `status: failed` and `error`, a URL that is not http or https refused in Rusty's words),
+  `brain_import_plan` and `brain_import` (pages and attachments with dot entries skipped,
+  collisions, tags, unresolved links, `.obsidian/bookmarks.json`, bare names rewritten to paths,
+  the bookmarks added, a report page under `inbox/`). The last three answer on a thread of their
+  own, as Rusty answers requests side by side, so Marley's pings go on during a slow fetch; its
+  daily note takes today from the `today` file too. It matches search words, not embeddings. The e2e
   scenarios name it with `MARLEY_RUSTY_MCP` and never reach the user's own Rusty (R-D8).
 
 ## Later slices

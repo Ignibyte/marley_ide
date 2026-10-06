@@ -4129,3 +4129,17 @@ tool. A heading favourite lands its heading where #656's outline does, three lin
 Rejected: favourites in Marley's own database (two lists that disagree with Rusty's app); a
 Bookmarks pane of its own (one more panel, away from the tree the vault is browsed in); drag to
 reorder in the group (`bookmark_set` allows it; left for a later ticket).
+
+## AD-claude-663-a-call-to-rusty-names-its-deadline-001
+*decided at: 2026-10-06 · status: shipped · builds on: AD-claude-662-favourites-are-rustys-bookmarks-read-whole-001 · plan: docs/marley/rusty-in-marley.md R-D3*
+
+Every call to Rusty kept 5 s, which is right for a read and wrong for a fetch or an import. A call
+now names its deadline (`rusty::call_tool_within`): 45 s for `source_capture` (Rusty's fetch stops
+at 20 s, then it reads, indexes and commits), 60 s for `brain_import_plan`, 10 minutes for
+`brain_import`; every other call keeps 5 s. The deadline goes to Zed's MCP client as well, whose own
+default would stop a call at 60 s. The import's form holds itself open while Rusty imports, so the
+report has somewhere to land; a capture's form may close, and Rusty still finishes what it was
+sent. The folder for an import is always this machine's (`DirectoryLister::Local`), since Rusty
+reads its own disk. Rejected: one longer deadline for every call (a stuck read would hang the
+Brain view for as long); a progress stream from Rusty (it has none); closing the import's form
+early with a toast for the report (the plan and the report belong together).

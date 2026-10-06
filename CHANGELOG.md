@@ -13,6 +13,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Capture a line or a URL, and import a vault, into Rusty from the palette** (#663, 2026-10-06).
+  `rusty: capture to today` and `rusty: capture to inbox` open a one-line form; Enter adds the line
+  to that page's timeline and a toast names the page, with Open. `rusty: capture url` has Rusty
+  fetch a web page or a file and keep it as a source page, which opens when Rusty answers; a fetch
+  that failed still makes the page, which says why, and a toast gives the reason. `rusty: import
+  vault` asks for an Obsidian vault's folder, shows Rusty's plan (what comes in, what is skipped as
+  already in the brain, the links that will not resolve, the bookmarks), and Import brings it in
+  and shows the report. `rusty: open today` opens today's daily note. Rusty's refusal shows in the
+  form. A call to Rusty can now take longer than 5 s where Rusty needs it: 45 s for a URL, 60 s for
+  a plan, 10 minutes for an import.
+
 - **Favourites from Rusty's bookmarks** (#662, 2026-10-06). The Brain view lists Rusty's bookmarks
   under Favourites, above the tree, in Rusty's order: a page opens as a tree row does, a folder
   opens in the tree, a search runs in the search field, and a heading opens its page with the
@@ -675,6 +686,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   standalone.
 
 ### Fixed
+
+- **A long line no longer widens a brain page's tab** (#663, 2026-10-06). A line that could not
+  wrap, such as a path in code, made the Page tab's body wider than the tab, pushing the outline
+  column and the properties' remove buttons out of sight. The body now keeps the tab's width.
 
 - **A cleared terminal shows no old blocks, and an agent's terminal starts with its own block**
   (#639, 2026-10-01). After Clear (Ctrl-Shift-L), every old block's header stayed drawn over the
