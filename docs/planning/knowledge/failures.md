@@ -3482,3 +3482,19 @@ the user's settings, which do not name it, and runs the user's own `claude`, so 
 in #686's run and stacked over the card the scenario clicked. The check still passed; the shot
 showed it. Any scenario clicking near the bottom right after five seconds could have hit the
 offer's buttons. Fixed in #686: the runner's copy sets the switch off; #683's scenario removes it.
+
+## F-claude-687-a-scenario-a-step-off-opened-a-real-agent-on-the-users-login-001
+*severity: medium · found in: pipeline 687's Test phase (the first run of each scenario) · class: an e2e step reaching a real agent · prevented by: PR-claude-687-a-scenario-types-into-a-thread-only-after-checking-it-runs-the-stand-in-001*
+
+The e2e profile copies the user's settings, and Marley adds registry adapters to the defaults, so
+New Agent Thread's submenu lists real agents that run on the user's own login.
+- **Codex scenario, run 1:** it counted two steps down the submenu, as #683's had. Codex's
+  registry entry now sat there, so the run opened the real Codex through `codex-acp`, typed
+  "hello", and Codex answered on Chad's ChatGPT login.
+- **Zed scenario, run 1:** `agent: new thread` opened the panel's last agent, Claude Agent
+  through `claude-acp` on Chad's login, not Zed's agent. The "Marley" typed for the profile picker
+  and its Return likely went to it as a prompt.
+
+The checks failed or the shots showed the wrong thread, so no criterion passed falsely. But two
+prompts reached real accounts. Fixed in #687: the right step count, Zed Agent opened from the
+submenu (always first), and a check before typing.

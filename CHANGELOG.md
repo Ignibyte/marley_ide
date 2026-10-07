@@ -13,6 +13,21 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Marley agent on Codex and on Zed's agent** (#687, 2026-10-07). Marley's own agent now
+  runs on Codex as well as Claude Code. In the Agent Panel, the Marley entry runs the registry's
+  Codex adapter in its read-only mode, with the Marley agent's instructions as Codex's developer
+  instructions. On Zed's own agent it is a "Marley" profile with Marley's docs, settings, keymap
+  and actions tools and no file tools.
+  - Settings → Marley → Marley Agent gains an **Agent** dropdown, `marley.assistant.agent`:
+    `claude_code` (the default), `codex` or `zed`.
+  - The one-time offer looks for Claude Code signed in, then Codex signed in, then a Zed model
+    set up, and names the one it found. Turn On writes that agent.
+  - With Codex, `marley: open marley agent in terminal` runs `codex --sandbox read-only` with the
+    instructions. With Zed's agent, the command is not listed.
+  - When the Marley profile goes away and your default profile was Marley, the default goes back
+    to Write, as Zed's own profile delete does.
+  - The instructions now name `keymap_change`.
+
 - **Key bindings you accept** (#686, 2026-10-07). An agent can propose a key binding with
   `keymap_change` (keystrokes, an action, a context): the same notification as a settings change
   names the keys, the action and where it applies, and Apply adds it to your `keymap.json`

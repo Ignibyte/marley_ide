@@ -1766,10 +1766,13 @@
     // container whose Compose folder is in a project shows under that project in the rail either
     // way.
     "rail_containers": true,
-    // Marley's own agent (#683): an agent in the Agent Panel that explains and configures Marley,
-    // through Claude Code on your own login, kept from editing files or running commands.
+    // Marley's own agent (#683): an agent that explains and configures Marley with Marley's tools,
+    // kept from editing files. "agent" picks what it runs on: "claude_code" (Claude Code on your
+    // own login, in the Agent Panel), "codex" (Codex in its read-only mode, in the Agent Panel)
+    // or "zed" (a "Marley" profile for Zed's own agent) (#687).
     "assistant": {
-      "enabled": false
+      "enabled": false,
+      "agent": "claude_code"
     },
     // The fleet (#607): the workflow stores the Fleet panel reads agents, their work and their
     // hosts from. { "kind": "pseudo" } is Marley's own moving example data.

@@ -5110,3 +5110,18 @@ every struct literal of that variant across Zed's crates (here `agent_ui`, `onbo
 and `agent_servers`), each a hunk to carry through upstream merges. A value only Marley sets
 goes in Marley's own `marley` settings block, keyed by what it applies to (`agent_session_meta`
 by agent id), and the one Zed site that needs it reads it from `merged_settings().marley`.
+
+## L-claude-687-zeds-agent-drops-mcp-instructions-and-has-no-prompt-per-profile-001
+*category: zed fork · topic: steering Zed's own agent · from: pipeline 687*
+
+Zed's native agent cannot be given instructions per profile or per thread.
+- `AgentProfileContent` has no prompt field, and `system_prompt.hbs` renders one prompt for
+  every thread.
+- `context_server::types::InitializeResponse` has no `instructions` field, so an MCP server's
+  `instructions` never reach the model.
+- The only text sources are the personal `AGENTS.md` and a worktree's rules file, and both reach
+  every thread.
+
+A profile can only choose tools; their descriptions are the guidance. A thread whose profile is
+missing gets no tools at all (`thread.rs:4176`), so taking a profile away must also reset a
+`default_profile` that names it.

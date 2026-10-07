@@ -2817,3 +2817,12 @@ A ticket that adds a notification, an offer or a dialog that comes on its own at
 something the scenario does) adds, in the same change, the setting that decides it to
 `script/e2e.sh`'s copy of the settings, so no other scenario meets it; its own scenario undoes
 that in `setup`.
+
+## PR-claude-687-a-scenario-types-into-a-thread-only-after-checking-it-runs-the-stand-in-001
+*severity: medium · prevents: F-claude-687-a-scenario-a-step-off-opened-a-real-agent-on-the-users-login-001*
+
+A scenario that opens an Agent Panel thread and types into it first `expect`s proof that the
+thread runs its stand-in, such as the stand-in's log or environment file, before any
+`type_text` or Return goes into it. A thread of Zed's own agent is opened where it cannot be
+missed: New Agent Thread's submenu, whose first entry is Zed Agent. It is never opened with
+`agent: new thread`, which opens the panel's last agent.

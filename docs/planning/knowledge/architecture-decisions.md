@@ -4382,3 +4382,27 @@ offered once when `claude auth status` says signed in. Rejected: fields on Zed's
 crates); a Marley JSON-RPC proxy between Zed and the adapter (a relay to keep, and an entry to
 re-insert after every registry refresh); a Zed-agent profile alone (Zed's agent takes no system
 prompt of its own; TICKET-687 adds it for those without Claude Code).
+
+## AD-claude-687-the-marley-agent-runs-on-codex-through-codex-acps-environment-and-on-zeds-agent-as-a-profile-001
+*decided at: 2026-10-07 · status: shipped · builds on: AD-claude-683-marleys-own-agent-is-claude-code-with-session-meta-from-marleys-settings-001, AD-claude-661-the-assistant-off-shows-nothing-but-its-switch-001*
+
+`marley.assistant.agent` (`claude_code`, the default; `codex`; `zed`) picks what Marley's own
+agent runs on. The one-time offer finds an agent once and Turn On writes it: Claude Code signed
+in, then Codex signed in, then a Zed default model with an authenticated provider. No token is
+touched.
+
+- **Codex:** the same custom `Marley` entry with the command Zed resolves for `codex-acp`. Its
+  environment holds `INITIAL_AGENT_MODE=read-only` and `CODEX_CONFIG`, a JSON object the adapter
+  merges into each thread's config: `developer_instructions` and `sandbox_mode: read-only`. It
+  runs the adapter's bundled Codex, which reads the user's `~/.codex` login.
+- **Zed's agent:** a `marley` profile in the in-memory defaults: no built-in tools,
+  `enable_all_context_servers: false`, and Marley's seven read-and-propose tools. When the
+  profile leaves, a user `default_profile` of `marley` goes back to `write`.
+
+Rejected:
+- probing at every start when `agent` is unset (two programs run at each start, and the entry
+  would change with the login);
+- the user's own `codex` as `CODEX_PATH` (the adapter pins its App Server's protocol);
+- writing the instructions into the user's `AGENTS.md` (their file, read by every thread);
+- a Zed hunk that puts MCP `instructions` into the native agent's prompt (every Write thread
+  would get Marley's server text; it can be its own ticket).

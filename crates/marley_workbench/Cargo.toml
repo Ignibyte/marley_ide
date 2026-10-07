@@ -37,6 +37,7 @@ http_client.workspace = true
 ignore.workspace = true
 image.workspace = true
 language.workspace = true
+language_model.workspace = true
 log.workspace = true
 lsp.workspace = true
 markdown.workspace = true

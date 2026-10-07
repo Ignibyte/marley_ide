@@ -295,12 +295,43 @@ pub struct MarleyPushSettingsContent {
 #[with_fallible_options]
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema, MergeFrom)]
 pub struct MarleyAssistantSettingsContent {
-    /// Whether the Agent Panel lists Marley's own agent: Claude Code through its ACP adapter on
-    /// your own login, told to explain and configure Marley with Marley's tools, and kept from
-    /// editing files or running commands. Marley offers it once when Claude Code is signed in.
+    /// Whether Marley's own agent is there: an agent told to explain and configure Marley with
+    /// Marley's tools, and kept from editing files. Marley offers it once when it finds Claude
+    /// Code or Codex signed in, or a Zed model set up.
     ///
     /// Default: false
     pub enabled: Option<bool>,
+    /// What Marley's own agent runs on (#687).
+    ///
+    /// Default: claude_code
+    pub agent: Option<MarleyAssistantAgent>,
+}
+
+/// What Marley's own agent runs on (#687).
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum MarleyAssistantAgent {
+    /// Claude Code on your own login, as a Marley entry in the Agent Panel, with no file edits
+    /// or commands.
+    #[default]
+    ClaudeCode,
+    /// Codex on your own login, as a Marley entry in the Agent Panel, in its read-only mode.
+    Codex,
+    /// Zed's own agent, through a Marley profile with Marley's tools and no file tools.
+    Zed,
 }
 
 /// Marley's voice features (#642).

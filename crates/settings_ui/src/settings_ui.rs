@@ -576,6 +576,8 @@ fn init_renderers(cx: &mut App) {
         .add_basic_renderer::<settings::MarleyBlockDensity>(render_dropdown)
         // Marley: how Marley reaches Rusty (#643).
         .add_basic_renderer::<settings::MarleyRustyConnection>(render_dropdown)
+        // Marley: what Marley's own agent runs on (#687).
+        .add_basic_renderer::<settings::MarleyAssistantAgent>(render_dropdown)
         // Marley: the Claude Code and Codex Permissions dropdowns (#532).
         .add_basic_renderer::<settings::ClaudeCodePermissions>(render_dropdown)
         .add_basic_renderer::<settings::CodexPermissions>(render_dropdown)

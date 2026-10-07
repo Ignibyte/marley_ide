@@ -124,7 +124,7 @@ fn allowed_ids(cx: &App) -> Vec<String> {
 }
 
 /// The variable that names `kind`'s program, ahead of the search path.
-const fn variable(kind: AgentKind) -> &'static str {
+pub(crate) const fn variable(kind: AgentKind) -> &'static str {
     match kind {
         AgentKind::Codex => "MARLEY_CODEX",
         _ => "MARLEY_CLAUDE",

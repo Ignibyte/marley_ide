@@ -843,13 +843,13 @@ fn voice_section() -> [SettingsPageItem; 2] {
     ]
 }
 
-// Marley: the switch of Marley's own agent, off by default (#683).
-fn assistant_section() -> [SettingsPageItem; 2] {
+// Marley: the switch of Marley's own agent, off by default (#683), and what it runs on (#687).
+fn assistant_section() -> [SettingsPageItem; 3] {
     [
         SettingsPageItem::SectionHeader("Marley Agent"),
         SettingsPageItem::SettingItem(SettingItem {
             title: "Marley Agent",
-            description: "List Marley's own agent in the Agent Panel: Claude Code, through its ACP adapter on your own login, told to explain and configure Marley with Marley's tools and kept from editing files or running commands. Each settings change it proposes waits for your Apply.",
+            description: "Marley's own agent, told to explain and configure Marley with Marley's tools and kept from editing files. Each settings change it proposes waits for your Apply.",
             field: Box::new(SettingField {
                 organization_override: None,
                 json_path: Some("marley.assistant.enabled"),
@@ -867,6 +867,31 @@ fn assistant_section() -> [SettingsPageItem; 2] {
                         .assistant
                         .get_or_insert_default()
                         .enabled = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Agent",
+            description: "What Marley's own agent runs on. Claude Code and Codex each run on your own login as a Marley entry in the Agent Panel, Codex in its read-only mode. Zed adds a Marley profile to Zed's own agent, with Marley's tools and no file tools.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.assistant.agent"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.assistant.as_ref())
+                        .and_then(|assistant| assistant.agent.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .assistant
+                        .get_or_insert_default()
+                        .agent = value;
                 },
             }),
             metadata: None,

@@ -2181,6 +2181,25 @@ alike.
   writes the instructions to `<data dir>/assistant/instructions.md` and types `'<claude>'
   --append-system-prompt-file '<file>' --disallowedTools …` into a new agent terminal through
   `agents::start_in_terminal`; `filter_palette` hides the action while the switch is off.
+  - **Since #687** `wanted` reads the switch with `marley.assistant.agent`
+    (`MarleyAssistantAgent`).
+  - `Assistant.applied` holds the agent whose defaults are in place. `sync` runs `take_out` on the
+    old agent and `put_in` on the new one.
+  - Claude Code keeps #683's defaults. Codex adds a `codex-acp` registry default and resolves it;
+    `set_entry` gives it `INITIAL_AGENT_MODE=read-only` and `CODEX_CONFIG` (`codex_config`:
+    `developer_instructions`, `sandbox_mode`). Zed's agent adds `agent.profiles.marley`
+    (`profile`: no built-in tools, `enable_all_context_servers: false`, and `PROFILE_TOOLS` under
+    `mcp::CONTEXT_SERVER`).
+  - `resolve` tracks the agent it resolves for. A command that comes back after the agent changed
+    is dropped.
+  - `forget_default_profile` resets a user `agent.default_profile` of `marley` to `write` once the
+    merged settings lack the profile. It runs on `take_out` and at the offer's moment.
+  - `offer_later` tries `claude_signed_in`, then `codex_signed_in` (`codex login status`'s exit
+    status), then `zed_model_ready` (`LanguageModelRegistry::default_model` with an authenticated
+    provider). `show_offer` names the agent it found, and `choose` writes the switch with it.
+  - `open_in_terminal` types the Codex line `'<codex>' --sandbox read-only -c
+    'developer_instructions="…"'`. `filter_palette` lists the action only for an agent with an
+    adapter.
 - **Docs, settings and actions (#681).** `answer` sends `docs_` calls to `docs_tools::answer` and
   `settings_`/`actions_` calls to `settings_tools::answer`.
   - `docs_tools.rs`: `DocsBundle`, a `util::fs_embed!` over `docs/src/**/*.md` and

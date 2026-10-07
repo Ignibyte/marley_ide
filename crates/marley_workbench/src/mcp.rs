@@ -261,7 +261,7 @@ fn enabler(shared: transport::Shared, cx: &App) -> mpsc::UnboundedSender<BTreeSe
 }
 
 /// The context server Zed's own agents know Marley's server by (#501).
-const CONTEXT_SERVER: &str = "marley";
+pub(crate) const CONTEXT_SERVER: &str = "marley";
 
 /// Registers Marley's server as the context server `marley` among Zed's default settings (#501),
 /// so the Zed Agent lists its tools and each external agent's new session is handed it: a stdio

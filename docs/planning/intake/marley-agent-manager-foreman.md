@@ -64,9 +64,10 @@ Owner: the Marley session. Nothing in it waits on another repository.
    survive. M. **`settings_change` done in #682 (2026-10-07)**, asking through a notification in
    every window and waiting 25 seconds; `keymap_change` done in #686, through Zed's keymap
    updater.
-5. **The Marley entry in the Agent Panel.** S to M. **Claude Code's done in #683 (2026-10-07)**,
-   with the session meta in `marley.agent_session_meta` and one Zed hunk; Codex and Zed's agent
-   are TICKET-687.
+5. **The Marley entry in the Agent Panel.** S to M. **Done.** Claude Code in #683 (2026-10-07),
+   with the session meta in `marley.agent_session_meta` and one Zed hunk. Codex (`codex-acp`
+   read-only, `CODEX_CONFIG`) and Zed's agent (a `marley` profile) in #687, chosen by
+   `marley.assistant.agent`. The offer finds the agent once.
    - Detection that never touches a token: `claude auth status` (JSON with `loggedIn`),
      `codex login status`, and the language-model providers Zed has configured.
    - The choice: the setting if set, else Claude Code, else Codex, else Zed's agent.

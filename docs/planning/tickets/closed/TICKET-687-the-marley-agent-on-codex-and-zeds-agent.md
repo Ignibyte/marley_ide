@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #687 (feature, prong 2 C)
 - **Owner:** ce546757-1075-466f-a3cf-b6696d2211c9
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** [687-the-marley-agent-on-codex-and-zeds-agent.spec.md](../../pipeline/completed/687-the-marley-agent-on-codex-and-zeds-agent.spec.md)
 - **Source ticket:** `docs/planning/intake/marley-agent-manager-foreman.md`, phase 1, item 5
   (split from TICKET-683 on 2026-10-07)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 TICKET-683 gives the Marley agent to someone signed in to Claude Code. This ticket covers the
