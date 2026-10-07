@@ -17,7 +17,6 @@ use marley_sdk::{
     TokenUse,
 };
 use ui::{Chip, Icon, IconName, IconSize, Label, LabelSize, prelude::*};
-use util::ResultExt as _;
 use workspace::Workspace;
 use workspace::item::Item;
 
@@ -26,19 +25,22 @@ use crate::fleet::{self, Fleet, HostKey, Sample, Selected, Source, Wanted};
 /// How many events the log shows, newest first.
 const EVENTS_SHOWN: usize = 50;
 
-/// Opens `selected`'s tab in `workspace` once the current update is over, or shows the one open.
-/// The opener reads every Agent tab of the workspace, so it must not run inside one's update.
+/// Opens `selected`'s tab in the window's Home group once the current update is over, or shows the
+/// one open there (#676); `workspace` is where it opens in the Zed layout. The opener reads every
+/// Agent tab of the workspace, so it must not run inside one's update.
 pub(crate) fn open_later(
     workspace: WeakEntity<Workspace>,
     selected: Selected,
     window: &Window,
     cx: &mut App,
 ) {
-    window.defer(cx, move |window, cx| {
-        workspace
-            .update(cx, |workspace, cx| open(workspace, selected, window, cx))
-            .log_err();
-    });
+    crate::groups::in_group(
+        crate::groups::GroupKind::Home,
+        workspace,
+        window,
+        cx,
+        move |workspace, window, cx| open(workspace, selected, window, cx),
+    );
 }
 
 /// Opens `selected`'s tab, or brings forward the one open in the workspace.

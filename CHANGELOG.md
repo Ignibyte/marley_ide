@@ -655,6 +655,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Home takes what belongs to no project** (#676, 2026-10-07). A fleet agent's tab, System One
+  calls and a harness session's tab now open in the window's **Home** group, the one a new
+  terminal from the rail's empty space goes to, whatever project the window shows, and the window
+  shows Home; the first one makes it. A project click goes back with the tab kept under Home.
+
 - **Rusty's screens open in a Rusty group** (#675, 2026-10-07). Today, Graph, Tasks, Decisions,
   Memory, Skills, Secrets and every brain page now open in the window's **Rusty** group in the
   rail, whatever project the window shows, and the window shows the group; the first one makes

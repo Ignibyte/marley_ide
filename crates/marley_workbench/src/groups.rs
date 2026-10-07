@@ -69,8 +69,8 @@ pub(crate) enum GroupKind {
     Rusty,
 }
 
-/// What waits for a window's Rusty group while it is being made (#675).
-type RustyOpen = Box<dyn FnOnce(Entity<Workspace>, &mut Window, &mut App)>;
+/// What waits for a window's Home or Rusty group while it is being made (#675, #676).
+type GroupOpen = Box<dyn FnOnce(Entity<Workspace>, &mut Window, &mut App)>;
 
 /// What the store keeps of a group (#601).
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -90,9 +90,9 @@ pub(crate) struct Groups {
     live: Vec<Group>,
     /// The groups read from the store whose workspace no window holds yet (#601).
     pending: Vec<SavedGroup>,
-    /// The opens waiting for their window's Rusty group while it is being made, by window, so two
-    /// quick opens make one group (#675).
-    waiting_for_rusty: Vec<(WindowId, RustyOpen)>,
+    /// The opens waiting for their window's Home or Rusty group while it is being made, by window
+    /// and kind, so two quick opens make one group (#675, #676).
+    waiting: Vec<(WindowId, GroupKind, GroupOpen)>,
 }
 
 impl Global for Groups {}
@@ -109,7 +109,7 @@ pub(crate) fn init(cx: &mut App) {
     cx.set_global(Groups {
         live: Vec::new(),
         pending,
-        waiting_for_rusty: Vec::new(),
+        waiting: Vec::new(),
     });
 }
 
@@ -342,11 +342,27 @@ pub(crate) fn make(
     .detach_and_log_err(cx);
 }
 
-/// The window's Rusty group's workspace, if the window has the group (#675).
-pub(crate) fn rusty_group(multi_workspace: &MultiWorkspace, cx: &App) -> Option<Entity<Workspace>> {
+/// The window's Home or Rusty group's workspace, if the window has the group.
+fn group_of_kind(
+    multi_workspace: &MultiWorkspace,
+    kind: GroupKind,
+    cx: &App,
+) -> Option<Entity<Workspace>> {
     groups_of(multi_workspace, cx)
         .into_iter()
-        .find_map(|(group, workspace)| group.rusty.then_some(workspace))
+        .find_map(|(group, workspace)| {
+            let found = match kind {
+                GroupKind::Home => group.home,
+                GroupKind::Rusty => group.rusty,
+                GroupKind::Named => false,
+            };
+            found.then_some(workspace)
+        })
+}
+
+/// The window's Rusty group's workspace, if the window has the group (#675).
+pub(crate) fn rusty_group(multi_workspace: &MultiWorkspace, cx: &App) -> Option<Entity<Workspace>> {
+    group_of_kind(multi_workspace, GroupKind::Rusty, cx)
 }
 
 /// Whether the group `id` is a window's Rusty group (#675).
@@ -359,41 +375,42 @@ pub(crate) fn is_rusty(id: Uuid, cx: &App) -> bool {
     })
 }
 
-/// Runs `then` with the window's Rusty group's workspace, making the group first when the window
-/// has none; opens asked for while it is being made wait for it, so there is one (#675).
-pub(crate) fn with_rusty_group(
+/// Runs `then` with the window's Home or Rusty group's workspace, making the group first when the
+/// window has none; opens asked for while it is being made wait for it, so there is one (#675,
+/// #676).
+pub(crate) fn with_group(
+    kind: GroupKind,
     multi_workspace: &Entity<MultiWorkspace>,
     then: impl FnOnce(Entity<Workspace>, &mut Window, &mut App) + 'static,
     window: &mut Window,
     cx: &mut App,
 ) {
-    if let Some(workspace) = rusty_group(multi_workspace.read(cx), cx) {
+    if let Some(workspace) = group_of_kind(multi_workspace.read(cx), kind, cx) {
         then(workspace, window, cx);
         return;
     }
     let window_id = window.window_handle().window_id();
     let groups = cx.default_global::<Groups>();
     let making = groups
-        .waiting_for_rusty
+        .waiting
         .iter()
-        .any(|(id, _)| *id == window_id);
-    groups.waiting_for_rusty.push((window_id, Box::new(then)));
+        .any(|(id, waiting, _)| *id == window_id && *waiting == kind);
+    groups.waiting.push((window_id, kind, Box::new(then)));
     if making {
         return;
     }
     make(
         multi_workspace,
         "",
-        GroupKind::Rusty,
+        kind,
         move |workspace, window, cx| {
-            let waiting: Vec<RustyOpen> = {
+            let waiting: Vec<GroupOpen> = {
                 let groups = cx.default_global::<Groups>();
-                let (mine, others): (Vec<_>, Vec<_>) =
-                    std::mem::take(&mut groups.waiting_for_rusty)
-                        .into_iter()
-                        .partition(|(id, _)| *id == window_id);
-                groups.waiting_for_rusty = others;
-                mine.into_iter().map(|(_, open)| open).collect()
+                let (mine, others): (Vec<_>, Vec<_>) = std::mem::take(&mut groups.waiting)
+                    .into_iter()
+                    .partition(|(id, waiting, _)| *id == window_id && *waiting == kind);
+                groups.waiting = others;
+                mine.into_iter().map(|(_, _, open)| open).collect()
             };
             for open in waiting {
                 open(workspace.clone(), window, cx);
@@ -402,6 +419,47 @@ pub(crate) fn with_rusty_group(
         window,
         cx,
     );
+}
+
+/// Runs `open` in the workspace of the window's Home or Rusty group and shows the group, making
+/// the group the first time: Rusty's screens and pages open in the Rusty group (#675), and the
+/// screens that belong to no project in Home (#676), whatever project the window shows. Deferred,
+/// since the openers are called from inside a workspace's or a view's update. In the Zed layout,
+/// which has no rail, `open` runs in `asked_from`, the workspace it came from.
+pub(crate) fn in_group(
+    kind: GroupKind,
+    asked_from: WeakEntity<Workspace>,
+    window: &Window,
+    cx: &mut App,
+    open: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>) + 'static,
+) {
+    window.defer(cx, move |window, cx| {
+        let multi_workspace = window
+            .root::<MultiWorkspace>()
+            .flatten()
+            .filter(|_| crate::marley_layout(cx));
+        let Some(multi_workspace) = multi_workspace else {
+            asked_from
+                .update(cx, |workspace, cx| open(workspace, window, cx))
+                .log_err();
+            return;
+        };
+        let shown = multi_workspace.downgrade();
+        with_group(
+            kind,
+            &multi_workspace,
+            move |workspace, window, cx| {
+                shown
+                    .update(cx, |multi_workspace, cx| {
+                        multi_workspace.activate(workspace.clone(), None, window, cx);
+                    })
+                    .log_err();
+                workspace.update(cx, |workspace, cx| open(workspace, window, cx));
+            },
+            window,
+            cx,
+        );
+    });
 }
 
 /// Every group's name, open or pending, in every window.

@@ -1677,6 +1677,15 @@ alike.
   inbox. The minute bump in `connected` also runs while a shown reset lies ahead. `row_card` is
   `rems(4.5)` tall for three lines under the title.
 
+## Home takes what belongs to no project (`src/groups.rs`, #676)
+
+- #675's routing is `groups::in_group(kind, asked_from, window, cx, open)` and
+  `groups::with_group(kind, …)` for `GroupKind::Home` and `GroupKind::Rusty` alike (found by
+  `group_of_kind`; `Groups::waiting` keys on window and kind). `rusty::in_rusty_group` calls it with
+  Rusty. `agent_tab::open_later`, the `OpenSystemOneCalls` action and `Rail::open_harness` call it
+  with Home, and `Rail::in_home` (the empty-space menu) makes Home through `with_group`, so every
+  path shares the guard against two Home groups.
+
 ## The Rusty group (`src/groups.rs`, `src/rusty.rs`, `src/rail.rs`, #675)
 
 - `groups::GroupKind { Named, Home, Rusty }` is what `make` makes; `Group::rusty` and

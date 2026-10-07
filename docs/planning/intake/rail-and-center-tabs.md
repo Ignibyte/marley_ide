@@ -147,6 +147,7 @@ the two shapes:
    page opens in whatever project is shown. Its tabs are its rows. #675.
 4. **The Agent tab and System One calls stay as they are for now.** Chad: "That is something we
    will discuss next after these fixes", with the fleet.
+   Later the same day Chad settled it: "anything that doesnt fit a category lands" in Home. #676.
 
 ## Shipped (2026-10-07)
 

@@ -406,8 +406,15 @@ pub(crate) fn init(cx: &mut App) {
         workspace.register_action(|workspace, _: &SystemOneCheck, window, cx| {
             run_check(workspace, window, cx);
         });
-        workspace.register_action(|workspace, _: &OpenSystemOneCalls, window, cx| {
-            system_one_calls::open(workspace, window, cx);
+        // In the window's Home group, which takes what belongs to no project (#676).
+        workspace.register_action(|_, _: &OpenSystemOneCalls, window, cx| {
+            crate::groups::in_group(
+                crate::groups::GroupKind::Home,
+                cx.weak_entity(),
+                window,
+                cx,
+                system_one_calls::open,
+            );
         });
     })
     .detach();

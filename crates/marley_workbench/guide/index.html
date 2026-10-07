@@ -468,6 +468,7 @@ th { background: var(--panel); font-weight: 650; }
 <li>Choose New Group…, type a name and press Enter (Escape cancels; an empty name makes "Group"). The group lists after your projects, with a group icon, its chevron and its <kbd>+</kbd>.</li>
 <li>Use the group's <kbd>+</kbd> for New Terminal, New Browser Tab or an agent CLI. Threads, worktree agents and launch configs need a folder, so a group does not offer them.</li>
 <li>Or choose New Terminal, New Browser Tab or an agent from the empty space's menu: it opens in the Home group.</li>
+<li>Home also takes the screens that belong to no project (#676): a fleet agent's tab, System One calls and a harness session's tab open there, whatever project the window shows, and the window shows Home. Click a project to go back; the tab stays under Home.</li>
 <li>Right-click a group's header for Rename Group… and Remove Group. Remove closes the group's terminals and tabs (Marley asks first if an agent there is working) and stops its browser.</li>
 </ol>
 <p class="note">A group keeps its place when you open a project while it is on screen, and comes back after a restart with its name, its order, its terminals in their folders and its Browser tabs (#601).</p>

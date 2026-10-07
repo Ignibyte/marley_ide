@@ -4282,3 +4282,14 @@ Rusty opener sends its tab there and shows the group. It has a placeholder icon
 when Rusty turns off goes back to its first project. In the Zed layout, with no rail, tabs open
 where they did. Rejected: making it at start (a rail with a group nobody used); one group for every
 window (a group is a workspace, which lives in one window).
+
+## AD-claude-676-home-takes-the-screens-that-belong-to-no-project-001
+*decided at: 2026-10-07 · status: shipped · builds on: AD-claude-675-rustys-screens-open-in-a-per-window-rusty-group-001*
+
+Chad, 2026-10-07: "anything that doesnt fit a category lands there", there being the Home group a
+new terminal from the rail's empty space already goes to. The rule: a project takes what is its
+own, the Rusty group takes Rusty's, and Home takes the rest, today the fleet's Agent tab, System
+One calls and a harness session's tab. One mechanism serves Home and Rusty
+(`groups::in_group`/`with_group`), with one guard against making a group twice. Rejected: a new
+"Default" group beside Home (two folderless catch-alls); leaving them in the shown project (they
+vanish on a project switch, the complaint #675 answered for Rusty).

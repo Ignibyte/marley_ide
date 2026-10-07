@@ -653,10 +653,7 @@ pub(crate) fn is_on(cx: &App) -> bool {
     cx.global::<Rusty>().source != Source::Off
 }
 
-/// Runs `open` in the workspace of the window's Rusty group and shows the group, making the group
-/// the first time (#675): every Rusty screen and page opens there, whatever project the window
-/// shows. Deferred, since the openers are called from inside a workspace's or a view's update. In
-/// the Zed layout, which has no rail, `open` runs in `asked_from`, the workspace it came from.
+/// Runs `open` in the window's Rusty group (#675); see [`crate::groups::in_group`].
 pub(crate) fn in_rusty_group(
     asked_from: gpui::WeakEntity<workspace::Workspace>,
     window: &Window,
@@ -664,33 +661,13 @@ pub(crate) fn in_rusty_group(
     open: impl FnOnce(&mut workspace::Workspace, &mut Window, &mut Context<workspace::Workspace>)
     + 'static,
 ) {
-    use util::ResultExt as _;
-    window.defer(cx, move |window, cx| {
-        let multi_workspace = window
-            .root::<workspace::MultiWorkspace>()
-            .flatten()
-            .filter(|_| crate::marley_layout(cx));
-        let Some(multi_workspace) = multi_workspace else {
-            asked_from
-                .update(cx, |workspace, cx| open(workspace, window, cx))
-                .log_err();
-            return;
-        };
-        let shown = multi_workspace.downgrade();
-        crate::groups::with_rusty_group(
-            &multi_workspace,
-            move |workspace, window, cx| {
-                shown
-                    .update(cx, |multi_workspace, cx| {
-                        multi_workspace.activate(workspace.clone(), None, window, cx);
-                    })
-                    .log_err();
-                workspace.update(cx, |workspace, cx| open(workspace, window, cx));
-            },
-            window,
-            cx,
-        );
-    });
+    crate::groups::in_group(
+        crate::groups::GroupKind::Rusty,
+        asked_from,
+        window,
+        cx,
+        open,
+    );
 }
 
 /// Why the rail's Brain view cannot show now, if it can't: Rusty off, or not connected.

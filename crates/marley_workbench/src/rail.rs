@@ -1899,21 +1899,23 @@ impl Rail {
         }
     }
 
-    /// Shows the harness session `id`'s tab in the displayed workspace (#534).
+    /// Shows the harness session `id`'s tab in the window's Home group (#534, #676).
     fn open_harness(&self, id: &str, window: &Window, cx: &mut Context<Self>) {
         let Some(shown) = self
             .multi_workspace
             .upgrade()
-            .map(|multi_workspace| multi_workspace.read(cx).workspace().clone())
+            .map(|multi_workspace| multi_workspace.read(cx).workspace().downgrade())
         else {
             return;
         };
         let id = id.to_string();
-        cx.defer_in(window, move |_, window, cx| {
-            shown.update(cx, |workspace, cx| {
-                crate::harness::open(workspace, &id, window, cx);
-            });
-        });
+        groups::in_group(
+            groups::GroupKind::Home,
+            shown,
+            window,
+            cx,
+            move |workspace, window, cx| crate::harness::open(workspace, &id, window, cx),
+        );
     }
 
     /// The inbox (#508): the agents that wait on the user, oldest first, over the projects,
@@ -3997,10 +3999,10 @@ impl Rail {
             return action(self, &workspace.downgrade(), window, cx);
         }
         let rail = cx.entity().downgrade();
-        groups::make(
-            &multi_workspace,
-            "",
+        // Through the same path as the screens Home takes (#676), so two quick asks make one Home.
+        groups::with_group(
             groups::GroupKind::Home,
+            &multi_workspace,
             move |workspace, window, cx| {
                 rail.update(cx, |rail, cx| {
                     action(rail, &workspace.downgrade(), window, cx)
