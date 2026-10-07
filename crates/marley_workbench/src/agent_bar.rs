@@ -251,7 +251,7 @@ fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option
                         .color(Color::Muted),
                 )
                 .child(attach_button(context))
-                .child(rich_input_button(context, agent))
+                .child(rich_input_button(context, agent, cx))
                 .children(microphone)
                 .children(
                     (agent == AgentKind::Claude)
@@ -289,18 +289,34 @@ fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option
     )
 }
 
-/// Rich Input, which opens the terminal's editor for `agent`'s prompt (#481).
-fn rich_input_button(context: &MarleyFooterContext, agent: AgentKind) -> AnyElement {
+/// Rich Input, which opens the terminal's editor for `agent`'s prompt (#481), and while the editor
+/// is open shows pressed and hides it, keeping the draft (#677).
+fn rich_input_button(context: &MarleyFooterContext, agent: AgentKind, cx: &App) -> AnyElement {
     let view = context.view.clone();
+    let open = view
+        .upgrade()
+        .is_some_and(|view| rich_input::is_open_for_agent(&view, cx));
+    let title = if open {
+        "Hide Rich Input"
+    } else {
+        "Rich Input"
+    };
     div()
         .debug_selector(|| "marley-rich-input-button".into())
         .child(
             IconButton::new("marley-rich-input", IconName::Pencil)
                 .icon_size(IconSize::Small)
                 .icon_color(Color::Muted)
-                .tooltip(Tooltip::for_action_title("Rich Input", &RichInput))
+                .toggle_state(open)
+                .tooltip(Tooltip::for_action_title(title, &RichInput))
                 .on_click(move |_, window, cx| {
-                    if let Some(view) = view.upgrade() {
+                    let Some(view) = view.upgrade() else {
+                        return;
+                    };
+                    // The editor's state when the click lands, not when the bar was drawn.
+                    if rich_input::is_open_for_agent(&view, cx) {
+                        rich_input::hide(&view, window, cx);
+                    } else {
                         rich_input::open(&view, agent, window, cx);
                     }
                 }),

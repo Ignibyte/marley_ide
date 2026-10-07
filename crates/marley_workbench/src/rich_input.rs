@@ -263,6 +263,19 @@ pub fn open(view: &Entity<TerminalView>, agent: AgentKind, window: &mut Window, 
     open_for(view, Target::Agent(agent), window, cx);
 }
 
+/// Whether `view`'s editor is open for its agent's prompt, which the agent bar's button then hides
+/// (#677).
+pub fn is_open_for_agent(view: &Entity<TerminalView>, cx: &App) -> bool {
+    cx.try_global::<Prompts>()
+        .and_then(|prompts| prompts.0.get(&view.entity_id()))
+        .is_some_and(|prompt| prompt.open && matches!(prompt.target, Target::Agent(_)))
+}
+
+/// Hides `view`'s editor, keeping its draft, as Escape does (#677).
+pub fn hide(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
+    close(view, window, cx);
+}
+
 /// Opens `view`'s editor for `target` and gives it the focus: an agent's with the draft it had, the
 /// shell's with the line typed at its prompt when there is one (#624).
 fn open_for(view: &Entity<TerminalView>, target: Target, window: &mut Window, cx: &mut App) {

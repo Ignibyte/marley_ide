@@ -918,6 +918,10 @@ alike.
 
 ## Rich input (`src/rich_input.rs`, #481)
 
+- The agent bar's pencil (`agent_bar::rich_input_button`) toggles since #677:
+  `rich_input::is_open_for_agent` (the view's prompt open, its target an agent) sets its
+  `toggle_state` and its tooltip's title, Hide Rich Input, and a click reads it again and calls
+  `rich_input::hide` (Escape's `close`: the draft kept, the terminal focused) or `open`.
 - `Prompts`, a global, holds an editor per terminal view (auto height, one to eight lines,
   soft wrap), made the first time it opens and dropped with the view, and whether it shows.
 - `marley::RichInput` is bound to `ctrl-g` in `Terminal` and handled on every workspace: with a

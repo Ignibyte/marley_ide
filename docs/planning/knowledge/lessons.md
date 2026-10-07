@@ -5032,3 +5032,12 @@ one-line change to each palette action so it goes through its `open_later` rathe
 The callers changed not at all. When a feature's tabs must all land somewhere new, route in the
 few openers every caller already funnels through, and check the palette actions, which tend to
 call the inner `open` directly.
+
+## L-claude-677-a-shown-tooltip-keeps-its-title-until-the-pointer-leaves-001
+*category: gpui · topic: a button whose tooltip changes with its state · from: pipeline 677*
+
+gpui builds a tooltip's view when the hover starts and keeps that view while the pointer stays,
+so a button whose click changes its own tooltip (Rich Input to Hide Rich Input) still shows the
+old words until the pointer leaves and comes back; its `toggle_state` shows at once. A visual
+check of such a tooltip moves the pointer off the button and back before the shot, and the state a
+click acts on is read when the click lands, not captured when the button was drawn.

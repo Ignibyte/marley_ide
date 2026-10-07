@@ -655,6 +655,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The Rich Input button hides it too** (#677, 2026-10-07). While an agent's Rich Input editor is
+  open, the agent bar's pencil shows pressed and reads Hide Rich Input; a click closes the editor
+  and keeps the draft, as Escape does. Closed, it opens the editor as before.
+
 - **Home takes what belongs to no project** (#676, 2026-10-07). A fleet agent's tab, System One
   calls and a harness session's tab now open in the window's **Home** group, the one a new
   terminal from the rail's empty space goes to, whatever project the window shows, and the window
