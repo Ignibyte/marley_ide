@@ -1465,6 +1465,21 @@ impl AcpConnection {
     }
 }
 
+// Marley: the `_meta` `marley.agent_session_meta` names for an agent server's id, which its
+// sessions carry (#683): Marley's own agent passes Claude Code's adapter a system-prompt append
+// and the tools it may not use there.
+fn marley_session_meta(id: &AgentId, cx: &App) -> Option<acp::Meta> {
+    cx.global::<SettingsStore>()
+        .merged_settings()
+        .marley
+        .as_ref()?
+        .agent_session_meta
+        .as_ref()?
+        .get(id.0.as_ref())?
+        .as_object()
+        .cloned()
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct SessionDirectories {
     cwd: PathBuf,
@@ -1634,11 +1649,13 @@ impl AgentConnection for AcpConnection {
         };
         let name = self.id.0.clone();
         let mcp_servers = mcp_servers_for_project(&project, cx);
+        // Marley: the `_meta` Marley's settings give this agent's sessions (#683).
+        let meta = marley_session_meta(&self.id, cx);
 
         cx.spawn(async move |cx| {
             let response = self
                 .connection
-                .send_request(directories.into_new_session_request(mcp_servers))
+                .send_request(directories.into_new_session_request(mcp_servers).meta(meta))
                 .block_task()
             .await
             .map_err(map_acp_error)?;
@@ -1764,6 +1781,8 @@ impl AgentConnection for AcpConnection {
         }
 
         let mcp_servers = mcp_servers_for_project(&project, cx);
+        // Marley: the `_meta` Marley's settings give this agent's sessions (#683).
+        let meta = marley_session_meta(&self.id, cx);
         self.open_or_create_session(
             session_id,
             project,
@@ -1773,7 +1792,9 @@ impl AgentConnection for AcpConnection {
                 Box::pin(async move {
                     let response = connection
                         .send_request(
-                            directories.into_load_session_request(session_id.clone(), mcp_servers),
+                            directories
+                                .into_load_session_request(session_id.clone(), mcp_servers)
+                                .meta(meta),
                         )
                         .block_task()
                         .await
@@ -1808,6 +1829,8 @@ impl AgentConnection for AcpConnection {
         }
 
         let mcp_servers = mcp_servers_for_project(&project, cx);
+        // Marley: the `_meta` Marley's settings give this agent's sessions (#683).
+        let meta = marley_session_meta(&self.id, cx);
         self.open_or_create_session(
             session_id,
             project,
@@ -1818,7 +1841,8 @@ impl AgentConnection for AcpConnection {
                     let response = connection
                         .send_request(
                             directories
-                                .into_resume_session_request(session_id.clone(), mcp_servers),
+                                .into_resume_session_request(session_id.clone(), mcp_servers)
+                                .meta(meta),
                         )
                         .block_task()
                         .await

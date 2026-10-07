@@ -29,6 +29,7 @@ pub mod agent_tab;
 pub mod agent_trust;
 pub mod agent_versions;
 pub mod agents;
+pub mod assistant;
 pub mod autosuggest;
 pub mod block_filter;
 pub mod block_headers;
@@ -851,6 +852,7 @@ pub fn init(cx: &mut App) {
     terminal_size::init(cx);
     groups::init(cx);
     voice::init(cx);
+    assistant::init(cx);
     rich_input::init(cx);
     prompt_colors::init(cx);
     send_selection::init(cx);

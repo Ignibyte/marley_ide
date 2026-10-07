@@ -63,7 +63,9 @@ Owner: the Marley session. Nothing in it waits on another repository.
    Marley and apply it on accept, through Zed's settings writer so comments and formatting
    survive. M. **`settings_change` done in #682 (2026-10-07)**, asking through a notification in
    every window and waiting 25 seconds; `keymap_change` is TICKET-686.
-5. **The Marley entry in the Agent Panel.** S to M.
+5. **The Marley entry in the Agent Panel.** S to M. **Claude Code's done in #683 (2026-10-07)**,
+   with the session meta in `marley.agent_session_meta` and one Zed hunk; Codex and Zed's agent
+   are TICKET-687.
    - Detection that never touches a token: `claude auth status` (JSON with `loggedIn`),
      `codex login status`, and the language-model providers Zed has configured.
    - The choice: the setting if set, else Claude Code, else Codex, else Zed's agent.

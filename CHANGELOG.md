@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Marley agent** (#683, 2026-10-07). An agent in the Agent Panel, "Marley", that explains
+  Marley and sets it up with you: Claude Code through Zed's `claude-acp` adapter on your own login,
+  told what it is for, given Marley's docs and settings tools, and kept from editing files or
+  running commands. Off by default (Settings → Marley → Marley Agent); when Claude Code is signed
+  in, Marley offers it once. Any agent server can now carry a `_meta` for its sessions in
+  `marley.agent_session_meta`, which Zed sends with each session (one hunk in `agent_servers`).
+
 - **Settings changes you accept** (#682, 2026-10-07). An agent can propose a value for one of your
   settings with `settings_change`. Marley shows a notification in every window naming the agent,
   the setting, its value now and the value proposed, with Apply and Decline, and writes the file

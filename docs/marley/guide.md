@@ -1465,6 +1465,29 @@ one Decisions tab per window. System One's log is another tab, System One calls.
     date for one, its words show in the form and nothing is written. Escape, or a click outside,
     closes the form without recording.
 
+## The Marley agent
+
+An agent in the Agent Panel that explains Marley and sets it up with you (#683). It is Claude
+Code, through Zed's `claude-acp` adapter on your own login, told what it is for and kept from
+editing files or running commands (Bash, Edit, Write, NotebookEdit and MultiEdit are off, and so is
+bypass mode). It reaches Marley's docs and settings through Marley's MCP server: `docs_search`,
+`docs_read`, `settings_schema`, `settings_read`, `actions_list` and `settings_change`, whose
+every change waits for your Apply.
+
+- **Turning it on.** Settings → Marley → **Marley Agent** (`marley.assistant.enabled`), off by
+  default. When Claude Code is signed in (`claude auth status`) and you have not chosen, Marley
+  offers it once a few seconds after start, with Turn On and Not Now; either answer is written to
+  your settings.
+- **Using it.** New Agent Thread → **Marley**, from the Agent Panel or a project's + in the rail.
+  Ask how a feature works, what a setting does or is set to, which key runs a command, or ask it
+  to change a setting.
+- **How it is made.** While the switch is on, Marley adds a `Marley` agent server to the
+  settings' defaults (not to your file): the command Zed resolves for `claude-acp`, run with the
+  `claude` Marley launches and no API key, and `marley.agent_session_meta.Marley`, the `_meta`
+  each of its sessions carries (the instructions appended to Claude Code's system prompt, and the
+  tools it may not use). Any agent server can have an entry in `marley.agent_session_meta`.
+  `MARLEY_ASSISTANT_ADAPTER` names an ACP program to run in the adapter's place.
+
 ## Marley's MCP server
 
 ### What it serves, and where

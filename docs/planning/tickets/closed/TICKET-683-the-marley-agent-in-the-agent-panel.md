@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #683 (feature, prong 2 C)
 - **Owner:** ce546757-1075-466f-a3cf-b6696d2211c9
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** ../../pipeline/completed/683-the-marley-agent-in-the-agent-panel.spec.md
 - **Source ticket:** `docs/planning/intake/marley-agent-manager-foreman.md`, phase 1, item 5
-- **Status:** open
+- **Status:** closed
 
 ## Summary
-A "Marley" entry in the Agent Panel: an agent that explains and configures Marley with
+(Scoped on 2026-10-07 to Claude Code; Codex and Zed's agent are TICKET-687.) A "Marley" entry in the Agent Panel: an agent that explains and configures Marley with
 TICKET-681's and TICKET-682's tools and a short instructions text, and never edits code. Marley
 finds what the user has, without touching a token: `claude auth status` (JSON, `loggedIn`),
 `codex login status`, and the language-model providers Zed has configured. It uses the

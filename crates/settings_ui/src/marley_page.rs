@@ -42,6 +42,7 @@ pub(crate) fn marley_page(cx: &App) -> SettingsPage {
             .chain(terminal_section())
             .chain(push_section())
             .chain(voice_section())
+            .chain(assistant_section())
             .chain(system_one_section())
             // While Rusty is off its section holds the header and the switch alone (#661).
             .chain(
@@ -832,6 +833,38 @@ fn voice_section() -> [SettingsPageItem; 2] {
                         .marley
                         .get_or_insert_default()
                         .voice
+                        .get_or_insert_default()
+                        .enabled = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+    ]
+}
+
+// Marley: the switch of Marley's own agent, off by default (#683).
+fn assistant_section() -> [SettingsPageItem; 2] {
+    [
+        SettingsPageItem::SectionHeader("Marley Agent"),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Marley Agent",
+            description: "List Marley's own agent in the Agent Panel: Claude Code, through its ACP adapter on your own login, told to explain and configure Marley with Marley's tools and kept from editing files or running commands. Each settings change it proposes waits for your Apply.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.assistant.enabled"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.assistant.as_ref())
+                        .and_then(|assistant| assistant.enabled.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .assistant
                         .get_or_insert_default()
                         .enabled = value;
                 },

@@ -195,6 +195,14 @@ pub struct MarleySettingsContent {
     pub claude_code_ide: Option<bool>,
     /// Voice in Marley (#480, #642): dictation through Voxtype. Off until it is turned on.
     pub voice: Option<MarleyVoiceSettingsContent>,
+    /// Marley's own agent (#683): an agent in the Agent Panel that explains and configures
+    /// Marley. Off until it is turned on.
+    pub assistant: Option<MarleyAssistantSettingsContent>,
+    /// The `_meta` an agent server's ACP sessions carry, by the agent server's id (#683): Marley
+    /// sets its own agent's here, and any agent server may have one.
+    ///
+    /// Default: {}
+    pub agent_session_meta: Option<BTreeMap<String, serde_json::Value>>,
     /// The System One layer (#565): typed questions to a model about states Marley builds from
     /// what it knows. Off until it is turned on.
     pub system_one: Option<SystemOneSettingsContent>,
@@ -281,6 +289,18 @@ pub struct MarleyPushSettingsContent {
     pub topic: Option<String>,
     /// A file holding an ntfy access token, readable by its owner alone.
     pub token_file: Option<String>,
+}
+
+/// Marley's own agent (#683).
+#[with_fallible_options]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema, MergeFrom)]
+pub struct MarleyAssistantSettingsContent {
+    /// Whether the Agent Panel lists Marley's own agent: Claude Code through its ACP adapter on
+    /// your own login, told to explain and configure Marley with Marley's tools, and kept from
+    /// editing files or running commands. Marley offers it once when Claude Code is signed in.
+    ///
+    /// Default: false
+    pub enabled: Option<bool>,
 }
 
 /// Marley's voice features (#642).

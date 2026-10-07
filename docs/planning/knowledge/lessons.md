@@ -5101,3 +5101,12 @@ compile starts, and a crate edited after its compile began goes in as it was. #6
 landed while #681's install compiled `marley_workbench`; its compile had begun first, and the
 installed binary held no #682 string, so no harm came of it. Planning and docs are safe during an
 install; source edits wait for it to finish, or the install waits for them to be committed.
+
+## L-claude-683-a-zed-settings-enum-variant-is-costly-to-grow-001
+*category: zed fork · topic: adding a setting Zed's code reads · from: pipeline 683*
+
+Adding a field to a variant of a Zed settings enum (`CustomAgentServerSettings::Registry`) breaks
+every struct literal of that variant across Zed's crates (here `agent_ui`, `onboarding`, `project`
+and `agent_servers`), each a hunk to carry through upstream merges. A value only Marley sets
+goes in Marley's own `marley` settings block, keyed by what it applies to (`agent_session_meta`
+by agent id), and the one Zed site that needs it reads it from `merged_settings().marley`.

@@ -4368,3 +4368,17 @@ writes, report 05 item 6). One key per question, the user's settings only; `keym
 (TICKET-686) and a project's file come later. Rejected: letting the Marley agent edit
 settings.json as a file (no check, no question, comments at risk); a card in one view (missed
 when the user is elsewhere); 60 seconds to answer (past the server's 30-second wait).
+
+## AD-claude-683-marleys-own-agent-is-claude-code-with-session-meta-from-marleys-settings-001
+*decided at: 2026-10-07 · status: shipped*
+
+The Marley agent is Claude Code through Zed's `claude-acp` adapter on the user's own login, as a
+custom agent server Marley puts in the settings' in-memory defaults while `marley.assistant` is
+on, with the command Zed resolves for the adapter. Its prompt and limits travel as ACP `_meta`
+from `marley.agent_session_meta` (keyed by agent id, open to any agent server), which one hunk in
+`agent_servers` sends on `session/new`, `session/load` and `session/resume`. Off by default,
+offered once when `claude auth status` says signed in. Rejected: fields on Zed's
+`CustomAgentServerSettings` for an alias, a display name and the meta (struct literals in four Zed
+crates); a Marley JSON-RPC proxy between Zed and the adapter (a relay to keep, and an entry to
+re-insert after every registry refresh); a Zed-agent profile alone (Zed's agent takes no system
+prompt of its own; TICKET-687 adds it for those without Claude Code).

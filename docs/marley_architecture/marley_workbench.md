@@ -2166,6 +2166,18 @@ alike.
   each local project, where the Zed Agent's Write profile (`enable_all_context_servers`) takes
   its tools from, and `mcp_servers_for_project` hands it to each external agent's `session/new`.
   No bearer goes into a setting; a user's own `context_servers.marley` replaces the default.
+- **The Marley agent (#683, `src/assistant.rs`).** `init` follows `marley.assistant.enabled`:
+  `sync` acts only when the switch moved, since the defaults it writes fire the settings observer
+  again. On, it puts `marley.agent_session_meta.Marley` (`session_meta`: the `INSTRUCTIONS` as a
+  system-prompt append, `DISALLOWED_TOOLS`, no bypass) in the in-memory defaults, adds a default
+  `claude-acp` registry entry when the user's settings lack one, and `resolve`s that adapter's
+  command through the first open project's `AgentServerStore` (`get_command`, which installs it),
+  or again from the next workspace when none is open; `set_entry` then adds the custom `Marley`
+  entry with that command, `CLAUDE_CODE_EXECUTABLE` (`claude_program`) and an empty
+  `ANTHROPIC_API_KEY`. Off, it takes out all three. `MARLEY_ASSISTANT_ADAPTER` replaces the
+  resolved command. `offer_later` runs `claude auth status` through `process::output` five seconds
+  after start while the user's raw settings lack the key (`decided`), and `show_offer`'s Turn On
+  and Not Now write it (`choose`).
 - **Docs, settings and actions (#681).** `answer` sends `docs_` calls to `docs_tools::answer` and
   `settings_`/`actions_` calls to `settings_tools::answer`.
   - `docs_tools.rs`: `DocsBundle`, a `util::fs_embed!` over `docs/src/**/*.md` and

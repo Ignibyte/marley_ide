@@ -10,9 +10,9 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-683](open/TICKET-683-the-marley-agent-in-the-agent-panel.md) | feature | Marley agent, phase 1 item 5: the "Marley" entry in the Agent Panel, found from Claude Code, Codex or Zed's agent, offered once, no file tools |
 | [TICKET-684](open/TICKET-684-the-marley-agent-in-a-terminal.md) | feature | Marley agent, phase 1 item 6: the same agent as Claude Code in a terminal tab |
 | [TICKET-686](open/TICKET-686-keymap-changes-accepted-as-a-diff.md) | feature | Marley agent, phase 1 item 4's second half: `keymap_change`, applied only when the user accepts, through Zed's keymap updater |
+| [TICKET-687](open/TICKET-687-the-marley-agent-on-codex-and-zeds-agent.md) | feature | Marley agent on Codex (read-only sandbox) and on Zed's agent (a Marley profile), split from #683 |
 
 ## Deliberate (picked explicitly, never auto-next)
 
