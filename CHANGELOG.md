@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Writing to harness sessions** (#689, 2026-10-07). With `marley.harness_writes` on, a harness
+  session's tab can write to the session as well as show its output:
+  - answer the question it waits on with a button per option;
+  - send it a line of text, with the delivery's state shown;
+  - list the commands that watch it, each with Copy.
+
+  `marley: open harness session` opens a session from one of the harness's declared profiles.
+  The harness Marley runs itself is followed with `--grant write`. A `marley.harness` command
+  needs that grant in its own arguments. Off by default, and off the tab only reads, as before.
+
 - **The Marley agent on Codex and on Zed's agent** (#687, 2026-10-07). Marley's own agent now
   runs on Codex as well as Claude Code. In the Agent Panel, the Marley entry runs the registry's
   Codex adapter in its read-only mode, with the Marley agent's instructions as Codex's developer

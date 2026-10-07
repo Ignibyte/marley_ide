@@ -5125,3 +5125,12 @@ Zed's native agent cannot be given instructions per profile or per thread.
 A profile can only choose tools; their descriptions are the guidance. A thread whose profile is
 missing gets no tools at all (`thread.rs:4176`), so taking a profile away must also reset a
 `default_profile` that names it.
+
+## L-claude-689-a-source-fix-in-test-needs-the-test-phase-active-001
+*category: pipeline · topic: the phase hooks · from: pipeline 689*
+
+`enforce-phase-gate.sh` judges a source edit by the last phase skill invoked. Pipeline 689 wrote
+its scenario and ran it without invoking `/pipeline:test`, after Code had set its status. A fix the
+shots then called for was blocked, because the hook still saw Code as active and wanted Phase 1's
+status. Invoke `/pipeline:test` before writing the scenario, so a source fix found in Test is the
+Test phase's to make.

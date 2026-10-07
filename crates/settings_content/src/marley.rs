@@ -85,6 +85,13 @@ pub struct MarleySettingsContent {
     ///
     /// Default: false
     pub embedded_harness: Option<bool>,
+    /// Whether a harness session's tab answers its question, sends it text and lists the commands
+    /// that watch it, and `marley: open harness session` opens one from a profile, through the
+    /// harness's write verbs. The harness Marley runs itself is then followed with `--grant
+    /// write`; a `harness` command needs that grant in its own arguments (#689).
+    ///
+    /// Default: false
+    pub harness_writes: Option<bool>,
     /// How many seconds a command runs before its end shows a desktop notification, when its
     /// terminal is not the one in front; 0 turns this off (#551).
     ///

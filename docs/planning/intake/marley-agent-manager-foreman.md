@@ -104,14 +104,29 @@ The harness session:
 
 The Marley session:
 
-4. **The write side of the harness's MCP.** Today Marley calls no write verb (#534):
-   `session_open`, `session_surface_to_human`, send and answer.
+4. **The write side of the harness's MCP.** **Done in #689 (2026-10-07)**, behind
+   `marley.harness_writes`:
+   - a session's tab answers its question, sends it text and lists its views with Copy;
+   - `marley: open harness session` opens one from a profile.
+
+   Harness TICKET-092 (closed 2026-10-07) adds `wait_ms` to `session_send`, which Marley does not
+   use yet.
 5. **Watching a seat.** Marley runs the command `session_surface_to_human` returns (`rh view`,
    `rh attach`, or a Claude or Codex observer) in a terminal pane, typing through the harness's
    controller claim. This is `intake/harness-session-live-terminal.md`; its 2026-10-01 finding (no
    seat had a terminal) needs checking again now that M13 runs Claude Code's own interface in a
    harness terminal.
-6. **The New Agent form.** Host (this box or a fleet host), name, role, agent and folder; Marley
+6. **The New Agent form.** The harness's draft shape (TICKET-109's plan, 2026-10-07):
+   - **Commands.** `ssh HOST rh --state ROOT seat add NAME --agent claude|codex --cwd DIR
+     [--role R] [--model M] [--binary P] [--attempts N --backoff-ms …] [--no-supervise]`, then
+     `seat start NAME`.
+   - **Output.** Each prints one JSON object and exits 0. `start` gives `{id, title, profile,
+     request, state, opened, role?, supervise?, views}`.
+   - **Refusals.** Exit 1, with `rh: CODE: reason` on stderr: `seat_exists`, `seat_name`,
+     `seat_agent`, `seat_role`, `seat_role_reserved`, `harness_model_refused`,
+     `claude_signin_undeclared`, or a cwd or binary refusal.
+
+   The form itself: Host (this box or a fleet host), name, role, agent and folder; Marley
    runs `rh seat add` and `rh seat start` on that host over SSH. The Marley agent gets the same as
    a tool ("set up a manager on forge working in /srv/work/x").
 7. **The manager in the Agent Panel.** When a manager seat exists, Marley adds its `rh acp` to

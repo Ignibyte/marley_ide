@@ -1681,6 +1681,24 @@ alike.
   inbox. The minute bump in `connected` also runs while a shown reset lies ahead. `row_card` is
   `rems(4.5)` tall for three lines under the title.
 
+- **Writes (#689).** `harness_writes` reads `marley.harness_writes` from the merged settings.
+  - `writes_on` is that switch with a harness source that is not `Off`. `Source::Embedded
+    { writes }` makes a change restart the embedded follow, and `follow_embedded` adds `--grant
+    write`.
+  - `request` sends one tool call within 5 s, shared by `call` (reads) and `call_write`.
+    `call_write` reads `{result: accepted, value}` or `{result: refused, reason}` from the
+    structured content or the text, whether or not `isError` is set.
+  - `HarnessView` holds `send_editor` (`Editor::single_line`), `status`, `views` and `writing`.
+    `render_controls`, shown while `writes_on`, draws the question's option buttons
+    (`answer`: `session_answer` with the full prompt), the send line (`send`:
+    `session_send` with a new UUID; Enter arrives as `menu::Confirm` on the view), and Views
+    (`surface`: `session_surface_to_human`, `view_line` quoting each argument). Each view gets
+    Copy, and its line is truncated after it.
+  - `OpenHarnessSession` opens `open_session_picker`, whose `OpenSessionDelegate` offers the
+    names in `<data dir>/harness/profiles` while the harness is embedded (`profile_names`,
+    read on the background executor) and the typed name. Confirm calls `session_open` and
+    opens the returned id's tab. `filter_palette` lists the action only while `writes_on`.
+
 ## The Rusty home page (`src/rusty/home_tab.rs`, #679)
 
 - `RustyHome` (an `Item`, title Rusty, `rusty::RUSTY_ICON`, a placeholder) is the Rusty group's

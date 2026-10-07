@@ -4406,3 +4406,23 @@ Rejected:
 - writing the instructions into the user's `AGENTS.md` (their file, read by every thread);
 - a Zed hunk that puts MCP `instructions` into the native agent's prompt (every Write thread
   would get Marley's server text; it can be its own ticket).
+
+## AD-claude-689-harness-writes-live-in-the-sessions-tab-behind-one-switch-001
+*decided at: 2026-10-07 · status: shipped · builds on: AD-claude-534-the-harness-is-followed-by-polling-in-a-section-outside-the-rails-model-001, AD-claude-661-the-assistant-off-shows-nothing-but-its-switch-001*
+
+Marley calls the harness's write verbs from the session's own tab, which the rail's row and the
+inbox already open:
+- `session_answer`, with an option button each and the full prompt;
+- `session_send`, a line with a new UUID per delivery;
+- `session_surface_to_human`, its views listed with Copy.
+
+A palette picker calls `session_open`. One switch, `marley.harness_writes`, off by default, gates
+all of it. Marley adds `--grant write` only to the command it builds for the embedded harness. A
+`marley.harness` command is the user's and keeps its own grant, so a missing grant shows as the
+harness's refusal. Rejected:
+- answering from the inbox's entry directly: one place to answer, as #651 kept Codex's approvals
+  to an explicit click;
+- appending `--grant write` to the user's command: it may be an SSH `ForceCommand` whose grant the
+  administrator fixes;
+- running a view in a pane here: that is item 5, after the harness gives agent seats views
+  (TICKET-109).

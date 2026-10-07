@@ -8,7 +8,14 @@
 //! with `marley_fleet::apply`; an expired cursor re-reads the snapshot. Zed's client sees no
 //! server exit, so a call that fails, or takes more than five seconds, is the sign: the section
 //! says the harness is not running and why, keeps its rows, marked stale, and starts the command
-//! again after 1 s, doubling to at most 60 s. Marley calls no write verb.
+//! again after 1 s, doubling to at most 60 s.
+//!
+//! With `marley.harness_writes` on (#689), a session's tab answers the question it waits on
+//! (`session_answer`), sends it text (`session_send`) and lists the commands that watch it
+//! (`session_surface_to_human`), and `marley: open harness session` opens one from a declared
+//! profile (`session_open`). The harness Marley runs itself is then followed with `--grant write`;
+//! a `marley.harness` command carries its own grant, and a write it lacks comes back refused, with
+//! the harness's reason in the tab.
 //!
 //! With `marley.embedded_harness` on and no `marley.harness`, Marley runs the harness itself
 //! (#632): it finds `rh` (`MARLEY_RH`, else the search path), starts `rh --state <data dir>/harness
@@ -22,6 +29,7 @@
 //! quota each window has used. `Signals` reads them; a state the harness's runtime, the agent's
 //! protocol or its reports did not declare is drawn weaker and never asks the user anything.
 
+use std::any::TypeId;
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -30,25 +38,39 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context as _;
+use command_palette_hooks::CommandPaletteFilter;
 use context_server::types::requests::CallTool;
 use context_server::types::{CallToolParams, CallToolResponse};
 use context_server::{ContextServer, ContextServerCommand, ContextServerId};
+use editor::Editor;
 use futures::future::{Either, select};
 use futures::{AsyncBufReadExt as _, StreamExt as _};
 use gpui::{
-    App, AsyncApp, Context, EventEmitter, FocusHandle, Focusable, Global, SharedString,
-    Subscription, Task,
+    App, AsyncApp, ClipboardItem, Context, DismissEvent, Entity, EventEmitter, FocusHandle,
+    Focusable, Global, SharedString, Subscription, Task, WeakEntity, actions,
 };
 use marley_fleet::{FleetSnapshot, SessionEvent, State, apply};
+use picker::{Picker, PickerDelegate};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use settings::{Settings as _, SettingsStore};
-use ui::prelude::*;
+use ui::{ListItem, ListItemSpacing, prelude::*};
 use util::ResultExt as _;
 use workspace::Workspace;
 use workspace::item::Item;
+use workspace::notifications::DetachAndPromptErr as _;
 
 use crate::{EmbeddedHarness, MarleySettings};
+
+actions!(
+    marley,
+    [
+        /// Opens a harness session from one of its declared profiles, through the harness's
+        /// `session_open`.
+        #[derive(Eq)]
+        OpenHarnessSession
+    ]
+);
 
 /// How often the fleet is asked for new events.
 const POLL: Duration = Duration::from_secs(1);
@@ -105,8 +127,8 @@ enum Source {
     Off,
     /// `marley.harness`'s command.
     Command(ContextServerCommand),
-    /// The runtime Marley runs itself.
-    Embedded,
+    /// The runtime Marley runs itself, followed with the write grant when `writes` (#689).
+    Embedded { writes: bool },
 }
 
 /// What Marley follows of the harness: the setting's command, the connection, and the fleet.
@@ -125,6 +147,8 @@ pub(crate) struct Harness {
     run: Option<Task<()>>,
     /// The embedded runtime's keeper, which starts `serve` and the run.
     embed: Option<Task<()>>,
+    /// Whether the palette lists `OpenHarnessSession`, once its filter was set.
+    palette_shown: Option<bool>,
 }
 
 impl Global for Harness {}
@@ -152,6 +176,19 @@ impl Harness {
         harness.folded = !harness.folded;
     }
 
+    /// The harness's MCP server, while Marley is connected to it.
+    fn server(cx: &App) -> Option<Arc<ContextServer>> {
+        cx.try_global::<Self>()?.server.clone()
+    }
+
+    /// The folder of the declared profiles, while Marley runs the harness itself and knows its
+    /// root.
+    fn profiles_dir(cx: &App) -> Option<PathBuf> {
+        let harness = cx.try_global::<Self>()?;
+        matches!(harness.source, Source::Embedded { .. })
+            .then(|| paths::data_dir().join("harness").join("profiles"))
+    }
+
     /// The harness's sessions, in the order the harness first published them.
     pub(crate) fn seats(cx: &App) -> &FleetSnapshot {
         static NONE: std::sync::LazyLock<FleetSnapshot> =
@@ -166,6 +203,51 @@ pub fn init(cx: &mut App) {
     cx.set_global(Harness::default());
     follow_setting(cx);
     cx.observe_global::<SettingsStore>(follow_setting).detach();
+    cx.observe_new(|workspace: &mut Workspace, _, cx| {
+        workspace.register_action(|workspace, _: &OpenHarnessSession, window, cx| {
+            open_session_picker(workspace, window, cx);
+        });
+        cx.defer(filter_palette);
+    })
+    .detach();
+}
+
+/// Whether `marley.harness_writes` is on.
+fn harness_writes(cx: &App) -> bool {
+    cx.global::<SettingsStore>()
+        .merged_settings()
+        .marley
+        .as_ref()
+        .and_then(|marley| marley.harness_writes)
+        .unwrap_or(false)
+}
+
+/// Whether the harness's write verbs are on: `marley.harness_writes`, with a harness to follow.
+fn writes_on(cx: &App) -> bool {
+    harness_writes(cx)
+        && cx
+            .try_global::<Harness>()
+            .is_some_and(|harness| harness.source != Source::Off)
+}
+
+/// Lists `OpenHarnessSession` in the palette while the write verbs are on. Before the palette has
+/// its filter there is nothing to set; the next call sets it.
+fn filter_palette(cx: &mut App) {
+    let on = writes_on(cx);
+    if cx.global::<Harness>().palette_shown == Some(on)
+        || CommandPaletteFilter::try_global(cx).is_none()
+    {
+        return;
+    }
+    cx.global_mut::<Harness>().palette_shown = Some(on);
+    let command = [TypeId::of::<OpenHarnessSession>()];
+    CommandPaletteFilter::update_global(cx, |filter, _| {
+        if on {
+            filter.show_action_types(&command);
+        } else {
+            filter.hide_action_types(&command);
+        }
+    });
 }
 
 /// Starts following the harness the settings name, or the one Marley runs itself, or stops, when
@@ -174,10 +256,13 @@ fn follow_setting(cx: &mut App) {
     let settings = MarleySettings::get_global(cx);
     let source = match (&settings.harness, settings.embedded_harness) {
         (Some(command), _) => Source::Command(command.clone()),
-        (None, EmbeddedHarness::Run) => Source::Embedded,
+        (None, EmbeddedHarness::Run) => Source::Embedded {
+            writes: harness_writes(cx),
+        },
         (None, EmbeddedHarness::Off) => Source::Off,
     };
     if cx.global::<Harness>().source == source {
+        filter_palette(cx);
         return;
     }
     let (run, embed) = match &source {
@@ -187,11 +272,11 @@ fn follow_setting(cx: &mut App) {
             let run = cx.spawn(async move |cx| follow(command, cx).await);
             (Some(run), None)
         }
-        Source::Embedded => (None, Some(cx.spawn(async move |cx| embed(cx).await))),
+        Source::Embedded { .. } => (None, Some(cx.spawn(async move |cx| embed(cx).await))),
     };
     let harness = cx.global_mut::<Harness>();
     harness.connection = matches!(source, Source::Command(_)).then_some(Connection::Connecting);
-    harness.runtime = matches!(source, Source::Embedded).then_some(Runtime::Starting);
+    harness.runtime = matches!(source, Source::Embedded { .. }).then_some(Runtime::Starting);
     harness.source = source;
     harness.seats = FleetSnapshot::default();
     harness.server = None;
@@ -199,6 +284,7 @@ fn follow_setting(cx: &mut App) {
     // harness's sessions live on in its tmux server.
     harness.run = run;
     harness.embed = embed;
+    filter_palette(cx);
 }
 
 /// Keeps the runtime Marley runs itself: finds `rh`, serves the root, follows it once it is
@@ -349,15 +435,20 @@ fn is_ready(line: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Starts following the embedded runtime's `rh mcp`, unless Marley follows it already.
+/// Starts following the embedded runtime's `rh mcp`, with `--grant write` while
+/// `marley.harness_writes` is on, unless Marley follows it already.
 fn follow_embedded(rh: &Path, root: &Path, cx: &AsyncApp) {
+    let mut args = vec![
+        "--state".to_string(),
+        root.display().to_string(),
+        "mcp".to_string(),
+    ];
+    if cx.update(|cx| harness_writes(cx)) {
+        args.extend(["--grant".to_string(), "write".to_string()]);
+    }
     let command = ContextServerCommand {
         path: rh.to_path_buf(),
-        args: vec![
-            "--state".to_string(),
-            root.display().to_string(),
-            "mcp".to_string(),
-        ],
+        args,
         env: None,
         timeout: None,
     };
@@ -556,6 +647,49 @@ async fn call(
     arguments: Value,
     cx: &AsyncApp,
 ) -> Result<Value, Failure> {
+    let response = request(server, tool, arguments, cx)
+        .await
+        .map_err(Failure::Failed)?;
+    answer(tool, response)
+}
+
+/// Calls one of the harness's write verbs and reads its receipt: the accepted `value`, or the
+/// refusal's reason. A refused receipt comes with `isError` set, a missing grant's included.
+async fn call_write(
+    server: &ContextServer,
+    tool: &str,
+    arguments: Value,
+    cx: &AsyncApp,
+) -> Result<Value, SharedString> {
+    let response = request(server, tool, arguments, cx)
+        .await
+        .map_err(|error| SharedString::from(format!("{error:#}")))?;
+    let text = response.text_contents();
+    let receipt = response
+        .structured_content
+        .or_else(|| serde_json::from_str::<Value>(&text).ok());
+    let Some(receipt) = receipt else {
+        let said = text.lines().next().unwrap_or("no receipt").to_string();
+        return Err(said.into());
+    };
+    if receipt.get("result").and_then(Value::as_str) == Some("accepted") {
+        return Ok(receipt.get("value").cloned().unwrap_or(Value::Null));
+    }
+    let reason = receipt
+        .get("reason")
+        .and_then(Value::as_str)
+        .unwrap_or("refused")
+        .to_string();
+    Err(reason.into())
+}
+
+/// Sends one tool call, within [`CALL_TIMEOUT`].
+async fn request(
+    server: &ContextServer,
+    tool: &str,
+    arguments: Value,
+    cx: &AsyncApp,
+) -> anyhow::Result<CallToolResponse> {
     let executor = cx.background_executor().clone();
     let asking = async {
         let protocol = server
@@ -570,16 +704,13 @@ async fn call(
             .await
             .with_context(|| format!("{tool} failed"))
     };
-    let response = match select(pin!(asking), pin!(executor.timer(CALL_TIMEOUT))).await {
-        Either::Left((response, _)) => response.map_err(Failure::Failed)?,
-        Either::Right(_) => {
-            return Err(Failure::Failed(anyhow::anyhow!(
-                "the harness did not answer {tool} within {} s",
-                CALL_TIMEOUT.as_secs()
-            )));
-        }
-    };
-    answer(tool, response)
+    match select(pin!(asking), pin!(executor.timer(CALL_TIMEOUT))).await {
+        Either::Left((response, _)) => response,
+        Either::Right(_) => Err(anyhow::anyhow!(
+            "the harness did not answer {tool} within {} s",
+            CALL_TIMEOUT.as_secs()
+        )),
+    }
 }
 
 /// A tool's structured content, or why there is none.
@@ -832,7 +963,9 @@ pub(crate) fn open(
     workspace.add_item_to_center(Box::new(view), window, cx);
 }
 
-/// A harness session's output, read-only: its last lines as the harness renders them.
+/// A harness session's output: its last lines as the harness renders them. While the write verbs
+/// are on, the question it waits on with a button per option, a line to send it, and the commands
+/// that watch it (#689).
 pub(crate) struct HarnessView {
     id: String,
     title: SharedString,
@@ -842,6 +975,13 @@ pub(crate) struct HarnessView {
     seen: Option<(u64, State)>,
     focus_handle: FocusHandle,
     reading: Option<Task<()>>,
+    /// The text to send the session.
+    send_editor: Entity<Editor>,
+    /// What the last write came to, and its color.
+    status: Option<(SharedString, Color)>,
+    /// The commands that watch the session, once asked for: each view's kind and command line.
+    views: Vec<(SharedString, SharedString)>,
+    writing: Option<Task<()>>,
     _harness: Subscription,
     _refresh: Task<()>,
 }
@@ -857,7 +997,7 @@ impl std::fmt::Debug for HarnessView {
 }
 
 impl HarnessView {
-    fn new(id: String, window: &Window, cx: &mut Context<Self>) -> Self {
+    fn new(id: String, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let title = Harness::seats(cx).get(&id).map_or_else(
             || SharedString::from(id.clone()),
             |seat| seat.title.clone().into(),
@@ -878,6 +1018,11 @@ impl HarnessView {
                 };
             }
         });
+        let send_editor = cx.new(|cx| {
+            let mut editor = Editor::single_line(window, cx);
+            editor.set_placeholder_text("Text to send the session", window, cx);
+            editor
+        });
         let mut view = Self {
             id,
             title,
@@ -886,6 +1031,10 @@ impl HarnessView {
             seen: None,
             focus_handle: cx.focus_handle(),
             reading: None,
+            send_editor,
+            status: None,
+            views: Vec::new(),
+            writing: None,
             _harness: harness,
             _refresh: refresh,
         };
@@ -949,6 +1098,229 @@ impl HarnessView {
     }
 }
 
+impl HarnessView {
+    /// Answers the question the session waits on with `choice`, naming the question by its full
+    /// prompt, so an answer meant for it never lands on a later one.
+    fn answer(&mut self, choice: String, window: &Window, cx: &mut Context<Self>) {
+        let Some(question) = Harness::seats(cx)
+            .get(&self.id)
+            .and_then(|seat| seat.question.clone())
+        else {
+            return;
+        };
+        let arguments = json!({ "id": self.id, "choice": choice, "prompt": question.prompt });
+        self.write(
+            "session_answer",
+            arguments,
+            window,
+            cx,
+            move |view, _, _, _| {
+                view.status = Some((format!("Answered {choice}").into(), Color::Success));
+            },
+        );
+    }
+
+    /// Sends the editor's text to the session as a new delivery, and empties the editor once the
+    /// harness took it.
+    fn send(&mut self, window: &Window, cx: &mut Context<Self>) {
+        let text = self.send_editor.read(cx).text(cx);
+        if text.trim().is_empty() {
+            return;
+        }
+        let delivery = uuid::Uuid::new_v4().to_string();
+        let arguments = json!({ "id": self.id, "text": text, "delivery": delivery });
+        self.write(
+            "session_send",
+            arguments,
+            window,
+            cx,
+            |view, value, window, cx| {
+                let state = value.get("state").and_then(Value::as_str).unwrap_or("sent");
+                let detail = value.get("detail").and_then(Value::as_str).unwrap_or("");
+                let said = if detail.is_empty() {
+                    format!("Sent: {state}")
+                } else {
+                    format!("Sent: {state} ({detail})")
+                };
+                view.status = Some((said.into(), Color::Success));
+                view.send_editor
+                    .update(cx, |editor, cx| editor.set_text("", window, cx));
+            },
+        );
+    }
+
+    /// Asks the harness for the commands that watch the session, and lists them.
+    fn surface(&mut self, window: &Window, cx: &mut Context<Self>) {
+        let arguments = json!({ "id": self.id });
+        self.write(
+            "session_surface_to_human",
+            arguments,
+            window,
+            cx,
+            |view, value, _, _| {
+                view.views = value
+                    .get("views")
+                    .and_then(Value::as_array)
+                    .map(|views| views.iter().filter_map(view_line).collect())
+                    .unwrap_or_default();
+                view.status = if view.views.is_empty() {
+                    Some((
+                        SharedString::new_static("The harness has no view of this session"),
+                        Color::Muted,
+                    ))
+                } else {
+                    None
+                };
+            },
+        );
+    }
+
+    /// Calls the write verb `tool`, unless a write is under way, and hands an accepted value to
+    /// `accepted`; a refusal shows with the harness's reason.
+    fn write(
+        &mut self,
+        tool: &'static str,
+        arguments: Value,
+        window: &Window,
+        cx: &mut Context<Self>,
+        accepted: impl FnOnce(&mut Self, Value, &mut Window, &mut Context<Self>) + 'static,
+    ) {
+        if self.writing.is_some() {
+            return;
+        }
+        let Some(server) = Harness::server(cx) else {
+            self.status = Some((
+                SharedString::new_static("The harness is not running"),
+                Color::Error,
+            ));
+            cx.notify();
+            return;
+        };
+        self.writing = Some(cx.spawn_in(window, async move |view, cx| {
+            let receipt = call_write(&server, tool, arguments, cx).await;
+            view.update_in(cx, |view, window, cx| {
+                view.writing = None;
+                match receipt {
+                    Ok(value) => accepted(view, value, window, cx),
+                    Err(reason) => {
+                        view.status = Some((format!("Refused: {reason}").into(), Color::Error));
+                    }
+                }
+                cx.notify();
+            })
+            .log_err();
+        }));
+    }
+
+    /// The question, the line to send and the views, while the write verbs are on.
+    fn render_controls(&self, cx: &Context<Self>) -> AnyElement {
+        let colors = cx.theme().colors();
+        let question = Harness::seats(cx)
+            .get(&self.id)
+            .and_then(|seat| seat.question.clone());
+        v_flex()
+            .flex_none()
+            .gap_1()
+            .p_2()
+            .border_b_1()
+            .border_color(colors.border_variant)
+            .when_some(question, |this, question| {
+                this.child(
+                    h_flex()
+                        .gap_2()
+                        .flex_wrap()
+                        .child(Label::new(shown_prompt(&question.prompt).to_string()))
+                        .children(question.options.into_iter().enumerate().map(
+                            |(index, option)| {
+                                let choice = option.clone();
+                                Button::new(("marley-harness-option", index), option)
+                                    .style(ButtonStyle::Filled)
+                                    .on_click(cx.listener(move |view, _, window, cx| {
+                                        view.answer(choice.clone(), window, cx);
+                                    }))
+                            },
+                        )),
+                )
+            })
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(
+                        div()
+                            .flex_1()
+                            .px_2()
+                            .py_0p5()
+                            .rounded_md()
+                            .border_1()
+                            .border_color(colors.border)
+                            .bg(colors.editor_background)
+                            .child(self.send_editor.clone()),
+                    )
+                    .child(
+                        Button::new("marley-harness-send", "Send")
+                            .on_click(cx.listener(|view, _, window, cx| view.send(window, cx))),
+                    )
+                    .child(
+                        Button::new("marley-harness-views", "Views")
+                            .on_click(cx.listener(|view, _, window, cx| view.surface(window, cx))),
+                    ),
+            )
+            .when_some(self.status.clone(), |this, (status, color)| {
+                this.child(Label::new(status).color(color).size(LabelSize::Small))
+            })
+            .children(self.views.iter().enumerate().map(|(index, (kind, line))| {
+                let copied = line.to_string();
+                // Copy comes before the line, which is cut at the tab's edge: a view's command
+                // carries the root's path and a workspace id, longer than most tabs are wide.
+                h_flex()
+                    .gap_2()
+                    .child(
+                        Label::new(kind.clone())
+                            .color(Color::Muted)
+                            .size(LabelSize::Small),
+                    )
+                    .child(
+                        Button::new(("marley-harness-copy", index), "Copy")
+                            .label_size(LabelSize::Small)
+                            .on_click(move |_, _, cx| {
+                                cx.write_to_clipboard(ClipboardItem::new_string(copied.clone()));
+                            }),
+                    )
+                    .child(
+                        div().flex_1().min_w_0().overflow_hidden().child(
+                            Label::new(line.clone())
+                                .buffer_font(cx)
+                                .size(LabelSize::Small)
+                                .single_line()
+                                .truncate(),
+                        ),
+                    )
+            }))
+            .into_any_element()
+    }
+}
+
+/// A view of `session_surface_to_human` as its kind and its command line, each argument quoted
+/// where a shell would split it.
+fn view_line(view: &Value) -> Option<(SharedString, SharedString)> {
+    let kind = view.get("kind")?.as_str()?.to_string();
+    let line = view
+        .get("argv")?
+        .as_array()?
+        .iter()
+        .filter_map(Value::as_str)
+        .map(|argument| {
+            if argument.is_empty() || argument.contains(|c: char| c.is_whitespace() || c == '\'') {
+                format!("'{}'", argument.replace('\'', "'\\''"))
+            } else {
+                argument.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    Some((kind.into(), line.into()))
+}
+
 /// The lines of a `session_read` receipt, or what it refused.
 fn read_lines(value: &Value) -> anyhow::Result<Vec<SharedString>> {
     let result = value
@@ -974,21 +1346,33 @@ fn read_lines(value: &Value) -> anyhow::Result<Vec<SharedString>> {
 
 impl Render for HarnessView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let colors = cx.theme().colors();
+        let background = cx.theme().colors().editor_background;
+        let controls = if writes_on(cx) {
+            Some(self.render_controls(cx))
+        } else {
+            None
+        };
         v_flex()
             .id("marley-harness-view")
             .track_focus(&self.focus_handle)
             .size_full()
-            .overflow_y_scroll()
-            .p_2()
-            .bg(colors.editor_background)
-            .when_some(self.error.clone(), |this, error| {
-                this.child(Label::new(error).color(Color::Error))
-            })
-            .children(
-                self.lines
-                    .iter()
-                    .map(|line| Label::new(line.clone()).buffer_font(cx).single_line()),
+            .bg(background)
+            .on_action(cx.listener(|view, _: &menu::Confirm, window, cx| view.send(window, cx)))
+            .children(controls)
+            .child(
+                v_flex()
+                    .id("marley-harness-lines")
+                    .flex_1()
+                    .overflow_y_scroll()
+                    .p_2()
+                    .when_some(self.error.clone(), |this, error| {
+                        this.child(Label::new(error).color(Color::Error))
+                    })
+                    .children(
+                        self.lines
+                            .iter()
+                            .map(|line| Label::new(line.clone()).buffer_font(cx).single_line()),
+                    ),
             )
     }
 }
@@ -1006,5 +1390,159 @@ impl Item for HarnessView {
 
     fn tab_content_text(&self, _detail: usize, _cx: &App) -> SharedString {
         self.title.clone()
+    }
+}
+
+/// `marley: open harness session`: a picker of the declared profiles, and the typed name.
+fn open_session_picker(
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    if !writes_on(cx) {
+        return;
+    }
+    let delegate = OpenSessionDelegate {
+        workspace: workspace.weak_handle(),
+        profiles: Vec::new(),
+        matches: Vec::new(),
+        selected_index: 0,
+    };
+    let profiles_dir = Harness::profiles_dir(cx);
+    workspace.toggle_modal(window, cx, |window, cx| {
+        let picker = Picker::uniform_list(delegate, window, cx);
+        if let Some(dir) = profiles_dir {
+            let listed = cx
+                .background_executor()
+                .spawn(futures::future::lazy(move |_| profile_names(&dir)));
+            cx.spawn_in(window, async move |picker, cx| {
+                let profiles = listed.await;
+                picker
+                    .update_in(cx, |picker, window, cx| {
+                        picker.delegate.profiles = profiles;
+                        picker.refresh(window, cx);
+                    })
+                    .log_err();
+            })
+            .detach();
+        }
+        picker
+    });
+}
+
+/// The names of the profiles declared in `dir`: each `NAME.json`, sorted.
+fn profile_names(dir: &Path) -> Vec<String> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = entries
+        .filter_map(|entry| {
+            let path = entry.ok()?.path();
+            (path.extension()? == "json")
+                .then(|| path.file_stem()?.to_str().map(str::to_string))
+                .flatten()
+        })
+        .collect();
+    names.sort();
+    names
+}
+
+/// The profiles the picker offers, and the name typed.
+struct OpenSessionDelegate {
+    workspace: WeakEntity<Workspace>,
+    profiles: Vec<String>,
+    /// The profiles holding the query, then the query itself when it names none of them.
+    matches: Vec<String>,
+    selected_index: usize,
+}
+
+impl PickerDelegate for OpenSessionDelegate {
+    type ListItem = ListItem;
+
+    fn name() -> &'static str {
+        "marley open harness session"
+    }
+
+    fn match_count(&self) -> usize {
+        self.matches.len()
+    }
+
+    fn selected_index(&self) -> usize {
+        self.selected_index
+    }
+
+    fn set_selected_index(&mut self, index: usize, _: &mut Window, _: &mut Context<Picker<Self>>) {
+        self.selected_index = index;
+    }
+
+    fn placeholder_text(&self, _: &mut Window, _: &mut App) -> Arc<str> {
+        "A profile to open a harness session from…".into()
+    }
+
+    fn update_matches(
+        &mut self,
+        query: String,
+        _: &mut Window,
+        cx: &mut Context<Picker<Self>>,
+    ) -> Task<()> {
+        let query = query.trim().to_string();
+        let lowered = query.to_lowercase();
+        self.matches = self
+            .profiles
+            .iter()
+            .filter(|profile| profile.to_lowercase().contains(&lowered))
+            .cloned()
+            .collect();
+        if !query.is_empty() && !self.matches.contains(&query) {
+            self.matches.push(query);
+        }
+        self.selected_index = 0;
+        cx.notify();
+        Task::ready(())
+    }
+
+    fn confirm(&mut self, _: bool, window: &mut Window, cx: &mut Context<Picker<Self>>) {
+        let Some(profile) = self.matches.get(self.selected_index).cloned() else {
+            return;
+        };
+        let workspace = self.workspace.clone();
+        let server = Harness::server(cx);
+        cx.spawn_in(window, async move |_, cx| {
+            let server = server.context("the harness is not running")?;
+            let request = uuid::Uuid::new_v4().to_string();
+            let arguments = json!({ "profile": profile, "request": request });
+            let value = call_write(&server, "session_open", arguments, cx)
+                .await
+                .map_err(|reason| anyhow::anyhow!("{reason}"))?;
+            let id = value
+                .get("id")
+                .and_then(Value::as_str)
+                .context("session_open gave no id")?
+                .to_string();
+            workspace.update_in(cx, |workspace, window, cx| open(workspace, &id, window, cx))
+        })
+        .detach_and_prompt_err("Could not open the session", window, cx, |_, _, _| None);
+        self.dismissed(window, cx);
+    }
+
+    fn dismissed(&mut self, _: &mut Window, cx: &mut Context<Picker<Self>>) {
+        cx.emit(DismissEvent);
+    }
+
+    fn render_match(
+        &self,
+        index: usize,
+        selected: bool,
+        _: &mut Window,
+        _: &mut Context<Picker<Self>>,
+    ) -> Option<Self::ListItem> {
+        let profile = self.matches.get(index)?;
+        Some(
+            ListItem::new(index)
+                .inset(true)
+                .spacing(ListItemSpacing::Sparse)
+                .toggle_state(selected)
+                .child(Label::new(profile.clone())),
+        )
     }
 }

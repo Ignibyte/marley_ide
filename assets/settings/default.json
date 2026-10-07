@@ -1704,6 +1704,11 @@
     // folder, `rh` from MARLEY_RH or the PATH) and shows its sessions in the rail; a `harness`
     // command, when set, wins (#632).
     "embedded_harness": false,
+    // Whether a harness session's tab answers its question, sends it text and lists the commands
+    // that watch it, and `marley: open harness session` opens one from a profile, through the
+    // harness's write verbs; the harness Marley runs itself is then followed with --grant write,
+    // and a `harness` command needs it in its own args (#689).
+    "harness_writes": false,
     // How many seconds a command runs before its end shows a desktop notification, when its
     // terminal is not the one in front; 0 turns this off (#551).
     "long_command_seconds": 30,

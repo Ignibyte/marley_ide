@@ -2190,11 +2190,31 @@ came from, every quota window and the account. A state the harness read off the 
 source's word at the end of the line. Marley shows it and never acts on it, so its question is not
 in the inbox. A click opens a tab with the session's last 500 lines, which follows its
 output while the session runs. A session waiting on a question is also in the rail's "Needs you"
-inbox, with its options; opening it opens the session's tab. Marley only reads: answering, sending
-and stopping stay the harness's own commands for now. When the harness stops answering, the
+inbox, with its options; opening it opens the session's tab. Without `harness_writes`, Marley
+only reads (see below). When the harness stops answering, the
 section keeps its rows marked stale and Marley starts the command again after 1 s, then 2, 4 and
 so on up to a minute. The section stays out of the rail's keys and its filter, as the containers
 do. Without the setting Marley starts nothing.
+
+**Writing to a session** (#689). Turn on `"marley": { "harness_writes": true }` and a session's
+tab gains controls above its lines:
+- **The question.** When the session waits on a question, its prompt shows with a button for each
+  option. A click answers it (`session_answer`), naming the question by its full prompt, so an
+  answer never lands on a later one.
+- **Send.** A line of text, with Send or Enter, goes to the session as a new delivery
+  (`session_send`). The line under it gives the delivery's state, or the harness's reason when it
+  refuses, for example when the session is not waiting for a message.
+- **Views.** Lists the commands that watch the session (`session_surface_to_human`), such as
+  `rh view` and `rh attach`, each with Copy.
+
+`marley: open harness session` in the palette opens a session from a profile declared in the
+root's `profiles` folder (`session_open`) and opens its tab. When Marley runs the harness itself,
+the picker lists the profiles, and you can always type a name.
+
+When Marley runs the harness itself, it follows it with `--grant write` while the switch is on. A
+`harness` command keeps its own arguments: add `"--grant", "write"` there, or the harness refuses
+each write and the tab shows why. Off, the tab only reads and the palette does not list the
+command.
 
 ## The Fleet panel
 
