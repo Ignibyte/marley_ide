@@ -134,8 +134,9 @@ pub struct MarleySettingsContent {
     ///
     /// Default: "window"
     pub rail_order: Option<MarleyRailOrder>,
-    /// Whether the rail lists, under Containers, the ports of containers no project's folder holds
-    /// (#669). A container whose Compose folder is in a project shows under that project either
+    /// Whether the Containers panel, from its button in the status bar, lists the ports of the
+    /// containers no project's folder holds (#669; a panel since #673, under the same key). A
+    /// container whose Compose folder is in a project shows under that project in the rail either
     /// way.
     ///
     /// Default: true

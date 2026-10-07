@@ -462,7 +462,6 @@ fn the_rail_writes_its_fields_into_zeds_blob_and_keeps_the_rest() {
     let state = RailState {
         width: Some(400.),
         closed: true,
-        containers: ContainersFold::Open,
     };
     let blob = write_rail_state(Some(zed), state);
     let saved: serde_json::Value = serde_json::from_str(&blob).expect("JSON");
@@ -474,7 +473,6 @@ fn the_rail_writes_its_fields_into_zeds_blob_and_keeps_the_rest() {
             "active_view": "History",
             "later": 1,
             "marley_rail_closed": true,
-            "marley_containers_open": true,
         })
     );
     assert_eq!(read_rail_state(&blob), state);
@@ -490,7 +488,6 @@ fn a_width_the_user_did_not_set_is_not_saved() {
             "width": null,
             "width_set_by_user": false,
             "marley_rail_closed": false,
-            "marley_containers_open": false,
         })
     );
     // A width without Zed's flag is not the user's.
@@ -505,7 +502,6 @@ fn an_unreadable_blob_holds_nothing_for_the_rail() {
     let closed = RailState {
         width: None,
         closed: true,
-        containers: ContainersFold::Folded,
     };
     assert_eq!(
         read_rail_state(&write_rail_state(Some("[1, 2]"), closed)),

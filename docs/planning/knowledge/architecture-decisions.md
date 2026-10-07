@@ -4249,3 +4249,14 @@ square at `IconSize::Small`, so the rail works out from its own width how many f
 under `…`. Rejected: clipping alone (a half-drawn icon, and no way to reach the rest from the
 rail); a second header row (the two levels Chad asked to remove); smaller icons (at a 24px UI
 font ten still overflow the default 260px rail).
+
+## AD-claude-673-the-machines-containers-live-in-a-right-dock-panel-001
+*decided at: 2026-10-07 · status: shipped · supersedes: AD-claude-670-the-containers-list-starts-folded-and-each-window-keeps-its-fold-001*
+
+Chad, 2026-10-06: "can we just move the containers icon down as an icon in the botton bar and it
+opens on the right?" The container ports no project holds leave the rail for `ContainersPanel`, a
+right-dock panel whose box button Zed's `PanelButtons` puts in the status bar; a project's own
+containers stay under it in the rail. The panel is a child module of the rail, so the rows reuse the
+rail's helpers, and `marley.rail_containers` keeps its key (renaming would drop users' values) while
+its words name the panel. Rejected: a status bar item of Marley's own (a Zed touchpoint in
+`zed.rs`, where a panel needs none); a popover from the button (Chad asked for it on the right).

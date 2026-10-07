@@ -1761,8 +1761,10 @@
     // reporting, then the rest; ties keep the window's order, and nothing moves while the pointer
     // is over the rail).
     "rail_order": "window",
-    // Whether the rail lists, under Containers, the ports of containers no project's folder holds
-    // (#669). A container whose Compose folder is in a project shows under that project either way.
+    // Whether the Containers panel, from its button in the status bar, lists the ports of the
+    // containers no project's folder holds (#669; a panel since #673, under the same key). A
+    // container whose Compose folder is in a project shows under that project in the rail either
+    // way.
     "rail_containers": true,
     // The fleet (#607): the workflow stores the Fleet panel reads agents, their work and their
     // hosts from. { "kind": "pseudo" } is Marley's own moving example data.

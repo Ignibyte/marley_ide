@@ -1,11 +1,11 @@
 # TICKET-673 — Containers move to a panel on the right, with a button in the status bar
 
 - **Ticket:** LOCAL #673 (feature, the rail's ports)
-- **Owner:** unassigned (noted 2026-10-06 from Chad's request)
-- **Pipeline doc:** none yet
+- **Owner:** claude-opus-5-5, 2026-10-07 (Chad's request)
+- **Pipeline doc:** ../../pipeline/completed/673-containers-panel-on-the-right.spec.md
 - **Source ticket:** #614 (container ports in the rail), #669 (Containers in the Rail), #670
   (the fold)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Chad, 2026-10-06: "can we just move the containers icon down as an icon in the botton bar and it

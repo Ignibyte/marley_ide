@@ -338,6 +338,10 @@ actions!(
         /// Shows or hides the Fleet panel: the agents the workflow stores report, by host (#607).
         #[derive(Eq)]
         ToggleFleet,
+        /// Shows or hides the Containers panel: the ports of this machine's containers that no
+        /// project holds (#673).
+        #[derive(Eq)]
+        ToggleContainers,
         /// Flips the rail between its Projects view and its Brain view, Rusty's vault, while
         /// Rusty is on (#644).
         #[derive(Eq)]
@@ -482,11 +486,11 @@ impl PromptEditor {
     }
 }
 
-/// Whether the rail lists the container ports no project's folder holds, from
-/// `marley.rail_containers` (#669).
+/// Whether the Containers panel lists the container ports no project's folder holds, from
+/// `marley.rail_containers` (#669; the panel's since #673).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RailContainers {
-    /// Under Containers, after the projects.
+    /// In the Containers panel, whose button shows.
     Listed,
     /// Not at all.
     Hidden,
@@ -858,6 +862,7 @@ pub fn init(cx: &mut App) {
     system_one::init(cx);
     stall::init(cx);
     fleet::init(cx);
+    rail::containers::init(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         worktree_agents::give_slot_reader(std::sync::Arc::clone(&workspace.app_state().fs));
         workspace.register_action_renderer(|div, _, _, cx| {

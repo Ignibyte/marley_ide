@@ -655,6 +655,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Containers moved to a panel on the right** (#673, 2026-10-07). The ports of this machine's
+  containers that no project holds are no longer listed at the foot of the rail. A box button in
+  the status bar opens the Containers panel in the right dock: the count, and a row per port with
+  Open in a Browser Tab (or a double-click), Copy URL and Stop the Container. A container whose
+  Compose folder is in a project still shows under that project in the rail. The setting, now
+  Containers Panel on the Settings window's Marley page (`marley.rail_containers`), hides the button
+  and closes the panel.
+
 - **Rusty's screens in the rail's header** (#672, 2026-10-07). While Rusty is connected, Today,
   Graph, Tasks, Decisions, Memory, Skills and Secrets sit in the rail's top row beside Projects and
   Brain, one click from either view; the Brain view no longer has a row of its own for them. When

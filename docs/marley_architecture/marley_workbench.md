@@ -384,13 +384,19 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   }`) rides to the rail's `PortSnapshot.container`. `attribute` passes `HELPERS` by and clears an
   engine's own unit (`ENGINE_UNITS`), as `stop` does, so no port's Stop reaches `docker.service`.
   `stop_container` runs `<engine> stop <name>` (`ContainerStop`), or refuses a port the engine did
-  not name with a command that finds it by port. The rail's `render_containers` lists
-  `Ports::containers` under a CONTAINERS label after the projects, opening in the shown
-  workspace, outside the keys and the filter. `MarleySettings::rail_containers`
-  (`RailContainers::Hidden`, from `marley.rail_containers` off) leaves the section out; the scan
-  runs as before, so a project's containers still show under it (#669). The header is a
-  `Disclosure`, CONTAINERS and the count; `ContainersFold` (default `Folded`) is kept per window as
-  `marley_containers_open` in the saved sidebar blob, beside `marley_rail_closed` (#670).
+  not name with a command that finds it by port. `Ports::containers` is listed by the Containers
+  panel (#673; the rail's CONTAINERS section of #614 and its fold of #670 are gone, and a saved
+  blob's `marley_containers_open` is left unread): `rail_containers.rs`, the rail's child module
+  `rail::containers`, so it draws its rows with the rail's `row_card`, `port_snapshot`,
+  `container_line`, `url_label` and `stop_words`. `ContainersPanel` is a right-dock `Panel` added to
+  every workspace (`ToggleContainers`, `IconName::Box`, priority 22, closed at start); its `icon`
+  and `enabled` follow `shown` (the Marley layout and `MarleySettings::rail_containers`, #669), and
+  a render while hidden closes its dock once, deferred, as the Knowledge panel does. Its rows open
+  in a Browser tab of the panel's workspace on a double-click or Open, and Copy URL and Stop (the
+  rail's `stop_container` and `container_refused_toast`) are on hover and in the right-click menu.
+  `set_active` holds a `ports::watch` while the panel is open, released on close or release, so
+  the scan also runs with the rail closed; a project's containers still show under it in the
+  rail.
 
 - **Restart, state and logs (#615).** Each scan asks `unit_states` for every service row's unit
   (one `systemctl show -p ActiveState,SubState` per manager, blocks matched by the order asked,

@@ -96,10 +96,10 @@ fn layout_section() -> [SettingsPageItem; 6] {
             metadata: None,
             files: USER,
         }),
-        // Marley: the machine's containers in the rail (#669).
+        // Marley: the machine's containers, in the rail (#669) and in a panel since #673.
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Containers in the Rail",
-            description: "List, under Containers at the foot of the rail, the ports of the containers running on this machine that no project's folder holds, each with Stop. A container whose Compose folder is in a project shows under that project either way.",
+            title: "Containers Panel",
+            description: "Show the Containers panel's button in the status bar: the panel, on the right, lists the ports of the containers running on this machine that no project's folder holds, each with Stop. A container whose Compose folder is in a project shows under that project in the rail either way.",
             field: Box::new(SettingField {
                 organization_override: None,
                 json_path: Some("marley.rail_containers"),

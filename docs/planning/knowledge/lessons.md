@@ -5000,3 +5000,14 @@ lower: the window draws a 1px line under the title bar, outside its height. Ever
 header was one pixel high as a result. Matching heights is not enough to line things up: read the
 border rows from a shot on both sides (`magick shot.png -crop 1x120+X+0 txt:-` and grep the border
 colour) and compare the row numbers. #672's scenario keeps that read as a check (`lines_meet`).
+
+## L-claude-673-a-panel-whose-enabled-turns-false-stays-open-001
+*category: gpui · topic: hiding a dock panel by a setting · from: pipeline 673*
+
+A Zed dock panel whose `enabled` and `icon` turn false loses its status bar button at once, but a
+dock that is showing it keeps showing it, now drawing whatever the panel renders while hidden.
+#673's panel stayed open and empty when `marley.rail_containers` went off. The fix is the one the
+Knowledge panel already had for Rusty going off: render nothing while hidden and close the dock
+once, deferred past the panel's own update (`close_while_hidden`), resetting when the switch comes
+back on. Any panel gated by a setting needs both halves; a scenario should turn the switch off with
+the panel open, not only with it closed.
