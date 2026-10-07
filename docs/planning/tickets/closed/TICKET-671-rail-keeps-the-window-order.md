@@ -1,10 +1,10 @@
 # TICKET-671 — The rail keeps the window's order
 
 - **Ticket:** LOCAL #671 (bug, the rail)
-- **Owner:** unassigned (noted 2026-10-06 from Chad's report)
-- **Pipeline doc:** none yet
+- **Owner:** claude-opus-5-5, 2026-10-07 (Chad's report)
+- **Pipeline doc:** ../../pipeline/completed/671-rail-keeps-the-window-order.spec.md
 - **Source ticket:** #542 (the attention order), #602 (drag to reorder)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Chad, 2026-10-06: "when i start typing in marley the project moves to the top above another

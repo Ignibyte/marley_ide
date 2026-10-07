@@ -655,6 +655,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The rail keeps the window's order** (#671, 2026-10-07). `marley.rail_order` now defaults to
+  `"window"`: projects and the rows under them stay where the window and your drags put them, so
+  typing into an agent no longer lifts its project to the top and drops it back when the output
+  stops. Rail Order on the Marley page (Layout), or `"rail_order": "attention"`, brings back #542's
+  sort by what needs you.
+
 - **Rusty off leaves no trace** (#661, 2026-10-06). With Rusty's switch off, the command palette
   lists no `rusty:` command and no `marley: toggle brain view`, and the Marley settings page's
   Rusty section shows the switch alone. Turning it on brings the commands and the section's

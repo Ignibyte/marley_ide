@@ -160,7 +160,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#terminal-rows">Terminal rows: rename, close, last command</a></li>
 <li><a href="#rail-dots">Dots that ask for you</a></li>
 <li><a href="#needs-you">Needs you: every agent waiting on you</a></li>
-<li><a href="#attention-order">What needs you comes first</a></li>
+<li><a href="#attention-order">Rail order: yours, or what needs you first</a></li>
 <li><a href="#project-header">A project&#x27;s header: icon, changes, pull request</a></li>
 <li><a href="#project-menu">A project&#x27;s right-click menu</a></li>
 <li><a href="#port-rows">Port rows: the servers your project runs</a></li>
@@ -525,13 +525,13 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 
 <article id="attention-order">
-<h3>What needs you comes first <span class="ticket">#542</span></h3>
-<p class="what"><strong>What it is.</strong> The rail sorts projects, and the rows under each, by attention: waiting on you or failed and unseen first, then finished and unseen, then working, then quiet agents (<code>no update in N m</code>), then idle. Ties keep the order you set by dragging (#602), else the window's.</p>
+<h3>Rail order: yours, or what needs you first <span class="ticket">#542</span> <span class="ticket">#671</span></h3>
+<p class="what"><strong>What it is.</strong> The rail keeps projects, and the rows under each, in the window's order and the order you set by dragging (#602): an agent at work moves nothing (#671). The attention order is a setting: it sorts by what needs you, waiting on you or failed and unseen first, then finished and unseen, then working, then quiet agents (<code>no update in N m</code>), then idle, with ties in your order.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Nothing to do: the order follows your agents.</li>
-<li>While the pointer is over the rail the order holds still, so a row never moves under your cursor.</li>
-<li>To keep the window's own order instead, set Rail Order to Window on the Marley page (Layout), or <code>"marley": { "rail_order": "window" }</code>.</li>
+<li>Nothing to do: rows stay where you put them.</li>
+<li>For the attention order, set Rail Order to Attention on the Marley page (Layout), or <code>"marley": { "rail_order": "attention" }</code>.</li>
+<li>Under the attention order the rail holds still while the pointer is over it, so a row never moves under your cursor.</li>
 </ol>
 </article>
 
@@ -1832,7 +1832,7 @@ th { background: var(--panel); font-weight: 650; }
 <table>
 <tr><th>Key</th><th>Default</th><th>What it does</th></tr>
 <tr><td><code>layout</code></td><td><code>"marley"</code></td><td><code>"marley"</code> or <code>"zed"</code></td></tr>
-<tr><td><code>rail_order</code></td><td><code>"attention"</code></td><td>Sort the rail by attention, or <code>"window"</code> for the window's order</td></tr>
+<tr><td><code>rail_order</code></td><td><code>"window"</code></td><td>Keep the rail in the window's order, or <code>"attention"</code> to sort it by what needs you</td></tr>
 <tr><td><code>english_hint</code></td><td><code>true</code></td><td>The hint that a typed line reads as a request for an agent</td></tr>
 <tr><td><code>redact_secrets_for_agents</code></td><td><code>true</code></td><td>Hide secrets in what the tools hand agents</td></tr>
 <tr><td><code>redaction_patterns</code></td><td><code>[]</code></td><td>Your own regular expressions to hide</td></tr>

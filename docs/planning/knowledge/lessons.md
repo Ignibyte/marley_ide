@@ -4980,3 +4980,13 @@ request: a new window, none of the last session's saved state. A scenario that c
 window keeps across a restart (the rail's width, its closed state, its folds, its groups) calls
 `open_path ""` between `quit_marley` and `launch_marley`, as a start from the menu does. #670's
 first run forgot it and showed a fold lost that was kept.
+
+## L-claude-671-the-quiet-timer-makes-typing-into-an-agent-read-as-working-001
+*category: product · topic: an agent's status from its output · from: pipeline 671*
+
+An agent terminal without #519's hook events gets its status from `last_output`, which every byte
+the PTY writes refreshes, and that includes the echo of what the user types. So typing into Claude
+Code reads as Working for a moment, and anything that acts on Working (the attention order, a
+"working" count, a notification) fires on the user's own keystrokes. A feature that reacts to an
+agent's status should take it from the agent's events where they exist, and treat output-recency
+as a weak signal that a typing user produces too.

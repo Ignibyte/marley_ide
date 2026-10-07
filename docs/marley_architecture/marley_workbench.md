@@ -1680,6 +1680,8 @@ alike.
   `marley.rail_order` and the hold into the snapshot before the change check, so a settings change
   or the pointer leaving redraws in the new order.
 - `project_name` draws a collapsed project's summary in XSmall muted text after its name.
+- Since #671 `marley.rail_order` defaults to `"window"` (`default.json`, both enums' `#[default]`):
+  an agent's output reorders nothing unless the user picks `"attention"`. The summary still shows.
 
 ## Claude Code's hook events (`src/agent_events.rs`, #519)
 

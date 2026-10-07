@@ -1390,16 +1390,16 @@ echo "git_prompt=$GIT_TERMINAL_PROMPT gcm=$GCM_INTERACTIVE askpass_require=$SSH_
   `ssh for Claude Code in marley-tour`. The passphrase goes to ssh alone; Escape fails the
   command at once.
 
-### 5.21 The rail orders by attention (#542)
+### 5.21 The rail keeps your order, or orders by attention (#542, #671)
 
 1. Start Claude Code in `marley-tour-b` too, and give each agent a task.
 2. Leave one waiting on a permission. Fold `marley-tour-b`.
 
-- [ ] Projects and rows sort by attention: waiting or failed first, then finished and unseen, then
-  working, then quiet, then idle.
+- [ ] Projects and rows stay in the window's order while the agents work and wait (#671).
 - [ ] A folded project's header counts its agents, as in `1 waiting, 1 working`.
-- [ ] While the pointer is over the rail nothing moves. `marley.rail_order: "window"` (Marley page,
-  Layout) keeps the window's order.
+- [ ] With `marley.rail_order: "attention"` (Marley page, Layout), projects and rows sort by
+  attention: waiting or failed first, then finished and unseen, then working, then quiet, then
+  idle. While the pointer is over the rail nothing moves.
 - [ ] A working row with no event for 30 minutes reads `no update in N m` (#547); the minutes are
   a Marley setting.
 

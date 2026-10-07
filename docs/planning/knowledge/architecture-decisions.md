@@ -4228,3 +4228,13 @@ label and the count; the list starts folded, since it is the machine's and its l
 complaint, and each window keeps its fold in the saved sidebar blob, as the rail's width and closed
 state are kept. Rejected: one fold for the whole app in memory, as the Harness section's (#632),
 which a restart forgets; unfolding by default, which keeps the length Chad asked to put away.
+
+## AD-claude-671-the-rail-keeps-the-window-order-by-default-001
+*decided at: 2026-10-07 · status: shipped · supersedes the default in: #542*
+
+Chad, 2026-10-06: "when i start typing in marley the project moves to the top above another
+project? Lets remove that." `marley.rail_order` defaults to `"window"`: projects and their rows
+stay in the window's order and #602's drags, whatever the agents do. The attention order stays as
+the setting's other value, and the collapsed header's counts (`1 waiting`) stay in both, since they
+move nothing. Rejected: deleting the attention order (it works, and one line brings it back);
+keeping it with a slower quiet timer (any automatic move under a typing user reads as a jump).

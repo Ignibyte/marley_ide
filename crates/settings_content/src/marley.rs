@@ -128,11 +128,11 @@ pub struct MarleySettingsContent {
     ///
     /// Default: true
     pub prompt_editor: Option<bool>,
-    /// The order the rail lists projects and the rows under them in: what needs you first
-    /// (waiting, failed, finished unseen, working, not reporting, then the rest), or the window's
-    /// order (#542).
+    /// The order the rail lists projects and the rows under them in: the window's order (#671),
+    /// or what needs you first (waiting, failed, finished unseen, working, not reporting, then the
+    /// rest) (#542).
     ///
-    /// Default: "attention"
+    /// Default: "window"
     pub rail_order: Option<MarleyRailOrder>,
     /// Whether the rail lists, under Containers, the ports of containers no project's folder holds
     /// (#669). A container whose Compose folder is in a project shows under that project either
@@ -582,9 +582,9 @@ pub enum MarleyBlockDensity {
 #[serde(rename_all = "snake_case")]
 pub enum MarleyRailOrder {
     /// What needs you first; ties keep the window's order.
-    #[default]
     Attention,
     /// The window's order.
+    #[default]
     Window,
 }
 

@@ -868,9 +868,9 @@ pub enum Attention {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum RailOrder {
     /// What needs the user first; ties keep the window's order.
-    #[default]
     Attention,
-    /// The window's order, as before.
+    /// The window's order, the default since #671: an agent's output moves no row.
+    #[default]
     Window,
 }
 

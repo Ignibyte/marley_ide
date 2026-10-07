@@ -75,7 +75,8 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
   running after, as `RunningError { line, questioned }`; the builders copy it to
   `TerminalRow::running_error`. The switcher's `SwitcherRow::Terminal` holds its row boxed, since
   a terminal's row is by far the larger variant.
-- **The attention order** (#542). `Attention { NeedsYou, DoneUnseen, Working, NotReporting,
+- **The attention order** (#542), a setting since #671 made `RailOrder::Window` the default.
+  `Attention { NeedsYou, DoneUnseen, Working, NotReporting,
   Idle }` classes a row: `terminal_attention` reads the agent's status with
   `TerminalSnapshot::reporting` (`Reporting::Timer` for the quiet timer, `Events` for #519's
   events, `Stale` once they stopped past `no update in N m`), so only an agent's own events can
