@@ -103,11 +103,13 @@ pub(super) fn init(cx: &mut App) {
     graph_store::init(cx);
     workspace::register_serializable_item::<GraphView>(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
-        workspace.register_action(|workspace, _: &OpenGraph, window, cx| {
-            open(workspace, false, window, cx);
+        workspace.register_action(|_, _: &OpenGraph, window, cx| {
+            open_later(cx.weak_entity(), window, cx);
         });
-        workspace.register_action(|workspace, _: &OpenLocalGraph, window, cx| {
-            open(workspace, true, window, cx);
+        workspace.register_action(|_, _: &OpenLocalGraph, window, cx| {
+            super::in_rusty_group(cx.weak_entity(), window, cx, |workspace, window, cx| {
+                open(workspace, true, window, cx);
+            });
         });
     })
     .detach();
@@ -115,10 +117,8 @@ pub(super) fn init(cx: &mut App) {
 
 /// Opens the Graph tab once the update in progress ends, from a view that may be inside one.
 pub(super) fn open_later(workspace: WeakEntity<Workspace>, window: &Window, cx: &mut App) {
-    window.defer(cx, move |window, cx| {
-        workspace
-            .update(cx, |workspace, cx| open(workspace, false, window, cx))
-            .log_err();
+    super::in_rusty_group(workspace, window, cx, |workspace, window, cx| {
+        open(workspace, false, window, cx);
     });
 }
 

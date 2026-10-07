@@ -4271,3 +4271,14 @@ tabs. The Files fold is in memory per window, as the turns fold is; tab rows kee
 and do not drag. Rejected: a row per file mixed with the terminals (forty files bury the
 terminals); hiding the top tabs (Chad likes them, and the tab bar carries back and forward, splits
 and the tab menu).
+
+## AD-claude-675-rustys-screens-open-in-a-per-window-rusty-group-001
+*decided at: 2026-10-07 · status: shipped · builds on: AD-claude-674-every-center-tab-has-a-rail-row-and-files-fold-under-files-001*
+
+Chad picked a Rusty group over a fixed pane in each project. Each window gets one folderless group
+(#600) of kind Rusty, made the first time a Rusty screen or page opens there, never at start; every
+Rusty opener sends its tab there and shows the group. It has a placeholder icon
+(`RUSTY_GROUP_ICON`), no Rename or Remove, is left out while Rusty is off, and a window showing it
+when Rusty turns off goes back to its first project. In the Zed layout, with no rail, tabs open
+where they did. Rejected: making it at start (a rail with a group nobody used); one group for every
+window (a group is a workspace, which lives in one window).

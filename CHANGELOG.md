@@ -655,6 +655,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Rusty's screens open in a Rusty group** (#675, 2026-10-07). Today, Graph, Tasks, Decisions,
+  Memory, Skills, Secrets and every brain page now open in the window's **Rusty** group in the
+  rail, whatever project the window shows, and the window shows the group; the first one makes
+  it. Its tabs are its rows, and a project click goes back to your work with Rusty's tabs kept. The
+  group has a placeholder icon, no Rename or Remove, and is left out while Rusty is off, when a
+  window showing it goes back to its first project. In the Zed layout, screens open where they
+  did.
+
 - **Every tab in the rail** (#674, 2026-10-07). Each tab open in the middle now has a row under
   its project, so the rail and the tab bar list the same things: a project search, a diff, settings
   or one of Marley's tabs after the project's Browser tabs, and its open files under a **Files**

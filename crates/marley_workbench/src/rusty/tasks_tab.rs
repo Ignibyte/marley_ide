@@ -62,8 +62,8 @@ const LISTS_WIDTH: Pixels = px(240.);
 /// Registers `rusty: open tasks` on every workspace; `rusty::init` calls it once.
 pub(super) fn init(cx: &App) {
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
-        workspace.register_action(|workspace, _: &OpenTasks, window, cx| {
-            open(workspace, None, window, cx);
+        workspace.register_action(|_, _: &OpenTasks, window, cx| {
+            open_later(cx.weak_entity(), None, window, cx);
         });
     })
     .detach();
@@ -77,10 +77,8 @@ pub(crate) fn open_later(
     window: &Window,
     cx: &mut App,
 ) {
-    window.defer(cx, move |window, cx| {
-        workspace
-            .update(cx, |workspace, cx| open(workspace, list, window, cx))
-            .log_err();
+    super::in_rusty_group(workspace, window, cx, move |workspace, window, cx| {
+        open(workspace, list, window, cx);
     });
 }
 

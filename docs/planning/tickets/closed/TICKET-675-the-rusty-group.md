@@ -1,11 +1,11 @@
 # TICKET-675 — The Rusty group: where every Rusty screen opens
 
 - **Ticket:** LOCAL #675 (feature, the rail; Rusty in Marley)
-- **Owner:** unassigned (decided with Chad 2026-10-07)
-- **Pipeline doc:** none yet
+- **Owner:** claude-opus-5-5, 2026-10-07 (Chad's decisions)
+- **Pipeline doc:** ../../pipeline/completed/675-the-rusty-group.spec.md
 - **Source ticket:** `docs/planning/intake/rail-and-center-tabs.md` (decision 3), #600 (folderless
   groups), #672 (Rusty's icons in the header)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Chad, 2026-10-06: "anthing that opens there should be in a group called Rusty (have a placeholder

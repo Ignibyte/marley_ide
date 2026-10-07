@@ -16,7 +16,7 @@ use db::kvp::KeyValueStore;
 use editor::Editor;
 use gpui::{
     AnyWindowHandle, App, AppContext as _, Context, DismissEvent, Entity, EntityId, EventEmitter,
-    FocusHandle, Focusable, Global, Render, TaskExt as _, WeakEntity, Window,
+    FocusHandle, Focusable, Global, Render, TaskExt as _, WeakEntity, Window, WindowId,
 };
 use ui::{Headline, HeadlineSize, prelude::*};
 use util::ResultExt as _;
@@ -29,6 +29,9 @@ use crate::MakeGroup;
 
 /// The name of the window's group for what the rail's empty space makes.
 const HOME: &str = "Home";
+
+/// The name of the window's group for Rusty's screens and pages (#675).
+const RUSTY: &str = "Rusty";
 
 /// The name an unnamed group takes, numbered from its second.
 const UNNAMED: &str = "Group";
@@ -51,7 +54,23 @@ pub(crate) struct Group {
     pub(crate) expanded: bool,
     /// Whether it is its window's Home group.
     pub(crate) home: bool,
+    /// Whether it is its window's Rusty group, where Rusty's screens and pages open (#675).
+    pub(crate) rusty: bool,
 }
+
+/// What a group is made for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum GroupKind {
+    /// One the user names.
+    Named,
+    /// The window's Home group, which takes what the rail's empty space makes.
+    Home,
+    /// The window's Rusty group (#675).
+    Rusty,
+}
+
+/// What waits for a window's Rusty group while it is being made (#675).
+type RustyOpen = Box<dyn FnOnce(Entity<Workspace>, &mut Window, &mut App)>;
 
 /// What the store keeps of a group (#601).
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -60,6 +79,8 @@ struct SavedGroup {
     id: Uuid,
     name: String,
     home: bool,
+    #[serde(default)]
+    rusty: bool,
     expanded: bool,
 }
 
@@ -69,6 +90,9 @@ pub(crate) struct Groups {
     live: Vec<Group>,
     /// The groups read from the store whose workspace no window holds yet (#601).
     pending: Vec<SavedGroup>,
+    /// The opens waiting for their window's Rusty group while it is being made, by window, so two
+    /// quick opens make one group (#675).
+    waiting_for_rusty: Vec<(WindowId, RustyOpen)>,
 }
 
 impl Global for Groups {}
@@ -85,6 +109,7 @@ pub(crate) fn init(cx: &mut App) {
     cx.set_global(Groups {
         live: Vec::new(),
         pending,
+        waiting_for_rusty: Vec::new(),
     });
 }
 
@@ -102,6 +127,7 @@ fn save(cx: &App) {
                 id: group.id,
                 name: group.name.clone(),
                 home: group.home,
+                rusty: group.rusty,
                 expanded: group.expanded,
             })
         })
@@ -179,6 +205,7 @@ pub(crate) fn adopt(multi_workspace: &Entity<MultiWorkspace>, cx: &mut App) {
             project,
             expanded: saved.expanded,
             home: saved.home,
+            rusty: saved.rusty,
         });
     }
     keep(cx);
@@ -266,22 +293,22 @@ pub(crate) fn group_of_workspace_id(database_id: WorkspaceId, cx: &App) -> Optio
         })
 }
 
-/// Makes a group in `window`, named `name` (the Home group when `home`), and runs `then` with
+/// Makes a group in `window` of `kind`, named `name` when it is a named one, and runs `then` with
 /// its workspace in the window once the workspace exists.
 pub(crate) fn make(
     multi_workspace: &Entity<MultiWorkspace>,
     name: &str,
-    home: bool,
+    kind: GroupKind,
     then: impl FnOnce(Entity<Workspace>, &mut Window, &mut App) + 'static,
     window: &Window,
     cx: &mut App,
 ) {
     let app_state = Arc::clone(multi_workspace.read(cx).workspace().read(cx).app_state());
     let handle = window.window_handle().downcast::<MultiWorkspace>();
-    let name = if home {
-        HOME.to_string()
-    } else {
-        name.trim().to_string()
+    let name = match kind {
+        GroupKind::Home => HOME.to_string(),
+        GroupKind::Rusty => RUSTY.to_string(),
+        GroupKind::Named => name.trim().to_string(),
     };
     let opened = Workspace::new_local(Vec::new(), app_state, handle, None, None, OpenMode::Add, cx);
     cx.spawn(async move |cx| {
@@ -300,7 +327,8 @@ pub(crate) fn make(
                 database_id,
                 project,
                 expanded: true,
-                home,
+                home: kind == GroupKind::Home,
+                rusty: kind == GroupKind::Rusty,
             });
             keep(cx);
             save(cx);
@@ -312,6 +340,68 @@ pub(crate) fn make(
             .context("the window closed while its group was made")
     })
     .detach_and_log_err(cx);
+}
+
+/// The window's Rusty group's workspace, if the window has the group (#675).
+pub(crate) fn rusty_group(multi_workspace: &MultiWorkspace, cx: &App) -> Option<Entity<Workspace>> {
+    groups_of(multi_workspace, cx)
+        .into_iter()
+        .find_map(|(group, workspace)| group.rusty.then_some(workspace))
+}
+
+/// Whether the group `id` is a window's Rusty group (#675).
+pub(crate) fn is_rusty(id: Uuid, cx: &App) -> bool {
+    cx.try_global::<Groups>().is_some_and(|groups| {
+        groups
+            .live
+            .iter()
+            .any(|group| group.id == id && group.rusty)
+    })
+}
+
+/// Runs `then` with the window's Rusty group's workspace, making the group first when the window
+/// has none; opens asked for while it is being made wait for it, so there is one (#675).
+pub(crate) fn with_rusty_group(
+    multi_workspace: &Entity<MultiWorkspace>,
+    then: impl FnOnce(Entity<Workspace>, &mut Window, &mut App) + 'static,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    if let Some(workspace) = rusty_group(multi_workspace.read(cx), cx) {
+        then(workspace, window, cx);
+        return;
+    }
+    let window_id = window.window_handle().window_id();
+    let groups = cx.default_global::<Groups>();
+    let making = groups
+        .waiting_for_rusty
+        .iter()
+        .any(|(id, _)| *id == window_id);
+    groups.waiting_for_rusty.push((window_id, Box::new(then)));
+    if making {
+        return;
+    }
+    make(
+        multi_workspace,
+        "",
+        GroupKind::Rusty,
+        move |workspace, window, cx| {
+            let waiting: Vec<RustyOpen> = {
+                let groups = cx.default_global::<Groups>();
+                let (mine, others): (Vec<_>, Vec<_>) =
+                    std::mem::take(&mut groups.waiting_for_rusty)
+                        .into_iter()
+                        .partition(|(id, _)| *id == window_id);
+                groups.waiting_for_rusty = others;
+                mine.into_iter().map(|(_, open)| open).collect()
+            };
+            for open in waiting {
+                open(workspace.clone(), window, cx);
+            }
+        },
+        window,
+        cx,
+    );
 }
 
 /// Every group's name, open or pending, in every window.
@@ -468,7 +558,14 @@ impl GroupNamePrompt {
             Some(id) => rename(id, &name, cx),
             None => {
                 if let Some(multi_workspace) = self.multi_workspace.upgrade() {
-                    make(&multi_workspace, &name, false, |_, _, _| {}, window, cx);
+                    make(
+                        &multi_workspace,
+                        &name,
+                        GroupKind::Named,
+                        |_, _, _| {},
+                        window,
+                        cx,
+                    );
                 }
             }
         }

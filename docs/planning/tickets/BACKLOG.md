@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-675](open/TICKET-675-the-rusty-group.md) | feature | a Rusty group in the rail, never closed, where every Rusty screen and page opens |
 
 ## Deliberate (picked explicitly, never auto-next)
 

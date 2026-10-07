@@ -41,8 +41,8 @@ const LOOP_LINE: &str = "brain_ask before a choice, brain_decide when it is made
 /// Registers `rusty: open decisions` on every workspace; `rusty::init` calls it once.
 pub(super) fn init(cx: &App) {
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
-        workspace.register_action(|workspace, _: &OpenDecisions, window, cx| {
-            open(workspace, window, cx);
+        workspace.register_action(|_, _: &OpenDecisions, window, cx| {
+            open_later(cx.weak_entity(), window, cx);
         });
     })
     .detach();
@@ -50,10 +50,8 @@ pub(super) fn init(cx: &App) {
 
 /// Opens the Decisions tab once the update in progress ends; the rail's Brain view calls it.
 pub(crate) fn open_later(workspace: WeakEntity<Workspace>, window: &Window, cx: &mut App) {
-    window.defer(cx, move |window, cx| {
-        workspace
-            .update(cx, |workspace, cx| open(workspace, window, cx))
-            .log_err();
+    super::in_rusty_group(workspace, window, cx, |workspace, window, cx| {
+        open(workspace, window, cx);
     });
 }
 

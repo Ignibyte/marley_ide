@@ -461,15 +461,25 @@ fn closed_id(key: &ProjectGroupKey) -> EntityId {
 /// The toasts of a closed project that did not open (#606).
 struct ClosedProject;
 
-/// A header's icon: a projectless group's (#600), or the project's own (#564).
+/// The Rusty group's icon on its header (#675): a placeholder until Rusty has an icon of its own.
+const RUSTY_GROUP_ICON: IconName = IconName::BookCopy;
+
+/// A header's icon: the Rusty group's (#675), another projectless group's (#600), or the
+/// project's own (#564).
 fn header_icon(
     index: usize,
     icon: Option<Arc<RenderImage>>,
     projectless: bool,
+    rusty: bool,
 ) -> Option<AnyElement> {
     if projectless {
+        let name = if rusty {
+            RUSTY_GROUP_ICON
+        } else {
+            IconName::ListTree
+        };
         return Some(
-            Icon::new(IconName::ListTree)
+            Icon::new(name)
                 .size(IconSize::Small)
                 .color(Color::Muted)
                 .into_any_element(),
@@ -921,8 +931,11 @@ impl Rail {
     fn rusty_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let connected = rusty::is_connected(cx);
         let brain_focused = self.brain_shown() && self.contains_brain_focus(window, cx);
-        if !rusty::is_on(cx) && self.brain.entity.take().is_some() {
-            cx.notify();
+        if !rusty::is_on(cx) {
+            if self.brain.entity.take().is_some() {
+                cx.notify();
+            }
+            self.leave_rusty_group(window, cx);
         }
         if connected == self.brain.connected {
             return;
@@ -932,6 +945,37 @@ impl Rail {
             window.focus(&self.focus_handle, cx);
         }
         cx.notify();
+    }
+
+    /// With Rusty off the rail lists no Rusty group (#675), so a window showing it goes back to the
+    /// first open group it lists.
+    fn leave_rusty_group(&self, window: &Window, cx: &mut Context<Self>) {
+        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
+            return;
+        };
+        let shown = multi_workspace.read(cx).workspace().clone();
+        if groups::rusty_group(multi_workspace.read(cx), cx).as_ref() != Some(&shown) {
+            return;
+        }
+        let Some(target) = self
+            .snapshot
+            .groups
+            .iter()
+            .filter(|group| !group.closed)
+            .filter_map(|group| group.workspace.upgrade())
+            .find(|workspace| *workspace != shown)
+        else {
+            return;
+        };
+        let multi_workspace = multi_workspace.downgrade();
+        // Showing another workspace updates the `MultiWorkspace`, which this may run inside.
+        window.defer(cx, move |window, cx| {
+            multi_workspace
+                .update(cx, |multi_workspace, cx| {
+                    multi_workspace.activate(target, None, window, cx);
+                })
+                .log_err();
+        });
     }
 
     /// The Brain view, while it shows.
@@ -3956,7 +4000,7 @@ impl Rail {
         groups::make(
             &multi_workspace,
             "",
-            true,
+            groups::GroupKind::Home,
             move |workspace, window, cx| {
                 rail.update(cx, |rail, cx| {
                     action(rail, &workspace.downgrade(), window, cx)
@@ -4723,6 +4767,7 @@ impl Rail {
         let key = group.key.clone();
         let open_key = group.key.clone();
         let projectless = group.group;
+        let rusty = projectless.is_some_and(|id| groups::is_rusty(id, cx));
         let header_menu = HeaderMenu {
             rail: cx.entity().downgrade(),
             key: group.key.clone(),
@@ -4774,13 +4819,15 @@ impl Rail {
                         Disclosure::new(("marley-rail-disclosure", id), false).disabled(true),
                     ))
                 })
-                .children(header_icon(index, icon, projectless.is_some()).map(|icon| {
-                    if closed {
-                        div().opacity(0.5).child(icon).into_any_element()
-                    } else {
-                        icon
-                    }
-                }))
+                .children(
+                    header_icon(index, icon, projectless.is_some(), rusty).map(|icon| {
+                        if closed {
+                            div().opacity(0.5).child(icon).into_any_element()
+                        } else {
+                            icon
+                        }
+                    }),
+                )
                 .child(project_name(
                     row.name,
                     row.highlight,
@@ -4893,6 +4940,12 @@ impl Rail {
         window: &mut Window,
         cx: &mut App,
     ) -> Entity<ContextMenu> {
+        // The Rusty group stays while Rusty is on; it has nothing to rename or remove (#675).
+        if groups::is_rusty(group, cx) {
+            return ContextMenu::build(window, cx, |menu, _, _| {
+                menu.label("Rusty's screens and pages open here")
+            });
+        }
         ContextMenu::build(window, cx, move |menu, _, _| {
             let rename_rail = rail.clone();
             menu.entry("Rename Group…", None, move |window, cx| {
@@ -7792,7 +7845,12 @@ fn rail_groups(
             .position(|saved| Some(*saved) == group.database_id)
             .unwrap_or(usize::MAX)
     });
-    for (group, workspace) in marley_groups {
+    // The Rusty group shows only while Rusty is on (#661, #675).
+    let rusty_on = rusty::is_on(cx);
+    for (group, workspace) in marley_groups
+        .into_iter()
+        .filter(|(group, _)| rusty_on || !group.rusty)
+    {
         groups.push(ProjectGroup {
             key: ProjectGroupKey::default(),
             workspaces: vec![workspace],

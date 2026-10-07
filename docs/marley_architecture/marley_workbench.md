@@ -1677,6 +1677,23 @@ alike.
   inbox. The minute bump in `connected` also runs while a shown reset lies ahead. `row_card` is
   `rems(4.5)` tall for three lines under the title.
 
+## The Rusty group (`src/groups.rs`, `src/rusty.rs`, `src/rail.rs`, #675)
+
+- `groups::GroupKind { Named, Home, Rusty }` is what `make` makes; `Group::rusty` and
+  `SavedGroup::rusty` (serde default) keep it across a restart. `rusty_group` finds a window's,
+  `is_rusty` asks of a group id, and `with_rusty_group` runs an open in it, making it first; opens
+  asked for while it is being made wait in `Groups::waiting_for_rusty` by window, so two quick
+  opens make one group.
+- `rusty::in_rusty_group(asked_from, window, cx, open)` defers, then in the Marley layout shows the
+  window's Rusty group (`MultiWorkspace::activate`) and runs `open` in its workspace; in the Zed
+  layout it runs `open` in `asked_from`. Every Rusty tab's `open_later` and `page::open_later` and
+  `open_at_heading_later` go through it, and each `rusty: open …` action calls its `open_later`, so
+  the header's buttons, the palette, the tree, the picker, the Knowledge panel and capture all land
+  there.
+- The rail: `header_icon` draws `RUSTY_GROUP_ICON` (a placeholder, `BookCopy`) for it; its menu
+  is a single label; `rail_groups` leaves it out while Rusty is off, and `leave_rusty_group` moves a
+  window showing it to its first open group when Rusty turns off.
+
 ## Every center tab in the rail (`src/rail.rs`, `marley_rail`, #674)
 
 - **The model** (`marley_rail`). `TabKind { File, Other }` and `TabSnapshot { id, title, folder,

@@ -5021,3 +5021,14 @@ active one, and `ItemPinned` into nothing. A view that follows every tab of a wo
 workspace's events alone misses a rename or an edit in a split that is not focused. Subscribe to
 each pane (`Workspace::panes`, resubscribed as panes come and go) for `pane::Event`, or to each
 item's `ItemEvent`; the rail does the first (`follow_panes`).
+
+## L-claude-675-route-a-feature-s-tabs-in-its-openers-not-its-callers-001
+*category: rust · topic: sending every tab of a feature to one place · from: pipeline 675*
+
+Rusty's tabs open from the header, the palette, the Brain view's tree, the page picker, the
+Knowledge panel, capture and page links. Moving all of them to the Rusty group took one helper
+(`rusty::in_rusty_group`) called from each tab module's `open_later` and the page module's, plus a
+one-line change to each palette action so it goes through its `open_later` rather than its `open`.
+The callers changed not at all. When a feature's tabs must all land somewhere new, route in the
+few openers every caller already funnels through, and check the palette actions, which tend to
+call the inner `open` directly.
