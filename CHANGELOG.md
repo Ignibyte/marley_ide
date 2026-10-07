@@ -655,6 +655,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Every tab in the rail** (#674, 2026-10-07). Each tab open in the middle now has a row under
+  its project, so the rail and the tab bar list the same things: a project search, a diff, settings
+  or one of Marley's tabs after the project's Browser tabs, and its open files under a **Files**
+  row with their count, above its ports. A file's row shows its folder; a dot marks changes not
+  saved; the × at a row's end closes the tab. Click Files to fold the files away; while folded, it
+  is the row highlighted for a file in front.
+
 - **Containers moved to a panel on the right** (#673, 2026-10-07). The ports of this machine's
   containers that no project holds are no longer listed at the foot of the rail. A box button in
   the status bar opens the Containers panel in the right dock: the count, and a row per port with

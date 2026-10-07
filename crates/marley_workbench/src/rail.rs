@@ -37,11 +37,11 @@ use marley_browser::consequence::Class;
 use marley_browser::ports::{Service, Stopped};
 use marley_mcp::redact::Redactor;
 use marley_rail::{
-    BrowserRow, BrowserSnapshot, CommandSnapshot, DriftSnapshot, Focus, InboxAnswer, InboxEntry,
-    InboxKind, PortContainer, PortRow, PortService, PortSnapshot, ProjectRow, ProjectSnapshot,
-    RailSnapshot, Reporting, Row, RunningError, Selection, SwitcherRow, TerminalAgent, TerminalRow,
-    TerminalSnapshot, ThreadRow, ThreadSnapshot, ThreadStatus, TurnSnapshot, WorktreeRow,
-    WorktreeSnapshot,
+    BrowserRow, BrowserSnapshot, CommandSnapshot, DriftSnapshot, FilesRow, Focus, InboxAnswer,
+    InboxEntry, InboxKind, PortContainer, PortRow, PortService, PortSnapshot, ProjectRow,
+    ProjectSnapshot, RailSnapshot, Reporting, Row, RunningError, Selection, SwitcherRow, TabKind,
+    TabRow, TabSnapshot, TerminalAgent, TerminalRow, TerminalSnapshot, ThreadRow, ThreadSnapshot,
+    ThreadStatus, TurnSnapshot, WorktreeRow, WorktreeSnapshot,
 };
 use marley_system_one::reading::{Reading, Signal};
 use marley_system_one::{INBOX_RISK, QUESTION_ROUTE};
@@ -68,9 +68,9 @@ use util::path_list::PathList;
 use util::shell::ShellKind;
 use uuid::Uuid;
 use workspace::{
-    MultiWorkspace, MultiWorkspaceEvent, OpenMode, ProjectGroup, RemovalIntent, SaveIntent,
+    MultiWorkspace, MultiWorkspaceEvent, OpenMode, Pane, ProjectGroup, RemovalIntent, SaveIntent,
     Sidebar, SidebarEvent, SidebarSide, Toast, Workspace, WorkspaceId,
-    item::{Item as _, ItemEvent},
+    item::{Item as _, ItemBufferKind, ItemEvent, WeakItemHandle},
     notifications::{DetachAndPromptErr as _, NotificationId},
 };
 use zed_actions::agents_sidebar::FocusSidebarFilter;
@@ -200,6 +200,11 @@ pub struct Rail {
     terminal_subscriptions: HashMap<EntityId, [Subscription; 2]>,
     /// Per Browser tab: its item events (#504).
     browser_subscriptions: HashMap<EntityId, Subscription>,
+    /// Per pane: its events, which say when any tab in it is added, closed, renamed or edited,
+    /// and which reach no workspace event outside the active pane (#674).
+    pane_subscriptions: HashMap<EntityId, Subscription>,
+    /// The projects whose Files row is folded, by their header's place (#674).
+    files_folded: HashSet<String>,
     /// The browser's hub, once something made it: its pages' titles, icons and counts (#504).
     hub_subscription: Option<Subscription>,
     /// Per Agent Panel: its events, and focus entering and leaving it.
@@ -535,6 +540,13 @@ struct BrowserEntry {
     view: WeakEntity<BrowserView>,
 }
 
+/// The entities behind another center tab's row (#674), held weakly, and the icon its tab draws.
+struct TabEntry {
+    workspace: WeakEntity<Workspace>,
+    item: Box<dyn WeakItemHandle>,
+    icon: Option<Icon>,
+}
+
 /// What a thread row opens, and the icon it draws.
 struct ThreadEntry {
     workspace: WeakEntity<Workspace>,
@@ -559,6 +571,8 @@ struct Snapshot {
     /// The Browser tabs' rows' entities, and the icons their pages have (#504).
     browsers: HashMap<u64, BrowserEntry>,
     favicons: HashMap<u64, Arc<Image>>,
+    /// The other center tabs' rows' entities (#674).
+    tabs: HashMap<u64, TabEntry>,
     /// The terminal views an agent CLI is running in.
     agent_terminals: HashSet<EntityId>,
     threads: HashMap<String, ThreadEntry>,
@@ -876,6 +890,8 @@ impl Rail {
             zed_sidebar_state: None,
             add_project_menu: PopoverMenuHandle::default(),
             workspace_subscriptions: HashMap::default(),
+            pane_subscriptions: HashMap::default(),
+            files_folded: HashSet::default(),
             project_subscriptions: HashMap::default(),
             terminal_subscriptions: HashMap::default(),
             panel_subscriptions: HashMap::default(),
@@ -1104,6 +1120,7 @@ impl Rail {
             .unwrap_or_default();
         order::arrange(&mut snapshot, &self.saved_order);
         self.note_turns_open(&mut snapshot);
+        self.note_files_open(&mut snapshot);
         self.note_ended_runs(&mut snapshot);
         self.note_inbox(&mut snapshot, window, cx);
         self.note_window_row(&snapshot.rail);
@@ -2234,6 +2251,7 @@ impl Rail {
     fn sync_subscriptions(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Watched {
             workspaces,
+            center_panes,
             projects,
             views,
             browsers,
@@ -2261,6 +2279,7 @@ impl Rail {
                 )
             },
         );
+        self.follow_panes(&center_panes, window, cx);
         self.project_subscriptions =
             resubscribe(&mut self.project_subscriptions, &projects, |project| {
                 Self::follow_folders(project, window, cx)
@@ -2414,6 +2433,18 @@ impl Rail {
     /// Follows each Browser tab's item events, and the hub once something made it: its pages'
     /// titles, icons and counts (#504). The hub is read without being made, which would start
     /// the browser.
+    /// Refreshes on every event of every pane, which says when any tab in it is added, closed,
+    /// renamed or edited; outside the active pane those reach no workspace event (#674).
+    fn follow_panes(&mut self, panes: &[Entity<Pane>], window: &Window, cx: &mut Context<Self>) {
+        self.pane_subscriptions = resubscribe(&mut self.pane_subscriptions, panes, |pane| {
+            cx.subscribe_in(
+                pane,
+                window,
+                |rail, _, _: &workspace::pane::Event, window, cx| rail.refresh(window, cx),
+            )
+        });
+    }
+
     fn follow_browsers(
         &mut self,
         browsers: &[Entity<BrowserView>],
@@ -2942,7 +2973,7 @@ impl Rail {
 
     /// Opens a row as a click on it does.
     fn open_row(
-        &self,
+        &mut self,
         selection: Selection,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -2977,6 +3008,7 @@ impl Rail {
                 })
             }
             Selection::Thread(key) => self.open_thread(&key, window, cx),
+            Selection::Tab(id) => self.activate_tab(id, window, cx),
             Selection::Port(port, pid) => {
                 let found =
                     self.snapshot
@@ -2998,6 +3030,10 @@ impl Rail {
                 })
             }
             Selection::Worktree(path) => self.open_worktree(&path, window, cx),
+            Selection::Files(index) => {
+                self.toggle_files(index, window, cx);
+                Ok(())
+            }
         }
     }
 
@@ -4073,6 +4109,80 @@ impl Rail {
         }
     }
 
+    /// Marks each project's Files row open unless the user folded it (#674).
+    fn note_files_open(&self, snapshot: &mut Snapshot) {
+        for (project, group) in snapshot
+            .rail
+            .projects
+            .iter_mut()
+            .zip(snapshot.groups.iter())
+        {
+            project.files_open = !self.files_folded.contains(&order::group_place(group));
+        }
+    }
+
+    /// Folds a project's Files row, or unfolds it (#674).
+    fn toggle_files(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(group) = self.snapshot.groups.get(index) else {
+            return;
+        };
+        let place = order::group_place(group);
+        if !self.files_folded.remove(&place) {
+            self.files_folded.insert(place);
+        }
+        self.refresh(window, cx);
+    }
+
+    /// Shows a tab's project and brings the tab forward with the focus (#674).
+    fn activate_tab(
+        &self,
+        id: u64,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let entry = self
+            .snapshot
+            .tabs
+            .get(&id)
+            .context("the tab's row is gone")?;
+        let item = entry.item.upgrade().context("the tab was closed")?;
+        let workspace = entry.workspace.clone();
+        let workspace = self.activate_workspace(&workspace, window, cx)?;
+        workspace.update(cx, |workspace, cx| {
+            workspace.activate_item(item.as_ref(), true, true, window, cx)
+        });
+        Ok(())
+    }
+
+    /// Closes a tab through its pane, as its tab's close does: a file with changes asks first
+    /// (#674).
+    fn close_tab(
+        &self,
+        id: u64,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let entry = self
+            .snapshot
+            .tabs
+            .get(&id)
+            .context("the tab's row is gone")?;
+        let item_id = entry.item.id();
+        let workspace = entry
+            .workspace
+            .upgrade()
+            .context("the project was closed")?;
+        let pane = workspace
+            .read(cx)
+            .pane_for_item_id(item_id)
+            .context("the tab is in no pane")?;
+        let closing = pane.update(cx, |pane, cx| {
+            pane.close_item_by_id(item_id, SaveIntent::Close, window, cx)
+        });
+        closing.detach_and_prompt_err("Could not close the tab", window, cx, |_, _, _| None);
+        Ok(())
+    }
+
     /// Opens the turn `sha` of the terminal `id` in Zed's commit view, in the terminal's project,
     /// which it shows (#509). The view diffs the turn's commit against its parent, the turn's
     /// start.
@@ -4468,6 +4578,12 @@ impl Rail {
                 .into_any_element()
             }),
             Row::Worktree(row) => Some(Self::render_worktree_row(row, cx).into_any_element()),
+            Row::Tab(row) => self
+                .snapshot
+                .tabs
+                .get(&row.id)
+                .map(|tab| Self::render_tab_row(row, tab, cx).into_any_element()),
+            Row::Files(row) => Some(Self::render_files_row(&row, cx).into_any_element()),
         }
     }
 
@@ -5682,6 +5798,103 @@ impl Rail {
             .pl_2()
             .child(item)
     }
+
+    /// Another center tab's row (#674): its tab's icon and title, a file's folder under it, a dot
+    /// while it has changes not saved, and its close on hover; a click brings the tab forward. A
+    /// file sits a step further in, under its project's Files row.
+    fn render_tab_row(row: TabRow, tab: &TabEntry, cx: &Context<Self>) -> impl IntoElement {
+        let id = row.id;
+        let fallback = match row.kind {
+            TabKind::File => IconName::File,
+            TabKind::Other => IconName::FileGeneric,
+        };
+        let icon = tab
+            .icon
+            .clone()
+            .unwrap_or_else(|| Icon::new(fallback).color(Color::Muted))
+            .size(IconSize::Small)
+            .into_any_element();
+        let close = div()
+            .debug_selector(move || format!("marley-rail-tab-close-{id}"))
+            .child(
+                IconButton::new(("marley-rail-tab-close", id), IconName::Close)
+                    .icon_size(IconSize::Small)
+                    .icon_color(Color::Muted)
+                    .tooltip(Tooltip::text("Close Tab"))
+                    .on_click(cx.listener(move |rail, _, window, cx| {
+                        // The row under the button would show the tab it closes.
+                        cx.stop_propagation();
+                        rail.close_tab(id, window, cx).log_err();
+                    })),
+            );
+        let end = h_flex()
+            .flex_none()
+            .gap_1()
+            .when(row.dirty, |end| {
+                end.child(
+                    div()
+                        .debug_selector(move || format!("marley-rail-tab-dirty-{id}"))
+                        .child(Indicator::dot().color(Color::Info)),
+                )
+            })
+            .child(h_flex().visible_on_hover(ROW_GROUP).child(close));
+        let item = row_card(
+            ("marley-rail-tab", id),
+            format!("marley-rail-tab-icon-{id}"),
+            row.selected,
+            icon,
+            row_label(row.title, row.highlight, Color::Default),
+            row.folder.into_iter().collect(),
+            cx,
+        )
+        .child(end)
+        .on_click(cx.listener(move |rail, _: &ClickEvent, window, cx| {
+            rail.activate_tab(id, window, cx).log_err();
+        }));
+        div()
+            .debug_selector(move || format!("marley-rail-tab-{id}"))
+            .map(|row_div| match row.kind {
+                TabKind::File => row_div.pl_5(),
+                TabKind::Other => row_div.pl_2(),
+            })
+            .child(item)
+    }
+
+    /// A project's Files row (#674): a chevron, Files and how many; a click folds or unfolds the
+    /// files under it.
+    fn render_files_row(row: &FilesRow, cx: &Context<Self>) -> impl IntoElement {
+        let project = row.project;
+        let frame = row_frame(("marley-rail-files", project), row.selected, cx)
+            .h_8()
+            .pl_1()
+            .gap_1()
+            .child(
+                Disclosure::new(("marley-rail-files-disclosure", project), row.open).on_click(
+                    cx.listener(move |rail, _, window, cx| {
+                        // The row around the chevron would fold it back.
+                        cx.stop_propagation();
+                        rail.toggle_files(project, window, cx);
+                    }),
+                ),
+            )
+            .child(
+                Label::new("Files")
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
+            )
+            .child(
+                Label::new(row.count.to_string())
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            )
+            .on_click(cx.listener(move |rail, _: &ClickEvent, window, cx| {
+                rail.toggle_files(project, window, cx);
+            }));
+        div()
+            .debug_selector(move || format!("marley-rail-files-{project}"))
+            .pl_2()
+            .child(frame)
+    }
 }
 
 impl Rail {
@@ -6114,6 +6327,7 @@ fn container_refused_toast(command: String, reason: &str) -> Toast {
 #[derive(Default)]
 struct Watched {
     workspaces: Vec<Entity<Workspace>>,
+    center_panes: Vec<Entity<Pane>>,
     projects: Vec<Entity<Project>>,
     views: Vec<Entity<TerminalView>>,
     browsers: Vec<Entity<BrowserView>>,
@@ -6126,6 +6340,10 @@ impl Watched {
     fn in_window(multi_workspace: &Entity<MultiWorkspace>, cx: &App) -> Self {
         let workspaces: Vec<Entity<Workspace>> =
             multi_workspace.read(cx).workspaces().cloned().collect();
+        let center_panes = workspaces
+            .iter()
+            .flat_map(|workspace| workspace.read(cx).panes().iter().cloned())
+            .collect();
         let views = workspaces
             .iter()
             .flat_map(|workspace| workspace.read(cx).items_of_type::<TerminalView>(cx))
@@ -6152,6 +6370,7 @@ impl Watched {
             .collect();
         Self {
             workspaces,
+            center_panes,
             projects,
             views,
             browsers,
@@ -7631,6 +7850,7 @@ fn build_snapshot(
         }
         let mut terminals = Vec::new();
         let mut browsers = Vec::new();
+        let mut center_tabs = Vec::new();
         for member in &group.workspaces {
             let worktree = tags.get(&member.entity_id()).cloned();
             // Subtitles read against the member's own first root: a linked worktree's, not the
@@ -7670,6 +7890,7 @@ fn build_snapshot(
                 );
             }
             browsers.extend(member_browsers(member, filter, &mut snapshot, cx));
+            center_tabs.extend(member_tabs(member, filter, &mut snapshot, window, cx));
         }
         let threads = listed_threads(
             &mut snapshot,
@@ -7686,21 +7907,17 @@ fn build_snapshot(
             expanded: group.expanded,
             terminals,
             browsers,
+            tabs: center_tabs,
+            files_open: true,
             threads,
             ports: port_snapshots(&group.key, filter, cx),
             worktrees,
             matched,
             closed: false,
         });
-        snapshot.groups.push(GroupEntry {
-            key: group.key.clone(),
-            workspace: workspace.downgrade(),
-            source: git_source(&workspace, cx),
-            git: None,
-            group: id.map(|(group, _)| group),
-            database_id: id.and_then(|(_, database_id)| database_id),
-            closed: false,
-        });
+        snapshot
+            .groups
+            .push(open_group_entry(group, &workspace, id, cx));
     }
     harness_entries(&mut snapshot, cx);
     snapshot.rail.filtering = !filter.is_empty();
@@ -7713,6 +7930,24 @@ fn build_snapshot(
         cx,
     );
     snapshot
+}
+
+/// The entities behind an open group's header.
+fn open_group_entry(
+    group: &ProjectGroup,
+    workspace: &Entity<Workspace>,
+    id: Projectless,
+    cx: &App,
+) -> GroupEntry {
+    GroupEntry {
+        key: group.key.clone(),
+        workspace: workspace.downgrade(),
+        source: git_source(workspace, cx),
+        git: None,
+        group: id.map(|(group, _)| group),
+        database_id: id.and_then(|(_, database_id)| database_id),
+        closed: false,
+    }
 }
 
 /// A group's threads as its rows list them, their entities noted in `snapshot`.
@@ -7750,6 +7985,8 @@ fn push_closed(
         expanded: group.expanded,
         terminals: Vec::new(),
         browsers: Vec::new(),
+        tabs: Vec::new(),
+        files_open: true,
         threads,
         ports: port_snapshots(&group.key, filter, cx),
         worktrees: Vec::new(),
@@ -7785,7 +8022,7 @@ fn note_focus(
     snapshot.shown_thread = panel_thread
         .clone()
         .filter(|_| AgentPanel::is_visible(displayed, cx));
-    let (terminal, terminal_focused, browser) = active_rows(displayed, window, cx);
+    let (terminal, terminal_focused, browser, tab) = active_rows(displayed, window, cx);
     snapshot.rail.focus = Focus {
         cursor: None,
         project: groups
@@ -7793,6 +8030,7 @@ fn note_focus(
             .position(|group| group.workspaces.contains(displayed)),
         terminal,
         browser,
+        tab,
         worktree,
         terminal_focused,
         thread: panel_thread.filter(|_| {
@@ -8184,17 +8422,22 @@ fn drift_snapshot(drift: Drift) -> DriftSnapshot {
 }
 
 /// The rows the displayed workspace's active center item makes current: a terminal's, with
-/// whether it holds the focus, or a Browser tab's (#504).
+/// whether it holds the focus, a Browser tab's (#504), or any other tab's (#674).
 fn active_rows(
     displayed: &Entity<Workspace>,
     window: &Window,
     cx: &App,
-) -> (Option<u64>, bool, Option<u64>) {
+) -> (Option<u64>, bool, Option<u64>, Option<u64>) {
     let active_item = displayed.read(cx).active_item(cx);
     let terminal = active_item
         .as_ref()
         .and_then(|item| item.downcast::<TerminalView>());
-    let browser = active_item.and_then(|item| item.downcast::<BrowserView>());
+    let browser = active_item
+        .as_ref()
+        .and_then(|item| item.downcast::<BrowserView>());
+    let tab = active_item
+        .filter(|_| terminal.is_none() && browser.is_none())
+        .map(|item| item.item_id().as_u64());
     let focused = terminal
         .as_ref()
         .is_some_and(|view| crate::rich_input::holds_focus(view.read(cx), window, cx));
@@ -8202,7 +8445,62 @@ fn active_rows(
         terminal.map(|view| view.entity_id().as_u64()),
         focused,
         browser.map(|view| view.entity_id().as_u64()),
+        tab,
     )
+}
+
+/// The center tabs of `member` that are neither terminals nor Browser tabs (#674), in its panes'
+/// order, each tab's entities and icon kept in `snapshot`. A file is an item with a project path
+/// and a single buffer; its folder in the project is its row's second line.
+fn member_tabs(
+    member: &Entity<Workspace>,
+    filter: &str,
+    snapshot: &mut Snapshot,
+    window: &Window,
+    cx: &App,
+) -> Vec<TabSnapshot> {
+    let mut tabs = Vec::new();
+    for pane in member.read(cx).panes() {
+        for item in pane.read(cx).items() {
+            if item.downcast::<TerminalView>().is_some() || item.downcast::<BrowserView>().is_some()
+            {
+                continue;
+            }
+            let id = item.item_id().as_u64();
+            let title = item.tab_content_text(0, cx).to_string();
+            let path = item
+                .project_path(cx)
+                .filter(|_| item.buffer_kind(cx) == ItemBufferKind::Singleton);
+            let kind = if path.is_some() {
+                TabKind::File
+            } else {
+                TabKind::Other
+            };
+            let folder = path.as_ref().and_then(|path| {
+                path.path
+                    .parent()
+                    .filter(|folder| !folder.is_empty())
+                    .map(|folder| folder.as_unix_str().to_string())
+            });
+            snapshot.tabs.insert(
+                id,
+                TabEntry {
+                    workspace: member.downgrade(),
+                    item: item.downgrade_item(),
+                    icon: item.tab_icon(window, cx),
+                },
+            );
+            tabs.push(TabSnapshot {
+                id,
+                matched: filter_match(filter, &title),
+                title,
+                folder,
+                kind,
+                dirty: item.is_dirty(cx),
+            });
+        }
+    }
+    tabs
 }
 
 /// The Browser tabs of `member` as rows show them (#504), each tab's entities and page icon kept

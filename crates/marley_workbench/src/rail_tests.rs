@@ -86,7 +86,12 @@ fn listing(rail: &Entity<Rail>, cx: &VisualTestContext) -> Vec<(String, Vec<u64>
                     terminals.push(terminal.id);
                 }
             }
-            Row::Browser(_) | Row::Thread(_) | Row::Port(_) | Row::Worktree(_) => {}
+            Row::Browser(_)
+            | Row::Thread(_)
+            | Row::Port(_)
+            | Row::Worktree(_)
+            | Row::Tab(_)
+            | Row::Files(_) => {}
         }
     }
     listing
@@ -982,7 +987,9 @@ async fn the_filter_highlights_what_it_matched(cx: &mut TestAppContext) {
                 | Row::Browser(_)
                 | Row::Thread(_)
                 | Row::Port(_)
-                | Row::Worktree(_) => None,
+                | Row::Worktree(_)
+                | Row::Tab(_)
+                | Row::Files(_) => None,
             })
     });
     assert_eq!(header, Some(vec![0, 1, 2]));
@@ -2004,7 +2011,9 @@ mod threads {
                     | Row::Terminal(_)
                     | Row::Browser(_)
                     | Row::Port(_)
-                    | Row::Worktree(_) => None,
+                    | Row::Worktree(_)
+                    | Row::Tab(_)
+                    | Row::Files(_) => None,
                 })
                 .collect()
         });

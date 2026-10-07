@@ -38,6 +38,10 @@ pub struct ProjectSnapshot {
     pub terminals: Vec<TerminalSnapshot>,
     /// The group's Browser tabs, in the order its workspaces list them (#504).
     pub browsers: Vec<BrowserSnapshot>,
+    /// The group's other center tabs, its files among them, in the panes' order (#674).
+    pub tabs: Vec<TabSnapshot>,
+    /// Whether the group's Files row shows its files (#674).
+    pub files_open: bool,
     /// The group's agent threads, in the order the rail lists them (newest first).
     pub threads: Vec<ThreadSnapshot>,
     /// The ports the group's processes listen on, by port (#521).
@@ -262,6 +266,33 @@ pub struct BrowserSnapshot {
     pub matched: Option<Vec<usize>>,
 }
 
+/// What a center tab that is neither a terminal nor a Browser tab holds (#674).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TabKind {
+    /// A file's editor, listed under its project's Files row.
+    File,
+    /// Anything else: a project search, a diff, settings, one of Marley's tabs.
+    Other,
+}
+
+/// One center tab that is neither a terminal nor a Browser tab (#674).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TabSnapshot {
+    /// The tab's item id: the row's identity across rebuilds.
+    pub id: u64,
+    /// The title the tab shows.
+    pub title: String,
+    /// A file's folder in its project, the row's second line; `None` at the project's root and
+    /// for a tab that is not a file.
+    pub folder: Option<String>,
+    /// A file, or anything else.
+    pub kind: TabKind,
+    /// Whether the tab has changes not saved.
+    pub dirty: bool,
+    /// Where the filter matched the title, as for [`ProjectSnapshot::matched`].
+    pub matched: Option<Vec<usize>>,
+}
+
 /// A port a process of the group listens on (#521).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PortSnapshot {
@@ -409,6 +440,8 @@ pub struct Focus {
     pub terminal: Option<u64>,
     /// The displayed workspace's active center item, when that item is a Browser tab (#504).
     pub browser: Option<u64>,
+    /// The displayed workspace's active center item, when it is any other tab (#674).
+    pub tab: Option<u64>,
     /// The displayed workspace's folder, when it is a listed linked worktree (#510).
     pub worktree: Option<String>,
     /// Whether that terminal holds the window's focus.
@@ -563,6 +596,10 @@ pub enum Selection {
     Port(u16, u32),
     /// A linked worktree's row, by its folder (#510).
     Worktree(String),
+    /// Another center tab's row, by its item id (#674).
+    Tab(u64),
+    /// A project's Files row, by the project's index (#674).
+    Files(usize),
 }
 
 /// A project group's header row.
@@ -667,6 +704,41 @@ pub struct BrowserRow {
     pub highlight: Vec<usize>,
 }
 
+/// Another center tab's row under its project (#674): a file under the project's Files row, or
+/// anything else after the Browser tabs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TabRow {
+    /// The group's index in [`RailSnapshot::projects`].
+    pub project: usize,
+    /// The tab's item id.
+    pub id: u64,
+    /// The title.
+    pub title: String,
+    /// A file's folder in its project, the second line.
+    pub folder: Option<String>,
+    /// A file, or anything else.
+    pub kind: TabKind,
+    /// Whether the tab has changes not saved, which draws the dot.
+    pub dirty: bool,
+    /// Whether this is the selected row.
+    pub selected: bool,
+    /// The byte offsets of the title's characters the filter matched, to highlight.
+    pub highlight: Vec<usize>,
+}
+
+/// A project's Files row, over the file tabs it folds (#674).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesRow {
+    /// The group's index in [`RailSnapshot::projects`].
+    pub project: usize,
+    /// How many file tabs the project holds.
+    pub count: usize,
+    /// Whether the files show under it.
+    pub open: bool,
+    /// Whether this is the selected row.
+    pub selected: bool,
+}
+
 /// An agent thread row under its project.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ThreadRow {
@@ -729,6 +801,10 @@ pub enum Row {
     /// A linked worktree under its project, after the main checkout's terminals, with its own
     /// terminals under it (#510).
     Worktree(WorktreeRow),
+    /// Another center tab under its project (#674).
+    Tab(TabRow),
+    /// A project's Files row, after its threads and before its ports (#674).
+    Files(FilesRow),
 }
 
 /// A row the switcher lists: a terminal or a thread, never a header.
@@ -772,11 +848,27 @@ pub fn selection(snapshot: &RailSnapshot) -> Selection {
     let thread = snapshot.focus.thread.clone().map(Selection::Thread);
     let terminal = snapshot.focus.terminal.map(Selection::Terminal);
     let browser = snapshot.focus.browser.map(Selection::Browser);
+    let tab = snapshot.focus.tab.map(Selection::Tab);
+    // A file folded away under its Files row highlights that row (#674).
+    let files = snapshot
+        .focus
+        .tab
+        .filter(|id| {
+            snapshot.projects.get(index).is_some_and(|project| {
+                project
+                    .tabs
+                    .iter()
+                    .any(|tab| tab.id == *id && tab.kind == TabKind::File)
+            })
+        })
+        .map(|_| Selection::Files(index));
     let worktree = snapshot.focus.worktree.clone().map(Selection::Worktree);
     [
         thread,
         terminal,
         browser,
+        tab,
+        files,
         worktree,
         Some(Selection::Project(index)),
     ]
@@ -798,6 +890,8 @@ enum Shown<'a> {
     Thread(usize, &'a ThreadSnapshot),
     Port(usize, &'a PortSnapshot),
     Worktree(usize, &'a WorktreeSnapshot),
+    Tab(usize, &'a TabSnapshot),
+    Files(usize, &'a ProjectSnapshot),
 }
 
 impl<'a> Shown<'a> {
@@ -808,7 +902,9 @@ impl<'a> Shown<'a> {
             | Self::Browser(index, _)
             | Self::Thread(index, _)
             | Self::Port(index, _)
-            | Self::Worktree(index, _) => index,
+            | Self::Worktree(index, _)
+            | Self::Tab(index, _)
+            | Self::Files(index, _) => index,
         }
     }
 
@@ -820,6 +916,8 @@ impl<'a> Shown<'a> {
             Self::Thread(_, thread) => Selection::Thread(thread.key.clone()),
             Self::Port(_, port) => Selection::Port(port.port, port.pid),
             Self::Worktree(_, worktree) => Selection::Worktree(worktree.path.clone()),
+            Self::Tab(_, tab) => Selection::Tab(tab.id),
+            Self::Files(index, _) => Selection::Files(index),
         }
     }
 
@@ -832,6 +930,8 @@ impl<'a> Shown<'a> {
             Self::Thread(_, thread) => thread.matched.as_deref(),
             Self::Port(_, port) => port.matched.as_deref(),
             Self::Worktree(_, worktree) => worktree.matched.as_deref(),
+            Self::Tab(_, tab) => tab.matched.as_deref(),
+            Self::Files(..) => None,
         }
     }
 }
@@ -998,7 +1098,11 @@ pub fn held_order(snapshot: &RailSnapshot) -> Held {
             Shown::Project(index, _) => held.projects.push(index),
             Shown::Terminal(_, terminal) => held.terminals.push(terminal.id),
             Shown::Thread(_, thread) => held.threads.push(thread.key.clone()),
-            Shown::Worktree(..) | Shown::Browser(..) | Shown::Port(..) => {}
+            Shown::Worktree(..)
+            | Shown::Browser(..)
+            | Shown::Port(..)
+            | Shown::Tab(..)
+            | Shown::Files(..) => {}
         }
     }
     held
@@ -1033,8 +1137,8 @@ pub enum Run {
     },
 }
 
-/// The run `row` moves within when it is dragged; `None` for a worktree's or a port's row, which do
-/// not move.
+/// The run `row` moves within when it is dragged; `None` for a worktree's, a port's, a tab's or a
+/// Files row, which do not move.
 #[must_use]
 pub fn run(snapshot: &RailSnapshot, row: &Row) -> Option<Run> {
     let attention = snapshot.order == RailOrder::Attention;
@@ -1069,7 +1173,7 @@ pub fn run(snapshot: &RailSnapshot, row: &Row) -> Option<Run> {
                 class: attention.then(|| thread_attention_class(thread)),
             })
         }
-        Row::Port(_) | Row::Worktree(_) => None,
+        Row::Port(_) | Row::Worktree(_) | Row::Tab(_) | Row::Files(_) => None,
     }
 }
 
@@ -1146,8 +1250,8 @@ fn summary(project: &ProjectSnapshot) -> Option<String> {
 
 /// Every row the rail shows, in its order: each shown project's header, then the main
 /// checkout's terminals, each linked worktree's row with its terminals (#510), the Browser tabs,
-/// the threads and the ports shown under it. The rows, the selection and the keyboard all read
-/// this one walk.
+/// the other tabs, the threads, the Files row with its files (#674) and the ports shown under it.
+/// The rows, the selection and the keyboard all read this one walk.
 fn walk(snapshot: &RailSnapshot) -> Vec<Shown<'_>> {
     let mut rows = Vec::new();
     for index in project_order(snapshot) {
@@ -1189,6 +1293,29 @@ fn walk(snapshot: &RailSnapshot) -> Vec<Shown<'_>> {
             .iter()
             .filter(|browser| row_shows(snapshot, project, browser.matched.as_deref()))
             .map(|browser| Shown::Browser(index, browser));
+        let others = project
+            .tabs
+            .iter()
+            .filter(|tab| tab.kind == TabKind::Other)
+            .filter(|tab| row_shows(snapshot, project, tab.matched.as_deref()))
+            .map(|tab| Shown::Tab(index, tab));
+        let files: Vec<&TabSnapshot> = project
+            .tabs
+            .iter()
+            .filter(|tab| tab.kind == TabKind::File)
+            .filter(|tab| row_shows(snapshot, project, tab.matched.as_deref()))
+            .collect();
+        // The Files row shows over any file that shows; its fold yields to the filter.
+        let files_open = project.files_open || snapshot.filtering;
+        let files = (!files.is_empty())
+            .then_some(Shown::Files(index, project))
+            .into_iter()
+            .chain(
+                files
+                    .into_iter()
+                    .filter(move |_| files_open)
+                    .map(|tab| Shown::Tab(index, tab)),
+            );
         let threads = arrange_threads(
             snapshot,
             project
@@ -1207,7 +1334,9 @@ fn walk(snapshot: &RailSnapshot) -> Vec<Shown<'_>> {
         let under: Vec<Shown<'_>> = terminals
             .chain(worktrees)
             .chain(browsers)
+            .chain(others)
             .chain(threads)
+            .chain(files)
             .chain(ports)
             .collect();
         // The filter shows a project for its own name or for a row under it.
@@ -1335,7 +1464,10 @@ pub fn cycle_row(snapshot: &RailSnapshot, forward: bool) -> Selection {
     cycle(snapshot, &selection(snapshot), forward, |row| {
         matches!(
             row,
-            Selection::Terminal(_) | Selection::Browser(_) | Selection::Thread(_)
+            Selection::Terminal(_)
+                | Selection::Browser(_)
+                | Selection::Thread(_)
+                | Selection::Tab(_)
         ) && !matches!(parent(snapshot, row), Selection::Project(index)
             if snapshot.projects.get(index).is_some_and(|project| project.closed))
     })
@@ -1402,8 +1534,56 @@ pub fn parent(snapshot: &RailSnapshot, selection: &Selection) -> Selection {
                 .iter()
                 .any(|worktree| worktree.path == *path)
         }),
+        // A file sits under its project's Files row, which sits under the project (#674).
+        Selection::Tab(id) => {
+            let found = snapshot
+                .projects
+                .iter()
+                .enumerate()
+                .find_map(|(index, project)| {
+                    project
+                        .tabs
+                        .iter()
+                        .find(|tab| tab.id == *id)
+                        .map(|tab| (index, tab.kind))
+                });
+            match found {
+                Some((index, TabKind::File)) => return Selection::Files(index),
+                Some((index, TabKind::Other)) => Some(index),
+                None => None,
+            }
+        }
+        Selection::Files(index) => Some(*index),
     };
     owner.map_or(Selection::None, Selection::Project)
+}
+
+/// Another center tab's row (#674).
+fn tab_row(index: usize, tab: &TabSnapshot, selected: &Selection, highlight: Vec<usize>) -> Row {
+    Row::Tab(TabRow {
+        project: index,
+        id: tab.id,
+        title: tab.title.clone(),
+        folder: tab.folder.clone(),
+        kind: tab.kind,
+        dirty: tab.dirty,
+        selected: *selected == Selection::Tab(tab.id),
+        highlight,
+    })
+}
+
+/// A project's Files row, counting its file tabs (#674).
+fn files_row(index: usize, project: &ProjectSnapshot, selected: &Selection) -> Row {
+    Row::Files(FilesRow {
+        project: index,
+        count: project
+            .tabs
+            .iter()
+            .filter(|tab| tab.kind == TabKind::File)
+            .count(),
+        open: project.files_open,
+        selected: *selected == Selection::Files(index),
+    })
 }
 
 /// The rows, in display order.
@@ -1476,6 +1656,10 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                 selected: matches!(&selected, Selection::Thread(key) if *key == thread.key),
                 highlight: highlight(thread.matched.as_deref()),
             }),
+            Shown::Tab(index, tab) => {
+                tab_row(index, tab, &selected, highlight(tab.matched.as_deref()))
+            }
+            Shown::Files(index, project) => files_row(index, project, &selected),
             Shown::Port(index, port) => Row::Port(PortRow {
                 project: index,
                 port: port.port,
@@ -1667,6 +1851,8 @@ mod tests {
             expanded,
             terminals,
             browsers: Vec::new(),
+            tabs: Vec::new(),
+            files_open: true,
             threads: Vec::new(),
             ports: Vec::new(),
             worktrees: Vec::new(),
@@ -1701,6 +1887,7 @@ mod tests {
                 project,
                 terminal,
                 browser: None,
+                tab: None,
                 worktree: None,
                 terminal_focused: false,
                 thread: None,
@@ -1758,6 +1945,8 @@ mod tests {
                 Row::Thread(row) => row.selected,
                 Row::Port(row) => row.selected,
                 Row::Worktree(row) => row.selected,
+                Row::Tab(row) => row.selected,
+                Row::Files(row) => row.selected,
             })
             .count()
     }
@@ -2485,6 +2674,8 @@ mod tests {
                 Row::Thread(row) => format!("  {}", row.title),
                 Row::Port(row) => format!("  {}", row.title),
                 Row::Worktree(row) => format!("  {}", row.name),
+                Row::Tab(row) => format!("  {}", row.title),
+                Row::Files(row) => format!("  Files {}", row.count),
             })
             .collect()
     }
@@ -2543,6 +2734,8 @@ mod tests {
                     Row::Thread(row) => (row.title, row.highlight),
                     Row::Port(row) => (row.title, row.highlight),
                     Row::Worktree(row) => (row.name, row.highlight),
+                    Row::Tab(row) => (row.title, row.highlight),
+                    Row::Files(_) => (String::from("Files"), Vec::new()),
                 })
                 .collect()
         };
@@ -2580,6 +2773,8 @@ mod tests {
                 Row::Thread(row) => row.highlight,
                 Row::Port(row) => row.highlight,
                 Row::Worktree(row) => row.highlight,
+                Row::Tab(row) => row.highlight,
+                Row::Files(_) => Vec::new(),
             };
             assert!(highlight.is_empty());
         }
@@ -2598,7 +2793,9 @@ mod tests {
                     | Row::Browser(_)
                     | Row::Thread(_)
                     | Row::Port(_)
-                    | Row::Worktree(_) => None,
+                    | Row::Worktree(_)
+                    | Row::Tab(_)
+                    | Row::Files(_) => None,
                 })
                 .collect()
         };

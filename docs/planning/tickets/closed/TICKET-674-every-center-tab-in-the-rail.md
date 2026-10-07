@@ -1,10 +1,10 @@
 # TICKET-674 — Every center tab has a row in the rail, a project's files under a Files row
 
 - **Ticket:** LOCAL #674 (feature, the rail)
-- **Owner:** unassigned (decided with Chad 2026-10-07)
-- **Pipeline doc:** none yet
+- **Owner:** claude-opus-5-5, 2026-10-07 (Chad's decisions)
+- **Pipeline doc:** ../../pipeline/completed/674-every-center-tab-in-the-rail.spec.md
 - **Source ticket:** `docs/planning/intake/rail-and-center-tabs.md` (decisions 1 and 2)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Chad, 2026-10-06: "some things opened in the main pane dont show up on the left pane. So really

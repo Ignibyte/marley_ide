@@ -4260,3 +4260,14 @@ containers stay under it in the rail. The panel is a child module of the rail, s
 rail's helpers, and `marley.rail_containers` keeps its key (renaming would drop users' values) while
 its words name the panel. Rejected: a status bar item of Marley's own (a Zed touchpoint in
 `zed.rs`, where a panel needs none); a popover from the button (Chad asked for it on the right).
+
+## AD-claude-674-every-center-tab-has-a-rail-row-and-files-fold-under-files-001
+*decided at: 2026-10-07 · status: shipped · builds on: the rail-and-tabs decisions (docs/planning/intake/rail-and-center-tabs.md)*
+
+Chad kept the top tabs and asked for every tab on the left too, with a project's files under one
+Files row above its containers. Every center item that is neither a terminal nor a Browser tab is a
+row: a file (a project path and a single buffer) under Files, anything else after the Browser
+tabs. The Files fold is in memory per window, as the turns fold is; tab rows keep the panes' order
+and do not drag. Rejected: a row per file mixed with the terminals (forty files bury the
+terminals); hiding the top tabs (Chad likes them, and the tab bar carries back and forward, splits
+and the tab menu).

@@ -5011,3 +5011,13 @@ Knowledge panel already had for Rusty going off: render nothing while hidden and
 once, deferred past the panel's own update (`close_while_hidden`), resetting when the switch comes
 back on. Any panel gated by a setting needs both halves; a scenario should turn the switch off with
 the panel open, not only with it closed.
+
+## L-claude-674-a-tab-change-outside-the-active-pane-reaches-no-workspace-event-001
+*category: zed · topic: following every tab of a workspace · from: pipeline 674*
+
+`Workspace::handle_pane_event` turns a pane's `ChangeItemTitle` (which an item's `UpdateTab` and
+its dirty state ride on) into `workspace::Event::ActiveItemChanged` only when that pane is the
+active one, and `ItemPinned` into nothing. A view that follows every tab of a workspace through the
+workspace's events alone misses a rename or an edit in a split that is not focused. Subscribe to
+each pane (`Workspace::panes`, resubscribed as panes come and go) for `pane::Event`, or to each
+item's `ItemEvent`; the rail does the first (`follow_panes`).

@@ -1677,6 +1677,26 @@ alike.
   inbox. The minute bump in `connected` also runs while a shown reset lies ahead. `row_card` is
   `rems(4.5)` tall for three lines under the title.
 
+## Every center tab in the rail (`src/rail.rs`, `marley_rail`, #674)
+
+- **The model** (`marley_rail`). `TabKind { File, Other }` and `TabSnapshot { id, title, folder,
+  kind, dirty, matched }` in `ProjectSnapshot::tabs`, with `files_open`; `Focus::tab`;
+  `Selection::{Tab, Files}`; `Row::{Tab(TabRow), Files(FilesRow)}`. `walk` lists Other tabs after
+  the Browser tabs, and the Files row (over any file that shows) and its files (while open, or
+  under a filter) after the threads, before the ports. `selection` tries the focused tab, then
+  its project's Files row, so a file folded away highlights Files. `parent` puts a file under
+  Files and Files under its project; `cycle_row` reaches tabs; `run` gives them no drag.
+- **The rail.** `member_tabs` reads each pane's items in the panes' order, skipping terminals and
+  Browser tabs: a file is an item with a project path and a single buffer (`ItemBufferKind`), its
+  folder the path's parent. `TabEntry` keeps the workspace, the item weakly and its `tab_icon`.
+  `follow_panes` subscribes to every pane of every workspace, since a title or dirty change
+  outside the active pane reaches no workspace event (`Workspace::handle_pane_event`).
+  `active_rows` returns the active item's id when it is neither a terminal nor a Browser tab.
+  `files_folded` (by header place, in memory) feeds `note_files_open`; `toggle_files`,
+  `activate_tab` and `close_tab` (through the pane's `close_item_by_id`, which asks for a dirty
+  file) serve the rows; `open_row` takes `&mut self` for the fold. `render_tab_row` indents a file
+  a step further than an Other tab; `render_files_row` is a `row_frame` with a `Disclosure`.
+
 ## The rail's attention order (`src/rail.rs`, #542)
 
 - `terminal_snapshot` fills `reporting` from the view's #519 seat: `Stale` when it works and
