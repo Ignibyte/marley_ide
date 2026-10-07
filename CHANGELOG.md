@@ -655,6 +655,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The Brain tab** (#678, 2026-10-07). Rusty's vault no longer takes over the rail. The rail's
+  header shows Brain as the first of Rusty's screens, and Brain (or Ctrl+Alt+V) opens a Brain tab
+  in the Rusty group: the search, the favourites and the vault's tree on its left, the page you pick
+  on its right, with the page's back, forward, Edit, outline and star. Today opens it on today's
+  note. A page's menu adds Open in New Tab for a tab of its own, and New Page sits after the
+  search field. The rail's Projects/Brain switch is gone. Also: a window's Rusty group is always
+  called Rusty; a second window's was "Rusty 2".
+
 - **The Rich Input button hides it too** (#677, 2026-10-07). While an agent's Rich Input editor is
   open, the agent bar's pencil shows pressed and reads Hide Rich Input; a click closes the editor
   and keeps the draft, as Escape does. Closed, it opens the editor as before.

@@ -132,7 +132,7 @@ fn open(workspace: &mut Workspace, local: bool, window: &mut Window, cx: &mut Co
     }
     let front = workspace
         .active_item(cx)
-        .and_then(|item| item.downcast::<PageView>())
+        .and_then(|item| super::page::page_in(item.as_ref(), cx))
         .map(|page| page.read(cx).slug().to_string());
     // With no page in front, the workspace's project page is the centre (#655).
     super::project::ensure(cx);
@@ -577,7 +577,7 @@ impl GraphView {
             self.read_if_needed(force, cx);
             return;
         }
-        let Some(page) = active.and_then(|item| item.downcast::<PageView>()) else {
+        let Some(page) = active.and_then(|item| super::page::page_in(item.as_ref(), cx)) else {
             return;
         };
         let followed = self

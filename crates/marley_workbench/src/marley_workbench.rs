@@ -342,8 +342,8 @@ actions!(
         /// project holds (#673).
         #[derive(Eq)]
         ToggleContainers,
-        /// Flips the rail between its Projects view and its Brain view, Rusty's vault, while
-        /// Rusty is on (#644).
+        /// Opens Rusty's Brain tab, the vault with its own navigation and the page beside it, or
+        /// brings it forward, while Rusty is on (#644, #678).
         #[derive(Eq)]
         ToggleBrainView,
     ]

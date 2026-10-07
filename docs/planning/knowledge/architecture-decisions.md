@@ -4293,3 +4293,14 @@ One calls and a harness session's tab. One mechanism serves Home and Rusty
 (`groups::in_group`/`with_group`), with one guard against making a group twice. Rejected: a new
 "Default" group beside Home (two folderless catch-alls); leaving them in the shown project (they
 vanish on a project switch, the complaint #675 answered for Rusty).
+
+## AD-claude-678-the-vault-has-its-navigation-in-a-brain-tab-001
+*decided at: 2026-10-07 · status: shipped · supersedes: R-D9's rail switch (#644)*
+
+Chad, 2026-10-07: the Tasks tab has its own navigation and does not take over the left; the Brain
+should too. The Brain view moves whole into a Brain tab in the Rusty group, as its left column, and
+the page it picks shows on the tab's right in one navigated page view (Chad chose the page inside
+the tab over a tab per page). The rail is projects only; its Projects/Brain switch and New Page go,
+and Brain is the first screen button. Opens from elsewhere keep Page tabs; a tree page's Open in
+New Tab gives one too. Rejected: the tree in the Brain tab with pages in tabs beside it (a tab per
+click); keeping the rail switch beside the tab (two homes for one tree).

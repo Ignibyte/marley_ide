@@ -322,7 +322,13 @@ pub(crate) fn make(
             };
             cx.default_global::<Groups>().live.push(Group {
                 id: Uuid::new_v4(),
-                name: free_name(&name, &taken),
+                // One Rusty group per window, each called Rusty (#675); other names stay apart
+                // across every window's groups, as #600 keeps them.
+                name: if kind == GroupKind::Rusty {
+                    name
+                } else {
+                    free_name(&name, &taken)
+                },
                 workspace: workspace.downgrade(),
                 database_id,
                 project,

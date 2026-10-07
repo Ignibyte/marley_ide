@@ -341,7 +341,7 @@ impl KnowledgePanel {
         let page = workspace
             .read(cx)
             .active_item(cx)
-            .and_then(|item| item.downcast::<PageView>());
+            .and_then(|item| super::page::page_in(item.as_ref(), cx));
         let Some(page) = page else {
             self.page_tab = None;
             self.show(None, cx);

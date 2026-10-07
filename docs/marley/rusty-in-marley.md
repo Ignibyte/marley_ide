@@ -209,6 +209,9 @@ Code's activity bar. Brain swaps the rail's content for:
 - a fixed row: Today, Graph, Tasks, Decisions, Memory, Skills, Secrets, each one click to open
   or focus its center tab (moved up into the header itself, in both views, by #672: Chad wanted
   them "not two levels deep");
+- (since #678 the whole view is the left column of a Brain tab in the Rusty group, the page on
+  the tab's right, and the rail no longer swaps: on 2026-10-07 Chad asked for the Brain to carry
+  its own navigation, as the Tasks tab does, rather than take over the rail)
 - brain search and the favourites;
 - the vault tree, where one click opens a page as a preview tab and a second keeps it, as Zed's
   file tabs do.
@@ -274,7 +277,7 @@ possible: a wikilink switch in `markdown/src/parser.rs`, only if R2 chooses Zed'
 |---|---|---|
 | R0 | D11 amended, decisions recorded, RQ1 to RQ5 filed in Rusty | docs |
 | R1 | #643, shipped 2026-10-04. The switch and the connection: `marley.rusty`, embedded or service, status on the settings page; `rusty_tools` moves in | M |
-| R4 | #644, shipped 2026-10-04. The rail's Brain view (R-D9): the header switch, Today, search on Enter, the vault tree with new, rename, move and delete through tools. Since #672 (2026-10-07) the seven screens sit in the header itself, beside Projects and Brain, and since #675 every screen and page opens in the window's Rusty group | M |
+| R4 | #644, shipped 2026-10-04. The rail's Brain view (R-D9): the header switch, Today, search on Enter, the vault tree with new, rename, move and delete through tools. Since #672 (2026-10-07) the seven screens sit in the header itself, beside Projects and Brain, and since #675 every screen and page opens in the window's Rusty group; since #678 the view is the Brain tab's left column | M |
 | R2 | #645, shipped 2026-10-04. The Page tab: Zed's `markdown` with wikilinks rewritten to `rusty:` links, properties, back and forward, preview tabs, Edit in a buffer; the `rusty::OpenPage` action | M |
 | R3 | #646, shipped 2026-10-04. The Knowledge panel in the right dock: the Page tab's tags with counts, backlinks with their lines, outgoing links with Create, and brain search on Enter with match case and regex; the project view went to R6 | M |
 | R5 | #647, shipped 2026-10-04. The Graph tab: whole vault or local with depth, filters, page-type colours, decision edges dashed, Ely's force layout off the main thread, a 2,000-node cap | M |

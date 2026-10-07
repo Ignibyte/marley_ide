@@ -1681,6 +1681,22 @@ alike.
   inbox. The minute bump in `connected` also runs while a shown reset lies ahead. `row_card` is
   `rems(4.5)` tall for three lines under the title.
 
+## The Brain tab (`src/rusty/brain_tab.rs`, `src/rusty/brain.rs`, `src/rail.rs`, #678)
+
+- `BrainTab` (an `Item`, one per window, opened in the Rusty group by `brain_tab::open_later`,
+  which `ToggleBrainView` and the header's Brain button call) hosts the `BrainView` in a 280px
+  column and one `PageView` on its right, made by the first `show_page` and `navigate`d after, so
+  its back and forward walk what the tab showed. `act_as_type` hands out the page, and
+  `page::page_in` (a Page tab's page, or the Brain tab's) is what the Knowledge panel, the Graph
+  tab and the page picker read as the page in front; the tab passes the page's `UpdateTab` on so
+  they follow. `open_today_later` opens it and runs `BrainView::today`.
+- `BrainView` takes its host: `open` defers to `BrainTab::show_page`; Open in New Tab is the old
+  `open_page` (a Page tab in the Rusty group); New Page sits after its search field.
+- The rail keeps only `BrainSide::connected` for the header: the Brain view, `RailView`, the
+  Projects/Brain switch, the header's New Page, the body swap and the focus hand-off went.
+  `Screen::Brain` leads `Screen::ALL`, and `screens_that_fit` counts the screens alone.
+- `groups::make` keeps a Rusty group's name Rusty in every window; other names stay apart (#600).
+
 ## Home takes what belongs to no project (`src/groups.rs`, #676)
 
 - #675's routing is `groups::in_group(kind, asked_from, window, cx, open)` and

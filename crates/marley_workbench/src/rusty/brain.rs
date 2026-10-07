@@ -27,69 +27,30 @@ use menu::{
     Cancel, Confirm, SelectChild, SelectFirst, SelectLast, SelectNext, SelectParent, SelectPrevious,
 };
 use serde_json::{Value, json};
-use settings::Settings as _;
 use smallvec::SmallVec;
 use ui::{
     ContextMenu, IndentGuideColors, ListItem, ListItemSpacing, ListSubHeader, Tab, Tooltip,
     indent_guides, prelude::*,
 };
 use util::ResultExt as _;
-use workspace::item::PreviewTabsSettings;
 use workspace::notifications::NotificationId;
 use workspace::{MultiWorkspace, Toast, Workspace};
 
 use super::favourites;
 use crate::ToggleBrainView;
-use crate::rail::Rail;
 
 /// The tree's step per level, the project panel's default.
 const INDENT: Pixels = px(20.);
 
-/// Registers [`ToggleBrainView`] on every workspace; [`super::init`] calls it once.
+/// Registers [`ToggleBrainView`], which opens the Brain tab (#678), on every workspace;
+/// [`super::init`] calls it once.
 pub(super) fn init(cx: &App) {
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action(|_, _: &ToggleBrainView, window, cx| {
-            // Opening the rail updates the window's `MultiWorkspace`, which this may run inside.
-            window.defer(cx, toggle_in_window);
+            super::brain_tab::open_later(cx.weak_entity(), window, cx);
         });
     })
     .detach();
-}
-
-/// Flips the window's rail between its views, or says in a toast why the Brain view cannot show.
-fn toggle_in_window(window: &mut Window, cx: &mut App) {
-    let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten() else {
-        return;
-    };
-    let rail = multi_workspace
-        .read(cx)
-        .sidebar()
-        .map(workspace::SidebarHandle::to_any)
-        .and_then(|view| view.downcast::<Rail>().ok());
-    let refused = match rail {
-        None => Some(SharedString::new_static(
-            "The Brain view is in the Marley layout's rail; this window uses Zed's layout.",
-        )),
-        Some(_) if !multi_workspace.read(cx).multi_workspace_enabled(cx) => {
-            Some(SharedString::new_static(
-                "The rail, and the Brain view in it, is hidden while Zed's AI features are off.",
-            ))
-        }
-        Some(rail) => rail.read(cx).brain_refusal(cx).or_else(|| {
-            // Opening reads the rail, so it comes before the rail's update.
-            if !multi_workspace.read(cx).sidebar_open() {
-                multi_workspace.update(cx, MultiWorkspace::open_sidebar);
-            }
-            rail.update(cx, |rail, cx| rail.toggle_brain_view(window, cx));
-            None
-        }),
-    };
-    if let Some(message) = refused {
-        let workspace = multi_workspace.read(cx).workspace().clone();
-        workspace.update(cx, |workspace, cx| {
-            show_toast(workspace, message.to_string(), cx);
-        });
-    }
 }
 
 fn show_toast(workspace: &mut Workspace, message: String, cx: &mut Context<Workspace>) {
@@ -102,6 +63,7 @@ fn show_toast(workspace: &mut Workspace, message: String, cx: &mut Context<Works
 /// One of Rusty's screens, each a button in the rail's header while Rusty is connected (#672).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Screen {
+    Brain,
     Today,
     Graph,
     Tasks,
@@ -113,7 +75,8 @@ pub(crate) enum Screen {
 
 impl Screen {
     /// Every screen, in the header's order.
-    pub(crate) const ALL: [Self; 7] = [
+    pub(crate) const ALL: [Self; 8] = [
+        Self::Brain,
         Self::Today,
         Self::Graph,
         Self::Tasks,
@@ -125,6 +88,7 @@ impl Screen {
 
     pub(crate) const fn id(self) -> &'static str {
         match self {
+            Self::Brain => "marley-brain-tab-button",
             Self::Today => "marley-brain-today",
             Self::Graph => "marley-brain-graph",
             Self::Tasks => "marley-brain-tasks",
@@ -137,6 +101,7 @@ impl Screen {
 
     pub(crate) const fn icon(self) -> IconName {
         match self {
+            Self::Brain => IconName::BookCopy,
             Self::Today => IconName::Notepad,
             Self::Graph => IconName::GitGraph,
             Self::Tasks => IconName::ListTodo,
@@ -149,6 +114,7 @@ impl Screen {
 
     pub(crate) const fn label(self) -> &'static str {
         match self {
+            Self::Brain => "Brain",
             Self::Today => "Today's Note",
             Self::Graph => "Graph",
             Self::Tasks => "Tasks",
@@ -160,30 +126,21 @@ impl Screen {
     }
 }
 
-/// Opens `screen`'s tab in the window's shown workspace, or brings it forward. Today goes through
-/// the Brain view when the rail has one, so its page is also revealed in the tree.
+/// Opens `screen`'s tab in the window's Rusty group, or brings it forward (#672, #675). Brain and
+/// Today open the Brain tab, Today with today's note in it (#678).
 pub(crate) fn open_screen(
     screen: Screen,
     multi_workspace: &WeakEntity<MultiWorkspace>,
-    brain: Option<&WeakEntity<BrainView>>,
     window: &Window,
     cx: &mut App,
 ) {
-    if screen == Screen::Today
-        && let Some(brain) = brain.and_then(WeakEntity::upgrade)
-    {
-        brain.update(cx, |_, cx| BrainView::today(window, cx));
-        return;
-    }
     let Some(multi_workspace) = multi_workspace.upgrade() else {
         return;
     };
-    let workspace = multi_workspace.read(cx).workspace().clone();
-    let weak = workspace.downgrade();
+    let weak = multi_workspace.read(cx).workspace().downgrade();
     match screen {
-        Screen::Today => {
-            workspace.update(cx, |_, cx| super::capture::open_today(window, cx));
-        }
+        Screen::Brain => super::brain_tab::open_later(weak, window, cx),
+        Screen::Today => super::brain_tab::open_today_later(weak, window, cx),
         Screen::Graph => super::graph_tab::open_later(weak, window, cx),
         Screen::Tasks => super::tasks_tab::open_later(weak, None, window, cx),
         Screen::Decisions => super::decisions_tab::open_later(weak, window, cx),
@@ -194,7 +151,8 @@ pub(crate) fn open_screen(
 }
 
 /// Opens the page `slug` in `workspace`'s Page tab (#645): in the pane's preview tab when
-/// `preview`, the keyboard moved into it when `focus`. Every open in the Brain view comes here.
+/// `preview`, the keyboard moved into it when `focus`. The Brain view's Open in New Tab comes here
+/// (#678); its other opens show the page in the Brain tab.
 pub(crate) fn open_page(
     workspace: &Entity<Workspace>,
     slug: &str,
@@ -211,13 +169,6 @@ pub(crate) fn open_page(
         window,
         cx,
     );
-}
-
-/// Whether one click opens a page in a preview tab: where Zed's project panel would open a file
-/// in one.
-fn preview_on_click(cx: &App) -> bool {
-    let settings = PreviewTabsSettings::get_global(cx);
-    settings.enabled && settings.enable_preview_from_project_panel
 }
 
 /// The query last sent to brain search, and its hits: `None` while Rusty answers.
@@ -290,6 +241,8 @@ impl Render for DraggedVaultEntry {
 /// The rail's Brain view.
 pub(crate) struct BrainView {
     multi_workspace: WeakEntity<MultiWorkspace>,
+    /// The Brain tab it sits in, whose right side shows the page it opens (#678).
+    host: WeakEntity<super::brain_tab::BrainTab>,
     focus_handle: FocusHandle,
     search: Entity<Editor>,
     /// A search's hits, shown in the tree's place until the field is cleared.
@@ -316,6 +269,7 @@ pub(crate) struct BrainView {
 impl BrainView {
     pub(crate) fn new(
         multi_workspace: WeakEntity<MultiWorkspace>,
+        host: WeakEntity<super::brain_tab::BrainTab>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -330,6 +284,7 @@ impl BrainView {
         favourites::ensure(cx);
         let mut this = Self {
             multi_workspace,
+            host,
             focus_handle: cx.focus_handle(),
             search,
             found: None,
@@ -349,12 +304,7 @@ impl BrainView {
         this
     }
 
-    /// The search field's focus, which `secondary-f` takes while the Brain view shows.
-    pub(crate) fn search_focus(&self, cx: &App) -> FocusHandle {
-        self.search.focus_handle(cx)
-    }
-
-    /// The header's New Page: in the selected row's folder, or at the top.
+    /// New Page: in the selected row's folder, or at the top.
     pub(crate) fn new_page_here(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let folder = match self.selected_row() {
             Some(row) if row.kind == NodeKind::Folder && self.found.is_none() => row.path.clone(),
@@ -464,12 +414,24 @@ impl BrainView {
         self.rebuild();
     }
 
-    fn open(&self, slug: &str, preview: bool, focus: bool, window: &Window, cx: &mut App) {
+    /// Shows page `slug` on the Brain tab's right (#678), after the update in progress, which may
+    /// be this view's own; `focus` moves the keyboard into it.
+    fn open(&self, slug: &str, focus: bool, window: &Window, cx: &mut App) {
+        let host = self.host.clone();
+        let slug = slug.to_string();
+        window.defer(cx, move |window, cx| {
+            host.update(cx, |tab, cx| tab.show_page(slug, focus, window, cx))
+                .log_err();
+        });
+    }
+
+    /// A page in a Page tab of its own, beside the Brain tab in the Rusty group (#678).
+    fn open_in_new_tab(&self, slug: &str, window: &Window, cx: &mut App) {
         let Some(multi_workspace) = self.multi_workspace.upgrade() else {
             return;
         };
         let workspace = multi_workspace.read(cx).workspace().clone();
-        open_page(&workspace, slug, preview, focus, window, cx);
+        open_page(&workspace, slug, false, true, window, cx);
     }
 
     fn toast(&self, message: String, cx: &mut App) {
@@ -480,8 +442,8 @@ impl BrainView {
         workspace.update(cx, |workspace, cx| show_toast(workspace, message, cx));
     }
 
-    /// A click on a row or a hit: a folder folds or unfolds; a page opens, in a preview tab on
-    /// one click and kept on two, as the project panel opens files.
+    /// A click on a row or a hit: a folder folds or unfolds; a page shows on the Brain tab's right,
+    /// a second click moving the keyboard into it (#678).
     fn clicked(&mut self, path: &str, click_count: usize, window: &Window, cx: &mut Context<Self>) {
         let folder = self.found.is_none()
             && self
@@ -492,8 +454,7 @@ impl BrainView {
         if folder {
             self.toggle_folder(path);
         } else {
-            let preview = click_count == 1 && preview_on_click(cx);
-            self.open(path, preview, click_count > 1, window, cx);
+            self.open(path, click_count > 1, window, cx);
         }
         cx.notify();
     }
@@ -666,7 +627,7 @@ impl BrainView {
     }
 
     /// Today: Rusty's note for today, made when missing, opened kept.
-    fn today(window: &Window, cx: &Context<Self>) {
+    pub(crate) fn today(window: &Window, cx: &Context<Self>) {
         let asking = super::call_tool(BRAIN_DAILY_NOTE, json!({}), cx);
         cx.spawn_in(window, async move |this, cx| {
             let slug = asking.await.and_then(|text| {
@@ -679,7 +640,7 @@ impl BrainView {
                     if this.found.is_none() {
                         this.reveal(&slug);
                     }
-                    this.open(&slug, false, true, window, cx);
+                    this.open(&slug, true, window, cx);
                     cx.notify();
                 }
                 Err(error) => this.toast(format!("Could not open today's note: {error}"), cx),
@@ -799,7 +760,7 @@ impl BrainView {
                     |this, answer, window, cx| match vault::slug_from_answer(&answer) {
                         Ok(slug) => {
                             this.reveal(&slug);
-                            this.open(&slug, false, true, window, cx);
+                            this.open(&slug, true, window, cx);
                             cx.notify();
                         }
                         Err(error) => this.toast(
@@ -1006,7 +967,15 @@ impl BrainView {
                     None,
                     on(&view, {
                         let slug = path.clone();
-                        move |this, window, cx| this.open(&slug, false, true, window, cx)
+                        move |this, window, cx| this.open(&slug, true, window, cx)
+                    }),
+                )
+                .entry(
+                    "Open in New Tab",
+                    None,
+                    on(&view, {
+                        let slug = path.clone();
+                        move |this, window, cx| this.open_in_new_tab(&slug, window, cx)
                     }),
                 )
                 .separator()
@@ -1069,6 +1038,14 @@ impl BrainView {
                         .on_click(cx.listener(|this, _, window, cx| this.clear_search(window, cx))),
                 )
             })
+            // New Page, which sat in the rail's header until the view moved into the Brain tab
+            // (#678).
+            .child(
+                IconButton::new("marley-brain-new-page", IconName::Plus)
+                    .icon_size(IconSize::Small)
+                    .tooltip(Tooltip::text("New Page"))
+                    .on_click(cx.listener(|this, _, window, cx| this.new_page_here(window, cx))),
+            )
     }
 
     /// What shows in the list's place: a search under way, failed or empty, the vault being
@@ -1435,8 +1412,7 @@ impl BrainView {
             }
             BookmarkKind::File | BookmarkKind::Other(_) => {
                 self.selected = Some(bookmark.path.clone());
-                let preview = click_count == 1 && preview_on_click(cx);
-                self.open(&bookmark.path, preview, click_count > 1, window, cx);
+                self.open(&bookmark.path, click_count > 1, window, cx);
                 cx.notify();
             }
         }

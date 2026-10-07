@@ -246,6 +246,15 @@ fn open(
     workspace.add_item(pane, Box::new(view), destination, true, focus, window, cx);
 }
 
+/// The page `item` shows: a Page tab's, or the page on the Brain tab's right (#678), which the
+/// Knowledge panel, the Graph tab and the page picker read as the page in front.
+pub(crate) fn page_in(item: &dyn workspace::ItemHandle, cx: &App) -> Option<Entity<PageView>> {
+    item.downcast::<PageView>().or_else(|| {
+        item.downcast::<super::brain_tab::BrainTab>()
+            .and_then(|tab| tab.read(cx).page().cloned())
+    })
+}
+
 /// Makes `new_page` through `brain_new_page`, and answers the slug Rusty gave it, or Rusty's
 /// refusal (#654).
 pub(crate) fn create(new_page: &NewPage, cx: &App) -> Task<Result<String, String>> {
@@ -319,7 +328,7 @@ fn read_page(text: &str) -> Result<Option<(RenderedPage, String)>, String> {
 }
 
 impl PageView {
-    fn new(
+    pub(crate) fn new(
         first: Visit,
         workspace: WeakEntity<Workspace>,
         languages: Arc<LanguageRegistry>,
@@ -539,7 +548,7 @@ impl PageView {
     }
 
     /// Shows `visit`, saving an edit first, and puts it in the tab's history.
-    fn navigate(&mut self, visit: Visit, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn navigate(&mut self, visit: Visit, window: &mut Window, cx: &mut Context<Self>) {
         self.inline = None;
         self.leave_edit_then(window, cx, move |this, window, cx| {
             this.history.visit(visit);

@@ -5041,3 +5041,12 @@ so a button whose click changes its own tooltip (Rich Input to Hide Rich Input) 
 old words until the pointer leaves and comes back; its `toggle_state` shows at once. A visual
 check of such a tooltip moves the pointer off the button and back before the shot, and the state a
 click acts on is read when the click lands, not captured when the button was drawn.
+
+## L-claude-678-a-scripted-cut-between-two-markers-takes-everything-between-001
+*category: process · topic: removing code with a script · from: pipeline 678*
+
+Removing `render_new_page` with a cut "from its doc comment to `fn render_add_project(`" also took
+five functions that sat between them in the file (`render_blocks`, `render_harness`, `render_row`,
+`render_rows`, `render_filter`); the file order was not the order the helpers were written in. A
+scripted cut ends at the removed function's own closing brace, and `git diff | grep '^-.*fn '`
+right after it lists every function the edit removed, which caught this one before the build.

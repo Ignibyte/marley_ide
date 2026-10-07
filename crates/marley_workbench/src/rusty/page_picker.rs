@@ -25,7 +25,7 @@ use util::ResultExt as _;
 use workspace::notifications::NotificationId;
 use workspace::{ModalView, Toast, Workspace};
 
-use super::page::{OpenPage, PageView};
+use super::page::OpenPage;
 
 /// The store's scope and key for the recently opened pages.
 const RECENT_SCOPE: &str = "marley-rusty-recent-pages";
@@ -91,7 +91,7 @@ pub(super) fn toggle(workspace: &mut Workspace, window: &mut Window, cx: &mut Co
     }
     let active = workspace
         .active_item(cx)
-        .and_then(|item| item.downcast::<PageView>())
+        .and_then(|item| super::page::page_in(item.as_ref(), cx))
         .map(|view| view.read(cx).slug().to_string());
     let handle = workspace.weak_handle();
     workspace.toggle_modal(window, cx, |window, cx| {

@@ -3441,3 +3441,12 @@ refused-row click landed on one of the box's rows (reaching only the scenario's 
 The scenarios passed: neither checks where its pointer is. Fixed: `marley.rail_containers`, off in
 each run's copy (#669); #614 turns it on with its stand-in on port 614, first under Containers, and
 both coordinates were measured again.
+
+## F-claude-678-a-second-windows-rusty-group-was-called-rusty-2-001
+*severity: low · category: ui · found in: pipeline 678's exploratory run · introduced by: #675*
+
+`groups::make` gave every new folderless group a name free across all windows' groups, live and
+pending (#600's `free_name`), the Rusty group included. One Rusty group lives in each window, so a
+second window, or a test run whose copied profile held the user's Rusty record, got "Rusty 2". The
+Rusty kind now keeps the name Rusty; named groups and Home keep #600's rule. Found because the
+scenario ran on a copy of a profile that had already made a Rusty group.

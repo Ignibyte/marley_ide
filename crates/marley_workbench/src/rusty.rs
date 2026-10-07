@@ -23,6 +23,7 @@
 //! center tab of its own ([`graph_tab`], #647).
 
 pub mod brain;
+pub mod brain_tab;
 mod capture;
 pub mod decisions_tab;
 mod favourites;

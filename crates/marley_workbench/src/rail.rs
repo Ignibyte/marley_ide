@@ -84,7 +84,7 @@ use crate::harness::{Connection, Harness, QuotaWindow, Runtime, Signals, StateSo
 use crate::ports::{self, ContainerStop, Ports, ProjectListener, ServiceAction, Stop};
 use crate::rusty::{
     self,
-    brain::{self as brain_view, BrainView, Screen},
+    brain::{self as brain_view, Screen},
 };
 use crate::system_one::{self, Asking};
 use crate::turns::Turns;
@@ -236,19 +236,16 @@ pub struct Rail {
     /// The rows' ports, from the scan an open rail keeps running (#521), and the settings that
     /// can show the rail again.
     _ports: [Subscription; 2],
-    /// Focus leaving the rail, and focus given to it while the Brain view shows.
-    _focus: [Subscription; 2],
+    /// Focus leaving the rail.
+    _focus: Subscription,
     _filter_edits: Subscription,
     brain: BrainSide,
 }
 
-/// The rail's Brain view, and the connection to Rusty it follows (#644).
+/// The connection to Rusty the header's screens follow (#644, #672). The vault's tree is the Brain
+/// tab's since #678.
 struct BrainSide {
-    /// The view the user chose; Brain shows only while Rusty is connected.
-    view: RailView,
-    /// Made when it first shows, and dropped when Rusty turns off.
-    entity: Option<Entity<BrainView>>,
-    /// Whether Rusty was connected at its last change, which the header and the body follow.
+    /// Whether Rusty was connected at its last change, which the header follows.
     connected: bool,
     _rusty: Subscription,
 }
@@ -256,22 +253,10 @@ struct BrainSide {
 impl BrainSide {
     fn new(window: &Window, cx: &mut Context<Rail>) -> Self {
         Self {
-            view: RailView::default(),
-            entity: None,
             connected: rusty::is_connected(cx),
             _rusty: cx.observe_global_in::<rusty::Rusty>(window, Rail::rusty_changed),
         }
     }
-}
-
-/// What the rail shows under its header (#644).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum RailView {
-    /// The projects, their rows, the filter and the inbox.
-    #[default]
-    Projects,
-    /// Rusty's vault: the [`BrainView`].
-    Brain,
 }
 
 impl std::fmt::Debug for Rail {
@@ -925,25 +910,17 @@ impl Rail {
         }
     }
 
-    /// Follows Rusty's connection: the header's switch and the Brain view show only while it is
-    /// up, and the Brain view goes with Rusty turned off. Most changes of Rusty's state are reads
-    /// of its settings, which change nothing here (L-572).
+    /// Follows Rusty's connection: the header's screens show only while it is up. Most changes of
+    /// Rusty's state are reads of its settings, which change nothing here (L-572).
     fn rusty_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let connected = rusty::is_connected(cx);
-        let brain_focused = self.brain_shown() && self.contains_brain_focus(window, cx);
         if !rusty::is_on(cx) {
-            if self.brain.entity.take().is_some() {
-                cx.notify();
-            }
             self.leave_rusty_group(window, cx);
         }
         if connected == self.brain.connected {
             return;
         }
         self.brain.connected = connected;
-        if brain_focused && !connected {
-            window.focus(&self.focus_handle, cx);
-        }
         cx.notify();
     }
 
@@ -978,78 +955,16 @@ impl Rail {
         });
     }
 
-    /// The Brain view, while it shows.
-    fn shown_brain(&self) -> Option<&Entity<BrainView>> {
-        self.brain
-            .entity
-            .as_ref()
-            .filter(|_| self.brain.view == RailView::Brain && self.brain.connected)
-    }
-
-    fn brain_shown(&self) -> bool {
-        self.shown_brain().is_some()
-    }
-
-    fn contains_brain_focus(&self, window: &Window, cx: &App) -> bool {
-        self.brain
-            .entity
-            .as_ref()
-            .is_some_and(|brain| brain.focus_handle(cx).contains_focused(window, cx))
-    }
-
-    /// Shows `view` under the header and focuses it; the Brain view is made the first time.
-    fn show_view(&mut self, view: RailView, window: &mut Window, cx: &mut Context<Self>) {
-        self.brain.view = view;
-        if view == RailView::Brain && self.brain.entity.is_none() {
-            let multi_workspace = self.multi_workspace.clone();
-            self.brain.entity = Some(cx.new(|cx| BrainView::new(multi_workspace, window, cx)));
-        }
-        match self.shown_brain() {
-            Some(brain) => window.focus(&brain.focus_handle(cx), cx),
-            None => window.focus(&self.focus_handle, cx),
-        }
-        cx.notify();
-    }
-
-    /// Why `marley::ToggleBrainView` cannot show the Brain view now, if it can't.
-    pub(crate) fn brain_refusal(&self, cx: &App) -> Option<SharedString> {
-        if self.brain_shown() {
-            None
-        } else {
-            rusty::unavailable(cx)
-        }
-    }
-
-    /// `marley::ToggleBrainView`: the other view, focused.
-    pub(crate) fn toggle_brain_view(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let next = if self.brain_shown() {
-            RailView::Projects
-        } else {
-            RailView::Brain
-        };
-        self.show_view(next, window, cx);
-    }
-
-    /// The keyboard's row is the selection only while the rail holds focus. While the Brain view
-    /// shows, focus given to the rail (Zed's focus-the-sidebar actions, a click on the header)
-    /// goes into it: Zed keeps the rail's own handle as the window's sidebar focus.
+    /// The keyboard's row is the selection only while the rail holds focus.
     fn follow_focus(
         focus_handle: &FocusHandle,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> [Subscription; 2] {
-        [
-            cx.on_focus_out(focus_handle, window, |rail, _, window, cx| {
-                rail.cursor = None;
-                rail.refresh(window, cx);
-            }),
-            cx.on_focus(focus_handle, window, |rail, window, cx| {
-                if let Some(brain) = rail.shown_brain() {
-                    let brain = brain.focus_handle(cx);
-                    window.focus(&brain, cx);
-                }
-            }),
-        ]
+    ) -> Subscription {
+        cx.on_focus_out(focus_handle, window, |rail, _, window, cx| {
+            rail.cursor = None;
+            rail.refresh(window, cx);
+        })
     }
 
     /// The filter's field under the header, and its edits, which refilter the rows.
@@ -2973,22 +2888,13 @@ impl Rail {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        match self.shown_brain() {
-            Some(brain) => {
-                let search = brain.read(cx).search_focus(cx);
-                window.focus(&search, cx);
-            }
-            None => window.focus(&self.filter_editor.focus_handle(cx), cx),
-        }
+        window.focus(&self.filter_editor.focus_handle(cx), cx);
     }
 
     /// Escape, as Zed's Threads Sidebar has it: it clears the filter, and from an empty filter
     /// goes back to the rows. With neither to do it passes on.
     fn cancel(&mut self, _: &Cancel, window: &mut Window, cx: &mut Context<Self>) {
-        // The Brain view's own Escape passed on; the hidden filter stays as it is.
-        if self.brain_shown() {
-            cx.propagate();
-        } else if self.snapshot.rail.filtering {
+        if self.snapshot.rail.filtering {
             self.clear_filter(window, cx);
         } else if self.filter_editor.focus_handle(cx).is_focused(window) {
             window.focus(&self.focus_handle, cx);
@@ -4287,11 +4193,10 @@ impl Rail {
                 window,
             ))
         };
-        let brain_shown = self.brain_shown();
         header
             .map(|header| {
                 if self.brain.connected {
-                    header.child(self.render_view_switch(button, window, cx))
+                    header.child(self.render_screens(button, window, cx))
                 } else {
                     header.child(
                         Label::new("PROJECTS")
@@ -4300,33 +4205,33 @@ impl Rail {
                     )
                 }
             })
-            .child(div().flex_1().h_full().when(!brain_shown, |space| {
-                space.on_mouse_down(MouseButton::Right, cx.listener(Self::empty_space_menu))
-            }))
-            .map(|header| match self.shown_brain() {
-                Some(brain) => header.child(Self::render_new_page(brain.downgrade())),
-                None => header.child(self.render_add_project().into_any_element()),
-            })
+            .child(
+                div()
+                    .flex_1()
+                    .h_full()
+                    .on_mouse_down(MouseButton::Right, cx.listener(Self::empty_space_menu)),
+            )
+            .child(self.render_add_project())
     }
 
-    /// How many of Rusty's screens fit in the header beside Projects, Brain and the `+`, worked out
-    /// from the rail's width: every header button is a square of `button`, so the sum is exact
-    /// (#672). Window controls drawn in the header are not counted; the group clips instead.
+    /// How many of Rusty's screens fit in the header beside the `+`, worked out from the rail's
+    /// width: every header button is a square of `button`, so the sum is exact (#672). Window
+    /// controls drawn in the header are not counted; the group clips instead.
     fn screens_that_fit(&self, button: Pixels, window: &Window) -> usize {
         let rem = window.rem_size();
         // `gap_0p5` inside the group; `px_1` either side of the header and `gap_1` either side of
         // its space, which with the `+` leave this much for the group.
         let gap = rem * 0.125;
         let room = self.width - rem - button;
-        let switch = button * 2. + gap;
         let every = Screen::ALL
             .iter()
-            .fold(switch, |width, _| width + gap + button);
+            .skip(1)
+            .fold(button, |width, _| width + gap + button);
         if every <= room {
             return Screen::ALL.len();
         }
         // With `…` after the screens that fit.
-        let mut width = switch + gap + button;
+        let mut width = button;
         let mut shown = 0;
         while shown + 1 < Screen::ALL.len() && width + gap + button <= room {
             width += gap + button;
@@ -4335,53 +4240,32 @@ impl Rail {
         shown
     }
 
-    /// The header's Projects and Brain buttons while Rusty is connected (#644), Projects carrying
-    /// the rail's attention dot while Brain shows; then Rusty's screens, as many as fit, and the
-    /// rest under `…` (#672).
-    fn render_view_switch(
+    /// Rusty's screens in the header while Rusty is connected, Brain first, as many as fit, and the
+    /// rest under `…` (#672, #678).
+    fn render_screens(
         &self,
         button: Pixels,
         window: &Window,
         cx: &Context<Self>,
     ) -> impl IntoElement {
-        let brain_shown = self.brain_shown();
-        let attention = brain_shown
-            && (marley_rail::has_attention(&self.snapshot.rail)
-                || !self.snapshot.rail.inbox.is_empty());
         let shown = self.screens_that_fit(button, window);
         let (fitting, rest) = Screen::ALL.split_at(shown.min(Screen::ALL.len()));
         h_flex()
             .min_w_0()
             .overflow_hidden()
             .gap_0p5()
-            .child(
-                IconButton::new("marley-rail-view-projects", IconName::ListTree)
-                    .icon_size(IconSize::Small)
-                    .shape(IconButtonShape::Square)
-                    .toggle_state(!brain_shown)
-                    .when(attention, |button| {
-                        button.indicator(Indicator::dot().color(Color::Accent))
-                    })
-                    .tooltip(|_, cx| Tooltip::for_action("Projects", &ToggleBrainView, cx))
-                    .on_click(cx.listener(|rail, _, window, cx| {
-                        rail.show_view(RailView::Projects, window, cx);
-                    })),
-            )
-            .child(
-                IconButton::new("marley-rail-view-brain", IconName::BookCopy)
-                    .icon_size(IconSize::Small)
-                    .shape(IconButtonShape::Square)
-                    .toggle_state(brain_shown)
-                    .tooltip(|_, cx| Tooltip::for_action("Brain", &ToggleBrainView, cx))
-                    .on_click(cx.listener(|rail, _, window, cx| {
-                        rail.show_view(RailView::Brain, window, cx);
-                    })),
-            )
             .children(fitting.iter().map(|&screen| {
                 IconButton::new(screen.id(), screen.icon())
                     .icon_size(IconSize::Small)
                     .shape(IconButtonShape::Square)
-                    .tooltip(Tooltip::text(screen.label()))
+                    .map(|button| {
+                        if screen == Screen::Brain {
+                            button
+                                .tooltip(|_, cx| Tooltip::for_action("Brain", &ToggleBrainView, cx))
+                        } else {
+                            button.tooltip(Tooltip::text(screen.label()))
+                        }
+                    })
                     .on_click(cx.listener(move |rail, _, window, cx| {
                         rail.open_screen(screen, window, cx);
                     }))
@@ -4394,7 +4278,6 @@ impl Rail {
     /// The `…` after the header's screens: a menu of those that did not fit (#672).
     fn render_more_screens(&self, rest: Vec<Screen>) -> impl IntoElement {
         let multi_workspace = self.multi_workspace.clone();
-        let brain = self.brain.entity.as_ref().map(Entity::downgrade);
         PopoverMenu::new("marley-rail-more-screens")
             .trigger(
                 IconButton::new("marley-rail-more-screens-button", IconName::Ellipsis)
@@ -4404,23 +4287,15 @@ impl Rail {
             )
             .menu(move |window, cx| {
                 let multi_workspace = multi_workspace.clone();
-                let brain = brain.clone();
                 let rest = rest.clone();
                 Some(ContextMenu::build(window, cx, move |mut menu, _, _| {
                     for &screen in &rest {
                         let multi_workspace = multi_workspace.clone();
-                        let brain = brain.clone();
                         menu = menu.item(
                             ContextMenuEntry::new(screen.label())
                                 .icon(screen.icon())
                                 .handler(move |window, cx| {
-                                    brain_view::open_screen(
-                                        screen,
-                                        &multi_workspace,
-                                        brain.as_ref(),
-                                        window,
-                                        cx,
-                                    );
+                                    brain_view::open_screen(screen, &multi_workspace, window, cx);
                                 }),
                         );
                     }
@@ -4432,22 +4307,7 @@ impl Rail {
 
     /// One of Rusty's screens, from its header button.
     fn open_screen(&self, screen: Screen, window: &Window, cx: &mut Context<Self>) {
-        let brain = self.brain.entity.as_ref().map(Entity::downgrade);
-        brain_view::open_screen(screen, &self.multi_workspace, brain.as_ref(), window, cx);
-    }
-
-    /// The header's end while the Brain view shows: a new page in the selected row's folder.
-    fn render_new_page(brain: WeakEntity<BrainView>) -> AnyElement {
-        IconButton::new("marley-rail-new-page", IconName::Plus)
-            .icon_size(IconSize::Small)
-            .shape(IconButtonShape::Square)
-            .tooltip(Tooltip::text("New Page"))
-            .on_click(move |_, window, cx| {
-                brain
-                    .update(cx, |brain, cx| brain.new_page_here(window, cx))
-                    .log_err();
-            })
-            .into_any_element()
+        brain_view::open_screen(screen, &self.multi_workspace, window, cx);
     }
 
     /// The rows, and under them the empty space a right-click opens a menu on (#600).
@@ -9137,7 +8997,6 @@ impl Sidebar for Rail {
 
 impl Render for Rail {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let brain = self.shown_brain().cloned();
         let header_button = IconSize::Small.square(window, cx);
         v_flex()
             .id("marley-rail")
@@ -9180,13 +9039,9 @@ impl Render for Rail {
             .size_full()
             .bg(cx.theme().colors().panel_background)
             .child(self.render_header(header_button, window, cx))
-            .map(|rail| match brain {
-                Some(brain) => rail.child(brain),
-                None => rail
-                    .child(self.render_filter(cx))
-                    .children(self.render_inbox(cx))
-                    .child(self.render_rows(self.render_blocks(cx), cx)),
-            })
+            .child(self.render_filter(cx))
+            .children(self.render_inbox(cx))
+            .child(self.render_rows(self.render_blocks(cx), cx))
             .children(self.empty_menu.as_ref().map(|(menu, position, _)| {
                 deferred(
                     anchored()
