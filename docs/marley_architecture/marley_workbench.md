@@ -2188,6 +2188,15 @@ alike.
     keymap highest precedence first, and `palette_name` is Marley's own rule.
   - `mcp.rs`: `page_from` and `Page::{next, fill_forward, text_block_forward}`, #680's pager run
     forward for a document.
+  - `settings_change.rs` (#682): `propose` checks the key with `settings_tools::find_setting` on
+    the background executor, reads the user's settings file through `Fs` (an absent one as `{}`),
+    edits it as text with `settings::update_value_in_json_text` over the old and new roots
+    (`set_at` makes the objects on the way), and refuses a change whose `UserSettingsContent`
+    parse fails where the old file's did not. It asks with `show_app_notification` (a
+    `MessageNotification` with Apply and Decline, one `NotificationId` per question), races the
+    answer against 25 seconds (under the server's 30-second wait for the app), rereads the file
+    before `atomic_write`, and answers with the values before and after through
+    `settings_tools::hidden`.
 
 ## Rusty (`src/rusty.rs`, #633, #643)
 

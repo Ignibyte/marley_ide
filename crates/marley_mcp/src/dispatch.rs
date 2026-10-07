@@ -135,7 +135,8 @@ open in Marley.
 
 For questions about Marley or Zed (how a feature works, what a setting does or is set to, \
 which key runs a command), docs_search and docs_read, settings_schema and settings_read, and \
-actions_list answer from this Marley's own docs and settings.
+actions_list answer from this Marley's own docs and settings. settings_change proposes a value \
+for one of the user's settings: Marley asks the user and writes it only when they accept.
 
 A refused call carries a `code` and `next_steps`: follow them rather than repeating the call.";
 

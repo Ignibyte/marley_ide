@@ -5082,3 +5082,22 @@ The Hyprland runner refuses to start while a Marley window is open ("a Marley wi
 close it first, or run the scenario under COMPOSITOR=sway"), and since 2026-10-06 Chad's own
 Marley is always open. A scenario with no clicks still names `compositor sway`, which starts a
 headless sway of its own that his session never sees, so it runs whatever he has open.
+
+## L-claude-682-a-tool-that-waits-for-the-user-answers-inside-the-servers-30-seconds-001
+*category: mcp · topic: a write tool that asks the user · from: pipeline 682*
+
+Marley's MCP server waits 30 seconds for the app's answer to a call
+(`marley_mcp::APP_CALL_TIMEOUT_SECONDS`) and then answers `timed_out` itself, whatever the app is
+still doing. A tool that asks the user, as `terminal_type`, `terminal_run`'s card and
+`settings_change` do, gives the user less than that (25 seconds) and answers `no_answer` itself,
+so the agent learns that nothing was done and the question goes away; a longer wait would end as
+a `timed_out` with the question still on screen.
+
+## L-claude-682-no-source-edit-while-an-install-compiles-001
+*category: process · topic: the release install and the working tree · from: pipeline 682*
+
+`just install` builds the release `marley` from the working tree as it is when each crate's
+compile starts, and a crate edited after its compile began goes in as it was. #682's first edits
+landed while #681's install compiled `marley_workbench`; its compile had begun first, and the
+installed binary held no #682 string, so no harm came of it. Planning and docs are safe during an
+install; source edits wait for it to finish, or the install waits for them to be committed.

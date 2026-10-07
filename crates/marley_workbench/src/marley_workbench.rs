@@ -77,6 +77,7 @@ pub mod running_errors;
 pub mod rusty;
 pub mod send_block;
 pub mod send_selection;
+pub mod settings_change;
 pub mod settings_tools;
 pub mod shell_completions;
 pub mod shortcut_note;

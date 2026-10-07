@@ -1,14 +1,14 @@
-# TICKET-682 — Settings and keymap changes the user accepts as a diff
+# TICKET-682 — Settings changes the user accepts
 
 - **Ticket:** LOCAL #682 (feature, prong 2 C: Marley's MCP server)
 - **Owner:** ce546757-1075-466f-a3cf-b6696d2211c9
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** ../../pipeline/completed/682-settings-changes-accepted.spec.md
 - **Source ticket:** `docs/planning/intake/marley-agent-manager-foreman.md`, phase 1, item 4
-- **Status:** open
+- **Status:** closed
 
 ## Summary
-`settings_change` and `keymap_change` let an agent propose a change to the user's or the project's
-settings or keymap. Marley shows the change as a diff and applies it only when the user accepts,
+(Scoped on 2026-10-07 to the user's settings; `keymap_change` is TICKET-686, a project's settings
+file a later ticket.) `settings_change` lets an agent propose a change to the user's settings. Marley shows the change as a diff and applies it only when the user accepts,
 through Zed's own settings writer so comments and formatting survive; a value the schema refuses
 is refused before anything is shown. The tool answers whether the user accepted, declined or did
 not answer. It works for any agent that reaches Marley's MCP server, which is what lets the

@@ -101,10 +101,16 @@ pub fn start(cx: &mut App) {
     let data_dir = paths::data_dir().clone();
     // The browser's write tools are granted: the client's approval of each call and the Browser
     // tab, where the user watches each action, are their checks (#492 D2). The editor's is
-    // Marley's own `marley-edit`'s, which outside clients are refused (#649).
+    // Marley's own `marley-edit`'s, which outside clients are refused (#649). A settings change
+    // waits for the user's Apply (#682).
     let shared: transport::Shared = Arc::new((
         Mutex::new(transport::ServerData {
-            grants: GrantTable::from_classes(["browser.write", "terminal.write", "editor.write"]),
+            grants: GrantTable::from_classes([
+                "browser.write",
+                "terminal.write",
+                "editor.write",
+                "settings.write",
+            ]),
             ..transport::ServerData::default()
         }),
         Condvar::new(),

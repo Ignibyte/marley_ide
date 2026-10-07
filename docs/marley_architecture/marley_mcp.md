@@ -18,7 +18,9 @@ OR Apache-2.0, with the Marley crates' lint table.
   served and read-only, with no grant class; the app answers them like the terminal family
   (`dispatch.rs`'s deferred arm). Their schemas are `docs_schemas`, `settings_schemas` and
   `actions_list_schemas`; outside clients reach none of them (they are on no client list).
-  `INSTRUCTIONS` names the five.
+  `INSTRUCTIONS` names the five. Since #682 `settings_change` joins `Family::Settings` as a write
+  tool, grant class `settings.write` (granted at start, as `terminal.write` is), with
+  `settings_change_schemas`; its answer is the app's, which asks the user first.
 - **Refusals with a code (#680).** `Refusal { code, reason, next_steps }` is how a call is refused:
   `tools::tool_refusal` answers `{result: "refused", code, reason, next_steps}`. `From<String>`
   and `From<&str>` give `Refusal::REFUSED`, so the app's handlers that refuse in words alone stay

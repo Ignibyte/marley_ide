@@ -34,12 +34,14 @@ const STOP_WORDS: &[&str] = &[
 /// What a hidden setting's value becomes.
 const HIDDEN: &str = "[redacted: setting]";
 
-/// Answers `call`, one of `settings_schema`, `settings_read` and `actions_list`. The schema is
-/// built off the main thread; the other two read the app's state here.
+/// Answers `call`, one of `settings_schema`, `settings_read`, `actions_list` and, through its own
+/// module, `settings_change` (#682). The schema is built off the main thread; the reads take the
+/// app's state here.
 pub(crate) fn answer(call: AppCall, cx: &App) {
     let tool = call.tool.clone();
     match tool.as_str() {
         "settings_schema" => schema(call, cx),
+        "settings_change" => crate::settings_change::answer(call, cx),
         "settings_read" => {
             let result = read(&call.arguments, cx);
             call.answer(result);
@@ -195,36 +197,57 @@ fn actions_list(arguments: &Value, cx: &App) -> Result<ToolAnswer, Refusal> {
     })
 }
 
+/// What Zed's settings schema is built from, read on the main thread so the schema can be built
+/// off it: the actions' names, documentation and deprecations; the other name lists stay empty.
+pub(crate) struct SchemaInputs {
+    action_names: Vec<&'static str>,
+    documentation: HashMap<&'static str, &'static str>,
+    deprecations: HashMap<&'static str, &'static str>,
+    deprecation_messages: HashMap<&'static str, &'static str>,
+}
+
+impl SchemaInputs {
+    pub(crate) fn of(cx: &App) -> Self {
+        Self {
+            action_names: cx.all_action_names().to_vec(),
+            documentation: cx.action_documentation().clone(),
+            deprecations: cx.deprecated_actions_to_preferred_actions().clone(),
+            deprecation_messages: cx.action_deprecation_messages().clone(),
+        }
+    }
+
+    /// Zed's schema of the user's settings file.
+    pub(crate) fn schema(&self) -> Value {
+        SettingsStore::json_schema(&SettingsJsonSchemaParams {
+            language_names: &[],
+            font_names: &[],
+            theme_names: &[],
+            icon_theme_names: &[],
+            lsp_adapter_names: &[],
+            action_names: &self.action_names,
+            action_documentation: &self.documentation,
+            deprecations: &self.deprecations,
+            deprecation_messages: &self.deprecation_messages,
+        })
+    }
+}
+
 /// `settings_schema`: what the setting at the key path is. The schema is built off the main
 /// thread, from the actions' names and documentation read here.
 fn schema(call: AppCall, cx: &App) {
     let key = key_argument(&call.arguments);
-    let action_names: Vec<&'static str> = cx.all_action_names().to_vec();
-    let documentation = cx.action_documentation().clone();
-    let deprecations = cx.deprecated_actions_to_preferred_actions().clone();
-    let deprecation_messages = cx.action_deprecation_messages().clone();
+    let inputs = SchemaInputs::of(cx);
     let defaults = serde_json::to_value(cx.global::<SettingsStore>().raw_default_settings())
         .unwrap_or_default();
     cx.background_executor()
         .spawn(futures::future::lazy(move |_| {
-            let schema = SettingsStore::json_schema(&SettingsJsonSchemaParams {
-                language_names: &[],
-                font_names: &[],
-                theme_names: &[],
-                icon_theme_names: &[],
-                lsp_adapter_names: &[],
-                action_names: &action_names,
-                action_documentation: &documentation,
-                deprecations: &deprecations,
-                deprecation_messages: &deprecation_messages,
-            });
-            call.answer(describe(&schema, &defaults, &key));
+            call.answer(describe(&inputs.schema(), &defaults, &key));
         }))
         .detach();
 }
 
 /// The key path a call names, its surrounding space and dots trimmed.
-fn key_argument(arguments: &Value) -> String {
+pub(crate) fn key_argument(arguments: &Value) -> String {
     arguments
         .get("key")
         .and_then(Value::as_str)
@@ -237,41 +260,7 @@ fn key_argument(arguments: &Value) -> String {
 /// The setting at `key` in `schema`, with its default from `defaults`, or the top-level keys
 /// for an empty key.
 fn describe(schema: &Value, defaults: &Value, key: &str) -> Result<ToolAnswer, Refusal> {
-    let mut node = schema;
-    let mut description = None;
-    let mut walked: Vec<&str> = Vec::new();
-    for segment in key.split('.').filter(|segment| !segment.is_empty()) {
-        let object = resolve(schema, node);
-        let next = object
-            .get("properties")
-            .and_then(|properties| properties.get(segment))
-            .or_else(|| {
-                object
-                    .get("additionalProperties")
-                    .filter(|value| value.is_object())
-            });
-        let Some(next) = next else {
-            let place = if walked.is_empty() {
-                "the top level".to_string()
-            } else {
-                format!("`{}`", walked.join("."))
-            };
-            let keys = property_names(schema, object);
-            let refusal = Refusal::new("no_setting", format!("{place} has no key `{segment}`"));
-            let refusal = if keys.is_empty() {
-                refusal.next(format!("{place} takes no named keys"))
-            } else {
-                refusal.next(format!("the keys of {place}: {}", keys.join(", ")))
-            };
-            return Err(refusal.next("settings_schema with an empty `key` lists the top level"));
-        };
-        description = next
-            .get("description")
-            .and_then(Value::as_str)
-            .or(description);
-        node = next;
-        walked.push(segment);
-    }
+    let (node, description) = find_setting(schema, key)?;
     let resolved = resolve(schema, node);
     let description = resolved
         .get("description")
@@ -313,6 +302,50 @@ fn describe(schema: &Value, defaults: &Value, key: &str) -> Result<ToolAnswer, R
         text: None,
         image: None,
     })
+}
+
+/// The schema node of the setting at `key`, unresolved, and the description its key carries on
+/// the way; refused with the keys there are where a key is missing.
+pub(crate) fn find_setting<'a>(
+    schema: &'a Value,
+    key: &str,
+) -> Result<(&'a Value, Option<&'a str>), Refusal> {
+    let mut node = schema;
+    let mut description = None;
+    let mut walked: Vec<&str> = Vec::new();
+    for segment in key.split('.').filter(|segment| !segment.is_empty()) {
+        let object = resolve(schema, node);
+        let next = object
+            .get("properties")
+            .and_then(|properties| properties.get(segment))
+            .or_else(|| {
+                object
+                    .get("additionalProperties")
+                    .filter(|value| value.is_object())
+            });
+        let Some(next) = next else {
+            let place = if walked.is_empty() {
+                "the top level".to_string()
+            } else {
+                format!("`{}`", walked.join("."))
+            };
+            let keys = property_names(schema, object);
+            let refusal = Refusal::new("no_setting", format!("{place} has no key `{segment}`"));
+            let refusal = if keys.is_empty() {
+                refusal.next(format!("{place} takes no named keys"))
+            } else {
+                refusal.next(format!("the keys of {place}: {}", keys.join(", ")))
+            };
+            return Err(refusal.next("settings_schema with an empty `key` lists the top level"));
+        };
+        description = next
+            .get("description")
+            .and_then(Value::as_str)
+            .or(description);
+        node = next;
+        walked.push(segment);
+    }
+    Ok((node, description))
 }
 
 /// A schema node with its reference followed and an optional's null branch dropped, as many times
@@ -497,7 +530,7 @@ fn read(arguments: &Value, cx: &App) -> Result<ToolAnswer, Refusal> {
 }
 
 /// The value at a key path in a settings file's content, when the file sets it.
-fn value_at(content: &Value, key: &str) -> Option<Value> {
+pub(crate) fn value_at(content: &Value, key: &str) -> Option<Value> {
     key.split('.')
         .try_fold(content, |value, segment| value.get(segment))
         .filter(|value| !value.is_null())
@@ -524,7 +557,7 @@ fn secret_name(name: &str) -> bool {
 }
 
 /// `value` with each value under a secret's name hidden; `name` is the key it sits under.
-fn hidden(value: Value, name: Option<&str>) -> Value {
+pub(crate) fn hidden(value: Value, name: Option<&str>) -> Value {
     if name.is_some_and(secret_name) && !value.is_object() && !value.is_array() {
         return Value::String(HIDDEN.to_string());
     }

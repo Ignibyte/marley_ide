@@ -4356,3 +4356,15 @@ reads Zed's own generated schema and the defaults from `default.json`; `settings
 value; `actions_list` reads gpui's action names, documentation and keymap, with Marley's own
 palette-name rule rather than a copy of Zed's. Rejected: an embedding index (a separate, off-by-
 default layer); the Settings UI's typed field table (it is private and keyed by field, not path).
+
+## AD-claude-682-an-agents-settings-change-waits-for-the-users-apply-001
+*decided at: 2026-10-07 · status: shipped*
+
+An agent changes the user's settings only through `settings_change`, which checks the key against
+Zed's schema and the value against Zed's parse before asking, asks with a notification in every
+window (the agent may run where the user is not looking), and on Apply edits the file as text the
+way Zed's settings writer does, after checking the file did not change meanwhile (T3's config
+writes, report 05 item 6). One key per question, the user's settings only; `keymap_change`
+(TICKET-686) and a project's file come later. Rejected: letting the Marley agent edit
+settings.json as a file (no check, no question, comments at risk); a card in one view (missed
+when the user is elsewhere); 60 seconds to answer (past the server's 30-second wait).

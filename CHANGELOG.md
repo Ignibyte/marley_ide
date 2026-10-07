@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Settings changes you accept** (#682, 2026-10-07). An agent can propose a value for one of your
+  settings with `settings_change`. Marley shows a notification in every window naming the agent,
+  the setting, its value now and the value proposed, with Apply and Decline, and writes the file
+  only on Apply, keeping its comments and other keys; the change takes effect at once. A key Zed's
+  settings do not have, or a value Zed would not parse, is refused before you are asked; no answer
+  within 25 seconds leaves the file as it was.
+
 - **Docs, settings and actions tools for agents** (#681, 2026-10-07). Marley's MCP server gains five
   read tools, so an agent can explain and look up how this Marley works: `docs_search` and
   `docs_read` over Zed's docs and Marley's guide as the build ships them, the keys in the text

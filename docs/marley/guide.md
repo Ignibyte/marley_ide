@@ -1548,6 +1548,12 @@ The docs, settings and actions families (#681), for questions about Marley itsel
 
 Their refusals carry `no_doc`, `no_section`, `no_setting`, `too_large` or `bad_argument`.
 
+One write tool sits with them (#682):
+
+| Tool | What it does |
+|---|---|
+| `settings_change` | Proposes a value for one key of your settings. A notification in every window names the agent, the key, the value now and the value proposed, and the file, with Apply and Decline; Apply writes it, keeping the file's comments and other keys, and it takes effect at once. A key the settings schema lacks (`no_setting`) or a value Zed would not parse (`invalid_value`, with Zed's error) is refused before you are asked; Decline answers `declined`, no answer within 25 seconds `no_answer`, and a file that changed while you were asked `changed` |
+
 The browser family, reading:
 
 | Tool | What it gives |

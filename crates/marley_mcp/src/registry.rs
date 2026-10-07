@@ -429,6 +429,18 @@ const REGISTRY: &[ToolSpec] = &[
                       Values under names that read as secrets come back as `[redacted: setting]`.",
     },
     ToolSpec {
+        family: Family::Settings,
+        verb: "change",
+        tier: Tier::Write,
+        grant_class: "settings.write",
+        description: "Propose a value for one key of the user's settings, by its key path and a \
+                      JSON value: Marley shows the user the value now and the value proposed and \
+                      writes it, comments kept, only on Apply. Answers `applied` with the value \
+                      before and after, or `unchanged`; refused with `no_setting` for a key the \
+                      schema lacks, `invalid_value` for a value Zed would not parse, `declined`, \
+                      `no_answer` after 25 seconds, or `changed` if the file changed meanwhile.",
+    },
+    ToolSpec {
         family: Family::Actions,
         verb: "list",
         tier: Tier::Read,
@@ -1464,6 +1476,9 @@ fn docs_schemas(verb: &str) -> (Value, Value) {
 /// `settings_schema` and `settings_read` (#681): a key path; what the setting is, or what each
 /// settings file sets it to.
 fn settings_schemas(verb: &str) -> (Value, Value) {
+    if verb == "change" {
+        return settings_change_schemas();
+    }
     let input = json!({
         "type": "object",
         "properties": {
@@ -1515,6 +1530,32 @@ fn settings_schemas(verb: &str) -> (Value, Value) {
                 }
             },
             "required": ["key", "effective", "set_in", "values"]
+        }),
+    )
+}
+
+/// `settings_change` (#682): a key path and a value; what was written.
+fn settings_change_schemas() -> (Value, Value) {
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "key": { "type": "string", "description": "The key path in settings.json, dots between keys: `terminal.font_size`." },
+                "value": { "description": "The JSON value to set." }
+            },
+            "required": ["key", "value"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "result": { "type": "string", "enum": ["applied", "unchanged"] },
+                "key": { "type": "string" },
+                "file": { "type": "string" },
+                "before": { "description": "The value before; null when the file did not set it." },
+                "after": {}
+            },
+            "required": ["result", "key", "file", "before", "after"]
         }),
     )
 }
@@ -2025,10 +2066,11 @@ mod tests {
                 "docs_read",
                 "settings_schema",
                 "settings_read",
+                "settings_change",
                 "actions_list"
             ]
         );
-        assert_eq!(registry().len(), 38);
+        assert_eq!(registry().len(), 39);
         assert_eq!(
             lookup("fleet_snapshot").expect("read tool").tier,
             Tier::Read
