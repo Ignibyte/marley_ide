@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #685 (spike, prong 2 C; harness ACP-003, Marley's half)
 - **Owner:** ce546757-1075-466f-a3cf-b6696d2211c9
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** ../../pipeline/completed/685-acp-messages-between-turns.spec.md
 - **Source ticket:** `docs/planning/intake/marley-agent-manager-foreman.md`, phase 2; rustal-harness
   TICKET-111 (`rh acp`) waits on it
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The harness's `rh acp` will show a manager's thread in Zed's Agent Panel, and a manager posts

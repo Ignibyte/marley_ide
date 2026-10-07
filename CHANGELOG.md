@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A check of an ACP agent that speaks between turns** (#685, 2026-10-07). An e2e scenario,
+  `script/e2e/685-acp-messages-between-turns.sh`, drives a scripted ACP agent through the Agent
+  Panel: after its turn ends it sends a report and then asks permission. The panel shows the
+  report as a paragraph of its own and the request with Allow and Deny, which Marley's rail also
+  raises under Needs you, and the choice reaches the agent. It is the proof rustal-harness's
+  `rh acp` builds on to show a manager's thread in the Agent Panel. No code changed.
+
 - **Agent tool results that fit, and refusals that say what to do** (#680, 2026-10-07).
   `terminal_read` gives a block's output a page at a time, the newest whole lines that fit in
   12,000 bytes, numbered from the block's first line, with `previous` to pass back as `before` for

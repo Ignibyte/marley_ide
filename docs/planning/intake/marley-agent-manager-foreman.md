@@ -134,8 +134,10 @@ TICKET-113 (the foreman seat, plan only, after decision 1). Its corrections to t
   history`, not Codex's own TUI in a pane. Codex's TUI in a harness terminal would be a new ticket.
 - Marley owes a proof before TICKET-111 is built: that Zed shows an agent's `session/update` sent
   between turns (`acp.rs:4805`), and whether it shows a `session/request_permission` outside a
-  running turn. Read from the code on 2026-10-07, both display (sent to the harness); the proof in
-  Marley's build is TICKET-685.
+  running turn. Proven in Marley's build on 2026-10-07 (#685) and sent to the harness: a report
+  between turns shows as its own paragraph but raises nothing; a confirmation between turns shows
+  in the panel and in Marley's Needs you, and the choice comes back; after it the agent sends a
+  `tool_call_update` with a final status so the line reads as settled.
 - The UCSOS manager's interface runs with `--strict-mcp-config` and no setting sources; whether
   it needs its login's hooks, skills or CLAUDE.md is a question for Chad when forge is looked at.
 

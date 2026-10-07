@@ -4329,3 +4329,17 @@ warning. Redaction runs on the whole output before a page is cut. Every refusal 
 families get codes one at a time. `initialize` carries a short `instructions` text. Rejected: an
 offset counted from the end (a growing block moves every page); dropping the duplicated text
 channel (clients differ in which they read); paging the browser tools now (their own ticket).
+
+## AD-claude-685-the-manager-talks-to-the-person-in-the-agent-panel-over-acp-001
+*decided at: 2026-10-07 · status: proven (Marley's half); rustal-harness TICKET-111 builds the rest*
+
+Chad, 2026-10-07, after the T3 Code survey: Marley builds no manager; the manager and the foreman
+are rustal-harness seats on this box or another, and Marley is how a person sees and talks to
+them (`docs/planning/intake/marley-agent-manager-foreman.md`). The conversation goes through Zed's
+Agent Panel: the harness ships `rh acp`, an ACP program that is a window onto the manager's thread
+(its TICKET-106), registered in `agent_servers` (as `ssh HOST rh acp …` for a remote root); the
+manager stays Claude Code in a harness terminal on the user's own login, and the program never
+calls a model or reads a token. #685 proved the panel takes a manager's reports and confirmations
+between turns. Rejected: a thread view of Marley's own (MREQ-008 as first asked; the panel already
+draws chat, prompts and saved sessions, and any ACP client gets the manager for free); a manager
+inside Marley (it must outlive Marley).

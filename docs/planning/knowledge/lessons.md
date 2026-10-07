@@ -5061,3 +5061,16 @@ outside-lists setting changed nothing, since the denylist is checked first. A sc
 a command to run at once writes its fixture as an executable with a shebang and runs `./name.sh`,
 which is on neither list, and pins `marley.agent_commands_outside_lists` to `"run"` in `setup`
 (`profile_setting`) in case the user's profile asks.
+
+## L-claude-685-zeds-agent-panel-takes-acp-messages-between-turns-silently-001
+*category: acp · topic: an agent that posts on its own, such as a manager · from: pipeline 685*
+
+Zed's Agent Panel shows an ACP agent's `agent_message_chunk` sent after its turn ended, and a
+`session/request_permission` sent while no turn runs: neither path checks for a running turn
+(`acp.rs:4805`, `:4571`). A chunk with a new `messageId` becomes its own paragraph in the last
+assistant entry; one with no id runs into the previous text. The message raises nothing (no badge,
+toast or Needs-you entry); the request shows in the panel with its options and in Marley's Needs
+you, and the choice returns as the request's result. After acting on it, the agent sends a
+`tool_call_update` with a final status, or the call stays a bare line. A scripted agent in an e2e
+scenario (#605's stand-in, a custom `agent_servers` entry) is enough to prove such behavior
+without the real agent.
