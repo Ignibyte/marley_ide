@@ -9,7 +9,8 @@ use crate::permission::Decision;
 use crate::registry::Family;
 use crate::{
     APP_CALL_TIMEOUT_SECONDS, AppOutcome, Effect, Handled, MCP_PROTOCOL_VERSION, Outgoing,
-    PendingCall, RequestCtx, Subscriptions, jsonrpc, permission, registry, resource, tools,
+    PendingCall, Refusal, RequestCtx, Subscriptions, jsonrpc, permission, registry, resource,
+    tools,
 };
 use marley_fleet::SurfaceRequest;
 use serde_json::{Value, json};
@@ -83,13 +84,24 @@ pub fn deferred_response(pending: &PendingCall, outcome: AppOutcome) -> String {
     let tool = &pending.tool;
     let result = match outcome {
         AppOutcome::Answered(Ok(answer)) => tools::tool_answer_result(&answer),
-        AppOutcome::Answered(Err(reason)) => tools::tool_error(&format!("{tool}: {reason}")),
-        AppOutcome::TimedOut => tools::tool_error(&format!(
-            "{tool}: Marley did not answer within {APP_CALL_TIMEOUT_SECONDS} seconds"
-        )),
-        AppOutcome::Unavailable => {
-            tools::tool_error(&format!("{tool}: Marley is not taking tool calls"))
-        }
+        AppOutcome::Answered(Err(refusal)) => tools::tool_refusal(&Refusal {
+            reason: format!("{tool}: {}", refusal.reason),
+            ..refusal
+        }),
+        AppOutcome::TimedOut => tools::tool_refusal(
+            &Refusal::new(
+                "timed_out",
+                format!("{tool}: Marley did not answer within {APP_CALL_TIMEOUT_SECONDS} seconds"),
+            )
+            .next("Marley may be busy: call it once more, then ask the user"),
+        ),
+        AppOutcome::Unavailable => tools::tool_refusal(
+            &Refusal::new(
+                "unavailable",
+                format!("{tool}: Marley is not taking tool calls"),
+            )
+            .next("Marley is shutting down or restarting: ask the user before calling again"),
+        ),
     };
     jsonrpc::result_response(&pending.id, result)
 }
@@ -102,13 +114,35 @@ fn respond(response: String) -> Handled {
     }
 }
 
+/// What the server tells an agent at `initialize` about when to reach for its tools (#680), which
+/// Claude Code adds to its model's system prompt. It names only tools the registry lists, says
+/// "when listed" of one that comes and goes, and stays under 2 KB.
+const INSTRUCTIONS: &str = "Marley is the editor and terminal the user is working in, and these \
+tools read and drive what the user sees.
+
+Before asking the user to paste a command's output, read it: terminal_blocks lists a terminal's \
+commands, and terminal_read reads one block's output, newest lines first; when its answer has \
+`previous`, pass it as `before` to read the page before. terminal_find, when listed, finds a line \
+of a block by meaning.
+
+Use terminal_run for a command the user should see run in their terminal, not for your own \
+scratch work. To answer a program waiting for input (a REPL, a debugger), read it with \
+terminal_screen, then write with terminal_type; never type into another agent.
+
+For a web page, use Marley's Browser tab: browser_tabs, then browser_snapshot or browser_look, \
+before you drive the page. Do not start Playwright or another browser for a page the user has \
+open in Marley.
+
+A refused call carries a `code` and `next_steps`: follow them rather than repeating the call.";
+
 /// The `initialize` result — protocol version + the capabilities (tools + subscribable resources).
 /// `listChanged` is what lets the plugin's bridge tell a client that Marley came or went (#491).
 fn initialize_result() -> Value {
     json!({
         "protocolVersion": MCP_PROTOCOL_VERSION,
         "capabilities": { "tools": { "listChanged": true }, "resources": { "subscribe": true } },
-        "serverInfo": { "name": "marley", "version": "0" }
+        "serverInfo": { "name": "marley", "version": "0" },
+        "instructions": INSTRUCTIONS,
     })
 }
 
@@ -170,19 +204,25 @@ fn tools_call(ctx: &RequestCtx, request: &RpcRequest, id: &Value) -> Handled {
     // An outside client calls only its grant's tools (#524), listed or not: `lookup` finds unlisted
     // ones too.
     if let Err(reason) = permits(ctx.principal, &spec.name()) {
-        return respond(jsonrpc::result_response(id, tools::tool_error(&reason)));
+        let refusal = Refusal::new("not_granted", reason)
+            .next("tools/list names the tools this client may call");
+        return respond(jsonrpc::result_response(id, tools::tool_refusal(&refusal)));
     }
     // A conditional tool the user has not turned on is refused by name as well (#567).
     if registry::is_off(&spec.name(), ctx.enabled) {
-        let reason = format!(
-            "{name} is off: turn System One on and set marley.system_one.uses.{name} to shadow, \
-             suggest or act"
-        );
-        return respond(jsonrpc::result_response(id, tools::tool_error(&reason)));
+        let refusal = Refusal::new("tool_off", format!("{name} is off"))
+            .next(format!(
+                "the user turns it on: System One on, and marley.system_one.uses.{name} set to \
+                 shadow, suggest or act"
+            ))
+            .next("without it, terminal_read or browser_snapshot gives the whole text to search");
+        return respond(jsonrpc::result_response(id, tools::tool_refusal(&refusal)));
     }
     // Permission (D5/REQ-006/007/008). A DENIAL is a tool-execution error (isError), NOT a protocol error.
     if let Decision::Deny(reason) = permission::decide(spec.tier, spec.grant_class, ctx.grants) {
-        return respond(jsonrpc::result_response(id, tools::tool_error(&reason)));
+        let refusal = Refusal::new("not_permitted", reason)
+            .next("the user grants it in Marley's settings; ask before trying another way");
+        return respond(jsonrpc::result_response(id, tools::tool_refusal(&refusal)));
     }
     // Match on the family (EXHAUSTIVE — no catch-all; a new `Family` variant is a compile error until its
     // handler is wired, REQ-011). The terminal and browser families' answers are the app's (#491,
@@ -213,7 +253,10 @@ fn surface_to_human(ctx: &RequestCtx, arguments: &Value, id: &Value) -> Handled 
         Err(err) => {
             return respond(jsonrpc::result_response(
                 id,
-                tools::tool_error(&format!("invalid surface_to_human arguments: {err}")),
+                tools::tool_refusal(&Refusal::new(
+                    "bad_argument",
+                    format!("invalid surface_to_human arguments: {err}"),
+                )),
             ));
         }
     };

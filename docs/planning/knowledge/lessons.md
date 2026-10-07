@@ -5050,3 +5050,14 @@ five functions that sat between them in the file (`render_blocks`, `render_harne
 `render_rows`, `render_filter`); the file order was not the order the helpers were written in. A
 scripted cut ends at the removed function's own closing brace, and `git diff | grep '^-.*fn '`
 right after it lists every function the edit removed, which caught this one before the build.
+
+## L-claude-680-a-scenario-s-terminal-run-runs-a-program-not-a-shell-001
+*category: process · topic: commands a scenario runs through terminal_run · from: pipeline 680*
+
+`bash pages.sh` sat on #680's card for 25 seconds and came back refused: `bash`, `sh`, `zsh`,
+`fish` and `pwsh` open the default `marley.agent_command_denylist`, which asks the user whatever
+`agent_commands_outside_lists` says, and the copied profile's own lists apply on top. Pinning the
+outside-lists setting changed nothing, since the denylist is checked first. A scenario that wants
+a command to run at once writes its fixture as an executable with a shebang and runs `./name.sh`,
+which is on neither list, and pins `marley.agent_commands_outside_lists` to `"run"` in `setup`
+(`profile_setting`) in case the user's profile asks.

@@ -2121,8 +2121,19 @@ alike.
     command was verified, whether it runs, its exit code, the prompt's `pwd`, its start and
     duration from `AnchoredBlocks::times` (a running block's duration is how long it has run),
     and `Terminal::block_output_kept`;
-  - `terminal_read`: `Terminal::block_output`, the last 2,000 lines and at most 256 KiB, and
-    whether anything was left out;
+  - `terminal_read`: `Terminal::block_output`, redacted whole, then one page of it (#680):
+    `page(text, before)` checks `before` (2 to the line count plus one, else `bad_argument`) and
+    `page_ending` takes whole lines back from the line before it while they fit in `PAGE_BYTES`
+    (12,000) and `MAX_READ_LINES`, or the end of a single longer line (`line_cut`). `Page::fill`
+    puts `output`, `first_line`, `last_line`, `total_lines`, `previous` (the next `before`, null at
+    line 1), `line_cut` and `truncated` into the structured answer; `Page::text_block` starts the
+    text with a line naming the lines and the `before` when the page leaves output out.
+    `terminal_drive::run_answer` gives `terminal_run`'s output as `newest_page`. The terminal
+    tools refuse with codes: `terminal_with_id` answers `no_terminal` with up to 20 ids there are,
+    `terminal_of` `bad_argument` for a call from no Marley terminal that names none,
+    `block_argument` `bad_argument`, `no_block` the blocks' range and `output_gone` a block whose
+    output left the scrollback; `check` and `check_run` refuse through `terminal_of` and keep their
+    other refusals in words (`check_in`, `check_run_in`), which answer `refused`;
   - `ports_list` (#521): a scan made at once (`ports::list`), off the main thread, each
     listener with its project's rail name, the folder, the address, port, URL, pid, process name
     and working directory, by project and port. The command line stays out, since it can carry a
@@ -2145,8 +2156,8 @@ alike.
   `model_redactor(cx)` answers the same redactor whether or not agents' redaction is on, for
   what leaves the machine for a System One model (#565).
   `terminal_blocks` runs each command through it and `terminal_read` the command and the whole
-  output, before `tail` cuts it (a key whose BEGIN line fell before the cut would pass
-  otherwise); both answer `redacted`, the count. `browser_tools`' `browser_console` runs each
+  output, before a page is cut (a key whose BEGIN line fell before the cut would pass
+  otherwise); both answer `redacted`, the count, over the whole output. `browser_tools`' `browser_console` runs each
   entry's text through it.
 - Since #501, once the server runs, `offer_to_zeds_agents` writes the bridge
   (`claude_plugin::BRIDGE`) to `<data dir>/mcp/marley-mcp-bridge` off the main thread and adds

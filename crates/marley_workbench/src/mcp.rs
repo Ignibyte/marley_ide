@@ -24,7 +24,9 @@ use futures::channel::mpsc;
 use gpui::{App, AppContext as _, BorrowAppContext as _, Context, Entity, Global};
 use marley_fleet::FleetSnapshot;
 use marley_mcp::redact::{Redacted, Redactor};
-use marley_mcp::{AppCall, AppCaller, Caller, GrantTable, ToolAnswer, discovery, transport};
+use marley_mcp::{
+    AppCall, AppCaller, Caller, GrantTable, Refusal, ToolAnswer, discovery, transport,
+};
 use marley_terminal::{AnchoredBlock, BlockState, BlockTimes};
 use serde_json::{Value, json};
 use settings::settings_content::{ContextServerCommand, ContextServerSettingsContent};
@@ -47,11 +49,19 @@ const DEFAULT_BLOCKS: usize = 50;
 /// The most blocks `terminal_blocks` lists.
 const MAX_BLOCKS: usize = 500;
 
-/// The most lines `terminal_read` gives; the end is kept.
+/// The most lines a `terminal_read` page holds, and the most `terminal_find` looks among.
 const MAX_READ_LINES: usize = 2_000;
 
-/// The most bytes `terminal_read` gives, for output whose lines are long.
+/// The most bytes `terminal_find` looks among, for output whose lines are long.
 const MAX_READ_BYTES: usize = 256 * 1024;
+
+/// The most bytes of output a `terminal_read` page holds (#680). The answer carries the page twice,
+/// as its text and in its structured result, so a whole answer stays near 30 KB on the wire and
+/// about 6,000 tokens, under the 10,000 at which Claude Code warns about a tool's result.
+const PAGE_BYTES: usize = 12_000;
+
+/// The most terminal ids a `no_terminal` refusal lists.
+const MAX_LISTED_TERMINALS: usize = 20;
 
 /// The most bytes of a block's newest lines `terminal_find` asks about: about 24,000 tokens at
 /// four bytes a token (#567).
@@ -530,7 +540,9 @@ fn answer(call: AppCall, cx: &mut App) {
         "terminal_blocks" => terminal_blocks(&call.arguments, call.caller(), cx),
         "terminal_read" => terminal_read(&call.arguments, call.caller(), cx),
         "terminal_screen" => crate::terminal_drive::screen(&call, cx),
-        other => Err(format!("Marley answers no tool named {other}")),
+        other => Err(Refusal::from(format!(
+            "Marley answers no tool named {other}"
+        ))),
     };
     call.answer(result);
 }
@@ -627,7 +639,7 @@ fn terminal_find(call: AppCall, cx: &App) {
         let named = top.map(|top| format!("line {top}"));
         let text =
             crate::browser_tools::found_text(&found, named.as_deref(), &shown, "terminal_read");
-        call.answer(Ok(ToolAnswer {
+        call.answer::<Refusal>(Ok(ToolAnswer {
             structured: found_lines(&found, terminal, block, &query, top, &candidates, cut),
             text: Some(text),
             image: None,
@@ -681,23 +693,17 @@ impl FindLines {
     /// masked whole with the rules models get, before any cut, since a cut can part a secret
     /// from what marks it; the model and the answer both see the masked lines. Then the end is
     /// kept as `terminal_read` keeps it, and of that the newest lines up to [`MAX_FIND_BYTES`].
-    fn of(arguments: &Value, caller: &Caller, cx: &App) -> Result<Self, String> {
+    fn of(arguments: &Value, caller: &Caller, cx: &App) -> Result<Self, Refusal> {
         let (terminal, view) = terminal_of(arguments, caller, cx)?;
-        let block = arguments
-            .get("block")
-            .and_then(Value::as_u64)
-            .and_then(|index| usize::try_from(index).ok())
-            .ok_or_else(|| "give `block`, a block's index from terminal_blocks".to_string())?;
+        let block = block_argument(arguments)?;
         let query = crate::browser_tools::find_query(arguments)?;
         let terminal_view = view.read(cx);
         let read = terminal_view.terminal().read(cx);
         let found = read
             .blocks()
             .get(block)
-            .ok_or_else(|| format!("terminal {terminal} has no block {block}"))?;
-        let output = read
-            .block_output(found)
-            .ok_or_else(|| format!("block {block}'s output has left the terminal's scrollback"))?;
+            .ok_or_else(|| no_block(terminal, block, read.blocks().len()))?;
+        let output = read.block_output(found).ok_or_else(|| output_gone(block))?;
         let masked = model_redactor(cx).redact(&output).text;
         let total = masked.lines().count();
         let (end, _) = tail(&masked);
@@ -777,13 +783,29 @@ pub(crate) fn terminals(cx: &App) -> Vec<(Entity<Workspace>, Entity<TerminalView
         .collect()
 }
 
-/// The terminal whose id (its view's entity id, as the rail's) is `id`.
-fn terminal_with_id(id: u64, cx: &App) -> Result<Entity<TerminalView>, String> {
-    terminals(cx)
-        .into_iter()
-        .map(|(_, view)| view)
-        .find(|view| view.entity_id().as_u64() == id)
-        .ok_or_else(|| format!("no terminal has the id {id}; terminal_list names them"))
+/// The terminal whose id (its view's entity id, as the rail's) is `id`; refused with the ids there
+/// are when none has it.
+fn terminal_with_id(id: u64, cx: &App) -> Result<Entity<TerminalView>, Refusal> {
+    let views: Vec<Entity<TerminalView>> =
+        terminals(cx).into_iter().map(|(_, view)| view).collect();
+    if let Some(view) = views.iter().find(|view| view.entity_id().as_u64() == id) {
+        return Ok(view.clone());
+    }
+    let ids: Vec<String> = views
+        .iter()
+        .take(MAX_LISTED_TERMINALS)
+        .map(|view| view.entity_id().as_u64().to_string())
+        .collect();
+    let there = if ids.is_empty() {
+        "Marley has no terminal open".to_string()
+    } else {
+        format!("the terminals now: {}", ids.join(", "))
+    };
+    Err(
+        Refusal::new("no_terminal", format!("no terminal has the id {id}"))
+            .next("terminal_list lists the terminals, with their titles and projects")
+            .next(there),
+    )
 }
 
 /// The terminal of Marley's a call comes from (#520), with its workspace.
@@ -802,17 +824,56 @@ pub(crate) fn terminal_of(
     arguments: &Value,
     caller: &Caller,
     cx: &App,
-) -> Result<(u64, Entity<TerminalView>), String> {
+) -> Result<(u64, Entity<TerminalView>), Refusal> {
     if let Some(id) = arguments.get("terminal").and_then(Value::as_u64) {
         return terminal_with_id(id, cx).map(|view| (id, view));
     }
     caller_terminal(caller, cx)
         .map(|(_, view)| (view.entity_id().as_u64(), view))
         .ok_or_else(|| {
-            "give `terminal`, a terminal's id from terminal_list: this call comes from no \
-             terminal of Marley's"
-                .to_string()
+            Refusal::new(
+                "bad_argument",
+                "this call comes from no terminal of Marley's, so it has to name one",
+            )
+            .next("give `terminal`, a terminal's id from terminal_list")
         })
+}
+
+/// The `block` a call names: its index among the terminal's blocks.
+fn block_argument(arguments: &Value) -> Result<usize, Refusal> {
+    arguments
+        .get("block")
+        .and_then(Value::as_u64)
+        .and_then(|index| usize::try_from(index).ok())
+        .ok_or_else(|| {
+            Refusal::new("bad_argument", "`block` is missing or not a block's index")
+                .next("give `block`, a block's index from terminal_blocks")
+        })
+}
+
+/// The refusal of block `index` in terminal `terminal`, which has `count` blocks.
+fn no_block(terminal: u64, index: usize, count: usize) -> Refusal {
+    let there = match count {
+        0 => format!("terminal {terminal} has run no command yet"),
+        count => format!(
+            "terminal_blocks lists terminal {terminal}'s blocks: 0 to {}",
+            count - 1
+        ),
+    };
+    Refusal::new(
+        "no_block",
+        format!("terminal {terminal} has no block {index}"),
+    )
+    .next(there)
+}
+
+/// The refusal of a block whose output has left the terminal's scrollback.
+fn output_gone(index: usize) -> Refusal {
+    Refusal::new(
+        "output_gone",
+        format!("block {index}'s output has left the terminal's scrollback"),
+    )
+    .next("run the command again with terminal_run, or ask the user for the part you need")
 }
 
 fn terminal_list(caller: &Caller, cx: &App) -> ToolAnswer {
@@ -856,7 +917,7 @@ fn terminal_list(caller: &Caller, cx: &App) -> ToolAnswer {
     }
 }
 
-fn terminal_blocks(arguments: &Value, caller: &Caller, cx: &App) -> Result<ToolAnswer, String> {
+fn terminal_blocks(arguments: &Value, caller: &Caller, cx: &App) -> Result<ToolAnswer, Refusal> {
     let (id, view) = terminal_of(arguments, caller, cx)?;
     let last = arguments
         .get("last")
@@ -936,45 +997,185 @@ fn milliseconds(span: Result<std::time::Duration, std::time::SystemTimeError>) -
         .and_then(|span| u64::try_from(span.as_millis()).ok())
 }
 
-fn terminal_read(arguments: &Value, caller: &Caller, cx: &App) -> Result<ToolAnswer, String> {
+fn terminal_read(arguments: &Value, caller: &Caller, cx: &App) -> Result<ToolAnswer, Refusal> {
     let (id, view) = terminal_of(arguments, caller, cx)?;
-    let index = arguments
-        .get("block")
-        .and_then(Value::as_u64)
-        .and_then(|index| usize::try_from(index).ok())
-        .ok_or_else(|| "give `block`, a block's index from terminal_blocks".to_string())?;
+    let index = block_argument(arguments)?;
+    let before = match arguments.get("before") {
+        None | Some(Value::Null) => None,
+        Some(before) => Some(
+            before
+                .as_u64()
+                .and_then(|before| usize::try_from(before).ok())
+                .ok_or_else(|| {
+                    Refusal::new("bad_argument", "`before` is not a line number")
+                        .next("pass a page's `previous` as `before`, or leave it out")
+                })?,
+        ),
+    };
     let terminal = view.read(cx).terminal().read(cx);
     let block = terminal
         .blocks()
         .get(index)
-        .ok_or_else(|| format!("terminal {id} has no block {index}"))?;
+        .ok_or_else(|| no_block(id, index, terminal.blocks().len()))?;
     let output = terminal
         .block_output(block)
-        .ok_or_else(|| format!("block {index}'s output has left the terminal's scrollback"))?;
+        .ok_or_else(|| output_gone(index))?;
     let redactor = agent_redactor(cx);
     let command = for_agents(&block.command, redactor.as_deref());
-    // Redacted whole before the tail is cut: a private key cut at the tail would lose the
+    // Redacted whole before a page is cut: a private key cut at a page's edge would lose the
     // BEGIN line its rule needs.
     let output = for_agents(&output, redactor.as_deref());
-    let (text, truncated) = tail(&output.text);
+    let page = page(&output.text, before)?;
+    let mut structured = json!({
+        "terminal": id,
+        "block": index,
+        "command": command.text,
+        "running": block.state == BlockState::Running,
+        "redacted": command.count + output.count,
+    });
+    page.fill(&mut structured);
     Ok(ToolAnswer {
-        structured: json!({
-            "terminal": id,
-            "block": index,
-            "command": command.text,
-            "running": block.state == BlockState::Running,
-            "output": text,
-            "truncated": truncated,
-            "redacted": command.count + output.count,
-        }),
-        text: Some(text),
+        structured,
+        text: Some(page.text_block()),
         image: None,
     })
 }
 
+/// One page of a block's output (#680): the newest whole lines that fit before a line, numbered
+/// from the block's first line, so a block that still runs keeps every earlier page in place.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Page {
+    text: String,
+    first_line: usize,
+    last_line: usize,
+    total_lines: usize,
+    line_cut: bool,
+}
+
+impl Page {
+    /// The `before` that reads the page ahead of this one, while there is one.
+    fn previous(&self) -> Option<usize> {
+        (self.first_line > 1).then_some(self.first_line)
+    }
+
+    /// Whether the page leaves part of the output out: earlier lines, or the start of a cut line.
+    const fn partial(&self) -> bool {
+        self.first_line > 1 || self.line_cut
+    }
+
+    /// Puts the page into a tool's structured answer.
+    pub(crate) fn fill(&self, structured: &mut Value) {
+        if let Some(fields) = structured.as_object_mut() {
+            fields.insert("output".into(), self.text.clone().into());
+            fields.insert("first_line".into(), self.first_line.into());
+            fields.insert("last_line".into(), self.last_line.into());
+            fields.insert("total_lines".into(), self.total_lines.into());
+            fields.insert("previous".into(), self.previous().into());
+            fields.insert("line_cut".into(), self.line_cut.into());
+            fields.insert("truncated".into(), self.partial().into());
+        }
+    }
+
+    /// The page as an answer's text: a client that reads only the text learns how to page from
+    /// a first line, there while the page leaves part of the output out.
+    pub(crate) fn text_block(&self) -> String {
+        if !self.partial() {
+            return self.text.clone();
+        }
+        let lines = if self.first_line == self.last_line {
+            format!("line {} of {}", self.first_line, self.total_lines)
+        } else {
+            format!(
+                "lines {} to {} of {}",
+                self.first_line, self.last_line, self.total_lines
+            )
+        };
+        let cut = if self.line_cut {
+            ", the start of the line left out"
+        } else {
+            ""
+        };
+        let earlier = self.previous().map_or_else(String::new, |previous| {
+            format!("; read earlier lines with terminal_read before={previous}")
+        });
+        format!("[{lines}{cut}{earlier}]\n{}", self.text)
+    }
+}
+
+/// The newest page of `text`.
+pub(crate) fn newest_page(text: &str) -> Page {
+    let lines: Vec<&str> = text.lines().collect();
+    page_ending(&lines, lines.len())
+}
+
+/// The page of `text` that ends just before line `before`, counted from 1, or the newest without
+/// it; a `before` outside the output is refused.
+fn page(text: &str, before: Option<usize>) -> Result<Page, Refusal> {
+    let lines: Vec<&str> = text.lines().collect();
+    let total = lines.len();
+    let end = match before {
+        None => total,
+        Some(before) if (2..=total + 1).contains(&before) => before - 1,
+        Some(before) => {
+            return Err(Refusal::new(
+                "bad_argument",
+                format!(
+                    "`before` {before} is outside the output: it has {total} lines, so `before` \
+                     is 2 to {}",
+                    total + 1
+                ),
+            )
+            .next("pass a page's `previous` as `before`, or leave it out for the newest page"));
+        }
+    };
+    Ok(page_ending(&lines, end))
+}
+
+/// The page whose last line is line `end`: whole lines back from it while they fit in
+/// [`PAGE_BYTES`] and [`MAX_READ_LINES`], or the end of line `end` alone when it is longer than a
+/// page.
+fn page_ending(lines: &[&str], end: usize) -> Page {
+    let total_lines = lines.len();
+    let mut start = end;
+    let mut bytes = 0;
+    while start > 0 && end - start < MAX_READ_LINES {
+        let Some(line) = lines.get(start - 1) else {
+            break;
+        };
+        let size = line.len() + 1;
+        if bytes + size > PAGE_BYTES {
+            break;
+        }
+        bytes += size;
+        start -= 1;
+    }
+    if start == end
+        && let Some(line) = end.checked_sub(1).and_then(|last| lines.get(last))
+    {
+        let over = line.len().saturating_sub(PAGE_BYTES);
+        let cut = (over..=line.len())
+            .find(|&at| line.is_char_boundary(at))
+            .unwrap_or(line.len());
+        return Page {
+            text: line.get(cut..).unwrap_or_default().to_string(),
+            first_line: end,
+            last_line: end,
+            total_lines,
+            line_cut: cut > 0,
+        };
+    }
+    Page {
+        text: lines.get(start..end).unwrap_or_default().join("\n"),
+        first_line: start + 1,
+        last_line: end,
+        total_lines,
+        line_cut: false,
+    }
+}
+
 /// The end of `text`: at most [`MAX_READ_LINES`] lines and [`MAX_READ_BYTES`] bytes, and whether
-/// anything was left out.
-pub(crate) fn tail(text: &str) -> (String, bool) {
+/// anything was left out; what `terminal_find` looks among.
+fn tail(text: &str) -> (String, bool) {
     let lines: Vec<&str> = text.lines().collect();
     let skipped = lines.len().saturating_sub(MAX_READ_LINES);
     let kept = lines

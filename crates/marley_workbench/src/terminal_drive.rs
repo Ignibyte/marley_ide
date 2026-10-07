@@ -27,7 +27,7 @@ use gpui::{
     AnyElement, App, Context, Entity, EntityId, Focusable as _, Global, Keystroke, SharedString,
     Task,
 };
-use marley_mcp::{AppCall, ToolAnswer};
+use marley_mcp::{AppCall, Refusal, ToolAnswer};
 use marley_terminal::agent_commands::{self, Verdict};
 use marley_terminal::{BlockState, PromptShell};
 use serde_json::{Value, json};
@@ -213,7 +213,7 @@ fn drive<'a>(view: &Entity<TerminalView>, cx: &'a mut App) -> &'a mut Drive {
 
 /// `terminal_screen`: the terminal's rows as the screen shows them, through the agents'
 /// redaction, the cursor, the program in the foreground and who controls the terminal.
-pub(crate) fn screen(call: &AppCall, cx: &mut App) -> Result<ToolAnswer, String> {
+pub(crate) fn screen(call: &AppCall, cx: &mut App) -> Result<ToolAnswer, Refusal> {
     let (id, view) = crate::mcp::terminal_of(&call.arguments, call.caller(), cx)?;
     let generation;
     let taken_over;
@@ -325,9 +325,14 @@ pub(crate) fn paste_then(
 }
 
 /// The refusals that need no one's answer, and what the write would type.
-fn check(call: &AppCall, cx: &mut App) -> Result<Typing, String> {
+fn check(call: &AppCall, cx: &mut App) -> Result<Typing, Refusal> {
+    let (_, view) = crate::mcp::terminal_of(&call.arguments, call.caller(), cx)?;
+    Ok(check_in(call, view, cx)?)
+}
+
+/// [`check`]'s refusals once the terminal is found.
+fn check_in(call: &AppCall, view: Entity<TerminalView>, cx: &mut App) -> Result<Typing, String> {
     let arguments = &call.arguments;
-    let (_, view) = crate::mcp::terminal_of(arguments, call.caller(), cx)?;
     let generation = arguments
         .get("generation")
         .and_then(Value::as_u64)
@@ -732,9 +737,19 @@ pub(crate) fn run_at_prompt(call: AppCall, cx: &mut App) {
 }
 
 /// The refusals that need no one's answer, and whether the user is asked.
-fn check_run(call: &AppCall, cx: &mut App) -> Result<Run, String> {
+fn check_run(call: &AppCall, cx: &mut App) -> Result<Run, Refusal> {
+    let (id, view) = crate::mcp::terminal_of(&call.arguments, call.caller(), cx)?;
+    Ok(check_run_in(call, id, view, cx)?)
+}
+
+/// [`check_run`]'s refusals once the terminal is found.
+fn check_run_in(
+    call: &AppCall,
+    id: u64,
+    view: Entity<TerminalView>,
+    cx: &mut App,
+) -> Result<Run, String> {
     let arguments = &call.arguments;
-    let (id, view) = crate::mcp::terminal_of(arguments, call.caller(), cx)?;
     let command = arguments
         .get("command")
         .and_then(Value::as_str)
@@ -1001,28 +1016,28 @@ fn run_answer(run: &Run, terminal: &Terminal, index: usize, cx: &App) -> ToolAns
     let redactor = crate::mcp::agent_redactor(cx);
     let command = crate::mcp::for_agents(&block.command, redactor.as_deref());
     let output = terminal.block_output(block).unwrap_or_default();
-    // Redacted whole before the tail is cut, as terminal_read does.
+    // Redacted whole before the page is cut, as terminal_read does.
     let output = crate::mcp::for_agents(&output, redactor.as_deref());
-    let (text, truncated) = crate::mcp::tail(&output.text);
+    let page = crate::mcp::newest_page(&output.text);
     let finished = block.state == BlockState::Finished;
     let duration_ms = terminal
         .marley_anchored()
         .times(index)
         .and_then(|times| times.finished?.duration_since(times.started).ok())
         .and_then(|took| u64::try_from(took.as_millis()).ok());
+    let mut structured = json!({
+        "terminal": run.id,
+        "block": index,
+        "command": command.text,
+        "running": !finished,
+        "exit_code": finished.then_some(block.exit_code.0).flatten(),
+        "duration_ms": duration_ms,
+        "redacted": command.count + output.count,
+    });
+    page.fill(&mut structured);
     ToolAnswer {
-        structured: json!({
-            "terminal": run.id,
-            "block": index,
-            "command": command.text,
-            "running": !finished,
-            "exit_code": finished.then_some(block.exit_code.0).flatten(),
-            "duration_ms": duration_ms,
-            "output": text,
-            "truncated": truncated,
-            "redacted": command.count + output.count,
-        }),
-        text: Some(text),
+        structured,
+        text: Some(page.text_block()),
         image: None,
     }
 }

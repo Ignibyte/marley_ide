@@ -13,6 +13,18 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Agent tool results that fit, and refusals that say what to do** (#680, 2026-10-07).
+  `terminal_read` gives a block's output a page at a time, the newest whole lines that fit in
+  12,000 bytes, numbered from the block's first line, with `previous` to pass back as `before` for
+  the page before; a line longer than a page keeps its end. A long build log used to come back as
+  up to 256 KiB, twice, more than Claude Code takes from a tool, so it moved the answer to a file.
+  `terminal_run`'s output is the newest page the same way. Secrets are still hidden across the
+  whole output before a page is cut. Marley's MCP server now tells agents at `initialize` which of
+  its tools to reach for, and a refused call carries a code (`no_terminal`, `no_block`,
+  `output_gone`, `bad_argument`, `not_granted`, `tool_off`, `not_permitted`, `timed_out`,
+  `unavailable`, else `refused`) and next steps. The stand-in agent of the e2e fixture pages,
+  prints refusals and prints the instructions.
+
 - **The rail's Containers list folds** (#670, 2026-10-06). The CONTAINERS label is a header
   with a chevron and the number of ports; a click on it, or on the chevron, shows the rows or
   folds them away. It starts folded, and each window remembers it across a restart.

@@ -1398,7 +1398,7 @@ th { background: var(--panel); font-weight: 650; }
 <tr><th>Tool</th><th>What it does</th></tr>
 <tr><td><code>terminal_list</code></td><td>Every terminal: id, title, project, folder, running command, block count; the caller's own marked <code>self</code></td></tr>
 <tr><td><code>terminal_blocks</code></td><td>A terminal's newest blocks: command, exit code, folder, times, whether it runs</td></tr>
-<tr><td><code>terminal_read</code></td><td>One block's command and output (up to 2,000 lines)</td></tr>
+<tr><td><code>terminal_read</code></td><td>One block's command and output, a page of up to 12,000 bytes at a time, newest first; <code>previous</code> reads the page before</td></tr>
 <tr><td><code>terminal_screen</code></td><td>What a terminal's screen shows now</td></tr>
 <tr><td><code>terminal_type</code></td><td>Types into the program running in a terminal, after you allow it</td></tr>
 <tr><td><code>terminal_run</code></td><td>Runs a command at a terminal's shell prompt as a block</td></tr>

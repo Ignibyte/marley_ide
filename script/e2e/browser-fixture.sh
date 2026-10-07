@@ -47,6 +47,10 @@
 #   the labels an agent row shows, or `no seats` (#547). `open-url <url> <directory>` asks
 #   `browser_open_url` to open a URL for a program in that folder (#561). `--endpoint <file>`,
 #   first, points the bridge at another endpoint file, an outside client's (#524).
+#   `terminal-page <text> [--before <n>]` prints one page of the newest block whose command holds
+#   the text, with the answer's size; `terminal-pages <text> <file>` reads every page from the
+#   newest and saves them joined; `read-refusal <text> <json>` and `refusal <tool> <json>` print a
+#   refusal's code and next steps; `instructions` prints what `initialize` told the agent (#680).
 # - `mcp_http <endpoint file> <command> ...` talks to Marley's MCP server directly with the file's
 #   URL and token, printing statuses and messages and never the token (#524): `initialize`,
 #   `call <tool> [<json arguments>]`, `resources-read`, `get` (a standing stream), `sessions <n>`
@@ -601,8 +605,10 @@ class Client:
         )
         self.messages = queue.Queue()
         self.next_id = 0
+        # Each answer's size as the bridge wrote it, by request id (#680).
+        self.sizes = {}
         threading.Thread(target=self.pump, daemon=True).start()
-        self.call(
+        self.initialized = self.call(
             "initialize",
             {"protocolVersion": "2025-06-18", "capabilities": {},
              "clientInfo": {"name": os.environ.get("MCP_CLIENT_NAME", "e2e"), "version": "0"}},
@@ -612,7 +618,9 @@ class Client:
     def pump(self):
         for line in self.bridge.stdout:
             if line.strip():
-                self.messages.put(json.loads(line))
+                message = json.loads(line)
+                self.sizes[message.get("id")] = len(line.rstrip("\n").encode())
+                self.messages.put(message)
         self.messages.put(None)
 
     def send(self, message):
@@ -649,6 +657,55 @@ class Client:
     def close(self):
         self.bridge.stdin.close()
         self.bridge.wait(timeout=10)
+
+
+def newest_block(client, text):
+    """The terminal and the index of the newest block, in any terminal, whose command holds text."""
+    listed = client.tool("terminal_list")
+    found = None
+    for terminal in (listed or {}).get("structuredContent", {}).get("terminals", []):
+        blocks = client.tool("terminal_blocks", {"terminal": terminal["id"]})
+        matching = [block for block in (blocks or {}).get("structuredContent", {}).get("blocks", [])
+                    if text in block["command"]]
+        if matching:
+            found = (terminal["id"], matching[-1]["index"])
+    if found is None:
+        sys.exit(f"no block's command holds {text!r}")
+    return found
+
+
+def print_page(client, arguments):
+    """Reads one page of a block (#680) and prints its fields, its sizes as the bridge wrote it,
+    and how the text block and the structured output start and end; None when refused."""
+    reply = client.call("tools/call", {"name": "terminal_read", "arguments": arguments})
+    result = reply.get("result") or {}
+    if "error" in reply or result.get("isError"):
+        print(f"  terminal_read refused: {json.dumps(result.get('structuredContent') or reply.get('error'))}")
+        return None
+    read = result["structuredContent"]
+    text = result["content"][0]["text"]
+    output = read["output"]
+    print(f"  page {read['first_line']}-{read['last_line']} of {read['total_lines']}: "
+          f"previous {read['previous']}, line_cut {read['line_cut']}, truncated {read['truncated']}, "
+          f"redacted {read['redacted']}, output {len(output.encode())} bytes, "
+          f"result {client.sizes.get(reply.get('id'))} bytes")
+    print(f"  text starts: {(text.splitlines() or [''])[0][:120]!r}")
+    print(f"  output starts: {(output.splitlines() or [''])[0][:60]!r}")
+    print(f"  output ends: {(output.splitlines() or [''])[-1][-60:]!r}")
+    return read
+
+
+def print_refusal(client, name, arguments):
+    """Calls a tool that should refuse and prints the refusal's code, reason and next steps (#680)."""
+    reply = client.call("tools/call", {"name": name, "arguments": arguments})
+    result = reply.get("result") or {}
+    if not result.get("isError"):
+        print(f"  {name} was not refused")
+        return
+    refusal = result.get("structuredContent") or {}
+    print(f"  {name} refused: code {refusal.get('code')}: {refusal.get('reason')}")
+    for step in refusal.get("next_steps", []):
+        print(f"  next: {step}")
 
 
 def find_ref(snapshot, role, name):
@@ -853,6 +910,51 @@ def main():
             print(f"  terminal {terminal}, block {block['index']}: {read['command']!r}")
             print(f"  redacted: {read['redacted']} in the read, {listed_redacted} in the list")
             print(read["output"])
+    elif command in ("terminal-page", "terminal-pages", "read-refusal"):
+        # #680. `terminal-page <text> [--before <n>]` prints one page of the newest block whose
+        # command holds the text; `terminal-pages <text> <file>` reads from the newest page to the
+        # first and saves the pages joined, oldest first; `read-refusal <text> <json>` reads that
+        # block with the JSON's arguments added and prints the refusal.
+        terminal, block = newest_block(client, rest[0])
+        if command == "read-refusal":
+            print_refusal(client, "terminal_read",
+                          {"terminal": terminal, "block": block, **json.loads(rest[1])})
+        elif command == "terminal-page":
+            arguments = {"terminal": terminal, "block": block}
+            if len(rest) > 2 and rest[1] == "--before":
+                arguments["before"] = int(rest[2])
+            print_page(client, arguments)
+        else:
+            pages = []
+            before = None
+            while True:
+                arguments = {"terminal": terminal, "block": block}
+                if before is not None:
+                    arguments["before"] = before
+                read = print_page(client, arguments)
+                if read is None:
+                    sys.exit("a page was refused")
+                pages.append(read["output"])
+                before = read["previous"]
+                if before is None:
+                    break
+            with open(rest[1], "w") as file:
+                file.write("\n".join(reversed(pages)) + "\n")
+            print(f"  {len(pages)} pages, joined into {rest[1]}")
+    elif command == "refusal":
+        # #680: any tool that should refuse, with JSON arguments; its code and next steps.
+        print_refusal(client, rest[0], json.loads(rest[1]) if len(rest) > 1 else {})
+    elif command == "instructions":
+        # #680: the instructions `initialize` gave, their size, and any tool they name that
+        # tools/list does not list (the find tools come and go with System One's settings).
+        text = (client.initialized.get("result") or {}).get("instructions") or ""
+        listed = {tool["name"] for tool in client.call("tools/list")["result"]["tools"]}
+        named = set(re.findall(r"\b(?:terminal|browser|editor|ports)_[a-z_]+", text))
+        unknown = sorted(named - listed - {"terminal_find", "browser_find"})
+        print(f"  instructions: {len(text.encode())} bytes, naming {', '.join(sorted(named))}")
+        print(f"  named but not listed: {', '.join(unknown) or 'none'}")
+        for line in text.splitlines():
+            print(f"  > {line}")
     elif command == "terminal-run":
         listed = client.tool("terminal_list")
         terminals = (listed or {}).get("structuredContent", {}).get("terminals", [])
@@ -871,6 +973,10 @@ def main():
             ran = result["structuredContent"]
             print(f"  ran block {ran['block']}: {ran['command']!r}, exit {ran.get('exit_code')}, "
                   f"running {ran['running']}, redacted {ran['redacted']}")
+            if "total_lines" in ran:
+                # The output's newest page (#680).
+                print(f"  page {ran['first_line']}-{ran['last_line']} of {ran['total_lines']}: "
+                      f"previous {ran['previous']}, output {len(ran['output'].encode())} bytes")
             for line in [line for line in ran["output"].splitlines() if line.strip()][-4:]:
                 print(f"  | {line}")
     elif command in ("terminal-screen", "terminal-type"):

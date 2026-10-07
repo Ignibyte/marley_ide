@@ -4315,3 +4315,17 @@ forced first in the Rusty group. Its first card holds every screen's button; und
 pages, the follow-ups due and the open tasks, read as the Knowledge panel's project view reads them.
 Rejected: keeping the row of icons beside a home page (two ways in, and four of eight fit the
 default rail at a 24px font); a home page only on demand (Chad: "force a home page").
+
+## AD-claude-680-mcp-results-page-newest-first-and-refusals-carry-a-code-001
+*decided at: 2026-10-07 · status: shipped*
+
+From the T3 Code survey (report 06, items 1 and 2), the first item of the Marley-agent plan
+(`docs/planning/intake/marley-agent-manager-foreman.md`). Block output that agents read comes in
+pages of at most 12,000 bytes and 2,000 lines, newest first, addressed by line numbers from the
+block's first line (`before`, `previous`), so a running block keeps its earlier pages in place;
+an answer carries a page twice (text and structured) and stays under Claude Code's 10,000-token
+warning. Redaction runs on the whole output before a page is cut. Every refusal is a
+`marley_mcp::Refusal { code, reason, next_steps }`; a refusal in words alone answers `refused`, so
+families get codes one at a time. `initialize` carries a short `instructions` text. Rejected: an
+offset counted from the end (a growing block moves every page); dropping the duplicated text
+channel (clients differ in which they read); paging the browser tools now (their own ticket).

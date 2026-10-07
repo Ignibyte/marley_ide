@@ -9,9 +9,19 @@ OR Apache-2.0, with the Marley crates' lint table.
 
 - `handle_message(ctx, subscriptions, message)` turns one message into what goes back:
   `initialize` (the protocol revision `2025-06-18`, `tools.listChanged`, subscribable
-  resources), `tools/list`, `tools/call`, and the fleet resource's `resources/*`. An unknown
+  resources, and since #680 `instructions`, the `INSTRUCTIONS` text under 2 KB on when to reach
+  for which tool), `tools/list`, `tools/call`, and the fleet resource's `resources/*`. An unknown
   method or tool is a protocol error; a denied write or a failed call is a tool result with
   `isError`.
+- **Refusals with a code (#680).** `Refusal { code, reason, next_steps }` is how a call is refused:
+  `tools::tool_refusal` answers `{result: "refused", code, reason, next_steps}`. `From<String>`
+  and `From<&str>` give `Refusal::REFUSED`, so the app's handlers that refuse in words alone stay
+  as they were. `AppCall::answer` takes a `Result<ToolAnswer, E: Into<Refusal>>` and
+  `AppOutcome::Answered` carries a `Refusal`, which `deferred_response` answers with the tool's
+  name in front of the reason. `dispatch.rs`'s own refusals carry `not_granted` (a client's
+  grant), `tool_off` (a conditional tool turned off), `not_permitted` (a write class not
+  granted), `timed_out`, `unavailable` and `bad_argument` (the surface tool's arguments), each
+  with a next step.
 - The registry is the one table of tools: a family and a verb per row, with its tier, its grant
   class and its description. `tool_name` joins family and verb with `_` (`terminal_blocks`),
   since Claude Code and the Anthropic API take tool names without dots (#491). `tools/list` lists
@@ -25,7 +35,9 @@ OR Apache-2.0, with the Marley crates' lint table.
 - **Running at the prompt (#556).** `terminal_run` (write, grant class `terminal.write`), with
   its schemas in `terminal_run_schemas`: a `command` of one line up to 4,096 bytes and
   `wait_seconds` up to 20 in; the block's index, exit code, duration, output, `running`,
-  `truncated` and `redacted` out. The app answers it, as it answers `terminal_type`.
+  `truncated` and `redacted` out, and since #680 the output's newest page with `first_line`,
+  `last_line`, `total_lines`, `previous` and `line_cut`, as `terminal_read` gives them (it takes
+  `before`). The app answers it, as it answers `terminal_type`.
 - **Conditional tools (#567).** `CONDITIONAL_TOOLS` names the tools listed and called only while
   the user turns them on: `browser_find` and `terminal_find`, each the System One use of its
   name. `RequestCtx.enabled` holds the ones on, from `ServerData.enabled`, which the app sets

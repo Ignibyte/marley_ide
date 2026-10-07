@@ -6,7 +6,7 @@
 use marley_fleet::{FleetSnapshot, Receipt, SurfaceAck};
 use serde_json::{Value, json};
 
-use crate::ToolAnswer;
+use crate::{Refusal, ToolAnswer};
 
 /// A tools/call result envelope: the typed `structuredContent` + the back-compat `text` block, with
 /// `isError` set for a business refusal (D6).
@@ -55,11 +55,21 @@ pub fn tool_answer_result(answer: &ToolAnswer) -> Value {
     })
 }
 
-/// A tool-execution error result (D6) — `isError:true` carrying the reason. Used for permission denials
-/// and any known-tool business refusal (unknown session id, etc.).
+/// A tool-execution error result (D6): `isError:true` with the refusal's code, reason, next steps.
+///
+/// Used for permission denials and any known-tool business refusal (unknown session id, etc.);
+/// the code and the next steps came with #680.
 #[must_use]
-pub fn tool_error(reason: &str) -> Value {
-    tool_result(&json!({ "result": "refused", "reason": reason }), true)
+pub fn tool_refusal(refusal: &Refusal) -> Value {
+    tool_result(
+        &json!({
+            "result": "refused",
+            "code": refusal.code,
+            "reason": refusal.reason,
+            "next_steps": refusal.next_steps,
+        }),
+        true,
+    )
 }
 
 /// Resolve a session id to its shell surface handle — an OPAQUE `u64` (the app's `PaneId.0`, so
@@ -132,9 +142,10 @@ mod tests {
     }
 
     #[test]
-    fn tool_error_is_iserror_with_reason() {
-        let error = tool_error("denied");
+    fn tool_refusal_is_iserror_with_code_and_reason() {
+        let error = tool_refusal(&Refusal::from("denied"));
         assert_eq!(error["isError"], true);
+        assert_eq!(error["structuredContent"]["code"], Refusal::REFUSED);
         assert_eq!(error["structuredContent"]["reason"], "denied");
     }
 

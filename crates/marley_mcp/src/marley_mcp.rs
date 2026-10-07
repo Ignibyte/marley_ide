@@ -81,7 +81,7 @@ pub use session::{
 };
 pub use tools::{
     fleet_snapshot_result, resolve_surface, surface_receipt, surface_result, tool_answer_result,
-    tool_error, tool_result,
+    tool_refusal, tool_result,
 };
 
 use std::collections::BTreeSet;
@@ -175,7 +175,7 @@ pub struct AppCall {
     pub arguments: Value,
     caller: Caller,
     principal: Principal,
-    answer: SyncSender<Result<ToolAnswer, String>>,
+    answer: SyncSender<Result<ToolAnswer, Refusal>>,
 }
 
 impl AppCall {
@@ -187,7 +187,7 @@ impl AppCall {
         arguments: Value,
         caller: Caller,
         principal: Principal,
-        answer: SyncSender<Result<ToolAnswer, String>>,
+        answer: SyncSender<Result<ToolAnswer, Refusal>>,
     ) -> Self {
         Self {
             tool,
@@ -210,10 +210,11 @@ impl AppCall {
         &self.principal
     }
 
-    /// Gives the waiting connection the app's answer: the tool's result, or why it failed. An
-    /// answer that comes after the connection stopped waiting goes nowhere.
-    pub fn answer(self, result: Result<ToolAnswer, String>) {
-        if self.answer.send(result).is_err() {
+    /// Gives the waiting connection the app's answer: the tool's result, or why it failed. A
+    /// refusal given as words alone answers [`Refusal::REFUSED`]. An answer that comes after the
+    /// connection stopped waiting goes nowhere.
+    pub fn answer<E: Into<Refusal>>(self, result: Result<ToolAnswer, E>) {
+        if self.answer.send(result.map_err(Into::into)).is_err() {
             log::debug!(
                 "marley_mcp: {} was answered after its call stopped waiting",
                 self.tool
@@ -243,11 +244,58 @@ pub struct ToolImage {
     pub data: String,
 }
 
+/// Why a tool call was refused, as the client gets it (#680): a code the tools' descriptions
+/// name, so an agent can act on it without parsing words, the reason in words, and what the agent
+/// can do instead.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Refusal {
+    /// The refusal's code, [`Refusal::REFUSED`] when it names none of its own.
+    pub code: &'static str,
+    /// Why, in words.
+    pub reason: String,
+    /// What the agent can do instead, each a sentence that names a tool or an argument.
+    pub next_steps: Vec<String>,
+}
+
+impl Refusal {
+    /// The code of a refusal that names no code of its own.
+    pub const REFUSED: &'static str = "refused";
+
+    /// A refusal with `code` and `reason`, and no next steps yet.
+    #[must_use]
+    pub fn new(code: &'static str, reason: impl Into<String>) -> Self {
+        Self {
+            code,
+            reason: reason.into(),
+            next_steps: Vec::new(),
+        }
+    }
+
+    /// The refusal with `step` added to its next steps.
+    #[must_use]
+    pub fn next(mut self, step: impl Into<String>) -> Self {
+        self.next_steps.push(step.into());
+        self
+    }
+}
+
+impl From<String> for Refusal {
+    fn from(reason: String) -> Self {
+        Self::new(Self::REFUSED, reason)
+    }
+}
+
+impl From<&str> for Refusal {
+    fn from(reason: &str) -> Self {
+        Self::new(Self::REFUSED, reason)
+    }
+}
+
 /// How a call handed to the app ended.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AppOutcome {
-    /// The app answered: the tool's result, or why it failed.
-    Answered(Result<ToolAnswer, String>),
+    /// The app answered: the tool's result, or why it refused.
+    Answered(Result<ToolAnswer, Refusal>),
     /// No answer came within [`APP_CALL_TIMEOUT_SECONDS`].
     TimedOut,
     /// The app takes no calls: it is shutting down.

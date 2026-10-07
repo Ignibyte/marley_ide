@@ -230,7 +230,7 @@ fn open(call: AppCall, cx: &mut App) {
             });
             // The tab holds the item now; a handle kept here would keep the edit from ending.
             drop(item);
-            call.answer(Ok(ToolAnswer {
+            call.answer::<marley_mcp::Refusal>(Ok(ToolAnswer {
                 structured: json!({ "edit": id, "file": file }),
                 text: Some(format!(
                     "{file} is open in a Marley tab; closing the tab ends the edit"
@@ -309,7 +309,7 @@ fn wait(call: AppCall, cx: &mut App) {
     };
     if edit.closed {
         let _gone = editor.edits.remove(&id);
-        call.answer(Ok(closed_answer(true)));
+        call.answer::<marley_mcp::Refusal>(Ok(closed_answer(true)));
         return;
     }
     let (woken, waiting) = oneshot::channel();
@@ -325,7 +325,7 @@ fn wait(call: AppCall, cx: &mut App) {
                 let _gone = cx.default_global::<AgentEditor>().edits.remove(&id);
             });
         }
-        call.answer(Ok(closed_answer(closed)));
+        call.answer::<marley_mcp::Refusal>(Ok(closed_answer(closed)));
     })
     .detach();
 }

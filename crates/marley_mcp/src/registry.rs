@@ -129,8 +129,13 @@ const REGISTRY: &[ToolSpec] = &[
         tier: Tier::Read,
         grant_class: "",
         description: "Read one block's output as text, from the calling terminal when `terminal` is \
-                      left out: at most 2,000 lines, the end kept when there are more. Secrets come back as `[redacted: <kind>]`, counted in \
-                      `redacted`, unless the user turned redaction off.",
+                      left out, a page at a time: the newest whole lines that fit in 12,000 \
+                      bytes, numbered from the block's first line (`first_line`, `last_line`, \
+                      `total_lines`). When `previous` is set, pass it as `before` to read the \
+                      page before; a line longer than a page keeps its end (`line_cut`). Secrets \
+                      come back as `[redacted: <kind>]`, counted over the whole output in \
+                      `redacted`, unless the user turned redaction off. Refusals carry a `code`: \
+                      `no_terminal`, `no_block`, `output_gone` or `bad_argument`.",
     },
     ToolSpec {
         family: Family::Terminal,
@@ -181,7 +186,8 @@ const REGISTRY: &[ToolSpec] = &[
                       block: typed as the user would type it, then answered with the block's \
                       index, exit code, duration and output once it ends or `wait_seconds` \
                       (at most 20) pass, when it answers `running: true` and terminal_read \
-                      reads the rest. Refused while a program or an agent CLI runs there, \
+                      reads the rest. The output is the newest page, as terminal_read gives it, \
+                      with `previous` for the page before. Refused while a program or an agent CLI runs there, \
                       while the user has typed at the prompt, while the user has taken over, \
                       or when the user refuses: a command the user's denylist matches waits for \
                       Run or Refuse under the terminal, one the allowlist matches runs at once, \
@@ -1430,7 +1436,12 @@ fn terminal_read_schemas() -> (Value, Value) {
             "type": "object",
             "properties": {
                 "terminal": terminal,
-                "block": { "type": "integer", "description": "The block's index, from terminal_blocks." }
+                "block": { "type": "integer", "description": "The block's index, from terminal_blocks." },
+                "before": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "description": "Read the page that ends just before this line: a page's `previous`. Left out, the newest page."
+                }
             },
             "required": ["block"],
             "additionalProperties": false
@@ -1442,17 +1453,31 @@ fn terminal_read_schemas() -> (Value, Value) {
                 "block": { "type": "integer" },
                 "command": { "type": "string" },
                 "running": { "type": "boolean" },
-                "output": { "type": "string" },
+                "output": { "type": "string", "description": "The page's lines." },
+                "first_line": { "type": "integer", "description": "The page's first line, counted from 1." },
+                "last_line": { "type": "integer", "description": "The page's last line." },
+                "total_lines": { "type": "integer", "description": "The block's lines so far." },
+                "previous": {
+                    "type": ["integer", "null"],
+                    "description": "The `before` that reads the page before this one; null at the block's first line."
+                },
+                "line_cut": {
+                    "type": "boolean",
+                    "description": "Whether the page is one line longer than a page, its start left out."
+                },
                 "truncated": {
                     "type": "boolean",
-                    "description": "Whether the start of the output was left out."
+                    "description": "Whether the page leaves part of the output out: earlier lines, or the start of a cut line."
                 },
                 "redacted": {
                     "type": "integer",
-                    "description": "How many secrets the command and the whole output had hidden, the part left out included."
+                    "description": "How many secrets the command and the whole output had hidden, the pages not shown included."
                 }
             },
-            "required": ["terminal", "block", "command", "running", "output", "truncated"]
+            "required": [
+                "terminal", "block", "command", "running", "output", "first_line", "last_line",
+                "total_lines", "previous", "line_cut", "truncated"
+            ]
         }),
     )
 }
@@ -1613,11 +1638,22 @@ fn terminal_run_schemas() -> (Value, Value) {
                 "running": { "type": "boolean" },
                 "exit_code": { "type": ["integer", "null"] },
                 "duration_ms": { "type": ["integer", "null"] },
-                "output": { "type": "string" },
+                "output": { "type": "string", "description": "The output's newest page." },
+                "first_line": { "type": "integer" },
+                "last_line": { "type": "integer" },
+                "total_lines": { "type": "integer" },
+                "previous": {
+                    "type": ["integer", "null"],
+                    "description": "terminal_read's `before` for the page before this one."
+                },
+                "line_cut": { "type": "boolean" },
                 "truncated": { "type": "boolean" },
                 "redacted": { "type": "integer" }
             },
-            "required": ["terminal", "block", "command", "running", "output", "truncated", "redacted"]
+            "required": [
+                "terminal", "block", "command", "running", "output", "first_line", "last_line",
+                "total_lines", "previous", "line_cut", "truncated", "redacted"
+            ]
         }),
     )
 }

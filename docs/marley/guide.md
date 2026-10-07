@@ -1517,7 +1517,7 @@ The terminal family:
 |---|---|
 | `terminal_list` | Every terminal in every window, center and Terminal Panel: its id, tab title, project, working directory, running command, and how many blocks it holds |
 | `terminal_blocks` | A terminal's newest blocks, oldest first (50 unless `last` says otherwise, 500 at most): each command, whether the shell's hook reported it (`verified`), exit code, working directory, start time, duration, whether it runs, and whether its output is still in the scrollback; `redacted` counts the secrets hidden in the commands |
-| `terminal_read` | One block's command and output as text, at most 2,000 lines and 256 KiB with the end kept, whether the start was cut, and `redacted`, how many secrets were hidden |
+| `terminal_read` | One block's command and output as text, a page at a time (#680): the newest whole lines that fit in 12,000 bytes (2,000 lines at most), numbered from the block's first line (`first_line`, `last_line`, `total_lines`). `previous`, passed back as `before`, reads the page before; a line longer than a page keeps its end (`line_cut`). `redacted` counts the secrets hidden in the whole output |
 | `terminal_find` | The line of a block's output a `query` in words names, such as "where the server refused the connection": its number and up to three candidates, by the query's words first and the System One model for the rest (#567); listed only while its use is on |
 | `terminal_screen` | What a terminal's screen shows now: its rows (secrets redacted), the cursor, whether a full-screen program has the alternate screen, the program in the foreground, and `generation`, `taken_over` and whether you approved writes to it (#525) |
 | `terminal_type` | Types into the program running in a terminal's foreground: `text` as a paste, `keys` by name (`escape`, `ctrl-c`, `up`), and Enter with `submit`, at most 4,096 bytes, given the `generation` `terminal_screen` gave. Never at the shell's prompt or into another agent CLI (#525) |
@@ -1605,11 +1605,27 @@ fleet stays empty until prong 2 feeds it, and a session write is refused, since 
   value rather than risk one; turn redaction off on the Marley settings page when an agent needs
   what they hide.
 
+### What agents are told, and how a call is refused
+
+- The `initialize` answer carries `instructions` (#680), under 2 KB, which Claude Code adds to
+  its model's system prompt: read a block's output before asking for a paste, page back with
+  `previous`, use `terminal_run` for what you should see run, answer a waiting program through
+  `terminal_screen` and `terminal_type`, and use the Browser tab rather than another browser.
+- A refused call answers `{result: "refused", code, reason, next_steps}` (#680). The terminal
+  tools' codes are `no_terminal` (with the terminals there are), `no_block` (with the blocks'
+  range), `output_gone` and `bad_argument`; the server's are `not_granted`, `tool_off`,
+  `not_permitted`, `timed_out` and `unavailable`. Any other refusal says `refused`.
+- A page of `terminal_read` or `terminal_run` holds at most 12,000 bytes of output, so a whole
+  answer stays near 25 KB, about 6,000 tokens, under the 10,000 at which Claude Code warns about
+  a tool's result. When a page leaves part of the output out, its text starts with a line such as
+  `[lines 6002 to 8001 of 8001; read earlier lines with terminal_read before=6002]`, for a client
+  that reads only the text.
+
 ### Limits
 
 - The server holds 32 sessions at most, and an idle one lasts 30 minutes, so a client that never
   closes its session holds a slot that long. The bridge closes its own.
-- A call the app does not answer within 30 seconds fails with a tool error.
+- A call the app does not answer within 30 seconds is refused with `timed_out`.
 - A block's times are stamped when Marley applies each shell report, so durations are right to
   tens of milliseconds.
 
