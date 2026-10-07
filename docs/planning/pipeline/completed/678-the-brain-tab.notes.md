@@ -107,5 +107,5 @@ Rusty. Focus: headless sway; Hyprland's one Marley window (Chad's) before and af
 - **Knowledge:** `F-claude-678-a-second-windows-rusty-group-was-called-rusty-2-001`,
   `L-claude-678-a-scripted-cut-between-two-markers-takes-everything-between-001`,
   `AD-claude-678-the-vault-has-its-navigation-in-a-brain-tab-001`.
-- **Brain:** `decisions/the-vault-s-navigation-moves-into-a-brain-tab-and-out-of-the-rail`.
+- **Brain:** `decisions/the-vaults-navigation-moves-into-a-brain-tab-and-out-of-the-rail`.
 - **Ticket:** closed; the pair archived.
