@@ -2211,7 +2211,12 @@ alike.
     `MessageNotification` with Apply and Decline, one `NotificationId` per question), races the
     answer against 25 seconds (under the server's 30-second wait for the app), rereads the file
     before `atomic_write`, and answers with the values before and after through
-    `settings_tools::hidden`.
+    `settings_tools::hidden`. Since #686 the question, the wait, the reread and the write are
+    `ask_then_write` (`Question { headline, change, file }`), and `answer_keymap` uses them too:
+    `check_binding` (the action among the app's, `Keystroke::parse`,
+    `KeyBindingContextPredicate::parse`), then `propose_binding` runs
+    `KeymapFile::update_keybinding` with `Add` on `paths::keymap_file()` (an absent one reads as
+    Zed's initial keymap), the keystrokes mapped through the platform's keyboard mapper.
 
 ## Rusty (`src/rusty.rs`, #633, #643)
 

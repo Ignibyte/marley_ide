@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Key bindings you accept** (#686, 2026-10-07). An agent can propose a key binding with
+  `keymap_change` (keystrokes, an action, a context): the same notification as a settings change
+  names the keys, the action and where it applies, and Apply adds it to your `keymap.json`
+  through Zed's own keymap updater, comments kept, working at once. An action Marley lacks or
+  keystrokes that do not parse are refused before you are asked. The e2e runner's copy of the
+  settings decides the Marley agent's offer off, so it never comes over a scenario.
+
 - **The Marley agent in a terminal** (#684, 2026-10-07). `marley: open marley agent in terminal`
   starts Claude Code's own interface in a new terminal with the Marley agent's instructions
   (`--append-system-prompt-file`) and the same tools turned off, for those who prefer the TUI to the

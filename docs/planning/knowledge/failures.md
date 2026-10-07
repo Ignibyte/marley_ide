@@ -3472,3 +3472,13 @@ settings, applied per location (`SettingsLocation`), never merged in. The checks
 none compared `effective` with the winner; reading the answers caught it. Fixed before the gate:
 `effective` is the winning file's value (the merged one for an object, which merges across
 files), and `global` carries the merged value, the one where no project file sets the key.
+
+## F-claude-686-the-agents-offer-came-over-a-scenarios-question-001
+*severity: low · found in: pipeline 686's Code phase (its scenario's first run) · class: a prompt that comes on its own in an e2e run · prevented by: PR-claude-686-a-prompt-that-comes-on-its-own-is-decided-in-the-e2e-copy-001*
+
+#683's offer of the Marley agent comes five seconds after start whenever the user's settings do
+not name `marley.assistant.enabled` and `claude auth status` says signed in. The e2e runner copies
+the user's settings, which do not name it, and runs the user's own `claude`, so the offer appeared
+in #686's run and stacked over the card the scenario clicked. The check still passed; the shot
+showed it. Any scenario clicking near the bottom right after five seconds could have hit the
+offer's buttons. Fixed in #686: the runner's copy sets the switch off; #683's scenario removes it.

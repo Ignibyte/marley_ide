@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-686](open/TICKET-686-keymap-changes-accepted-as-a-diff.md) | feature | Marley agent, phase 1 item 4's second half: `keymap_change`, applied only when the user accepts, through Zed's keymap updater |
 | [TICKET-687](open/TICKET-687-the-marley-agent-on-codex-and-zeds-agent.md) | feature | Marley agent on Codex (read-only sandbox) and on Zed's agent (a Marley profile), split from #683 |
 
 ## Deliberate (picked explicitly, never auto-next)

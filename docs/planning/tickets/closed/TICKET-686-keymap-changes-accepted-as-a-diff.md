@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #686 (feature, prong 2 C: Marley's MCP server)
 - **Owner:** ce546757-1075-466f-a3cf-b6696d2211c9
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** ../../pipeline/completed/686-keymap-changes-accepted.spec.md
 - **Source ticket:** `docs/planning/intake/marley-agent-manager-foreman.md`, phase 1, item 4
   (split from TICKET-682 on 2026-10-07)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 `keymap_change` lets an agent propose a key binding (keystrokes, an action or none to unbind, a

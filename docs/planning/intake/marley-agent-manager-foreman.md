@@ -62,7 +62,8 @@ Owner: the Marley session. Nothing in it waits on another repository.
 4. **Changing settings.** `settings_change` and `keymap_change` propose a change, show the diff in
    Marley and apply it on accept, through Zed's settings writer so comments and formatting
    survive. M. **`settings_change` done in #682 (2026-10-07)**, asking through a notification in
-   every window and waiting 25 seconds; `keymap_change` is TICKET-686.
+   every window and waiting 25 seconds; `keymap_change` done in #686, through Zed's keymap
+   updater.
 5. **The Marley entry in the Agent Panel.** S to M. **Claude Code's done in #683 (2026-10-07)**,
    with the session meta in `marley.agent_session_meta` and one Zed hunk; Codex and Zed's agent
    are TICKET-687.

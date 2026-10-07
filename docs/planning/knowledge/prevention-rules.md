@@ -2809,3 +2809,11 @@ copy's Python block in the same ticket.
 that tells a person or an agent the value "in effect" either names the location it means, or reads
 `get_all_files()` in order and takes the first file that sets the key, and says which. A scenario
 for it sets the key in a project file and checks the value answered, not only the file named.
+
+## PR-claude-686-a-prompt-that-comes-on-its-own-is-decided-in-the-e2e-copy-001
+*severity: low · prevents: F-claude-686-the-agents-offer-came-over-a-scenarios-question-001*
+
+A ticket that adds a notification, an offer or a dialog that comes on its own at start (not from
+something the scenario does) adds, in the same change, the setting that decides it to
+`script/e2e.sh`'s copy of the settings, so no other scenario meets it; its own scenario undoes
+that in `setup`.

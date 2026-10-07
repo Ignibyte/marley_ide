@@ -1580,6 +1580,7 @@ One write tool sits with them (#682):
 
 | Tool | What it does |
 |---|---|
+| `keymap_change` | Proposes a key binding: `keystrokes` as Zed's keymap writes them (`ctrl-alt-m`), an `action` (actions_list finds its name), an optional `context` (`Workspace`) and optional `arguments`. The same notification names the keys, the action's palette name and the context; Apply adds the binding to your `keymap.json` through Zed's keymap updater, comments and other bindings kept, and it works at once. An action Marley lacks is refused with `no_action` and close names, keystrokes or a context that do not parse with `bad_argument` (#686) |
 | `settings_change` | Proposes a value for one key of your settings. A notification in every window names the agent, the key, the value now and the value proposed, and the file, with Apply and Decline; Apply writes it, keeping the file's comments and other keys, and it takes effect at once. A key the settings schema lacks (`no_setting`) or a value Zed would not parse (`invalid_value`, with Zed's error) is refused before you are asked; Decline answers `declined`, no answer within 25 seconds `no_answer`, and a file that changed while you were asked `changed` |
 
 The browser family, reading:

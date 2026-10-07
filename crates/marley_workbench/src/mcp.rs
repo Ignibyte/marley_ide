@@ -545,6 +545,10 @@ fn answer(call: AppCall, cx: &mut App) {
         crate::docs_tools::answer(call, cx);
         return;
     }
+    if call.tool == "keymap_change" {
+        crate::settings_change::answer_keymap(call, cx);
+        return;
+    }
     if call.tool.starts_with("settings_") || call.tool.starts_with("actions_") {
         crate::settings_tools::answer(call, cx);
         return;

@@ -32,6 +32,8 @@ pub enum Family {
     Settings,
     /// The actions and the keys bound to them (#681).
     Actions,
+    /// The user's key bindings (#686).
+    Keymap,
 }
 
 impl Family {
@@ -48,6 +50,7 @@ impl Family {
             Self::Docs => "docs",
             Self::Settings => "settings",
             Self::Actions => "actions",
+            Self::Keymap => "keymap",
         }
     }
 
@@ -63,6 +66,7 @@ impl Family {
                 | Self::Docs
                 | Self::Settings
                 | Self::Actions
+                | Self::Keymap
         )
     }
 }
@@ -441,6 +445,19 @@ const REGISTRY: &[ToolSpec] = &[
                       `no_answer` after 25 seconds, or `changed` if the file changed meanwhile.",
     },
     ToolSpec {
+        family: Family::Keymap,
+        verb: "change",
+        tier: Tier::Write,
+        grant_class: "settings.write",
+        description: "Propose a key binding for the user's keymap: `keystrokes` as Zed's keymap \
+                      writes them (`ctrl-alt-m`), an `action` by its name (actions_list finds it), \
+                      an optional `context` (`Workspace`) and optional JSON `arguments`. Marley \
+                      shows the user the binding and adds it only on Apply; it works at once. \
+                      Refused with `no_action` for an action Marley lacks, `bad_argument` for \
+                      keystrokes or a context that do not parse, `declined`, `no_answer` after 25 \
+                      seconds, or `changed`.",
+    },
+    ToolSpec {
         family: Family::Actions,
         verb: "list",
         tier: Tier::Read,
@@ -548,6 +565,7 @@ fn tool_schemas(spec: &ToolSpec) -> (Value, Value) {
         Family::Docs => docs_schemas(spec.verb),
         Family::Settings => settings_schemas(spec.verb),
         Family::Actions => actions_list_schemas(),
+        Family::Keymap => keymap_change_schemas(),
         Family::Fleet => (
             json!({ "type": "object", "properties": {}, "additionalProperties": false }),
             fleet_snapshot_schema(),
@@ -1560,6 +1578,34 @@ fn settings_change_schemas() -> (Value, Value) {
     )
 }
 
+/// `keymap_change` (#686): keystrokes, an action, a context and arguments; the binding added.
+fn keymap_change_schemas() -> (Value, Value) {
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "keystrokes": { "type": "string", "description": "As Zed's keymap writes them: `ctrl-alt-m`, or a sequence `cmd-k cmd-s`." },
+                "action": { "type": "string", "description": "The action's name, from actions_list: `workspace::Save`." },
+                "context": { "type": "string", "description": "Where the binding applies: `Workspace`, `Editor`; every context when left out." },
+                "arguments": { "description": "The action's arguments, for an action that takes them." }
+            },
+            "required": ["keystrokes", "action"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "result": { "type": "string", "enum": ["applied"] },
+                "keystrokes": { "type": "string" },
+                "action": { "type": "string" },
+                "context": { "type": ["string", "null"] },
+                "file": { "type": "string" }
+            },
+            "required": ["result", "keystrokes", "action", "file"]
+        }),
+    )
+}
+
 /// `actions_list` (#681): a query; the actions that hold it, with their keys.
 fn actions_list_schemas() -> (Value, Value) {
     (
@@ -2067,10 +2113,11 @@ mod tests {
                 "settings_schema",
                 "settings_read",
                 "settings_change",
+                "keymap_change",
                 "actions_list"
             ]
         );
-        assert_eq!(registry().len(), 39);
+        assert_eq!(registry().len(), 40);
         assert_eq!(
             lookup("fleet_snapshot").expect("read tool").tier,
             Tier::Read

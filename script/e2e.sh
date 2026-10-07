@@ -644,7 +644,8 @@ cp "$config/settings.json" "$E2E_PROFILE/config/"
 # `marley.embedded_harness` (their agent harness), `marley.fleet` (their providers and hosts) and
 # `marley.system_one` (their System One account); a scenario that needs one sets its own fake.
 # The rail's Containers list is off in the copy too (#669): it lists the containers running on
-# the machine, each with a Stop, and their number moves every row below them.
+# the machine, each with a Stop, and their number moves every row below them. The Marley agent is
+# decided off (#683), so its offer never covers a scenario's clicks.
 python3 - "$E2E_PROFILE/config/settings.json" <<'SETTINGS'
 import json, pathlib, re, sys
 
@@ -665,6 +666,10 @@ marley["claude_code_ide"] = False
 for reaches_out in ("push", "harness", "embedded_harness", "fleet", "system_one"):
     marley.pop(reaches_out, None)
 marley["rail_containers"] = False
+# The Marley agent's offer comes a few seconds after start whenever the switch is undecided and
+# the user's claude is signed in (#683), over whatever a scenario clicks; the copy decides it off.
+# #683's own scenario takes the key out again.
+marley["assistant"] = {"enabled": False}
 path.write_text(json.dumps(settings, indent=2) + "\n")
 SETTINGS
 # Nor does a run inherit the user's System One or Cloudflare key (#668): a scenario that tests
