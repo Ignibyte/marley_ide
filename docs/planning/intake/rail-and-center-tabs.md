@@ -1,13 +1,14 @@
 ---
-status: intake
+status: promoted
 created: 2026-10-06
-ticket: <unassigned>
+ticket: TICKET-674, TICKET-675
 pipeline_spec: <unassigned>
 ---
 
 # The rail and the center tabs: one list or two, and where things open
 
-Research for a talk with Chad on 2026-10-07. Nothing here is decided.
+Research for a talk with Chad on 2026-10-07. The decisions came the same morning and are at the
+end; the rest is the research they rest on.
 
 ## What Chad said (2026-10-06)
 
@@ -134,6 +135,18 @@ the two shapes:
    window, or a fixed pane in each project? Recommendation: the Rusty group. It survives a
    project switch, and #600 already built the folderless group it needs.
 4. Does that place also take the Agent tab and System One calls, or only Rusty's screens?
+
+## Decided (Chad, 2026-10-07)
+
+1. **Keep the top tabs, and every center tab gets a rail row** (option A): "yes keep them and show
+   up on the left". #674.
+2. **A project's open files fold under one Files row**, open to start: "Files makes sense to me
+   put it above containers". It sits above the project's own container rows. #674.
+3. **Rusty's screens open in a Rusty group**: "rusty group makes sense". A folderless group (#600)
+   with a placeholder icon, there while Rusty is on and never closed, which every Rusty screen and
+   page opens in whatever project is shown. Its tabs are its rows. #675.
+4. **The Agent tab and System One calls stay as they are for now.** Chad: "That is something we
+   will discuss next after these fixes", with the fleet.
 
 ## Related tickets
 
