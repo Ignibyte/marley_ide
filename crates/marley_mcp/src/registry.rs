@@ -26,6 +26,12 @@ pub enum Family {
     /// Files opened for an agent's own editor key and waited on, for Marley's `marley-edit`
     /// (#649); never listed, and Marley's own.
     Editor,
+    /// Zed's docs and Marley's guide, as this build ships them, searched and read (#681).
+    Docs,
+    /// The settings' schema and the values each settings file gives (#681).
+    Settings,
+    /// The actions and the keys bound to them (#681).
+    Actions,
 }
 
 impl Family {
@@ -39,6 +45,9 @@ impl Family {
             Self::Browser => "browser",
             Self::Ports => "ports",
             Self::Editor => "editor",
+            Self::Docs => "docs",
+            Self::Settings => "settings",
+            Self::Actions => "actions",
         }
     }
 
@@ -46,7 +55,15 @@ impl Family {
     /// 2's C1 to feed them; a client that names one of their tools still reaches it.
     #[must_use]
     pub const fn is_served(self) -> bool {
-        matches!(self, Self::Terminal | Self::Browser | Self::Ports)
+        matches!(
+            self,
+            Self::Terminal
+                | Self::Browser
+                | Self::Ports
+                | Self::Docs
+                | Self::Settings
+                | Self::Actions
+        )
     }
 }
 
@@ -370,6 +387,57 @@ const REGISTRY: &[ToolSpec] = &[
         description: "Wait up to wait_seconds for an edit editor_open began to end, its tab \
                       closed.",
     },
+    ToolSpec {
+        family: Family::Docs,
+        verb: "search",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "Search Zed's docs and Marley's guide, as this Marley ships them, for a query \
+                      in words, such as \"terminal font size\" or \"rail filter\": up to 10 \
+                      sections, best first, each with its page, heading and a snippet. Read one \
+                      with docs_read. The words must appear; a query in other words can miss.",
+    },
+    ToolSpec {
+        family: Family::Docs,
+        verb: "read",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "Read a page of Zed's docs (`zed/<path>`) or Marley's guide \
+                      (`marley/guide.md`), whole or one section by `heading`, from the top a page \
+                      at a time: the lines that fit in 12,000 bytes, with `next` to pass back as \
+                      `after` for the rest. Key placeholders show the keys bound in this Marley.",
+    },
+    ToolSpec {
+        family: Family::Settings,
+        verb: "schema",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "What a setting is, by its key path in settings.json, such as \
+                      `terminal.font_size` or `marley.rail_order`: its type, description, \
+                      allowed values and default, and for an object its keys. An empty key lists \
+                      the top-level keys.",
+    },
+    ToolSpec {
+        family: Family::Settings,
+        verb: "read",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "What a setting is set to, by its key path: the value in each settings file \
+                      that sets it, highest precedence first (each open project's \
+                      .zed/settings.json, the user's settings, the defaults), which one wins, the \
+                      value in effect, and `global`, the value where no project file sets it. \
+                      Values under names that read as secrets come back as `[redacted: setting]`.",
+    },
+    ToolSpec {
+        family: Family::Actions,
+        verb: "list",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "The actions whose name or documentation holds every word of `query`, up to \
+                      50: each action's name, its name in the command palette, the first line of \
+                      its documentation, and the keys bound to it with the context each applies \
+                      in.",
+    },
 ];
 
 /// A browser tool that reads the page (#492).
@@ -465,6 +533,9 @@ fn tool_schemas(spec: &ToolSpec) -> (Value, Value) {
         Family::Browser => browser_schemas(spec.verb),
         Family::Ports => ports_list_schemas(),
         Family::Editor => editor_schemas(spec.verb),
+        Family::Docs => docs_schemas(spec.verb),
+        Family::Settings => settings_schemas(spec.verb),
+        Family::Actions => actions_list_schemas(),
         Family::Fleet => (
             json!({ "type": "object", "properties": {}, "additionalProperties": false }),
             fleet_snapshot_schema(),
@@ -1326,6 +1397,172 @@ fn ports_list_schemas() -> (Value, Value) {
     )
 }
 
+/// `docs_search` and `docs_read` (#681): a query, or a page and a heading; sections, or a page of
+/// text.
+fn docs_schemas(verb: &str) -> (Value, Value) {
+    if verb == "search" {
+        return (
+            json!({
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string", "minLength": 1, "description": "What to look for, in words." }
+                },
+                "required": ["query"],
+                "additionalProperties": false
+            }),
+            json!({
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string" },
+                    "matched": { "type": "integer", "description": "How many sections hold a word of the query." },
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "page": { "type": "string", "description": "What docs_read takes as `page`." },
+                                "heading": { "type": "string", "description": "What docs_read takes as `heading`." },
+                                "snippet": { "type": "string" },
+                                "words": { "type": "integer", "description": "How many of the query's words the section holds." }
+                            },
+                            "required": ["page", "heading", "snippet", "words"]
+                        }
+                    }
+                },
+                "required": ["query", "matched", "results"]
+            }),
+        );
+    }
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "page": { "type": "string", "description": "A page from docs_search: `zed/<path>.md` or `marley/guide.md`." },
+                "heading": { "type": "string", "description": "One section of the page, by its heading; the whole page when left out." },
+                "after": { "type": "integer", "minimum": 1, "description": "Read from the line after this one: a page's `next`." }
+            },
+            "required": ["page"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "page": { "type": "string" },
+                "heading": { "type": ["string", "null"] },
+                "headings": { "type": "array", "items": { "type": "string" }, "description": "The page's headings, for reading a section." },
+                "text": { "type": "string" },
+                "first_line": { "type": "integer" },
+                "last_line": { "type": "integer" },
+                "total_lines": { "type": "integer" },
+                "next": { "type": ["integer", "null"], "description": "The `after` that reads the rest; null at the end." }
+            },
+            "required": ["page", "text", "first_line", "last_line", "total_lines", "next"]
+        }),
+    )
+}
+
+/// `settings_schema` and `settings_read` (#681): a key path; what the setting is, or what each
+/// settings file sets it to.
+fn settings_schemas(verb: &str) -> (Value, Value) {
+    let input = json!({
+        "type": "object",
+        "properties": {
+            "key": { "type": "string", "description": "The key path in settings.json, dots between keys: `terminal.font_size`." }
+        },
+        "required": ["key"],
+        "additionalProperties": false
+    });
+    if verb == "schema" {
+        return (
+            input,
+            json!({
+                "type": "object",
+                "properties": {
+                    "key": { "type": "string" },
+                    "type": { "type": ["string", "null"] },
+                    "description": { "type": ["string", "null"] },
+                    "values": { "type": "array", "description": "The values it allows, when it lists them." },
+                    "default": { "description": "The default from Marley's default settings; null when none." },
+                    "keys": {
+                        "type": "array",
+                        "description": "For an object, its keys, each with the first line of its description.",
+                        "items": { "type": "object" }
+                    }
+                },
+                "required": ["key"]
+            }),
+        );
+    }
+    (
+        input,
+        json!({
+            "type": "object",
+            "properties": {
+                "key": { "type": "string" },
+                "effective": { "description": "The value in effect: the winning file's, or for an object the merged one." },
+                "global": { "description": "The value where no project file sets the key: the user's settings over the defaults." },
+                "set_in": { "type": ["string", "null"], "description": "The file whose value wins." },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "file": { "type": "string" },
+                            "value": {}
+                        },
+                        "required": ["file", "value"]
+                    }
+                }
+            },
+            "required": ["key", "effective", "set_in", "values"]
+        }),
+    )
+}
+
+/// `actions_list` (#681): a query; the actions that hold it, with their keys.
+fn actions_list_schemas() -> (Value, Value) {
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "query": { "type": "string", "minLength": 1, "description": "Words the action's name or documentation holds." }
+            },
+            "required": ["query"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "matched": { "type": "integer" },
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": { "type": "string" },
+                            "palette": { "type": "string", "description": "Its name in the command palette." },
+                            "documentation": { "type": ["string", "null"] },
+                            "keys": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "keystrokes": { "type": "string" },
+                                        "context": { "type": ["string", "null"] }
+                                    },
+                                    "required": ["keystrokes"]
+                                }
+                            }
+                        },
+                        "required": ["name", "palette", "keys"]
+                    }
+                }
+            },
+            "required": ["matched", "actions"]
+        }),
+    )
+}
+
 fn terminal_list_schemas() -> (Value, Value) {
     (
         json!({ "type": "object", "properties": {}, "additionalProperties": false }),
@@ -1746,7 +1983,8 @@ mod tests {
     fn registry_is_exactly_the_l1_set_with_correct_tiers() {
         let names: Vec<String> = registry().iter().map(ToolSpec::name).collect();
         // The set grew past L1's five: the terminal tools (#491, #525, #556), the browser tools
-        // (#492 to #586), the finds (#567) and `ports_list` (#521).
+        // (#492 to #586), the finds (#567), `ports_list` (#521), the editor tools (#649) and the
+        // docs, settings and actions tools (#681).
         assert_eq!(
             names,
             [
@@ -1780,10 +2018,17 @@ mod tests {
                 "browser_type",
                 "browser_press",
                 "browser_scroll",
-                "ports_list"
+                "ports_list",
+                "editor_open",
+                "editor_wait",
+                "docs_search",
+                "docs_read",
+                "settings_schema",
+                "settings_read",
+                "actions_list"
             ]
         );
-        assert_eq!(registry().len(), 31);
+        assert_eq!(registry().len(), 38);
         assert_eq!(
             lookup("fleet_snapshot").expect("read tool").tier,
             Tier::Read

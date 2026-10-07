@@ -57,7 +57,8 @@ Owner: the Marley session. Nothing in it waits on another repository.
    (`docs/src`, `all-actions.md` among them) and Marley's guide, shipped in the build so they match
    the running version; `settings_schema` (a setting's type, default and description, from the
    schema Zed generates); `settings_read` (user and project, and which overrides which);
-   `actions_list` (every command and its key). S to M.
+   `actions_list` (every command and its key). S to M. **Done in #681 (2026-10-07)**, with
+   `settings_read` also answering `global`, the value where no project file sets the key.
 4. **Changing settings.** `settings_change` and `keymap_change` propose a change, show the diff in
    Marley and apply it on accept, through Zed's settings writer so comments and formatting
    survive. M.

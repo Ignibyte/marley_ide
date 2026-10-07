@@ -2166,6 +2166,28 @@ alike.
   each local project, where the Zed Agent's Write profile (`enable_all_context_servers`) takes
   its tools from, and `mcp_servers_for_project` hands it to each external agent's `session/new`.
   No bearer goes into a setting; a user's own `context_servers.marley` replaces the default.
+- **Docs, settings and actions (#681).** `answer` sends `docs_` calls to `docs_tools::answer` and
+  `settings_`/`actions_` calls to `settings_tools::answer`.
+  - `docs_tools.rs`: `DocsBundle`, a `util::fs_embed!` over `docs/src/**/*.md` and
+    `docs/marley/guide.md` (embedded in a release build, read from the checkout in a dev one). The
+    `DocsIndex` (a `OnceLock`, built on first use off the main thread) splits each page into
+    sections at headings `#` to `####` outside code fences; pages are named `zed/<path>` and
+    `marley/guide.md`. `search` ranks sections by how many of the query's words they hold, then
+    hits (a heading hit counting `HEADING_WEIGHT`), with a `snippet`; `read` takes a page or a
+    section by heading or slug, fills `{#kb …}` and `{#action …}` (`fill_placeholders`, from the
+    keymap read on the main thread) and pages forward with `mcp::page_from`.
+  - `settings_tools.rs`: `schema` builds `SettingsStore::json_schema` on the background executor
+    with the actions' names and documentation, and `describe` resolves the key path (`resolve`
+    follows `$ref` into `$defs` and drops an optional's null branch), with the default from
+    `raw_default_settings`. `read` walks `get_all_files()`, each file's content serialized and read
+    at the key path, names each file (`file_name`), and answers `effective` (the winning file's
+    value, the merged one for an object) and `global` (`merged_settings`, which leaves project
+    files out); `hidden` masks values under secret names, the key's own last name included, and
+    `redact_strings` runs the agents' redaction over every string. `actions_list` matches the
+    query's words in each action's name, palette name and documentation; `bound_keys` reads the
+    keymap highest precedence first, and `palette_name` is Marley's own rule.
+  - `mcp.rs`: `page_from` and `Page::{next, fill_forward, text_block_forward}`, #680's pager run
+    forward for a document.
 
 ## Rusty (`src/rusty.rs`, #633, #643)
 

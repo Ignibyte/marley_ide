@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-681](open/TICKET-681-docs-and-settings-tools.md) | feature | Marley agent, phase 1 item 3: `docs_search`, `docs_read`, `settings_schema`, `settings_read`, `actions_list` on Marley's MCP server |
 | [TICKET-682](open/TICKET-682-settings-changes-accepted-as-a-diff.md) | feature | Marley agent, phase 1 item 4: `settings_change` and `keymap_change`, applied only when the user accepts the diff |
 | [TICKET-683](open/TICKET-683-the-marley-agent-in-the-agent-panel.md) | feature | Marley agent, phase 1 item 5: the "Marley" entry in the Agent Panel, found from Claude Code, Codex or Zed's agent, offered once, no file tools |
 | [TICKET-684](open/TICKET-684-the-marley-agent-in-a-terminal.md) | feature | Marley agent, phase 1 item 6: the same agent as Claude Code in a terminal tab |

@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Docs, settings and actions tools for agents** (#681, 2026-10-07). Marley's MCP server gains five
+  read tools, so an agent can explain and look up how this Marley works: `docs_search` and
+  `docs_read` over Zed's docs and Marley's guide as the build ships them, the keys in the text
+  being the ones bound here; `settings_schema`, a setting's type, description, values and default;
+  `settings_read`, its value in each settings file, which file wins, the value in effect and the
+  value outside projects, with secrets hidden; and `actions_list`, the actions a query names with
+  their palette names and keys. `initialize`'s instructions name them. They are the knowledge half
+  of the Marley agent to come.
+
 - **A check of an ACP agent that speaks between turns** (#685, 2026-10-07). An e2e scenario,
   `script/e2e/685-acp-messages-between-turns.sh`, drives a scripted ACP agent through the Agent
   Panel: after its turn ends it sends a report and then asks permission. The panel shows the

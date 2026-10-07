@@ -1536,6 +1536,18 @@ The ports family (#521):
 |---|---|
 | `ports_list` | The ports the rail's port rows show: each listener's project, the project folder its working directory is in, its address, port, URL, pid, process name and working directory; never its command line, which can carry a token |
 
+The docs, settings and actions families (#681), for questions about Marley itself:
+
+| Tool | What it gives |
+|---|---|
+| `docs_search` | Zed's docs and this guide, as this Marley ships them, searched for a query in words: up to 10 sections, best first (those holding the most of its words, then the most hits, a hit in a heading counting more), each with its page, heading and a snippet |
+| `docs_read` | A page (`zed/<path>` or `marley/guide.md`), whole or one section by `heading`, from the top in pages of up to 12,000 bytes; `next`, passed back as `after`, reads on. Zed's key placeholders show the keys bound in this Marley, and its action placeholders their palette names |
+| `settings_schema` | What a setting is, by its key path (`terminal.font_size`): its type, description, allowed values and default, and for an object its keys; an empty key lists the top-level keys |
+| `settings_read` | What a setting is set to: its value in each settings file that sets it, highest precedence first (each open project's `.zed/settings.json`, your settings, the defaults), which file wins, the value in effect, and `global`, the value where no project file sets it. A value under a name such as `token`, `secret`, `password`, `api_key` or `auth` comes back as `[redacted: setting]` |
+| `actions_list` | The actions whose name or documentation holds every word of a query, up to 50, shortest name first: each one's name, palette name, first line of documentation, and the keys bound to it with the context each applies in |
+
+Their refusals carry `no_doc`, `no_section`, `no_setting`, `too_large` or `bad_argument`.
+
 The browser family, reading:
 
 | Tool | What it gives |

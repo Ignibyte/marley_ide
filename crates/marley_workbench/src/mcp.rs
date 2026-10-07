@@ -535,6 +535,14 @@ fn answer(call: AppCall, cx: &mut App) {
         crate::terminal_drive::run_at_prompt(call, cx);
         return;
     }
+    if call.tool.starts_with("docs_") {
+        crate::docs_tools::answer(call, cx);
+        return;
+    }
+    if call.tool.starts_with("settings_") || call.tool.starts_with("actions_") {
+        crate::settings_tools::answer(call, cx);
+        return;
+    }
     let result = match call.tool.as_str() {
         "terminal_list" => Ok(terminal_list(call.caller(), cx)),
         "terminal_blocks" => terminal_blocks(&call.arguments, call.caller(), cx),
@@ -1076,6 +1084,49 @@ impl Page {
         }
     }
 
+    /// The `after` that reads the page after this one, read forward, while there is one (#681).
+    fn next(&self) -> Option<usize> {
+        (self.last_line < self.total_lines).then_some(self.last_line)
+    }
+
+    /// Puts a page read forward into a tool's structured answer: `docs_read`'s fields (#681).
+    pub(crate) fn fill_forward(&self, structured: &mut Value) {
+        if let Some(fields) = structured.as_object_mut() {
+            fields.insert("text".into(), self.text.clone().into());
+            fields.insert("first_line".into(), self.first_line.into());
+            fields.insert("last_line".into(), self.last_line.into());
+            fields.insert("total_lines".into(), self.total_lines.into());
+            fields.insert("next".into(), self.next().into());
+            fields.insert("line_cut".into(), self.line_cut.into());
+        }
+    }
+
+    /// A page read forward as an answer's text, with a first line naming the lines and the
+    /// `after` for the rest while the page is not the whole text (#681).
+    pub(crate) fn text_block_forward(&self) -> String {
+        let whole = self.first_line <= 1 && self.next().is_none() && !self.line_cut;
+        if whole {
+            return self.text.clone();
+        }
+        let lines = if self.first_line == self.last_line {
+            format!("line {} of {}", self.first_line, self.total_lines)
+        } else {
+            format!(
+                "lines {} to {} of {}",
+                self.first_line, self.last_line, self.total_lines
+            )
+        };
+        let cut = if self.line_cut {
+            ", the end of the line left out"
+        } else {
+            ""
+        };
+        let rest = self.next().map_or_else(String::new, |next| {
+            format!("; read on with docs_read after={next}")
+        });
+        format!("[{lines}{cut}{rest}]\n{}", self.text)
+    }
+
     /// The page as an answer's text: a client that reads only the text learns how to page from
     /// a first line, there while the page leaves part of the output out.
     pub(crate) fn text_block(&self) -> String {
@@ -1100,6 +1151,61 @@ impl Page {
         });
         format!("[{lines}{cut}{earlier}]\n{}", self.text)
     }
+}
+
+/// The page of `text` that starts just after line `after`, counted from 1, or at its first line
+/// without it: whole lines forward while they fit in [`PAGE_BYTES`] and [`MAX_READ_LINES`], or the
+/// start of a single longer line (#681, for a document, which reads forward). An `after` at or past
+/// the last line is refused.
+pub(crate) fn page_from(text: &str, after: Option<usize>) -> Result<Page, Refusal> {
+    let lines: Vec<&str> = text.lines().collect();
+    let total_lines = lines.len();
+    let start = match after {
+        None => 0,
+        Some(after) if after < total_lines => after,
+        Some(after) => {
+            return Err(Refusal::new(
+                "bad_argument",
+                format!("`after` {after} is at or past the end: the text has {total_lines} lines"),
+            )
+            .next("pass a page's `next` as `after`; a page whose `next` is null was the last"));
+        }
+    };
+    let mut end = start;
+    let mut bytes = 0;
+    while end < total_lines && end - start < MAX_READ_LINES {
+        let Some(line) = lines.get(end) else {
+            break;
+        };
+        let size = line.len() + 1;
+        if bytes + size > PAGE_BYTES {
+            break;
+        }
+        bytes += size;
+        end += 1;
+    }
+    if end == start
+        && let Some(line) = lines.get(start)
+    {
+        let cut = (0..=PAGE_BYTES.min(line.len()))
+            .rev()
+            .find(|&at| line.is_char_boundary(at))
+            .unwrap_or(0);
+        return Ok(Page {
+            text: line.get(..cut).unwrap_or_default().to_string(),
+            first_line: start + 1,
+            last_line: start + 1,
+            total_lines,
+            line_cut: cut < line.len(),
+        });
+    }
+    Ok(Page {
+        text: lines.get(start..end).unwrap_or_default().join("\n"),
+        first_line: start + 1,
+        last_line: end,
+        total_lines,
+        line_cut: false,
+    })
 }
 
 /// The newest page of `text`.

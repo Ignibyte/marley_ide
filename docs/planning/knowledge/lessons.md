@@ -5074,3 +5074,11 @@ you, and the choice returns as the request's result. After acting on it, the age
 `tool_call_update` with a final status, or the call stays a bare line. A scripted agent in an e2e
 scenario (#605's stand-in, a custom `agent_servers` entry) is enough to prove such behavior
 without the real agent.
+
+## L-claude-681-a-new-scenario-runs-in-its-own-sway-while-chad-uses-marley-001
+*category: process · topic: where a scenario runs · from: pipeline 681*
+
+The Hyprland runner refuses to start while a Marley window is open ("a Marley window is open;
+close it first, or run the scenario under COMPOSITOR=sway"), and since 2026-10-06 Chad's own
+Marley is always open. A scenario with no clicks still names `compositor sway`, which starts a
+headless sway of its own that his session never sees, so it runs whatever he has open.

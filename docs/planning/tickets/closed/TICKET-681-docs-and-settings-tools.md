@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #681 (feature, prong 2 C: Marley's MCP server)
 - **Owner:** ce546757-1075-466f-a3cf-b6696d2211c9
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** ../../pipeline/completed/681-docs-and-settings-tools.spec.md
 - **Source ticket:** `docs/planning/intake/marley-agent-manager-foreman.md`, phase 1, item 3
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The Marley agent explains and configures Marley, so it needs to read what Marley is and how it is

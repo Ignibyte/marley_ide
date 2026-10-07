@@ -133,6 +133,10 @@ For a web page, use Marley's Browser tab: browser_tabs, then browser_snapshot or
 before you drive the page. Do not start Playwright or another browser for a page the user has \
 open in Marley.
 
+For questions about Marley or Zed (how a feature works, what a setting does or is set to, \
+which key runs a command), docs_search and docs_read, settings_schema and settings_read, and \
+actions_list answer from this Marley's own docs and settings.
+
 A refused call carries a `code` and `next_steps`: follow them rather than repeating the call.";
 
 /// The `initialize` result — protocol version + the capabilities (tools + subscribable resources).
@@ -233,7 +237,13 @@ fn tools_call(ctx: &RequestCtx, request: &RpcRequest, id: &Value) -> Handled {
             tools::fleet_snapshot_result(ctx.snapshot),
         )),
         Family::Session => surface_to_human(ctx, &arguments, id),
-        Family::Terminal | Family::Browser | Family::Ports | Family::Editor => Handled {
+        Family::Terminal
+        | Family::Browser
+        | Family::Ports
+        | Family::Editor
+        | Family::Docs
+        | Family::Settings
+        | Family::Actions => Handled {
             outgoing: vec![Outgoing::Deferred(PendingCall {
                 id: id.clone(),
                 tool: spec.name(),

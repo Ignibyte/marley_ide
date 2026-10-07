@@ -746,6 +746,8 @@ def main():
         result = client.tool(rest[0], json.loads(rest[1]) if len(rest) > 1 else {})
         if result:
             print(f"  {rest[0]}: {json.dumps(result.get('structuredContent') or result.get('content'))}")
+        # The answer's size as the bridge wrote it (#681).
+        print(f"  answer size: {client.sizes.get(client.next_id)} bytes")
     elif command == "tabs":
         result = client.tool("browser_tabs")
         for tab in (result or {}).get("structuredContent", {}).get("tabs", []):

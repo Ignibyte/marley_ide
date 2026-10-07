@@ -2800,3 +2800,12 @@ off in `script/e2e.sh`'s copy of the settings, and a scenario that tests it turn
 its own rows an order that puts them first, so no coordinate rests on what the machine runs and no
 click can reach the machine's own. When a new section reads the machine, its setting joins the
 copy's Python block in the same ticket.
+
+## PR-claude-681-a-settings-value-in-effect-counts-the-project-files-001
+*severity: medium · prevents: F-claude-681-merged-settings-read-as-the-value-in-effect-skipped-the-project-001*
+
+`SettingsStore::merged_settings` (and `raw_user_settings`) leave out every project's
+`.zed/settings.json`; Zed applies those per location (`Settings::get(Some(SettingsLocation))`). Code
+that tells a person or an agent the value "in effect" either names the location it means, or reads
+`get_all_files()` in order and takes the first file that sets the key, and says which. A scenario
+for it sets the key in a project file and checks the value answered, not only the file named.

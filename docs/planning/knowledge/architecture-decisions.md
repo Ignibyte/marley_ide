@@ -4343,3 +4343,16 @@ calls a model or reads a token. #685 proved the panel takes a manager's reports 
 between turns. Rejected: a thread view of Marley's own (MREQ-008 as first asked; the panel already
 draws chat, prompts and saved sessions, and any ACP client gets the manager for free); a manager
 inside Marley (it must outlive Marley).
+
+## AD-claude-681-agents-read-marleys-docs-and-settings-as-the-build-ships-them-001
+*decided at: 2026-10-07 · status: shipped*
+
+The Marley agent's knowledge half, open to any agent on Marley's MCP server: `docs_search` and
+`docs_read` over `docs/src` and `docs/marley/guide.md`, embedded in a release build
+(`util::fs_embed!`) so an answer describes the running version; a search by words over sections,
+ranked by coverage then hits, no index; documents read forward in #680's pages. `settings_schema`
+reads Zed's own generated schema and the defaults from `default.json`; `settings_read` walks
+`get_all_files()` in order, hides values under secret names, and answers the winner and the global
+value; `actions_list` reads gpui's action names, documentation and keymap, with Marley's own
+palette-name rule rather than a copy of Zed's. Rejected: an embedding index (a separate, off-by-
+default layer); the Settings UI's typed field table (it is private and keyed by field, not path).

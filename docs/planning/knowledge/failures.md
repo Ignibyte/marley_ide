@@ -3461,3 +3461,14 @@ while it is already being updated" and ended Marley. The tree's own opens never 
 `BrainView::open` defers. Fixed by deferring `show_page` past the update. The class is
 `PR-claude-defer-in-does-not-leave-the-entitys-own-update`: anything an opener calls inside the
 workspace's update must not read the workspace, so defer it.
+
+## F-claude-681-merged-settings-read-as-the-value-in-effect-skipped-the-project-001
+*severity: medium · found in: pipeline 681's Code phase (the scenario's second run, read before the gate) · class: a settings value in effect · prevented by: PR-claude-681-a-settings-value-in-effect-counts-the-project-files-001*
+
+`settings_read` answered `effective` from `SettingsStore::merged_settings`, and for a `tab_size`
+the scratch project's `.zed/settings.json` set to 3 it answered `set_in` the project file and
+`effective: 4`. The merged settings are the user's over the defaults: project files are local
+settings, applied per location (`SettingsLocation`), never merged in. The checks passed, since
+none compared `effective` with the winner; reading the answers caught it. Fixed before the gate:
+`effective` is the winning file's value (the merged one for an object, which merges across
+files), and `global` carries the merged value, the one where no project file sets the key.

@@ -13,6 +13,12 @@ OR Apache-2.0, with the Marley crates' lint table.
   for which tool), `tools/list`, `tools/call`, and the fleet resource's `resources/*`. An unknown
   method or tool is a protocol error; a denied write or a failed call is a tool result with
   `isError`.
+- **Docs, settings and actions (#681).** `Family::Docs` (`docs_search`, `docs_read`),
+  `Family::Settings` (`settings_schema`, `settings_read`) and `Family::Actions` (`actions_list`),
+  served and read-only, with no grant class; the app answers them like the terminal family
+  (`dispatch.rs`'s deferred arm). Their schemas are `docs_schemas`, `settings_schemas` and
+  `actions_list_schemas`; outside clients reach none of them (they are on no client list).
+  `INSTRUCTIONS` names the five.
 - **Refusals with a code (#680).** `Refusal { code, reason, next_steps }` is how a call is refused:
   `tools::tool_refusal` answers `{result: "refused", code, reason, next_steps}`. `From<String>`
   and `From<&str>` give `Refusal::REFUSED`, so the app's handlers that refuse in words alone stay

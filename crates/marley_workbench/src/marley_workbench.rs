@@ -43,6 +43,7 @@ pub mod clients;
 pub mod close_guard;
 pub mod codex_server;
 pub mod command_watch;
+pub mod docs_tools;
 pub mod english;
 pub mod failures;
 pub mod find;
@@ -76,6 +77,7 @@ pub mod running_errors;
 pub mod rusty;
 pub mod send_block;
 pub mod send_selection;
+pub mod settings_tools;
 pub mod shell_completions;
 pub mod shortcut_note;
 #[cfg(unix)]
