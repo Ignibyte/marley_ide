@@ -655,6 +655,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The Rusty home page** (#679, 2026-10-07). The rail's row of Rusty's screens becomes one Rusty
+  button (a placeholder icon until Rusty has its own) before PROJECTS. It opens Rusty's home page,
+  always the first tab of the Rusty group: a card with every screen's button (Brain, Today, Graph,
+  Tasks, Decisions, Memory, Skills, Secrets), then your recent pages, the decisions whose follow-up
+  is due, and your open tasks as a table, each row opening what it names. `rusty: open home` opens
+  it too.
+
 - **The Brain tab** (#678, 2026-10-07). Rusty's vault no longer takes over the rail. The rail's
   header shows Brain as the first of Rusty's screens, and Brain (or Ctrl+Alt+V) opens a Brain tab
   in the Rusty group: the search, the favourites and the vault's tree on its left, the page you pick

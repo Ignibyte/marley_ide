@@ -618,13 +618,13 @@ th { background: var(--panel); font-weight: 650; }
 
 <article id="brain-view">
 <h3>The Brain tab: Rusty's vault <span class="ticket">#644, #662, #672, #675, #678</span></h3>
-<p class="what"><strong>What it is.</strong> While Rusty is on and connected (the Rusty section of the Marley settings), the rail's header shows Rusty's screens in place of PROJECTS: Brain, Today, Graph, Tasks, Decisions, Memory, Skills and Secrets, one click each. Brain opens the Brain tab: on its left a search field, the favourites and the vault's folders and pages; on its right the page you pick, as the Tasks tab shows a list beside its lists. The rail stays your projects. Everything it changes goes through Rusty's tools; Marley writes no file of the vault.</p>
+<p class="what"><strong>What it is.</strong> While Rusty is on and connected (the Rusty section of the Marley settings), the rail's header shows a Rusty button before PROJECTS. It opens Rusty's home page, always the first tab of the Rusty group (#679): a card with a button for each of Rusty's screens (Brain, Today, Graph, Tasks, Decisions, Memory, Skills and Secrets), and cards of your recent pages, the decisions whose follow-up is due and your open tasks, each row opening what it names. Brain opens the Brain tab: on its left a search field, the favourites and the vault's folders and pages; on its right the page you pick, as the Tasks tab shows a list beside its lists. The rail stays your projects. Everything it changes goes through Rusty's tools; Marley writes no file of the vault.</p>
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Click Brain, or press <kbd>Ctrl+Alt+V</kbd> from anywhere in the window. With Rusty off or not connected, it says why in a toast.</li>
 <li>Click a folder to open or close it. Click a page and it shows on the tab's right: its title, its properties and its body, with its wikilinks as links (#645); a second click moves the keyboard into it. Right-click a page and choose Open in New Tab to keep it in a tab of its own.</li>
 <li>Every Rusty screen and page opens in the window's <strong>Rusty</strong> group in the rail, whatever project the window shows: the first one makes the group, and the window shows it. Its tabs are its rows; click a project to go back to your work, and Rusty's tabs stay where they are. The group has no Rename or Remove, and while Rusty is off the rail leaves it out.</li>
-<li>Today opens the Brain tab on today's daily note, which Rusty makes when it is missing. The other screen buttons open or bring forward their tab. When the rail is too narrow for all eight, the last ones wait under <code>…</code> at the end of the row; drag the rail wider to bring them out.</li>
+<li>Today opens the Brain tab on today's daily note, which Rusty makes when it is missing. The other screen buttons open or bring forward their tab. <code>rusty: open home</code> opens the home page from the palette.</li>
 <li>Type in the search field and press Enter: Rusty's hits replace the tree. Rusty's <code>tag:</code>, <code>path:</code> and <code>type:</code> work as typed. Escape clears the search, a second Escape goes back to the tree.</li>
 <li>In the tree, Up and Down move, Right opens a folder or steps into it, Left closes it or goes up, and Enter opens the selected page.</li>
 <li>The <kbd>+</kbd> after the search field makes a new page in the selected row's folder. Right-click a folder for New Page, New Folder, Rename and Delete; a page for Open, Open in New Tab, Rename and Delete; the empty space for New Page, New Folder and Refresh. A name is typed in the tree: Enter makes it, Escape drops it.</li>
@@ -678,7 +678,7 @@ th { background: var(--panel); font-weight: 650; }
 <p class="what"><strong>What it is.</strong> A center tab that draws Rusty's vault as a graph, while Rusty is on: pages as dots sized by their links and coloured by page type, links as lines, and a decision's consulted, supersedes and follows-up edges dashed, a colour each. Local shows the neighbourhood of the brain page last in front, to a depth of one to four; Vault shows every page.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Run <code>rusty: open graph</code>, or click the graph icon after Today in the rail's header. With a brain page in front it opens on that page's neighbourhood; <code>rusty: open local graph</code> turns it to the page in front.</li>
+<li>Run <code>rusty: open graph</code>, or click Graph on the Rusty home page. With a brain page in front it opens on that page's neighbourhood; <code>rusty: open local graph</code> turns it to the page in front.</li>
 <li>Click a page to open it. Drag the background to move the view, turn the wheel to zoom about the pointer, and drag a dot to hold it while the rest settle around it.</li>
 <li>Rest the pointer on a dot to light it and its neighbours and read its title.</li>
 <li>In the panel at the top right: Local or Vault, the depth, a filter (words, <code>tag:</code>, <code>path:</code>, <code>type:</code>, every term matching), and the switches Tags, Unresolved links, Decision edges and Orphans. Click a page type in the legend to hide it. Restart layout, Fit and Hide panel are the panel's three buttons.</li>
@@ -695,7 +695,7 @@ th { background: var(--panel); font-weight: 650; }
 <p class="what"><strong>What it is.</strong> A center tab over Rusty's to-do lists, while Rusty is on: the lists in a column on the left, the chosen list's tasks on the right, in Rusty's order. Every change goes to Rusty and is read back, so the tab shows what Rusty holds.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Click the list icon after Graph in the rail's header, or run <code>rusty: open tasks</code>. From the Knowledge panel's project view, the list icon on its Tasks heading opens the tab on the project's task group.</li>
+<li>Click Tasks on the Rusty home page, or run <code>rusty: open tasks</code>. From the Knowledge panel's project view, the list icon on its Tasks heading opens the tab on the project's task group.</li>
 <li>Click a list to see its tasks. Type in the field above them and press Enter to add one at the end; Down from the field goes to the first task.</li>
 <li>Click a task's box, or press <kbd>Space</kbd>, to check it done; a done task stays in its place, struck through. Double-click it, or press <kbd>F2</kbd> or <kbd>Enter</kbd>, to rename it in its row.</li>
 <li><kbd>Delete</kbd> archives the selected task, which hides it; Show archived lists archived tasks in their places, marked Archived, and <kbd>Delete</kbd> or the menu's Restore brings one back. <kbd>Shift+Delete</kbd> or Delete for Good asks first, then deletes it.</li>
@@ -709,7 +709,7 @@ th { background: var(--panel); font-weight: 650; }
 <p class="what"><strong>What it is.</strong> A center tab over the decisions Rusty's brain loop records, while Rusty is on: the follow-ups due first, under Due, the overdue ones marked; then every decision, the newest first, with its status (decided, kept, revised or superseded), the day it was decided, the day of its last follow-up, its next follow-up day, and for a replaced decision the one that replaced it. Rusty's agents write them: <code>brain_ask</code> before a choice, <code>brain_decide</code> when it is made, <code>brain_follow_up</code> when its day comes. You can record that follow-up yourself.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Click the double check after Tasks in the rail's header, or run <code>rusty: open decisions</code>.</li>
+<li>Click Decisions on the Rusty home page, or run <code>rusty: open decisions</code>.</li>
 <li>Click a decision to open its page in a tab. On a replaced decision, click the title after "replaced by" to open the one that replaced it.</li>
 <li>To record a follow-up, click Follow Up on a row under Due, or right-click any decision that is not replaced and choose Follow Up….</li>
 <li>Choose Kept, Revised or Superseded and write how it went. For Revised, give the next follow-up day (<code>YYYY-MM-DD</code>) or leave it empty; for Superseded, pick the decision that replaced it.</li>
@@ -735,7 +735,7 @@ th { background: var(--panel); font-weight: 650; }
 <p class="what"><strong>What it is.</strong> A center tab over Rusty's long-term memories, while Rusty is on: the facts, preferences and context its agents read at the start of a conversation, the high ones first. Each row shows the memory, its category, its importance, who stored it and the day it last changed.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Click the book after Decisions in the rail's header, or run <code>rusty: open memory</code>.</li>
+<li>Click Memory on the Rusty home page, or run <code>rusty: open memory</code>.</li>
 <li>To add one, type it in the top field, give a category (empty files it under <code>context</code>), choose Low, Normal or High, and press <kbd>Enter</kbd>.</li>
 <li>Choose a category in the Category menu to see only those; All shows every memory again.</li>
 <li>Click a memory to edit it: change the text, the category or the importance and click Save. Delete asks first, then Rusty forgets it.</li>
@@ -748,7 +748,7 @@ th { background: var(--panel); font-weight: 650; }
 <p class="what"><strong>What it is.</strong> A center tab over Rusty's skills store, while Rusty is on. A skill is a <code>SKILL.md</code> that Claude Code loads once it is active; an agent's new skill waits, staged, for your approval. A script is a <code>.sh</code> beside a skill, the command <code>rusty &lt;name&gt;</code>. Rusty commits every change to the store.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Click the hammer after Memory in the rail's header, or run <code>rusty: open skills</code>. Staged skills come first, marked pending; <code>auto</code> marks one an agent wrote.</li>
+<li>Click Skills on the Rusty home page, or run <code>rusty: open skills</code>. Staged skills come first, marked pending; <code>auto</code> marks one an agent wrote.</li>
 <li>Click a skill to see its description and body. Edit either and click Save; Scan runs Rusty's safety scan and lists what it found.</li>
 <li>On a staged skill, Approve makes it active and Reject removes it. If the scan blocks Approve, Rusty says why and Approve Anyway appears.</li>
 <li>Click a script to see its text; Save keeps an edit, and Run opens a terminal in the center running it.</li>
@@ -762,7 +762,7 @@ th { background: var(--panel); font-weight: 650; }
 <p class="what"><strong>What it is.</strong> A center tab over Rusty's secrets: the keys for providers and services that Rusty and its agents use. The names show to anyone; a value shows, changes or goes only behind your PIN. Never type the PIN to an agent.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Click the lock after Skills in the rail's header, or run <code>rusty: open secrets</code>.</li>
+<li>Click Secrets on the Rusty home page, or run <code>rusty: open secrets</code>.</li>
 <li>The first time, set a PIN: six characters or more, typed twice.</li>
 <li>Type the PIN and click Unlock. For a few minutes (Rusty's <code>pin_timeout_minutes</code>) each name has Reveal, Replace and Delete; a shown value has Copy and Hide.</li>
 <li>To add a secret, type its key and value and click Set. Replace asks for a new value; Enter saves it. Delete asks first.</li>

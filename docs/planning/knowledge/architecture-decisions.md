@@ -4304,3 +4304,14 @@ the tab over a tab per page). The rail is projects only; its Projects/Brain swit
 and Brain is the first screen button. Opens from elsewhere keep Page tabs; a tree page's Open in
 New Tab gives one too. Rejected: the tree in the Brain tab with pages in tabs beside it (a tab per
 click); keeping the rail switch beside the tab (two homes for one tree).
+
+## AD-claude-679-one-rusty-button-and-a-home-page-in-place-of-the-screens-row-001
+*decided at: 2026-10-07 · status: shipped · supersedes: AD-claude-672-rustys-screens-sit-in-the-rail-header-and-overflow-under-an-ellipsis-001*
+
+Chad, 2026-10-07: with the Rusty group always there, a home page of cards; asked whether to keep the
+header's icons, he took one Rusty button and a home page ("a 1 time 2 click makes sense"). The
+rail's header holds a Rusty button (a placeholder icon) and PROJECTS; it opens Rusty's home page,
+forced first in the Rusty group. Its first card holds every screen's button; under it the recent
+pages, the follow-ups due and the open tasks, read as the Knowledge panel's project view reads them.
+Rejected: keeping the row of icons beside a home page (two ways in, and four of eight fit the
+default rail at a 24px font); a home page only on demand (Chad: "force a home page").

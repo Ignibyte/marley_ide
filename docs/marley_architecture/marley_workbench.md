@@ -1681,6 +1681,20 @@ alike.
   inbox. The minute bump in `connected` also runs while a shown reset lies ahead. `row_card` is
   `rems(4.5)` tall for three lines under the title.
 
+## The Rusty home page (`src/rusty/home_tab.rs`, #679)
+
+- `RustyHome` (an `Item`, title Rusty, `rusty::RUSTY_ICON`, a placeholder) is the Rusty group's
+  first tab: `rusty::in_rusty_group` calls `home_tab::ensure` before every open there, which adds it
+  at index 0 of the active pane when the workspace has none. `OpenHome` (`rusty: open home`) and the
+  rail's one Rusty button (`Rail::render_rusty_button`, in place of #672's row, its fit and `…`)
+  open it.
+- Its cards: every `brain::Screen`'s `Button` (through `brain::open_screen`); the page picker's
+  recents (`page_picker::recent_slugs`), opening in the Brain tab (`brain_tab::open_page_later`,
+  which defers `show_page` past the workspace's update); `brain_due`'s decisions, opening their
+  page there; every list's open tasks (`list_task_groups`, then `list_tasks` per list, as the
+  Knowledge panel's project view reads them), opening Tasks on the list. It reads on open, on
+  `Announced` and on connecting after a failed read, one read at a time.
+
 ## The Brain tab (`src/rusty/brain_tab.rs`, `src/rusty/brain.rs`, `src/rail.rs`, #678)
 
 - `BrainTab` (an `Item`, one per window, opened in the Rusty group by `brain_tab::open_later`,

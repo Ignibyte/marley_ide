@@ -3450,3 +3450,14 @@ pending (#600's `free_name`), the Rusty group included. One Rusty group lives in
 second window, or a test run whose copied profile held the user's Rusty record, got "Rusty 2". The
 Rusty kind now keeps the name Rusty; named groups and Home keep #600's rule. Found because the
 scenario ran on a copy of a profile that had already made a Rusty group.
+
+## F-claude-679-showing-a-page-inside-the-workspaces-update-001
+*severity: high · category: gpui · found in: pipeline 679's visual check · introduced by: #679*
+
+`brain_tab::open_page_later` ran, through `in_rusty_group`, inside the workspace's update, and called
+`BrainTab::show_page` there; `show_page` reads the same workspace (its project's language registry)
+to make its page view, so the first click on a recent page panicked with "cannot read Workspace
+while it is already being updated" and ended Marley. The tree's own opens never hit it because
+`BrainView::open` defers. Fixed by deferring `show_page` past the update. The class is
+`PR-claude-defer-in-does-not-leave-the-entitys-own-update`: anything an opener calls inside the
+workspace's update must not read the workspace, so defer it.

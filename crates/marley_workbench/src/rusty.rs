@@ -30,6 +30,7 @@ mod favourites;
 mod follow_up;
 mod graph_store;
 pub mod graph_tab;
+pub mod home_tab;
 mod import;
 mod inline_edit;
 pub mod knowledge_panel;
@@ -81,6 +82,12 @@ use ui::{
 };
 
 use crate::MarleySettings;
+
+pub(crate) use home_tab::{OpenHome, open_later as open_home_later};
+
+/// Rusty's icon in the rail and on its home page: a placeholder until Rusty has one of its own
+/// (#675, #679).
+pub(crate) const RUSTY_ICON: IconName = IconName::Blocks;
 
 /// The context server Zed's agents know Rusty's tools by.
 const CONTEXT_SERVER: &str = "rusty";
@@ -258,6 +265,7 @@ pub fn init(cx: &mut App) {
     memory_tab::init(cx);
     skills_tab::init(cx);
     secrets_tab::init(cx);
+    home_tab::init(cx);
     // Rusty's messages carry its PIN, tokens and secrets: Zed's MCP client logs them by size
     // only, for Marley's connection and for Zed's agents' (#667, R-D7).
     context_server::client::log_messages_by_size(MARLEY_SERVER);
@@ -654,7 +662,8 @@ pub(crate) fn is_on(cx: &App) -> bool {
     cx.global::<Rusty>().source != Source::Off
 }
 
-/// Runs `open` in the window's Rusty group (#675); see [`crate::groups::in_group`].
+/// Runs `open` in the window's Rusty group (#675), its home page made first there when missing
+/// (#679); see [`crate::groups::in_group`].
 pub(crate) fn in_rusty_group(
     asked_from: gpui::WeakEntity<workspace::Workspace>,
     window: &Window,
@@ -667,7 +676,11 @@ pub(crate) fn in_rusty_group(
         asked_from,
         window,
         cx,
-        open,
+        move |workspace, window, cx| {
+            // The home page is always there, and first (#679).
+            home_tab::ensure(workspace, window, cx);
+            open(workspace, window, cx);
+        },
     );
 }
 

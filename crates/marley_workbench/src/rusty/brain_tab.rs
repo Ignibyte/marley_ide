@@ -31,6 +31,23 @@ pub(crate) fn open_later(workspace: WeakEntity<Workspace>, window: &Window, cx: 
     });
 }
 
+/// Opens the Brain tab on page `slug`, for the home page's rows (#679).
+pub(crate) fn open_page_later(
+    workspace: WeakEntity<Workspace>,
+    slug: String,
+    window: &Window,
+    cx: &mut App,
+) {
+    super::in_rusty_group(workspace, window, cx, move |workspace, window, cx| {
+        if let Some(tab) = open(workspace, window, cx) {
+            // `show_page` reads the workspace, which this runs inside the update of.
+            window.defer(cx, move |window, cx| {
+                tab.update(cx, |tab, cx| tab.show_page(slug, true, window, cx));
+            });
+        }
+    });
+}
+
 /// Opens the Brain tab and shows today's note in it, which Rusty makes when it is missing.
 pub(crate) fn open_today_later(workspace: WeakEntity<Workspace>, window: &Window, cx: &mut App) {
     super::in_rusty_group(workspace, window, cx, |workspace, window, cx| {

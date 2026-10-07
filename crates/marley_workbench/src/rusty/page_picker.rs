@@ -51,6 +51,13 @@ pub(super) fn init(cx: &mut App) {
     ));
 }
 
+/// The pages opened most recently, newest first, for the home page's card (#679).
+pub(crate) fn recent_slugs(cx: &App) -> Vec<String> {
+    cx.try_global::<Recent>()
+        .map(|recent| recent.0.slugs().to_vec())
+        .unwrap_or_default()
+}
+
 /// Records that page `slug` was opened, by any opener or by a Page tab's link, Back or Forward.
 pub(crate) fn opened(slug: &str, cx: &mut App) {
     let recent = &mut cx.default_global::<Recent>().0;
