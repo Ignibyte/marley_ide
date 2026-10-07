@@ -2177,7 +2177,10 @@ alike.
   `ANTHROPIC_API_KEY`. Off, it takes out all three. `MARLEY_ASSISTANT_ADAPTER` replaces the
   resolved command. `offer_later` runs `claude auth status` through `process::output` five seconds
   after start while the user's raw settings lack the key (`decided`), and `show_offer`'s Turn On
-  and Not Now write it (`choose`).
+  and Not Now write it (`choose`). Since #684 `OpenMarleyAgentInTerminal` (`open_in_terminal`)
+  writes the instructions to `<data dir>/assistant/instructions.md` and types `'<claude>'
+  --append-system-prompt-file '<file>' --disallowedTools …` into a new agent terminal through
+  `agents::start_in_terminal`; `filter_palette` hides the action while the switch is off.
 - **Docs, settings and actions (#681).** `answer` sends `docs_` calls to `docs_tools::answer` and
   `settings_`/`actions_` calls to `settings_tools::answer`.
   - `docs_tools.rs`: `DocsBundle`, a `util::fs_embed!` over `docs/src/**/*.md` and

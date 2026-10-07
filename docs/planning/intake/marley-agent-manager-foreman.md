@@ -78,7 +78,7 @@ Owner: the Marley session. Nothing in it waits on another repository.
      with an agent found, it offers the Marley agent once ("Marley can help set itself up, using
      Claude Code 2.1.293, signed in. Turn on"). A `marley.assistant` setting holds the switch and
      the agent.
-6. **The same agent in a terminal.** `claude --append-system-prompt-file … --disallowedTools …
+6. **The same agent in a terminal.** **Done in #684 (2026-10-07).** `claude --append-system-prompt-file … --disallowedTools …
    --mcp-config …` in a Marley terminal tab. S.
 
 Done when Chad asks the Marley agent in the Agent Panel to change a setting, sees the diff,

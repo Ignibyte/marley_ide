@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-684](open/TICKET-684-the-marley-agent-in-a-terminal.md) | feature | Marley agent, phase 1 item 6: the same agent as Claude Code in a terminal tab |
 | [TICKET-686](open/TICKET-686-keymap-changes-accepted-as-a-diff.md) | feature | Marley agent, phase 1 item 4's second half: `keymap_change`, applied only when the user accepts, through Zed's keymap updater |
 | [TICKET-687](open/TICKET-687-the-marley-agent-on-codex-and-zeds-agent.md) | feature | Marley agent on Codex (read-only sandbox) and on Zed's agent (a Marley profile), split from #683 |
 
@@ -18,4 +17,5 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | Why it waits |
 |---|---|---|
+| [TICKET-688](open/TICKET-688-a-notice-for-the-managers-reports.md) | feature | A notice for the manager's reports from the harness thread; waits on rustal-harness TICKET-106 (the thread) and 111 (`rh acp`) |
 | [TICKET-445](open/TICKET-445-marley-release-identity.md) | chore | packaging: Marley's own keyring label, updater, app id and URL scheme; waits until Marley ships a package or needs a non-`dev` build (the `dev` channel keeps it safe until then). Chad, 2026-10-01: wait, so bugs found before the first release do not mean cutting several |

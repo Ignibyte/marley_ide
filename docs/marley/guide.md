@@ -1481,6 +1481,11 @@ every change waits for your Apply.
 - **Using it.** New Agent Thread → **Marley**, from the Agent Panel or a project's + in the rail.
   Ask how a feature works, what a setting does or is set to, which key runs a command, or ask it
   to change a setting.
+- **In a terminal** (#684). `marley: open marley agent in terminal` starts the same agent as Claude
+  Code's own interface in a new terminal of the active project: `claude
+  --append-system-prompt-file <data dir>/assistant/instructions.md --disallowedTools Bash Edit Write
+  NotebookEdit MultiEdit`. It reaches Marley's tools through Claude Code's Marley plugin. The
+  palette lists the command only while the switch is on.
 - **How it is made.** While the switch is on, Marley adds a `Marley` agent server to the
   settings' defaults (not to your file): the command Zed resolves for `claude-acp`, run with the
   `claude` Marley launches and no API key, and `marley.agent_session_meta.Marley`, the `_meta`

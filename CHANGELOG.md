@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Marley agent in a terminal** (#684, 2026-10-07). `marley: open marley agent in terminal`
+  starts Claude Code's own interface in a new terminal with the Marley agent's instructions
+  (`--append-system-prompt-file`) and the same tools turned off, for those who prefer the TUI to the
+  Agent Panel. The palette lists it only while the Marley agent is on.
+
 - **The Marley agent** (#683, 2026-10-07). An agent in the Agent Panel, "Marley", that explains
   Marley and sets it up with you: Claude Code through Zed's `claude-acp` adapter on your own login,
   told what it is for, given Marley's docs and settings tools, and kept from editing files or

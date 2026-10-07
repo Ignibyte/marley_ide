@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #684 (feature, prong 2 C)
 - **Owner:** ce546757-1075-466f-a3cf-b6696d2211c9
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** ../../pipeline/completed/684-the-marley-agent-in-a-terminal.spec.md
 - **Source ticket:** `docs/planning/intake/marley-agent-manager-foreman.md`, phase 1, item 6
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The same Marley agent as TICKET-683, in a Marley terminal tab for someone who prefers Claude

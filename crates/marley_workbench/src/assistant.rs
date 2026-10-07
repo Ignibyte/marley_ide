@@ -13,22 +13,41 @@
 //! Off, nothing of it is there. Once, when the user's settings do not name the switch and
 //! `claude auth status` says Claude Code is signed in, a notification offers it.
 //!
+//! `marley: open marley agent in terminal` (#684) runs the same agent as Claude Code's own
+//! interface in a center terminal: `claude` with the instructions as a system-prompt file and the
+//! same tools turned off, an ordinary agent terminal otherwise. The palette lists it only while the
+//! switch is on.
+//!
 //! `MARLEY_ASSISTANT_ADAPTER`, when set, names an ACP program to run in the adapter's place, as
 //! `MARLEY_CODEX` names a stand-in Codex: a scenario's scripted agent, which reads the `_meta`
 //! the sessions carry.
 
-use std::path::PathBuf;
+use std::any::TypeId;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use collections::HashMap;
+use command_palette_hooks::CommandPaletteFilter;
 use fs::Fs;
-use gpui::{App, AppContext as _, BorrowAppContext as _, Entity, Global};
+use gpui::{
+    App, AppContext as _, BorrowAppContext as _, Entity, Global, TaskExt as _, Window, actions,
+};
 use project::agent_server_store::{AgentId, AgentServerCommand, AgentServerStore};
 use serde_json::{Value, json};
 use settings::{CustomAgentServerSettings, SettingsStore};
 use workspace::notifications::simple_message_notification::MessageNotification;
 use workspace::notifications::{NotificationId, show_app_notification};
 use workspace::{MultiWorkspace, Workspace};
+
+actions!(
+    marley,
+    [
+        /// Opens Marley's own agent as Claude Code in a terminal: the Marley agent's
+        /// instructions, and no file edits or commands.
+        #[derive(Eq)]
+        OpenMarleyAgentInTerminal
+    ]
+);
 
 /// The entry's name in the Agent Panel and its key in the agent servers.
 pub(crate) const ENTRY: &str = "Marley";
@@ -70,6 +89,8 @@ struct Assistant {
     added_adapter: bool,
     /// Whether a resolution is under way.
     resolving: bool,
+    /// Whether the palette lists the agent's command, once its filter was set.
+    palette_shown: Option<bool>,
 }
 
 impl Global for Assistant {}
@@ -82,8 +103,12 @@ pub(crate) fn init(cx: &mut App) {
     cx.set_global(Assistant::default());
     sync(cx);
     cx.observe_global::<SettingsStore>(sync).detach();
-    cx.observe_new(|_: &mut Workspace, _, cx| {
+    cx.observe_new(|workspace: &mut Workspace, _, cx| {
+        workspace.register_action(|workspace, _: &OpenMarleyAgentInTerminal, window, cx| {
+            open_in_terminal(workspace, window, cx);
+        });
         cx.defer(|cx| {
+            filter_palette(enabled(cx), cx);
             if enabled(cx) && cx.global::<Assistant>().command.is_none() {
                 resolve(cx);
             }
@@ -107,6 +132,7 @@ fn enabled(cx: &App) -> bool {
 /// Puts the entry in the defaults or takes it out when the switch moved.
 fn sync(cx: &mut App) {
     let on = enabled(cx);
+    filter_palette(on, cx);
     if on == cx.global::<Assistant>().enabled {
         return;
     }
@@ -340,4 +366,76 @@ fn choose(enabled: bool, cx: &App) {
             .get_or_insert_default()
             .enabled = Some(enabled);
     });
+}
+
+/// Lists the agent's command in the palette while the switch is on, as Rusty's are while Rusty is
+/// (#661). Before the palette has its filter there is nothing to set; the next call sets it.
+fn filter_palette(on: bool, cx: &mut App) {
+    if cx.global::<Assistant>().palette_shown == Some(on)
+        || CommandPaletteFilter::try_global(cx).is_none()
+    {
+        return;
+    }
+    cx.global_mut::<Assistant>().palette_shown = Some(on);
+    let command = [TypeId::of::<OpenMarleyAgentInTerminal>()];
+    CommandPaletteFilter::update_global(cx, |filter, _| {
+        if on {
+            filter.show_action_types(&command);
+        } else {
+            filter.hide_action_types(&command);
+        }
+    });
+}
+
+/// `marley: open marley agent in terminal`: writes the instructions where Claude Code reads them,
+/// then starts it in a center terminal of `workspace` with them and the tools turned off.
+fn open_in_terminal(workspace: &Workspace, window: &Window, cx: &gpui::Context<Workspace>) {
+    if !enabled(cx) {
+        return;
+    }
+    let file = paths::data_dir().join("assistant").join("instructions.md");
+    let claude = claude_program(cx);
+    let written = cx.background_executor().spawn(futures::future::lazy({
+        let file = file.clone();
+        move |_| write_instructions(&file)
+    }));
+    let directory = terminal_view::default_working_directory(workspace, cx);
+    cx.spawn_in(window, async move |workspace, cx| {
+        written.await?;
+        let line = format!(
+            "{} --append-system-prompt-file {} --disallowedTools {}\n",
+            quoted(&claude.display().to_string()),
+            quoted(&file.display().to_string()),
+            DISALLOWED_TOOLS.join(" ")
+        );
+        workspace
+            .update_in(cx, |workspace, window, cx| {
+                crate::agents::start_in_terminal(
+                    workspace,
+                    directory,
+                    Some(marley_agent::AgentKind::Claude),
+                    Some(line.into_bytes()),
+                    None,
+                    window,
+                    cx,
+                )
+            })?
+            .await?;
+        anyhow::Ok(())
+    })
+    .detach_and_log_err(cx);
+}
+
+/// Writes the instructions file, its folder made where missing.
+fn write_instructions(file: &Path) -> anyhow::Result<()> {
+    if let Some(folder) = file.parent() {
+        std::fs::create_dir_all(folder)?;
+    }
+    std::fs::write(file, INSTRUCTIONS)?;
+    Ok(())
+}
+
+/// `text` as one word of a shell's command line.
+fn quoted(text: &str) -> String {
+    format!("'{}'", text.replace('\'', "'\\''"))
 }
