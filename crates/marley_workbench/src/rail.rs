@@ -128,6 +128,8 @@ pub struct Rail {
     width_set_by_user: bool,
     /// Whether the user closed the rail, which the window's saved state keeps.
     closed: bool,
+    /// Whether the Containers list shows its rows, which the window's saved state keeps (#670).
+    containers: ContainersFold,
     /// Whether this rail keeps the port scan running, which it does while it shows (#521).
     watching_ports: bool,
     /// The row the keyboard is on while the rail holds focus.
@@ -842,6 +844,7 @@ impl Rail {
                 .map_or(DEFAULT_WIDTH, |width| px(width).clamp(MIN_WIDTH, MAX_WIDTH)),
             width_set_by_user: saved.width.is_some(),
             closed: false,
+            containers: saved.containers,
             watching_ports: false,
             cursor: None,
             filter_editor,
@@ -1071,6 +1074,7 @@ impl Rail {
         RailState {
             width: self.width_set_by_user.then(|| f32::from(self.width)),
             closed: self.closed,
+            containers: self.containers,
         }
     }
 
@@ -4046,6 +4050,15 @@ impl Rail {
         self.refresh(window, cx);
     }
 
+    /// Folds the Containers list, or unfolds it, and keeps that in the window's saved state (#670).
+    fn toggle_containers(&mut self, cx: &mut Context<Self>) {
+        self.containers = self.containers.toggled();
+        self.multi_workspace
+            .update(cx, MultiWorkspace::serialize)
+            .log_err();
+        cx.notify();
+    }
+
     /// Lists the turns of the terminal `id` under its row, or folds them (#509).
     fn toggle_turns(&mut self, id: u64, window: &mut Window, cx: &mut Context<Self>) {
         if !self.turns_open.remove(&id) {
@@ -4317,9 +4330,10 @@ impl Rail {
         )
     }
 
-    /// The container ports no project's folder holds (#614), under a Containers label after the
+    /// The container ports no project's folder holds (#614), under a Containers header after the
     /// projects. Their rows open in the shown project, and stay out of the keys and the filter.
-    /// `marley.rail_containers` off leaves the section out (#669).
+    /// `marley.rail_containers` off leaves the section out (#669). The header folds the rows away,
+    /// as a window starts, and says how many there are (#670).
     fn render_containers(&self, cx: &Context<Self>) -> Option<AnyElement> {
         if self.snapshot.rail.filtering
             || MarleySettings::get_global(cx).rail_containers == RailContainers::Hidden
@@ -4330,40 +4344,71 @@ impl Rail {
         if found.is_empty() {
             return None;
         }
+        let count = found.len();
+        let open = self.containers == ContainersFold::Open;
         let shown = self
             .multi_workspace
             .upgrade()?
             .read(cx)
             .workspace()
             .downgrade();
-        let rows = found.into_iter().map(|listener| {
-            let snapshot = port_snapshot(listener, "", None);
-            let row = PortRow {
-                project: usize::MAX,
-                port: snapshot.port,
-                pid: snapshot.pid,
-                title: snapshot.title,
-                url: snapshot.url,
-                tooltip: snapshot.tooltip,
-                service: None,
-                container: snapshot.container,
-                state: None,
-                selected: false,
-                highlight: Vec::new(),
-            };
-            Self::render_port_row(row, shown.clone(), None, false, cx).into_any_element()
-        });
+        let rows: Vec<AnyElement> = if open {
+            found
+                .into_iter()
+                .map(|listener| {
+                    let snapshot = port_snapshot(listener, "", None);
+                    let row = PortRow {
+                        project: usize::MAX,
+                        port: snapshot.port,
+                        pid: snapshot.pid,
+                        title: snapshot.title,
+                        url: snapshot.url,
+                        tooltip: snapshot.tooltip,
+                        service: None,
+                        container: snapshot.container,
+                        state: None,
+                        selected: false,
+                        highlight: Vec::new(),
+                    };
+                    Self::render_port_row(row, shown.clone(), None, false, cx).into_any_element()
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
         Some(
             v_flex()
                 .debug_selector(|| "marley-rail-containers".into())
                 .pt_2()
                 .gap_0p5()
                 .child(
-                    h_flex().px_3().py_1().child(
-                        Label::new("CONTAINERS")
-                            .size(LabelSize::XSmall)
-                            .color(Color::Muted),
-                    ),
+                    h_flex()
+                        .id("marley-rail-containers-header")
+                        .debug_selector(|| "marley-rail-containers-header".into())
+                        .pl_1()
+                        .pr_3()
+                        .gap_1()
+                        .cursor_pointer()
+                        .child(
+                            Disclosure::new("marley-rail-containers-disclosure", open).on_click(
+                                cx.listener(|rail, _, _, cx| {
+                                    // The header around the chevron would fold it back.
+                                    cx.stop_propagation();
+                                    rail.toggle_containers(cx);
+                                }),
+                            ),
+                        )
+                        .child(
+                            Label::new("CONTAINERS")
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted),
+                        )
+                        .child(
+                            Label::new(count.to_string())
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted),
+                        )
+                        .on_click(cx.listener(|rail, _, _, cx| rail.toggle_containers(cx))),
                 )
                 .children(rows)
                 .into_any_element(),
@@ -6114,6 +6159,27 @@ struct RailState {
     width: Option<f32>,
     /// Whether the user closed the rail.
     closed: bool,
+    /// Whether the Containers list shows its rows (#670).
+    containers: ContainersFold,
+}
+
+/// Whether the rail's Containers list shows its rows or only its header (#670).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum ContainersFold {
+    /// The header alone, as a window starts.
+    #[default]
+    Folded,
+    /// The header and the rows.
+    Open,
+}
+
+impl ContainersFold {
+    const fn toggled(self) -> Self {
+        match self {
+            Self::Folded => Self::Open,
+            Self::Open => Self::Folded,
+        }
+    }
 }
 
 /// The fields of a saved sidebar blob the rail reads. `width` and `width_set_by_user` are the
@@ -6127,6 +6193,8 @@ struct SavedRail {
     width_set_by_user: bool,
     #[serde(default)]
     marley_rail_closed: bool,
+    #[serde(default)]
+    marley_containers_open: bool,
 }
 
 /// The rail's fields in a saved sidebar blob. A blob that cannot be read holds nothing for it.
@@ -6135,6 +6203,11 @@ fn read_rail_state(blob: &str) -> RailState {
     RailState {
         width: saved.width.filter(|_| saved.width_set_by_user),
         closed: saved.marley_rail_closed,
+        containers: if saved.marley_containers_open {
+            ContainersFold::Open
+        } else {
+            ContainersFold::Folded
+        },
     }
 }
 
@@ -6147,6 +6220,10 @@ fn write_rail_state(zed_state: Option<&str>, state: RailState) -> String {
     blob.insert("width".into(), serde_json::json!(state.width));
     blob.insert("width_set_by_user".into(), state.width.is_some().into());
     blob.insert("marley_rail_closed".into(), state.closed.into());
+    blob.insert(
+        "marley_containers_open".into(),
+        (state.containers == ContainersFold::Open).into(),
+    );
     serde_json::Value::Object(blob).to_string()
 }
 
@@ -8698,6 +8775,7 @@ impl Sidebar for Rail {
             });
         }
         let saved = read_rail_state(state);
+        self.containers = saved.containers;
         if let Some(width) = saved.width {
             self.width = px(width).clamp(MIN_WIDTH, MAX_WIDTH);
             self.width_set_by_user = true;

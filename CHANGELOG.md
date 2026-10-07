@@ -13,6 +13,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The rail's Containers list folds** (#670, 2026-10-06). The CONTAINERS label is a header
+  with a chevron and the number of ports; a click on it, or on the chevron, shows the rows or
+  folds them away. It starts folded, and each window remembers it across a restart.
+
 - **Containers in the Rail** (#669, 2026-10-06). A setting on the Settings window's Marley page,
   `marley.rail_containers`, on by default: off, the rail leaves out the CONTAINERS list after the
   projects, the ports of containers running on this machine that no project's folder holds. A

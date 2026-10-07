@@ -4218,3 +4218,13 @@ turns it off; #614's scenario turns it back on. Rejected: a test-only variable t
 scan at another `/proc` (it hides the run's own listeners from #521's, #603's and #615's
 scenarios, and gives users nothing); faking `docker` for every run (root's `docker-proxy` rows
 still come from `/proc`); a Rust filter on the run's processes (Marley cannot tell them apart).
+
+## AD-claude-670-the-containers-list-starts-folded-and-each-window-keeps-its-fold-001
+*decided at: 2026-10-06 · status: shipped · builds on: AD-claude-669-the-machines-containers-in-the-rail-are-a-setting-off-in-every-test-run-001*
+
+Chad, 2026-10-06: "if containers are persistent there in that pane we need to put them in a
+dropdown list that is collapsible". The CONTAINERS label is a header with Zed's `Disclosure`, the
+label and the count; the list starts folded, since it is the machine's and its length was the
+complaint, and each window keeps its fold in the saved sidebar blob, as the rail's width and closed
+state are kept. Rejected: one fold for the whole app in memory, as the Harness section's (#632),
+which a restart forgets; unfolding by default, which keeps the length Chad asked to put away.

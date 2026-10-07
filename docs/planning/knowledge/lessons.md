@@ -4971,3 +4971,12 @@ settings a user might hold, export the variables a user might have, and let `set
 beside `PromptEditor` and `EmbeddedHarness`, built by a `from_content(marley)` that fits on one
 line of `from_settings`, as `CodexAppServer::from_content` does; a plain `bool` with
 `.and_then(..).unwrap_or(..)` fails both lints at once.
+
+## L-claude-670-a-restore-scenario-relaunches-with-no-path-001
+*category: testing · topic: checking what a window keeps across a restart · from: pipeline 670 (again after 601)*
+
+`launch_marley` passes the scenario's `open_path`, and Zed answers a start with a path as an open
+request: a new window, none of the last session's saved state. A scenario that checks what a
+window keeps across a restart (the rail's width, its closed state, its folds, its groups) calls
+`open_path ""` between `quit_marley` and `launch_marley`, as a start from the menu does. #670's
+first run forgot it and showed a fold lost that was kept.

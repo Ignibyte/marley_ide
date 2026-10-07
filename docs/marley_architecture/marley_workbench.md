@@ -388,7 +388,9 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   `Ports::containers` under a CONTAINERS label after the projects, opening in the shown
   workspace, outside the keys and the filter. `MarleySettings::rail_containers`
   (`RailContainers::Hidden`, from `marley.rail_containers` off) leaves the section out; the scan
-  runs as before, so a project's containers still show under it (#669).
+  runs as before, so a project's containers still show under it (#669). The header is a
+  `Disclosure`, CONTAINERS and the count; `ContainersFold` (default `Folded`) is kept per window as
+  `marley_containers_open` in the saved sidebar blob, beside `marley_rail_closed` (#670).
 
 - **Restart, state and logs (#615).** Each scan asks `unit_states` for every service row's unit
   (one `systemctl show -p ActiveState,SubState` per manager, blocks matched by the order asked,

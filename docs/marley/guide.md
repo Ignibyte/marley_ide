@@ -251,6 +251,8 @@ goes when it stops.
   projects, with the container's address ("→ 172.18.0.5:80"). Stop stops the container with
   `docker stop`; if the engine refuses (you are not in the `docker` group, say), a message says
   why and offers a command to run yourself. Marley never stops Docker's own service from a row.
+  The CONTAINERS header says how many there are and starts folded: click it, or its chevron, to
+  show the rows or fold them again, and each window remembers which (#670).
   To leave the CONTAINERS list out, turn off Containers in the Rail on the Settings window's
   Marley page (`"marley": { "rail_containers": false }`, #669); a container whose Compose
   folder is in a project still shows under it.
