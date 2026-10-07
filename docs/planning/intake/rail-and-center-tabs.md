@@ -148,6 +148,12 @@ the two shapes:
 4. **The Agent tab and System One calls stay as they are for now.** Chad: "That is something we
    will discuss next after these fixes", with the fleet.
 
+## Shipped (2026-10-07)
+
+#671 (the window's order), #672 (Rusty's screens in the header), #673 (the Containers panel),
+#674 (every tab in the rail, files under Files) and #675 (the Rusty group). Decision 4 waits for the
+fleet talk.
+
 ## Related tickets
 
 #672 moves Rusty's icons into the rail's header and leaves the group to this talk. #671 and #673
