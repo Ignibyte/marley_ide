@@ -92,7 +92,7 @@ fn toast(workspace: &WeakEntity<Workspace>, message: String, open: Option<String
 
 /// Opens Rusty's daily note for today in a kept tab with the focus: what the Brain view's Today
 /// does, without the tree.
-fn open_today(window: &Window, cx: &Context<Workspace>) {
+pub(super) fn open_today(window: &Window, cx: &Context<Workspace>) {
     let asking = super::call_tool(BRAIN_DAILY_NOTE, json!({}), cx);
     cx.spawn_in(window, async move |workspace, cx| {
         let slug = asking.await.and_then(|text| {

@@ -59,9 +59,9 @@ use terminal::Terminal;
 use terminal_view::{RenameTerminal, TerminalView, terminal_panel::TerminalPanel};
 use ui::{
     AgentThreadStatus, CommonAnimationExt as _, ContextMenu, ContextMenuEntry, DiffStat,
-    Disclosure, Divider, HighlightedLabel, Icon, IconButton, IconName, IconSize, Indicator,
-    KeyBinding, Label, LabelSize, PopoverMenu, PopoverMenuHandle, ThreadItem, Tooltip, prelude::*,
-    right_click_menu, utils::platform_title_bar_height,
+    Disclosure, Divider, HighlightedLabel, Icon, IconButton, IconButtonShape, IconName, IconSize,
+    Indicator, KeyBinding, Label, LabelSize, PopoverMenu, PopoverMenuHandle, Tab, ThreadItem,
+    Tooltip, prelude::*, right_click_menu, utils::platform_title_bar_height,
 };
 use util::ResultExt as _;
 use util::path_list::PathList;
@@ -82,7 +82,10 @@ use crate::github::{self, PullRequest, PullRequestState};
 use crate::groups;
 use crate::harness::{Connection, Harness, QuotaWindow, Runtime, Signals, StateSource};
 use crate::ports::{self, ContainerStop, Ports, ProjectListener, ServiceAction, Stop};
-use crate::rusty::{self, brain::BrainView};
+use crate::rusty::{
+    self,
+    brain::{self as brain_view, BrainView, Screen},
+};
 use crate::system_one::{self, Asking};
 use crate::turns::Turns;
 use crate::worktree_git::{self, BranchEnd, Drift, MergeOwner};
@@ -4106,9 +4109,16 @@ impl Rail {
         Ok(())
     }
 
-    fn render_header(&self, window: &Window, cx: &Context<Self>) -> impl IntoElement {
+    fn render_header(
+        &self,
+        button: Pixels,
+        window: &Window,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
+        // The title bar's height and the 1px line the window draws under it, so this header's line
+        // meets that one and the row under it meets the tab bar's (#672).
         let header = h_flex()
-            .h(platform_title_bar_height(window))
+            .h(platform_title_bar_height(window) + px(1.))
             .w_full()
             .flex_none()
             .gap_1()
@@ -4136,7 +4146,7 @@ impl Rail {
         header
             .map(|header| {
                 if self.brain.connected {
-                    header.child(self.render_view_switch(cx))
+                    header.child(self.render_view_switch(button, window, cx))
                 } else {
                     header.child(
                         Label::new("PROJECTS")
@@ -4154,18 +4164,55 @@ impl Rail {
             })
     }
 
-    /// The header's Projects and Brain buttons while Rusty is connected (#644); Projects carries
-    /// the rail's attention dot while Brain shows.
-    fn render_view_switch(&self, cx: &Context<Self>) -> impl IntoElement {
+    /// How many of Rusty's screens fit in the header beside Projects, Brain and the `+`, worked out
+    /// from the rail's width: every header button is a square of `button`, so the sum is exact
+    /// (#672). Window controls drawn in the header are not counted; the group clips instead.
+    fn screens_that_fit(&self, button: Pixels, window: &Window) -> usize {
+        let rem = window.rem_size();
+        // `gap_0p5` inside the group; `px_1` either side of the header and `gap_1` either side of
+        // its space, which with the `+` leave this much for the group.
+        let gap = rem * 0.125;
+        let room = self.width - rem - button;
+        let switch = button * 2. + gap;
+        let every = Screen::ALL
+            .iter()
+            .fold(switch, |width, _| width + gap + button);
+        if every <= room {
+            return Screen::ALL.len();
+        }
+        // With `…` after the screens that fit.
+        let mut width = switch + gap + button;
+        let mut shown = 0;
+        while shown + 1 < Screen::ALL.len() && width + gap + button <= room {
+            width += gap + button;
+            shown += 1;
+        }
+        shown
+    }
+
+    /// The header's Projects and Brain buttons while Rusty is connected (#644), Projects carrying
+    /// the rail's attention dot while Brain shows; then Rusty's screens, as many as fit, and the
+    /// rest under `…` (#672).
+    fn render_view_switch(
+        &self,
+        button: Pixels,
+        window: &Window,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
         let brain_shown = self.brain_shown();
         let attention = brain_shown
             && (marley_rail::has_attention(&self.snapshot.rail)
                 || !self.snapshot.rail.inbox.is_empty());
+        let shown = self.screens_that_fit(button, window);
+        let (fitting, rest) = Screen::ALL.split_at(shown.min(Screen::ALL.len()));
         h_flex()
+            .min_w_0()
+            .overflow_hidden()
             .gap_0p5()
             .child(
                 IconButton::new("marley-rail-view-projects", IconName::ListTree)
                     .icon_size(IconSize::Small)
+                    .shape(IconButtonShape::Square)
                     .toggle_state(!brain_shown)
                     .when(attention, |button| {
                         button.indicator(Indicator::dot().color(Color::Accent))
@@ -4178,18 +4225,77 @@ impl Rail {
             .child(
                 IconButton::new("marley-rail-view-brain", IconName::BookCopy)
                     .icon_size(IconSize::Small)
+                    .shape(IconButtonShape::Square)
                     .toggle_state(brain_shown)
                     .tooltip(|_, cx| Tooltip::for_action("Brain", &ToggleBrainView, cx))
                     .on_click(cx.listener(|rail, _, window, cx| {
                         rail.show_view(RailView::Brain, window, cx);
                     })),
             )
+            .children(fitting.iter().map(|&screen| {
+                IconButton::new(screen.id(), screen.icon())
+                    .icon_size(IconSize::Small)
+                    .shape(IconButtonShape::Square)
+                    .tooltip(Tooltip::text(screen.label()))
+                    .on_click(cx.listener(move |rail, _, window, cx| {
+                        rail.open_screen(screen, window, cx);
+                    }))
+            }))
+            .when(!rest.is_empty(), |group| {
+                group.child(self.render_more_screens(rest.to_vec()))
+            })
+    }
+
+    /// The `…` after the header's screens: a menu of those that did not fit (#672).
+    fn render_more_screens(&self, rest: Vec<Screen>) -> impl IntoElement {
+        let multi_workspace = self.multi_workspace.clone();
+        let brain = self.brain.entity.as_ref().map(Entity::downgrade);
+        PopoverMenu::new("marley-rail-more-screens")
+            .trigger(
+                IconButton::new("marley-rail-more-screens-button", IconName::Ellipsis)
+                    .icon_size(IconSize::Small)
+                    .shape(IconButtonShape::Square)
+                    .tooltip(Tooltip::text("More of Rusty")),
+            )
+            .menu(move |window, cx| {
+                let multi_workspace = multi_workspace.clone();
+                let brain = brain.clone();
+                let rest = rest.clone();
+                Some(ContextMenu::build(window, cx, move |mut menu, _, _| {
+                    for &screen in &rest {
+                        let multi_workspace = multi_workspace.clone();
+                        let brain = brain.clone();
+                        menu = menu.item(
+                            ContextMenuEntry::new(screen.label())
+                                .icon(screen.icon())
+                                .handler(move |window, cx| {
+                                    brain_view::open_screen(
+                                        screen,
+                                        &multi_workspace,
+                                        brain.as_ref(),
+                                        window,
+                                        cx,
+                                    );
+                                }),
+                        );
+                    }
+                    menu
+                }))
+            })
+            .anchor(Anchor::TopLeft)
+    }
+
+    /// One of Rusty's screens, from its header button.
+    fn open_screen(&self, screen: Screen, window: &Window, cx: &mut Context<Self>) {
+        let brain = self.brain.entity.as_ref().map(Entity::downgrade);
+        brain_view::open_screen(screen, &self.multi_workspace, brain.as_ref(), window, cx);
     }
 
     /// The header's end while the Brain view shows: a new page in the selected row's folder.
     fn render_new_page(brain: WeakEntity<BrainView>) -> AnyElement {
         IconButton::new("marley-rail-new-page", IconName::Plus)
             .icon_size(IconSize::Small)
+            .shape(IconButtonShape::Square)
             .tooltip(Tooltip::text("New Page"))
             .on_click(move |_, window, cx| {
                 brain
@@ -4496,12 +4602,14 @@ impl Rail {
 
     fn render_filter(&self, cx: &Context<Self>) -> impl IntoElement {
         let filtering = self.snapshot.rail.filtering;
+        // The pane's tab bar's height, so this row's line meets the tab bar's whatever the row
+        // holds (#672).
         h_flex()
             .w_full()
             .flex_none()
+            .h(Tab::container_height(cx))
             .gap_2()
             .px_3()
-            .py_2()
             .border_b_1()
             .border_color(cx.theme().colors().border)
             .child(
@@ -4550,6 +4658,7 @@ impl Rail {
                     .trigger(
                         IconButton::new("marley-rail-add-project-button", IconName::FolderAdd)
                             .icon_size(IconSize::Small)
+                            .shape(IconButtonShape::Square)
                             .tooltip(Tooltip::text("Add Project")),
                     )
                     .menu(move |window, cx| {
@@ -8800,6 +8909,7 @@ impl Sidebar for Rail {
 impl Render for Rail {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let brain = self.shown_brain().cloned();
+        let header_button = IconSize::Small.square(window, cx);
         v_flex()
             .id("marley-rail")
             // Nothing moves under the pointer: the order the rail showed when it came over is held
@@ -8840,7 +8950,7 @@ impl Render for Rail {
             .on_action(cx.listener(Self::cancel))
             .size_full()
             .bg(cx.theme().colors().panel_background)
-            .child(self.render_header(window, cx))
+            .child(self.render_header(header_button, window, cx))
             .map(|rail| match brain {
                 Some(brain) => rail.child(brain),
                 None => rail

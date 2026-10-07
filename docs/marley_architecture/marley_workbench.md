@@ -2119,6 +2119,17 @@ alike.
 
 ## The rail's Brain view (`src/rusty/brain.rs`, `src/rusty.rs`, `src/rail.rs`, #644)
 
+- **The header's screens** (#672). `brain::Screen` lists Today, Graph, Tasks, Decisions, Memory,
+  Skills and Secrets with their element ids, icons and labels; `brain::open_screen` opens one in
+  the shown workspace (Today through the Brain view's `today` when the rail has one, so the page is
+  revealed in the tree, else `capture::open_today`). The Brain view's own row of them is gone. The
+  rail's header draws Projects, Brain and the screens in one `min_w_0`, `overflow_hidden` group;
+  every header button is `IconButtonShape::Square` at `IconSize::Small`, whose side `render`
+  computes once, so `Rail::screens_that_fit` sums the group exactly from `Rail::width` and the rem
+  size: all seven when nine buttons fit, else those that fit beside a `…` `PopoverMenu` whose
+  `ContextMenu` lists the rest. The header is the title bar's height plus the 1px line the window
+  draws under the title bar, and the filter row and the Brain view's search row are
+  `Tab::container_height`, so both lines meet the main column's.
 - **The vault cache** (`rusty.rs`). `Vault { tree }` is a global the Brain views observe, written
   only when a read differs (L-572); `VaultReads { wanted, reading, again }`, apart from it, keeps
   one `brain_tree` read in flight and one more queued. `want_vault` starts the reads when the first

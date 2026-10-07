@@ -30,7 +30,7 @@ use serde_json::{Value, json};
 use settings::Settings as _;
 use smallvec::SmallVec;
 use ui::{
-    ContextMenu, IndentGuideColors, ListItem, ListItemSpacing, ListSubHeader, Tooltip,
+    ContextMenu, IndentGuideColors, ListItem, ListItemSpacing, ListSubHeader, Tab, Tooltip,
     indent_guides, prelude::*,
 };
 use util::ResultExt as _;
@@ -97,6 +97,100 @@ fn show_toast(workspace: &mut Workspace, message: String, cx: &mut Context<Works
         Toast::new(NotificationId::unique::<BrainView>(), message),
         cx,
     );
+}
+
+/// One of Rusty's screens, each a button in the rail's header while Rusty is connected (#672).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Screen {
+    Today,
+    Graph,
+    Tasks,
+    Decisions,
+    Memory,
+    Skills,
+    Secrets,
+}
+
+impl Screen {
+    /// Every screen, in the header's order.
+    pub(crate) const ALL: [Self; 7] = [
+        Self::Today,
+        Self::Graph,
+        Self::Tasks,
+        Self::Decisions,
+        Self::Memory,
+        Self::Skills,
+        Self::Secrets,
+    ];
+
+    pub(crate) const fn id(self) -> &'static str {
+        match self {
+            Self::Today => "marley-brain-today",
+            Self::Graph => "marley-brain-graph",
+            Self::Tasks => "marley-brain-tasks",
+            Self::Decisions => "marley-brain-decisions",
+            Self::Memory => "marley-brain-memory",
+            Self::Skills => "marley-brain-skills",
+            Self::Secrets => "marley-brain-secrets",
+        }
+    }
+
+    pub(crate) const fn icon(self) -> IconName {
+        match self {
+            Self::Today => IconName::Notepad,
+            Self::Graph => IconName::GitGraph,
+            Self::Tasks => IconName::ListTodo,
+            Self::Decisions => IconName::CheckDouble,
+            Self::Memory => IconName::Book,
+            Self::Skills => IconName::ToolHammer,
+            Self::Secrets => IconName::Lock,
+        }
+    }
+
+    pub(crate) const fn label(self) -> &'static str {
+        match self {
+            Self::Today => "Today's Note",
+            Self::Graph => "Graph",
+            Self::Tasks => "Tasks",
+            Self::Decisions => "Decisions",
+            Self::Memory => "Memory",
+            Self::Skills => "Skills",
+            Self::Secrets => "Secrets",
+        }
+    }
+}
+
+/// Opens `screen`'s tab in the window's shown workspace, or brings it forward. Today goes through
+/// the Brain view when the rail has one, so its page is also revealed in the tree.
+pub(crate) fn open_screen(
+    screen: Screen,
+    multi_workspace: &WeakEntity<MultiWorkspace>,
+    brain: Option<&WeakEntity<BrainView>>,
+    window: &Window,
+    cx: &mut App,
+) {
+    if screen == Screen::Today
+        && let Some(brain) = brain.and_then(WeakEntity::upgrade)
+    {
+        brain.update(cx, |_, cx| BrainView::today(window, cx));
+        return;
+    }
+    let Some(multi_workspace) = multi_workspace.upgrade() else {
+        return;
+    };
+    let workspace = multi_workspace.read(cx).workspace().clone();
+    let weak = workspace.downgrade();
+    match screen {
+        Screen::Today => {
+            workspace.update(cx, |_, cx| super::capture::open_today(window, cx));
+        }
+        Screen::Graph => super::graph_tab::open_later(weak, window, cx),
+        Screen::Tasks => super::tasks_tab::open_later(weak, None, window, cx),
+        Screen::Decisions => super::decisions_tab::open_later(weak, window, cx),
+        Screen::Memory => super::memory_tab::open_later(weak, window, cx),
+        Screen::Skills => super::skills_tab::open_later(weak, window, cx),
+        Screen::Secrets => super::secrets_tab::open_later(weak, window, cx),
+    }
 }
 
 /// Opens the page `slug` in `workspace`'s Page tab (#645): in the pane's preview tab when
@@ -376,60 +470,6 @@ impl BrainView {
         };
         let workspace = multi_workspace.read(cx).workspace().clone();
         open_page(&workspace, slug, preview, focus, window, cx);
-    }
-
-    /// The Graph entry: the workspace's Graph tab, opened or brought forward (#647).
-    fn open_graph(&self, window: &Window, cx: &mut App) {
-        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
-            return;
-        };
-        let workspace = multi_workspace.read(cx).workspace().downgrade();
-        super::graph_tab::open_later(workspace, window, cx);
-    }
-
-    /// The Tasks entry: the workspace's Tasks tab, opened or brought forward (#658).
-    fn open_tasks(&self, window: &Window, cx: &mut App) {
-        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
-            return;
-        };
-        let workspace = multi_workspace.read(cx).workspace().downgrade();
-        super::tasks_tab::open_later(workspace, None, window, cx);
-    }
-
-    /// The Decisions entry: the workspace's Decisions tab, opened or brought forward (#659).
-    fn open_decisions(&self, window: &Window, cx: &mut App) {
-        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
-            return;
-        };
-        let workspace = multi_workspace.read(cx).workspace().downgrade();
-        super::decisions_tab::open_later(workspace, window, cx);
-    }
-
-    /// The Memory entry: the workspace's Memory tab, opened or brought forward (#664).
-    fn open_memory(&self, window: &Window, cx: &mut App) {
-        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
-            return;
-        };
-        let workspace = multi_workspace.read(cx).workspace().downgrade();
-        super::memory_tab::open_later(workspace, window, cx);
-    }
-
-    /// The Skills entry: the workspace's Skills tab, opened or brought forward (#665).
-    fn open_skills(&self, window: &Window, cx: &mut App) {
-        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
-            return;
-        };
-        let workspace = multi_workspace.read(cx).workspace().downgrade();
-        super::skills_tab::open_later(workspace, window, cx);
-    }
-
-    /// The Secrets entry: the workspace's Secrets tab, opened or brought forward (#667).
-    fn open_secrets(&self, window: &Window, cx: &mut App) {
-        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
-            return;
-        };
-        let workspace = multi_workspace.read(cx).workspace().downgrade();
-        super::secrets_tab::open_later(workspace, window, cx);
     }
 
     fn toast(&self, message: String, cx: &mut App) {
@@ -1005,66 +1045,14 @@ impl BrainView {
         cx.notify();
     }
 
-    fn render_fixed_row(cx: &Context<Self>) -> impl IntoElement {
-        h_flex()
-            .w_full()
-            .flex_none()
-            .gap_1()
-            .px_2()
-            .py_1()
-            .border_b_1()
-            .border_color(cx.theme().colors().border)
-            .child(
-                IconButton::new("marley-brain-today", IconName::Notepad)
-                    .icon_size(IconSize::Small)
-                    .tooltip(Tooltip::text("Today's Note"))
-                    .on_click(cx.listener(|_, _, window, cx| Self::today(window, cx))),
-            )
-            .child(
-                IconButton::new("marley-brain-graph", IconName::GitGraph)
-                    .icon_size(IconSize::Small)
-                    .tooltip(Tooltip::text("Graph"))
-                    .on_click(cx.listener(|this, _, window, cx| this.open_graph(window, cx))),
-            )
-            .child(
-                IconButton::new("marley-brain-tasks", IconName::ListTodo)
-                    .icon_size(IconSize::Small)
-                    .tooltip(Tooltip::text("Tasks"))
-                    .on_click(cx.listener(|this, _, window, cx| this.open_tasks(window, cx))),
-            )
-            .child(
-                IconButton::new("marley-brain-decisions", IconName::CheckDouble)
-                    .icon_size(IconSize::Small)
-                    .tooltip(Tooltip::text("Decisions"))
-                    .on_click(cx.listener(|this, _, window, cx| this.open_decisions(window, cx))),
-            )
-            .child(
-                IconButton::new("marley-brain-memory", IconName::Book)
-                    .icon_size(IconSize::Small)
-                    .tooltip(Tooltip::text("Memory"))
-                    .on_click(cx.listener(|this, _, window, cx| this.open_memory(window, cx))),
-            )
-            .child(
-                IconButton::new("marley-brain-skills", IconName::ToolHammer)
-                    .icon_size(IconSize::Small)
-                    .tooltip(Tooltip::text("Skills"))
-                    .on_click(cx.listener(|this, _, window, cx| this.open_skills(window, cx))),
-            )
-            .child(
-                IconButton::new("marley-brain-secrets", IconName::Lock)
-                    .icon_size(IconSize::Small)
-                    .tooltip(Tooltip::text("Secrets"))
-                    .on_click(cx.listener(|this, _, window, cx| this.open_secrets(window, cx))),
-            )
-    }
-
     fn render_search(&self, cx: &Context<Self>) -> impl IntoElement {
+        // The pane's tab bar's height, so this row's line meets the tab bar's (#672).
         h_flex()
             .w_full()
             .flex_none()
+            .h(Tab::container_height(cx))
             .gap_2()
             .px_3()
-            .py_2()
             .border_b_1()
             .border_color(cx.theme().colors().border)
             .child(
@@ -1562,7 +1550,6 @@ impl Render for BrainView {
             .flex_1()
             .min_h_0()
             .w_full()
-            .child(Self::render_fixed_row(cx))
             .child(self.render_search(cx))
             .children(self.render_favourites(cx))
             .child(self.render_body(cx))

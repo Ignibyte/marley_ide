@@ -655,6 +655,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Rusty's screens in the rail's header** (#672, 2026-10-07). While Rusty is connected, Today,
+  Graph, Tasks, Decisions, Memory, Skills and Secrets sit in the rail's top row beside Projects and
+  Brain, one click from either view; the Brain view no longer has a row of its own for them. When
+  the rail is too narrow for all seven, the last ones wait under `…`. The filter row and the brain
+  search row under the header are now the tab bar's height, and the header's line and theirs meet
+  the title bar's and the tab bar's exactly.
+
 - **The rail keeps the window's order** (#671, 2026-10-07). `marley.rail_order` now defaults to
   `"window"`: projects and the rows under them stay where the window and your drags put them, so
   typing into an agent no longer lifts its project to the top and drops it back when the output

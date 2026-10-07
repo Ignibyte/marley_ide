@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-672](open/TICKET-672-rusty-screens-in-the-rail-header.md) | feature | Rusty's seven screens in the rail's header beside Projects and Brain; the filter and brain search rows at the tab bar's height |
 | [TICKET-673](open/TICKET-673-containers-panel-on-the-right.md) | feature | the machine's containers leave the rail for a right-dock panel with its button in the status bar |
 | [TICKET-674](open/TICKET-674-every-center-tab-in-the-rail.md) | feature | every center tab gets a rail row; a project's files fold under a Files row above its containers |
 | [TICKET-675](open/TICKET-675-the-rusty-group.md) | feature | a Rusty group in the rail, never closed, where every Rusty screen and page opens |

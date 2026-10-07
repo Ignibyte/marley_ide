@@ -4238,3 +4238,14 @@ stay in the window's order and #602's drags, whatever the agents do. The attenti
 the setting's other value, and the collapsed header's counts (`1 waiting`) stay in both, since they
 move nothing. Rejected: deleting the attention order (it works, and one line brings it back);
 keeping it with a slower quiet timer (any automatic move under a typing user reads as a jump).
+
+## AD-claude-672-rustys-screens-sit-in-the-rail-header-and-overflow-under-an-ellipsis-001
+*decided at: 2026-10-07 · status: shipped · builds on: R-D9 (#644)*
+
+Chad, 2026-10-06: Rusty's sub-tabs live "up in the top next to the others ... except not two levels
+deep". Today, Graph, Tasks, Decisions, Memory, Skills and Secrets sit in the rail's header beside
+Projects and Brain in both views, and the Brain view's own row is gone. Every header button is a
+square at `IconSize::Small`, so the rail works out from its own width how many fit; the rest go
+under `…`. Rejected: clipping alone (a half-drawn icon, and no way to reach the rest from the
+rail); a second header row (the two levels Chad asked to remove); smaller icons (at a 24px UI
+font ten still overflow the default 260px rail).

@@ -1,10 +1,10 @@
 # TICKET-672 — Rusty's screens in the rail's header, and the row under it at the tab bar's height
 
 - **Ticket:** LOCAL #672 (feature, the rail; Rusty in Marley R-D9)
-- **Owner:** unassigned (noted 2026-10-06 from Chad's request)
-- **Pipeline doc:** none yet
+- **Owner:** claude-opus-5-5, 2026-10-07 (Chad's request)
+- **Pipeline doc:** ../../pipeline/completed/672-rusty-screens-in-the-rail-header.spec.md
 - **Source ticket:** #644 (the Brain view and its header switch)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Two of Chad's 2026-10-06 items, which both reshape the top of the rail.

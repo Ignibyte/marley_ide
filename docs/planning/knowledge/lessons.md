@@ -4990,3 +4990,13 @@ Code reads as Working for a moment, and anything that acts on Working (the atten
 "working" count, a notification) fires on the user's own keystrokes. A feature that reacts to an
 agent's status should take it from the agent's events where they exist, and treat output-recency
 as a weak signal that a typing user produces too.
+
+## L-claude-672-the-window-draws-a-line-under-the-title-bar-001
+*category: ui · topic: lining the rail up with the main column · from: pipeline 672*
+
+The rail's header was `platform_title_bar_height` with its `border_b_1` inside that height, so its
+line fell on the last row of the title bar's height, while the main column's line sits one row
+lower: the window draws a 1px line under the title bar, outside its height. Everything under the
+header was one pixel high as a result. Matching heights is not enough to line things up: read the
+border rows from a shot on both sides (`magick shot.png -crop 1x120+X+0 txt:-` and grep the border
+colour) and compare the row numbers. #672's scenario keeps that read as a check (`lines_meet`).
