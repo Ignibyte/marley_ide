@@ -1715,7 +1715,8 @@ alike.
   - `seat_add` (#692) is `answer_seat_add`:
     - `tool_off` unless `writes_on`, and `seat_of` checks the arguments;
     - `settings_change::ask_user` asks (the question and wait `ask_then_write` uses too);
-    - `run_seat` runs `seat add`, and `refusal_of` passes on a code from `HARNESS_CODES`;
+    - `run_seat` runs `seat add`, and `refusal_of` passes on any `[a-z_]+` code before the first
+      `: ` (#693; exit 2 is Marley's own usage error);
     - the answer is `starting`, then `seat start` runs, with `SeatStartFailed` as a
       notification.
 

@@ -899,6 +899,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Every harness refusal reaches the agent by its code** (#693, 2026-10-07). `seat_add` passed
+  the harness's codes through only from a list of twelve, so `seat_surface` and the runtime's own
+  codes were lost. Marley now takes any `rh: CODE: reason`'s code as the harness gives it, and
+  calls an exit 2 its own usage error.
+
 - **Rusty's PIN, unlocks and secrets stay out of Zed's log** (#667, 2026-10-06). With trace
   logging on, Zed's MCP client wrote every message whole to its log, so a PIN, an unlock token or
   a revealed secret would have landed there. Rusty's connections are now logged by message size

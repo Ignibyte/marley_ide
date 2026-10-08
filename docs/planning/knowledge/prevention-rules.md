@@ -2826,3 +2826,11 @@ thread runs its stand-in, such as the stand-in's log or environment file, before
 `type_text` or Return goes into it. A thread of Zed's own agent is opened where it cannot be
 missed: New Agent Thread's submenu, whose first entry is Zed Agent. It is never opened with
 `agent: new thread`, which opens the panel's last agent.
+
+## PR-claude-693-pass-another-programs-codes-by-their-form-not-a-list-001
+*severity: low · prevents: F-claude-693-a-fixed-list-of-another-programs-codes-went-stale-001*
+
+When Marley relays another program's error codes, it matches their form, such as the
+harness's `rh: CODE: reason` with `[a-z_]+`, and passes the code through. It does not keep its
+own list of the codes. The other program owns its vocabulary and adds to it without telling
+Marley.

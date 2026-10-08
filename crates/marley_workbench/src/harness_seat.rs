@@ -220,34 +220,17 @@ fn seat_of(arguments: &Value) -> Result<Seat, Refusal> {
     Ok(seat)
 }
 
-/// The refusal codes the harness's seat commands give (its TICKET-109), which an answer passes on.
-const HARNESS_CODES: [&str; 12] = [
-    "seat_name",
-    "seat_agent",
-    "seat_cwd",
-    "seat_binary",
-    "seat_role",
-    "seat_role_reserved",
-    "harness_model_refused",
-    "claude_signin_undeclared",
-    "seat_exists",
-    "seat_unknown",
-    "seat_profile",
-    "seat_start_failed",
-];
-
-/// The harness's `CODE: reason` as a refusal by that code, or as `refused` with all it said when
-/// the code is not one it is known to give.
+/// The harness's `CODE: reason` as a refusal by that code, as its message of 2026-10-07 asks: the
+/// token before the first `:` is the code when it is lowercase letters and `_`, and the rest is
+/// shown as given. A plain `text` is `refused` with all of it (#693).
 fn refusal_of(said: &str) -> Refusal {
-    let known = said.split_once(": ").and_then(|(code, reason)| {
-        HARNESS_CODES
-            .iter()
-            .find(|known| **known == code)
-            .map(|known| (*known, reason))
-    });
-    match known {
-        Some((code, reason)) => Refusal::new(code, reason),
-        None => Refusal::new(Refusal::REFUSED, said),
+    match said.split_once(": ") {
+        Some((code, reason))
+            if !code.is_empty() && code.chars().all(|c| c.is_ascii_lowercase() || c == '_') =>
+        {
+            Refusal::new(code.to_string(), reason)
+        }
+        _ => Refusal::new(Refusal::REFUSED, said),
     }
 }
 
@@ -423,6 +406,11 @@ async fn run_seat(program: &Path, arguments: &[String]) -> Result<Value, SharedS
         });
     }
     let stderr = String::from_utf8_lossy(&output.stderr);
+    // Exit 2 is the argument parser's: Marley called the harness wrongly (#693).
+    if output.status.code() == Some(2) {
+        let first = stderr.lines().next().unwrap_or_default();
+        return Err(format!("Marley called the harness wrongly (a usage error): {first}").into());
+    }
     let said = stderr
         .lines()
         .rev()

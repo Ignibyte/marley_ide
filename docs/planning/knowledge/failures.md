@@ -3498,3 +3498,13 @@ New Agent Thread's submenu lists real agents that run on the user's own login.
 The checks failed or the shots showed the wrong thread, so no criterion passed falsely. But two
 prompts reached real accounts. Fixed in #687: the right step count, Zed Agent opened from the
 submenu (always first), and a check before typing.
+
+## F-claude-693-a-fixed-list-of-another-programs-codes-went-stale-001
+*severity: low · found in: rustal-harness's review of pipeline 692 · class: another program's vocabulary copied into a list · prevented by: PR-claude-693-pass-another-programs-codes-by-their-form-not-a-list-001*
+
+#692 passed the harness's refusal codes through from a list of the twelve in its message. The
+harness then counted thirteen (`seat_surface` was missing), and `seat start` also passes the
+runtime's own names (`harness_*`, `operation_failed`, `admission_refused`). A code outside the list
+reached the agent as `refused`, with the code buried in the reason. The list existed because
+`Refusal.code` was `&'static str`. Fixed in #693: the code is a `Cow`, and any `[a-z_]+` token passes
+through.

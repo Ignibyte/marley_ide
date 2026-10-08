@@ -23,7 +23,8 @@ OR Apache-2.0, with the Marley crates' lint table.
   `settings_change_schemas`; its answer is the app's, which asks the user first. `Family::Keymap`
   (#686) holds `keymap_change`, the same tier and grant class, with `keymap_change_schemas`. `Family::Seat`
   (#692) holds `seat_add`, write tier, grant class `harness.write`, with `seat_add_schemas`; the
-  app asks the user and runs the followed harness's `seat add`.
+  app asks the user and runs the followed harness's `seat add`. Since #693 `Refusal.code` is a
+  `Cow<'static, str>`, so a code another program gives at run time passes through as it is.
 - **Refusals with a code (#680).** `Refusal { code, reason, next_steps }` is how a call is refused:
   `tools::tool_refusal` answers `{result: "refused", code, reason, next_steps}`. `From<String>`
   and `From<&str>` give `Refusal::REFUSED`, so the app's handlers that refuse in words alone stay

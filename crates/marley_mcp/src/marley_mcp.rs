@@ -84,6 +84,7 @@ pub use tools::{
     tool_refusal, tool_result,
 };
 
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::sync::mpsc::SyncSender;
@@ -249,8 +250,9 @@ pub struct ToolImage {
 /// can do instead.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Refusal {
-    /// The refusal's code, [`Refusal::REFUSED`] when it names none of its own.
-    pub code: &'static str,
+    /// The refusal's code, [`Refusal::REFUSED`] when it names none of its own. Owned when it comes
+    /// from another program at run time, as the harness's do (#693).
+    pub code: Cow<'static, str>,
     /// Why, in words.
     pub reason: String,
     /// What the agent can do instead, each a sentence that names a tool or an argument.
@@ -263,9 +265,9 @@ impl Refusal {
 
     /// A refusal with `code` and `reason`, and no next steps yet.
     #[must_use]
-    pub fn new(code: &'static str, reason: impl Into<String>) -> Self {
+    pub fn new(code: impl Into<Cow<'static, str>>, reason: impl Into<String>) -> Self {
         Self {
-            code,
+            code: code.into(),
             reason: reason.into(),
             next_steps: Vec::new(),
         }
