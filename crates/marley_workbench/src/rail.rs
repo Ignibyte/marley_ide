@@ -763,6 +763,8 @@ enum InboxTarget {
     Click(String),
     /// A harness session, by its id (#534).
     Harness(String),
+    /// The manager's records the user has not seen: the Manager thread (#688).
+    Manager,
     /// A request a terminal's Codex App Server asks to approve (#651): the terminal view, the
     /// terminal, the connection's generation, and the request as its entry showed it.
     Codex {
@@ -1508,7 +1510,10 @@ impl Rail {
                     Some(InboxTarget::Thread { thread_key, .. }) => {
                         focus.thread.as_deref() == Some(thread_key.as_str())
                     }
-                    Some(InboxTarget::Click(_) | InboxTarget::Harness(_)) | None => false,
+                    Some(
+                        InboxTarget::Click(_) | InboxTarget::Harness(_) | InboxTarget::Manager,
+                    )
+                    | None => false,
                 };
                 state.owner_seen |= watched;
             }
@@ -1804,8 +1809,44 @@ impl Rail {
                 });
             }
             Some(InboxTarget::Harness(id)) => self.open_harness(&id, window, cx),
+            Some(InboxTarget::Manager) => self.open_manager_thread(window, cx),
             None => {}
         }
+    }
+
+    /// Opens the manager thread for its unread records (#688): a Manager thread the rail lists, else
+    /// a new one in the shown workspace.
+    fn open_manager_thread(&self, window: &mut Window, cx: &mut Context<Self>) {
+        let manager = Agent::Custom {
+            id: AgentId::new(crate::harness::MANAGER_ENTRY),
+        };
+        let listed = self
+            .snapshot
+            .threads
+            .iter()
+            .find(|(_, thread)| thread.agent == manager)
+            .map(|(key, _)| key.clone());
+        if let Some(key) = listed {
+            self.open_thread(&key, window, cx).log_err();
+            return;
+        }
+        let Some(workspace) = self
+            .multi_workspace
+            .upgrade()
+            .map(|multi_workspace| multi_workspace.read(cx).workspace().clone())
+        else {
+            return;
+        };
+        workspace
+            .update(cx, |workspace, cx| {
+                agents::start_thread(
+                    workspace,
+                    &AgentId::new(crate::harness::MANAGER_ENTRY),
+                    window,
+                    cx,
+                )
+            })
+            .log_err();
     }
 
     /// Shows the harness session `id`'s tab in the window's Home group (#534, #676).
@@ -2092,7 +2133,8 @@ impl Rail {
                     crate::codex_server::answer(*terminal, *generation, request, decision, cx);
                 }
             }
-            Some(InboxTarget::Terminal(_) | InboxTarget::Harness(_)) | None => {}
+            Some(InboxTarget::Terminal(_) | InboxTarget::Harness(_) | InboxTarget::Manager)
+            | None => {}
         }
     }
 
@@ -6655,6 +6697,30 @@ fn harness_entries(snapshot: &mut Snapshot, cx: &App) {
     }
 }
 
+/// Each record of the manager's the user has not seen, as an inbox entry that opens the manager
+/// thread (#688).
+fn manager_entries(snapshot: &mut Snapshot, cx: &App) {
+    for record in Harness::unread(cx) {
+        let key = format!("manager:{}", record.id);
+        if let std::collections::hash_map::Entry::Vacant(vacant) = snapshot.inbox.entry(key.clone())
+        {
+            vacant.insert(InboxTarget::Manager);
+            snapshot.rail.inbox.push(InboxEntry {
+                key,
+                kind: InboxKind::Harness,
+                agent: crate::harness::MANAGER_ENTRY.to_string(),
+                project: "Harness".to_string(),
+                ask: format!("{}: {}", record.kind_word(), one_line(&record.line)),
+                waited: String::new(),
+                answers: Vec::new(),
+                chips: Vec::new(),
+                level: 0,
+                route: None,
+            });
+        }
+    }
+}
+
 /// A terminal's Claude Code, or Codex (#650), that waits, as an inbox entry.
 fn seat_entry(project: &str, id: u64, seat: &marley_fleet::Session) -> InboxEntry {
     let ask = seat.question.as_ref().map_or_else(
@@ -7750,6 +7816,7 @@ fn build_snapshot(
             .push(open_group_entry(group, &workspace, id, cx));
     }
     harness_entries(&mut snapshot, cx);
+    manager_entries(&mut snapshot, cx);
     snapshot.rail.filtering = !filter.is_empty();
     note_focus(
         &mut snapshot,

@@ -1708,6 +1708,17 @@ alike.
     `seat_command`'s program and arguments plus `acp`.
   - Otherwise it takes the entry out.
   - `Harness.manager_entry` keeps the command in place, so the defaults change only when it does.
+- **The manager's notices (#688).** `follow_thread` runs after each fleet poll while
+  `has_manager` and `writes_on`.
+  - `read_thread` pages `thread_read {after}` to its end (`ThreadPage`, at most `THREAD_PAGES`),
+    keeping `thread_record`s whose author is `manager` as `ManagerRecord`s.
+  - The first read only sets `Harness.thread_cursor`, and a resync clears it.
+  - `manager_posted` raises the new records unless `manager_in_front` (the active window's
+    workspace shows the Agent Panel with `Agent::Custom { id: "Manager" }` selected): a
+    `SystemNotification` each, tag `marley-manager-<id>`, and `Harness.unread`. Unread clear on
+    the first pass that finds the thread in front.
+  - The rail's `manager_entries` lists them as `InboxKind::Harness` entries.
+    `InboxTarget::Manager` opens a listed Manager thread or starts one.
 - **A seat in one step (#691, `src/harness_seat.rs`).**
   - `Harness::seat_command` is the followed command before its `mcp`, or the embedded
     `Harness.rh` with `--state <root>`.

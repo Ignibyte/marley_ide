@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A notice for the manager's reports** (#688, 2026-10-08). Marley follows the harness manager's
+  thread. When the manager posts a message, report or confirmation while the Manager thread is not
+  in front:
+  - a desktop notice shows, "Manager: Report" with the first line;
+  - "Needs you" lists it until you look;
+  - its entry opens the Manager thread.
+
+  With the thread in front, nothing is raised and the record simply arrives there. Records from
+  before Marley connected stay quiet.
+
 - **The manager in the Agent Panel** (#694, 2026-10-08). When the harness Marley follows has a
   manager (with `marley.harness_writes` on), the Agent Panel lists **Manager**. Its thread runs the
   harness's `rh acp` through the command Marley follows the harness with, so a root over SSH is

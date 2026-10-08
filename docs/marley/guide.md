@@ -2243,6 +2243,11 @@ Panel's New Agent Thread lists **Manager**. Its thread is the manager thread, th
 - **Confirmations.** A confirmation the manager asks for comes up as a permission request,
   Allow or Reject, for 60 seconds.
 - **No manager.** Without a manager the entry is not there.
+- **Notices** (#688). Marley follows the thread. A record from the manager while the Manager thread
+  is not in front (another tab, another window, or the panel closed) shows a desktop notice,
+  "Manager: Report" with its first line. It also adds a "Needs you" entry, "Manager · Report: …",
+  until you look; the entry opens the Manager thread. Records from before Marley connected stay
+  quiet.
 
 When Marley runs the harness itself, it follows it with `--grant write` while the switch is on. A
 `harness` command keeps its own arguments: add `"--grant", "write"` there, or the harness refuses

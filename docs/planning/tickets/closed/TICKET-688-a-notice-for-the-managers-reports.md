@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #688 (feature, prong 2 C)
 - **Owner:** ce546757-1075-466f-a3cf-b6696d2211c9
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** [688-a-notice-for-the-managers-reports.spec.md](../../pipeline/completed/688-a-notice-for-the-managers-reports.spec.md)
 - **Source ticket:** `docs/planning/intake/marley-agent-manager-foreman.md`, phase 2; rustal-harness
   TICKET-106 (the thread) and TICKET-111 (`rh acp`), its D179
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The Agent Panel shows a manager's report sent between turns but raises nothing for it (#685).

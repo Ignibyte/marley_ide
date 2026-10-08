@@ -4494,3 +4494,24 @@ Rejected:
   with a notice;
 - reading the designation from `owner_inbox`: that is a second call per change, for what the
   envelope's label already says.
+
+## AD-claude-688-the-managers-records-are-polled-and-raised-while-its-thread-is-not-in-front-001
+*decided at: 2026-10-08 · status: shipped · builds on: AD-claude-694-the-manager-entry-follows-the-role-label-001, AD-claude-534-the-harness-is-followed-by-polling-in-a-section-outside-the-rails-model-001*
+
+Marley follows the manager thread by polling `thread_read` each second, on the `rh mcp`
+connection that already polls `fleet_events`. The first read goes to the end and raises nothing.
+
+A later `thread_record` from the manager raises a notice while the Manager thread is not in front.
+"In front" means the active window's workspace shows the Agent Panel with the Manager agent
+selected. The notice is:
+- a desktop notification, with the first line;
+- a "Needs you" entry that opens the Manager thread. It clears once the thread is in front.
+
+Every manager record counts, messages included, as the harness defines the event.
+
+Rejected:
+- a resource subscription to `owner://thread`: Zed's MCP client does not surface its
+  notifications to Marley;
+- marking the panel thread's rail row: the inbox already says who needs the user, and a row may
+  not exist yet;
+- reports alone: a message between turns is news too.

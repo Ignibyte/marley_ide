@@ -15,5 +15,4 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | Why it waits |
 |---|---|---|
-| [TICKET-688](open/TICKET-688-a-notice-for-the-managers-reports.md) | feature | A notice for the manager's reports from the harness thread; waits on rustal-harness TICKET-106 (the thread) and 111 (`rh acp`) |
 | [TICKET-445](open/TICKET-445-marley-release-identity.md) | chore | packaging: Marley's own keyring label, updater, app id and URL scheme; waits until Marley ships a package or needs a non-`dev` build (the `dev` channel keeps it safe until then). Chad, 2026-10-01: wait, so bugs found before the first release do not mean cutting several |

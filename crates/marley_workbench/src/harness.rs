@@ -37,6 +37,7 @@ use std::pin::pin;
 use std::sync::Arc;
 use std::time::Duration;
 
+use agent_ui::{Agent, AgentPanel};
 use anyhow::Context as _;
 use command_palette_hooks::CommandPaletteFilter;
 use context_server::types::requests::CallTool;
@@ -47,7 +48,7 @@ use futures::future::{Either, select};
 use futures::{AsyncBufReadExt as _, StreamExt as _};
 use gpui::{
     App, AsyncApp, ClipboardItem, Context, DismissEvent, Entity, EventEmitter, FocusHandle,
-    Focusable, Global, SharedString, Subscription, Task, WeakEntity, actions,
+    Focusable, Global, SharedString, Subscription, SystemNotification, Task, WeakEntity, actions,
 };
 use marley_fleet::{FleetSnapshot, SessionEvent, State, apply};
 use picker::{Picker, PickerDelegate};
@@ -56,9 +57,9 @@ use serde_json::{Value, json};
 use settings::{Settings as _, SettingsStore};
 use ui::{ListItem, ListItemSpacing, prelude::*};
 use util::ResultExt as _;
-use workspace::Workspace;
 use workspace::item::Item;
 use workspace::notifications::DetachAndPromptErr as _;
+use workspace::{MultiWorkspace, Workspace};
 
 use crate::{EmbeddedHarness, MarleySettings};
 
@@ -154,6 +155,30 @@ pub(crate) struct Harness {
     rh: Option<PathBuf>,
     /// The command of the Agent Panel's Manager entry, while it is in the defaults (#694).
     manager_entry: Option<(PathBuf, Vec<String>)>,
+    /// How far Marley has read the manager thread, once it has (#688).
+    thread_cursor: Option<u64>,
+    /// The manager's records posted while its thread was not in front, until it is (#688).
+    unread: Vec<ManagerRecord>,
+}
+
+/// A record the manager posted to its thread that the user has not seen (#688).
+#[derive(Clone, Debug)]
+pub(crate) struct ManagerRecord {
+    pub(crate) id: String,
+    /// `message`, `report` or `confirmation`.
+    pub(crate) kind: String,
+    /// The first line of its text.
+    pub(crate) line: String,
+}
+
+impl ManagerRecord {
+    /// The record's kind as a word the user reads: Report, Message, Confirmation.
+    pub(crate) fn kind_word(&self) -> String {
+        let mut characters = self.kind.chars();
+        characters.next().map_or_else(String::new, |first| {
+            first.to_uppercase().chain(characters).collect()
+        })
+    }
 }
 
 impl Global for Harness {}
@@ -215,6 +240,12 @@ impl Harness {
         }
     }
 
+    /// The manager's records the user has not seen (#688).
+    pub(crate) fn unread(cx: &App) -> &[ManagerRecord] {
+        cx.try_global::<Self>()
+            .map_or(&[], |harness| harness.unread.as_slice())
+    }
+
     /// The harness's sessions, in the order the harness first published them.
     pub(crate) fn seats(cx: &App) -> &FleetSnapshot {
         static NONE: std::sync::LazyLock<FleetSnapshot> =
@@ -262,7 +293,139 @@ pub(crate) fn writes_on(cx: &App) -> bool {
 }
 
 /// The Agent Panel's entry for the root's manager thread, and its key in the agent servers (#694).
-const MANAGER_ENTRY: &str = "Manager";
+pub(crate) const MANAGER_ENTRY: &str = "Manager";
+
+/// Whether the followed harness has a manager: a session labelled `role: manager`, which the
+/// harness moves with the designation.
+fn has_manager(cx: &App) -> bool {
+    Harness::seats(cx).seats().iter().any(|seat| {
+        seat.labels
+            .get("role")
+            .is_some_and(|role| role == "manager")
+    })
+}
+
+/// Whether the user is looking at the manager thread: the active window's workspace shows the
+/// Agent Panel with the Manager agent selected (#688).
+fn manager_in_front(cx: &App) -> bool {
+    let Some(multi_workspace) = cx
+        .active_window()
+        .and_then(|window| window.downcast::<MultiWorkspace>())
+        .and_then(|window| window.read(cx).ok())
+    else {
+        return false;
+    };
+    let workspace = multi_workspace.workspace();
+    let manager = Agent::Custom {
+        id: project::AgentId::new(MANAGER_ENTRY),
+    };
+    AgentPanel::is_visible(workspace, cx)
+        && workspace
+            .read(cx)
+            .panel::<AgentPanel>(cx)
+            .is_some_and(|panel| panel.read(cx).selected_agent(cx) == manager)
+}
+
+/// A page of `thread_read` (#688).
+#[derive(Deserialize)]
+struct ThreadPage {
+    events: Vec<ThreadEntry>,
+    next_cursor: u64,
+}
+
+#[derive(Deserialize)]
+struct ThreadEntry {
+    kind: String,
+    change: Value,
+}
+
+/// The manager thread's records after `after`, read to the end of what the harness keeps, and the
+/// cursor reached: the manager's records only.
+async fn read_thread(
+    server: &ContextServer,
+    after: u64,
+    cx: &AsyncApp,
+) -> Result<(Vec<ManagerRecord>, u64), Failure> {
+    let mut cursor = after;
+    let mut records = Vec::new();
+    // A page holds 128 changes and the thread keeps 8,192 records, so this many pages reach its
+    // end.
+    for _ in 0..=THREAD_PAGES {
+        let value = call(server, "thread_read", json!({ "after": cursor }), cx).await?;
+        let page = serde_json::from_value::<ThreadPage>(value).map_err(|error| {
+            Failure::Failed(anyhow::anyhow!("thread_read did not parse: {error}"))
+        })?;
+        cursor = page.next_cursor.max(cursor);
+        if page.events.is_empty() {
+            break;
+        }
+        records.extend(page.events.iter().filter_map(|entry| {
+            let change = &entry.change;
+            let text = |name: &str| change.get(name).and_then(Value::as_str).unwrap_or_default();
+            (entry.kind == "thread_record" && text("author") == "manager").then(|| ManagerRecord {
+                id: text("id").to_string(),
+                kind: text("kind").to_string(),
+                line: text("text").lines().next().unwrap_or_default().to_string(),
+            })
+        }));
+    }
+    Ok((records, cursor))
+}
+
+/// How many pages of the thread one read goes through at most.
+const THREAD_PAGES: usize = 64;
+
+/// Follows the manager thread while the fleet has a manager and the write verbs are on: the first
+/// read goes to the end and raises nothing, and each later one hands the manager's new records to
+/// `manager_posted`. A thread that cannot be read is logged and read again on the next pass.
+async fn follow_thread(server: &ContextServer, cx: &AsyncApp) {
+    let cursor = cx.update(|cx| {
+        (has_manager(cx) && writes_on(cx)).then(|| cx.global::<Harness>().thread_cursor)
+    });
+    let Some(cursor) = cursor else {
+        return;
+    };
+    match read_thread(server, cursor.unwrap_or(0), cx).await {
+        Ok((records, reached)) => cx.update(|cx| {
+            cx.global_mut::<Harness>().thread_cursor = Some(reached);
+            if cursor.is_some() {
+                manager_posted(records, cx);
+            }
+        }),
+        Err(Failure::Resync) => {
+            // Past what the harness keeps: read to the end again, quietly.
+            cx.update(|cx| cx.global_mut::<Harness>().thread_cursor = None);
+        }
+        Err(Failure::Failed(error)) => log::debug!("harness: the manager thread: {error:#}"),
+    }
+    cx.update(|cx| {
+        if !cx.global::<Harness>().unread.is_empty() && manager_in_front(cx) {
+            cx.global_mut::<Harness>().unread.clear();
+        }
+    });
+}
+
+/// Raises the manager's new records while its thread is not in front: a desktop notice for each,
+/// and a mark the rail's inbox lists until the thread is in front (#688).
+fn manager_posted(records: Vec<ManagerRecord>, cx: &mut App) {
+    if records.is_empty() || manager_in_front(cx) {
+        return;
+    }
+    for record in &records {
+        log::info!(
+            "harness: the manager posted a {}: {}",
+            record.kind,
+            record.line
+        );
+        cx.show_system_notification(SystemNotification {
+            tag: SharedString::from(format!("marley-manager-{}", record.id)),
+            title: SharedString::from(format!("Manager: {}", record.kind_word())),
+            body: SharedString::from(record.line.clone()),
+            actions: Vec::new(),
+        });
+    }
+    cx.global_mut::<Harness>().unread.extend(records);
+}
 
 /// Puts a `Manager` agent server in the settings' in-memory defaults while the write verbs are on
 /// and the followed harness has a manager, a session labelled `role: manager`, which the harness
@@ -270,12 +433,7 @@ const MANAGER_ENTRY: &str = "Manager";
 /// through the command Marley follows the harness with, as `seat_command` gives it, so a root over
 /// SSH is reached over SSH; the thread it shows is the person's side of the manager's.
 fn sync_manager_entry(cx: &mut App) {
-    let has_manager = Harness::seats(cx).seats().iter().any(|seat| {
-        seat.labels
-            .get("role")
-            .is_some_and(|role| role == "manager")
-    });
-    let command = (writes_on(cx) && has_manager)
+    let command = (writes_on(cx) && has_manager(cx))
         .then(|| Harness::seat_command(cx))
         .flatten()
         .map(|(program, mut args)| {
@@ -677,6 +835,7 @@ async fn connected(
                 sync_manager_entry(cx);
             });
         }
+        follow_thread(&server, cx).await;
         let now = now_minute();
         if now != minute {
             minute = now;
