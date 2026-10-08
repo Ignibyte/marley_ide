@@ -134,7 +134,8 @@ The Marley session:
    The form itself: Host (this box or a fleet host), name, role, agent and folder; Marley
    runs `rh seat add` and `rh seat start` on that host over SSH. The Marley agent gets the same as
    a tool ("set up a manager on forge working in /srv/work/x").
-7. **The manager in the Agent Panel.** When a manager seat exists, Marley adds its `rh acp` to
+7. **The manager in the Agent Panel.** **Done in #694 (2026-10-08):** a Manager entry running
+   `rh acp` through the followed command, while a session holds `role: manager`. When a manager seat exists, Marley adds its `rh acp` to
    `agent_servers`. MREQ-008 shrinks to whatever the panel cannot show.
 
 UCSOS, Chad with the harness session:

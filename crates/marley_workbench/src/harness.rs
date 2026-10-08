@@ -152,6 +152,8 @@ pub(crate) struct Harness {
     palette_shown: Option<bool>,
     /// The `rh` the embedded runtime runs, once found (#691).
     rh: Option<PathBuf>,
+    /// The command of the Agent Panel's Manager entry, while it is in the defaults (#694).
+    manager_entry: Option<(PathBuf, Vec<String>)>,
 }
 
 impl Global for Harness {}
@@ -259,6 +261,58 @@ pub(crate) fn writes_on(cx: &App) -> bool {
             .is_some_and(|harness| harness.source != Source::Off)
 }
 
+/// The Agent Panel's entry for the root's manager thread, and its key in the agent servers (#694).
+const MANAGER_ENTRY: &str = "Manager";
+
+/// Puts a `Manager` agent server in the settings' in-memory defaults while the write verbs are on
+/// and the followed harness has a manager, a session labelled `role: manager`, which the harness
+/// moves with the designation; takes it out otherwise (#694). It runs the harness's `rh acp`
+/// through the command Marley follows the harness with, as `seat_command` gives it, so a root over
+/// SSH is reached over SSH; the thread it shows is the person's side of the manager's.
+fn sync_manager_entry(cx: &mut App) {
+    let has_manager = Harness::seats(cx).seats().iter().any(|seat| {
+        seat.labels
+            .get("role")
+            .is_some_and(|role| role == "manager")
+    });
+    let command = (writes_on(cx) && has_manager)
+        .then(|| Harness::seat_command(cx))
+        .flatten()
+        .map(|(program, mut args)| {
+            args.push("acp".to_string());
+            (program, args)
+        });
+    if cx.global::<Harness>().manager_entry == command {
+        return;
+    }
+    cx.global_mut::<Harness>()
+        .manager_entry
+        .clone_from(&command);
+    cx.update_global::<SettingsStore, _>(|store, cx| {
+        store.update_default_settings(cx, |defaults| {
+            let servers = defaults.agent_servers.get_or_insert_default();
+            match command {
+                Some((path, args)) => {
+                    servers.insert(
+                        MANAGER_ENTRY.to_string(),
+                        settings::CustomAgentServerSettings::Custom {
+                            path,
+                            args,
+                            env: collections::HashMap::default(),
+                            default_mode: None,
+                            default_config_options: collections::HashMap::default(),
+                            favorite_config_option_values: collections::HashMap::default(),
+                        },
+                    );
+                }
+                None => {
+                    servers.remove(MANAGER_ENTRY);
+                }
+            }
+        });
+    });
+}
+
 /// Lists `OpenHarnessSession` in the palette while the write verbs are on. Before the palette has
 /// its filter there is nothing to set; the next call sets it.
 fn filter_palette(cx: &mut App) {
@@ -295,6 +349,7 @@ fn follow_setting(cx: &mut App) {
     };
     if cx.global::<Harness>().source == source {
         filter_palette(cx);
+        sync_manager_entry(cx);
         return;
     }
     let (run, embed) = match &source {
@@ -317,6 +372,7 @@ fn follow_setting(cx: &mut App) {
     harness.run = run;
     harness.embed = embed;
     filter_palette(cx);
+    sync_manager_entry(cx);
 }
 
 /// Keeps the runtime Marley runs itself: finds `rh`, serves the root, follows it once it is
@@ -618,6 +674,7 @@ async fn connected(
                 for entry in &page.events {
                     apply(&mut harness.seats, &entry.event);
                 }
+                sync_manager_entry(cx);
             });
         }
         let now = now_minute();
@@ -649,7 +706,10 @@ async fn seed(server: &ContextServer, cx: &AsyncApp) -> anyhow::Result<u64> {
         .context("fleet_snapshot gave no cursor")?;
     let seats: FleetSnapshot =
         serde_json::from_value(value).context("fleet_snapshot's seats did not parse")?;
-    cx.update(|cx| cx.global_mut::<Harness>().seats = seats);
+    cx.update(|cx| {
+        cx.global_mut::<Harness>().seats = seats;
+        sync_manager_entry(cx);
+    });
     Ok(cursor)
 }
 

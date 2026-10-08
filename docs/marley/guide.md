@@ -2232,6 +2232,18 @@ the picker lists the profiles, and you can always type a name.
 - **From an agent** (#692). Agents, the Marley agent among them, propose the same with
   `seat_add`, and nothing happens until you press Apply.
 
+**The manager in the Agent Panel** (#694). While the switch is on and the harness has a manager (a
+session whose `role` label is `manager`, which the harness moves with the designation), the Agent
+Panel's New Agent Thread lists **Manager**. Its thread is the manager thread, through the harness's
+`rh acp`, run with the command Marley follows the harness with, ending in `acp`:
+- **Sending.** What you type goes into the thread as your message, and the harness hands it to
+  the manager once the manager is idle. The turn ends after that.
+- **Reading.** The manager's messages and reports (`Report: …`) arrive as its replies, also
+  between your turns.
+- **Confirmations.** A confirmation the manager asks for comes up as a permission request,
+  Allow or Reject, for 60 seconds.
+- **No manager.** Without a manager the entry is not there.
+
 When Marley runs the harness itself, it follows it with `--grant write` while the switch is on. A
 `harness` command keeps its own arguments: add `"--grant", "write"` there, or the harness refuses
 each write and the tab shows why. Off, the tab only reads and the palette does not list the

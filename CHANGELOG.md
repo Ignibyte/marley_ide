@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The manager in the Agent Panel** (#694, 2026-10-08). When the harness Marley follows has a
+  manager (with `marley.harness_writes` on), the Agent Panel lists **Manager**. Its thread runs the
+  harness's `rh acp` through the command Marley follows the harness with, so a root over SSH is
+  reached over SSH.
+  - Your messages go into the manager's thread.
+  - Its posts and reports stream back, between your turns too.
+  - Its confirmations come up as permission requests.
+  - The entry follows the manager: it moves with the designation and goes when there is none.
+
 - **The Marley agent sets up a harness seat** (#692, 2026-10-07). `seat_add` on Marley's MCP
   server lets an agent propose a seat ("set up a manager working in /srv/work/x"): a name, Claude
   Code or Codex, a folder and a role.

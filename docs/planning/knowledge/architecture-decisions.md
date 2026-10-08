@@ -4477,3 +4477,20 @@ The grant class is `harness.write`, granted as the other write classes are. The 
 Rejected:
 - answering after the start, which would time out on every Claude seat;
 - answering before the add, which would lose the harness's refusals.
+
+## AD-claude-694-the-manager-entry-follows-the-role-label-001
+*decided at: 2026-10-08 · status: shipped · builds on: AD-claude-683-marleys-own-agent-is-claude-code-with-session-meta-from-marleys-settings-001, AD-claude-691-a-seat-is-set-up-through-the-followed-harnesss-own-command-001*
+
+The Agent Panel's **Manager** entry is a custom agent server in the settings' in-memory defaults,
+as #683's Marley entry is. Its command is the followed harness's own command before `mcp`, plus
+`acp`, so a root over SSH is reached over SSH.
+
+It is there while `marley.harness_writes` is on and a fleet session's labels hold
+`role: manager`. The harness moves that label with the designation, so the entry follows the
+manager with nothing for Marley to track.
+
+Rejected:
+- an entry always present: it would open a thread with no manager, where the harness answers
+  with a notice;
+- reading the designation from `owner_inbox`: that is a second call per change, for what the
+  envelope's label already says.

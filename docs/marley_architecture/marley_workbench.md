@@ -1701,6 +1701,13 @@ alike.
     read on the background executor) and the typed name. Confirm calls `session_open` and
     opens the returned id's tab. `filter_palette` lists the action only while `writes_on`.
 
+- **The Manager entry (#694).** `sync_manager_entry` runs after `seed`, after each page of
+  events, and in `follow_setting`.
+  - While `writes_on` and a seat's labels hold `role: manager`, it puts
+    `agent_servers["Manager"]` in the in-memory defaults: a `Custom` server with
+    `seat_command`'s program and arguments plus `acp`.
+  - Otherwise it takes the entry out.
+  - `Harness.manager_entry` keeps the command in place, so the defaults change only when it does.
 - **A seat in one step (#691, `src/harness_seat.rs`).**
   - `Harness::seat_command` is the followed command before its `mcp`, or the embedded
     `Harness.rh` with `--state <root>`.
