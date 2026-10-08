@@ -127,6 +127,9 @@ The Marley session:
      `seat_agent`, `seat_role`, `seat_role_reserved`, `harness_model_refused`,
      `claude_signin_undeclared`, or a cwd or binary refusal.
 
+   **The form is done in #691 (2026-10-07):** `marley: new harness seat`, through the followed
+   harness's own command. The Marley agent's tool for the same is TICKET-692.
+
    The form itself: Host (this box or a fleet host), name, role, agent and folder; Marley
    runs `rh seat add` and `rh seat start` on that host over SSH. The Marley agent gets the same as
    a tool ("set up a manager on forge working in /srv/work/x").

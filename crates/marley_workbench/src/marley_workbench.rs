@@ -55,6 +55,7 @@ pub mod github;
 pub mod groups;
 pub mod guide;
 pub mod harness;
+pub mod harness_seat;
 pub mod launch;
 pub mod links;
 pub mod markdown_commands;

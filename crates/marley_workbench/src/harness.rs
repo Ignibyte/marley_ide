@@ -147,8 +147,11 @@ pub(crate) struct Harness {
     run: Option<Task<()>>,
     /// The embedded runtime's keeper, which starts `serve` and the run.
     embed: Option<Task<()>>,
-    /// Whether the palette lists `OpenHarnessSession`, once its filter was set.
+    /// Whether the palette lists `OpenHarnessSession` and `NewHarnessSeat`, once its filter was
+    /// set.
     palette_shown: Option<bool>,
+    /// The `rh` the embedded runtime runs, once found (#691).
+    rh: Option<PathBuf>,
 }
 
 impl Global for Harness {}
@@ -189,6 +192,27 @@ impl Harness {
             .then(|| paths::data_dir().join("harness").join("profiles"))
     }
 
+    /// The program and the arguments that run a harness command on the harness Marley follows
+    /// (#691): a `marley.harness` command's up to its `mcp`, so one over SSH stays over SSH, or
+    /// the embedded runtime's `rh --state <root>`.
+    pub(crate) fn seat_command(cx: &App) -> Option<(PathBuf, Vec<String>)> {
+        let harness = cx.try_global::<Self>()?;
+        match &harness.source {
+            Source::Off => None,
+            Source::Command(command) => {
+                let mcp = command.args.iter().position(|argument| argument == "mcp")?;
+                Some((command.path.clone(), command.args[..mcp].to_vec()))
+            }
+            Source::Embedded { .. } => {
+                let root = paths::data_dir().join("harness");
+                Some((
+                    harness.rh.clone()?,
+                    vec!["--state".to_string(), root.display().to_string()],
+                ))
+            }
+        }
+    }
+
     /// The harness's sessions, in the order the harness first published them.
     pub(crate) fn seats(cx: &App) -> &FleetSnapshot {
         static NONE: std::sync::LazyLock<FleetSnapshot> =
@@ -207,6 +231,11 @@ pub fn init(cx: &mut App) {
         workspace.register_action(|workspace, _: &OpenHarnessSession, window, cx| {
             open_session_picker(workspace, window, cx);
         });
+        workspace.register_action(
+            |workspace, _: &crate::harness_seat::NewHarnessSeat, window, cx| {
+                crate::harness_seat::open_form(workspace, window, cx);
+            },
+        );
         cx.defer(filter_palette);
     })
     .detach();
@@ -223,7 +252,7 @@ fn harness_writes(cx: &App) -> bool {
 }
 
 /// Whether the harness's write verbs are on: `marley.harness_writes`, with a harness to follow.
-fn writes_on(cx: &App) -> bool {
+pub(crate) fn writes_on(cx: &App) -> bool {
     harness_writes(cx)
         && cx
             .try_global::<Harness>()
@@ -240,7 +269,10 @@ fn filter_palette(cx: &mut App) {
         return;
     }
     cx.global_mut::<Harness>().palette_shown = Some(on);
-    let command = [TypeId::of::<OpenHarnessSession>()];
+    let command = [
+        TypeId::of::<OpenHarnessSession>(),
+        TypeId::of::<crate::harness_seat::NewHarnessSeat>(),
+    ];
     CommandPaletteFilter::update_global(cx, |filter, _| {
         if on {
             filter.show_action_types(&command);
@@ -297,6 +329,7 @@ async fn embed(cx: &AsyncApp) {
             return;
         }
     };
+    cx.update(|cx| cx.global_mut::<Harness>().rh = Some(rh.clone()));
     let root = paths::data_dir().join("harness");
     let socket = root.join("runtime.sock");
     if socket.as_os_str().len() > SOCKET_PATH_MAX {
@@ -944,6 +977,23 @@ pub(crate) fn now_ms() -> u64 {
         })
 }
 
+/// Shows the tab of the session `id` in the window's Home group, as the rail's row does (#676): a
+/// session belongs to no project.
+pub(crate) fn open_in_home(
+    asked_from: WeakEntity<Workspace>,
+    id: String,
+    window: &Window,
+    cx: &mut App,
+) {
+    crate::groups::in_group(
+        crate::groups::GroupKind::Home,
+        asked_from,
+        window,
+        cx,
+        move |workspace, window, cx| open(workspace, &id, window, cx),
+    );
+}
+
 /// Shows the tab of the session `id` in `workspace`, or brings forward the one open there.
 pub(crate) fn open(
     workspace: &mut Workspace,
@@ -1559,7 +1609,9 @@ impl PickerDelegate for OpenSessionDelegate {
                 .and_then(Value::as_str)
                 .context("session_open gave no id")?
                 .to_string();
-            workspace.update_in(cx, |workspace, window, cx| open(workspace, &id, window, cx))
+            workspace.update_in(cx, |workspace, window, cx| {
+                open_in_home(workspace.weak_handle(), id, window, cx);
+            })
         })
         .detach_and_prompt_err("Could not open the session", window, cx, |_, _, _| None);
         self.dismissed(window, cx);

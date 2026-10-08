@@ -1701,6 +1701,18 @@ alike.
     read on the background executor) and the typed name. Confirm calls `session_open` and
     opens the returned id's tab. `filter_palette` lists the action only while `writes_on`.
 
+- **A seat in one step (#691, `src/harness_seat.rs`).**
+  - `Harness::seat_command` is the followed command before its `mcp`, or the embedded
+    `Harness.rh` with `--state <root>`.
+  - `NewHarnessSeat` opens `open_form`'s `NewSeatModal`: three single-line editors and the
+    `SeatAgent`.
+  - `create` runs `seat add NAME --agent … --cwd … [--role …]`, then `seat start NAME`, through
+    `process::output` (`run_seat`). Exit 0 gives the JSON, and otherwise the shown refusal is
+    stderr's last line without `rh: `.
+  - On success `harness::open_in_home` shows the id's tab in the Home group (`groups::in_group`),
+    which #689's picker now uses too.
+  - `filter_palette` lists the action with `OpenHarnessSession`.
+
 ## The Rusty home page (`src/rusty/home_tab.rs`, #679)
 
 - `RustyHome` (an `Item`, title Rusty, `rusty::RUSTY_ICON`, a placeholder) is the Rusty group's

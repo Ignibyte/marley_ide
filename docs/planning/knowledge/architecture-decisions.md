@@ -4443,3 +4443,20 @@ Rejected:
 
 The views name this machine's `rh`, so a harness reached over SSH waits for item 6's SSH
 handling.
+
+## AD-claude-691-a-seat-is-set-up-through-the-followed-harnesss-own-command-001
+*decided at: 2026-10-07 · status: shipped · builds on: AD-claude-689-harness-writes-live-in-the-sessions-tab-behind-one-switch-001*
+
+`marley: new harness seat` runs the harness's `seat add` and `seat start` (its TICKET-109)
+through the command Marley already follows the harness with:
+- for `marley.harness`, its program and its arguments before `mcp`;
+- for the embedded harness, the found `rh` with `--state <root>`.
+
+A harness over SSH is therefore set up over SSH with no second setting, and the harness, not
+Marley, decides the binary and the policy. Rejected:
+- a host picker over `marley.fleet.hosts`: it has no harness root per host, and one harness is
+  followed at a time;
+- `session_open` with a profile Marley writes: the harness lets a client name a profile but never
+  supply a program, and profiles are the operator's files.
+
+Every tab a harness action opens goes to the Home group, as the rail's row does (#676).

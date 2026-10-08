@@ -13,6 +13,18 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A harness seat in one step** (#691, 2026-10-07). `marley: new harness seat` sets up a seat
+  from one form:
+  - **The form.** Name, agent (Claude Code or Codex), folder and role. A role of `manager` makes
+    the seat the root's manager.
+  - **The run.** Create runs the harness's `seat add` and `seat start` through the command Marley
+    follows it with, so a harness over SSH is set up over SSH. The seat's tab then opens under
+    Home.
+  - **Refusals.** A refusal stays in the form with the harness's code and reason.
+
+  A session opened with `marley: open harness session` now opens under Home too, as the rail's
+  rows do. It needs `marley.harness_writes`.
+
 - **Watching a harness session in a terminal** (#690, 2026-10-07). Each view a harness session's
   tab lists now has Open. Open starts the view's command in a new terminal of the tab's
   workspace:

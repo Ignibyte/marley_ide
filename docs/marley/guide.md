@@ -2217,6 +2217,18 @@ tab gains controls above its lines:
 root's `profiles` folder (`session_open`) and opens its tab. When Marley runs the harness itself,
 the picker lists the profiles, and you can always type a name.
 
+**A seat in one step** (#691). `marley: new harness seat` sets up a seat from one form:
+- **The form.** A name, the agent (Claude Code or Codex), the folder it works in (the project's
+  at first) and a role. `manager` makes it the root's manager; any other role is a label.
+- **Create.** Runs the harness's `seat add` and `seat start` with the command Marley follows the
+  harness with, up to its `mcp`. A harness reached as `ssh HOST rh --state ROOT mcp …` is set up
+  with `ssh HOST rh --state ROOT seat …`.
+- **Waiting.** A Claude Code seat takes up to a minute, since the harness waits for its first
+  report.
+- **The result.** The seat's tab opens under Home. A refusal stays in the form as the harness
+  said it, such as `seat_exists` or `claude_signin_undeclared`. For the latter, run
+  `rh claude signin` on that root first.
+
 When Marley runs the harness itself, it follows it with `--grant write` while the switch is on. A
 `harness` command keeps its own arguments: add `"--grant", "write"` there, or the harness refuses
 each write and the tab shows why. Off, the tab only reads and the palette does not list the
