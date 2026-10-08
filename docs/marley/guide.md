@@ -2205,7 +2205,13 @@ tab gains controls above its lines:
   (`session_send`). The line under it gives the delivery's state, or the harness's reason when it
   refuses, for example when the session is not waiting for a message.
 - **Views.** Lists the commands that watch the session (`session_surface_to_human`), such as
-  `rh view` and `rh attach`, each with Copy.
+  `rh view` and `rh attach`, each with Open and Copy. Open (#690) starts the command in a new
+  terminal of the same workspace:
+  - `rh attach` shows the session's tmux pane, and Ctrl-b d leaves it;
+  - `rh view` shows the native view, where Ctrl-b c claims control before you type;
+  - a Codex or Claude session offers its history and, while it runs, an observer.
+
+  The commands run on this machine, so a harness reached over SSH is not covered yet.
 
 `marley: open harness session` in the palette opens a session from a profile declared in the
 root's `profiles` folder (`session_open`) and opens its tab. When Marley runs the harness itself,

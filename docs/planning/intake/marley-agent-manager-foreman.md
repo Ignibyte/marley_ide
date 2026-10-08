@@ -111,7 +111,8 @@ The Marley session:
 
    Harness TICKET-092 (closed 2026-10-07) adds `wait_ms` to `session_send`, which Marley does not
    use yet.
-5. **Watching a seat.** Marley runs the command `session_surface_to_human` returns (`rh view`,
+5. **Watching a seat.** **Done in #690 (2026-10-07):** Open on each view of a session's tab,
+   local harness only. Marley runs the command `session_surface_to_human` returns (`rh view`,
    `rh attach`, or a Claude or Codex observer) in a terminal pane, typing through the harness's
    controller claim. This is `intake/harness-session-live-terminal.md`; its 2026-10-01 finding (no
    seat had a terminal) needs checking again now that M13 runs Claude Code's own interface in a

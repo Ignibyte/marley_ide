@@ -959,7 +959,8 @@ pub(crate) fn open(
         return;
     }
     let id = id.to_string();
-    let view = cx.new(|cx| HarnessView::new(id, window, cx));
+    let handle = workspace.weak_handle();
+    let view = cx.new(|cx| HarnessView::new(id, handle, window, cx));
     workspace.add_item_to_center(Box::new(view), window, cx);
 }
 
@@ -968,6 +969,8 @@ pub(crate) fn open(
 /// that watch it (#689).
 pub(crate) struct HarnessView {
     id: String,
+    /// The workspace the tab opened in, where a view's terminal opens (#690).
+    workspace: WeakEntity<Workspace>,
     title: SharedString,
     lines: Vec<SharedString>,
     error: Option<SharedString>,
@@ -997,7 +1000,12 @@ impl std::fmt::Debug for HarnessView {
 }
 
 impl HarnessView {
-    fn new(id: String, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    fn new(
+        id: String,
+        workspace: WeakEntity<Workspace>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let title = Harness::seats(cx).get(&id).map_or_else(
             || SharedString::from(id.clone()),
             |seat| seat.title.clone().into(),
@@ -1025,6 +1033,7 @@ impl HarnessView {
         });
         let mut view = Self {
             id,
+            workspace,
             title,
             lines: Vec::new(),
             error: None,
@@ -1175,6 +1184,28 @@ impl HarnessView {
         );
     }
 
+    /// Starts a view's command line in a new terminal of the tab's workspace, typed into its shell
+    /// as #684 types the Marley agent's, so the shell is left when the view ends (#690).
+    fn open_view(&self, line: &SharedString, window: &Window, cx: &mut Context<Self>) {
+        let Some(workspace) = self.workspace.upgrade() else {
+            return;
+        };
+        let input = format!("{line}\n").into_bytes();
+        workspace
+            .update(cx, |workspace, cx| {
+                crate::agents::start_in_terminal(
+                    workspace,
+                    None,
+                    None,
+                    Some(input),
+                    None,
+                    window,
+                    cx,
+                )
+            })
+            .detach_and_log_err(cx);
+    }
+
     /// Calls the write verb `tool`, unless a write is under way, and hands an accepted value to
     /// `accepted`; a refusal shows with the harness's reason.
     fn write(
@@ -1270,14 +1301,23 @@ impl HarnessView {
             })
             .children(self.views.iter().enumerate().map(|(index, (kind, line))| {
                 let copied = line.to_string();
-                // Copy comes before the line, which is cut at the tab's edge: a view's command
-                // carries the root's path and a workspace id, longer than most tabs are wide.
+                let opened = line.clone();
+                // Open and Copy come before the line, which is cut at the tab's edge: a view's
+                // command carries the root's path and a workspace id, longer than most tabs are
+                // wide.
                 h_flex()
                     .gap_2()
                     .child(
                         Label::new(kind.clone())
                             .color(Color::Muted)
                             .size(LabelSize::Small),
+                    )
+                    .child(
+                        Button::new(("marley-harness-open", index), "Open")
+                            .label_size(LabelSize::Small)
+                            .on_click(cx.listener(move |view, _, window, cx| {
+                                view.open_view(&opened, window, cx);
+                            })),
                     )
                     .child(
                         Button::new(("marley-harness-copy", index), "Copy")

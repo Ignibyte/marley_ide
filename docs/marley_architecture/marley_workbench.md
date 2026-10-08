@@ -1693,7 +1693,9 @@ alike.
     (`answer`: `session_answer` with the full prompt), the send line (`send`:
     `session_send` with a new UUID; Enter arrives as `menu::Confirm` on the view), and Views
     (`surface`: `session_surface_to_human`, `view_line` quoting each argument). Each view gets
-    Copy, and its line is truncated after it.
+    Open and Copy, and its line is truncated after them. `open_view` (#690) types the quoted line
+    into a new terminal of `HarnessView.workspace`, the workspace `open` was called in, through
+    `agents::start_in_terminal`.
   - `OpenHarnessSession` opens `open_session_picker`, whose `OpenSessionDelegate` offers the
     names in `<data dir>/harness/profiles` while the harness is embedded (`profile_names`,
     read on the background executor) and the typed name. Confirm calls `session_open` and

@@ -4426,3 +4426,20 @@ harness's refusal. Rejected:
   administrator fixes;
 - running a view in a pane here: that is item 5, after the harness gives agent seats views
   (TICKET-109).
+
+## AD-claude-690-a-harness-view-runs-as-a-typed-line-in-a-marley-terminal-001
+*decided at: 2026-10-07 · status: shipped · builds on: AD-claude-689-harness-writes-live-in-the-sessions-tab-behind-one-switch-001*
+
+A harness session is watched by running the view command `session_surface_to_human` returns
+(`rh view`, `rh attach`, a history or an observer). Marley types the quoted command line into a
+new shell terminal of the tab's workspace, as #684 starts the Marley agent. When the view ends,
+the user is back at the shell and can read what it said.
+
+Rejected:
+- A terminal whose program is the view itself: it closes when the view ends, and its last words
+  go with it.
+- The display-only stream observer of `intake/harness-session-live-terminal.md`: the harness's
+  own clients already draw the session, and claiming control comes with them.
+
+The views name this machine's `rh`, so a harness reached over SSH waits for item 6's SSH
+handling.

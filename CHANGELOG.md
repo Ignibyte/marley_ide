@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Watching a harness session in a terminal** (#690, 2026-10-07). Each view a harness session's
+  tab lists now has Open. Open starts the view's command in a new terminal of the tab's
+  workspace:
+  - `rh attach` shows the session's tmux pane;
+  - `rh view` shows the native view, where Ctrl-b c claims control so you can type;
+  - for a Codex or Claude session, its history or an observer.
+
 - **Writing to harness sessions** (#689, 2026-10-07). With `marley.harness_writes` on, a harness
   session's tab can write to the session as well as show its output:
   - answer the question it waits on with a button per option;
