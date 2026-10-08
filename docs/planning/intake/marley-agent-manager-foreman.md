@@ -128,7 +128,8 @@ The Marley session:
      `claude_signin_undeclared`, or a cwd or binary refusal.
 
    **The form is done in #691 (2026-10-07):** `marley: new harness seat`, through the followed
-   harness's own command. The Marley agent's tool for the same is TICKET-692.
+   harness's own command. The Marley agent's tool for the same is done in #692: `seat_add`, asked
+   like a settings change.
 
    The form itself: Host (this box or a fleet host), name, role, agent and folder; Marley
    runs `rh seat add` and `rh seat start` on that host over SSH. The Marley agent gets the same as

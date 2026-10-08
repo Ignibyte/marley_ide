@@ -102,7 +102,7 @@ pub fn start(cx: &mut App) {
     // The browser's write tools are granted: the client's approval of each call and the Browser
     // tab, where the user watches each action, are their checks (#492 D2). The editor's is
     // Marley's own `marley-edit`'s, which outside clients are refused (#649). A settings change
-    // waits for the user's Apply (#682).
+    // waits for the user's Apply (#682), as a harness seat does (#692).
     let shared: transport::Shared = Arc::new((
         Mutex::new(transport::ServerData {
             grants: GrantTable::from_classes([
@@ -110,6 +110,7 @@ pub fn start(cx: &mut App) {
                 "terminal.write",
                 "editor.write",
                 "settings.write",
+                "harness.write",
             ]),
             ..transport::ServerData::default()
         }),
@@ -547,6 +548,10 @@ fn answer(call: AppCall, cx: &mut App) {
     }
     if call.tool == "keymap_change" {
         crate::settings_change::answer_keymap(call, cx);
+        return;
+    }
+    if call.tool == "seat_add" {
+        crate::harness_seat::answer_seat_add(call, cx);
         return;
     }
     if call.tool.starts_with("settings_") || call.tool.starts_with("actions_") {

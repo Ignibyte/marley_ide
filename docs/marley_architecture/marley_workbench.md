@@ -1712,6 +1712,12 @@ alike.
   - On success `harness::open_in_home` shows the id's tab in the Home group (`groups::in_group`),
     which #689's picker now uses too.
   - `filter_palette` lists the action with `OpenHarnessSession`.
+  - `seat_add` (#692) is `answer_seat_add`:
+    - `tool_off` unless `writes_on`, and `seat_of` checks the arguments;
+    - `settings_change::ask_user` asks (the question and wait `ask_then_write` uses too);
+    - `run_seat` runs `seat add`, and `refusal_of` passes on a code from `HARNESS_CODES`;
+    - the answer is `starting`, then `seat start` runs, with `SeatStartFailed` as a
+      notification.
 
 ## The Rusty home page (`src/rusty/home_tab.rs`, #679)
 

@@ -1603,6 +1603,7 @@ One write tool sits with them (#682):
 | Tool | What it does |
 |---|---|
 | `keymap_change` | Proposes a key binding: `keystrokes` as Zed's keymap writes them (`ctrl-alt-m`), an `action` (actions_list finds its name), an optional `context` (`Workspace`) and optional `arguments`. The same notification names the keys, the action's palette name and the context; Apply adds the binding to your `keymap.json` through Zed's keymap updater, comments and other bindings kept, and it works at once. An action Marley lacks is refused with `no_action` and close names, keystrokes or a context that do not parse with `bad_argument` (#686) |
+| `seat_add` | Proposes a seat on the harness Marley follows: `name`, `agent` (`claude` or `codex`), `cwd` and an optional `role`. The same notification as a settings change shows the seat and the command it runs through. Apply runs the harness's `seat add` and answers `starting`, then starts the seat, which then shows in the rail. A start that fails comes up as a notification. Refused with the harness's own code (`seat_exists`, `seat_role_reserved`, `claude_signin_undeclared` …), or `tool_off` while `marley.harness_writes` is off (#692) |
 | `settings_change` | Proposes a value for one key of your settings. A notification in every window names the agent, the key, the value now and the value proposed, and the file, with Apply and Decline; Apply writes it, keeping the file's comments and other keys, and it takes effect at once. A key the settings schema lacks (`no_setting`) or a value Zed would not parse (`invalid_value`, with Zed's error) is refused before you are asked; Decline answers `declined`, no answer within 25 seconds `no_answer`, and a file that changed while you were asked `changed` |
 
 The browser family, reading:
@@ -2228,6 +2229,8 @@ the picker lists the profiles, and you can always type a name.
 - **The result.** The seat's tab opens under Home. A refusal stays in the form as the harness
   said it, such as `seat_exists` or `claude_signin_undeclared`. For the latter, run
   `rh claude signin` on that root first.
+- **From an agent** (#692). Agents, the Marley agent among them, propose the same with
+  `seat_add`, and nothing happens until you press Apply.
 
 When Marley runs the harness itself, it follows it with `--grant write` while the switch is on. A
 `harness` command keeps its own arguments: add `"--grant", "write"` there, or the harness refuses

@@ -230,10 +230,10 @@ fn shown(value: &Value) -> String {
 
 /// What the question shows: who asks, the change, the file.
 #[derive(Clone)]
-struct Question {
-    headline: String,
-    change: String,
-    file: String,
+pub(crate) struct Question {
+    pub(crate) headline: String,
+    pub(crate) change: String,
+    pub(crate) file: String,
 }
 
 /// Asks the user about a change to the file at `path`, read as `read`, and writes `changed` on
@@ -251,35 +251,7 @@ async fn ask_then_write(
     changed: String,
     cx: &AsyncApp,
 ) -> Result<(), Refusal> {
-    let id = NotificationId::composite::<SettingsChangeQuestion>(
-        NEXT_QUESTION.fetch_add(1, Ordering::Relaxed),
-    );
-    let (sender, receiver) = oneshot::channel();
-    let slot: AnswerSlot = Arc::new(Mutex::new(Some(sender)));
-    cx.update(|cx| ask(id.clone(), question, slot, cx));
-    let timer = cx.background_executor().timer(ANSWER_WAIT);
-    let answered = futures::select_biased! {
-        answered = receiver.fuse() => answered.ok(),
-        () = timer.fuse() => None,
-    };
-    cx.update(|cx| dismiss_app_notification(&id, cx));
-    match answered {
-        Some(true) => {}
-        Some(false) => {
-            return Err(Refusal::new("declined", "the user declined the change")
-                .next("ask the user what they want instead"));
-        }
-        None => {
-            return Err(Refusal::new(
-                "no_answer",
-                format!(
-                    "the user did not answer within {} seconds; nothing was written",
-                    ANSWER_WAIT.as_secs()
-                ),
-            )
-            .next("tell the user what you proposed, and propose it again when they are there"));
-        }
-    }
+    ask_user(question, cx).await?;
     if load(fs, path, absent).await? != read {
         return Err(Refusal::new(
             "changed",
@@ -295,6 +267,40 @@ async fn ask_then_write(
                 format!("Marley could not write {}: {error:#}", path.display()),
             )
         })
+}
+
+/// Asks the user `question` in every window and waits for Apply, at most [`ANSWER_WAIT`]; a
+/// harness seat asks the same way (#692).
+///
+/// # Errors
+///
+/// `declined`, or `no_answer` when the wait ran out.
+pub(crate) async fn ask_user(question: Question, cx: &AsyncApp) -> Result<(), Refusal> {
+    let id = NotificationId::composite::<SettingsChangeQuestion>(
+        NEXT_QUESTION.fetch_add(1, Ordering::Relaxed),
+    );
+    let (sender, receiver) = oneshot::channel();
+    let slot: AnswerSlot = Arc::new(Mutex::new(Some(sender)));
+    cx.update(|cx| ask(id.clone(), question, slot, cx));
+    let timer = cx.background_executor().timer(ANSWER_WAIT);
+    let answered = futures::select_biased! {
+        answered = receiver.fuse() => answered.ok(),
+        () = timer.fuse() => None,
+    };
+    cx.update(|cx| dismiss_app_notification(&id, cx));
+    match answered {
+        Some(true) => Ok(()),
+        Some(false) => Err(Refusal::new("declined", "the user declined the change")
+            .next("ask the user what they want instead")),
+        None => Err(Refusal::new(
+            "no_answer",
+            format!(
+                "the user did not answer within {} seconds; nothing was done",
+                ANSWER_WAIT.as_secs()
+            ),
+        )
+        .next("tell the user what you proposed, and propose it again when they are there")),
+    }
 }
 
 /// Shows the question in every window, Apply and Decline answering through `slot`.

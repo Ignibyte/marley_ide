@@ -4460,3 +4460,20 @@ Marley, decides the binary and the policy. Rejected:
   supply a program, and profiles are the operator's files.
 
 Every tab a harness action opens goes to the Home group, as the rail's row does (#676).
+
+## AD-claude-692-seat-add-answers-after-the-add-and-starts-in-the-background-001
+*decided at: 2026-10-07 · status: shipped · builds on: AD-claude-691-a-seat-is-set-up-through-the-followed-harnesss-own-command-001*
+
+`seat_add`, on Marley's MCP server, asks the user with #682's question card. It runs the
+followed harness's `seat add`, answers `starting` (or the harness's refusal by its own code), and
+only then runs `seat start`. A start that fails becomes an app notification. The reason is time:
+an app call has 30 seconds, the user's answer up to 25, and a Claude seat's start up to 60, so
+start cannot fit inside the answer. `add` can, and it is the step that refuses (`seat_exists`,
+`seat_role_reserved`).
+
+The grant class is `harness.write`, granted as the other write classes are. The user's Apply and
+`marley.harness_writes` are its checks.
+
+Rejected:
+- answering after the start, which would time out on every Claude seat;
+- answering before the add, which would lose the harness's refusals.

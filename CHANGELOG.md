@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Marley agent sets up a harness seat** (#692, 2026-10-07). `seat_add` on Marley's MCP
+  server lets an agent propose a seat ("set up a manager working in /srv/work/x"): a name, Claude
+  Code or Codex, a folder and a role.
+  - **Asking.** Marley asks you with the same card as a settings change.
+  - **Apply.** Runs the harness's `seat add`, answers `starting`, then starts the seat, which
+    then shows in the rail. A start that fails comes up as a notification.
+  - **Refusals.** A refusal carries the harness's own code.
+  - **Where it works.** It needs `marley.harness_writes`. The Marley agent's instructions name the
+    tool, and its Zed profile turns it on.
+
 - **A harness seat in one step** (#691, 2026-10-07). `marley: new harness seat` sets up a seat
   from one form:
   - **The form.** Name, agent (Claude Code or Codex), folder and role. A role of `manager` makes

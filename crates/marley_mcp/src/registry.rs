@@ -34,6 +34,8 @@ pub enum Family {
     Actions,
     /// The user's key bindings (#686).
     Keymap,
+    /// Seats on the harness Marley follows, set up through its own command (#692).
+    Seat,
 }
 
 impl Family {
@@ -51,6 +53,7 @@ impl Family {
             Self::Settings => "settings",
             Self::Actions => "actions",
             Self::Keymap => "keymap",
+            Self::Seat => "seat",
         }
     }
 
@@ -67,6 +70,7 @@ impl Family {
                 | Self::Settings
                 | Self::Actions
                 | Self::Keymap
+                | Self::Seat
         )
     }
 }
@@ -458,6 +462,20 @@ const REGISTRY: &[ToolSpec] = &[
                       seconds, or `changed`.",
     },
     ToolSpec {
+        family: Family::Seat,
+        verb: "add",
+        tier: Tier::Write,
+        grant_class: "harness.write",
+        description: "Propose a seat on the harness Marley follows: a `name`, the `agent` \
+                      (`claude` or `codex`), the folder it works in (`cwd`) and an optional \
+                      `role` (`manager` makes it the root's manager). Marley shows the user the \
+                      seat and, only on Apply, runs the harness's `seat add`, answers `starting`, \
+                      then starts it; it shows in the rail's Harness section. Refused with the \
+                      harness's own code (`seat_exists`, `seat_role_reserved`, \
+                      `claude_signin_undeclared` …), `tool_off` while the user's \
+                      `marley.harness_writes` is off, `declined`, or `no_answer` after 25 seconds.",
+    },
+    ToolSpec {
         family: Family::Actions,
         verb: "list",
         tier: Tier::Read,
@@ -566,6 +584,7 @@ fn tool_schemas(spec: &ToolSpec) -> (Value, Value) {
         Family::Settings => settings_schemas(spec.verb),
         Family::Actions => actions_list_schemas(),
         Family::Keymap => keymap_change_schemas(),
+        Family::Seat => seat_add_schemas(),
         Family::Fleet => (
             json!({ "type": "object", "properties": {}, "additionalProperties": false }),
             fleet_snapshot_schema(),
@@ -1606,6 +1625,33 @@ fn keymap_change_schemas() -> (Value, Value) {
     )
 }
 
+/// `seat_add` (#692): a seat's name, agent, folder and role; the seat added and starting.
+fn seat_add_schemas() -> (Value, Value) {
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "name": { "type": "string", "description": "The seat's name: lowercase letters, digits, `-` and `_`." },
+                "agent": { "type": "string", "enum": ["claude", "codex"], "description": "Claude Code or Codex." },
+                "cwd": { "type": "string", "description": "The folder the seat works in, on the harness's machine." },
+                "role": { "type": "string", "description": "`manager`, or any label; none when left out." }
+            },
+            "required": ["name", "agent", "cwd"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "result": { "type": "string", "enum": ["starting"] },
+                "seat": { "type": "string" },
+                "profile": { "type": "string" },
+                "kind": { "type": "string" }
+            },
+            "required": ["result", "seat"]
+        }),
+    )
+}
+
 /// `actions_list` (#681): a query; the actions that hold it, with their keys.
 fn actions_list_schemas() -> (Value, Value) {
     (
@@ -2114,10 +2160,11 @@ mod tests {
                 "settings_read",
                 "settings_change",
                 "keymap_change",
+                "seat_add",
                 "actions_list"
             ]
         );
-        assert_eq!(registry().len(), 40);
+        assert_eq!(registry().len(), 41);
         assert_eq!(
             lookup("fleet_snapshot").expect("read tool").tier,
             Tier::Read
