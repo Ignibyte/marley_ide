@@ -571,6 +571,8 @@ fn init_renderers(cx: &mut App) {
         .add_basic_renderer::<settings::MarleyAgentTerminalWrites>(render_dropdown)
         // Marley: what an agent may do in an area of Marley's tools (#704).
         .add_basic_renderer::<settings::MarleyAgentControlMode>(render_dropdown)
+        // Marley: the Allowed Actions list's editor (#711).
+        .add_basic_renderer::<settings::MarleyActionNames>(marley_page::render_action_names)
         // Marley: whether an agent's commands outside both lists ask (#556).
         .add_basic_renderer::<settings::MarleyAgentCommandsOutsideLists>(render_dropdown)
         // Marley: the rail's order (#542).

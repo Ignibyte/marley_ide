@@ -3602,3 +3602,12 @@ Fixed in #708 at the first two and the fourth, in Zed, so nothing records a hidd
 doesn't activate, so the page took index 0, the active one. A tab opened into a Home group that had
 no page yet (Agent Activity here; an agent tab or System One calls the same way) hid behind Home's
 page. Fixed in #703: `ensure` activates again the tab that was active before the insert.
+
+## F-claude-711-a-removed-rows-button-left-its-tooltip-on-the-next-row-001
+*severity: low · found in: pipeline 711's Test phase · class: element ids keyed by position in a list that changes · prevented by: PR-claude-711-key-a-list-rows-elements-by-what-the-row-is-001*
+
+#711's Allowed Actions list keyed each row's remove button `("marley-allowed-action-remove",
+index)`. After a removal, the next row's button took the removed one's index, and gpui handed it
+that element's hover state and tooltip: "Remove nothing::Here" hung over `pane::SplitRight`'s ×
+in 711-03. Both checks on settings.json passed; only the shot showed it. Fixed in #711 by keying
+the button on its name.

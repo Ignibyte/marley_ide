@@ -152,6 +152,7 @@ fn user_allowed(cx: &App) -> Vec<String> {
         .as_ref()
         .and_then(|marley| marley.agent_control.as_ref())
         .and_then(|agent_control| agent_control.actions_allowed.clone())
+        .map(|names| names.0)
         .unwrap_or_default()
 }
 

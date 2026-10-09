@@ -364,6 +364,19 @@ pub struct MarleyVoiceSettingsContent {
     pub enabled: Option<bool>,
 }
 
+/// Palette action names, as `marley.agent_control.actions_allowed` holds them (#711): a type of
+/// its own so the Settings window gives this list an editor.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(transparent)]
+pub struct MarleyActionNames(pub Vec<String>);
+
+impl crate::merge_from::MergeFrom for MarleyActionNames {
+    // A later file's list replaces an earlier one's, as a `Vec` setting's does.
+    fn merge_from(&mut self, other: &Self) {
+        self.0.clone_from(&other.0);
+    }
+}
+
 /// Agents' use of Marley's write tools (#703).
 #[with_fallible_options]
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema, MergeFrom)]
@@ -398,7 +411,7 @@ pub struct MarleyAgentControlContent {
     /// delete is refused even when named here.
     ///
     /// Default: []
-    pub actions_allowed: Option<Vec<String>>,
+    pub actions_allowed: Option<MarleyActionNames>,
     /// The file names an agent may not read through Marley's tools, as globs over the name alone,
     /// such as `*.pem` (#704). Matched files are refused and named, so you can drop a pattern.
     ///

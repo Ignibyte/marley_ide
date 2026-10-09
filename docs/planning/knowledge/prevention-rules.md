@@ -2899,3 +2899,10 @@ focus back inside the same window update. To find what moved focus, log a short 
 Code that adds a tab before the active one without activating it (`add_item_inner(…, activate:
 false, Some(index))` with `index` at or below the active index) takes `pane.active_item()` first and
 activates it again after the insert: the pane keeps the active index, not the active item.
+
+## PR-claude-711-key-a-list-rows-elements-by-what-the-row-is-001
+*from: F-claude-711-a-removed-rows-button-left-its-tooltip-on-the-next-row-001 · applies to: any gpui list whose rows can be removed or reordered*
+
+Give an element in a list row an id built from what the row holds (a name, a key, an entity id),
+not from its position. gpui keeps hover, tooltip and other keyed state by element id, so an
+index-keyed element passes that state to whichever row moves into its place.

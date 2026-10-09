@@ -897,7 +897,7 @@ fn voice_section() -> [SettingsPageItem; 2] {
 }
 
 // Marley: the kill switch of agents' write tools (#703).
-fn agent_control_section() -> [SettingsPageItem; 5] {
+fn agent_control_section() -> [SettingsPageItem; 6] {
     [
         SettingsPageItem::SectionHeader("Agent Control"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -998,6 +998,32 @@ fn agent_control_section() -> [SettingsPageItem; 5] {
                         .agent_control
                         .get_or_insert_default()
                         .actions = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: the actions agents may run besides Marley's safe ones (#711).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Allowed Actions",
+            description: "Palette actions an agent may run besides Marley's safe ones, such as editor::SelectAll. An action that could quit, run code, answer a consent or delete stays refused even when listed here.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.agent_control.actions_allowed"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.agent_control.as_ref())
+                        .and_then(|agent_control| agent_control.actions_allowed.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .agent_control
+                        .get_or_insert_default()
+                        .actions_allowed = value;
                 },
             }),
             metadata: None,
@@ -1856,4 +1882,90 @@ fn privacy_section() -> [SettingsPageItem; 3] {
             files: USER,
         }),
     ]
+}
+
+/// The Allowed Actions list's editor (#711): each name with a remove button, marked when Zed has
+/// no action by that name, and a field that adds one.
+pub(crate) fn render_action_names(
+    field: SettingField<settings::MarleyActionNames>,
+    file: crate::SettingsUiFile,
+    _metadata: Option<&crate::SettingsFieldMetadata>,
+    title: &'static str,
+    _description: &'static str,
+    _window: &mut Window,
+    cx: &mut App,
+) -> AnyElement {
+    let (_, names) = cx
+        .global::<SettingsStore>()
+        .get_value_from_file(file.to_settings(), field.pick);
+    let names = names.map(|names| names.0.clone()).unwrap_or_default();
+    let registered = cx.all_action_names();
+    let write = move |names: Vec<String>, window: &mut Window, cx: &mut App| {
+        crate::update_settings_file(
+            file.clone(),
+            field.json_path,
+            window,
+            cx,
+            move |settings, app| {
+                (field.write)(settings, Some(settings::MarleyActionNames(names)), app);
+            },
+        )
+        .log_err();
+    };
+    let rows = names.iter().map(|name| {
+        let known = registered.contains(&name.as_str());
+        let remaining: Vec<String> = names
+            .iter()
+            .filter(|other| *other != name)
+            .cloned()
+            .collect();
+        let write = write.clone();
+        h_flex()
+            .gap_2()
+            .child(Label::new(name.clone()).buffer_font(cx))
+            .when(!known, |row| {
+                row.child(
+                    Label::new("not an action")
+                        .size(LabelSize::Small)
+                        .color(Color::Warning),
+                )
+            })
+            .child(
+                // Keyed by the name, so a removal doesn't hand the next row this button's
+                // hover and tooltip.
+                IconButton::new(
+                    SharedString::from(format!("marley-allowed-action-remove-{name}")),
+                    IconName::Close,
+                )
+                .icon_size(IconSize::Small)
+                .tooltip(ui::Tooltip::text(format!("Remove {name}")))
+                .on_click(move |_, window, cx| write(remaining.clone(), window, cx)),
+            )
+    });
+    v_flex()
+        .gap_1()
+        .items_end()
+        .children(rows)
+        .child(
+            crate::SettingsInputField::new("marley.agent_control.actions_allowed")
+                .aria_label(title)
+                .with_placeholder("editor::SelectAll")
+                .display_confirm_button()
+                .clear_on_confirm()
+                .on_confirm(move |text, window, cx| {
+                    let Some(name) = text
+                        .map(|text| text.trim().to_string())
+                        .filter(|name| !name.is_empty())
+                    else {
+                        return;
+                    };
+                    if names.contains(&name) {
+                        return;
+                    }
+                    let mut added = names.clone();
+                    added.push(name);
+                    write(added, window, cx);
+                }),
+        )
+        .into_any_element()
 }

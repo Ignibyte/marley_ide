@@ -1635,7 +1635,9 @@ An agent can see and open Zed's editors through Marley's tools (#704):
   answer that, in the Agent Panel.
 - `action_list` lists the palette actions an agent may run (#707). These are Marley's safe ones
   (docks and panels, splits, pane navigation, search, go-to, Format, folds and the finders) and
-  any you name in `marley.agent_control.actions_allowed`.
+  any you name in `marley.agent_control.actions_allowed`. Settings → Marley → Agent Control →
+  Allowed Actions edits that list (#711): each name has a remove button, a name Zed has no action
+  for is marked "not an action", and the field under the list adds one.
 - `action_run` runs one by name, in the window of the project it names or the active one, as
   the command palette would. Settings → Marley → Agent Control → Actions sets whether it asks
   (Ask First by default). An action that could quit, run code or a task, type into a terminal,
