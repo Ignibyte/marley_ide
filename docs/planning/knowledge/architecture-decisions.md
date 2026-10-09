@@ -4645,3 +4645,19 @@ Rejected:
 - a question for every call (Chad: not "approve every single thing");
 - keying sessions by MCP session id (the app doesn't see it);
 - letting reads ask (agents read constantly, and a question per read would teach "always allow").
+
+## AD-claude-705-agent-edits-are-exact-replacements-and-saves-always-ask-001
+*decided at: 2026-10-09 · status: shipped · builds on: AD-claude-704-areas-ask-once-per-session-and-reads-stay-free-001*
+
+An agent changes an open editor by exact text replacement, unique unless `replace_all`, as
+Claude Code's and Codex's own edit tools do. A buffer that moved since the agent read it fails as
+`no_match` rather than editing the wrong place. The change is one agent-sourced transaction: one
+undo takes it back, and it stays unsaved. A save is Sensitive, so it asks every time unless the
+area is `allow`. That keeps "the agent wrote my file" behind the user while edits flow. Zed's
+inline Keep/Reject review isn't exported, so it waits for a later ticket; undo, the git gutter and
+Agent Activity cover the gap.
+
+Rejected:
+- line and column ranges (they go stale between a read and an edit);
+- auto-saving edits (it puts a write to disk outside the user's control);
+- a review view built now on `TextDiffView` (a second UI for what undo already gives).

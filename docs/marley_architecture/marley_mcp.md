@@ -114,7 +114,8 @@ OR Apache-2.0, with the Marley crates' lint table.
   `closed` (`prompt_schemas`). `dispatch` defers both to the app.
 - Since #704 the `editor` family is served, for agents: `editor_list` (Read, no arguments),
   `editor_read` (Read, `id` or `path`, `start_line`) and `editor_open` (Write, `editor.write`,
-  `path`, `line`, `column`), with `editor_schemas`. No outside client's list names them.
+  `path`, `line`, `column`), with `editor_schemas`; since #705 `editor_edit` and `editor_save`
+  (Write, `editor.write`; `editor_change_schemas`). No outside client's list names them.
 
 ## Redaction (`redact.rs`, #516, #562)
 

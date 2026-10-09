@@ -66,6 +66,17 @@ impl Area {
     }
 }
 
+/// What a tool does, for how often it asks (#705).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Level {
+    /// It only reads: it passes unless the area is off.
+    Read,
+    /// It acts: under `ask_first` it asks once per session.
+    Act,
+    /// It acts past undoing, such as a save: it asks every time unless the area is `allow`.
+    Sensitive,
+}
+
 /// The user's answer to a tool's question.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Answer {
@@ -126,8 +137,8 @@ fn project_key(call: &AppCall) -> String {
 }
 
 /// Whether `call` may run in `area`: a read unless the area is off; a tool that acts as the mode
-/// and the user's earlier answers say, asking when they don't. `what` names what it acts on, for
-/// the question.
+/// and the user's earlier answers say, asking when they don't; a sensitive one asking every time
+/// unless the area is `allow`. `what` names what it acts on, for the question.
 ///
 /// # Errors
 ///
@@ -136,7 +147,7 @@ fn project_key(call: &AppCall) -> String {
 pub(crate) fn admit(
     call: &AppCall,
     area: Area,
-    acts: bool,
+    level: Level,
     what: String,
     cx: &App,
 ) -> Task<Result<(), Refusal>> {
@@ -156,12 +167,13 @@ pub(crate) fn admit(
     let allowed = cx.try_global::<Approvals>().is_some_and(|approvals| {
         approvals.sessions.contains(&session) || approvals.projects.contains(&project)
     });
-    let asks = acts
-        && match mode {
-            MarleyAgentControlMode::Allow | MarleyAgentControlMode::Off => false,
-            MarleyAgentControlMode::AskFirst => !allowed,
-            MarleyAgentControlMode::AskEvery => true,
-        };
+    let asks = match (level, mode) {
+        (Level::Read, _) | (_, MarleyAgentControlMode::Allow | MarleyAgentControlMode::Off) => {
+            false
+        }
+        (Level::Act, MarleyAgentControlMode::AskFirst) => !allowed,
+        (Level::Act, MarleyAgentControlMode::AskEvery) | (Level::Sensitive, _) => true,
+    };
     if !asks {
         return Task::ready(Ok(()));
     }

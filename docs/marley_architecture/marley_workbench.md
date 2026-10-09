@@ -1818,6 +1818,14 @@ alike.
     and opens the file (`open_abs_path`, focused), and `go_to_singleton_buffer_point` places the
     cursor.
 - `agent_activity::log` is `gate` without the kill switch, for reads.
+- **Since #705:**
+  - `agent_control::Level { Read, Act, Sensitive }` replaces `acts`. A Sensitive call asks every
+    time unless the area is `allow`.
+  - `editor_edit` (`edit`) finds `old_text`'s exact matches in `buffer.text()`. None is
+    `no_match`; several without `replace_all` are `ambiguous`. It edits them in one
+    `start_transaction`/`edit`/`end_transaction_with_source(Agent)`, as Zed's agent does.
+  - `editor_save` (`save`) runs `Project::save_buffer` on the editor's workspace's project.
+  - `not_secret` guards read and edit alike. `OpenEditor` carries its workspace.
 
 ## Agent activity and the kill switch (`src/agent_activity.rs`, `src/mcp.rs`, `marley_mcp`, #703)
 

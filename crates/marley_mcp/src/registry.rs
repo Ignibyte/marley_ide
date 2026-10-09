@@ -428,6 +428,23 @@ const REGISTRY: &[ToolSpec] = &[
                       user may be asked first.",
     },
     ToolSpec {
+        family: Family::Editor,
+        verb: "edit",
+        tier: Tier::Write,
+        grant_class: "editor.write",
+        description: "Change an open editor's text: replace old_text, which must appear exactly \
+                      once unless replace_all is true, with new_text. One undo takes the change \
+                      back, and it stays unsaved. The user may be asked first.",
+    },
+    ToolSpec {
+        family: Family::Editor,
+        verb: "save",
+        tier: Tier::Write,
+        grant_class: "editor.write",
+        description: "Save an open editor's file. The user is asked each time unless they \
+                      allowed agents to act in editors without asking.",
+    },
+    ToolSpec {
         family: Family::Docs,
         verb: "search",
         tier: Tier::Read,
@@ -1961,7 +1978,7 @@ fn terminal_type_schemas() -> (Value, Value) {
 /// `terminal_run` (#556): a terminal, a command and how long to wait; the block it ran.
 /// `editor_list`, `editor_read` and `editor_open` (#704): no arguments, the editors out; an id or a
 /// path and the first line in, a page of the text out; a path, a line and a column in, the editor
-/// opened out.
+/// opened out. `editor_edit` and `editor_save` go to [`editor_change_schemas`].
 fn editor_schemas(verb: &str) -> (Value, Value) {
     match verb {
         "list" => (
@@ -2007,6 +2024,7 @@ fn editor_schemas(verb: &str) -> (Value, Value) {
                 "required": ["id", "path", "text", "first_line", "last_line", "total_lines"]
             }),
         ),
+        "edit" | "save" => editor_change_schemas(verb),
         _ => (
             json!({
                 "type": "object",
@@ -2032,6 +2050,74 @@ fn editor_schemas(verb: &str) -> (Value, Value) {
                     "column": { "type": "integer" }
                 },
                 "required": ["id", "path"]
+            }),
+        ),
+    }
+}
+
+/// `editor_edit` and `editor_save` (#705): an editor and the text to replace in, what changed out;
+/// an editor in, whether it saved out.
+fn editor_change_schemas(verb: &str) -> (Value, Value) {
+    match verb {
+        "edit" => (
+            json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "integer", "description": "The editor's id, from editor_list." },
+                    "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096,
+                        "description": "The open file's absolute path, when no id is given."
+                    },
+                    "old_text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "The text to replace, exactly as the editor holds it now."
+                    },
+                    "new_text": { "type": "string", "description": "What replaces it." },
+                    "replace_all": {
+                        "type": "boolean",
+                        "description": "Replace every occurrence; false when left out."
+                    }
+                },
+                "required": ["old_text", "new_text"],
+                "additionalProperties": false
+            }),
+            json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "integer" },
+                    "path": { "type": "string" },
+                    "replaced": { "type": "integer" },
+                    "first_line": { "type": "integer" },
+                    "dirty": { "type": "boolean" }
+                },
+                "required": ["id", "path", "replaced", "first_line", "dirty"]
+            }),
+        ),
+        _ => (
+            json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "integer", "description": "The editor's id, from editor_list." },
+                    "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096,
+                        "description": "The open file's absolute path, when no id is given."
+                    }
+                },
+                "additionalProperties": false
+            }),
+            json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "integer" },
+                    "path": { "type": "string" },
+                    "saved": { "type": "boolean" }
+                },
+                "required": ["id", "path", "saved"]
             }),
         ),
     }
@@ -2268,6 +2354,8 @@ mod tests {
                 "editor_list",
                 "editor_read",
                 "editor_open",
+                "editor_edit",
+                "editor_save",
                 "docs_search",
                 "docs_read",
                 "settings_schema",
@@ -2278,7 +2366,7 @@ mod tests {
                 "actions_list"
             ]
         );
-        assert_eq!(registry().len(), 44);
+        assert_eq!(registry().len(), 46);
         assert_eq!(
             lookup("fleet_snapshot").expect("read tool").tier,
             Tier::Read

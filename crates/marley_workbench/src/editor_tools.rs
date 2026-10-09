@@ -17,7 +17,7 @@ use util::ResultExt as _;
 use util::paths::{PathMatcher, PathStyle};
 use workspace::{MultiWorkspace, OpenOptions, OpenVisible, Workspace};
 
-use crate::agent_control::{Area, admit};
+use crate::agent_control::{Area, Level, admit};
 
 /// The most editors `editor_list` names.
 const LISTED: usize = 200;
@@ -38,23 +38,31 @@ const SECRET_GLOBS: [&str; 8] = [
 pub(crate) fn answer(mut call: AppCall, cx: &App) {
     let tool = call.tool.clone();
     match tool.as_str() {
-        "editor_list" => after_admit(call, false, String::new(), list, cx),
+        "editor_list" => after_admit(call, Level::Read, String::new(), list, cx),
         "editor_read" => {
             // A read reveals a file's text, so it is listed in Agent Activity (#703).
             crate::agent_activity::log(&mut call, cx);
-            after_admit(call, false, String::new(), read, cx);
+            after_admit(call, Level::Read, String::new(), read, cx);
         }
         "editor_open" => {
             let what = open_words(&call.arguments);
-            after_admit(call, true, what, open, cx);
+            after_admit(call, Level::Act, what, open, cx);
+        }
+        "editor_edit" => {
+            let what = edit_words(&call.arguments, cx);
+            after_admit(call, Level::Act, what, edit, cx);
+        }
+        "editor_save" => {
+            let what = save_words(&call.arguments, cx);
+            after_admit(call, Level::Sensitive, what, save, cx);
         }
         other => call.answer(Err(format!("Marley answers no tool named {other}"))),
     }
 }
 
 /// Runs `then` once the editors area admits `call`, else answers the refusal.
-fn after_admit(call: AppCall, acts: bool, what: String, then: fn(AppCall, &mut App), cx: &App) {
-    let admitted = admit(&call, Area::Editors, acts, what, cx);
+fn after_admit(call: AppCall, level: Level, what: String, then: fn(AppCall, &mut App), cx: &App) {
+    let admitted = admit(&call, Area::Editors, level, what, cx);
     cx.spawn(async move |cx| match admitted.await {
         Ok(()) => cx.update(|cx| then(call, cx)),
         Err(refusal) => call.answer(Err(refusal)),
@@ -65,6 +73,7 @@ fn after_admit(call: AppCall, acts: bool, what: String, then: fn(AppCall, &mut A
 /// An open editor of one file.
 struct OpenEditor {
     editor: Entity<Editor>,
+    workspace: Entity<Workspace>,
     path: PathBuf,
     project: String,
     active: bool,
@@ -90,6 +99,7 @@ fn open_editors(cx: &App) -> Vec<OpenEditor> {
                     continue;
                 };
                 found.push(OpenEditor {
+                    workspace: workspace.clone(),
                     project: project_of(&workspace, &path, cx),
                     active: active == Some(editor.entity_id()),
                     path,
@@ -177,6 +187,22 @@ fn secret_globs(cx: &App) -> PathMatcher {
     })
 }
 
+/// Refuses `path` when its name matches the user's secret patterns.
+fn not_secret(path: &Path, cx: &App) -> Result<(), Refusal> {
+    match path.file_name() {
+        Some(name) if secret_globs(cx).is_match_std_path(name) => Err(Refusal::new(
+            "secret_file",
+            format!(
+                "{} matches the user's secret patterns (marley.agent_control.secret_globs), so \
+                 agents don't read or change it",
+                path.display()
+            ),
+        )
+        .next("ask the user for what you need from it")),
+        _ => Ok(()),
+    }
+}
+
 /// `editor_read`.
 fn read(call: AppCall, cx: &mut App) {
     let open = match editor_named(&call.arguments, cx) {
@@ -186,18 +212,8 @@ fn read(call: AppCall, cx: &mut App) {
             return;
         }
     };
-    if let Some(name) = open.path.file_name()
-        && secret_globs(cx).is_match_std_path(name)
-    {
-        call.answer(Err(Refusal::new(
-            "secret_file",
-            format!(
-                "{} matches the user's secret patterns (marley.agent_control.secret_globs), so \
-                 it is not read",
-                open.path.display()
-            ),
-        )
-        .next("ask the user for what you need from it")));
+    if let Err(refusal) = not_secret(&open.path, cx) {
+        call.answer(Err(refusal));
         return;
     }
     let Some(buffer) = open.editor.read(cx).buffer().read(cx).as_singleton() else {
@@ -281,6 +297,161 @@ fn editor_named(arguments: &Value, cx: &App) -> Result<OpenEditor, Refusal> {
             Refusal::new("no_editor", "no open editor has that id or path")
                 .next("list the open editors with editor_list, or open the file with editor_open")
         })
+}
+
+/// The editor `arguments` name, in words, for a question: its path, else its id.
+fn editor_words(arguments: &Value, cx: &App) -> String {
+    editor_named(arguments, cx).map_or_else(
+        |_| {
+            arguments
+                .get("path")
+                .and_then(Value::as_str)
+                .map_or_else(|| "an open editor".to_string(), str::to_string)
+        },
+        |open| open.path.display().to_string(),
+    )
+}
+
+/// What `editor_edit` would do, in words, for the question.
+fn edit_words(arguments: &Value, cx: &App) -> String {
+    let all = arguments
+        .get("replace_all")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    format!(
+        "change {}{}",
+        editor_words(arguments, cx),
+        if all { ", every match" } else { "" }
+    )
+}
+
+/// What `editor_save` would do, in words, for the question.
+fn save_words(arguments: &Value, cx: &App) -> String {
+    format!("save {}", editor_words(arguments, cx))
+}
+
+/// `editor_edit`: `old_text` replaced in the open buffer, as one undoable change made by an agent.
+fn edit(call: AppCall, cx: &mut App) {
+    let open = match editor_named(&call.arguments, cx) {
+        Ok(open) => open,
+        Err(refusal) => {
+            call.answer(Err(refusal));
+            return;
+        }
+    };
+    if let Err(refusal) = not_secret(&open.path, cx) {
+        call.answer(Err(refusal));
+        return;
+    }
+    let text_of = |name: &str| call.arguments.get(name).and_then(Value::as_str);
+    let (Some(old_text), Some(new_text)) = (text_of("old_text"), text_of("new_text")) else {
+        call.answer(Err(Refusal::new(
+            "bad_argument",
+            "give old_text, as the editor holds it, and new_text",
+        )));
+        return;
+    };
+    if old_text.is_empty() {
+        call.answer(Err(Refusal::new("bad_argument", "old_text is empty")));
+        return;
+    }
+    let replace_all = call
+        .arguments
+        .get("replace_all")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let Some(buffer) = open.editor.read(cx).buffer().read(cx).as_singleton() else {
+        call.answer(Err("the editor no longer shows one file".to_string()));
+        return;
+    };
+    let text = buffer.read(cx).text();
+    let matches: Vec<usize> = text.match_indices(old_text).map(|(at, _)| at).collect();
+    let first = match matches.as_slice() {
+        [] => {
+            call.answer(Err(Refusal::new(
+                "no_match",
+                format!("old_text is not in {} as it is now", open.path.display()),
+            )
+            .next(
+                "read the editor again with editor_read and copy the text exactly",
+            )));
+            return;
+        }
+        [_, _, ..] if !replace_all => {
+            call.answer(Err(Refusal::new(
+                "ambiguous",
+                format!(
+                    "old_text appears {} times in {}",
+                    matches.len(),
+                    open.path.display()
+                ),
+            )
+            .next(
+                "give more of the surrounding text so it appears once, or set replace_all",
+            )));
+            return;
+        }
+        [first, ..] => *first,
+    };
+    let first_line = text
+        .get(..first)
+        .map_or(0, |before| before.matches('\n').count())
+        + 1;
+    let replaced = matches.len();
+    let edits: Vec<(std::ops::Range<usize>, String)> = matches
+        .iter()
+        .map(|at| (*at..*at + old_text.len(), new_text.to_string()))
+        .collect();
+    buffer.update(cx, |buffer, cx| {
+        buffer.start_transaction();
+        buffer.edit(edits, None, cx);
+        buffer.end_transaction_with_source(language::BufferEditSource::Agent, cx);
+    });
+    let dirty = buffer.read(cx).is_dirty();
+    call.answer::<Refusal>(Ok(ToolAnswer {
+        structured: json!({
+            "id": open.editor.entity_id().as_u64(),
+            "path": open.path.to_string_lossy(),
+            "replaced": replaced,
+            "first_line": first_line,
+            "dirty": dirty,
+        }),
+        text: Some(format!(
+            "{} changed from line {first_line}, {replaced} replaced; unsaved, one undo takes it back",
+            open.path.display()
+        )),
+        image: None,
+    }));
+}
+
+/// `editor_save`: the open buffer written to its file.
+fn save(call: AppCall, cx: &mut App) {
+    let open = match editor_named(&call.arguments, cx) {
+        Ok(open) => open,
+        Err(refusal) => {
+            call.answer(Err(refusal));
+            return;
+        }
+    };
+    let Some(buffer) = open.editor.read(cx).buffer().read(cx).as_singleton() else {
+        call.answer(Err("the editor no longer shows one file".to_string()));
+        return;
+    };
+    let project = open.workspace.read(cx).project().clone();
+    let saving = project.update(cx, |project, cx| project.save_buffer(buffer, cx));
+    let (id, path) = (open.editor.entity_id().as_u64(), open.path);
+    cx.spawn(async move |_| match saving.await {
+        Ok(()) => call.answer::<Refusal>(Ok(ToolAnswer {
+            structured: json!({ "id": id, "path": path.to_string_lossy(), "saved": true }),
+            text: Some(format!("{} is saved", path.display())),
+            image: None,
+        })),
+        Err(error) => call.answer(Err(format!(
+            "Marley could not save {}: {error:#}",
+            path.display()
+        ))),
+    })
+    .detach();
 }
 
 /// What `editor_open` would do, in words, for the question.

@@ -1619,6 +1619,11 @@ An agent can see and open Zed's editors through Marley's tools (#704):
   `.env*`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `.netrc`, `*.p12`) is
   refused and named, and each read is listed in Agent Activity.
 - `editor_open` opens a file inside one of your open projects, at a line, its tab in front.
+- `editor_edit` replaces text in an open editor (#705): the text it names has to appear once, or
+  every match is replaced when the agent says so. The change is one undo step and stays unsaved,
+  so Ctrl+Z takes it back. A secret file is refused here too.
+- `editor_save` saves an open editor. A save asks every time, even in a session you allowed,
+  unless Editors is set to Allow.
 
 **Settings → Marley → Agent Control → Editors** (`marley.agent_control.editors`) sets what agents
 may do there:

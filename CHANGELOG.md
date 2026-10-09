@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Agents edit and save Zed's editors** (#705, 2026-10-09). `editor_edit` replaces text an agent
+  names in an open editor, the match unique unless it asks for every one. The change is a single
+  undo step and stays unsaved. `editor_save` saves, and asks you every time unless Settings →
+  Marley → Agent Control → Editors is Allow. Secret files are refused, and both show in Agent
+  Activity.
+
 - **Zed's editors for agents** (#704, 2026-10-09). Through Marley's tools an agent can now list
   Zed's open editors (`editor_list`), read one as it is, unsaved changes included
   (`editor_read`), and open a file in an open project at a line (`editor_open`).
