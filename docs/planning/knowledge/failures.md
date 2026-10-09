@@ -3553,3 +3553,20 @@ Zed opens its Onboarding page there, so the guard refused it: Home was made as a
 and the start workspace, which Zed lists in no project group, sat outside the rail, still shown.
 Fixed in #700: a local, folderless workspace that is no group's and no pending record's is Home's
 to take, with its tabs.
+
+## F-claude-701-a-listener-on-a-tab-updated-its-workspace-and-panicked-001
+*severity: high · found in: pipeline 701's Test phase · class: an item's listener updating the workspace that reads its items · prevented by: PR-claude-701-an-items-handlers-that-update-its-workspace-are-not-listeners-001*
+
+Home's page opened a recent project from a `cx.listener` click handler, which leases the page
+while it runs. Inside it, `workspace.update(… open_workspace_for_paths …)` checked every item's
+`is_dirty`, read the page, and gpui panicked: "cannot read MarleyHome while it is already being
+updated". Marley quit. Fixed in #701: the page's handlers that update the workspace are plain
+closures over a weak handle.
+
+## F-claude-701-a-path-launch-named-the-new-home-group-home-2-001
+*severity: medium · found in: pipeline 701's Test phase · class: a per-window singleton named against every record*
+
+`groups::make` numbered every name but Rusty's against the names taken across all records,
+pending ones included. After a launch with a path, which restores nothing, the last session's
+Home record stays pending. #700's rule then made a new Home, and it was called "Home 2". Fixed in
+#701: Home, like Rusty, keeps its name; only named groups are numbered.

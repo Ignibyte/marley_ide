@@ -13,6 +13,19 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Home's own page** (#701, 2026-10-09). The Home group's first tab is now a home page for Zed and
+  Marley, in place of Zed's Welcome page:
+  - **Start:** New Terminal in your home folder, Open Folder…, Clone Repository… and Command
+    Palette;
+  - **New Agent:** a button per agent CLI on your PATH, started in a terminal in Home;
+  - **Recent Projects:** one click reopens each;
+  - **Agents at Work:** every agent thread and agent CLI in the window that is working, waiting or
+    failed, each opening where it lives;
+  - **Configure:** Settings, Marley Settings, Keymap, Extensions and the Marley guide.
+
+  It comes back when Home is shown without it or its last tab closes. Home also keeps its name
+  after a launch with a path, where it had become "Home 2".
+
 - **Home and Rusty from the start, on top of the rail** (#700, 2026-10-09).
   - Every window now has its Home group from the start, and its Rusty group while Rusty is on,
     made as soon as Rusty turns on. The rail lists Home, then Rusty, then your projects, then the

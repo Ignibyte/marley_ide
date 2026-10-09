@@ -42,8 +42,8 @@ const ROWS_SHOWN: usize = 8;
 /// How many open tasks the table lists.
 const TASKS_SHOWN: usize = 12;
 
-/// Registers `rusty: open home` on every workspace, the Rusty group's + menu, and keeps the group
-/// from showing no tab (#699); `rusty::init` calls it once.
+/// Registers `rusty: open home` on every workspace, the Rusty group's + menu, and keeps the Rusty
+/// and Home groups from showing no tab (#699, #701); `rusty::init` calls it once.
 pub(super) fn init(cx: &mut App) {
     cx.observe_new(
         |workspace: &mut Workspace, window, cx: &mut Context<Workspace>| {
@@ -60,6 +60,7 @@ pub(super) fn init(cx: &mut App) {
                 |workspace, _, event: &workspace::Event, window, cx| {
                     if let workspace::Event::ItemRemoved { .. } = event {
                         fill(workspace, window, cx);
+                        crate::home_page::fill_emptied(workspace, window, cx);
                     }
                 },
             )
@@ -105,11 +106,15 @@ fn fill(workspace: &Workspace, window: &mut Window, cx: &mut Context<Workspace>)
     }
 }
 
-/// [`fill`] on the workspace the window shows.
+/// [`fill`] on the workspace the window shows, and Home's page when it is the Home group (#701).
 fn fill_shown(multi_workspace: &MultiWorkspace, window: &mut Window, cx: &mut App) {
     let shown = multi_workspace.workspace().clone();
     if crate::groups::is_rusty_workspace(shown.entity_id(), cx) {
         shown.update(cx, |workspace, cx| fill(workspace, window, cx));
+    } else if crate::groups::is_home_workspace(shown.entity_id(), cx) {
+        shown.update(cx, |workspace, cx| {
+            crate::home_page::ensure(workspace, window, cx);
+        });
     }
 }
 
@@ -545,7 +550,12 @@ fn task_rows(
 }
 
 /// A card: a muted title over its body.
-fn card(title: &'static str, selector: &'static str, body: impl IntoElement, cx: &App) -> Div {
+pub(crate) fn card(
+    title: &'static str,
+    selector: &'static str,
+    body: impl IntoElement,
+    cx: &App,
+) -> Div {
     let colors = cx.theme().colors();
     v_flex()
         .debug_selector(move || selector.into())
@@ -560,7 +570,7 @@ fn card(title: &'static str, selector: &'static str, body: impl IntoElement, cx:
 }
 
 /// A clickable row of a card.
-fn row(id: impl Into<ElementId>, cx: &App) -> Stateful<Div> {
+pub(crate) fn row(id: impl Into<ElementId>, cx: &App) -> Stateful<Div> {
     let hover = cx.theme().colors().ghost_element_hover;
     h_flex()
         .id(id)
@@ -573,7 +583,7 @@ fn row(id: impl Into<ElementId>, cx: &App) -> Stateful<Div> {
         .hover(move |style| style.bg(hover))
 }
 
-fn muted(text: impl Into<SharedString>) -> AnyElement {
+pub(crate) fn muted(text: impl Into<SharedString>) -> AnyElement {
     div()
         .px_2()
         .child(

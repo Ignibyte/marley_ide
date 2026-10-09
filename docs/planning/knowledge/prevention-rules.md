@@ -2864,3 +2864,12 @@ its `focus_handle` the handle that view's own host focuses on activation, not th
 `Focusable`. Read the host's activation path first (for the Agent Panel,
 `activation_focus_handle`); a view's root handle often only tracks focus for its children. The
 scenario types into the hosted view right after it opens, so a wrong handle shows as lost text.
+
+## PR-claude-701-an-items-handlers-that-update-its-workspace-are-not-listeners-001
+*severity: high · prevents: F-claude-701-a-listener-on-a-tab-updated-its-workspace-and-panicked-001*
+
+A Marley `Item` (a tab) whose click handlers update its own workspace writes them as plain
+closures over a `WeakEntity<Workspace>`, never `cx.listener`. A listener leases the item for the
+whole handler, and many workspace operations read every item: `open_workspace_for_paths`
+(`is_dirty`), closes, saves, splits. The read panics as a double lease. `RustyHome`'s rows show
+the safe shape: a cloned weak handle, or an `*_later` opener that defers.

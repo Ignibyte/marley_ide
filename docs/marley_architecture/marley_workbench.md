@@ -1738,6 +1738,35 @@ alike.
     - the answer is `starting`, then `seat start` runs, with `SeatStartFailed` as a
       notification.
 
+## Home's own page (`src/home_page.rs`, `src/rail.rs`, #701)
+
+- `MarleyHome` (an `Item`: Home, `ListTree`) is drawn with `rusty::home_tab`'s `card`, `row` and
+  `muted`.
+  - `home_page::ensure` adds it at index 0 of the active pane through `add_item_inner(…, activate:
+    empty, …)`, taking the active tab only from an empty pane.
+  - #699's hooks carry it: `ItemRemoved` calls `fill_emptied` (Home's last tab closed), and
+    `fill_shown` calls `ensure` when the shown workspace is Home (`groups::is_home_workspace`).
+  - `ensure` runs inside the workspace's or the `MultiWorkspace`'s update, so `MarleyHome::new`
+    reads neither: `ensure` hands it the `Fs`, and the rail is looked up in `render`.
+- The cards:
+  - **Start:** New Terminal is the rail's path (`TerminalPanel::add_center_terminal` with
+    `default_working_directory` and the launcher's factory). Open Folder…, Clone Repository… and
+    Command Palette dispatch `workspace::Open::DEFAULT`, `git::Clone` and
+    `command_palette::Toggle` from the page's focus handle.
+  - **New Agent:** `agents::installed_clis` on the launcher's search path, each button
+    `agents::start_cli` on Home's workspace. Zed's Agent Panel runs no thread in a folderless
+    workspace, so Home has no New Agent Thread.
+  - **Recent Projects:** `WorkspaceDb::recent_project_workspaces`, local ones, at most 8, read
+    once; a click calls `open_workspace_for_paths(OpenMode::Activate, …)`.
+  - **Agents at Work:** `Rail::agents_at_work` (`AtWork`: threads not Done, agent terminals not
+    Idle, the terminal's status named "<agent> · <state>"), with the rail observed once found;
+    a click calls `Rail::open_selection`.
+  - **Configure:** `OpenSettings`, `OpenSettingsAt { path: "marley.layout" }`, `OpenKeymap`,
+    `Extensions` and `OpenGuide`.
+- Every handler that updates the workspace is a plain closure over a weak handle, never
+  `cx.listener`. The workspace's updates read its items, the page among them.
+- `groups::make` names Home and Rusty by their kind; only named groups are numbered.
+
 ## Home and Rusty from the start (`src/rail.rs`, `src/groups.rs`, #700)
 
 - `Rail::ensure_groups` runs at the end of each `refresh` and from `rusty_changed` while Rusty is

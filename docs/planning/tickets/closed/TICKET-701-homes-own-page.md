@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #701 (feature)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** [701-homes-own-page.spec.md](../../pipeline/completed/701-homes-own-page.spec.md)
 - **Source ticket:** Chad, 2026-10-09: "Home also has its own page instead of the open project.
   Come up with useful things that are in zed that would be good. Opening a terminal, agents. A
   home page for zed + marley basically."
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 An empty Home group shows Zed's Welcome page (Open Project, recent projects). Home gets its own

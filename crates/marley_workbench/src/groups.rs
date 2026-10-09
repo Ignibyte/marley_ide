@@ -322,12 +322,13 @@ pub(crate) fn make(
             };
             cx.default_global::<Groups>().live.push(Group {
                 id: Uuid::new_v4(),
-                // One Rusty group per window, each called Rusty (#675); other names stay apart
-                // across every window's groups, as #600 keeps them.
-                name: if kind == GroupKind::Rusty {
-                    name
-                } else {
+                // One Home and one Rusty group per window, each called by its kind (#675, #700),
+                // whatever another window's or a stale record's group is called; named groups'
+                // names stay apart across every window's groups, as #600 keeps them.
+                name: if kind == GroupKind::Named {
                     free_name(&name, &taken)
+                } else {
+                    name
                 },
                 workspace: workspace.downgrade(),
                 database_id,
@@ -442,6 +443,16 @@ pub(crate) fn claim(workspace: &Entity<Workspace>, kind: GroupKind, cx: &mut App
     });
     keep(cx);
     save(cx);
+}
+
+/// Whether the workspace `id` is a window's Home group's (#701).
+pub(crate) fn is_home_workspace(id: EntityId, cx: &App) -> bool {
+    cx.try_global::<Groups>().is_some_and(|groups| {
+        groups
+            .live
+            .iter()
+            .any(|group| group.home && group.workspace.entity_id() == id)
+    })
 }
 
 /// Whether the workspace `id` is a window's Rusty group's (#699).

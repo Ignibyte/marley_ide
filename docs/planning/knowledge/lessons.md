@@ -5183,3 +5183,20 @@ and refuse a fork's Write and Edit to code during its own Code phase. The fork k
 order (each status recorded in its spec) and made its edits through a Bash replacement script.
 The commit-time receipt still binds the tree. Either run a pipeline in the main session, or
 expect this and record it in the notes.
+
+## L-claude-701-zeds-agent-panel-needs-a-project-folder-001
+*category: zed fork · topic: agent threads in projectless groups · from: pipeline 701*
+
+Zed's Agent Panel runs no thread in a folderless workspace (a Home, Rusty or named group). It
+shows "Choose one of the options below to use the Agent Panel: Open Project / Clone Repository"
+instead. A projectless surface that offers agents starts agent CLIs in a terminal
+(`agents::start_cli`, in the home folder), as the rail's + does in groups (#600). Agent Panel
+threads are offered only where a project is.
+
+## L-claude-701-a-fake-agent-cli-is-a-python-script-001
+*category: validate · topic: e2e stand-ins for agent CLIs · from: pipeline 701*
+
+The rail recognizes an agent CLI by its foreground process. A stand-in `claude` written as a bash
+script runs as `bash` and reads as a plain shell. A Python script is named by its file, so the
+rail reads it as Claude Code (#519's stand-in is Python for this reason). Give it output that keeps
+arriving (a line every half second) and the rail reads it as working.

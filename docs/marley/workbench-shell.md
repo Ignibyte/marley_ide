@@ -390,7 +390,8 @@ worktree's `remove_worktree` tasks (#591); #527 adds a project's launch configs 
 from `.zed/marley.json`, each opened only after its text is approved; #697 moves an Agent Panel
 thread into a center tab beside the terminals, and back, from the palette or a thread row's menu;
 #700 gives every window its Home group, and its Rusty group while Rusty is on, from the start,
-listed Home then Rusty above the projects.
+listed Home then Rusty above the projects; #701 gives Home its own page, with a terminal, the agent
+CLIs, recent projects, the agents at work and the settings, in place of Zed's Welcome page.
 W5 shipped as #441:
 in the Marley layout
 tasks, New Terminal and Open in Terminal open center terminals, and nothing opens the bottom

@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-701](open/TICKET-701-homes-own-page.md) | feature | Home's own page (start actions, recent projects, agents at work, configure) in place of Zed's Welcome page |
 | [TICKET-698](open/TICKET-698-keep-the-marley-agent-to-its-own-tools.md) | bug | Keep the Marley agent to its eight tools on Claude Code and Codex (no `terminal_run` through Marley's MCP) |
 | [TICKET-702](open/TICKET-702-one-rail-row-for-a-thread-in-a-center-tab.md) | bug | A thread in a center tab gets one rail row, the thread row, not a second for its tab |
 

@@ -335,6 +335,19 @@ rail lists Home, then Rusty, then your projects, then the groups you named; a he
 keeps its place. A window started with no folder and nothing to restore shows Home. Home and Rusty
 are always there, so their header menus have nothing to rename or remove.
 
+Home's first tab is its own page (#701), never Zed's Welcome page: when Home is shown without it, or
+its last tab closes, the page comes back.
+
+- **Start:** New Terminal (a terminal in Home, in your home folder), Open Folder…, Clone
+  Repository… and Command Palette.
+- **New Agent:** a button for each agent CLI on your PATH (Claude Code, Codex, Gemini CLI,
+  OpenCode), started in a terminal in Home, in your home folder. Agent Panel threads need a
+  project folder, so start those from a project.
+- **Recent Projects:** the projects you opened lately; a click opens one.
+- **Agents at Work:** every agent thread and agent CLI in the window that is working, waiting or
+  failed, with its project; a click opens it where it lives.
+- **Configure:** Settings, Marley Settings, Keymap, Extensions and the Marley guide.
+
 ### Drag to reorder (#602)
 
 Drag a project's or a group's header up or down to move it, with its rows, among the headers; a

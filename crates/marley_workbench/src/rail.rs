@@ -32,7 +32,7 @@ use gpui::{
 };
 use marley_agent::risk::{self, Action, Chip, ChipKind, ChipSource, ToolClass};
 use marley_agent::route::{self, Route, RouteMark, RouteSource};
-use marley_agent::{AgentKind, WAITING_AFTER, claude_events, codex_events};
+use marley_agent::{AgentKind, AgentStatus, WAITING_AFTER, claude_events, codex_events};
 use marley_browser::consequence::Class;
 use marley_browser::ports::{Service, Stopped};
 use marley_mcp::redact::Redactor;
@@ -243,6 +243,19 @@ pub struct Rail {
     _filter_edits: Subscription,
     brain: BrainSide,
     startup: StartupGroups,
+}
+
+/// An agent at work, as Home's page lists it (#701).
+pub(crate) struct AtWork {
+    pub(crate) project: String,
+    pub(crate) title: String,
+    /// Its state's word: working, waiting or failed.
+    pub(crate) state: &'static str,
+    /// What its row says of it: the state, after the agent's name for an agent CLI, as the rail
+    /// shows it.
+    pub(crate) status: String,
+    /// The row a click opens.
+    pub(crate) row: Selection,
 }
 
 /// When the window may make its Home and Rusty groups (#700).
@@ -1137,6 +1150,50 @@ impl Rail {
         self.follow_project_git(window, cx);
         self.take_review(window, cx);
         self.ensure_groups(window, cx);
+    }
+
+    /// The window's agents at work, for Home's page (#701): each thread working, waiting or
+    /// failed, then each agent CLI that is, with its project, in the rail's order.
+    pub(crate) fn agents_at_work(&self) -> Vec<AtWork> {
+        self.snapshot
+            .rail
+            .projects
+            .iter()
+            .flat_map(|project| {
+                let threads = project
+                    .threads
+                    .iter()
+                    .filter(|thread| thread.status != ThreadStatus::Done)
+                    .map(|thread| AtWork {
+                        project: project.name.clone(),
+                        title: thread.title.clone(),
+                        state: thread.status.label(),
+                        status: thread.status.label().to_string(),
+                        row: Selection::Thread(thread.key.clone()),
+                    });
+                let terminals = project.terminals.iter().filter_map(|terminal| {
+                    let agent = terminal.agent.as_ref()?;
+                    (agent.status != AgentStatus::Idle).then(|| AtWork {
+                        project: project.name.clone(),
+                        title: terminal.title.clone(),
+                        state: agent.status.label(),
+                        status: format!("{} · {}", agent.kind.display_name(), agent.status.label()),
+                        row: Selection::Terminal(terminal.id),
+                    })
+                });
+                threads.chain(terminals).collect::<Vec<_>>()
+            })
+            .collect()
+    }
+
+    /// Opens `row` as a click on it does (#701).
+    pub(crate) fn open_selection(
+        &mut self,
+        row: Selection,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.open_row(row, window, cx).log_err();
     }
 
     /// Gives the window its Home group, and its Rusty group while Rusty is on, when it lacks one
