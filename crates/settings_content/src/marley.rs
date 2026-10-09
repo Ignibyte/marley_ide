@@ -303,14 +303,13 @@ pub struct MarleyPushSettingsContent {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema, MergeFrom)]
 pub struct MarleyAssistantSettingsContent {
     /// Whether Marley's own agent is there: an agent told to explain and configure Marley with
-    /// Marley's tools, and kept from editing files. Marley offers it once when it finds Claude
-    /// Code or Codex signed in, or a Zed model set up.
+    /// Marley's tools, and kept from editing files (#696).
     ///
-    /// Default: false
+    /// Default: true
     pub enabled: Option<bool>,
-    /// What Marley's own agent runs on (#687).
+    /// What Marley's own agent runs on (#687), and Rusty's entry while Rusty is on (#696).
     ///
-    /// Default: claude_code
+    /// Default: auto
     pub agent: Option<MarleyAssistantAgent>,
 }
 
@@ -331,9 +330,12 @@ pub struct MarleyAssistantSettingsContent {
 )]
 #[serde(rename_all = "snake_case")]
 pub enum MarleyAssistantAgent {
+    /// The first agent found at start: Claude Code signed in, else Codex signed in, else Zed's
+    /// agent with its default model set up (#696).
+    #[default]
+    Auto,
     /// Claude Code on your own login, as a Marley entry in the Agent Panel, with no file edits
     /// or commands.
-    #[default]
     ClaudeCode,
     /// Codex on your own login, as a Marley entry in the Agent Panel, in its read-only mode.
     Codex,

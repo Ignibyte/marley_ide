@@ -874,7 +874,7 @@ fn assistant_section() -> [SettingsPageItem; 3] {
         }),
         SettingsPageItem::SettingItem(SettingItem {
             title: "Agent",
-            description: "What Marley's own agent runs on. Claude Code and Codex each run on your own login as a Marley entry in the Agent Panel, Codex in its read-only mode. Zed adds a Marley profile to Zed's own agent, with Marley's tools and no file tools.",
+            description: "What Marley's own agent runs on, and Rusty's entry while Rusty is on. Auto takes the first found at start: Claude Code signed in, else Codex signed in, else Zed's agent with its default model set up. Claude Code and Codex each run on your own login as an entry in the Agent Panel, Codex in its read-only mode. Zed adds a profile to Zed's own agent, with no file tools.",
             field: Box::new(SettingField {
                 organization_override: None,
                 json_path: Some("marley.assistant.agent"),

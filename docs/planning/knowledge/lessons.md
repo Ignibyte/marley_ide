@@ -5153,3 +5153,14 @@ How the 2026-10-08 merge of 319 upstream commits went, for the next one:
   scenario on the installed build. Only those that pass before and fail after are the merge's.
   Compare like with like: a debug build is slower, and a timing-tight scenario (561) can fail only
   there, so check such a failure on a release build of the merged tree.
+
+## L-claude-696-a-session-meta-can-carry-an-mcp-server-for-one-agent-entry-001
+*category: zed fork · topic: giving one Agent Panel entry its own tools · from: pipeline 696*
+
+Zed passes every external agent the same project context servers, so a server added there reaches
+every agent. To give one entry a server of its own, put it in the session `_meta` that
+`marley.agent_session_meta` sends for that entry. claude-acp builds its options as
+`mcpServers: { ...meta.claudeCode.options.mcpServers, ...the ACP servers }`
+(`dist/acp-agent.js`, near line 6110), so a server named only in the meta reaches that entry's
+sessions alone. For Codex, the same goes through `CODEX_CONFIG.mcp_servers`. The meta's
+`disallowedTools` takes `mcp__<server>` to keep a whole server's tools out.

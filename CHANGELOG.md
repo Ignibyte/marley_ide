@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Marley agent out of the box, and Rusty beside it** (#696, 2026-10-08).
+  - The Marley agent is now on by default. **Agent** gains **Auto**, the new default: a second after
+    start, Marley picks Claude Code if it is signed in, else Codex if signed in, else Zed's agent
+    if its default model is set up. The one-time offer is gone, and turning the agent off in
+    Settings → Marley still removes it.
+  - While Rusty is on, the Agent Panel also lists **Rusty**, on the same agent. It is told it is
+    your personal assistant, and its sessions carry Rusty's own server, so Rusty's tools reach
+    that entry alone. It edits no file, runs no command, and doesn't use Marley's tools. On Zed's
+    agent it is a **Rusty** profile.
+
 - **Upstream Zed through 2026-10-08** (#695). Marley now builds on Zed 1.25.0, adding the 319
   upstream commits since the last merge. Upstream's changes that show:
   - Menus open with nothing chosen. The first Down chooses the first entry, and Enter with

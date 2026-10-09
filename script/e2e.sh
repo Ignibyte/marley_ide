@@ -645,7 +645,8 @@ cp "$config/settings.json" "$E2E_PROFILE/config/"
 # `marley.system_one` (their System One account); a scenario that needs one sets its own fake.
 # The rail's Containers list is off in the copy too (#669): it lists the containers running on
 # the machine, each with a Stop, and their number moves every row below them. The Marley agent is
-# decided off (#683), so its offer never covers a scenario's clicks. The user's font sizes and
+# off (#683), though on by default since #696, so no run looks for the user's agents or lists a
+# Marley entry its steps would count past. The user's font sizes and
 # families come out as well (#695): every scenario's click points are measured at the default
 # sizes, and a larger UI font moves every row and button they aim at.
 python3 - "$E2E_PROFILE/config/settings.json" <<'SETTINGS'
@@ -668,9 +669,8 @@ marley["claude_code_ide"] = False
 for reaches_out in ("push", "harness", "embedded_harness", "fleet", "system_one"):
     marley.pop(reaches_out, None)
 marley["rail_containers"] = False
-# The Marley agent's offer comes a few seconds after start whenever the switch is undecided and
-# the user's claude is signed in (#683), over whatever a scenario clicks; the copy decides it off.
-# #683's own scenario takes the key out again.
+# The Marley agent is on by default and looks for the user's signed-in agent at start (#696);
+# the copy turns it off. #696's own scenario takes the key out again.
 marley["assistant"] = {"enabled": False}
 for font in ("ui_font_size", "ui_font_family", "buffer_font_size", "buffer_font_family",
              "agent_ui_font_size", "agent_buffer_font_size"):

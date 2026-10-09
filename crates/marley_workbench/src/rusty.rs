@@ -90,7 +90,7 @@ pub(crate) use home_tab::{OpenHome, open_later as open_home_later};
 pub(crate) const RUSTY_ICON: IconName = IconName::Blocks;
 
 /// The context server Zed's agents know Rusty's tools by.
-const CONTEXT_SERVER: &str = "rusty";
+pub(crate) const CONTEXT_SERVER: &str = "rusty";
 
 /// Marley's own connection to Rusty, apart from Zed's agents'.
 const MARLEY_SERVER: &str = "marley-rusty";
@@ -168,6 +168,14 @@ pub enum Source {
     Service(String),
 }
 
+/// Where an agent's own sessions reach Rusty (#696): the `rusty-mcp` Marley found, or the
+/// service's URL.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum RustyServer {
+    Stdio(PathBuf),
+    Http(String),
+}
+
 /// The connection's state, as the Rusty's Server page says it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 enum State {
@@ -198,6 +206,9 @@ pub(crate) struct Rusty {
     /// The last write Rusty refused, its first line.
     refused: Option<SharedString>,
     server: Option<Arc<ContextServer>>,
+    /// Where Marley last reached Rusty with this source; kept while the link is down, so the Rusty
+    /// entry an open thread runs on stays (#696).
+    agent_server: Option<RustyServer>,
     /// The loop that connects, checks and connects again; dropped with the source.
     keeper: Option<Task<()>>,
 }
@@ -290,6 +301,7 @@ fn follow_setting(cx: &mut App) {
             rusty.source = source.clone();
             rusty.keeper = None;
             rusty.server = None;
+            rusty.agent_server = None;
             rusty.settings = None;
             rusty.refused = None;
             rusty.state = if source == Source::Off {
@@ -306,8 +318,23 @@ fn follow_setting(cx: &mut App) {
             update(cx, |rusty| rusty.keeper = Some(keeper));
         }
     }
-    offer(wanted.agent_tools, cx);
+    offer(
+        wanted.agent_tools || crate::assistant::wants_rusty_profile(cx),
+        cx,
+    );
     filter_palette(wanted.source != Source::Off, cx);
+}
+
+/// Offers Rusty's server to Zed's agents again, when the assistant's want of the `rusty` profile
+/// changed (#696).
+pub(crate) fn offer_again(cx: &App) {
+    let agent_tools = MarleySettings::get_global(cx).rusty.agent_tools;
+    offer(agent_tools || crate::assistant::wants_rusty_profile(cx), cx);
+}
+
+/// Where an agent's own sessions reach Rusty: where Marley last reached it, while Rusty is on.
+pub(crate) fn agent_server(cx: &App) -> Option<RustyServer> {
+    cx.try_global::<Rusty>()?.agent_server.clone()
 }
 
 /// Hides Rusty's commands from the command palette while Rusty is off, as Zed hides its AI
@@ -409,7 +436,10 @@ async fn keep(source: Source, cx: &AsyncApp) {
 }
 
 /// The server `source` names, and how it is reached, for the page; not yet started.
-async fn server_for(source: &Source, cx: &AsyncApp) -> Result<(ContextServer, String), Lost> {
+async fn server_for(
+    source: &Source,
+    cx: &AsyncApp,
+) -> Result<(ContextServer, String, RustyServer), Lost> {
     let id = ContextServerId(Arc::from(MARLEY_SERVER));
     Ok(match source {
         Source::Off => return Err(Lost::Missing("Rusty is off".to_string())),
@@ -423,13 +453,14 @@ async fn server_for(source: &Source, cx: &AsyncApp) -> Result<(ContextServer, St
                 Err(reason) => return Err(Lost::Missing(reason)),
             };
             let via = format!("embedded: {}", path.display());
+            let found = RustyServer::Stdio(path.clone());
             let command = ContextServerCommand {
                 path,
                 args: Vec::new(),
                 env: None,
                 timeout: None,
             };
-            (ContextServer::stdio(id, command, None, None), via)
+            (ContextServer::stdio(id, command, None, None), via, found)
         }
         Source::Service(url) => {
             let url = match loopback(url) {
@@ -446,7 +477,11 @@ async fn server_for(source: &Source, cx: &AsyncApp) -> Result<(ContextServer, St
                 executor,
                 Some(CALL_TIMEOUT),
             ) {
-                Ok(server) => (server, format!("service: {url}")),
+                Ok(server) => (
+                    server,
+                    format!("service: {url}"),
+                    RustyServer::Http(url.to_string()),
+                ),
                 Err(error) => return Err(Lost::Down(first_line(&error.to_string()))),
             }
         }
@@ -455,7 +490,7 @@ async fn server_for(source: &Source, cx: &AsyncApp) -> Result<(ContextServer, St
 
 /// One connection, from its start to its loss.
 async fn connected(source: &Source, failures: &mut u32, cx: &AsyncApp) -> Lost {
-    let (server, via) = match server_for(source, cx).await {
+    let (server, via, found) = match server_for(source, cx).await {
         Ok(found) => found,
         Err(lost) => return lost,
     };
@@ -491,6 +526,7 @@ async fn connected(source: &Source, failures: &mut u32, cx: &AsyncApp) -> Lost {
     cx.update(|cx| {
         update(cx, |rusty| {
             rusty.server = Some(Arc::clone(&server));
+            rusty.agent_server = Some(found);
             rusty.state = State::Connected {
                 server: name.into(),
                 via: via.into(),

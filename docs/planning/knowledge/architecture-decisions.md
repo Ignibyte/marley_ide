@@ -4515,3 +4515,29 @@ Rejected:
 - marking the panel thread's rail row: the inbox already says who needs the user, and a row may
   not exist yet;
 - reports alone: a message between turns is news too.
+
+## AD-claude-696-the-marley-agent-is-on-with-auto-and-rusty-has-an-entry-of-its-own-001
+*decided at: 2026-10-08 · status: shipped · supersedes the offer of: AD-claude-683-marleys-own-agent-is-claude-code-with-session-meta-from-marleys-settings-001 · builds on: AD-claude-687-the-marley-agent-runs-on-codex-through-codex-acps-environment-and-on-zeds-agent-as-a-profile-001, AD-claude-643-rusty-is-one-switch-and-one-connection-marley-keeps-001*
+
+Chad, 2026-10-08: Marley comes preconfigured; Marley is the agent behind the IDE, and Rusty the
+agent behind Rusty enabled, both in the Agent Panel.
+
+- **Marley agent.** `marley.assistant` defaults to `{ enabled: true, agent: "auto" }`. `Auto`
+  resolves at start: Claude Code signed in, then Codex, then Zed's model. The result is held in
+  memory, never written, so the offer is gone. A user's `enabled: false` still wins.
+- **Rusty entry.** While Rusty is on and Marley has reached it, a `Rusty` entry (or a `rusty`
+  profile on Zed's agent) runs on the same agent, whatever the Marley switch says.
+- **How Rusty's tools reach only that entry.** Its sessions carry Rusty's server themselves:
+  - Claude Code: `_meta.claudeCode.options.mcpServers.rusty`, which claude-acp merges with the
+    servers ACP passes;
+  - Codex: `CODEX_CONFIG.mcp_servers.rusty`.
+
+  The server is the one Marley's own connection last reached: the `rusty-mcp` path, or the
+  service URL.
+- **Limits:** the Marley agent's, plus `mcp__marley` on Claude Code.
+
+Rejected:
+- Turning `marley.rusty.agent_tools` on for the entry, which would hand Rusty's tools to every
+  agent (AD-642).
+- A separate agent setting for Rusty.
+- Writing the detected agent into the user's settings.

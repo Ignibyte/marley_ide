@@ -2257,6 +2257,30 @@ alike.
   - `open_in_terminal` types the Codex line `'<codex>' --sandbox read-only -c
     'developer_instructions="…"'`. `filter_palette` lists the action only for an agent with an
     adapter.
+  - **Since #696** there are two entries and the agent is on by default.
+    - `Entry { Marley, Rusty }` gives each entry its name (the agent-server and meta key), its
+      profile (`marley`, `rusty`) and its instructions (`INSTRUCTIONS`, `RUSTY_INSTRUCTIONS`).
+    - `Entries { agent, marley, rusty: Option<RustyServer> }` is both `Assistant.applied` and what
+      `wanted` computes. `Entries::of(entry)` compares one entry, so `sync` takes out and puts in
+      only the entries that changed. The adapter changes only with the agent (`add_adapter`,
+      `drop_adapter`), so a thread on one entry survives the other's move.
+    - `MarleyAssistantAgent::Auto` resolves through `detect` and the `Detected { NotYet, Looking,
+      Found }` state, which replace `offer_later`, `show_offer`, `choose` and `decided`.
+      - It waits `DETECT_AFTER` (1 s) first, so Zed's tests, with their stopped clock, start no
+        status check.
+      - It then checks Claude Code, Codex, and after `ZED_MODEL_AFTER` Zed's model, logs
+        `assistant: auto chose …` and syncs.
+      - A detection the setting moved away from while it looked is dropped.
+    - Rusty's entry follows `rusty::agent_server`. `rusty.rs` sets that to the
+      `RustyServer::Stdio(path)` or `Http(url)` of the last connection that came up, keeps it
+      while the link is down, and clears it when the source changes. `init` observes the `Rusty`
+      global as well as the settings.
+    - `session_meta(entry, rusty)` adds `mcpServers.rusty` and `mcp__marley` to the disallowed
+      tools. `codex_config(entry, rusty)` adds `mcp_servers.rusty`.
+    - The `rusty` profile has no built-in tools and `enable_all_context_servers: true`. While it is
+      applied, `rusty::offer_again` offers the `rusty` context server as `agent_tools` does
+      (`wants_rusty_profile`).
+    - `set_entries` writes every applied entry once the adapter's command is known.
 - **Docs, settings and actions (#681).** `answer` sends `docs_` calls to `docs_tools::answer` and
   `settings_`/`actions_` calls to `settings_tools::answer`.
   - `docs_tools.rs`: `DocsBundle`, a `util::fs_embed!` over `docs/src/**/*.md` and

@@ -10,6 +10,8 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
+| [TICKET-697](open/TICKET-697-an-agent-thread-in-a-center-tab.md) | feature | Move an Agent Panel thread into a center tab and back |
+| [TICKET-698](open/TICKET-698-keep-the-marley-agent-to-its-own-tools.md) | bug | Keep the Marley agent to its eight tools on Claude Code and Codex (no `terminal_run` through Marley's MCP) |
 
 ## Deliberate (picked explicitly, never auto-next)
 

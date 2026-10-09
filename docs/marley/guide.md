@@ -1470,9 +1470,15 @@ one Decisions tab per window. System One's log is another tab, System One calls.
 An agent that explains Marley and sets it up with you (#683). It reaches Marley's docs and
 settings through Marley's MCP server: `docs_search`, `docs_read`, `settings_schema`,
 `settings_read`, `actions_list`, `settings_change` and `keymap_change`. Every change it proposes
-waits for your Apply. **Agent** (`marley.assistant.agent`, #687) picks what it runs on:
+waits for your Apply. It is on out of the box (#696). **Agent** (`marley.assistant.agent`, #687)
+picks what it runs on:
 
-- **Claude Code** (`claude_code`, the default): Zed's `claude-acp` adapter on your own login,
+- **Auto** (`auto`, the default, #696): the first found a second after start. That is Claude Code
+  signed in (`claude auth status`), then Codex signed in (`codex login status`), then Zed's agent
+  with a default model whose provider is signed in. Marley's log says which it chose. With none
+  found, the Agent Panel has no Marley entry until you sign in to one and start Marley again, or
+  pick an agent here.
+- **Claude Code** (`claude_code`): Zed's `claude-acp` adapter on your own login,
   as a **Marley** entry in the Agent Panel. It is told what it is for and kept from editing files
   or running commands: Bash, Edit, Write, NotebookEdit and MultiEdit are off, and so is bypass
   mode.
@@ -1483,12 +1489,8 @@ waits for your Apply. **Agent** (`marley.assistant.agent`, #687) picks what it r
   of the context servers' tools, only the seven above. Zed's agent has no prompt per profile, so
   the tools' own descriptions guide it.
 
-- **Turning it on.** Settings → Marley → **Marley Agent** (`marley.assistant.enabled`), off by
-  default, and **Agent** below it. When you have not chosen, Marley offers it once a few seconds
-  after start. It offers whichever it finds first: Claude Code signed in (`claude auth status`),
-  then Codex signed in (`codex login status`), then a Zed default model whose provider is signed
-  in. The offer names that agent. Turn On writes the switch with that agent, and Not Now writes it
-  off.
+- **Turning it off.** Settings → Marley → **Marley Agent** (`marley.assistant.enabled`), on by
+  default, and **Agent** below it. Off, nothing of it is left.
 - **Using it.** On Claude Code or Codex: New Agent Thread → **Marley**, from the Agent Panel or a
   project's + in the rail. On Zed's agent: a Zed Agent thread, then the profile picker (Ctrl+I) →
   **Marley**. Ask how a feature works, what a setting does or is set to, or which key runs a
@@ -1514,6 +1516,22 @@ waits for your Apply. **Agent** (`marley.assistant.agent`, #687) picks what it r
     Codex, which reads your `~/.codex` login.
   - **Zed's agent:** `agent.profiles.marley`.
   - `MARLEY_ASSISTANT_ADAPTER` names an ACP program to run in the adapter's place.
+
+### Rusty in the Agent Panel
+
+While Rusty is on (`marley.rusty.enabled`) and Marley has reached it, the Agent Panel also lists
+**Rusty** (#696). It runs on the same agent as the Marley agent (**Agent** above), whether or not
+the Marley agent is on. It is told it is your personal assistant, and it reaches your lists, notes,
+memories, brain and skills through Rusty's own tools. It changes no file and runs no command.
+
+- **Claude Code:** a `Rusty` agent server like the Marley entry. Its sessions' `_meta` names
+  Rusty's server in `mcpServers.rusty`, which the adapter adds to the servers Zed passes. That is
+  the `rusty-mcp` Marley found, or Rusty's service URL, so Rusty's tools reach this entry alone. It
+  may not use Bash, Edit, Write, NotebookEdit, MultiEdit or any of Marley's tools (`mcp__marley`).
+- **Codex:** the same entry, read-only, with Rusty's server in `CODEX_CONFIG`'s `mcp_servers`.
+- **Zed's agent:** a **Rusty** profile with no built-in tools and the context servers' tools. While
+  that profile is there, Marley offers Rusty's server to Zed's agents as the context server `rusty`,
+  as **Rusty's Tools for Agents** does, and Zed asks before each call.
 
 ## Marley's MCP server
 
