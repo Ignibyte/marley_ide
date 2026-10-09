@@ -1609,6 +1609,26 @@ a terminal, the browser's clicks and typing, a settings or keymap change, a harn
 - The log is kept a day per file under Marley's data folder, in `agent_control/`, readable by you
   alone.
 
+### Zed's editors for agents
+
+An agent can see and open Zed's editors through Marley's tools (#704):
+- `editor_list` names every open editor: its file, project, unsaved state, language, whether it's
+  in front, and its cursor and selections.
+- `editor_read` reads one as it is now, unsaved changes included, a page at a time, with keys and
+  tokens masked. A file whose name matches **Secret Globs** (`marley.agent_control.secret_globs`:
+  `.env*`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `.netrc`, `*.p12`) is
+  refused and named, and each read is listed in Agent Activity.
+- `editor_open` opens a file inside one of your open projects, at a line, its tab in front.
+
+**Settings → Marley → Agent Control → Editors** (`marley.agent_control.editors`) sets what agents
+may do there:
+- **Ask First**, the default: the first time an agent's session uses a tool that acts, such as
+  `editor_open`, Marley asks Allow for This Session, Always for This Project, or Deny. A session is
+  the agent's terminal (or Zed's agent) in a project, for as long as Marley runs; Always is
+  remembered.
+- **Ask Every** asks each time, **Allow** never asks, and **Off** refuses the editor tools, reads
+  too.
+
 ### What it serves, and where
 
 While Marley runs, it serves MCP over Streamable HTTP (protocol revision 2025-06-18) on 127.0.0.1,

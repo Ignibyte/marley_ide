@@ -106,12 +106,15 @@ OR Apache-2.0, with the Marley crates' lint table.
   `pid`, `name` and `cwd` (`ports_list_schemas`). `dispatch` defers it to the app, as it does the
   terminal and browser families. It is not in `CLIENT_READ_TOOLS`, so outside clients (#524)
   neither see nor call it.
-- The `editor` family (#649) is not served: `tools/list` leaves it out, and its grant class,
-  `editor.write`, is on no outside client's list, so `clients::permits` refuses it to them.
-  Marley's own `marley-edit` calls it with Marley's bearer and the `Marley-Terminal` header.
-  `editor_open` (Write) takes an absolute `path` and answers `edit` (an id) and `file`;
-  `editor_wait` (Read) takes `edit` and `wait_seconds` (1 to 20) and answers `closed`
-  (`editor_schemas`). `dispatch` defers both to the app.
+- The `prompt` family (#649; named `editor` until #704) is not served: `tools/list` leaves it out,
+  and its grant class, `editor.write`, is on no outside client's list, so `clients::permits`
+  refuses it to them. Marley's own `marley-edit` calls it with Marley's bearer and the
+  `Marley-Terminal` header. `prompt_open` (Write) takes an absolute `path` and answers `edit` (an
+  id) and `file`; `prompt_wait` (Read) takes `edit` and `wait_seconds` (1 to 20) and answers
+  `closed` (`prompt_schemas`). `dispatch` defers both to the app.
+- Since #704 the `editor` family is served, for agents: `editor_list` (Read, no arguments),
+  `editor_read` (Read, `id` or `path`, `start_line`) and `editor_open` (Write, `editor.write`,
+  `path`, `line`, `column`), with `editor_schemas`. No outside client's list names them.
 
 ## Redaction (`redact.rs`, #516, #562)
 

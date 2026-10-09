@@ -5,7 +5,7 @@
 //! `marley.agent_editor_in_tab` is on, a terminal Marley opens for an agent in a local project
 //! gets `marley-edit` as both, a program beside the opener in Marley's data directory. It asks
 //! Marley, through its MCP endpoint, to open the file in a tab of that terminal's workspace
-//! (`editor_open`), and waits for the tab to close (`editor_wait`), as `zed --wait` does: a save
+//! (`prompt_open`), and waits for the tab to close (`prompt_wait`), as `zed --wait` does: a save
 //! alone does not end the edit. When it ends the terminal comes back to the front with the focus.
 //! Ctrl-G and the agent bar's Rich Input button send such a terminal's agent its own key, so the
 //! prompt comes back through the agent's path, with nothing pasted and nothing sent.
@@ -63,7 +63,7 @@ pub(crate) const HELPER_FILE: &str = "marley-edit";
 /// How long an ended edit nobody waited on is kept, for a helper that asks late.
 const KEPT_AFTER_END: Duration = Duration::from_secs(60);
 
-/// The longest `editor_wait`, under the server's 30 s for an app's answer.
+/// The longest `prompt_wait`, under the server's 30 s for an app's answer.
 const MOST_WAIT_SECONDS: u64 = 20;
 
 /// One file open for an agent's editor key.
@@ -155,17 +155,17 @@ pub(crate) fn press_key(
     window.focus(&view.focus_handle(cx), cx);
 }
 
-/// Answers `editor_open` and `editor_wait`.
+/// Answers `prompt_open` and `prompt_wait`.
 pub(crate) fn answer(call: AppCall, cx: &mut App) {
     let tool = call.tool.clone();
     match tool.as_str() {
-        "editor_open" => open(call, cx),
-        "editor_wait" => wait(call, cx),
+        "prompt_open" => open(call, cx),
+        "prompt_wait" => wait(call, cx),
         other => call.answer(Err(format!("Marley answers no tool named {other}"))),
     }
 }
 
-/// `editor_open`: the file in a tab of the calling terminal's workspace, with the focus; the
+/// `prompt_open`: the file in a tab of the calling terminal's workspace, with the focus; the
 /// answer once it is open, and the edit's end on the tab's release.
 fn open(call: AppCall, cx: &mut App) {
     let Some((workspace, view)) = crate::mcp::caller_terminal(call.caller(), cx) else {
@@ -290,10 +290,10 @@ fn ended(id: u64, cx: &mut App) {
     }
 }
 
-/// `editor_wait`: `closed: true` once the edit ended, else `closed: false` after `wait_seconds`.
+/// `prompt_wait`: `closed: true` once the edit ended, else `closed: false` after `wait_seconds`.
 fn wait(call: AppCall, cx: &mut App) {
     let Some(id) = call.arguments.get("edit").and_then(Value::as_u64) else {
-        call.answer(Err("give the edit's id from editor_open".to_string()));
+        call.answer(Err("give the edit's id from prompt_open".to_string()));
         return;
     };
     let seconds = call

@@ -374,6 +374,47 @@ pub struct MarleyAgentControlContent {
     ///
     /// Default: false
     pub stopped: Option<bool>,
+    /// What an agent may do to Zed's editors through Marley's tools (#704): `off` refuses them,
+    /// reads too; `ask_first` asks before the first tool that acts in an agent's session, with
+    /// Allow for This Session, Always for This Project and Deny; `ask_every` asks each time;
+    /// `allow` never asks.
+    ///
+    /// Default: "ask_first"
+    pub editors: Option<MarleyAgentControlMode>,
+    /// The file names an agent may not read through Marley's tools, as globs over the name alone,
+    /// such as `*.pem` (#704). Matched files are refused and named, so you can drop a pattern.
+    ///
+    /// Default: [".env*", "*.pem", "*.key", "id_rsa*", "id_ed25519*", "*credentials*", ".netrc",
+    /// "*.p12"]
+    pub secret_globs: Option<Vec<String>>,
+}
+
+/// What an agent may do in one area of Marley's tools (#704).
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum MarleyAgentControlMode {
+    /// The area's tools refuse every agent, reads too.
+    Off,
+    /// Every tool that acts asks you each time.
+    AskEvery,
+    /// A tool that acts asks you once per agent session, unless you allowed the project for good.
+    #[default]
+    AskFirst,
+    /// The area's tools never ask.
+    Allow,
 }
 
 /// Marley's connection to Rusty, Ignibyte's local assistant store (#643).

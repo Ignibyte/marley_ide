@@ -13,6 +13,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Zed's editors for agents** (#704, 2026-10-09). Through Marley's tools an agent can now list
+  Zed's open editors (`editor_list`), read one as it is, unsaved changes included
+  (`editor_read`), and open a file in an open project at a line (`editor_open`).
+  - **Settings → Marley → Agent Control → Editors** decides how far they go. **Ask First**, the
+    default, asks the first time an agent's session opens something: Allow for This Session,
+    Always for This Project, or Deny. **Ask Every** asks each time, **Allow** never asks, and
+    **Off** turns the editor tools off.
+  - Files named like secrets (`.env*`, `*.pem`, `*.key`, SSH keys and the like:
+    `marley.agent_control.secret_globs`) are never read, and every read is listed in Agent
+    Activity.
+
 - **The shared Claude Code plugin** (#709, 2026-10-09). Turn on **Shared Claude Code Plugin**
   in Settings → Marley → Agents, and each new local terminal loads the Claude Code plugin Marley
   shares with rustal-harness. A Claude Code started there then tells the rail its own state:

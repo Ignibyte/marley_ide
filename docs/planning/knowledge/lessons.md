@@ -5220,3 +5220,12 @@ focus, never that element. When focus is moved off a modal onto something the wi
 the shown workspace's focus-lost listener lands on the modal's parent, and the modal's own key
 context (its Confirm on Enter) no longer has the keys. Undo a stray focus inside the same update,
 before a frame, rather than counting on the focus-lost restore.
+
+## L-claude-704-edits-through-bash-skip-the-phase-hook-001
+*category: process · topic: the phase hooks · from: pipeline 704*
+
+The phase hook guards Write and Edit only. An edit made through Bash (a `python3` or `sed`
+rewrite) passes it whatever phase the transcript is in. In #704 the plan was written by hand and
+the settings and registry edits went in through Bash before `/pipeline:code 704` was invoked; the
+hook caught the first Write. Invoke the phase's skill before the first code edit even when the
+edits are scripted, so the transcript and the hooks agree on the phase.

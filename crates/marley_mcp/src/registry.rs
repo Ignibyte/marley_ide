@@ -23,9 +23,11 @@ pub enum Family {
     Browser,
     /// The ports each project's processes listen on, read by the app (#521).
     Ports,
-    /// Files opened for an agent's own editor key and waited on, for Marley's `marley-edit`
-    /// (#649); never listed, and Marley's own.
+    /// Zed's open editors, listed, read and opened for an agent (#704).
     Editor,
+    /// Files opened for an agent's own editor key and waited on, for Marley's `marley-edit`
+    /// (#649); never listed, and Marley's own. Named `editor_*` until #704.
+    Prompt,
     /// Zed's docs and Marley's guide, as this build ships them, searched and read (#681).
     Docs,
     /// The settings' schema and the values each settings file gives (#681).
@@ -49,6 +51,7 @@ impl Family {
             Self::Browser => "browser",
             Self::Ports => "ports",
             Self::Editor => "editor",
+            Self::Prompt => "prompt",
             Self::Docs => "docs",
             Self::Settings => "settings",
             Self::Actions => "actions",
@@ -66,6 +69,7 @@ impl Family {
             Self::Terminal
                 | Self::Browser
                 | Self::Ports
+                | Self::Editor
                 | Self::Docs
                 | Self::Settings
                 | Self::Actions
@@ -380,7 +384,7 @@ const REGISTRY: &[ToolSpec] = &[
                       listener outside every project is not listed.",
     },
     ToolSpec {
-        family: Family::Editor,
+        family: Family::Prompt,
         verb: "open",
         tier: Tier::Write,
         grant_class: "editor.write",
@@ -388,12 +392,40 @@ const REGISTRY: &[ToolSpec] = &[
                       an agent's editor key (#649); the edit ends when the tab closes.",
     },
     ToolSpec {
-        family: Family::Editor,
+        family: Family::Prompt,
         verb: "wait",
         tier: Tier::Read,
         grant_class: "",
-        description: "Wait up to wait_seconds for an edit editor_open began to end, its tab \
+        description: "Wait up to wait_seconds for an edit prompt_open began to end, its tab \
                       closed.",
+    },
+    ToolSpec {
+        family: Family::Editor,
+        verb: "list",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "List the editors open in Marley: each one's id, its file's absolute path, \
+                      its project, whether it has unsaved changes, its language, whether it is \
+                      its pane's active tab, and its cursor and selections as 1-based lines and \
+                      columns.",
+    },
+    ToolSpec {
+        family: Family::Editor,
+        verb: "read",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "Read an open editor's text as it is now, unsaved changes included, by its \
+                      id from editor_list or its file's path, a page of lines at a time, keys and \
+                      tokens masked. A file matching the user's secret patterns is refused.",
+    },
+    ToolSpec {
+        family: Family::Editor,
+        verb: "open",
+        tier: Tier::Write,
+        grant_class: "editor.write",
+        description: "Open a file inside one of the open projects' folders in that project's \
+                      window, its tab in front, the cursor at the line and column given. The \
+                      user may be asked first.",
     },
     ToolSpec {
         family: Family::Docs,
@@ -580,6 +612,7 @@ fn tool_schemas(spec: &ToolSpec) -> (Value, Value) {
         Family::Browser => browser_schemas(spec.verb),
         Family::Ports => ports_list_schemas(),
         Family::Editor => editor_schemas(spec.verb),
+        Family::Prompt => prompt_schemas(spec.verb),
         Family::Docs => docs_schemas(spec.verb),
         Family::Settings => settings_schemas(spec.verb),
         Family::Actions => actions_list_schemas(),
@@ -1926,9 +1959,87 @@ fn terminal_type_schemas() -> (Value, Value) {
 }
 
 /// `terminal_run` (#556): a terminal, a command and how long to wait; the block it ran.
-/// `editor_open` and `editor_wait` (#649): a file's absolute path in, the edit's id out; the id
-/// and a wait in, whether the edit ended out.
+/// `editor_list`, `editor_read` and `editor_open` (#704): no arguments, the editors out; an id or a
+/// path and the first line in, a page of the text out; a path, a line and a column in, the editor
+/// opened out.
 fn editor_schemas(verb: &str) -> (Value, Value) {
+    match verb {
+        "list" => (
+            json!({ "type": "object", "properties": {}, "additionalProperties": false }),
+            json!({
+                "type": "object",
+                "properties": { "editors": { "type": "array", "items": { "type": "object" } } },
+                "required": ["editors"]
+            }),
+        ),
+        "read" => (
+            json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "integer", "description": "The editor's id, from editor_list." },
+                    "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096,
+                        "description": "The open file's absolute path, when no id is given."
+                    },
+                    "start_line": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "The first line of the page; 1 when left out."
+                    }
+                },
+                "additionalProperties": false
+            }),
+            json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "integer" },
+                    "path": { "type": "string" },
+                    "text": { "type": "string" },
+                    "first_line": { "type": "integer" },
+                    "last_line": { "type": "integer" },
+                    "total_lines": { "type": "integer" },
+                    "next_line": { "type": ["integer", "null"] },
+                    "dirty": { "type": "boolean" },
+                    "redacted": { "type": "integer" }
+                },
+                "required": ["id", "path", "text", "first_line", "last_line", "total_lines"]
+            }),
+        ),
+        _ => (
+            json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096,
+                        "description": "The file's absolute path, inside an open project's folders."
+                    },
+                    "line": { "type": "integer", "minimum": 1, "description": "1 when left out." },
+                    "column": { "type": "integer", "minimum": 1, "description": "1 when left out." }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "integer" },
+                    "path": { "type": "string" },
+                    "line": { "type": "integer" },
+                    "column": { "type": "integer" }
+                },
+                "required": ["id", "path"]
+            }),
+        ),
+    }
+}
+
+/// `prompt_open` and `prompt_wait` (#649): a file's absolute path in, the edit's id out; the id
+/// and a wait in, whether the edit ended out.
+fn prompt_schemas(verb: &str) -> (Value, Value) {
     match verb {
         "open" => (
             json!({
@@ -2152,8 +2263,11 @@ mod tests {
                 "browser_press",
                 "browser_scroll",
                 "ports_list",
+                "prompt_open",
+                "prompt_wait",
+                "editor_list",
+                "editor_read",
                 "editor_open",
-                "editor_wait",
                 "docs_search",
                 "docs_read",
                 "settings_schema",
@@ -2164,7 +2278,7 @@ mod tests {
                 "actions_list"
             ]
         );
-        assert_eq!(registry().len(), 41);
+        assert_eq!(registry().len(), 44);
         assert_eq!(
             lookup("fleet_snapshot").expect("read tool").tier,
             Tier::Read

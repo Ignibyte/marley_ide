@@ -959,8 +959,9 @@ alike.
   (`AgentKind::editor_key`) into the terminal with `press_key` and open no overlay. Any other
   terminal keeps #481's overlay.
 - The helper, run by the agent with its prompt's file as the last argument, reads the endpoint as
-  the opener does, sends `Marley-Terminal` from `MARLEY_TERMINAL_ID`, calls `editor_open`, then
-  `editor_wait` in 20 s rounds until `closed`, and exits 0; any failure prints one `marley-edit:`
+  the opener does, sends `Marley-Terminal` from `MARLEY_TERMINAL_ID`, calls `prompt_open`, then
+  `prompt_wait` in 20 s rounds until `closed` (`editor_open` and `editor_wait` until #704), and
+  exits 0; any failure prints one `marley-edit:`
   line (the refusal's `reason` when Marley gave one) and exits 1, the file untouched.
 - `answer` serves both tools. `open` finds the calling terminal (`mcp::caller_terminal`), opens the
   file with `Workspace::open_abs_path` (not a preview, with the focus) through the window's handle,
@@ -1786,6 +1787,37 @@ alike.
 - `rail_groups` lists Home, Rusty, Zed's project groups, then named groups, each group kind in the
   window's saved order, before `marley_rail::place` applies a dragged order.
 - `group_context_menu` gives Home a label, as Rusty's (#675).
+
+## Zed's editors for agents, and the area modes (`src/editor_tools.rs`, `src/agent_control.rs`, #704)
+
+- **`agent_control.rs`.** `Area::Editors` reads its `MarleyAgentControlMode` from
+  `marley.agent_control.editors` in the merged settings (`ask_first` when unset).
+  - `admit(call, area, acts, what, cx)`: `off` refuses `agent_control_off`; a read passes; an act
+    under `allow` passes. Under `ask_first` it passes when this run allowed the session (area,
+    caller key, project key) or the project was allowed for good; otherwise it asks, as it always
+    does under `ask_every`.
+  - The caller key is `terminal:<id>`, else `client:<name>`, else `agent`. The project key is the
+    caller's `project`, else its `cwd`.
+  - The question is a `MessageNotification` built with Allow for This Session, Always for This
+    Project and Deny as content buttons. Its answer goes through a one-shot slot, it waits
+    `ANSWER_WAIT` (25 s), and it is dismissed after.
+  - Always is saved in the KV store (`marley-agent-control`/`always`), and read back at `init`.
+- **`editor_tools.rs`.** `open_editors` walks every window's `MultiWorkspace`, each workspace's
+  panes and their `Editor` items with a singleton local buffer, once each. An editor's id is its
+  entity id.
+  - `list`: the path, the project (the visible worktree holding it), `is_dirty`, the language,
+    whether it is its pane's active item, and the disjoint selections as 1-based points.
+  - `read`:
+    - `agent_activity::log` first, so the read is listed, refused or not;
+    - the secret globs (`marley.agent_control.secret_globs`, else `SECRET_GLOBS`) through
+      `PathMatcher::new_lenient` over the file name; a match is refused `secret_file`;
+    - the buffer's text through `mcp::for_agents`, paged by `page_from` and `fill_forward`, with
+      `next_line`.
+  - `open`: only a path under a visible worktree (`project_holding`), else `outside_projects`. The
+    area admits it as an act. Then the window shows that workspace (`MultiWorkspace::activate`)
+    and opens the file (`open_abs_path`, focused), and `go_to_singleton_buffer_point` places the
+    cursor.
+- `agent_activity::log` is `gate` without the kill switch, for reads.
 
 ## Agent activity and the kill switch (`src/agent_activity.rs`, `src/mcp.rs`, `marley_mcp`, #703)
 

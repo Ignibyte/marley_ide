@@ -166,7 +166,7 @@ def edit(path):
         })
         request(endpoint, deadline, "POST",
                 {"jsonrpc": "2.0", "method": "notifications/initialized"}, session)
-        opened = call(endpoint, deadline, session, 2, "editor_open", {"path": path})
+        opened = call(endpoint, deadline, session, 2, "prompt_open", {"path": path})
         edit_id = opened.get("edit")
         sys.stderr.write(f"marley-edit: {opened.get('file', os.path.basename(path))} is open in "
                          "a Marley tab; closing the tab hands it back\n")
@@ -174,7 +174,7 @@ def edit(path):
         number = 3
         while True:
             deadline = time.monotonic() + WAIT_SECONDS + 5
-            waited = call(endpoint, deadline, session, number, "editor_wait",
+            waited = call(endpoint, deadline, session, number, "prompt_wait",
                           {"edit": edit_id, "wait_seconds": WAIT_SECONDS})
             if waited.get("closed") is True:
                 return 0

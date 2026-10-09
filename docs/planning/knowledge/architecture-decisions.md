@@ -4625,3 +4625,23 @@ Rejected:
   terminals);
 - copying the files at run time from a rustal-harness checkout (Marley's users needn't have one);
 - folding Marley's own plugin into it now (a later slice, after parity).
+
+## AD-claude-704-areas-ask-once-per-session-and-reads-stay-free-001
+*decided at: 2026-10-09 · status: shipped · builds on: AD-claude-703-agent-control-starts-with-a-log-and-a-kill-switch-001*
+
+Each area of Marley's tools that drive Zed has a mode (`off`, `ask_every`, `ask_first`, `allow`;
+`ask_first` by default), the editors' first.
+- A tool that acts asks once per session: the caller's Marley terminal, else its client's name,
+  with its project, for as long as Marley runs.
+- Always for This Project keeps the area allowed in a project across restarts (Zed's KV store).
+- Reads pass unless the area is off. A read that reveals a file is listed in Agent Activity, and
+  files whose names match the secret globs are never read.
+- Opens are limited to the open projects' folders.
+
+The app never sees MCP session ids, and Zed's agent threads share one, which is why the session
+is keyed this way. The agents' tools took the `editor_*` names; #649's prompt pair became `prompt_*`.
+
+Rejected:
+- a question for every call (Chad: not "approve every single thing");
+- keying sessions by MCP session id (the app doesn't see it);
+- letting reads ask (agents read constantly, and a question per read would teach "always allow").

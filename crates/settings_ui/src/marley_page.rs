@@ -897,7 +897,7 @@ fn voice_section() -> [SettingsPageItem; 2] {
 }
 
 // Marley: the kill switch of agents' write tools (#703).
-fn agent_control_section() -> [SettingsPageItem; 2] {
+fn agent_control_section() -> [SettingsPageItem; 3] {
     [
         SettingsPageItem::SectionHeader("Agent Control"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -920,6 +920,32 @@ fn agent_control_section() -> [SettingsPageItem; 2] {
                         .agent_control
                         .get_or_insert_default()
                         .stopped = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: what an agent may do to Zed's editors (#704).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Editors",
+            description: "What an agent may do to Zed's editors through Marley's tools: Off refuses them, reads too; Ask First asks before the first tool that acts in an agent's session (Allow for This Session, Always for This Project, Deny); Ask Every asks each time; Allow never asks.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.agent_control.editors"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.agent_control.as_ref())
+                        .and_then(|agent_control| agent_control.editors.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .agent_control
+                        .get_or_insert_default()
+                        .editors = value;
                 },
             }),
             metadata: None,

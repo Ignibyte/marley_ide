@@ -1893,7 +1893,23 @@
     // those tools refuse, and the tools that only read keep working. `marley: stop agent control`
     // and `marley: resume agent control` set it.
     "agent_control": {
-      "stopped": false
+      "stopped": false,
+      // What an agent may do to Zed's editors through Marley's tools (#704): "off" refuses them,
+      // reads too; "ask_first" asks before the first tool that acts in an agent's session (Allow
+      // for This Session, Always for This Project, Deny); "ask_every" asks each time; "allow"
+      // never asks.
+      "editors": "ask_first",
+      // File names an agent may not read through Marley's tools, as globs over the name alone.
+      "secret_globs": [
+        ".env*",
+        "*.pem",
+        "*.key",
+        "id_rsa*",
+        "id_ed25519*",
+        "*credentials*",
+        ".netrc",
+        "*.p12"
+      ]
     },
     // The System One layer (#565): typed questions to a model about states Marley builds from
     // what it knows. Off, it makes no request, reads no key and writes no file. The key is

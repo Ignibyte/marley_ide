@@ -22,6 +22,7 @@
 
 pub mod agent_activity;
 pub mod agent_bar;
+pub mod agent_control;
 pub mod agent_editor;
 pub mod agent_events;
 pub mod agent_notify;
@@ -46,6 +47,7 @@ pub mod close_guard;
 pub mod codex_server;
 pub mod command_watch;
 pub mod docs_tools;
+pub mod editor_tools;
 pub mod english;
 pub mod failures;
 pub mod find;
@@ -873,6 +875,7 @@ pub fn init(cx: &mut App) {
     agent_versions::init(cx);
     codex_server::init(cx);
     agent_activity::init(cx);
+    agent_control::init(cx);
     agent_bar::init(cx);
     claude_plugin::init(cx);
     claude_ide::init(cx);

@@ -519,7 +519,7 @@ fn answer(mut call: AppCall, cx: &mut App) {
         return;
     }
     // Every write-tier call of a tool agents are listed is logged, and refused while the user
-    // stopped agents' write tools (#703). The unlisted editor tools serve `marley-edit`, the
+    // stopped agents' write tools (#703). The unlisted prompt tools serve `marley-edit`, the
     // user's own `$EDITOR` (#649).
     if marley_mcp::lookup(&call.tool)
         .is_some_and(|spec| spec.tier == marley_mcp::Tier::Write && spec.family.is_served())
@@ -532,8 +532,12 @@ fn answer(mut call: AppCall, cx: &mut App) {
         crate::browser_tools::answer(call, cx);
         return;
     }
-    if call.tool.starts_with("editor_") {
+    if call.tool.starts_with("prompt_") {
         crate::agent_editor::answer(call, cx);
+        return;
+    }
+    if call.tool.starts_with("editor_") {
+        crate::editor_tools::answer(call, cx);
         return;
     }
     if call.tool == "ports_list" {

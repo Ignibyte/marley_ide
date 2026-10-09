@@ -145,6 +145,24 @@ pub fn init(cx: &mut App) {
 ///
 /// [`STOPPED`] while `marley.agent_control.stopped` is on.
 pub(crate) fn gate(call: &mut AppCall, cx: &App) -> Result<(), Refusal> {
+    log(call, cx);
+    if stopped(cx) {
+        return Err(Refusal::new(
+            STOPPED,
+            "The user stopped agents' use of Marley's tools that act. The tools that only read \
+             still answer.",
+        )
+        .next(
+            "Ask the user to resume it with `marley: resume agent control`, or the Resume button \
+             on Home's AGENT ACTIVITY card.",
+        ));
+    }
+    Ok(())
+}
+
+/// Logs `call`'s outcome once it is answered, with no refusal: a read that reveals a file's text
+/// (#704) is listed while the kill switch leaves it working.
+pub(crate) fn log(call: &mut AppCall, cx: &App) {
     let who = crate::click_pause::Who::of(call, cx).words;
     let summary = summary(&call.arguments, cx);
     let tool = call.tool.clone();
@@ -167,18 +185,6 @@ pub(crate) fn gate(call: &mut AppCall, cx: &App) -> Result<(), Refusal> {
             .log_err();
         });
     }
-    if stopped(cx) {
-        return Err(Refusal::new(
-            STOPPED,
-            "The user stopped agents' use of Marley's tools that act. The tools that only read \
-             still answer.",
-        )
-        .next(
-            "Ask the user to resume it with `marley: resume agent control`, or the Resume button \
-             on Home's AGENT ACTIVITY card.",
-        ));
-    }
-    Ok(())
 }
 
 /// Whether agents' write tools are stopped.
