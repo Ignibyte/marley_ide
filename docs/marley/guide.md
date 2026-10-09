@@ -727,7 +727,9 @@ whatever the arguments said, and its tooltip says so. The server's commands run 
 environment the terminal's programs get, and the server stops with its terminal or with Marley.
 It runs on Codex 0.155.1 to 0.158.0; on another version Codex starts as before, and the agent
 bar's chip says which version Marley found (App Server on Untested Codex, in the Agent Versions
-section, runs it anyway). Marley answers nothing Codex asks. While it is joined, the user agent
+section, runs it anyway). Codex's approval requests (a command, a file change, extra
+permissions, an MCP server's elicitation) also show in the rail's Needs you with the decisions
+each offers, and Marley answers only the one you pick (#651). While it is joined, the user agent
 Codex sends with its requests names Marley. A Codex you type by hand runs as you typed it.
 
 The first time Claude Code starts in bypass it asks you to accept its warning, in the terminal.
@@ -919,7 +921,7 @@ directory (`$CLAUDE_CONFIG_DIR`, else `~/.claude`), read when Marley starts, and
 `claude` it found on the PATH then. With no `claude` there, the install fails with "`claude` is not
 on the PATH".
 
-The plugin, `marley` 1.4.0, brings three things:
+The plugin, `marley` 1.6.0, brings three things:
 
 - **Notifications.** Its hooks run when Claude Code needs your permission, when it waits for you,
   and when it finishes, and ask Claude Code to write an OSC 777 notify to its terminal. You get a
@@ -1512,7 +1514,7 @@ one Decisions tab per window. System One's log is another tab, System One calls.
 
 An agent that explains Marley and sets it up with you (#683). It reaches Marley's docs and
 settings through Marley's MCP server: `docs_search`, `docs_read`, `settings_schema`,
-`settings_read`, `actions_list`, `settings_change` and `keymap_change`. Every change it proposes
+`settings_read`, `actions_list`, `settings_change`, `keymap_change` and `seat_add` (#692). Every change it proposes
 waits for your Apply. It is on out of the box (#696). **Agent** (`marley.assistant.agent`, #687)
 picks what it runs on:
 
@@ -1529,7 +1531,7 @@ picks what it runs on:
   **Marley** entry. It starts in Codex's read-only mode, which asks before any edit or network use.
   The instructions go in as Codex's `developer_instructions`.
 - **Zed's agent** (`zed`): a **Marley** profile for Zed's own agent, with no built-in tools and,
-  of the context servers' tools, only the seven above. Zed's agent has no prompt per profile, so
+  of the context servers' tools, only the eight above. Zed's agent has no prompt per profile, so
   the tools' own descriptions guide it.
 
 - **Turning it off.** Settings → Marley → **Marley Agent** (`marley.assistant.enabled`), on by
@@ -1784,8 +1786,11 @@ fleet stays empty until prong 2 feeds it, and a session write is refused, since 
 
 ### Grants and what keeps an agent in check
 
-- Read tools need no grant. A write tool needs its class granted, and Marley grants
-  `browser.write`, and nothing else, when it starts the server. No setting changes that today.
+- Read tools need no grant. A write tool needs its class granted. Marley grants seven when it
+  starts the server: `browser.write`, `terminal.write`, `editor.write`, `settings.write`,
+  `harness.write`, `thread.write` and `action.write`. The editor, thread and action tools also pass
+  their area's mode under Agent Control, and every write is listed in Agent Activity (#703 to
+  #707).
 - The checks on the browser's write tools are your agent client's approval of each call (Claude
   Code asks by default) and the Browser tab, where every action happens in front of you and the
   Agent chip names it. With the click consequence on, a consequential click also waits for you

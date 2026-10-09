@@ -5241,3 +5241,21 @@ show.
 **An opened dock takes the focus.** A toggle that opens a dock focuses its panel, so a
 following pane action such as `pane::SplitRight` is not available until an editor is clicked
 again. `action_run` reports that as `not_available`.
+
+## L-claude-722-documentation-bots-draft-and-one-hand-merges-001
+*category: process · topic: updating a large doc with parallel agents · from: pipeline 722*
+
+**What worked.** Three bots, one per area of the guide page, each wrote fragments with `REPLACE`
+and `INSERT-AFTER` markers into the scratchpad, never the page. One script merged them and
+checked that the ids were unique and the tags closed.
+
+**Why the split matters.** No two writers touched the page, and each bot's report named statements
+gone stale in its area and in `guide.md`.
+
+**Bots' claims need checking against the code before they land.** One bot called the rail's
+CONTAINERS list stale, but `rail_containers.rs` still draws it. Bots also can't edit what sits
+between areas (the nav, the Reference tables), so those are the merger's to do.
+
+**Filter scenarios.** The guide's contents filter matches every word anywhere in an article. A
+scenario's query should be checked against the page's matching, by a script that emulates it,
+before the run, so its first match is the article meant.

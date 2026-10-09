@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The guide page caught up** (#722, 2026-10-09). `marley: open guide` and the title bar's `?` now
+  cover what shipped after #687:
+  - Home's page, the Rusty group and agent threads in tabs;
+  - the Marley and Rusty agents, on out of the box, and the harness;
+  - every tool Marley serves to agents, by family, with Agent Activity, the kill switch and
+    agent control's modes.
+
+  The Reference tables gain the new commands and settings. `docs/marley/guide.md`, which agents
+  search with `docs_search`, lost four stale statements.
+
 - **Allowed Actions in Settings** (#711, 2026-10-09). Settings → Marley → Agent Control → Allowed
   Actions edits `marley.agent_control.actions_allowed` in place. It lists each name with a remove
   button, marks a name Zed has no action for as "not an action", and adds the name typed into its

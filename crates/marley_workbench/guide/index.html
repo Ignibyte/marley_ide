@@ -156,6 +156,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#rail-overview">Projects and their rows</a></li>
 <li><a href="#plus-menu">The + menu: start things in a project</a></li>
 <li><a href="#projectless-groups">Groups with no folder, and the rail&#x27;s right-click menu</a></li>
+<li><a href="#home-page">Home&#x27;s page: a terminal, an agent, a project</a></li>
 <li><a href="#rail-drag">Drag to reorder the rail</a></li>
 <li><a href="#terminal-rows">Terminal rows: rename, close, last command</a></li>
 <li><a href="#rail-dots">Dots that ask for you</a></li>
@@ -167,6 +168,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#rail-keyboard">The rail from the keyboard</a></li>
 <li><a href="#rail-filter">The filter</a></li>
 <li><a href="#rail-switcher">The switcher and next thread</a></li>
+<li><a href="#rusty-group">The Rusty group: its home page and its + menu</a></li>
 <li><a href="#brain-view">The Brain tab: Rusty&#x27;s vault</a></li>
 <li><a href="#knowledge-panel">The Knowledge panel: a page&#x27;s links, tags and brain search</a></li>
 <li><a href="#graph-tab">The Graph tab: the vault as a graph</a></li>
@@ -206,12 +208,16 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#agents">Agents in terminals</a><ol>
 <li><a href="#agent-clis">Agent CLIs, recognized anywhere</a></li>
 <li><a href="#agent-bar">The agent bar</a></li>
+<li><a href="#agent-versions">Agent versions</a></li>
 <li><a href="#claude-plugin">Connect Claude Code to Marley</a></li>
+<li><a href="#shared-claude-plugin">The shared Claude Code plugin, and agents&#x27; own reports</a></li>
 <li><a href="#other-agent-notifications">Codex and OpenCode notifications</a></li>
+<li><a href="#claude-ide-link">Claude Code&#x27;s IDE link</a></li>
 <li><a href="#rich-input">Rich input</a></li>
 <li><a href="#attach-files">Attach files and images; copy and paste</a></li>
 <li><a href="#dictation">Dictation</a></li>
 <li><a href="#permission-modes">Permission modes</a></li>
+<li><a href="#codex-app-server">Codex&#x27;s App Server</a></li>
 <li><a href="#agent-reads-terminals">Agents read your terminals</a></li>
 <li><a href="#agent-runs-commands">Agents run commands at your prompt</a></li>
 <li><a href="#agent-types-into-programs">Agents type into running programs</a></li>
@@ -227,12 +233,21 @@ th { background: var(--panel); font-weight: 650; }
 </ol></li>
 <li><a href="#agent-panel">Zed&#x27;s Agent Panel</a><ol>
 <li><a href="#agent-threads">Threads in the rail</a></li>
+<li><a href="#thread-in-center">An agent thread in a center tab</a></li>
 <li><a href="#zed-agents-tools">Zed&#x27;s agents use Marley&#x27;s tools</a></li>
+</ol></li>
+<li><a href="#marley-agent">The Marley and Rusty agents</a><ol>
+<li><a href="#marley-agent-on">The Marley agent, on out of the box</a></li>
+<li><a href="#marley-agent-limits">What the Marley agent may do</a></li>
+<li><a href="#marley-agent-terminal">The Marley agent in a terminal</a></li>
+<li><a href="#rusty-agent-entry">Rusty in the Agent Panel</a></li>
 </ol></li>
 <li><a href="#mcp">Marley&#x27;s tools for agents</a><ol>
 <li><a href="#mcp-server">The server and how agents reach it</a></li>
 <li><a href="#mcp-tools">The tools</a></li>
 <li><a href="#mcp-safety">What keeps agents in check</a></li>
+<li><a href="#agent-activity">Agent Activity and the kill switch</a></li>
+<li><a href="#agent-control-modes">How far agents go in editors, threads and actions</a></li>
 <li><a href="#browser-clients">Programs outside Marley drive its browser</a></li>
 </ol></li>
 <li><a href="#browser">The Browser tab</a><ol>
@@ -256,6 +271,12 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#click-consequence">Consequential clicks wait for you</a></li>
 <li><a href="#inbox-risk">Risk and route in Needs you</a></li>
 <li><a href="#running-error">A running command that printed an error</a></li>
+</ol></li>
+<li><a href="#harness">The harness</a><ol>
+<li><a href="#harness-sessions">Harness sessions in the rail</a></li>
+<li><a href="#harness-writes">Answer, message and watch a session</a></li>
+<li><a href="#harness-seat">A harness seat in one step</a></li>
+<li><a href="#harness-manager">The manager in the Agent Panel</a></li>
 </ol></li>
 <li><a href="#fleet">The fleet</a><ol>
 <li><a href="#fleet-panel">The Fleet panel</a></li>
@@ -347,7 +368,7 @@ th { background: var(--panel); font-weight: 650; }
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Run <code>marley: open settings</code> to open the Settings window on the Marley page. <kbd>Ctrl+,</kbd> opens the Settings window at its last page.</li>
-<li>The page has nine sections: Layout, Agents, Terminal, Agent Versions, Voice, Push, System One, Rusty and Privacy.</li>
+<li>The page has eleven sections: Layout, Agents, Terminal, Agent Versions, Voice, Agent Control, Marley Agent, Push, System One, Rusty and Privacy.</li>
 <li>In the Rusty section, Rusty's Server shows Marley's connection to Rusty and Rusty's own settings (#666): how far its brain search has pages embedded, the ten settings Rusty's app lists with what each does and its default, the other keys Rusty stores (a key, token or password shown hidden), and a row to add one. Type in a field and press <kbd>Enter</kbd> to change it; Rusty keeps the value and the page reads it back.</li>
 <li><kbd>Ctrl+Alt+,</kbd> opens <code>settings.json</code> itself; Marley's keys sit in its <code>"marley"</code> block. The full list is in <a href="#settings-reference">Settings reference</a>.</li>
 <li>Telemetry is off by default: both toggles in Privacy start off.</li>
@@ -414,12 +435,12 @@ th { background: var(--panel); font-weight: 650; }
 <p class="area-intro">The column on the left in the Marley layout: every project in the window, and under each one what runs in it.</p>
 
 <article id="rail-overview">
-<h3>Projects and their rows <span class="ticket">#438 · #468 · #442 · #674</span></h3>
-<p class="what"><strong>What it is.</strong> The rail lists each project in the window under a header, and under the header its terminals, Browser tabs, every other tab open in the middle, Zed agent threads, its open files under Files, git worktrees and listening ports, one row each. One row is highlighted at a time: the thing the window shows.</p>
+<h3>Projects and their rows <span class="ticket">#438 · #468 · #442 · #674 · #700 · #702</span></h3>
+<p class="what"><strong>What it is.</strong> The rail lists each project in the window under a header, and under the header its terminals, Browser tabs, every other tab open in the middle, Zed agent threads, its open files under Files, git worktrees and listening ports, one row each. Above the projects sit two groups with no folder: Home, and Rusty while Rusty is on (see <a href="#projectless-groups">Groups with no folder</a>). One row is highlighted at a time: the thing the window shows.</p>
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Click Add Project (the folder with a plus, top of the rail), then a recent project, Open Local Folders or Open Remote Folder.</li>
-<li>Click a row to show it: a terminal row focuses that terminal, a thread row opens the thread in the Agent Panel, a Browser tab row shows the tab.</li>
+<li>Click a row to show it: a terminal row focuses that terminal, a thread row opens the thread in the Agent Panel (or brings its center tab forward), a Browser tab row shows the tab.</li>
 <li>Fold a project with its chevron. A folded project's header counts its agents by state, as in <code>1 waiting, 2 working</code>.</li>
 <li>A project's open files sit under its Files row with their count. Click the row to fold them away and again to bring them back; while folded, the Files row is the one highlighted for a file in front.</li>
 <li>Point at a tab's or a file's row and click the × at its end to close it, as its tab's close does; a file with changes asks first. A dot at the end of a row means changes not saved.</li>
@@ -431,9 +452,9 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td>Terminal</td><td>A <code>&gt;_</code> icon, its title, its folder relative to the project, and its last command with its state</td><td>Focuses the terminal</td></tr>
 <tr><td>Agent CLI</td><td>The agent's icon, the title it sets, and what it is doing</td><td>Focuses its terminal</td></tr>
 <tr><td>Browser tab</td><td>The page's icon, its title, and its host and port</td><td>Shows the tab</td></tr>
-<tr><td>Other tab</td><td>Its tab's icon and title: a project search, a diff, settings, a page</td><td>Shows the tab</td></tr>
+<tr><td>Other tab</td><td>Its tab's icon and title: a project search, a diff, settings, a page. A thread in a center tab has no row of this kind; its thread row stands for it (#702)</td><td>Shows the tab</td></tr>
 <tr><td>File</td><td>Its icon and name, under Files, with its folder in the project</td><td>Shows the file</td></tr>
-<tr><td>Zed agent thread</td><td>The agent's icon, the thread's title, and <code>working</code>, <code>idle</code>, <code>waiting</code> or <code>failed</code></td><td>Opens the thread in the Agent Panel</td></tr>
+<tr><td>Zed agent thread</td><td>The agent's icon, the thread's title, and <code>working</code>, <code>idle</code>, <code>waiting</code> or <code>failed</code></td><td>Opens the thread in the Agent Panel, or brings its center tab forward</td></tr>
 <tr><td>Worktree</td><td>A branch icon, its name and branch, and its drift from its base</td><td>Shows or opens its workspace</td></tr>
 <tr><td>Port</td><td>A server icon, <code>:&lt;port&gt;</code> and the process's name, and its URL</td><td>Marks the row; a double-click or <kbd>Enter</kbd> opens the URL in a Browser tab</td></tr>
 </table>
@@ -460,18 +481,39 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 
 <article id="projectless-groups">
-<h3>Groups with no folder, and the rail's right-click menu <span class="ticket">#600 · #601</span></h3>
-<p class="what"><strong>What it is.</strong> A right-click on the rail's empty space opens a menu for things that belong to no project. New Group… makes a named group with no folder: its terminals and agent CLIs start in your home folder, and its Browser tabs use a Chromium of the group's own. New Terminal, New Browser Tab and the agent CLIs in that menu open in a group named Home, which Marley makes the first time.</p>
+<h3>Groups with no folder, and the rail's right-click menu <span class="ticket">#600 · #601 · #676 · #700</span></h3>
+<p class="what"><strong>What it is.</strong> A group is a header in the rail with no folder: its terminals and agent CLIs start in your home folder, and its Browser tabs use a Chromium of the group's own. Every window in the Marley layout has a group named Home from the start, and one named Rusty while Rusty is on. The rail lists Home, then Rusty, then your projects, then the groups you make with New Group….</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Right-click the empty space under the last row, or beside PROJECTS at the top of the rail (beside Rusty's screen buttons while Rusty is connected).</li>
-<li>Choose New Group…, type a name and press Enter (Escape cancels; an empty name makes "Group"). The group lists after your projects, with a group icon, its chevron and its <kbd>+</kbd>.</li>
-<li>Use the group's <kbd>+</kbd> for New Terminal, New Browser Tab or an agent CLI. Threads, worktree agents and launch configs need a folder, so a group does not offer them.</li>
-<li>Or choose New Terminal, New Browser Tab or an agent from the empty space's menu: it opens in the Home group.</li>
-<li>Home also takes the screens that belong to no project (#676): a fleet agent's tab, System One calls and a harness session's tab open there, whatever project the window shows, and the window shows Home. Click a project to go back; the tab stays under Home.</li>
-<li>Right-click a group's header for Rename Group… and Remove Group. Remove closes the group's terminals and tabs (Marley asks first if an agent there is working) and stops its browser.</li>
+<li>Home is at the top of the rail from the first start. A window started with no folder and nothing to restore shows Home, with its page (see <a href="#home-page">Home's page</a>).</li>
+<li>Turn Rusty on in the Rusty section of the Marley settings, and the Rusty group appears under Home at once (see <a href="#rusty-group">The Rusty group</a>). Turn it off and the rail leaves Rusty out.</li>
+<li>Right-click the empty space under the last row, or beside PROJECTS at the top of the rail (beside the Rusty button while Rusty is connected). New Terminal, New Browser Tab and the agent CLIs in that menu open in Home.</li>
+<li>Choose New Group… in that menu, type a name and press Enter (Escape cancels; an empty name makes "Group"). The group lists after your projects, with a group icon, its chevron and its <kbd>+</kbd>.</li>
+<li>Use a group's <kbd>+</kbd> for New Terminal, New Browser Tab or an agent CLI. Threads, worktree agents and launch configs need a folder, so a group does not offer them.</li>
+<li>Home also takes the screens that belong to no project (#676): a fleet agent's tab, System One calls, a harness session's tab and Agent Activity open there, whatever project the window shows, and the window shows Home. Click a project to go back; the tab stays under Home.</li>
+<li>Right-click a group you named for Rename Group… and Remove Group. Remove closes the group's terminals and tabs (Marley asks first if an agent there is working) and stops its browser. Home and Rusty are always there, so their menus only say what opens in them.</li>
 </ol>
-<p class="note">A group keeps its place when you open a project while it is on screen, and comes back after a restart with its name, its order, its terminals in their folders and its Browser tabs (#601).</p>
+<p class="note">A group keeps its place when you open a project while it is on screen, and comes back after a restart with its name, its order, its terminals in their folders and its Browser tabs (#601). A header you dragged keeps the place you gave it, Home's and Rusty's too. A restart brings back one Home and one Rusty, never a second. Making or reopening them leaves the keyboard where it was, so the trust prompt takes <kbd>Enter</kbd> at start and the palette opens right after a relaunch, with no click first (#702, #708).</p>
+</article>
+
+<article id="home-page">
+<h3>Home's page: a terminal, an agent, a project <span class="ticket">#701 · #703</span></h3>
+<p class="what"><strong>What it is.</strong> Home's first tab is a page of its own, titled Home, shown in place of Zed's Welcome page. Its cards start what belongs to no project, list your recent projects and the agents at work in the window, open Zed's and Marley's settings, and show what agents did with Marley's tools.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Click Home's header at the top of the rail. When Home is shown without its page, or its last tab closes, the page comes back.</li>
+<li>Click what you need on one of its cards:</li>
+</ol>
+<table>
+<tr><th>Card</th><th>What it holds</th></tr>
+<tr><td>START</td><td>New Terminal (a terminal in Home, in your home folder), Open Folder…, Clone Repository… and Command Palette</td></tr>
+<tr><td>NEW AGENT</td><td>A button for each agent CLI on your PATH (Claude Code, Codex, Gemini CLI, OpenCode), started in a terminal in Home, in your home folder</td></tr>
+<tr><td>RECENT PROJECTS</td><td>Up to eight local projects you opened lately, each with its folder; a click opens one</td></tr>
+<tr><td>AGENTS AT WORK</td><td>Every agent thread and agent CLI in the window that is working, waiting or failed, with its project and state; a click opens it where it lives</td></tr>
+<tr><td>CONFIGURE</td><td>Settings, Marley Settings (the Settings window on its Marley page), Keymap, Extensions and Marley Guide</td></tr>
+<tr><td>AGENT ACTIVITY</td><td>Whether agents may use Marley's tools that act, with Stop or Resume; the five newest calls (time, caller, tool, what it acted on, <code>done</code> or <code>refused</code>); and Open Agent Activity for the full list</td></tr>
+</table>
+<p class="note">Agent Panel threads need a project folder, so start those from a project's <kbd>+</kbd>. A Home page you close beside other tabs stays closed until Home is shown again or empties. Stop sets Settings → Marley → Agent Control → Stopped (<code>marley.agent_control.stopped</code>): every agent's call to a tool that acts is then refused, across restarts, while the tools that only read keep answering. <code>marley: stop agent control</code>, <code>marley: resume agent control</code> and <code>marley: open agent activity</code> do the same from the palette; the Agent Activity tab opens under Home.</p>
 </article>
 
 <article id="rail-drag">
@@ -517,13 +559,14 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 
 <article id="needs-you">
-<h3>Needs you: every agent waiting on you <span class="ticket">#508</span></h3>
+<h3>Needs you: every agent waiting on you <span class="ticket">#508 · #651</span></h3>
 <p class="what"><strong>What it is.</strong> While any agent waits on you, a <strong>Needs you</strong> section with a count sits at the top of the rail, above the projects: one entry per wait, the one that has waited longest first.</p>
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Read an entry: the agent, its project, what it asks, and how long it has waited (<code>now</code>, <code>3 m</code>, <code>1 h 5 m</code>).</li>
 <li>For a Zed agent thread's tool call, click Allow or Deny right in the entry. A prompt with more choices opens the thread instead.</li>
 <li>For Claude Code in a terminal, click the entry to go to its terminal and answer there.</li>
+<li>For Codex with Codex App Server on (Settings → Marley → Agents), each request it asks you to approve has an entry: a command and its folder, the files a change edits, the permissions it asks for, or an MCP server's question. A command or a file change offers Allow, Allow session (no more asking for the same this session), Deny and Stop turn (deny, and Codex's turn stops); permissions offer Allow, Allow session and Deny; an MCP server's question offers Deny and Dismiss. Codex's own prompt in the terminal then closes. A question of Codex's own reads "Waits on an answer" and opens the terminal.</li>
 <li>For an agent's browser click that Marley holds (see <a href="#click-consequence">Consequential clicks</a>), click Refuse or Allow.</li>
 <li>The entry leaves once the wait ends, wherever you answered it. The filter and folded projects never hide the section.</li>
 </ol>
@@ -616,15 +659,29 @@ th { background: var(--panel); font-weight: 650; }
 <p class="note">In a pane of the main area, <kbd>Ctrl+Tab</kbd> stays Zed's tab switcher.</p>
 </article>
 
-<article id="brain-view">
-<h3>The Brain tab: Rusty's vault <span class="ticket">#644, #662, #672, #675, #678</span></h3>
-<p class="what"><strong>What it is.</strong> While Rusty is on and connected (the Rusty section of the Marley settings), the rail's header shows a Rusty button before PROJECTS. It opens Rusty's home page, always the first tab of the Rusty group (#679): a card with a button for each of Rusty's screens (Brain, Today, Graph, Tasks, Decisions, Memory, Skills and Secrets), and cards of your recent pages, the decisions whose follow-up is due and your open tasks, each row opening what it names. Brain opens the Brain tab: on its left a search field, the favourites and the vault's folders and pages; on its right the page you pick, as the Tasks tab shows a list beside its lists. The rail stays your projects. Everything it changes goes through Rusty's tools; Marley writes no file of the vault.</p>
+<article id="rusty-group">
+<h3>The Rusty group: its home page and its + menu <span class="ticket">#675 · #679 · #699 · #700</span></h3>
+<p class="what"><strong>What it is.</strong> While Rusty is on (the Rusty section of the Marley settings), the rail has a group named Rusty under Home, above your projects. Every Rusty screen and brain page opens there, whatever project the window shows. Its first tab is Rusty's home page, titled Rusty: a RUSTY card with a button for each screen (Brain, Today's Note, Graph, Tasks, Decisions, Memory, Skills and Secrets), and cards of your RECENT PAGES, the FOLLOW-UPS DUE and your open TASKS, each row opening what it names.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Click Brain, or press <kbd>Ctrl+Alt+V</kbd> from anywhere in the window. With Rusty off or not connected, it says why in a toast.</li>
+<li>Click the Rusty group's header in the rail, or the Rusty button before PROJECTS at the top of the rail (while Rusty is connected), or run <code>rusty: open home</code>. The window shows the group on its home page.</li>
+<li>Click a screen's button to open its tab in the group, or bring it forward if it is open.</li>
+<li>Click the <kbd>+</kbd> on the Rusty group's tab bar for Rusty's quick links: Home and the eight screens, then Open Page… (<kbd>Ctrl+Alt+U</kbd>), Capture to Today…, Capture to Inbox… and Capture a URL…. Zed's own entries (New File, Open File, Search Project and the rest) follow under a line.</li>
+<li>The group's tabs are its rows in the rail. Click a project to go back to your work; Rusty's tabs stay where they are.</li>
+<li>The group never shows Zed's Welcome page: when its last tab closes, or it is shown with no tab (after a restart, for one), its home page opens.</li>
+</ol>
+<p class="note">The group has no Rename or Remove; its header's right-click menu reads "Rusty's screens and pages open here". The tab bar <kbd>+</kbd> of a project or any other group keeps Zed's entries only. While Rusty is off, Marley shows nothing of it but its switch: no Rusty group, no Rusty button and no <code>rusty:</code> command in the palette (#661).</p>
+</article>
+
+<article id="brain-view">
+<h3>The Brain tab: Rusty's vault <span class="ticket">#644, #662, #672, #675, #678</span></h3>
+<p class="what"><strong>What it is.</strong> A center tab over Rusty's vault, while Rusty is on and connected: on its left a search field, the favourites and the vault's folders and pages; on its right the page you pick, as the Tasks tab shows a list beside its lists. It opens in the Rusty group (see <a href="#rusty-group">The Rusty group</a>), and the rail stays your projects. Everything it changes goes through Rusty's tools; Marley writes no file of the vault.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Click Brain on Rusty's home page or in the Rusty group's <kbd>+</kbd> menu, or press <kbd>Ctrl+Alt+V</kbd> from anywhere in the window. With Rusty off or not connected, it says why in a toast.</li>
 <li>Click a folder to open or close it. Click a page and it shows on the tab's right: its title, its properties and its body, with its wikilinks as links (#645); a second click moves the keyboard into it. Right-click a page and choose Open in New Tab to keep it in a tab of its own.</li>
-<li>Every Rusty screen and page opens in the window's <strong>Rusty</strong> group in the rail, whatever project the window shows: the first one makes the group, and the window shows it. Its tabs are its rows; click a project to go back to your work, and Rusty's tabs stay where they are. The group has no Rename or Remove, and while Rusty is off the rail leaves it out.</li>
-<li>Today opens the Brain tab on today's daily note, which Rusty makes when it is missing. The other screen buttons open or bring forward their tab. <code>rusty: open home</code> opens the home page from the palette.</li>
+<li>The Brain tab, and every page you open in a tab of its own, sits in the window's Rusty group, whatever project the window shows. Click a project to go back to your work; Rusty's tabs stay where they are.</li>
+<li>Today's Note, on the home page or in the <kbd>+</kbd> menu, opens the Brain tab on today's daily note, which Rusty makes when it is missing.</li>
 <li>Type in the search field and press Enter: Rusty's hits replace the tree. Rusty's <code>tag:</code>, <code>path:</code> and <code>type:</code> work as typed. Escape clears the search, a second Escape goes back to the tree.</li>
 <li>In the tree, Up and Down move, Right opens a folder or steps into it, Left closes it or goes up, and Enter opens the selected page.</li>
 <li>The <kbd>+</kbd> after the search field makes a new page in the selected row's folder. Right-click a folder for New Page, New Folder, Rename and Delete; a page for Open, Open in New Tab, Rename and Delete; the empty space for New Page, New Folder and Refresh. A name is typed in the tree: Enter makes it, Escape drops it.</li>
@@ -655,7 +712,7 @@ th { background: var(--panel); font-weight: 650; }
 <li>Type part of a title or a path; the matched letters light up. Enter opens the selected page in a kept tab, or brings forward the tab that shows it.</li>
 <li>When what you typed, read as a path such as <code>projects/marley/review</code>, names no page, the list ends with Create page: Enter there makes the page at that path and opens it. Rusty's refusal shows in a toast and the picker stays open.</li>
 </ol>
-<p class="note">Search is sent on Enter only: with an embedding provider set, Rusty embeds every query it is sent. A dot on the Projects button means something in the Projects view needs you. On the embedded connection, changes Rusty makes or sees in the vault's folder show without a click; on the service connection, after Marley's own changes and on Refresh. Favourites come with Rusty's bookmarks.</p>
+<p class="note">Search is sent on Enter only: with an embedding provider set, Rusty embeds every query it is sent. On the embedded connection, changes Rusty makes or sees in the vault's folder show without a click; on the service connection, after Marley's own changes and on Refresh. Favourites come with Rusty's bookmarks.</p>
 </article>
 
 <article id="knowledge-panel">
@@ -1070,7 +1127,7 @@ th { background: var(--panel); font-weight: 650; }
 <p class="area-intro">Claude Code, Codex, Gemini CLI and OpenCode, run in Marley's terminals, and everything Marley does around them.</p>
 
 <article id="agent-clis">
-<h3>Agent CLIs, recognized anywhere <span class="ticket">#440 · #450 · #519</span></h3>
+<h3>Agent CLIs, recognized anywhere <span class="ticket">#440 · #450 · #519 · #540</span></h3>
 <p class="what"><strong>What it is.</strong> Marley recognizes <code>claude</code>, <code>codex</code>, <code>gemini</code> and <code>opencode</code> running in any terminal, however they were started. The terminal's rail row takes the agent's icon, its title and its state, and an agent bar appears under the terminal.</p>
 <h4>How to use it</h4>
 <ol class="steps">
@@ -1079,18 +1136,38 @@ th { background: var(--panel); font-weight: 650; }
 <li>The row reads <code>Claude Code · working</code>, then <code>waiting</code> once it has been quiet. With Marley's plugin connected, it also shows your prompt, the tool in flight, what the agent waits on, and its last message.</li>
 <li>When the agent exits, the row is a plain terminal row again.</li>
 </ol>
-<p class="note">An agent your <code>.bashrc</code> starts is never the terminal's foreground program, so Marley does not see it; start agents at the prompt. After a restart an agent's terminal comes back as a shell, without the agent.</p>
+<p class="note">An agent your <code>.bashrc</code> starts is never the terminal's foreground program, so Marley does not see it; start agents at the prompt. After a restart an agent's terminal comes back as a shell in its old folder. With Marley's plugin connected, a Claude Code that was running when Marley quit comes back as well, with <code>claude --resume</code> and the same session; one you ended yourself does not. Resume Claude Code Sessions on the Marley page (<code>marley.resume_agents</code>) turns that off.</p>
 </article>
 
 <article id="agent-bar">
-<h3>The agent bar <span class="ticket">#477</span></h3>
+<h3>The agent bar <span class="ticket">#477 · #648</span></h3>
 <p class="what"><strong>What it is.</strong> A row under a terminal running an agent CLI, with the agent's name, input tools, and the folder and git branch the agent works in.</p>
 <h4>How to use it</h4>
 <ul class="points">
 <li>Left side: the agent's icon and name, <kbd>+</kbd> (Attach File), the pencil (Rich Input), the microphone where Voice is on and Voxtype is installed, and for Claude Code the Connect chip until Marley's plugin is installed.</li>
+<li>A version chip, such as <code>Untested Claude Code 2.2.0</code>, while Marley keeps part of its work off for the agent's version. See <a href="#agent-versions">Agent versions</a>.</li>
 <li>Right side: the folder (<code>~</code> for your home) and its git branch.</li>
 <li>The bar gives its row back to the terminal when the agent exits.</li>
 </ul>
+</article>
+
+<article id="agent-versions">
+<h3>Agent versions <span class="ticket">#648 · #709</span></h3>
+<p class="what"><strong>What it is.</strong> Some of what Marley does with Claude Code and Codex rests on behaviour they do not document. Marley reads the version of the <code>claude</code> and <code>codex</code> it runs, keeps each such part off on a version it was not tested on, and says so in the agent bar.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Marley runs the program <code>MARLEY_CLAUDE</code> or <code>MARLEY_CODEX</code> names, else the first on its PATH. It reads its <code>--version</code> at start, and again when the program's file changes.</li>
+<li>When a part is off, the agent bar shows a chip: <code>Untested Claude Code 2.2.0</code>, <code>Claude Code version unknown</code> or <code>Claude Code not on Marley's PATH</code>. Point at it for what is off, the version found and the versions tested.</li>
+<li>Click the chip. The Settings window opens at the switch in the Marley page's Agent Versions section that turns that part on anyway.</li>
+</ol>
+<table>
+<tr><th>Agent Versions switch</th><th>The part it covers</th><th>Tested on</th></tr>
+<tr><td>Prompt Tags on Untested Claude Code</td><td>Telling your prompts from task notifications and system reminders</td><td>Claude Code 2.1.283 and later 2.1 releases</td></tr>
+<tr><td>App Server on Untested Codex</td><td><a href="#codex-app-server">Codex's App Server</a></td><td>Codex 0.155.1 to 0.158.0</td></tr>
+<tr><td>IDE Link, IDE Selection and IDE Mentions on Untested Claude Code</td><td><a href="#claude-ide-link">Claude Code's IDE link</a></td><td>No release yet</td></tr>
+<tr><td>Shared Plugin on Untested Claude Code</td><td><a href="#shared-claude-plugin">The shared Claude Code plugin</a></td><td>Claude Code 2.1.287 and later</td></tr>
+</table>
+<p class="note">The chips for the IDE link and the shared plugin show only while their setting is on. A remote terminal's Claude Code is the host's: Marley reads its prompts with the tags, and no chip shows.</p>
 </article>
 
 <article id="claude-plugin">
@@ -1106,6 +1183,25 @@ th { background: var(--panel); font-weight: 650; }
 <p class="note">The plugin's hooks answer only in Marley's terminals. <code>claude -p</code> (print mode) sends no notifications.</p>
 </article>
 
+<article id="shared-claude-plugin">
+<h3>The shared Claude Code plugin, and agents' own reports <span class="ticket">#652 · #709</span></h3>
+<p class="what"><strong>What it is.</strong> A second plugin for Claude Code, the one Marley shares with rustal-harness. Loaded in Marley's terminals, it makes Claude Code report its own state to the rail: working, waiting on you and for which tool, or idle. Any agent or wrapper can send the same reports through <code>MARLEY_BIN</code>.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Turn on <strong>Shared Claude Code Plugin</strong> in Settings → Marley → Agents (<code>marley.claude_code_shared_plugin</code>, off by default).</li>
+<li>Open a new local terminal and start <code>claude</code>, 2.1.287 or later. Marley loads the plugin (<code>rustal-harness</code> 0.2.0) through <code>CLAUDE_CODE_PLUGIN_DIRS</code>; terminals opened before the change do not get it.</li>
+<li>Read the row: the state Claude Code reports, with the prompt and the tool in flight still read from Marley's own plugin. A Claude Code waiting on a permission is in Needs you.</li>
+</ol>
+<h4>Reports from your own wrapper</h4>
+<pre><code>"$MARLEY_BIN" report working --source mod:claude-code --seq 7 --activity "Running the tests"
+"$MARLEY_BIN" release --source mod:claude-code</code></pre>
+<ul class="points">
+<li>The states are <code>starting</code>, <code>working</code>, <code>idle</code>, <code>waiting</code> (with <code>--prompt</code> and one or more <code>--option</code>), <code>error</code> and <code>done</code>. <code>--seq</code> must grow with each report.</li>
+<li>The process that sends the first report holds the terminal until it releases or ends. A refused report exits 1 and prints why, such as <code>agent_report_stale</code> or <code>marley_not_running</code>.</li>
+</ul>
+<p class="note">Marley writes the plugin's files read-only under <code>~/.local/share/marley/claude-code/shared/</code> and does not load a copy that was changed. A Claude Code under a managed <code>disableSideloadFlags</code> refuses to start with the plugin loaded, so leave the setting off there. An older Claude Code needs Shared Plugin on Untested Claude Code. Tasks and remote terminals get <code>MARLEY_BIN</code> empty.</p>
+</article>
+
 <article id="other-agent-notifications">
 <h3>Codex and OpenCode notifications <span class="ticket">#552</span></h3>
 <p class="what"><strong>What it is.</strong> One click sets up desktop notifications for Codex and OpenCode, as the plugin does for Claude Code.</p>
@@ -1117,9 +1213,22 @@ th { background: var(--panel); font-weight: 650; }
 </ul>
 </article>
 
+<article id="claude-ide-link">
+<h3>Claude Code's IDE link <span class="ticket">#653</span></h3>
+<p class="what"><strong>What it is.</strong> Marley acts as Claude Code's IDE for each local project, as Claude Code's own editor extensions do. Claude Code then gets your selection and open file with each prompt, and the language servers' diagnostics.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Turn on Claude Code IDE Link on the Marley page (Agents). It is off by default.</li>
+<li>No Claude Code release has been checked on the link yet, so also turn on IDE Link, IDE Selection and IDE Mentions on Untested Claude Code (Agent Versions). Without them each part stays off, and the agent bar says so.</li>
+<li>Start <code>claude</code> in a terminal of the project opened after that: it links to Marley at its start. From any other terminal, <code>/ide</code> lists the Marley projects that hold the current folder, and <code>claude --ide</code> links when there is one.</li>
+<li>Select lines in a file and ask Claude Code about them. It reads diagnostics with its <code>getDiagnostics</code> tool, and send selection (<kbd>Ctrl+&gt;</kbd>) mentions the lines in its prompt instead of typing <code>@path#La-b</code>.</li>
+</ol>
+<p class="note">Marley writes a lock file into <code>~/.claude/ide/</code> (or <code>$CLAUDE_CONFIG_DIR/ide/</code>) and removes it when the project closes, the switch turns off or Marley quits. Any program of yours that can read the lock file can connect and read the selection. Edits still show in Claude Code's terminal.</p>
+</article>
+
 <article id="rich-input">
-<h3>Rich input <span class="ticket">#481 · #677</span></h3>
-<p class="what"><strong>What it is.</strong> A real editor for an agent's prompt: several lines, undo, selection, word moves.</p>
+<h3>Rich input <span class="ticket">#481 · #649 · #677</span></h3>
+<p class="what"><strong>What it is.</strong> A real editor for an agent's prompt: several lines, undo, selection, word moves. It opens above the bar, or in a tab of its own.</p>
 <h4>How to use it</h4>
 <ol class="steps">
 <li>In a terminal running an agent, press <kbd>Ctrl+G</kbd> or click the pencil. An editor opens above the bar.</li>
@@ -1127,7 +1236,13 @@ th { background: var(--panel); font-weight: 650; }
 <li><kbd>Enter</kbd> sends the whole text to the agent as one paste and closes the editor.</li>
 <li><kbd>Escape</kbd> closes it and keeps the draft for the next <kbd>Ctrl+G</kbd>. So does the pencil while the editor is open: it shows pressed and its tooltip reads Hide Rich Input.</li>
 </ol>
-<p class="note">In a terminal with no agent, <kbd>Ctrl+G</kbd> reaches the program as usual.</p>
+<h4>In a tab instead</h4>
+<ul class="points">
+<li>Turn on Agent Prompts in a Tab on the Marley page (Agents). Terminals Marley opens for agents after that get Marley's editor as <code>VISUAL</code> and <code>EDITOR</code>.</li>
+<li>There <kbd>Ctrl+G</kbd> and the pencil send the agent its own editor key. The agent writes its draft to a file, and Marley opens the file in a tab.</li>
+<li>Closing the tab hands the draft back to the agent's prompt, unsent; saving does not.</li>
+</ul>
+<p class="note">In a terminal with no agent, <kbd>Ctrl+G</kbd> reaches the program as usual. A New Terminal, a remote project and a terminal a restart brings back keep the editor above the bar.</p>
 </article>
 
 <article id="attach-files">
@@ -1168,6 +1283,19 @@ th { background: var(--panel); font-weight: 650; }
 <li>An agent running without its prompts carries a <code>bypass</code> or <code>full access</code> chip in the warning color on its row, however it was started. Its tooltip says where Marley read it.</li>
 </ol>
 <p class="note">Only your own settings can turn prompts off; a repository's <code>.zed/settings.json</code> cannot.</p>
+</article>
+
+<article id="codex-app-server">
+<h3>Codex's App Server <span class="ticket">#650 · #651</span></h3>
+<p class="what"><strong>What it is.</strong> Marley runs each Codex it starts against an App Server of its own and joins it as a second client, so the rail reads Codex's own state instead of the terminal's quiet.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Turn on Codex App Server on the Marley page (Agents). It applies to Codex started after the change.</li>
+<li>Start Codex in a local project: from the <kbd>+</kbd>, New Agent, a worktree or a launch config. Marley starts <code>codex app-server</code> for the terminal and types <code>codex --remote unix://… --cd &lt;folder&gt;</code>.</li>
+<li>Read the row: <code>working</code>, <code>waiting on approval</code>, <code>waiting on input</code>, <code>idle</code>, or <code>failed</code> with the turn's error, and its token use, as in <code>working · 12k tokens</code>.</li>
+<li>Answer what it asks to approve from <a href="#needs-you">Needs you</a>, or in its terminal. The close guard asks before a working or waiting Codex closes.</li>
+</ol>
+<p class="note">The <code>full access</code> chip follows the sandbox the thread reports. It runs on Codex 0.155.1 to 0.158.0; on another version Codex starts as before and the agent bar says so. A Codex you type by hand runs as you typed it. The server stops with its terminal or with Marley.</p>
 </article>
 
 <article id="agent-reads-terminals">
@@ -1348,34 +1476,122 @@ th { background: var(--panel); font-weight: 650; }
 <p class="area-intro">Zed's own agents, in the panel on the right, with Marley's rail and tools around them.</p>
 
 <article id="agent-threads">
-<h3>Threads in the rail <span class="ticket">#439 · #468 · #605 · #616</span></h3>
-<p class="what"><strong>What it is.</strong> The Agent Panel works as in Zed, docked on the right. Its threads list in the rail under their project, with their state.</p>
+<h3>Threads in the rail <span class="ticket">#439 · #468 · #605 · #616 · #697 · #702</span></h3>
+<p class="what"><strong>What it is.</strong> The Agent Panel works as in Zed, docked on the right. Its threads list in the rail under their project, with their state, one row each, whether the thread shows in the panel or in a center tab.</p>
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Set up an agent in the panel first: a model for the Zed Agent, or an external agent such as Claude Agent (<kbd>Ctrl+Alt+C</kbd> in the panel opens its settings).</li>
 <li>Click a project's <kbd>+</kbd>, then New Agent Thread and an agent. <kbd>Ctrl+?</kbd> focuses the panel.</li>
 <li>The thread's row reads <code>&lt;agent&gt; · working</code>, then <code>idle</code>. Its dot lights when a run ends while the thread is off screen.</li>
-<li>Click the row to open the thread in the panel.</li>
-<li>Right-click a thread's row for Archive Thread, which puts it away, and Delete Thread…, which asks first and deletes it for good.</li>
+<li>Click the row to open the thread in the panel. For a thread in a center tab, the click brings that tab forward instead (see <a href="#thread-in-center">An agent thread in a center tab</a>).</li>
+<li>Right-click a thread's row for Open in Center, which moves the thread into a center tab; Archive Thread, which puts it away; and Delete Thread…, which asks first and deletes it for good.</li>
 <li>Right-click the project's header and open Archived Threads to bring an archived thread back: choose it and it opens.</li>
 </ol>
 </article>
 
+<article id="thread-in-center">
+<h3>An agent thread in a center tab <span class="ticket">#697 · #702</span></h3>
+<p class="what"><strong>What it is.</strong> An Agent Panel thread can move into a tab of the main area, beside your terminals and files, and back. It stays the same thread: it keeps running, keeps its history, and takes messages in the tab. It shows in one place at a time, the panel or its tab.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>With the thread open in the Agent Panel, run <code>marley: open thread in center</code> from the command palette. Or right-click the thread's row in the rail and choose Open in Center.</li>
+<li>The thread opens in a center tab titled as the thread, with the cursor in its message box, and the panel turns to a new draft. Type in the tab as you would in the panel.</li>
+<li>The rail keeps one row for the thread, its thread row with the agent and its state, marked while the tab is in front. Click the row to bring the tab forward.</li>
+<li>To move it back, right-click the tab and choose Move Thread to Panel, or run <code>marley: move thread to panel</code> with the tab in front. The thread shows in the panel and the tab closes.</li>
+<li>Opening the same thread from the panel's own history also moves it back and closes the tab.</li>
+</ol>
+<p class="note">A new thread needs its first message before it can move; until then the command says so in a toast. The tab does not come back after a restart; the thread is in the panel's history as usual.</p>
+</article>
+
 <article id="zed-agents-tools">
-<h3>Zed's agents use Marley's tools <span class="ticket">#501</span></h3>
-<p class="what"><strong>What it is.</strong> Marley offers its MCP server to the Agent Panel's agents as a context server named <code>marley</code>, so they read your terminals and drive the Browser tab as Claude Code does.</p>
+<h3>Zed's agents use Marley's tools <span class="ticket">#501 · #633 · #643</span></h3>
+<p class="what"><strong>What it is.</strong> Marley offers its MCP server to the Agent Panel's agents as a context server named <code>marley</code>, so they read your terminals and drive the Browser tab as Claude Code does. While Rusty is on, it can also offer Rusty's own server, as the context server <code>rusty</code>.</p>
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Nothing to set up for local projects: the Zed Agent's Write profile and every external agent get the tools.</li>
 <li>Ask in a thread: "List my Marley terminals and tell me which command failed."</li>
 <li>To turn it off: <code>"context_servers": { "marley": { "enabled": false } }</code>.</li>
+<li>For Rusty's tools, its brain loop (<code>brain_ask</code>, <code>brain_decide</code> and the rest) among them, turn on Rusty and Rusty Tools for Agents in the Rusty section of the Marley settings page, or set <code>"marley": { "rusty": { "enabled": true, "agent_tools": true } }</code>. Both start off. Marley must find <code>rusty-mcp</code> on your PATH or at <code>MARLEY_RUSTY_MCP</code>. Zed asks before each call.</li>
 </ol>
+<p class="note">An entry of your own named <code>marley</code> or <code>rusty</code> in <code>context_servers</code> replaces Marley's. Turning Rusty off takes the <code>rusty</code> server away while Marley runs. Turning Rusty Tools for Agents off does too, unless the Agent Panel's Rusty profile for Zed's agent uses it (#696). With both on, <code>rusty-mcp</code> runs twice: once for Marley and once for Zed's agents.</p>
 </article>
 </section>
 
 <section id="marley-agent">
-<h2>The Marley agent <span class="ticket">#683</span> <span class="ticket">#687</span></h2>
-<p>An agent that explains Marley and sets it up with you, with Marley's docs and settings tools. It runs on Claude Code or Codex on your own login, or on Zed's own agent, and does not edit files. Turn it on under Settings → Marley → <b>Marley Agent</b>, and pick what it runs on with <b>Agent</b>. Marley offers it once, naming the first it finds: Claude Code signed in, then Codex, then a Zed model. On Claude Code or Codex, open it with New Agent Thread → <b>Marley</b>. On Zed's agent, open a Zed Agent thread and pick the <b>Marley</b> profile (Ctrl+I). Ask how a feature works, what a setting does, or which key runs a command. It can also propose a settings change or a key binding, which waits for your Apply.</p>
+<h2>The Marley and Rusty agents</h2>
+<p class="area-intro">Two agents Marley puts in the Agent Panel for you: the Marley agent, which explains Marley and sets it up with you, and Rusty, which reaches your Rusty. Neither edits files or runs commands.</p>
+
+<article id="marley-agent-on">
+<h3>The Marley agent, on out of the box <span class="ticket">#683 · #687 · #696</span></h3>
+<p class="what"><strong>What it is.</strong> An agent that explains Marley and Zed and changes Marley's settings with you. It reads this guide, Zed's docs and your settings through Marley's tools, and every change it proposes waits for your Apply. It is on by default and runs on an agent you are already signed in to.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Choose New Agent Thread → <strong>Marley</strong>, in the Agent Panel or a project's <kbd>+</kbd>. On Zed's agent, open a Zed Agent thread and pick the <strong>Marley</strong> profile (<kbd>Ctrl+I</kbd>).</li>
+<li>Ask how a feature works, what a setting does or is set to, or which key runs a command.</li>
+<li>Ask it to change a setting or bind a key. A notification names the change, with Apply and Decline; nothing is written until you click Apply.</li>
+<li>Pick what it runs on under Settings → Marley → Marley Agent → <strong>Agent</strong>. The <strong>Marley Agent</strong> switch above it turns it off, and off leaves nothing of it.</li>
+</ol>
+<table>
+<tr><th>Agent</th><th>What it runs on</th></tr>
+<tr><td>Auto (<code>auto</code>, the default)</td><td>The first found a second after start: Claude Code signed in, then Codex signed in, then Zed's agent with a default model whose provider is signed in. Marley's log names the one it chose.</td></tr>
+<tr><td>Claude Code (<code>claude_code</code>)</td><td>Zed's <code>claude-acp</code> adapter on your own login, as the <strong>Marley</strong> entry</td></tr>
+<tr><td>Codex (<code>codex</code>)</td><td><code>codex-acp</code> on your own login, in Codex's read-only mode, as the same entry</td></tr>
+<tr><td>Zed (<code>zed</code>)</td><td>A <strong>Marley</strong> profile for Zed's own agent</td></tr>
+</table>
+<p class="note">On Auto with nothing signed in, the panel has no Marley entry: sign in to one and start Marley again, or pick an agent. Marley no longer offers the agent at start. It adds the entry to its own defaults and writes nothing to your settings file.</p>
+</article>
+
+<article id="marley-agent-limits">
+<h3>What the Marley agent may do <span class="ticket">#683 · #692 · #698</span></h3>
+<p class="what"><strong>What it is.</strong> The Marley agent works through eight of Marley's tools and is kept from file edits, commands and Marley's other tools. How firmly depends on what it runs on.</p>
+<h4>Its tools</h4>
+<ul class="points">
+<li><code>docs_search</code> and <code>docs_read</code>: this guide and Zed's docs, as this Marley ships them.</li>
+<li><code>settings_schema</code>, <code>settings_read</code> and <code>actions_list</code>: what a setting is and is set to, and which key runs a command.</li>
+<li><code>settings_change</code>, <code>keymap_change</code> and <code>seat_add</code>: a setting, a key binding or a <a href="#harness-seat">harness seat</a>, each waiting for your Apply.</li>
+</ul>
+<h4>Its limits</h4>
+<ul class="points">
+<li><strong>Claude Code:</strong> Bash, Edit, Write, NotebookEdit and MultiEdit are off, and so is bypass mode. Every other Marley tool is off too, <code>terminal_run</code>, <code>terminal_type</code> and the browser's tools among them, and a tool Marley adds later stays off until the agent's list names it.</li>
+<li><strong>Codex:</strong> it starts in Codex's read-only mode, which asks before any edit or network use. Codex's adapter cannot turn off single Marley tools, so only the agent's instructions keep it to its eight.</li>
+<li><strong>Zed's agent:</strong> the Marley profile has no built-in tools and, of the context servers' tools, only the eight. Picking it makes it your default profile; when the profile goes away, a default of Marley goes back to Write.</li>
+</ul>
+</article>
+
+<article id="marley-agent-terminal">
+<h3>The Marley agent in a terminal <span class="ticket">#684 · #687</span></h3>
+<p class="what"><strong>What it is.</strong> The same agent in Claude Code's or Codex's own interface, in a terminal tab, for those who prefer it to the Agent Panel.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Run <code>marley: open marley agent in terminal</code>. The palette lists it while the Marley agent is on and runs on Claude Code or Codex.</li>
+<li>A new terminal opens in the active project and Marley types the agent's line there (below).</li>
+<li>Ask it as you would in the panel. The terminal is an ordinary agent terminal: its rail row and agent bar work as for any Claude Code or Codex.</li>
+</ol>
+<table>
+<tr><th>Agent</th><th>What Marley types</th></tr>
+<tr><td>Claude Code</td><td><code>claude --append-system-prompt-file ~/.local/share/marley/assistant/instructions.md --disallowedTools Bash Edit Write NotebookEdit MultiEdit</code></td></tr>
+<tr><td>Codex</td><td><code>codex --sandbox read-only -c developer_instructions="…"</code></td></tr>
+</table>
+<p class="note">On Claude Code it reaches Marley's tools through Marley's plugin (<a href="#claude-plugin">Connect Claude Code to Marley</a>). In a terminal only Claude Code's own five tools are off, not Marley's other tools as in the Agent Panel. On Zed's agent the command is not listed.</p>
+</article>
+
+<article id="rusty-agent-entry">
+<h3>Rusty in the Agent Panel <span class="ticket">#696</span></h3>
+<p class="what"><strong>What it is.</strong> While Rusty is on and Marley has reached it, the Agent Panel also lists <strong>Rusty</strong>: an agent told it is your personal assistant, which reaches your lists, notes, memories, brain and skills through Rusty's own tools. It changes no file and runs no command.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Turn Rusty on in the Rusty section of the Marley page (<code>marley.rusty.enabled</code>). The entry comes once Marley connects to Rusty.</li>
+<li>Choose New Agent Thread → <strong>Rusty</strong>, in the Agent Panel or a project's <kbd>+</kbd>. On Zed's agent, pick the <strong>Rusty</strong> profile.</li>
+<li>Ask it about your tasks, notes, memories or brain pages.</li>
+<li>Turn Rusty off and the entry leaves New Agent Thread. A thread already open stays in the panel.</li>
+</ol>
+<ul class="points">
+<li><strong>Claude Code:</strong> its sessions carry Rusty's server themselves, so Rusty's tools reach this entry alone. Bash, Edit, Write, NotebookEdit, MultiEdit and all of Marley's tools are off.</li>
+<li><strong>Codex:</strong> read-only, with Rusty's server in its config.</li>
+<li><strong>Zed's agent:</strong> a profile with no built-in tools. While it is there, Marley offers Rusty's server to Zed's agents as the context server <code>rusty</code>, and Zed asks before each call.</li>
+</ul>
+<p class="note">It runs on what the Marley agent's <strong>Agent</strong> setting picks, whether the Marley agent is on or off. On Auto with nothing found, neither entry is there.</p>
+</article>
 </section>
 
 <section id="mcp">
@@ -1396,8 +1612,8 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 
 <article id="mcp-tools">
-<h3>The tools</h3>
-<p class="what"><strong>What it is.</strong> Four families: terminals, ports, the browser, and Claude Code sessions.</p>
+<h3>The tools <span class="ticket">#680 · #692 · #704 · #705 · #706 · #707</span></h3>
+<p class="what"><strong>What it is.</strong> The tools Marley lists to agents, by family: terminals, ports, Zed's editors, the Agent Panel's threads, palette actions, Marley's docs and settings, and the browser. The editor, thread and action tools follow your <a href="#agent-control-modes">Agent Control modes</a>, and every tool that acts is listed in <a href="#agent-activity">Agent Activity</a>.</p>
 <h4>Terminals</h4>
 <table>
 <tr><th>Tool</th><th>What it does</th></tr>
@@ -1406,7 +1622,7 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td><code>terminal_read</code></td><td>One block's command and output, a page of up to 12,000 bytes at a time, newest first; <code>previous</code> reads the page before</td></tr>
 <tr><td><code>terminal_screen</code></td><td>What a terminal's screen shows now</td></tr>
 <tr><td><code>terminal_type</code></td><td>Types into the program running in a terminal, after you allow it</td></tr>
-<tr><td><code>terminal_run</code></td><td>Runs a command at a terminal's shell prompt as a block</td></tr>
+<tr><td><code>terminal_run</code></td><td>Runs a command at a terminal's shell prompt as a block; a command on your denylist waits for you</td></tr>
 <tr><td><code>terminal_find</code></td><td>The line of a block a phrase describes (with System One's Terminal Find on)</td></tr>
 </table>
 <h4>Ports</h4>
@@ -1414,16 +1630,40 @@ th { background: var(--panel); font-weight: 650; }
 <tr><th>Tool</th><th>What it does</th></tr>
 <tr><td><code>ports_list</code></td><td>The listening ports the rail shows, with their project, process and URL</td></tr>
 </table>
-<h4>Docs, settings and actions</h4>
+<h4>Editors</h4>
+<table>
+<tr><th>Tool</th><th>What it does</th></tr>
+<tr><td><code>editor_list</code></td><td>Every open editor: its file, project, unsaved state, language, whether its tab is in front, its cursor and selections</td></tr>
+<tr><td><code>editor_read</code></td><td>An open editor's text as it is now, unsaved changes included, a page at a time, keys and tokens masked</td></tr>
+<tr><td><code>editor_open</code></td><td>Opens a file inside an open project at a line and column, its tab in front</td></tr>
+<tr><td><code>editor_edit</code></td><td>Replaces text that appears once in an open editor, or every match with <code>replace_all</code>; one undo takes it back, and the file stays unsaved</td></tr>
+<tr><td><code>editor_save</code></td><td>Saves an open editor's file; it asks you every time unless Editors is Allow</td></tr>
+</table>
+<h4>Agent Panel threads</h4>
+<table>
+<tr><th>Tool</th><th>What it does</th></tr>
+<tr><td><code>thread_list</code></td><td>The threads in your Agent Panels: id, title, agent, project, whether it runs, and the permission it waits on</td></tr>
+<tr><td><code>thread_read</code></td><td>A thread's messages and tool calls as Markdown, a page at a time, keys and tokens masked</td></tr>
+<tr><td><code>thread_post</code></td><td>Sends a message into a thread as you would; a running thread queues it, and it is refused while you have a message typed there and not sent</td></tr>
+<tr><td><code>thread_answer</code></td><td>Allows a thread's waiting tool call once, or rejects it; it asks you every time unless Threads is Allow, and never answers a sandbox escalation</td></tr>
+</table>
+<h4>Palette actions</h4>
+<table>
+<tr><th>Tool</th><th>What it does</th></tr>
+<tr><td><code>action_list</code></td><td>The palette actions an agent may run: Marley's safe ones and the ones you allowed by name, with their documentation</td></tr>
+<tr><td><code>action_run</code></td><td>Runs one of them by name, with JSON arguments, in the window of the project it names or the active one, as the command palette would</td></tr>
+</table>
+<h4>Docs, settings, keys and seats</h4>
 <table>
 <tr><th>Tool</th><th>What it does</th></tr>
 <tr><td><code>docs_search</code></td><td>Searches Zed's docs and this guide, as this Marley ships them, for a query in words</td></tr>
 <tr><td><code>docs_read</code></td><td>Reads a page, or one section of it, with the keys bound in this Marley filled in</td></tr>
 <tr><td><code>settings_schema</code></td><td>What a setting is: its type, description, allowed values and default</td></tr>
 <tr><td><code>settings_read</code></td><td>What a setting is set to in each settings file, and which one wins; secrets hidden</td></tr>
-<tr><td><code>actions_list</code></td><td>The actions that match a query, with their palette names and keys</td></tr>
+<tr><td><code>actions_list</code></td><td>Every action that matches a query, with its palette name and keys; it runs nothing</td></tr>
 <tr><td><code>settings_change</code></td><td>Proposes a value for one of your settings; Marley asks you, and writes it only on Apply</td></tr>
 <tr><td><code>keymap_change</code></td><td>Proposes a key binding; Marley asks you, and adds it to your keymap only on Apply</td></tr>
+<tr><td><code>seat_add</code></td><td>Proposes a seat on the harness Marley follows: a name, Claude Code or Codex, a folder and a role. Marley asks you; Apply adds the seat and starts it, and it shows in the rail. Refused while <code>marley.harness_writes</code> is off</td></tr>
 </table>
 <h4>The browser</h4>
 <table>
@@ -1438,28 +1678,66 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td><code>browser_recordings</code>, <code>browser_recording</code>, <code>browser_draft_test</code></td><td>Saved recordings, one recording's timeline, and a Playwright test drafted from one</td></tr>
 <tr><td><code>browser_find</code></td><td>The element a phrase describes (with System One's Browser Find on)</td></tr>
 </table>
-<h4>Sessions</h4>
-<table>
-<tr><th>Tool</th><th>What it does</th></tr>
-<tr><td><code>fleet_snapshot</code></td><td>Every Claude Code session in Marley's terminals and what each is doing</td></tr>
-</table>
-</article>
-
-<article id="mcp-safety">
-<h3>What keeps agents in check <span class="ticket">#516 · #562 · #574</span></h3>
-<p class="what"><strong>What it is.</strong> The limits on what the tools hand an agent and what they let it do.</p>
+<h4>Answers and refusals</h4>
 <ul class="points">
-<li>The server listens on <code>127.0.0.1</code> only and refuses a request from any other origin.</li>
-<li>Secrets in terminal output, commands and the browser console reach agents as <code>[redacted: kind]</code>: private keys, tokens and passwords assigned to names, <code>Authorization</code> headers, cookies, cloud and API keys, JWTs, and your own <code>marley.redaction_patterns</code>.</li>
-<li>URLs lose the values of parameters named like tokens, keys, secrets, passwords, codes and sessions; the page snapshot holds no field values; typed text is counted, never kept.</li>
-<li>Your agent client asks you before each write (Claude Code does by default), and every browser action happens in front of you with the Agent chip naming it.</li>
-<li>A browser call with no tab acts in the agent's own project, never another project's page.</li>
-<li>No tool runs script an agent supplies, and agents navigate to <code>http</code> and <code>https</code> only.</li>
+<li>When an agent connects, the server gives it instructions of under 2 KB on which tool to use for what. Claude Code adds them to its system prompt.</li>
+<li>Long text comes in pages of at most 12,000 bytes: a block's output newest first, a doc, an editor or a thread from the top. An answer stays under the size at which Claude Code warns about a tool's result.</li>
+<li>A refused call answers a code, the reason and what to do next: <code>no_terminal</code> lists the terminals there are, <code>secret_file</code> says to ask you, <code>agent_control_stopped</code> says how to resume.</li>
 </ul>
 </article>
 
+<article id="mcp-safety">
+<h3>What keeps agents in check <span class="ticket">#516 · #562 · #574 · #703 · #704 · #707</span></h3>
+<p class="what"><strong>What it is.</strong> The limits on what the tools hand an agent and what they let it do.</p>
+<ul class="points">
+<li>The server listens on <code>127.0.0.1</code> only and refuses a request from any other origin.</li>
+<li>Secrets in terminal output, commands and the browser console reach agents as <code>[redacted: kind]</code>: private keys, tokens and passwords assigned to names, <code>Authorization</code> headers, cookies, cloud and API keys, JWTs, and your own <code>marley.redaction_patterns</code>. An editor's or a thread's text is masked the same way.</li>
+<li>URLs lose the values of parameters named like tokens, keys, secrets, passwords, codes and sessions; the page snapshot holds no field values; typed text is counted, never kept.</li>
+<li>A file whose name matches <code>marley.agent_control.secret_globs</code> (<code>.env*</code>, <code>*.pem</code>, <code>*.key</code>, SSH keys and the like) is never read or edited by an agent.</li>
+<li>Marley asks you itself before most tools act: the first write into a running program, a command on your denylist, every settings, key binding or seat change (nothing happens before Apply), and the editor, thread and action tools as their <a href="#agent-control-modes">modes</a> say. A question left unanswered for 25 seconds refuses the call.</li>
+<li>Browser actions do not ask in Marley. Your agent client's approval (Claude Code asks by default) and the Browser tab, where every action happens in front of you with the Agent chip naming it, are their checks. With System One's click consequence on, a <a href="#click-consequence">consequential click</a> waits for you.</li>
+<li>Every call of a tool that acts is listed in <a href="#agent-activity">Agent Activity</a>, and Stop makes all of them refuse at once while reads keep working.</li>
+<li>A browser call with no tab acts in the agent's own project, never another project's page.</li>
+<li>No browser tool runs script an agent supplies, and agents navigate to <code>http</code> and <code>https</code> only. A palette action that could quit, run code or delete is refused even when you allow it by name.</li>
+</ul>
+</article>
+
+<article id="agent-activity">
+<h3>Agent Activity and the kill switch <span class="ticket">#703</span></h3>
+<p class="what"><strong>What it is.</strong> A tab that lists every call an agent makes to one of Marley's tools that act: typing into or running in a terminal, the browser's navigation, clicks and typing, a settings, key binding or seat change, opening, editing or saving an editor, posting into or answering a thread, and running a palette action. One switch makes all of those tools refuse every agent; the tools that only read keep working.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Run <code>marley: open agent activity</code>, or click Open Agent Activity on Home's AGENT ACTIVITY card. The tab opens in the Home group; the card shows the five newest rows.</li>
+<li>Each row, newest first, has the time, who called (Claude Code, Zed's agent, a browser client's name), the tool, what it acted on (a command, a URL, a key, with keys and tokens hidden), and <code>done</code> or <code>refused:</code> with the refusal's code.</li>
+<li>To stop every agent at once, click <strong>Stop</strong> on the card or in the tab, or run <code>marley: stop agent control</code>. Each tool that acts then refuses with <code>agent_control_stopped</code>, and those refusals are listed too.</li>
+<li>Click <strong>Resume</strong>, or run <code>marley: resume agent control</code>, to let agents act again.</li>
+</ol>
+<p class="note">The switch is <code>marley.agent_control.stopped</code>, Stopped under Settings → Marley → Agent Control, so it holds across a restart. Reads of an editor or a thread are listed as well, and keep working while stopped. Each day's rows are kept in <code>~/.local/share/marley/agent_control/</code>, readable by you alone; the tab shows today's.</p>
+</article>
+
+<article id="agent-control-modes">
+<h3>How far agents go in editors, threads and actions <span class="ticket">#704 · #705 · #706 · #707 · #711</span></h3>
+<p class="what"><strong>What it is.</strong> A mode for each of three areas, Zed's editors, the Agent Panel's threads and palette actions, that decides whether the area's tools ask you before they act, never ask, or are off.</p>
+<table>
+<tr><th>Mode</th><th>What the area's tools do</th></tr>
+<tr><td>Ask First (<code>ask_first</code>, the default)</td><td>The first tool that acts in an agent's session asks you; your answer holds for that session</td></tr>
+<tr><td>Ask Every (<code>ask_every</code>)</td><td>Every tool that acts asks you</td></tr>
+<tr><td>Allow (<code>allow</code>)</td><td>Nothing asks</td></tr>
+<tr><td>Off (<code>off</code>)</td><td>Every tool of the area refuses, reads too</td></tr>
+</table>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Open Settings → Marley → Agent Control and pick a mode for Editors, Threads and Actions (<code>marley.agent_control.editors</code>, <code>threads</code> and <code>actions</code>).</li>
+<li>When a tool asks, a notification in every window names the agent, the tool, what it would do and the project, with <strong>Allow for This Session</strong>, <strong>Always for This Project</strong> and <strong>Deny</strong>. A session is the agent's terminal, or its client, in that project, while Marley runs; Always is kept across restarts. No answer within 25 seconds refuses the call.</li>
+<li>A save (<code>editor_save</code>) and an answer to a thread's permission (<code>thread_answer</code>) ask every time, even in an allowed session, unless the area is Allow.</li>
+<li>Agents run only Marley's safe palette actions (docks and panels, splits and pane navigation, search, go-to, Format, folds and the finders) and the ones in <strong>Allowed Actions</strong>. Type a name such as <code>editor::SelectAll</code> in its field and press <kbd>Enter</kbd> to add it. Each name has a remove button, and a name Zed has no action for is marked "not an action".</li>
+<li>Some actions are refused even when you add them: anything that could quit, run code or a task, type into a terminal, answer a consent, push or change git, delete, install, sign in or share, or change Marley's and Rusty's own controls.</li>
+</ol>
+<p class="note">Allowed Actions is <code>marley.agent_control.actions_allowed</code>. Secret file names are <code>marley.agent_control.secret_globs</code>, by default <code>.env*</code>, <code>*.pem</code>, <code>*.key</code>, <code>id_rsa*</code>, <code>id_ed25519*</code>, <code>*credentials*</code>, <code>.netrc</code> and <code>*.p12</code>; change them in <code>settings.json</code>. Marley has no screen yet to take back an Always; Ask Every or Off overrides it.</p>
+</article>
+
 <article id="browser-clients">
-<h3>Programs outside Marley drive its browser <span class="ticket">#524 · #584</span></h3>
+<h3>Programs outside Marley drive its browser <span class="ticket">#524 · #584 · #703</span></h3>
 <p class="what"><strong>What it is.</strong> Let a program you name (Playwright MCP, a script) read or act in Marley's Browser tabs, with a token of its own that you can cut off.</p>
 <h4>How to use it</h4>
 <ol class="steps">
@@ -1467,6 +1745,7 @@ th { background: var(--panel); font-weight: 650; }
 <li>The program points Marley's bridge at the endpoint file Marley shows. It sees only the browser tools its grant allows.</li>
 <li>A tab it acts in shows <strong>Driven by &lt;name&gt;</strong> with <strong>Cut Off</strong>, which refuses its token at once.</li>
 <li>For a program on another machine, copy the SSH line Browser Clients shows; it holds no token and keeps working after Marley restarts.</li>
+<li>Its actions are listed in <a href="#agent-activity">Agent Activity</a> under its name, and Stop refuses them as it refuses agents'.</li>
 </ol>
 </article>
 </section>
@@ -1705,6 +1984,69 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 </section>
 
+<section id="harness">
+<h2>The harness</h2>
+<p class="area-intro">rustal-harness runs agent sessions under its supervision. Marley follows a harness's sessions in the rail and, with harness writes on, answers them, sets up seats and puts its manager in the Agent Panel.</p>
+
+<article id="harness-sessions">
+<h3>Harness sessions in the rail <span class="ticket">#534 · #632 · #640</span></h3>
+<p class="what"><strong>What it is.</strong> A HARNESS section in the rail, after the projects, with a row for each session of the harness Marley follows, and a tab with each session's output.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Name the harness's MCP server in your settings, as a context server's command is named:
+<pre><code>"marley": {
+  "harness": { "command": "/path/to/rh", "args": ["--state", "/path/to/root", "mcp"] }
+}</code></pre>
+Or set <code>"embedded_harness": true</code> where <code>rh</code> is installed: Marley finds <code>rh</code> through <code>MARLEY_RH</code> or the PATH and runs <code>rh serve</code> itself, on a root in <code>~/.local/share/marley/harness</code>.</li>
+<li>Read the header: connected, connecting, or why the harness is not running. Click it to fold the rows.</li>
+<li>Read each row: the session's title, a dot for its state, and under it the question it waits on, <code>no update in N m</code>, or its state in a word. Where the harness says more, a line gives its progress (<code>40 % · Running the tests</code>) and another its most-used quota window (<code>five_hour 62 % · resets in 1 h 35 m</code>).</li>
+<li>Click a row to open a tab under Home with the session's last 500 lines, which follows its output while it runs. A session waiting on a question is in Needs you too, with its options.</li>
+</ol>
+<p class="note">A state the harness read off the agent's screen has a grey dot and its source's word, and never enters Needs you. When the harness stops answering, its rows stay, marked stale, and Marley starts it again after 1, 2, 4 seconds and so on up to a minute. Sessions live in the harness's tmux server, so quitting Marley leaves them running. A <code>harness</code> command wins over <code>embedded_harness</code>.</p>
+</article>
+
+<article id="harness-writes">
+<h3>Answer, message and watch a session <span class="ticket">#689 · #690</span></h3>
+<p class="what"><strong>What it is.</strong> With harness writes on, a session's tab answers the question it waits on, sends it a line of text, and opens the commands that watch it in a terminal.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Set <code>"marley": { "harness_writes": true }</code>. A <code>harness</code> command also needs the grant in its own arguments: <code>"args": ["--state", "/path/to/root", "mcp", "--grant", "write"]</code>. The harness Marley runs itself gets it without that.</li>
+<li>Open a waiting session's tab: its question shows with a button for each option. A click answers that question and no later one.</li>
+<li>Type a line and press Send or <kbd>Enter</kbd>. The line under it gives the delivery's state, or the harness's reason when it refuses.</li>
+<li>Click <strong>Views</strong> for the commands that watch the session, each with Open and Copy. Open runs it in a new terminal: <code>rh attach</code> shows the session's tmux pane (<kbd>Ctrl+B</kbd> then <kbd>D</kbd> leaves it), and <code>rh view</code> the native view, where <kbd>Ctrl+B</kbd> then <kbd>C</kbd> claims control before you type.</li>
+<li>Run <code>marley: open harness session</code> to open a session from a profile in the root's <code>profiles</code> folder. With the harness Marley runs itself, the picker lists them; you can always type a name.</li>
+</ol>
+<p class="note">With writes off, the tab only reads and the palette does not list the command. A <code>harness</code> command without the grant refuses each write, and the tab says why. A Codex or Claude session also offers its history and, while it runs, an observer. The views run on this machine, so a harness reached over SSH has none yet.</p>
+</article>
+
+<article id="harness-seat">
+<h3>A harness seat in one step <span class="ticket">#691 · #692 · #693</span></h3>
+<p class="what"><strong>What it is.</strong> One form, or one request to an agent, sets up a seat on the harness: a Claude Code or Codex session with a name, a folder and a role, started under the harness's supervision.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>With harness writes on, run <code>marley: new harness seat</code>.</li>
+<li>Fill in New Harness Seat: a name, the agent (Claude Code or Codex), the folder it works in (the project's at first) and a role. A role of <code>manager</code> makes the seat the root's manager; any other role is a label.</li>
+<li>Click Create. Marley runs the harness's <code>seat add</code> and <code>seat start</code> through the command it follows the harness with, so a harness over SSH is set up over SSH. A Claude Code seat can take up to a minute.</li>
+<li>The seat's tab opens under Home. A refusal stays in the form with the harness's code and reason, such as <code>seat_exists</code>, or <code>claude_signin_undeclared</code>: run <code>rh claude signin</code> on that root first.</li>
+<li>Or ask an agent, the Marley agent among them: "Set up a manager working in ~/work/api". It proposes the seat with <code>seat_add</code>, and a notification names it. Nothing happens until you click Apply; the seat then starts and shows in the rail.</li>
+</ol>
+<p class="note">An agent gets the harness's refusal code as the harness gives it. A seat whose start fails after Apply shows as a notification. With writes off, the palette does not list the command and <code>seat_add</code> answers <code>tool_off</code>.</p>
+</article>
+
+<article id="harness-manager">
+<h3>The manager in the Agent Panel <span class="ticket">#688 · #694</span></h3>
+<p class="what"><strong>What it is.</strong> When the harness has a manager, the Agent Panel lists <strong>Manager</strong>: a thread with the manager through the harness's <code>rh acp</code>. You write to it there, and Marley raises its reports while you look elsewhere.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>With harness writes on, give the harness a manager: a seat whose role is <code>manager</code>. New Agent Thread then lists <strong>Manager</strong>; with no manager it does not.</li>
+<li>Type in its thread. The harness hands your message to the manager once the manager is idle, and the turn ends.</li>
+<li>Read the manager's messages and reports (<code>Report: …</code>) as its replies, between your turns too. A confirmation it asks for comes up as a permission request, Allow or Reject, for 60 seconds.</li>
+<li>While the Manager thread is not in front, each new record shows a desktop notice, such as <code>Manager: Report</code> with its first line, and a Needs you entry, <code>Manager · Report: …</code>, until you look. The entry opens the Manager thread.</li>
+</ol>
+<p class="note">The entry runs the harness's command up to <code>mcp</code>, then <code>acp</code>, so a root over SSH is reached over SSH. It follows the manager when the role moves. Records from before Marley connected raise nothing.</p>
+</article>
+</section>
+
 <section id="fleet">
 <h2>The fleet</h2>
 <p class="area-intro">Agents a workflow store reports, where they run and what they work on. Marley defines what a store sends and draws it; until the Rustal services serve it, a pseudo provider shows example data.</p>
@@ -1722,7 +2064,7 @@ th { background: var(--panel); font-weight: 650; }
 <li>Read each row: the runtime's mark and the agent's name; its work item's key and phase as <code>name n/m</code>; a yellow mark when it waits on a question, a red one when its run failed; and a chip with its state, <code>stale</code> when it has not reported for three polls.</li>
 <li>With no provider set, the panel says the fleet is not set up and names the setting.</li>
 </ol>
-<p class="note">The panel reads its providers only while it shows.</p>
+<p class="note">The pseudo provider serves three agents on two hosts and moves on its own: the working agent's run takes a phase a minute, and docs-1 stops reporting after a few seconds, so it reads <code>stale</code>. Marley reads the providers only while the panel shows or an Agent tab is in front.</p>
 </article>
 
 <article id="fleet-snapshot">
@@ -1739,35 +2081,36 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 
 <article id="fleet-agent-tab">
-<h3>The Agent tab <span class="ticket">#609</span></h3>
+<h3>The Agent tab <span class="ticket">#609 · #676</span></h3>
 <p class="what"><strong>What it is.</strong> One agent in full, in a tab in the center: its phases in time, its events, its host's resources over time, its tokens and its neighbours.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Double-click an agent in the Fleet panel, press <kbd>Enter</kbd> on the selected one, or click Open in its snapshot. Opening it again brings the same tab forward.</li>
+<li>Double-click an agent in the Fleet panel, press <kbd>Enter</kbd> on the selected one, or click Open in its snapshot. The tab opens under Home, whatever project the window shows; opening it again brings the same tab forward.</li>
 <li>Read the timeline: each phase a bar from its start to its end, its gates under it, a failed gate's message in red.</li>
-<li>Read the events, newest first, and the CPU, memory and network lines over the last 30 minutes Marley watched.</li>
+<li>Read the events, newest first; the CPU, memory and network lines over the last 30 minutes Marley watched; and the tokens for this run and for the day, with cache reads.</li>
 <li>Click an agent under On This Host to open its tab.</li>
 </ol>
 <p class="note">The graphs start empty after a restart, and the tab is not reopened after one.</p>
 </article>
 
 <article id="fleet-hosts">
-<h3>Hosts over SSH <span class="ticket">#610</span></h3>
+<h3>Hosts over SSH <span class="ticket">#610 · #641</span></h3>
 <p class="what"><strong>What it is.</strong> Marley reads each host you list itself: a small script it sends over SSH (or runs on this machine) reports CPU, memory, disk, network and the agent processes running there. Nothing is installed.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>List the hosts:
+<li>List the hosts, and any program names beyond <code>claude</code> and <code>codex</code> to count as agents:
 <pre><code>"marley": {
   "fleet": {
     "hosts": [
       { "ssh": "me@build-1", "name": "build-1", "id": "host-build-1" },
       { "local": true }
-    ]
+    ],
+    "agent_processes": ["aider"]
   }
 }</code></pre></li>
-<li>Open the Fleet panel. Each host's header shows a line of its resources; its <code>claude</code> and <code>codex</code> processes show as agents.</li>
-<li>A process whose <code>MARLEY_FLEET_SESSION</code> is a store's agent id joins that agent, whose snapshot then shows the host's numbers and the process. The others are listed under Hosts as <code>running</code>.</li>
-<li>A host that does not answer reads <code>unreachable</code>: point at the chip for SSH's error. Its store agents read <code>offline</code>.</li>
+<li>Open the Fleet panel. Every 5 seconds while it shows, each host's header gets a line of its resources, and its agent processes show as agents.</li>
+<li>A process whose <code>MARLEY_FLEET_SESSION</code> is a store's agent id joins that agent, whose snapshot then shows the host's numbers and the process. The others are listed under Hosts as <code>running</code>, with their folder, pid, CPU and memory.</li>
+<li>A host that does not answer reads <code>unreachable</code>: point at the chip for SSH's error. Its store agents read <code>offline</code>. A link that went silent counts as dead within 20 seconds.</li>
 </ol>
 <p class="note">SSH runs with <code>BatchMode</code>: a host needs a key or an agent. A destination starting with <code>-</code> is refused.</p>
 </article>
@@ -1844,13 +2187,19 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td><code>marley: clear project browser data</code></td><td>Sign the project out of every site</td></tr>
 <tr><td><code>marley: system one check</code>, <code>marley: open system one calls</code></td><td>System One's check, and its log</td></tr>
 <tr><td><code>marley: toggle fleet</code></td><td>Show or hide the Fleet panel</td></tr>
+<tr><td><code>marley: open thread in center</code>, <code>marley: move thread to panel</code></td><td>Show the Agent Panel's thread in a center tab, and back in the panel</td></tr>
+<tr><td><code>marley: open marley agent in terminal</code></td><td>The Marley agent in Claude Code's or Codex's own interface, in a new terminal</td></tr>
+<tr><td><code>marley: open agent activity</code></td><td>The log of every agent call to a tool that acts</td></tr>
+<tr><td><code>marley: stop agent control</code>, <code>marley: resume agent control</code></td><td>Make every tool that acts refuse agents, and let them act again</td></tr>
+<tr><td><code>marley: open harness session</code></td><td>Open a harness session from a profile, with <code>harness_writes</code> on</td></tr>
+<tr><td><code>rusty: open home</code></td><td>Rusty's home page, while Rusty is on</td></tr>
 <tr><td><code>multi workspace: next project</code> / <code>previous project</code> / <code>next thread</code> / <code>previous thread</code></td><td>Walk the rail</td></tr>
 </table>
 </article>
 
 <article id="settings-reference">
 <h3>Settings</h3>
-<p class="what"><strong>What it is.</strong> Marley's keys in <code>~/.config/marley/settings.json</code>, under <code>"marley"</code>. The Marley page in the Settings window edits all of them.</p>
+<p class="what"><strong>What it is.</strong> Marley's keys in <code>~/.config/marley/settings.json</code>, under <code>"marley"</code>. The Marley page in the Settings window edits most of them; the rest are marked.</p>
 <table>
 <tr><th>Key</th><th>Default</th><th>What it does</th></tr>
 <tr><td><code>layout</code></td><td><code>"marley"</code></td><td><code>"marley"</code> or <code>"zed"</code></td></tr>
@@ -1876,6 +2225,11 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td><code>stall_check_after_seconds</code></td><td><code>60</code></td><td>The first quiet check for a stuck agent</td></tr>
 <tr><td><code>push</code></td><td>none</td><td><code>{ "url", "topic", "token_file" }</code> of an ntfy server on this machine</td></tr>
 <tr><td><code>fleet</code></td><td><code>{ "providers": [], "hosts": [], "agent_processes": [] }</code></td><td>Where the Fleet panel's agents come from; <code>{ "kind": "pseudo" }</code> is Marley's example data; <code>hosts</code> are machines Marley reads over SSH or locally (in <code>settings.json</code> only)</td></tr>
+<tr><td><code>embedded_harness</code></td><td><code>false</code></td><td>Marley runs rustal-harness's runtime itself and shows its sessions in the rail (in <code>settings.json</code> only)</td></tr>
+<tr><td><code>harness_writes</code></td><td><code>false</code></td><td>A harness session's tab answers, sends and watches, and agents may propose seats (in <code>settings.json</code> only)</td></tr>
+<tr><td><code>claude_code_shared_plugin</code></td><td><code>false</code></td><td>New local terminals load the Claude Code plugin shared with rustal-harness</td></tr>
+<tr><td><code>assistant</code></td><td><code>{ "enabled": true, "agent": "auto" }</code></td><td>The Marley agent, and what it runs on: <code>"auto"</code>, <code>"claude_code"</code>, <code>"codex"</code> or <code>"zed"</code></td></tr>
+<tr><td><code>agent_control</code></td><td><code>{ "stopped": false, "editors": "ask_first", "threads": "ask_first", "actions": "ask_first", "actions_allowed": [], "secret_globs": [...] }</code></td><td>The kill switch, each area's mode (<code>"off"</code>, <code>"ask_every"</code>, <code>"ask_first"</code>, <code>"allow"</code>), the actions you allow by name, and the file names agents never read (<code>secret_globs</code> in <code>settings.json</code> only)</td></tr>
 <tr><td><code>system_one</code></td><td>off</td><td><code>enabled</code>, <code>provider</code>, <code>projects</code>, <code>metadata_only_projects</code>, <code>daily_budget_cents</code>, <code>uses</code></td></tr>
 </table>
 <p class="note">Telemetry (<code>telemetry.metrics</code>, <code>telemetry.diagnostics</code>) defaults to off. Zed's own context server <code>marley</code> can be turned off with <code>"context_servers": { "marley": { "enabled": false } }</code>.</p>
