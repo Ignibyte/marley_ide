@@ -5164,3 +5164,22 @@ every agent. To give one entry a server of its own, put it in the session `_meta
 (`dist/acp-agent.js`, near line 6110), so a server named only in the meta reaches that entry's
 sessions alone. For Codex, the same goes through `CODEX_CONFIG.mcp_servers`. The meta's
 `disallowedTools` takes `mcp__<server>` to keep a whole server's tools out.
+
+## L-claude-700-a-restored-folderless-workspace-starts-unfocused-001
+*category: validate · topic: e2e scenarios that restart Marley · from: pipeline 700*
+
+After a relaunch that restores a folderless workspace as the window's active one (a Home or Rusty
+group with no tab, or Zed's Welcome page), nothing in the window has focus. Keys reach nothing,
+so the runner's `quit_marley` (the palette's `zed: quit`) does nothing, and the quit times out
+after 30 s. A scenario clicks the center pane first. A quit from a terminal fails too: the
+terminal keeps the keys; click a rail header or the pane first.
+
+## L-claude-700-a-forks-phase-hooks-read-the-parent-transcript-001
+*category: process · topic: running a pipeline in a forked agent · from: pipeline 700*
+
+A forked agent's PreToolUse and Stop hooks get the parent session's transcript, not the fork's.
+The phase hooks therefore see the parent's last `/pipeline:*` command, here #699's `complete`,
+and refuse a fork's Write and Edit to code during its own Code phase. The fork kept the phase
+order (each status recorded in its spec) and made its edits through a Bash replacement script.
+The commit-time receipt still binds the tree. Either run a pipeline in the main session, or
+expect this and record it in the notes.

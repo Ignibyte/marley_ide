@@ -1738,6 +1738,26 @@ alike.
     - the answer is `starting`, then `seat start` runs, with `SeatStartFailed` as a
       notification.
 
+## Home and Rusty from the start (`src/rail.rs`, `src/groups.rs`, #700)
+
+- `Rail::ensure_groups` runs at the end of each `refresh` and from `rusty_changed` while Rusty is
+  on. For Home, and for Rusty while it is on, it skips a kind the window holds or is making
+  (`groups::has_kind`, which reads `Groups::waiting` too), or whose restored record may still come
+  back. Then, deferred, it either claims the start workspace for Home or calls
+  `groups::with_group`.
+  - **May come back** (`groups::pending_kind`): once the window's saved state is read
+    (`StartupGroups::restored`, set in `restore_serialized_state`), one of its own saved group ids
+    still pending. Before that, any pending record of the kind, until `SETTLE` (3 s) has passed
+    since the rail was built; `StartupGroups::_settle` refreshes then. Zed applies a restored
+    window's sidebar state after awaits that follow the window's opening, and `Groups::pending`
+    keeps the records of windows never restored.
+  - **The start workspace** (`start_workspace`): the shown workspace when it is local, folderless,
+    and no group's or pending record's. `groups::claim` records it as Home, keeping any tab Zed
+    opened there, such as its onboarding page.
+- `rail_groups` lists Home, Rusty, Zed's project groups, then named groups, each group kind in the
+  window's saved order, before `marley_rail::place` applies a dragged order.
+- `group_context_menu` gives Home a label, as Rusty's (#675).
+
 ## The Rusty group's + menu and its never-empty rule (`src/rusty/home_tab.rs`, `src/groups.rs`, #699)
 
 - **The + menu.** Zed's `pane.rs` gains `MarleyNewItemMenu`, a global function from the + menu and

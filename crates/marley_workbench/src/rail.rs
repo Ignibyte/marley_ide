@@ -113,6 +113,11 @@ const PULL_REQUEST_EVERY: Duration = Duration::from_mins(2);
 /// How long a worktree's Review waits for the window to open its workspace (#511).
 const REVIEW_WAIT: Duration = Duration::from_secs(30);
 
+/// How long a window that has not read its saved state waits before it makes its Home and Rusty
+/// groups while a restored one of that kind may still come back (#700): Zed applies a restored
+/// window's saved state after the window opens, and a window never restored never reads one.
+const SETTLE: Duration = Duration::from_secs(3);
+
 /// Reads the command a terminal's foreground process runs. Production asks the PTY; a test's
 /// display-only terminal has no process, so tests hand in their own.
 type ForegroundCommand = fn(&Entity<Terminal>, &App) -> Option<String>;
@@ -237,6 +242,30 @@ pub struct Rail {
     _focus: Subscription,
     _filter_edits: Subscription,
     brain: BrainSide,
+    startup: StartupGroups,
+}
+
+/// When the window may make its Home and Rusty groups (#700).
+struct StartupGroups {
+    /// Whether the window's saved state, which lists its groups, has been read.
+    restored: bool,
+    /// When the rail was built.
+    built: Instant,
+    /// A refresh once `SETTLE` has passed, for a window that is never restored.
+    _settle: Task<()>,
+}
+
+impl StartupGroups {
+    fn new(window: &Window, cx: &Context<Rail>) -> Self {
+        Self {
+            restored: false,
+            built: cx.background_executor().now(),
+            _settle: cx.spawn_in(window, async move |rail, cx| {
+                cx.background_executor().timer(SETTLE).await;
+                rail.update_in(cx, Rail::refresh).log_err();
+            }),
+        }
+    }
 }
 
 /// The connection to Rusty the header's screens follow (#644, #672). The vault's tree is the Brain
@@ -908,6 +937,7 @@ impl Rail {
             _focus: focus,
             _filter_edits: filter_edits,
             brain: BrainSide::new(window, cx),
+            startup: StartupGroups::new(window, cx),
         }
     }
 
@@ -915,7 +945,10 @@ impl Rail {
     /// Rusty's state are reads of its settings, which change nothing here (L-572).
     fn rusty_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let connected = rusty::is_connected(cx);
-        if !rusty::is_on(cx) {
+        if rusty::is_on(cx) {
+            // Turned on, the window gets its Rusty group (#700).
+            self.ensure_groups(window, cx);
+        } else {
             self.leave_rusty_group(window, cx);
         }
         if connected == self.brain.connected {
@@ -1103,6 +1136,55 @@ impl Rail {
         self.follow_drift(window, cx);
         self.follow_project_git(window, cx);
         self.take_review(window, cx);
+        self.ensure_groups(window, cx);
+    }
+
+    /// Gives the window its Home group, and its Rusty group while Rusty is on, when it lacks one
+    /// and no restored group of that kind can still come back to it (#700). Home takes Zed's start
+    /// workspace when the window shows it. Deferred: the refresh runs from inside updates.
+    fn ensure_groups(&self, window: &Window, cx: &mut Context<Self>) {
+        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
+            return;
+        };
+        let window_id = window.window_handle().window_id();
+        let settled = cx
+            .background_executor()
+            .now()
+            .duration_since(self.startup.built)
+            >= SETTLE;
+        let kinds = [
+            Some(groups::GroupKind::Home),
+            rusty::is_on(cx).then_some(groups::GroupKind::Rusty),
+        ];
+        let wanted: Vec<groups::GroupKind> = kinds
+            .into_iter()
+            .flatten()
+            .filter(|&kind| {
+                let may_come_back = if self.startup.restored {
+                    groups::pending_kind(kind, Some(&self.saved_order.groups), cx)
+                } else {
+                    !settled && groups::pending_kind(kind, None, cx)
+                };
+                !may_come_back && !groups::has_kind(multi_workspace.read(cx), kind, window_id, cx)
+            })
+            .collect();
+        if wanted.is_empty() {
+            return;
+        }
+        window.defer(cx, move |window, cx| {
+            for kind in wanted {
+                if groups::has_kind(multi_workspace.read(cx), kind, window_id, cx) {
+                    continue;
+                }
+                if kind == groups::GroupKind::Home
+                    && let Some(start) = start_workspace(&multi_workspace, cx)
+                {
+                    groups::claim(&start, kind, cx);
+                } else {
+                    groups::with_group(kind, &multi_workspace, |_, _, _| {}, window, cx);
+                }
+            }
+        });
     }
 
     /// Searches each local project's folder for its icon the first time its group shows, and
@@ -4793,6 +4875,12 @@ impl Rail {
                 menu.label("Rusty's screens and pages open here")
             });
         }
+        // Home is always there, so it is not renamed or removed either (#700).
+        if groups::is_home(group, cx) {
+            return ContextMenu::build(window, cx, |menu, _, _| {
+                menu.label("What belongs to no project opens here")
+            });
+        }
         ContextMenu::build(window, cx, move |menu, _, _| {
             let rename_rail = rail.clone();
             menu.entry("Rename Group…", None, move |window, cx| {
@@ -7709,10 +7797,30 @@ fn listed_workspace(
 /// A projectless group as the rail lists it: its id and its workspace's id.
 type Projectless = Option<(Uuid, Option<WorkspaceId>)>;
 
-/// The groups the rail lists: the window's projects with an open workspace, then its projectless
-/// groups (#600), each on its own workspace under the empty key, in the order the window saved
-/// them (#601) and then as made; their names, and each projectless group's ids. The headers the
-/// user placed by dragging go first, in that order (#602).
+/// Zed's start workspace while the window shows it: folderless, local, and no group's or pending
+/// record's, so a window with nothing to restore makes it its Home group (#700), with any tab Zed
+/// opened there first, such as its onboarding page.
+fn start_workspace(
+    multi_workspace: &Entity<MultiWorkspace>,
+    cx: &App,
+) -> Option<Entity<Workspace>> {
+    let shown = multi_workspace.read(cx).workspace().clone();
+    let workspace = shown.read(cx);
+    let project = workspace.project().read(cx);
+    let free = project.is_local()
+        && project.visible_worktrees(cx).next().is_none()
+        && groups::group_of_project(workspace.project().entity_id(), cx).is_none()
+        && workspace
+            .database_id()
+            .is_none_or(|id| groups::group_of_workspace_id(id, cx).is_none());
+    free.then_some(shown)
+}
+
+/// The groups the rail lists: the window's Home and Rusty groups (#700), then its projects with an
+/// open workspace, then its named projectless groups (#600), each group on its own workspace under
+/// the empty key and named ones in the order the window saved them (#601) and then as made; their
+/// names, and each projectless group's ids. The headers the user placed by dragging go first, in
+/// that order (#602).
 fn rail_groups(
     multi_workspace: &MultiWorkspace,
     saved_order: &SavedOrder,
@@ -7720,36 +7828,51 @@ fn rail_groups(
 ) -> (Vec<ProjectGroup>, Vec<String>, Vec<Projectless>) {
     // A group with no open workspace, as a restart leaves every one but the shown, is listed as
     // closed (#606).
-    let mut groups: Vec<ProjectGroup> = multi_workspace.project_groups(cx);
-    let mut names = crate::group_names(&groups);
-    let mut projectless = vec![None; groups.len()];
+    let projects: Vec<ProjectGroup> = multi_workspace.project_groups(cx);
+    let project_names = crate::group_names(&projects);
     let mut marley_groups = groups::groups_of(multi_workspace, cx);
     marley_groups.sort_by_key(|(group, _)| {
-        saved_order
+        let kind = if group.home {
+            0
+        } else if group.rusty {
+            1
+        } else {
+            2
+        };
+        let saved = saved_order
             .groups
             .iter()
             .position(|saved| Some(*saved) == group.database_id)
-            .unwrap_or(usize::MAX)
+            .unwrap_or(usize::MAX);
+        (kind, saved)
     });
     // The Rusty group shows only while Rusty is on (#661, #675).
     let rusty_on = rusty::is_on(cx);
-    for (group, workspace) in marley_groups
+    let (first, others): (Vec<_>, Vec<_>) = marley_groups
         .into_iter()
         .filter(|(group, _)| rusty_on || !group.rusty)
-    {
-        groups.push(ProjectGroup {
-            key: ProjectGroupKey::default(),
-            workspaces: vec![workspace],
-            expanded: group.expanded,
-        });
-        names.push(group.name);
-        projectless.push(Some((group.id, group.database_id)));
-    }
-    let mut listed: Vec<(ProjectGroup, String, Projectless)> = groups
+        .partition(|(group, _)| group.home || group.rusty);
+    let listed_group = |(group, workspace): (groups::Group, Entity<Workspace>)| {
+        (
+            ProjectGroup {
+                key: ProjectGroupKey::default(),
+                workspaces: vec![workspace],
+                expanded: group.expanded,
+            },
+            group.name,
+            Some((group.id, group.database_id)),
+        )
+    };
+    let mut listed: Vec<(ProjectGroup, String, Projectless)> = first
         .into_iter()
-        .zip(names)
-        .zip(projectless)
-        .map(|((group, name), id)| (group, name, id))
+        .map(listed_group)
+        .chain(
+            projects
+                .into_iter()
+                .zip(project_names)
+                .map(|(group, name)| (group, name, None)),
+        )
+        .chain(others.into_iter().map(listed_group))
         .collect();
     marley_rail::place(&mut listed, &saved_order.headers, |(group, _, id)| {
         Some(order::header_place(&group.key, id.map(|(group, _)| group)))
@@ -8994,6 +9117,7 @@ impl Sidebar for Rail {
         // The window's projectless groups come back once the restore is done: opening a
         // workspace into the window updates the `MultiWorkspace` this runs inside (#601).
         self.saved_order.groups = read_rail_groups(state);
+        self.startup.restored = true;
         (self.saved_order.headers, self.saved_order.rows) = order::read_rail_order(state);
         if !self.saved_order.groups.is_empty() {
             let multi_workspace = self.multi_workspace.clone();

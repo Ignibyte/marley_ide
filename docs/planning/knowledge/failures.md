@@ -3544,3 +3544,12 @@ center tab went nowhere: neither the tab's message box nor the agent got it. The
 focuses `activation_focus_handle` instead, the thread's message editor, but that method is
 `pub(crate)` in `agent_ui`. Fixed in #697: the tab's `Focusable` is the active thread's
 `message_editor` (a `pub` field), and the view's handle only when there is no thread.
+
+## F-claude-700-home-refused-zeds-start-workspace-for-its-onboarding-tab-001
+*severity: medium · found in: pipeline 700's Test phase · class: a guard that assumed a fresh workspace is empty*
+
+`start_workspace` let Home claim Zed's start workspace only when it held no tab. On a first start
+Zed opens its Onboarding page there, so the guard refused it: Home was made as a second workspace,
+and the start workspace, which Zed lists in no project group, sat outside the rail, still shown.
+Fixed in #700: a local, folderless workspace that is no group's and no pending record's is Home's
+to take, with its tabs.

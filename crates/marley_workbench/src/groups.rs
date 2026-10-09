@@ -381,6 +381,69 @@ pub(crate) fn is_rusty(id: Uuid, cx: &App) -> bool {
     })
 }
 
+/// Whether the group `id` is a window's Home group (#700).
+pub(crate) fn is_home(id: Uuid, cx: &App) -> bool {
+    cx.try_global::<Groups>()
+        .is_some_and(|groups| groups.live.iter().any(|group| group.id == id && group.home))
+}
+
+/// Whether the window holds its Home or Rusty group, or is making it (#700).
+pub(crate) fn has_kind(
+    multi_workspace: &MultiWorkspace,
+    kind: GroupKind,
+    window_id: WindowId,
+    cx: &App,
+) -> bool {
+    group_of_kind(multi_workspace, kind, cx).is_some()
+        || cx.try_global::<Groups>().is_some_and(|groups| {
+            groups
+                .waiting
+                .iter()
+                .any(|(id, waiting, _)| *id == window_id && *waiting == kind)
+        })
+}
+
+/// Whether a Home or Rusty record read from the store still waits for its workspace (#700): any
+/// such record, or with `among`, one whose workspace id `among` lists.
+pub(crate) fn pending_kind(kind: GroupKind, among: Option<&[WorkspaceId]>, cx: &App) -> bool {
+    cx.try_global::<Groups>().is_some_and(|groups| {
+        groups.pending.iter().any(|saved| {
+            let of_kind = match kind {
+                GroupKind::Home => saved.home,
+                GroupKind::Rusty => saved.rusty,
+                GroupKind::Named => false,
+            };
+            of_kind && among.is_none_or(|ids| ids.contains(&saved.database_id))
+        })
+    })
+}
+
+/// Records `workspace`, a folderless workspace its window already holds, as the window's Home or
+/// Rusty group (#700): Zed's start workspace becomes Home rather than sitting beside a new one.
+pub(crate) fn claim(workspace: &Entity<Workspace>, kind: GroupKind, cx: &mut App) {
+    let name = match kind {
+        GroupKind::Home => HOME,
+        GroupKind::Rusty => RUSTY,
+        GroupKind::Named => return,
+    };
+    let (project, database_id) = {
+        let workspace = workspace.read(cx);
+        (workspace.project().entity_id(), workspace.database_id())
+    };
+    cx.default_global::<Groups>().live.push(Group {
+        id: Uuid::new_v4(),
+        name: name.to_string(),
+        workspace: workspace.downgrade(),
+        database_id,
+        project,
+        expanded: true,
+        home: kind == GroupKind::Home,
+        rusty: kind == GroupKind::Rusty,
+    });
+    keep(cx);
+    save(cx);
+}
+
 /// Whether the workspace `id` is a window's Rusty group's (#699).
 pub(crate) fn is_rusty_workspace(id: EntityId, cx: &App) -> bool {
     cx.try_global::<Groups>().is_some_and(|groups| {

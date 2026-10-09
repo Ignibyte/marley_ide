@@ -4561,3 +4561,28 @@ Rejected:
 - `Pane::set_render_tab_bar_buttons` on the group's panes: it copies Zed's split and zoom buttons
   into Marley and must be set on every pane the group grows.
 - Rusty's links in every + menu: Chad asked for the Rusty group's.
+
+## AD-claude-700-home-and-rusty-exist-from-the-start-on-top-of-the-rail-001
+*decided at: 2026-10-09 · status: shipped · supersedes: AD-claude-675-rustys-screens-open-in-a-per-window-rusty-group-001's "made the first time" and "listed after the projects"*
+
+Chad, 2026-10-09: "Marley starts a fresh install with the home panel existing, rusty existing if
+its enabled. The order should be Home then Rusty", and on the top or the bottom of the rail, "top
+correct". AD-675 had rejected making the Rusty group at start ("a rail with a group nobody used");
+with a home page in each, Chad wants both there.
+
+Every window gets its Home group, and its Rusty group while Rusty is on. The rail lists Home,
+Rusty, the projects, then named groups; a dragged order still wins. Home and Rusty can't be
+renamed or removed.
+
+A group is made only once no restored record of its kind can still come back to the window:
+- after the window's saved state is read, none of its own ids is pending;
+- before that, none of the kind is pending at all, or 3 s have passed.
+
+Zed's start workspace becomes Home rather than sitting beside a new one.
+
+Rejected:
+- Making the groups at the first refresh: a restored window's sidebar state arrives after it
+  opens, so a restart would duplicate them.
+- Waiting on every pending record: records of windows never restored stay pending forever.
+- A hook in Zed's startup marking the end of the restore: four call sites, and a window opened
+  later restores nothing anyway.

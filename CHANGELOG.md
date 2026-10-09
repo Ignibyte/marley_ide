@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Home and Rusty from the start, on top of the rail** (#700, 2026-10-09).
+  - Every window now has its Home group from the start, and its Rusty group while Rusty is on,
+    made as soon as Rusty turns on. The rail lists Home, then Rusty, then your projects, then the
+    groups you named; a header you dragged keeps its place.
+  - A window started with no folder and nothing to restore shows Home, which takes Zed's start
+    workspace. A restart brings back one of each, never a second.
+  - Home's header menu, like Rusty's, has nothing to rename or remove.
+
 - **The Rusty group's + menu and its home page** (#699, 2026-10-09).
   - The + on the Rusty group's tab bar now starts with Rusty's quick links: Home, Brain, Today's
     Note, Graph, Tasks, Decisions, Memory, Skills, Secrets, Open Page… and the three captures.
