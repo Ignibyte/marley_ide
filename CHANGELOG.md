@@ -974,6 +974,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Keys work after a relaunch and when Rusty is on** (#708, 2026-10-09). #702's fix held only for
+  Home made at start. With Rusty on, or after a relaunch that brings the groups back, the window
+  still lost its keys: Zed focuses every new workspace, even one added behind the shown project,
+  and a dialog that opened then gave its focus back to that hidden pane when it closed. Now a
+  workspace added in the background never takes the focus, so the trust prompt takes Enter at
+  start and the palette opens on its key right after a relaunch.
+
 - **Keys work right after Marley starts** (#702, 2026-10-09). Since #700 made the Home and Rusty
   groups at start, the window lost its keyboard focus about three seconds after launch. Making a
   group behind the shown project moved the focus into the group, which isn't on screen, so Enter

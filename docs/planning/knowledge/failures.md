@@ -3582,3 +3582,14 @@ took no Enter, the palette didn't open, and a user's typing went nowhere until a
 #701's scenarios met it and clicked around it, filing it as a lesson about restored windows. Found
 in #702 with a focus log; fixed there: the rail takes the focused handle before it makes a group and
 focuses it again once the group exists (`keep_focus`).
+
+## F-claude-708-702s-focus-fix-restored-a-stale-handle-and-missed-the-modals-record-001
+*severity: high · found in: pipeline 708's Test phase · class: a fix aimed at the symptom's last step · prevented by: PR-claude-708-a-workspace-added-in-the-background-never-takes-focus-001*
+
+#702 gave the focus back after a group was made (`keep_focus`, the handle taken before). With Rusty
+on, both groups were made before the trust prompt opened, so the prompt recorded a hidden pane as
+the focus to restore on close, and `keep_focus` then put the project's pane over the open prompt.
+After a relaunch, `groups::reopen` stole the focus the same way. A backtrace on `Window::focus`
+named four movers: `Workspace::new`, `zed::initialize_workspace`'s closing focus, the modal's
+recorded previous focus, and every workspace's focus-lost listener, the last registered winning.
+Fixed in #708 at the first two and the fourth, in Zed, so nothing records a hidden focus.

@@ -5211,3 +5211,12 @@ name from `CODEX_CONFIG` or `config.toml`, so a `disabled_tools` list can't limi
 server Zed passes. A limit on Codex has to come from the server's side, telling one agent's calls
 from another's. Claude Code's `disallowedTools` in the session `_meta` (`mcp__<server>__<tool>`)
 has no such gap.
+
+## L-claude-708-focus-lost-restores-an-ancestor-not-the-old-focus-001
+*category: zed fork · topic: gpui focus restore · from: pipeline 708*
+
+`Window::focus_lost_restore_target` gives the nearest focusable ancestor of the element that lost
+focus, never that element. When focus is moved off a modal onto something the window doesn't draw,
+the shown workspace's focus-lost listener lands on the modal's parent, and the modal's own key
+context (its Confirm on Enter) no longer has the keys. Undo a stray focus inside the same update,
+before a frame, rather than counting on the focus-lost restore.

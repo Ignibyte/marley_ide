@@ -1812,14 +1812,12 @@ alike.
   thread rows. `member_tabs` skips a `ThreadTab`, as it skips terminals and Browser tabs;
   `active_rows` takes no tab row for an active `ThreadTab`, and `note_focus` marks the thread row
   of the active `ThreadTab` (`active_thread_tab`) before the panel's focused thread.
-- **Focus after a background group.** `Workspace::new` focuses its own center pane even for a
-  workspace added with `OpenMode::Add`, and its setup moves focus again after `new_local`'s window
-  update. A group #700 makes behind the shown project therefore took the window's focus to a
-  workspace the window doesn't draw. `ensure_groups` takes the focused handle (weak) before it
-  makes a group, and the group's `then`, which runs once `new_local`'s task is done, calls
-  `keep_focus`: the handle is focused again when it still exists and lost the focus. A restored
-  folderless workspace that starts as the shown one with nothing focused is a different case and
-  is not covered (L-claude-700-a-restored-folderless-workspace-starts-unfocused-001).
+- **Focus after a background group.** #702's rail-side `keep_focus` was replaced in #708 by three
+  Zed hunks (`zed-touchpoints.md`, the `workspace.rs` and `zed.rs` rows): a workspace added behind
+  the shown one gives the focus back right after `MultiWorkspace::add`, `initialize_workspace`
+  focuses a new workspace only when `marley_is_shown()`, and a workspace's focus-lost listener
+  acts only for the shown one. Groups made at start (#700) and reopened after a relaunch (#601)
+  leave the window's focus alone.
 
 ## An agent thread in a center tab (`src/thread_tab.rs`, `src/rail.rs`, #697)
 

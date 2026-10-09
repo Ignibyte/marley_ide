@@ -655,7 +655,9 @@ pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
         workspace.set_panels_task(panels_task);
         register_actions(app_state.clone(), workspace, window, cx);
 
-        if !workspace.has_active_modal(window, cx) {
+        // Marley: a workspace added behind the shown one, such as a group made or reopened in the
+        // background, leaves the window's focus where it is (#708).
+        if !workspace.has_active_modal(window, cx) && workspace.marley_is_shown() {
             workspace.focus_handle(cx).focus(window, cx);
         }
     })

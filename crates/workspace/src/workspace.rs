@@ -1942,6 +1942,11 @@ impl Workspace {
         }
 
         cx.on_focus_lost(window, |this, window, cx| {
+            // Marley: only the shown workspace takes the focus back. Every workspace in a window
+            // listens and the last one registered wins; a hidden one's pane isn't drawn (#708).
+            if !this.owns_window_chrome() {
+                return;
+            }
             let focus_handle = window
                 .focus_lost_restore_target(cx)
                 .unwrap_or_else(|| this.fallback_focus_handle(window, cx));
@@ -2327,6 +2332,8 @@ impl Workspace {
                         .unwrap_or(false);
 
                     let workspace = window.update(cx, |multi_workspace, window, cx| {
+                        // Marley: see the `OpenMode::Add` arm below (#708).
+                        let focused = window.focused(cx);
                         let workspace = cx.new(|cx| {
                             let mut workspace = Workspace::new(
                                 Some(workspace_id),
@@ -2353,6 +2360,13 @@ impl Workspace {
                             }
                             OpenMode::Add => {
                                 multi_workspace.add(workspace.clone(), &*window, cx);
+                                // Marley: `Workspace::new` focused its pane, which a workspace
+                                // added behind the shown one doesn't draw; the focus goes back
+                                // before a frame, so no focus-lost restore lands on an ancestor
+                                // and no prompt records it (#708).
+                                if let Some(focused) = focused {
+                                    window.focus(&focused, cx);
+                                }
                             }
                             OpenMode::NewWindow => {
                                 unreachable!()
@@ -6756,6 +6770,12 @@ impl Workspace {
     /// workspace's id into the shared `active_workspace_id` cell, which we
     /// simply compare against our own id. A workspace with no shared cell (e.g.
     /// a plain test window) owns its window unconditionally.
+    // Marley: whether this is the workspace its window shows, for focus a workspace added behind it
+    // must not take (#708).
+    pub fn marley_is_shown(&self) -> bool {
+        self.owns_window_chrome()
+    }
+
     fn owns_window_chrome(&self) -> bool {
         match &self.active_workspace_id {
             Some(active_workspace_id) => active_workspace_id.get() == self.weak_self.entity_id(),
@@ -11151,6 +11171,8 @@ pub fn open_workspace_by_id(
 
         let (window, workspace) = if let Some(window) = requesting_window {
             let workspace = window.update(cx, |multi_workspace, window, cx| {
+                // Marley: as in `new_local`'s `OpenMode::Add` arm (#708).
+                let focused = window.focused(cx);
                 let workspace = cx.new(|cx| {
                     let mut workspace = Workspace::new(
                         Some(workspace_id),
@@ -11163,6 +11185,9 @@ pub fn open_workspace_by_id(
                     workspace
                 });
                 multi_workspace.add(workspace.clone(), &*window, cx);
+                if let Some(focused) = focused {
+                    window.focus(&focused, cx);
+                }
                 workspace
             })?;
             (window, workspace)

@@ -28,7 +28,7 @@ use gpui::{
     Anchor, AnyElement, AnyView, App, ClickEvent, ClipboardItem, Context, DismissEvent, Div,
     ElementId, Entity, EntityId, EventEmitter, FocusHandle, Focusable, Hsla, Image, MouseButton,
     MouseDownEvent, Pixels, Point, PromptLevel, Render, RenderImage, Stateful, Subscription, Task,
-    WeakEntity, WeakFocusHandle, Window, anchored, deferred, img, px,
+    WeakEntity, Window, anchored, deferred, img, px,
 };
 use marley_agent::risk::{self, Action, Chip, ChipKind, ChipSource, ToolClass};
 use marley_agent::route::{self, Route, RouteMark, RouteSource};
@@ -1229,7 +1229,6 @@ impl Rail {
             return;
         }
         window.defer(cx, move |window, cx| {
-            let focused = window.focused(cx).map(|focused| focused.downgrade());
             for kind in wanted {
                 if groups::has_kind(multi_workspace.read(cx), kind, window_id, cx) {
                     continue;
@@ -1239,14 +1238,7 @@ impl Rail {
                 {
                     groups::claim(&start, kind, cx);
                 } else {
-                    let focused = focused.clone();
-                    groups::with_group(
-                        kind,
-                        &multi_workspace,
-                        move |_, window, cx| keep_focus(focused, window, cx),
-                        window,
-                        cx,
-                    );
+                    groups::with_group(kind, &multi_workspace, |_, _, _| {}, window, cx);
                 }
             }
         });
@@ -7879,19 +7871,6 @@ fn start_workspace(
             .database_id()
             .is_none_or(|id| groups::group_of_workspace_id(id, cx).is_none());
     free.then_some(shown)
-}
-
-/// Gives the keys back to what held them before a group was made behind the shown workspace
-/// (#702). Making a workspace moves the window's focus into it (`Workspace::new` focuses its pane,
-/// and its setup after that may move it again), and the window doesn't show it, so keys reached
-/// nothing: a trust prompt open at start took no Enter.
-fn keep_focus(focused: Option<WeakFocusHandle>, window: &mut Window, cx: &mut App) {
-    let Some(focused) = focused.and_then(|focused| focused.upgrade()) else {
-        return;
-    };
-    if !focused.is_focused(window) {
-        window.focus(&focused, cx);
-    }
 }
 
 /// The groups the rail lists: the window's Home and Rusty groups (#700), then its projects with an

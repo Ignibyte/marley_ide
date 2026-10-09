@@ -10,6 +10,11 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
+| [TICKET-703](open/TICKET-703-agent-control-layer.md) | feature | The agent-control layer: tiers, consent, an activity log and a kill switch |
+| [TICKET-704](open/TICKET-704-editors-read-and-open.md) | feature | Editors over MCP: list, read and open |
+| [TICKET-705](open/TICKET-705-editors-edit.md) | feature | Editors over MCP: edit and save |
+| [TICKET-706](open/TICKET-706-agent-panel-threads.md) | feature | Agent Panel threads over MCP |
+| [TICKET-707](open/TICKET-707-palette-actions.md) | feature | Palette actions over MCP |
 
 ## Deliberate (picked explicitly, never auto-next)
 

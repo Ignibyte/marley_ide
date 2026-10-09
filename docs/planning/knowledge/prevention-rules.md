@@ -2882,3 +2882,13 @@ window) takes `window.focused(cx)` first and focuses it again once the workspace
 it lost the focus. `Workspace::new` focuses the new workspace's pane, and its setup can move focus
 after that. A scenario that has to click before its first key works is reporting this bug, not a
 quirk to work around: find where the focus went before writing a lesson.
+
+## PR-claude-708-a-workspace-added-in-the-background-never-takes-focus-001
+*severity: high · prevents: F-claude-708-702s-focus-fix-restored-a-stale-handle-and-missed-the-modals-record-001 · supersedes: PR-claude-702-making-a-workspace-in-the-background-keeps-the-focus-001*
+
+A workspace added behind the shown one must never hold the window's focus, not even for a tick:
+anything that opens meanwhile (a prompt, a modal) records the focus it takes and gives it back on
+close. The Zed hunks of #708 keep that for `new_local`'s `OpenMode::Add`, `open_workspace_by_id`
+into a window and `initialize_workspace`; new code that adds a workspace another way gives the
+focus back inside the same window update. To find what moved focus, log a short backtrace in
+`Window::focus` (temporarily) before theorising.
