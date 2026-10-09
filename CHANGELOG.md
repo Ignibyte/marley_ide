@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **An agent thread in a center tab** (#697, 2026-10-09). `marley: open thread in center`, or
+  **Open in Center** on a thread's right-click menu in the rail, moves the Agent Panel's thread into
+  a tab beside your terminals and files. It is the same thread: it keeps running, keeps its
+  history, and takes messages in the tab, while the panel turns to a new draft. `marley: move
+  thread to panel`, or **Move Thread to Panel** on the tab's menu, gives it back and closes the tab.
+  A new thread needs its first message before it can move, and the tab doesn't survive a restart.
+
 - **The Marley agent out of the box, and Rusty beside it** (#696, 2026-10-08).
   - The Marley agent is now on by default. **Agent** gains **Auto**, the new default: a second after
     start, Marley picks Claude Code if it is signed in, else Codex if signed in, else Zed's agent

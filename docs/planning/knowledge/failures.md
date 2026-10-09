@@ -3534,3 +3534,13 @@ Zed #64365 opens a `ContextMenu` with nothing chosen unless accessibility is ena
 `main.rs` disables it unless `ZED_EXPERIMENTAL_A11Y=1`. Scenarios 500, 503, 508, 532 and 579
 counted Downs from a first entry already chosen, so after the merge they landed one entry
 short. Fixed in #695: each presses Home (`menu::SelectFirst`) first.
+
+## F-claude-697-a-thread-in-a-center-tab-took-no-typing-001
+*severity: medium · found in: pipeline 697's Test phase · class: a hosted view focused at its root · prevented by: PR-claude-697-a-hosted-view-focuses-where-its-own-host-does-001*
+
+`ThreadTab` gave the `ConversationView`'s focus handle as its own and focused it on open. That
+handle is the `ThreadView`'s, which takes no typing, so text typed into a thread just moved to a
+center tab went nowhere: neither the tab's message box nor the agent got it. The Agent Panel
+focuses `activation_focus_handle` instead, the thread's message editor, but that method is
+`pub(crate)` in `agent_ui`. Fixed in #697: the tab's `Focusable` is the active thread's
+`message_editor` (a `pub` field), and the view's handle only when there is no thread.

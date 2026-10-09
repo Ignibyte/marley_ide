@@ -387,7 +387,9 @@ offered install command for its one JavaScript package manager, and `MARLEY_ROOT
 tasks `MARLEY_PORT_OFFSET` and `PORT` from it; #589 adds Remove to a worktree row's menu, through
 Zed's archive code, the branch deleted only when its commits are in its base, after the
 worktree's `remove_worktree` tasks (#591); #527 adds a project's launch configs to its `+`
-from `.zed/marley.json`, each opened only after its text is approved. W5 shipped as #441:
+from `.zed/marley.json`, each opened only after its text is approved; #697 moves an Agent Panel
+thread into a center tab beside the terminals, and back, from the palette or a thread row's menu.
+W5 shipped as #441:
 in the Marley layout
 tasks, New Terminal and Open in Terminal open center terminals, and nothing opens the bottom
 panel. W5b shipped as #449: `` ctrl-` ``, `ctrl-~` and `ctrl-j` work on the center terminals,

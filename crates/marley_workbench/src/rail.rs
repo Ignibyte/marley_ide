@@ -357,6 +357,11 @@ fn show_thread(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
+    // A thread in a center tab comes forward there (#697): the panel showing it too would draw
+    // one view twice.
+    if crate::thread_tab::activate_for(workspace, thread.thread_id, window, cx) {
+        return;
+    }
     let ThreadToOpen {
         thread_id,
         agent,
@@ -2681,6 +2686,18 @@ impl Rail {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
+        self.open_listed_thread(key, false, window, cx)
+    }
+
+    /// Opens a listed thread as a click does, then, with `center`, moves it into a center tab
+    /// (#697).
+    fn open_listed_thread(
+        &self,
+        key: &str,
+        center: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
         let thread = self
             .snapshot
             .threads
@@ -2696,6 +2713,7 @@ impl Rail {
             &thread.workspace.clone(),
             thread.closed.clone().as_ref(),
             opening,
+            center,
             window,
             cx,
         )
@@ -2704,12 +2722,13 @@ impl Rail {
     /// Shows `workspace` and opens the thread in its Agent Panel, which unarchives an archived
     /// one (#616). A closed project's thread opens its own folders under the project's key first,
     /// as Zed's Threads Sidebar opens one, so a thread that ran in a linked worktree opens there
-    /// (#617).
+    /// (#617). With `center`, the thread then moves into a center tab (#697).
     fn open_thread_with(
         &self,
         workspace: &WeakEntity<Workspace>,
         closed: Option<&ProjectGroupKey>,
         thread: ThreadToOpen,
+        center: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
@@ -2724,7 +2743,13 @@ impl Rail {
         self.in_workspace(
             workspace,
             closed,
-            move |workspace, window, cx| load_thread(workspace, thread, window, cx),
+            move |workspace, window, cx| {
+                let thread_id = thread.thread_id;
+                load_thread(workspace, thread, window, cx);
+                if center {
+                    crate::thread_tab::open_thread_in_center(workspace, thread_id, window, cx);
+                }
+            },
             window,
             cx,
         )
@@ -4878,7 +4903,14 @@ impl Rail {
                             work_dirs: thread.work_dirs,
                             title: Some(thread.title),
                         };
-                        rail.open_thread_with(&workspace, closed.as_ref(), opening, window, cx)
+                        rail.open_thread_with(
+                            &workspace,
+                            closed.as_ref(),
+                            opening,
+                            false,
+                            window,
+                            cx,
+                        )
                     })
                     .flatten()
                     .log_err();
@@ -5152,6 +5184,7 @@ impl Rail {
         cx: &Context<Self>,
     ) -> impl IntoElement {
         let key = row.key.clone();
+        let menu_key = row.key.clone();
         let thread_id = thread.thread_id;
         let rail = cx.entity().downgrade();
         let title = thread
@@ -5224,10 +5257,18 @@ impl Rail {
                 .child(card)
         })
         .menu(move |window, cx| {
-            let (rail, title) = (rail.clone(), title.clone());
+            let (rail, title, key) = (rail.clone(), title.clone(), menu_key.clone());
             ContextMenu::build(window, cx, move |menu, _, _| {
-                let (rail, title) = (rail.clone(), title.clone());
-                menu.entry("Archive Thread", None, move |_, cx| {
+                let (rail, title, key) = (rail.clone(), title.clone(), key.clone());
+                let center_rail = rail.clone();
+                menu.entry("Open in Center", None, move |window, cx| {
+                    center_rail
+                        .update(cx, |rail, cx| {
+                            rail.open_listed_thread(&key, true, window, cx).log_err();
+                        })
+                        .log_err();
+                })
+                .entry("Archive Thread", None, move |_, cx| {
                     Self::archive_thread(thread_id, cx);
                 })
                 .entry("Delete Thread…", None, move |window, cx| {

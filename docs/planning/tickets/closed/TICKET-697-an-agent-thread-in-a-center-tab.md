@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #697 (feature)
 - **Owner:** ce546757-1075-466f-a3cf-b6696d2211c9
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** [697-an-agent-thread-in-a-center-tab.spec.md](../../pipeline/completed/697-an-agent-thread-in-a-center-tab.spec.md)
 - **Source ticket:** Chad, 2026-10-08: "is there any way that its possible we are able to move the
   agent panel into the main content if we wanted? … lets do #3"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 `marley: open thread in center` moves the Agent Panel's active thread into a tab of the center

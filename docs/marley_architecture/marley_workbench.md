@@ -1738,6 +1738,30 @@ alike.
     - the answer is `starting`, then `seat start` runs, with `SeatStartFailed` as a
       notification.
 
+## An agent thread in a center tab (`src/thread_tab.rs`, `src/rail.rs`, #697)
+
+- `ThreadTab` (an `Item`, titled as the thread, `IconName::ZedAssistant`) hosts the Agent Panel's
+  own `ConversationView` entity, so the thread keeps running and its history while it sits in the
+  center. Zed's test-only `ThreadViewItem` is the pattern; no Zed path is touched.
+  - It observes the view (title changes re-render the tab) and subscribes to the panel: on
+    `ActiveViewChanged`, when the panel shows its view again, it emits `ItemEvent::CloseItem`, so a
+    view is never drawn in two places.
+  - Its `Focusable` is the active thread's `message_editor`, which the panel focuses on activation
+    (`activation_focus_handle` is `pub(crate)` in `agent_ui`); the view's own handle takes no typing.
+  - `tab_extra_context_menu_actions` gives the tab "Move Thread to Panel".
+- `OpenThreadInCenter` (`marley: open thread in center`) runs `open_in_center`. It refuses with a
+  toast when the window has no panel, no active thread, or an empty draft, and that check comes
+  before `clear_base_view`. A tab already showing the thread comes forward (`activate_for`).
+  Otherwise the panel `clear_base_view`s (it keeps the thread retained), and the tab goes in with
+  `add_item_to_center`.
+- `MoveThreadToPanel` runs `move_to_panel` on the active center item: `activate_retained_thread`
+  when the panel still retains the thread, else `load_agent_thread` from its history; the tab
+  closes, and the panel takes focus.
+- The rail: `show_thread` first brings a tab showing the thread forward (`activate_for`), and the
+  thread row's menu gains Open in Center (`open_listed_thread(key, center)`), which opens the
+  thread as a click does, then runs `open_thread_in_center` in that workspace.
+- The tab is not serialized: after a restart the thread is in the panel's history as before.
+
 ## The Rusty home page (`src/rusty/home_tab.rs`, #679)
 
 - `RustyHome` (an `Item`, title Rusty, `rusty::RUSTY_ICON`, a placeholder) is the Rusty group's

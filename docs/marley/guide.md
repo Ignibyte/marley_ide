@@ -1533,6 +1533,21 @@ memories, brain and skills through Rusty's own tools. It changes no file and run
   that profile is there, Marley offers Rusty's server to Zed's agents as the context server `rusty`,
   as **Rusty's Tools for Agents** does, and Zed asks before each call.
 
+### An agent thread in a center tab
+
+An Agent Panel thread can sit in the main content, as a tab beside your terminals and files (#697).
+
+- **Open in center.** `marley: open thread in center` moves the panel's active thread into a tab of
+  the center pane. It stays the same thread: it keeps running, keeps its history, and takes
+  messages in the tab. The panel turns to a new draft. You can also use **Open in Center** on a
+  thread's right-click menu in the rail. A new thread has to be sent its first message before it
+  can move.
+- **Move it back.** `marley: move thread to panel`, or **Move Thread to Panel** on the tab's
+  right-click menu, shows the thread in the Agent Panel again and closes the tab.
+- **One place at a time.** Clicking the thread's row in the rail brings its tab forward. Opening it
+  from the panel's own history moves it back to the panel and closes the tab.
+- **After a restart** the tab is gone. The thread is in the panel's history as usual.
+
 ## Marley's MCP server
 
 ### What it serves, and where

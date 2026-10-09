@@ -2855,3 +2855,12 @@ that reach outside the run. A ticket that adds such a setting adds it to the cop
 A scenario that chooses a menu entry with the keys presses Home once the menu is open, then
 counts Downs from the first entry. A menu opens with nothing chosen (Zed #64365), and Home holds
 whatever upstream does next.
+
+## PR-claude-697-a-hosted-view-focuses-where-its-own-host-does-001
+*severity: medium · prevents: F-claude-697-a-thread-in-a-center-tab-took-no-typing-001*
+
+A Marley `Item` that hosts a view another crate draws (a panel's view, a modal's body) gives as
+its `focus_handle` the handle that view's own host focuses on activation, not the view's
+`Focusable`. Read the host's activation path first (for the Agent Panel,
+`activation_focus_handle`); a view's root handle often only tracks focus for its children. The
+scenario types into the hosted view right after it opens, so a wrong handle shows as lost text.
