@@ -1827,6 +1827,25 @@ alike.
   - `editor_save` (`save`) runs `Project::save_buffer` on the editor's workspace's project.
   - `not_secret` guards read and edit alike. `OpenEditor` carries its workspace.
 
+## The Agent Panel's threads for agents (`src/thread_tools.rs`, #706)
+
+- **`live`** collects every window's workspaces' `AgentPanel::conversation_views`, each
+  conversation once. A thread's id is `parent_id().to_key_string()`, as the rail's rows use.
+- **`list`** answers each thread's `title` (else "New Thread") and its `agent`
+  (`agents::thread_agent_name`). `project` is the first visible worktree's name, and `running`
+  means `ThreadStatus::Generating`. `pending` is the tool's label, with `answerable` false for a
+  sandbox escalation.
+- **`read`** logs the read (#703), then runs `AcpThread::to_markdown` through `for_agents` and
+  `page_from`.
+- **`post`** refuses `draft_in_progress` while the message editor holds text. Otherwise it calls
+  `MessageEditor::insert_text`, then `ThreadView::send` in the thread's window, so a running
+  thread queues the post.
+- **`give_answer`** is #508's `answer_thread`: AllowOnce or RejectOnce through
+  `authorize_permission_request`. A sandbox escalation is `sandbox_escalation`. A request gone by
+  then is `no_pending`.
+- **The area.** All four pass `agent_control::Area::Threads` (`marley.agent_control.threads`).
+  List and read are Read, post is Act, and answer is Sensitive.
+
 ## Agent activity and the kill switch (`src/agent_activity.rs`, `src/mcp.rs`, `marley_mcp`, #703)
 
 - **The gate.** `mcp::answer`, after `permits`, runs `agent_activity::gate` for a write-tier tool

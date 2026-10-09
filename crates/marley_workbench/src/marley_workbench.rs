@@ -98,6 +98,7 @@ pub mod terminal_drive;
 pub mod terminal_ids;
 pub mod terminal_size;
 pub mod thread_tab;
+pub mod thread_tools;
 pub mod turn_git;
 pub mod turns;
 pub mod typed_line;

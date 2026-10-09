@@ -1899,6 +1899,10 @@
       // for This Session, Always for This Project, Deny); "ask_every" asks each time; "allow"
       // never asks.
       "editors": "ask_first",
+      // What an agent may do to the Agent Panel's threads through Marley's tools (#706), as for
+      // editors: posting into a thread acts, and answering a thread's permission asks every time
+      // unless this is "allow".
+      "threads": "ask_first",
       // File names an agent may not read through Marley's tools, as globs over the name alone.
       "secret_globs": [
         ".env*",

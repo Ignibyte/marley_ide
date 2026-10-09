@@ -28,6 +28,8 @@ pub enum Family {
     /// Files opened for an agent's own editor key and waited on, for Marley's `marley-edit`
     /// (#649); never listed, and Marley's own. Named `editor_*` until #704.
     Prompt,
+    /// The Agent Panel's threads, listed, read, posted into and answered for an agent (#706).
+    Thread,
     /// Zed's docs and Marley's guide, as this build ships them, searched and read (#681).
     Docs,
     /// The settings' schema and the values each settings file gives (#681).
@@ -52,6 +54,7 @@ impl Family {
             Self::Ports => "ports",
             Self::Editor => "editor",
             Self::Prompt => "prompt",
+            Self::Thread => "thread",
             Self::Docs => "docs",
             Self::Settings => "settings",
             Self::Actions => "actions",
@@ -70,6 +73,7 @@ impl Family {
                 | Self::Browser
                 | Self::Ports
                 | Self::Editor
+                | Self::Thread
                 | Self::Docs
                 | Self::Settings
                 | Self::Actions
@@ -445,6 +449,40 @@ const REGISTRY: &[ToolSpec] = &[
                       allowed agents to act in editors without asking.",
     },
     ToolSpec {
+        family: Family::Thread,
+        verb: "list",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "List the Agent Panel's threads in Marley's windows: each one's id, title, \
+                      agent, project, whether it is running, and the permission it waits on, if \
+                      any, with whether an agent may answer it.",
+    },
+    ToolSpec {
+        family: Family::Thread,
+        verb: "read",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "Read a thread by its id from thread_list as Markdown, its messages and \
+                      tool calls, a page of lines at a time, keys and tokens masked.",
+    },
+    ToolSpec {
+        family: Family::Thread,
+        verb: "post",
+        tier: Tier::Write,
+        grant_class: "thread.write",
+        description: "Send a message into a thread, as the user would type it; a running thread \
+                      queues it. The user may be asked first.",
+    },
+    ToolSpec {
+        family: Family::Thread,
+        verb: "answer",
+        tier: Tier::Write,
+        grant_class: "thread.write",
+        description: "Answer the permission a thread waits on: allow it once, or reject it. The \
+                      user is asked each time unless they allowed agents to act on threads \
+                      without asking. A sandbox escalation is never answered.",
+    },
+    ToolSpec {
         family: Family::Docs,
         verb: "search",
         tier: Tier::Read,
@@ -630,6 +668,7 @@ fn tool_schemas(spec: &ToolSpec) -> (Value, Value) {
         Family::Ports => ports_list_schemas(),
         Family::Editor => editor_schemas(spec.verb),
         Family::Prompt => prompt_schemas(spec.verb),
+        Family::Thread => thread_schemas(spec.verb),
         Family::Docs => docs_schemas(spec.verb),
         Family::Settings => settings_schemas(spec.verb),
         Family::Actions => actions_list_schemas(),
@@ -2123,6 +2162,89 @@ fn editor_change_schemas(verb: &str) -> (Value, Value) {
     }
 }
 
+/// `thread_list`, `thread_read`, `thread_post` and `thread_answer` (#706): no arguments, the threads
+/// out; a thread and the first line in, a page of its Markdown out; a thread and a message in,
+/// whether it was sent out; a thread and allow or reject in, the answer given out.
+fn thread_schemas(verb: &str) -> (Value, Value) {
+    let thread = json!({ "type": "string", "minLength": 1, "description": "The thread's id, from thread_list." });
+    match verb {
+        "list" => (
+            json!({ "type": "object", "properties": {}, "additionalProperties": false }),
+            json!({
+                "type": "object",
+                "properties": { "threads": { "type": "array", "items": { "type": "object" } } },
+                "required": ["threads"]
+            }),
+        ),
+        "read" => (
+            json!({
+                "type": "object",
+                "properties": {
+                    "thread": thread,
+                    "start_line": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "The first line of the page; 1 when left out."
+                    }
+                },
+                "required": ["thread"],
+                "additionalProperties": false
+            }),
+            json!({
+                "type": "object",
+                "properties": {
+                    "thread": { "type": "string" },
+                    "text": { "type": "string" },
+                    "first_line": { "type": "integer" },
+                    "last_line": { "type": "integer" },
+                    "total_lines": { "type": "integer" },
+                    "next_line": { "type": ["integer", "null"] }
+                },
+                "required": ["thread", "text", "first_line", "last_line", "total_lines"]
+            }),
+        ),
+        "post" => (
+            json!({
+                "type": "object",
+                "properties": {
+                    "thread": thread,
+                    "message": { "type": "string", "minLength": 1, "description": "What to send." }
+                },
+                "required": ["thread", "message"],
+                "additionalProperties": false
+            }),
+            json!({
+                "type": "object",
+                "properties": { "thread": { "type": "string" }, "sent": { "type": "boolean" } },
+                "required": ["thread", "sent"]
+            }),
+        ),
+        _ => (
+            json!({
+                "type": "object",
+                "properties": {
+                    "thread": thread,
+                    "allow": {
+                        "type": "boolean",
+                        "description": "true allows the call once; false rejects it."
+                    }
+                },
+                "required": ["thread", "allow"],
+                "additionalProperties": false
+            }),
+            json!({
+                "type": "object",
+                "properties": {
+                    "thread": { "type": "string" },
+                    "tool": { "type": "string" },
+                    "allowed": { "type": "boolean" }
+                },
+                "required": ["thread", "tool", "allowed"]
+            }),
+        ),
+    }
+}
+
 /// `prompt_open` and `prompt_wait` (#649): a file's absolute path in, the edit's id out; the id
 /// and a wait in, whether the edit ended out.
 fn prompt_schemas(verb: &str) -> (Value, Value) {
@@ -2356,6 +2478,10 @@ mod tests {
                 "editor_open",
                 "editor_edit",
                 "editor_save",
+                "thread_list",
+                "thread_read",
+                "thread_post",
+                "thread_answer",
                 "docs_search",
                 "docs_read",
                 "settings_schema",
@@ -2366,7 +2492,7 @@ mod tests {
                 "actions_list"
             ]
         );
-        assert_eq!(registry().len(), 46);
+        assert_eq!(registry().len(), 50);
         assert_eq!(
             lookup("fleet_snapshot").expect("read tool").tier,
             Tier::Read

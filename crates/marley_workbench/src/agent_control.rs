@@ -35,18 +35,22 @@ const KEY: &str = "always";
 pub(crate) enum Area {
     /// Zed's editors (#704).
     Editors,
+    /// The Agent Panel's threads (#706).
+    Threads,
 }
 
 impl Area {
     const fn name(self) -> &'static str {
         match self {
             Self::Editors => "editors",
+            Self::Threads => "threads",
         }
     }
 
     const fn words(self) -> &'static str {
         match self {
             Self::Editors => "Zed's editors",
+            Self::Threads => "the Agent Panel's threads",
         }
     }
 
@@ -61,6 +65,9 @@ impl Area {
         match self {
             Self::Editors => agent_control
                 .and_then(|agent_control| agent_control.editors)
+                .unwrap_or_default(),
+            Self::Threads => agent_control
+                .and_then(|agent_control| agent_control.threads)
                 .unwrap_or_default(),
         }
     }

@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Agents work the Agent Panel's threads** (#706, 2026-10-09). Over Marley's MCP server an agent
+  lists the threads in your Agent Panels with their state, reads one (keys masked), posts a
+  message into one as you would, and answers a thread's waiting permission with Allow once or
+  Reject. Settings → Marley → Agent Control → Threads sets the asking (Ask First by default), and
+  an answer asks every time unless it is Allow. A sandbox escalation is never answered by an
+  agent, and a post waits while you have a message typed in that thread.
+
 - **Agents edit and save Zed's editors** (#705, 2026-10-09). `editor_edit` replaces text an agent
   names in an open editor, the match unique unless it asks for every one. The change is a single
   undo step and stays unsaved. `editor_save` saves, and asks you every time unless Settings →

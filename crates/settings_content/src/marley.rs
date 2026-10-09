@@ -381,6 +381,12 @@ pub struct MarleyAgentControlContent {
     ///
     /// Default: "ask_first"
     pub editors: Option<MarleyAgentControlMode>,
+    /// What an agent may do to the Agent Panel's threads through Marley's tools (#706): `off`
+    /// refuses them, reads too; under `ask_first` posting into a thread asks once per agent
+    /// session; answering a thread's permission asks every time unless this is `allow`.
+    ///
+    /// Default: "ask_first"
+    pub threads: Option<MarleyAgentControlMode>,
     /// The file names an agent may not read through Marley's tools, as globs over the name alone,
     /// such as `*.pem` (#704). Matched files are refused and named, so you can drop a pattern.
     ///

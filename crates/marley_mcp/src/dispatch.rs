@@ -245,6 +245,7 @@ fn tools_call(ctx: &RequestCtx, request: &RpcRequest, id: &Value) -> Handled {
         | Family::Ports
         | Family::Editor
         | Family::Prompt
+        | Family::Thread
         | Family::Docs
         | Family::Settings
         | Family::Actions

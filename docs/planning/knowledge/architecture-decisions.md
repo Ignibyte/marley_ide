@@ -4661,3 +4661,20 @@ Rejected:
 - line and column ranges (they go stale between a read and an edit);
 - auto-saving edits (it puts a write to disk outside the user's control);
 - a review view built now on `TextDiffView` (a second UI for what undo already gives).
+
+## AD-claude-706-agents-post-and-answer-through-the-panels-own-paths-001
+*decided at: 2026-10-09 · status: shipped · builds on: AD-claude-705-agent-edits-are-exact-replacements-and-saves-always-ask-001*
+
+**The decision.** An agent works a thread the way the user would, through the Agent Panel's own
+paths:
+- **A post** goes in through the thread's message editor and `ThreadView::send`, so a running
+  thread queues it. A post is refused while the user has unsent text there, since sending would
+  take the draft along.
+- **An answer** is the rail's (#508): Allow Once or Reject Once only. It is Sensitive, so it asks
+  every time unless the threads area is `allow`, and an agent never answers a sandbox
+  escalation, which the panel guards with its surprising-Unicode check.
+
+**Rejected:**
+- Writing to the ACP connection directly, which skips the panel's queue and its UI state.
+- Allow Always answers, which change a tool's standing rules on the agent's say-so.
+- Replacing the user's draft with `set_message`.

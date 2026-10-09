@@ -897,7 +897,7 @@ fn voice_section() -> [SettingsPageItem; 2] {
 }
 
 // Marley: the kill switch of agents' write tools (#703).
-fn agent_control_section() -> [SettingsPageItem; 3] {
+fn agent_control_section() -> [SettingsPageItem; 4] {
     [
         SettingsPageItem::SectionHeader("Agent Control"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -946,6 +946,32 @@ fn agent_control_section() -> [SettingsPageItem; 3] {
                         .agent_control
                         .get_or_insert_default()
                         .editors = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: what an agent may do to the Agent Panel's threads (#706).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Threads",
+            description: "What an agent may do to the Agent Panel's threads through Marley's tools: Off refuses them, reads too; Ask First asks before an agent's session first posts into a thread; Ask Every asks each time; Allow never asks. Answering a thread's permission asks every time unless this is Allow.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.agent_control.threads"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.agent_control.as_ref())
+                        .and_then(|agent_control| agent_control.threads.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .agent_control
+                        .get_or_insert_default()
+                        .threads = value;
                 },
             }),
             metadata: None,

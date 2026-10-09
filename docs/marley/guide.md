@@ -1624,6 +1624,15 @@ An agent can see and open Zed's editors through Marley's tools (#704):
   so Ctrl+Z takes it back. A secret file is refused here too.
 - `editor_save` saves an open editor. A save asks every time, even in a session you allowed,
   unless Editors is set to Allow.
+- `thread_list` lists the threads in your Agent Panels (#706): each one's title, agent, project,
+  whether it is running, and the permission it waits on. `thread_read` reads one, keys masked,
+  and shows in Agent Activity.
+- `thread_post` sends a message into a thread as you would; Settings → Marley → Agent Control →
+  Threads sets whether it asks (Ask First by default). It is refused while you have a message
+  typed there and not sent.
+- `thread_answer` allows a thread's waiting tool call once, or rejects it. It asks every time
+  unless Threads is Allow, and a sandbox escalation is never answered by an agent: only you
+  answer that, in the Agent Panel.
 
 **Settings → Marley → Agent Control → Editors** (`marley.agent_control.editors`) sets what agents
 may do there:

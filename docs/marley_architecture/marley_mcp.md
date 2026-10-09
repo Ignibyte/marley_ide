@@ -116,6 +116,9 @@ OR Apache-2.0, with the Marley crates' lint table.
   `editor_read` (Read, `id` or `path`, `start_line`) and `editor_open` (Write, `editor.write`,
   `path`, `line`, `column`), with `editor_schemas`; since #705 `editor_edit` and `editor_save`
   (Write, `editor.write`; `editor_change_schemas`). No outside client's list names them.
+- Since #706 the `thread` family is served too: `thread_list` and `thread_read` (Read; `thread`,
+  `start_line`), and `thread_post` (`thread`, `message`) and `thread_answer` (`thread`, `allow`),
+  both Write with `thread.write` (`thread_schemas`). `dispatch` defers it.
 
 ## Redaction (`redact.rs`, #516, #562)
 
