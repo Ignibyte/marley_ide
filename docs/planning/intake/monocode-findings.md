@@ -1,7 +1,7 @@
 ---
-status: intake
+status: promoted
 created: 2026-10-09
-ticket: <unassigned>
+ticket: TICKET-714 to TICKET-721 (deliberate, for future use)
 pipeline_spec: <unassigned>
 ---
 
