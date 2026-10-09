@@ -246,6 +246,7 @@ fn tools_call(ctx: &RequestCtx, request: &RpcRequest, id: &Value) -> Handled {
         | Family::Editor
         | Family::Prompt
         | Family::Thread
+        | Family::Action
         | Family::Docs
         | Family::Settings
         | Family::Actions

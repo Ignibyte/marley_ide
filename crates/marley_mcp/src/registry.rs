@@ -30,6 +30,8 @@ pub enum Family {
     Prompt,
     /// The Agent Panel's threads, listed, read, posted into and answered for an agent (#706).
     Thread,
+    /// Zed's palette actions an agent may run, listed and run (#707).
+    Action,
     /// Zed's docs and Marley's guide, as this build ships them, searched and read (#681).
     Docs,
     /// The settings' schema and the values each settings file gives (#681).
@@ -55,6 +57,7 @@ impl Family {
             Self::Editor => "editor",
             Self::Prompt => "prompt",
             Self::Thread => "thread",
+            Self::Action => "action",
             Self::Docs => "docs",
             Self::Settings => "settings",
             Self::Actions => "actions",
@@ -74,6 +77,7 @@ impl Family {
                 | Self::Ports
                 | Self::Editor
                 | Self::Thread
+                | Self::Action
                 | Self::Docs
                 | Self::Settings
                 | Self::Actions
@@ -483,6 +487,23 @@ const REGISTRY: &[ToolSpec] = &[
                       without asking. A sandbox escalation is never answered.",
     },
     ToolSpec {
+        family: Family::Action,
+        verb: "list",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "List the palette actions an agent may run in Marley: each one's name, its \
+                      documentation, and whether the user allowed it by name.",
+    },
+    ToolSpec {
+        family: Family::Action,
+        verb: "run",
+        tier: Tier::Write,
+        grant_class: "action.write",
+        description: "Run a palette action from action_list by name, with its JSON arguments, \
+                      in the window of the project given (else the active one), as the command \
+                      palette would. The user may be asked first.",
+    },
+    ToolSpec {
         family: Family::Docs,
         verb: "search",
         tier: Tier::Read,
@@ -669,6 +690,7 @@ fn tool_schemas(spec: &ToolSpec) -> (Value, Value) {
         Family::Editor => editor_schemas(spec.verb),
         Family::Prompt => prompt_schemas(spec.verb),
         Family::Thread => thread_schemas(spec.verb),
+        Family::Action => action_schemas(spec.verb),
         Family::Docs => docs_schemas(spec.verb),
         Family::Settings => settings_schemas(spec.verb),
         Family::Actions => actions_list_schemas(),
@@ -2245,6 +2267,55 @@ fn thread_schemas(verb: &str) -> (Value, Value) {
     }
 }
 
+/// `action_list` and `action_run` (#707): no arguments, the actions an agent may run out; an
+/// action's name, its arguments and a project in, whether it was dispatched out.
+fn action_schemas(verb: &str) -> (Value, Value) {
+    match verb {
+        "list" => (
+            json!({ "type": "object", "properties": {}, "additionalProperties": false }),
+            json!({
+                "type": "object",
+                "properties": {
+                    "actions": { "type": "array", "items": { "type": "object" } },
+                    "unknown": { "type": "array", "items": { "type": "string" } }
+                },
+                "required": ["actions", "unknown"]
+            }),
+        ),
+        _ => (
+            json!({
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200,
+                        "description": "The action's name, such as workspace::ToggleLeftDock."
+                    },
+                    "arguments": {
+                        "type": "object",
+                        "description": "The action's arguments, for an action that takes some."
+                    },
+                    "project": {
+                        "type": "string",
+                        "description": "The project to run it in, by folder name or path; the active window when left out."
+                    }
+                },
+                "required": ["name"],
+                "additionalProperties": false
+            }),
+            json!({
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string" },
+                    "dispatched": { "type": "boolean" }
+                },
+                "required": ["name", "dispatched"]
+            }),
+        ),
+    }
+}
+
 /// `prompt_open` and `prompt_wait` (#649): a file's absolute path in, the edit's id out; the id
 /// and a wait in, whether the edit ended out.
 fn prompt_schemas(verb: &str) -> (Value, Value) {
@@ -2482,6 +2553,8 @@ mod tests {
                 "thread_read",
                 "thread_post",
                 "thread_answer",
+                "action_list",
+                "action_run",
                 "docs_search",
                 "docs_read",
                 "settings_schema",
@@ -2492,7 +2565,7 @@ mod tests {
                 "actions_list"
             ]
         );
-        assert_eq!(registry().len(), 50);
+        assert_eq!(registry().len(), 52);
         assert_eq!(
             lookup("fleet_snapshot").expect("read tool").tier,
             Tier::Read

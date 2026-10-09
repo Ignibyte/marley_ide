@@ -1846,6 +1846,23 @@ alike.
 - **The area.** All four pass `agent_control::Area::Threads` (`marley.agent_control.threads`).
   List and read are Read, post is Act, and answer is Sensitive.
 
+## Palette actions for agents (`src/action_tools.rs`, #707)
+
+- **Who may run what:** `ALLOWED` (37 names) and the user's
+  `marley.agent_control.actions_allowed` run under `Area::Actions` (`action_run` is Act).
+  `refused` is over both. It refuses a name whose namespace is in `REFUSED_NAMESPACES` or whose
+  local name holds a word from `REFUSED_WORDS`, and it is checked again on the built action's
+  `name()`.
+- **`list`** answers the allowed actions with `cx.action_documentation()`, plus `unknown`: the
+  allowlisted names `cx.all_action_names()` lacks. The scenario keeps that empty, so an upstream
+  rename shows.
+- **`target`:** the workspace whose visible worktree's name or path is `project`, else the active
+  window's shown workspace, else the first window's.
+- **`run`** builds the action with `cx.build_action`. When the target isn't shown, it activates
+  that workspace and waits for `on_next_frame`. Then `dispatch_in` focuses the active pane if
+  nothing is focused. It refuses `not_available` when `window.is_action_available` says so;
+  otherwise it calls `window.dispatch_action`.
+
 ## Agent activity and the kill switch (`src/agent_activity.rs`, `src/mcp.rs`, `marley_mcp`, #703)
 
 - **The gate.** `mcp::answer`, after `permits`, runs `agent_activity::gate` for a write-tier tool

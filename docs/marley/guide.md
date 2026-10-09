@@ -1633,6 +1633,14 @@ An agent can see and open Zed's editors through Marley's tools (#704):
 - `thread_answer` allows a thread's waiting tool call once, or rejects it. It asks every time
   unless Threads is Allow, and a sandbox escalation is never answered by an agent: only you
   answer that, in the Agent Panel.
+- `action_list` lists the palette actions an agent may run (#707). These are Marley's safe ones
+  (docks and panels, splits, pane navigation, search, go-to, Format, folds and the finders) and
+  any you name in `marley.agent_control.actions_allowed`.
+- `action_run` runs one by name, in the window of the project it names or the active one, as
+  the command palette would. Settings → Marley → Agent Control → Actions sets whether it asks
+  (Ask First by default). An action that could quit, run code or a task, type into a terminal,
+  answer a consent, push or change git, delete, install, sign in or share, or change Marley's
+  and Rusty's own controls is refused even when you name it.
 
 **Settings → Marley → Agent Control → Editors** (`marley.agent_control.editors`) sets what agents
 may do there:

@@ -4678,3 +4678,21 @@ paths:
 - Writing to the ACP connection directly, which skips the panel's queue and its UI state.
 - Allow Always answers, which change a tool's standing rules on the agent's say-so.
 - Replacing the user's draft with `set_message`.
+
+## AD-claude-707-palette-actions-run-from-an-allowlist-under-a-hard-refusal-001
+*decided at: 2026-10-09 · status: shipped · builds on: AD-claude-706-agents-post-and-answer-through-the-panels-own-paths-001*
+
+**The decision.** Agents run palette actions from Marley's allowlist plus the names the user puts
+in `actions_allowed`, never from a deny list: upstream adds and renames actions at every merge,
+and a deny list would let each new one through.
+- **The hard refusal** sits over both and no setting lifts it. It covers namespaces (agent
+  consents and threads, tasks and runs, git, installs, accounts, Marley's and Rusty's own
+  controls) and words (Quit, Run, Allow, Delete, SendKeystroke and kin).
+- **The kill switch stays the user's:** `marley::ResumeAgentControl` falls under the refusal, and
+  so does `workspace::SendKeystrokes`, which could chain to any binding.
+- **Dispatch is the palette's**, from the target window's focus. An action nothing there takes is
+  `not_available` rather than a silent no-op.
+
+**Rejected:**
+- A deny list.
+- Dispatching on the workspace's own focus handle, which skips the focused editor's handlers.

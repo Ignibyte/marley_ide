@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-707](open/TICKET-707-palette-actions.md) | feature | Palette actions over MCP |
 
 ## Deliberate (picked explicitly, never auto-next)
 

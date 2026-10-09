@@ -5229,3 +5229,15 @@ rewrite) passes it whatever phase the transcript is in. In #704 the plan was wri
 the settings and registry edits went in through Bash before `/pipeline:code 704` was invoked; the
 hook caught the first Write. Invoke the phase's skill before the first code edit even when the
 edits are scripted, so the transcript and the hooks agree on the phase.
+
+## L-claude-707-marleys-rail-is-not-the-left-dock-and-an-opened-dock-takes-the-focus-001
+*category: testing · topic: scenarios that drive Zed's docks · from: pipeline 707*
+
+**The rail is not the left dock.** Marley's rail is its own column, and in a scenario's fresh
+profile the left dock is empty, so `workspace::ToggleLeftDock` changes nothing on screen. The
+project panel sits in the right dock, so use `workspace::ToggleRightDock` for a toggle a shot can
+show.
+
+**An opened dock takes the focus.** A toggle that opens a dock focuses its panel, so a
+following pane action such as `pane::SplitRight` is not available until an editor is clicked
+again. `action_run` reports that as `not_available`.

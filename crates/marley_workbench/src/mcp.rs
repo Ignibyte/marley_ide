@@ -112,6 +112,7 @@ pub fn start(cx: &mut App) {
                 "settings.write",
                 "harness.write",
                 "thread.write",
+                "action.write",
             ]),
             ..transport::ServerData::default()
         }),
@@ -543,6 +544,10 @@ fn answer(mut call: AppCall, cx: &mut App) {
     }
     if call.tool.starts_with("thread_") {
         crate::thread_tools::answer(call, cx);
+        return;
+    }
+    if call.tool.starts_with("action_") {
+        crate::action_tools::answer(call, cx);
         return;
     }
     if call.tool == "ports_list" {

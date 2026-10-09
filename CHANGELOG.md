@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Agents run Zed's palette actions** (#707, 2026-10-09). Over Marley's MCP server an agent
+  lists and runs the palette actions Marley counts as safe: docks and panels, splits, pane
+  navigation, search, go-to, Format, folds and the finders. It can also run the ones you name in
+  `marley.agent_control.actions_allowed`. Each runs in the window of the project it names, as the
+  command palette would. Settings → Marley → Agent Control → Actions sets the asking (Ask First by
+  default). Some actions are refused even when you name them: anything that could quit, run code
+  or a task, type into a terminal, answer a consent, push or change git, delete, install, sign in
+  or share, or change Marley's and Rusty's own controls.
+
 - **Agents work the Agent Panel's threads** (#706, 2026-10-09). Over Marley's MCP server an agent
   lists the threads in your Agent Panels with their state, reads one (keys masked), posts a
   message into one as you would, and answers a thread's waiting permission with Allow once or

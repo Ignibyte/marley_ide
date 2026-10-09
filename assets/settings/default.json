@@ -1903,6 +1903,14 @@
       // editors: posting into a thread acts, and answering a thread's permission asks every time
       // unless this is "allow".
       "threads": "ask_first",
+      // What an agent may do with Zed's palette actions through Marley's tools (#707), as for
+      // editors. Only the actions Marley lists as safe (navigation, docks and panels, splits,
+      // search, formatting, go-to) and those named in "actions_allowed" run at all.
+      "actions": "ask_first",
+      // Palette actions an agent may run besides Marley's safe ones, by name, such as
+      // "editor::SelectAll". An action that could quit, run code, answer a consent or delete is
+      // refused even when named here.
+      "actions_allowed": [],
       // File names an agent may not read through Marley's tools, as globs over the name alone.
       "secret_globs": [
         ".env*",

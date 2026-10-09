@@ -20,6 +20,7 @@
     )
 )]
 
+pub mod action_tools;
 pub mod agent_activity;
 pub mod agent_bar;
 pub mod agent_control;

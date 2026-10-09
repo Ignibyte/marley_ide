@@ -37,6 +37,8 @@ pub(crate) enum Area {
     Editors,
     /// The Agent Panel's threads (#706).
     Threads,
+    /// Zed's palette actions (#707).
+    Actions,
 }
 
 impl Area {
@@ -44,6 +46,7 @@ impl Area {
         match self {
             Self::Editors => "editors",
             Self::Threads => "threads",
+            Self::Actions => "actions",
         }
     }
 
@@ -51,6 +54,7 @@ impl Area {
         match self {
             Self::Editors => "Zed's editors",
             Self::Threads => "the Agent Panel's threads",
+            Self::Actions => "Zed's palette actions",
         }
     }
 
@@ -68,6 +72,9 @@ impl Area {
                 .unwrap_or_default(),
             Self::Threads => agent_control
                 .and_then(|agent_control| agent_control.threads)
+                .unwrap_or_default(),
+            Self::Actions => agent_control
+                .and_then(|agent_control| agent_control.actions)
                 .unwrap_or_default(),
         }
     }

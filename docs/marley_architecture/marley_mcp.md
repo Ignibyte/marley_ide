@@ -119,6 +119,8 @@ OR Apache-2.0, with the Marley crates' lint table.
 - Since #706 the `thread` family is served too: `thread_list` and `thread_read` (Read; `thread`,
   `start_line`), and `thread_post` (`thread`, `message`) and `thread_answer` (`thread`, `allow`),
   both Write with `thread.write` (`thread_schemas`). `dispatch` defers it.
+- Since #707 the `action` family is served: `action_list` (Read) and `action_run` (Write,
+  `action.write`; `name`, `arguments`, `project`), with `action_schemas`. `dispatch` defers it.
 
 ## Redaction (`redact.rs`, #516, #562)
 

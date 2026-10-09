@@ -387,6 +387,18 @@ pub struct MarleyAgentControlContent {
     ///
     /// Default: "ask_first"
     pub threads: Option<MarleyAgentControlMode>,
+    /// What an agent may do with Zed's palette actions through Marley's tools (#707): `off`
+    /// refuses them, the list too; under `ask_first` running one asks once per agent session.
+    /// Only the actions Marley lists as safe and those in `actions_allowed` run at all.
+    ///
+    /// Default: "ask_first"
+    pub actions: Option<MarleyAgentControlMode>,
+    /// Palette actions an agent may run besides the ones Marley lists as safe, by name, such as
+    /// `"editor::SelectAll"` (#707). An action that could quit, run code, answer a consent or
+    /// delete is refused even when named here.
+    ///
+    /// Default: []
+    pub actions_allowed: Option<Vec<String>>,
     /// The file names an agent may not read through Marley's tools, as globs over the name alone,
     /// such as `*.pem` (#704). Matched files are refused and named, so you can drop a pattern.
     ///
