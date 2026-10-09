@@ -87,6 +87,18 @@ const PROFILE_TOOLS: [&str; 8] = [
     "actions_list",
 ];
 
+/// Marley's tools the Marley entry may not call on Claude Code (#698): every tool Marley's server
+/// knows outside [`PROFILE_TOOLS`], as Claude Code names an MCP tool. Zed hands every agent the
+/// whole `marley` server, `terminal_run` and the browser's write tools among it. Built from the
+/// registry, so a tool added there is kept out until the profile turns it on.
+fn marley_tools_kept_out() -> impl Iterator<Item = String> {
+    marley_mcp::registry()
+        .iter()
+        .map(marley_mcp::ToolSpec::name)
+        .filter(|name| !PROFILE_TOOLS.contains(&name.as_str()))
+        .map(|name| format!("mcp__{}__{name}", crate::mcp::CONTEXT_SERVER))
+}
+
 /// How long `auto` waits before it looks: the user's settings have loaded by then, and Zed's own
 /// tests, whose clock stands still, start no status check.
 const DETECT_AFTER: Duration = Duration::from_secs(1);
@@ -515,11 +527,15 @@ fn take_out(entry: Entry, cx: &mut App) {
 }
 
 /// The `_meta` each Claude Code session of `entry` carries: its instructions as an append to the
-/// system prompt, the tools it may not use, and no bypass mode. Rusty's also names Rusty's server,
-/// which the adapter adds to the servers Zed passes, and keeps Marley's tools out.
+/// system prompt, the tools it may not use, and no bypass mode. Marley's keeps out every Marley
+/// tool but its own eight (#698). Rusty's also names Rusty's server, which the adapter adds to the
+/// servers Zed passes, and keeps Marley's tools out.
 fn session_meta(entry: Entry, rusty: Option<&RustyServer>) -> Value {
     let mut disallowed: Vec<String> = DISALLOWED_TOOLS.iter().map(ToString::to_string).collect();
     let mut options = Map::new();
+    if entry == Entry::Marley {
+        disallowed.extend(marley_tools_kept_out());
+    }
     if let Some(server) = rusty {
         disallowed.push(format!("mcp__{}", crate::mcp::CONTEXT_SERVER));
         let mut servers = Map::new();

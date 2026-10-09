@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #698 (bug)
 - **Owner:** ce546757-1075-466f-a3cf-b6696d2211c9
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** [698-keep-the-marley-agent-to-its-own-tools.spec.md](../../pipeline/completed/698-keep-the-marley-agent-to-its-own-tools.spec.md)
 - **Source ticket:** found while planning #696
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The Marley agent's instructions say it edits no file and runs no command. On Claude Code, only

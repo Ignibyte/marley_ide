@@ -974,6 +974,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **The Marley agent keeps to its own tools on Claude Code** (#698, 2026-10-09). Zed hands every
+  agent all of Marley's tools, so the Marley agent on Claude Code could still run a command
+  through `terminal_run`, type into a terminal or drive the Browser tab. Its sessions now turn off
+  every Marley tool but its eight (the docs, settings and keymap tools, `seat_add` and
+  `actions_list`), from Marley's own list of tools, so a new one is covered. On Codex no such
+  limit holds: codex-acp replaces a server's settings with the one Zed passes. The Marley agent's
+  instructions still tell it not to.
+
 - **Every harness refusal reaches the agent by its code** (#693, 2026-10-07). `seat_add` passed
   the harness's codes through only from a list of twelve, so `seat_surface` and the runtime's own
   codes were lost. Marley now takes any `rh: CODE: reason`'s code as the harness gives it, and

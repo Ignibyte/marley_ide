@@ -67,7 +67,9 @@ Owner: the Marley session. Nothing in it waits on another repository.
 5. **The Marley entry in the Agent Panel.** S to M. **Done.** Claude Code in #683 (2026-10-07),
    with the session meta in `marley.agent_session_meta` and one Zed hunk. Codex (`codex-acp`
    read-only, `CODEX_CONFIG`) and Zed's agent (a `marley` profile) in #687, chosen by
-   `marley.assistant.agent`. The offer finds the agent once.
+   `marley.assistant.agent`. The offer finds the agent once. Since #698 the Claude Code entry's
+   sessions disallow every Marley tool but its eight; Codex can't be limited that way (codex-acp
+   replaces a server's `disabled_tools` with the server ACP passes).
    - Detection that never touches a token: `claude auth status` (JSON with `loggedIn`),
      `codex login status`, and the language-model providers Zed has configured.
    - The choice: the setting if set, else Claude Code, else Codex, else Zed's agent.

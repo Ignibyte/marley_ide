@@ -5200,3 +5200,14 @@ The rail recognizes an agent CLI by its foreground process. A stand-in `claude` 
 script runs as `bash` and reads as a plain shell. A Python script is named by its file, so the
 rail reads it as Claude Code (#519's stand-in is Python for this reason). Give it output that keeps
 arriving (a line every half second) and the rail reads it as working.
+
+## L-claude-698-codex-acp-replaces-a-servers-config-with-the-one-acp-passes-001
+*category: zed fork · topic: limiting an agent's MCP tools on Codex · from: pipeline 698*
+
+codex-acp (`src/codex_agent.rs`, `build_session_config`, main 296069e8) inserts each MCP server
+ACP's `session/new` passes into the session's `mcp_servers` by name, with `disabled_tools`,
+`enabled_tools` and `default_tools_approval_mode` all `None`. That replaces any entry of the same
+name from `CODEX_CONFIG` or `config.toml`, so a `disabled_tools` list can't limit the `marley`
+server Zed passes. A limit on Codex has to come from the server's side, telling one agent's calls
+from another's. Claude Code's `disallowedTools` in the session `_meta` (`mcp__<server>__<tool>`)
+has no such gap.

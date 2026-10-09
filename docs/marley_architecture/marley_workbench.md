@@ -2369,6 +2369,10 @@ alike.
       global as well as the settings.
     - `session_meta(entry, rusty)` adds `mcpServers.rusty` and `mcp__marley` to the disallowed
       tools. `codex_config(entry, rusty)` adds `mcp_servers.rusty`.
+    - **Since #698** the Marley entry's `session_meta` also disallows `marley_tools_kept_out()`:
+      every name in `marley_mcp::registry()` outside `PROFILE_TOOLS`, as `mcp__marley__<name>`.
+      Codex has no equivalent: codex-acp's `build_session_config` inserts each server ACP passes
+      with `disabled_tools: None`, replacing a same-named entry of `CODEX_CONFIG`.
     - The `rusty` profile has no built-in tools and `enable_all_context_servers: true`. While it is
       applied, `rusty::offer_again` offers the `rusty` context server as `agent_tools` does
       (`wants_rusty_profile`).
