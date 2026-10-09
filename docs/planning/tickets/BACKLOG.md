@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-702](open/TICKET-702-one-rail-row-for-a-thread-in-a-center-tab.md) | bug | A thread in a center tab gets one rail row, the thread row, not a second for its tab |
 
 ## Deliberate (picked explicitly, never auto-next)
 

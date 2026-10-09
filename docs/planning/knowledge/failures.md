@@ -3570,3 +3570,15 @@ closures over a weak handle.
 pending ones included. After a launch with a path, which restores nothing, the last session's
 Home record stays pending. #700's rule then made a new Home, and it was called "Home 2". Fixed in
 #701: Home, like Rusty, keeps its name; only named groups are numbered.
+
+## F-claude-702-a-group-made-at-start-took-the-windows-focus-001
+*severity: high · found in: pipeline 702's Test phase · class: focus moved into an unshown workspace · prevented by: PR-claude-702-making-a-workspace-in-the-background-keeps-the-focus-001*
+
+#700 made the Home and Rusty groups about 3 s after start, behind the shown project, through
+`groups::with_group` and `Workspace::new_local(…, OpenMode::Add)`. `Workspace::new` focuses its own
+center pane even in `OpenMode::Add`, and the new workspace's setup moved focus again after that.
+The window draws only the shown workspace, so the keys reached nothing: a trust prompt open at start
+took no Enter, the palette didn't open, and a user's typing went nowhere until a click. #700's and
+#701's scenarios met it and clicked around it, filing it as a lesson about restored windows. Found
+in #702 with a focus log; fixed there: the rail takes the focused handle before it makes a group and
+focuses it again once the group exists (`keep_focus`).

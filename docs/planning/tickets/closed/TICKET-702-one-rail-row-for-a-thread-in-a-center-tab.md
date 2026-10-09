@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #702 (bug)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** [702-one-rail-row-for-a-thread-in-a-center-tab.spec.md](../../pipeline/completed/702-one-rail-row-for-a-thread-in-a-center-tab.spec.md)
 - **Source ticket:** found in #697's visual check; Chad, 2026-10-09, told the session to proceed on
   the default ("go ahead and work on the remaining items you have open as well").
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 While an agent thread sits in a center tab (#697's `ThreadTab`), the rail lists it twice: as the

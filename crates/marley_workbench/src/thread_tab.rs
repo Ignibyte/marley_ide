@@ -63,6 +63,11 @@ pub(crate) fn init(cx: &App) {
 }
 
 impl ThreadTab {
+    /// The key of the thread the tab shows, as the rail keys its thread rows (#702).
+    pub(crate) fn thread_key(&self, cx: &App) -> String {
+        self.conversation_view.read(cx).parent_id().to_key_string()
+    }
+
     fn new(
         conversation_view: Entity<ConversationView>,
         panel: &Entity<AgentPanel>,

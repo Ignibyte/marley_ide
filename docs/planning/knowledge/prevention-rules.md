@@ -2873,3 +2873,12 @@ closures over a `WeakEntity<Workspace>`, never `cx.listener`. A listener leases 
 whole handler, and many workspace operations read every item: `open_workspace_for_paths`
 (`is_dirty`), closes, saves, splits. The read panics as a double lease. `RustyHome`'s rows show
 the safe shape: a cloned weak handle, or an `*_later` opener that defers.
+
+## PR-claude-702-making-a-workspace-in-the-background-keeps-the-focus-001
+*severity: high · prevents: F-claude-702-a-group-made-at-start-took-the-windows-focus-001*
+
+Code that makes a workspace the window won't show (`OpenMode::Add`, `open_workspace_by_id` into a
+window) takes `window.focused(cx)` first and focuses it again once the workspace's task is done, if
+it lost the focus. `Workspace::new` focuses the new workspace's pane, and its setup can move focus
+after that. A scenario that has to click before its first key works is reporting this bug, not a
+quirk to work around: find where the focus went before writing a lesson.

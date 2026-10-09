@@ -1806,6 +1806,21 @@ alike.
 
   The home page is still not serialized: a restored group comes back empty and is filled when shown.
 
+## One row for a thread in a center tab, and the keys at start (`src/rail.rs`, `src/thread_tab.rs`, #702)
+
+- `ThreadTab::thread_key` is the conversation's `parent_id().to_key_string()`, the rail's key for
+  thread rows. `member_tabs` skips a `ThreadTab`, as it skips terminals and Browser tabs;
+  `active_rows` takes no tab row for an active `ThreadTab`, and `note_focus` marks the thread row
+  of the active `ThreadTab` (`active_thread_tab`) before the panel's focused thread.
+- **Focus after a background group.** `Workspace::new` focuses its own center pane even for a
+  workspace added with `OpenMode::Add`, and its setup moves focus again after `new_local`'s window
+  update. A group #700 makes behind the shown project therefore took the window's focus to a
+  workspace the window doesn't draw. `ensure_groups` takes the focused handle (weak) before it
+  makes a group, and the group's `then`, which runs once `new_local`'s task is done, calls
+  `keep_focus`: the handle is focused again when it still exists and lost the focus. A restored
+  folderless workspace that starts as the shown one with nothing focused is a different case and
+  is not covered (L-claude-700-a-restored-folderless-workspace-starts-unfocused-001).
+
 ## An agent thread in a center tab (`src/thread_tab.rs`, `src/rail.rs`, #697)
 
 - `ThreadTab` (an `Item`, titled as the thread, `IconName::ZedAssistant`) hosts the Agent Panel's

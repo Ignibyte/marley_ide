@@ -974,6 +974,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Keys work right after Marley starts** (#702, 2026-10-09). Since #700 made the Home and Rusty
+  groups at start, the window lost its keyboard focus about three seconds after launch. Making a
+  group behind the shown project moved the focus into the group, which isn't on screen, so Enter
+  on the trust prompt and anything typed went nowhere until a click. The focus now goes back to
+  where it was.
+
+- **A thread in a center tab has one row in the rail** (#702, 2026-10-09). While an agent thread
+  sat in a center tab (#697), the rail listed it twice, as the tab and as the thread. It now lists
+  the thread's own row, with its agent and status, marked while the tab is in front; clicking it
+  brings the tab forward.
+
 - **The Marley agent keeps to its own tools on Claude Code** (#698, 2026-10-09). Zed hands every
   agent all of Marley's tools, so the Marley agent on Claude Code could still run a command
   through `terminal_run`, type into a terminal or drive the Browser tab. Its sessions now turn off

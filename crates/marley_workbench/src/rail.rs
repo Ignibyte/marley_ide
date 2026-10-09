@@ -28,7 +28,7 @@ use gpui::{
     Anchor, AnyElement, AnyView, App, ClickEvent, ClipboardItem, Context, DismissEvent, Div,
     ElementId, Entity, EntityId, EventEmitter, FocusHandle, Focusable, Hsla, Image, MouseButton,
     MouseDownEvent, Pixels, Point, PromptLevel, Render, RenderImage, Stateful, Subscription, Task,
-    WeakEntity, Window, anchored, deferred, img, px,
+    WeakEntity, WeakFocusHandle, Window, anchored, deferred, img, px,
 };
 use marley_agent::risk::{self, Action, Chip, ChipKind, ChipSource, ToolClass};
 use marley_agent::route::{self, Route, RouteMark, RouteSource};
@@ -1229,6 +1229,7 @@ impl Rail {
             return;
         }
         window.defer(cx, move |window, cx| {
+            let focused = window.focused(cx).map(|focused| focused.downgrade());
             for kind in wanted {
                 if groups::has_kind(multi_workspace.read(cx), kind, window_id, cx) {
                     continue;
@@ -1238,7 +1239,14 @@ impl Rail {
                 {
                     groups::claim(&start, kind, cx);
                 } else {
-                    groups::with_group(kind, &multi_workspace, |_, _, _| {}, window, cx);
+                    let focused = focused.clone();
+                    groups::with_group(
+                        kind,
+                        &multi_workspace,
+                        move |_, window, cx| keep_focus(focused, window, cx),
+                        window,
+                        cx,
+                    );
                 }
             }
         });
@@ -7873,6 +7881,19 @@ fn start_workspace(
     free.then_some(shown)
 }
 
+/// Gives the keys back to what held them before a group was made behind the shown workspace
+/// (#702). Making a workspace moves the window's focus into it (`Workspace::new` focuses its pane,
+/// and its setup after that may move it again), and the window doesn't show it, so keys reached
+/// nothing: a trust prompt open at start took no Enter.
+fn keep_focus(focused: Option<WeakFocusHandle>, window: &mut Window, cx: &mut App) {
+    let Some(focused) = focused.and_then(|focused| focused.upgrade()) else {
+        return;
+    };
+    if !focused.is_focused(window) {
+        window.focus(&focused, cx);
+    }
+}
+
 /// The groups the rail lists: the window's Home and Rusty groups (#700), then its projects with an
 /// open workspace, then its named projectless groups (#600), each group on its own workspace under
 /// the empty key and named ones in the order the window saved them (#601) and then as made; their
@@ -8158,12 +8179,24 @@ fn note_focus(
         tab,
         worktree,
         terminal_focused,
-        thread: panel_thread.filter(|_| {
-            panel
-                .as_ref()
-                .is_some_and(|panel| panel.focus_handle(cx).contains_focused(window, cx))
+        thread: active_thread_tab(displayed, cx).or_else(|| {
+            panel_thread.filter(|_| {
+                panel
+                    .as_ref()
+                    .is_some_and(|panel| panel.focus_handle(cx).contains_focused(window, cx))
+            })
         }),
     };
+}
+
+/// The key of the thread whose center tab is the displayed workspace's active item (#697): its
+/// thread row is the one marked (#702).
+fn active_thread_tab(displayed: &Entity<Workspace>, cx: &App) -> Option<String> {
+    let tab = displayed
+        .read(cx)
+        .active_item(cx)?
+        .downcast::<crate::thread_tab::ThreadTab>()?;
+    Some(tab.read(cx).thread_key(cx))
 }
 
 /// A group's worktree rows (#510), their entities put in `snapshot`, and the folder of each
@@ -8553,7 +8586,8 @@ fn drift_snapshot(drift: Drift) -> DriftSnapshot {
 }
 
 /// The rows the displayed workspace's active center item makes current: a terminal's, with
-/// whether it holds the focus, a Browser tab's (#504), or any other tab's (#674).
+/// whether it holds the focus, a Browser tab's (#504), or any other tab's (#674). A thread's tab
+/// (#697) marks its thread row instead, through [`active_thread_tab`] (#702).
 fn active_rows(
     displayed: &Entity<Workspace>,
     window: &Window,
@@ -8566,8 +8600,11 @@ fn active_rows(
     let browser = active_item
         .as_ref()
         .and_then(|item| item.downcast::<BrowserView>());
+    let thread = active_item
+        .as_ref()
+        .and_then(|item| item.downcast::<crate::thread_tab::ThreadTab>());
     let tab = active_item
-        .filter(|_| terminal.is_none() && browser.is_none())
+        .filter(|_| terminal.is_none() && browser.is_none() && thread.is_none())
         .map(|item| item.item_id().as_u64());
     let focused = terminal
         .as_ref()
@@ -8593,7 +8630,10 @@ fn member_tabs(
     let mut tabs = Vec::new();
     for pane in member.read(cx).panes() {
         for item in pane.read(cx).items() {
-            if item.downcast::<TerminalView>().is_some() || item.downcast::<BrowserView>().is_some()
+            // A thread's tab has its thread's row (#702), as terminals and Browser tabs have theirs.
+            if item.downcast::<TerminalView>().is_some()
+                || item.downcast::<BrowserView>().is_some()
+                || item.downcast::<crate::thread_tab::ThreadTab>().is_some()
             {
                 continue;
             }
