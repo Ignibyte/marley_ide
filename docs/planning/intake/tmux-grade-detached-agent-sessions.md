@@ -1,8 +1,9 @@
 ---
-status: intake
+status: superseded
 created: 2026-07-15
 ticket: unassigned
 pipeline_spec: unassigned
+note: audit (2026-10-09): rustal-harness is the session layer (Prong 2, D19; Chad 2026-10-02); Marley's viewer half shipped as TICKET-534, TICKET-540, TICKET-543, TICKET-632, TICKET-689, TICKET-690
 ---
 
 # tmux-grade detached agent sessions — sessions Marley can see into (a Marley CORE pillar, future)

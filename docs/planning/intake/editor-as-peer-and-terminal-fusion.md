@@ -1,8 +1,9 @@
 ---
-status: intake
+status: superseded
 created: 2026-07-09
 ticket: unassigned
 pipeline_spec: unassigned
+note: audit (2026-10-09): superseded by the Zed fork (three-prong-plan.md), whose editor supplies Tiers 2 and 3; the fusion wedge shipped as TICKET-619 to TICKET-623
 ---
 
 # Editor as a first-class peer + terminal↔editor fusion — the "Warp × Zed" milestone (future)

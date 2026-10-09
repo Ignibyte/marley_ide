@@ -1,8 +1,9 @@
 ---
 title: Prompt line editing — Marley-local vs shell-ZLE (tab-completion at the prompt)
-status: open
+status: promoted
 raised_by: TICKET-033 planning (the flagship interactive/raw-mode ticket)
 milestone: M1.E / M2 (a product-model decision for chad)
+note: audit (2026-10-09): decided as option A (the prompt editor is a Zed Editor) with option B's raw passthrough as a setting
 ---
 
 ## The decision

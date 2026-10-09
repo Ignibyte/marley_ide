@@ -1,8 +1,9 @@
 ---
-status: intake
+status: superseded
 created: 2026-08-12
 ticket: <unassigned>
 pipeline_spec: <unassigned>
+note: audit (2026-10-09): obsolete; both the marley-web POC's overlays and the gpui app's are gone, and Zed's finder and palette replaced them
 ---
 
 # POC overlay parity nits — the three pre-existing divergences the #416 inspect surfaced

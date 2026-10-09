@@ -10,6 +10,8 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
+| [TICKET-712](open/TICKET-712-lsp-tools-for-agents.md) | feature | `editor_diagnostics`, `editor_definition`, `editor_references`, `editor_hover` for every agent, over Zed's LSP store |
+| [TICKET-713](open/TICKET-713-rail-cleanup.md) | chore | the rail: unregister a swapped sidebar, refresh only on row changes, a silent swap, save after restore |
 
 ## Deliberate (picked explicitly, never auto-next)
 

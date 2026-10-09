@@ -1,8 +1,9 @@
 ---
-status: intake
+status: promoted
 created: 2026-07-15
-ticket: unassigned
+ticket: TICKET-491, TICKET-492, TICKET-524, TICKET-525, TICKET-547, TICKET-556, TICKET-681, TICKET-682, TICKET-686, TICKET-689, TICKET-703 to TICKET-707, TICKET-712
 pipeline_spec: unassigned
+note: audit (2026-10-09): nearly all shipped; the LSP tools (diagnostics, definition, hover, references) are left, as TICKET-712
 ---
 
 # MCP-enabled everything — the first-class control plane (a Marley CORE pillar, future)

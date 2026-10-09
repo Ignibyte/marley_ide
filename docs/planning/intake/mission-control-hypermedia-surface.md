@@ -1,8 +1,9 @@
 ---
-status: intake
+status: superseded
 created: 2026-07-14
 ticket: unassigned
 pipeline_spec: unassigned
+note: audit (2026-10-09): its state source, Forge, left in TICKET-409 to TICKET-411; the phone path became TICKET-535 and, per Chad on 2026-10-02, a phone app with a relay at the end (design-notes/herdr-and-hermes-2026-10-02.md)
 ---
 
 # Mission Control — the web/remote hypermedia surface (a Marley pillar, future)

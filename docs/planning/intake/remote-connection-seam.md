@@ -1,8 +1,9 @@
 ---
-status: intake
+status: superseded
 created: 2026-06-28
 ticket: unassigned
 pipeline_spec: unassigned
+note: audit (2026-10-09): the trait-and-stub design was never built; marley_remote (TICKET-83 to TICKET-87, an ssh-command builder) and TICKET-526, TICKET-543, TICKET-610, TICKET-641 made remote live
 ---
 
 # Remote-connection seam — retained, non-functional (future)

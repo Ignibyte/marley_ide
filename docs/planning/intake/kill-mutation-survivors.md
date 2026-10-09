@@ -3,6 +3,7 @@ status: intake
 created: 2026-10-01
 ticket: <unassigned>
 pipeline_spec: <unassigned>
+note: audit (2026-10-09): parked for the testing phase at the end of the product (CONSTITUTION §7); TICKET-638 built only the runner
 ---
 
 # Tests to kill the mutation run's survivors (a decision for Chad)

@@ -1,8 +1,9 @@
 ---
-status: intake
+status: promoted
 created: 2026-07-09
-ticket: unassigned
+ticket: TICKET-487 to TICKET-499, TICKET-503 to TICKET-507, TICKET-518, TICKET-523, TICKET-524, TICKET-574, TICKET-581, TICKET-583, TICKET-584
 pipeline_spec: unassigned
+note: audit (2026-10-09): shipped as Prong 3
 ---
 
 # Embedded agent-aware browser (Chromium + CDP) — a Marley pillar (future)

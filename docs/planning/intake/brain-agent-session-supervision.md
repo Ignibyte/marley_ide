@@ -1,8 +1,9 @@
 ---
-status: intake
+status: promoted
 created: 2026-06-28
-ticket: unassigned
+ticket: TICKET-491, TICKET-525, TICKET-534, TICKET-556, TICKET-689
 pipeline_spec: unassigned
+note: audit (2026-10-09): shipped in the fork's shape; marley_mcp carries the protocol, so no local_control crate was built
 ---
 
 # Brain ↔ agent session supervision — launch, control, observe (future)

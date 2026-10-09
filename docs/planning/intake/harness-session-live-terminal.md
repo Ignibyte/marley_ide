@@ -3,6 +3,7 @@ status: intake
 created: 2026-10-01
 ticket: <unassigned>
 pipeline_spec: <unassigned>
+note: audit (2026-10-09): partly shipped; TICKET-690 runs a session's own view command in a Marley terminal for a local harness. Left: D10's display-only observer fed by the harness's stream, for a harness on another host, which waits on the harness serving that stream
 ---
 
 # A harness session's live terminal (C3's observer half, plan D10)
