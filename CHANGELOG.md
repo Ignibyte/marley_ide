@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The shared Claude Code plugin** (#709, 2026-10-09). Turn on **Shared Claude Code Plugin**
+  in Settings → Marley → Agents, and each new local terminal loads the Claude Code plugin Marley
+  shares with rustal-harness. A Claude Code started there then tells the rail its own state:
+  working, waiting on you (and for which tool), idle. It's off by default, needs Claude Code
+  2.1.287 or later, and Marley keeps the plugin's files read-only under its data folder and won't
+  load a copy that was changed.
+
 - **Agent activity and a kill switch for Marley's tools** (#703, 2026-10-09).
   - Every call an agent makes to one of Marley's tools that act is now listed in **Agent Activity**
     (`marley: open agent activity`): typing into or running in a terminal, the browser's clicks

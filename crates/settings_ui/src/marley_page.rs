@@ -167,7 +167,7 @@ fn layout_section() -> [SettingsPageItem; 6] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 17] {
+fn agents_section() -> [SettingsPageItem; 18] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -491,6 +491,29 @@ fn agents_section() -> [SettingsPageItem; 17] {
             metadata: None,
             files: USER,
         }),
+        // Marley: the Claude Code plugin shared with rustal-harness, off by default (#709).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Shared Claude Code Plugin",
+            description: "Load the Claude Code plugin Marley shares with rustal-harness in Marley's local terminals, so a claude started there reports its state (working, waiting on you and for what, idle) to the rail. Applies to terminals opened after the change. A Claude Code under a managed disableSideloadFlags refuses to start with it.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.claude_code_shared_plugin"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.claude_code_shared_plugin.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .claude_code_shared_plugin = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
         // Marley: who answers Claude Code's trust question in a new worktree (#587).
         SettingsPageItem::SettingItem(SettingItem {
             title: "Worktree Trust Question",
@@ -662,7 +685,7 @@ fn terminal_section() -> [SettingsPageItem; 6] {
 }
 
 // Marley: the integrations turned on outside the agent versions Marley tested them on (#648).
-fn agent_versions_section() -> [SettingsPageItem; 6] {
+fn agent_versions_section() -> [SettingsPageItem; 7] {
     [
         SettingsPageItem::SectionHeader("Agent Versions"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -803,6 +826,35 @@ fn agent_versions_section() -> [SettingsPageItem; 6] {
                     let _before = match value {
                         Some(on) => allowed.insert("claude_ide_mention".to_string(), on),
                         None => allowed.remove("claude_ide_mention"),
+                    };
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: the shared plugin on an unchecked version (#709).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Shared Plugin on Untested Claude Code",
+            description: "Whether Marley's terminals load the shared Claude Code plugin for a Claude Code version before the one the plugin was tested on. Off, they don't, and the rail reads Claude Code's state from its hooks.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.allow_untested_versions.claude_shared_plugin"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.allow_untested_versions.as_ref())
+                        .and_then(|allowed| allowed.get("claude_shared_plugin"))
+                },
+                write: |settings_content, value, _| {
+                    let allowed = settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .allow_untested_versions
+                        .get_or_insert_default();
+                    let _before = match value {
+                        Some(on) => allowed.insert("claude_shared_plugin".to_string(), on),
+                        None => allowed.remove("claude_shared_plugin"),
                     };
                 },
             }),

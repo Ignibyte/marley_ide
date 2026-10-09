@@ -4608,3 +4608,20 @@ Rejected:
 - the switch as runtime state (a restart would clear it);
 - clearing the server's write grants as the switch (a bare `not_permitted`, and no log of the
   attempt).
+
+## AD-claude-709-the-shared-plugin-is-carried-by-digest-and-off-by-default-001
+*decided at: 2026-10-09 · status: shipped · builds on: AD-claude-652-an-agents-report-outranks-its-hook-frames-001*
+
+Marley carries rustal-harness's Claude Code plugin unchanged, at the revision TICKET-108 left
+(MIT OR Apache-2.0 for its files alone, as Chad chose). The plugin's digest, computed as `rh` does,
+names a read-only folder under the data directory. Each new local Marley terminal loads it first
+in `CLAUDE_CODE_PLUGIN_DIRS`, set in `marley_terminal`'s `agent_environment` so no Zed path
+changes. It loads while `marley.claude_code_shared_plugin` is on and the installed Claude Code is
+2.1.287 or later (#648). Off by default: a managed `disableSideloadFlags` makes Claude Code refuse
+to start with the variable set, and the hook path (#519) keeps working without it.
+
+Rejected:
+- installing it as a marketplace plugin (it would load in every Claude Code, not only Marley's
+  terminals);
+- copying the files at run time from a rustal-harness checkout (Marley's users needn't have one);
+- folding Marley's own plugin into it now (a later slice, after parity).

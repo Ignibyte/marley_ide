@@ -2004,6 +2004,25 @@ alike.
   A new session, `end` and `forget` drop it. `stop_kind_shown` gives the rail the mode as a
   `StopKindShown`, and the rail's settings observer refreshes the rows, so a new mode shows at once.
 
+## The shared Claude Code plugin (`src/shared_plugin.rs`, `marley_terminal::identity`, #709)
+
+- `claude_shared_plugin/` carries rustal-harness's six plugin files unchanged (its TICKET-108,
+  version 0.2.0, MIT OR Apache-2.0). `FILES` embeds them with `include_str!` in `rh`'s order, and
+  `digest()` hashes each path and text after its length as a little-endian u64 (`83d0bb8f…0303`).
+- `install_in(<data>/claude-code/shared)` gives the digest's folder. One already there is checked
+  byte for byte (`check_in`); otherwise it is staged in `.staged-<uuid>` (folders 0700, files 0400,
+  `create_new`, `sync_all`) and renamed into place.
+- `reconcile` runs at `init`, on `SettingsStore` and on `agent_versions::observe`.
+  - It wants the plugin while `marley.claude_code_shared_plugin` is on (`SharedPlugin::of`, from
+    the merged settings) and `agent_versions::is_on(&CLAUDE_SHARED_PLUGIN)`.
+  - Wanted, it installs off the main thread, then `set_shared_plugin(Some(folder))` if still wanted.
+    Otherwise it calls `set_shared_plugin(None)`.
+- `marley_terminal::identity::agent_environment` writes `CLAUDE_CODE_PLUGIN_DIRS` for a named
+  terminal: the folder first, then Marley's inherited entries minus any under the same `shared`
+  parent (`plugin_dirs`), only when that differs from the inherited value. No Zed path changes.
+- `marley_agent::versions::CLAUDE_SHARED_PLUGIN` (2.1.287 and later) is the version row, chipped
+  only while the setting is on.
+
 ## An agent's reports (`src/agent_reports.rs`, `bin/marley-agent`, #652)
 
 - `mcp::start` calls `start(data_dir)`: the socket at

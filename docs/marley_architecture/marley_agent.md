@@ -437,3 +437,6 @@ In the gpui-era app (M2, #66 to #80, #187) this crate modelled a pump-driven coc
 shim that launched and watched agents. The fork has no 16 ms pump and nothing used that model,
 so #440 removed it. The agent brain that note once planned now belongs to the three-prong
 plan's control plane (`docs/marley/three-prong-plan.md`).
+
+- **Since #709** `versions::CLAUDE_SHARED_PLUGIN` (`claude_shared_plugin`, Claude Code 2.1.287 and
+  later) gates the shared Claude Code plugin in Marley's terminals; `INTEGRATIONS` holds six rows.

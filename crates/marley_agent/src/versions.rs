@@ -165,13 +165,32 @@ pub const CLAUDE_IDE_MENTION: Integration = Integration {
     tested: NOT_YET_CHECKED,
 };
 
+/// The Claude Code plugin Marley shares with rustal-harness (#709), loaded in Marley's terminals.
+///
+/// Its mod rests on `session.start`'s `isInteractive`, `tool.check`, `tool.call`, `turn.start`,
+/// `turn.complete` and `session.end`, and on `$.process.run`; rustal-harness's gate ran it on
+/// Claude Code 2.1.287 (its TICKET-108).
+pub const CLAUDE_SHARED_PLUGIN: Integration = Integration {
+    id: "claude_shared_plugin",
+    agent: AgentKind::Claude,
+    name: "the shared plugin",
+    off_means: "Marley's terminals don't load the shared plugin, and the rail reads Claude \
+                Code's state from its hooks",
+    setting: "Shared Plugin on Untested Claude Code",
+    tested: Range {
+        from: Version::new(2, 1, 287),
+        before: None,
+    },
+};
+
 /// Every integration with a tested range.
-pub static INTEGRATIONS: [Integration; 5] = [
+pub static INTEGRATIONS: [Integration; 6] = [
     CLAUDE_PROMPT_TAGS,
     CODEX_APP_SERVER,
     CLAUDE_IDE_CONNECTION,
     CLAUDE_IDE_SELECTION,
     CLAUDE_IDE_MENTION,
+    CLAUDE_SHARED_PLUGIN,
 ];
 
 /// `agent`'s integrations with a tested range.

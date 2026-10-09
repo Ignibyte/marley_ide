@@ -991,8 +991,20 @@ hook events, and a restart resumes the session the report named, in the agent's 
 
 The program exits 0 when Marley took the report. Otherwise it exits 1 and prints why, such as
 `agent_report_stale: seq 6 is not past 7`, or `marley_not_running` when no Marley answers.
-Tasks, remote terminals and terminals of remote projects get `MARLEY_BIN` empty. Nothing reports
-by itself yet: the shared Claude Code plugin that will is the next step.
+Tasks, remote terminals and terminals of remote projects get `MARLEY_BIN` empty.
+
+**The shared Claude Code plugin** (#709) is what reports for Claude Code. It's the plugin Marley
+shares with rustal-harness, off until you turn on **Shared Claude Code Plugin** in Settings →
+Marley → Agents (`marley.claude_code_shared_plugin`).
+- On, each new local terminal loads it through `CLAUDE_CODE_PLUGIN_DIRS`, while your Claude Code
+  is 2.1.287 or later (an earlier one needs Shared Plugin on Untested Claude Code).
+- A `claude` started there reports working, waiting on you (with the tool and what it acts on) and
+  idle, so the rail's row shows the state Claude Code itself gives rather than a reading of its
+  hooks.
+- Marley writes the plugin's files, read-only, to `claude-code/shared/<digest>/` under its data
+  folder, and won't load a copy that was changed.
+- A Claude Code under a managed `disableSideloadFlags` refuses to start with the plugin loaded;
+  leave the setting off there.
 
 ### Per-turn diffs
 

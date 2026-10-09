@@ -178,7 +178,8 @@ pub struct MarleySettingsContent {
     /// of the `claude` and `codex` it runs, and the agent bar says when one is off.
     ///
     /// Default: {"claude_prompt_tags": false, "codex_app_server": false, "claude_ide_connection":
-    /// false, "claude_ide_selection": false, "claude_ide_mention": false}
+    /// false, "claude_ide_selection": false, "claude_ide_mention": false, "claude_shared_plugin":
+    /// false}
     pub allow_untested_versions: Option<BTreeMap<String, bool>>,
     /// Whether the terminals Marley opens for agents give them Marley's editor (#649): their own
     /// editor key, and Ctrl-G, then open the prompt in a tab, and closing the tab hands it back.
@@ -200,6 +201,12 @@ pub struct MarleySettingsContent {
     ///
     /// Default: false
     pub claude_code_ide: Option<bool>,
+    /// Whether Marley's local terminals load the Claude Code plugin Marley shares with
+    /// rustal-harness (#709), so a Claude Code started there reports its state (working, waiting on
+    /// you and for what, idle) to the rail. Applies to terminals opened after the change.
+    ///
+    /// Default: false
+    pub claude_code_shared_plugin: Option<bool>,
     /// Voice in Marley (#480, #642): dictation through Voxtype. Off until it is turned on.
     pub voice: Option<MarleyVoiceSettingsContent>,
     /// Agents' use of Marley's write tools (#703): the kill switch, with every call listed in the

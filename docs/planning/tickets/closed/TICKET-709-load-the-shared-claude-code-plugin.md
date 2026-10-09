@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #709 (feature, prong 2 C1; design note B2)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** [709-load-the-shared-claude-code-plugin.spec.md](../../pipeline/completed/709-load-the-shared-claude-code-plugin.spec.md)
 - **Source ticket:** #652's deferred "next slice, loading the shared plugin"; unblocked by rustal-harness TICKET-108 (2026-10-09), which Chad asked for first
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 #652 built Marley's half of the Claude Code plugin it shares with rustal-harness: `MARLEY_BIN`

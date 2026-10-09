@@ -339,7 +339,8 @@ pub(crate) fn observe(cx: &mut App, changed: impl FnMut(&mut App) + 'static) -> 
 
 /// Whether the user asked for `integration`, so its being off is worth a chip: Codex's App Server
 /// only while `marley.codex_app_server` is on, Claude Code's IDE link only while
-/// `marley.claude_code_ide` is (#653).
+/// `marley.claude_code_ide` is (#653), the shared plugin only while
+/// `marley.claude_code_shared_plugin` is (#709).
 fn wanted(integration: &Integration, cx: &App) -> bool {
     let settings = MarleySettings::get_global(cx);
     if integration.id == CODEX_APP_SERVER.id {
@@ -349,6 +350,8 @@ fn wanted(integration: &Integration, cx: &App) -> bool {
         .any(|row| row.id == integration.id)
     {
         settings.claude_code_ide == crate::claude_ide::ClaudeCodeIde::On
+    } else if integration.id == versions::CLAUDE_SHARED_PLUGIN.id {
+        crate::shared_plugin::SharedPlugin::of(cx) == crate::shared_plugin::SharedPlugin::On
     } else {
         true
     }

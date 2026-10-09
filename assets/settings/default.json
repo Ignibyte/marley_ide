@@ -1851,13 +1851,14 @@
     // prompts from the ones Claude Code adds itself (task notifications, system reminders).
     // codex_app_server: Codex's App Server, below. claude_ide_connection, claude_ide_selection and
     // claude_ide_mention: Claude Code's IDE link, below, its selection and send selection's
-    // mention.
+    // mention. claude_shared_plugin: the shared Claude Code plugin, below.
     "allow_untested_versions": {
       "claude_prompt_tags": false,
       "codex_app_server": false,
       "claude_ide_connection": false,
       "claude_ide_selection": false,
-      "claude_ide_mention": false
+      "claude_ide_mention": false,
+      "claude_shared_plugin": false
     },
     // Agent prompts in a tab (#649): the terminals Marley opens for agents get Marley's editor as
     // VISUAL and EDITOR, so the agent's own editor key, and Ctrl-G, open its prompt in a tab, and
@@ -1875,6 +1876,11 @@
     // the language servers' diagnostics, and send selection mentions the lines in its prompt. Any
     // program of yours that can read the lock file can connect and read the selection.
     "claude_code_ide": false,
+    // The shared Claude Code plugin (#709): Marley's local terminals load the plugin Marley shares
+    // with rustal-harness, through CLAUDE_CODE_PLUGIN_DIRS, so a claude started there reports its
+    // state (working, waiting on you and for what, idle) to the rail. Applies to terminals opened
+    // after the change. A Claude Code under a managed disableSideloadFlags refuses to start with it.
+    "claude_code_shared_plugin": false,
     // Voice in Marley (#642), off until you turn it on. On, the agent bar shows a microphone where
     // Voxtype is on your PATH, and `marley: toggle dictation` dictates through it; off, Marley
     // shows no microphone and starts no voxtype. Marley never touches the audio.

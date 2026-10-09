@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-709](open/TICKET-709-load-the-shared-claude-code-plugin.md) | feature | Load the shared Claude Code plugin (0.2.0, Marley's host, MIT OR Apache-2.0) by digest behind `marley.claude_code_shared_plugin` |
 | [TICKET-704](open/TICKET-704-editors-read-and-open.md) | feature | Editors over MCP: list, read and open |
 | [TICKET-705](open/TICKET-705-editors-edit.md) | feature | Editors over MCP: edit and save |
 | [TICKET-706](open/TICKET-706-agent-panel-threads.md) | feature | Agent Panel threads over MCP |

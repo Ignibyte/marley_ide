@@ -83,6 +83,7 @@ pub mod send_block;
 pub mod send_selection;
 pub mod settings_change;
 pub mod settings_tools;
+pub mod shared_plugin;
 pub mod shell_completions;
 pub mod shortcut_note;
 #[cfg(unix)]
@@ -875,6 +876,7 @@ pub fn init(cx: &mut App) {
     agent_bar::init(cx);
     claude_plugin::init(cx);
     claude_ide::init(cx);
+    shared_plugin::init(cx);
     notifications::init(cx);
     close_guard::init(cx);
     terminal_ids::init(cx);
