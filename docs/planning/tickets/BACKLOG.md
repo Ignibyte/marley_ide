@@ -15,4 +15,5 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | Why it waits |
 |---|---|---|
+| [TICKET-710](open/TICKET-710-the-marley-agent-removes-a-seat.md) | feature | `seat_remove` for the Manager; waits on the harness's `rh seat stop` and `rh seat remove` (asked of rustal-harness 2026-10-09) |
 | [TICKET-445](open/TICKET-445-marley-release-identity.md) | chore | packaging: Marley's own keyring label, updater, app id and URL scheme; waits until Marley ships a package or needs a non-`dev` build (the `dev` channel keeps it safe until then). Chad, 2026-10-01: wait, so bugs found before the first release do not mean cutting several |
