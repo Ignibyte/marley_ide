@@ -20,6 +20,7 @@
     )
 )]
 
+pub mod agent_activity;
 pub mod agent_bar;
 pub mod agent_editor;
 pub mod agent_events;
@@ -398,6 +399,8 @@ pub struct MarleySettings {
     pub rusty: rusty::RustySettings,
     /// Whether Marley dictates through Voxtype (#642).
     pub dictation: Dictation,
+    /// Whether agents' write tools are stopped (#703).
+    pub agent_control: AgentControl,
     /// How long a command runs before its end notifies; 0 is never (#551).
     pub long_command_seconds: u64,
     /// Whose consequential clicks in the Browser tab wait for Allow (#571).
@@ -532,6 +535,28 @@ impl EmbeddedHarness {
     }
 }
 
+/// Whether agents may use Marley's tools that act, from `marley.agent_control.stopped` (#703).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AgentControl {
+    /// Agents' write tools run, each call logged.
+    Running,
+    /// Every write tool refuses every agent; the read tools still answer.
+    Stopped,
+}
+
+impl AgentControl {
+    /// The value of `marley.agent_control.stopped`: running unless it is on.
+    fn from_content(marley: Option<&settings::MarleySettingsContent>) -> Self {
+        match marley
+            .and_then(|marley| marley.agent_control.as_ref())
+            .and_then(|agent_control| agent_control.stopped)
+        {
+            Some(true) => Self::Stopped,
+            _ => Self::Running,
+        }
+    }
+}
+
 /// Whether Marley dictates through Voxtype, from `marley.voice.enabled` (#642).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Dictation {
@@ -642,6 +667,7 @@ impl Settings for MarleySettings {
             ),
             rusty: rusty::RustySettings::from_content(marley),
             dictation: Dictation::from_content(marley),
+            agent_control: AgentControl::from_content(marley),
             block_headers: BlockHeaders::from_setting(
                 marley.and_then(|marley| marley.block_headers),
             ),
@@ -845,6 +871,7 @@ pub fn init(cx: &mut App) {
     agent_notify::init(cx);
     agent_versions::init(cx);
     codex_server::init(cx);
+    agent_activity::init(cx);
     agent_bar::init(cx);
     claude_plugin::init(cx);
     claude_ide::init(cx);

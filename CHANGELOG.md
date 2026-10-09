@@ -13,6 +13,18 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Agent activity and a kill switch for Marley's tools** (#703, 2026-10-09).
+  - Every call an agent makes to one of Marley's tools that act is now listed in **Agent Activity**
+    (`marley: open agent activity`): typing into or running in a terminal, the browser's clicks
+    and typing, settings and keymap changes, harness seats. Each row has who called, the tool,
+    what it acted on (with keys and tokens hidden), and whether it ran or was refused. Home's page
+    has an AGENT ACTIVITY card with the five newest rows.
+  - **Stop**, on the card or the tab, or `marley: stop agent control`, makes all of those tools
+    refuse every agent until you **Resume**. The tools that only read keep working. It's
+    `marley.agent_control.stopped` in Settings → Marley → Agent Control, so it holds across a
+    restart.
+  - A day's log is kept in `agent_control/` under Marley's data folder, readable by you alone.
+
 - **Home's own page** (#701, 2026-10-09). The Home group's first tab is now a home page for Zed and
   Marley, in place of Zed's Welcome page:
   - **Start:** New Terminal in your home folder, Open Folder…, Clone Repository… and Command
@@ -973,6 +985,9 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   standalone.
 
 ### Fixed
+
+- **A tab opened into Home comes to the front** (#703, 2026-10-09). When Home's page was added in
+  front of a tab just opened into the Home group, the page took the front and hid the new tab.
 
 - **Keys work after a relaunch and when Rusty is on** (#708, 2026-10-09). #702's fix held only for
   Home made at start. With Rusty on, or after a relaunch that brings the groups back, the window

@@ -1787,6 +1787,34 @@ alike.
   window's saved order, before `marley_rail::place` applies a dragged order.
 - `group_context_menu` gives Home a label, as Rusty's (#675).
 
+## Agent activity and the kill switch (`src/agent_activity.rs`, `src/mcp.rs`, `marley_mcp`, #703)
+
+- **The gate.** `mcp::answer`, after `permits`, runs `agent_activity::gate` for a write-tier tool
+  (`marley_mcp::lookup`'s `Tier::Write`) whose family `tools/list` serves. The unlisted editor
+  family serves `marley-edit`, the user's `$EDITOR` (#649).
+  - `gate` names the caller (`click_pause::Who`) and the summary: the first of `command`, `text`,
+    `url`, `key`, `keystrokes`, `name`, `path`, else the arguments, cut to one line of 160 chars and
+    redacted with `model_redactor`.
+  - It sets `AppCall::on_answer`, so the outcome (done, or refused with the code) is logged however
+    the tool answers.
+  - While `MarleySettings.agent_control` is `Stopped` it refuses with `agent_control_stopped` and
+    the step to resume.
+- **`marley_mcp::AppCall::on_answer`** keeps an `AnswerHook`, a `Send` `FnOnce`. `answer` runs it
+  with the converted result before sending.
+- **The log.** The hook sends each `ActivityRow` on an unbounded channel. One background task first
+  reads today's `<data>/agent_control/activity-<day>.jsonl` (`read_day_in`), then appends each row
+  in order (`append_in`, 0600) and forwards it. A foreground task pushes rows into the
+  `AgentActivity` global (500 kept), which the tab and Home's card observe.
+- **The switch.** `marley.agent_control.stopped` (`MarleyAgentControlContent`, the Settings page's
+  Agent Control section) is read as `AgentControl { Running, Stopped }`. `StopAgentControl`,
+  `ResumeAgentControl` and the Stop/Resume buttons write it through `update_settings_file`.
+- **The views.** `AgentActivityView` is an `Item` opened in the Home group by
+  `OpenAgentActivity` (`open_later`). `render_state` and `render_rows` are shared with Home's
+  AGENT ACTIVITY card.
+- **Home's page (`home_page::ensure`).** After inserting the page at index 0, it activates the tab
+  that was active. `Pane::add_item_inner` moves no active index for an item it doesn't activate,
+  so the page used to take the front.
+
 ## The Rusty group's + menu and its never-empty rule (`src/rusty/home_tab.rs`, `src/groups.rs`, #699)
 
 - **The + menu.** Zed's `pane.rs` gains `MarleyNewItemMenu`, a global function from the + menu and

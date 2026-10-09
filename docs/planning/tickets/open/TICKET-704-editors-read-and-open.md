@@ -7,7 +7,7 @@
 - **Status:** open
 
 ## Summary
-`editor_list` (every open editor in every window: path, project, dirty, language, cursor and selections), `editor_read` (a buffer's text by path or id, the unsaved text included, paged and redacted, files matching the secret globs refused) and `editor_open` (a file at a line, Act), through #703's layer.
+`editor_list` (every open editor in every window: path, project, dirty, language, cursor and selections), `editor_read` (a buffer's text by path or id, the unsaved text included, paged and redacted, files matching the secret globs refused) and `editor_open` (a file at a line, Act), through #703's layer. It also brings the per-area mode `marley.agent_control.editors` (`off`, `ask_every`, `ask_first`, `allow`; `ask_first` by default) and the once-per-session question (Allow for this session, Always for this project, Deny), keyed on the caller's terminal or client and the project, which `editor_open` is the first to use.
 
 ## Acceptance
 An agent lists the open editors, reads an unsaved buffer's current text, and opens a file at a line after the one-time Act question.

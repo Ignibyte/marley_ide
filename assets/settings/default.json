@@ -1881,6 +1881,14 @@
     "voice": {
       "enabled": false
     },
+    // Agents' use of Marley's write tools (#703). Every call of a tool that acts (typing into or
+    // running in a terminal, the browser's clicks and typing, settings and keymap changes, harness
+    // seats) is listed in the Agent Activity tab. `stopped` is the kill switch: while it is true
+    // those tools refuse, and the tools that only read keep working. `marley: stop agent control`
+    // and `marley: resume agent control` set it.
+    "agent_control": {
+      "stopped": false
+    },
     // The System One layer (#565): typed questions to a model about states Marley builds from
     // what it knows. Off, it makes no request, reads no key and writes no file. The key is
     // never a setting: Marley reads MARLEY_SYSTEM_ONE_KEY, else the system keyring.

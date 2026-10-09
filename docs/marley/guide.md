@@ -1581,6 +1581,22 @@ An Agent Panel thread can sit in the main content, as a tab beside your terminal
 
 ## Marley's MCP server
 
+### Agent activity and the kill switch
+
+Every call an agent makes to one of Marley's tools that act is listed: typing into or running in
+a terminal, the browser's clicks and typing, a settings or keymap change, a harness seat (#703).
+
+- **Agent Activity** (`marley: open agent activity`, or Open Agent Activity on Home's AGENT
+  ACTIVITY card) lists them newest first: the time, who called (Claude Code, Zed's agent, a
+  client's name), the tool, what it acted on (a command, a URL, a key, with keys and tokens
+  hidden), and whether it ran or was refused. Home's card shows the five newest.
+- **The kill switch.** Stop, on the card or in the tab, or `marley: stop agent control`, makes every
+  one of those tools refuse every agent until you Resume (`marley: resume agent control`). The
+  tools that only read keep working. It is `marley.agent_control.stopped`, so it holds across a
+  restart, and Settings → Marley → Agent Control shows it.
+- The log is kept a day per file under Marley's data folder, in `agent_control/`, readable by you
+  alone.
+
 ### What it serves, and where
 
 While Marley runs, it serves MCP over Streamable HTTP (protocol revision 2025-06-18) on 127.0.0.1,

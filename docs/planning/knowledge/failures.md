@@ -3593,3 +3593,12 @@ After a relaunch, `groups::reopen` stole the focus the same way. A backtrace on 
 named four movers: `Workspace::new`, `zed::initialize_workspace`'s closing focus, the modal's
 recorded previous focus, and every workspace's focus-lost listener, the last registered winning.
 Fixed in #708 at the first two and the fourth, in Zed, so nothing records a hidden focus.
+
+## F-claude-703-homes-page-hid-a-tab-just-opened-into-home-001
+*severity: medium · found in: pipeline 703's Test phase · class: an insert before the active tab that moved the front · prevented by: PR-claude-703-an-unactivated-insert-keeps-the-active-tab-001*
+
+#701's `home_page::ensure`, run when the Home group is shown, adds Home's page at index 0 with
+`activate` false when the pane has tabs. `Pane::add_item_inner` moves no active index for an item it
+doesn't activate, so the page took index 0, the active one. A tab opened into a Home group that had
+no page yet (Agent Activity here; an agent tab or System One calls the same way) hid behind Home's
+page. Fixed in #703: `ensure` activates again the tab that was active before the insert.

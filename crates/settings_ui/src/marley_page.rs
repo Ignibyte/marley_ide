@@ -42,6 +42,7 @@ pub(crate) fn marley_page(cx: &App) -> SettingsPage {
             .chain(terminal_section())
             .chain(push_section())
             .chain(voice_section())
+            .chain(agent_control_section())
             .chain(assistant_section())
             .chain(system_one_section())
             // While Rusty is off its section holds the header and the switch alone (#661).
@@ -835,6 +836,38 @@ fn voice_section() -> [SettingsPageItem; 2] {
                         .voice
                         .get_or_insert_default()
                         .enabled = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+    ]
+}
+
+// Marley: the kill switch of agents' write tools (#703).
+fn agent_control_section() -> [SettingsPageItem; 2] {
+    [
+        SettingsPageItem::SectionHeader("Agent Control"),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Stopped",
+            description: "Stop every agent's use of Marley's tools that act: typing into or running in a terminal, the browser's clicks and typing, settings and keymap changes, harness seats. The tools that only read keep working. Every call is listed in the Agent Activity tab (marley: open agent activity).",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.agent_control.stopped"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.agent_control.as_ref())
+                        .and_then(|agent_control| agent_control.stopped.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .agent_control
+                        .get_or_insert_default()
+                        .stopped = value;
                 },
             }),
             metadata: None,

@@ -511,10 +511,20 @@ pub(crate) fn for_agents(text: &str, redactor: Option<&Redactor>) -> Redacted {
 }
 
 /// Answers `call` from the app's state; a browser call answers from its own task.
-fn answer(call: AppCall, cx: &mut App) {
+fn answer(mut call: AppCall, cx: &mut App) {
     // The server refuses an outside client any tool off its grant's list (#524); this is the
     // second wall.
     if let Err(refusal) = marley_mcp::permits(call.principal(), &call.tool) {
+        call.answer(Err(refusal));
+        return;
+    }
+    // Every write-tier call of a tool agents are listed is logged, and refused while the user
+    // stopped agents' write tools (#703). The unlisted editor tools serve `marley-edit`, the
+    // user's own `$EDITOR` (#649).
+    if marley_mcp::lookup(&call.tool)
+        .is_some_and(|spec| spec.tier == marley_mcp::Tier::Write && spec.family.is_served())
+        && let Err(refusal) = crate::agent_activity::gate(&mut call, cx)
+    {
         call.answer(Err(refusal));
         return;
     }

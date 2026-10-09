@@ -13,6 +13,7 @@ use gpui::{
     App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, Render,
     SharedString, Subscription, WeakEntity, Window,
 };
+use settings::SettingsStore;
 use terminal_view::terminal_panel::TerminalPanel;
 use ui::{ButtonStyle, prelude::*};
 use util::ResultExt as _;
@@ -23,12 +24,16 @@ use workspace::{
 };
 
 use crate::OpenGuide;
+use crate::agent_activity::AgentActivity;
 use crate::agents;
 use crate::rail::Rail;
 use crate::rusty::home_tab::{card, muted, row};
 
 /// How many recent projects the page lists.
 const RECENT_SHOWN: usize = 8;
+
+/// How many rows of agent activity the page lists (#703).
+const ACTIVITY_SHOWN: usize = 5;
 
 /// Adds Home's page first in `workspace`'s active pane when the workspace has none, taking the
 /// active tab only from an empty pane.
@@ -42,7 +47,15 @@ pub(crate) fn ensure(workspace: &Workspace, window: &mut Window, cx: &mut Contex
     let pane = workspace.active_pane().clone();
     pane.update(cx, |pane, cx| {
         let empty = pane.items_len() == 0;
+        let active = pane.active_item();
         pane.add_item_inner(Box::new(home), false, false, empty, Some(0), window, cx);
+        // Inserted before the active tab without activating, the page takes the active index, so
+        // a tab just opened into Home would hide behind it (#703).
+        if let Some(active) = active
+            && let Some(index) = pane.index_for_item(active.as_ref())
+        {
+            pane.activate_item(index, false, false, window, cx);
+        }
     });
 }
 
@@ -73,6 +86,8 @@ pub(crate) struct MarleyHome {
     recent: Option<Vec<Recent>>,
     /// The rail the page lists the agents at work from, observed once found.
     rail: Option<(Entity<Rail>, Subscription)>,
+    /// The agent activity and the kill switch, for the AGENT ACTIVITY card (#703).
+    _activity: [Subscription; 2],
 }
 
 impl std::fmt::Debug for MarleyHome {
@@ -86,7 +101,7 @@ impl MarleyHome {
         workspace: WeakEntity<Workspace>,
         fs: Arc<dyn Fs>,
         window: &Window,
-        cx: &Context<Self>,
+        cx: &mut Context<Self>,
     ) -> Self {
         let db = WorkspaceDb::global(cx);
         cx.spawn_in(window, async move |this, cx| {
@@ -126,7 +141,33 @@ impl MarleyHome {
             focus_handle: cx.focus_handle(),
             recent: None,
             rail: None,
+            _activity: [
+                cx.observe_global_in::<AgentActivity>(window, |_, _, cx| cx.notify()),
+                cx.observe_global_in::<SettingsStore>(window, |_, _, cx| cx.notify()),
+            ],
         }
+    }
+
+    /// The AGENT ACTIVITY card's body (#703): the kill switch, the newest rows, and the tab.
+    fn render_activity(&self, cx: &App) -> impl IntoElement {
+        let workspace = self.workspace.clone();
+        v_flex()
+            .gap_2()
+            .child(crate::agent_activity::render_state(
+                "marley-home-agent-control",
+                cx,
+            ))
+            .child(crate::agent_activity::render_rows(ACTIVITY_SHOWN, cx))
+            .child(
+                h_flex().child(
+                    Button::new("marley-home-open-activity", "Open Agent Activity")
+                        .start_icon(Icon::new(IconName::ListTodo).size(IconSize::Small))
+                        .style(ButtonStyle::Subtle)
+                        .on_click(move |_, window, cx| {
+                            crate::agent_activity::open_later(workspace.clone(), window, cx);
+                        }),
+                ),
+            )
     }
 
     /// The window's rail, observed the first time it is found, so the agents at work follow it.
@@ -424,6 +465,12 @@ impl Render for MarleyHome {
                 "CONFIGURE",
                 "marley-home-configure",
                 self.render_configure(),
+                cx,
+            ))
+            .child(card(
+                "AGENT ACTIVITY",
+                "marley-home-activity",
+                self.render_activity(cx),
                 cx,
             ))
     }

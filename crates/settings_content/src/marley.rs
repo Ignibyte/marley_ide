@@ -202,6 +202,9 @@ pub struct MarleySettingsContent {
     pub claude_code_ide: Option<bool>,
     /// Voice in Marley (#480, #642): dictation through Voxtype. Off until it is turned on.
     pub voice: Option<MarleyVoiceSettingsContent>,
+    /// Agents' use of Marley's write tools (#703): the kill switch, with every call listed in the
+    /// Agent Activity tab.
+    pub agent_control: Option<MarleyAgentControlContent>,
     /// Marley's own agent (#683): an agent in the Agent Panel that explains and configures
     /// Marley. Off until it is turned on.
     pub assistant: Option<MarleyAssistantSettingsContent>,
@@ -352,6 +355,18 @@ pub struct MarleyVoiceSettingsContent {
     ///
     /// Default: false
     pub enabled: Option<bool>,
+}
+
+/// Agents' use of Marley's write tools (#703).
+#[with_fallible_options]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema, MergeFrom)]
+pub struct MarleyAgentControlContent {
+    /// The kill switch: while it is on, every tool of Marley's that acts (typing into and running
+    /// in terminals, the browser's clicks and typing, settings and keymap changes, harness seats)
+    /// refuses an agent's call, and the tools that only read keep working.
+    ///
+    /// Default: false
+    pub stopped: Option<bool>,
 }
 
 /// Marley's connection to Rusty, Ignibyte's local assistant store (#643).

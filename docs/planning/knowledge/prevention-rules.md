@@ -2892,3 +2892,10 @@ close. The Zed hunks of #708 keep that for `new_local`'s `OpenMode::Add`, `open_
 into a window and `initialize_workspace`; new code that adds a workspace another way gives the
 focus back inside the same window update. To find what moved focus, log a short backtrace in
 `Window::focus` (temporarily) before theorising.
+
+## PR-claude-703-an-unactivated-insert-keeps-the-active-tab-001
+*severity: medium · prevents: F-claude-703-homes-page-hid-a-tab-just-opened-into-home-001*
+
+Code that adds a tab before the active one without activating it (`add_item_inner(…, activate:
+false, Some(index))` with `index` at or below the active index) takes `pane.active_item()` first and
+activates it again after the insert: the pane keeps the active index, not the active item.

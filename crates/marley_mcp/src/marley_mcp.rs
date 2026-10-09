@@ -167,6 +167,19 @@ pub struct Caller {
     pub client: Option<String>,
 }
 
+/// What [`AnswerHook`] runs with a call's answer.
+type AnswerFn = dyn FnOnce(&Result<ToolAnswer, Refusal>) + Send;
+
+/// What runs with a call's answer before it goes back to the client (#703): the app's activity log
+/// records the outcome there, whichever task answers.
+pub struct AnswerHook(Box<AnswerFn>);
+
+impl std::fmt::Debug for AnswerHook {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("AnswerHook")
+    }
+}
+
 /// A tool call handed to the app. The connection's thread waits for [`AppCall::answer`].
 #[derive(Debug)]
 pub struct AppCall {
@@ -177,6 +190,7 @@ pub struct AppCall {
     caller: Caller,
     principal: Principal,
     answer: SyncSender<Result<ToolAnswer, Refusal>>,
+    on_answer: Option<AnswerHook>,
 }
 
 impl AppCall {
@@ -196,7 +210,14 @@ impl AppCall {
             caller,
             principal,
             answer,
+            on_answer: None,
         }
+    }
+
+    /// Runs `hook` with the answer when the call is answered, before the answer goes back (#703).
+    /// A later hook replaces an earlier one.
+    pub fn on_answer(&mut self, hook: impl FnOnce(&Result<ToolAnswer, Refusal>) + Send + 'static) {
+        self.on_answer = Some(AnswerHook(Box::new(hook)));
     }
 
     /// Who made the call, as far as the client said (#520).
@@ -215,7 +236,11 @@ impl AppCall {
     /// refusal given as words alone answers [`Refusal::REFUSED`]. An answer that comes after the
     /// connection stopped waiting goes nowhere.
     pub fn answer<E: Into<Refusal>>(self, result: Result<ToolAnswer, E>) {
-        if self.answer.send(result.map_err(Into::into)).is_err() {
+        let result = result.map_err(Into::into);
+        if let Some(AnswerHook(hook)) = self.on_answer {
+            hook(&result);
+        }
+        if self.answer.send(result).is_err() {
             log::debug!(
                 "marley_mcp: {} was answered after its call stopped waiting",
                 self.tool

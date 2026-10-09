@@ -4586,3 +4586,25 @@ Rejected:
 - Waiting on every pending record: records of windows never restored stay pending forever.
 - A hook in Zed's startup marking the end of the restore: four call sites, and a window opened
   later restores nothing anyway.
+
+## AD-claude-703-agent-control-starts-with-a-log-and-a-kill-switch-001
+*decided at: 2026-10-09 · status: shipped · plan: docs/planning/intake/zed-control-over-mcp.md*
+
+Chad, 2026-10-09: full control of Zed over Marley's MCP server, with security that doesn't ask for
+every action. The layer's first part covers every write tool Marley already has, not only the Zed
+tools to come:
+- every write-tier call of a listed tool is logged (who, tool, a redacted one-line summary, outcome)
+  in a day file and the Agent Activity tab;
+- `marley.agent_control.stopped` refuses them all with `agent_control_stopped` while reads keep
+  working.
+
+The switch is a setting, so it holds across a restart and shows in Settings. It is checked in
+`mcp::answer` from the registry's tier, so a later write tool is covered without knowing it. The
+outcome reaches the log through a hook on `AppCall`. The per-area modes and the once-per-session
+question ship with the first tool they govern (#704), and the rail mark is a follow-up.
+
+Rejected:
+- a modal question per call (Chad: "We dont want restrictive approve every single thing");
+- the switch as runtime state (a restart would clear it);
+- clearing the server's write grants as the switch (a bare `not_permitted`, and no log of the
+  attempt).
