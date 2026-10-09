@@ -1779,9 +1779,17 @@ impl Rail {
                 return;
             };
             view.update(cx, |view, cx| {
-                view.authorize_tool_call(
+                let Some(request) = view
+                    .thread
+                    .read(cx)
+                    .permission_request_for_tool(&tool_call)
+                    .map(|request| request.id)
+                else {
+                    return;
+                };
+                view.authorize_permission_request(
                     session,
-                    tool_call,
+                    request,
                     SelectedPermissionOutcome::new(option, kind),
                     window,
                     cx,
@@ -6406,7 +6414,7 @@ const fn changes_the_row(event: &AcpThreadEvent) -> bool {
             | AcpThreadEvent::TitleUpdated
             | AcpThreadEvent::ToolAuthorizationRequested(_)
             | AcpThreadEvent::ToolAuthorizationReceived(_)
-            | AcpThreadEvent::Stopped(_)
+            | AcpThreadEvent::Stopped { .. }
             | AcpThreadEvent::Error
             | AcpThreadEvent::LoadError(_)
             | AcpThreadEvent::Refusal
@@ -6997,14 +7005,13 @@ fn mark(entry: &mut InboxEntry, waiting: &Waiting, scope: &RiskScope, snapshot: 
 /// What an Agent Panel tool call waits to do (#568): its kind's class, the command it runs or its
 /// label as plain text, the paths it names, and a terminal tool's `cd`.
 fn thread_waiting(call: &acp_thread::ToolCall, agent: &str, cx: &App) -> Waiting {
-    let tool = match call.kind {
-        acp::ToolKind::Read
-        | acp::ToolKind::Search
-        | acp::ToolKind::Fetch
-        | acp::ToolKind::Think => ToolClass::Read,
-        acp::ToolKind::Edit | acp::ToolKind::Move => ToolClass::Write,
-        acp::ToolKind::Delete => ToolClass::Delete,
-        acp::ToolKind::Execute => ToolClass::Execute,
+    // A tool call's kind is ACP's v2 schema's since upstream's move to it.
+    use agent_client_protocol::schema::v2::ToolKind;
+    let tool = match call.kind() {
+        ToolKind::Read | ToolKind::Search | ToolKind::Fetch | ToolKind::Think => ToolClass::Read,
+        ToolKind::Edit | ToolKind::Move => ToolClass::Write,
+        ToolKind::Delete => ToolClass::Delete,
+        ToolKind::Execute => ToolClass::Execute,
         _ => ToolClass::Other,
     };
     let text = |key: &str| {
@@ -7029,7 +7036,7 @@ fn thread_waiting(call: &acp_thread::ToolCall, agent: &str, cx: &App) -> Waiting
     Waiting {
         tool,
         tool_name: call.tool_name.as_ref().map_or_else(
-            || format!("{:?}", call.kind).to_lowercase(),
+            || format!("{:?}", call.kind()).to_lowercase(),
             ToString::to_string,
         ),
         line: one_line(&line),
@@ -8186,7 +8193,13 @@ fn worktree_rows(
                 .map(|(member, _)| member.downgrade());
             let name = main
                 .as_deref()
-                .and_then(|main| project::linked_worktree_short_name(main, &path))
+                .and_then(|main| {
+                    project::linked_worktree_short_name(
+                        main,
+                        &path,
+                        util::paths::PathStyle::local(),
+                    )
+                })
                 .map(|name| name.to_string())
                 .or_else(|| {
                     path.file_name()

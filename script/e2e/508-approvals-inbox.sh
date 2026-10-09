@@ -319,6 +319,8 @@ steps() {
   echo "== a thread of the stand-in agent asks to edit README.md"
   click "$PLUS_X" "$PLUS_Y"
   settle 1
+  # A menu opens with nothing chosen (Zed #64365); Home chooses New Terminal.
+  press "" Home
   press "" Down
   press "" Down
   press "" Right

@@ -1,6 +1,6 @@
 use editor::{CursorLayout, EditorSettings, HighlightedRange, HighlightedRangeLine};
 use gpui::{
-    AbsoluteLength, AnyElement, App, AvailableSpace, Bounds, ClipboardItem, ContentMask, Context,
+    AbsoluteLength, AnyElement, App, AvailableSpace, Bounds, ClipboardItem, ContentMask,
     DispatchPhase, Element, ElementId, Entity, FocusHandle, Font, FontFeatures, FontStyle,
     FontWeight, GlobalElementId, HighlightStyle, Hitbox, Hsla, InputHandler, InteractiveElement,
     Interactivity, IntoElement, LayoutId, Length, ModifiersChangedEvent, MouseButton,
@@ -13,9 +13,10 @@ use language::CursorShape as EditorCursorShape;
 use settings::Settings;
 use std::time::Instant;
 use terminal::{
-    Cell, Color, Content, CursorShape, IndexedCell, Modes, NamedColor, Point, Range, Terminal,
-    TerminalBounds, is_app_chosen_exact_color as terminal_is_app_chosen_exact_color,
-    is_default_background_color, terminal_settings::TerminalSettings,
+    Cell, Color, Content, CursorShape, IndexedCell, Modes, MouseInputMode, NamedColor, Point,
+    Range, Terminal, TerminalBounds,
+    is_app_chosen_exact_color as terminal_is_app_chosen_exact_color, is_default_background_color,
+    terminal_settings::TerminalSettings,
 };
 use theme::{ActiveTheme, Theme};
 use theme_settings::ThemeSettings;
@@ -43,7 +44,6 @@ pub struct LayoutState {
     ime_cursor_bounds: Option<Bounds<Pixels>>,
     background_color: Hsla,
     dimensions: TerminalBounds,
-    mode: Modes,
     display_offset: usize,
     hyperlink_tooltip: Option<AnyElement>,
     block_below_cursor_element: Option<AnyElement>,
@@ -983,31 +983,11 @@ impl TerminalElement {
         result
     }
 
-    fn generic_button_handler<E>(
-        connection: Entity<Terminal>,
-        focus_handle: FocusHandle,
-        steal_focus: bool,
-        f: impl Fn(&mut Terminal, &E, &mut Context<Terminal>),
-    ) -> impl Fn(&E, &mut Window, &mut App) {
-        move |event, window, cx| {
-            if steal_focus {
-                window.focus(&focus_handle, cx);
-            } else if !focus_handle.is_focused(window) {
-                return;
-            }
-            connection.update(cx, |terminal, cx| {
-                f(terminal, event, cx);
-
-                cx.notify();
-            })
-        }
-    }
-
     fn register_mouse_listeners(
         &mut self,
-        mode: Modes,
         hitbox: &Hitbox,
         content_mode: &ContentMode,
+        mouse_input_mode: MouseInputMode,
         window: &mut Window,
     ) {
         let focus = self.focus.clone();
@@ -1022,13 +1002,14 @@ impl TerminalElement {
             move |e, window, cx| {
                 window.focus(&focus, cx);
 
-                let scroll_top = terminal_view.read(cx).scroll_top;
+                let view = terminal_view.read(cx);
+                let scroll_top = view.scroll_top;
                 terminal.update(cx, |terminal, cx| {
                     let mut adjusted_event = e.clone();
                     if scroll_top > Pixels::ZERO {
                         adjusted_event.position.y += scroll_top;
                     }
-                    terminal.mouse_down(&adjusted_event, cx);
+                    terminal.mouse_down(&adjusted_event, mouse_input_mode, cx);
                     cx.notify();
                 })
             }
@@ -1038,7 +1019,6 @@ impl TerminalElement {
             let terminal = self.terminal.clone();
             let hitbox = hitbox.clone();
             let focus = focus.clone();
-            let terminal_view = terminal_view;
             move |e: &MouseMoveEvent, phase, window, cx| {
                 if phase != DispatchPhase::Bubble {
                     return;
@@ -1059,7 +1039,12 @@ impl TerminalElement {
                             if scroll_top > Pixels::ZERO {
                                 adjusted_event.position.y += scroll_top;
                             }
-                            terminal.mouse_drag(&adjusted_event, hitbox.bounds, cx);
+                            terminal.mouse_drag(
+                                &adjusted_event,
+                                hitbox.bounds,
+                                mouse_input_mode,
+                                cx,
+                            );
                             cx.notify();
                         }
                     })
@@ -1067,36 +1052,72 @@ impl TerminalElement {
 
                 if hitbox.is_hovered(window) {
                     terminal.update(cx, |terminal, cx| {
-                        terminal.mouse_move(e, cx);
+                        terminal.mouse_move(e, mouse_input_mode, cx);
                     })
                 }
             }
         });
 
-        // Marley: the release of a press in this terminal reaches it after the prompt editor took
-        // the focus at the press, as the drag does (#631).
-        self.interactivity.on_mouse_up(MouseButton::Left, {
-            let terminal = terminal.clone();
-            let focus = focus.clone();
-            move |e, window, cx| {
-                if !focus.is_focused(window) && !terminal.read(cx).marley_left_pressed() {
-                    return;
+        for button in [MouseButton::Left, MouseButton::Middle, MouseButton::Right] {
+            self.interactivity.on_mouse_up(button, {
+                let terminal = terminal.clone();
+                let focus = focus.clone();
+                move |event, window, cx| {
+                    // Marley: the release of a left press in this terminal reaches it after the
+                    // prompt editor took the focus at the press, as the drag does (#631).
+                    if !focus.is_focused(window)
+                        && !(button == MouseButton::Left && terminal.read(cx).marley_left_pressed())
+                    {
+                        return;
+                    }
+                    if button != MouseButton::Left
+                        && (mouse_input_mode == MouseInputMode::LocalSelection
+                            || !terminal
+                                .read(cx)
+                                .last_content
+                                .mode
+                                .intersects(Modes::MOUSE_MODE))
+                    {
+                        return;
+                    }
+                    terminal.update(cx, |terminal, cx| {
+                        terminal.mouse_up(event, mouse_input_mode, cx);
+                        cx.notify();
+                    });
                 }
-                terminal.update(cx, |terminal, cx| {
-                    terminal.mouse_up(e, cx);
-                    cx.notify();
-                });
-            }
-        });
+            });
+        }
+        for button in [MouseButton::Middle, MouseButton::Right] {
+            self.interactivity.on_mouse_down(button, {
+                let terminal = terminal.clone();
+                let focus = focus.clone();
+                move |event, window, cx| {
+                    if mouse_input_mode == MouseInputMode::LocalSelection
+                        || (button == MouseButton::Right
+                            && !terminal
+                                .read(cx)
+                                .last_content
+                                .mode
+                                .intersects(Modes::MOUSE_MODE))
+                    {
+                        return;
+                    }
+                    window.focus(&focus, cx);
+                    terminal.update(cx, |terminal, cx| {
+                        terminal.mouse_down(event, mouse_input_mode, cx);
+                        cx.notify();
+                    });
+                }
+            });
+        }
         // Marley: one plain click on a link, with nothing selected and the program not taking the
         // mouse, shows the link's menu once the terminal's own mouse-up has ended the click (#579).
         self.interactivity.on_mouse_up(MouseButton::Left, {
-            let terminal = terminal.clone();
             let terminal_view = self.terminal_view.downgrade();
             move |e, window, cx| {
                 let terminal = terminal.read(cx);
                 let plain = e.click_count == 1 && !e.modifiers.modified();
-                let quiet = !terminal.mouse_mode(e.modifiers.shift)
+                let quiet = !terminal.mouse_mode(e.modifiers.shift, mouse_input_mode)
                     && terminal
                         .last_content
                         .selection_text
@@ -1114,17 +1135,6 @@ impl TerminalElement {
                 }
             }
         });
-        self.interactivity.on_mouse_down(
-            MouseButton::Middle,
-            TerminalElement::generic_button_handler(
-                terminal.clone(),
-                focus.clone(),
-                true,
-                move |terminal, e, cx| {
-                    terminal.mouse_down(e, cx);
-                },
-            ),
-        );
 
         if content_mode.is_scrollable() {
             self.interactivity.on_scroll_wheel({
@@ -1142,44 +1152,6 @@ impl TerminalElement {
                         .ok();
                 }
             });
-        }
-
-        // Mouse mode handlers:
-        // All mouse modes need the extra click handlers
-        if mode.intersects(Modes::MOUSE_MODE) {
-            self.interactivity.on_mouse_down(
-                MouseButton::Right,
-                TerminalElement::generic_button_handler(
-                    terminal.clone(),
-                    focus.clone(),
-                    true,
-                    move |terminal, e, cx| {
-                        terminal.mouse_down(e, cx);
-                    },
-                ),
-            );
-            self.interactivity.on_mouse_up(
-                MouseButton::Right,
-                TerminalElement::generic_button_handler(
-                    terminal.clone(),
-                    focus.clone(),
-                    false,
-                    move |terminal, e, cx| {
-                        terminal.mouse_up(e, cx);
-                    },
-                ),
-            );
-            self.interactivity.on_mouse_up(
-                MouseButton::Middle,
-                TerminalElement::generic_button_handler(
-                    terminal,
-                    focus,
-                    false,
-                    move |terminal, e, cx| {
-                        terminal.mouse_up(e, cx);
-                    },
-                ),
-            );
         }
     }
 
@@ -1504,14 +1476,12 @@ impl Element for TerminalElement {
 
                 let Content {
                     cells,
-                    mode,
                     display_offset,
                     cursor_char,
                     selection,
                     cursor,
                     ..
                 } = &self.terminal.read(cx).last_content;
-                let mode = *mode;
                 let display_offset = *display_offset;
 
                 // searches, highlights to a single range representations
@@ -1623,7 +1593,12 @@ impl Element for TerminalElement {
                 let marley_maps_rows = content_mode.is_scrollable()
                     && intersection.top() == content_bounds.top()
                     && self.block_below_cursor.is_none()
-                    && !mode.contains(Modes::ALT_SCREEN);
+                    && !self
+                        .terminal
+                        .read(cx)
+                        .last_content
+                        .mode
+                        .contains(Modes::ALT_SCREEN);
                 let mut marley_header_layouts = Vec::new();
                 if let Some(hook) = cx.try_global::<crate::MarleyBlockHeader>().cloned() {
                     let prompt_rows = {
@@ -1944,7 +1919,6 @@ impl Element for TerminalElement {
                     dimensions,
                     rects,
                     relative_highlighted_ranges,
-                    mode,
                     display_offset,
                     hyperlink_tooltip,
                     block_below_cursor_element,
@@ -1971,9 +1945,17 @@ impl Element for TerminalElement {
     ) {
         let paint_start = Instant::now();
         window.with_content_mask(Some(ContentMask { bounds }), |window| {
-            let scroll_top = self.terminal_view.read(cx).scroll_top;
+            let terminal_view = self.terminal_view.read(cx);
+            let scroll_top = terminal_view.scroll_top;
+            let mouse_input_mode = terminal_view.mouse_input_mode();
+            let corner_radii = terminal_view
+                .background_corner_radii
+                .unwrap_or_default()
+                .map(|radius| radius.to_pixels(window.rem_size()))
+                .clamp_radii_for_quad_size(bounds.size);
 
-            window.paint_quad(fill(bounds, layout.background_color));
+            window.paint_quad(fill(bounds, layout.background_color).corner_radii(corner_radii));
+
             let origin = layout.dimensions.bounds.origin - GpuiPoint::new(px(0.), scroll_top);
             let scale_factor = window.scale_factor();
             let snap_px = |value: Pixels| {
@@ -1993,9 +1975,9 @@ impl Element for TerminalElement {
             };
 
             self.register_mouse_listeners(
-                layout.mode,
                 &layout.hitbox,
                 &layout.content_mode,
+                mouse_input_mode,
                 window,
             );
             if window.modifiers().secondary()
@@ -2302,10 +2284,13 @@ struct TerminalInputHandler {
 impl InputHandler for TerminalInputHandler {
     fn selected_text_range(
         &mut self,
-        _ignore_disabled_input: bool,
+        ignore_disabled_input: bool,
         _: &mut Window,
-        _cx: &mut App,
+        cx: &mut App,
     ) -> Option<UTF16Selection> {
+        if self.terminal_view.read(cx).is_read_only() && !ignore_disabled_input {
+            return None;
+        }
         // Always return a valid selection for IME positioning,
         // even in ALT_SCREEN mode (fullscreen TUI apps like opencode, vim, etc.)
         // The terminal still has a cursor position that should be used for IME candidate window placement.
@@ -2340,6 +2325,9 @@ impl InputHandler for TerminalInputHandler {
         window: &mut Window,
         cx: &mut App,
     ) {
+        if self.terminal_view.read(cx).is_read_only() {
+            return;
+        }
         self.terminal_view.update(cx, |view, view_cx| {
             view.clear_marked_text(view_cx);
             view.commit_text(text, view_cx);
@@ -2935,7 +2923,7 @@ fn marley_block(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gpui::{AbsoluteLength, Hsla, font};
+    use gpui::{AbsoluteLength, Hsla, TestAppContext, font};
     use ui::utils::apca_contrast;
 
     // Marley: a block span for the decoration tests (#470).
@@ -3034,6 +3022,59 @@ mod tests {
                 bar,
                 "{state:?} {exit:?}"
             );
+        }
+    }
+
+    #[gpui::test]
+    async fn terminal_input_handler_respects_read_only_mode(cx: &mut TestAppContext) {
+        let (project, workspace, window_handle) = crate::tests::init_test_with_window(cx).await;
+        for read_only in [false, true] {
+            let (_pane, terminal, terminal_view) = crate::tests::add_display_only_terminal(
+                &project,
+                window_handle,
+                true,
+                read_only,
+                cx,
+            );
+
+            window_handle
+                .update(cx, |_multi_workspace, window, cx| {
+                    let mut input_handler = TerminalInputHandler {
+                        terminal_view,
+                        workspace: workspace.downgrade(),
+                        cursor_bounds: None,
+                    };
+
+                    assert_eq!(
+                        input_handler
+                            .selected_text_range(false, window, cx)
+                            .is_none(),
+                        read_only
+                    );
+                    assert!(
+                        input_handler
+                            .selected_text_range(true, window, cx)
+                            .is_some()
+                    );
+
+                    input_handler.replace_and_mark_text_in_range(None, "あ", None, window, cx);
+                    assert_eq!(
+                        input_handler.marked_text_range(window, cx),
+                        (!read_only).then_some(0..1)
+                    );
+
+                    input_handler.replace_text_in_range(None, "亜", window, cx);
+                    assert_eq!(input_handler.marked_text_range(window, cx), None);
+                    assert_eq!(
+                        terminal.update(cx, |terminal, _| terminal.take_input_log()),
+                        if read_only {
+                            Vec::new()
+                        } else {
+                            vec!["亜".as_bytes().to_vec()]
+                        }
+                    );
+                })
+                .expect("test window should remain open");
         }
     }
 

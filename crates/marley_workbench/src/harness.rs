@@ -797,6 +797,7 @@ async fn connected(
         ContextServerId(Arc::from("marley-harness")),
         command.clone(),
         None,
+        None,
     ));
     let executor = cx.background_executor().clone();
     match select(pin!(server.start(cx)), pin!(executor.timer(CALL_TIMEOUT))).await {

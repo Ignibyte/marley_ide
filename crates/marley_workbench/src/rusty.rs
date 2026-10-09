@@ -429,7 +429,7 @@ async fn server_for(source: &Source, cx: &AsyncApp) -> Result<(ContextServer, St
                 env: None,
                 timeout: None,
             };
-            (ContextServer::stdio(id, command, None), via)
+            (ContextServer::stdio(id, command, None, None), via)
         }
         Source::Service(url) => {
             let url = match loopback(url) {

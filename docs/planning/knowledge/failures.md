@@ -3508,3 +3508,29 @@ runtime's own names (`harness_*`, `operation_failed`, `admission_refused`). A co
 reached the agent as `refused`, with the code buried in the reason. The list existed because
 `Refusal.code` was `&'static str`. Fixed in #693: the code is a `Cow`, and any `[a-z_]+` token passes
 through.
+
+## F-claude-695-taking-upstreams-lockfile-dropped-marleys-security-pins-001
+*severity: medium · found in: pipeline 695's Code phase (gate:7) · class: a merge side taken wholesale · prevented by: PR-claude-695-an-upstream-merge-keeps-marleys-lockfile-001*
+
+The merge took upstream's `Cargo.lock` (`git checkout --theirs`) and let cargo re-resolve. That
+undid Marley's own updates: wasmtime went from 48.0.5 back to 48.0.1, bringing five RUSTSEC
+advisories, and cargo-audit failed. `git checkout --ours` did not help either, since during a
+merge it gives back the staged file. Fixed in #695: Marley's lockfile from `HEAD`
+(`git checkout HEAD -- Cargo.lock`), then a build, which adds only what upstream's manifests ask
+for.
+
+## F-claude-695-the-users-font-size-moved-every-scenarios-clicks-001
+*severity: medium · found in: pipeline 695's Test phase (the golden set) · class: a user setting reaching a test run · prevented by: PR-claude-695-a-setting-that-moves-the-layout-stays-out-of-test-runs-001*
+
+`script/e2e.sh` copies the user's `settings.json` into each run. The user had set `ui_font_size`
+to 24, and the scenarios' click points are measured at the default 16, so every row and button
+sat lower and clicks missed. 30 of the 53 golden scenarios failed on the build from before the
+merge as well as after it. Fixed in #695: the copy drops the user's font sizes and families.
+
+## F-claude-695-scenarios-counted-on-a-menu-opening-on-its-first-entry-001
+*severity: low · found in: pipeline 695's Test phase · class: a scenario leaning on upstream behavior · prevented by: PR-claude-695-a-scenario-chooses-a-menu-entry-from-home-001*
+
+Zed #64365 opens a `ContextMenu` with nothing chosen unless accessibility is enabled, and Zed's
+`main.rs` disables it unless `ZED_EXPERIMENTAL_A11Y=1`. Scenarios 500, 503, 508, 532 and 579
+counted Downs from a first entry already chosen, so after the merge they landed one entry
+short. Fixed in #695: each presses Home (`menu::SelectFirst`) first.

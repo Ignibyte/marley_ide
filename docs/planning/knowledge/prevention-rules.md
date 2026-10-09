@@ -2834,3 +2834,24 @@ When Marley relays another program's error codes, it matches their form, such as
 harness's `rh: CODE: reason` with `[a-z_]+`, and passes the code through. It does not keep its
 own list of the codes. The other program owns its vocabulary and adds to it without telling
 Marley.
+
+## PR-claude-695-an-upstream-merge-keeps-marleys-lockfile-001
+*severity: medium · prevents: F-claude-695-taking-upstreams-lockfile-dropped-marleys-security-pins-001*
+
+When an upstream merge conflicts on `Cargo.lock`, take Marley's with `git checkout HEAD --
+Cargo.lock` (not `--theirs`, and not `--ours`, which gives back the staged file), then build so
+cargo adds upstream's new dependencies. Check that `cargo audit` holds before the gate.
+
+## PR-claude-695-a-setting-that-moves-the-layout-stays-out-of-test-runs-001
+*severity: medium · prevents: F-claude-695-the-users-font-size-moved-every-scenarios-clicks-001*
+
+A setting that changes where things sit on screen, such as font sizes and families, never
+reaches a run: `script/e2e.sh`'s copy of the user's settings drops it, as it drops the settings
+that reach outside the run. A ticket that adds such a setting adds it to the copy's list.
+
+## PR-claude-695-a-scenario-chooses-a-menu-entry-from-home-001
+*severity: low · prevents: F-claude-695-scenarios-counted-on-a-menu-opening-on-its-first-entry-001*
+
+A scenario that chooses a menu entry with the keys presses Home once the menu is open, then
+counts Downs from the first entry. A menu opens with nothing chosen (Zed #64365), and Home holds
+whatever upstream does next.

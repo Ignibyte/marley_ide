@@ -379,3 +379,14 @@ pub(crate) mod m_2026_08_30 {
 
 // Marley: the fork's own settings migrations (#643).
 pub(crate) mod marley;
+pub(crate) mod m_2026_09_16 {
+    mod settings;
+
+    pub(crate) use settings::nest_agent_threads_sidebar_settings;
+}
+
+pub(crate) mod m_2026_09_29 {
+    mod settings;
+
+    pub(crate) use settings::move_copilot_enterprise_uri;
+}

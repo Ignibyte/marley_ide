@@ -194,7 +194,26 @@ scan_files() {
   for d in crates/marley_*/; do [ -d "${d}src" ] && printf '%s\n' "${d%/}"; done
   git ls-files --others --exclude-standard -- crates 2>/dev/null | grep -E '\.rs$' | grep -vE '^crates/marley_' || true
 }
-added_lines() { git diff HEAD -U0 -- crates 2>/dev/null | grep -E '^\+[^+]' | sed 's/^+//' || true; }
+# The upstream commit an in-progress merge brings in, when the merge is of upstream (#695).
+upstream_merge_head() {
+  local merging
+  merging=$(git rev-parse -q --verify MERGE_HEAD 2>/dev/null) || return 1
+  git merge-base --is-ancestor "$merging" upstream/main 2>/dev/null || return 1
+  printf '%s\n' "$merging"
+}
+# The lines a diff of crates/ against REF adds.
+lines_added_since() { git diff "$1" -U0 -- crates 2>/dev/null | grep -E '^\+[^+]' | sed 's/^+//' || true; }
+# While upstream is being merged in, a line is the change's only when it is new against both
+# sides: the lines upstream brings are upstream's history (#695).
+added_lines() {
+  local merging
+  if merging=$(upstream_merge_head); then
+    LC_ALL=C comm -12 <(lines_added_since HEAD | LC_ALL=C sort -u) \
+      <(lines_added_since "$merging" | LC_ALL=C sort -u)
+    return 0
+  fi
+  lines_added_since HEAD
+}
 
 # ── 12. no inline suppressions (CONSTITUTION §0/§15) ─────────────────────────
 no_suppr_g() {
@@ -233,7 +252,8 @@ unjustified_unsafe() {
 # The same for the lines a tracked edit under crates/ adds, read with one line of
 # context so the line above an added `unsafe` is known.
 added_unjustified_unsafe() {
-  git diff HEAD -U1 -- crates 2>/dev/null | awk -v re="$UNSAFE_RE" '
+  local found merging
+  found=$(git diff HEAD -U1 -- crates 2>/dev/null | awk -v re="$UNSAFE_RE" '
     /^(\+\+\+|---) / || /^@@/ { previous = ""; next }
     /^-/ { next }
     {
@@ -241,7 +261,14 @@ added_unjustified_unsafe() {
       if ($0 ~ /^\+/ && line ~ re && line !~ /SAFETY:/ && previous !~ /SAFETY:/) print line
       previous = line
     }
-  '
+  ')
+  [ -n "$found" ] || return 0
+  # While upstream is being merged in, upstream's own lines are not the change's (#695).
+  if merging=$(upstream_merge_head); then
+    LC_ALL=C grep -Fx -f <(lines_added_since "$merging") <<<"$found" || true
+    return 0
+  fi
+  printf '%s\n' "$found"
 }
 
 source_bans_g() {

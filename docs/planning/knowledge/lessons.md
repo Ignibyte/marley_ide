@@ -5134,3 +5134,22 @@ its scenario and ran it without invoking `/pipeline:test`, after Code had set it
 shots then called for was blocked, because the hook still saw Code as active and wanted Phase 1's
 status. Invoke `/pipeline:test` before writing the scenario, so a source fix found in Test is the
 Test phase's to make.
+
+## L-claude-695-merging-upstream-zed-001
+*category: process · topic: upstream merges · from: pipeline 695*
+
+How the 2026-10-08 merge of 319 upstream commits went, for the next one:
+- **A merge commit on a branch, not a rebase.** Of 8 conflicted files, each was resolved by
+  re-applying the hunk its touchpoints row names on top of upstream's change.
+- **The tooling has to know a merge is in progress.** `upstream_base` (the ledger's fork point) and
+  gates 12 and 13 (lines added) read upstream's `MERGE_HEAD`. Without that, upstream's own new
+  lines count as Marley's: the ledger misses rows, and every new `unsafe` and `#[allow]` in gpui
+  fails the gate.
+- **Expect API breaks in the Marley crates.** There were nine: `ContextServer::stdio`,
+  `default_model`, permission request ids, `AcpThreadEvent::Stopped`, `ToolCall::kind`,
+  `linked_worktree_short_name`, `ZedListener` and a `toml_edit` feature dropped from the
+  workspace. `cargo check -p zed` finds them; clippy and dylint then find the rest.
+- **The golden set is the visual check, compared against the build from before.** Run each failing
+  scenario on the installed build. Only those that pass before and fail after are the merge's.
+  Compare like with like: a debug build is slower, and a timing-tight scenario (561) can fail only
+  there, so check such a failure on a release build of the merged tree.

@@ -123,9 +123,11 @@ run() {
   settle "${2:-3}"
 }
 
-# Chooses the menu's entry `$1`, counting from 1: the menu starts on its first entry.
+# Chooses the menu's entry `$1`, counting from 1. A menu opens with nothing chosen (Zed #64365), so
+# Home chooses its first entry.
 choose() {
   local downs
+  press "" Home
   for ((downs = 1; downs < $1; downs++)); do
     press "" Down
   done

@@ -140,6 +140,8 @@ palette() {
 plus_entry() {
   click "$PLUS_X" "$PLUS_Y"
   settle 1
+  # A menu opens with nothing chosen (Zed #64365); Home chooses New Terminal.
+  press "" Home
   local step
   for ((step = 0; step < $1; step++)); do
     press "" Down

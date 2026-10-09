@@ -48,7 +48,9 @@ steps() {
   echo "== the project's + lists New Browser Tab"
   click "$PLUS_X" "$PLUS_Y"
   settle 1
-  # The menu opens on New Terminal; one step down is New Browser Tab.
+  # A menu opens with nothing chosen (Zed #64365): Home chooses New Terminal, and one step down is
+  # New Browser Tab.
+  press "" Home
   press "" Down
   settle 1
   shot 500-01-menu

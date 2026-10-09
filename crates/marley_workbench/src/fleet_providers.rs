@@ -378,6 +378,7 @@ async fn connect(
                     timeout: None,
                 },
                 None,
+                None,
             );
             server.start(cx).await?;
             Ok(Client::Mcp(Arc::new(server)))

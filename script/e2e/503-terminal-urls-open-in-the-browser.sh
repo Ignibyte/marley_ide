@@ -243,6 +243,8 @@ steps() {
   click "$OFFER_ARROW_X" "$OFFER_Y"
   settle 1
   shot 503-08-offer-menu
+  # A menu opens with nothing chosen (Zed #64365); Home chooses its first entry.
+  press "" Home
   press "" Down
   press "" Down
   press "" Return
@@ -253,6 +255,7 @@ steps() {
     test "$(cat "$E2E_WORK/clipboard.txt")" = "$url"
   click "$OFFER_ARROW_X" "$OFFER_Y"
   settle 1
+  press "" Home
   press "" Down
   press "" Return
   settle 2

@@ -206,6 +206,15 @@ ZED_LEDGER="docs/marley/zed-touchpoints.md"
 # merge checklist). Prints nothing when none resolves.
 UPSTREAM_BASE_FALLBACK="78648aaf7d"
 upstream_base() {
+    # While upstream is being merged in, the fork point is the upstream commit the merge brings:
+    # the tree about to be committed holds upstream through it, and only Marley's changes on
+    # top of it are the ledger's (#695).
+    local merging
+    if merging=$(git -C "$PROJECT_ROOT" rev-parse -q --verify MERGE_HEAD 2>/dev/null) \
+        && git -C "$PROJECT_ROOT" merge-base --is-ancestor "$merging" upstream/main 2>/dev/null; then
+        echo "$merging"
+        return 0
+    fi
     git -C "$PROJECT_ROOT" merge-base upstream/main HEAD 2>/dev/null \
         || git -C "$PROJECT_ROOT" rev-parse --verify "${MARLEY_UPSTREAM_BASE:-$UPSTREAM_BASE_FALLBACK}^{commit}" 2>/dev/null \
         || true

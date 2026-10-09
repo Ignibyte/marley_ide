@@ -645,7 +645,9 @@ cp "$config/settings.json" "$E2E_PROFILE/config/"
 # `marley.system_one` (their System One account); a scenario that needs one sets its own fake.
 # The rail's Containers list is off in the copy too (#669): it lists the containers running on
 # the machine, each with a Stop, and their number moves every row below them. The Marley agent is
-# decided off (#683), so its offer never covers a scenario's clicks.
+# decided off (#683), so its offer never covers a scenario's clicks. The user's font sizes and
+# families come out as well (#695): every scenario's click points are measured at the default
+# sizes, and a larger UI font moves every row and button they aim at.
 python3 - "$E2E_PROFILE/config/settings.json" <<'SETTINGS'
 import json, pathlib, re, sys
 
@@ -670,6 +672,13 @@ marley["rail_containers"] = False
 # the user's claude is signed in (#683), over whatever a scenario clicks; the copy decides it off.
 # #683's own scenario takes the key out again.
 marley["assistant"] = {"enabled": False}
+for font in ("ui_font_size", "ui_font_family", "buffer_font_size", "buffer_font_family",
+             "agent_ui_font_size", "agent_buffer_font_size"):
+    settings.pop(font, None)
+terminal = settings.get("terminal")
+if isinstance(terminal, dict):
+    terminal.pop("font_size", None)
+    terminal.pop("font_family", None)
 path.write_text(json.dumps(settings, indent=2) + "\n")
 SETTINGS
 # Nor does a run inherit the user's System One or Cloudflare key (#668): a scenario that tests

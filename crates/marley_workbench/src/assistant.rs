@@ -536,9 +536,11 @@ async fn codex_signed_in(codex: &Path) -> bool {
 
 /// Whether Zed's agent has a default model whose provider is signed in.
 fn zed_model_ready(cx: &App) -> bool {
-    LanguageModelRegistry::read_global(cx)
+    let registry = LanguageModelRegistry::read_global(cx);
+    registry
         .default_model()
-        .is_some_and(|model| model.provider.is_authenticated(cx))
+        .and_then(|model| registry.provider(&model.provider_id))
+        .is_some_and(|provider| provider.is_authenticated(cx))
 }
 
 /// Whether the user's settings name `marley.assistant.enabled`, either way.

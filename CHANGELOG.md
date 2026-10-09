@@ -13,6 +13,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Upstream Zed through 2026-10-08** (#695). Marley now builds on Zed 1.25.0, adding the 319
+  upstream commits since the last merge. Upstream's changes that show:
+  - Menus open with nothing chosen. The first Down chooses the first entry, and Enter with
+    nothing chosen closes the menu (Zed #64365).
+  - The terminal tracks mouse modes for each button and honours read-only terminals.
+  - ACP sessions start through a prepared request (ACP SDK 3.1), and agent servers can take a
+    stdin prefix.
+
+  Test runs no longer take the user's font sizes and families, so a larger UI font no longer
+  moves every scenario's clicks.
+
 - **A notice for the manager's reports** (#688, 2026-10-08). Marley follows the harness manager's
   thread. When the manager posts a message, report or confirmation while the Manager thread is not
   in front:
