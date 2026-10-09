@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **One docs search over Zed's and Marley's docs** (#723, 2026-10-09). `docs_search` and
+  `docs_read`, on Marley's MCP server for every agent, now cover Zed's docs and Marley's guide,
+  walkthrough and changelog.
+  - Each changelog entry is a section of its own, so "what changed" questions find the ticket.
+  - A query word also matches its form without -s, -es, -ies, -ing or -ed, so "terminals" finds
+    "terminal".
+  - The Marley agent is told to use the changelog for what changed and when.
+
 - **The guide page caught up** (#722, 2026-10-09). `marley: open guide` and the title bar's `?` now
   cover what shipped after #687:
   - Home's page, the Rusty group and agent threads in tabs;

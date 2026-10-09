@@ -508,18 +508,22 @@ const REGISTRY: &[ToolSpec] = &[
         verb: "search",
         tier: Tier::Read,
         grant_class: "",
-        description: "Search Zed's docs and Marley's guide, as this Marley ships them, for a query \
-                      in words, such as \"terminal font size\" or \"rail filter\": up to 10 \
-                      sections, best first, each with its page, heading and a snippet. Read one \
-                      with docs_read. The words must appear; a query in other words can miss.",
+        description: "Search Zed's docs and Marley's guide, walkthrough and changelog, as this \
+                      Marley ships them, for a query in words, such as \"terminal font size\" or \
+                      \"rail filter\": up to 10 sections, best first, each with its page, heading \
+                      and a snippet. A changelog entry is a section of its own, so a question of \
+                      what changed and when finds its ticket. Read one with docs_read. The words, \
+                      or their forms without -s, -es, -ing or -ed, must appear; a query in other \
+                      words can miss.",
     },
     ToolSpec {
         family: Family::Docs,
         verb: "read",
         tier: Tier::Read,
         grant_class: "",
-        description: "Read a page of Zed's docs (`zed/<path>`) or Marley's guide \
-                      (`marley/guide.md`), whole or one section by `heading`, from the top a page \
+        description: "Read a page of Zed's docs (`zed/<path>`) or Marley's (`marley/guide.md`, \
+                      `marley/walkthrough.md`, `marley/CHANGELOG.md`), whole or one section by \
+                      `heading`, from the top a page \
                       at a time: the lines that fit in 12,000 bytes, with `next` to pass back as \
                       `after` for the rest. Key placeholders show the keys bound in this Marley.",
     },

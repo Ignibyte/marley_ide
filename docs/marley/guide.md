@@ -1514,8 +1514,8 @@ one Decisions tab per window. System One's log is another tab, System One calls.
 
 An agent that explains Marley and sets it up with you (#683). It reaches Marley's docs and
 settings through Marley's MCP server: `docs_search`, `docs_read`, `settings_schema`,
-`settings_read`, `actions_list`, `settings_change`, `keymap_change` and `seat_add` (#692). Every change it proposes
-waits for your Apply. It is on out of the box (#696). **Agent** (`marley.assistant.agent`, #687)
+`settings_read`, `actions_list`, `settings_change`, `keymap_change` and `seat_add` (#692). Every
+change it proposes waits for your Apply. It is on out of the box (#696). **Agent** (`marley.assistant.agent`, #687)
 picks what it runs on:
 
 - **Auto** (`auto`, the default, #696): the first found a second after start. That is Claude Code
@@ -1728,8 +1728,8 @@ The docs, settings and actions families (#681), for questions about Marley itsel
 
 | Tool | What it gives |
 |---|---|
-| `docs_search` | Zed's docs and this guide, as this Marley ships them, searched for a query in words: up to 10 sections, best first (those holding the most of its words, then the most hits, a hit in a heading counting more), each with its page, heading and a snippet |
-| `docs_read` | A page (`zed/<path>` or `marley/guide.md`), whole or one section by `heading`, from the top in pages of up to 12,000 bytes; `next`, passed back as `after`, reads on. Zed's key placeholders show the keys bound in this Marley, and its action placeholders their palette names |
+| `docs_search` | Zed's docs and Marley's guide, walkthrough and changelog (#723), as this Marley ships them, searched for a query in words: up to 10 sections, best first (those holding the most of its words, then the most hits, a hit in a heading counting more), each with its page, heading and a snippet; a changelog entry is a section of its own, and a word not found also tries its form without -s, -es, -ies, -ing or -ed (#723) |
+| `docs_read` | A page (`zed/<path>`, `marley/guide.md`, `marley/walkthrough.md` or `marley/CHANGELOG.md`), whole or one section by `heading`, from the top in pages of up to 12,000 bytes; `next`, passed back as `after`, reads on. Zed's key placeholders show the keys bound in this Marley, and its action placeholders their palette names |
 | `settings_schema` | What a setting is, by its key path (`terminal.font_size`): its type, description, allowed values and default, and for an object its keys; an empty key lists the top-level keys |
 | `settings_read` | What a setting is set to: its value in each settings file that sets it, highest precedence first (each open project's `.zed/settings.json`, your settings, the defaults), which file wins, the value in effect, and `global`, the value where no project file sets it. A value under a name such as `token`, `secret`, `password`, `api_key` or `auth` comes back as `[redacted: setting]` |
 | `actions_list` | The actions whose name or documentation holds every word of a query, up to 50, shortest name first: each one's name, palette name, first line of documentation, and the keys bound to it with the context each applies in |

@@ -4696,3 +4696,20 @@ and a deny list would let each new one through.
 **Rejected:**
 - A deny list.
 - Dispatching on the workspace's own focus handle, which skips the focused editor's handlers.
+
+## AD-claude-723-agents-search-marleys-user-docs-not-its-design-record-001
+*decided at: 2026-10-09 · status: shipped · builds on: #681*
+
+**The decision.** The docs tools serve:
+- Zed's manual, and Marley's guide and walkthrough, which say how to use Marley;
+- Marley's changelog, which says what changed and when.
+
+The changelog is split per entry. The design record (plans, specs, the architecture notes and the
+planning tree) stays out: it is for whoever builds Marley and describes intent as often as what
+shipped, so an agent answering a user would quote plans as facts. Matching stays lexical, with a
+stem tried beside each word.
+
+**Rejected:**
+- Embedding-based search here; Rusty's brain search covers meaning, and Marley's search must work
+  with nothing else running.
+- Indexing the whole `docs/` tree.

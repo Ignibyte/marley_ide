@@ -1,12 +1,13 @@
 //! The docs tools of Marley's MCP server (#681): `docs_search` and `docs_read`.
 //!
-//! They read Zed's docs and Marley's guide as this build ships them, so an agent explains the
-//! Marley that runs and no other version.
+//! They read Zed's docs and Marley's guide, walkthrough and changelog as this build ships them,
+//! so an agent explains the Marley that runs and no other version.
 //!
-//! A release build embeds `docs/src` and `docs/marley/guide.md` (`util::fs_embed!`); a dev build
-//! reads them from the checkout. The pages split into sections at their headings, once, off the
+//! A release build embeds `docs/src`, `docs/marley/guide.md`, `docs/marley/walkthrough.md` and
+//! `CHANGELOG.md` (`util::fs_embed!`); a dev build reads them from the checkout. The changelog is
+//! split per entry (#723). The pages split into sections at their headings, once, off the
 //! main thread. Search is by words: a section ranks by how many of the query's words it holds, then
-//! by how often, a heading's hit counting more. Zed's docs carry `{#kb action}` and
+//! by how often, a heading's hit counting more; a word that isn't there also tries its stem. Zed's docs carry `{#kb action}` and
 //! `{#action action}` placeholders, which Zed's docs preprocessor fills when it builds the site;
 //! they are filled here from this Marley's keymap and its palette names.
 
@@ -23,8 +24,19 @@ util::fs_embed! {
     struct DocsBundle,
     crate_relative = "../../docs",
     root_relative = "docs",
-    include = ["src/**/*.md", "marley/guide.md"],
+    include = ["src/**/*.md", "marley/guide.md", "marley/walkthrough.md"],
 }
+
+// Marley's changelog sits at the repository's root, outside `docs` (#723).
+util::fs_embed! {
+    struct RootBundle,
+    crate_relative = "../..",
+    root_relative = ".",
+    include = ["CHANGELOG.md"],
+}
+
+/// The name `docs_read` takes for the changelog.
+const CHANGELOG: &str = "marley/CHANGELOG.md";
 
 /// The most sections `docs_search` answers.
 const MAX_RESULTS: usize = 10;
@@ -79,16 +91,22 @@ fn build_index() -> DocsIndex {
             let name = path
                 .strip_prefix("src/")
                 .map_or_else(|| path.to_string(), |rest| format!("zed/{rest}"));
-            Some(split_page(name, &text))
+            Some(split_page(name, &text, false))
         })
         .collect();
+    if let Some(file) = RootBundle::get("CHANGELOG.md") {
+        let text = String::from_utf8_lossy(&file.data).into_owned();
+        pages.push(split_page(CHANGELOG.to_string(), &text, true));
+    }
     pages.sort_by(|left, right| left.name.cmp(&right.name));
     DocsIndex { pages }
 }
 
 /// A page's lines and its sections: one starts at each heading of levels 1 to 4 outside a code
-/// fence, and the lines before the first heading are a section of their own.
-fn split_page(name: String, text: &str) -> DocPage {
+/// fence, and the lines before the first heading are a section of their own. With `bullets`, as
+/// for the changelog, whose headings each hold hundreds of entries, each top-level bullet starts
+/// one too, headed by its bold title.
+fn split_page(name: String, text: &str, bullets: bool) -> DocPage {
     let lines: Vec<String> = text.lines().map(str::to_string).collect();
     let mut starts: Vec<(usize, String)> = Vec::new();
     let mut fenced = false;
@@ -102,6 +120,8 @@ fn split_page(name: String, text: &str) -> DocPage {
             continue;
         }
         if let Some(heading) = heading_of(line) {
+            starts.push((number, heading));
+        } else if bullets && let Some(heading) = bullet_heading(line) {
             starts.push((number, heading));
         }
     }
@@ -153,6 +173,44 @@ fn heading_of(line: &str) -> Option<String> {
     (!heading.is_empty()).then_some(heading)
 }
 
+/// A top-level bullet's heading: its bold title (`- **Title** (#N, date)`), else its first words.
+fn bullet_heading(line: &str) -> Option<String> {
+    let rest = line.strip_prefix("- ")?;
+    if let Some(bold) = rest.strip_prefix("**")
+        && let Some(end) = bold.find("**")
+    {
+        let title = bold.get(..end)?.trim();
+        return (!title.is_empty()).then(|| title.to_string());
+    }
+    let words: Vec<&str> = rest.split_whitespace().take(BULLET_HEADING_WORDS).collect();
+    (!words.is_empty()).then(|| words.join(" "))
+}
+
+/// How many words name a changelog entry that has no bold title.
+const BULLET_HEADING_WORDS: usize = 8;
+
+/// A query word without a plural or verb ending, when what is left has at least three letters,
+/// so "terminals" also finds "terminal" and "opened" finds "open"; `None` when it has no ending.
+/// "-es" comes off only after s, x, z, ch or sh ("boxes", "searches"), so "files" keeps its e.
+fn stem(word: &str) -> Option<String> {
+    let base = if let Some(base) = word.strip_suffix("ies") {
+        base
+    } else if let Some(base) = word.strip_suffix("es").filter(|base| {
+        ["s", "x", "z", "ch", "sh"]
+            .iter()
+            .any(|end| base.ends_with(end))
+    }) {
+        base
+    } else if let Some(base) = word.strip_suffix('s').filter(|base| !base.ends_with('s')) {
+        base
+    } else if let Some(base) = word.strip_suffix("ing") {
+        base
+    } else {
+        word.strip_suffix("ed")?
+    };
+    (base.chars().count() >= 3).then(|| base.to_string())
+}
+
 /// A heading as a URL fragment: lower case, words joined by `-`.
 fn slug(heading: &str) -> String {
     heading
@@ -194,6 +252,10 @@ fn search(arguments: &Value) -> Result<ToolAnswer, Refusal> {
                 .next("give `query`, words such as \"terminal font size\""),
         );
     }
+    let forms: Vec<(String, Option<String>)> = words
+        .iter()
+        .map(|word| (word.clone(), stem(word)))
+        .collect();
     let mut scored: Vec<(usize, usize, &DocPage, &Section)> = index()
         .pages
         .iter()
@@ -201,13 +263,17 @@ fn search(arguments: &Value) -> Result<ToolAnswer, Refusal> {
         .filter_map(|(page, section)| {
             let mut held = 0;
             let mut hits = 0;
-            for word in &words {
-                let in_heading = section.heading_lower.matches(word.as_str()).count();
-                let in_text = section
-                    .text_lower
-                    .matches(word.as_str())
-                    .count()
-                    .min(MAX_HITS_PER_WORD);
+            for (word, stem) in &forms {
+                // The word itself, else its stem, so an exact word still counts as it did.
+                let count = |text: &str| {
+                    let exact = text.matches(word.as_str()).count();
+                    match stem {
+                        Some(stem) if exact == 0 => text.matches(stem.as_str()).count(),
+                        _ => exact,
+                    }
+                };
+                let in_heading = count(&section.heading_lower);
+                let in_text = count(&section.text_lower).min(MAX_HITS_PER_WORD);
                 if in_heading + in_text > 0 {
                     held += 1;
                     hits += in_heading * HEADING_WEIGHT + in_text;
@@ -248,7 +314,11 @@ fn snippet(page: &DocPage, section: &Section, words: &[String]) -> String {
     let lower = text.to_lowercase();
     let at = words
         .iter()
-        .find_map(|word| lower.find(word.as_str()))
+        .find_map(|word| {
+            lower
+                .find(word.as_str())
+                .or_else(|| stem(word).and_then(|stem| lower.find(stem.as_str())))
+        })
         .unwrap_or(0);
     let characters: Vec<(usize, char)> = text.char_indices().collect();
     let center = characters

@@ -2523,6 +2523,14 @@ alike.
     hits (a heading hit counting `HEADING_WEIGHT`), with a `snippet`; `read` takes a page or a
     section by heading or slug, fills `{#kb …}` and `{#action …}` (`fill_placeholders`, from the
     keymap read on the main thread) and pages forward with `mcp::page_from`.
+  - Since #723:
+    - `DocsBundle` adds `docs/marley/walkthrough.md`, and `RootBundle` (`crate_relative = "../.."`,
+      `include = ["CHANGELOG.md"]`) serves the changelog as `marley/CHANGELOG.md`.
+    - `split_page(name, text, bullets)` starts a section at each top-level bullet when `bullets`
+      is set (the changelog), headed by `bullet_heading`: the bold title, else the first eight
+      words.
+    - `search` counts each query word, else its `stem` (-ies, -es after s/x/z/ch/sh, -s, -ing,
+      -ed, at least three letters left); `snippet` looks for either.
   - `settings_tools.rs`: `schema` builds `SettingsStore::json_schema` on the background executor
     with the actions' names and documentation, and `describe` resolves the key path (`resolve`
     follows `$ref` into `$defs` and drops an optional's null branch), with the default from
