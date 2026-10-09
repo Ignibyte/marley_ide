@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Rusty group's + menu and its home page** (#699, 2026-10-09).
+  - The + on the Rusty group's tab bar now starts with Rusty's quick links: Home, Brain, Today's
+    Note, Graph, Tasks, Decisions, Memory, Skills, Secrets, Open Page… and the three captures.
+    Zed's own entries follow, and every other + menu is unchanged.
+  - The Rusty group no longer shows Zed's Welcome page. When its last tab closes, or it is shown
+    with no tab open (after a restart, for one), Rusty's home page opens there.
+
 - **An agent thread in a center tab** (#697, 2026-10-09). `marley: open thread in center`, or
   **Open in Center** on a thread's right-click menu in the rail, moves the Agent Panel's thread into
   a tab beside your terminals and files. It is the same thread: it keeps running, keeps its

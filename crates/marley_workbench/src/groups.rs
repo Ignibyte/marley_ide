@@ -381,6 +381,16 @@ pub(crate) fn is_rusty(id: Uuid, cx: &App) -> bool {
     })
 }
 
+/// Whether the workspace `id` is a window's Rusty group's (#699).
+pub(crate) fn is_rusty_workspace(id: EntityId, cx: &App) -> bool {
+    cx.try_global::<Groups>().is_some_and(|groups| {
+        groups
+            .live
+            .iter()
+            .any(|group| group.rusty && group.workspace.entity_id() == id)
+    })
+}
+
 /// Runs `then` with the window's Home or Rusty group's workspace, making the group first when the
 /// window has none; opens asked for while it is being made wait for it, so there is one (#675,
 /// #676).

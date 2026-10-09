@@ -4541,3 +4541,23 @@ Rejected:
   agent (AD-642).
 - A separate agent setting for Rusty.
 - Writing the detected agent into the user's settings.
+
+## AD-claude-699-the-rusty-group-is-never-empty-and-its-plus-lists-rustys-screens-001
+*decided at: 2026-10-09 · status: shipped · builds on: AD-claude-679-one-rusty-button-and-a-home-page-in-place-of-the-screens-row-001*
+
+Chad, 2026-10-09, from daily use: the Rusty group's + should hold "quick links ... for rust
+things", and an empty group showed Zed's open-project screen ("lets default it to basically the
+home page. or have the home page open all the time"). The rule: the Rusty group never shows no tab.
+When its last tab closes, or it is shown with no tab (a restored group comes back empty, since the
+home page isn't serialized), the home page opens. Its + lists Home, the eight screens, Open Page…
+and the three captures above Zed's entries, which stay. The + menu's entries come from a Marley
+hook in Zed's `pane.rs` (`MarleyNewItemMenu`), asked with the pane's workspace.
+
+Rejected:
+- Re-adding the home page whenever it closes, even beside other tabs: its × would do nothing
+  visible.
+- Making the home page a `SerializableItem` alone: the group could still be emptied by closing
+  tabs.
+- `Pane::set_render_tab_bar_buttons` on the group's panes: it copies Zed's split and zoom buttons
+  into Marley and must be set on every pane the group grows.
+- Rusty's links in every + menu: Chad asked for the Rusty group's.

@@ -4324,6 +4324,28 @@ impl Pane {
     }
 }
 
+// Marley: the + menu's entries a Marley crate adds for a pane's workspace (#699).
+/// Takes a pane's + menu and its workspace, and returns the menu with any entries added.
+#[derive(Clone)]
+pub struct MarleyNewItemMenu(
+    pub Arc<dyn Fn(ContextMenu, &WeakEntity<Workspace>, &mut Window, &mut App) -> ContextMenu>,
+);
+
+impl gpui::Global for MarleyNewItemMenu {}
+
+/// The + menu as Marley's hook leaves it: unchanged when no hook is set.
+fn marley_new_item_menu(
+    menu: ContextMenu,
+    workspace: &WeakEntity<Workspace>,
+    window: &mut Window,
+    cx: &mut App,
+) -> ContextMenu {
+    match cx.try_global::<MarleyNewItemMenu>().cloned() {
+        Some(hook) => (hook.0)(menu, workspace, window, cx),
+        None => menu,
+    }
+}
+
 fn default_render_tab_bar_buttons(
     pane: &mut Pane,
     window: &mut Window,
@@ -4332,6 +4354,8 @@ fn default_render_tab_bar_buttons(
     if !pane.has_focus(window, cx) && !pane.context_menu_focused(window, cx) {
         return (None, None);
     }
+    // Marley: the hook below is asked with the pane's workspace (#699).
+    let workspace = pane.workspace.clone();
     let (can_clone, can_split_move) = match pane.active_item() {
         Some(active_item) if active_item.can_split(cx) => (true, false),
         Some(_) => (false, pane.items_len() > 1),
@@ -4351,8 +4375,11 @@ fn default_render_tab_bar_buttons(
                 .anchor(Anchor::TopRight)
                 .with_handle(pane.new_item_context_menu_handle.clone())
                 .menu(move |window, cx| {
-                    Some(ContextMenu::build(window, cx, |menu, _, _| {
-                        menu.action("New File", NewFile.boxed_clone())
+                    let workspace = workspace.clone();
+                    Some(ContextMenu::build(window, cx, move |menu, window, cx| {
+                        // Marley: a Marley crate's entries lead (#699).
+                        marley_new_item_menu(menu, &workspace, window, cx)
+                            .action("New File", NewFile.boxed_clone())
                             .action("Open File", ToggleFileFinder::default().boxed_clone())
                             .separator()
                             .action("Search Project", DeploySearch::default().boxed_clone())

@@ -5,9 +5,11 @@
 //! of every list, each row opening what it names: pages and decisions in the Brain tab (#678),
 //! tasks in Tasks on their list.
 
+use std::sync::Arc;
+
 use gpui::{
-    App, AppContext as _, ClickEvent, Context, Entity, EventEmitter, FocusHandle, Focusable,
-    Render, SharedString, Stateful, Subscription, WeakEntity, Window, actions,
+    Action, App, AppContext as _, ClickEvent, Context, Entity, EventEmitter, FocusHandle,
+    Focusable, Render, SharedString, Stateful, Subscription, WeakEntity, Window, actions,
 };
 use marley_rusty::decisions::{BRAIN_DUE, DecisionSummary, due_from_answer};
 use marley_rusty::tasks::{
@@ -15,12 +17,14 @@ use marley_rusty::tasks::{
 };
 use marley_rusty::vault;
 use serde_json::json;
-use ui::{ButtonStyle, prelude::*};
+use ui::{ButtonStyle, ContextMenu, ContextMenuEntry, prelude::*};
 use util::ResultExt as _;
 use workspace::item::{Item, ItemEvent};
-use workspace::{MultiWorkspace, Workspace};
+use workspace::{MarleyNewItemMenu, MultiWorkspace, MultiWorkspaceEvent, Workspace};
 
 use super::brain::{Screen, open_screen};
+use super::capture::{CaptureToInbox, CaptureToToday, CaptureUrl};
+use super::page::OpenPage;
 
 actions!(
     rusty,
@@ -38,14 +42,136 @@ const ROWS_SHOWN: usize = 8;
 /// How many open tasks the table lists.
 const TASKS_SHOWN: usize = 12;
 
-/// Registers `rusty: open home` on every workspace; `rusty::init` calls it once.
-pub(super) fn init(cx: &App) {
-    cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
-        workspace.register_action(|_, _: &OpenHome, window, cx| {
-            open_later(cx.weak_entity(), window, cx);
-        });
-    })
+/// Registers `rusty: open home` on every workspace, the Rusty group's + menu, and keeps the group
+/// from showing no tab (#699); `rusty::init` calls it once.
+pub(super) fn init(cx: &mut App) {
+    cx.observe_new(
+        |workspace: &mut Workspace, window, cx: &mut Context<Workspace>| {
+            workspace.register_action(|_, _: &OpenHome, window, cx| {
+                open_later(cx.weak_entity(), window, cx);
+            });
+            let Some(window) = window else {
+                return;
+            };
+            // Its last tab closed.
+            cx.subscribe_in(
+                &cx.entity(),
+                window,
+                |workspace, _, event: &workspace::Event, window, cx| {
+                    if let workspace::Event::ItemRemoved { .. } = event {
+                        fill(workspace, window, cx);
+                    }
+                },
+            )
+            .detach();
+        },
+    )
     .detach();
+    // Shown with no tab: from the rail or a switch, or after a restart, once the rail adopts the
+    // restored group.
+    cx.observe_new(
+        |_: &mut MultiWorkspace, window, cx: &mut Context<MultiWorkspace>| {
+            let Some(window) = window else {
+                return;
+            };
+            cx.subscribe_in(
+                &cx.entity(),
+                window,
+                |multi_workspace, _, event: &MultiWorkspaceEvent, window, cx| {
+                    if let MultiWorkspaceEvent::ActiveWorkspaceChanged { .. } = event {
+                        fill_shown(multi_workspace, window, cx);
+                    }
+                },
+            )
+            .detach();
+            cx.observe_global_in::<crate::groups::Groups>(window, |multi_workspace, window, cx| {
+                fill_shown(multi_workspace, window, cx);
+            })
+            .detach();
+        },
+    )
+    .detach();
+    cx.set_global(MarleyNewItemMenu(Arc::new(rusty_links)));
+}
+
+/// Opens the home page in `workspace` when it is the Rusty group's and holds no tab, while Rusty is
+/// on, so the group never shows Zed's Welcome page (#699).
+fn fill(workspace: &Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
+    if super::is_on(cx)
+        && crate::groups::is_rusty_workspace(cx.entity_id(), cx)
+        && workspace.items(cx).next().is_none()
+    {
+        ensure(workspace, window, cx);
+    }
+}
+
+/// [`fill`] on the workspace the window shows.
+fn fill_shown(multi_workspace: &MultiWorkspace, window: &mut Window, cx: &mut App) {
+    let shown = multi_workspace.workspace().clone();
+    if crate::groups::is_rusty_workspace(shown.entity_id(), cx) {
+        shown.update(cx, |workspace, cx| fill(workspace, window, cx));
+    }
+}
+
+/// The Rusty group's + menu: Rusty's quick links ahead of Zed's entries (#699). Any other
+/// workspace's menu comes back unchanged.
+fn rusty_links(
+    menu: ContextMenu,
+    workspace: &WeakEntity<Workspace>,
+    _window: &mut Window,
+    cx: &mut App,
+) -> ContextMenu {
+    if !super::is_on(cx) || !crate::groups::is_rusty_workspace(workspace.entity_id(), cx) {
+        return menu;
+    }
+    let home = workspace.clone();
+    let menu = menu.item(
+        ContextMenuEntry::new("Home")
+            .icon(super::RUSTY_ICON)
+            .action(OpenHome.boxed_clone())
+            .handler(move |window, cx| open_later(home.clone(), window, cx)),
+    );
+    let menu = Screen::ALL.iter().fold(menu, |menu, &screen| {
+        menu.item(
+            ContextMenuEntry::new(screen.label())
+                .icon(screen.icon())
+                .handler(move |window, cx| RustyHome::open_screen(screen, window, cx)),
+        )
+    });
+    let forms: [(&'static str, IconName, Box<dyn Action>); 4] = [
+        (
+            "Open Page…",
+            IconName::FileMarkdown,
+            Box::new(OpenPage {
+                slug: None,
+                preview: false,
+            }),
+        ),
+        (
+            "Capture to Today…",
+            IconName::Plus,
+            Box::new(CaptureToToday),
+        ),
+        (
+            "Capture to Inbox…",
+            IconName::Plus,
+            Box::new(CaptureToInbox),
+        ),
+        ("Capture a URL…", IconName::Link, Box::new(CaptureUrl)),
+    ];
+    forms
+        .into_iter()
+        .fold(menu.separator(), |menu, (label, icon, action)| {
+            menu.item(
+                ContextMenuEntry::new(label)
+                    .icon(icon)
+                    .action(action.boxed_clone())
+                    // The + menu sets no action context, so this is Zed's own `action` entry's
+                    // dispatch.
+                    .handler(move |window, cx| window.dispatch_action(action.boxed_clone(), cx)),
+            )
+        })
+        .separator()
 }
 
 /// Opens the window's Rusty home page in the Rusty group, or brings it forward.

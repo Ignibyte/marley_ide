@@ -1738,6 +1738,25 @@ alike.
     - the answer is `starting`, then `seat start` runs, with `SeatStartFailed` as a
       notification.
 
+## The Rusty group's + menu and its never-empty rule (`src/rusty/home_tab.rs`, `src/groups.rs`, #699)
+
+- **The + menu.** Zed's `pane.rs` gains `MarleyNewItemMenu`, a global function from the + menu and
+  the pane's workspace to the menu, which `default_render_tab_bar_buttons`' builder starts from
+  (a touchpoint row). `home_tab::init` sets it to `rusty_links`. For a Rusty group's workspace
+  (`groups::is_rusty_workspace`) while Rusty is on, it adds Home (`open_later`), each
+  `Screen::ALL` entry (`RustyHome::open_screen`), then Open Page… and the three captures, whose
+  handlers dispatch `OpenPage`, `CaptureToToday`, `CaptureToInbox` and `CaptureUrl` as Zed's own
+  `action` entries do there (the menu sets no action context). A separator comes before Zed's
+  entries. Any other workspace's menu comes back unchanged.
+- **Never empty.** `home_tab::fill` calls `ensure` when the workspace is the Rusty group's, holds
+  no item, and Rusty is on. It runs:
+  - on each workspace's own `ItemRemoved` (`subscribe_in(&cx.entity(), window, …)`);
+  - through `fill_shown`, on the shown workspace, on each `MultiWorkspace`'s
+    `ActiveWorkspaceChanged` and on the `Groups` global, which covers a restored group adopted by
+    the rail.
+
+  The home page is still not serialized: a restored group comes back empty and is filled when shown.
+
 ## An agent thread in a center tab (`src/thread_tab.rs`, `src/rail.rs`, #697)
 
 - `ThreadTab` (an `Item`, titled as the thread, `IconName::ZedAssistant`) hosts the Agent Panel's

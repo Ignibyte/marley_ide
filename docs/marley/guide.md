@@ -1096,6 +1096,19 @@ the switch alone. A key bound to a Rusty command says Rusty is off.
 - With Rusty on, `rusty-mcp` runs twice when Rusty Tools for Agents is on too: once for Marley and
   once for Zed's agents.
 
+### The Rusty group and its home page
+
+Rusty's screens and pages open in the window's Rusty group, a group with no folder that the rail
+lists after your projects (#675). Its first tab is Rusty's home page (#679), which the Rusty
+button in the rail's header opens: a button for each screen, your recent pages, the follow-ups due
+and your open tasks.
+
+- **The group's +** (#699) lists Rusty's quick links first: Home, Brain, Today's Note, Graph,
+  Tasks, Decisions, Memory, Skills, Secrets, Open Page… and the three captures. Zed's own entries
+  follow. A project's + is unchanged.
+- **Never empty** (#699). When the group's last tab closes, or the group is shown with no tab open
+  (after a restart, for one), its home page opens instead of Zed's Welcome page.
+
 ### The Brain view
 
 While Rusty is connected, the rail's header shows Projects and Brain (#644). Brain, or Ctrl+Alt+V

@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #699 (feature)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** [699-the-rusty-groups-plus-menu-and-home-page.spec.md](../../pipeline/completed/699-the-rusty-groups-plus-menu-and-home-page.spec.md)
 - **Source ticket:** Chad, 2026-10-09, from daily use: "Rusty is treated as a panel. in its + i
   think we should have quick links inside of there for rust things" and "When rusty panel is
   empty and i click on it, it defaults to the zed open project panel. lets default it to
   basically the home page. or have the home page open all the time"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The Rusty group (#675) is a projectless workspace, so its center pane behaves like any other:
