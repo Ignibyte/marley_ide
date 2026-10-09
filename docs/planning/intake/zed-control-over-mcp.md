@@ -1,8 +1,8 @@
 ---
-status: intake
+status: promoted
 created: 2026-10-09
 ticket: TICKET-703 to TICKET-707
-pipeline_spec: <unassigned>
+pipeline_spec: docs/planning/pipeline/completed/703-*, 704-*, 705-*, 706-*, 707-* (all shipped 2026-10-09)
 ---
 
 # Full control of Zed through Marley's MCP server, with a security layer
