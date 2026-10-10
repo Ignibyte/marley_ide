@@ -2906,3 +2906,11 @@ activates it again after the insert: the pane keeps the active index, not the ac
 Give an element in a list row an id built from what the row holds (a name, a key, an entity id),
 not from its position. gpui keeps hover, tooltip and other keyed state by element id, so an
 index-keyed element passes that state to whichever row moves into its place.
+
+## PR-claude-734-whoever-makes-a-hidden-worktree-holds-it-001
+*severity: high · prevents: F-claude-734-a-hidden-worktree-was-dropped-before-the-agent-read-001*
+
+Code that adds a folder to a project as a hidden worktree (`find_or_create_worktree(path, false)`,
+`create_worktree(path, false)`) keeps the `Entity<Worktree>` it gets back for as long as the folder
+must resolve, in the item or task that needs it. The project keeps a hidden worktree only weakly,
+so a dropped handle drops the worktree, and every later path lookup under it fails.

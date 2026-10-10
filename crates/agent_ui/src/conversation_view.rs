@@ -783,6 +783,9 @@ pub struct ConversationView {
     thread_store: Option<Entity<ThreadStore>>,
     pub(crate) thread_id: ThreadId,
     pub(crate) root_session_id: Option<acp_v1::SessionId>,
+    // Marley: set on a thread Marley starts on folders of its choosing (#734), so the thread store
+    // files it under them rather than under the project's visible folders.
+    pub marley_own_folders: bool,
     server_state: ServerState,
     pending_selections: Vec<AgentContextSelection>,
     focus_handle: FocusHandle,
@@ -1058,6 +1061,7 @@ impl ConversationView {
             thread_store,
             thread_id,
             root_session_id: resume_session_id.clone(),
+            marley_own_folders: false,
             server_state: Self::initial_state(
                 agent.clone(),
                 connection_store,
@@ -3127,6 +3131,13 @@ impl ConversationView {
     }
 
     fn is_visible_in_agent_panel(&self, workspace: &Entity<Workspace>, cx: &Context<Self>) -> bool {
+        // Marley: a thread in front in a center tab is visible too (#734).
+        let shows = cx
+            .try_global::<crate::MarleyThreadHost>()
+            .map(|host| host.shows);
+        if shows.is_some_and(|shows| shows(workspace.read(cx), cx.entity_id(), cx)) {
+            return true;
+        }
         AgentPanel::is_visible(workspace, cx)
             && workspace
                 .read(cx)
@@ -3304,6 +3315,16 @@ impl ConversationView {
                                                 cx,
                                             );
                                             workspace.update(cx, |workspace, cx| {
+                                                // Marley: a thread in a center tab comes forward
+                                                // there, not as a second copy in the panel (#734).
+                                                let reveal = cx
+                                                    .try_global::<crate::MarleyThreadHost>()
+                                                    .map(|host| host.reveal);
+                                                if reveal.is_some_and(|reveal| {
+                                                    reveal(workspace, root_thread_id, window, cx)
+                                                }) {
+                                                    return;
+                                                }
                                                 workspace.reveal_panel::<AgentPanel>(window, cx);
                                                 if let Some(panel) =
                                                     workspace.panel::<AgentPanel>(cx)

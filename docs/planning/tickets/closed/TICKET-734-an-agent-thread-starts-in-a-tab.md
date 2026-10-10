@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #734 (feature, the Marley layout: agents anywhere)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** [734-an-agent-thread-starts-in-a-tab.spec.md](../../pipeline/completed/734-an-agent-thread-starts-in-a-tab.spec.md)
 - **Source ticket:** Chad, 2026-10-10: "you can use cli or use the agent panel but it can be used
   anywhere with and panel on there and not isolated or forced to the folder. We need to specify
   where we want to open." Plan: [agents-anywhere shelf](../../design-notes/agents-anywhere-2026-10-10.md).
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 An Agent Panel style thread (Claude Code, Codex, Zed's agent, a custom entry) starts in a center tab

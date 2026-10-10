@@ -3003,7 +3003,8 @@ impl Rail {
         .detach_and_log_err(cx);
     }
 
-    /// Shows `workspace` and starts a thread of `agent` in its Agent Panel.
+    /// Shows `workspace` and starts a thread of `agent` in a center tab of it, working in its
+    /// root, or the home folder for a group with no folder (#734).
     fn new_agent_thread(
         &self,
         workspace: &WeakEntity<Workspace>,
@@ -3013,8 +3014,9 @@ impl Rail {
     ) -> anyhow::Result<()> {
         let workspace = self.activate_workspace(workspace, window, cx)?;
         workspace.update(cx, |workspace, cx| {
-            agents::start_thread(workspace, agent, window, cx)
-        })
+            crate::thread_tab::start(workspace, Some(agent.clone()), None, window, cx);
+        });
+        Ok(())
     }
 
     /// Puts the keyboard's row where `to` says, from the rail as it stands.
@@ -5073,8 +5075,6 @@ impl Rail {
     ) -> impl IntoElement {
         let rail = cx.entity().downgrade();
         let workspace = group.workspace.clone();
-        // A projectless group has no folder for a thread (#600).
-        let projectless = group.group.is_some();
         div()
             .debug_selector(move || format!("marley-rail-project-menu-{index}"))
             .child(
@@ -5112,13 +5112,10 @@ impl Rail {
                                         .flatten()
                                         .log_err();
                                 });
-                            let menu = if projectless {
-                                menu
-                            } else {
-                                menu.submenu("New Agent Thread", move |menu, _, cx| {
-                                    Self::agent_menu(menu, &rail, &workspace, cx)
-                                })
-                            };
+                            // A thread starts in a tab, so a group with no folder has one too (#734).
+                            let menu = menu.submenu("New Agent Thread", move |menu, _, cx| {
+                                Self::agent_menu(menu, &rail, &workspace, cx)
+                            });
                             let menu = Self::worktree_agent_entries(
                                 menu,
                                 &cli_workspace,
@@ -6417,9 +6414,9 @@ impl Watched {
             .iter()
             .filter_map(|workspace| workspace.read(cx).panel::<AgentPanel>(cx))
             .collect();
-        let threads = panels
+        let threads = workspaces
             .iter()
-            .flat_map(|panel| live_threads(panel, cx))
+            .flat_map(|workspace| live_threads(workspace.read(cx), cx))
             .collect();
         let projects: Vec<Entity<Project>> = workspaces
             .iter()
@@ -6628,11 +6625,7 @@ fn inbox_entries(project: &str, members: &[Entity<Workspace>], snapshot: &mut Sn
     let routing = system_one::use_mode(QUESTION_ROUTE.name, cx) != SystemOneMode::Off;
     for member in members {
         let scope = (marking || routing).then(|| RiskScope::of(member, marking, routing, cx));
-        let conversations = member
-            .read(cx)
-            .panel::<AgentPanel>(cx)
-            .map(|panel| panel.read(cx).conversation_views())
-            .unwrap_or_default();
+        let conversations = crate::thread_tab::conversations_of(member.read(cx), cx);
         for conversation in conversations {
             if let Some((mut entry, target, waiting)) =
                 thread_entry(project, member, &conversation, cx)
@@ -7453,11 +7446,10 @@ fn one_line(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// The root thread of each conversation the panel holds, shown or kept in the background.
-fn live_threads(panel: &Entity<AgentPanel>, cx: &App) -> Vec<Entity<AcpThread>> {
-    panel
-        .read(cx)
-        .conversation_views()
+/// The root thread of each conversation a workspace holds: its panel's, shown or kept in the
+/// background, and its thread tabs' (#734).
+fn live_threads(workspace: &Workspace, cx: &App) -> Vec<Entity<AcpThread>> {
+    crate::thread_tab::conversations_of(workspace, cx)
         .into_iter()
         .filter_map(|conversation| {
             let view = conversation.read(cx).root_thread_view()?;
@@ -7474,15 +7466,13 @@ fn live_statuses(
 ) -> (HashMap<ThreadId, ThreadStatus>, HashSet<ThreadId>) {
     let mut statuses = HashMap::default();
     let mut active = HashSet::default();
-    for panel in workspaces
-        .iter()
-        .filter_map(|workspace| workspace.read(cx).panel::<AgentPanel>(cx))
-    {
-        let panel = panel.read(cx);
-        active.extend(panel.active_thread_id(cx));
+    for workspace in workspaces {
+        let workspace = workspace.read(cx);
+        if let Some(panel) = workspace.panel::<AgentPanel>(cx) {
+            active.extend(panel.read(cx).active_thread_id(cx));
+        }
         // A conversation still connecting has no thread yet, and nothing to report.
-        let loaded = panel
-            .conversation_views()
+        let loaded = crate::thread_tab::conversations_of(workspace, cx)
             .into_iter()
             .filter_map(|conversation| {
                 let view = conversation.read(cx).root_thread_view()?;
@@ -7511,19 +7501,20 @@ fn live_statuses(
 /// (#617) has no `listed` workspace: its rows open the project first, and their agents' icons and
 /// names are read against the shown workspace's project, whose agent servers are the user's
 /// settings and extensions as every local project's are.
+///
+/// A thread in a center tab (#734) is listed under the group whose workspace holds the tab, and
+/// nowhere else, whatever folder it works in; `tabbed` names each such thread's workspace. A group
+/// with no folder (#600) lists only its tabs' threads: Zed files no thread under it.
 fn group_threads(
     group: &ProjectGroup,
     listed: Option<&Entity<Workspace>>,
     shown: &Entity<Workspace>,
+    tabbed: &HashMap<ThreadId, EntityId>,
     cx: &App,
 ) -> Vec<(ThreadSnapshot, ThreadEntry)> {
     let Some(store) = ThreadMetadataStore::try_global(cx) else {
         return Vec::new();
     };
-    // A projectless group (#600) has no folder, and Zed archives such a workspace's threads.
-    if group.key.path_list().paths().is_empty() {
-        return Vec::new();
-    }
     let store = store.read(cx);
     let host = group.key.host();
     let members: Vec<(PathList, &Entity<Workspace>)> = group
@@ -7531,27 +7522,63 @@ fn group_threads(
         .iter()
         .map(|workspace| (PathList::new(&workspace.read(cx).root_paths(cx)), workspace))
         .collect();
+    let tab_member = |thread_id: &ThreadId| {
+        let holder = tabbed.get(thread_id)?;
+        Some(
+            group
+                .workspaces
+                .iter()
+                .find(|member| member.entity_id() == *holder),
+        )
+    };
     let (statuses, active) = live_statuses(&group.workspaces, cx);
     let mut seen: HashSet<ThreadId> = HashSet::default();
-    let mut rows: Vec<&ThreadMetadata> = store
-        .entries_for_main_worktree_path(group.key.path_list(), host.as_ref())
-        .chain(store.entries_for_path(group.key.path_list(), host.as_ref()))
-        .chain(
-            members
-                .iter()
-                .filter(|(paths, _)| !paths.paths().is_empty())
-                .flat_map(|(paths, _)| store.entries_for_path(paths, host.as_ref())),
-        )
-        .filter(|row| seen.insert(row.thread_id))
-        .filter(|row| !row.is_draft() || active.contains(&row.thread_id))
-        .collect();
+    let mut rows: Vec<&ThreadMetadata> = if group.key.path_list().paths().is_empty() {
+        Vec::new()
+    } else {
+        store
+            .entries_for_main_worktree_path(group.key.path_list(), host.as_ref())
+            .chain(store.entries_for_path(group.key.path_list(), host.as_ref()))
+            .chain(
+                members
+                    .iter()
+                    .filter(|(paths, _)| !paths.paths().is_empty())
+                    .flat_map(|(paths, _)| store.entries_for_path(paths, host.as_ref())),
+            )
+            .filter(|row| seen.insert(row.thread_id))
+            .filter(|row| match tab_member(&row.thread_id) {
+                // In a tab of another group: listed there.
+                Some(None) => false,
+                // In a tab of this group: listed, a draft too, as the panel's shown draft is.
+                Some(Some(_)) => true,
+                None => !row.is_draft() || active.contains(&row.thread_id),
+            })
+            .collect()
+    };
+    // The group's own tabs' threads the store's rows lack: a draft, a thread on another
+    // project's folder, or any thread of a group with no folder.
+    for (thread_id, holder) in tabbed {
+        if group
+            .workspaces
+            .iter()
+            .any(|member| member.entity_id() == *holder)
+            && seen.insert(*thread_id)
+            && let Some(row) = store.entry(*thread_id)
+        {
+            rows.push(row);
+        }
+    }
     rows.sort_by_key(|row| Reverse(row.interacted_at.unwrap_or(row.updated_at)));
     rows.into_iter()
         .map(|row| {
-            let workspace = members
-                .iter()
-                .find(|(paths, _)| paths == row.folder_paths())
-                .map(|(_, workspace)| *workspace)
+            let workspace = tab_member(&row.thread_id)
+                .flatten()
+                .or_else(|| {
+                    members
+                        .iter()
+                        .find(|(paths, _)| paths == row.folder_paths())
+                        .map(|(_, workspace)| *workspace)
+                })
                 .or(listed);
             let project = workspace.unwrap_or(shown).read(cx).project();
             let key = row.thread_id.to_key_string();
@@ -7961,11 +7988,12 @@ fn build_snapshot(
     let displayed = multi_workspace.workspace();
     let home = util::paths::home_dir().as_path();
     let now = cx.background_executor().now();
+    let tabbed = tab_homes(multi_workspace, cx);
     let mut snapshot = Snapshot::default();
     let mut displayed_worktree = None;
     for ((group, name), id) in groups.iter().zip(names).zip(projectless) {
         let Some(workspace) = listed_workspace(multi_workspace, group, id.is_some(), cx) else {
-            push_closed(&mut snapshot, group, name, displayed, filter, cx);
+            push_closed(&mut snapshot, group, name, displayed, &tabbed, filter, cx);
             continue;
         };
         let (worktrees, tags) = group_worktrees(group, &workspace, filter, &mut snapshot, cx);
@@ -8021,6 +8049,7 @@ fn build_snapshot(
             group,
             Some(&workspace),
             displayed,
+            &tabbed,
             filter,
             cx,
         );
@@ -8057,6 +8086,18 @@ fn build_snapshot(
     snapshot
 }
 
+/// Each thread in a center tab, by the workspace whose tab holds it (#734).
+fn tab_homes(multi_workspace: &MultiWorkspace, cx: &App) -> HashMap<ThreadId, EntityId> {
+    multi_workspace
+        .workspaces()
+        .flat_map(|workspace| {
+            crate::thread_tab::tab_threads(workspace.read(cx), cx)
+                .into_iter()
+                .map(|(thread_id, _)| (thread_id, workspace.entity_id()))
+        })
+        .collect()
+}
+
 /// The entities behind an open group's header.
 fn open_group_entry(
     group: &ProjectGroup,
@@ -8081,11 +8122,12 @@ fn listed_threads(
     group: &ProjectGroup,
     listed: Option<&Entity<Workspace>>,
     shown: &Entity<Workspace>,
+    tabbed: &HashMap<ThreadId, EntityId>,
     filter: &str,
     cx: &App,
 ) -> Vec<ThreadSnapshot> {
     let mut threads = Vec::new();
-    for (mut thread, entry) in group_threads(group, listed, shown, cx) {
+    for (mut thread, entry) in group_threads(group, listed, shown, tabbed, cx) {
         thread.matched = filter_match(filter, &thread.title);
         snapshot.threads.insert(thread.key.clone(), entry);
         threads.push(thread);
@@ -8100,11 +8142,12 @@ fn push_closed(
     group: &ProjectGroup,
     name: String,
     shown: &Entity<Workspace>,
+    tabbed: &HashMap<ThreadId, EntityId>,
     filter: &str,
     cx: &App,
 ) {
     let matched = filter_match(filter, &name);
-    let threads = listed_threads(snapshot, group, None, shown, filter, cx);
+    let threads = listed_threads(snapshot, group, None, shown, tabbed, filter, cx);
     snapshot.rail.projects.push(ProjectSnapshot {
         name,
         expanded: group.expanded,

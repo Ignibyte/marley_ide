@@ -3611,3 +3611,24 @@ index)`. After a removal, the next row's button took the removed one's index, an
 that element's hover state and tooltip: "Remove nothing::Here" hung over `pane::SplitRight`'s ×
 in 711-03. Both checks on settings.json passed; only the shot showed it. Fixed in #711 by keying
 the button on its name.
+
+## F-claude-734-a-hidden-worktree-was-dropped-before-the-agent-read-001
+*severity: high · found in: pipeline 734's Test phase · class: a weak handle taken for a strong one · prevented by: PR-claude-734-whoever-makes-a-hidden-worktree-holds-it-001*
+
+`thread_tab::start` joined the thread's folder to the project with
+`find_or_create_worktree(folder, false)`, awaited it, and dropped the returned entity. The agent's
+`fs/read_text_file` then answered "Resource not found", and Marley's worktree diagnostics listed
+one live worktree, the project's. `WorktreeStore` keeps a strong handle only for a visible worktree
+(or while `retain_worktrees` is set); a hidden one lives only while something holds it, as an
+editor's buffer does for a file opened outside the project. Fixed in #734: the tab holds the
+worktree (`ThreadTab::_folder`), and it goes with the tab.
+
+## F-claude-734-a-scenario-typed-into-the-users-own-claude-001
+*severity: medium · found in: pipeline 734's Test phase · class: a menu position taken as an identity · prevented by: PR-claude-687-a-scenario-types-into-a-thread-only-after-checking-it-runs-the-stand-in-001*
+
+New Agent Thread's submenu lists Zed Agent, Claude Agent and Marley in Home, one entry more than
+in the scratch project, so the scenario's two Downs chose Claude Agent, the user's own Claude Code,
+and typed "hello" into it before checking: one real turn on Chad's login ("Hi Chad."). The
+project's step checked the scripted agent's session first; the Home step had been reordered to type
+first while it was being debugged. Fixed in #734's scenario: every thread is checked to have started
+a scripted session before anything is typed, and the Home step's submenu is shot.

@@ -4713,3 +4713,27 @@ stem tried beside each word.
 - Embedding-based search here; Rusty's brain search covers meaning, and Marley's search must work
   with nothing else running.
 - Indexing the whole `docs/` tree.
+
+## AD-claude-734-a-thread-marley-starts-is-filed-under-its-own-folders-001
+*decided at: 2026-10-10 · status: shipped · builds on: #697, #702*
+
+**The decision.** Marley starts an agent thread in a center tab itself (`marley::NewAgentThread`),
+on the hosting workspace's project and its Agent Panel's connection store, working in a folder
+Marley names. Three small hunks in `agent_ui` make Zed treat it as its own:
+- `ConversationView::marley_own_folders`, which the thread store reads to file the thread under the
+  thread's own `work_dirs()`;
+- `MarleyThreadHost { shows, reveal }`, which Zed asks whether a tab shows a view (no "finished"
+  notice for a thread in front) and to bring a tab forward (a notification's click);
+- the rail lists a tab's thread under the group that holds the tab, and nowhere else.
+
+**Why.** The store takes the project's visible folders at every save and archives a thread that has
+none, so a fix applied to the record from outside is undone at the next save; and Zed knows only
+its panel as a host of thread views.
+
+**Rejected:**
+- Letting the Agent Panel create the thread (`load_agent_thread` with a new id) and moving it out:
+  it changes the panel's selected agent, draws the thread in the panel first, and leaves the thread
+  among the panel's retained threads, which evicts idle ones.
+- `update_working_directories` after each save: undone by the next save, and it asserts the record
+  is not archived, which a thread in a group with no folder is at its first save.
+- A visible worktree for the thread's folder: it would turn a group with no folder into a project.

@@ -1317,7 +1317,16 @@ impl ThreadMetadataStore {
                 )
             } else {
                 let project = thread_ref.project().read(cx);
-                let worktree_paths = project.worktree_paths(cx);
+                // Marley: a thread Marley starts on folders of its choosing (#734) is filed under
+                // them; the project's visible folders may not hold them, or may be none.
+                let own_folders = view
+                    .marley_own_folders
+                    .then(|| thread_ref.work_dirs().cloned())
+                    .flatten();
+                let worktree_paths = match own_folders {
+                    Some(folders) => WorktreePaths::from_folder_paths(&folders),
+                    None => project.worktree_paths(cx),
+                };
                 let remote_connection = project.remote_connection_options(cx);
 
                 (worktree_paths, remote_connection)

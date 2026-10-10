@@ -5272,3 +5272,12 @@ in `~/.codex/skills`.
 - the runner's settings copy turns it off (`script/e2e.sh`, as for the assistant);
 - the runner points the outside location at the run's folder, here `CODEX_HOME`;
 - only the feature's own scenario turns it on.
+
+## L-claude-734-zed-scans-a-hidden-worktree-whole-001
+*category: architecture · topic: worktrees for agents · from: pipeline 734*
+
+A hidden worktree is not a cheap pointer at a folder: `WorktreeStore::create_worktree` scans and
+watches it as it does a visible one (`Worktree::local(…, scanning_enabled, …)`), and runs worktree
+trust on it. Adding the home folder, or anything that holds it, would walk and watch the whole home
+tree, past inotify's limits on a large one. Marley never adds those; a thread there reaches files
+only in the projects already open, and an agent with a shell uses its shell.

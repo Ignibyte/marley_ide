@@ -326,7 +326,8 @@ New Group… asks for a name and makes a group with no folder, listed after the 
 with a group icon, a chevron and a `+`. A group's terminals and agent CLIs start in the home
 folder, and its Browser tabs use a Chromium of the group's own. New Terminal, New Browser Tab and
 the agent CLIs in the same menu open in the window's Home group. A group's `+`
-has no New Agent Thread, New Agent in Worktree or Launch, which need a folder. Right-click a
+has no New Agent in Worktree or Launch, which need a folder; its New Agent Thread starts a thread
+in a tab of the group, in your home folder (#734). Right-click a
 group's header for Rename Group… and Remove Group. Groups come back after a restart with their
 names, order, terminals and Browser tabs (#601).
 
@@ -1600,7 +1601,29 @@ memories, brain and skills through Rusty's own tools. It changes no file and run
 
 ### An agent thread in a center tab
 
-An Agent Panel thread can sit in the main content, as a tab beside your terminals and files (#697).
+An agent thread can sit in the main content, as a tab beside your terminals and files.
+
+- **Start one in a tab** (#734). A project's or a group's `+` → **New Agent Thread** → an agent
+  starts a thread in a tab of that project or group. Groups with no folder have it too: Home,
+  Rusty and the groups you named. The thread works in the project's root, or in your home folder
+  in a group with no folder. Its row in the rail sits under the group that holds the tab, with its
+  status, and its waits reach **Needs you**.
+- **Any folder.** `marley::NewAgentThread` takes an agent and a folder, so a key of your own can
+  start one anywhere: `["marley::NewAgentThread", {"agent": "claude-acp", "folder":
+  "/srv/stacks/rusty-v3"}]`. The agent is its id as the Agent Panel runs it (`Zed Agent`,
+  `claude-acp`, `codex-acp`, `Marley`); without one it is the panel's selected agent. Without a
+  folder it is the project's root, else your home folder.
+- **How the folder is reached.** Zed answers an agent's file reads and writes only inside the
+  project's folders, so a folder the project does not hold joins it hidden: the project panel and
+  the rail show nothing new, and the agent can read and write there. Your home folder never joins,
+  nor a folder that holds it, since Zed would scan and watch all of it; a thread there reaches files
+  only inside open projects, as Zed's own threads do, and Claude Code falls back on its shell.
+  Zed's own agent works only in the project's visible folders, so in a group with no folder it
+  talks, with Marley's and Rusty's tools, but reads no file.
+- **Notifications.** A thread whose tab is in front does not notify when it finishes, as one in a
+  visible panel does not, and clicking a notification brings its tab forward.
+
+An Agent Panel thread can move into a tab too (#697).
 
 - **Open in center.** `marley: open thread in center` moves the panel's active thread into a tab of
   the center pane. It stays the same thread: it keeps running, keeps its history, and takes

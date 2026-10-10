@@ -38,7 +38,9 @@ Zed answers an ACP agent's file reads and writes through the project
 and refuses a path outside its worktrees. A thread working in a folder the hosting group does not
 hold would fail every file call. The folder therefore joins the group's project as a hidden worktree
 (`find_or_create_worktree(path, false)`), which Zed already does for a file opened from outside a
-project. #734 proves this before anything builds on it.
+project. Zed scans and watches a hidden worktree whole, so the home folder, or a folder holding
+it, never joins: a thread there reaches files only in open projects, as Zed's own threads do. #734
+proves this before anything builds on it.
 
 ## What changes from Chad's earlier answers
 

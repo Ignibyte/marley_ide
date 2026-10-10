@@ -1938,6 +1938,31 @@ alike.
   acts only for the shown one. Groups made at start (#700) and reopened after a relaunch (#601)
   leave the window's focus alone.
 
+## A thread that starts in a tab (`src/thread_tab.rs`, `src/rail.rs`, Zed's `agent_ui`, #734)
+
+- `NewAgentThread { agent, folder }` (a data action read through `NewAgentThreadFields`, as
+  `rusty::OpenPage`) runs `thread_tab::start`, which the rail's New Agent Thread calls directly on
+  the row's workspace. `start` takes the panel's selected agent and `default_folder` (the first
+  root, else the home folder) when they are absent, checks the folder is a directory, and joins it
+  to the project as a hidden worktree when `needs_worktree` says so: the project is local, no
+  worktree holds it, and it neither is nor holds the home folder. Then `open_thread` builds the
+  `ConversationView` as the panel does (`Agent::server`, the panel's `connection_store`,
+  `ThreadStore::global` for Zed's agent, `AgentThreadSource::Sidebar`) with `work_dirs` = the folder
+  and `marley_own_folders` set, and adds a `ThreadTab`.
+- **The hidden worktree lives in the tab.** `WorktreeStore` keeps a strong handle only for visible
+  worktrees, so the `Entity<Worktree>` `find_or_create_worktree` returns is held by
+  `ThreadTab::_folder` and goes with the tab.
+- **Zed's side** (`zed-touchpoints.md`): `MarleyThreadHost { shows, reveal }`, a global `init`
+  sets to `shows_view` (the workspace's active item is a tab on that view) and `activate_for`;
+  `ConversationView::is_visible_in_agent_panel` asks `shows`, and a notification's accept asks
+  `reveal` before opening the panel; the thread store files a view with `marley_own_folders` under
+  its thread's `work_dirs()` rather than the project's visible folders.
+- **The rail.** `tab_homes` maps each tab's thread to its workspace; `group_threads` takes a thread
+  tabbed in another group out of a group's rows, keeps a draft tabbed here, and lists a projectless
+  group's tab threads from the store. `conversations_of` (the panel's views and the tabs' others)
+  feeds `live_threads`, `live_statuses` and `inbox_entries`, so a tab thread has a status and its
+  waits reach Needs you.
+
 ## An agent thread in a center tab (`src/thread_tab.rs`, `src/rail.rs`, #697)
 
 - `ThreadTab` (an `Item`, titled as the thread, `IconName::ZedAssistant`) hosts the Agent Panel's

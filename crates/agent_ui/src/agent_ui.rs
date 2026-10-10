@@ -514,6 +514,18 @@ pub struct NewNativeAgentThreadFromSummary {
     from_session_id: acp_v1::SessionId,
 }
 
+// Marley: a host of `ConversationView`s outside the Agent Panel (Marley's center tabs, #734). Zed
+// knows only its panel, so without it a thread in front in a tab notifies as if hidden, and a
+// notification's click opens a second copy of the thread in the panel.
+pub struct MarleyThreadHost {
+    /// Whether the workspace shows the view with this id in front.
+    pub shows: fn(&Workspace, gpui::EntityId, &App) -> bool,
+    /// Brings forward the tab showing the thread, answering whether one did.
+    pub reveal: fn(&mut Workspace, ThreadId, &mut Window, &mut Context<Workspace>) -> bool,
+}
+
+impl gpui::Global for MarleyThreadHost {}
+
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]

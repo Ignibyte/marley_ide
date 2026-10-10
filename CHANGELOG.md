@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **An agent thread starts in a tab, anywhere** (#734, 2026-10-10). A project's or a group's `+` →
+  New Agent Thread now starts the thread in a tab of that project or group, groups with no folder
+  included (Home, Rusty and named groups), working in the project's root or your home folder.
+  `marley::NewAgentThread` takes an agent and a folder, so a key of your own can start one on any
+  folder. A folder the project does not hold joins it hidden, so the agent can read and write
+  there; your home folder never does, since Zed would scan all of it. The thread's row sits under
+  the group that holds its tab, with its status and its waits in Needs you. A thread whose tab is in
+  front doesn't notify when it finishes, and a notification's click brings its tab forward.
+
 - **The shared Claude Code plugin carries rustal-ste** (#724, 2026-10-10). Marley now carries
   rustal-harness's plugin at its TICKET-115 (version 0.3.0, with the `rustal-ste` skill), at the
   harness's own digest. While the plugin is on, a terminal gets the skill from it and Marley's own
