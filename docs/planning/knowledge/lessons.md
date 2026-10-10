@@ -5281,3 +5281,11 @@ watches it as it does a visible one (`Worktree::local(…, scanning_enabled, …
 trust on it. Adding the home folder, or anything that holds it, would walk and watch the whole home
 tree, past inotify's limits on a large one. Marley never adds those; a thread there reaches files
 only in the projects already open, and an agent with a shell uses its shell.
+
+## L-claude-736-a-restored-item-waits-for-its-workspaces-panels-001
+*category: gpui and workspace · topic: restoring items · from: pipeline 736*
+
+Zed restores a workspace's items and adds its panels in the same load, in no fixed order, so an
+item's `deserialize` that needs a panel (here the Agent Panel's connection store) can run before the
+panel exists. It waits in its own task, looking for the panel every 100 ms for a bounded time, and
+fails cleanly after it; it never reads the workspace inside the call that restores it.

@@ -17,32 +17,41 @@
 //! (`marley_own_folders`) so Zed's thread store files the thread under that folder, and
 //! `MarleyThreadHost` tells Zed when a tab shows a thread, so it neither notifies about a thread in
 //! front nor opens a second copy in the panel from a notification.
+//!
+//! A tab comes back after a restart (#736): it saves its thread's id, agent and folders in its own
+//! table, and restoring it loads the thread as the Agent Panel loads one from its history, once
+//! the workspace's panel exists.
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 use agent::ThreadStore;
-use agent_ui::thread_metadata_store::ThreadId;
+use agent_ui::thread_metadata_store::{ThreadId, ThreadMetadataStore};
 use agent_ui::{
     Agent, AgentConnectionStore, AgentPanel, AgentPanelEvent, AgentThreadSource, ConversationView,
     MarleyThreadHost,
 };
+use anyhow::Context as _;
+use collections::HashMap;
 use fs::Fs;
 use gpui::{
-    Action, App, Context, Entity, EntityId, EventEmitter, FocusHandle, Focusable, SharedString,
-    Subscription, Window, actions,
+    Action, App, AppContext as _, Context, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
+    Global, SharedString, Subscription, Task, WeakEntity, Window, actions,
 };
 use project::{AgentId, DisableAiSettings, Project, Worktree};
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use settings::Settings as _;
 use ui::prelude::*;
 use util::ResultExt as _;
 use util::path_list::PathList;
-use workspace::item::{Item, ItemEvent};
+use workspace::item::{Item, ItemEvent, SerializableItem};
 use workspace::notifications::NotificationId;
-use workspace::{Toast, Workspace};
+use workspace::{ItemId, Toast, Workspace, WorkspaceId};
+
+use persistence::MarleyThreadTabsDb;
 
 actions!(
     marley,
@@ -116,6 +125,8 @@ pub(crate) fn init(cx: &mut App) {
         shows: shows_view,
         reveal: activate_for,
     });
+    load_saved_tabs(cx);
+    workspace::register_serializable_item::<ThreadTab>(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _| {
         workspace.register_action(|workspace, _: &OpenThreadInCenter, window, cx| {
             open_in_center(workspace, window, cx);
@@ -135,6 +146,28 @@ impl ThreadTab {
     /// The key of the thread the tab shows, as the rail keys its thread rows (#702).
     pub(crate) fn thread_key(&self, cx: &App) -> String {
         self.conversation_view.read(cx).parent_id().to_key_string()
+    }
+
+    /// What a restart needs to show this tab again: its thread, agent and folders (#736). `None`
+    /// while the thread has no folders yet, before its agent connects and Zed records it.
+    fn saved(&self, cx: &App) -> Option<SavedThreadTab> {
+        let view = self.conversation_view.read(cx);
+        let thread_id = view.parent_id();
+        let folders = view
+            .root_thread_view()
+            .and_then(|thread| thread.read(cx).thread.read(cx).work_dirs().cloned())
+            .or_else(|| {
+                let store = ThreadMetadataStore::try_global(cx)?;
+                let record = store.read(cx).entry(thread_id)?;
+                Some(record.folder_paths().clone())
+            })?;
+        Some(SavedThreadTab {
+            thread_id,
+            agent: view.agent_key().id().0.to_string(),
+            folders: folders.paths().to_vec(),
+            own_folders: view.marley_own_folders,
+            title: Some(view.title(cx).to_string()),
+        })
     }
 
     fn new(
@@ -200,6 +233,228 @@ impl Item for ThreadTab {
             SharedString::new_static("Move Thread to Panel"),
             Box::new(MoveThreadToPanel),
         )]
+    }
+}
+
+impl SerializableItem for ThreadTab {
+    fn serialized_item_kind() -> &'static str {
+        "MarleyThreadTab"
+    }
+
+    fn cleanup(
+        workspace_id: WorkspaceId,
+        alive_items: Vec<ItemId>,
+        _window: &mut Window,
+        cx: &mut App,
+    ) -> Task<anyhow::Result<()>> {
+        cx.default_global::<SavedThreadTabs>()
+            .0
+            .retain(|(workspace, item), _| {
+                *workspace != workspace_id || alive_items.contains(item)
+            });
+        workspace::delete_unloaded_items(
+            alive_items,
+            workspace_id,
+            "marley_thread_tabs",
+            &MarleyThreadTabsDb::global(cx),
+            cx,
+        )
+    }
+
+    fn deserialize(
+        project: Entity<Project>,
+        workspace: WeakEntity<Workspace>,
+        workspace_id: WorkspaceId,
+        item_id: ItemId,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Task<anyhow::Result<Entity<Self>>> {
+        let Some(saved) = saved_tab(workspace_id, item_id, cx) else {
+            return Task::ready(Err(anyhow::anyhow!("no thread tab was saved for the item")));
+        };
+        // A thread deleted since leaves no empty tab: Zed logs the refusal, and the cleanup
+        // drops the row.
+        let known = ThreadMetadataStore::try_global(cx)
+            .is_some_and(|store| store.read(cx).entry(saved.thread_id).is_some());
+        if !known {
+            return Task::ready(Err(anyhow::anyhow!(
+                "the thread of a saved tab is no longer kept"
+            )));
+        }
+        window.spawn(cx, async move |cx| {
+            // Zed adds the Agent Panel while it still restores items; its connection store is the
+            // one a tab's thread shares (#734).
+            let mut panel = None;
+            for _ in 0..PANEL_WAITS {
+                panel = workspace.read_with(cx, Workspace::panel::<AgentPanel>)?;
+                if panel.is_some() {
+                    break;
+                }
+                cx.background_executor().timer(PANEL_WAIT).await;
+            }
+            let panel = panel.context("the workspace has no Agent Panel for its thread tab")?;
+            let hidden = if saved.own_folders
+                && let Some(folder) = saved.folders.first()
+                && cx.update(|_, cx| needs_worktree(&project, folder, cx))?
+            {
+                let (worktree, _) = project
+                    .update(cx, |project, cx| {
+                        project.find_or_create_worktree(folder, false, cx)
+                    })
+                    .await?;
+                Some(worktree)
+            } else {
+                None
+            };
+            cx.update(|window, cx| {
+                let fs = workspace
+                    .upgrade()
+                    .map(|workspace| Arc::clone(&workspace.read(cx).app_state().fs))
+                    .context("the workspace closed before its thread tab was restored")?;
+                let thread = ThreadSpec {
+                    agent: Agent::from(AgentId::new(saved.agent)),
+                    thread_id: saved.thread_id,
+                    folders: PathList::new(&saved.folders),
+                    title: saved.title.map(SharedString::from),
+                    own_folders: saved.own_folders,
+                };
+                let view = build_view(project, workspace, &panel, thread, fs, window, cx);
+                Ok(cx.new(|cx| Self::new(view, &panel, hidden, cx)))
+            })?
+        })
+    }
+
+    fn serialize(
+        &mut self,
+        workspace: &mut Workspace,
+        item_id: ItemId,
+        _closing: bool,
+        cx: &mut Context<Self>,
+    ) -> Option<Task<anyhow::Result<()>>> {
+        let workspace_id = workspace.database_id()?;
+        let tab = self.saved(cx)?;
+        Some(save_tab(workspace_id, item_id, tab, cx))
+    }
+
+    fn should_serialize(&self, event: &ItemEvent) -> bool {
+        matches!(event, ItemEvent::UpdateTab)
+    }
+}
+
+/// How often, and how long apart, a restored tab looks for its workspace's Agent Panel: ten
+/// seconds in all.
+const PANEL_WAITS: usize = 100;
+const PANEL_WAIT: Duration = Duration::from_millis(100);
+
+/// A thread tab as a restart reads it (#736).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+struct SavedThreadTab {
+    thread_id: ThreadId,
+    /// The agent's id, as `Agent::id` gives it.
+    agent: String,
+    folders: Vec<PathBuf>,
+    /// Whether Marley chose the folders (#734), so the first joins the project again when it
+    /// needs to.
+    own_folders: bool,
+    title: Option<String>,
+}
+
+/// The saved tabs, read once at start, so `deserialize` finds one at once.
+#[derive(Default)]
+struct SavedThreadTabs(HashMap<(WorkspaceId, ItemId), SavedThreadTab>);
+
+impl Global for SavedThreadTabs {}
+
+fn load_saved_tabs(cx: &mut App) {
+    let saved = MarleyThreadTabsDb::global(cx)
+        .all_tabs()
+        .log_err()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|(workspace_id, item_id, state)| {
+            let tab = serde_json::from_str::<SavedThreadTab>(&state)
+                .map_err(|error| anyhow::anyhow!("a saved thread tab did not parse: {error}"))
+                .log_err()?;
+            Some(((workspace_id, item_id), tab))
+        })
+        .collect();
+    cx.set_global(SavedThreadTabs(saved));
+}
+
+fn saved_tab(workspace_id: WorkspaceId, item_id: ItemId, cx: &App) -> Option<SavedThreadTab> {
+    cx.try_global::<SavedThreadTabs>()?
+        .0
+        .get(&(workspace_id, item_id))
+        .cloned()
+}
+
+/// Keeps the tab for the item, in memory and in the table.
+fn save_tab(
+    workspace_id: WorkspaceId,
+    item_id: ItemId,
+    tab: SavedThreadTab,
+    cx: &mut App,
+) -> Task<anyhow::Result<()>> {
+    let state = match serde_json::to_string(&tab) {
+        Ok(state) => state,
+        Err(error) => return Task::ready(Err(error.into())),
+    };
+    let _previous = cx
+        .default_global::<SavedThreadTabs>()
+        .0
+        .insert((workspace_id, item_id), tab);
+    let db = MarleyThreadTabsDb::global(cx);
+    cx.background_spawn(async move { db.save_tab(item_id, workspace_id, state).await })
+}
+
+mod persistence {
+    use db::query;
+    use db::sqlez::domain::Domain;
+    use db::sqlez::thread_safe_connection::ThreadSafeConnection;
+    use db::sqlez_macros::sql;
+    use workspace::{ItemId, WorkspaceDb, WorkspaceId};
+
+    /// The thread tabs' own table (#736): each tab's thread, agent and folders as a JSON object, so
+    /// a later field needs no migration. Keyed by workspace and item, with no `UNIQUE(item_id)`:
+    /// ids repeat across launches (#576).
+    pub(super) struct MarleyThreadTabsDb(ThreadSafeConnection);
+
+    impl Domain for MarleyThreadTabsDb {
+        const NAME: &str = stringify!(MarleyThreadTabsDb);
+
+        const MIGRATIONS: &[&str] = &[sql!(
+            CREATE TABLE marley_thread_tabs (
+                workspace_id INTEGER,
+                item_id INTEGER,
+                state TEXT NOT NULL,
+
+                PRIMARY KEY(workspace_id, item_id),
+                FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id)
+                ON DELETE CASCADE
+            ) STRICT;
+        )];
+    }
+
+    db::static_connection!(MarleyThreadTabsDb, [WorkspaceDb]);
+
+    impl MarleyThreadTabsDb {
+        query! {
+            pub(super) async fn save_tab(
+                item_id: ItemId,
+                workspace_id: WorkspaceId,
+                state: String
+            ) -> Result<()> {
+                INSERT OR REPLACE INTO marley_thread_tabs(item_id, workspace_id, state)
+                VALUES (?, ?, ?)
+            }
+        }
+
+        query! {
+            pub(super) fn all_tabs() -> Result<Vec<(WorkspaceId, ItemId, String)>> {
+                SELECT workspace_id, item_id, state
+                FROM marley_thread_tabs
+            }
+        }
     }
 }
 
@@ -413,36 +668,80 @@ fn open_thread(
         refuse(workspace, "This window has no Agent Panel.", cx);
         return;
     };
+    let thread = ThreadSpec {
+        agent,
+        thread_id: ThreadId::new(),
+        folders: PathList::new(&[folder]),
+        title: None,
+        own_folders: true,
+    };
+    let view = build_view(
+        workspace.project().clone(),
+        workspace.weak_handle(),
+        &panel,
+        thread,
+        fs,
+        window,
+        cx,
+    );
+    let tab = cx.new(|cx| ThreadTab::new(view, &panel, hidden, cx));
+    workspace.add_item_to_center(Box::new(tab.clone()), window, cx);
+    window.focus(&tab.read(cx).focus_handle(cx), cx);
+}
+
+/// What a tab's thread view is built from: a new thread (#734), or a saved one (#736).
+struct ThreadSpec {
+    agent: Agent,
+    thread_id: ThreadId,
+    folders: PathList,
+    title: Option<SharedString>,
+    /// Whether Marley chose the folders, so Zed's store files the thread under them.
+    own_folders: bool,
+}
+
+/// The `ConversationView` for `thread`, as the Agent Panel builds one: the panel's connection
+/// store, Zed's thread store for Zed's own agent, and the session the thread's record names, so a
+/// saved thread loads its history.
+fn build_view(
+    project: Entity<Project>,
+    workspace: WeakEntity<Workspace>,
+    panel: &Entity<AgentPanel>,
+    thread: ThreadSpec,
+    fs: Arc<dyn Fs>,
+    window: &mut Window,
+    cx: &mut App,
+) -> Entity<ConversationView> {
     let connection_store: Entity<AgentConnectionStore> = panel.read(cx).connection_store().clone();
     let threads = ThreadStore::global(cx);
-    let server = agent.server(fs, threads.clone());
+    let server = thread.agent.server(fs, threads.clone());
     // Only Zed's own agent keeps its threads in Zed's thread store, as the panel passes it.
-    let thread_store = agent.is_native().then_some(threads);
-    let project = workspace.project().clone();
-    let handle = workspace.weak_handle();
-    let view = cx.new(|cx| {
+    let thread_store = thread.agent.is_native().then_some(threads);
+    let session = ThreadMetadataStore::try_global(cx).and_then(|store| {
+        store
+            .read(cx)
+            .entry(thread.thread_id)
+            .and_then(|record| record.session_id.clone())
+    });
+    cx.new(|cx| {
         let mut view = ConversationView::new(
             server,
             connection_store,
-            agent,
+            thread.agent,
+            session,
+            Some(thread.thread_id),
+            Some(thread.folders),
+            thread.title,
             None,
-            Some(ThreadId::new()),
-            Some(PathList::new(&[folder])),
-            None,
-            None,
-            handle,
+            workspace,
             project,
             thread_store,
             AgentThreadSource::Sidebar,
             window,
             cx,
         );
-        view.marley_own_folders = true;
+        view.marley_own_folders = thread.own_folders;
         view
-    });
-    let tab = cx.new(|cx| ThreadTab::new(view, &panel, hidden, cx));
-    workspace.add_item_to_center(Box::new(tab.clone()), window, cx);
-    window.focus(&tab.read(cx).focus_handle(cx), cx);
+    })
 }
 
 /// The folder a thread works in when none is named: the workspace's first root, else the home

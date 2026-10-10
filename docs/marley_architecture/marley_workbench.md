@@ -1984,6 +1984,19 @@ alike.
   feeds `live_threads`, `live_statuses` and `inbox_entries`, so a tab thread has a status and its
   waits reach Needs you.
 
+### Restored after a restart (#736)
+
+- `ThreadTab` is a `SerializableItem` (`MarleyThreadTab`). `serialize` (on `UpdateTab`) saves a
+  `SavedThreadTab` (the thread id, the agent's id, the root thread's `work_dirs()` or the record's
+  folders, `marley_own_folders`, the title) as JSON in `marley_thread_tabs`, Marley's own table in
+  the workspace database, after `rusty/graph_store.rs`; `SavedThreadTabs` holds them in memory from
+  `init` so `deserialize` finds one at once.
+- `deserialize` refuses a tab whose thread has no record (Zed shows nothing, the cleanup drops the
+  row), waits up to ten seconds for the workspace's Agent Panel (Zed adds panels while it restores
+  items) for its connection store, re-joins a #734 folder that needs a hidden worktree, and builds
+  the view through `build_view`, which `open_thread` shares, with the record's session id, so the
+  agent loads or resumes the session.
+
 ## An agent thread in a center tab (`src/thread_tab.rs`, `src/rail.rs`, #697)
 
 - `ThreadTab` (an `Item`, titled as the thread, `IconName::ZedAssistant`) hosts the Agent Panel's
@@ -2006,7 +2019,7 @@ alike.
 - The rail: `show_thread` first brings a tab showing the thread forward (`activate_for`), and the
   thread row's menu gains Open in Center (`open_listed_thread(key, center)`), which opens the
   thread as a click does, then runs `open_thread_in_center` in that workspace.
-- The tab is not serialized: after a restart the thread is in the panel's history as before.
+- The tab comes back after a restart (#736, above).
 
 ## The Rusty home page (`src/rusty/home_tab.rs`, #679)
 

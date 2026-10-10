@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Thread tabs come back after a restart** (#736, 2026-10-10). A thread in a tab returns in the
+  same group and pane when Marley starts again, with its earlier turns, loaded as the Agent Panel
+  loads a thread from its history. A tab on a folder its project did not hold reaches that folder
+  again, and a thread deleted in the meantime leaves no empty tab.
+
 - **New Agent asks where** (#735, 2026-10-10). After the agent, Ctrl+Alt+N's picker asks where it
   starts. Its first guess is where you are: the active terminal's folder, else the active file's
   project, else the project's root, else your home folder. Below the guess come the window's open

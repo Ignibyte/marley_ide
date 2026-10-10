@@ -1647,7 +1647,9 @@ An Agent Panel thread can move into a tab too (#697).
   right-click menu, shows the thread in the Agent Panel again and closes the tab.
 - **One place at a time.** Clicking the thread's row in the rail brings its tab forward. Opening it
   from the panel's own history moves it back to the panel and closes the tab.
-- **After a restart** the tab is gone. The thread is in the panel's history as usual.
+- **After a restart** the tab comes back in the same group and pane, with the thread's earlier
+  turns, as the panel loads a thread from its history (#736). A thread you deleted in the meantime
+  leaves no tab, and a tab on a folder its project did not hold reaches that folder again.
 
 ## Marley's MCP server
 
